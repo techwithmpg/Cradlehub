@@ -7,20 +7,11 @@ import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { PageHeader } from "@/components/features/dashboard/page-header";
 import { ServicesOfferedTab } from "@/components/features/manager-settings/services-offered-tab";
 import { getDevBypassLayoutStaff, isDevAuthBypassEnabled } from "@/lib/dev-bypass";
-import { getBranchServicesForManagement } from "@/lib/queries/branches";
+import {
+  getBranchServiceCatalog,
+  getMasterServiceCatalog,
+} from "@/lib/services/service-catalog";
 import { createClient } from "@/lib/supabase/server";
-
-async function getAllActiveServices(): Promise<GlobalService[]> {
-  const supabase = await createClient();
-  const { data, error } = await supabase
-    .from("services")
-    .select("id, name, duration_minutes, price")
-    .eq("is_active", true)
-    .order("name");
-
-  if (error) throw new Error(error.message);
-  return (data ?? []) as GlobalService[];
-}
 
 type BranchRelation = { name: string } | Array<{ name: string }> | null;
 type ManagerStaffContext = {
@@ -88,8 +79,12 @@ async function getManagerServicesPageData() {
   }
 
   const [servicesResult, allServicesResult] = await Promise.allSettled([
-    getBranchServicesForManagement(me.branch_id),
-    getAllActiveServices(),
+    getBranchServiceCatalog(me.branch_id, {
+      audience: "management",
+      includeInactiveBranchRows: true,
+      includeUnavailableDeliveryModes: true,
+    }),
+    getMasterServiceCatalog(),
   ]);
 
   let services: ServiceLite[] = [];

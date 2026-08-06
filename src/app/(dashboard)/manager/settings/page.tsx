@@ -1,25 +1,15 @@
 import { redirect } from "next/navigation";
 import { ManagerSettingsWorkspace } from "@/components/features/manager-settings/manager-settings-workspace";
 import { getMyBranchBookingRulesAction } from "@/app/(dashboard)/owner/branches/actions";
-import { createClient } from "@/lib/supabase/server";
 import { ensureBranchSetupWarningNotifications } from "@/lib/notifications/setup-warnings";
 import { getSchedulingRules } from "@/lib/scheduling/rules/get-scheduling-rules";
+import { getMasterServiceCatalog } from "@/lib/services/service-catalog";
 import type { GlobalService, ServiceLite } from "@/app/(dashboard)/owner/branches/[branchId]/branch-services-panel";
-
-async function getAllActiveServices(): Promise<GlobalService[]> {
-  const supabase = await createClient();
-  const { data } = await supabase
-    .from("services")
-    .select("id, name, duration_minutes, price")
-    .eq("is_active", true)
-    .order("name");
-  return (data ?? []) as GlobalService[];
-}
 
 export default async function ManagerSettingsPage() {
   const [result, allServices] = await Promise.all([
     getMyBranchBookingRulesAction(),
-    getAllActiveServices(),
+    getMasterServiceCatalog() as Promise<GlobalService[]>,
   ]);
 
   if ("error" in result) redirect("/manager");

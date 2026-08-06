@@ -35,6 +35,7 @@ import {
   CONSULTATION_ONLY_CUSTOMER_MESSAGE,
   isConsultationOnlyService,
 } from "@/lib/bookings/consultation-only-service";
+import { validateBranchServiceEligibility } from "@/lib/services/service-catalog";
 
 async function containsConsultationOnlyService(
   supabase: ReturnType<typeof createAdminClient>,
@@ -197,16 +198,14 @@ export async function createOnlineBookingAction(
       };
     }
 
-    // Verify service eligibility for this booking type
-    const { data: eligRow } = await supabase
-      .from("branch_services")
-      .select("available_in_spa, available_home_service, visibility")
-      .eq("branch_id", d.branchId)
-      .eq("service_id", d.serviceId)
-      .eq("is_active", true)
-      .maybeSingle();
-
-    if (!eligRow || eligRow.visibility !== "public" || !eligRow.available_in_spa) {
+    const serviceEligibility = await validateBranchServiceEligibility({
+      branchId: d.branchId,
+      serviceIds: [d.serviceId],
+      audience: "public",
+      deliveryMode: deliveryType,
+      useAdminClient: true,
+    });
+    if (!serviceEligibility.ok) {
       return {
         ok: false,
         code: "SERVICE_INELIGIBLE",
@@ -226,6 +225,7 @@ export async function createOnlineBookingAction(
         serviceId: d.serviceId,
         date: d.date,
         startTime: d.startTime,
+        requireStaffServiceAssignment: true,
       });
     } else {
       const selectedStaff = await evaluateOnlineSelectedStaff({
@@ -474,35 +474,20 @@ export async function createOnlineBookingMultiAction(
       };
     }
 
-    // Verify each service is eligible for this booking type
-    const { data: eligibilityRows } = await supabase
-      .from("branch_services")
-      .select("service_id, available_in_spa, available_home_service, visibility")
-      .eq("branch_id", d.branchId)
-      .in("service_id", d.serviceIds)
-      .eq("is_active", true);
-
-    const uniqueServiceIds = new Set(d.serviceIds);
-    if (!eligibilityRows || eligibilityRows.length !== uniqueServiceIds.size) {
+    const serviceEligibility = await validateBranchServiceEligibility({
+      branchId: d.branchId,
+      serviceIds: d.serviceIds,
+      audience: "public",
+      deliveryMode: deliveryType,
+      useAdminClient: true,
+    });
+    if (!serviceEligibility.ok) {
       return {
         ok: false,
         code: "SERVICE_INELIGIBLE",
-        message: "One or more selected services are not available for public booking.",
+        message:
+          "One or more selected services are not available for this booking type.",
       };
-    }
-
-    const needsInSpa = deliveryType !== "home_service";
-    for (const row of eligibilityRows) {
-      const eligible =
-        row.visibility === "public" &&
-        (needsInSpa ? row.available_in_spa : row.available_home_service);
-      if (!eligible) {
-        return {
-          ok: false,
-          code: "SERVICE_INELIGIBLE",
-          message: "One or more selected services are not available for this booking type.",
-        };
-      }
     }
 
     const serviceTimes: Array<{
@@ -532,6 +517,8 @@ export async function createOnlineBookingMultiAction(
         serviceIds: d.serviceIds,
         date: d.date,
         startTime: d.startTime,
+        deliveryMode: deliveryType,
+        requireStaffServiceAssignment: true,
       });
     } else {
       const selectedStaff = await evaluateOnlineSelectedStaff({

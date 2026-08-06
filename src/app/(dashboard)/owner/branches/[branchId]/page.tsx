@@ -2,8 +2,8 @@ import { notFound } from "next/navigation";
 import { PageHeader } from "@/components/features/dashboard/page-header";
 import { getBranchDetailAction } from "@/app/(dashboard)/owner/branches/actions";
 import { getBranchBookingRulesOrDefault } from "@/lib/queries/branch-booking-rules";
-import { createClient } from "@/lib/supabase/server";
 import { ensureBranchSetupWarningNotifications } from "@/lib/notifications/setup-warnings";
+import { getMasterServiceCatalog } from "@/lib/services/service-catalog";
 import { getStaffAdminName } from "@/lib/staff/display-name";
 import { BranchEditForm } from "./branch-edit-form";
 import { BranchBookingRulesForm } from "./branch-booking-rules-form";
@@ -60,20 +60,10 @@ export default async function BranchDetailPage({
 }) {
   const { branchId } = await params;
 
-  async function getAllActiveServices(): Promise<GlobalService[]> {
-    const supabase = await createClient();
-    const { data } = await supabase
-      .from("services")
-      .select("id, name, duration_minutes, price")
-      .eq("is_active", true)
-      .order("name");
-    return (data ?? []) as GlobalService[];
-  }
-
   const [result, bookingRules, allServices, attendanceRules] = await Promise.all([
     getBranchDetailAction(branchId),
     getBranchBookingRulesOrDefault(branchId),
-    getAllActiveServices(),
+    getMasterServiceCatalog() as Promise<GlobalService[]>,
     getBranchAttendanceRulesData(branchId),
   ]);
 

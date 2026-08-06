@@ -312,6 +312,7 @@
 | 2026-07-14 | Completed local ATTENDANCE-FLUID-OPERATIONS-001 | Make Attendance record-first with sole-open close semantics, effective branch authority, shared operational status, atomic audited review corrections, device lifecycle audit, and exactly three reports; migration apply/authenticated E2E pending | Codex |
 | 2026-07-14 | Completed local ATTENDANCE-CRM-CLOSING-POLICY-001 | Integrate selected-branch Attendance Rules, effective category policy, CRM Closing operational windows, idempotent interventions, provisional auto-close, and same-row real-QR reconciliation; migration/scheduler/authenticated QA pending | Codex |
 | 2026-07-15 | Completed local ATTENDANCE-SCAN-RESULTS-AND-RECORD-FIRST-001 | Record ordinary outside-hours scans with review, preserve one-scan secure phone registration, and add committed branch-local personalized success copy with a secondary review badge | Codex |
+| 2026-08-06 | Completed SERVICE-CATALOG-UNIFICATION-20260806 | Unify service catalogue/branch overlay/staff capability rules, repair SM to 137 in-spa services with Home Service disabled, update capability RPC, add future sync trigger, and verify live DB plus automated gates | Codex |
 ## RELEASE-READINESS-001 — Complete (conditional production verification)
 
 - [x] Attendance launch defects and recovery assets

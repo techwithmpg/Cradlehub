@@ -4,6 +4,7 @@ import { createNotification } from "@/lib/notifications/create";
 import { getNotificationTargetPath } from "@/lib/notifications/notification-targets";
 import { z } from "zod";
 import { logError, logBusinessEvent } from "@/lib/logger";
+import { validateBranchServiceEligibility } from "@/lib/services/service-catalog";
 
 const MAX_WAITLIST_PAYLOAD_BYTES = 8_000;
 const WAITLIST_COOLDOWN_MS = 5 * 60 * 1000;
@@ -25,16 +26,6 @@ const schema = z.object({
 
 function normalizePhone(value: string): string {
   return value.replace(/\D/g, "");
-}
-
-function isMissingServiceVisibilityError(message: string): boolean {
-  const lower = message.toLowerCase();
-  return (
-    (lower.includes("visibility") || lower.includes("booking_visibility")) &&
-    (lower.includes("does not exist") ||
-      lower.includes("schema cache") ||
-      lower.includes("could not find"))
-  );
 }
 
 export async function POST(request: NextRequest) {
@@ -111,63 +102,28 @@ export async function POST(request: NextRequest) {
   }
 
   if (d.serviceId) {
-    let serviceQuery = await supabase
-      .from("branch_services")
-      .select("service_id, available_in_spa, available_home_service, visibility")
-      .eq("branch_id", d.branchId)
-      .eq("service_id", d.serviceId)
-      .eq("is_active", true)
-      .maybeSingle();
+    try {
+      const serviceEligibility = await validateBranchServiceEligibility({
+        branchId: d.branchId,
+        serviceIds: [d.serviceId],
+        audience: "public",
+        deliveryMode: d.visitType ?? "any",
+        useAdminClient: true,
+      });
 
-    if (serviceQuery.error && isMissingServiceVisibilityError(serviceQuery.error.message)) {
-      serviceQuery = await supabase
-        .from("branch_services")
-        .select("service_id, available_in_spa, available_home_service, booking_visibility")
-        .eq("branch_id", d.branchId)
-        .eq("service_id", d.serviceId)
-        .eq("is_active", true)
-        .maybeSingle();
-    }
-
-    if (serviceQuery.error) {
+      if (!serviceEligibility.ok) {
+        const message =
+          d.visitType === "home_service"
+            ? "Selected service is not available for home service."
+            : d.visitType === "in_spa"
+              ? "Selected service is not available for in-spa visits."
+              : "Selected service is not available for public waitlist requests.";
+        return NextResponse.json({ error: message }, { status: 400 });
+      }
+    } catch {
       return NextResponse.json(
         { error: "Could not validate selected service" },
         { status: 500 }
-      );
-    }
-
-    if (!serviceQuery.data) {
-      return NextResponse.json(
-        { error: "Selected service is not available at this branch." },
-        { status: 400 }
-      );
-    }
-
-    const service = serviceQuery.data as {
-      available_in_spa: boolean | null;
-      available_home_service: boolean | null;
-      visibility?: string | null;
-      booking_visibility?: string | null;
-    };
-
-    if ((service.visibility ?? service.booking_visibility ?? "public") !== "public") {
-      return NextResponse.json(
-        { error: "Selected service is not available for public waitlist requests." },
-        { status: 400 }
-      );
-    }
-
-    if (d.visitType === "home_service" && service.available_home_service === false) {
-      return NextResponse.json(
-        { error: "Selected service is not available for home service." },
-        { status: 400 }
-      );
-    }
-
-    if (d.visitType === "in_spa" && service.available_in_spa === false) {
-      return NextResponse.json(
-        { error: "Selected service is not available for in-spa visits." },
-        { status: 400 }
       );
     }
   }

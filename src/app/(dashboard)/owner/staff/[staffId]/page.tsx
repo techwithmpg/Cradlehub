@@ -2,8 +2,8 @@ import { notFound } from "next/navigation";
 import { PageHeader } from "@/components/features/dashboard/page-header";
 import { getAllStaff } from "@/lib/queries/staff";
 import { getAllBranches } from "@/lib/queries/branches";
-import { getAllServices } from "@/lib/queries/services";
 import { getStaffServices } from "@/lib/queries/staff";
+import { getAssignableServicesForStaff } from "@/lib/services/service-catalog";
 import { getStaffAdminName } from "@/lib/staff/display-name";
 import type { Database } from "@/types/supabase";
 import { StaffEditForm } from "@/components/features/staff/staff-edit-form";
@@ -29,21 +29,23 @@ export default async function StaffDetailPage({
   params: Promise<{ staffId: string }>;
 }) {
   const { staffId } = await params;
-  const [allStaff, branches, services] = await Promise.all([
+  const [allStaff, branches] = await Promise.all([
     getAllStaff(),
     getAllBranches(),
-    getAllServices(),
   ]);
   const typedStaff = allStaff as StaffWithBranch[];
   const typedBranches = branches as BranchRow[];
-  const typedServices = services as ServiceRow[];
   const staffMember = typedStaff.find((s) => s.id === staffId);
 
   if (!staffMember) {
     notFound();
   }
 
-  const staffServiceIds = await getStaffServices(staffId);
+  const [services, staffServiceIds] = await Promise.all([
+    getAssignableServicesForStaff(staffId, { useAdminClient: true }),
+    getStaffServices(staffId),
+  ]);
+  const typedServices = services as ServiceRow[];
 
   return (
     <div style={{ maxWidth: 760 }}>

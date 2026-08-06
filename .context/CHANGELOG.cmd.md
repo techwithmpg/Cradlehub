@@ -350,6 +350,61 @@ live attendance` staff badge, plus regression coverage.
 
 ---
 
+## 2026-08-06 - Codex (SERVICE-CATALOG-UNIFICATION-20260806)
+
+**Task:** Repair SM service catalogue drift and unify service, branch overlay,
+staff capability, booking eligibility, provider readiness, and cache behavior.
+
+**Changed:**
+
+- Added canonical catalogue modules under `src/lib/services/` for master
+  catalogue reads, branch catalogue reads, assignable service reads, eligibility
+  validation, provider readiness, and future branch-service synchronization.
+- Redirected duplicate public, CRM, owner, manager, booking, waitlist,
+  availability, provider-readiness, and staff-capability consumers to canonical
+  branch/visibility/delivery rules.
+- Updated owner service creation plus a database trigger so new active global
+  services receive active in-spa-only branch overlays for active branches without
+  enabling Home Service.
+- Unified owner, manager, CRM, and staff-onboarding capability saves through the
+  same target-staff-branch validation contract and tightened cache invalidation
+  for branch services, assignable services, public booking, CRM setup, readiness,
+  availability, and manager/owner surfaces.
+- Created migration
+  `supabase/migrations/20260806132402_service_catalog_unification_repair.sql`
+  with the SM catalogue repair, SM Home Service shutoff, assignability SQL
+  helper, updated transactional `replace_staff_service_capabilities`, and
+  new-service branch-row trigger.
+
+**Live data repair:**
+
+- Applied the migration SQL directly to linked Supabase with
+  `supabase db query --file` because `db:push` would have attempted many
+  unrelated local-only migrations.
+- Before: global active 138; Main active/in-spa/Home Service 137/137/85; SM
+  active/in-spa/Home Service 8/8/0.
+- After: global active 138; Main active/in-spa/Home Service 137/137/85; SM
+  active/in-spa/Home Service 137/137/0.
+- Restored 129 Main active in-spa services to SM. No bookings, services, or
+  `staff_services` rows were deleted or copied.
+- Remaining readiness work: 129 restored SM services have no active SM provider
+  assignment and require human capability assignment.
+
+**Verification:**
+
+- Focused service tests: 2 files / 10 tests pass.
+- Full suite: 197 files / 1350 tests pass.
+- `pnpm type-check`, `pnpm lint`, and `pnpm build` pass.
+- `pnpm db:verify-live` passes on retry; migration parity remains warning-only
+  with local/remote history drift.
+- Live rollback-only RPC and trigger contracts pass.
+- Local public `/book` browser/API smoke confirms SM 137 in-spa / 0 Home Service
+  and Main 137 in-spa / 85 Home Service.
+- Authenticated dashboard browser QA remains limited by no local Supabase auth
+  session; protected owner/manager/CRM routes redirect to `/login`.
+
+---
+
 ## 2026-07-13 - Codex (CRADLE-ADJUST-SCHEDULE-MODAL-003)
 
 **Task:** Build the production Adjust Schedule modal for CRM Schedule Daily Timeline without redesigning Daily Timeline or reviving group schedule runtime behavior.

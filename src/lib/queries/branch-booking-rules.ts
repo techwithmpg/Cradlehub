@@ -1,7 +1,12 @@
 import { revalidatePath, unstable_cache } from "next/cache";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { createClient } from "@/lib/supabase/server";
-import { cacheTags, invalidateTag } from "@/lib/cache/cache-tags";
+import {
+  cacheTags,
+  invalidateCrmWorkspace,
+  invalidateManagerWorkspace,
+  invalidateTag,
+} from "@/lib/cache/cache-tags";
 import { isDevAuthBypassEnabled } from "@/lib/dev-bypass";
 import { canonicalizeSystemRole } from "@/constants/staff";
 import { canManageCrmSetup } from "@/lib/auth/crm-permissions";
@@ -214,10 +219,35 @@ export async function updateBranchBookingRules(
     };
   }
 
+  if (!input.homeServiceEnabled) {
+    const admin = createAdminClient();
+    const { error: serviceError } = await admin
+      .from("branch_services")
+      .update({ available_home_service: false })
+      .eq("branch_id", input.branchId)
+      .eq("available_home_service", true);
+
+    if (serviceError) {
+      return {
+        success: false,
+        error: serviceError.message,
+      };
+    }
+  }
+
   invalidateTag(cacheTags.branchBookingRules(input.branchId));
+  invalidateTag(cacheTags.branchServices(input.branchId));
+  invalidateTag(cacheTags.branchAssignableServices(input.branchId));
+  invalidateCrmWorkspace(input.branchId);
+  invalidateManagerWorkspace(input.branchId);
   revalidatePath(`/owner/branches/${input.branchId}`);
   revalidatePath("/owner/branches");
   revalidatePath("/crm/setup");
+  revalidatePath("/crm/services");
+  revalidatePath("/crm/staff");
+  revalidatePath("/crm/today");
+  revalidatePath("/manager/services");
+  revalidatePath("/services");
   // Keep /book path revalidation so the booking wizard's route-level cache clears.
   revalidatePath("/book");
 

@@ -11,7 +11,48 @@ import {
   setBranchServiceSchema,
 } from "@/lib/validations/service";
 import { revalidatePath } from "next/cache";
-import { cacheTags, invalidateTag } from "@/lib/cache/cache-tags";
+import {
+  cacheTags,
+  invalidateCrmWorkspace,
+  invalidateManagerWorkspace,
+  invalidateTag,
+} from "@/lib/cache/cache-tags";
+import { createAdminClient } from "@/lib/supabase/admin";
+import { synchronizeBranchServiceCatalog } from "@/lib/services/service-catalog";
+
+function revalidateServicePaths() {
+  revalidatePath("/");
+  revalidatePath("/services");
+  revalidatePath("/book");
+  revalidatePath("/owner/services");
+  revalidatePath("/owner/branches");
+  revalidatePath("/manager/services");
+  revalidatePath("/crm/services");
+  revalidatePath("/crm/setup");
+  revalidatePath("/crm/staff");
+  revalidatePath("/crm/today");
+}
+
+async function invalidateServiceSurfaces(serviceId?: string) {
+  invalidateTag(cacheTags.serviceCatalog);
+  revalidateServicePaths();
+
+  if (!serviceId) return;
+
+  const { data } = await createAdminClient()
+    .from("branch_services")
+    .select("branch_id")
+    .eq("service_id", serviceId);
+
+  const branchIds = Array.from(new Set((data ?? []).map((row) => row.branch_id)));
+  for (const branchId of branchIds) {
+    invalidateTag(cacheTags.branchServices(branchId));
+    invalidateTag(cacheTags.branchAssignableServices(branchId));
+    invalidateCrmWorkspace(branchId);
+    invalidateManagerWorkspace(branchId);
+    revalidatePath(`/owner/branches/${branchId}`);
+  }
+}
 
 async function requireOwner() {
   const supabase = await createClient();
@@ -63,7 +104,22 @@ export async function createServiceAction(rawInput: unknown) {
     .select("id")
     .single();
   if (error) return { success: false, error: error.message };
-  revalidatePath("/owner/services");
+
+  try {
+    if (d.isActive) {
+      await synchronizeBranchServiceCatalog({ serviceId: data.id });
+    }
+  } catch (syncError) {
+    return {
+      success: false,
+      error:
+        syncError instanceof Error
+          ? syncError.message
+          : "Service was created, but branch mappings could not be synchronized.",
+    };
+  }
+
+  await invalidateServiceSurfaces(data.id);
   return { success: true, serviceId: data.id };
 }
 
@@ -85,7 +141,7 @@ export async function updateServiceAction(rawInput: unknown) {
   };
   const { error } = await supabase.from("services").update(mapped).eq("id", serviceId);
   if (error) return { success: false, error: error.message };
-  revalidatePath("/owner/services");
+  await invalidateServiceSurfaces(serviceId);
   return { success: true };
 }
 
@@ -99,7 +155,7 @@ export async function toggleServiceActiveAction(rawInput: unknown) {
     .update({ is_active: parsed.data.isActive })
     .eq("id", parsed.data.serviceId);
   if (error) return { ok: false, message: error.message };
-  revalidatePath("/owner/services");
+  await invalidateServiceSurfaces(parsed.data.serviceId);
   return { ok: true };
 }
 
@@ -113,7 +169,7 @@ export async function deleteServiceAction(rawInput: unknown) {
     .delete()
     .eq("id", parsed.data.serviceId);
   if (error) return { ok: false, message: error.message };
-  revalidatePath("/owner/services");
+  await invalidateServiceSurfaces(parsed.data.serviceId);
   return { ok: true };
 }
 
@@ -136,6 +192,17 @@ export async function setBranchServiceAction(rawInput: unknown) {
     );
   if (error) return { success: false, error: error.message };
   invalidateTag(cacheTags.branchServices(d.branchId));
+  invalidateTag(cacheTags.branchAssignableServices(d.branchId));
+  invalidateCrmWorkspace(d.branchId);
+  invalidateManagerWorkspace(d.branchId);
+  revalidatePath("/");
+  revalidatePath("/services");
+  revalidatePath("/book");
   revalidatePath("/owner/services");
+  revalidatePath(`/owner/branches/${d.branchId}`);
+  revalidatePath("/manager/services");
+  revalidatePath("/crm/services");
+  revalidatePath("/crm/setup");
+  revalidatePath("/crm/staff");
   return { success: true };
 }

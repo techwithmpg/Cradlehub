@@ -1,7 +1,7 @@
 import "server-only";
 
 import { getBranchBookingRulesOrDefault } from "@/lib/queries/branch-booking-rules";
-import { getBranchServices } from "@/lib/queries/branches";
+import { getBranchServiceCatalog } from "@/lib/services/service-catalog";
 import { canActAsBookingServiceProvider } from "@/lib/staff/service-providers";
 import { createAdminClient } from "@/lib/supabase/admin";
 import type {
@@ -81,7 +81,7 @@ export async function getQuickBookingOptions(branchId: string): Promise<{
 }> {
   const admin = createAdminClient();
   const [branchServices, staffResult, resourcesResult] = await Promise.all([
-    getBranchServices(branchId, { publicOnly: false }),
+    getBranchServiceCatalog(branchId, { audience: "crm" }),
     admin
       .from("staff")
       .select("id, full_name, nickname, is_active, staff_type, system_role, archived_at, merged_into_staff_id, staff_services(service_id)")

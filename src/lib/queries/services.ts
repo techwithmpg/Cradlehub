@@ -5,6 +5,8 @@ import {
   type PublicCatalogCategoryName,
 } from "@/lib/public/service-catalog-config";
 import { resolveServiceImage } from "@/lib/service-images";
+import { getMasterServiceCatalog } from "@/lib/services/service-catalog";
+import { normalizeServiceVisibility } from "@/lib/services/service-eligibility";
 
 type ServiceRow = Database["public"]["Tables"]["services"]["Row"];
 type CategoryRow = Pick<
@@ -138,24 +140,11 @@ export async function getAllCategories() {
 }
 
 export async function getAllServices() {
-  const supabase = await createClient();
-  const { data, error } = await supabase
-    .from("services")
-    .select(`*, service_categories ( id, name, display_order )`)
-    .eq("is_active", true)
-    .order("service_categories(display_order), name");
-  if (error) throw new Error(error.message);
-  return data ?? [];
+  return getMasterServiceCatalog();
 }
 
 export async function getAllServicesForOwner() {
-  const supabase = await createClient();
-  const { data, error } = await supabase
-    .from("services")
-    .select(`*, service_categories ( id, name, display_order )`)
-    .order("service_categories(display_order), name");
-  if (error) throw new Error(error.message);
-  return data ?? [];
+  return getMasterServiceCatalog({ includeInactive: true });
 }
 
 export async function getServiceById(serviceId: string) {
@@ -227,6 +216,10 @@ export async function getPublicServiceCatalog(): Promise<PublicCatalogService[]>
 
   const branchRowsByService = new Map<string, BranchServiceCatalogRow[]>();
   for (const row of branchServicesData) {
+    row.visibility = normalizeServiceVisibility({
+      visibility: row.visibility,
+      bookingVisibility: row.booking_visibility,
+    });
     const rows = branchRowsByService.get(row.service_id) ?? [];
     rows.push(row);
     branchRowsByService.set(row.service_id, rows);
@@ -241,10 +234,10 @@ export async function getPublicServiceCatalog(): Promise<PublicCatalogService[]>
     const isPublicBookable = publicRows.length > 0;
     const isCsrOnly =
       !isPublicBookable &&
-      branchRows.some((row) => (row.visibility ?? row.booking_visibility) === "internal");
+      branchRows.some((row) => row.visibility === "internal");
     const isVip =
       !isPublicBookable &&
-      branchRows.some((row) => (row.visibility ?? row.booking_visibility) === "vip");
+      branchRows.some((row) => row.visibility === "hidden");
     const isCatalogOnly = branchRows.length === 0;
     const requiresConsultation =
       metadataBoolean(metadata, "requires_consultation") ||

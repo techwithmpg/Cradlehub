@@ -1,6 +1,9 @@
 import { PageHeader } from "@/components/features/dashboard/page-header";
 import { getAllBranches } from "@/lib/queries/branches";
-import { getAllServices } from "@/lib/queries/services";
+import {
+  branchServicesToServiceProfileRows,
+  getBranchAssignableServices,
+} from "@/lib/services/service-catalog";
 import type { Database } from "@/types/supabase";
 import { InviteStaffForm } from "./staff-invite-form";
 
@@ -10,10 +13,19 @@ type ServiceRow = Database["public"]["Tables"]["services"]["Row"] & {
 };
 
 export default async function InviteStaffPage() {
-  const [branches, services] = await Promise.all([
-    getAllBranches() as Promise<BranchRow[]>,
-    getAllServices() as Promise<ServiceRow[]>,
-  ]);
+  const branches = (await getAllBranches()) as BranchRow[];
+  const branchServiceEntries = await Promise.all(
+    branches.map(async (branch) => {
+      const branchServices = await getBranchAssignableServices(branch.id, {
+        useAdminClient: true,
+      });
+      return [
+        branch.id,
+        branchServicesToServiceProfileRows(branchServices) as ServiceRow[],
+      ] as const;
+    })
+  );
+  const servicesByBranch = Object.fromEntries(branchServiceEntries);
 
   return (
     <div style={{ maxWidth: 560 }}>
@@ -21,7 +33,7 @@ export default async function InviteStaffPage() {
         title="Invite Staff"
         description="Staff will receive an email to set their password and access their workspace"
       />
-      <InviteStaffForm branches={branches} services={services} />
+      <InviteStaffForm branches={branches} servicesByBranch={servicesByBranch} />
     </div>
   );
 }

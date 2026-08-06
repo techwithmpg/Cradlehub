@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
-import { getAllBranches, getBranchServices, getBranchServicesForPublicBooking } from "@/lib/queries/branches";
+import { getAllBranches } from "@/lib/queries/branches";
 import { getBranchBookingRulesOrDefaultCached } from "@/lib/queries/branch-booking-rules";
+import { getBranchServiceCatalog } from "@/lib/services/service-catalog";
 import { canActAsBookingServiceProvider } from "@/lib/staff/service-providers";
 import { isOperationalStaff } from "@/lib/staff/operational-staff";
 import { resolveServiceImage } from "@/lib/service-images";
@@ -141,12 +142,10 @@ export async function GET(request: NextRequest) {
       : branches[0]!.id;
 
   const [rawBranchServices, rawStaff, bookingRules] = await Promise.all([
-    publicOnly
-      // Use uncached direct-DB query so CRM changes (home-service toggle,
-      // visibility) are immediately visible in the public booking wizard
-      // without waiting for cache expiry.
-      ? getBranchServicesForPublicBooking(selectedBranchId)
-      : getBranchServices(selectedBranchId, { publicOnly: false }),
+    getBranchServiceCatalog(selectedBranchId, {
+      audience: publicOnly ? "public" : "crm",
+      useAdminClient: publicOnly,
+    }),
     getPublicStaffByBranch(selectedBranchId),
     getBranchBookingRulesOrDefaultCached(selectedBranchId),
   ]);

@@ -746,6 +746,41 @@ A delete-then-insert sequence can lose previous assignments if insert fails. A S
 
 ---
 
+## 2026-08-06 - Unified service catalogue authority
+
+**Status:** ACCEPTED
+
+**Decision:** `services` is the only master service catalogue. `branch_services`
+is a branch overlay for active state, delivery mode, visibility, price/duration,
+presentation, setup, featured, and sort controls. `staff_services` records only
+provider capability and never decides branch catalogue membership.
+
+**Runtime rules:** Catalogue membership is global active service plus active
+branch overlay. Public booking uses public visibility and requested delivery
+mode. CRM uses public/internal visibility. Management and staff assignment do not
+filter by customer visibility. Staff assignability requires an active branch row
+and at least one enabled branch delivery mode. Provider count and schedules are
+readiness/availability phases, not catalogue filters.
+
+**Visibility decision:** `branch_services.visibility` is the current
+authoritative runtime column. `booking_visibility` remains legacy compatibility
+and writers keep both columns synchronized. Neither column is dropped until a
+later data-audited migration removes all legacy readers and tests the cleanup.
+
+**SQL parity:** The SQL helper `public.is_branch_service_assignable(uuid, uuid)`
+matches the TypeScript assignability resolver for staff capability writes. The
+`replace_staff_service_capabilities` RPC validates all IDs against the target
+staff member's branch before deleting existing assignments, rejects unavailable
+services, and returns final saved IDs.
+
+**Migration apply decision:** The service repair was applied as isolated direct
+SQL with `supabase db query --file` because local/remote migration history is
+drifted and `db:push` would include unrelated migrations. The SQL effects are
+live, but the migration version is not recorded in
+`supabase_migrations.schema_migrations`.
+
+---
+
 ## 2026-06-20 — Kimi: Agent Swarm Architecture Decision
 
 **Decision:** Start the CradleHub agent swarm with a single CRM Coach before expanding to owner/manager/staff-portal.

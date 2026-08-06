@@ -683,8 +683,14 @@ export function BookingWizard({
     const id = setTimeout(() => setLoadingSlots(true), 0);
     const dateStr = toLocalYmd(selectedDate);
     const serviceIds = selectedServices.map((s) => s.id).join(",");
+    const params = new URLSearchParams({
+      branchId: selectedBranch.id,
+      serviceIds,
+      date: dateStr,
+      deliveryType: visitType,
+    });
     fetch(
-      `/api/booking/available-slots?branchId=${selectedBranch.id}&serviceIds=${serviceIds}&date=${dateStr}`
+      `/api/booking/available-slots?${params.toString()}`
     )
       .then(async (r) => {
         const data = await r.json();

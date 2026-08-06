@@ -30,6 +30,7 @@ import { revalidateOperationalBookingSurfaces } from "@/lib/bookings/revalidate-
 import { canonicalizeSystemRole } from "@/constants/staff";
 import { canAccessCrmWorkspace } from "@/lib/auth/crm-permissions";
 import { isConsultationOnlyService } from "@/lib/bookings/consultation-only-service";
+import { validateBranchServiceEligibility } from "@/lib/services/service-catalog";
 
 type CreateInhouseBookingResult =
   | { ok: true; bookingId: string; warning?: string }
@@ -208,6 +209,22 @@ export async function createInhouseBookingMultiAction(
         ok: false,
         code: "BOOKING_RULES_ERROR",
         message: rulesCheck.message,
+      };
+    }
+
+    const serviceEligibility = await validateBranchServiceEligibility({
+      branchId: resolvedBranchId,
+      serviceIds: d.serviceIds,
+      audience: "crm",
+      deliveryMode: deliveryType,
+      useAdminClient: true,
+    });
+    if (!serviceEligibility.ok) {
+      return {
+        ok: false,
+        code: "SERVICE_INELIGIBLE",
+        message:
+          "One or more selected services are not available for this booking type at this branch.",
       };
     }
 
@@ -491,7 +508,7 @@ export async function createInhouseBookingMultiAction(
     const { data: branchOverrides, error: branchOverridesError } = await admin
       .from("branch_services")
       .select(
-        "service_id, custom_price, custom_duration_minutes, available_in_spa, available_home_service"
+        "service_id, custom_price, custom_duration_minutes"
       )
       .eq("branch_id", resolvedBranchId)
       .in("service_id", d.serviceIds)
@@ -520,28 +537,6 @@ export async function createInhouseBookingMultiAction(
         code: "SERVICE_NOT_CONFIGURED_FOR_BRANCH",
         message: "One or more selected services are not configured for this branch.",
       };
-    }
-
-    // Verify each service is eligible for the booking type
-    const needsInSpa = deliveryType !== "home_service";
-    for (const serviceId of d.serviceIds) {
-      const override = overrideByServiceId.get(serviceId);
-      if (override) {
-        const eligible = needsInSpa ? override.available_in_spa : override.available_home_service;
-        if (!eligible) {
-          const svc = servicesById.get(serviceId);
-          console.error("[CRM_BOOKING] service ineligible", {
-            ...logContext,
-            serviceId,
-            deliveryType,
-          });
-          return {
-            ok: false,
-            code: "SERVICE_INELIGIBLE",
-            message: `${svc?.name ?? "A selected service"} is not available for ${deliveryType === "home_service" ? "home service" : "in-spa"} bookings at this branch.`,
-          };
-        }
-      }
     }
 
     const servicePriceById = new Map(

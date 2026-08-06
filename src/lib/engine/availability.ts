@@ -21,6 +21,10 @@ import {
   resolveScheduleForStaffDay,
   type IndividualScheduleSourceRow,
 } from "@/lib/schedule/resolve-staff-schedule";
+import {
+  validateBranchServiceEligibility,
+} from "@/lib/services/service-catalog";
+import type { ServiceDeliveryMode } from "@/lib/services/service-types";
 
 type StaffProviderRow = {
   id: string;
@@ -492,11 +496,21 @@ export async function getAvailableSlots(params: {
   serviceId: string;
   staffId?: string;
   date: string;
+  deliveryMode?: ServiceDeliveryMode;
   requireStaffServiceAssignment?: boolean;
   allowStaffTypeFallbackAlongsideAssignments?: boolean;
 }): Promise<AvailabilitySlot[]> {
   const today = getBranchBusinessDate();
   if (params.date < today) return [];
+
+  const serviceEligibility = await validateBranchServiceEligibility({
+    branchId: params.branchId,
+    serviceIds: [params.serviceId],
+    audience: "management",
+    deliveryMode: params.deliveryMode ?? "in_spa",
+    useAdminClient: true,
+  });
+  if (!serviceEligibility.ok) return [];
 
   const supabase = createAdminClient();
   const serviceTimings = await getServiceTimings(supabase, params.branchId, [params.serviceId]);
@@ -569,11 +583,13 @@ export async function assignTherapistBySeniority(params: {
   serviceId: string;
   date: string;
   startTime: string;
+  requireStaffServiceAssignment?: boolean;
 }): Promise<string> {
   const slots = await getAvailableSlots({
     branchId: params.branchId,
     serviceId: params.serviceId,
     date: params.date,
+    requireStaffServiceAssignment: params.requireStaffServiceAssignment,
     // No staffId — returns all staff
   });
 
@@ -604,6 +620,7 @@ export async function getAvailableSlotsMulti(params: {
   branchId: string;
   serviceIds: string[];
   date: string;
+  deliveryMode?: ServiceDeliveryMode;
   requireStaffServiceAssignment?: boolean;
   allowStaffTypeFallbackAlongsideAssignments?: boolean;
 }): Promise<AvailabilitySlot[]> {
@@ -615,10 +632,20 @@ export async function getAvailableSlotsMulti(params: {
       branchId,
       serviceId: serviceIds[0]!,
       date,
+      deliveryMode: params.deliveryMode,
       requireStaffServiceAssignment: params.requireStaffServiceAssignment,
       allowStaffTypeFallbackAlongsideAssignments: params.allowStaffTypeFallbackAlongsideAssignments,
     });
   }
+
+  const serviceEligibility = await validateBranchServiceEligibility({
+    branchId,
+    serviceIds,
+    audience: "management",
+    deliveryMode: params.deliveryMode ?? "in_spa",
+    useAdminClient: true,
+  });
+  if (!serviceEligibility.ok) return [];
 
   const supabase = createAdminClient();
   const serviceTimings = await getServiceTimings(supabase, branchId, serviceIds);
@@ -632,6 +659,7 @@ export async function getAvailableSlotsMulti(params: {
     branchId,
     serviceId: serviceIds[0]!,
     date,
+    deliveryMode: params.deliveryMode,
     requireStaffServiceAssignment: params.requireStaffServiceAssignment,
     allowStaffTypeFallbackAlongsideAssignments: params.allowStaffTypeFallbackAlongsideAssignments,
   });
@@ -736,6 +764,8 @@ export async function assignTherapistBySeniorityMulti(params: {
   serviceIds: string[];
   date: string;
   startTime: string;
+  deliveryMode?: ServiceDeliveryMode;
+  requireStaffServiceAssignment?: boolean;
 }): Promise<string> {
   const assignment = await assignTherapistBySeniorityMultiDetailed(params);
   return assignment.staffId;
@@ -746,6 +776,7 @@ export async function assignTherapistBySeniorityMultiDetailed(params: {
   serviceIds: string[];
   date: string;
   startTime: string;
+  deliveryMode?: ServiceDeliveryMode;
   preferCheckedIn?: boolean;
   requireStaffServiceAssignment?: boolean;
   allowStaffTypeFallbackAlongsideAssignments?: boolean;
@@ -754,6 +785,7 @@ export async function assignTherapistBySeniorityMultiDetailed(params: {
     branchId: params.branchId,
     serviceIds: params.serviceIds,
     date: params.date,
+    deliveryMode: params.deliveryMode,
     requireStaffServiceAssignment: params.requireStaffServiceAssignment,
     allowStaffTypeFallbackAlongsideAssignments: params.allowStaffTypeFallbackAlongsideAssignments,
   });
@@ -805,6 +837,7 @@ export async function getScheduledAvailabilityFallbackWarning(params: {
   serviceIds: string[];
   date: string;
   startTime: string;
+  deliveryMode?: ServiceDeliveryMode;
   requireStaffServiceAssignment?: boolean;
   allowStaffTypeFallbackAlongsideAssignments?: boolean;
 }): Promise<string | undefined> {
@@ -812,6 +845,7 @@ export async function getScheduledAvailabilityFallbackWarning(params: {
     branchId: params.branchId,
     serviceIds: params.serviceIds,
     date: params.date,
+    deliveryMode: params.deliveryMode,
     requireStaffServiceAssignment: params.requireStaffServiceAssignment,
     allowStaffTypeFallbackAlongsideAssignments: params.allowStaffTypeFallbackAlongsideAssignments,
   });

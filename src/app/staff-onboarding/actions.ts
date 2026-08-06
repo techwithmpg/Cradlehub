@@ -1,8 +1,10 @@
 "use server";
 
+import { revalidatePath } from "next/cache";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { createClient } from "@/lib/supabase/server";
 import { getAllBranches } from "@/lib/queries/branches";
+import { invalidateCrmWorkspace, invalidateManagerWorkspace } from "@/lib/cache/cache-tags";
 import { emitWorkflowEvent } from "@/lib/notifications/workflow-signals";
 import { mapPreferredRoleToStaffType } from "@/lib/staff/onboarding-roles";
 import { canApproveStaffOnboarding } from "@/lib/staff/approval-permissions";
@@ -16,6 +18,7 @@ import {
 import { logError, logBusinessEvent } from "@/lib/logger";
 import { canonicalizeSystemRole } from "@/constants/staff";
 import { canReviewStaffOnboarding, isOwner, isManager } from "@/lib/permissions";
+import { validateBranchServiceEligibility } from "@/lib/services/service-catalog";
 import type { Json } from "@/types/supabase";
 
 export type OnboardingFormState = {
@@ -32,6 +35,16 @@ function normalizeOptionalString(value: FormDataEntryValue | null): string | nul
 
 function isValidEmail(value: string): boolean {
   return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value);
+}
+
+function invalidateOnboardingApprovalSurfaces(branchId: string) {
+  invalidateCrmWorkspace(branchId);
+  invalidateManagerWorkspace(branchId);
+  revalidatePath("/owner/staff");
+  revalidatePath("/manager/staff");
+  revalidatePath("/crm/staff");
+  revalidatePath("/crm/setup");
+  revalidatePath("/staff-onboarding");
 }
 
 export async function submitStaffOnboardingAction(
@@ -400,6 +413,24 @@ export async function approveOnboardingAction(input: {
     };
   }
 
+  const confirmedServiceIds =
+    input.serviceIds === undefined ? undefined : Array.from(new Set(input.serviceIds));
+  if (confirmedServiceIds && confirmedServiceIds.length > 0) {
+    const eligibility = await validateBranchServiceEligibility({
+      branchId: input.branchId,
+      serviceIds: confirmedServiceIds,
+      audience: "staff_assignment",
+      deliveryMode: "any",
+      useAdminClient: true,
+    });
+    if (!eligibility.ok) {
+      return {
+        success: false,
+        error: "One or more selected services are not assignable for this branch.",
+      };
+    }
+  }
+
   const admin = createAdminClient();
   const requestMetadata = request.metadata as { nickname?: string | null } | null;
   const nickname =
@@ -422,20 +453,17 @@ export async function approveOnboardingAction(input: {
 
   if (staffErr) return { success: false, error: staffErr.message };
 
-  // Sync service capabilities if provided
-  const confirmedServiceIds = input.serviceIds;
-  if (confirmedServiceIds && confirmedServiceIds.length > 0) {
-    const { error: delErr } = await admin
-      .from("staff_services")
-      .delete()
-      .eq("staff_id", input.staffId);
-    if (delErr) {
-      return { success: false, error: `Activated staff but failed to clear old services: ${delErr.message}` };
-    }
-    const rows = confirmedServiceIds.map((serviceId) => ({ staff_id: input.staffId, service_id: serviceId }));
-    const { error: insErr } = await admin.from("staff_services").insert(rows);
-    if (insErr) {
-      return { success: false, error: `Activated staff but failed to set services: ${insErr.message}` };
+  // Sync service capabilities if provided, including an explicit empty list.
+  if (confirmedServiceIds) {
+    const { error: capabilityErr } = await admin.rpc("replace_staff_service_capabilities", {
+      p_target_staff_id: input.staffId,
+      p_service_ids: confirmedServiceIds,
+    });
+    if (capabilityErr) {
+      return {
+        success: false,
+        error: `Activated staff but failed to set services: ${capabilityErr.message}`,
+      };
     }
   }
 
@@ -482,6 +510,8 @@ export async function approveOnboardingAction(input: {
     tier: input.tier,
     branchChanged,
   });
+
+  invalidateOnboardingApprovalSurfaces(input.branchId);
 
   return { success: true };
 }

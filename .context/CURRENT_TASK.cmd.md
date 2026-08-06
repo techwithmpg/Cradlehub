@@ -1,3 +1,77 @@
+# Current Task - SERVICE-CATALOG-UNIFICATION-20260806
+
+Task ID: SERVICE-CATALOG-UNIFICATION-20260806
+Description: Unify CradleHub service catalogue resolution so services remains
+the master catalogue, branch_services is the branch overlay, and staff_services
+only records staff capability. Repair SM branch catalogue drift, prevent future
+service creation drift, align CRM/public/owner/manager/staff assignment service
+sources, and keep SM Home Service disabled while preserving Main behavior.
+Status: COMPLETE - LIVE REPAIR APPLIED; AUTHENTICATED DASHBOARD BROWSER QA LIMITED BY NO SESSION
+Started: 2026-08-06
+Last updated: 2026-08-06
+
+## Baseline
+
+- Mandatory context was read before implementation. Root `PROJECT_CONTEXT.md`,
+  `ROADMAP.md`, and `AGENT_RULES.md` are absent in this checkout; use
+  `docs/PROJECT_CONTEXT.md`, `docs/ROADMAP.md`, and `AGENTS.md`.
+- Existing unrelated dirty onboarding changes are present and must be preserved.
+- Live diagnosis found 138 globally active services, Main at 137 active in-spa
+  branch services, and SM at only 8 active in-spa branch services.
+- The primary data defect is 129 Main active in-spa services missing entirely
+  from SM `branch_services`; the code defect is multiple service-loading and
+  staff-capability paths with inconsistent branch, visibility, and delivery
+  predicates.
+- Do not copy staff capabilities between branches. Services restored to SM
+  should surface provider-readiness warnings until humans assign qualified SM
+  staff.
+
+## Work order
+
+1. Add canonical TypeScript service catalogue and eligibility helpers.
+2. Add an idempotent migration to sync SM from Main in-spa services, disable SM
+   Home Service, align capability RPC eligibility, and prevent future service
+   creation drift.
+3. Redirect public, CRM, owner, manager, booking, waitlist, readiness, and staff
+   capability consumers to canonical rules.
+4. Add focused tests for catalogue rules, synchronization, staff assignment, and
+   validation.
+5. Run focused/full tests, type-check, lint, build, read-only live DB checks, and
+   record any production apply or browser QA limitations honestly.
+
+## Completion - 2026-08-06
+
+- Implemented canonical service catalogue modules under `src/lib/services/`.
+- Redirected public booking, waitlist, online booking, in-house/Quick Booking,
+  availability prevalidation, CRM services/setup/staff/schedule, owner branch/
+  services/staff flows, manager services/settings/staff flows, provider
+  readiness, and staff capability replacement to the canonical rules.
+- Created and applied live SQL repair
+  `20260806132402_service_catalog_unification_repair.sql` directly with
+  `supabase db query --file` because `db:push` was unsafe while local/remote
+  migration history is drifted.
+- Live after-counts: global active services 138; Main active/in-spa/Home Service
+  137/137/85; SM active/in-spa/Home Service 137/137/0.
+- Live checks: missing Main in-spa at SM 0, SM Home Service violations 0,
+  invalid staff service mappings 0, duplicate branch-service mappings 0, unique
+  `(branch_id, service_id)` index present, visibility drift 0.
+- Provider readiness: 129 restored SM services have zero active SM providers and
+  require manual staff assignment. No staff capabilities were copied.
+- RPC contract verified with rollback-only live transactions: valid SM service
+  accepted, unavailable SM service rejected with SQLSTATE 22023, and new-service
+  trigger creates default active in-spa-only branch rows.
+- Public local browser/API smoke verified `/book`: SM exposes restored in-spa
+  services and Home Service is disabled; Main remains 137 in-spa / 85 Home
+  Service.
+- Automated gates: focused service tests pass, full suite passes 197 files /
+  1350 tests, `pnpm type-check` passes, `pnpm lint` passes, `pnpm build` passes,
+  and `pnpm db:verify-live` passes on retry with known migration parity warning.
+- Authenticated owner/manager/CRM browser page QA could not be completed in this
+  session because the local browser has no Supabase auth session and protected
+  dashboard routes redirect to `/login`.
+
+---
+
 # Current Task - QR-REALTIME-MARKETING-20260729
 
 Task ID: QR-REALTIME-MARKETING-20260729

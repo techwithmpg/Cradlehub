@@ -185,6 +185,28 @@
 
 ---
 
+## 2026-08-06 - SERVICE-CATALOG-UNIFICATION-20260806 verification notes
+
+- `pnpm db:status` reports migration-history drift and exits 2. Before the
+  repair it showed many local-only migrations, so `db:push` was not used. The
+  service catalogue repair was applied as one reviewed direct SQL file instead.
+- The direct SQL apply did not create a migration-history row for
+  `20260806132402`; future deployment work must reconcile history rather than
+  assuming broad `db:push` is safe.
+- The first `pnpm db:verify-live` run failed only at the final live connection
+  check with a timeout after earlier checks passed. A single retry passed,
+  including transaction pooler SQL, with the known migration parity warning.
+- Vitest and Next dev hit sandbox `spawn EPERM` unless run outside the sandbox.
+  Focused tests and the full suite passed after approved out-of-sandbox runs.
+- Local browser dashboard QA for owner/manager/CRM protected routes could not be
+  completed because no authenticated Supabase browser session was available;
+  those routes redirected to `/login`. Public booking browser/API smoke was
+  completed.
+- Browser-runtime screenshot file saving was blocked by local file permissions;
+  the screenshot was emitted in-session instead of written to disk.
+
+---
+
 ## 2026-07-15 - Vercel Hobby rejected frequent Attendance cron
 
 - **Symptom:** The production deployment for the merged `main` commit was

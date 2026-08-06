@@ -4,8 +4,8 @@ import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { getAllBranches } from "@/lib/queries/branches";
 import { getStaffByBranchWithBranches, getPendingStaffByBranch } from "@/lib/queries/staff";
-import { getBranchServicesForManagement } from "@/lib/queries/branches";
 import { getBranchStaffAndServiceAssignments } from "@/lib/queries/crm-services";
+import { getBranchAssignableServices } from "@/lib/services/service-catalog";
 import { CrmStaffWorkspace } from "@/components/features/crm/staff/crm-staff-workspace";
 import type { StaffMember } from "@/components/features/staff/staff-management-utils";
 import type {
@@ -122,7 +122,7 @@ export default async function CrmStaffPage({
     getStaffByBranchWithBranches(branchId),
     getPendingStaffByBranch(branchId),
     getAllBranches(),
-    getBranchServicesForManagement(branchId),
+    getBranchAssignableServices(branchId),
   ]);
 
   const allStaff = allStaffResult.status === "fulfilled" ? (allStaffResult.value as StaffMember[]) : [];

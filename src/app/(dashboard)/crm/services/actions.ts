@@ -14,12 +14,19 @@
 
 import { z } from "zod";
 import { revalidatePath } from "next/cache";
-import { cacheTags, invalidateCrmWorkspace, invalidateTag } from "@/lib/cache/cache-tags";
+import {
+  cacheTags,
+  invalidateCrmWorkspace,
+  invalidateManagerWorkspace,
+  invalidateTag,
+} from "@/lib/cache/cache-tags";
 import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { isDevAuthBypassEnabled, getDevBypassLayoutStaff } from "@/lib/dev-bypass";
 import { SERVICE_STAFF_TYPES, canonicalizeSystemRole } from "@/constants/staff-roles";
 import { canManageCrmSetup } from "@/lib/auth/crm-permissions";
+import { getBranchBookingRulesOrDefault } from "@/lib/queries/branch-booking-rules";
+import { validateBranchServiceEligibility } from "@/lib/services/service-catalog";
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -253,20 +260,19 @@ export async function assignProviderToServiceAction(rawInput: unknown): Promise<
   const scopeError = await checkBranchScope(ctx, branchId);
   if (scopeError) return scopeError;
 
-  // Verify the service is active for this branch
-  const { data: branchService, error: bsErr } = await ctx.supabase
-    .from("branch_services")
-    .select("id")
-    .eq("branch_id", branchId)
-    .eq("service_id", serviceId)
-    .eq("is_active", true)
-    .maybeSingle();
+  const serviceEligibility = await validateBranchServiceEligibility({
+    branchId,
+    serviceIds: [serviceId],
+    audience: "staff_assignment",
+    deliveryMode: "any",
+    useAdminClient: true,
+  });
 
-  if (bsErr || !branchService) {
+  if (!serviceEligibility.ok) {
     return {
       ok: false,
       message:
-        "This service is not active for your branch. Only active branch services can have providers assigned.",
+        "This service is not assignable for your branch. Check that it is active and has an enabled delivery mode.",
     };
   }
 
@@ -391,6 +397,17 @@ export async function updateBranchServiceHomeServiceAvailabilityAction(rawInput:
     return { success: false, error: scopeError.message };
   }
 
+  if (availableHomeService) {
+    const bookingRules = await getBranchBookingRulesOrDefault(branchId);
+    if (!bookingRules.homeServiceEnabled) {
+      return {
+        success: false,
+        error:
+          "Home Service is disabled for this branch. Enable branch Home Service rules before enabling a service for Home Service.",
+      };
+    }
+  }
+
   const admin = createAdminClient();
   const { data: updated, error } = await admin
     .from("branch_services")
@@ -423,9 +440,14 @@ export async function updateBranchServiceHomeServiceAvailabilityAction(rawInput:
   }
 
   invalidateTag(cacheTags.branchServices(branchId));
+  invalidateTag(cacheTags.branchAssignableServices(branchId));
   invalidateCrmWorkspace(branchId);
+  invalidateManagerWorkspace(branchId);
   revalidatePath("/crm/services");
   revalidatePath("/crm/setup");
+  revalidatePath("/crm/staff");
+  revalidatePath("/crm/today");
+  revalidatePath("/manager/services");
   revalidatePath("/book");
   revalidatePath("/services");
   revalidatePath("/");
@@ -512,7 +534,8 @@ export async function removeProviderFromServiceAction(rawInput: unknown): Promis
       const { data: remainingStaff } = await ctx.supabase
         .from("staff")
         .select("id, is_active, staff_type, system_role, branch_id")
-        .in("id", otherAssignedIds);
+        .in("id", otherAssignedIds)
+        .eq("branch_id", branchId);
 
       const validRemaining = (remainingStaff ?? []).filter((s) =>
         isValidServiceProvider(s as StaffEligibility)
@@ -551,8 +574,10 @@ export async function removeProviderFromServiceAction(rawInput: unknown): Promis
   revalidatePath("/crm/services");
   revalidatePath("/crm/setup");
   revalidatePath("/crm/today");
+  revalidatePath("/crm/staff");
   revalidatePath("/manager/services");
   invalidateCrmWorkspace(branchId);
+  invalidateManagerWorkspace(branchId);
 
   return {
     ok: true,

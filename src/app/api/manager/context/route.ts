@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
-import { getBranchServices } from "@/lib/queries/branches";
+import { getBranchServiceCatalog } from "@/lib/services/service-catalog";
 import { getStaffByBranch } from "@/lib/queries/staff";
 import type { Database } from "@/types/supabase";
 
@@ -48,7 +48,7 @@ export async function GET() {
   }
 
   const [services, staff, resourcesResult] = await Promise.all([
-    getBranchServices(me.branch_id),
+    getBranchServiceCatalog(me.branch_id, { audience: "management" }),
     getStaffByBranch(me.branch_id),
     supabase
       .from("branch_resources")

@@ -2,6 +2,10 @@ import { createClient } from "@/lib/supabase/server";
 import { getBranchBookingRulesOrDefault } from "./branch-booking-rules";
 import { SERVICE_STAFF_TYPES } from "@/constants/staff-roles";
 import { getBranchBusinessDate } from "@/lib/engine/slot-time";
+import {
+  getBranchAssignableServices,
+  getBranchProviderReadiness,
+} from "@/lib/services/service-catalog";
 
 // ── Types ──────────────────────────────────────────────────────────────────────
 
@@ -22,7 +26,7 @@ export type CrmSetupHealthData = {
   serviceStaffWithSchedule: number;
   /** Active branch services */
   activeServicesTotal: number;
-  /** Active branch services that have at least one staff_services record */
+  /** Assignable branch services that have at least one active branch provider */
   servicesWithStaff: number;
   /** Number of active rooms/resources */
   activeResourcesTotal: number;
@@ -136,8 +140,8 @@ export async function getCrmSetupHealth(branchId: string): Promise<CrmSetupHealt
   const [
     staffResult,
     scheduledStaffResult,
-    branchServicesResult,
-    servicesWithStaffResult,
+    assignableServices,
+    providerReadiness,
     resourcesResult,
     rulesRaw,
     driversResult,
@@ -171,27 +175,8 @@ export async function getCrmSetupHealth(branchId: string): Promise<CrmSetupHealt
         ).data?.map((s) => s.id) ?? []
       ),
 
-    // Total active branch services
-    supabase
-      .from("branch_services")
-      .select("service_id", { count: "exact", head: false })
-      .eq("branch_id", branchId)
-      .eq("is_active", true),
-
-    // Branch services that have at least one staff_services entry
-    supabase
-      .from("staff_services")
-      .select("service_id")
-      .in(
-        "service_id",
-        (
-          await supabase
-            .from("branch_services")
-            .select("service_id")
-            .eq("branch_id", branchId)
-            .eq("is_active", true)
-        ).data?.map((s) => s.service_id) ?? []
-      ),
+    getBranchAssignableServices(branchId, { useAdminClient: true }),
+    getBranchProviderReadiness(branchId),
 
     // Active rooms/resources
     supabase
@@ -227,13 +212,10 @@ export async function getCrmSetupHealth(branchId: string): Promise<CrmSetupHealt
   const scheduledStaffIds = new Set((scheduledStaffResult.data ?? []).map((r) => r.staff_id));
   const serviceStaffWithSchedule = scheduledStaffIds.size;
 
-  const activeServicesTotal = (branchServicesResult.data ?? []).length;
-
-  // Count distinct service_ids that have at least one staff_services row
-  const serviceIdsWithStaff = new Set(
-    (servicesWithStaffResult.data ?? []).map((r) => r.service_id)
-  );
-  const servicesWithStaff = serviceIdsWithStaff.size;
+  const activeServicesTotal = assignableServices.length;
+  const servicesWithStaff = providerReadiness.filter(
+    (readiness) => readiness.providerCount > 0
+  ).length;
 
   const activeResourcesTotal = resourcesResult.count ?? 0;
 

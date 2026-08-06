@@ -1,7 +1,7 @@
 "use server";
 
 import { z } from "zod";
-import { getBranchServicesForManagement } from "@/lib/queries/branches";
+import { getBranchAssignableServices } from "@/lib/services/service-catalog";
 import { getBranchStaffAndServiceAssignments } from "@/lib/queries/crm-services";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { createClient } from "@/lib/supabase/server";
@@ -324,7 +324,7 @@ export async function getCrmScheduleStaffProfileAction(
       return { ok: false, error: "This staff member is not linked to a branch." };
     }
 
-    const services = (await getBranchServicesForManagement(staffMember.branch_id)) as ServiceLite[];
+    const services = (await getBranchAssignableServices(staffMember.branch_id)) as ServiceLite[];
     const eligibleServices = services.filter(
       (service) =>
         service.is_active &&

@@ -8,6 +8,7 @@ import { canonicalizeSystemRole } from "@/constants/staff";
 import { createStaffSchema, updateStaffSchema } from "@/lib/validations/staff";
 import type { Database } from "@/types/supabase";
 import { revalidatePath } from "next/cache";
+import { invalidateCrmWorkspace, invalidateManagerWorkspace } from "@/lib/cache/cache-tags";
 
 // ── Auth helper: owner or manager ──────────────────────────────────────────
 async function requireOwner() {
@@ -78,23 +79,23 @@ function isMissingStaffOrgColumnsError(message: string): boolean {
 async function syncStaffServices(
   supabase:
     | OwnerContext["supabase"]
-    | OwnerContext["admin"]
-    | ManagerContext["supabase"]
-    | ManagerContext["admin"],
+    | ManagerContext["supabase"],
   staffId: string,
   serviceIds: string[] | undefined
 ) {
   if (!serviceIds) return;
-  const { error: delErr } = await supabase
-    .from("staff_services")
-    .delete()
-    .eq("staff_id", staffId);
-  if (delErr) throw new Error(delErr.message);
   const unique = Array.from(new Set(serviceIds));
-  if (unique.length > 0) {
-    const rows = unique.map((serviceId) => ({ staff_id: staffId, service_id: serviceId }));
-    const { error: insErr } = await supabase.from("staff_services").insert(rows);
-    if (insErr) throw new Error(insErr.message);
+  const { error } = await supabase.rpc("replace_staff_service_capabilities", {
+    p_target_staff_id: staffId,
+    p_service_ids: unique,
+  });
+  if (error) {
+    if (error.message.includes("crm_staff_services_invalid_service")) {
+      throw new Error(
+        "One or more selected services are not assignable for this staff member's branch."
+      );
+    }
+    throw new Error(error.message);
   }
 }
 
@@ -154,13 +155,15 @@ export async function createStaffAction(rawInput: unknown) {
 
   if (staffRow && d.serviceIds && d.serviceIds.length > 0) {
     try {
-      await syncStaffServices(ctx.admin, staffRow.id, d.serviceIds);
+      await syncStaffServices(ctx.supabase, staffRow.id, d.serviceIds);
     } catch (e) {
       return { success: false, error: `Staff created but failed to set services: ${(e as Error).message}` };
     }
   }
 
   revalidatePath("/owner/staff");
+  invalidateCrmWorkspace(d.branchId);
+  invalidateManagerWorkspace(d.branchId);
   return { success: true };
 }
 
@@ -269,18 +272,23 @@ export async function updateStaffAction(rawInput: unknown) {
 
   if (serviceIds !== undefined) {
     try {
-      await syncStaffServices(ctx.admin, staffId, serviceIds);
+      await syncStaffServices(ctx.supabase, staffId, serviceIds);
     } catch (e) {
       return { success: false, error: `Profile updated but failed to sync services: ${(e as Error).message}` };
     }
   }
 
+  const savedStaff = updateResult.data[0]!;
   revalidatePath("/owner/staff");
   revalidatePath(`/owner/staff/${staffId}`);
   revalidatePath("/manager/staff");
   revalidatePath(`/manager/staff/${staffId}`);
   revalidatePath("/crm/staff");
-  return { success: true, staff: updateResult.data[0]! };
+  if (savedStaff.branch_id) {
+    invalidateCrmWorkspace(savedStaff.branch_id);
+    invalidateManagerWorkspace(savedStaff.branch_id);
+  }
+  return { success: true, staff: savedStaff };
 }
 
 // ── Toggle staff active/inactive (CRM-accessible) ────────────────────────

@@ -4,8 +4,11 @@ import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { createClient } from "@/lib/supabase/server";
 import { isDevAuthBypassEnabled, getDevBypassLayoutStaff } from "@/lib/dev-bypass";
 import { getCrmSetupHealth } from "@/lib/queries/crm-setup";
-import { getBranchServicesForManagement } from "@/lib/queries/branches";
 import { getBranchStaffAndServiceAssignments } from "@/lib/queries/crm-services";
+import {
+  getBranchAssignableServices,
+  getBranchServiceCatalog,
+} from "@/lib/services/service-catalog";
 import { getBranchWithFullDetail } from "@/lib/queries/branches";
 import { getBranchBookingRulesOrDefault } from "@/lib/queries/branch-booking-rules";
 import { getStaffAdminName } from "@/lib/staff/display-name";
@@ -113,12 +116,18 @@ export default async function CrmSetupPage({
   const [
     healthResult,
     servicesResult,
+    assignableServicesResult,
     branchDetailResult,
     rulesResult,
     bookingsResult,
   ] = await Promise.allSettled([
     getCrmSetupHealth(branchId),
-    getBranchServicesForManagement(branchId),
+    getBranchServiceCatalog(branchId, {
+      audience: "management",
+      includeInactiveBranchRows: true,
+      includeUnavailableDeliveryModes: true,
+    }),
+    getBranchAssignableServices(branchId),
     getBranchWithFullDetail(branchId),
     getBranchBookingRulesOrDefault(branchId),
     supabase
@@ -158,9 +167,23 @@ export default async function CrmSetupPage({
     ? (servicesResult.value as ServiceLite[])
     : [];
   const activeServices = rawServices.filter(isActiveBranchService);
-  const activeServiceIds = activeServices.map(
-    (s) => s.service_id ?? s.services.id
-  );
+  const assignableServices = assignableServicesResult.status === "fulfilled"
+    ? (assignableServicesResult.value as ServiceLite[])
+    : activeServices.filter(
+        (service) =>
+          (service.available_in_spa ?? true) ||
+          (rulesResult.status === "fulfilled" &&
+            rulesResult.value.homeServiceEnabled &&
+            (service.available_home_service ?? false))
+      );
+  const activeServiceIds = assignableServices
+    .map((service) => {
+      const nested = Array.isArray(service.services)
+        ? service.services[0]
+        : service.services;
+      return service.service_id ?? nested?.id ?? null;
+    })
+    .filter((id): id is string => id !== null);
 
   // Phase 2: staff assignments (depends on activeServiceIds)
   let providerStaff: Awaited<ReturnType<typeof getBranchStaffAndServiceAssignments>>["staff"] = [];
@@ -231,11 +254,15 @@ export default async function CrmSetupPage({
           branchId,
           branchName,
           services:           rawServices,
+          assignableServices,
           allServices:        [],   // unused by CrmServicesWorkspace currently
           loadError:          servicesResult.status === "rejected" ? "Could not load services." : null,
           providerStaff,
           providerAssignments,
           reviewerSystemRole: role,
+          homeServiceEnabled: rulesResult.status === "fulfilled"
+            ? rulesResult.value.homeServiceEnabled
+            : false,
         }}
         spacesData={{
           workspaceContext:   "crm",

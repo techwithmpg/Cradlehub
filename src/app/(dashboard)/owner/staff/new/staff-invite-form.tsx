@@ -50,14 +50,16 @@ function optionalString(value: FormDataEntryValue | null): string | null {
 
 export function InviteStaffForm({
   branches,
-  services,
+  servicesByBranch,
 }: {
   branches: BranchRow[];
-  services: ServiceRow[];
+  servicesByBranch: Record<string, ServiceRow[]>;
 }) {
   const router = useRouter();
   const [selectedStaffType, setSelectedStaffType] = useState<StaffType | "">("");
+  const [selectedBranchId, setSelectedBranchId] = useState("");
   const showServiceCapabilities = isServiceStaffType(selectedStaffType);
+  const services = selectedBranchId ? servicesByBranch[selectedBranchId] ?? [] : [];
 
   const [state, formAction, pending] = useActionState(
     async (_prev: StaffActionState, formData: FormData): Promise<StaffActionState> => {
@@ -162,7 +164,13 @@ export function InviteStaffForm({
           <Input id="phone" name="phone" type="tel" placeholder="+63 XXX XXX XXXX" />
         </div>
 
-        <SelectField id="branchId" name="branchId" label="Branch *" helpText="Primary branch assignment.">
+        <SelectField
+          id="branchId"
+          name="branchId"
+          label="Branch *"
+          helpText="Primary branch assignment."
+          onChange={(event) => setSelectedBranchId(event.currentTarget.value)}
+        >
           <option value="">Select branch...</option>
           {branches.map((branch) => (
             <option key={branch.id} value={branch.id}>

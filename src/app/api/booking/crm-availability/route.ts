@@ -6,6 +6,7 @@ import { parseBookingTime } from "@/lib/bookings/booking-clock-time";
 import { isDevAuthBypassEnabled } from "@/lib/dev-bypass";
 import { getAvailableSlotsMulti } from "@/lib/engine/availability";
 import { resolveExactCrmBookingTime } from "@/lib/engine/exact-crm-booking-time";
+import { validateBranchServiceEligibility } from "@/lib/services/service-catalog";
 import { createClient } from "@/lib/supabase/server";
 
 const crmAvailabilitySchema = z.object({
@@ -88,6 +89,25 @@ export async function POST(request: NextRequest) {
   }
 
   try {
+    const serviceEligibility = await validateBranchServiceEligibility({
+      branchId: parsed.data.branchId,
+      serviceIds: parsed.data.serviceIds,
+      audience: "crm",
+      deliveryMode: parsed.data.deliveryType,
+      useAdminClient: true,
+    });
+
+    if (!serviceEligibility.ok) {
+      return NextResponse.json(
+        {
+          error:
+            "One or more selected services are not available for this booking type at this branch.",
+          reasonCode: "service_ineligible",
+        },
+        { status: 400 }
+      );
+    }
+
     const canSeeDebug =
       process.env.NODE_ENV !== "production" ||
       ["owner", "manager", "assistant_manager", "store_manager"].includes(access.role);
@@ -106,6 +126,7 @@ export async function POST(request: NextRequest) {
         branchId: parsed.data.branchId,
         serviceIds: parsed.data.serviceIds,
         date: parsed.data.date,
+        deliveryMode: parsed.data.deliveryType,
         requireStaffServiceAssignment: parsed.data.deliveryType === "home_service",
         allowStaffTypeFallbackAlongsideAssignments: parsed.data.deliveryType !== "home_service",
       }),

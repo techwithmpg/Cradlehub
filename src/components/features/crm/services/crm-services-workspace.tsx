@@ -65,10 +65,12 @@ export interface CrmServicesWorkspaceProps {
   branchId: string;
   branchName: string;
   services: ServiceLite[];
+  assignableServices?: ServiceLite[];
   allServices: GlobalService[];
   loadError: string | null;
   providerStaff: StaffForServicePanel[];
   providerAssignments: ServiceAssignmentRow[];
+  homeServiceEnabled?: boolean;
   /** System role of the logged-in CRM/CSR user — passed to the edit modal. */
   reviewerSystemRole: string;
   /** Pre-selected tab — passed from page via ?tab= search param. */
@@ -126,8 +128,10 @@ export function CrmServicesWorkspace({
   branchName,
   loadError,
   services,
+  assignableServices,
   providerStaff,
   providerAssignments,
+  homeServiceEnabled = false,
   reviewerSystemRole,
   initialTab = "services",
 }: CrmServicesWorkspaceProps) {
@@ -144,6 +148,9 @@ export function CrmServicesWorkspace({
           : initialTab;
   const [editingStaff, setEditingStaff] = useState<StaffForServicePanel | null>(null);
   const [workspaceServices, setWorkspaceServices] = useState<ServiceLite[]>(services);
+  const [workspaceAssignableSource, setWorkspaceAssignableSource] = useState<ServiceLite[] | null>(
+    assignableServices ?? null
+  );
   const [workspaceAssignments, setWorkspaceAssignments] = useState<ServiceAssignmentRow[]>(providerAssignments);
   const [workspaceProviderStaff, setWorkspaceProviderStaff] = useState(providerStaff);
 
@@ -153,6 +160,26 @@ export function CrmServicesWorkspace({
     ),
     [workspaceServices]
   );
+  const workspaceAssignableServices = useMemo(
+    () => {
+      if (workspaceAssignableSource) {
+        return workspaceAssignableSource.filter(
+          (service): service is ActiveBranchService =>
+            service.is_active &&
+            service.services !== null &&
+            ((service.available_in_spa ?? true) ||
+              (homeServiceEnabled && (service.available_home_service ?? false)))
+        );
+      }
+
+      return workspaceActiveServices.filter(
+        (service) =>
+          (service.available_in_spa ?? true) ||
+          (homeServiceEnabled && (service.available_home_service ?? false))
+      );
+    },
+    [homeServiceEnabled, workspaceActiveServices, workspaceAssignableSource]
+  );
 
   const handleServicePatch = useCallback(
     (serviceId: string, patch: Partial<ServiceLite>) => {
@@ -160,6 +187,12 @@ export function CrmServicesWorkspace({
         const currentServiceId = service.service_id ?? service.services?.id ?? service.id;
         return currentServiceId === serviceId ? { ...service, ...patch } : service;
       }));
+      setWorkspaceAssignableSource((current) =>
+        current?.map((service) => {
+          const currentServiceId = service.service_id ?? service.services?.id ?? service.id;
+          return currentServiceId === serviceId ? { ...service, ...patch } : service;
+        }) ?? null
+      );
     },
     []
   );
@@ -194,8 +227,8 @@ export function CrmServicesWorkspace({
 
   // Service rows for the modal (same adapter used by CrmStaffManagementTab)
   const serviceRows = useMemo(
-    () => toCrmStaffServiceRows(workspaceActiveServices),
-    [workspaceActiveServices]
+    () => toCrmStaffServiceRows(workspaceAssignableServices),
+    [workspaceAssignableServices]
   );
 
   // Single branch entry — CRM users cannot change branches (the modal hides
@@ -265,7 +298,7 @@ export function CrmServicesWorkspace({
         ) : (
           <CrmTherapistAssignmentTab
             branchId={branchId}
-            services={workspaceActiveServices}
+            services={workspaceAssignableServices}
             staff={workspaceProviderStaff}
             assignments={workspaceAssignments}
             onServicePatch={handleServicePatch}
@@ -308,7 +341,7 @@ export function CrmServicesWorkspace({
         ) : (
           <CrmStaffCapabilitiesTab
             branchId={branchId}
-            services={workspaceActiveServices}
+            services={workspaceAssignableServices}
             staff={workspaceProviderStaff}
             assignments={workspaceAssignments}
             onEditProfile={handleEditProfile}

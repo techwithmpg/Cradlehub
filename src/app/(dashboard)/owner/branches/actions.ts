@@ -6,9 +6,16 @@ import { isDevAuthBypassEnabled } from "@/lib/dev-bypass";
 import { isSuperAdmin, resolveSuperAdminContext } from "@/lib/auth/super-admin";
 import { createBranchSchema, updateBranchSchema } from "@/lib/validations/branch";
 import { revalidatePath } from "next/cache";
-import { cacheTags, invalidateTag } from "@/lib/cache/cache-tags";
+import {
+  cacheTags,
+  invalidateCrmWorkspace,
+  invalidateManagerWorkspace,
+  invalidateTag,
+} from "@/lib/cache/cache-tags";
 import { logBusinessEvent } from "@/lib/logger";
 import { canManageCrmSetup } from "@/lib/auth/crm-permissions";
+import { getBranchBookingRulesOrDefault } from "@/lib/queries/branch-booking-rules";
+import { toLegacyBookingVisibility } from "@/lib/services/service-eligibility";
 import type { Json } from "@/types/supabase";
 
 async function requireOwner() {
@@ -55,6 +62,36 @@ async function requireOwnerOrBranchManager(branchId: string) {
   return null;
 }
 
+function revalidateBranchServiceSurfaces(branchId: string) {
+  invalidateTag(cacheTags.branchServices(branchId));
+  invalidateTag(cacheTags.branchAssignableServices(branchId));
+  invalidateTag(cacheTags.crmAvailability(branchId));
+  invalidateCrmWorkspace(branchId);
+  invalidateManagerWorkspace(branchId);
+
+  revalidatePath("/");
+  revalidatePath("/services");
+  revalidatePath("/book");
+  revalidatePath("/owner/services");
+  revalidatePath("/owner/branches");
+  revalidatePath(`/owner/branches/${branchId}`);
+  revalidatePath("/manager/services");
+  revalidatePath("/crm/services");
+  revalidatePath("/crm/setup");
+  revalidatePath("/crm/staff");
+  revalidatePath("/crm/today");
+}
+
+async function rejectDisabledHomeService(
+  branchId: string,
+  nextAvailableHomeService: boolean
+): Promise<string | null> {
+  if (!nextAvailableHomeService) return null;
+  const rules = await getBranchBookingRulesOrDefault(branchId);
+  return rules.homeServiceEnabled
+    ? null
+    : "Home Service is disabled for this branch. Enable branch Home Service rules before enabling a service for Home Service.";
+}
 
 export async function createBranchAction(rawInput: unknown) {
   const parsed = createBranchSchema.safeParse(rawInput);
@@ -192,12 +229,7 @@ export async function removeBranchServiceAction(branchId: string, serviceId: str
 
   if (error) return { success: false, error: error.message };
 
-  const { revalidatePath } = await import("next/cache");
-  invalidateTag(cacheTags.branchServices(branchId));
-  revalidatePath("/owner/branches");
-  revalidatePath("/owner/services");
-  revalidatePath("/manager/services");
-  revalidatePath("/crm/services");
+  revalidateBranchServiceSurfaces(branchId);
   logBusinessEvent("branch_service.removed", { branchId, serviceId });
   return { success: true };
 }
@@ -211,26 +243,42 @@ export async function addBranchServiceAction(
   const auth = await requireOwnerOrBranchManager(branchId);
   if (!auth) return { success: false, error: "Unauthorized" };
 
-  const { error } = await createAdminClient()
+  const admin = createAdminClient();
+  const { data: existing, error: existingError } = await admin
     .from("branch_services")
-    .upsert(
-      {
-        branch_id: branchId,
-        service_id: serviceId,
-        custom_price: customPrice ?? null,
-        is_active: true,
-      },
-      { onConflict: "branch_id,service_id" }
-    );
+    .select("id")
+    .eq("branch_id", branchId)
+    .eq("service_id", serviceId)
+    .maybeSingle();
+
+  if (existingError) return { success: false, error: existingError.message };
+
+  const mutation = existing
+    ? admin
+        .from("branch_services")
+        .update({
+          custom_price: customPrice ?? null,
+          is_active: true,
+        })
+        .eq("id", existing.id)
+    : admin
+        .from("branch_services")
+        .insert({
+          branch_id: branchId,
+          service_id: serviceId,
+          custom_price: customPrice ?? null,
+          is_active: true,
+          available_in_spa: true,
+          available_home_service: false,
+          visibility: "public",
+          booking_visibility: "public",
+        });
+
+  const { error } = await mutation;
 
   if (error) return { success: false, error: error.message };
 
-  const { revalidatePath } = await import("next/cache");
-  invalidateTag(cacheTags.branchServices(branchId));
-  revalidatePath("/owner/branches");
-  revalidatePath("/owner/services");
-  revalidatePath("/manager/services");
-  revalidatePath("/crm/services");
+  revalidateBranchServiceSurfaces(branchId);
   logBusinessEvent("branch_service.added", { branchId, serviceId });
   return { success: true };
 }
@@ -244,6 +292,12 @@ export async function updateBranchServiceEligibilityAction(
 ) {
   const auth = await requireOwnerOrBranchManager(branchId);
   if (!auth) return { success: false, error: "Unauthorized" };
+
+  const homeServiceError = await rejectDisabledHomeService(
+    branchId,
+    availableHomeService
+  );
+  if (homeServiceError) return { success: false, error: homeServiceError };
 
   const admin = createAdminClient();
 
@@ -267,14 +321,7 @@ export async function updateBranchServiceEligibilityAction(
     };
   }
 
-  const { revalidatePath } = await import("next/cache");
-  invalidateTag(cacheTags.branchServices(branchId));
-  revalidatePath("/");
-  revalidatePath("/services");
-  revalidatePath("/book");
-  revalidatePath(`/owner/branches/${branchId}`);
-  revalidatePath("/manager/services");
-  revalidatePath("/crm/services");
+  revalidateBranchServiceSurfaces(branchId);
   logBusinessEvent("branch_service.eligibility_updated", { branchId, serviceId, availableInSpa, availableHomeService });
   return {
     success: true as const,
@@ -296,6 +343,12 @@ export async function updateBranchServiceHomeServiceByIdAction(
 > {
   const auth = await requireOwnerOrBranchManager(branchId);
   if (!auth) return { success: false, error: "Unauthorized" };
+
+  const homeServiceError = await rejectDisabledHomeService(
+    branchId,
+    availableHomeService
+  );
+  if (homeServiceError) return { success: false, error: homeServiceError };
 
   const admin = createAdminClient();
 
@@ -323,13 +376,7 @@ export async function updateBranchServiceHomeServiceByIdAction(
     };
   }
 
-  const { revalidatePath } = await import("next/cache");
-  invalidateTag(cacheTags.branchServices(branchId));
-  revalidatePath("/");
-  revalidatePath("/services");
-  revalidatePath("/book");
-  revalidatePath("/crm/services");
-  revalidatePath("/crm/setup");
+  revalidateBranchServiceSurfaces(branchId);
   logBusinessEvent("branch_service.home_service_toggled", {
     branchId,
     branchServiceId,
@@ -357,9 +404,7 @@ export async function updateBranchServicePriceAction(
 
   if (error) return { success: false, error: error.message };
 
-  const { revalidatePath } = await import("next/cache");
-  invalidateTag(cacheTags.branchServices(branchId));
-  revalidatePath("/owner/branches");
+  revalidateBranchServiceSurfaces(branchId);
   logBusinessEvent("branch_service.price_updated", { branchId, serviceId });
   return { success: true };
 }
@@ -381,21 +426,19 @@ export async function updateBranchServiceVisibilityAction(
   const admin = createAdminClient();
   const { data: updated, error } = await admin
     .from("branch_services")
-    .update({ visibility })
+    .update({
+      visibility,
+      booking_visibility: toLegacyBookingVisibility(visibility),
+    })
     .eq("branch_id", branchId)
     .eq("service_id", serviceId)
-    .select("id, branch_id, service_id, visibility")
+    .select("id, branch_id, service_id, visibility, booking_visibility")
     .maybeSingle();
 
   if (error) return { success: false, error: error.message };
   if (!updated) return { success: false, error: "Branch service not found." };
 
-  const { revalidatePath } = await import("next/cache");
-  // Visibility change affects the public booking wizard's service list.
-  invalidateTag(cacheTags.branchServices(branchId));
-  revalidatePath(`/owner/branches/${branchId}`);
-  revalidatePath("/crm/services");
-  revalidatePath("/crm/setup");
+  revalidateBranchServiceSurfaces(branchId);
   logBusinessEvent("branch_service.visibility_updated", { branchId, serviceId, visibility });
   return { success: true, branchService: updated };
 }
@@ -414,6 +457,13 @@ export async function updateBranchServiceDeliveryModeAction(
 ) {
   const auth = await requireOwnerOrBranchManager(branchId);
   if (!auth) return { success: false, error: "Unauthorized" };
+
+  const enablesHomeService = mode === "home_service" || mode === "both";
+  const homeServiceError = await rejectDisabledHomeService(
+    branchId,
+    enablesHomeService
+  );
+  if (homeServiceError) return { success: false, error: homeServiceError };
 
   const updates: { is_active: boolean; available_in_spa?: boolean; available_home_service?: boolean } =
     mode === "hidden"
@@ -435,15 +485,7 @@ export async function updateBranchServiceDeliveryModeAction(
   if (error) return { success: false, error: error.message };
   if (!updated) return { success: false, error: "Branch service not found." };
 
-  const { revalidatePath } = await import("next/cache");
-  invalidateTag(cacheTags.branchServices(branchId));
-  // Revalidate public routes so the booking wizard picks up the change
-  revalidatePath("/");
-  revalidatePath("/services");
-  revalidatePath("/book");
-  revalidatePath(`/owner/branches/${branchId}`);
-  revalidatePath("/crm/services");
-  revalidatePath("/crm/setup");
+  revalidateBranchServiceSurfaces(branchId);
   logBusinessEvent("branch_service.delivery_mode_updated", { branchId, serviceId, mode });
   return { success: true, branchService: updated };
 }

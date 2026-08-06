@@ -26,6 +26,68 @@ real authenticated session is available.
 
 ---
 
+## Handoff - SERVICE-CATALOG-UNIFICATION-20260806
+
+Done:
+
+- Added canonical catalogue/eligibility modules:
+  `src/lib/services/service-types.ts`,
+  `src/lib/services/service-eligibility.ts`, and
+  `src/lib/services/service-catalog.ts`.
+- Redirected duplicated service readers and validators across public booking,
+  waitlist, online booking, in-house/Quick Booking, availability, CRM setup/
+  staff/services/schedule, owner branch/services/staff pages, manager services/
+  settings/staff pages, and provider readiness.
+- Updated service and branch mutations to keep `visibility` and
+  `booking_visibility` synchronized, block Home Service enablement when branch
+  rules disable it, and invalidate branch/service/readiness/booking surfaces.
+- Unified staff capability saves through `replace_staff_service_capabilities`
+  for owner, manager, CRM, and staff-onboarding approval paths.
+- Created and applied live repair migration
+  `supabase/migrations/20260806132402_service_catalog_unification_repair.sql`.
+
+Live verification:
+
+- Branch IDs: Main `c1000000-0000-0000-0000-000000000001`; SM
+  `c1000000-0000-0000-0000-000000000002`.
+- Before counts: global active 138; Main active/in-spa/Home Service 137/137/85;
+  SM active/in-spa/Home Service 8/8/0.
+- After counts: global active 138; Main active/in-spa/Home Service 137/137/85;
+  SM active/in-spa/Home Service 137/137/0.
+- Missing Main active in-spa services at SM: 129 before, 0 after.
+- Main home-only services: 0. SM Home Service violations: 0 before and after.
+- Invalid `staff_services`: 0. Duplicate `branch_services`: 0. Unique
+  `branch_services_branch_id_service_id_key` present. Visibility drift: 0.
+- Global active service still missing any branch mapping: `Massage Services / Ram`;
+  this is not a Main in-spa service and is the evidence for old service-creation
+  drift. Future inserts are now protected by app sync plus DB trigger.
+- Provider readiness after repair: 129 SM services have zero active SM providers.
+  Do not copy Main staff capabilities; assign qualified SM staff manually.
+
+Validated:
+
+- Focused service tests: 2 files / 10 tests.
+- Full suite: 197 files / 1350 tests.
+- `pnpm type-check`, `pnpm lint`, `pnpm build`, and `pnpm db:verify-live` pass.
+- Live rollback-only checks proved: valid SM service accepted by capability RPC,
+  unavailable SM `Ram` rejected with SQLSTATE 22023, and new active global
+  service inserts create two active in-spa-only branch rows.
+- Local `/book` public smoke confirmed SM has 137 services, 137 in-spa, 0 Home
+  Service, and Home Service disabled; Main remains 137 in-spa and 85 Home
+  Service.
+
+Still required:
+
+1. Run authenticated browser QA with safe owner, manager, and CRM sessions for
+   owner service management, manager service management, CRM setup, CRM staff
+   assignment, and Quick Booking UI submission paths.
+2. Manually assign qualified SM providers for the 129 readiness-warning services.
+3. Reconcile Supabase migration history. This repair is live but version
+   `20260806132402` is not recorded in `supabase_migrations.schema_migrations`
+   because it was applied with direct SQL to avoid unrelated pending migrations.
+
+---
+
 ## QR-REALTIME-MARKETING-20260729 - Phase 1 scan gate explicitly waived
 
 The reusable Attendance/room A4 poster implementation is source-ready and its

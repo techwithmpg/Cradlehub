@@ -12,6 +12,12 @@
 
 import { z } from "zod";
 import { revalidatePath } from "next/cache";
+import {
+  cacheTags,
+  invalidateCrmWorkspace,
+  invalidateManagerWorkspace,
+  invalidateTag,
+} from "@/lib/cache/cache-tags";
 import { createClient } from "@/lib/supabase/server";
 import { canonicalizeSystemRole } from "@/constants/staff";
 import { isDevAuthBypassEnabled, getDevBypassLayoutStaff } from "@/lib/dev-bypass";
@@ -137,7 +143,7 @@ function mapStaffServiceRpcError(error: StaffServiceRpcError): {
     return {
       code: "INVALID_SERVICE",
       message:
-        "One or more selected services are not active for this staff member's branch.",
+        "One or more selected services are not assignable for this staff member's branch.",
     };
   }
 
@@ -273,6 +279,14 @@ export async function updateStaffServicesFromCrmAction(
   const savedServiceIds = ((data ?? []) as StaffServiceRpcRow[]).map(
     (row) => row.service_id
   );
+  const targetBranchId = targetStaff.branch_id as string | null;
+
+  if (targetBranchId) {
+    invalidateTag(cacheTags.branchAssignableServices(targetBranchId));
+    invalidateTag(cacheTags.crmAvailability(targetBranchId));
+    invalidateCrmWorkspace(targetBranchId);
+    invalidateManagerWorkspace(targetBranchId);
+  }
 
   revalidatePath("/crm/staff");
   revalidatePath("/crm/services");

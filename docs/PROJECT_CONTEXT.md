@@ -813,6 +813,35 @@ pnpm ui:add [component]     # Add shadcn/ui component
 - Local verification passes: type-check, focused lint, 7 files / 70 focused tests,
   130 files / 956 full tests, and the Next.js production build. Valid-phone live E2E
   still needs an approved staff test credential and physical/clean browser profile.
+
+## Latest Agent Update (2026-08-06 - Unified Service Catalogue)
+
+- Completed `SERVICE-CATALOG-UNIFICATION-20260806`: `services` is now the single
+  master catalogue, `branch_services` is the branch overlay, and
+  `staff_services` is treated only as staff capability.
+- Added canonical catalogue/eligibility modules under `src/lib/services/` and
+  redirected public booking, waitlist, online booking, in-house/Quick Booking,
+  availability, CRM setup/staff/services/schedule, owner, manager, provider
+  readiness, and staff capability flows to the shared contract.
+- Runtime visibility uses `branch_services.visibility` as authoritative;
+  `booking_visibility` remains legacy compatibility and is written in sync until
+  a later audited cleanup.
+- Live Supabase repair restored SM from 8 to 137 active in-spa services while
+  keeping SM Home Service disabled and preserving Main behavior at 137 active
+  in-spa / 85 Home Service services.
+- Capability RPC validation now resolves the target staff member branch, validates
+  all selected services before replacement, rejects branch-unavailable services,
+  and preserves prior assignments on validation failure.
+- New service creation is protected in both application code and the database:
+  active branches receive default active in-spa-only branch overlays without
+  enabling Home Service.
+- No bookings, services, or `staff_services` rows were deleted or copied. The 129
+  restored SM services now appear as provider-readiness warnings until managers
+  assign qualified SM staff.
+- Verification passed: focused service tests, full suite 197 files / 1350 tests,
+  type-check, lint, production build, live DB verifier, live rollback-only RPC/
+  trigger contracts, and public `/book` browser/API smoke. Authenticated owner/
+  manager/CRM browser QA still needs a safe signed-in session.
 ## Release readiness status — 2026-07-21
 
 CradleHub passes current code-level gates for a controlled pilot: 150 test files / 1,137 tests, TypeScript, lint with one existing dormant warning, and the 110-page production build. Multi-person packages are consultation/manual only, and public booking/waitlist endpoints have strict validation, honeypots, payload bounds, duplicate suppression, and safe errors.

@@ -1,8 +1,8 @@
 import { notFound } from "next/navigation";
 import { getStaffByBranchWithBranches, getPendingStaffByBranch, getStaffServices } from "@/lib/queries/staff";
 import { getManagerBranchId } from "@/lib/queries/manager-context";
-import { getAllServices } from "@/lib/queries/services";
 import { getBranchById } from "@/lib/queries/branches";
+import { getAssignableServicesForStaff } from "@/lib/services/service-catalog";
 import { StaffApprovalWorkspace } from "@/components/features/staff/staff-approval-workspace";
 import type { StaffMember } from "@/components/features/staff/staff-management-utils";
 import type { Database } from "@/types/supabase";
@@ -19,10 +19,9 @@ export default async function ManagerStaffDetailPage({
   const { staffId } = await params;
   const branchId = await getManagerBranchId();
 
-  const [activeStaff, pendingStaff, services, branch] = await Promise.all([
+  const [activeStaff, pendingStaff, branch] = await Promise.all([
     getStaffByBranchWithBranches(branchId),
     getPendingStaffByBranch(branchId),
-    getAllServices(),
     getBranchById(branchId),
   ]);
 
@@ -33,7 +32,10 @@ export default async function ManagerStaffDetailPage({
     notFound();
   }
 
-  const staffServiceIds = await getStaffServices(staffId);
+  const [services, staffServiceIds] = await Promise.all([
+    getAssignableServicesForStaff(staffId),
+    getStaffServices(staffId),
+  ]);
 
   return (
     <div style={{ maxWidth: 1100 }}>
