@@ -10,6 +10,7 @@ export const SYSTEM_ROLES = [
   "staff",
   "service_head",
   "service_staff",
+  "digital_marketer",
   "driver",
   "utility",
 ] as const;
@@ -41,6 +42,7 @@ export const SYSTEM_ROLE_LABELS: Record<SystemRole, string> = {
   staff: "Staff",
   service_head: "Service Head",
   service_staff: "Service Staff",
+  digital_marketer: "Digital Marketer",
   driver: "Driver",
   utility: "Utility",
 };
@@ -57,6 +59,7 @@ export const SYSTEM_ROLE_DESCRIPTIONS: Record<SystemRole, string> = {
   staff: "Staff portal access.",
   service_head: "Staff portal access for service supervisors.",
   service_staff: "Staff portal access for service providers.",
+  digital_marketer: "Marketing Studio access for public-site drafts and media preparation.",
   driver: "Driver workspace access.",
   utility: "Utility workspace access.",
 };

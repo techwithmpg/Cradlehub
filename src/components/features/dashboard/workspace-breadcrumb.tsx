@@ -6,6 +6,7 @@ import { resolveWorkspaceKeyFromPath, resolveWorkspaceKeyFromRole } from "./nav-
 
 const WORKSPACE_LABEL: Record<string, string> = {
   owner: "Owner Workspace",
+  marketing: "Marketing Workspace",
   manager: "Manager Workspace",
   crm: "Front Desk Workspace",
   staff: "Staff Workspace",
@@ -22,6 +23,7 @@ const ROLE_LABEL: Record<string, string> = {
   staff: "Staff access",
   service_head: "Service Head access",
   service_staff: "Service Staff access",
+  digital_marketer: "Marketing access",
   driver: "Driver access",
   utility: "Utility access",
 };
@@ -33,6 +35,7 @@ const ROLE_ACCENT: Record<string, string> = {
   store_manager: "var(--cs-manager-accent)",
   crm: "var(--cs-crm-accent)",
   staff: "var(--cs-staff-accent)",
+  digital_marketer: "var(--cs-owner-accent)",
   driver: "var(--cs-sand)",
   utility: "var(--cs-sand)",
 };
@@ -50,7 +53,14 @@ export function WorkspaceBreadcrumb({ role }: { role: string }) {
 
   return (
     <div
-      style={{ display: "flex", alignItems: "center", gap: 8, minWidth: 0, flex: "1 1 auto", paddingLeft: 40 }}
+      style={{
+        display: "flex",
+        alignItems: "center",
+        gap: 8,
+        minWidth: 0,
+        flex: "1 1 auto",
+        paddingLeft: 40,
+      }}
       className="md:pl-0"
     >
       <div

@@ -68,12 +68,7 @@ export const MANAGER_PREFETCH: WorkspacePrefetchConfig = {
     "/manager/operations",
     "/manager/settings",
   ],
-  hover: [
-    "/manager/live-operations",
-    "/manager/resources",
-    "/manager/reports",
-    "/manager/today",
-  ],
+  hover: ["/manager/live-operations", "/manager/resources", "/manager/reports", "/manager/today"],
 };
 
 // ── Owner ─────────────────────────────────────────────────────────────────────
@@ -95,11 +90,24 @@ export const OWNER_PREFETCH: WorkspacePrefetchConfig = {
   ],
 };
 
+// ── Marketing ────────────────────────────────────────────────────────────────
+
+export const MARKETING_PREFETCH: WorkspacePrefetchConfig = {
+  immediate: [],
+  idle: ["/marketing"],
+  hover: [],
+};
+
 // ── Staff Portal ──────────────────────────────────────────────────────────────
 
 export const STAFF_PORTAL_PREFETCH: WorkspacePrefetchConfig = {
   immediate: ["/staff-portal", "/staff-portal/schedule", "/staff-portal/today"],
-  idle: ["/staff-portal/week", "/staff-portal/profile", "/staff-portal/attendance", "/staff-portal/notifications"],
+  idle: [
+    "/staff-portal/week",
+    "/staff-portal/profile",
+    "/staff-portal/attendance",
+    "/staff-portal/notifications",
+  ],
   hover: ["/staff-portal/dispatch", "/staff-portal/stats"],
 };
 
@@ -117,6 +125,7 @@ export const WORKSPACE_PREFETCH_CONFIGS: Record<string, WorkspacePrefetchConfig>
   crm: CRM_PREFETCH,
   manager: MANAGER_PREFETCH,
   owner: OWNER_PREFETCH,
+  marketing: MARKETING_PREFETCH,
   staff: STAFF_PORTAL_PREFETCH,
   driver: DRIVER_PREFETCH,
 };

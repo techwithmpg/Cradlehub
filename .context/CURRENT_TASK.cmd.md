@@ -6,8 +6,8 @@ print templates, replace healthy Attendance polling with event-driven Realtime
 local merges plus cursor reconciliation, and expand the protected Marketing
 Studio into a governed draft/preview/publish workspace with a dedicated
 digital-marketer role.
-Status: IN PROGRESS - PHASE 2 SOURCE/AUTOMATED GATES COMPLETE; AUTHENTICATED
-BROWSER REQUEST EVIDENCE PENDING
+Status: COMPLETE LOCALLY - PHASE 3 SOURCE/AUTOMATED GATES COMPLETE; DATABASE
+MIGRATION APPLY AND AUTHENTICATED BROWSER QA PENDING
 Started: 2026-07-29
 Last updated: 2026-07-30
 
@@ -36,10 +36,30 @@ Last updated: 2026-07-30
   HTTP 200. Playwright/browser automation is not installed in this workspace,
   and no authenticated CRM browser session is available in this run, so live
   Realtime request-count/browser evidence remains pending.
-- Phase 3 Digital Marketing Studio has not started in this resume session and
-  must remain "enhancement in progress" until its own role, migration, RLS,
-  storage, publishing, preview, rollback, public-site integration, and browser
-  gates are genuinely complete.
+- Phase 3 Digital Marketing Studio source is implemented locally. It adds the
+  `digital_marketer` role/workspace routing, protected `/marketing` draft
+  workspace, additive draft/revision/media/brand/SEO migration with explicit
+  grants and RLS, owner review queue, approve/request-change/schedule/publish/
+  archive lifecycle actions, public homepage section publishing through the
+  existing owner-only public-site mutation path, and staff-provider exclusions
+  so marketing users cannot be assigned as therapists.
+- Phase 3 automated gates pass locally: `pnpm type-check`, `pnpm lint`,
+  `pnpm format:check`, full `pnpm test --run` at 193 files / 1,332 tests, and
+  `git diff --check`.
+- `pnpm build` passed earlier in the Phase 3 verification pass on this branch
+  with Next.js 16.2.4 and 114 generated pages. The final rerun after the
+  timezone-test helper fix was blocked by repeated external Google Fonts fetch
+  failures for Cormorant Garamond, DM Sans, Manrope, and Playfair Display before
+  app route compilation could complete.
+- Local HTTP smoke on `http://localhost:3007` confirmed `/marketing` and
+  `/owner/marketing` both return protected-route HTTP 307 redirects when
+  unauthenticated. Playwright is not installed and no authenticated owner/
+  digital-marketer browser session is available in this environment, so
+  authenticated browser interaction evidence remains pending.
+- The Phase 3 Supabase migration has not been applied to production or used to
+  regenerate `src/types/supabase.ts`; linked migration history is still known
+  unsafe/drifted, so database apply remains blocked until the approved safe
+  history path is proven.
 
 ## Guardrails
 

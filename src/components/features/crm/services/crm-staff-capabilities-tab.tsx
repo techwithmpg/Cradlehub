@@ -19,7 +19,7 @@ import { SERVICE_STAFF_TYPES, STAFF_TYPE_LABELS } from "@/constants/staff-roles"
 import type { ServiceStaffType } from "@/constants/staff-roles";
 import { getStaffAdminName } from "@/lib/staff/display-name";
 
-const HARD_EXCLUDED_SYSTEM_ROLES = new Set(["driver", "utility"]);
+const HARD_EXCLUDED_SYSTEM_ROLES = new Set(["digital_marketer", "driver", "utility"]);
 const SERVICE_STAFF_TYPE_SET = new Set<string>(SERVICE_STAFF_TYPES);
 
 function isEligibleProvider(s: StaffForServicePanel): boolean {
@@ -30,7 +30,9 @@ function isEligibleProvider(s: StaffForServicePanel): boolean {
 // ── Sub-components ────────────────────────────────────────────────────────────
 
 function StaffTypeBadge({ staffType }: { staffType: string | null }) {
-  const label = staffType ? (STAFF_TYPE_LABELS[staffType as ServiceStaffType] ?? staffType) : "Unknown";
+  const label = staffType
+    ? (STAFF_TYPE_LABELS[staffType as ServiceStaffType] ?? staffType)
+    : "Unknown";
   const color = staffType === "therapist" ? "var(--cs-sand)" : "#7c3aed";
   const bg = staffType === "therapist" ? "var(--cs-sand-mist)" : "rgba(124,58,237,0.08)";
   return (
@@ -128,9 +130,16 @@ export function CrmStaffCapabilitiesTab({
           <div style={{ fontSize: "0.9375rem", fontWeight: 700, color: "var(--cs-text)" }}>
             Staff Capabilities
           </div>
-          <div style={{ fontSize: "0.8125rem", color: "var(--cs-text-secondary)", lineHeight: 1.5, marginTop: 2 }}>
-            View which services each staff member can perform.
-            To edit capabilities, open the staff profile workspace.
+          <div
+            style={{
+              fontSize: "0.8125rem",
+              color: "var(--cs-text-secondary)",
+              lineHeight: 1.5,
+              marginTop: 2,
+            }}
+          >
+            View which services each staff member can perform. To edit capabilities, open the staff
+            profile workspace.
           </div>
         </div>
       </div>
@@ -139,11 +148,17 @@ export function CrmStaffCapabilitiesTab({
       {eligibleStaff.length === 0 ? (
         <div
           className="cs-card"
-          style={{ padding: "2rem", textAlign: "center", color: "var(--cs-text-muted)", fontSize: "0.875rem" }}
+          style={{
+            padding: "2rem",
+            textAlign: "center",
+            color: "var(--cs-text-muted)",
+            fontSize: "0.875rem",
+          }}
         >
           No eligible provider staff found for this branch.
           <p style={{ fontSize: "0.8125rem", marginTop: 4 }}>
-            Add therapists, nail technicians, aestheticians, or salon heads to your branch staff first.
+            Add therapists, nail technicians, aestheticians, or salon heads to your branch staff
+            first.
           </p>
         </div>
       ) : (
@@ -161,7 +176,12 @@ export function CrmStaffCapabilitiesTab({
               <div
                 key={member.id}
                 className="cs-card"
-                style={{ padding: "1rem", display: "flex", flexDirection: "column", gap: "0.625rem" }}
+                style={{
+                  padding: "1rem",
+                  display: "flex",
+                  flexDirection: "column",
+                  gap: "0.625rem",
+                }}
               >
                 <div style={{ display: "flex", alignItems: "center", gap: "0.75rem" }}>
                   <div
@@ -243,8 +263,15 @@ export function CrmStaffCapabilitiesTab({
                 )}
 
                 {assignedServices.length === 0 && (
-                  <div style={{ fontSize: "0.75rem", color: "var(--cs-text-muted)", fontStyle: "italic" }}>
-                    No services assigned yet. Use the Services tab to assign this staff member to services.
+                  <div
+                    style={{
+                      fontSize: "0.75rem",
+                      color: "var(--cs-text-muted)",
+                      fontStyle: "italic",
+                    }}
+                  >
+                    No services assigned yet. Use the Services tab to assign this staff member to
+                    services.
                   </div>
                 )}
               </div>

@@ -8,11 +8,21 @@ import {
   updatePublicSiteAsset,
   updatePublicSiteSection,
 } from "@/lib/queries/public-site";
+import {
+  approveMarketingContentDraft,
+  archiveMarketingContentDraft,
+  publishMarketingContentDraft,
+  requestMarketingContentChanges,
+  scheduleMarketingContentDraft,
+  type MarketingContentDraftRow,
+} from "@/lib/queries/marketing-content";
 import type { PublicSiteAssetRow, PublicSiteSectionRow } from "@/lib/queries/public-site";
 
 async function requireOwner() {
   const supabase = await createClient();
-  const { data: { user } } = await supabase.auth.getUser();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
   if (!user) return null;
 
   if (isDevAuthBypassEnabled()) {
@@ -36,6 +46,7 @@ export type MarketingActionState = {
   section?: PublicSiteSectionRow;
   asset?: PublicSiteAssetRow;
   disabledAssetId?: string;
+  draft?: MarketingContentDraftRow;
 };
 
 function text(formData: FormData, name: string): string {
@@ -162,4 +173,77 @@ export async function disableMarketingAssetAction(
   }
 
   return { success: true, message: "Asset disabled.", disabledAssetId: id };
+}
+
+export async function approveMarketingDraftAction(
+  prevState: MarketingActionState,
+  formData: FormData
+): Promise<MarketingActionState> {
+  void prevState;
+  if (!(await requireOwner())) return { success: false, error: "Unauthorized" };
+  const result = await approveMarketingContentDraft({
+    id: text(formData, "id"),
+    reviewNote: text(formData, "reviewNote"),
+  });
+
+  if (!result.success) return { success: false, error: result.error };
+  return { success: true, message: result.message, draft: result.draft };
+}
+
+export async function requestMarketingDraftChangesAction(
+  prevState: MarketingActionState,
+  formData: FormData
+): Promise<MarketingActionState> {
+  void prevState;
+  if (!(await requireOwner())) return { success: false, error: "Unauthorized" };
+  const result = await requestMarketingContentChanges({
+    id: text(formData, "id"),
+    reviewNote: text(formData, "reviewNote"),
+  });
+
+  if (!result.success) return { success: false, error: result.error };
+  return { success: true, message: result.message, draft: result.draft };
+}
+
+export async function scheduleMarketingDraftAction(
+  prevState: MarketingActionState,
+  formData: FormData
+): Promise<MarketingActionState> {
+  void prevState;
+  if (!(await requireOwner())) return { success: false, error: "Unauthorized" };
+  const result = await scheduleMarketingContentDraft({
+    id: text(formData, "id"),
+    reviewNote: text(formData, "reviewNote"),
+    scheduledFor: text(formData, "scheduledFor"),
+  });
+
+  if (!result.success) return { success: false, error: result.error };
+  return { success: true, message: result.message, draft: result.draft };
+}
+
+export async function publishMarketingDraftAction(
+  prevState: MarketingActionState,
+  formData: FormData
+): Promise<MarketingActionState> {
+  void prevState;
+  if (!(await requireOwner())) return { success: false, error: "Unauthorized" };
+  const result = await publishMarketingContentDraft({ id: text(formData, "id") });
+
+  if (!result.success) return { success: false, error: result.error };
+  return { success: true, message: result.message, draft: result.draft };
+}
+
+export async function archiveMarketingDraftAction(
+  prevState: MarketingActionState,
+  formData: FormData
+): Promise<MarketingActionState> {
+  void prevState;
+  if (!(await requireOwner())) return { success: false, error: "Unauthorized" };
+  const result = await archiveMarketingContentDraft({
+    id: text(formData, "id"),
+    reviewNote: text(formData, "reviewNote"),
+  });
+
+  if (!result.success) return { success: false, error: result.error };
+  return { success: true, message: result.message, draft: result.draft };
 }

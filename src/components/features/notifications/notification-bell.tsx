@@ -31,6 +31,7 @@ const SOUND_ROLES = new Set(["crm", "manager", "owner"]);
 
 const WORKSPACE_HREF: Record<string, string> = {
   owner: "/owner/notifications",
+  digital_marketer: "/marketing",
   manager: "/manager",
   crm: "/crm/notifications",
   staff: "/staff-portal/notifications",

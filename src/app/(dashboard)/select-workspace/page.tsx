@@ -6,6 +6,7 @@ import {
   Crown,
   Headphones,
   ShieldCheck,
+  Sparkles,
   Truck,
   UserRound,
   Wrench,
@@ -14,13 +15,18 @@ import {
 import { BrandLogo } from "@/components/shared/brand-logo";
 import { WorkspaceSwitchLink } from "@/components/shared/workspace-switch-link";
 import { getCurrentUserWorkspaceAccess } from "@/lib/auth/get-user-workspace-access";
-import { getWorkspaceSwitchDestination, type WorkspaceAccess, type WorkspaceKey } from "@/lib/auth/workspace-access";
+import {
+  getWorkspaceSwitchDestination,
+  type WorkspaceAccess,
+  type WorkspaceKey,
+} from "@/lib/auth/workspace-access";
 
 const WORKSPACE_ICONS: Record<WorkspaceKey, LucideIcon> = {
   crm: Headphones,
   staff_portal: UserRound,
   driver: Truck,
   owner: Crown,
+  marketing: Sparkles,
   manager: Building2,
   utility: Wrench,
 };
@@ -35,6 +41,8 @@ function loadingLabel(workspace: WorkspaceAccess): string {
       return "Preparing your Driver Portal...";
     case "owner":
       return "Opening Owner / Admin Workspace...";
+    case "marketing":
+      return "Opening Marketing Studio...";
     case "manager":
       return "Preparing your Manager Workspace...";
     case "utility":
@@ -59,9 +67,7 @@ export default async function SelectWorkspacePage() {
         <p className="text-xs font-semibold uppercase tracking-[0.18em] text-[var(--cs-sand)]">
           Workspace access
         </p>
-        <h1 className="mt-2 text-3xl font-semibold text-[var(--cs-text)]">
-          Choose Your Workspace
-        </h1>
+        <h1 className="mt-2 text-3xl font-semibold text-[var(--cs-text)]">Choose Your Workspace</h1>
         <p className="mx-auto mt-3 max-w-2xl text-sm leading-6 text-[var(--cs-text-muted)]">
           You have access to more than one workspace. Choose where you want to continue.
         </p>

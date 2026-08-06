@@ -13,7 +13,7 @@
  *
  * Architecture rules enforced (display + validation):
  *   - Only SERVICE_STAFF_TYPES can be valid providers.
- *   - driver + utility are hard-excluded (HARD_EXCLUDED_SYSTEM_ROLES).
+ *   - marketing, driver, and utility roles are hard-excluded (HARD_EXCLUDED_SYSTEM_ROLES).
  *   - Public services with 0 valid providers show ⛔ critical state.
  *   - Assignments use the existing staff_services junction table.
  */
@@ -29,7 +29,7 @@ import type { ReadinessIssue } from "@/types/readiness";
 
 // ── Constants ─────────────────────────────────────────────────────────────────
 
-const HARD_EXCLUDED_SYSTEM_ROLES = new Set(["driver", "utility"]);
+const HARD_EXCLUDED_SYSTEM_ROLES = new Set(["digital_marketer", "driver", "utility"]);
 const SERVICE_STAFF_TYPE_SET = new Set<string>(SERVICE_STAFF_TYPES);
 
 // ── Readiness issue factory ───────────────────────────────────────────────────
@@ -50,7 +50,8 @@ export function createNoProviderReadinessIssue(row: ServiceRow): ReadinessIssue 
       severity: "critical",
       title: "Public service has no valid provider",
       problem: `"${row.name}" is visible to customers but has no eligible provider assigned.`,
-      impact: "Customers may not be able to choose a therapist or complete a booking for this service online.",
+      impact:
+        "Customers may not be able to choose a therapist or complete a booking for this service online.",
       fix: "Assign at least one eligible service provider (therapist, nail tech, aesthetician, or salon head) before relying on this service in online booking.",
       actionLabel: "Assign provider",
       actionHref: "/crm/services?tab=services",
@@ -129,8 +130,8 @@ function buildServiceRows(
       catRel === null || catRel === undefined
         ? null
         : Array.isArray(catRel)
-        ? (catRel[0]?.name ?? null)
-        : catRel.name ?? null;
+          ? (catRel[0]?.name ?? null)
+          : (catRel.name ?? null);
 
     return {
       branchServiceId: svc.id,
@@ -180,7 +181,6 @@ export function CrmServiceTherapistPanel({
 
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: "0.875rem" }}>
-
       {/* ── MVP access notice ── */}
       <div
         style={{
@@ -194,10 +194,11 @@ export function CrmServiceTherapistPanel({
         }}
       >
         <strong style={{ color: "var(--cs-info,#2980b9)" }}>MVP Setup Access</strong>
-        {" — CRM can manage service-provider assignments so daily operations can start immediately. "}
-        Only valid service providers (therapists, nail techs, aestheticians, salon heads) can be assigned.
-        Drivers, utility staff, and front-desk-only accounts are excluded automatically.
-        {" "}
+        {
+          " — CRM can manage service-provider assignments so daily operations can start immediately. "
+        }
+        Only valid service providers (therapists, nail techs, aestheticians, salon heads) can be
+        assigned. Drivers, utility staff, and front-desk-only accounts are excluded automatically.{" "}
         <span style={{ color: "var(--cs-text-muted)" }}>
           (This permission can be restricted to managers or owners later once the system is stable.)
         </span>
@@ -259,17 +260,25 @@ export function CrmServiceTherapistPanel({
           }}
         >
           <div>
-            <strong style={{ color: "var(--cs-text-secondary)" }}>Who can be assigned?</strong>{" "}
-            Only staff with a service staff type — Therapist, Nail Tech, Aesthetician / Facialist, or Salon Head — appear in the assign dropdown. Drivers, utility staff, CRM staff, CSR staff, and managerial roles are excluded automatically and are never shown to customers as service providers.
+            <strong style={{ color: "var(--cs-text-secondary)" }}>Who can be assigned?</strong> Only
+            staff with a service staff type — Therapist, Nail Tech, Aesthetician / Facialist, or
+            Salon Head — appear in the assign dropdown. Drivers, utility staff, CRM staff, CSR
+            staff, and managerial roles are excluded automatically and are never shown to customers
+            as service providers.
           </div>
           <div>
             <strong style={{ color: "var(--cs-text-secondary)" }}>Assignment is required.</strong>{" "}
-            Even with the correct staff type, a provider only appears for a service when explicitly assigned. Without any assigned providers, the booking wizard cannot offer a therapist selection for that service.
+            Even with the correct staff type, a provider only appears for a service when explicitly
+            assigned. Without any assigned providers, the booking wizard cannot offer a therapist
+            selection for that service.
           </div>
           <div>
-            <strong style={{ color: "var(--cs-text-secondary)" }}>Applies to all booking flows.</strong>{" "}
-            Provider assignments affect online booking and CRM in-house bookings equally. Changes take effect immediately — no page reload needed on the booking side.{" "}
-            To view comprehensive staff profiles and service histories, use the{" "}
+            <strong style={{ color: "var(--cs-text-secondary)" }}>
+              Applies to all booking flows.
+            </strong>{" "}
+            Provider assignments affect online booking and CRM in-house bookings equally. Changes
+            take effect immediately — no page reload needed on the booking side. To view
+            comprehensive staff profiles and service histories, use the{" "}
             <Link
               href="/owner/staff"
               style={{ color: "var(--cs-brand)", textDecoration: "underline" }}

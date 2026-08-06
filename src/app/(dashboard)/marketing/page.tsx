@@ -1,30 +1,30 @@
 import { PageHeader } from "@/components/features/dashboard/page-header";
-import { getPublicSiteAssets, getPublicSiteSections } from "@/lib/queries/public-site";
 import { PUBLIC_SITE_SECTION_DEFAULTS } from "@/lib/marketing/public-section-defaults";
 import {
   getMarketingContentDrafts,
   getMarketingContentRevisions,
 } from "@/lib/queries/marketing-content";
-import { MarketingStudio } from "./marketing-studio";
+import { getPublicSiteAssets, getPublicSiteSections } from "@/lib/queries/public-site";
+import { MarketingWorkspace } from "./marketing-workspace";
 
-export default async function MarketingStudioPage() {
+export default async function MarketingWorkspacePage() {
   const [sections, galleryAssets, drafts, revisions] = await Promise.all([
     getPublicSiteSections({ includeDisabled: true }),
     getPublicSiteAssets("gallery", { includeDisabled: true }),
     getMarketingContentDrafts(),
-    getMarketingContentRevisions(16),
+    getMarketingContentRevisions(12),
   ]);
 
   return (
     <div>
       <PageHeader
         title="Marketing Studio"
-        description="Manage public homepage copy, imagery, gallery items, and promotional sections."
+        description="Prepare public-site updates as drafts before owner publishing."
       />
 
-      <MarketingStudio
+      <MarketingWorkspace
         sectionDefaults={PUBLIC_SITE_SECTION_DEFAULTS}
-        sections={sections}
+        publishedSections={sections}
         galleryAssets={galleryAssets}
         drafts={drafts}
         revisions={revisions}

@@ -32,8 +32,7 @@ export function getBranchDateParts(now: Date, timezone = BRANCH_TIMEZONE) {
       hour12: false,
     }).formatToParts(now);
 
-    const get = (type: string) =>
-      parts.find((p) => p.type === type)?.value ?? "00";
+    const get = (type: string) => parts.find((p) => p.type === type)?.value ?? "00";
 
     const h = parseInt(get("hour"), 10) % 24;
     const m = parseInt(get("minute"), 10);
@@ -61,9 +60,8 @@ export function hoursFromNow(now: Date, hours: number): string {
 
 export function bookingDateTimeToIso(bookingDate: string, startTime: string): string {
   const [hours = 0, minutes = 0] = startTime.split(":").map(Number);
-  const date = new Date(`${bookingDate}T00:00:00+08:00`);
-  date.setHours(hours, minutes, 0, 0);
-  return date.toISOString();
+  const [year = 0, month = 1, day = 1] = bookingDate.split("-").map(Number);
+  return new Date(Date.UTC(year, month - 1, day, hours - 8, minutes, 0, 0)).toISOString();
 }
 
 export async function runFollowUpRules(

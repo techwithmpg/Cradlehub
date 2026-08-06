@@ -25,4 +25,13 @@ describe("workspace navigation contract", () => {
     expect(resolveWorkspaceKeyFromRole("assistant_manager")).toBe("crm");
     expect(resolveWorkspaceKeyFromRole("store_manager")).toBe("crm");
   });
+
+  it("routes digital marketers to the dedicated Marketing workspace", () => {
+    expect(resolveWorkspaceKeyFromRole("digital_marketer")).toBe("marketing");
+    expect(NAV_CONFIG.marketing?.items?.[0]).toEqual({
+      label: "Drafts",
+      href: "/marketing",
+      icon: "Sparkles",
+    });
+  });
 });

@@ -6,6 +6,7 @@ export type WorkspaceKey =
   | "staff_portal"
   | "driver"
   | "owner"
+  | "marketing"
   | "manager"
   | "utility";
 
@@ -27,9 +28,16 @@ export type WorkspaceStaffProfile = {
   branches?: { name: string | null } | { name: string | null }[] | null;
 };
 
-const CRM_ROLES = new Set(["owner", "manager", "assistant_manager", "store_manager", ...FRONT_DESK_ROLE_ALIASES]);
+const CRM_ROLES = new Set([
+  "owner",
+  "manager",
+  "assistant_manager",
+  "store_manager",
+  ...FRONT_DESK_ROLE_ALIASES,
+]);
 const MANAGER_ROLES = new Set(["manager", "assistant_manager", "store_manager"]);
-const STAFF_PORTAL_EXCLUDED_PRIMARY_ROLES = new Set(["driver", "utility"]);
+const MARKETING_ROLES = new Set(["owner", "digital_marketer"]);
+const STAFF_PORTAL_EXCLUDED_PRIMARY_ROLES = new Set(["digital_marketer", "driver", "utility"]);
 
 function branchNameFromProfile(profile: WorkspaceStaffProfile): string | null {
   const branch = profile.branches;
@@ -38,10 +46,7 @@ function branchNameFromProfile(profile: WorkspaceStaffProfile): string | null {
   return branch.name ?? null;
 }
 
-function workspaceMeta(
-  key: WorkspaceKey,
-  branchName: string | null
-): WorkspaceAccess {
+function workspaceMeta(key: WorkspaceKey, branchName: string | null): WorkspaceAccess {
   switch (key) {
     case "crm":
       return {
@@ -79,6 +84,15 @@ function workspaceMeta(
         priority: 5,
         branchName,
       };
+    case "marketing":
+      return {
+        key,
+        label: "Marketing Studio",
+        description: "Prepare public-site drafts, media, brand, and SEO updates.",
+        href: "/marketing",
+        priority: 7,
+        branchName,
+      };
     case "manager":
       return {
         key,
@@ -112,6 +126,7 @@ export function buildWorkspaceAccessFromStaffProfile(
   const add = (key: WorkspaceKey) => byKey.set(key, workspaceMeta(key, branchName));
 
   if (role === "owner") add("owner");
+  if (MARKETING_ROLES.has(role)) add("marketing");
   if (MANAGER_ROLES.has(role)) add("manager");
   if (CRM_ROLES.has(role)) add("crm");
 
@@ -169,6 +184,10 @@ export function canAccessWorkspacePath(
 
   if (pathname.startsWith("/owner")) {
     return hasWorkspaceAccess(workspaces, "owner");
+  }
+
+  if (pathname.startsWith("/marketing")) {
+    return hasWorkspaceAccess(workspaces, "marketing");
   }
 
   if (pathname.startsWith("/manager")) {

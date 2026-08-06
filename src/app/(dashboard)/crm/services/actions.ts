@@ -14,11 +14,7 @@
 
 import { z } from "zod";
 import { revalidatePath } from "next/cache";
-import {
-  cacheTags,
-  invalidateCrmWorkspace,
-  invalidateTag,
-} from "@/lib/cache/cache-tags";
+import { cacheTags, invalidateCrmWorkspace, invalidateTag } from "@/lib/cache/cache-tags";
 import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { isDevAuthBypassEnabled, getDevBypassLayoutStaff } from "@/lib/dev-bypass";
@@ -42,15 +38,10 @@ export type ActionResult =
  * High-privilege roles that can manage any branch (not tied to a specific branch_id).
  * These roles are trusted to provide a valid branchId from the UI context.
  */
-const HIGH_PRIVILEGE_ROLES = new Set([
-  "owner",
-  "manager",
-  "assistant_manager",
-  "store_manager",
-]);
+const HIGH_PRIVILEGE_ROLES = new Set(["owner", "manager", "assistant_manager", "store_manager"]);
 
 /** System roles that can never be service providers, regardless of staff_services entries. */
-const HARD_EXCLUDED_SYSTEM_ROLES = new Set(["driver", "utility"]);
+const HARD_EXCLUDED_SYSTEM_ROLES = new Set(["digital_marketer", "driver", "utility"]);
 
 /** Staff types that are valid service providers. */
 const SERVICE_STAFF_TYPE_SET = new Set<string>(SERVICE_STAFF_TYPES);
@@ -144,8 +135,7 @@ async function checkBranchScope(
     if (!branch) {
       return {
         ok: false,
-        message:
-          "Branch not found. Please reload the Services page and try again.",
+        message: "Branch not found. Please reload the Services page and try again.",
       };
     }
     return null; // ✓ allowed
@@ -187,21 +177,15 @@ function uuidField(missingMsg: string, label: string) {
 // ── Zod schemas ───────────────────────────────────────────────────────────────
 
 const assignSchema = z.object({
-  branchId: uuidField(
-    "Branch ID is missing — please reload the page and try again.",
-    "branchId"
-  ),
+  branchId: uuidField("Branch ID is missing — please reload the page and try again.", "branchId"),
   serviceId: uuidField("Service ID is required.", "serviceId"),
-  staffId:   uuidField("Please select a provider to assign.", "staffId"),
+  staffId: uuidField("Please select a provider to assign.", "staffId"),
 });
 
 const removeSchema = z.object({
-  branchId: uuidField(
-    "Branch ID is missing — please reload the page and try again.",
-    "branchId"
-  ),
+  branchId: uuidField("Branch ID is missing — please reload the page and try again.", "branchId"),
   serviceId: uuidField("Service ID is required.", "serviceId"),
-  staffId:   uuidField("Staff ID is required.", "staffId"),
+  staffId: uuidField("Staff ID is required.", "staffId"),
 });
 
 const homeServiceAvailabilitySchema = z.object({
@@ -242,9 +226,7 @@ function isValidServiceProvider(s: StaffEligibility): boolean {
  * - Staff belongs to the branch, is active, has valid staff_type, not hard-excluded
  * - No duplicate assignment (idempotent — returns ok if already assigned)
  */
-export async function assignProviderToServiceAction(
-  rawInput: unknown
-): Promise<ActionResult> {
+export async function assignProviderToServiceAction(rawInput: unknown): Promise<ActionResult> {
   const parsed = assignSchema.safeParse(rawInput);
   if (!parsed.success) {
     // Diagnostic: log what actually arrived so we can identify the bad value
@@ -283,7 +265,8 @@ export async function assignProviderToServiceAction(
   if (bsErr || !branchService) {
     return {
       ok: false,
-      message: "This service is not active for your branch. Only active branch services can have providers assigned.",
+      message:
+        "This service is not active for your branch. Only active branch services can have providers assigned.",
     };
   }
 
@@ -372,9 +355,7 @@ export async function assignProviderToServiceAction(
   };
 }
 
-export async function updateBranchServiceHomeServiceAvailabilityAction(
-  rawInput: unknown
-): Promise<
+export async function updateBranchServiceHomeServiceAvailabilityAction(rawInput: unknown): Promise<
   | {
       success: true;
       savedAvailableHomeService: boolean;
@@ -401,8 +382,7 @@ export async function updateBranchServiceHomeServiceAvailabilityAction(
   if (!ctx) {
     return {
       success: false,
-      error:
-        "Unauthorized. CRM setup access is required to update service availability.",
+      error: "Unauthorized. CRM setup access is required to update service availability.",
     };
   }
 
@@ -465,9 +445,7 @@ export async function updateBranchServiceHomeServiceAvailabilityAction(
  * - Last-provider protection: blocks removal if this is the last valid provider
  *   for a public active service (prevents breaking the online booking wizard)
  */
-export async function removeProviderFromServiceAction(
-  rawInput: unknown
-): Promise<ActionResult> {
+export async function removeProviderFromServiceAction(rawInput: unknown): Promise<ActionResult> {
   const parsed = removeSchema.safeParse(rawInput);
   if (!parsed.success) {
     // Diagnostic: log what actually arrived so we can identify the bad value

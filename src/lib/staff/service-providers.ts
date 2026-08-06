@@ -6,11 +6,12 @@ const NON_SERVICE_SYSTEM_ROLES = new Set([
   "assistant_manager",
   "store_manager",
   "crm",
+  "digital_marketer",
   "driver",
   "utility",
 ]);
 
-const HARD_EXCLUDED_SYSTEM_ROLES = new Set(["driver", "utility"]);
+const HARD_EXCLUDED_SYSTEM_ROLES = new Set(["digital_marketer", "driver", "utility"]);
 
 export type ServiceProviderCandidate = {
   is_active?: boolean | null;

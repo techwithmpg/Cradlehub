@@ -49,6 +49,7 @@ function resolveWorkspaceKey(pathname: string): string | null {
   if (pathname.startsWith("/crm")) return "crm";
   if (pathname.startsWith("/manager")) return "manager";
   if (pathname.startsWith("/owner")) return "owner";
+  if (pathname.startsWith("/marketing")) return "marketing";
   if (pathname.startsWith("/staff-portal")) return "staff";
   if (pathname.startsWith("/driver")) return "driver";
   return null;
@@ -135,8 +136,13 @@ export function WorkspaceRoutePrefetcher({
 
       if (eagerIdle) {
         idleTimer = window.setTimeout(runIdle, 1200);
-      } else if (typeof (window as unknown as { requestIdleCallback?: unknown }).requestIdleCallback === "function") {
-        idleCallbackId = (window as unknown as { requestIdleCallback: typeof requestIdleCallback }).requestIdleCallback(runIdle, { timeout: 3000 });
+      } else if (
+        typeof (window as unknown as { requestIdleCallback?: unknown }).requestIdleCallback ===
+        "function"
+      ) {
+        idleCallbackId = (
+          window as unknown as { requestIdleCallback: typeof requestIdleCallback }
+        ).requestIdleCallback(runIdle, { timeout: 3000 });
       } else {
         idleTimer = window.setTimeout(runIdle, 2000);
       }

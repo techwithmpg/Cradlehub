@@ -25,10 +25,7 @@ export const ROLE_LABELS: Record<string, string> = { ...SYSTEM_ROLE_LABELS };
 const OWNERS: readonly string[] = ["owner"];
 const MANAGERS: readonly string[] = ["owner", "manager", "assistant_manager", "store_manager"];
 const CRM_ROLES: readonly string[] = FRONT_DESK_ROLE_ALIASES;
-const BOOKING_OPERATIONS: readonly string[] = [
-  ...MANAGERS,
-  ...CRM_ROLES,
-];
+const BOOKING_OPERATIONS: readonly string[] = [...MANAGERS, ...CRM_ROLES];
 
 // ── Permission helpers ──────────────────────────────────────────────────────
 
@@ -183,17 +180,10 @@ export function canViewDailySummary(role: string): boolean {
 // ── Route access permissions ────────────────────────────────────────────────
 
 /** Routes that front-desk roles are explicitly allowed to access */
-export const FRONT_DESK_ALLOWED_PREFIXES = [
-  "/crm",
-  "/manager/schedule",
-  "/manager/bookings",
-];
+export const FRONT_DESK_ALLOWED_PREFIXES = ["/crm", "/manager/schedule", "/manager/bookings"];
 
 /** Routes that CRM role can access across workspaces */
-export const FRONT_DESK_WORKSPACE_PREFIXES = [
-  "/crm",
-  "/manager/bookings",
-];
+export const FRONT_DESK_WORKSPACE_PREFIXES = ["/crm", "/manager/bookings"];
 
 /** Routes that are blocked for all front-desk roles */
 export const FRONT_DESK_BLOCKED_PREFIXES = [
@@ -260,6 +250,7 @@ export function getDefaultDashboardPath(role: string): string {
     return "/crm";
   }
   if (canonicalRole === "crm") return "/crm";
+  if (canonicalRole === "digital_marketer") return "/marketing";
   if (canonicalRole === "driver") return "/driver";
   if (canonicalRole === "utility") return "/utility";
   if (

@@ -92,6 +92,8 @@ const DRIVER_NAV_ITEMS: NavItem[] = [
 
 const UTILITY_NAV_ITEMS: NavItem[] = [{ label: "Utility Panel", href: "/utility", icon: "Wrench" }];
 
+const MARKETING_NAV_ITEMS: NavItem[] = [{ label: "Drafts", href: "/marketing", icon: "Sparkles" }];
+
 export const NAV_CONFIG: Record<string, WorkspaceNav> = {
   owner: {
     role: "owner",
@@ -126,10 +128,16 @@ export const NAV_CONFIG: Record<string, WorkspaceNav> = {
     label: "Utility",
     items: UTILITY_NAV_ITEMS,
   },
+  marketing: {
+    role: "marketing",
+    label: "Marketing",
+    items: MARKETING_NAV_ITEMS,
+  },
 };
 
 const WORKSPACE_PREFIX_TO_KEY = [
   { prefix: "/owner", key: "owner" },
+  { prefix: "/marketing", key: "marketing" },
   { prefix: "/manager", key: "manager" },
   { prefix: "/crm", key: "crm" },
   { prefix: "/staff-portal", key: "staff" },
@@ -147,6 +155,9 @@ export function resolveWorkspaceKeyFromRole(role: string): string {
   const canonicalRole = canonicalizeSystemRole(role);
   if (canonicalRole === "owner") {
     return "owner";
+  }
+  if (canonicalRole === "digital_marketer") {
+    return "marketing";
   }
 
   // MVP: management roles use the CRM workspace nav while Manager remains soft-paused.

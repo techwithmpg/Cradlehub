@@ -2,13 +2,38 @@
 
 import Link, { useLinkStatus } from "next/link";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
-import { useState, useCallback, useEffect }    from "react";
+import { useState, useCallback, useEffect } from "react";
 import {
-  LayoutDashboard, CalendarDays, CalendarClock, Building2, Users, Sparkles,
-  UserPlus, ClipboardList, Heart, Sun, BarChart2, ClockAlert,
-  Menu, X, TrendingUp, BookOpen, Clock, UserCheck, Activity,
-  ChevronRight, ChevronDown, Truck, Wrench, Monitor,
-  MapPin, Settings, Bell, DollarSign, User, ClipboardCheck,
+  LayoutDashboard,
+  CalendarDays,
+  CalendarClock,
+  Building2,
+  Users,
+  Sparkles,
+  UserPlus,
+  ClipboardList,
+  Heart,
+  Sun,
+  BarChart2,
+  ClockAlert,
+  Menu,
+  X,
+  TrendingUp,
+  BookOpen,
+  Clock,
+  UserCheck,
+  Activity,
+  ChevronRight,
+  ChevronDown,
+  Truck,
+  Wrench,
+  Monitor,
+  MapPin,
+  Settings,
+  Bell,
+  DollarSign,
+  User,
+  ClipboardCheck,
 } from "lucide-react";
 import {
   NAV_CONFIG,
@@ -29,72 +54,107 @@ import {
   type RetainedWorkspace,
 } from "@/components/features/dashboard/workspace-retention-policy";
 
-const ICON_MAP: Record<string, React.ComponentType<{ size?: number; strokeWidth?: number; className?: string }>> = {
-  LayoutDashboard, CalendarDays, CalendarClock, Building2, Users, Sparkles,
-  UserPlus, ClipboardList, Heart, Sun, BarChart2, ClockAlert,
-  TrendingUp, BookOpen, Clock, UserCheck, Activity, Truck, Wrench, Monitor,
-  MapPin, Settings, Bell, DollarSign, User, ClipboardCheck,
+const ICON_MAP: Record<
+  string,
+  React.ComponentType<{ size?: number; strokeWidth?: number; className?: string }>
+> = {
+  LayoutDashboard,
+  CalendarDays,
+  CalendarClock,
+  Building2,
+  Users,
+  Sparkles,
+  UserPlus,
+  ClipboardList,
+  Heart,
+  Sun,
+  BarChart2,
+  ClockAlert,
+  TrendingUp,
+  BookOpen,
+  Clock,
+  UserCheck,
+  Activity,
+  Truck,
+  Wrench,
+  Monitor,
+  MapPin,
+  Settings,
+  Bell,
+  DollarSign,
+  User,
+  ClipboardCheck,
 };
 
-const WORKSPACE_META: Record<string, {
-  label:    string;
-  sublabel: string;
-  accent:   string;
-  accentBg: string;
-  icon:     string;
-}> = {
+const WORKSPACE_META: Record<
+  string,
+  {
+    label: string;
+    sublabel: string;
+    accent: string;
+    accentBg: string;
+    icon: string;
+  }
+> = {
   owner: {
-    label:    "OWNER WORKSPACE",
+    label: "OWNER WORKSPACE",
     sublabel: "Owner access",
-    accent:   "var(--cs-owner-accent)",
+    accent: "var(--cs-owner-accent)",
     accentBg: "rgba(122, 90, 138, 0.15)",
-    icon:     "◆",
+    icon: "◆",
   },
   manager: {
-    label:    "MANAGER WORKSPACE",
+    label: "MANAGER WORKSPACE",
     sublabel: "Manager access",
-    accent:   "var(--cs-manager-accent)",
+    accent: "var(--cs-manager-accent)",
     accentBg: "rgba(90, 122, 138, 0.15)",
-    icon:     "▸",
+    icon: "▸",
   },
   crm: {
-    label:    "FRONT DESK WORKSPACE",
+    label: "FRONT DESK WORKSPACE",
     sublabel: "Front-desk access",
-    accent:   "var(--cs-csr-accent)",
+    accent: "var(--cs-csr-accent)",
     accentBg: "rgba(138, 122, 90, 0.15)",
-    icon:     "✦",
+    icon: "✦",
+  },
+  marketing: {
+    label: "MARKETING WORKSPACE",
+    sublabel: "Marketing access",
+    accent: "var(--cs-owner-accent)",
+    accentBg: "rgba(122, 90, 138, 0.15)",
+    icon: "M",
   },
   staff: {
-    label:    "STAFF WORKSPACE",
+    label: "STAFF WORKSPACE",
     sublabel: "Staff portal access",
-    accent:   "var(--cs-staff-accent)",
+    accent: "var(--cs-staff-accent)",
     accentBg: "rgba(138, 106, 90, 0.15)",
-    icon:     "○",
+    icon: "○",
   },
   driver: {
-    label:    "DRIVER WORKSPACE",
+    label: "DRIVER WORKSPACE",
     sublabel: "Driver portal access",
-    accent:   "var(--cs-sand)",
+    accent: "var(--cs-sand)",
     accentBg: "rgba(200, 169, 107, 0.15)",
-    icon:     "◈",
+    icon: "◈",
   },
   utility: {
-    label:    "UTILITY WORKSPACE",
+    label: "UTILITY WORKSPACE",
     sublabel: "Utility portal access",
-    accent:   "var(--cs-sand)",
+    accent: "var(--cs-sand)",
     accentBg: "rgba(200, 169, 107, 0.15)",
-    icon:     "◍",
+    icon: "◍",
   },
 };
 
 import { UserAvatar } from "@/components/shared/user-avatar";
 
 type NavLinkProps = {
-  item:     NavItem;
+  item: NavItem;
   pathname: string;
-  search:   string;
-  accent:   string;
-  onNav?:   () => void;
+  search: string;
+  accent: string;
+  onNav?: () => void;
   prefetchOnHover?: boolean;
   variant?: "primary" | "system";
   hasUnsavedChanges?: boolean;
@@ -121,15 +181,22 @@ function isQueryHrefActive(href: string, pathname: string, search: string): bool
 
 function isNavActive(item: NavItem, pathname: string, search: string): boolean {
   const path = hrefPath(item.href);
-  const isRootSection = ["/manager", "/owner", "/crm", "/staff-portal", "/driver", "/utility", "/dev"].includes(path);
+  const isRootSection = [
+    "/manager",
+    "/owner",
+    "/marketing",
+    "/crm",
+    "/staff-portal",
+    "/driver",
+    "/utility",
+    "/dev",
+  ].includes(path);
 
   if (item.href.includes("?")) {
     return isQueryHrefActive(item.href, pathname, search);
   }
 
-  return isRootSection
-    ? pathname === path
-    : pathname === path || pathname.startsWith(path + "/");
+  return isRootSection ? pathname === path : pathname === path || pathname.startsWith(path + "/");
 }
 
 function NavLink({
@@ -142,10 +209,10 @@ function NavLink({
   variant = "primary",
   hasUnsavedChanges = false,
 }: NavLinkProps) {
-  const Icon          = ICON_MAP[item.icon];
-  const router        = useRouter();
-  const isActive      = isNavActive(item, pathname, search);
-  const isSystem      = variant === "system";
+  const Icon = ICON_MAP[item.icon];
+  const router = useRouter();
+  const isActive = isNavActive(item, pathname, search);
+  const isSystem = variant === "system";
 
   const handleMouseEnter = useCallback(() => {
     if (!prefetchOnHover) return;
@@ -164,35 +231,38 @@ function NavLink({
       onMouseEnter={handleMouseEnter}
       onFocus={handleMouseEnter}
       style={{
-        display:         "flex",
-        alignItems:      "center",
-        gap:             isSystem ? 8 : 9,
-        padding:         isSystem ? "6px 8px" : "8px 10px",
-        borderRadius:    "var(--cs-r-sm)",
-        marginBottom:    isSystem ? 1 : 2,
-        fontSize:        isSystem ? 12 : 13,
-        fontWeight:      isActive ? 500 : 400,
-        color:           isActive
+        display: "flex",
+        alignItems: "center",
+        gap: isSystem ? 8 : 9,
+        padding: isSystem ? "6px 8px" : "8px 10px",
+        borderRadius: "var(--cs-r-sm)",
+        marginBottom: isSystem ? 1 : 2,
+        fontSize: isSystem ? 12 : 13,
+        fontWeight: isActive ? 500 : 400,
+        color: isActive
           ? "var(--cs-text-inverse)"
           : isSystem
             ? "var(--cs-sidebar-muted)"
             : "var(--cs-sidebar-text)",
         backgroundColor: isActive ? "var(--cs-sidebar-active)" : "transparent",
-        textDecoration:  "none",
-        transition:      "background-color var(--cs-duration) var(--cs-ease), color var(--cs-duration) var(--cs-ease)",
-        position:        "relative",
+        textDecoration: "none",
+        transition:
+          "background-color var(--cs-duration) var(--cs-ease), color var(--cs-duration) var(--cs-ease)",
+        position: "relative",
       }}
     >
       {isActive && (
-        <div style={{
-          position:     "absolute",
-          left:         0,
-          top:          "25%",
-          bottom:       "25%",
-          width:        2.5,
-          borderRadius: 2,
-          background:   accent,
-        }} />
+        <div
+          style={{
+            position: "absolute",
+            left: 0,
+            top: "25%",
+            bottom: "25%",
+            width: 2.5,
+            borderRadius: 2,
+            background: accent,
+          }}
+        />
       )}
       {Icon && <Icon size={isSystem ? 14 : 15} strokeWidth={isActive ? 2.25 : 1.75} />}
       <span style={{ flex: 1 }}>{item.label}</span>
@@ -233,29 +303,42 @@ function NavPendingIndicator({ isActive, isSystem }: { isActive: boolean; isSyst
 }
 
 type SidebarProps = {
-  role:        string;
-  fullName:    string;
-  nickname?:   string | null;
-  avatarUrl?:  string | null;
+  role: string;
+  fullName: string;
+  nickname?: string | null;
+  avatarUrl?: string | null;
   branchName?: string;
 };
 
 type SidebarContentProps = SidebarProps & {
   pathname: string;
-  search:   string;
-  onNav?:   () => void;
+  search: string;
+  onNav?: () => void;
   unsavedModuleIds: ReadonlySet<string>;
 };
 
-function SidebarContent({ role, fullName, nickname, avatarUrl, branchName, pathname, search, onNav, unsavedModuleIds }: SidebarContentProps) {
+function SidebarContent({
+  role,
+  fullName,
+  nickname,
+  avatarUrl,
+  branchName,
+  pathname,
+  search,
+  onNav,
+  unsavedModuleIds,
+}: SidebarContentProps) {
   const [systemOpen, setSystemOpen] = useState(false);
   const roleWorkspaceKey = resolveWorkspaceKeyFromRole(role);
   const pathWorkspaceKey = resolveWorkspaceKeyFromPath(pathname);
   const workspaceKey = pathWorkspaceKey ?? roleWorkspaceKey;
   const navKey = pathWorkspaceKey === "crm" ? resolveCrmNavKeyFromRole(role) : workspaceKey;
-  const nav          = NAV_CONFIG[navKey];
-  const pathMeta = WORKSPACE_META[pathWorkspaceKey ?? ""] ?? WORKSPACE_META[roleWorkspaceKey] ?? WORKSPACE_META["staff"]!;
-  const meta     = pathMeta;
+  const nav = NAV_CONFIG[navKey];
+  const pathMeta =
+    WORKSPACE_META[pathWorkspaceKey ?? ""] ??
+    WORKSPACE_META[roleWorkspaceKey] ??
+    WORKSPACE_META["staff"]!;
+  const meta = pathMeta;
   const displayName = pathname.startsWith("/staff-portal")
     ? getStaffDisplayName({ full_name: fullName, nickname })
     : getStaffAdminName({ full_name: fullName, nickname });
@@ -275,21 +358,25 @@ function SidebarContent({ role, fullName, nickname, avatarUrl, branchName, pathn
   };
 
   return (
-    <aside data-testid="workspace-sidebar" style={{
-      width:           248,
-      height:          "100vh",
-      backgroundColor: "var(--cs-sidebar)",
-      display:         "flex",
-      flexDirection:   "column",
-      flexShrink:      0,
-      overflowY:       "auto",
-    }}>
-
+    <aside
+      data-testid="workspace-sidebar"
+      style={{
+        width: 248,
+        height: "100vh",
+        backgroundColor: "var(--cs-sidebar)",
+        display: "flex",
+        flexDirection: "column",
+        flexShrink: 0,
+        overflowY: "auto",
+      }}
+    >
       {/* Brand */}
-      <div style={{
-        padding:      "18px 16px 14px",
-        borderBottom: "1px solid var(--cs-sidebar-border)",
-      }}>
+      <div
+        style={{
+          padding: "18px 16px 14px",
+          borderBottom: "1px solid var(--cs-sidebar-border)",
+        }}
+      >
         <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
           <Link
             href="/"
@@ -300,21 +387,25 @@ function SidebarContent({ role, fullName, nickname, avatarUrl, branchName, pathn
             <BrandLogo size="sm" className="w-28 md:w-32" />
           </Link>
           <div>
-            <div style={{
-              fontSize:      12,
-              fontWeight:    600,
-              color:         "var(--cs-text-inverse)",
-              fontFamily:    "var(--cs-font-display)",
-              letterSpacing: "0.08em",
-              lineHeight:    1.1,
-            }}>
+            <div
+              style={{
+                fontSize: 12,
+                fontWeight: 600,
+                color: "var(--cs-text-inverse)",
+                fontFamily: "var(--cs-font-display)",
+                letterSpacing: "0.08em",
+                lineHeight: 1.1,
+              }}
+            >
               CradleHub
             </div>
-            <div style={{
-              fontSize:  10,
-              color:     "var(--cs-sidebar-muted)",
-              marginTop: 2,
-            }}>
+            <div
+              style={{
+                fontSize: 10,
+                color: "var(--cs-sidebar-muted)",
+                marginTop: 2,
+              }}
+            >
               {branchName ?? "All Branches"}
             </div>
           </div>
@@ -323,47 +414,55 @@ function SidebarContent({ role, fullName, nickname, avatarUrl, branchName, pathn
 
       {/* Workspace identity badge */}
       <div style={{ padding: "12px 16px 10px" }}>
-        <div style={{
-          padding:      "9px 11px",
-          borderRadius: "var(--cs-r-sm)",
-          background:   meta.accentBg,
-          border:       `1px solid ${meta.accent.replace("var(", "").replace(")", "")}22`,
-          display:      "flex",
-          alignItems:   "center",
-          gap:          8,
-        }}>
-          <div style={{
-            width:           26,
-            height:          26,
-            borderRadius:    "var(--cs-r-xs)",
-            background:      `${meta.accentBg}`,
-            display:         "flex",
-            alignItems:      "center",
-            justifyContent:  "center",
-            flexShrink:      0,
-            color:           meta.accent,
-            fontSize:        14,
-          }}>
+        <div
+          style={{
+            padding: "9px 11px",
+            borderRadius: "var(--cs-r-sm)",
+            background: meta.accentBg,
+            border: `1px solid ${meta.accent.replace("var(", "").replace(")", "")}22`,
+            display: "flex",
+            alignItems: "center",
+            gap: 8,
+          }}
+        >
+          <div
+            style={{
+              width: 26,
+              height: 26,
+              borderRadius: "var(--cs-r-xs)",
+              background: `${meta.accentBg}`,
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "center",
+              flexShrink: 0,
+              color: meta.accent,
+              fontSize: 14,
+            }}
+          >
             {meta.icon}
           </div>
           <div style={{ minWidth: 0 }}>
-            <div style={{
-              fontSize:      11,
-              fontWeight:    600,
-              color:         meta.accent,
-              lineHeight:    1.1,
-              letterSpacing: "0.02em",
-            }}>
+            <div
+              style={{
+                fontSize: 11,
+                fontWeight: 600,
+                color: meta.accent,
+                lineHeight: 1.1,
+                letterSpacing: "0.02em",
+              }}
+            >
               {meta.label}
             </div>
-            <div style={{
-              fontSize:     10,
-              color:        "var(--cs-sidebar-muted)",
-              marginTop:    2,
-              whiteSpace:   "nowrap",
-              overflow:     "hidden",
-              textOverflow: "ellipsis",
-            }}>
+            <div
+              style={{
+                fontSize: 10,
+                color: "var(--cs-sidebar-muted)",
+                marginTop: 2,
+                whiteSpace: "nowrap",
+                overflow: "hidden",
+                textOverflow: "ellipsis",
+              }}
+            >
               {meta.sublabel}
             </div>
           </div>
@@ -375,41 +474,62 @@ function SidebarContent({ role, fullName, nickname, avatarUrl, branchName, pathn
         {nav.groups
           ? nav.groups.map((group: NavGroup) => (
               <div key={group.label} style={{ marginBottom: 4 }}>
-                <div style={{
-                  padding:       "8px 8px 4px",
-                  fontSize:      9.5,
-                  fontWeight:    600,
-                  letterSpacing: "0.1em",
-                  textTransform: "uppercase",
-                  color:         "var(--cs-sidebar-muted)",
-                  whiteSpace:    "nowrap",
-                }}>
+                <div
+                  style={{
+                    padding: "8px 8px 4px",
+                    fontSize: 9.5,
+                    fontWeight: 600,
+                    letterSpacing: "0.1em",
+                    textTransform: "uppercase",
+                    color: "var(--cs-sidebar-muted)",
+                    whiteSpace: "nowrap",
+                  }}
+                >
                   {group.label}
                 </div>
                 {group.items.map((item: NavItem) => (
-                  <NavLink key={item.href} item={item} pathname={pathname} search={search} accent={meta.accent} onNav={onNav} hasUnsavedChanges={hasUnsavedChanges(item)} />
+                  <NavLink
+                    key={item.href}
+                    item={item}
+                    pathname={pathname}
+                    search={search}
+                    accent={meta.accent}
+                    onNav={onNav}
+                    hasUnsavedChanges={hasUnsavedChanges(item)}
+                  />
                 ))}
               </div>
             ))
           : (nav.items ?? []).map((item: NavItem) => (
-              <NavLink key={item.href} item={item} pathname={pathname} search={search} accent={meta.accent} onNav={onNav} hasUnsavedChanges={hasUnsavedChanges(item)} />
-            ))
-        }
+              <NavLink
+                key={item.href}
+                item={item}
+                pathname={pathname}
+                search={search}
+                accent={meta.accent}
+                onNav={onNav}
+                hasUnsavedChanges={hasUnsavedChanges(item)}
+              />
+            ))}
       </nav>
 
       {systemItems.length > 0 && (
-        <div style={{
-          borderTop: "1px solid var(--cs-sidebar-border)",
-          padding:   "10px 8px 8px",
-        }}>
-          <div style={{
-            padding:       "0 8px 6px",
-            fontSize:      9.5,
-            fontWeight:    600,
-            letterSpacing: "0.12em",
-            textTransform: "uppercase",
-            color:         "var(--cs-sidebar-muted)",
-          }}>
+        <div
+          style={{
+            borderTop: "1px solid var(--cs-sidebar-border)",
+            padding: "10px 8px 8px",
+          }}
+        >
+          <div
+            style={{
+              padding: "0 8px 6px",
+              fontSize: 9.5,
+              fontWeight: 600,
+              letterSpacing: "0.12em",
+              textTransform: "uppercase",
+              color: "var(--cs-sidebar-muted)",
+            }}
+          >
             SYSTEM
           </div>
           <button
@@ -417,19 +537,19 @@ function SidebarContent({ role, fullName, nickname, avatarUrl, branchName, pathn
             aria-expanded={systemOpen}
             onClick={() => setSystemOpen((open) => !open)}
             style={{
-              width:           "100%",
-              display:         "flex",
-              alignItems:      "center",
-              gap:             9,
-              padding:         "7px 10px",
-              border:          "1px solid var(--cs-sidebar-border)",
-              borderRadius:    "var(--cs-r-sm)",
+              width: "100%",
+              display: "flex",
+              alignItems: "center",
+              gap: 9,
+              padding: "7px 10px",
+              border: "1px solid var(--cs-sidebar-border)",
+              borderRadius: "var(--cs-r-sm)",
               backgroundColor: hasActiveSystemItem ? "rgba(255,255,255,0.06)" : "transparent",
-              color:           hasActiveSystemItem ? "var(--cs-sidebar-text)" : "var(--cs-sidebar-muted)",
-              cursor:          "pointer",
-              fontSize:        12,
-              fontWeight:      500,
-              textAlign:       "left",
+              color: hasActiveSystemItem ? "var(--cs-sidebar-text)" : "var(--cs-sidebar-muted)",
+              cursor: "pointer",
+              fontSize: 12,
+              fontWeight: 500,
+              textAlign: "left",
             }}
           >
             <Settings size={14} strokeWidth={1.75} />
@@ -439,7 +559,7 @@ function SidebarContent({ role, fullName, nickname, avatarUrl, branchName, pathn
               strokeWidth={1.75}
               style={{
                 transition: "transform var(--cs-duration) var(--cs-ease)",
-                transform:  systemOpen ? "rotate(180deg)" : "rotate(0deg)",
+                transform: systemOpen ? "rotate(180deg)" : "rotate(0deg)",
               }}
             />
           </button>
@@ -464,10 +584,12 @@ function SidebarContent({ role, fullName, nickname, avatarUrl, branchName, pathn
       )}
 
       {/* Bottom – user */}
-      <div style={{
-        borderTop: "1px solid var(--cs-sidebar-border)",
-        padding:   "12px 16px",
-      }}>
+      <div
+        style={{
+          borderTop: "1px solid var(--cs-sidebar-border)",
+          padding: "12px 16px",
+        }}
+      >
         <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
           <UserAvatar
             name={displayName}
@@ -477,21 +599,25 @@ function SidebarContent({ role, fullName, nickname, avatarUrl, branchName, pathn
           />
 
           <div style={{ flex: 1, minWidth: 0 }}>
-            <div style={{
-              fontSize:     12,
-              fontWeight:   500,
-              color:        "#E8DDD5",
-              whiteSpace:   "nowrap",
-              overflow:     "hidden",
-              textOverflow: "ellipsis",
-            }}>
+            <div
+              style={{
+                fontSize: 12,
+                fontWeight: 500,
+                color: "#E8DDD5",
+                whiteSpace: "nowrap",
+                overflow: "hidden",
+                textOverflow: "ellipsis",
+              }}
+            >
               {displayName}
             </div>
-            <div style={{
-              fontSize:  10,
-              color:     "var(--cs-sidebar-muted)",
-              marginTop: 1,
-            }}>
+            <div
+              style={{
+                fontSize: 10,
+                color: "var(--cs-sidebar-muted)",
+                marginTop: 1,
+              }}
+            >
               {meta.label}
             </div>
           </div>
@@ -502,13 +628,11 @@ function SidebarContent({ role, fullName, nickname, avatarUrl, branchName, pathn
 }
 
 export function Sidebar({ role, fullName, nickname, avatarUrl, branchName }: SidebarProps) {
-  const pathname        = usePathname();
-  const searchParams    = useSearchParams();
-  const search          = searchParams.toString();
+  const pathname = usePathname();
+  const searchParams = useSearchParams();
+  const search = searchParams.toString();
   const [open, setOpen] = useState(false);
-  const [unsavedModuleIds, setUnsavedModuleIds] = useState<ReadonlySet<string>>(
-    () => new Set()
-  );
+  const [unsavedModuleIds, setUnsavedModuleIds] = useState<ReadonlySet<string>>(() => new Set());
   useEffect(() => {
     const updateUnsavedState = (event: Event) => {
       const detail = (event as CustomEvent<WorkspaceRetentionStateDetail>).detail;
@@ -519,14 +643,17 @@ export function Sidebar({ role, fullName, nickname, avatarUrl, branchName }: Sid
   }, []);
   // /manager routes now redirect to /crm (MVP soft-pause), but keep the check
   // for safety in case a direct navigation somehow reaches this component.
-  const isManagerRoute     = pathname.startsWith("/manager");
+  const isManagerRoute = pathname.startsWith("/manager");
   const isStaffPortalRoute = pathname.startsWith("/staff-portal");
-  const isDriverRoute      = pathname.startsWith("/driver");
+  const isDriverRoute = pathname.startsWith("/driver");
 
   return (
     <>
       {/* Desktop */}
-      <div className="hidden md:flex" style={{ position: "sticky", top: 0, height: "100vh", flexShrink: 0 }}>
+      <div
+        className="hidden md:flex"
+        style={{ position: "sticky", top: 0, height: "100vh", flexShrink: 0 }}
+      >
         <SidebarContent
           role={role}
           fullName={fullName}
@@ -546,17 +673,17 @@ export function Sidebar({ role, fullName, nickname, avatarUrl, branchName }: Sid
           className="md:hidden"
           onClick={() => setOpen(true)}
           style={{
-            position:        "fixed",
-            top:             12,
-            left:            12,
-            zIndex:          50,
-            padding:         8,
-            borderRadius:    "var(--cs-r-sm)",
+            position: "fixed",
+            top: 12,
+            left: 12,
+            zIndex: 50,
+            padding: 8,
+            borderRadius: "var(--cs-r-sm)",
             backgroundColor: "var(--cs-sidebar)",
-            border:          "none",
-            cursor:          "pointer",
-            color:           "var(--cs-sidebar-text)",
-            boxShadow:       "var(--cs-shadow-md)",
+            border: "none",
+            cursor: "pointer",
+            color: "var(--cs-sidebar-text)",
+            boxShadow: "var(--cs-shadow-md)",
           }}
           aria-label="Open menu"
         >
@@ -577,13 +704,13 @@ export function Sidebar({ role, fullName, nickname, avatarUrl, branchName }: Sid
               aria-label="Close menu"
               onClick={() => setOpen(false)}
               style={{
-                position:        "absolute",
-                top:             14,
-                right:           -40,
-                padding:         6,
+                position: "absolute",
+                top: 14,
+                right: -40,
+                padding: 6,
                 backgroundColor: "transparent",
-                border:          "none",
-                cursor:          "pointer",
+                border: "none",
+                cursor: "pointer",
                 color: "#fff",
               }}
             >

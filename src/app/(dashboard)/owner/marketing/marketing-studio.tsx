@@ -2,16 +2,22 @@
 
 import { useActionState, useCallback, useEffect, useMemo, useState } from "react";
 import {
+  approveMarketingDraftAction,
+  archiveMarketingDraftAction,
   createMarketingAssetAction,
   disableMarketingAssetAction,
+  publishMarketingDraftAction,
+  requestMarketingDraftChangesAction,
   saveMarketingSectionAction,
+  scheduleMarketingDraftAction,
   updateMarketingAssetAction,
   type MarketingActionState,
 } from "./actions";
 import type {
-  PublicSiteAssetRow,
-  PublicSiteSectionRow,
-} from "@/lib/queries/public-site";
+  MarketingContentDraftRow,
+  MarketingContentRevisionRow,
+} from "@/lib/queries/marketing-content";
+import type { PublicSiteAssetRow, PublicSiteSectionRow } from "@/lib/queries/public-site";
 
 type SectionDefault = {
   sectionKey: string;
@@ -33,6 +39,8 @@ type MarketingStudioProps = {
   sectionDefaults: readonly SectionDefault[];
   sections: PublicSiteSectionRow[];
   galleryAssets: PublicSiteAssetRow[];
+  drafts: MarketingContentDraftRow[];
+  revisions: MarketingContentRevisionRow[];
 };
 
 const tabs = [
@@ -70,13 +78,7 @@ function sectionValue(
   fallback: SectionDefault,
   field: keyof Pick<
     PublicSiteSectionRow,
-    | "title"
-    | "subtitle"
-    | "body"
-    | "cta_label"
-    | "cta_href"
-    | "image_url"
-    | "secondary_image_url"
+    "title" | "subtitle" | "body" | "cta_label" | "cta_href" | "image_url" | "secondary_image_url"
   >
 ): string {
   const fallbackMap = {
@@ -148,14 +150,31 @@ function ApplyDisabledAssetResult({
   return null;
 }
 
+function ApplyDraftResult({
+  state,
+  onSaved,
+}: {
+  state: MarketingActionState;
+  onSaved: (draft: MarketingContentDraftRow) => void;
+}) {
+  useEffect(() => {
+    if (state.draft) onSaved(state.draft);
+  }, [onSaved, state.draft]);
+
+  return null;
+}
+
 export function MarketingStudio({
   sectionDefaults,
   sections,
   galleryAssets,
+  drafts,
+  revisions,
 }: MarketingStudioProps) {
   const [activeTab, setActiveTab] = useState<(typeof tabs)[number]["id"]>("hero");
   const [workspaceSections, setWorkspaceSections] = useState(sections);
   const [workspaceAssets, setWorkspaceAssets] = useState(galleryAssets);
+  const [workspaceDrafts, setWorkspaceDrafts] = useState(drafts);
   const saveSection = useCallback((saved: PublicSiteSectionRow) => {
     setWorkspaceSections((current) => {
       const remaining = current.filter((section) => section.section_key !== saved.section_key);
@@ -170,19 +189,23 @@ export function MarketingStudio({
   }, []);
   const disableAsset = useCallback((assetId: string) => {
     setWorkspaceAssets((current) =>
-      current.map((asset) =>
-        asset.id === assetId ? { ...asset, is_enabled: false } : asset
-      )
+      current.map((asset) => (asset.id === assetId ? { ...asset, is_enabled: false } : asset))
     );
+  }, []);
+  const saveDraft = useCallback((saved: MarketingContentDraftRow) => {
+    setWorkspaceDrafts((current) => {
+      const remaining = current.filter((draft) => draft.id !== saved.id);
+      return [saved, ...remaining].sort(
+        (a, b) => new Date(b.updated_at).getTime() - new Date(a.updated_at).getTime()
+      );
+    });
   }, []);
   const sectionsByKey = useMemo(
     () => new Map(workspaceSections.map((section) => [section.section_key, section])),
     [workspaceSections]
   );
 
-  const activeSection = sectionDefaults.find(
-    (section) => section.sectionKey === activeTab
-  );
+  const activeSection = sectionDefaults.find((section) => section.sectionKey === activeTab);
 
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: "1rem" }}>
@@ -206,10 +229,8 @@ export function MarketingStudio({
               whiteSpace: "nowrap",
               fontSize: "0.8125rem",
               fontWeight: 600,
-              color:
-                activeTab === tab.id ? "var(--cs-text-inverse)" : "var(--cs-text)",
-              background:
-                activeTab === tab.id ? "var(--cs-sidebar)" : "var(--cs-surface)",
+              color: activeTab === tab.id ? "var(--cs-text-inverse)" : "var(--cs-text)",
+              background: activeTab === tab.id ? "var(--cs-sidebar)" : "var(--cs-surface)",
               cursor: "pointer",
             }}
           >
@@ -219,11 +240,7 @@ export function MarketingStudio({
       </div>
 
       {activeTab === "gallery" ? (
-        <GalleryManager
-          assets={workspaceAssets}
-          onSaved={saveAsset}
-          onDisabled={disableAsset}
-        />
+        <GalleryManager assets={workspaceAssets} onSaved={saveAsset} onDisabled={disableAsset} />
       ) : activeSection ? (
         <SectionEditor
           key={`${activeSection.sectionKey}:${sectionsByKey.get(activeSection.sectionKey)?.updated_at ?? "default"}`}
@@ -232,6 +249,8 @@ export function MarketingStudio({
           onSaved={saveSection}
         />
       ) : null}
+
+      <DraftReviewQueue drafts={workspaceDrafts} revisions={revisions} onSaved={saveDraft} />
     </div>
   );
 }
@@ -245,17 +264,12 @@ function SectionEditor({
   section?: PublicSiteSectionRow;
   onSaved: (section: PublicSiteSectionRow) => void;
 }) {
-  const [state, formAction, pending] = useActionState(
-    saveMarketingSectionAction,
-    {}
-  );
+  const [state, formAction, pending] = useActionState(saveMarketingSectionAction, {});
   const metadata = metadataObject(section?.metadata ?? fallback.metadata);
   const secondaryCtaLabel =
-    textValue(metadata.secondaryCtaLabel) ||
-    textValue(fallback.metadata.secondaryCtaLabel);
+    textValue(metadata.secondaryCtaLabel) || textValue(fallback.metadata.secondaryCtaLabel);
   const secondaryCtaHref =
-    textValue(metadata.secondaryCtaHref) ||
-    textValue(fallback.metadata.secondaryCtaHref);
+    textValue(metadata.secondaryCtaHref) || textValue(fallback.metadata.secondaryCtaHref);
   const imageUrl = sectionValue(section, fallback, "image_url");
 
   return (
@@ -314,9 +328,7 @@ function SectionEditor({
             name="isEnabled"
             defaultChecked={section?.is_enabled ?? fallback.isEnabled}
           />
-          <span style={{ fontSize: "0.875rem", color: "var(--cs-text)" }}>
-            Published
-          </span>
+          <span style={{ fontSize: "0.875rem", color: "var(--cs-text)" }}>Published</span>
         </label>
 
         <InputField
@@ -483,7 +495,8 @@ function GalleryManager({
               fontSize: "0.875rem",
             }}
           >
-            No managed gallery assets yet. The public homepage will use local fallback gallery cards.
+            No managed gallery assets yet. The public homepage will use local fallback gallery
+            cards.
           </div>
         ) : (
           assets.map((asset) => (
@@ -501,10 +514,7 @@ function GalleryManager({
 }
 
 function AssetCreateForm({ onSaved }: { onSaved: (asset: PublicSiteAssetRow) => void }) {
-  const [state, formAction, pending] = useActionState(
-    createMarketingAssetAction,
-    {}
-  );
+  const [state, formAction, pending] = useActionState(createMarketingAssetAction, {});
 
   return (
     <form action={formAction} style={{ display: "grid", gap: "0.875rem" }}>
@@ -555,10 +565,7 @@ function AssetEditor({
   onSaved: (asset: PublicSiteAssetRow) => void;
   onDisabled: (assetId: string) => void;
 }) {
-  const [updateState, updateAction, updatePending] = useActionState(
-    updateMarketingAssetAction,
-    {}
-  );
+  const [updateState, updateAction, updatePending] = useActionState(updateMarketingAssetAction, {});
   const [disableState, disableAction, disablePending] = useActionState(
     disableMarketingAssetAction,
     {}
@@ -628,6 +635,279 @@ function AssetEditor({
         </form>
       </div>
     </div>
+  );
+}
+
+function statusLabel(status: string): string {
+  return status.replace(/_/g, " ").replace(/\b\w/g, (letter) => letter.toUpperCase());
+}
+
+function DraftReviewQueue({
+  drafts,
+  revisions,
+  onSaved,
+}: {
+  drafts: MarketingContentDraftRow[];
+  revisions: MarketingContentRevisionRow[];
+  onSaved: (draft: MarketingContentDraftRow) => void;
+}) {
+  const visibleDrafts = drafts.filter((draft) => draft.status !== "archived").slice(0, 12);
+
+  return (
+    <section
+      style={{
+        border: "1px solid var(--cs-border)",
+        borderRadius: 10,
+        background: "var(--cs-surface)",
+        padding: "1rem",
+      }}
+    >
+      <div
+        style={{
+          display: "flex",
+          alignItems: "baseline",
+          justifyContent: "space-between",
+          gap: "1rem",
+        }}
+      >
+        <div>
+          <h2 style={{ margin: 0, fontSize: "0.95rem", color: "var(--cs-text)" }}>
+            Draft Review Queue
+          </h2>
+          <p style={{ margin: "0.25rem 0 0", color: "var(--cs-text-muted)", fontSize: 13 }}>
+            Review protected Marketing workspace drafts before they affect the public site.
+          </p>
+        </div>
+        <span style={{ color: "var(--cs-text-muted)", fontSize: 12 }}>
+          {revisions.length} recent revision{revisions.length === 1 ? "" : "s"}
+        </span>
+      </div>
+
+      {visibleDrafts.length === 0 ? (
+        <div
+          style={{
+            marginTop: "1rem",
+            border: "1px dashed var(--cs-border-strong)",
+            borderRadius: 8,
+            padding: "1rem",
+            color: "var(--cs-text-muted)",
+            background: "var(--cs-surface-warm)",
+            fontSize: 13,
+          }}
+        >
+          No draft reviews are waiting.
+        </div>
+      ) : (
+        <div style={{ marginTop: "1rem", display: "grid", gap: "0.875rem" }}>
+          {visibleDrafts.map((draft) => (
+            <DraftReviewItem
+              key={`${draft.id}:${draft.updated_at}`}
+              draft={draft}
+              onSaved={onSaved}
+            />
+          ))}
+        </div>
+      )}
+    </section>
+  );
+}
+
+function DraftReviewItem({
+  draft,
+  onSaved,
+}: {
+  draft: MarketingContentDraftRow;
+  onSaved: (draft: MarketingContentDraftRow) => void;
+}) {
+  const [approveState, approveAction, approvePending] = useActionState(
+    approveMarketingDraftAction,
+    {}
+  );
+  const [changesState, changesAction, changesPending] = useActionState(
+    requestMarketingDraftChangesAction,
+    {}
+  );
+  const [scheduleState, scheduleAction, schedulePending] = useActionState(
+    scheduleMarketingDraftAction,
+    {}
+  );
+  const [publishState, publishAction, publishPending] = useActionState(
+    publishMarketingDraftAction,
+    {}
+  );
+  const [archiveState, archiveAction, archivePending] = useActionState(
+    archiveMarketingDraftAction,
+    {}
+  );
+  const currentDraft =
+    approveState.draft ??
+    changesState.draft ??
+    scheduleState.draft ??
+    publishState.draft ??
+    archiveState.draft ??
+    draft;
+  const busy =
+    approvePending || changesPending || schedulePending || publishPending || archivePending;
+  const canPublish = ["submitted", "approved", "scheduled"].includes(currentDraft.status);
+
+  return (
+    <article
+      style={{
+        border: "1px solid var(--cs-border-soft)",
+        borderRadius: 8,
+        padding: "0.875rem",
+        display: "grid",
+        gap: "0.75rem",
+      }}
+    >
+      <ApplyDraftResult state={approveState} onSaved={onSaved} />
+      <ApplyDraftResult state={changesState} onSaved={onSaved} />
+      <ApplyDraftResult state={scheduleState} onSaved={onSaved} />
+      <ApplyDraftResult state={publishState} onSaved={onSaved} />
+      <ApplyDraftResult state={archiveState} onSaved={onSaved} />
+
+      <div
+        style={{
+          display: "flex",
+          justifyContent: "space-between",
+          alignItems: "flex-start",
+          gap: "0.75rem",
+        }}
+      >
+        <div style={{ minWidth: 0 }}>
+          <div style={{ color: "var(--cs-text)", fontSize: 14, fontWeight: 750 }}>
+            {currentDraft.title || currentDraft.content_key}
+          </div>
+          <div style={{ marginTop: 3, color: "var(--cs-text-muted)", fontSize: 12 }}>
+            {currentDraft.content_type} / {currentDraft.content_key}
+          </div>
+        </div>
+        <span
+          style={{
+            border: "1px solid var(--cs-border-soft)",
+            borderRadius: 8,
+            padding: "0.2rem 0.5rem",
+            color: "var(--cs-text-secondary)",
+            background: "var(--cs-surface-warm)",
+            fontSize: 12,
+            fontWeight: 700,
+            whiteSpace: "nowrap",
+          }}
+        >
+          {statusLabel(currentDraft.status)}
+        </span>
+      </div>
+
+      {currentDraft.body ? (
+        <p style={{ margin: 0, color: "var(--cs-text-secondary)", fontSize: 13, lineHeight: 1.55 }}>
+          {currentDraft.body}
+        </p>
+      ) : null}
+
+      {currentDraft.review_note ? (
+        <div style={{ color: "var(--cs-text-muted)", fontSize: 12 }}>
+          Review note: {currentDraft.review_note}
+        </div>
+      ) : null}
+
+      <ActionNotice state={approveState} />
+      <ActionNotice state={changesState} />
+      <ActionNotice state={scheduleState} />
+      <ActionNotice state={publishState} />
+      <ActionNotice state={archiveState} />
+
+      <div
+        style={{
+          display: "grid",
+          gridTemplateColumns: "minmax(0, 1fr) 220px",
+          gap: "0.75rem",
+        }}
+        className="max-lg:!grid-cols-1"
+      >
+        <form action={changesAction} style={{ display: "grid", gap: "0.5rem" }}>
+          <input type="hidden" name="id" value={currentDraft.id} />
+          <textarea
+            name="reviewNote"
+            rows={2}
+            placeholder="Owner note"
+            style={{ ...fieldStyle, resize: "vertical", lineHeight: 1.45 }}
+          />
+          <div style={{ display: "flex", flexWrap: "wrap", gap: "0.5rem" }}>
+            <button
+              type="submit"
+              disabled={busy}
+              className="cs-btn cs-btn-secondary"
+              style={{ opacity: busy ? 0.6 : 1 }}
+            >
+              {changesPending ? "Sending..." : "Request Changes"}
+            </button>
+          </div>
+        </form>
+
+        <div style={{ display: "grid", gap: "0.5rem" }}>
+          <form action={approveAction}>
+            <input type="hidden" name="id" value={currentDraft.id} />
+            <input type="hidden" name="reviewNote" value="" />
+            <button
+              type="submit"
+              disabled={busy}
+              className="cs-btn cs-btn-secondary"
+              style={{ width: "100%", opacity: busy ? 0.6 : 1 }}
+            >
+              {approvePending ? "Approving..." : "Approve"}
+            </button>
+          </form>
+
+          <form action={publishAction}>
+            <input type="hidden" name="id" value={currentDraft.id} />
+            <button
+              type="submit"
+              disabled={busy || !canPublish}
+              className="cs-btn cs-btn-primary"
+              style={{ width: "100%", opacity: busy || !canPublish ? 0.55 : 1 }}
+            >
+              {publishPending ? "Publishing..." : "Publish"}
+            </button>
+          </form>
+        </div>
+      </div>
+
+      <div
+        style={{ display: "grid", gridTemplateColumns: "minmax(0, 1fr) auto", gap: "0.5rem" }}
+        className="max-sm:!grid-cols-1"
+      >
+        <form
+          action={scheduleAction}
+          style={{ display: "grid", gridTemplateColumns: "minmax(0, 1fr) auto", gap: "0.5rem" }}
+          className="max-sm:!grid-cols-1"
+        >
+          <input type="hidden" name="id" value={currentDraft.id} />
+          <input type="hidden" name="reviewNote" value="" />
+          <input type="datetime-local" name="scheduledFor" style={fieldStyle} disabled={busy} />
+          <button
+            type="submit"
+            disabled={busy}
+            className="cs-btn cs-btn-secondary"
+            style={{ opacity: busy ? 0.6 : 1 }}
+          >
+            {schedulePending ? "Scheduling..." : "Schedule"}
+          </button>
+        </form>
+
+        <form action={archiveAction}>
+          <input type="hidden" name="id" value={currentDraft.id} />
+          <input type="hidden" name="reviewNote" value="" />
+          <button
+            type="submit"
+            disabled={busy}
+            className="cs-btn cs-btn-secondary"
+            style={{ width: "100%", opacity: busy ? 0.6 : 1 }}
+          >
+            {archivePending ? "Archiving..." : "Archive"}
+          </button>
+        </form>
+      </div>
+    </article>
   );
 }
 
@@ -750,9 +1030,7 @@ function InputField({
 }) {
   return (
     <label style={{ display: "grid", gap: "0.375rem" }}>
-      <span style={{ color: "var(--cs-text-muted)", fontSize: "0.8125rem" }}>
-        {label}
-      </span>
+      <span style={{ color: "var(--cs-text-muted)", fontSize: "0.8125rem" }}>{label}</span>
       <input
         name={name}
         type={type}
@@ -777,9 +1055,7 @@ function TextAreaField({
 }) {
   return (
     <label style={{ display: "grid", gap: "0.375rem" }}>
-      <span style={{ color: "var(--cs-text-muted)", fontSize: "0.8125rem" }}>
-        {label}
-      </span>
+      <span style={{ color: "var(--cs-text-muted)", fontSize: "0.8125rem" }}>{label}</span>
       <textarea
         name={name}
         defaultValue={defaultValue}
