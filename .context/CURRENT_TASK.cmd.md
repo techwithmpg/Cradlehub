@@ -3889,3 +3889,52 @@ Last updated: 2026-08-21
 ## Remaining limitation
 
 - Migration history now has zero remote-only versions, but 84 older local-only versions remain. Their final schema effects are largely present, but their data/seed effects were not independently provable, so they were deliberately not bulk-marked applied and no `--include-all` push was run.
+---
+
+# Current Task - ATTENDANCE-RPC-BRANCH-AUTHORITY-20260821
+
+Status: IN PROGRESS
+Started: 2026-08-21
+Last updated: 2026-08-21
+
+## Mission
+
+Prove and repair the production `ATTENDANCE_RPC_SIGNATURE_MISMATCH`, keep one canonical `commit_attendance_scan_transaction` contract across TypeScript, migrations, production Postgres, and PostgREST, and ensure the same registered phone follows legitimate permanent, future-dated, temporary, duty-based, and cross-branch assignments without treating `staff_devices.branch_id` as authorization.
+
+## Guardrails
+
+- Preserve the current record-first, device/session, schedule-intent, idempotency, exception, branch-issue, and transactional-commit architecture.
+- Diagnose source and live state before changing `scan-engine.ts` or production SQL.
+- Do not run the pasted document or a broad historical migration replay.
+- Keep Attendance operational enforcement off during controlled verification.
+- Never expose credentials, device secrets, database passwords, tokens, cookies, or raw support payloads.
+
+## Completion — 2026-08-22
+
+Status: COMPLETED
+Last updated: 2026-08-22
+
+- Traced `ATTENDANCE_RPC_SIGNATURE_MISMATCH` to the PGRST202 mapping and the exact transactional caller. Production drift was repaired forward; the catalog now exposes exactly one canonical 20-argument `commit_attendance_scan_transaction` overload with the expected table return and service-role-only execute grant.
+- Applied and recorded the RPC repair, branch-authority repair, and target-branch business-date migrations. PostgREST schema reload was included.
+- Added exact caller/SQL contract coverage, branch-authority migration coverage, a rollback-only live DB test, and a reusable read-only diagnostic.
+- Added permanent-transfer resolution to the CRM branch issue dialog with a required effective date. Immediate changes update the home branch; future changes remain scheduled until the Attendance business date becomes effective.
+- Made temporary shift/day authorization, scanned-branch duty matching, duty conflicts, approved cross-branch access, cross-branch staff, effective permanent transfers, and home branch one explicit resolver chain. Device branch remains last-used metadata, not authority.
+- Completed controlled production scans for Main, temporary SM, permanent Main→SM on the same phone, duplicate protection, clock-out, unauthorized wrong branch, reverse restoration, and authenticated wrong-branch first registration with no device-slot consumption.
+- Final cleanup confirmed home Main, zero active QA devices, zero open QA Attendance, zero active temporary assignments, and zero future QA transfers.
+
+## Final verification
+
+- Live canonical RPC/catalog/grants/history: PASS.
+- Live rollback-only branch-authority database test: PASS.
+- Live public-schema error-level DB lint: PASS.
+- Production controlled scans and cleanup: PASS.
+- `pnpm test`: PASS, 200 files / 1,372 tests.
+- `pnpm type-check`: PASS.
+- `pnpm lint`: PASS.
+- `pnpm build`: PASS, Next.js 16.2.4, 114 pages.
+- Changed-file formatting and `git diff --check`: PASS. Repository-wide formatting retains unrelated legacy failures.
+
+## Release recommendation
+
+- Attendance scanning: GO for a monitored pilot.
+- Attendance operational enforcement: NO-GO until Realtime CRM rendering is observed in an authenticated operator session and the remaining cron/closing operational readiness gates are signed off.

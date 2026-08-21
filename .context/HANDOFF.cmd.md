@@ -1722,3 +1722,14 @@ Manager activation remains deferred. Browser QA could not be fabricated without 
 - Five local filenames now match their already-applied live versions, leaving zero remote-only migration versions.
 - Do not run `supabase db push --include-all`: 84 old local-only history entries still need a separate evidence-backed baseline/history project because seed/data effects cannot be inferred from catalog equality.
 - Source verification passes TypeScript, lint, 199 test files / 1,363 tests, and diff check.
+
+## Latest Agent Update (2026-08-22 - Attendance RPC and Branch Authority)
+
+- Production Attendance transaction discovery is repaired. There is one 20-argument `commit_attendance_scan_transaction` overload with the expected seven-column table return, service-role execute only, and a PostgREST reload.
+- Live migrations `20260821023717`, `20260821034409`, and `20260821160939` are present in history. The last migration corrects permanent-transfer timing to the target branch Attendance business date.
+- CRM permanent transfer now requires an effective date and uses the audited permanent-transfer RPC. Future transfers stay scheduled; immediate transfers update the profile branch.
+- Resolver precedence is centralized across temporary, duty, cross-branch, permanent, and home authority. Conflicting duties fail closed; device branch is not authorization.
+- Controlled production evidence passed for Main, temporary SM, wrong branch, permanent Main→SM on the same phone, duplicates, clock-outs, reverse restoration, and wrong-branch first registration with no device creation. QA state was fully cleaned up.
+- Final checks pass: live rollback-only DB test, linked error-level DB lint, 200 test files / 1,372 tests, TypeScript, lint, and the 114-page production build.
+- Scanning recommendation is GO for a monitored pilot. Keep operational enforcement OFF until an authenticated operator observes the CRM Realtime update and cron/closing readiness is signed off. Both `qr_scan_events` and `staff_shift_checkins` are already in the `supabase_realtime` publication, but publication membership is not a substitute for rendered UI observation.
+- Do not bulk-reconcile the 84 older local-only migration versions; that remains a separate evidence-backed baseline task.

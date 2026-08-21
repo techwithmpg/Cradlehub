@@ -1509,3 +1509,27 @@
 - The first consolidated migration attempt failed on the obsolete `staff.department_id` index. Its explicit transaction rolled back the entire attempt; the obsolete index was removed after confirming the live column was absent, and the corrected migration passed.
 - Two migration-history operations and one lint attempt hit transient pooler/DNS timeouts. Bounded retries succeeded; all applied versions are now recorded and final live lint passes.
 - The Supabase connector advisor endpoint denied permission. Direct live RLS inventory and CLI database lint were used; both finish clean at the required error/security level.
+
+### ERR-ATTENDANCE-RPC-SIGNATURE-20260821: Production PostgREST could not resolve the scan transaction
+
+**Date:** 2026-08-22
+**Severity:** CRITICAL
+**Status:** FIXED
+**Symptom:** Production returned PGRST202, mapped to `ATTENDANCE_RPC_SIGNATURE_MISMATCH`, and changed no Attendance.
+**Proven cause:** Production deployment/history was partially reconciled and PostgREST discovery was stale relative to the application contract (classifications G and E). The exact pre-repair catalog definition is no longer recoverable after the repair and is not reconstructed from guesswork; screenshots and migration/catalog evidence prove the discovery mismatch.
+**Fix:** Applied the canonical forward RPC repair, removed ambiguity so one overload remains, restored service-role-only grants, and reloaded PostgREST. A 20-key live no-mutation probe now resolves successfully and returns the controlled `invalid_request` result rather than PGRST202.
+**Prevention:** `transactional-scan-rpc-migration.test.ts` compares the exported caller argument keys with the canonical SQL signature.
+
+### ERR-ATTENDANCE-TRANSFER-UTC-DATE-20260822: Midnight transfer decision used UTC `current_date`
+
+**Date:** 2026-08-22
+**Severity:** HIGH
+**Status:** FIXED
+**Symptom:** A transfer approved after local midnight but before the branch Attendance day boundary could be treated as future even though the active Attendance business date was still the prior date.
+**Fix:** `20260821160939_attendance_transfer_business_date.sql` derives the current business date from the target branch timezone and `attendance_day_boundary` before deciding whether the transfer is immediate or scheduled.
+**Prevention:** Migration regression coverage requires the timezone, boundary, local timestamp, and business-date comparison anchors.
+
+### Verification notes — 2026-08-22
+
+- The normal migration-history repair command timed out through the pooler; the already-applied source-controlled business-date migration was recorded through the working linked management query path and then verified from `supabase_migrations.schema_migrations` and `pg_get_functiondef`.
+- Repository-wide `pnpm format:check` continues to report many unrelated legacy files. Every changed TypeScript/TSX test file passes targeted Prettier checks, and no unrelated formatting rewrite was made.

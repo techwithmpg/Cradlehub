@@ -8237,3 +8237,14 @@ Validation: TypeScript and production build pass; 150 files / 1,137 tests pass; 
 **History note:** Zero remote-only versions remain; 84 unverified older local-only versions remain intentionally unrepaired.
 
 ---
+
+### 2026-08-22 — Production Attendance RPC and branch-authority repair
+
+**Task:** ATTENDANCE-RPC-BRANCH-AUTHORITY-20260821
+**Implemented:** Reconciled the application and production `commit_attendance_scan_transaction` contract to one 20-argument, service-role-only overload; reloaded PostgREST; added an exact TypeScript-to-SQL contract regression test; centralized temporary, duty, cross-branch, permanent-transfer, and home-branch precedence; made contradictory duties fail closed; added an audited permanent-transfer CRM action with a required effective date; and made immediate/future transfer decisions use the target branch Attendance business date.
+**Live database:** Applied and recorded `20260821023717_fix_attendance_function_ambiguity.sql`, `20260821034409_repair_attendance_branch_authority.sql`, and `20260821160939_attendance_transfer_business_date.sql`. Production catalog verification shows one canonical overload, the expected table return, service-role execute access only, and both Attendance tables in `supabase_realtime`.
+**Production evidence:** A controlled synthetic staff session completed Main clock-in/duplicate/clock-out, temporary SM clock-in/duplicate/clock-out without changing the home branch, wrong-branch rejection with no Attendance, approved Main→SM transfer followed by same-phone SM clock-in/duplicate/clock-out, reverse restoration to Main, and a no-device wrong-branch first scan that created neither Attendance nor a device slot. All temporary devices, sessions, eligibility metadata, assignments, and open Attendance were cleaned up; immutable scan evidence and audited corrections were retained.
+**Validation:** Rollback-only live DB branch tests and error-level schema lint pass. `pnpm test` passes at 200 files / 1,372 tests; `pnpm type-check`, `pnpm lint`, and the Next.js 16.2.4 production build (114 pages) pass. Changed source files pass formatting and `git diff --check`; repository-wide formatting still reports unrelated legacy files.
+**Release position:** Attendance scanning is GO for a monitored pilot. Attendance operational enforcement remains NO-GO until operational monitoring, cron/closing readiness, and an authenticated CRM Realtime rendering observation are completed.
+
+---

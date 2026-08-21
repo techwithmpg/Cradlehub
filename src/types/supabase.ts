@@ -1182,6 +1182,8 @@ export type Database = {
         Row: {
           amount_paid: number
           arrived_at: string | null
+          booking_buffer_after_minutes_snapshot: number | null
+          booking_buffer_before_minutes_snapshot: number | null
           booking_date: string
           booking_progress_status: string
           branch_id: string
@@ -1204,14 +1206,18 @@ export type Database = {
           service_id: string
           session_auto_completed_at: string | null
           session_completed_at: string | null
+          session_completed_by: string | null
           session_completion_source: string | null
           session_due_at: string | null
           session_duration_minutes_snapshot: number | null
           session_extended_at: string | null
           session_extended_by: string | null
+          session_extension_minutes_total: number
           session_extension_reason: string | null
           session_start_scan_event_id: string | null
+          session_start_source: string | null
           session_started_at: string | null
+          session_started_by: string | null
           session_started_from_resource_id: string | null
           staff_id: string
           start_time: string
@@ -1224,6 +1230,8 @@ export type Database = {
         Insert: {
           amount_paid?: number
           arrived_at?: string | null
+          booking_buffer_after_minutes_snapshot?: number | null
+          booking_buffer_before_minutes_snapshot?: number | null
           booking_date: string
           booking_progress_status?: string
           branch_id: string
@@ -1246,14 +1254,18 @@ export type Database = {
           service_id: string
           session_auto_completed_at?: string | null
           session_completed_at?: string | null
+          session_completed_by?: string | null
           session_completion_source?: string | null
           session_due_at?: string | null
           session_duration_minutes_snapshot?: number | null
           session_extended_at?: string | null
           session_extended_by?: string | null
+          session_extension_minutes_total?: number
           session_extension_reason?: string | null
           session_start_scan_event_id?: string | null
+          session_start_source?: string | null
           session_started_at?: string | null
+          session_started_by?: string | null
           session_started_from_resource_id?: string | null
           staff_id: string
           start_time: string
@@ -1266,6 +1278,8 @@ export type Database = {
         Update: {
           amount_paid?: number
           arrived_at?: string | null
+          booking_buffer_after_minutes_snapshot?: number | null
+          booking_buffer_before_minutes_snapshot?: number | null
           booking_date?: string
           booking_progress_status?: string
           branch_id?: string
@@ -1288,14 +1302,18 @@ export type Database = {
           service_id?: string
           session_auto_completed_at?: string | null
           session_completed_at?: string | null
+          session_completed_by?: string | null
           session_completion_source?: string | null
           session_due_at?: string | null
           session_duration_minutes_snapshot?: number | null
           session_extended_at?: string | null
           session_extended_by?: string | null
+          session_extension_minutes_total?: number
           session_extension_reason?: string | null
           session_start_scan_event_id?: string | null
+          session_start_source?: string | null
           session_started_at?: string | null
+          session_started_by?: string | null
           session_started_from_resource_id?: string | null
           staff_id?: string
           start_time?: string
@@ -1349,6 +1367,20 @@ export type Database = {
             referencedColumns: ["id"]
           },
           {
+            foreignKeyName: "bookings_session_completed_by_fkey"
+            columns: ["session_completed_by"]
+            isOneToOne: false
+            referencedRelation: "operational_staff"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "bookings_session_completed_by_fkey"
+            columns: ["session_completed_by"]
+            isOneToOne: false
+            referencedRelation: "staff"
+            referencedColumns: ["id"]
+          },
+          {
             foreignKeyName: "bookings_session_extended_by_fkey"
             columns: ["session_extended_by"]
             isOneToOne: false
@@ -1367,6 +1399,20 @@ export type Database = {
             columns: ["session_start_scan_event_id"]
             isOneToOne: false
             referencedRelation: "qr_scan_events"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "bookings_session_started_by_fkey"
+            columns: ["session_started_by"]
+            isOneToOne: false
+            referencedRelation: "operational_staff"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "bookings_session_started_by_fkey"
+            columns: ["session_started_by"]
+            isOneToOne: false
+            referencedRelation: "staff"
             referencedColumns: ["id"]
           },
           {
@@ -1399,6 +1445,8 @@ export type Database = {
           home_service_driver_capacity: number
           home_service_enabled: boolean
           home_service_end_time: string
+          home_service_extra_km_fee: number
+          home_service_free_km: number
           home_service_start_time: string
           id: string
           in_spa_end_time: string
@@ -1413,6 +1461,8 @@ export type Database = {
           home_service_driver_capacity?: number
           home_service_enabled?: boolean
           home_service_end_time?: string
+          home_service_extra_km_fee?: number
+          home_service_free_km?: number
           home_service_start_time?: string
           id?: string
           in_spa_end_time?: string
@@ -1427,6 +1477,8 @@ export type Database = {
           home_service_driver_capacity?: number
           home_service_enabled?: boolean
           home_service_end_time?: string
+          home_service_extra_km_fee?: number
+          home_service_free_km?: number
           home_service_start_time?: string
           id?: string
           in_spa_end_time?: string
@@ -2099,6 +2151,508 @@ export type Database = {
             referencedColumns: ["id"]
           },
         ]
+      }
+      marketing_brand_settings: {
+        Row: {
+          created_at: string
+          id: string
+          label: string
+          reviewed_at: string | null
+          reviewed_by: string | null
+          setting_key: string
+          status: string
+          updated_at: string
+          updated_by: string | null
+          value: Json
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          label: string
+          reviewed_at?: string | null
+          reviewed_by?: string | null
+          setting_key: string
+          status?: string
+          updated_at?: string
+          updated_by?: string | null
+          value?: Json
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          label?: string
+          reviewed_at?: string | null
+          reviewed_by?: string | null
+          setting_key?: string
+          status?: string
+          updated_at?: string
+          updated_by?: string | null
+          value?: Json
+        }
+        Relationships: [
+          {
+            foreignKeyName: "marketing_brand_settings_reviewed_by_fkey"
+            columns: ["reviewed_by"]
+            isOneToOne: false
+            referencedRelation: "operational_staff"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "marketing_brand_settings_reviewed_by_fkey"
+            columns: ["reviewed_by"]
+            isOneToOne: false
+            referencedRelation: "staff"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "marketing_brand_settings_updated_by_fkey"
+            columns: ["updated_by"]
+            isOneToOne: false
+            referencedRelation: "operational_staff"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "marketing_brand_settings_updated_by_fkey"
+            columns: ["updated_by"]
+            isOneToOne: false
+            referencedRelation: "staff"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      marketing_content_drafts: {
+        Row: {
+          alt_text: string | null
+          body: string | null
+          content_key: string
+          content_type: string
+          created_at: string
+          created_by: string | null
+          cta_href: string | null
+          cta_label: string | null
+          id: string
+          image_url: string | null
+          is_enabled: boolean
+          link_href: string | null
+          metadata: Json
+          published_at: string | null
+          published_by: string | null
+          review_note: string | null
+          reviewed_at: string | null
+          reviewed_by: string | null
+          scheduled_for: string | null
+          secondary_image_url: string | null
+          sort_order: number
+          source_asset_id: string | null
+          source_section_id: string | null
+          status: string
+          submitted_at: string | null
+          submitted_by: string | null
+          subtitle: string | null
+          title: string | null
+          updated_at: string
+          updated_by: string | null
+        }
+        Insert: {
+          alt_text?: string | null
+          body?: string | null
+          content_key: string
+          content_type?: string
+          created_at?: string
+          created_by?: string | null
+          cta_href?: string | null
+          cta_label?: string | null
+          id?: string
+          image_url?: string | null
+          is_enabled?: boolean
+          link_href?: string | null
+          metadata?: Json
+          published_at?: string | null
+          published_by?: string | null
+          review_note?: string | null
+          reviewed_at?: string | null
+          reviewed_by?: string | null
+          scheduled_for?: string | null
+          secondary_image_url?: string | null
+          sort_order?: number
+          source_asset_id?: string | null
+          source_section_id?: string | null
+          status?: string
+          submitted_at?: string | null
+          submitted_by?: string | null
+          subtitle?: string | null
+          title?: string | null
+          updated_at?: string
+          updated_by?: string | null
+        }
+        Update: {
+          alt_text?: string | null
+          body?: string | null
+          content_key?: string
+          content_type?: string
+          created_at?: string
+          created_by?: string | null
+          cta_href?: string | null
+          cta_label?: string | null
+          id?: string
+          image_url?: string | null
+          is_enabled?: boolean
+          link_href?: string | null
+          metadata?: Json
+          published_at?: string | null
+          published_by?: string | null
+          review_note?: string | null
+          reviewed_at?: string | null
+          reviewed_by?: string | null
+          scheduled_for?: string | null
+          secondary_image_url?: string | null
+          sort_order?: number
+          source_asset_id?: string | null
+          source_section_id?: string | null
+          status?: string
+          submitted_at?: string | null
+          submitted_by?: string | null
+          subtitle?: string | null
+          title?: string | null
+          updated_at?: string
+          updated_by?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "marketing_content_drafts_created_by_fkey"
+            columns: ["created_by"]
+            isOneToOne: false
+            referencedRelation: "operational_staff"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "marketing_content_drafts_created_by_fkey"
+            columns: ["created_by"]
+            isOneToOne: false
+            referencedRelation: "staff"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "marketing_content_drafts_published_by_fkey"
+            columns: ["published_by"]
+            isOneToOne: false
+            referencedRelation: "operational_staff"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "marketing_content_drafts_published_by_fkey"
+            columns: ["published_by"]
+            isOneToOne: false
+            referencedRelation: "staff"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "marketing_content_drafts_reviewed_by_fkey"
+            columns: ["reviewed_by"]
+            isOneToOne: false
+            referencedRelation: "operational_staff"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "marketing_content_drafts_reviewed_by_fkey"
+            columns: ["reviewed_by"]
+            isOneToOne: false
+            referencedRelation: "staff"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "marketing_content_drafts_source_asset_id_fkey"
+            columns: ["source_asset_id"]
+            isOneToOne: false
+            referencedRelation: "public_site_assets"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "marketing_content_drafts_source_section_id_fkey"
+            columns: ["source_section_id"]
+            isOneToOne: false
+            referencedRelation: "public_site_sections"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "marketing_content_drafts_submitted_by_fkey"
+            columns: ["submitted_by"]
+            isOneToOne: false
+            referencedRelation: "operational_staff"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "marketing_content_drafts_submitted_by_fkey"
+            columns: ["submitted_by"]
+            isOneToOne: false
+            referencedRelation: "staff"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "marketing_content_drafts_updated_by_fkey"
+            columns: ["updated_by"]
+            isOneToOne: false
+            referencedRelation: "operational_staff"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "marketing_content_drafts_updated_by_fkey"
+            columns: ["updated_by"]
+            isOneToOne: false
+            referencedRelation: "staff"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      marketing_content_revisions: {
+        Row: {
+          action: string
+          created_at: string
+          created_by: string | null
+          draft_id: string
+          id: string
+          note: string | null
+          revision_no: number
+          snapshot: Json
+        }
+        Insert: {
+          action: string
+          created_at?: string
+          created_by?: string | null
+          draft_id: string
+          id?: string
+          note?: string | null
+          revision_no: number
+          snapshot: Json
+        }
+        Update: {
+          action?: string
+          created_at?: string
+          created_by?: string | null
+          draft_id?: string
+          id?: string
+          note?: string | null
+          revision_no?: number
+          snapshot?: Json
+        }
+        Relationships: [
+          {
+            foreignKeyName: "marketing_content_revisions_created_by_fkey"
+            columns: ["created_by"]
+            isOneToOne: false
+            referencedRelation: "operational_staff"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "marketing_content_revisions_created_by_fkey"
+            columns: ["created_by"]
+            isOneToOne: false
+            referencedRelation: "staff"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "marketing_content_revisions_draft_id_fkey"
+            columns: ["draft_id"]
+            isOneToOne: false
+            referencedRelation: "marketing_content_drafts"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      marketing_media_assets: {
+        Row: {
+          alt_text: string
+          bucket_path: string
+          content_key: string | null
+          created_at: string
+          created_by: string | null
+          id: string
+          metadata: Json
+          public_url: string | null
+          reviewed_at: string | null
+          reviewed_by: string | null
+          section_key: string | null
+          status: string
+          title: string | null
+          updated_at: string
+          updated_by: string | null
+        }
+        Insert: {
+          alt_text: string
+          bucket_path: string
+          content_key?: string | null
+          created_at?: string
+          created_by?: string | null
+          id?: string
+          metadata?: Json
+          public_url?: string | null
+          reviewed_at?: string | null
+          reviewed_by?: string | null
+          section_key?: string | null
+          status?: string
+          title?: string | null
+          updated_at?: string
+          updated_by?: string | null
+        }
+        Update: {
+          alt_text?: string
+          bucket_path?: string
+          content_key?: string | null
+          created_at?: string
+          created_by?: string | null
+          id?: string
+          metadata?: Json
+          public_url?: string | null
+          reviewed_at?: string | null
+          reviewed_by?: string | null
+          section_key?: string | null
+          status?: string
+          title?: string | null
+          updated_at?: string
+          updated_by?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "marketing_media_assets_created_by_fkey"
+            columns: ["created_by"]
+            isOneToOne: false
+            referencedRelation: "operational_staff"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "marketing_media_assets_created_by_fkey"
+            columns: ["created_by"]
+            isOneToOne: false
+            referencedRelation: "staff"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "marketing_media_assets_reviewed_by_fkey"
+            columns: ["reviewed_by"]
+            isOneToOne: false
+            referencedRelation: "operational_staff"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "marketing_media_assets_reviewed_by_fkey"
+            columns: ["reviewed_by"]
+            isOneToOne: false
+            referencedRelation: "staff"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "marketing_media_assets_updated_by_fkey"
+            columns: ["updated_by"]
+            isOneToOne: false
+            referencedRelation: "operational_staff"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "marketing_media_assets_updated_by_fkey"
+            columns: ["updated_by"]
+            isOneToOne: false
+            referencedRelation: "staff"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      marketing_seo_settings: {
+        Row: {
+          created_at: string
+          description: string | null
+          id: string
+          metadata: Json
+          og_image_url: string | null
+          reviewed_at: string | null
+          reviewed_by: string | null
+          route_path: string
+          status: string
+          title: string | null
+          updated_at: string
+          updated_by: string | null
+        }
+        Insert: {
+          created_at?: string
+          description?: string | null
+          id?: string
+          metadata?: Json
+          og_image_url?: string | null
+          reviewed_at?: string | null
+          reviewed_by?: string | null
+          route_path: string
+          status?: string
+          title?: string | null
+          updated_at?: string
+          updated_by?: string | null
+        }
+        Update: {
+          created_at?: string
+          description?: string | null
+          id?: string
+          metadata?: Json
+          og_image_url?: string | null
+          reviewed_at?: string | null
+          reviewed_by?: string | null
+          route_path?: string
+          status?: string
+          title?: string | null
+          updated_at?: string
+          updated_by?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "marketing_seo_settings_reviewed_by_fkey"
+            columns: ["reviewed_by"]
+            isOneToOne: false
+            referencedRelation: "operational_staff"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "marketing_seo_settings_reviewed_by_fkey"
+            columns: ["reviewed_by"]
+            isOneToOne: false
+            referencedRelation: "staff"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "marketing_seo_settings_updated_by_fkey"
+            columns: ["updated_by"]
+            isOneToOne: false
+            referencedRelation: "operational_staff"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "marketing_seo_settings_updated_by_fkey"
+            columns: ["updated_by"]
+            isOneToOne: false
+            referencedRelation: "staff"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      notification_delivery_preferences: {
+        Row: {
+          auth_user_id: string
+          created_at: string
+          id: string
+          owner_booking_preference: string
+          updated_at: string
+        }
+        Insert: {
+          auth_user_id: string
+          created_at?: string
+          id?: string
+          owner_booking_preference?: string
+          updated_at?: string
+        }
+        Update: {
+          auth_user_id?: string
+          created_at?: string
+          id?: string
+          owner_booking_preference?: string
+          updated_at?: string
+        }
+        Relationships: []
       }
       payroll_adjustments: {
         Row: {
@@ -3377,8 +3931,8 @@ export type Database = {
           revoked_at: string | null
           revoked_by: string | null
           scope: string | null
-          source_branch_correction_id: string | null
           source_assignment_issue_id: string | null
+          source_branch_correction_id: string | null
           source_scan_event_id: string | null
           staff_id: string
           status: string
@@ -3405,8 +3959,8 @@ export type Database = {
           revoked_at?: string | null
           revoked_by?: string | null
           scope?: string | null
-          source_branch_correction_id?: string | null
           source_assignment_issue_id?: string | null
+          source_branch_correction_id?: string | null
           source_scan_event_id?: string | null
           staff_id: string
           status?: string
@@ -3433,8 +3987,8 @@ export type Database = {
           revoked_at?: string | null
           revoked_by?: string | null
           scope?: string | null
-          source_branch_correction_id?: string | null
           source_assignment_issue_id?: string | null
+          source_branch_correction_id?: string | null
           source_scan_event_id?: string | null
           staff_id?: string
           status?: string
@@ -3451,7 +4005,7 @@ export type Database = {
             referencedColumns: ["id"]
           },
           {
-            foreignKeyName: "staff_attendance_branch_assign_source_assignment_issue_id_fkey"
+            foreignKeyName: "staff_attendance_branch_assignm_source_assignment_issue_id_fkey"
             columns: ["source_assignment_issue_id"]
             isOneToOne: false
             referencedRelation: "staff_branch_assignment_issues"
@@ -3529,106 +4083,14 @@ export type Database = {
           },
         ]
       }
-      staff_branch_audit_logs: {
-        Row: {
-          change_request_id: string | null
-          changed_by_auth_user_id: string | null
-          changed_by_staff_id: string | null
-          created_at: string
-          id: string
-          metadata: Json
-          new_branch_id: string
-          old_branch_id: string | null
-          reason: string | null
-          source: string
-          staff_id: string
-        }
-        Insert: {
-          change_request_id?: string | null
-          changed_by_auth_user_id?: string | null
-          changed_by_staff_id?: string | null
-          created_at?: string
-          id?: string
-          metadata?: Json
-          new_branch_id: string
-          old_branch_id?: string | null
-          reason?: string | null
-          source?: string
-          staff_id: string
-        }
-        Update: {
-          change_request_id?: string | null
-          changed_by_auth_user_id?: string | null
-          changed_by_staff_id?: string | null
-          created_at?: string
-          id?: string
-          metadata?: Json
-          new_branch_id?: string
-          old_branch_id?: string | null
-          reason?: string | null
-          source?: string
-          staff_id?: string
-        }
-        Relationships: [
-          {
-            foreignKeyName: "staff_branch_audit_logs_change_request_id_fkey"
-            columns: ["change_request_id"]
-            isOneToOne: false
-            referencedRelation: "staff_branch_change_requests"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "staff_branch_audit_logs_changed_by_staff_id_fkey"
-            columns: ["changed_by_staff_id"]
-            isOneToOne: false
-            referencedRelation: "operational_staff"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "staff_branch_audit_logs_changed_by_staff_id_fkey"
-            columns: ["changed_by_staff_id"]
-            isOneToOne: false
-            referencedRelation: "staff"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "staff_branch_audit_logs_new_branch_id_fkey"
-            columns: ["new_branch_id"]
-            isOneToOne: false
-            referencedRelation: "branches"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "staff_branch_audit_logs_old_branch_id_fkey"
-            columns: ["old_branch_id"]
-            isOneToOne: false
-            referencedRelation: "branches"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "staff_branch_audit_logs_staff_id_fkey"
-            columns: ["staff_id"]
-            isOneToOne: false
-            referencedRelation: "operational_staff"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "staff_branch_audit_logs_staff_id_fkey"
-            columns: ["staff_id"]
-            isOneToOne: false
-            referencedRelation: "staff"
-            referencedColumns: ["id"]
-          },
-        ]
-      }
       staff_branch_assignment_issue_audits: {
         Row: {
           booking_branch_summary: Json
           created_at: string
           deciding_auth_user_id: string | null
           deciding_staff_id: string | null
-          impact_summary: Json
           id: string
+          impact_summary: Json
           issue_id: string
           issue_source: string
           next_action: string | null
@@ -3650,8 +4112,8 @@ export type Database = {
           created_at?: string
           deciding_auth_user_id?: string | null
           deciding_staff_id?: string | null
-          impact_summary?: Json
           id?: string
+          impact_summary?: Json
           issue_id: string
           issue_source: string
           next_action?: string | null
@@ -3673,8 +4135,8 @@ export type Database = {
           created_at?: string
           deciding_auth_user_id?: string | null
           deciding_staff_id?: string | null
-          impact_summary?: Json
           id?: string
+          impact_summary?: Json
           issue_id?: string
           issue_source?: string
           next_action?: string | null
@@ -3711,6 +4173,20 @@ export type Database = {
             columns: ["issue_id"]
             isOneToOne: false
             referencedRelation: "staff_branch_assignment_issues"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "staff_branch_assignment_issue_audits_previous_branch_id_fkey"
+            columns: ["previous_branch_id"]
+            isOneToOne: false
+            referencedRelation: "branches"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "staff_branch_assignment_issue_audits_resolved_branch_id_fkey"
+            columns: ["resolved_branch_id"]
+            isOneToOne: false
+            referencedRelation: "branches"
             referencedColumns: ["id"]
           },
           {
@@ -3852,8 +4328,22 @@ export type Database = {
             referencedColumns: ["id"]
           },
           {
+            foreignKeyName: "staff_branch_assignment_issues_previous_branch_id_fkey"
+            columns: ["previous_branch_id"]
+            isOneToOne: false
+            referencedRelation: "branches"
+            referencedColumns: ["id"]
+          },
+          {
             foreignKeyName: "staff_branch_assignment_issues_profile_branch_id_fkey"
             columns: ["profile_branch_id"]
+            isOneToOne: false
+            referencedRelation: "branches"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "staff_branch_assignment_issues_resolved_branch_id_fkey"
+            columns: ["resolved_branch_id"]
             isOneToOne: false
             referencedRelation: "branches"
             referencedColumns: ["id"]
@@ -3884,6 +4374,98 @@ export type Database = {
             columns: ["temporary_authorization_id"]
             isOneToOne: false
             referencedRelation: "staff_attendance_branch_assignments"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      staff_branch_audit_logs: {
+        Row: {
+          change_request_id: string | null
+          changed_by_auth_user_id: string | null
+          changed_by_staff_id: string | null
+          created_at: string
+          id: string
+          metadata: Json
+          new_branch_id: string
+          old_branch_id: string | null
+          reason: string | null
+          source: string
+          staff_id: string
+        }
+        Insert: {
+          change_request_id?: string | null
+          changed_by_auth_user_id?: string | null
+          changed_by_staff_id?: string | null
+          created_at?: string
+          id?: string
+          metadata?: Json
+          new_branch_id: string
+          old_branch_id?: string | null
+          reason?: string | null
+          source?: string
+          staff_id: string
+        }
+        Update: {
+          change_request_id?: string | null
+          changed_by_auth_user_id?: string | null
+          changed_by_staff_id?: string | null
+          created_at?: string
+          id?: string
+          metadata?: Json
+          new_branch_id?: string
+          old_branch_id?: string | null
+          reason?: string | null
+          source?: string
+          staff_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "staff_branch_audit_logs_change_request_id_fkey"
+            columns: ["change_request_id"]
+            isOneToOne: false
+            referencedRelation: "staff_branch_change_requests"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "staff_branch_audit_logs_changed_by_staff_id_fkey"
+            columns: ["changed_by_staff_id"]
+            isOneToOne: false
+            referencedRelation: "operational_staff"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "staff_branch_audit_logs_changed_by_staff_id_fkey"
+            columns: ["changed_by_staff_id"]
+            isOneToOne: false
+            referencedRelation: "staff"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "staff_branch_audit_logs_new_branch_id_fkey"
+            columns: ["new_branch_id"]
+            isOneToOne: false
+            referencedRelation: "branches"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "staff_branch_audit_logs_old_branch_id_fkey"
+            columns: ["old_branch_id"]
+            isOneToOne: false
+            referencedRelation: "branches"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "staff_branch_audit_logs_staff_id_fkey"
+            columns: ["staff_id"]
+            isOneToOne: false
+            referencedRelation: "operational_staff"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "staff_branch_audit_logs_staff_id_fkey"
+            columns: ["staff_id"]
+            isOneToOne: false
+            referencedRelation: "staff"
             referencedColumns: ["id"]
           },
         ]
@@ -4863,6 +5445,110 @@ export type Database = {
           },
         ]
       }
+      staff_permanent_branch_transfers: {
+        Row: {
+          applied_at: string | null
+          approved_by_auth_user_id: string | null
+          approved_by_staff_id: string | null
+          cancelled_at: string | null
+          created_at: string
+          effective_date: string
+          id: string
+          metadata: Json
+          new_branch_id: string
+          previous_branch_id: string | null
+          reason: string | null
+          source_assignment_issue_id: string | null
+          staff_id: string
+          status: string
+          updated_at: string
+        }
+        Insert: {
+          applied_at?: string | null
+          approved_by_auth_user_id?: string | null
+          approved_by_staff_id?: string | null
+          cancelled_at?: string | null
+          created_at?: string
+          effective_date: string
+          id?: string
+          metadata?: Json
+          new_branch_id: string
+          previous_branch_id?: string | null
+          reason?: string | null
+          source_assignment_issue_id?: string | null
+          staff_id: string
+          status?: string
+          updated_at?: string
+        }
+        Update: {
+          applied_at?: string | null
+          approved_by_auth_user_id?: string | null
+          approved_by_staff_id?: string | null
+          cancelled_at?: string | null
+          created_at?: string
+          effective_date?: string
+          id?: string
+          metadata?: Json
+          new_branch_id?: string
+          previous_branch_id?: string | null
+          reason?: string | null
+          source_assignment_issue_id?: string | null
+          staff_id?: string
+          status?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "staff_permanent_branch_transfer_source_assignment_issue_id_fkey"
+            columns: ["source_assignment_issue_id"]
+            isOneToOne: true
+            referencedRelation: "staff_branch_assignment_issues"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "staff_permanent_branch_transfers_approved_by_staff_id_fkey"
+            columns: ["approved_by_staff_id"]
+            isOneToOne: false
+            referencedRelation: "operational_staff"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "staff_permanent_branch_transfers_approved_by_staff_id_fkey"
+            columns: ["approved_by_staff_id"]
+            isOneToOne: false
+            referencedRelation: "staff"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "staff_permanent_branch_transfers_new_branch_id_fkey"
+            columns: ["new_branch_id"]
+            isOneToOne: false
+            referencedRelation: "branches"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "staff_permanent_branch_transfers_previous_branch_id_fkey"
+            columns: ["previous_branch_id"]
+            isOneToOne: false
+            referencedRelation: "branches"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "staff_permanent_branch_transfers_staff_id_fkey"
+            columns: ["staff_id"]
+            isOneToOne: false
+            referencedRelation: "operational_staff"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "staff_permanent_branch_transfers_staff_id_fkey"
+            columns: ["staff_id"]
+            isOneToOne: false
+            referencedRelation: "staff"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       staff_schedule_groups: {
         Row: {
           branch_id: string
@@ -5500,6 +6186,85 @@ export type Database = {
           },
         ]
       }
+      web_push_subscriptions: {
+        Row: {
+          auth_secret: string
+          auth_user_id: string
+          branch_id: string | null
+          created_at: string
+          device_label: string | null
+          endpoint: string
+          failure_count: number
+          id: string
+          is_active: boolean
+          last_failure_at: string | null
+          last_success_at: string | null
+          p256dh: string
+          staff_id: string | null
+          updated_at: string
+          user_agent: string | null
+          workspace: string
+        }
+        Insert: {
+          auth_secret: string
+          auth_user_id: string
+          branch_id?: string | null
+          created_at?: string
+          device_label?: string | null
+          endpoint: string
+          failure_count?: number
+          id?: string
+          is_active?: boolean
+          last_failure_at?: string | null
+          last_success_at?: string | null
+          p256dh: string
+          staff_id?: string | null
+          updated_at?: string
+          user_agent?: string | null
+          workspace: string
+        }
+        Update: {
+          auth_secret?: string
+          auth_user_id?: string
+          branch_id?: string | null
+          created_at?: string
+          device_label?: string | null
+          endpoint?: string
+          failure_count?: number
+          id?: string
+          is_active?: boolean
+          last_failure_at?: string | null
+          last_success_at?: string | null
+          p256dh?: string
+          staff_id?: string | null
+          updated_at?: string
+          user_agent?: string | null
+          workspace?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "web_push_subscriptions_branch_id_fkey"
+            columns: ["branch_id"]
+            isOneToOne: false
+            referencedRelation: "branches"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "web_push_subscriptions_staff_id_fkey"
+            columns: ["staff_id"]
+            isOneToOne: false
+            referencedRelation: "operational_staff"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "web_push_subscriptions_staff_id_fkey"
+            columns: ["staff_id"]
+            isOneToOne: false
+            referencedRelation: "staff"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       workflow_tasks: {
         Row: {
           action_href: string | null
@@ -5599,102 +6364,6 @@ export type Database = {
           {
             foreignKeyName: "workflow_tasks_completed_by_staff_id_fkey"
             columns: ["completed_by_staff_id"]
-            isOneToOne: false
-            referencedRelation: "staff"
-            referencedColumns: ["id"]
-          },
-        ]
-      }
-      notification_delivery_preferences: {
-        Row: {
-          auth_user_id: string
-          created_at: string
-          id: string
-          owner_booking_preference: string
-          updated_at: string
-        }
-        Insert: {
-          auth_user_id: string
-          created_at?: string
-          id?: string
-          owner_booking_preference?: string
-          updated_at?: string
-        }
-        Update: {
-          auth_user_id?: string
-          created_at?: string
-          id?: string
-          owner_booking_preference?: string
-          updated_at?: string
-        }
-        Relationships: []
-      }
-      web_push_subscriptions: {
-        Row: {
-          auth_secret: string
-          auth_user_id: string
-          branch_id: string | null
-          created_at: string
-          device_label: string | null
-          endpoint: string
-          failure_count: number
-          id: string
-          is_active: boolean
-          last_failure_at: string | null
-          last_success_at: string | null
-          p256dh: string
-          staff_id: string | null
-          updated_at: string
-          user_agent: string | null
-          workspace: string
-        }
-        Insert: {
-          auth_secret: string
-          auth_user_id: string
-          branch_id?: string | null
-          created_at?: string
-          device_label?: string | null
-          endpoint: string
-          failure_count?: number
-          id?: string
-          is_active?: boolean
-          last_failure_at?: string | null
-          last_success_at?: string | null
-          p256dh: string
-          staff_id?: string | null
-          updated_at?: string
-          user_agent?: string | null
-          workspace: string
-        }
-        Update: {
-          auth_secret?: string
-          auth_user_id?: string
-          branch_id?: string | null
-          created_at?: string
-          device_label?: string | null
-          endpoint?: string
-          failure_count?: number
-          id?: string
-          is_active?: boolean
-          last_failure_at?: string | null
-          last_success_at?: string | null
-          p256dh?: string
-          staff_id?: string | null
-          updated_at?: string
-          user_agent?: string | null
-          workspace?: string
-        }
-        Relationships: [
-          {
-            foreignKeyName: "web_push_subscriptions_branch_id_fkey"
-            columns: ["branch_id"]
-            isOneToOne: false
-            referencedRelation: "branches"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "web_push_subscriptions_staff_id_fkey"
-            columns: ["staff_id"]
             isOneToOne: false
             referencedRelation: "staff"
             referencedColumns: ["id"]
@@ -5928,6 +6597,10 @@ export type Database = {
           success: boolean
         }[]
       }
+      branch_service_booking_visibility_from_visibility: {
+        Args: { p_visibility: string }
+        Returns: string
+      }
       can_mutate_schedule_for_branch: {
         Args: { p_branch_id: string }
         Returns: boolean
@@ -5972,6 +6645,14 @@ export type Database = {
           scan_event_id: string
           success: boolean
         }[]
+      }
+      complete_booking_service_session: {
+        Args: {
+          p_actor_staff_id?: string
+          p_booking_id: string
+          p_completion_source?: string
+        }
+        Returns: Json
       }
       complete_due_service_sessions: {
         Args: { p_limit?: number }
@@ -6028,6 +6709,26 @@ export type Database = {
           success: boolean
         }[]
       }
+      correct_attendance_times_transaction: {
+        Args: {
+          p_action: string
+          p_actor_staff_id: string
+          p_branch_id: string
+          p_checked_in_at: string
+          p_checked_out_at?: string
+          p_checkin_id: string
+          p_exception_id?: string
+          p_is_test?: boolean
+          p_metrics?: Json
+          p_reason: string
+        }
+        Returns: {
+          code: string
+          correction_id: string
+          message: string
+          success: boolean
+        }[]
+      }
       create_online_booking: {
         Args: {
           p_branch_id: string
@@ -6041,6 +6742,19 @@ export type Database = {
           p_start_time: string
         }
         Returns: string
+      }
+      crm_booking_row_blocks_availability: {
+        Args: { p_hold_expires_at: string; p_status: string }
+        Returns: boolean
+      }
+      extend_booking_service_session: {
+        Args: {
+          p_actor_staff_id?: string
+          p_booking_id: string
+          p_minutes: number
+          p_reason: string
+        }
+        Returns: Json
       }
       get_auth_branch_id: { Args: never; Returns: string }
       get_auth_role: { Args: never; Returns: string }
@@ -6075,6 +6789,10 @@ export type Database = {
       get_effective_price: {
         Args: { p_branch_id: string; p_service_id: string }
         Returns: number
+      }
+      is_branch_service_assignable: {
+        Args: { p_branch_id: string; p_service_id: string }
+        Returns: boolean
       }
       is_service_admin: { Args: never; Returns: boolean }
       process_crm_closing_attendance_interventions: {
@@ -6122,6 +6840,24 @@ export type Database = {
           success: boolean
         }[]
       }
+      record_booking_payment_change: {
+        Args: {
+          p_amount_paid: number
+          p_booking_id: string
+          p_branch_id?: string
+          p_changed_by?: string
+          p_clear_hold?: boolean
+          p_next_status?: string
+          p_payment_method: string
+          p_payment_reference?: string
+          p_payment_status: string
+          p_reason?: string
+        }
+        Returns: {
+          branch_id: string
+          id: string
+        }[]
+      }
       recover_stale_attendance_and_clock_in: {
         Args: {
           p_current_branch_id: string
@@ -6149,23 +6885,26 @@ export type Database = {
           success: boolean
         }[]
       }
-      record_booking_payment_change: {
-        Args: {
-          p_amount_paid: number
-          p_booking_id: string
-          p_branch_id?: string
-          p_changed_by?: string
-          p_clear_hold?: boolean
-          p_next_status?: string
-          p_payment_method: string
-          p_payment_reference?: string
-          p_payment_status: string
-          p_reason?: string
-        }
+      replace_group_weekly_schedule: {
+        Args: { p_group_id: string; p_rows: Json }
         Returns: {
-          branch_id: string
+          created_at: string
+          day_of_week: number
+          end_time: string | null
+          group_id: string
           id: string
+          is_active: boolean
+          is_day_off: boolean
+          shift_type: string
+          start_time: string | null
+          updated_at: string
         }[]
+        SetofOptions: {
+          from: "*"
+          to: "staff_group_schedule_rules"
+          isOneToOne: false
+          isSetofReturn: true
+        }
       }
       replace_staff_service_capabilities: {
         Args: { p_service_ids?: string[]; p_target_staff_id: string }
@@ -6215,6 +6954,28 @@ export type Database = {
           success: boolean
         }[]
       }
+      resolve_attendance_scan_review_transaction: {
+        Args: {
+          p_actor_staff_id: string
+          p_attendance_date: string
+          p_branch_id: string
+          p_exception_id: string
+          p_is_test?: boolean
+          p_reason: string
+          p_resolution: string
+          p_scheduled_end_at?: string
+          p_scheduled_start_at?: string
+          p_shift_type?: string
+          p_timezone?: string
+        }
+        Returns: {
+          checkin_id: string
+          code: string
+          correction_id: string
+          message: string
+          success: boolean
+        }[]
+      }
       resolve_attendance_staff_category: {
         Args: { p_staff: Database["public"]["Tables"]["staff"]["Row"] }
         Returns: string
@@ -6245,6 +7006,43 @@ export type Database = {
               source: string
             }[]
           }
+      resolve_service_session_actor: {
+        Args: { p_actor_staff_id?: string }
+        Returns: {
+          actor_branch_id: string
+          actor_role: string
+          actor_staff_id: string
+          is_service_role: boolean
+        }[]
+      }
+      resolve_staff_branch_assignment_issue: {
+        Args: {
+          p_actor_auth_user_id: string
+          p_actor_staff_id: string
+          p_effective_date?: string
+          p_impact_summary?: Json
+          p_issue_id: string
+          p_reason: string
+          p_resolution_type: string
+          p_selected_repairs?: Json
+          p_valid_from?: string
+          p_valid_until?: string
+        }
+        Returns: {
+          code: string
+          issue_id: string
+          issue_status: string
+          message: string
+          next_action: string
+          previous_branch_id: string
+          repairs_applied: Json
+          repairs_requiring_review: Json
+          resolution_type: string
+          resolved_branch_id: string
+          success: boolean
+          temporary_authorization_id: string
+        }[]
+      }
       resolve_staff_branch_correction_transaction: {
         Args: {
           p_actor_auth_user_id: string
@@ -6272,18 +7070,14 @@ export type Database = {
           success: boolean
         }[]
       }
-      resolve_staff_branch_assignment_issue: {
+      resolve_staff_permanent_branch_transfer_issue: {
         Args: {
           p_actor_auth_user_id: string
           p_actor_staff_id: string
-          p_effective_date?: string
+          p_effective_date: string
           p_impact_summary?: Json
           p_issue_id: string
           p_reason: string
-          p_resolution_type: string
-          p_selected_repairs?: Json
-          p_valid_from?: string
-          p_valid_until?: string
         }
         Returns: {
           code: string
@@ -6403,6 +7197,17 @@ export type Database = {
         Returns: boolean
       }
       schedule_time_start_min: { Args: { p_time: string }; Returns: number }
+      service_session_actor_allowed: {
+        Args: {
+          p_actor_staff_id: string
+          p_booking_branch_id: string
+          p_booking_staff_id: string
+        }
+        Returns: {
+          actor_staff_id: string
+          allowed: boolean
+        }[]
+      }
       staff_is_operational: {
         Args: { p_staff: Database["public"]["Tables"]["staff"]["Row"] }
         Returns: boolean
@@ -6411,32 +7216,24 @@ export type Database = {
         Args: { p_default: boolean; p_key: string; p_metadata: Json }
         Returns: boolean
       }
-      complete_booking_service_session: {
-        Args: {
-          p_actor_staff_id?: string
-          p_booking_id: string
-          p_completion_source?: string
-        }
-        Returns: Json
-      }
-      extend_booking_service_session: {
-        Args: {
-          p_actor_staff_id?: string
-          p_booking_id: string
-          p_minutes: number
-          p_reason: string
-        }
-        Returns: Json
-      }
-      start_booking_service_session: {
-        Args: {
-          p_actor_staff_id?: string
-          p_booking_id: string
-          p_resource_id?: string
-          p_source?: string
-        }
-        Returns: Json
-      }
+      start_booking_service_session:
+        | {
+            Args: {
+              p_actor_staff_id?: string
+              p_booking_id: string
+              p_resource_id?: string
+              p_source?: string
+            }
+            Returns: Json
+          }
+        | {
+            Args: {
+              p_actor_staff_id: string
+              p_booking_id: string
+              p_source: string
+            }
+            Returns: Json
+          }
       update_booking_progress: {
         Args: { p_booking_id: string; p_next_status: string }
         Returns: undefined

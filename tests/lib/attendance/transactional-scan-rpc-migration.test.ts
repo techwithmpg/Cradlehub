@@ -1,19 +1,63 @@
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
+
+vi.mock("server-only", () => ({}));
+
+import {
+  buildAttendanceScanCommitRpcArgs,
+  type AttendanceScanCommitInput,
+} from "@/lib/attendance/scan-engine";
 
 const migrationSql = readFileSync(
   join(process.cwd(), "supabase/migrations/20260712044527_attendance_transactional_scan_rpc.sql"),
   "utf8"
 );
 const correctionMigrationSql = readFileSync(
-  join(process.cwd(), "supabase/migrations/20260712045429_attendance_transactional_corrections_rpc.sql"),
+  join(
+    process.cwd(),
+    "supabase/migrations/20260712045429_attendance_transactional_corrections_rpc.sql"
+  ),
+  "utf8"
+);
+const canonicalMigrationSql = readFileSync(
+  join(process.cwd(), "supabase/migrations/20260821023717_fix_attendance_function_ambiguity.sql"),
   "utf8"
 );
 
+const canonicalParameterNames = [
+  ...canonicalMigrationSql.matchAll(
+    /^\s+(p_[a-z0-9_]+)\s+[a-z][a-z0-9_]*(?:\s+default\s+[^,\n]+)?[,]?$/gim
+  ),
+]
+  .map((match) => match[1])
+  .slice(-20);
+
+const contractInput: AttendanceScanCommitInput = {
+  event: {
+    requestId: "rpc-contract-test",
+    branchId: "00000000-0000-0000-0000-000000000001",
+    qrPointId: "00000000-0000-0000-0000-000000000002",
+    staffId: "00000000-0000-0000-0000-000000000003",
+    deviceId: "00000000-0000-0000-0000-000000000004",
+    scanType: "attendance",
+    action: "clock_in",
+    outcome: "success",
+  },
+  result: {
+    ok: true,
+    outcome: "success",
+    severity: "success",
+    title: "Clocked in",
+    message: "Attendance recorded.",
+  },
+};
+
 describe("attendance transactional scan RPC migration", () => {
   it("defines one locked, idempotent scan persistence RPC", () => {
-    expect(migrationSql).toContain("create or replace function public.commit_attendance_scan_transaction");
+    expect(migrationSql).toContain(
+      "create or replace function public.commit_attendance_scan_transaction"
+    );
     expect(migrationSql).toContain("security invoker");
     expect(migrationSql).toContain("pg_advisory_xact_lock");
     expect(migrationSql).toContain("for update");
@@ -53,8 +97,16 @@ describe("attendance transactional scan RPC migration", () => {
     });
   });
 
+  it("matches every TypeScript argument name to the deployed canonical SQL signature", () => {
+    const callerParameterNames = Object.keys(buildAttendanceScanCommitRpcArgs(contractInput));
+    expect(canonicalParameterNames).toEqual(callerParameterNames);
+    expect(callerParameterNames).toHaveLength(20);
+  });
+
   it("keeps execution restricted to the server-owned service role", () => {
-    expect(migrationSql).toContain("revoke all on function public.commit_attendance_scan_transaction");
+    expect(migrationSql).toContain(
+      "revoke all on function public.commit_attendance_scan_transaction"
+    );
     expect(migrationSql).toContain("from public");
     expect(migrationSql).toContain("from anon");
     expect(migrationSql).toContain("from authenticated");
@@ -72,12 +124,16 @@ describe("attendance transactional scan RPC migration", () => {
   });
 
   it("defines a transactional selected-record reset correction RPC", () => {
-    expect(correctionMigrationSql).toContain("create or replace function public.reset_attendance_state_transaction");
+    expect(correctionMigrationSql).toContain(
+      "create or replace function public.reset_attendance_state_transaction"
+    );
     expect(correctionMigrationSql).toContain("security invoker");
     expect(correctionMigrationSql).toContain("for update");
     expect(correctionMigrationSql).toContain("v_open_checkin_id");
     expect(correctionMigrationSql).toContain("insert into public.attendance_corrections");
-    expect(correctionMigrationSql).toContain("revoke all on function public.reset_attendance_state_transaction");
+    expect(correctionMigrationSql).toContain(
+      "revoke all on function public.reset_attendance_state_transaction"
+    );
     expect(correctionMigrationSql).toContain("to service_role");
   });
 });

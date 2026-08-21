@@ -453,20 +453,43 @@ export async function resolveBranchAssignmentIssueForActor(params: {
   input: BranchAssignmentResolutionInput;
 }): Promise<BranchAssignmentResolutionResult> {
   const admin = createAdminClient();
-  const { data, error } = await admin
-    .rpc("resolve_staff_branch_assignment_issue", {
-      p_issue_id: params.input.issueId,
-      p_resolution_type: params.input.resolutionType,
-      p_actor_auth_user_id: params.actor.authUserId,
-      p_actor_staff_id: params.actor.staffId,
-      p_reason: params.input.reason.trim(),
-      p_effective_date: params.input.effectiveDate ?? undefined,
-      p_valid_from: params.input.validFrom ?? undefined,
-      p_valid_until: params.input.validUntil ?? undefined,
-      p_selected_repairs: (params.input.selectedRepairs ?? {}) as Json,
-      p_impact_summary: (params.input.impactSummary ?? {}) as Json,
-    })
-    .maybeSingle();
+  let response;
+  if (params.input.resolutionType === "correct_permanent_primary_branch") {
+    const effectiveDate = params.input.effectiveDate;
+    if (!effectiveDate) {
+      return {
+        ok: false,
+        code: "INVALID_INPUT",
+        message: "Choose the permanent transfer effective date.",
+      };
+    }
+    response = await admin
+      .rpc("resolve_staff_permanent_branch_transfer_issue", {
+        p_issue_id: params.input.issueId,
+        p_actor_auth_user_id: params.actor.authUserId,
+        p_actor_staff_id: params.actor.staffId,
+        p_reason: params.input.reason.trim(),
+        p_effective_date: effectiveDate,
+        p_impact_summary: (params.input.impactSummary ?? {}) as Json,
+      })
+      .maybeSingle();
+  } else {
+    response = await admin
+      .rpc("resolve_staff_branch_assignment_issue", {
+        p_issue_id: params.input.issueId,
+        p_resolution_type: params.input.resolutionType,
+        p_actor_auth_user_id: params.actor.authUserId,
+        p_actor_staff_id: params.actor.staffId,
+        p_reason: params.input.reason.trim(),
+        p_effective_date: params.input.effectiveDate ?? undefined,
+        p_valid_from: params.input.validFrom ?? undefined,
+        p_valid_until: params.input.validUntil ?? undefined,
+        p_selected_repairs: (params.input.selectedRepairs ?? {}) as Json,
+        p_impact_summary: (params.input.impactSummary ?? {}) as Json,
+      })
+      .maybeSingle();
+  }
+  const { data, error } = response;
 
   if (error || !data) {
     console.error("[staff/branch-assignment-resolver] resolution RPC failed", {

@@ -20,6 +20,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
+import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import type {
   BranchAssignmentIssue,
@@ -28,6 +29,7 @@ import type {
 import {
   branchAssignmentResolutionForDecision,
   formatBranchAssignmentDate,
+  localIsoDate,
   temporaryBranchWindow,
   type BranchAssignmentDecision,
 } from "./branch-assignment-ui";
@@ -48,13 +50,15 @@ const DECISIONS: Array<{
   {
     value: "temporary_shift",
     label: "Allow for this shift",
-    description: "Keep the primary branch unchanged. Access expires after 12 hours or when the shift closes.",
+    description:
+      "Keep the primary branch unchanged. Access expires after 12 hours or when the shift closes.",
     icon: Clock3,
   },
   {
     value: "temporary_day",
     label: "Allow for today",
-    description: "Keep the primary branch unchanged. Access expires at the next Attendance boundary.",
+    description:
+      "Keep the primary branch unchanged. Access expires at the next Attendance boundary.",
     icon: CalendarDays,
   },
   {
@@ -68,10 +72,20 @@ const DECISIONS: Array<{
 export function CrmStaffBranchResolutionDialog({ issue, mode, onClose, onResolved }: Props) {
   const [decision, setDecision] = useState<BranchAssignmentDecision>("temporary_shift");
   const [reason, setReason] = useState("");
+  const [effectiveDate, setEffectiveDate] = useState(() => localIsoDate(new Date()));
   const [isPending, startTransition] = useTransition();
 
+  function resetForm() {
+    setDecision("temporary_shift");
+    setReason("");
+    setEffectiveDate(localIsoDate(new Date()));
+  }
+
   function close() {
-    if (!isPending) onClose();
+    if (!isPending) {
+      resetForm();
+      onClose();
+    }
   }
 
   function submit() {
@@ -85,19 +99,25 @@ export function CrmStaffBranchResolutionDialog({ issue, mode, onClose, onResolve
       toast.error("Enter a short transfer reason.");
       return;
     }
+    if (mode === "resolve" && decision === "permanent_transfer" && !effectiveDate) {
+      toast.error("Choose the permanent transfer effective date.");
+      return;
+    }
 
-    const temporary = mode === "resolve" && decision !== "permanent_transfer"
-      ? temporaryBranchWindow(decision)
-      : null;
+    const temporary =
+      mode === "resolve" && decision !== "permanent_transfer"
+        ? temporaryBranchWindow(decision)
+        : null;
 
     startTransition(async () => {
       const result = await resolveBranchAssignmentIssueAction({
         issueId: issue.id,
-        resolutionType: mode === "wrong_qr"
-          ? "confirm_wrong_qr_scan"
-          : branchAssignmentResolutionForDecision(decision),
+        resolutionType:
+          mode === "wrong_qr"
+            ? "confirm_wrong_qr_scan"
+            : branchAssignmentResolutionForDecision(decision),
         reason: trimmedReason || undefined,
-        effectiveDate: temporary?.effectiveDate,
+        effectiveDate: permanent ? effectiveDate : temporary?.effectiveDate,
         validFrom: temporary?.validFrom,
         validUntil: temporary?.validUntil,
         temporaryScope: temporary?.temporaryScope,
@@ -110,6 +130,7 @@ export function CrmStaffBranchResolutionDialog({ issue, mode, onClose, onResolve
 
       toast.success(result.message);
       onResolved(result);
+      resetForm();
       onClose();
     });
   }
@@ -119,15 +140,20 @@ export function CrmStaffBranchResolutionDialog({ issue, mode, onClose, onResolve
     ? mode === "wrong_qr"
       ? `${issue.staffName}'s primary branch will remain ${issue.profileBranchName}. No Attendance will be created from the original scan.`
       : permanent
-        ? `${issue.staffName}'s primary branch will change from ${issue.profileBranchName} to ${issue.affectedBranchName ?? "the scanned branch"}. Historical records remain unchanged.`
+        ? `${issue.staffName}'s branch authority will change from ${issue.profileBranchName} to ${issue.affectedBranchName ?? "the scanned branch"} on ${effectiveDate}. Historical records remain unchanged.`
         : `${issue.staffName} will receive temporary access to ${issue.affectedBranchName ?? "the scanned branch"}. Their primary branch remains ${issue.profileBranchName}.`
     : "";
 
   return (
     <Dialog open={issue !== null} onOpenChange={(open) => !open && close()}>
-      <DialogContent className="max-h-[90vh] overflow-y-auto sm:max-w-2xl" showCloseButton={!isPending}>
+      <DialogContent
+        className="max-h-[90vh] overflow-y-auto sm:max-w-2xl"
+        showCloseButton={!isPending}
+      >
         <DialogHeader>
-          <DialogTitle>{mode === "wrong_qr" ? "Confirm wrong QR scan" : "Resolve Branch Assignment"}</DialogTitle>
+          <DialogTitle>
+            {mode === "wrong_qr" ? "Confirm wrong QR scan" : "Resolve Branch Assignment"}
+          </DialogTitle>
           <DialogDescription>
             {issue
               ? `${issue.staffName} scanned at ${issue.affectedBranchName ?? "another branch"}, while their current profile branch is ${issue.profileBranchName}.`
@@ -138,16 +164,29 @@ export function CrmStaffBranchResolutionDialog({ issue, mode, onClose, onResolve
         {issue ? (
           <div className="space-y-4">
             <div className="grid gap-2 rounded-lg bg-[var(--cs-surface-warm)] p-3 text-sm sm:grid-cols-2">
-              <p><span className="text-[var(--cs-text-muted)]">Staff:</span> <strong>{issue.staffName}</strong> · {issue.staffType ?? "Staff"}</p>
-              <p><span className="text-[var(--cs-text-muted)]">Detected:</span> {formatBranchAssignmentDate(issue.createdAt)}</p>
-              <p><span className="text-[var(--cs-text-muted)]">Source:</span> {issue.source.replaceAll("_", " ")}</p>
-              <p><span className="text-[var(--cs-text-muted)]">Open Attendance:</span> {issue.openAttendanceCount}</p>
+              <p>
+                <span className="text-[var(--cs-text-muted)]">Staff:</span>{" "}
+                <strong>{issue.staffName}</strong> · {issue.staffType ?? "Staff"}
+              </p>
+              <p>
+                <span className="text-[var(--cs-text-muted)]">Detected:</span>{" "}
+                {formatBranchAssignmentDate(issue.createdAt)}
+              </p>
+              <p>
+                <span className="text-[var(--cs-text-muted)]">Source:</span>{" "}
+                {issue.source.replaceAll("_", " ")}
+              </p>
+              <p>
+                <span className="text-[var(--cs-text-muted)]">Open Attendance:</span>{" "}
+                {issue.openAttendanceCount}
+              </p>
             </div>
 
             {issue.openAttendanceCount > 0 ? (
               <div className="flex items-start gap-2 rounded-lg border border-amber-200 bg-amber-50 p-3 text-sm text-amber-900">
                 <AlertTriangle size={17} className="mt-0.5 shrink-0" />
-                An open Attendance record exists. The resolver may send this case to manager review instead of changing branch data immediately.
+                An open Attendance record exists. The resolver may send this case to manager review
+                instead of changing branch data immediately.
               </div>
             ) : null}
 
@@ -166,8 +205,15 @@ export function CrmStaffBranchResolutionDialog({ issue, mode, onClose, onResolve
                     >
                       <Icon size={18} className="mt-0.5 shrink-0" />
                       <span>
-                        <strong className="block text-sm">{option.label}{option.value === "permanent_transfer" ? ` to ${issue.affectedBranchName ?? "scanned branch"}` : ""}</strong>
-                        <span className="mt-0.5 block text-xs text-[var(--cs-text-muted)]">{option.description}</span>
+                        <strong className="block text-sm">
+                          {option.label}
+                          {option.value === "permanent_transfer"
+                            ? ` to ${issue.affectedBranchName ?? "scanned branch"}`
+                            : ""}
+                        </strong>
+                        <span className="mt-0.5 block text-xs text-[var(--cs-text-muted)]">
+                          {option.description}
+                        </span>
                       </span>
                     </button>
                   );
@@ -175,9 +221,34 @@ export function CrmStaffBranchResolutionDialog({ issue, mode, onClose, onResolve
               </div>
             ) : null}
 
+            {permanent ? (
+              <div className="grid gap-2">
+                <label htmlFor="branch-transfer-effective-date" className="text-sm font-medium">
+                  Transfer effective date
+                </label>
+                <Input
+                  id="branch-transfer-effective-date"
+                  type="date"
+                  min={localIsoDate(new Date())}
+                  value={effectiveDate}
+                  onChange={(event) => setEffectiveDate(event.target.value)}
+                  disabled={isPending}
+                  required
+                />
+                <p className="text-xs text-[var(--cs-text-muted)]">
+                  Until this date, the current branch remains authoritative. The connected phone
+                  does not need to be reset.
+                </p>
+              </div>
+            ) : null}
+
             <div>
               <label htmlFor="branch-assignment-reason" className="text-sm font-semibold">
-                {mode === "wrong_qr" ? "Reason" : permanent ? "Transfer reason" : "Coverage note (optional)"}
+                {mode === "wrong_qr"
+                  ? "Reason"
+                  : permanent
+                    ? "Transfer reason"
+                    : "Coverage note (optional)"}
               </label>
               <Textarea
                 id="branch-assignment-reason"
@@ -186,20 +257,47 @@ export function CrmStaffBranchResolutionDialog({ issue, mode, onClose, onResolve
                 maxLength={500}
                 rows={3}
                 className="mt-1"
-                placeholder={mode === "wrong_qr" ? "Why was this the wrong QR?" : permanent ? "Why is the primary branch changing?" : "Optional note for the audit trail"}
+                placeholder={
+                  mode === "wrong_qr"
+                    ? "Why was this the wrong QR?"
+                    : permanent
+                      ? "Why is the primary branch changing?"
+                      : "Optional note for the audit trail"
+                }
               />
             </div>
 
-            <div className={`rounded-lg p-3 text-sm ${mode === "wrong_qr" ? "bg-red-50 text-red-900" : permanent ? "bg-amber-50 text-amber-950" : "bg-emerald-50 text-emerald-950"}`}>
-              {confirmation} The original scan will not be replayed; the staff member must scan again after resolution.
+            <div
+              className={`rounded-lg p-3 text-sm ${mode === "wrong_qr" ? "bg-red-50 text-red-900" : permanent ? "bg-amber-50 text-amber-950" : "bg-emerald-50 text-emerald-950"}`}
+            >
+              {confirmation} The original scan will not be replayed; the staff member must scan
+              again after resolution.
             </div>
           </div>
         ) : null}
 
         <DialogFooter>
-          <button type="button" className="rounded-md border border-[var(--cs-border)] px-4 py-2 text-sm font-semibold" disabled={isPending} onClick={close}>Cancel</button>
-          <button type="button" className={`inline-flex items-center gap-2 rounded-md px-4 py-2 text-sm font-semibold text-white disabled:cursor-not-allowed disabled:opacity-60 ${mode === "wrong_qr" ? "bg-red-700" : "bg-[#2f7040]"}`} disabled={isPending} onClick={submit}>
-            {isPending ? <Loader2 size={16} className="animate-spin" /> : mode === "wrong_qr" ? <XCircle size={16} /> : <CheckCircle2 size={16} />}
+          <button
+            type="button"
+            className="rounded-md border border-[var(--cs-border)] px-4 py-2 text-sm font-semibold"
+            disabled={isPending}
+            onClick={close}
+          >
+            Cancel
+          </button>
+          <button
+            type="button"
+            className={`inline-flex items-center gap-2 rounded-md px-4 py-2 text-sm font-semibold text-white disabled:cursor-not-allowed disabled:opacity-60 ${mode === "wrong_qr" ? "bg-red-700" : "bg-[#2f7040]"}`}
+            disabled={isPending}
+            onClick={submit}
+          >
+            {isPending ? (
+              <Loader2 size={16} className="animate-spin" />
+            ) : mode === "wrong_qr" ? (
+              <XCircle size={16} />
+            ) : (
+              <CheckCircle2 size={16} />
+            )}
             {mode === "wrong_qr" ? "Confirm wrong QR" : "Confirm resolution"}
           </button>
         </DialogFooter>

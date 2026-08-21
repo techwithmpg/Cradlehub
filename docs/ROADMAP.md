@@ -332,6 +332,7 @@
 | 2026-07-14 | Completed local ATTENDANCE-CRM-CLOSING-POLICY-001 | Integrate selected-branch Attendance Rules, effective category policy, CRM Closing operational windows, idempotent interventions, provisional auto-close, and same-row real-QR reconciliation; migration/scheduler/authenticated QA pending | Codex |
 | 2026-07-15 | Completed local ATTENDANCE-SCAN-RESULTS-AND-RECORD-FIRST-001 | Record ordinary outside-hours scans with review, preserve one-scan secure phone registration, and add committed branch-local personalized success copy with a secondary review badge | Codex |
 | 2026-08-06 | Completed SERVICE-CATALOG-UNIFICATION-20260806 | Unify service catalogue/branch overlay/staff capability rules, repair SM to 137 in-spa services with Home Service disabled, update capability RPC, add future sync trigger, and verify live DB plus automated gates | Codex |
+| 2026-08-22 | Completed ATTENDANCE-RPC-BRANCH-AUTHORITY-20260821 | Repair the production transaction RPC, centralize effective branch authority, support business-date permanent transfers, and prove same-phone Main/SM/temporary/wrong-branch behavior live | Codex |
 ## RELEASE-READINESS-001 — Complete (conditional production verification)
 
 - [x] Attendance launch defects and recovery assets
@@ -355,3 +356,15 @@
 - [x] Normalize all remote-only migration versions into the local chain
 - [ ] Reconcile 84 unverified older local-only history entries through a separate evidence-backed baseline project
 - [ ] Complete production cron, authenticated browser/device, backup/restore, and controlled-pilot evidence
+
+## ATTENDANCE-RPC-BRANCH-AUTHORITY-20260821 — Complete (scanning pilot)
+
+- [x] Synchronize TypeScript, migration, production Postgres, and PostgREST to one canonical transactional RPC
+- [x] Add caller-to-SQL contract regression coverage
+- [x] Centralize temporary, duty, cross-branch, permanent, and home branch authority
+- [x] Prevent future transfers from taking effect before the target branch Attendance business date
+- [x] Prove Main, temporary SM, permanent same-phone SM, duplicates, clock-out, and wrong-branch behavior in production
+- [x] Prove authenticated wrong-branch first registration creates no Attendance and consumes no device slot
+- [x] Pass live rollback DB tests, linked schema lint, TypeScript, lint, full tests, and production build
+- [ ] Observe rendered CRM Realtime updates in an authenticated operator session
+- [ ] Sign off Attendance cron/closing operational readiness before enabling enforcement

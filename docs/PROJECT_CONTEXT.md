@@ -891,3 +891,13 @@ Operational activation remains conditional on live migration-history reconciliat
 Confirmed live schema drift has been repaired. Missing Attendance, branch-assignment, booking-lifecycle, scheduling, and home-service functions/triggers/constraints are live; 20 overlapping group defaults were backed up and repaired; 16 booking timing snapshots were backfilled; seven internal public tables now have RLS with client grants revoked; and public-schema lint has zero error-level findings.
 
 Five local filenames now match authoritative live versions and there are no remote-only versions. Eight applied migrations were recorded during this reconciliation. Eighty-four older local-only versions remain intentionally unmarked because catalog equality cannot prove historical seed/data effects; do not use a broad `--include-all` push. Production cron, authenticated device/browser workflows, backup/restore evidence, distributed rate limiting, and the controlled pilot remain separate readiness gates.
+
+## Production Attendance contract and branch authority — 2026-08-22
+
+CradleHub production now uses one canonical Attendance transaction RPC: `commit_attendance_scan_transaction` accepts the 20 named arguments exported by the TypeScript caller and returns success, code, scan event, check-in, recovery issue, operation result, and message. The function has one overload, is executable only by `service_role`, and is visible after the PostgREST schema reload.
+
+Attendance branch authorization now follows staff assignment data in this order: temporary shift/day access, scanned-branch duty assignment, approved cross-branch access, legitimate cross-branch status, effective permanent transfer, then home branch. Contradictory same-day duties fail closed. A device's branch is last-used operational metadata and cannot block a legitimate staff transfer.
+
+Permanent branch decisions are audited through the CRM branch issue workflow and require an effective date. The target branch timezone and Attendance day boundary decide whether the date is effective now; future transfers stay scheduled without changing `staff.branch_id` early.
+
+Controlled production verification passed Main, temporary SM, permanent Main→SM using the same phone, duplicate no-op, clock-out, unauthorized wrong branch, reverse restoration, and a wrong-branch authenticated first scan that created neither Attendance nor a device. Live rollback tests, schema lint, 200 files / 1,372 tests, TypeScript, lint, and the 114-page production build pass. Scanning may enter a monitored pilot; operational enforcement remains off pending authenticated CRM Realtime rendering and cron/closing readiness.

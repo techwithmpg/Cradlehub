@@ -1464,3 +1464,15 @@ Committing the flag with the idempotent result keeps retry rendering stable.
 **Safety:** The context-only schema export was never executed, `db push --include-all` was rejected, deterministic schedule changes wrote before-state backups, and each applied version was verified before being recorded in live migration history.
 
 ---
+
+### ATTENDANCE-RPC-BRANCH-AUTHORITY-20260821: One transaction contract and assignment authority
+
+**Date:** 2026-08-22
+**Status:** ACCEPTED
+**Decision:** `commit_attendance_scan_transaction` has one canonical 20-argument contract shared by the TypeScript caller, forward migration, production catalog, and PostgREST. The function is executable only by `service_role`; application code must not suppress PGRST202 or downgrade to an obsolete overload.
+**Branch precedence:** Approved temporary shift, approved temporary business day, scanned-branch duty (with contradictory duties failing closed), approved cross-branch authorization, legitimate cross-branch staff, effective permanent transfer, then home branch.
+**Device rule:** `staff_devices.branch_id` is operational/last-used metadata. The authenticated staff identity and current assignment data determine authorization, so a legitimate transfer never requires phone reconnection.
+**Transfer rule:** Permanent effective dates are target-branch Attendance business dates. Effective-now changes update `staff.branch_id`; future changes stay scheduled and do not move authority early.
+**Release rule:** Successful scans justify a monitored scanning pilot, not automatic operational enforcement. Enforcement stays off until the separate Realtime/cron/closing readiness gates are observed and approved.
+
+---
