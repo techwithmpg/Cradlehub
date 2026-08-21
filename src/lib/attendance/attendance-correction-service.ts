@@ -526,6 +526,12 @@ function coerceRules(input: Partial<AttendanceSettings>): Partial<AttendanceSett
   if (typeof next.duplicate_scan_debounce_minutes === "number") {
     next.duplicate_scan_window_seconds = next.duplicate_scan_debounce_minutes * 60;
   }
+  if (typeof next.clock_in_window_before_shift_minutes === "number") {
+    next.early_clock_in_allowed_minutes = next.clock_in_window_before_shift_minutes;
+  } else if (typeof next.early_clock_in_allowed_minutes === "number") {
+    next.clock_in_window_before_shift_minutes = next.early_clock_in_allowed_minutes;
+  }
+
   if (typeof next.late_grace_minutes === "number") {
     next.clock_in_late_grace_minutes = next.late_grace_minutes;
   }

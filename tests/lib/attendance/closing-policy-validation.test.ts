@@ -10,6 +10,7 @@ const validBranchInput: BranchAttendanceRuleValidationInput = {
   timezone: "Asia/Manila",
   attendanceDayBoundary: "06:00",
   lateGraceMinutes: 10,
+  clockInWindowBeforeShiftMinutes: 30,
   earlyLeaveThresholdMinutes: 5,
   overtimeThresholdMinutes: 15,
   duplicateScanWindowSeconds: 90,
@@ -72,9 +73,9 @@ describe("branch Attendance rule validation", () => {
         effectiveDate: "2026-02-30",
       })
     ).toMatch(/effective date/i);
-    expect(
-      validateBranchAttendanceRulesInput({ ...validBranchInput, reason: "no" })
-    ).toMatch(/change reason/i);
+    expect(validateBranchAttendanceRulesInput({ ...validBranchInput, reason: "no" })).toMatch(
+      /change reason/i
+    );
   });
 });
 

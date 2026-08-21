@@ -465,6 +465,12 @@ export type PublicScanResult = {
   recoverable?: boolean;
   resolution?: import("@/lib/attendance/scan-resolution").AttendanceScanResolution;
   nextHref?: string;
+  deviceConnection?: "registered_device" | "auto_registered_from_session";
+  accountDeviceMismatch?: {
+    deviceStaffName: string;
+    sessionStaffName: string;
+  };
+
   attendance?: {
     attendanceId?: string;
     action: "clock_in" | "clock_out";

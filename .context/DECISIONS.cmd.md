@@ -1,5 +1,36 @@
 # 🏗️ DECISIONS
 
+
+### 2026-08-21: Release Attendance source but keep operations at NO-GO
+
+**Status:** ACCEPTED
+
+The Attendance session-recovery source may be committed and pushed because its
+test, type, lint, build, identity, branch, device-policy, Realtime, and QR
+contracts pass. Operational scanning and enforcement are a separate decision.
+
+Keep the operational rollout at **NO-GO** until an authorized operator
+reconciles 14 stale open Main attendance rows, one open Main branch-assignment
+issue, and the SM duplicate-debounce/late-grace runtime mismatch, then re-runs
+the read-only launch diagnostic with zero blockers. Do not enable enforcement,
+perform a broad migration push, or infer launch readiness from source readiness.
+This source completion performs no live database mutation.
+### 2026-08-07: Apply only the missing Marketing Studio foundation migration
+
+**Status:** ACCEPTED
+
+Live diagnosis showed the source migration
+`20260803042453_marketing_studio_foundation.sql` was not present in production:
+the marketing draft/media/brand/SEO tables and `public-site-media` storage
+bucket were missing. Because the linked migration history still has broad
+historic drift, a full `db push` would be unsafe. Apply only this audited,
+idempotent foundation migration through `supabase db query --file`, verify its
+schema/storage effects, then mark only version `20260803042453` as applied with
+`supabase migration repair`.
+
+This decision does not reconcile or approve the older local/remote migration
+history mismatch.
+
 ### 2026-07-23: Source release readiness is independent from migration deployment readiness
 
 **Status:** ACCEPTED

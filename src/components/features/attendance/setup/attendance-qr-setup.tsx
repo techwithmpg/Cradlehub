@@ -7,7 +7,6 @@ import {
   ensureAttendanceQrAction,
   ensureRoomQrPointsAction,
   replaceAttendanceQrAction,
-  updateAttendanceRulesAction,
 } from "@/app/(dashboard)/crm/attendance/actions";
 import { Button } from "@/components/ui/button";
 import {
@@ -28,7 +27,6 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
-import { Switch } from "@/components/ui/switch";
 import {
   copyQrScanLink,
   downloadQrPng,
@@ -53,9 +51,6 @@ export function AttendanceQrSetup({
   const [confirmReplace, setConfirmReplace] = useState(false);
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [selectedRoomId, setSelectedRoomId] = useState<string | null>(null);
-  const [registeredOnly, setRegisteredOnly] = useState(
-    data.settings.require_registered_device_for_attendance
-  );
   const [pending, startTransition] = useTransition();
   const selectedRoom =
     roomPoints.find((point) => point.id === selectedRoomId) ?? roomPoints[0] ?? null;
@@ -67,22 +62,6 @@ export function AttendanceQrSetup({
         return;
       }
       toast.success(result.message);
-      onRefresh();
-    });
-  }
-  function saveSettings() {
-    startTransition(async () => {
-      const result = await updateAttendanceRulesAction({
-        branchId: data.branchId,
-        settings: { require_registered_device_for_attendance: registeredOnly },
-        reason: "Updated QR security settings",
-      });
-      if (!result.ok) {
-        toast.error(result.message);
-        return;
-      }
-      toast.success(result.message);
-      setSettingsOpen(false);
       onRefresh();
     });
   }
@@ -312,22 +291,15 @@ export function AttendanceQrSetup({
             <DialogTitle>QR settings</DialogTitle>
             <DialogDescription>Control who can use the official Attendance code.</DialogDescription>
           </DialogHeader>
-          <label className="flex items-center justify-between gap-4 rounded-lg border p-4">
-            <span>
-              <span className="block text-sm font-semibold">Registered phones only</span>
-              <span className="block text-xs text-[var(--cs-text-muted)]">
-                Block scans from phones that are not connected to a staff profile.
-              </span>
-            </span>
-            <Switch checked={registeredOnly} onCheckedChange={setRegisteredOnly} />
-          </label>
+          <div className="rounded-lg border bg-[var(--cs-surface-warm)] p-4">
+            <strong className="block text-sm">Connected staff phones required</strong>
+            <p className="mt-1 text-xs text-[var(--cs-text-muted)]">
+              Attendance always verifies a trusted phone or connects it from a verified staff
+              session.
+            </p>
+          </div>
           <DialogFooter>
-            <Button variant="outline" onClick={() => setSettingsOpen(false)}>
-              Cancel
-            </Button>
-            <Button onClick={saveSettings} disabled={pending}>
-              Save settings
-            </Button>
+            <Button onClick={() => setSettingsOpen(false)}>Close</Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>

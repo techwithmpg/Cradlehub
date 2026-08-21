@@ -15,16 +15,11 @@ import {
 } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Switch } from "@/components/ui/switch";
 import type { AttendanceSettings, AttendanceWorkspaceData } from "@/lib/attendance/types";
 
 type EditableRules = Pick<
   AttendanceSettings,
-  | "late_grace_minutes"
-  | "early_clock_in_allowed_minutes"
-  | "duplicate_scan_debounce_minutes"
-  | "active_service_blocks_clock_out"
-  | "require_registered_device_for_attendance"
+  "late_grace_minutes" | "clock_in_window_before_shift_minutes" | "duplicate_scan_debounce_minutes"
 >;
 
 export function AttendanceRulesSetup({
@@ -37,11 +32,8 @@ export function AttendanceRulesSetup({
   const [open, setOpen] = useState(false);
   const [rules, setRules] = useState<EditableRules>({
     late_grace_minutes: data.settings.late_grace_minutes,
-    early_clock_in_allowed_minutes: data.settings.early_clock_in_allowed_minutes,
+    clock_in_window_before_shift_minutes: data.settings.clock_in_window_before_shift_minutes,
     duplicate_scan_debounce_minutes: data.settings.duplicate_scan_debounce_minutes,
-    active_service_blocks_clock_out: data.settings.active_service_blocks_clock_out,
-    require_registered_device_for_attendance:
-      data.settings.require_registered_device_for_attendance,
   });
   const [reason, setReason] = useState("Updated Attendance rules");
   const [pending, startTransition] = useTransition();
@@ -80,7 +72,7 @@ export function AttendanceRulesSetup({
           <Rule
             icon={Clock3}
             title="Arrival window"
-            detail={`Clock in up to ${data.settings.early_clock_in_allowed_minutes} minutes early. Late after ${data.settings.late_grace_minutes} minutes.`}
+            detail={`Clock in up to ${data.settings.clock_in_window_before_shift_minutes} minutes early. Late after ${data.settings.late_grace_minutes} minutes.`}
           />
           <Rule
             icon={TimerReset}
@@ -90,11 +82,7 @@ export function AttendanceRulesSetup({
           <Rule
             icon={ShieldCheck}
             title="Clock-out safety"
-            detail={
-              data.settings.active_service_blocks_clock_out
-                ? "Active service sessions must finish before clock-out."
-                : "Active service sessions do not block clock-out."
-            }
+            detail="QR clock-out remains record-first. Active services stay visible for review but do not hard-block a valid scan."
           />
         </div>
         <details className="mt-4 rounded-xl border border-[var(--cs-border-soft)] bg-[var(--cs-surface-warm)] p-4">
@@ -123,8 +111,10 @@ export function AttendanceRulesSetup({
             <NumberRule
               id="early-minutes"
               label="Early clock-in"
-              value={rules.early_clock_in_allowed_minutes}
-              onChange={(value) => setRules({ ...rules, early_clock_in_allowed_minutes: value })}
+              value={rules.clock_in_window_before_shift_minutes}
+              onChange={(value) =>
+                setRules({ ...rules, clock_in_window_before_shift_minutes: value })
+              }
             />
             <NumberRule
               id="late-minutes"
@@ -139,18 +129,11 @@ export function AttendanceRulesSetup({
               onChange={(value) => setRules({ ...rules, duplicate_scan_debounce_minutes: value })}
             />
           </div>
-          <Toggle
-            label="Block clock-out during service"
-            checked={rules.active_service_blocks_clock_out}
-            onChange={(checked) => setRules({ ...rules, active_service_blocks_clock_out: checked })}
-          />
-          <Toggle
-            label="Require a registered phone"
-            checked={rules.require_registered_device_for_attendance}
-            onChange={(checked) =>
-              setRules({ ...rules, require_registered_device_for_attendance: checked })
-            }
-          />
+          <div className="rounded-lg border bg-[var(--cs-surface-warm)] p-3 text-sm text-[var(--cs-text-muted)]">
+            <strong className="block text-[var(--cs-text)]">Fixed safety rules</strong>
+            Attendance scans require a connected staff phone. Active services provide review context
+            and never turn a valid QR clock-out into a hard block.
+          </div>
           <div>
             <Label htmlFor="rules-reason">Reason for change</Label>
             <Input
@@ -215,21 +198,5 @@ function NumberRule({
         onChange={(event) => onChange(Number(event.target.value))}
       />
     </div>
-  );
-}
-function Toggle({
-  label,
-  checked,
-  onChange,
-}: {
-  label: string;
-  checked: boolean;
-  onChange: (checked: boolean) => void;
-}) {
-  return (
-    <label className="flex items-center justify-between rounded-lg border p-3 text-sm font-semibold">
-      {label}
-      <Switch checked={checked} onCheckedChange={onChange} />
-    </label>
   );
 }

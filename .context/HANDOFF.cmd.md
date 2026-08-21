@@ -1,5 +1,67 @@
 # HANDOFF - Next Agent Session
 
+
+## Handoff - ATTENDANCE-SESSION-RECOVERY-GOLIVE-20260820
+
+Source work completed and verified on 2026-08-21:
+
+- The public scanner now resolves authenticated session and device identity in
+  one server-side path, auto-connects only a clean phone, and blocks explicit
+  signed-in-account/device-owner mismatches.
+- Device registration and assisted activation reuse canonical device limits,
+  effective branch resolution, security-state checks, and wrong-branch
+  protections. The scan kill switch is enforced server-side.
+- Browser disconnect now requires an authenticated user before revoking the
+  device connection.
+- Automated verification passed: 199 files / 1,363 tests, TypeScript,
+  zero-warning ESLint, and the Next.js 16.2.4 production build (114 pages).
+- The read-only linked preflight passed QR uniqueness, Realtime/RLS, device
+  policy, cron, and test-mode checks.
+
+Operational status: **NO-GO**. Before enabling controlled scanning, reconcile:
+
+1. 14 stale open Main attendance records older than 20 hours.
+2. One open Main branch-assignment issue.
+3. The SM settings/runtime mismatch: 2-minute duplicate debounce versus
+   90-second runtime window, and 5-minute clock-in grace versus 60-minute
+   runtime grace.
+
+No live write, migration push, enforcement enablement, or operational rollout
+was performed. Re-run
+`supabase/diagnostics/20260821_attendance_session_recovery_preflight.sql`
+after an authorized reconciliation and require every blocker count to be zero.
+
+---
+## Handoff - BRAND-WEBSITE-STUDIO-20260807 foundation migration
+
+Done on 2026-08-07:
+
+- Applied live migration
+  `supabase/migrations/20260803042453_marketing_studio_foundation.sql` through
+  `pnpm exec supabase db query --linked --dns-resolver https --file ...`.
+- Verified tables exist and are queryable:
+  `marketing_content_drafts`, `marketing_content_revisions`,
+  `marketing_media_assets`, `marketing_brand_settings`, and
+  `marketing_seo_settings`.
+- Verified RLS is enabled on all five tables.
+- Verified storage bucket `public-site-media` exists and policies
+  `public_site_media_public_read`, `public_site_media_marketing_insert`,
+  `public_site_media_marketing_update`, and
+  `public_site_media_marketing_delete` exist.
+- Repaired only migration-history version `20260803042453` to `applied`.
+
+Still required:
+
+- Implement the Brand & Website Studio UI/query/action rebuild.
+- Add brand/media upload validation and public brand resolvers.
+- Wire public logo, homepage, services, featured-services, gallery, promotions,
+  contact details, preview, cache invalidation, and tests.
+- `pnpm db:status` still exits 2 because older local migrations remain absent
+  from remote history; this is pre-existing and not fixed by the foundation
+  migration.
+
+---
+
 ## QR-REALTIME-MARKETING-20260729 - Phase 2 source verified locally
 
 Attendance Realtime/recent-scan cursor reconciliation and the consolidated

@@ -37,7 +37,7 @@ describe("first attendance scan continuation contract", () => {
 
   it("authenticates before registration and preserves revoked-device blocking", () => {
     expect(actions.indexOf("if (authError)")).toBeLessThan(
-      actions.indexOf("registerDeviceForAuthenticatedScan(")
+      actions.indexOf("resolveAttendanceScanIdentity({")
     );
     expect(scanEngine).toContain('existingDevice.status !== "active"');
     expect(scanEngine).toContain('reasonCode: "revoked_device"');

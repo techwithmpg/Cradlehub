@@ -4,8 +4,9 @@ import { cookies, headers } from "next/headers";
 import { revalidatePath } from "next/cache";
 import {
   activateDeviceWithToken,
+  disconnectAttendanceDevice,
   processQrScan,
-  registerDeviceForAuthenticatedScan,
+  resolveAttendanceScanIdentity,
 } from "@/lib/attendance/scan-engine";
 import { consumeDeviceRecoveryLink } from "@/lib/attendance/device-recovery";
 import { revalidateAttendanceSurfaces } from "@/lib/attendance/queries";
@@ -230,6 +231,8 @@ function toPublicResult(result: PublicScanResult): PublicScanResult {
     operationId: result.operationId,
     recoverable: result.recoverable,
     nextHref: result.nextHref,
+    deviceConnection: result.deviceConnection,
+    accountDeviceMismatch: result.accountDeviceMismatch,
     attendance: result.attendance,
     countdown: result.countdown,
     branchCorrection: result.branchCorrection
@@ -353,16 +356,13 @@ export async function signInAndRegisterAttendanceDeviceAction(
       };
     }
 
-    const registration = await registerDeviceForAuthenticatedScan(
-      parsed.publicCode,
-      user.id,
-      await getRequestContext(operationId, temporaryCredential)
-    );
+    const registration = await resolveAttendanceScanIdentity({
+      publicCode: parsed.publicCode,
+      authenticatedUserId: user.id,
+      requestContext: await getRequestContext(operationId, temporaryCredential),
+    });
 
     if (!registration.ok) {
-      if (registration.result.reasonCode !== "wrong_branch") {
-        await supabase.auth.signOut();
-      }
       const publicResult = {
         ...registration.result,
         operationId: registration.result.operationId ?? operationId,
@@ -482,13 +482,35 @@ export async function cancelOwnBranchCorrectionRequestAction(
   return result;
 }
 
-export async function tryAnotherScanAccountAction(): Promise<{ ok: true }> {
+export async function switchScanAccountAction(): Promise<{ ok: true }> {
   const supabase = await createClient();
   await supabase.auth.signOut();
-  await clearDeviceCookies();
   return { ok: true };
 }
 
+export async function disconnectAttendancePhoneAction(): Promise<{
+  ok: boolean;
+  disconnected: boolean;
+  message?: string;
+}> {
+  const supabase = await createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  if (!user) {
+    return {
+      ok: false,
+      disconnected: false,
+      message: "Sign in again before disconnecting this phone.",
+    };
+  }
+
+  const requestContext = await getRequestContext(null);
+  const disconnected = await disconnectAttendanceDevice(requestContext.rawDeviceCredential);
+  await clearDeviceCookies();
+  if (disconnected) revalidateAttendanceSurfaces({ includeOperationalReadiness: true });
+  return { ok: true, disconnected };
+}
 export async function processPublicQrScanAction(input: PublicScanInput): Promise<PublicScanResult> {
   const publicCode = input.publicCode?.trim();
   const operationId = normalizeAttendanceOperationId(input.requestId);

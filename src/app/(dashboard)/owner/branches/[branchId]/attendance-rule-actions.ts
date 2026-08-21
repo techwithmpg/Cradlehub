@@ -25,10 +25,10 @@ export type SaveBranchAttendanceRulesInput = {
   timezone: string;
   attendanceDayBoundary: string;
   lateGraceMinutes: number;
+  clockInWindowBeforeShiftMinutes: number;
   earlyLeaveThresholdMinutes: number;
   overtimeThresholdMinutes: number;
   duplicateScanWindowSeconds: number;
-  activeServiceBlocksClockOut: boolean;
   branchOperatingCloseTime: string;
   crmClosingPolicyEnabled: boolean;
   crmClosingBufferMinutes: number;
@@ -49,7 +49,6 @@ export type SaveAttendanceCategoryRuleInput = {
   driverReturnBufferMinutes: number | null;
   finalClientReleaseEnabled: boolean | null;
   portalClosingShiftEnabled: boolean | null;
-  activeServiceBlocksClockOut: boolean | null;
   crmClosingPolicyEnabled: boolean | null;
   effectiveDate: string | null;
   reason: string;
@@ -123,10 +122,11 @@ export async function saveBranchAttendanceRulesAction(
     timezone: input.timezone.trim(),
     attendance_day_boundary: input.attendanceDayBoundary,
     late_grace_minutes: input.lateGraceMinutes,
+    clock_in_window_before_shift_minutes: input.clockInWindowBeforeShiftMinutes,
+    early_clock_in_allowed_minutes: input.clockInWindowBeforeShiftMinutes,
     early_leave_threshold_minutes: input.earlyLeaveThresholdMinutes,
     overtime_threshold_minutes: input.overtimeThresholdMinutes,
     duplicate_scan_window_seconds: input.duplicateScanWindowSeconds,
-    active_service_blocks_clock_out: input.activeServiceBlocksClockOut,
     branch_operating_close_time: input.branchOperatingCloseTime,
     crm_closing_policy_enabled: input.crmClosingPolicyEnabled,
     crm_closing_buffer_minutes: input.crmClosingBufferMinutes,
@@ -195,7 +195,6 @@ export async function saveAttendanceCategoryRuleAction(
     late_grace_minutes: input.lateGraceMinutes,
     early_leave_threshold_minutes: input.earlyLeaveThresholdMinutes,
     overtime_threshold_minutes: input.overtimeThresholdMinutes,
-    active_service_blocks_clock_out: input.activeServiceBlocksClockOut,
     crm_closing_policy_enabled: input.crmClosingPolicyEnabled,
     service_cleanup_buffer_minutes: input.serviceCleanupBufferMinutes,
     home_service_wrap_up_buffer_minutes: input.homeServiceWrapUpBufferMinutes,

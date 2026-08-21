@@ -2,7 +2,7 @@
  * @vitest-environment jsdom
  */
 
-import { cleanup, render, screen } from "@testing-library/react";
+import { cleanup, fireEvent, render, screen } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
 import { PublicScanResultView } from "@/components/features/attendance/public-scan-result";
@@ -154,5 +154,43 @@ describe("PublicScanResultView duplicate scan", () => {
     expect(screen.getByRole("heading", { name: "Attendance already recorded" })).toBeTruthy();
     expect(screen.getByText("No further action is needed.")).toBeTruthy();
     expect(document.body.textContent?.toLowerCase()).not.toContain("scan repeatedly");
+  });
+});
+describe("PublicScanResultView account/device mismatch", () => {
+  it("shows both identities and keeps switch and disconnect as separate actions", () => {
+    const onSwitchAccount = vi.fn();
+    const onDisconnectPhone = vi.fn();
+
+    render(
+      <PublicScanResultView
+        result={{
+          ok: false,
+          outcome: "blocked",
+          reasonCode: "account_device_mismatch",
+          severity: "warning",
+          title: "This phone belongs to another staff account",
+          message: "Choose a recovery action.",
+          accountDeviceMismatch: {
+            deviceStaffName: "Nicole Santos",
+            sessionStaffName: "Maria Reyes",
+          },
+        }}
+        onSwitchAccount={onSwitchAccount}
+        onDisconnectPhone={onDisconnectPhone}
+      />
+    );
+
+    expect(
+      screen.getByRole("heading", { name: "This phone is connected to someone else" })
+    ).toBeTruthy();
+    expect(screen.getByText("Nicole Santos")).toBeTruthy();
+    expect(screen.getByText("Maria Reyes")).toBeTruthy();
+
+    fireEvent.click(screen.getByRole("button", { name: "Switch signed-in account" }));
+    expect(onSwitchAccount).toHaveBeenCalledTimes(1);
+    expect(onDisconnectPhone).not.toHaveBeenCalled();
+
+    fireEvent.click(screen.getByRole("button", { name: "Disconnect this phone" }));
+    expect(onDisconnectPhone).toHaveBeenCalledTimes(1);
   });
 });

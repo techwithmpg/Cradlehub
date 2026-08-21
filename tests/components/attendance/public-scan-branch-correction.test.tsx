@@ -54,7 +54,8 @@ describe("PublicScanResultView branch correction", () => {
     expect(document.body.textContent).toContain(
       "Your profile is assigned to Cradle Wellness Living SM. No Attendance change was made."
     );
-    expect(screen.getByRole("button", { name: "Use another account" })).toBeTruthy();
+    expect(screen.queryByRole("button", { name: /switch signed-in account/i })).toBeNull();
+    expect(screen.queryByRole("button", { name: /disconnect this phone/i })).toBeNull();
 
     fireEvent.click(screen.getByRole("button", { name: /Request branch correction/i }));
     expect(onRequest).toHaveBeenCalledWith(baseResult.branchCorrection);

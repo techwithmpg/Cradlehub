@@ -7,10 +7,8 @@ import { inferDeviceClientHints } from "@/lib/attendance/device-display";
 import { getAttendanceSettings } from "@/lib/attendance/queries";
 import { getAttendanceDeviceBranchDecision } from "@/lib/attendance/branch-validation";
 import { createDeviceCredential, hashSecret, maskId } from "@/lib/attendance/tokens";
-import {
-  ACTIVE_ATTENDANCE_DEVICE_LIMIT,
-  nextAttendanceDeviceRole,
-} from "@/lib/attendance/device-policy";
+import { evaluateAttendanceDeviceRegistration } from "@/lib/attendance/device-policy";
+import { isAttendanceScanningEnabled } from "@/lib/config/mvp-flags";
 import { isOperationalStaff } from "@/lib/staff/operational-staff";
 import {
   reconcileFirstScanDeviceRegistration,
@@ -81,11 +79,39 @@ export type FirstScanDeviceRegistrationResult =
       result: PublicScanResult;
     };
 
+export type AttendanceScanIdentityResult =
+  | {
+      ok: true;
+      state: "registered_device" | "auto_registered_from_session";
+      rawDeviceCredential: string;
+      deviceId: string;
+      staffId: string;
+      staffName: string;
+      branchName: string;
+      registeredNewDevice: boolean;
+    }
+  | {
+      ok: false;
+      state:
+        | "sign_in_required"
+        | "account_device_mismatch"
+        | "wrong_branch"
+        | "device_limit_reached"
+        | "revoked_device"
+        | "blocked_device"
+        | "inactive_staff"
+        | "invalid_qr"
+        | "registration_failed"
+        | "scanning_disabled";
+      result: PublicScanResult;
+    };
+
 type StaffDeviceRow = {
   id: string;
   staff_id: string;
   branch_id: string;
   status: "active" | "revoked" | "expired" | "lost" | "stolen" | "security_blocked";
+  security_state: "clear" | "lost" | "stolen" | "suspicious" | "blocked" | null;
   staff?:
     | {
         branch_id: string | null;
@@ -870,7 +896,7 @@ async function resolveDevice(
   const { data, error } = await admin
     .from("staff_devices")
     .select(
-      "id, staff_id, branch_id, status, staff:staff!staff_devices_staff_id_fkey(branch_id, full_name, nickname, staff_type, system_role, is_cross_branch, is_active, archived_at, merged_into_staff_id, metadata, branches(name))"
+      "id, staff_id, branch_id, status, security_state, staff:staff!staff_devices_staff_id_fkey(branch_id, full_name, nickname, staff_type, system_role, is_cross_branch, is_active, archived_at, merged_into_staff_id, metadata, branches(name))"
     )
     .eq("device_fingerprint_hash", hashSecret(rawCredential))
     .maybeSingle();
@@ -884,6 +910,16 @@ async function resolveDevice(
   }
 
   return (data as StaffDeviceRow | null) ?? null;
+}
+
+function deviceIsSecurityBlocked(device: StaffDeviceRow): boolean {
+  return (
+    device.status === "security_blocked" ||
+    device.security_state === "lost" ||
+    device.security_state === "stolen" ||
+    device.security_state === "suspicious" ||
+    device.security_state === "blocked"
+  );
 }
 
 async function resolveEffectiveAttendanceBranch(
@@ -1083,6 +1119,16 @@ export async function registerDeviceForAuthenticatedScan(
   authUserId: string,
   ctx: ScanRequestContext
 ): Promise<FirstScanDeviceRegistrationResult> {
+  if (!isAttendanceScanningEnabled()) {
+    return {
+      ok: false,
+      result: blocked("Attendance scanning is paused", "Please ask the front desk for help.", {
+        reasonCode: "attendance_scanning_disabled",
+        securityNote: "No phone was connected and no Attendance change was recorded.",
+      }),
+    };
+  }
+
   const admin = asAttendanceDb(createAdminClient());
   const point = await loadQrPoint(admin, publicCode);
 
@@ -1265,6 +1311,7 @@ export async function registerDeviceForAuthenticatedScan(
       staffBranchId: staff.branch_id,
       deviceBranchId: existingDevice.branch_id,
       staffIsActive: staff.is_active,
+      isCrossBranch: staff.is_cross_branch,
     });
 
     if (branchDecision === "wrong_branch") {
@@ -1533,11 +1580,12 @@ export async function registerDeviceForAuthenticatedScan(
     relatedRequestResult.data?.replacement_device_id ??
     relatedRequestResult.data?.existing_device_id ??
     null;
-  const replacesActiveDevice =
-    relatedRequestResult.data?.request_type === "replacement" &&
-    activeDevices.some((device) => device.id === replacementDeviceId);
-  const effectiveActiveCount = activeDevices.length - (replacesActiveDevice ? 1 : 0);
-  if (effectiveActiveCount >= ACTIVE_ATTENDANCE_DEVICE_LIMIT) {
+  const devicePolicy = evaluateAttendanceDeviceRegistration({
+    activeDevices,
+    replacementDeviceId:
+      relatedRequestResult.data?.request_type === "replacement" ? replacementDeviceId : null,
+  });
+  if (!devicePolicy.allowed) {
     const eventId = await recordScanEvent(admin, {
       branchId: point.branch_id,
       qrPointId: point.id,
@@ -1577,9 +1625,7 @@ export async function registerDeviceForAuthenticatedScan(
       device_fingerprint_hash: hashSecret(rawDeviceCredential),
       device_label: deviceHints.label,
       status: "active",
-      device_role: nextAttendanceDeviceRole(
-        activeDevices.some((device) => device.device_role === "primary")
-      ),
+      device_role: devicePolicy.role,
       registration_source: "first_scan_activation",
       browser_name: deviceHints.browserName,
       browser_version: deviceHints.browserVersion,
@@ -1697,6 +1743,228 @@ export async function registerDeviceForAuthenticatedScan(
   };
 }
 
+export async function resolveAttendanceScanIdentity(input: {
+  publicCode: string;
+  authenticatedUserId?: string | null;
+  requestContext: ScanRequestContext;
+}): Promise<AttendanceScanIdentityResult> {
+  if (!isAttendanceScanningEnabled()) {
+    return {
+      ok: false,
+      state: "scanning_disabled",
+      result: blocked("Attendance scanning is paused", "Please ask the front desk for help.", {
+        reasonCode: "attendance_scanning_disabled",
+        securityNote: "No phone was connected and no Attendance change was recorded.",
+      }),
+    };
+  }
+
+  const admin = asAttendanceDb(createAdminClient());
+  const point = await loadQrPoint(admin, input.publicCode);
+  if (!point || !point.is_active || point.point_type !== "attendance") {
+    return {
+      ok: false,
+      state: "invalid_qr",
+      result: blocked(
+        point?.is_active ? "Attendance QR needed" : "QR not recognized",
+        point?.is_active
+          ? "Please use an Attendance QR to continue."
+          : "This QR code is not active in CradleHub.",
+        {
+          reasonCode: point?.is_active ? "attendance_qr_required" : "invalid_qr",
+          securityNote: "No phone was connected and no Attendance change was recorded.",
+        }
+      ),
+    };
+  }
+
+  const device = await resolveDevice(admin, input.requestContext.rawDeviceCredential);
+  let authenticatedStaff: AuthenticatedStaffRow | null = null;
+  if (input.authenticatedUserId) {
+    const staffResult = await admin
+      .from("staff")
+      .select(
+        "id, branch_id, full_name, nickname, staff_type, system_role, is_cross_branch, is_active, archived_at, merged_into_staff_id, metadata, branches(name)"
+      )
+      .eq("auth_user_id", input.authenticatedUserId)
+      .maybeSingle();
+    if (staffResult.error) {
+      throwAttendanceDataError({
+        error: staffResult.error,
+        fallback: "ATTENDANCE_TRANSACTION_FAILED",
+        stage: "resolve_authenticated_scan_staff",
+        operationId: input.requestContext.requestId,
+      });
+    }
+    authenticatedStaff = (staffResult.data as AuthenticatedStaffRow | null) ?? null;
+    if (!authenticatedStaff || !isOperationalStaff(authenticatedStaff)) {
+      return {
+        ok: false,
+        state: "inactive_staff",
+        result: blocked(
+          "Account not eligible",
+          "This account is not connected to an active staff profile.",
+          {
+            reasonCode: "account_not_eligible",
+            severity: "warning",
+            securityNote: "No phone was connected and no Attendance change was recorded.",
+          }
+        ),
+      };
+    }
+  }
+
+  if (device) {
+    const deviceStaff = first(device.staff);
+    if (deviceIsSecurityBlocked(device)) {
+      return {
+        ok: false,
+        state: "blocked_device",
+        result: blocked(
+          "This phone is blocked",
+          "Ask the front desk to review this phone before using Attendance.",
+          {
+            reasonCode: "device_blocked",
+            severity: "critical",
+            securityNote: "No Attendance change was recorded.",
+          }
+        ),
+      };
+    }
+    if (device.status !== "active") {
+      return {
+        ok: false,
+        state: "revoked_device",
+        result: blocked(
+          "This phone is no longer approved",
+          "Ask CRM to review or replace this phone.",
+          {
+            reasonCode: "device_revoked",
+            severity: "critical",
+            securityNote: "No Attendance change was recorded.",
+          }
+        ),
+      };
+    }
+    if (!deviceStaff || !isOperationalStaff(deviceStaff)) {
+      return {
+        ok: false,
+        state: "inactive_staff",
+        result: blocked("Staff profile inactive", "Ask the front desk to review this account.", {
+          reasonCode: "staff_inactive",
+          severity: "critical",
+          securityNote: "No Attendance change was recorded.",
+        }),
+      };
+    }
+    if (authenticatedStaff && authenticatedStaff.id !== device.staff_id) {
+      return {
+        ok: false,
+        state: "account_device_mismatch",
+        result: blocked(
+          "This phone belongs to another staff account",
+          "Choose whether to switch the signed-in account or disconnect this phone.",
+          {
+            reasonCode: "account_device_mismatch",
+            severity: "warning",
+            securityNote: "No phone connection or Attendance change was made.",
+            accountDeviceMismatch: {
+              deviceStaffName: deviceStaff.full_name ?? "Another staff member",
+              sessionStaffName: authenticatedStaff.full_name ?? "Signed-in staff member",
+            },
+          }
+        ),
+      };
+    }
+
+    return {
+      ok: true,
+      state: "registered_device",
+      rawDeviceCredential: input.requestContext.rawDeviceCredential ?? "",
+      deviceId: device.id,
+      staffId: device.staff_id,
+      staffName: deviceStaff.full_name ?? "Staff member",
+      branchName: first(point.branches)?.name ?? first(deviceStaff.branches)?.name ?? "Branch",
+      registeredNewDevice: false,
+    };
+  }
+
+  if (!authenticatedStaff || !input.authenticatedUserId) {
+    return {
+      ok: false,
+      state: "sign_in_required",
+      result: blocked("Connect this phone", "Sign in with your staff account to continue.", {
+        reasonCode: "sign_in_required",
+        severity: "warning",
+        securityNote: "No phone was connected and no Attendance change was recorded.",
+      }),
+    };
+  }
+
+  const registration = await registerDeviceForAuthenticatedScan(
+    input.publicCode,
+    input.authenticatedUserId,
+    input.requestContext
+  );
+  if (!registration.ok) {
+    const reasonCode = registration.result.reasonCode;
+    const state =
+      reasonCode === "wrong_branch"
+        ? "wrong_branch"
+        : reasonCode === "device_limit_reached"
+          ? "device_limit_reached"
+          : reasonCode === "revoked_device" || reasonCode === "device_revoked"
+            ? "revoked_device"
+            : reasonCode === "device_blocked"
+              ? "blocked_device"
+              : reasonCode === "account_not_eligible" || reasonCode === "staff_inactive"
+                ? "inactive_staff"
+                : reasonCode === "invalid_qr" || reasonCode === "attendance_qr_required"
+                  ? "invalid_qr"
+                  : "registration_failed";
+    return { ok: false, state, result: registration.result };
+  }
+
+  return {
+    ok: true,
+    state: "auto_registered_from_session",
+    rawDeviceCredential: registration.rawDeviceCredential,
+    deviceId: registration.deviceId,
+    staffId: registration.staffId,
+    staffName: registration.staffName,
+    branchName: registration.branchName,
+    registeredNewDevice: registration.registeredNewDevice,
+  };
+}
+
+export async function disconnectAttendanceDevice(
+  rawDeviceCredential: string | null | undefined
+): Promise<boolean> {
+  if (!rawDeviceCredential) return false;
+
+  const admin = asAttendanceDb(createAdminClient());
+  const disconnected = await admin
+    .from("staff_devices")
+    .update({
+      status: "revoked",
+      revoked_at: new Date().toISOString(),
+      revocation_reason: "browser_reset",
+    })
+    .eq("device_fingerprint_hash", hashSecret(rawDeviceCredential))
+    .eq("status", "active")
+    .select("id")
+    .maybeSingle();
+
+  if (disconnected.error) {
+    throwAttendanceDataError({
+      error: disconnected.error,
+      fallback: "ATTENDANCE_WRITE_FAILED",
+      stage: "disconnect_attendance_device",
+    });
+  }
+
+  return Boolean(disconnected.data);
+}
 async function findRecentDuplicate(
   admin: AttendanceDb,
   params: {
@@ -3090,7 +3358,7 @@ export async function resumeAttendanceScanFromStoredSource(params: {
     admin
       .from("staff_devices")
       .select(
-        "id, staff_id, branch_id, status, staff:staff!staff_devices_staff_id_fkey(branch_id, full_name, nickname, staff_type, system_role, is_cross_branch, is_active, archived_at, merged_into_staff_id, metadata, branches(name))"
+        "id, staff_id, branch_id, status, security_state, staff:staff!staff_devices_staff_id_fkey(branch_id, full_name, nickname, staff_type, system_role, is_cross_branch, is_active, archived_at, merged_into_staff_id, metadata, branches(name))"
       )
       .eq("id", source.device_id)
       .maybeSingle(),
@@ -3108,6 +3376,7 @@ export async function resumeAttendanceScanFromStoredSource(params: {
     point.branch_id !== params.expectedBranchId ||
     !device ||
     device.status !== "active" ||
+    deviceIsSecurityBlocked(device) ||
     device.staff_id !== params.expectedStaffId ||
     !staff ||
     !isOperationalStaff(staff)
@@ -3129,7 +3398,10 @@ export async function resumeAttendanceScanFromStoredSource(params: {
           ),
           hasDevice: Boolean(device),
           deviceEligible: Boolean(
-            device && device.status === "active" && device.staff_id === params.expectedStaffId
+            device &&
+            !deviceIsSecurityBlocked(device) &&
+            device.status === "active" &&
+            device.staff_id === params.expectedStaffId
           ),
           staffEligible: Boolean(staff && isOperationalStaff(staff)),
         },
@@ -3691,10 +3963,20 @@ async function processQrScanFresh(
 
   const deviceStaff = first(device.staff);
 
-  if (device.status !== "active" || !deviceStaff || !isOperationalStaff(deviceStaff)) {
-    const reasonCode = device.status !== "active" ? "revoked_device" : "staff_inactive";
+  const deviceSecurityBlocked = deviceIsSecurityBlocked(device);
+  if (
+    deviceSecurityBlocked ||
+    device.status !== "active" ||
+    !deviceStaff ||
+    !isOperationalStaff(deviceStaff)
+  ) {
+    const reasonCode = deviceSecurityBlocked
+      ? "device_blocked"
+      : device.status !== "active"
+        ? "revoked_device"
+        : "staff_inactive";
     const reasonMessage =
-      reasonCode === "revoked_device"
+      reasonCode === "device_blocked" || reasonCode === "revoked_device"
         ? "The registered device is revoked or security-blocked."
         : "The linked staff profile is inactive, archived, or merged.";
     const eventId = await recordScanEvent(admin, {
@@ -3724,7 +4006,9 @@ async function processQrScanFresh(
       isTest,
     });
     return blocked(
-      reasonCode === "revoked_device" ? "Device blocked" : "Staff profile inactive",
+      reasonCode === "device_blocked" || reasonCode === "revoked_device"
+        ? "Device blocked"
+        : "Staff profile inactive",
       reasonMessage,
       {
         reasonCode,
@@ -3924,6 +4208,16 @@ export async function processQrScan(
   const replayed = await loadCommittedScanResult(admin, operationId);
   if (replayed) return replayed;
 
+  if (!isAttendanceScanningEnabled()) {
+    return withOperationId(
+      blocked("Attendance scanning is paused", "Please ask the front desk for help.", {
+        reasonCode: "attendance_scanning_disabled",
+        securityNote: "No scan event, phone connection, or Attendance change was recorded.",
+      }),
+      operationId
+    );
+  }
+
   const result = await processQrScanFresh(admin, publicCode, scanCtx);
   await persistCommittedScanResult({
     admin,
@@ -3942,7 +4236,7 @@ export async function activateDeviceWithToken(
   const { data: activation, error: activationError } = await admin
     .from("device_activation_tokens")
     .select(
-      "id, staff_id, branch_id, expires_at, used_at, staff:staff!device_activation_tokens_staff_id_fkey(full_name, is_active)"
+      "id, staff_id, branch_id, purpose, expires_at, used_at, revoked_at, revoke_previous_device_id, staff:staff!device_activation_tokens_staff_id_fkey(id, branch_id, full_name, nickname, staff_type, system_role, is_cross_branch, is_active, archived_at, merged_into_staff_id, metadata, branches(name))"
     )
     .eq("token_hash", tokenHash)
     .maybeSingle();
@@ -3960,12 +4254,12 @@ export async function activateDeviceWithToken(
     id: string;
     staff_id: string;
     branch_id: string;
+    purpose: "first_scan_activation" | "device_recovery" | "crm_assisted_activation";
     expires_at: string;
     used_at: string | null;
-    staff?:
-      | { full_name: string | null; is_active: boolean }
-      | Array<{ full_name: string | null; is_active: boolean }>
-      | null;
+    revoked_at: string | null;
+    revoke_previous_device_id: string | null;
+    staff?: AuthenticatedStaffRow | Array<AuthenticatedStaffRow> | null;
   } | null;
 
   if (!activationRow) {
@@ -3987,27 +4281,114 @@ export async function activateDeviceWithToken(
   }
 
   const staff = first(activationRow.staff);
-  if (
-    activationRow.used_at ||
-    new Date(activationRow.expires_at).getTime() < Date.now() ||
-    staff?.is_active === false
-  ) {
+  const invalidReason = activationRow.used_at
+    ? "token_used"
+    : activationRow.revoked_at
+      ? "token_revoked"
+      : new Date(activationRow.expires_at).getTime() < Date.now()
+        ? "token_expired"
+        : !staff || !isOperationalStaff(staff)
+          ? "staff_inactive"
+          : null;
+  if (invalidReason) {
     const eventId = await recordScanEvent(admin, {
       branchId: activationRow.branch_id,
       staffId: activationRow.staff_id,
       scanType: "activation",
       action: "activate_device",
       outcome: "blocked",
-      reasonCode: activationRow.used_at ? "token_used" : "token_expired",
-      message: "Device activation token is no longer valid.",
+      reasonCode: invalidReason,
+      message: "Device activation token or staff profile is no longer valid.",
       requestId: ctx.requestId,
       userAgent: ctx.userAgent,
       ipAddress: ctx.ipAddress,
     });
     return blocked("Activation expired", "Ask the front desk for a new device activation link.", {
-      reasonCode: activationRow.used_at ? "token_used" : "token_expired",
+      reasonCode: invalidReason,
       scanEventId: eventId ?? undefined,
     });
+  }
+
+  if (activationRow.purpose === "device_recovery") {
+    return blocked("Use the recovery page", "Open this link from Staff Profile phone recovery.", {
+      reasonCode: "recovery_link_required",
+      securityNote: "No phone was connected from this activation page.",
+    });
+  }
+
+  const activationSettings = await getAttendanceSettings(activationRow.branch_id);
+  const activationBranchNow = getAttendanceBranchNow(activationSettings);
+  const effectiveActivationBranch = await resolveEffectiveAttendanceBranch(admin, {
+    staffId: activationRow.staff_id,
+    qrBranchId: activationRow.branch_id,
+    attendanceDate: activationBranchNow.businessDate,
+    isTest: false,
+  });
+  if (!effectiveActivationBranch.allowed) {
+    const eventId = await recordScanEvent(admin, {
+      branchId: activationRow.branch_id,
+      staffId: activationRow.staff_id,
+      scanType: "activation",
+      action: "activate_device",
+      outcome: "blocked",
+      reasonCode: "wrong_branch",
+      message: "Activation branch is outside the staff member's effective assignment.",
+      requestId: ctx.requestId,
+      userAgent: ctx.userAgent,
+      ipAddress: ctx.ipAddress,
+      metadata: {
+        effectiveBranchSource: effectiveActivationBranch.source,
+        attendanceDate: activationBranchNow.businessDate,
+      },
+    });
+    return blocked("Wrong branch", "Ask the front desk for a link from your current branch.", {
+      reasonCode: "wrong_branch",
+      securityNote: "No phone was connected and no device slot was used.",
+      scanEventId: eventId ?? undefined,
+    });
+  }
+
+  const activeDevicesResult = await admin
+    .from("staff_devices")
+    .select("id, device_role")
+    .eq("staff_id", activationRow.staff_id)
+    .eq("status", "active");
+  if (activeDevicesResult.error) {
+    throwAttendanceDataError({
+      error: activeDevicesResult.error,
+      fallback: "ATTENDANCE_TRANSACTION_FAILED",
+      stage: "load_active_devices_for_activation",
+      operationId: ctx.requestId,
+    });
+  }
+  const activationDevicePolicy = evaluateAttendanceDeviceRegistration({
+    activeDevices: (activeDevicesResult.data ?? []) as Array<{
+      id: string;
+      device_role?: string | null;
+    }>,
+  });
+  if (!activationDevicePolicy.allowed) {
+    const eventId = await recordScanEvent(admin, {
+      branchId: activationRow.branch_id,
+      staffId: activationRow.staff_id,
+      scanType: "activation",
+      action: "activate_device",
+      outcome: "blocked",
+      reasonCode: "device_limit_reached",
+      message: "Active attendance device limit reached.",
+      requestId: ctx.requestId,
+      userAgent: ctx.userAgent,
+      ipAddress: ctx.ipAddress,
+    });
+    return blocked(
+      "Device limit reached",
+      "Ask CRM to replace or revoke an old phone before activating this one.",
+      {
+        reasonCode: "device_limit_reached",
+        securityNote: "No phone was connected and no device slot was used.",
+        scanEventId: eventId ?? undefined,
+      }
+    );
   }
 
   const rawDeviceCredential = createDeviceCredential();
@@ -4020,13 +4401,14 @@ export async function activateDeviceWithToken(
       device_fingerprint_hash: hashSecret(rawDeviceCredential),
       device_label: deviceHints.label,
       status: "active",
-      registration_source: "first_scan_activation",
+      device_role: activationDevicePolicy.role,
+      registration_source: activationRow.purpose,
       browser_name: deviceHints.browserName,
       browser_version: deviceHints.browserVersion,
       platform_name: deviceHints.platformName,
       last_seen_at: new Date().toISOString(),
       metadata: {
-        activated_from: "first_scan_activation",
+        activated_from: activationRow.purpose,
         user_agent: ctx.userAgent ?? null,
       },
     })
@@ -4060,9 +4442,34 @@ export async function activateDeviceWithToken(
       used_by_device_id: inserted.data.id,
     })
     .eq("id", activationRow.id)
-    .is("used_at", null);
+    .is("used_at", null)
+    .is("revoked_at", null)
+    .select("id")
+    .maybeSingle();
 
-  if (tokenUpdate.error) {
+  if (tokenUpdate.error || !tokenUpdate.data) {
+    const compensation = await admin
+      .from("staff_devices")
+      .update({
+        status: "revoked",
+        revoked_at: new Date().toISOString(),
+        revocation_reason: "other",
+      })
+      .eq("id", inserted.data.id)
+      .eq("status", "active");
+    if (compensation.error) {
+      throwAttendanceDataError({
+        error: compensation.error,
+        fallback: "ATTENDANCE_WRITE_FAILED",
+        stage: "compensate_activation_token_race",
+        operationId: ctx.requestId,
+      });
+    }
+    if (!tokenUpdate.error) {
+      return blocked("Activation already used", "Ask the front desk for a new activation link.", {
+        reasonCode: "token_used",
+      });
+    }
     throw createAttendanceDataError({
       error: tokenUpdate.error,
       fallback: "ATTENDANCE_WRITE_FAILED",

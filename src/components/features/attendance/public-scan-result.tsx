@@ -44,7 +44,8 @@ type PublicScanResultViewProps = {
     message: string | null;
   };
   onRequestBranchCorrection?: (details: BranchCorrectionScanDetails) => void;
-  onTryAnotherAccount?: (details: BranchCorrectionScanDetails) => void;
+  onSwitchAccount?: () => void;
+  onDisconnectPhone?: () => void;
 };
 
 function supportReceipt(result: PublicScanResult): string {
@@ -74,12 +75,10 @@ function BranchCorrectionCard({
   details,
   state,
   onRequest,
-  onTryAnotherAccount,
 }: {
   details: BranchCorrectionScanDetails;
   state: NonNullable<PublicScanResultViewProps["branchCorrectionState"]>;
   onRequest?: (details: BranchCorrectionScanDetails) => void;
-  onTryAnotherAccount?: (details: BranchCorrectionScanDetails) => void;
 }) {
   const pendingRequest = details.existingPendingRequest;
   const disabled =
@@ -137,13 +136,6 @@ function BranchCorrectionCard({
             "Request branch correction"
           )}
         </button>
-        <button
-          type="button"
-          className={styles.branchCorrectionSecondaryButton}
-          onClick={() => onTryAnotherAccount?.(details)}
-        >
-          Use another account
-        </button>
       </div>
     </div>
   );
@@ -181,7 +173,8 @@ export function PublicScanResultView({
   result,
   branchCorrectionState = { status: "idle", message: null },
   onRequestBranchCorrection,
-  onTryAnotherAccount,
+  onSwitchAccount,
+  onDisconnectPhone,
 }: PublicScanResultViewProps) {
   const attendance = result.attendance;
   const isClockIn = attendance?.action === "clock_in";
@@ -240,6 +233,53 @@ export function PublicScanResultView({
     );
   }
 
+  if (result.reasonCode === "account_device_mismatch" && result.accountDeviceMismatch) {
+    return (
+      <section className={cn(styles.resultPanel, styles.resultBlocked)} aria-live="polite">
+        <BrandLogo mode="mark" size="sm" className={styles.brandMark} />
+        <div className={styles.genericResultIcon} aria-hidden="true">
+          <AlertTriangle size={42} strokeWidth={1.8} />
+        </div>
+        <div className={styles.genericResultCopy}>
+          <p className={styles.eyebrow}>Account check needed</p>
+          <h1>This phone is connected to someone else</h1>
+          <p>
+            Nothing was changed. Choose which identity this phone should use before scanning again.
+          </p>
+        </div>
+        <div className={styles.branchCorrectionCard}>
+          <div className={styles.branchCorrectionRows}>
+            <div>
+              <span>Connected phone</span>
+              <strong>{result.accountDeviceMismatch.deviceStaffName}</strong>
+            </div>
+            <div>
+              <span>Signed-in account</span>
+              <strong>{result.accountDeviceMismatch.sessionStaffName}</strong>
+            </div>
+          </div>
+          <div className={styles.branchCorrectionActions}>
+            <button
+              type="button"
+              className={styles.branchCorrectionButton}
+              onClick={() => onSwitchAccount?.()}
+            >
+              Switch signed-in account
+            </button>
+            <button
+              type="button"
+              className={styles.branchCorrectionSecondaryButton}
+              onClick={() => onDisconnectPhone?.()}
+            >
+              Disconnect this phone
+            </button>
+          </div>
+        </div>
+        <SupportDetails result={result} />
+      </section>
+    );
+  }
+
   if (isWrongBranch && result.branchCorrection) {
     return (
       <section className={cn(styles.resultPanel, styles.resultBlocked)} aria-live="polite">
@@ -262,7 +302,6 @@ export function PublicScanResultView({
           }}
           state={branchCorrectionState}
           onRequest={onRequestBranchCorrection}
-          onTryAnotherAccount={onTryAnotherAccount}
         />
         <SupportDetails result={result} />
       </section>

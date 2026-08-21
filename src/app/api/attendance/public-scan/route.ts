@@ -1,7 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
-import { processQrScan } from "@/lib/attendance/scan-engine";
+import { processQrScan, resolveAttendanceScanIdentity } from "@/lib/attendance/scan-engine";
 import { revalidateAttendanceSurfaces } from "@/lib/attendance/queries";
 import { DEVICE_COOKIE_NAME, LEGACY_DEVICE_COOKIE_NAME } from "@/lib/attendance/tokens";
+import { createClient } from "@/lib/supabase/server";
 import { createDeviceCredential } from "@/lib/attendance/tokens";
 import {
   ATTENDANCE_REGISTRATION_COOKIE_NAME,
@@ -48,6 +49,8 @@ function toPublicResult(result: PublicScanResult): PublicScanResult {
     operationId: result.operationId,
     recoverable: result.recoverable,
     nextHref: result.nextHref,
+    deviceConnection: result.deviceConnection,
+    accountDeviceMismatch: result.accountDeviceMismatch,
     attendance: result.attendance,
     countdown: result.countdown,
     branchCorrection: result.branchCorrection
@@ -83,37 +86,84 @@ export async function POST(request: NextRequest) {
   }
 
   try {
-    const result = await processQrScan(publicCode, {
+    const rawDeviceCredential =
+      request.cookies.get(DEVICE_COOKIE_NAME)?.value ??
+      request.cookies.get(LEGACY_DEVICE_COOKIE_NAME)?.value ??
+      null;
+    const requestContext = {
       requestId: operationId,
-      rawDeviceCredential:
-        request.cookies.get(DEVICE_COOKIE_NAME)?.value ??
-        request.cookies.get(LEGACY_DEVICE_COOKIE_NAME)?.value ??
-        null,
+      rawDeviceCredential,
       userAgent: request.headers.get("user-agent"),
       ipAddress: request.headers.get("x-forwarded-for") ?? request.headers.get("x-real-ip"),
+    };
+    const supabase = await createClient();
+    const {
+      data: { user },
+    } = await supabase.auth.getUser();
+    const identity = await resolveAttendanceScanIdentity({
+      publicCode,
+      authenticatedUserId: user?.id ?? null,
+      requestContext,
     });
-    revalidatePublicScanResult(result);
-    const resolvedResult = withAttendanceScanResolution(result);
-    const response = NextResponse.json(toPublicResult(resolvedResult));
-    if (result.reasonCode === "unknown_device") {
-      const temporaryCredential =
-        request.cookies.get(ATTENDANCE_REGISTRATION_COOKIE_NAME)?.value ?? createDeviceCredential();
-      const cookieOptions = {
-        httpOnly: true,
-        secure: process.env.NODE_ENV === "production",
-        sameSite: "lax" as const,
+    const cookieOptions = {
+      httpOnly: true,
+      secure: process.env.NODE_ENV === "production",
+      sameSite: "lax" as const,
+    };
+
+    if (!identity.ok) {
+      const identityResult = {
+        ...identity.result,
+        operationId: identity.result.operationId ?? operationId,
       };
-      response.cookies.set(ATTENDANCE_REGISTRATION_COOKIE_NAME, temporaryCredential, {
+      revalidatePublicScanResult(identityResult);
+      const response = NextResponse.json(
+        toPublicResult(withAttendanceScanResolution(identityResult))
+      );
+
+      if (identity.state === "sign_in_required") {
+        const temporaryCredential =
+          request.cookies.get(ATTENDANCE_REGISTRATION_COOKIE_NAME)?.value ??
+          createDeviceCredential();
+        response.cookies.set(ATTENDANCE_REGISTRATION_COOKIE_NAME, temporaryCredential, {
+          ...cookieOptions,
+          path: "/",
+          maxAge: 60 * 60 * 24 * 30,
+        });
+        response.cookies.set(
+          ATTENDANCE_SCAN_INTENT_COOKIE_NAME,
+          createAttendanceScanIntent({ publicCode, operationId }),
+          { ...cookieOptions, path: "/scan", maxAge: ATTENDANCE_SCAN_INTENT_TTL_SECONDS }
+        );
+      }
+
+      return response;
+    }
+
+    const scanResult = await processQrScan(publicCode, {
+      ...requestContext,
+      rawDeviceCredential: identity.rawDeviceCredential,
+    });
+    const result: PublicScanResult = {
+      ...scanResult,
+      deviceConnection: identity.state,
+    };
+    revalidatePublicScanResult(result);
+    const response = NextResponse.json(toPublicResult(withAttendanceScanResolution(result)));
+
+    if (identity.state === "auto_registered_from_session") {
+      response.cookies.set(DEVICE_COOKIE_NAME, identity.rawDeviceCredential, {
         ...cookieOptions,
         path: "/",
-        maxAge: 60 * 60 * 24 * 30,
+        maxAge: 60 * 60 * 24 * 180,
       });
-      response.cookies.set(
-        ATTENDANCE_SCAN_INTENT_COOKIE_NAME,
-        createAttendanceScanIntent({ publicCode, operationId }),
-        { ...cookieOptions, path: "/scan", maxAge: ATTENDANCE_SCAN_INTENT_TTL_SECONDS }
-      );
+      response.cookies.set(LEGACY_DEVICE_COOKIE_NAME, "", {
+        ...cookieOptions,
+        path: "/scan",
+        maxAge: 0,
+      });
     }
+
     return response;
   } catch (error) {
     logAttendanceScanError({

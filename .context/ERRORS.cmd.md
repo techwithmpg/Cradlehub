@@ -1,3 +1,36 @@
+## 2026-08-21 - Attendance session-recovery preflight notes
+
+- **Operational preflight remains red:** The read-only linked diagnostic found
+  14 stale open Main attendance rows older than 20 hours, one open Main
+  branch-assignment issue, and one SM settings/runtime mismatch. These require
+  explicit operational reconciliation; the source task did not modify them.
+- **Healthy controls:** Both active branches have exactly one active QR,
+  `qr_scan_events` is published to Realtime and selectable by authenticated
+  users, no staff exceeds two active devices, no active device has a blocked
+  security state, all four closing cron jobs are active, and test mode is off.
+- **Repository-wide format script has historical debt:** `pnpm format:check`
+  still reports committed files predating this task and the documented
+  `b4192d81` incremental-format baseline. Current Attendance source is clean;
+  unrelated legacy files were not mass-reformatted.
+- **Patch helper unavailable in the Windows split-root sandbox:** The standard
+  patch helper could not access the workspace, so equivalent Git patches were
+  applied with exact paths and reviewed with `git diff --check`.
+
+## 2026-08-07 - Marketing foundation migration apply notes
+
+- **CLI blocked inside sandbox:** The first `pnpm db:status` attempt failed
+  with `spawnSync ... supabase.exe EPERM`. Running the project wrapper with
+  approved escalation succeeded.
+- **Broad migration drift remains:** After applying and repairing
+  `20260803042453`, `pnpm db:status` still exits 2 because many older local
+  migration versions are absent from remote history. This is pre-existing drift;
+  do not use broad `db push` until it is reconciled intentionally.
+- **Storage bucket defaults:** The applied `public-site-media` bucket exists and
+  is public, but the existing migration does not set bucket-level MIME or file
+  size limits. The upcoming upload implementation must enforce file type, size,
+  filename, and SVG safety in server actions and may add a tighter storage
+  migration if desired.
+
 ## 2026-07-29 - QR print Phase 1 validation notes
 
 - **Live route still showed the raw QR UI:** The initial poster work was wired to

@@ -1,13 +1,22 @@
 import { NextRequest } from "next/server";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { createAttendanceScanError } from "@/lib/attendance/scan-errors";
-import { processQrScan } from "@/lib/attendance/scan-engine";
+import { processQrScan, resolveAttendanceScanIdentity } from "@/lib/attendance/scan-engine";
 import { POST } from "@/app/api/attendance/public-scan/route";
 
 vi.mock("server-only", () => ({}));
 
 vi.mock("@/lib/attendance/scan-engine", () => ({
   processQrScan: vi.fn(),
+  resolveAttendanceScanIdentity: vi.fn(),
+}));
+
+const authGetUserMock = vi.hoisted(() => vi.fn());
+
+vi.mock("@/lib/supabase/server", () => ({
+  createClient: async () => ({
+    auth: { getUser: authGetUserMock },
+  }),
 }));
 
 vi.mock("@/lib/attendance/queries", () => ({
@@ -16,6 +25,7 @@ vi.mock("@/lib/attendance/queries", () => ({
 
 const processQrScanMock = vi.mocked(processQrScan);
 
+const resolveAttendanceScanIdentityMock = vi.mocked(resolveAttendanceScanIdentity);
 function request(body: unknown): NextRequest {
   return new NextRequest("http://localhost/api/attendance/public-scan", {
     method: "POST",
@@ -48,6 +58,20 @@ function successfulScan(isTest = false) {
 
 describe("public attendance scan route", () => {
   beforeEach(() => {
+    processQrScanMock.mockReset();
+    resolveAttendanceScanIdentityMock.mockReset();
+    authGetUserMock.mockReset();
+    authGetUserMock.mockResolvedValue({ data: { user: null }, error: null });
+    resolveAttendanceScanIdentityMock.mockResolvedValue({
+      ok: true,
+      state: "registered_device",
+      rawDeviceCredential: "registered-device-secret",
+      deviceId: "device-1",
+      staffId: "staff-1",
+      staffName: "Nicole Santos",
+      branchName: "Cradle Main",
+      registeredNewDevice: false,
+    });
     vi.spyOn(console, "error").mockImplementation(() => {});
   });
 
@@ -93,13 +117,16 @@ describe("public attendance scan route", () => {
   });
 
   it("issues safe temporary continuation cookies for an unknown phone", async () => {
-    processQrScanMock.mockResolvedValueOnce({
+    resolveAttendanceScanIdentityMock.mockResolvedValueOnce({
       ok: false,
-      outcome: "blocked",
-      reasonCode: "unknown_device",
-      title: "Device not registered",
-      message: "Sign in to connect this phone.",
-      operationId: "scan-op-unknown",
+      state: "sign_in_required",
+      result: {
+        ok: false,
+        outcome: "blocked",
+        reasonCode: "sign_in_required",
+        title: "Connect this phone",
+        message: "Sign in to connect this phone.",
+      },
     });
 
     const response = await POST(request({ publicCode: "qr-code", requestId: "scan-op-unknown" }));
@@ -109,13 +136,106 @@ describe("public attendance scan route", () => {
     expect(response.status).toBe(200);
     expect(json).toMatchObject({
       ok: false,
-      reasonCode: "unknown_device",
+      reasonCode: "sign_in_required",
       operationId: "scan-op-unknown",
     });
     expect(setCookies).toContain("cradle_attendance_registration=");
     expect(setCookies).toContain("cradle_attendance_scan_intent=");
     expect(setCookies).toContain("HttpOnly");
     expect(setCookies).toContain("SameSite=lax");
+  });
+
+  it("auto-connects a clean phone from a verified staff session and completes the scan", async () => {
+    authGetUserMock.mockResolvedValueOnce({
+      data: { user: { id: "auth-user-1" } },
+      error: null,
+    });
+    resolveAttendanceScanIdentityMock.mockResolvedValueOnce({
+      ok: true,
+      state: "auto_registered_from_session",
+      rawDeviceCredential: "session-connected-secret",
+      deviceId: "device-new",
+      staffId: "staff-1",
+      staffName: "Nicole Santos",
+      branchName: "Cradle Main",
+      registeredNewDevice: true,
+    });
+    processQrScanMock.mockResolvedValueOnce(successfulScan());
+
+    const response = await POST(request({ publicCode: "qr-code", requestId: "scan-op-session" }));
+    const json = await response.json();
+    const setCookies = response.headers.getSetCookie().join("\n");
+
+    expect(json).toMatchObject({
+      ok: true,
+      deviceConnection: "auto_registered_from_session",
+      attendance: { staffName: "Nicole Santos" },
+    });
+    expect(setCookies).toContain("cradle_attendance_device=session-connected-secret");
+    expect(resolveAttendanceScanIdentityMock).toHaveBeenCalledWith(
+      expect.objectContaining({ authenticatedUserId: "auth-user-1" })
+    );
+    expect(processQrScanMock).toHaveBeenCalledWith(
+      "qr-code",
+      expect.objectContaining({ rawDeviceCredential: "session-connected-secret" })
+    );
+  });
+
+  it("blocks a phone/session ownership mismatch without scanning or changing cookies", async () => {
+    authGetUserMock.mockResolvedValueOnce({
+      data: { user: { id: "auth-user-2" } },
+      error: null,
+    });
+    resolveAttendanceScanIdentityMock.mockResolvedValueOnce({
+      ok: false,
+      state: "account_device_mismatch",
+      result: {
+        ok: false,
+        outcome: "blocked",
+        reasonCode: "account_device_mismatch",
+        title: "This phone belongs to another staff account",
+        message: "Choose a recovery action.",
+        accountDeviceMismatch: {
+          deviceStaffName: "Nicole Santos",
+          sessionStaffName: "Maria Reyes",
+        },
+      },
+    });
+
+    const response = await POST(request({ publicCode: "qr-code", requestId: "scan-op-mismatch" }));
+    const json = await response.json();
+
+    expect(json).toMatchObject({
+      ok: false,
+      reasonCode: "account_device_mismatch",
+      accountDeviceMismatch: {
+        deviceStaffName: "Nicole Santos",
+        sessionStaffName: "Maria Reyes",
+      },
+    });
+    expect(processQrScanMock).not.toHaveBeenCalled();
+    expect(response.headers.getSetCookie()).toEqual([]);
+  });
+
+  it("returns the scanning kill-switch result without scan or registration cookies", async () => {
+    resolveAttendanceScanIdentityMock.mockResolvedValueOnce({
+      ok: false,
+      state: "scanning_disabled",
+      result: {
+        ok: false,
+        outcome: "blocked",
+        reasonCode: "attendance_scanning_disabled",
+        title: "Attendance scanning is paused",
+        message: "Please ask the front desk for help.",
+      },
+    });
+
+    const response = await POST(request({ publicCode: "qr-code", requestId: "scan-op-paused" }));
+    const json = await response.json();
+
+    expect(json.reasonCode).toBe("attendance_scanning_disabled");
+    expect(processQrScanMock).not.toHaveBeenCalled();
+    expect(response.headers.getSetCookie()).toEqual([]);
   });
 
   it("returns a safe wrong-branch result without changing Attendance", async () => {

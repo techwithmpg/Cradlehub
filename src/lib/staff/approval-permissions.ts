@@ -37,6 +37,13 @@ export function isOperationalSystemRole(role: string): boolean {
   return OPERATIONAL_SYSTEM_ROLES.includes(role as (typeof OPERATIONAL_SYSTEM_ROLES)[number]);
 }
 
+function canAssignRequestedRole(
+  requestedRole: string,
+  assignableRoles: readonly string[]
+): boolean {
+  return assignableRoles.includes(requestedRole);
+}
+
 export interface CanApproveStaffOnboardingInput {
   approverRole: string;
   approverBranchId?: string | null;
@@ -88,6 +95,20 @@ export function canApproveStaffOnboarding({
         assignableRoles: [...MANAGER_ASSIGNABLE_SYSTEM_ROLES],
       };
     }
+    if (isSensitiveSystemRole(canonicalRequestedRole)) {
+      return {
+        allowed: false,
+        reason: "Management and admin roles require owner approval.",
+        assignableRoles: [...MANAGER_ASSIGNABLE_SYSTEM_ROLES],
+      };
+    }
+    if (!canAssignRequestedRole(canonicalRequestedRole, MANAGER_ASSIGNABLE_SYSTEM_ROLES)) {
+      return {
+        allowed: false,
+        reason: "This requested role requires owner approval.",
+        assignableRoles: [...MANAGER_ASSIGNABLE_SYSTEM_ROLES],
+      };
+    }
     return {
       allowed: true,
       assignableRoles: [...MANAGER_ASSIGNABLE_SYSTEM_ROLES],
@@ -110,6 +131,14 @@ export function canApproveStaffOnboarding({
       return {
         allowed: false,
         reason: "Management and admin roles require owner or manager approval.",
+        assignableRoles: [...CRM_ASSIGNABLE_SYSTEM_ROLES],
+      };
+    }
+
+    if (!canAssignRequestedRole(canonicalRequestedRole, CRM_ASSIGNABLE_SYSTEM_ROLES)) {
+      return {
+        allowed: false,
+        reason: "This requested role requires owner or manager approval.",
         assignableRoles: [...CRM_ASSIGNABLE_SYSTEM_ROLES],
       };
     }

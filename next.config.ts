@@ -9,7 +9,7 @@ const nextConfig: NextConfig = {
     // immediately when data changes, so live pages stay accurate.
     staleTimes: {
       dynamic: 120, // seconds — dynamic/auth pages
-      static: 300,  // seconds — fully-static pages
+      static: 300, // seconds — fully-static pages
     },
   },
   async headers() {
@@ -80,6 +80,9 @@ const nextConfig: NextConfig = {
     formats: ["image/avif", "image/webp"],
   },
   turbopack: {
+    // Avoid Windows/junction and multi-lockfile inference selecting src/app.
+    // Builds and deployments run from the repository root.
+    root: process.cwd(),
     rules: {
       "*.svg": {
         loaders: ["@svgr/webpack"],

@@ -11,8 +11,9 @@ import type { PublicScanResult } from "@/lib/attendance/types";
 const actionMocks = vi.hoisted(() => ({
   activateDeviceAction: vi.fn(),
   requestBranchCorrectionAction: vi.fn(),
+  disconnectAttendancePhoneAction: vi.fn(),
   signInAndRegisterAttendanceDeviceAction: vi.fn(),
-  tryAnotherScanAccountAction: vi.fn(),
+  switchScanAccountAction: vi.fn(),
 }));
 
 vi.mock("@/app/scan/actions", () => actionMocks);

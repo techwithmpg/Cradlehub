@@ -3,7 +3,10 @@
 import { useState, useTransition } from "react";
 import { approveOnboardingAction, rejectOnboardingAction } from "@/app/staff-onboarding/actions";
 import { canApproveStaffOnboarding } from "@/lib/staff/approval-permissions";
-import { getOnboardingRoleLabel } from "@/lib/staff/onboarding-roles";
+import {
+  getOnboardingRoleLabel,
+  getRequestedSystemRoleForOnboardingRole,
+} from "@/lib/staff/onboarding-roles";
 import { isTherapistRole } from "@/lib/staff/profile-completeness";
 import { ROLE_LABELS, isOwner, isManager } from "@/lib/permissions";
 import { canonicalizeSystemRole } from "@/constants/staff";
@@ -48,13 +51,14 @@ export function RequestCard({
   const [expanded, setExpanded] = useState(false);
   const [approveError, setApproveError] = useState<string | null>(null);
   const [rejectError, setRejectError] = useState<string | null>(null);
+  const requestedSystemRole = getRequestedSystemRoleForOnboardingRole(request.preferred_role ?? "");
   const [rejectionReason, setRejectionReason] = useState("");
 
   const approvalCheck = canApproveStaffOnboarding({
     approverRole: reviewerSystemRole,
     approverBranchId: reviewerBranchId,
     targetBranchId: request.requested_branch_id,
-    requestedSystemRole: request.preferred_role === "managerial" ? "manager" : "staff",
+    requestedSystemRole,
   });
 
   const availableRoles = approvalCheck.assignableRoles.map((r) => ({ 
@@ -76,9 +80,7 @@ export function RequestCard({
   
   // Smart default role assignment
   const initialRole = () => {
-    if (request.preferred_role === "csr") return approvalCheck.assignableRoles.includes("crm") ? "crm" : "staff";
-    if (request.preferred_role === "driver") return approvalCheck.assignableRoles.includes("driver") ? "driver" : "staff";
-    if (request.preferred_role === "utility") return approvalCheck.assignableRoles.includes("utility") ? "utility" : "staff";
+    if (approvalCheck.assignableRoles.includes(requestedSystemRole)) return requestedSystemRole;
     return approvalCheck.assignableRoles.includes("staff") ? "staff" : (approvalCheck.assignableRoles[0] ?? "staff");
   };
 

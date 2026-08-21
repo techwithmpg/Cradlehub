@@ -63,6 +63,42 @@ describe("Staff onboarding approval branch safety", () => {
     expect(result.allowed).toBe(true);
   });
 
+  it("allows owner to approve digital marketing staff", () => {
+    const result = canApproveStaffOnboarding({
+      approverRole: "owner",
+      approverBranchId: MAIN_BRANCH,
+      targetBranchId: SM_BRANCH,
+      requestedSystemRole: "digital_marketer",
+    });
+
+    expect(result.allowed).toBe(true);
+    expect(result.assignableRoles).toContain("digital_marketer");
+  });
+
+  it("blocks manager from approving digital marketing staff", () => {
+    const result = canApproveStaffOnboarding({
+      approverRole: "manager",
+      approverBranchId: MAIN_BRANCH,
+      targetBranchId: MAIN_BRANCH,
+      requestedSystemRole: "digital_marketer",
+    });
+
+    expect(result.allowed).toBe(false);
+    expect(result.reason).toContain("owner approval");
+  });
+
+  it("blocks CRM from approving digital marketing staff", () => {
+    const result = canApproveStaffOnboarding({
+      approverRole: "crm",
+      approverBranchId: MAIN_BRANCH,
+      targetBranchId: MAIN_BRANCH,
+      requestedSystemRole: "digital_marketer",
+    });
+
+    expect(result.allowed).toBe(false);
+    expect(result.reason).toContain("owner or manager approval");
+  });
+
   it("still blocks CRM from approving management roles even within branch", () => {
     const result = canApproveStaffOnboarding({
       approverRole: "crm",

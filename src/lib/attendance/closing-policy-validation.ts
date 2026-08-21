@@ -6,6 +6,7 @@ import { branchDateTimeToIsoInTimezone } from "@/lib/attendance/shift-instance";
 
 export type BranchAttendanceRuleValidationInput = {
   timezone: string;
+  clockInWindowBeforeShiftMinutes: number;
   attendanceDayBoundary: string;
   lateGraceMinutes: number;
   earlyLeaveThresholdMinutes: number;
@@ -67,6 +68,7 @@ export function validateBranchAttendanceRulesInput(
     return "Branch closing time is invalid.";
   }
   if (
+    !inRange(input.clockInWindowBeforeShiftMinutes, 0, 240) ||
     !inRange(input.lateGraceMinutes, 0, 240) ||
     !inRange(input.earlyLeaveThresholdMinutes, 0, 240) ||
     !inRange(input.overtimeThresholdMinutes, 0, 240) ||
@@ -121,8 +123,8 @@ export function validateCategoryAttendanceRuleInput(
     }
   }
   if (
-    input.driverReturnBufferMinutes != null
-    && !inRange(input.driverReturnBufferMinutes, 0, 360)
+    input.driverReturnBufferMinutes != null &&
+    !inRange(input.driverReturnBufferMinutes, 0, 360)
   ) {
     return "Driver return buffer must be blank or between 0 and 360 minutes.";
   }

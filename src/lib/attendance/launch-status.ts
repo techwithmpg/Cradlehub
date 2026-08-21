@@ -15,7 +15,8 @@ export function getAttendanceLaunchStatus(): AttendanceLaunchStatus {
   return {
     scanningEnabled: isAttendanceScanningEnabled(),
     enforcementEnabled: isAttendanceEnforcementEnabled(),
-    closingAutomationVerified:
-      process.env.ATTENDANCE_CLOSING_AUTOMATION_VERIFIED?.trim().toLowerCase() === "true",
+    // Deployment configuration is not proof that pg_cron jobs exist or ran.
+    // Keep this unverified until a database-backed health check supplies evidence.
+    closingAutomationVerified: false,
   };
 }

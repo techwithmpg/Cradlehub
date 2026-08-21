@@ -5,6 +5,45 @@
 
 ---
 
+
+## Latest Agent Update (2026-08-21 - ATTENDANCE-SESSION-RECOVERY-GOLIVE-20260820)
+
+- Completed the source-side Attendance session recovery: authenticated-session
+  identity resolution, clean-phone auto-connect, explicit mismatch choices,
+  canonical device policy and effective-branch checks, blocked-device handling,
+  authenticated disconnect, and server-side scan kill-switch enforcement.
+- Added focused coverage for identity precedence, device/branch policy,
+  schedule recovery, controls, Realtime, and Main/SM QR resolution. Verification
+  passed at 199 files / 1,363 tests, TypeScript, zero-warning ESLint, and a
+  Next.js 16.2.4 production build with 114 generated pages.
+- Read-only linked preflight passed active QR uniqueness, Realtime publication
+  and authenticated selection, device limits/security state, closing crons, and
+  disabled test mode.
+- Operational launch remains **NO-GO**: reconcile 14 stale open Main attendance
+  records older than 20 hours, one open Main branch-assignment issue, and the SM
+  settings/runtime mismatch (2-minute duplicate debounce versus 90 seconds;
+  5-minute clock-in grace versus 60 minutes), then re-run the diagnostic.
+- No live database write, broad migration push, enforcement enablement, or
+  rollout occurred. Source readiness must not be treated as operational
+  readiness.
+## Latest Agent Update (2026-08-07 — BRAND-WEBSITE-STUDIO-20260807)
+
+- Diagnosed the current Marketing Studio/public-site stack before
+  implementation. Public sections/assets exist but were empty live; logos,
+  showcase slides, many public images, social links, SEO images, and service
+  image fallbacks still came from source constants/static assets.
+- Applied the existing live Supabase foundation migration
+  `20260803042453_marketing_studio_foundation.sql` through
+  `supabase db query --linked --file`, then repaired only migration-history
+  version `20260803042453` to applied.
+- Verified live marketing tables now exist and are queryable, RLS is enabled,
+  and the public `public-site-media` bucket plus its storage policies exist.
+- No Brand & Website Studio application implementation has started yet. The next
+  work must wire owner-friendly brand/media/homepage/service/gallery/promotion/
+  contact editors to the same public website and canonical service sources.
+- `pnpm db:status` still exits 2 from older local/remote migration-history
+  drift; do not run broad `db push` as part of the Marketing Studio rebuild.
+
 ## Latest Agent Update (2026-07-23 — PRODUCTION-READINESS-REPAIR-20260723)
 
 - Source release gates are green under the pinned Node 24.14.0 / pnpm 10.33.2

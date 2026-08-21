@@ -2,15 +2,15 @@ export type OperationalStaffFlags = {
   is_active?: boolean | null;
   archived_at?: string | null;
   merged_into_staff_id?: string | null;
-  metadata?: Record<string, unknown> | null;
+  metadata?: unknown;
 };
 
-function metadataFlag(
-  metadata: Record<string, unknown> | null | undefined,
-  key: string,
-  fallback: boolean
-): boolean {
-  const value = metadata?.[key];
+function metadataFlag(metadata: unknown, key: string, fallback: boolean): boolean {
+  const record =
+    metadata && typeof metadata === "object" && Array.isArray(metadata) === false
+      ? (metadata as Record<string, unknown>)
+      : null;
+  const value = record?.[key];
   if (typeof value === "boolean") return value;
   if (typeof value === "number") return value !== 0;
   if (typeof value === "string") {

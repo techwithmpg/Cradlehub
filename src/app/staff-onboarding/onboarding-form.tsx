@@ -52,6 +52,25 @@ const STEPS = [
   { label: "Review",   icon: "✅" },
 ];
 
+const FIELD_ERROR_STEPS: Record<string, number> = {
+  accessCode: 0,
+  fullName: 1,
+  nickname: 1,
+  email: 1,
+  phone: 1,
+  address: 1,
+  preferredRole: 2,
+  preferredBranchId: 2,
+  branchConfirmed: 2,
+  serviceIds: 3,
+  emergencyContactName: 4,
+  emergencyContactPhone: 4,
+  experienceNotes: 4,
+  password: 5,
+  confirmPassword: 5,
+  consent: 6,
+};
+
 // ── Helpers ────────────────────────────────────────────────────────────────
 function passwordStrength(pw: string): { level: 0 | 1 | 2 | 3; label: string; color: string } {
   if (pw.length < 8) return { level: 0, label: "Too short", color: "#DC2626" };
@@ -59,6 +78,14 @@ function passwordStrength(pw: string): { level: 0 | 1 | 2 | 3; label: string; co
   if (checks >= 3 && pw.length >= 10) return { level: 3, label: "Strong", color: "#16A34A" };
   if (checks >= 2) return { level: 2, label: "Medium", color: "#D97706" };
   return { level: 1, label: "Weak", color: "#DC2626" };
+}
+
+function getFirstFieldErrorStep(fieldErrors: Record<string, string>): number {
+  const steps = Object.keys(fieldErrors)
+    .map((field) => FIELD_ERROR_STEPS[field])
+    .filter((step): step is number => typeof step === "number");
+
+  return steps.length > 0 ? Math.min(...steps) : STEPS.length - 1;
 }
 
 // ── Sub-components ─────────────────────────────────────────────────────────
@@ -335,7 +362,7 @@ function Step3Role({ data, onChange, branches, errors }: {
                   backgroundColor: selected ? "rgba(180,148,111,0.08)" : "var(--cs-surface)",
                   cursor: "pointer",
                   transition: "all 0.15s ease",
-                  gridColumn: ["other", "managerial", "salon_head"].includes(role.value) ? "1 / -1" : undefined,
+                  gridColumn: ["other", "managerial", "salon_head", "digital_marketer"].includes(role.value) ? "1 / -1" : undefined,
                 }}
               >
                 <span style={{ fontSize: "1.75rem" }}>{role.icon}</span>
@@ -602,9 +629,10 @@ function ReviewRow({ label, value }: { label: string; value?: string | null }) {
   );
 }
 
-function Step6Review({ data, onChange, serverError, isPending, onSubmit, selectedBranchName }: {
+function Step6Review({ data, onChange, errors, serverError, isPending, onSubmit, selectedBranchName }: {
   data: WizardData;
   onChange: (k: keyof WizardData, v: unknown) => void;
+  errors: Record<string, string>;
   serverError?: string;
   isPending: boolean;
   onSubmit: () => void;
@@ -667,6 +695,7 @@ function Step6Review({ data, onChange, serverError, isPending, onSubmit, selecte
         I confirm that all information is accurate and I understand that my account
         will only be activated once approved by a manager or owner.
       </label>
+      <FieldError msg={errors.consent} />
 
       <button
         type="button"
@@ -744,6 +773,7 @@ export function StaffOnboardingForm({ branches }: { branches: Branch[] }) {
 
   const update = useCallback((key: keyof WizardData, value: unknown) => {
     setData((prev) => ({ ...prev, [key]: value }));
+    setServerError(undefined);
     setErrors((prev) => { const next = { ...prev }; delete next[key]; return next; });
   }, []);
 
@@ -788,6 +818,7 @@ export function StaffOnboardingForm({ branches }: { branches: Branch[] }) {
 
   function handleSubmit() {
     setServerError(undefined);
+    setErrors({});
     const fd = new FormData();
     fd.append("accessCode",           data.accessCode);
     fd.append("fullName",             data.fullName);
@@ -811,8 +842,17 @@ export function StaffOnboardingForm({ branches }: { branches: Branch[] }) {
       const result = await submitStaffOnboardingAction({} as OnboardingFormState, fd);
       if (result.success) {
         setSubmitted(true);
+      } else if (result.fieldErrors && Object.keys(result.fieldErrors).length > 0) {
+        setErrors(result.fieldErrors);
+        const errorStep = getFirstFieldErrorStep(result.fieldErrors);
+        setStep(errorStep);
+        if (errorStep === STEPS.length - 1) {
+          setServerError("Please fix the highlighted fields and submit again.");
+        }
       } else if (result.error) {
         setServerError(result.error);
+      } else {
+        setServerError("Something went wrong while submitting. Please try again.");
       }
     });
   }
@@ -879,6 +919,7 @@ export function StaffOnboardingForm({ branches }: { branches: Branch[] }) {
           <Step6Review
             data={data}
             onChange={update}
+            errors={errors}
             serverError={serverError}
             isPending={isPending}
             onSubmit={handleSubmit}

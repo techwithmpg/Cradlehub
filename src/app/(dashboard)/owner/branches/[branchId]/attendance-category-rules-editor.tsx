@@ -103,9 +103,6 @@ export function AttendanceCategoryRulesEditor({
   const [driverReturn, setDriverReturn] = useState(() =>
     toInput(selected?.override.driver_return_buffer_minutes ?? null)
   );
-  const [activeService, setActiveService] = useState<TriState>(() =>
-    toTriState(selected?.override.active_service_blocks_clock_out ?? null)
-  );
   const [closingPolicy, setClosingPolicy] = useState<TriState>(() =>
     toTriState(selected?.override.crm_closing_policy_enabled ?? null)
   );
@@ -128,7 +125,6 @@ export function AttendanceCategoryRulesEditor({
     setServiceCleanup(toInput(next.override.service_cleanup_buffer_minutes ?? null));
     setHomeWrapUp(toInput(next.override.home_service_wrap_up_buffer_minutes ?? null));
     setDriverReturn(toInput(next.override.driver_return_buffer_minutes ?? null));
-    setActiveService(toTriState(next.override.active_service_blocks_clock_out));
     setClosingPolicy(toTriState(next.override.crm_closing_policy_enabled));
     setFinalClientRelease(toTriState(next.override.final_client_release_enabled ?? null));
     setPortalClosingShift(toTriState(next.override.portal_closing_shift_enabled ?? null));
@@ -147,7 +143,6 @@ export function AttendanceCategoryRulesEditor({
         driverReturnBufferMinutes: toNumber(driverReturn),
         finalClientReleaseEnabled: fromTriState(finalClientRelease),
         portalClosingShiftEnabled: fromTriState(portalClosingShift),
-        activeServiceBlocksClockOut: fromTriState(activeService),
         crmClosingPolicyEnabled: fromTriState(closingPolicy),
         effectiveDate: effectiveDate || null,
         reason,
@@ -312,12 +307,6 @@ export function AttendanceCategoryRulesEditor({
             </div>
           ) : null}
 
-          <TriStateSelect
-            id="category-active-service"
-            label="Active service blocks clock-out"
-            value={activeService}
-            onChange={setActiveService}
-          />
           {selectedCategory === "crm_front_desk" ? (
             <TriStateSelect
               id="category-closing-policy"

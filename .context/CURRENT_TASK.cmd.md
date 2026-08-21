@@ -1,3 +1,132 @@
+# Current Task - ATTENDANCE-SESSION-RECOVERY-GOLIVE-20260820
+
+Task ID: ATTENDANCE-SESSION-RECOVERY-GOLIVE-20260820
+Description: Audit and repair the current schedule-aware Attendance scanner,
+add authenticated-session phone auto-connection with explicit account/device
+mismatch protection, unify device policy and branch resolution paths, enforce
+the scanning kill switch server-side, verify controlled scanning, and produce a
+GO/NO-GO recommendation without enabling operational enforcement prematurely.
+Status: SOURCE COMPLETE AND VERIFIED - OPERATIONAL NO-GO PENDING LIVE RECONCILIATION
+Started: 2026-08-20
+Last updated: 2026-08-21
+
+## Completion and verification
+
+- Implemented authenticated-session scan identity resolution, clean-device
+  auto-connection, explicit account/device mismatch handling, canonical device
+  registration limits, effective-branch checks, blocked-device handling, and
+  server-side scan kill-switch enforcement.
+- Hardened browser disconnect so it requires an authenticated Supabase user,
+  and added focused contracts for identity precedence and mutation ordering.
+- Verification passed: 199 files / 1,363 tests, TypeScript, zero-warning ESLint,
+  and the Next.js 16.2.4 production build with 114 generated pages.
+- Read-only linked production preflight passed active Main/SM QR uniqueness,
+  Realtime publication, authenticated event selection, device limits/security
+  state, closing cron schedules, and disabled test mode.
+- Operational launch is **NO-GO** until operators reconcile 14 stale open live
+  attendance rows older than 20 hours, one open Main branch-assignment issue,
+  and one SM runtime/settings mismatch (duplicate debounce 2 minutes versus 90
+  seconds; late grace 5 minutes versus 60 minutes).
+- This task made no live database writes, did not run a broad migration push,
+  and did not enable Attendance enforcement.
+
+## Guardrails
+
+- Work only in `F:\cradlehub`; do not clone or create another repository copy.
+- Preserve the schedule-aware, branch-local, record-first Attendance intent and
+  commit engine. Do not replace it with first-scan/second-scan logic.
+- Keep scanning and operational enforcement as independent controls. Target
+  scanning-on/enforcement-off only after code and production diagnostics pass.
+- Reuse canonical device registration and effective branch resolution; never
+  silently reactivate, transfer, or replace a staff phone.
+- A wrong-branch first scan must not insert a device or consume a device slot.
+- Treat the supplied online schema as read-only context, not executable SQL.
+- Do not expose environment secrets, credentials, tokens, or private staff data.
+- Do not run a broad migration push while linked migration history remains
+  drifted. Production diagnostics begin read-only and any live mutation requires
+  exact evidence, rollback, and authorization.
+- Preserve unrelated dirty onboarding and context changes. Do not begin Tauri,
+  Marketing Studio, booking redesign, or other unrelated work.
+
+## Work order
+
+1. Read mandatory governance/context, current Supabase/Next.js guidance, the
+   supplied schema snapshot, Attendance source, tests, diagnostics, and
+   authoritative migrations.
+2. Trace QR request through session/device identity, registration, branch
+   resolution, intent classification, transactional commit, Recovery, Realtime,
+   settings, disconnect/switch actions, and every device-creation path.
+3. Implement one typed Attendance identity resolver, session auto-connect,
+   mismatch blocking, canonical registration policy, server-side scanning
+   kill-switch enforcement, settings cleanup, and explicit disconnect semantics.
+4. Add focused automated coverage for identity precedence, branch/device limits,
+   revoked/blocked devices, idempotency, fluid schedule recovery, controls,
+   Realtime, and Main/SM QR branch resolution.
+5. Run focused tests, full tests, type-check, lint, build, database/static
+   migration checks, read-only production preflight/cron/host/cookie checks, and
+   controlled browser/live tests only where safe credentials and evidence exist.
+6. Update project context with exact verified results, remaining operational
+   risks, and a scanning/enforcement GO/NO-GO recommendation.
+
+---
+
+# Current Task - BRAND-WEBSITE-STUDIO-20260807
+
+Task ID: BRAND-WEBSITE-STUDIO-20260807
+Description: Diagnose and rebuild the Owner Marketing Studio into a plain-language
+Brand & Website Studio for logo/brand assets, image uploads, homepage content,
+service marketing, featured services, gallery, promotions, contact details, and
+live preview without creating detached public website or service catalogues.
+Status: DIAGNOSIS COMPLETE - LIVE FOUNDATION MIGRATION APPLIED; IMPLEMENTATION NOT STARTED
+Started: 2026-08-07
+Last updated: 2026-08-07
+
+## Guardrails
+
+- Complete current-system diagnosis and report evidence before implementation.
+- Preserve unrelated dirty onboarding changes already present in the worktree.
+- Do not expose environment variables, Supabase service-role keys, passwords,
+  access tokens, or private credentials.
+- Do not create a disconnected website editor or duplicate service catalogue.
+- Public content edits must feed the same live public website sources.
+- Service marketing must use canonical service IDs, `services`, and
+  `branch_services` overrides.
+- Avoid blind Supabase migration pushes while migration history remains drifted.
+
+## Work order
+
+1. Read mandatory governance/context and relevant Next.js/Supabase guidance.
+2. Diagnose current Marketing Studio, public-site, logo, image, service showcase,
+   storage, authorization, and cache paths.
+3. Report evidence and proposed architecture before coding.
+4. Implement Brand & Website Studio modules, schema/storage support, canonical
+   brand/media/content query/action layer, public consumers, and tests.
+5. Run focused/full tests, type-check, lint, production build, and document
+   authenticated/manual QA limitations honestly.
+
+## Live migration note - 2026-08-07
+
+- Applied existing migration
+  `supabase/migrations/20260803042453_marketing_studio_foundation.sql` to the
+  linked live CradleHub Supabase project through
+  `pnpm exec supabase db query --linked --dns-resolver https --file ...`.
+- Verified live tables now exist:
+  `marketing_content_drafts`, `marketing_content_revisions`,
+  `marketing_media_assets`, `marketing_brand_settings`, and
+  `marketing_seo_settings`.
+- Verified RLS is enabled on all five marketing tables.
+- Verified storage bucket `public-site-media` exists and the
+  `public_site_media_*` storage policies are present.
+- Marked only migration version `20260803042453` as applied with
+  `supabase migration repair`; broader historic migration drift remains
+  unchanged.
+- `pnpm db:status` no longer lists `20260803042453` as pending, but still exits
+  nonzero because many older local migrations remain absent from remote history.
+- No application implementation work has started yet for the Brand & Website
+  Studio rebuild.
+
+---
+
 # Current Task - SERVICE-CATALOG-UNIFICATION-20260806
 
 Task ID: SERVICE-CATALOG-UNIFICATION-20260806

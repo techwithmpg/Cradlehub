@@ -20,6 +20,25 @@
 
 ## Current Delivery Notes
 
+- BLOCKED: `ATTENDANCE-SESSION-RECOVERY-GOLIVE-20260820` source is complete
+  and verified (199 files / 1,363 tests, TypeScript, zero-warning lint, Next.js
+  16.2.4 build with 114 pages). Authenticated clean-phone auto-connect,
+  mismatch protection, canonical device/branch policy, blocked-device checks,
+  authenticated disconnect, and server-side scan control are implemented.
+  Operational rollout remains NO-GO pending reconciliation of 14 stale open
+  Main attendance rows, one open Main branch-assignment issue, and the SM
+  duplicate-debounce/late-grace settings mismatch. No live mutation or
+  enforcement enablement occurred.
+- 🟡 `BRAND-WEBSITE-STUDIO-20260807` diagnosis is complete and the existing
+  Marketing Studio foundation migration is now applied live. The live database
+  has `marketing_content_drafts`, `marketing_content_revisions`,
+  `marketing_media_assets`, `marketing_brand_settings`,
+  `marketing_seo_settings`, RLS enabled on those tables, and the public
+  `public-site-media` storage bucket/policies. Application implementation is
+  still pending: owner-friendly logo/media/homepage/services/featured/gallery/
+  promotions/contact editing, public consumers, cache invalidation, tests, and
+  local/browser verification remain to be built.
+
 - 🟡 `PRODUCTION-READINESS-REPAIR-20260723` is source-release ready: the pinned
   clean-install toolchain, full 1,253-test suite, TypeScript, zero-warning lint,
   incremental formatting, optimized build, authenticated critical-path smoke,

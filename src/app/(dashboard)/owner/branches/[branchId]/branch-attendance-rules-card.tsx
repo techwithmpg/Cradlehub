@@ -102,13 +102,13 @@ export function BranchAttendanceRulesCard({
   const [timezone, setTimezone] = useState(data.settings.timezone);
   const [dayBoundary, setDayBoundary] = useState(timeValue(data.settings.attendance_day_boundary));
   const [lateGrace, setLateGrace] = useState(data.settings.late_grace_minutes);
+  const [clockInWindow, setClockInWindow] = useState(
+    data.settings.clock_in_window_before_shift_minutes
+  );
   const [earlyLeave, setEarlyLeave] = useState(data.settings.early_leave_threshold_minutes);
   const [overtime, setOvertime] = useState(data.settings.overtime_threshold_minutes);
   const [duplicateWindow, setDuplicateWindow] = useState(
     data.settings.duplicate_scan_window_seconds
-  );
-  const [activeServiceBlocks, setActiveServiceBlocks] = useState(
-    data.settings.active_service_blocks_clock_out
   );
   const [closingPolicyEnabled, setClosingPolicyEnabled] = useState(
     data.settings.crm_closing_policy_enabled
@@ -133,10 +133,10 @@ export function BranchAttendanceRulesCard({
         timezone,
         attendanceDayBoundary: dayBoundary,
         lateGraceMinutes: lateGrace,
+        clockInWindowBeforeShiftMinutes: clockInWindow,
         earlyLeaveThresholdMinutes: earlyLeave,
         overtimeThresholdMinutes: overtime,
         duplicateScanWindowSeconds: duplicateWindow,
-        activeServiceBlocksClockOut: activeServiceBlocks,
         branchOperatingCloseTime: branchClose,
         crmClosingPolicyEnabled: closingPolicyEnabled,
         crmClosingBufferMinutes: normalBuffer,
@@ -238,6 +238,14 @@ export function BranchAttendanceRulesCard({
                 max={240}
               />
               <NumberField
+                id="attendance-clock-in-window"
+                label="How early can staff clock in?"
+                value={clockInWindow}
+                onChange={setClockInWindow}
+                min={0}
+                max={240}
+              />
+              <NumberField
                 id="attendance-duplicate"
                 label="Duplicate window (seconds)"
                 value={duplicateWindow}
@@ -261,12 +269,12 @@ export function BranchAttendanceRulesCard({
                 min={0}
                 max={240}
               />
-              <SwitchField
-                id="attendance-active-service"
-                label="Active service blocks clock-out"
-                checked={activeServiceBlocks}
-                onChange={setActiveServiceBlocks}
-              />
+              <div className="rounded-lg border bg-muted/40 px-3 py-2 md:col-span-2">
+                <strong className="block text-sm">QR clock-out remains record-first</strong>
+                <span className="text-xs text-muted-foreground">
+                  Active services stay visible for review and never hard-block a valid scan.
+                </span>
+              </div>
               <SwitchField
                 id="attendance-closing-enabled"
                 label="Enable CRM closing policy"

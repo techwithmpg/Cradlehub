@@ -1,5 +1,39 @@
 # 📜 CHANGELOG — What Has Been Done
 
+
+## 2026-08-21 - Codex (ATTENDANCE-SESSION-RECOVERY-GOLIVE-20260820)
+
+Completed the Attendance session-recovery hardening: authenticated users can
+connect a clean phone on first scan, account/device mismatches are blocked with
+explicit switch/disconnect choices, registration and branch checks use
+canonical policy, blocked devices stay blocked, and the scan kill switch is
+enforced on server mutation paths. Browser disconnect now authenticates before
+revoking a device.
+
+Added focused identity, policy, branch, recovery, controls, Realtime, and QR
+contracts plus a read-only launch diagnostic. Verification passed at 199 test
+files / 1,363 tests, TypeScript, zero-warning ESLint, and a Next.js 16.2.4
+production build generating 114 pages.
+
+The linked production preflight is operationally **NO-GO**: 14 stale open Main
+attendance rows, one open Main branch-assignment issue, and one SM
+settings/runtime mismatch remain. QR, Realtime/RLS, device policy, cron, and
+test-mode checks passed. No production mutation or enforcement enablement was
+performed.
+## 2026-08-07 - Codex (BRAND-WEBSITE-STUDIO-20260807 foundation migration)
+
+Applied the existing Marketing Studio foundation migration
+`20260803042453_marketing_studio_foundation.sql` to the linked live CradleHub
+Supabase project after a narrow staff-role preflight. The migration created the
+draft/revision/media/brand/SEO marketing tables, enabled RLS, and created the
+public `public-site-media` storage bucket and policies.
+
+Verified the new live tables are queryable, all five marketing tables have RLS
+enabled, the `public_site_media_*` storage policies exist, and migration version
+`20260803042453` is now recorded in `supabase_migrations.schema_migrations`.
+The broader pre-existing local/remote migration-history drift remains; `pnpm
+db:status` still exits 2, but this specific migration is no longer pending.
+
 ## 2026-08-03 - Codex (QR-REALTIME-MARKETING-20260729, Phase 2 verification)
 
 Verified the committed Attendance Realtime/recent-scan cursor and

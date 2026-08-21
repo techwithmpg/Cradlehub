@@ -32,6 +32,7 @@ export type StaffAttendanceIssueGuide = {
 
 const DEVICE_SIGN_IN_REASON_CODES = new Set([
   "unknown_device",
+  "sign_in_required",
   "missing_device",
   "device_not_registered",
   "device_cookie_missing",

@@ -476,12 +476,14 @@ export async function createDeviceActivationLink(params: {
 
   const { data: staff, error: staffError } = await admin
     .from("staff")
-    .select("id, branch_id, full_name, is_active")
+    .select(
+      "id, branch_id, full_name, staff_type, system_role, is_active, archived_at, merged_into_staff_id, metadata"
+    )
     .eq("id", params.staffId)
     .maybeSingle();
 
   if (staffError) throw new Error(staffError.message);
-  if (!staff || staff.branch_id !== params.ctx.branchId || !staff.is_active) {
+  if (!staff || staff.branch_id !== params.ctx.branchId || !isOperationalStaff(staff)) {
     throw new Error("Staff member is not active in this branch.");
   }
 
@@ -493,6 +495,7 @@ export async function createDeviceActivationLink(params: {
     token_hash: hashSecret(token),
     expires_at: expiresAt,
     requested_by: params.ctx.actorStaffId,
+    purpose: "crm_assisted_activation",
   });
 
   if (error) throw new Error(error.message);

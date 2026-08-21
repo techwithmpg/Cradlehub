@@ -17,9 +17,9 @@ export function AttendanceTodayView({
   onOpenHistory: (row?: AttendanceStaffDiagnostic) => void;
   onOpenPhone: (row?: AttendanceStaffDiagnostic) => void;
 }) {
-  const serviceBlockers = data.settings.active_service_blocks_clock_out
-    ? data.sessions.filter((session) => session.booking_progress_status === "session_started")
-    : [];
+  const activeServiceContexts = data.sessions.filter(
+    (session) => session.booking_progress_status === "session_started"
+  );
   return (
     <div className="grid gap-4">
       <AttendanceSummaryCards rows={rows} />
@@ -29,19 +29,19 @@ export function AttendanceTodayView({
         onOpenHistory={onOpenHistory}
         onOpenPhone={onOpenPhone}
       />
-      {serviceBlockers.length > 0 ? (
+      {activeServiceContexts.length > 0 ? (
         <section
           className="rounded-xl border border-amber-200 bg-amber-50 p-4"
-          aria-labelledby="service-blockers-heading"
+          aria-labelledby="service-context-heading"
         >
-          <h2 id="service-blockers-heading" className="text-sm font-bold text-amber-950">
-            Service activity affecting clock-out
+          <h2 id="service-context-heading" className="text-sm font-bold text-amber-950">
+            Active service context
           </h2>
           <p className="mt-1 text-xs text-amber-800">
-            These active sessions must finish before the assigned staff can clock out.
+            These sessions stay visible for review but do not block a valid QR clock-out.
           </p>
           <div className="mt-3 divide-y divide-amber-200">
-            {serviceBlockers.map((session) => (
+            {activeServiceContexts.map((session) => (
               <div
                 key={session.id}
                 className="flex items-center justify-between gap-4 py-2 text-sm"

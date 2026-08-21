@@ -2,10 +2,11 @@
 
 import { useEffect, useRef, useState } from "react";
 import {
+  disconnectAttendancePhoneAction,
   activateDeviceAction,
   requestBranchCorrectionAction,
   signInAndRegisterAttendanceDeviceAction,
-  tryAnotherScanAccountAction,
+  switchScanAccountAction,
   type FirstTimeScanFieldErrors,
 } from "@/app/scan/actions";
 import { cn } from "@/lib/utils";
@@ -159,6 +160,19 @@ export function PublicScanProcessor(props: PublicScanProcessorProps) {
         return;
       }
 
+      if (mode === "scan" && nextResult.deviceConnection === "auto_registered_from_session") {
+        setStage("registering_device");
+        await wait(DEVICE_STAGE_DURATION_MS);
+        if (!active) return;
+
+        setStage("device_registered");
+        await wait(DEVICE_STAGE_DURATION_MS);
+        if (!active) return;
+
+        setStage("processing_attendance");
+        await wait(ATTENDANCE_STAGE_DURATION_MS);
+        if (!active) return;
+      }
       setResult(nextResult);
       setBranchCorrectionState({ status: "idle", message: null });
       setStage("result");
@@ -259,14 +273,24 @@ export function PublicScanProcessor(props: PublicScanProcessorProps) {
     }
   }
 
-  async function handleTryAnotherAccount(details: BranchCorrectionScanDetails) {
-    await tryAnotherScanAccountAction();
-    const code = details.publicCode ?? scanPublicCode;
-    if (code) {
-      window.location.replace(`/scan/${encodeURIComponent(code)}?scan=${createRequestId()}`);
+  function restartScan() {
+    if (scanPublicCode) {
+      window.location.replace(
+        `/scan/${encodeURIComponent(scanPublicCode)}?scan=${createRequestId()}`
+      );
       return;
     }
     window.location.reload();
+  }
+
+  async function handleSwitchAccount() {
+    await switchScanAccountAction();
+    restartScan();
+  }
+
+  async function handleDisconnectPhone() {
+    await disconnectAttendancePhoneAction();
+    restartScan();
   }
 
   const shellTone = getShellTone(stage, result);
@@ -278,7 +302,8 @@ export function PublicScanProcessor(props: PublicScanProcessorProps) {
           result={result}
           branchCorrectionState={branchCorrectionState}
           onRequestBranchCorrection={handleBranchCorrectionRequest}
-          onTryAnotherAccount={handleTryAnotherAccount}
+          onSwitchAccount={handleSwitchAccount}
+          onDisconnectPhone={handleDisconnectPhone}
         />
       ) : (stage === "sign_in_required" || stage === "signing_in") && mode === "scan" ? (
         <PublicScanLoginForm

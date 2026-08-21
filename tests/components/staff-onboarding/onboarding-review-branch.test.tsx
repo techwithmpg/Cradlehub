@@ -101,4 +101,21 @@ describe("OnboardingReviewList RequestCard branch display", () => {
       screen.getByText(/Only owners and managers can change the requested branch/)
     ).toBeTruthy();
   });
+
+  it("defaults Social Media applications to the digital marketer role for owners", () => {
+    render(
+      <RequestCard
+        request={makeRequest({ preferred_role: "digital_marketer" })}
+        branches={BRANCHES}
+        reviewerSystemRole="owner"
+        reviewerBranchId="branch-main"
+      />
+    );
+
+    fireEvent.click(screen.getByText("Maria Santos"));
+
+    expect(screen.getByText("Social Media / Marketing")).toBeTruthy();
+    const roleSelect = screen.getByTitle("Assign role") as HTMLSelectElement;
+    expect(roleSelect.value).toBe("digital_marketer");
+  });
 });
