@@ -1456,3 +1456,11 @@ Committing the flag with the idempotent result keeps retry rendering stable.
 **Saved scans:** A saved scan is preserved evidence. The UI may recommend a decision, but it must not fabricate a clock-in or clock-out without an audited atomic database operation.
 
 ---
+### SUPABASE-LIVE-RECONCILIATION-20260821: Reconcile proven effects, not assumed history
+
+**Date:** 2026-08-21
+**Status:** ACCEPTED
+**Decision:** Apply only migrations and repair slices whose absence was proven from the live catalog and whose data preconditions were checked. Normalize local filenames to the five authoritative remote versions, but do not replay or bulk-mark 84 older local-only versions whose seed/data effects cannot be proven from schema equality.
+**Safety:** The context-only schema export was never executed, `db push --include-all` was rejected, deterministic schedule changes wrote before-state backups, and each applied version was verified before being recorded in live migration history.
+
+---

@@ -8228,3 +8228,12 @@ Validation: TypeScript and production build pass; 150 files / 1,137 tests pass; 
 **Validation:** See installer execution output.
 
 ---
+### 2026-08-21 — Live Supabase schema reconciliation and security repair
+
+**Task:** SUPABASE-LIVE-RECONCILIATION-20260821
+**Implemented:** Compared archive/local/live schema evidence; normalized five migration versions; restored missing Attendance, branch-assignment, scheduling, home-service, and booking-lifecycle database objects; repaired schedule/timing data; enabled RLS and removed client grants from seven internal tables; fixed four PL/pgSQL ambiguity errors; added repeatable read-only diagnostics.
+**Live database:** Eight migrations were applied and recorded (six existing confirmed-missing migrations plus two new repair migrations). No pasted schema or broad historical replay was executed.
+**Validation:** Live reconciliation preflight and error-level DB lint pass; TypeScript, lint, 199 test files / 1,363 tests, and diff check pass.
+**History note:** Zero remote-only versions remain; 84 unverified older local-only versions remain intentionally unrepaired.
+
+---

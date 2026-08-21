@@ -1715,3 +1715,10 @@ Manager activation remains deferred. Browser QA could not be fabricated without 
 - Source uses existing Attendance exception metadata, workflow tasks, notifications, device tokens, and recovery RPCs.
 - No Supabase migration was applied.
 - Applying a preserved scan as clock-in/out still requires a separately audited atomic database RPC; the UI does not fake that capability.
+## SUPABASE-LIVE-RECONCILIATION-20260821
+
+- Production schema reconciliation is complete for the confirmed drift: missing branch-assignment/Attendance/booking RPCs and triggers are live, schedule conflicts and timing snapshots are repaired, and seven exposed internal tables are protected by RLS with client grants revoked.
+- Live database lint has zero error-level findings; the read-only preflight is fully green.
+- Five local filenames now match their already-applied live versions, leaving zero remote-only migration versions.
+- Do not run `supabase db push --include-all`: 84 old local-only history entries still need a separate evidence-backed baseline/history project because seed/data effects cannot be inferred from catalog equality.
+- Source verification passes TypeScript, lint, 199 test files / 1,363 tests, and diff check.

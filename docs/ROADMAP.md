@@ -347,3 +347,11 @@
 - [x] Confirmed unused type/debug noise removed; unfinished Owner placeholder hidden
 - [x] Dormant/uncertain code and historical/operational assets retained
 - [x] Dependencies reviewed; none safely removable
+## SUPABASE-LIVE-RECONCILIATION-20260821 — Complete
+
+- [x] Compare attached archive, context-only schema, local migrations, and linked live catalog/history
+- [x] Apply and record confirmed missing production schema/data repairs
+- [x] Restore zero-error public-schema database lint and zero public tables without RLS
+- [x] Normalize all remote-only migration versions into the local chain
+- [ ] Reconcile 84 unverified older local-only history entries through a separate evidence-backed baseline project
+- [ ] Complete production cron, authenticated browser/device, backup/restore, and controlled-pilot evidence

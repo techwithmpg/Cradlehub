@@ -3859,3 +3859,33 @@ Stabilize CRM Today and Booking Follow-up runtime/RLS paths, then finish the ope
 - Existing dirty worktree changes unrelated to this task were preserved.
 - `booking_events` remains read-only for authenticated roles; operational follow-up/reschedule/reassign audit writes intentionally go through branch-checked service-role server actions.
 - Authenticated CRM browser QA remains recommended for the actual operator flows.
+---
+
+# Current Task - SUPABASE-LIVE-RECONCILIATION-20260821
+
+Status: COMPLETED
+Started: 2026-08-21
+Last updated: 2026-08-21
+
+## Completed
+
+- Compared the attached Supabase archive, the context-only schema export, all 126 pre-existing local migrations, and the linked production catalog/history without running the pasted schema.
+- Renamed five local migration files to the authoritative versions already present in live history; executable SQL was unchanged.
+- Applied and recorded six confirmed missing Attendance, branch-assignment, and booking-lifecycle migrations.
+- Added and applied `20260821020651_reconcile_live_schema_and_secure_internal_tables.sql`: repaired 20 overlapping group defaults with before-state backups, backfilled 16 booking timing snapshots, restored missing schedule/home-service schema, and secured seven internal tables with RLS and revoked client grants.
+- Added and applied `20260821023717_fix_attendance_function_ambiguity.sql`, resolving all four error-level PL/pgSQL lint findings without changing RPC signatures.
+- Added reusable read-only catalog and reconciliation diagnostics.
+
+## Verification
+
+- Live reconciliation preflight: PASS; all counters are zero/empty and required branch-rule columns are present.
+- Live `public` schema database lint at error level: PASS, zero findings.
+- Live RLS inventory: PASS, zero public tables without RLS.
+- `pnpm type-check`: PASS.
+- `pnpm lint`: PASS.
+- `pnpm test --run`: PASS, 199 files / 1,363 tests.
+- `git diff --check`: PASS.
+
+## Remaining limitation
+
+- Migration history now has zero remote-only versions, but 84 older local-only versions remain. Their final schema effects are largely present, but their data/seed effects were not independently provable, so they were deliberately not bulk-marked applied and no `--include-all` push was run.

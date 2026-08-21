@@ -1503,3 +1503,9 @@
   88 local-only / 5 remote-only). No broad push was attempted. The one guarded
   repair was dry-run under forced rollback, then applied as isolated idempotent
   SQL and verified; deployment must later reconcile version history.
+## 2026-08-21 - Supabase reconciliation execution notes
+
+- Docker-backed `supabase db diff --linked` was unavailable because Docker Desktop was not running. Catalog diagnostics and direct live preconditions were used instead; no unsafe shadow-database assumption was made.
+- The first consolidated migration attempt failed on the obsolete `staff.department_id` index. Its explicit transaction rolled back the entire attempt; the obsolete index was removed after confirming the live column was absent, and the corrected migration passed.
+- Two migration-history operations and one lint attempt hit transient pooler/DNS timeouts. Bounded retries succeeded; all applied versions are now recorded and final live lint passes.
+- The Supabase connector advisor endpoint denied permission. Direct live RLS inventory and CLI database lint were used; both finish clean at the required error/security level.

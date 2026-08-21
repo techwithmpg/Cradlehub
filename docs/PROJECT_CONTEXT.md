@@ -886,3 +886,8 @@ pnpm ui:add [component]     # Add shadcn/ui component
 CradleHub passes current code-level gates for a controlled pilot: 150 test files / 1,137 tests, TypeScript, lint with one existing dormant warning, and the 110-page production build. Multi-person packages are consultation/manual only, and public booking/waitlist endpoints have strict validation, honeypots, payload bounds, duplicate suppression, and safe errors.
 
 Operational activation remains conditional on live migration-history reconciliation, stale-recovery migration verification, four Attendance cron jobs, linked database lint/RLS probes, authenticated browser/device/payment/dispatch checks, backup evidence, and a one-day controlled pilot. Distributed public rate limiting is not yet configured.
+## Live database reconciliation — 2026-08-21
+
+Confirmed live schema drift has been repaired. Missing Attendance, branch-assignment, booking-lifecycle, scheduling, and home-service functions/triggers/constraints are live; 20 overlapping group defaults were backed up and repaired; 16 booking timing snapshots were backfilled; seven internal public tables now have RLS with client grants revoked; and public-schema lint has zero error-level findings.
+
+Five local filenames now match authoritative live versions and there are no remote-only versions. Eight applied migrations were recorded during this reconciliation. Eighty-four older local-only versions remain intentionally unmarked because catalog equality cannot prove historical seed/data effects; do not use a broad `--include-all` push. Production cron, authenticated device/browser workflows, backup/restore evidence, distributed rate limiting, and the controlled pilot remain separate readiness gates.
