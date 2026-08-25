@@ -1,39 +1,27 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# CradleHub
 
-## Getting Started
+CradleHub is a production-connected operations platform for public booking and internal CRM, owner, manager, staff, driver, attendance, scheduling, dispatch, payroll, notification, and marketing workflows.
 
-First, run the development server:
+`main` is production-connected. Do not treat routine local work as safe to merge or deploy.
+
+## Start here
+
+- [AI context and current authorization](AI_CONTEXT.md)
+- [Agent rules](AGENTS.md)
+- [Active governance manifest](docs/20-CHATGPT-LIVE-CONTEXT.md)
+- [Current human-readable status](docs/13-PROJECT-STATUS.md)
+
+## Local development
+
+The repository uses pnpm. The declared runtime is Node `>=24 <25`; `.node-version` records the intended local version.
 
 ```bash
-npm run dev
-# or
-yarn dev
-# or
 pnpm dev
-# or
-bun dev
+pnpm type-check
+pnpm lint
+pnpm format:check
+pnpm test -- --run
+pnpm build
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
-
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
-
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
-
-## Learn More
-
-To learn more about Next.js, take a look at the following resources:
-
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
-
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
-
-## Deploy on Vercel
-
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
-
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
-# Cradlehub
-# Cradlehub
-# Cradlehub
+Database wrapper commands are listed in `package.json`. They must be used only after identifying the target environment and obtaining the required authorization.

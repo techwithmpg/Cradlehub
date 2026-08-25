@@ -1,3 +1,5 @@
+> **Historical task notice (2026-08-26):** This file is retained as evidence only. Do not resume, update, or use it to select current work. Read [AI_CONTEXT.md](../AI_CONTEXT.md) and [project status](13-PROJECT-STATUS.md) instead.
+
 # 🎯 CURRENT TASK — What Is Being Worked On RIGHT NOW
 
 > **Rule: Before starting work, write your task here.**

@@ -1,3 +1,5 @@
+> **Historical governance notice (2026-08-26):** This document is retained as evidence only. It is not active authority and must not override the owner-approved [AI context](../AI_CONTEXT.md), [decision log](11-DECISION-LOG.md), or active governance manifest.
+
 # 📏 AGENT RULES — Law of the Codebase
 
 > **This file is the constitution. No agent — human or AI — is exempt.**

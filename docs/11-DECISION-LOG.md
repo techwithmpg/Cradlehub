@@ -1,0 +1,14 @@
+# Decision Log
+
+| ID | Date | Status | Decision | Rationale and impact | Supersedes |
+| --- | --- | --- | --- | --- | --- |
+| GOV-001 | 2026-08-26 | ACTIVE | Use the approved source-of-truth hierarchy. | Owner instruction, active decisions, AI context, frozen scope/status/governance, accepted code, then independently proven live state establish authority. | Fragmented historical instruction order |
+| GOV-002 | 2026-08-26 | ACTIVE | Active governance lives in `docs/`; root `AI_CONTEXT.md` and `AGENTS.md` are entry points. | Gives agents one durable manifest and avoids a project diary becoming authority. | Informal documentation layouts |
+| GOV-003 | 2026-08-26 | ACTIVE | Treat `.context/` as historical evidence. | Preserves audit history without maintaining a conflicting mirror. | Historical mirrored control files |
+| GOV-004 | 2026-08-26 | ACTIVE | Use the C0B, C1, C2, C3, C4, C5+, FINAL stage model. | Work must be authorized and gated one stage at a time. | Earlier roadmap phase models |
+| GOV-005 | 2026-08-26 | ACTIVE | `main` is production-connected; routine implementation requires an authorized branch. | An accepted main merge/push can deploy, so branch review is a safety control. | Direct-main routine implementation |
+| GOV-006 | 2026-08-26 | ACTIVE | Preserve working functionality and prohibit speculative stabilization work. | Reduces regression and scope risk. | Opportunistic/greenfield task assumptions |
+| GOV-007 | 2026-08-26 | ACTIVE | Do not bulk reconcile the 84 historical local-only migration versions. | Filename/history normalization cannot establish historical data effects. | Broad replay or `--include-all` reconciliation |
+| GOV-008 | 2026-08-26 | ACTIVE | Treat Attendance scanning and operational enforcement as separate controls. | Operational enforcement remains blocked until its recorded gates have passed. | Readiness claims based on source changes alone |
+
+New decisions must include an ID, date, status (`ACTIVE`, `SUPERSEDED`, or `RETIRED`), decision, rationale, impact, and supersession relationship where relevant.

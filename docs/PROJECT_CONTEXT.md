@@ -1,3 +1,5 @@
+> **Historical context notice (2026-08-26):** This document is retained as evidence only and is no longer the active source of truth. Read [AI_CONTEXT.md](../AI_CONTEXT.md), the active [decision log](11-DECISION-LOG.md), and the governance manifest first.
+
 # 📋 PROJECT CONTEXT — Single Source of Truth
 
 > **⚠️ MANDATORY: Every AI agent MUST read this entire file before doing ANY work.**

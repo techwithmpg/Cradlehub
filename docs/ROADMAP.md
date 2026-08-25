@@ -1,3 +1,5 @@
+> **Historical roadmap notice (2026-08-26):** This roadmap is retained as evidence and must not be used to select or authorize current work. Use [development stages](08-DEVELOPMENT-STAGES.md), [project status](13-PROJECT-STATUS.md), and explicit owner approval.
+
 # 🗺️ ROADMAP — Development Progress Tracker
 
 > **Rule: Agents check off items as they complete them. Never skip ahead.**
