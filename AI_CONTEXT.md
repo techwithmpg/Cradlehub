@@ -6,13 +6,14 @@
 - Canonical repository: `https://github.com/techwithmpg/Cradlehub.git`
 - Accepted branch: `main`
 
-## Live baseline
+## Accepted governance anchor
 
-- Accepted `main` SHA: `4bff290923f2046e7097c08d9c15e48c27e49c25`
-- Last repository verification: 2026-08-26
-- Authorized stage: **C0B — Governance & Live Context**
+- C0B accepted governance merge SHA: `03dbd57ed4be6f9b1f0bd30c7fd22a225e68ec2a`
+- C0B status: **CLOSED / ACCEPTED**
+- Last governance closeout verification: 2026-08-26
+- Next stage: **C1 — NOT AUTHORIZED**
 
-Substantial work must re-resolve `origin/main` before relying on this baseline. A newer accepted `main` supersedes this recorded SHA; inspect it rather than recreating an older state.
+The recorded SHA is the stable C0B closeout anchor, not a declaration of the current `main` head. At the start of every session, fetch and re-resolve `origin/main`; inspect newer accepted work rather than recreating an older state.
 
 ## Authority order
 
@@ -51,7 +52,7 @@ Substantial work must re-resolve `origin/main` before relying on this baseline. 
 
 ## Current authorization
 
-Only C0B governance/documentation implementation is authorized. C1 and later work are not authorized.
+C0B is closed and accepted. C1 and later work are not authorized; C1 requires a separate explicit owner authorization.
 
 ## Historical context policy
 
