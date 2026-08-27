@@ -11,7 +11,9 @@
 - C0B accepted governance merge SHA: `03dbd57ed4be6f9b1f0bd30c7fd22a225e68ec2a`
 - C0B status: **CLOSED / ACCEPTED**
 - Last governance closeout verification: 2026-08-26
-- Next stage: **C1 — NOT AUTHORIZED**
+- C1 accepted-main baseline at authorization: `4f9291c7d457ec49b071e766df4c23ca1e4f1558`
+- C1 evidence verification: 2026-08-27
+- Current stage: **C1 — PASS RECOMMENDED / AWAITING OWNER REVIEW**
 
 The recorded SHA is the stable C0B closeout anchor, not a declaration of the current `main` head. At the start of every session, fetch and re-resolve `origin/main`; inspect newer accepted work rather than recreating an older state.
 
@@ -30,6 +32,7 @@ The recorded SHA is the stable C0B closeout anchor, not a declaration of the cur
 
 - [Stabilization scope](docs/01-STABILIZATION-SCOPE.md)
 - [Current system map](docs/02-CURRENT-SYSTEM-MAP.md)
+- [Current-system truth](docs/03-CURRENT-SYSTEM-TRUTH.md)
 - [Data and sync architecture](docs/04-DATA-SYNC-ARCHITECTURE.md)
 - [Production safety](docs/05-PRODUCTION-SAFETY.md)
 - [UI/UX contract](docs/06-UI-UX-CONTRACT.md)
@@ -52,7 +55,7 @@ The recorded SHA is the stable C0B closeout anchor, not a declaration of the cur
 
 ## Current authorization
 
-C0B is closed and accepted. C1 and later work are not authorized; C1 requires a separate explicit owner authorization.
+C0B is closed and accepted. The owner explicitly authorized C1 current-system truth consolidation on 2026-08-27. C1 evidence is complete on `stage/c1-truth-consolidation` and is recommended PASS, subject to owner review and the required merge gate. C1 did not change product behavior or any database/production environment. C2 and all later stages remain not authorized.
 
 ## Historical context policy
 
