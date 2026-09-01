@@ -8,8 +8,8 @@
 - **Branch:** `stage/c5-3-website-studio`
 - **Accepted Starting Base SHA:** `f71f0b0c9d0de60a11386814cd23c200ca99496b`
 - **Original Contaminated Implementation Head SHA:** `3fb22d2458a8810ab54230a5d77e01b6b3b7ca34`
-- **Scope-Isolation Correction SHA:** `PENDING_COMMIT`
-- **Final Reviewed Candidate Head SHA:** `PENDING_COMMIT`
+- **Scope-Isolation Correction SHA:** `facfa4dd49a007b1e8c57f96d448c56954b0c27f`
+- **Final Reviewed Candidate Head SHA:** `facfa4dd49a007b1e8c57f96d448c56954b0c27f`
 - **Active Governance Decision:** `GOV-025` recorded in `docs/11-DECISION-LOG.md`
 - **Scope Compliance:** Website Studio & High-Fidelity Preview ONLY. No migrations, no database schema mutations, no Auth/RLS/Storage policy modifications, no production-data mutations. C5 Pass 4 and Pass 5 remain strictly NOT AUTHORIZED.
 
