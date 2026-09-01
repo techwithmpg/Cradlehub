@@ -468,13 +468,13 @@ describe("Website Studio & High-Fidelity Preview (C5 Pass 3)", () => {
       // Quote banner
       const quoteBtn = screen.getByRole("button", { name: /Promotion \/ Quote Banner/i });
       fireEvent.click(quoteBtn);
-      expect(screen.getByText("Promotion / Quote Banner Section")).toBeDefined();
+      expect(screen.getByText("Promotional Quote Banner")).toBeDefined();
 
       // Before you book
       const beforeBtn = screen.getByRole("button", { name: /Before You Book/i });
       fireEvent.click(beforeBtn);
-      expect(screen.getByText("Before You Book Section")).toBeDefined();
-      expect(screen.getByText("Checklist & Guidance Items")).toBeDefined();
+      expect(screen.getByText("Before You Book Guide")).toBeDefined();
+      expect(screen.getByText("Booking Guidelines Checklist Items")).toBeDefined();
     });
   });
 });
