@@ -11,7 +11,9 @@ import type { BranchServiceCatalogRow } from "@/lib/services/service-types";
 
 const activeService = { is_active: true };
 
-function branchService(overrides: Partial<BranchServiceCatalogRow> = {}): BranchServiceCatalogRow {
+function branchService(
+  overrides: Partial<BranchServiceCatalogRow> = {}
+): BranchServiceCatalogRow {
   return {
     id: "branch-service-id",
     branch_id: "branch-id",

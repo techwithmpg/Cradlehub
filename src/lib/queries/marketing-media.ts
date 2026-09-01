@@ -12,7 +12,9 @@ import {
 } from "@/lib/validations/marketing";
 import {
   analyzeMediaAssetUsage,
+  batchAnalyzeMediaUsage,
   type MediaAssetUsageSummary,
+  type MediaUsageContextData,
 } from "@/lib/marketing/media-usage-analyzer";
 import {
   getPublicSiteAssets,
@@ -238,9 +240,7 @@ export async function getMarketingMediaAssetById(
   return data;
 }
 
-export async function getMarketingMediaAssetUsage(
-  asset: MarketingMediaAssetRow
-): Promise<MediaAssetUsageSummary> {
+export async function getMarketingMediaUsageContext(): Promise<MediaUsageContextData> {
   const unresolvedStores: string[] = [];
 
   let sections: PublicSiteSectionRow[] | undefined;
@@ -361,7 +361,7 @@ export async function getMarketingMediaAssetUsage(
     unresolvedStores.push("marketing_brand_settings", "marketing_seo_settings");
   }
 
-  return analyzeMediaAssetUsage(asset, {
+  return {
     sections,
     publicAssets,
     drafts,
@@ -369,7 +369,26 @@ export async function getMarketingMediaAssetUsage(
     brandSettings,
     seoSettings,
     unresolvedStores: unresolvedStores.length > 0 ? unresolvedStores : undefined,
+  };
+}
+
+export async function getMarketingMediaAssetUsage(
+  asset: MarketingMediaAssetRow
+): Promise<MediaAssetUsageSummary> {
+  const usageContext = await getMarketingMediaUsageContext();
+  return analyzeMediaAssetUsage(asset, usageContext);
+}
+
+export async function getMarketingMediaUsageMap(
+  assets: MarketingMediaAssetRow[]
+): Promise<Record<string, MediaAssetUsageSummary>> {
+  const usageContext = await getMarketingMediaUsageContext();
+  const map = batchAnalyzeMediaUsage(assets, usageContext);
+  const serializableMap: Record<string, MediaAssetUsageSummary> = {};
+  map.forEach((val, key) => {
+    serializableMap[key] = val;
   });
+  return serializableMap;
 }
 
 export async function saveMarketingMediaAsset(
@@ -379,55 +398,51 @@ export async function saveMarketingMediaAsset(
   if (!parsed.success) {
     return {
       success: false,
-      error: parsed.error.issues[0]?.message ?? "Please check the media asset details.",
+      error: parsed.error.issues[0]?.message ?? "Invalid media asset payload.",
     };
   }
 
   const context = await getMarketingAccessContext();
   if (!context) return { success: false, error: "Unauthorized" };
 
-  const input = parsed.data;
+  const { id, bucketPath, publicUrl, title, altText, sectionKey, metadata } = parsed.data;
   const assetsTable = table<MarketingMediaAssetRow>(context.supabase, "marketing_media_assets");
 
-  if (input.id) {
-    const existing = await assetsTable.select(MEDIA_ASSET_SELECT).eq("id", input.id).maybeSingle();
+  if (id) {
+    // Check role boundaries on update:
+    // Digital Marketers may only edit metadata for assets in 'draft' or 'submitted' status
+    const existing = await assetsTable
+      .select("status")
+      .eq("id", id)
+      .maybeSingle();
 
-    if (existing.error) {
-      return { success: false, error: existing.error.message };
-    }
-    if (!existing.data) {
-      return { success: false, error: "Media asset not found." };
-    }
-
-    const currentStatus = existing.data.status;
-
-    // Digital Marketer can ONLY edit draft or submitted assets
-    if (context.role !== "owner") {
-      if (!["draft", "submitted"].includes(currentStatus)) {
+    if (existing.data) {
+      const currentStatus = existing.data.status;
+      if (
+        context.role === "digital_marketer" &&
+        currentStatus !== "draft" &&
+        currentStatus !== "submitted"
+      ) {
         return {
           success: false,
-          error: `Digital marketers can only edit draft or submitted media assets. Current status is ${currentStatus}.`,
+          error: `Digital marketers can only edit draft or submitted media assets. Current asset is ${currentStatus}.`,
         };
       }
-    } else if (currentStatus === "archived") {
-      return {
-        success: false,
-        error: "Archived media assets cannot be modified. Unarchive the asset first.",
-      };
     }
 
-    const payload = {
-      title: cleanText(input.title),
-      alt_text: input.altText.trim(),
-      section_key: cleanText(input.sectionKey),
-      content_key: cleanText(input.contentKey),
-      metadata: input.metadata,
+    const updatePayload: Record<string, unknown> = {
       updated_by: context.staffId,
     };
+    if (bucketPath !== undefined) updatePayload.bucket_path = bucketPath;
+    if (publicUrl !== undefined) updatePayload.public_url = publicUrl;
+    if (title !== undefined) updatePayload.title = cleanText(title);
+    if (altText !== undefined) updatePayload.alt_text = altText;
+    if (sectionKey !== undefined) updatePayload.section_key = cleanText(sectionKey);
+    if (metadata !== undefined) updatePayload.metadata = metadata;
 
     const result = await assetsTable
-      .update(payload)
-      .eq("id", input.id)
+      .update(updatePayload)
+      .eq("id", id)
       .select(MEDIA_ASSET_SELECT)
       .single();
 
@@ -436,37 +451,29 @@ export async function saveMarketingMediaAsset(
     }
 
     revalidateMediaLibrary();
-    return { success: true, asset: result.data, message: "Media details updated." };
+    return { success: true, asset: result.data, message: "Media asset updated." };
   }
 
-  // Create new asset row
-  const payload = {
-    bucket_path: input.bucketPath.trim(),
-    public_url: cleanText(input.publicUrl),
-    title: cleanText(input.title),
-    alt_text: input.altText.trim(),
-    section_key: cleanText(input.sectionKey),
-    content_key: cleanText(input.contentKey),
+  const insertPayload = {
+    bucket_path: bucketPath!,
+    public_url: publicUrl ?? null,
+    title: cleanText(title) || bucketPath!.split("/").pop() || "Untitled Image",
+    alt_text: altText ?? "Media asset",
+    section_key: cleanText(sectionKey),
     status: "draft",
-    metadata: input.metadata,
+    metadata: metadata ?? {},
     created_by: context.staffId,
     updated_by: context.staffId,
   };
 
-  const result = await assetsTable.insert(payload).select(MEDIA_ASSET_SELECT).single();
+  const result = await assetsTable.insert(insertPayload).select(MEDIA_ASSET_SELECT).single();
 
   if (result.error || !result.data) {
-    if (result.error && isMissingMarketingTableError(result.error.message)) {
-      return {
-        success: false,
-        error: "Marketing media tables are not available yet in this environment.",
-      };
-    }
     return { success: false, error: result.error?.message ?? "Could not create media asset." };
   }
 
   revalidateMediaLibrary();
-  return { success: true, asset: result.data, message: "Media asset created." };
+  return { success: true, asset: result.data, message: "Media asset saved as draft." };
 }
 
 export async function updateMarketingMediaAssetStatus(
@@ -476,7 +483,7 @@ export async function updateMarketingMediaAssetStatus(
   if (!parsed.success) {
     return {
       success: false,
-      error: parsed.error.issues[0]?.message ?? "Invalid status update request.",
+      error: parsed.error.issues[0]?.message ?? "Invalid status update payload.",
     };
   }
 
@@ -485,7 +492,8 @@ export async function updateMarketingMediaAssetStatus(
 
   const { id, status } = parsed.data;
 
-  // Generic status update MUST NEVER set 'archived'
+  // Generic status updates cannot be used to archive assets.
+  // Archiving must go through archiveMarketingMediaAsset to enforce safe usage checks.
   if (status === "archived") {
     return {
       success: false,
@@ -501,16 +509,17 @@ export async function updateMarketingMediaAssetStatus(
   }
 
   const currentStatus = existing.data.status;
-
-  if (currentStatus === "archived") {
-    return {
-      success: false,
-      error: "Archived media assets cannot have their status updated directly.",
-    };
+  if (currentStatus === status) {
+    return { success: true, asset: existing.data, message: "Status already up to date." };
   }
 
-  // Digital Marketer role boundary enforcement
-  if (context.role !== "owner") {
+  if (currentStatus === "archived") {
+    return { success: false, error: "Archived media assets cannot have their status updated directly." };
+  }
+
+  // Strict Lifecycle State Machine & Role Enforcement
+  if (context.role === "digital_marketer") {
+    // Marketer can only move draft <-> submitted
     const isAllowedMarketerTransition =
       (currentStatus === "draft" && status === "submitted") ||
       (currentStatus === "submitted" && status === "draft");
@@ -775,10 +784,33 @@ export async function uploadMarketingMediaFile(
       .single();
 
     if (finalizedResult.error || !finalizedResult.data) {
+      logError("marketing.media_finalization_failed", {
+        error: finalizedResult.error,
+        assetId: draftRow.id,
+        bucketPath,
+      });
+
+      try {
+        await assetsTable
+          .update({
+            metadata: {
+              ...draftRow.metadata,
+              uploadStatus: "finalization_failed",
+              uploadError: finalizedResult.error?.message ?? "Database finalization failed",
+              publicUrlCandidate: publicUrl,
+            },
+            updated_by: context.staffId,
+          })
+          .eq("id", draftRow.id);
+      } catch (metaErr) {
+        logError("marketing.media_finalization_meta_update_failed", { error: metaErr });
+      }
+
+      revalidateMediaLibrary();
       return {
-        success: true,
-        asset: { ...draftRow, public_url: publicUrl },
-        message: "Media uploaded successfully.",
+        success: false,
+        error:
+          "The media file was stored successfully, but catalog finalization failed. The record remains tracked as incomplete and requires retry or reconciliation.",
       };
     }
 
@@ -804,7 +836,7 @@ export async function uploadMarketingMediaFile(
 
     return {
       success: false,
-      error: "An unexpected error occurred while processing the upload.",
+      error: `Media upload encountered an error: ${err instanceof Error ? err.message : "Unknown error"}`,
     };
   }
 }

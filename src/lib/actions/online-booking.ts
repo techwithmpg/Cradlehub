@@ -16,10 +16,7 @@ import {
 } from "@/lib/engine/availability";
 import { computeEndTime } from "@/lib/engine/booking-time";
 import { buildBookingSnapshot } from "@/lib/engine/snapshot";
-import {
-  validateBookingAgainstBranchRules,
-  getBranchBookingRulesOrDefault,
-} from "@/lib/queries/branch-booking-rules";
+import { validateBookingAgainstBranchRules, getBranchBookingRulesOrDefault } from "@/lib/queries/branch-booking-rules";
 import { checkHomeServiceDispatchConflict } from "@/lib/bookings/dispatch-conflict";
 import { buildGoogleMapsSearchUrl } from "@/lib/maps/google-maps";
 import { SlotUnavailableError } from "@/types/errors";
@@ -101,10 +98,7 @@ async function hasRecentDuplicateBooking(params: {
     .select("id")
     .eq("branch_id", params.branchId)
     .in("service_id", params.serviceIds)
-    .in(
-      "customer_id",
-      customers.map((customer) => customer.id)
-    )
+    .in("customer_id", customers.map((customer) => customer.id))
     .gte("created_at", new Date(Date.now() - PUBLIC_BOOKING_COOLDOWN_MS).toISOString())
     .limit(1);
   if (error) throw error;
@@ -134,11 +128,7 @@ export async function createOnlineBookingAction(
   input: CreateOnlineBookingInput
 ): Promise<CreateOnlineBookingResult> {
   if (payloadIsOversized(input)) {
-    return {
-      ok: false,
-      code: "PAYLOAD_TOO_LARGE",
-      message: "Please shorten your request and try again.",
-    };
+    return { ok: false, code: "PAYLOAD_TOO_LARGE", message: "Please shorten your request and try again." };
   }
   const parsed = createOnlineBookingSchema.safeParse(input);
   if (!parsed.success) {
@@ -166,8 +156,7 @@ export async function createOnlineBookingAction(
       return {
         ok: false,
         code: "USE_MULTI_ACTION",
-        message:
-          "Home Service bookings require additional address details. Please use the booking wizard.",
+        message: "Home Service bookings require additional address details. Please use the booking wizard.",
       };
     }
 
@@ -195,20 +184,17 @@ export async function createOnlineBookingAction(
       };
     }
 
-    if (
-      await hasRecentDuplicateBooking({
-        supabase,
-        branchId: d.branchId,
-        serviceIds: [d.serviceId],
-        phone: d.phone,
-        email: d.email || undefined,
-      })
-    ) {
+    if (await hasRecentDuplicateBooking({
+      supabase,
+      branchId: d.branchId,
+      serviceIds: [d.serviceId],
+      phone: d.phone,
+      email: d.email || undefined,
+    })) {
       return {
         ok: false,
         code: "DUPLICATE_REQUEST",
-        message:
-          "We already received this booking request. Please wait a few minutes before trying again.",
+        message: "We already received this booking request. Please wait a few minutes before trying again.",
       };
     }
 
@@ -276,18 +262,20 @@ export async function createOnlineBookingAction(
       : baseMetadata;
     const holdExpiresAt = getPublicBookingHoldExpiresAt();
 
-    const { data: customerId, error: custErr } = await supabase.rpc("upsert_customer", {
-      p_phone: d.phone,
-      p_full_name: d.fullName,
-      p_email: d.email || undefined,
-    });
+    const { data: customerId, error: custErr } = await supabase.rpc(
+      "upsert_customer",
+      {
+        p_phone: d.phone,
+        p_full_name: d.fullName,
+        p_email: d.email || undefined,
+      }
+    );
     if (custErr || !customerId) {
       logBookingError(logContext, custErr ?? new Error("upsert_customer returned no ID"));
       return {
         ok: false,
         code: "CUSTOMER_ERROR",
-        message:
-          "Failed to create or find customer record. Please check your details and try again.",
+        message: "Failed to create or find customer record. Please check your details and try again.",
       };
     }
     const resolvedCustomerId = String(customerId);
@@ -320,8 +308,7 @@ export async function createOnlineBookingAction(
       return {
         ok: false,
         code: "BOOKING_INSERT_FAILED",
-        message:
-          "Could not create booking. The slot may have been taken. Please select a different time.",
+        message: "Could not create booking. The slot may have been taken. Please select a different time.",
       };
     }
 
@@ -370,10 +357,7 @@ export async function createOnlineBookingAction(
         },
       });
     } catch (notifyErr) {
-      logBookingError(
-        logContext,
-        notifyErr instanceof Error ? notifyErr : new Error(String(notifyErr))
-      );
+      logBookingError(logContext, notifyErr instanceof Error ? notifyErr : new Error(String(notifyErr)));
     }
 
     logBusinessEvent("booking.online.submitted", {
@@ -411,11 +395,7 @@ export async function createOnlineBookingMultiAction(
   input: CreateOnlineBookingMultiInput
 ): Promise<CreateOnlineBookingResult> {
   if (payloadIsOversized(input)) {
-    return {
-      ok: false,
-      code: "PAYLOAD_TOO_LARGE",
-      message: "Please shorten your request and try again.",
-    };
+    return { ok: false, code: "PAYLOAD_TOO_LARGE", message: "Please shorten your request and try again." };
   }
   const parsed = createOnlineBookingMultiSchema.safeParse(input);
   if (!parsed.success) {
@@ -465,7 +445,8 @@ export async function createOnlineBookingMultiAction(
       return {
         ok: false,
         code: "SLOT_IN_PAST",
-        message: "That time is no longer available. Please choose a later time.",
+        message:
+          "That time is no longer available. Please choose a later time.",
       };
     }
 
@@ -479,20 +460,17 @@ export async function createOnlineBookingMultiAction(
       };
     }
 
-    if (
-      await hasRecentDuplicateBooking({
-        supabase,
-        branchId: d.branchId,
-        serviceIds: d.serviceIds,
-        phone: d.phone,
-        email: d.email || undefined,
-      })
-    ) {
+    if (await hasRecentDuplicateBooking({
+      supabase,
+      branchId: d.branchId,
+      serviceIds: d.serviceIds,
+      phone: d.phone,
+      email: d.email || undefined,
+    })) {
       return {
         ok: false,
         code: "DUPLICATE_REQUEST",
-        message:
-          "We already received this booking request. Please wait a few minutes before trying again.",
+        message: "We already received this booking request. Please wait a few minutes before trying again.",
       };
     }
 
@@ -507,7 +485,8 @@ export async function createOnlineBookingMultiAction(
       return {
         ok: false,
         code: "SERVICE_INELIGIBLE",
-        message: "One or more selected services are not available for this booking type.",
+        message:
+          "One or more selected services are not available for this booking type.",
       };
     }
 
@@ -570,8 +549,7 @@ export async function createOnlineBookingMultiAction(
       return {
         ok: false,
         code: "CUSTOMER_ERROR",
-        message:
-          "Failed to create or find customer record. Please check your details and try again.",
+        message: "Failed to create or find customer record. Please check your details and try again.",
       };
     }
     const resolvedCustomerId = String(customerId);
@@ -608,27 +586,28 @@ export async function createOnlineBookingMultiAction(
       const homeServiceLng = d.homeServiceLng as number;
       const formattedAddress = d.homeServiceFormattedAddress?.trim() ?? "";
       const mapUrl =
-        d.homeServiceMapUrl?.trim() || buildGoogleMapsSearchUrl(homeServiceLat, homeServiceLng);
+        d.homeServiceMapUrl?.trim() ||
+        buildGoogleMapsSearchUrl(homeServiceLat, homeServiceLng);
 
       hsAddressData = {
-        address: formattedAddress,
-        full_address: d.homeServiceAddress?.trim() || formattedAddress,
-        address_details: d.homeServiceAddressDetails ?? null,
-        barangay: d.homeServiceBarangay ?? null,
-        city: d.homeServiceCity ?? null,
-        landmark: d.homeServiceLandmark ?? null,
-        parking_notes: d.homeServiceParkingNotes ?? null,
-        delivery_notes: d.homeServiceCustomerNotes ?? d.homeServiceParkingNotes ?? null,
-        notes: d.homeServiceCustomerNotes ?? d.homeServiceParkingNotes ?? null,
-        customer_notes: d.homeServiceCustomerNotes ?? d.homeServiceParkingNotes ?? null,
-        zone: d.homeServiceZone ?? "unknown",
+        address:           formattedAddress,
+        full_address:      d.homeServiceAddress?.trim() || formattedAddress,
+        address_details:   d.homeServiceAddressDetails ?? null,
+        barangay:          d.homeServiceBarangay ?? null,
+        city:              d.homeServiceCity ?? null,
+        landmark:          d.homeServiceLandmark ?? null,
+        parking_notes:     d.homeServiceParkingNotes ?? null,
+        delivery_notes:    d.homeServiceCustomerNotes ?? d.homeServiceParkingNotes ?? null,
+        notes:             d.homeServiceCustomerNotes ?? d.homeServiceParkingNotes ?? null,
+        customer_notes:    d.homeServiceCustomerNotes ?? d.homeServiceParkingNotes ?? null,
+        zone:              d.homeServiceZone ?? "unknown",
         formatted_address: formattedAddress,
-        place_id: d.homeServicePlaceId?.trim() ?? null,
-        lat: homeServiceLat,
-        lng: homeServiceLng,
+        place_id:          d.homeServicePlaceId?.trim() ?? null,
+        lat:               homeServiceLat,
+        lng:               homeServiceLng,
         address_components: toAddressComponentsJson(d.homeServiceAddressComponents),
-        map_url: mapUrl,
-        source: "google_places",
+        map_url:           mapUrl,
+        source:            "google_places",
       } satisfies { [key: string]: Json | undefined };
 
       // Compute total end time for dispatch check
@@ -640,17 +619,14 @@ export async function createOnlineBookingMultiAction(
         (s, sv) => s + sv.duration_minutes + sv.buffer_before + sv.buffer_after,
         0
       );
-      const dispatchEndH = Math.floor(
+      const dispatchEndH = Math.floor((
         (parseInt(d.startTime.split(":")[0] ?? "0") * 60 +
-          parseInt(d.startTime.split(":")[1] ?? "0") +
-          totalMins) /
-          60
-      );
-      const dispatchEndM =
-        (parseInt(d.startTime.split(":")[0] ?? "0") * 60 +
-          parseInt(d.startTime.split(":")[1] ?? "0") +
-          totalMins) %
-        60;
+          parseInt(d.startTime.split(":")[1] ?? "0")) + totalMins
+      ) / 60);
+      const dispatchEndM = (
+        parseInt(d.startTime.split(":")[0] ?? "0") * 60 +
+          parseInt(d.startTime.split(":")[1] ?? "0") + totalMins
+      ) % 60;
       const estimatedEndTime = `${String(dispatchEndH).padStart(2, "0")}:${String(dispatchEndM).padStart(2, "0")}:00`;
 
       const branchRules = await getBranchBookingRulesOrDefault(d.branchId);
@@ -670,8 +646,9 @@ export async function createOnlineBookingMultiAction(
       }
 
       dispatchData = {
-        needs_location_review:
-          dispatchResult.conflict === "warning" ? dispatchResult.needs_location_review : false,
+        needs_location_review: dispatchResult.conflict === "warning"
+          ? dispatchResult.needs_location_review
+          : false,
         travel_minutes_estimate: null,
         driver_capacity_checked: true,
         dispatch_warning: dispatchResult.conflict === "warning" ? dispatchResult.message : null,
@@ -733,7 +710,10 @@ export async function createOnlineBookingMultiAction(
 
       if (bookErr || !booking) {
         if (insertedIds.length > 0) {
-          await supabase.from("bookings").update({ status: "cancelled" }).in("id", insertedIds);
+          await supabase
+            .from("bookings")
+            .update({ status: "cancelled" })
+            .in("id", insertedIds);
         }
         logBookingError(
           { ...logContext, serviceId, currentStart: startTime, endTime },
@@ -742,8 +722,7 @@ export async function createOnlineBookingMultiAction(
         return {
           ok: false,
           code: "BOOKING_INSERT_FAILED",
-          message:
-            "Could not create booking. The slot may have been taken. Please select a different time.",
+          message: "Could not create booking. The slot may have been taken. Please select a different time.",
         };
       }
 
@@ -762,11 +741,10 @@ export async function createOnlineBookingMultiAction(
       .from("services")
       .select("id, name")
       .in("id", d.serviceIds);
-    const serviceNames =
-      (notificationServices ?? [])
-        .map((service) => service.name)
-        .filter(Boolean)
-        .join(", ") || (d.serviceIds.length > 1 ? "Multiple services" : "Service");
+    const serviceNames = (notificationServices ?? [])
+      .map((service) => service.name)
+      .filter(Boolean)
+      .join(", ") || (d.serviceIds.length > 1 ? "Multiple services" : "Service");
     // Online booking is pending — notify CRM only; staff gets notified after payment is confirmed.
     const notificationJobs: Promise<void>[] = [
       createNotification({
@@ -793,7 +771,9 @@ export async function createOnlineBookingMultiAction(
     ];
 
     for (const scheduleException of insertedScheduleExceptions) {
-      notificationJobs.push(createStaffScheduleExceptionSignals(scheduleException));
+      notificationJobs.push(
+        createStaffScheduleExceptionSignals(scheduleException)
+      );
     }
 
     if (isHSMulti && dispatchData.needs_location_review === true) {
@@ -836,10 +816,7 @@ export async function createOnlineBookingMultiAction(
     try {
       await Promise.all(notificationJobs);
     } catch (notifyErr) {
-      logBookingError(
-        logContext,
-        notifyErr instanceof Error ? notifyErr : new Error(String(notifyErr))
-      );
+      logBookingError(logContext, notifyErr instanceof Error ? notifyErr : new Error(String(notifyErr)));
     }
 
     logBusinessEvent("booking.online.submitted", {
@@ -857,7 +834,9 @@ export async function createOnlineBookingMultiAction(
     return {
       ok: true,
       bookingId: insertedIds[0]!,
-      ...(insertedScheduleExceptions.length > 0 ? { staffPreferenceNeedsConfirmation: true } : {}),
+      ...(insertedScheduleExceptions.length > 0
+        ? { staffPreferenceNeedsConfirmation: true }
+        : {}),
     };
   } catch (err) {
     if (err instanceof SlotUnavailableError) {

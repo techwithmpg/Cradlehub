@@ -41,9 +41,7 @@ type StaffServiceCtx = {
 
 async function requireCrmStaffServiceAccess(): Promise<StaffServiceCtx | null> {
   const supabase = await createClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
+  const { data: { user } } = await supabase.auth.getUser();
   if (!user) return null;
 
   const { data: me } = await supabase
@@ -62,7 +60,9 @@ async function requireCrmStaffServiceAccess(): Promise<StaffServiceCtx | null> {
         branch_id: me.branch_id as string | null,
         system_role: role,
       },
-      canManageAcrossBranches: canManageStaffServicesAcrossBranches(role),
+      canManageAcrossBranches: canManageStaffServicesAcrossBranches(
+        role
+      ),
     };
   }
 
@@ -76,7 +76,9 @@ async function requireCrmStaffServiceAccess(): Promise<StaffServiceCtx | null> {
         branch_id: mock.branch_id,
         system_role: role,
       },
-      canManageAcrossBranches: canManageStaffServicesAcrossBranches(role),
+      canManageAcrossBranches: canManageStaffServicesAcrossBranches(
+        role
+      ),
     };
   }
 
@@ -140,7 +142,8 @@ function mapStaffServiceRpcError(error: StaffServiceRpcError): {
   if (message.includes("crm_staff_services_invalid_service")) {
     return {
       code: "INVALID_SERVICE",
-      message: "One or more selected services are not assignable for this staff member's branch.",
+      message:
+        "One or more selected services are not assignable for this staff member's branch.",
     };
   }
 
@@ -250,10 +253,13 @@ export async function updateStaffServicesFromCrmAction(
     };
   }
 
-  const { data, error } = await ctx.supabase.rpc("replace_staff_service_capabilities", {
-    p_target_staff_id: staffId,
-    p_service_ids: serviceIds,
-  });
+  const { data, error } = await ctx.supabase.rpc(
+    "replace_staff_service_capabilities",
+    {
+      p_target_staff_id: staffId,
+      p_service_ids: serviceIds,
+    }
+  );
 
   if (error) {
     console.error("[crm/staff-services] atomic replace failed", {
@@ -270,7 +276,9 @@ export async function updateStaffServicesFromCrmAction(
     return { ok: false, ...mapped };
   }
 
-  const savedServiceIds = ((data ?? []) as StaffServiceRpcRow[]).map((row) => row.service_id);
+  const savedServiceIds = ((data ?? []) as StaffServiceRpcRow[]).map(
+    (row) => row.service_id
+  );
   const targetBranchId = targetStaff.branch_id as string | null;
 
   if (targetBranchId) {

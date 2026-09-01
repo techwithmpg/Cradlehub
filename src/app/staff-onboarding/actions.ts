@@ -66,9 +66,7 @@ export async function submitStaffOnboardingAction(
   // Collect fields
   const fullName = String(formData.get("fullName") ?? "").trim();
   const nickname = normalizeOptionalString(formData.get("nickname"));
-  const email = String(formData.get("email") ?? "")
-    .trim()
-    .toLowerCase();
+  const email = String(formData.get("email") ?? "").trim().toLowerCase();
   const phone = String(formData.get("phone") ?? "").trim();
   const preferredBranchId = String(formData.get("preferredBranchId") ?? "").trim();
   const branchConfirmed = formData.get("branchConfirmed") === "on";
@@ -208,18 +206,12 @@ export async function submitStaffOnboardingAction(
       .from("staff-pictures")
       .upload(filePath, profilePicture, { upsert: true, contentType: profilePicture.type });
     if (!uploadErr) {
-      const {
-        data: { publicUrl },
-      } = supabase.storage.from("staff-pictures").getPublicUrl(filePath);
+      const { data: { publicUrl } } = supabase.storage.from("staff-pictures").getPublicUrl(filePath);
       // Columns may not exist in all deployments — store in request metadata as fallback
-      const updateResult = await supabase
-        .from("staff")
-        .update({ avatar_url: publicUrl, avatar_path: filePath })
-        .eq("id", staffId);
+      const updateResult = await supabase.from("staff").update({ avatar_url: publicUrl, avatar_path: filePath }).eq("id", staffId);
       if (updateResult.error) {
         // avatar_url/avatar_path columns not yet migrated — store URL in request metadata instead
-        await supabase
-          .from("staff_onboarding_requests")
+        await supabase.from("staff_onboarding_requests")
           .update({ metadata: { profile_picture_url: publicUrl } })
           .eq("staff_id", staffId);
       }
@@ -227,30 +219,26 @@ export async function submitStaffOnboardingAction(
   }
 
   // Create onboarding request row
-  const requestInsert = await supabase
-    .from("staff_onboarding_requests")
-    .insert({
-      full_name: fullName,
-      email,
-      phone,
-      address,
-      emergency_contact_name: emergencyContactName,
-      emergency_contact_phone: emergencyContactPhone,
-      experience_notes: experienceNotes,
-      preferred_role: preferredRole,
-      requested_branch_id: branchId,
-      auth_user_id: authUserId,
-      staff_id: staffId,
-      status: "submitted",
-      metadata: buildOnboardingMetadata({
-        serviceIds,
-        experienceNotes,
-        nickname,
-        branch: branchValidation.branch,
-      }) as unknown as Json,
-    })
-    .select("id")
-    .single();
+  const requestInsert = await supabase.from("staff_onboarding_requests").insert({
+    full_name: fullName,
+    email,
+    phone,
+    address,
+    emergency_contact_name: emergencyContactName,
+    emergency_contact_phone: emergencyContactPhone,
+    experience_notes: experienceNotes,
+    preferred_role: preferredRole,
+    requested_branch_id: branchId,
+    auth_user_id: authUserId,
+    staff_id: staffId,
+    status: "submitted",
+    metadata: buildOnboardingMetadata({
+      serviceIds,
+      experienceNotes,
+      nickname,
+      branch: branchValidation.branch,
+    }) as unknown as Json,
+  }).select("id").single();
 
   if (requestInsert.error) {
     // Non-fatal: staff row and auth user exist; request row is supplementary
@@ -310,28 +298,16 @@ export async function checkOnboardingDuplicates(
     ]);
 
     if (authUsers.error) {
-      logError("staff.onboarding.email_duplicate_check_failed", {
-        email: input.email,
-        error: authUsers.error,
-      });
+      logError("staff.onboarding.email_duplicate_check_failed", { email: input.email, error: authUsers.error });
     }
     if (emailRequests.error) {
-      logError("staff.onboarding.request_email_duplicate_check_failed", {
-        email: input.email,
-        error: emailRequests.error,
-      });
+      logError("staff.onboarding.request_email_duplicate_check_failed", { email: input.email, error: emailRequests.error });
     }
     if (phoneStaff.error) {
-      logError("staff.onboarding.phone_staff_duplicate_check_failed", {
-        phone: input.phone,
-        error: phoneStaff.error,
-      });
+      logError("staff.onboarding.phone_staff_duplicate_check_failed", { phone: input.phone, error: phoneStaff.error });
     }
     if (phoneRequests.error) {
-      logError("staff.onboarding.request_phone_duplicate_check_failed", {
-        phone: input.phone,
-        error: phoneRequests.error,
-      });
+      logError("staff.onboarding.request_phone_duplicate_check_failed", { phone: input.phone, error: phoneRequests.error });
     }
 
     return evaluateDuplicateCheck(
@@ -370,9 +346,7 @@ export async function approveOnboardingAction(input: {
   serviceIds?: string[];
 }): Promise<{ success: boolean; error?: string }> {
   const supabase = await createClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
+  const { data: { user } } = await supabase.auth.getUser();
   if (!user) return { success: false, error: "Not logged in" };
 
   const { data: me } = await supabase
@@ -409,10 +383,7 @@ export async function approveOnboardingAction(input: {
   });
 
   if (!approvalCheck.allowed) {
-    return {
-      success: false,
-      error: approvalCheck.reason ?? "You do not have permission to approve this request.",
-    };
+    return { success: false, error: approvalCheck.reason ?? "You do not have permission to approve this request." };
   }
 
   if (!approvalCheck.assignableRoles.includes(input.systemRole)) {
@@ -438,8 +409,7 @@ export async function approveOnboardingAction(input: {
   if (branchChanged && !approverCanChangeBranch) {
     return {
       success: false,
-      error:
-        "You can only approve staff into the requested branch. Ask an owner or manager to change the branch.",
+      error: "You can only approve staff into the requested branch. Ask an owner or manager to change the branch.",
     };
   }
 
@@ -513,16 +483,13 @@ export async function approveOnboardingAction(input: {
     updatedMetadata.approved_branch_changed_by_staff_id = me.id;
   }
 
-  await admin
-    .from("staff_onboarding_requests")
-    .update({
-      status: "approved",
-      reviewed_by_staff_id: me.id,
-      reviewed_at: now,
-      requested_branch_id: input.branchId,
-      metadata: updatedMetadata as unknown as Json,
-    })
-    .eq("id", input.requestId);
+  await admin.from("staff_onboarding_requests").update({
+    status: "approved",
+    reviewed_by_staff_id: me.id,
+    reviewed_at: now,
+    requested_branch_id: input.branchId,
+    metadata: updatedMetadata as unknown as Json,
+  }).eq("id", input.requestId);
 
   await emitWorkflowEvent({
     eventType: "staff_onboarding.approved",
@@ -556,9 +523,7 @@ export async function rejectOnboardingAction(input: {
   rejectionReason?: string;
 }): Promise<{ success: boolean; error?: string }> {
   const supabase = await createClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
+  const { data: { user } } = await supabase.auth.getUser();
   if (!user) return { success: false, error: "Not logged in" };
 
   const { data: me } = await supabase
@@ -606,16 +571,13 @@ export async function rejectOnboardingAction(input: {
     rejected_by_staff_id: me.id,
   };
 
-  await admin
-    .from("staff_onboarding_requests")
-    .update({
-      status: "rejected",
-      reviewed_by_staff_id: me.id,
-      reviewed_at: now,
-      rejection_reason: input.rejectionReason ?? null,
-      metadata: updatedMetadata as unknown as Json,
-    })
-    .eq("id", input.requestId);
+  await admin.from("staff_onboarding_requests").update({
+    status: "rejected",
+    reviewed_by_staff_id: me.id,
+    reviewed_at: now,
+    rejection_reason: input.rejectionReason ?? null,
+    metadata: updatedMetadata as unknown as Json,
+  }).eq("id", input.requestId);
 
   await emitWorkflowEvent({
     eventType: "staff_onboarding.rejected",

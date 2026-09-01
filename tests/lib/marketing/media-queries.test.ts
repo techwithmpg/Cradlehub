@@ -17,12 +17,11 @@ let mockStaff: { id: string; system_role: string } | null = {
 };
 
 let mockDbSelectData: unknown = null;
-const mockDbSelectError: unknown = null;
-const mockDbInsertData: unknown = null;
-const mockDbInsertError: unknown = null;
+let mockDbInsertData: unknown = null;
+let mockDbInsertError: unknown = null;
 let mockDbUpdateData: unknown = null;
-const mockDbUpdateError: unknown = null;
-const mockStorageUploadError: unknown = null;
+let mockDbUpdateError: unknown = null;
+let mockStorageUploadError: unknown = null;
 
 const mockStorageUpload = vi.fn().mockImplementation(() => {
   return Promise.resolve({ error: mockStorageUploadError });
@@ -59,6 +58,45 @@ const mockSupabase = {
       };
     }
 
+    if (tableName === "marketing_brand_settings") {
+      return {
+        select: vi.fn().mockImplementation(() =>
+          Promise.resolve({
+            data: [
+              {
+                id: "brand-1",
+                setting_key: "brand_logo",
+                label: "Logo",
+                value: { url: "https://example.com/logo.jpg" },
+                status: "published",
+              },
+            ],
+            error: null,
+          })
+        ),
+      };
+    }
+
+    if (tableName === "marketing_seo_settings") {
+      return {
+        select: vi.fn().mockImplementation(() =>
+          Promise.resolve({
+            data: [
+              {
+                id: "seo-1",
+                route_path: "/",
+                title: "Home",
+                og_image_url: "https://example.com/og.jpg",
+                metadata: {},
+                status: "published",
+              },
+            ],
+            error: null,
+          })
+        ),
+      };
+    }
+
     const builder: MockQueryBuilder = {
       select: vi.fn().mockReturnThis(),
       insert: vi.fn().mockImplementation(() => ({
@@ -84,14 +122,10 @@ const mockSupabase = {
       limit: vi.fn().mockReturnThis(),
       maybeSingle: vi
         .fn()
-        .mockImplementation(() =>
-          Promise.resolve({ data: mockDbSelectData, error: mockDbSelectError })
-        ),
+        .mockImplementation(() => Promise.resolve({ data: mockDbSelectData, error: null })),
       single: vi
         .fn()
-        .mockImplementation(() =>
-          Promise.resolve({ data: mockDbSelectData, error: mockDbSelectError })
-        ),
+        .mockImplementation(() => Promise.resolve({ data: mockDbSelectData, error: null })),
     };
     return builder;
   }),
@@ -122,6 +156,9 @@ import {
   saveMarketingMediaAsset,
   updateMarketingMediaAssetStatus,
   archiveMarketingMediaAsset,
+  uploadMarketingMediaFile,
+  getMarketingMediaUsageContext,
+  getMarketingMediaUsageMap,
 } from "@/lib/queries/marketing-media";
 
 const TEST_ASSET_ID = "e4b6c310-8b1e-450f-90bf-c94d2fa8e711";
@@ -239,6 +276,83 @@ describe("marketing media queries - role boundaries and safety enforcement", () 
     expect(res.success).toBe(false);
     if (!res.success) {
       expect(res.error).toContain("Only the Owner can finalize archiving");
+    }
+  });
+
+  it("loads complete six-store usage context without unresolved stores when all resolve", async () => {
+    mockStaff = { id: "staff-owner", system_role: "owner" };
+    const context = await getMarketingMediaUsageContext();
+
+    expect(context.sections).toBeDefined();
+    expect(context.publicAssets).toBeDefined();
+    expect(context.drafts).toBeDefined();
+    expect(context.services).toBeDefined();
+    expect(context.brandSettings).toBeDefined();
+    expect(context.seoSettings).toBeDefined();
+    expect(context.unresolvedStores).toBeUndefined();
+  });
+
+  it("generates page-level usage map covering all assets with complete context", async () => {
+    mockStaff = { id: "staff-owner", system_role: "owner" };
+    const asset = {
+      id: TEST_ASSET_ID,
+      bucket_path: "media/logo.jpg",
+      public_url: "https://example.com/logo.jpg",
+      title: "Logo",
+      alt_text: "Brand Logo",
+      section_key: "hero",
+      content_key: null,
+      status: "published" as const,
+      metadata: {},
+      created_by: "staff-1",
+      updated_by: "staff-1",
+      reviewed_by: null,
+      reviewed_at: null,
+      created_at: "2026-09-01T00:00:00Z",
+      updated_at: "2026-09-01T00:00:00Z",
+    };
+
+    const map = await getMarketingMediaUsageMap([asset]);
+    expect(map[TEST_ASSET_ID]).toBeDefined();
+    expect(map[TEST_ASSET_ID]?.usageUnknown).toBe(false);
+    expect(map[TEST_ASSET_ID]?.totalLiveUsages).toBe(1); // from brand setting
+    expect(map[TEST_ASSET_ID]?.canSafelyArchive).toBe(false);
+  });
+
+  it("fails closed when storage upload succeeds but DB finalization update fails", async () => {
+    mockStaff = { id: "staff-dm", system_role: "digital_marketer" };
+    mockStorageUploadError = null;
+
+    // Reservation insert succeeds
+    mockDbInsertData = {
+      id: TEST_ASSET_ID,
+      bucket_path: "media/1725170000-sample.jpg",
+      public_url: null,
+      title: "Sample Image",
+      alt_text: "Sample Alt Text",
+      section_key: "hero",
+      status: "draft",
+      metadata: { uploadStatus: "pending" },
+    };
+    mockDbInsertError = null;
+
+    // Finalization update fails
+    mockDbUpdateData = null;
+    mockDbUpdateError = { message: "Database connection timeout during finalization" };
+
+    const file = new File(["dummy content"], "sample.jpg", { type: "image/jpeg" });
+    const formData = new FormData();
+    formData.append("file", file);
+    formData.append("title", "Sample Image");
+    formData.append("altText", "Sample Alt Text");
+    formData.append("sectionKey", "hero");
+
+    const result = await uploadMarketingMediaFile(formData);
+
+    expect(result.success).toBe(false);
+    expect(mockStorageUpload).toHaveBeenCalled();
+    if (!result.success) {
+      expect(result.error).toContain("catalog finalization failed");
     }
   });
 });

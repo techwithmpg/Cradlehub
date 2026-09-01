@@ -1,35 +1,14 @@
 import { PageHeader } from "@/components/features/dashboard/page-header";
-import { getMarketingMediaAssets } from "@/lib/queries/marketing-media";
-import { getPublicSiteAssets, getPublicSiteSections } from "@/lib/queries/public-site";
-import { getMarketingContentDrafts } from "@/lib/queries/marketing-content";
-import { getPublicServiceCatalog } from "@/lib/queries/services";
 import {
-  batchAnalyzeMediaUsage,
-  type MediaAssetUsageSummary,
-} from "@/lib/marketing/media-usage-analyzer";
+  getMarketingMediaAssets,
+  getMarketingMediaUsageMap,
+} from "@/lib/queries/marketing-media";
 import { MediaLibraryView } from "@/components/features/marketing/media/media-library-view";
 import { createClient } from "@/lib/supabase/server";
 
 export default async function MediaLibraryPage() {
-  const [assets, sections, publicAssets, drafts, services] = await Promise.all([
-    getMarketingMediaAssets({ limit: 150 }),
-    getPublicSiteSections({ includeDisabled: true }),
-    getPublicSiteAssets("gallery", { includeDisabled: true }),
-    getMarketingContentDrafts(),
-    getPublicServiceCatalog(),
-  ]);
-
-  const usageMap = batchAnalyzeMediaUsage(assets, {
-    sections,
-    publicAssets,
-    drafts,
-    services,
-  });
-
-  const serializableUsageMap: Record<string, MediaAssetUsageSummary> = {};
-  usageMap.forEach((val, key) => {
-    serializableUsageMap[key] = val;
-  });
+  const assets = await getMarketingMediaAssets({ limit: 150 });
+  const serializableUsageMap = await getMarketingMediaUsageMap(assets);
 
   // Determine user role
   let userRole: "owner" | "digital_marketer" = "digital_marketer";

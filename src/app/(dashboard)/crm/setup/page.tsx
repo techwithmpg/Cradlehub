@@ -32,9 +32,7 @@ type PageContext = {
 
 async function getPageContext(): Promise<PageContext> {
   const supabase = await createClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
+  const { data: { user } } = await supabase.auth.getUser();
   if (!user) redirect("/login");
 
   const { data: me } = await supabase
@@ -47,9 +45,9 @@ async function getPageContext(): Promise<PageContext> {
   if (!me && isDevAuthBypassEnabled()) {
     const mock = getDevBypassLayoutStaff();
     return {
-      branchId: mock.branch_id as string,
+      branchId:   mock.branch_id as string,
       branchName: (mock.branches as { name: string }).name,
-      role: mock.system_role as string,
+      role:       mock.system_role as string,
     };
   }
 
@@ -59,7 +57,7 @@ async function getPageContext(): Promise<PageContext> {
   }
 
   return {
-    branchId: me.branch_id as string,
+    branchId:   me.branch_id as string,
     branchName: (me.branches as { name: string } | null)?.name ?? "Your Branch",
     role,
   };
@@ -70,32 +68,24 @@ async function getPageContext(): Promise<PageContext> {
 function resolveTab(raw: string | undefined): SetupTab {
   if (!raw) return "health";
   switch (raw) {
-    case "health":
-      return "health";
+    case "health":                           return "health";
     case "services":
     case "customization":
-    case "assignments":
-      return "services";
+    case "assignments":                      return "services";
     case "providers":
     case "staff":
-    case "capabilities":
-      return "providers";
+    case "capabilities":                     return "providers";
     case "spaces":
     case "spaces-rules":
-    case "overview":
-      return "spaces";
+    case "overview":                         return "spaces";
     case "booking_rules":
-    case "rules":
-      return "booking_rules";
-    case "staff_readiness":
-      return "staff_readiness";
+    case "rules":                            return "booking_rules";
+    case "staff_readiness":                  return "staff_readiness";
     case "public_readiness":
     case "readiness":
     case "issues":
-    case "public":
-      return "public_readiness";
-    default:
-      return "health";
+    case "public":                           return "public_readiness";
+    default:                                 return "health";
   }
 }
 
@@ -173,31 +163,31 @@ export default async function CrmSetupPage({
   const health = healthResult.value;
 
   // ── Services data ───────────────────────────────────────────────────────────
-  const rawServices =
-    servicesResult.status === "fulfilled" ? (servicesResult.value as ServiceLite[]) : [];
+  const rawServices = servicesResult.status === "fulfilled"
+    ? (servicesResult.value as ServiceLite[])
+    : [];
   const activeServices = rawServices.filter(isActiveBranchService);
-  const assignableServices =
-    assignableServicesResult.status === "fulfilled"
-      ? (assignableServicesResult.value as ServiceLite[])
-      : activeServices.filter(
-          (service) =>
-            (service.available_in_spa ?? true) ||
-            (rulesResult.status === "fulfilled" &&
-              rulesResult.value.homeServiceEnabled &&
-              (service.available_home_service ?? false))
-        );
+  const assignableServices = assignableServicesResult.status === "fulfilled"
+    ? (assignableServicesResult.value as ServiceLite[])
+    : activeServices.filter(
+        (service) =>
+          (service.available_in_spa ?? true) ||
+          (rulesResult.status === "fulfilled" &&
+            rulesResult.value.homeServiceEnabled &&
+            (service.available_home_service ?? false))
+      );
   const activeServiceIds = assignableServices
     .map((service) => {
-      const nested = Array.isArray(service.services) ? service.services[0] : service.services;
+      const nested = Array.isArray(service.services)
+        ? service.services[0]
+        : service.services;
       return service.service_id ?? nested?.id ?? null;
     })
     .filter((id): id is string => id !== null);
 
   // Phase 2: staff assignments (depends on activeServiceIds)
   let providerStaff: Awaited<ReturnType<typeof getBranchStaffAndServiceAssignments>>["staff"] = [];
-  let providerAssignments: Awaited<
-    ReturnType<typeof getBranchStaffAndServiceAssignments>
-  >["assignments"] = [];
+  let providerAssignments: Awaited<ReturnType<typeof getBranchStaffAndServiceAssignments>>["assignments"] = [];
 
   try {
     const pa = await getBranchStaffAndServiceAssignments(branchId, activeServiceIds);
@@ -208,14 +198,12 @@ export default async function CrmSetupPage({
   }
 
   // ── Spaces data ─────────────────────────────────────────────────────────────
-  const branchDetail =
-    branchDetailResult.status === "fulfilled"
-      ? branchDetailResult.value
-      : { resources: [] as Awaited<ReturnType<typeof getBranchWithFullDetail>>["resources"] };
-  const rules =
-    rulesResult.status === "fulfilled"
-      ? rulesResult.value
-      : ({ id: null } as unknown as Awaited<ReturnType<typeof getBranchBookingRulesOrDefault>>);
+  const branchDetail = branchDetailResult.status === "fulfilled"
+    ? branchDetailResult.value
+    : { resources: [] as Awaited<ReturnType<typeof getBranchWithFullDetail>>["resources"] };
+  const rules = rulesResult.status === "fulfilled"
+    ? rulesResult.value
+    : { id: null } as unknown as Awaited<ReturnType<typeof getBranchBookingRulesOrDefault>>;
 
   // Transform bookings for SpacesRulesWorkspace
   const first = <T,>(v: T | T[] | null): T | null => {
@@ -228,23 +216,22 @@ export default async function CrmSetupPage({
       ? (bookingsResult.value.data as unknown[]).map((b) => {
           const row = b as Record<string, unknown>;
           const customers = row.customers as { full_name: string } | { full_name: string }[] | null;
-          const services = row.services as { name: string } | { name: string }[] | null;
-          const staff = row.staff as
-            | { full_name: string; nickname?: string | null }
-            | { full_name: string; nickname?: string | null }[]
-            | null;
+          const services  = row.services  as { name: string }       | { name: string }[]       | null;
+          const staff     = row.staff     as { full_name: string; nickname?: string | null }
+                                          | { full_name: string; nickname?: string | null }[]
+                                          | null;
           return {
-            id: String(row.id),
-            start_time: String(row.start_time),
-            end_time: String(row.end_time),
-            status: String(row.status),
-            type: String(row.type),
+            id:          String(row.id),
+            start_time:  String(row.start_time),
+            end_time:    String(row.end_time),
+            status:      String(row.status),
+            type:        String(row.type),
             resource_id: row.resource_id ? String(row.resource_id) : null,
-            staff_id: row.staff_id ? String(row.staff_id) : null,
-            service_id: row.service_id ? String(row.service_id) : null,
+            staff_id:    row.staff_id    ? String(row.staff_id)    : null,
+            service_id:  row.service_id  ? String(row.service_id)  : null,
             customer_name: first(customers)?.full_name ?? null,
-            service_name: first(services)?.name ?? null,
-            staff_name: first(staff) ? getStaffAdminName(first(staff)!) : null,
+            service_name:  first(services)?.name       ?? null,
+            staff_name:    first(staff) ? getStaffAdminName(first(staff)!) : null,
           };
         })
       : [];
@@ -266,26 +253,27 @@ export default async function CrmSetupPage({
         servicesData={{
           branchId,
           branchName,
-          services: rawServices,
+          services:           rawServices,
           assignableServices,
-          allServices: [], // unused by CrmServicesWorkspace currently
-          loadError: servicesResult.status === "rejected" ? "Could not load services." : null,
+          allServices:        [],   // unused by CrmServicesWorkspace currently
+          loadError:          servicesResult.status === "rejected" ? "Could not load services." : null,
           providerStaff,
           providerAssignments,
           reviewerSystemRole: role,
-          homeServiceEnabled:
-            rulesResult.status === "fulfilled" ? rulesResult.value.homeServiceEnabled : false,
+          homeServiceEnabled: rulesResult.status === "fulfilled"
+            ? rulesResult.value.homeServiceEnabled
+            : false,
         }}
         spacesData={{
-          workspaceContext: "crm",
-          viewerRole: role,
+          workspaceContext:   "crm",
+          viewerRole:         role,
           branchId,
           branchName,
-          branches: [{ id: branchId, name: branchName }],
-          resources: branchDetail.resources,
+          branches:           [{ id: branchId, name: branchName }],
+          resources:          branchDetail.resources,
           rules,
           bookings,
-          canSwitchBranch: false,
+          canSwitchBranch:    false,
           canManageResources: canManageResourceRows,
           canEditRules,
         }}
