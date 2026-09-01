@@ -271,11 +271,12 @@ describe("marketing media queries - role boundaries and safety enforcement", () 
     });
 
     expect(res.success).toBe(true);
-    expect(lastUpdatePayload).toBeDefined();
-    expect(lastUpdatePayload?.bucket_path).toBeUndefined();
-    expect(lastUpdatePayload?.public_url).toBeUndefined();
-    expect(lastUpdatePayload?.title).toBe("New Title");
-    expect(lastUpdatePayload?.alt_text).toBe("New Alt");
+    const payload = lastUpdatePayload as Record<string, unknown> | null;
+    expect(payload).toBeDefined();
+    expect(payload?.bucket_path).toBeUndefined();
+    expect(payload?.public_url).toBeUndefined();
+    expect(payload?.title).toBe("New Title");
+    expect(payload?.alt_text).toBe("New Alt");
   });
 
   it("protects system tracking metadata fields from client overwrite", async () => {
@@ -308,7 +309,8 @@ describe("marketing media queries - role boundaries and safety enforcement", () 
     });
 
     expect(res.success).toBe(true);
-    const updatedMeta = lastUpdatePayload?.metadata as Record<string, unknown>;
+    const metaPayload = lastUpdatePayload as Record<string, unknown> | null;
+    const updatedMeta = metaPayload?.metadata as Record<string, unknown>;
     expect(updatedMeta.uploadStatus).toBe("completed"); // Preserved
     expect(updatedMeta.sizeBytes).toBe(12345); // Preserved
     expect(updatedMeta.customUserTag).toBe("autumn-campaign"); // Allowed
