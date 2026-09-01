@@ -4,8 +4,9 @@
 
 - **Program:** Controlled Stabilization
 - **Current stage:** C2 — Structured Diagnostics (Digital Marketing Workspace)
-- **C2 status:** REPORT CORRECTED / AWAITING INDEPENDENT REVIEW
+- **C2 status:** OWNER ACCEPTED / MERGE GATE IN PROGRESS
 - **C2 report:** `docs/audits/C2_MARKETING_STRUCTURED_DIAGNOSTICS_REPORT.md`
+- **Independent review:** PASS
 - **C1 status:** CLOSED / ACCEPTED
 - **Accepted C1 truth consolidation merge:** `3f402e033e1d1ca05b8cc8a4f2764823f7aaa622`
 - **C1 accepted-main baseline:** `4f9291c7d457ec49b071e766df4c23ca1e4f1558`
@@ -13,7 +14,7 @@
 - **Accepted C0B governance merge:** `03dbd57ed4be6f9b1f0bd30c7fd22a225e68ec2a`
 - **External review:** PASS
 - **Merge verification:** PASS
-- **Next stage:** C3 — NOT AUTHORIZED (Awaiting owner review of C2 report and C3 scope freeze)
+- **Next stage:** C3 — AUTHORIZED AFTER ACCEPTED C2 MERGE / MARKETING SCOPE FREEZE ONLY
 
 ## Current safety state
 
@@ -55,4 +56,4 @@ CradleHub is a Next.js 16.2.4 / React 19.2.4 web application using Supabase Post
 - GitHub protection/ruleset and Vercel linkage/deployed-commit unknowns; and
 - production-connected `main` release safety.
 
-C1 is CLOSED and ACCEPTED at merge SHA `3f402e033e1d1ca05b8cc8a4f2764823f7aaa622`. C2 Structured Diagnostics for the Digital Marketing Workspace report has been corrected and is awaiting independent review. Product fixes, UI implementation, database/Storage mutation, migration actions, and C3 or later work are NOT AUTHORIZED without explicit owner instruction.
+C1 is CLOSED and ACCEPTED at merge SHA `3f402e033e1d1ca05b8cc8a4f2764823f7aaa622`. C2 Structured Diagnostics for the Digital Marketing Workspace report achieved independent review PASS and owner acceptance; C2 merge gate is in progress. Conditioned on C2 merge acceptance, C3 Scope Freeze is authorized for the Digital Marketing Workspace. Product fixes, UI implementation, database/Storage mutation, migration actions, and C4 or later work are NOT AUTHORIZED without explicit owner instruction.

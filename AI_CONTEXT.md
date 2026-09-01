@@ -14,8 +14,8 @@
 - C1 status: **CLOSED / ACCEPTED**
 - Last governance closeout verification: 2026-09-01
 - Current stage: **C2 — Structured Diagnostics (Digital Marketing Workspace)**
-- C2 status: **REPORT CORRECTED / AWAITING INDEPENDENT REVIEW**
-- Next stage: **C3 — NOT AUTHORIZED**
+- C2 status: **INDEPENDENT REVIEW PASS / OWNER ACCEPTED / MERGE GATE IN PROGRESS**
+- Next stage: **C3 — AUTHORIZED AFTER ACCEPTED C2 MERGE / SCOPE FREEZE ONLY**
 
 The recorded SHAs are stable closeout anchors, not declarations of the current `main` head. At the start of every session, fetch and re-resolve `origin/main`; inspect newer accepted work rather than recreating an older state.
 
@@ -57,7 +57,7 @@ The recorded SHAs are stable closeout anchors, not declarations of the current `
 
 ## Current authorization
 
-C0B and C1 are closed and accepted. C1 merge was accepted into main at `3f402e033e1d1ca05b8cc8a4f2764823f7aaa622`. C2 Structured Diagnostics for the Digital Marketing Workspace has completed and delivered `docs/audits/C2_MARKETING_STRUCTURED_DIAGNOSTICS_REPORT.md`. C2 is read-only diagnostics: zero product implementation, database/schema mutation, migration reconciliation, production mutation, or unrelated Web work occurred. C3 and later stages remain not authorized pending owner review of the C2 report.
+C0B and C1 are closed and accepted. C2 Structured Diagnostics for the Digital Marketing Workspace delivered `docs/audits/C2_MARKETING_STRUCTURED_DIAGNOSTICS_REPORT.md` and achieved independent review PASS and owner acceptance. C2 merge gate is in progress. Conditioned on successful C2 merge into main, C3 Scope Freeze is authorized for the Digital Marketing Workspace using the five-module structure: (1) Website, (2) Brand, (3) Branches, (4) Services, (5) Media Library, with Drafts and Settings as secondary navigation and contextual SEO. Writable and read-only field-level boundaries, existing `--cs-*` marketing theme tokens, draft-first workflow, and Owner-only approval/publishing boundaries remain strictly enforced. C4 design implementation and C5+ coding are NOT AUTHORIZED.
 
 ## Historical context policy
 
