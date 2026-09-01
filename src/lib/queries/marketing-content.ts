@@ -1,5 +1,6 @@
 import "server-only";
 
+import { z } from "zod";
 import { revalidatePath } from "next/cache";
 import { isDevAuthBypassEnabled } from "@/lib/dev-bypass";
 import { logError } from "@/lib/logger";
@@ -728,21 +729,24 @@ export async function publishMarketingContentDraft(
         ? (existing.data.metadata as Record<string, unknown>)
         : {};
 
-    const branchId =
-      typeof meta.branchId === "string" && meta.branchId.trim().length > 0
-        ? meta.branchId.trim()
-        : null;
+    const branchIdValidation = z
+      .guid("Branch draft is missing a valid canonical branchId in metadata.")
+      .safeParse(meta.branchId);
 
-    if (!branchId) {
+    if (!branchIdValidation.success) {
       return {
         success: false,
-        error: "Branch draft is missing a valid canonical branchId in metadata.",
+        error:
+          branchIdValidation.error.issues[0]?.message ??
+          "Branch draft is missing a valid canonical branchId in metadata.",
       };
     }
 
+    const branchId = branchIdValidation.data;
+
     const { data: existingBranch, error: fetchBranchError } = await context.supabase
       .from("branches")
-      .select("location_metadata")
+      .select("name, address, location_metadata")
       .eq("id", branchId)
       .single();
 
@@ -765,9 +769,23 @@ export async function publishMarketingContentDraft(
       image_url: existing.data.image_url || null,
     };
 
+    const branchName =
+      (typeof meta.name === "string" && meta.name.trim().length > 0 ? meta.name.trim() : null) ||
+      existing.data.title ||
+      existingBranch.name;
+
+    const branchAddress =
+      (typeof meta.address === "string" && meta.address.trim().length > 0
+        ? meta.address.trim()
+        : null) ||
+      existing.data.body ||
+      existingBranch.address;
+
     const { updateBranchAction } = await import("@/app/(dashboard)/owner/branches/actions");
     const branchResult = await updateBranchAction({
       branchId,
+      name: branchName,
+      address: branchAddress,
       phone: (meta.phone as string) || existing.data.cta_label || null,
       email: (meta.email as string) || null,
       fbPage: (meta.fbPage as string) || null,

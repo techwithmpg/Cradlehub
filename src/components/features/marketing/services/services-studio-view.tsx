@@ -111,7 +111,7 @@ export function ServicesStudioView({
     if (
       draftFromAction &&
       draftFromAction.content_key === currentService.id &&
-      ["draft", "submitted", "changes_requested"].includes(draftFromAction.status)
+      ["draft", "submitted", "changes_requested", "approved"].includes(draftFromAction.status)
     ) {
       return draftFromAction;
     }
@@ -120,7 +120,7 @@ export function ServicesStudioView({
       (d) =>
         d.content_type === "service" &&
         d.content_key === currentService.id &&
-        ["draft", "submitted", "changes_requested"].includes(d.status)
+        ["draft", "submitted", "changes_requested", "approved"].includes(d.status)
     );
   }, [drafts, currentService, saveState, submitState]);
 
@@ -148,6 +148,7 @@ export function ServicesStudioView({
         description: activeServiceDraft.body || currentService.description || "",
         shortDescription:
           (typeof meta.shortDescription === "string" && meta.shortDescription) ||
+          activeServiceDraft.subtitle ||
           currentService.shortDescription ||
           "",
         badges: Array.isArray(meta.badges)
@@ -161,7 +162,7 @@ export function ServicesStudioView({
 
     return {
       imageUrl: currentService.imageUrl || "",
-      imageAlt: currentService.imageAlt || `${currentService.name} service at Cradle`,
+      imageAlt: currentService.imageAlt || `${currentService.name} service`,
       description: currentService.description || "",
       shortDescription: currentService.shortDescription || "",
       badges: currentService.badges || [],
@@ -178,14 +179,42 @@ export function ServicesStudioView({
     setSelectedServiceId(serviceId);
     const target = services.find((s) => s.id === serviceId);
     if (target) {
-      setFormValues({
-        imageUrl: target.imageUrl || "",
-        imageAlt: target.imageAlt || `${target.name} service`,
-        description: target.description || "",
-        shortDescription: target.shortDescription || "",
-        badges: target.badges || [],
-        inclusions: target.inclusions || [],
-      });
+      const srvDraft = drafts.find(
+        (d) =>
+          d.content_type === "service" &&
+          d.content_key === target.id &&
+          ["draft", "submitted", "changes_requested", "approved"].includes(d.status)
+      );
+
+      if (srvDraft) {
+        const meta =
+          srvDraft.metadata && typeof srvDraft.metadata === "object"
+            ? (srvDraft.metadata as Record<string, unknown>)
+            : {};
+        setFormValues({
+          imageUrl: srvDraft.image_url || target.imageUrl || "",
+          imageAlt: srvDraft.alt_text || target.imageAlt || `${target.name} service`,
+          description: srvDraft.body || target.description || "",
+          shortDescription:
+            (typeof meta.shortDescription === "string" && meta.shortDescription) ||
+            srvDraft.subtitle ||
+            target.shortDescription ||
+            "",
+          badges: Array.isArray(meta.badges) ? (meta.badges as string[]) : target.badges || [],
+          inclusions: Array.isArray(meta.inclusions)
+            ? (meta.inclusions as string[])
+            : target.inclusions || [],
+        });
+      } else {
+        setFormValues({
+          imageUrl: target.imageUrl || "",
+          imageAlt: target.imageAlt || `${target.name} service`,
+          description: target.description || "",
+          shortDescription: target.shortDescription || "",
+          badges: target.badges || [],
+          inclusions: target.inclusions || [],
+        });
+      }
     }
   };
 
@@ -438,6 +467,7 @@ export function ServicesStudioView({
                   <span className="text-[11px] text-[#9AA89A]">Full Public Description</span>
                   <textarea
                     rows={4}
+                    aria-label="Full Public Description"
                     value={formValues.description}
                     onChange={(e) => setFormValues((p) => ({ ...p, description: e.target.value }))}
                     placeholder="Detailed explanation of the therapy techniques and wellness benefits..."

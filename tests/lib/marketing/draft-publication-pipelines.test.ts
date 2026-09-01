@@ -150,7 +150,11 @@ describe("Draft Publication Pipelines (C5.4 Review Corrections)", () => {
               select: vi.fn().mockReturnValue({
                 eq: vi.fn().mockReturnValue({
                   single: vi.fn().mockResolvedValue({
-                    data: { location_metadata: existingBranchMeta },
+                    data: {
+                      name: "Old Main Spa",
+                      address: "Old Lacson Address",
+                      location_metadata: existingBranchMeta,
+                    },
                     error: null,
                   }),
                 }),
@@ -176,10 +180,12 @@ describe("Draft Publication Pipelines (C5.4 Review Corrections)", () => {
 
       expect(result.success).toBe(true);
 
-      // Verify correct hyphenated UUID is passed
+      // Verify correct hyphenated UUID, name, address, and metadata are passed
       expect(mockUpdateBranchAction).toHaveBeenCalledWith(
         expect.objectContaining({
           branchId: realBranchUuid,
+          name: "Cradle Lacson Flagship",
+          address: "123 Lacson Street, Bacolod City",
           phone: "0917-111-2222",
           email: "lacson@cradlespa.com",
           fbPage: "facebook.com/cradlebacolod",

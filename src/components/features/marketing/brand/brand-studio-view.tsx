@@ -122,14 +122,15 @@ export function BrandStudioView({
 
     if (
       draftFromAction &&
-      ["draft", "submitted", "changes_requested"].includes(draftFromAction.status)
+      ["draft", "submitted", "changes_requested", "approved"].includes(draftFromAction.status)
     ) {
       return draftFromAction;
     }
 
     return drafts.find(
       (d) =>
-        d.content_type === "brand" && ["draft", "submitted", "changes_requested"].includes(d.status)
+        d.content_type === "brand" &&
+        ["draft", "submitted", "changes_requested", "approved"].includes(d.status)
     );
   }, [drafts, saveState, submitState]);
 

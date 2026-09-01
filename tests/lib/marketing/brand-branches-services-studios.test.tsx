@@ -43,6 +43,7 @@ import { MarketingWorkspaceShell } from "@/components/features/marketing/marketi
 import { analyzeMediaAssetUsage } from "@/lib/marketing/media-usage-analyzer";
 import type { PublicCatalogService } from "@/lib/queries/services";
 import type { MarketingMediaAssetRow } from "@/lib/queries/marketing-media";
+import type { MarketingContentDraftRow } from "@/lib/queries/marketing-content";
 import type { Database } from "@/types/supabase";
 
 type BranchRow = Database["public"]["Tables"]["branches"]["Row"];
@@ -420,5 +421,157 @@ describe("C5.4 Marketing Workspace Shell", () => {
     // Switch to Services Studio
     fireEvent.click(screen.getByRole("tab", { name: /Services Studio/i }));
     expect(screen.getAllByText("Swedish Signature Massage").length).toBeGreaterThan(0);
+  });
+});
+
+describe("C5.4 Review Corrections — Isolation, Hydration, and Approved Draft State", () => {
+  it("BranchesStudioView: NEVER uses Website contact draft as active branch draft", () => {
+    const contactDraft = {
+      id: "draft-contact-shared-999",
+      content_type: "section" as const,
+      content_key: "contact",
+      status: "draft" as const,
+      title: "Contact Section Title",
+      subtitle: "Contact Subtitle",
+      body: "Contact Section Body",
+      cta_label: "Contact CTA",
+      image_url: "/images/contact-bg.webp",
+      metadata: { phone: "0999-000-1111" },
+      created_by: "marketer-1",
+      updated_by: "marketer-1",
+      reviewed_by: null,
+      reviewed_at: null,
+      created_at: new Date().toISOString(),
+      updated_at: new Date().toISOString(),
+    } as unknown as MarketingContentDraftRow;
+
+    render(
+      <BranchesStudioView role="digital_marketer" branches={mockBranches} drafts={[contactDraft]} />
+    );
+
+    // Verify form is hydrated from mockBranches[0] and NOT contact draft
+    const nameInput = screen.getByLabelText(/Public Branch Name/i) as HTMLInputElement;
+    expect(nameInput.value).toBe("Cradle Main Spa (Lacson)");
+    expect(nameInput.value).not.toBe("Contact Section Title");
+
+    // Verify hidden input draftId does not contain contact draft ID
+    const submitBtn = screen.queryByRole("button", { name: /Submit for Review/i });
+    expect(submitBtn).toBeNull(); // No branch draft submitted yet
+  });
+
+  it("BranchesStudioView: hydrates all branch fields from active branch draft", () => {
+    const branch0 = mockBranches[0]!;
+    const branchDraft = {
+      id: "draft-branch-lacson-1",
+      content_type: "section" as const,
+      content_key: `branch_${branch0.id.replace(/-/g, "_")}`,
+      status: "submitted" as const,
+      title: "Cradle Lacson Premier Flagship",
+      subtitle: "8:00 AM - 11:00 PM Daily",
+      body: "777 Lacson Promenade, Bacolod City",
+      cta_label: "0917-777-8888",
+      image_url: "/images/spa/lacson-draft-preview.webp",
+      metadata: {
+        branchId: branch0.id,
+        name: "Cradle Lacson Premier Flagship",
+        address: "777 Lacson Promenade, Bacolod City",
+        phone: "0917-777-8888",
+        email: "flagship@cradlespa.com",
+        fbPage: "https://facebook.com/cradleflagship",
+        messengerLink: "https://m.me/cradleflagship",
+        openingHours: "8:00 AM - 11:00 PM Daily",
+        mapsEmbedUrl: "https://maps.google.com/embed?q=cradleflagship",
+      },
+      created_by: "marketer-1",
+      updated_by: "marketer-1",
+      reviewed_by: null,
+      reviewed_at: null,
+      created_at: new Date().toISOString(),
+      updated_at: new Date().toISOString(),
+    } as unknown as MarketingContentDraftRow;
+
+    render(<BranchesStudioView role="owner" branches={mockBranches} drafts={[branchDraft]} />);
+
+    const nameInput = screen.getByLabelText(/Public Branch Name/i) as HTMLInputElement;
+    expect(nameInput.value).toBe("Cradle Lacson Premier Flagship");
+
+    const phoneInput = screen.getByLabelText(/Primary Phone/i) as HTMLInputElement;
+    expect(phoneInput.value).toBe("0917-777-8888");
+
+    // Owner sees canonical Publish to Live for the submitted/approved draft
+    expect(screen.getByRole("button", { name: /Publish to Live/i })).toBeDefined();
+  });
+
+  it("BrandStudioView: detects approved draft and renders canonical Publish to Live for Owner", () => {
+    const approvedBrandDraft = {
+      id: "draft-brand-approved-1",
+      content_type: "brand" as const,
+      content_key: "brand",
+      status: "approved" as const,
+      title: "Brand Draft Approved",
+      subtitle: null,
+      body: null,
+      cta_label: null,
+      image_url: null,
+      metadata: {
+        headerLogoUrl: "/images/brand/approved-header.png",
+        headerLogoAlt: "Approved Header Logo",
+        footerLogoUrl: "/images/brand/approved-footer.png",
+        footerLogoAlt: "Approved Footer Logo",
+        taglineText: "Approved Tagline",
+      },
+      created_by: "marketer-1",
+      updated_by: "owner-1",
+      reviewed_by: "owner-1",
+      reviewed_at: new Date().toISOString(),
+      created_at: new Date().toISOString(),
+      updated_at: new Date().toISOString(),
+    } as unknown as MarketingContentDraftRow;
+
+    render(
+      <BrandStudioView
+        role="owner"
+        brandSettings={mockBrandSettings}
+        drafts={[approvedBrandDraft]}
+      />
+    );
+
+    expect(screen.getByRole("button", { name: /Publish to Live/i })).toBeDefined();
+  });
+
+  it("ServicesStudioView: detects approved draft, hydrates form values, and renders canonical Publish to Live for Owner", () => {
+    const service0 = mockServices[0]!;
+    const approvedServiceDraft = {
+      id: "draft-service-approved-1",
+      content_type: "service" as const,
+      content_key: service0.id,
+      status: "approved" as const,
+      title: "Swedish Signature Massage Approved",
+      subtitle: "Enhanced Swedish Relaxation",
+      body: "Premium Swedish strokes with organic chamomile blend.",
+      alt_text: "Therapist performing Swedish massage",
+      image_url: "/images/services/swedish-approved.webp",
+      metadata: {
+        shortDescription: "Enhanced Swedish Relaxation",
+        badges: ["Bestseller", "Organic Oils"],
+        inclusions: ["Chamomile Blend", "Hot Herbal Towel"],
+        imageAlt: "Therapist performing Swedish massage",
+      },
+      created_by: "marketer-1",
+      updated_by: "owner-1",
+      reviewed_by: "owner-1",
+      reviewed_at: new Date().toISOString(),
+      created_at: new Date().toISOString(),
+      updated_at: new Date().toISOString(),
+    } as unknown as MarketingContentDraftRow;
+
+    render(
+      <ServicesStudioView role="owner" services={mockServices} drafts={[approvedServiceDraft]} />
+    );
+
+    const descTextarea = screen.getByLabelText(/Full Public Description/i) as HTMLTextAreaElement;
+    expect(descTextarea.value).toBe("Premium Swedish strokes with organic chamomile blend.");
+
+    expect(screen.getByRole("button", { name: /Publish to Live/i })).toBeDefined();
   });
 });

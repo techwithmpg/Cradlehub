@@ -143,15 +143,16 @@ export function BranchesStudioView({
     if (
       draftFromAction &&
       draftFromAction.content_key === branchKey &&
-      ["draft", "submitted", "changes_requested"].includes(draftFromAction.status)
+      ["draft", "submitted", "changes_requested", "approved"].includes(draftFromAction.status)
     ) {
       return draftFromAction;
     }
 
     return drafts.find(
       (d) =>
-        (d.content_type === "section" && d.content_key === branchKey) ||
-        (d.content_type === "section" && d.content_key === "contact")
+        d.content_type === "section" &&
+        d.content_key === branchKey &&
+        ["draft", "submitted", "changes_requested", "approved"].includes(d.status)
     );
   }, [drafts, currentBranch, saveState, submitState]);
 
@@ -174,6 +175,51 @@ export function BranchesStudioView({
     const meta = (currentBranch.location_metadata || {}) as Record<string, unknown>;
     const imgUrl = typeof meta.image_url === "string" ? meta.image_url : "";
 
+    if (activeBranchDraft) {
+      const draftMeta =
+        activeBranchDraft.metadata &&
+        typeof activeBranchDraft.metadata === "object" &&
+        !Array.isArray(activeBranchDraft.metadata)
+          ? (activeBranchDraft.metadata as Record<string, unknown>)
+          : {};
+
+      return {
+        name:
+          (typeof draftMeta.name === "string" && draftMeta.name) ||
+          activeBranchDraft.title ||
+          currentBranch.name ||
+          "",
+        address:
+          (typeof draftMeta.address === "string" && draftMeta.address) ||
+          activeBranchDraft.body ||
+          currentBranch.address ||
+          "",
+        phone:
+          (typeof draftMeta.phone === "string" && draftMeta.phone) ||
+          activeBranchDraft.cta_label ||
+          currentBranch.phone ||
+          "",
+        email:
+          (typeof draftMeta.email === "string" && draftMeta.email) || currentBranch.email || "",
+        fbPage:
+          (typeof draftMeta.fbPage === "string" && draftMeta.fbPage) || currentBranch.fb_page || "",
+        messengerLink:
+          (typeof draftMeta.messengerLink === "string" && draftMeta.messengerLink) ||
+          currentBranch.messenger_link ||
+          "",
+        openingHours:
+          (typeof draftMeta.openingHours === "string" && draftMeta.openingHours) ||
+          activeBranchDraft.subtitle ||
+          currentBranch.opening_hours ||
+          "10:00 AM - 10:00 PM Daily",
+        mapsEmbedUrl:
+          (typeof draftMeta.mapsEmbedUrl === "string" && draftMeta.mapsEmbedUrl) ||
+          currentBranch.maps_embed_url ||
+          "",
+        imageUrl: activeBranchDraft.image_url || imgUrl || getBranchImageUrl(currentBranch),
+      };
+    }
+
     return {
       name: currentBranch.name || "",
       address: currentBranch.address || "",
@@ -185,7 +231,7 @@ export function BranchesStudioView({
       mapsEmbedUrl: currentBranch.maps_embed_url || "",
       imageUrl: imgUrl || getBranchImageUrl(currentBranch),
     };
-  }, [currentBranch]);
+  }, [currentBranch, activeBranchDraft]);
 
   const [formValues, setFormValues] = useState<BranchFormValues>(initialValues);
   const [showMediaPicker, setShowMediaPicker] = useState(false);
@@ -195,19 +241,72 @@ export function BranchesStudioView({
     setSelectedBranchId(branchId);
     const branch = sortedBranches.find((b) => b.id === branchId);
     if (branch) {
+      const branchKey = `branch_${branch.id.replace(/-/g, "_")}`;
+      const branchDraft = drafts.find(
+        (d) =>
+          d.content_type === "section" &&
+          d.content_key === branchKey &&
+          ["draft", "submitted", "changes_requested", "approved"].includes(d.status)
+      );
+
       const meta = (branch.location_metadata || {}) as Record<string, unknown>;
       const imgUrl = typeof meta.image_url === "string" ? meta.image_url : "";
-      setFormValues({
-        name: branch.name || "",
-        address: branch.address || "",
-        phone: branch.phone || "",
-        email: branch.email || "",
-        fbPage: branch.fb_page || "",
-        messengerLink: branch.messenger_link || "",
-        openingHours: branch.opening_hours || "10:00 AM - 10:00 PM Daily",
-        mapsEmbedUrl: branch.maps_embed_url || "",
-        imageUrl: imgUrl || getBranchImageUrl(branch),
-      });
+
+      if (branchDraft) {
+        const draftMeta =
+          branchDraft.metadata &&
+          typeof branchDraft.metadata === "object" &&
+          !Array.isArray(branchDraft.metadata)
+            ? (branchDraft.metadata as Record<string, unknown>)
+            : {};
+
+        setFormValues({
+          name:
+            (typeof draftMeta.name === "string" && draftMeta.name) ||
+            branchDraft.title ||
+            branch.name ||
+            "",
+          address:
+            (typeof draftMeta.address === "string" && draftMeta.address) ||
+            branchDraft.body ||
+            branch.address ||
+            "",
+          phone:
+            (typeof draftMeta.phone === "string" && draftMeta.phone) ||
+            branchDraft.cta_label ||
+            branch.phone ||
+            "",
+          email: (typeof draftMeta.email === "string" && draftMeta.email) || branch.email || "",
+          fbPage:
+            (typeof draftMeta.fbPage === "string" && draftMeta.fbPage) || branch.fb_page || "",
+          messengerLink:
+            (typeof draftMeta.messengerLink === "string" && draftMeta.messengerLink) ||
+            branch.messenger_link ||
+            "",
+          openingHours:
+            (typeof draftMeta.openingHours === "string" && draftMeta.openingHours) ||
+            branchDraft.subtitle ||
+            branch.opening_hours ||
+            "10:00 AM - 10:00 PM Daily",
+          mapsEmbedUrl:
+            (typeof draftMeta.mapsEmbedUrl === "string" && draftMeta.mapsEmbedUrl) ||
+            branch.maps_embed_url ||
+            "",
+          imageUrl: branchDraft.image_url || imgUrl || getBranchImageUrl(branch),
+        });
+      } else {
+        setFormValues({
+          name: branch.name || "",
+          address: branch.address || "",
+          phone: branch.phone || "",
+          email: branch.email || "",
+          fbPage: branch.fb_page || "",
+          messengerLink: branch.messenger_link || "",
+          openingHours: branch.opening_hours || "10:00 AM - 10:00 PM Daily",
+          mapsEmbedUrl: branch.maps_embed_url || "",
+          imageUrl: imgUrl || getBranchImageUrl(branch),
+        });
+      }
     }
   };
 
@@ -324,6 +423,7 @@ export function BranchesStudioView({
                   <span className="text-[11px] text-[#9AA89A]">Public Branch Name</span>
                   <input
                     type="text"
+                    aria-label="Public Branch Name"
                     value={formValues.name}
                     onChange={(e) => handleFieldChange("name", e.target.value)}
                     className="mt-1 w-full rounded-lg border border-white/10 bg-[#061410] px-3 py-2 text-xs text-[#F6EBD6] focus:border-[#C8A96B] focus:outline-none"
@@ -333,6 +433,7 @@ export function BranchesStudioView({
                   <span className="text-[11px] text-[#9AA89A]">Full Street Address</span>
                   <textarea
                     rows={2}
+                    aria-label="Full Street Address"
                     value={formValues.address}
                     onChange={(e) => handleFieldChange("address", e.target.value)}
                     className="mt-1 w-full rounded-lg border border-white/10 bg-[#061410] px-3 py-2 text-xs text-[#F6EBD6] focus:border-[#C8A96B] focus:outline-none"
@@ -350,6 +451,7 @@ export function BranchesStudioView({
                     <span className="text-[11px] text-[#9AA89A]">Primary Phone</span>
                     <input
                       type="text"
+                      aria-label="Primary Phone"
                       value={formValues.phone}
                       onChange={(e) => handleFieldChange("phone", e.target.value)}
                       placeholder="0917-xxx-xxxx / (034) 433-xxxx"
@@ -360,6 +462,7 @@ export function BranchesStudioView({
                     <span className="text-[11px] text-[#9AA89A]">Branch Email</span>
                     <input
                       type="email"
+                      aria-label="Branch Email"
                       value={formValues.email}
                       onChange={(e) => handleFieldChange("email", e.target.value)}
                       placeholder="branch@cradlemassage.ph"
