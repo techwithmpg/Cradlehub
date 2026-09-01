@@ -10,7 +10,7 @@
 - **Original Contaminated Implementation Head SHA:** `3fb22d2458a8810ab54230a5d77e01b6b3b7ca34`
 - **Scope-Isolation Correction SHA:** `facfa4dd49a007b1e8c57f96d448c56954b0c27f`
 - **Previous Candidate Head SHA:** `216fac56bb5fa1606b4e94a6f786f3ba8121e340`
-- **Final Reviewed Candidate Head SHA:** `09ca612e4f014bb65345717bc449842f6f59ba7d`
+- **Final Reviewed Candidate Head SHA:** `2eb318f75f9227092fe6305a41fc70a4980a37e9`
 - **Active Governance Decision:** `GOV-025` recorded in `docs/11-DECISION-LOG.md`
 - **Scope Compliance:** Website Studio & High-Fidelity Preview ONLY. Real public presentation grounding extracted from existing public components without altering consumer behavior. Preserved existing Owner review queue and C5.2 Media Library. No migrations, no database schema mutations, no Auth/RLS/Storage policy modifications, no production-data mutations. C5 Pass 4 and Pass 5 remain strictly NOT AUTHORIZED.
 
