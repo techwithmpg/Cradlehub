@@ -92,7 +92,10 @@ const DRIVER_NAV_ITEMS: NavItem[] = [
 
 const UTILITY_NAV_ITEMS: NavItem[] = [{ label: "Utility Panel", href: "/utility", icon: "Wrench" }];
 
-const MARKETING_NAV_ITEMS: NavItem[] = [{ label: "Drafts", href: "/marketing", icon: "Sparkles" }];
+const MARKETING_NAV_ITEMS: NavItem[] = [
+  { label: "Drafts", href: "/marketing", icon: "Sparkles" },
+  { label: "Media Library", href: "/marketing/media", icon: "Image" },
+];
 
 export const NAV_CONFIG: Record<string, WorkspaceNav> = {
   owner: {

@@ -97,3 +97,54 @@ export const marketingDraftReviewSchema = marketingContentDraftIdSchema.extend({
 export const marketingDraftScheduleSchema = marketingDraftReviewSchema.extend({
   scheduledFor: z.string().trim().min(1, "Choose a publish date and time"),
 });
+
+export const MARKETING_MEDIA_STATUSES = [
+  "draft",
+  "submitted",
+  "approved",
+  "published",
+  "archived",
+] as const;
+
+export type MarketingMediaStatus = (typeof MARKETING_MEDIA_STATUSES)[number];
+
+const bucketPathRegex = /^[a-z0-9][a-z0-9_./-]*$/;
+
+export const marketingMediaAssetInputSchema = z.object({
+  id: uuid.optional().nullable(),
+  title: optionalText(180),
+  altText: z
+    .string()
+    .trim()
+    .min(3, "Alt text must be at least 3 characters")
+    .max(220, "Alt text is too long"),
+  sectionKey: optionalText(100),
+  contentKey: optionalText(100),
+  bucketPath: z
+    .string()
+    .trim()
+    .max(500, "Bucket path is too long")
+    .regex(
+      bucketPathRegex,
+      "Bucket path must use lowercase alphanumeric, dash, underscore, dot, or slash"
+    )
+    .optional()
+    .nullable(),
+  publicUrl: optionalImageUrl,
+  metadata: jsonObject,
+});
+
+export type MarketingMediaAssetInput = z.infer<typeof marketingMediaAssetInputSchema>;
+
+export const marketingMediaAssetIdSchema = z.object({
+  id: uuid,
+});
+
+export const marketingMediaStatusUpdateSchema = marketingMediaAssetIdSchema.extend({
+  status: z.enum(MARKETING_MEDIA_STATUSES),
+  reviewNote: optionalText(1000),
+});
+
+export const marketingMediaArchiveSchema = marketingMediaAssetIdSchema.extend({
+  reviewNote: optionalText(1000),
+});

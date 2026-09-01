@@ -1,13 +1,15 @@
 "use client";
 
 import { useActionState, useCallback, useEffect, useMemo, useState } from "react";
-import { Eye, FileText, Save, Send } from "lucide-react";
+import { Eye, FileText, Image as ImageIcon, Save, Send } from "lucide-react";
 import type { MarketingSectionDefault } from "@/lib/marketing/public-section-defaults";
 import type {
   MarketingContentDraftRow,
   MarketingContentRevisionRow,
 } from "@/lib/queries/marketing-content";
+import type { MarketingMediaAssetRow } from "@/lib/queries/marketing-media";
 import type { PublicSiteAssetRow, PublicSiteSectionRow } from "@/lib/queries/public-site";
+import { UniversalMediaPicker } from "@/components/features/marketing/media/universal-media-picker";
 import {
   saveMarketingDraftAction,
   submitMarketingDraftAction,
@@ -20,6 +22,7 @@ type MarketingWorkspaceProps = {
   galleryAssets: PublicSiteAssetRow[];
   drafts: MarketingContentDraftRow[];
   revisions: MarketingContentRevisionRow[];
+  mediaAssets?: MarketingMediaAssetRow[];
 };
 
 const fieldStyle: React.CSSProperties = {
@@ -140,6 +143,7 @@ export function MarketingWorkspace({
   galleryAssets,
   drafts,
   revisions,
+  mediaAssets = [],
 }: MarketingWorkspaceProps) {
   const [activeKey, setActiveKey] = useState(sectionDefaults[0]?.sectionKey ?? "hero");
   const [workspaceDrafts, setWorkspaceDrafts] = useState(drafts);
@@ -254,6 +258,7 @@ export function MarketingWorkspace({
           fallback={activeDefault}
           onSaved={saveDraft}
           published={activePublished}
+          mediaAssets={mediaAssets}
         />
 
         <RevisionList revisions={revisions} />
@@ -267,11 +272,13 @@ function MarketingDraftEditor({
   fallback,
   onSaved,
   published,
+  mediaAssets = [],
 }: {
   draft?: MarketingContentDraftRow;
   fallback: MarketingSectionDefault;
   onSaved: (draft: MarketingContentDraftRow) => void;
   published?: PublicSiteSectionRow;
+  mediaAssets?: MarketingMediaAssetRow[];
 }) {
   const [saveState, saveAction, savePending] = useActionState(saveMarketingDraftAction, {});
   const [submitState, submitAction, submitPending] = useActionState(submitMarketingDraftAction, {});
@@ -389,17 +396,21 @@ function MarketingDraftEditor({
           />
         </div>
 
-        <InputField
+        <ImagePickerField
           label="Image URL"
           name="imageUrl"
           defaultValue={imageUrl}
           placeholder="/images/spa/hero.jpg or https://..."
+          mediaAssets={mediaAssets}
+          sectionKey={fallback.sectionKey}
         />
-        <InputField
+        <ImagePickerField
           label="Secondary image URL"
           name="secondaryImageUrl"
           defaultValue={valueFor(currentDraft, published, fallback, "secondary_image_url")}
           placeholder="/images/spa/about-secondary.jpg"
+          mediaAssets={mediaAssets}
+          sectionKey={fallback.sectionKey}
         />
 
         <input type="hidden" name="altText" value="" />
@@ -642,6 +653,71 @@ function InputField({
         style={fieldStyle}
       />
     </label>
+  );
+}
+
+function ImagePickerField({
+  label,
+  name,
+  defaultValue,
+  placeholder,
+  mediaAssets = [],
+  sectionKey,
+}: {
+  label: string;
+  name: string;
+  defaultValue: string;
+  placeholder?: string;
+  mediaAssets?: MarketingMediaAssetRow[];
+  sectionKey?: string;
+}) {
+  const [value, setValue] = useState(defaultValue);
+  const [isPickerOpen, setIsPickerOpen] = useState(false);
+
+  return (
+    <div style={{ display: "grid", gap: "0.375rem" }}>
+      <span style={{ color: "var(--cs-text-muted)", fontSize: "0.8125rem" }}>{label}</span>
+      <div style={{ display: "flex", gap: "0.5rem", alignItems: "center" }}>
+        <input
+          name={name}
+          type="text"
+          value={value}
+          onChange={(e) => setValue(e.target.value)}
+          placeholder={placeholder}
+          style={{ ...fieldStyle, flex: 1 }}
+        />
+        <button
+          type="button"
+          onClick={() => setIsPickerOpen(true)}
+          className="cs-btn cs-btn-secondary"
+          style={{
+            minHeight: 44,
+            padding: "0 0.875rem",
+            fontSize: 12,
+            fontWeight: 650,
+            display: "inline-flex",
+            alignItems: "center",
+            gap: 6,
+            whiteSpace: "nowrap",
+            flexShrink: 0,
+          }}
+        >
+          <ImageIcon className="size-3.5" />
+          Choose Image
+        </button>
+      </div>
+
+      <UniversalMediaPicker
+        isOpen={isPickerOpen}
+        onClose={() => setIsPickerOpen(false)}
+        onSelect={(selected) => {
+          setValue(selected.publicUrl);
+        }}
+        currentUrl={value}
+        availableAssets={mediaAssets}
+        filterSectionKey={sectionKey}
+      />
+    </div>
   );
 }
 
