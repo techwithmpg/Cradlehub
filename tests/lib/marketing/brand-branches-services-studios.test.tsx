@@ -69,6 +69,7 @@ vi.mock("@/app/(dashboard)/owner/marketing/actions", () => ({
 
 vi.mock("@/app/(dashboard)/marketing/brand-actions", () => ({
   updateBrandSettingAction: vi.fn().mockResolvedValue({ success: true }),
+  generateSiteIconAction: vi.fn().mockResolvedValue({ success: true }),
 }));
 
 vi.mock("@/app/(dashboard)/marketing/branch-actions", () => ({
@@ -244,16 +245,16 @@ describe("C5.4 Brand Studio", () => {
       <BrandStudioView role="digital_marketer" brandSettings={mockBrandSettings} drafts={[]} />
     );
 
-    expect(screen.getByText("Brand Identity & Assets")).toBeDefined();
+    expect(screen.getByText("Brand Identity & Visual Assets")).toBeDefined();
     expect(screen.getByText("Save Draft")).toBeDefined();
     // Direct owner publish should not be available for marketer
-    expect(screen.queryByText("Publish Live Settings")).toBeNull();
+    expect(screen.queryByText("Publish Live Directly")).toBeNull();
   });
 
   it("renders BrandStudioView for Owner with live publish controls", () => {
     render(<BrandStudioView role="owner" brandSettings={mockBrandSettings} drafts={[]} />);
 
-    expect(screen.getByText("Publish Live Settings")).toBeDefined();
+    expect(screen.getByText("Publish Live Directly")).toBeDefined();
   });
 
   it("allows switching preview sub-tabs (Header, Footer, Mark, Favicon)", () => {
@@ -269,9 +270,9 @@ describe("C5.4 Brand Studio", () => {
     fireEvent.click(markTab);
     expect(screen.getByText("Used for mobile icons, avatars, and watermarks")).toBeDefined();
 
-    const faviconTab = screen.getByText("Browser Tab / Icon");
+    const faviconTab = screen.getByText("Browser & Device Icons");
     fireEvent.click(faviconTab);
-    expect(screen.getByText("Next.js Static Favicon Architecture Note:")).toBeDefined();
+    expect(screen.getByText("Browser Tab Preview (16px / 32px Favicon)")).toBeDefined();
   });
 });
 
@@ -412,7 +413,7 @@ describe("C5.4 Marketing Workspace Shell", () => {
 
     // Switch to Brand Studio
     fireEvent.click(screen.getByRole("tab", { name: /Brand Studio/i }));
-    expect(screen.getByText("Brand Identity & Assets")).toBeDefined();
+    expect(screen.getByText("Brand Identity & Visual Assets")).toBeDefined();
 
     // Switch to Branches Studio
     fireEvent.click(screen.getByRole("tab", { name: /Branches Studio/i }));

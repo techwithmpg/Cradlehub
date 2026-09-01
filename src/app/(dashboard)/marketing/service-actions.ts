@@ -2,7 +2,6 @@
 
 import { revalidatePath } from "next/cache";
 import { createClient } from "@/lib/supabase/server";
-import { isDevAuthBypassEnabled } from "@/lib/dev-bypass";
 import { cacheTags, invalidateTag } from "@/lib/cache/cache-tags";
 import { getMarketingAccessContext } from "@/lib/queries/marketing-content";
 import type { Database, Json } from "@/types/supabase";

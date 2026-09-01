@@ -1,21 +1,23 @@
 "use client";
 
 import { useActionState, useMemo, useState } from "react";
-import { CheckCircle, Eye, ImageIcon, Save, Search, Send } from "lucide-react";
+import { CheckCircle, Eye, ImageIcon, Plus, Save, Search, Send, X } from "lucide-react";
 import type {
   MarketingContentDraftRow,
   MarketingContentRevisionRow,
 } from "@/lib/queries/marketing-content";
 import type { MarketingMediaAssetRow } from "@/lib/queries/marketing-media";
 import type { PublicCatalogService } from "@/lib/queries/services";
-import type { SelectedMediaValue } from "@/components/features/marketing/media/universal-media-picker";
-import { UniversalMediaPicker } from "@/components/features/marketing/media/universal-media-picker";
 import {
   saveMarketingDraftAction,
   submitMarketingDraftAction,
 } from "@/app/(dashboard)/marketing/actions";
 import { publishMarketingDraftAction } from "@/app/(dashboard)/owner/marketing/actions";
 import { updateServicePresentationAction } from "@/app/(dashboard)/marketing/service-actions";
+import { MarketingStudioPanel } from "@/components/features/marketing/shared/marketing-studio-panel";
+import { MarketingFieldGroup } from "@/components/features/marketing/shared/marketing-field-group";
+import { MarketingMediaField } from "@/components/features/marketing/shared/marketing-media-field";
+import { MarketingActionBar } from "@/components/features/marketing/shared/marketing-action-bar";
 
 export type ServicesStudioViewProps = {
   role: "digital_marketer" | "owner";
@@ -46,7 +48,7 @@ export function ServicesStudioView({
   role,
   services = [],
   drafts = [],
-  revisions = [],
+  revisions: _revisions = [],
   mediaAssets = [],
 }: ServicesStudioViewProps) {
   // Categories extraction
@@ -97,34 +99,40 @@ export function ServicesStudioView({
 
   const currentService = useMemo(() => {
     return (
-      filteredServices.find((s) => s.id === selectedServiceId) || filteredServices[0] || services[0]
+      filteredServices.find((s) => s.id === selectedServiceId) ||
+      filteredServices[0] ||
+      services[0]
     );
   }, [filteredServices, selectedServiceId, services]);
 
-  // Find active draft for selected service
+  // Find active mutable draft for current service
   const activeServiceDraft = useMemo(() => {
-    if (!currentService) return undefined;
+    if (!currentService) return null;
+
     const draftFromAction =
       (saveState?.success && (saveState as { draft?: MarketingContentDraftRow }).draft) ||
       (submitState?.success && (submitState as { draft?: MarketingContentDraftRow }).draft);
 
     if (
       draftFromAction &&
+      draftFromAction.content_type === "service" &&
       draftFromAction.content_key === currentService.id &&
       ["draft", "submitted", "changes_requested", "approved"].includes(draftFromAction.status)
     ) {
       return draftFromAction;
     }
 
-    return drafts.find(
-      (d) =>
-        d.content_type === "service" &&
-        d.content_key === currentService.id &&
-        ["draft", "submitted", "changes_requested", "approved"].includes(d.status)
+    return (
+      drafts.find(
+        (d) =>
+          d.content_type === "service" &&
+          d.content_key === currentService.id &&
+          ["draft", "submitted", "changes_requested", "approved"].includes(d.status)
+      ) ?? null
     );
-  }, [drafts, currentService, saveState, submitState]);
+  }, [currentService, drafts, saveState, submitState]);
 
-  // Initial values
+  // Initial values from active mutable draft or live catalog service
   const initialValues: ServiceFormValues = useMemo(() => {
     if (!currentService) {
       return {
@@ -137,32 +145,39 @@ export function ServicesStudioView({
       };
     }
 
-    if (activeServiceDraft?.metadata && typeof activeServiceDraft.metadata === "object") {
-      const meta = activeServiceDraft.metadata as Record<string, unknown>;
+    if (activeServiceDraft) {
+      const meta =
+        activeServiceDraft.metadata &&
+        typeof activeServiceDraft.metadata === "object" &&
+        !Array.isArray(activeServiceDraft.metadata)
+          ? (activeServiceDraft.metadata as Record<string, unknown>)
+          : {};
+
+      const badges = Array.isArray(meta.badges) ? (meta.badges as string[]) : currentService.badges;
+      const inclusions = Array.isArray(meta.inclusions)
+        ? (meta.inclusions as string[])
+        : currentService.inclusions;
+      const shortDescription =
+        typeof meta.shortDescription === "string"
+          ? meta.shortDescription
+          : currentService.shortDescription || "";
+
       return {
         imageUrl: activeServiceDraft.image_url || currentService.imageUrl || "",
         imageAlt:
           activeServiceDraft.alt_text ||
           currentService.imageAlt ||
-          `${currentService.name} service`,
+          `${currentService.name} treatment`,
         description: activeServiceDraft.body || currentService.description || "",
-        shortDescription:
-          (typeof meta.shortDescription === "string" && meta.shortDescription) ||
-          activeServiceDraft.subtitle ||
-          currentService.shortDescription ||
-          "",
-        badges: Array.isArray(meta.badges)
-          ? (meta.badges as string[])
-          : currentService.badges || [],
-        inclusions: Array.isArray(meta.inclusions)
-          ? (meta.inclusions as string[])
-          : currentService.inclusions || [],
+        shortDescription,
+        badges,
+        inclusions,
       };
     }
 
     return {
       imageUrl: currentService.imageUrl || "",
-      imageAlt: currentService.imageAlt || `${currentService.name} service`,
+      imageAlt: currentService.imageAlt || `${currentService.name} treatment`,
       description: currentService.description || "",
       shortDescription: currentService.shortDescription || "",
       badges: currentService.badges || [],
@@ -171,48 +186,46 @@ export function ServicesStudioView({
   }, [currentService, activeServiceDraft]);
 
   const [formValues, setFormValues] = useState<ServiceFormValues>(initialValues);
-  const [showMediaPicker, setShowMediaPicker] = useState(false);
   const [newBadgeText, setNewBadgeText] = useState("");
   const [newInclusionText, setNewInclusionText] = useState("");
 
   const handleSelectService = (serviceId: string) => {
     setSelectedServiceId(serviceId);
-    const target = services.find((s) => s.id === serviceId);
-    if (target) {
-      const srvDraft = drafts.find(
+    const service = services.find((s) => s.id === serviceId);
+    if (service) {
+      const draft = drafts.find(
         (d) =>
           d.content_type === "service" &&
-          d.content_key === target.id &&
+          d.content_key === service.id &&
           ["draft", "submitted", "changes_requested", "approved"].includes(d.status)
       );
 
-      if (srvDraft) {
+      if (draft) {
         const meta =
-          srvDraft.metadata && typeof srvDraft.metadata === "object"
-            ? (srvDraft.metadata as Record<string, unknown>)
+          draft.metadata && typeof draft.metadata === "object" && !Array.isArray(draft.metadata)
+            ? (draft.metadata as Record<string, unknown>)
             : {};
         setFormValues({
-          imageUrl: srvDraft.image_url || target.imageUrl || "",
-          imageAlt: srvDraft.alt_text || target.imageAlt || `${target.name} service`,
-          description: srvDraft.body || target.description || "",
+          imageUrl: draft.image_url || service.imageUrl || "",
+          imageAlt: draft.alt_text || service.imageAlt || `${service.name} treatment`,
+          description: draft.body || service.description || "",
           shortDescription:
-            (typeof meta.shortDescription === "string" && meta.shortDescription) ||
-            srvDraft.subtitle ||
-            target.shortDescription ||
-            "",
-          badges: Array.isArray(meta.badges) ? (meta.badges as string[]) : target.badges || [],
+            typeof meta.shortDescription === "string"
+              ? meta.shortDescription
+              : service.shortDescription || "",
+          badges: Array.isArray(meta.badges) ? (meta.badges as string[]) : service.badges,
           inclusions: Array.isArray(meta.inclusions)
             ? (meta.inclusions as string[])
-            : target.inclusions || [],
+            : service.inclusions,
         });
       } else {
         setFormValues({
-          imageUrl: target.imageUrl || "",
-          imageAlt: target.imageAlt || `${target.name} service`,
-          description: target.description || "",
-          shortDescription: target.shortDescription || "",
-          badges: target.badges || [],
-          inclusions: target.inclusions || [],
+          imageUrl: service.imageUrl || "",
+          imageAlt: service.imageAlt || `${service.name} treatment`,
+          description: service.description || "",
+          shortDescription: service.shortDescription || "",
+          badges: service.badges || [],
+          inclusions: service.inclusions || [],
         });
       }
     }
@@ -223,12 +236,11 @@ export function ServicesStudioView({
   }, [formValues, initialValues]);
 
   const handleAddBadge = () => {
-    if (!newBadgeText.trim()) return;
-    setFormValues((prev) => ({
-      ...prev,
-      badges: [...prev.badges, newBadgeText.trim()],
-    }));
-    setNewBadgeText("");
+    const trimmed = newBadgeText.trim();
+    if (trimmed.length > 0 && !formValues.badges.includes(trimmed)) {
+      setFormValues((prev) => ({ ...prev, badges: [...prev.badges, trimmed] }));
+      setNewBadgeText("");
+    }
   };
 
   const handleRemoveBadge = (index: number) => {
@@ -239,12 +251,11 @@ export function ServicesStudioView({
   };
 
   const handleAddInclusion = () => {
-    if (!newInclusionText.trim()) return;
-    setFormValues((prev) => ({
-      ...prev,
-      inclusions: [...prev.inclusions, newInclusionText.trim()],
-    }));
-    setNewInclusionText("");
+    const trimmed = newInclusionText.trim();
+    if (trimmed.length > 0 && !formValues.inclusions.includes(trimmed)) {
+      setFormValues((prev) => ({ ...prev, inclusions: [...prev.inclusions, trimmed] }));
+      setNewInclusionText("");
+    }
   };
 
   const handleRemoveInclusion = (index: number) => {
@@ -254,19 +265,12 @@ export function ServicesStudioView({
     }));
   };
 
-  const handleMediaSelect = (value: SelectedMediaValue) => {
-    setFormValues((prev) => ({
-      ...prev,
-      imageUrl: value.publicUrl || "",
-      imageAlt: prev.imageAlt || value.altText || `${currentService?.name} treatment`,
-    }));
-    setShowMediaPicker(false);
-  };
-
   if (!currentService) {
     return (
-      <div className="rounded-2xl border border-white/10 bg-[#0A1F18] p-8 text-center text-[#9AA89A]">
-        <p className="text-sm font-medium text-[#F6EBD6]">No services found matching filters</p>
+      <div className="rounded-2xl border border-[var(--cs-border)] bg-[var(--cs-surface)] p-8 text-center text-[var(--cs-text-secondary)]">
+        <p className="text-sm font-medium text-[var(--cs-text)]">
+          No services found matching filters
+        </p>
       </div>
     );
   }
@@ -275,23 +279,33 @@ export function ServicesStudioView({
     <div className="space-y-6">
       {/* Action notices */}
       {ownerUpdateState?.message && (
-        <div className="rounded-lg border border-green-500/30 bg-green-500/10 p-3 text-xs text-green-300">
+        <div className="rounded-lg border border-green-500/30 bg-green-500/10 p-3 text-xs text-green-700 dark:text-green-300">
           {ownerUpdateState.message}
         </div>
       )}
       {ownerUpdateState?.error && (
-        <div className="rounded-lg border border-red-500/30 bg-red-500/10 p-3 text-xs text-red-300">
+        <div className="rounded-lg border border-red-500/30 bg-red-500/10 p-3 text-xs text-red-700 dark:text-red-300">
           {ownerUpdateState.error}
         </div>
       )}
+      {publishState?.message && (
+        <div className="rounded-lg border border-green-500/30 bg-green-500/10 p-3 text-xs text-green-700 dark:text-green-300">
+          {publishState.message}
+        </div>
+      )}
+      {publishState?.error && (
+        <div className="rounded-lg border border-red-500/30 bg-red-500/10 p-3 text-xs text-red-700 dark:text-red-300">
+          {publishState.error}
+        </div>
+      )}
       {saveState?.message && (
-        <div className="rounded-lg border border-green-500/30 bg-green-500/10 p-3 text-xs text-green-300">
+        <div className="rounded-lg border border-green-500/30 bg-green-500/10 p-3 text-xs text-green-700 dark:text-green-300">
           {saveState.message}
         </div>
       )}
 
-      {/* Top Filter and Search Bar */}
-      <div className="flex flex-col gap-4 rounded-2xl border border-[#D4B57A]/15 bg-[#0A1F18]/90 p-4 shadow-lg backdrop-blur-md md:flex-row md:items-center md:justify-between">
+      {/* Top Filter and Search Bar (Standardized Light Panel) */}
+      <div className="flex flex-col gap-4 rounded-2xl border border-[var(--cs-border)] bg-[var(--cs-surface)] p-4 shadow-xs md:flex-row md:items-center md:justify-between">
         {/* Category filter pills */}
         <div className="flex flex-wrap gap-1.5">
           {categories.map((cat) => (
@@ -299,10 +313,10 @@ export function ServicesStudioView({
               key={cat}
               type="button"
               onClick={() => setSelectedCategory(cat)}
-              className={`rounded-lg px-3 py-1.5 text-xs font-medium transition-colors ${
+              className={`rounded-lg px-3 py-1.5 text-xs font-semibold transition-colors ${
                 selectedCategory === cat
-                  ? "bg-[#C8A96B] font-semibold text-[#10261D]"
-                  : "bg-[#061410] text-[#9AA89A] hover:bg-[#163A2B] hover:text-[#F6EBD6]"
+                  ? "bg-[#C8A96B] font-bold text-[#10261D] shadow-xs"
+                  : "bg-[var(--cs-surface-warm)] text-[var(--cs-text-secondary)] border border-[var(--cs-border)] hover:text-[var(--cs-text)]"
               }`}
             >
               {cat}
@@ -312,13 +326,13 @@ export function ServicesStudioView({
 
         {/* Search input */}
         <div className="relative w-full md:w-64">
-          <Search className="absolute left-3 top-2.5 h-3.5 w-3.5 text-[#9AA89A]" />
+          <Search className="absolute left-3 top-2.5 h-3.5 w-3.5 text-[var(--cs-text-tertiary)]" />
           <input
             type="text"
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
             placeholder="Search service name..."
-            className="w-full rounded-xl border border-white/10 bg-[#061410] py-2 pl-9 pr-3 text-xs text-[#F6EBD6] placeholder-[#9AA89A]/60 focus:border-[#C8A96B] focus:outline-none"
+            className="w-full rounded-xl border border-[var(--cs-border)] bg-[var(--cs-surface)] py-2 pl-9 pr-3 text-xs text-[var(--cs-text)] shadow-xs focus:border-[#C8A96B] focus:outline-none"
           />
         </div>
       </div>
@@ -327,8 +341,8 @@ export function ServicesStudioView({
       <div className="grid grid-cols-1 gap-6 lg:grid-cols-12">
         {/* Left Column: Service Selector List */}
         <div className="space-y-3 lg:col-span-4">
-          <div className="rounded-2xl border border-[#D4B57A]/15 bg-[#0A1F18]/90 p-4 shadow-xl backdrop-blur-md">
-            <h3 className="mb-3 text-xs font-semibold uppercase tracking-wider text-[#C8A96B]">
+          <div className="rounded-2xl border border-[var(--cs-border)] bg-[var(--cs-surface)] p-4 shadow-xs">
+            <h3 className="mb-3 text-xs font-bold uppercase tracking-wider text-[#9A7B38] dark:text-[#C8A96B]">
               Catalog Services ({filteredServices.length})
             </h3>
             <div className="max-h-[600px] space-y-2 overflow-y-auto pr-1">
@@ -341,41 +355,50 @@ export function ServicesStudioView({
                     onClick={() => handleSelectService(service.id)}
                     className={`flex w-full items-start gap-3 rounded-xl p-3 text-left transition-all ${
                       isSelected
-                        ? "border border-[#C8A96B]/50 bg-[#163A2B] text-[#F6EBD6] shadow-md"
-                        : "border border-white/5 bg-[#061410]/80 text-[#9AA89A] hover:border-white/20 hover:text-[#F6EBD6]"
+                        ? "border border-[#C8A96B]/50 bg-[#163A2B] text-[#F6EBD6] shadow-sm"
+                        : "border border-[var(--cs-border)] bg-[var(--cs-surface-warm)] text-[var(--cs-text)] hover:border-[#C8A96B]/30"
                     }`}
                   >
-                    <div className="relative h-12 w-12 shrink-0 overflow-hidden rounded-lg bg-[#031B16]">
+                    <div className="relative h-12 w-12 shrink-0 overflow-hidden rounded-lg bg-[var(--cs-surface)] border border-[var(--cs-border-subtle)] flex items-center justify-center">
                       {service.imageUrl ? (
+                        // eslint-disable-next-line @next/next/no-img-element
                         <img
                           src={service.imageUrl}
                           alt={service.name}
                           className="h-full w-full object-cover"
                         />
                       ) : (
-                        <ImageIcon className="h-6 w-6 text-[#9AA89A]/40 m-auto mt-3" />
+                        <ImageIcon className="h-5 w-5 text-[var(--cs-text-tertiary)]" />
                       )}
                     </div>
                     <div className="min-w-0 flex-1">
-                      <p className="truncate text-xs font-semibold text-[#F6EBD6]">
+                      <p
+                        className={`truncate text-xs font-bold ${
+                          isSelected ? "text-[#F6EBD6]" : "text-[var(--cs-text)]"
+                        }`}
+                      >
                         {service.name}
                       </p>
-                      <p className="text-[11px] text-[#C8A96B]">
+                      <p
+                        className={`text-[11px] font-medium ${
+                          isSelected ? "text-[#C8A96B]" : "text-[#8C6D23] dark:text-[#D4B57A]"
+                        }`}
+                      >
                         {service.categoryName} · {formatCurrency(service.price)}
                       </p>
                       <div className="mt-1 flex flex-wrap gap-1">
                         {service.isPublicBookable && (
-                          <span className="rounded bg-emerald-500/20 px-1.5 py-0.2 text-[9px] font-medium text-emerald-300">
+                          <span className="rounded bg-emerald-100 dark:bg-emerald-950/40 px-1.5 py-0.2 text-[9px] font-semibold text-emerald-800 dark:text-emerald-300">
                             Bookable
                           </span>
                         )}
                         {service.isCsrOnly && (
-                          <span className="rounded bg-amber-500/20 px-1.5 py-0.2 text-[9px] font-medium text-amber-300">
+                          <span className="rounded bg-amber-100 dark:bg-amber-950/40 px-1.5 py-0.2 text-[9px] font-semibold text-amber-800 dark:text-amber-300">
                             CSR Only
                           </span>
                         )}
                         {service.isVip && (
-                          <span className="rounded bg-purple-500/20 px-1.5 py-0.2 text-[9px] font-medium text-purple-300">
+                          <span className="rounded bg-purple-100 dark:bg-purple-950/40 px-1.5 py-0.2 text-[9px] font-semibold text-purple-800 dark:text-purple-300">
                             VIP
                           </span>
                         )}
@@ -391,282 +414,296 @@ export function ServicesStudioView({
         {/* Center/Right Columns: Editor & Live Preview */}
         <div className="space-y-6 lg:col-span-8">
           <div className="grid grid-cols-1 gap-6 xl:grid-cols-2">
-            {/* Editor Pane */}
-            <div className="rounded-2xl border border-[#D4B57A]/15 bg-[#0A1F18]/90 p-5 shadow-xl backdrop-blur-md space-y-4">
-              <div className="flex items-center justify-between border-b border-[#D4B57A]/15 pb-3">
-                <div>
-                  <h2 className="text-base font-medium text-[#F6EBD6]">{currentService.name}</h2>
-                  <p className="text-xs text-[#9AA89A]">
-                    {currentService.categoryName} · {currentService.durationMinutes} min
-                  </p>
-                </div>
-                {isDirty && (
-                  <span className="rounded-full bg-amber-500/20 px-2 py-0.5 text-[10px] font-medium text-amber-300">
-                    Unsaved
-                  </span>
-                )}
-              </div>
-
-              {/* Service Image Slot */}
-              <div className="space-y-2 rounded-xl border border-white/5 bg-white/[0.02] p-3">
-                <div className="flex items-center justify-between">
-                  <label className="text-xs font-semibold uppercase tracking-wider text-[#C8A96B]">
-                    Service Presentation Photo
-                  </label>
-                  <button
-                    type="button"
-                    onClick={() => setShowMediaPicker(true)}
-                    className="inline-flex items-center gap-1.5 rounded-lg border border-[#D4B57A]/30 bg-[#163A2B] px-2 py-1 text-xs text-[#F6EBD6] hover:bg-[#1D4A35]"
-                  >
-                    <ImageIcon className="h-3.5 w-3.5 text-[#C8A96B]" />
-                    Choose Media
-                  </button>
-                </div>
-                <div>
-                  <span className="text-[11px] text-[#9AA89A]">Image URL</span>
-                  <input
-                    type="text"
+            {/* Editor Pane (Standardized Light Panel) */}
+            <MarketingStudioPanel
+              title={currentService.name}
+              description={`${currentService.categoryName} · ${currentService.durationMinutes} min`}
+              badge={
+                <span className="inline-flex items-center rounded-full bg-[var(--cs-surface-warm)] px-2.5 py-0.5 text-[11px] font-semibold text-[var(--cs-text-secondary)] border border-[var(--cs-border)]">
+                  {activeServiceDraft ? `Draft: ${activeServiceDraft.status}` : "Live Synced"}
+                </span>
+              }
+            >
+              <div className="space-y-4">
+                {/* 1. Service Image Slot */}
+                <MarketingFieldGroup
+                  title="1. Treatment Photography"
+                  description="Standard 4:3 landscape photo for treatment cards"
+                >
+                  <MarketingMediaField
+                    label="Service Photo (4:3)"
+                    intent="SERVICE_PHOTO"
                     value={formValues.imageUrl}
-                    onChange={(e) => setFormValues((p) => ({ ...p, imageUrl: e.target.value }))}
-                    placeholder="/images/services/..."
-                    className="mt-1 w-full rounded-lg border border-white/10 bg-[#061410] px-3 py-1.5 text-xs text-[#F6EBD6] focus:border-[#C8A96B] focus:outline-none"
+                    altValue={formValues.imageAlt}
+                    onChange={(url, alt) => {
+                      setFormValues((p) => ({
+                        ...p,
+                        imageUrl: url,
+                        imageAlt: alt || p.imageAlt,
+                      }));
+                    }}
+                    availableAssets={mediaAssets}
                   />
-                </div>
-                <div>
-                  <span className="text-[11px] text-[#9AA89A]">Image Alt Text</span>
-                  <input
-                    type="text"
-                    value={formValues.imageAlt}
-                    onChange={(e) => setFormValues((p) => ({ ...p, imageAlt: e.target.value }))}
-                    placeholder="Describe the massage treatment for screen readers"
-                    className="mt-1 w-full rounded-lg border border-white/10 bg-[#061410] px-3 py-1.5 text-xs text-[#F6EBD6] focus:border-[#C8A96B] focus:outline-none"
-                  />
-                </div>
-              </div>
+                  <div>
+                    <label className="text-xs font-semibold text-[var(--cs-text)]">
+                      Image Alt Text
+                    </label>
+                    <input
+                      type="text"
+                      value={formValues.imageAlt}
+                      onChange={(e) =>
+                        setFormValues((p) => ({ ...p, imageAlt: e.target.value }))
+                      }
+                      placeholder="Describe the massage treatment for screen readers"
+                      className="mt-1 w-full rounded-lg border border-[var(--cs-border)] bg-[var(--cs-surface)] px-3 py-1.5 text-xs text-[var(--cs-text)] shadow-xs focus:border-[#C8A96B] focus:outline-none"
+                    />
+                  </div>
+                </MarketingFieldGroup>
 
-              {/* Descriptions */}
-              <div className="space-y-3 rounded-xl border border-white/5 bg-white/[0.02] p-3">
-                <label className="text-xs font-semibold uppercase tracking-wider text-[#C8A96B]">
-                  Service Copy & Details
-                </label>
-                <div>
-                  <span className="text-[11px] text-[#9AA89A]">
-                    Short Description (Cards & Mobile)
-                  </span>
-                  <textarea
-                    rows={2}
-                    value={formValues.shortDescription}
-                    onChange={(e) =>
-                      setFormValues((p) => ({ ...p, shortDescription: e.target.value }))
-                    }
-                    placeholder="Brief highlights of this therapy..."
-                    className="mt-1 w-full rounded-lg border border-white/10 bg-[#061410] px-3 py-1.5 text-xs text-[#F6EBD6] focus:border-[#C8A96B] focus:outline-none"
-                  />
-                </div>
-                <div>
-                  <span className="text-[11px] text-[#9AA89A]">Full Public Description</span>
-                  <textarea
-                    rows={4}
-                    aria-label="Full Public Description"
-                    value={formValues.description}
-                    onChange={(e) => setFormValues((p) => ({ ...p, description: e.target.value }))}
-                    placeholder="Detailed explanation of the therapy techniques and wellness benefits..."
-                    className="mt-1 w-full rounded-lg border border-white/10 bg-[#061410] px-3 py-1.5 text-xs text-[#F6EBD6] focus:border-[#C8A96B] focus:outline-none"
-                  />
-                </div>
-              </div>
+                {/* 2. Descriptions */}
+                <MarketingFieldGroup
+                  title="2. Treatment Copy & Descriptions"
+                  description="Short highlights and full public treatment description"
+                >
+                  <div>
+                    <label className="text-xs font-semibold text-[var(--cs-text)]">
+                      Short Description (Cards & Mobile)
+                    </label>
+                    <textarea
+                      rows={2}
+                      value={formValues.shortDescription}
+                      onChange={(e) =>
+                        setFormValues((p) => ({ ...p, shortDescription: e.target.value }))
+                      }
+                      placeholder="Brief highlights of this therapy..."
+                      className="mt-1 w-full rounded-lg border border-[var(--cs-border)] bg-[var(--cs-surface)] px-3 py-1.5 text-xs text-[var(--cs-text)] shadow-xs focus:border-[#C8A96B] focus:outline-none"
+                    />
+                  </div>
+                  <div>
+                    <label className="text-xs font-semibold text-[var(--cs-text)]">
+                      Full Public Description
+                    </label>
+                    <textarea
+                      rows={4}
+                      aria-label="Full Public Description"
+                      value={formValues.description}
+                      onChange={(e) =>
+                        setFormValues((p) => ({ ...p, description: e.target.value }))
+                      }
+                      placeholder="Detailed explanation of the therapy techniques and wellness benefits..."
+                      className="mt-1 w-full rounded-lg border border-[var(--cs-border)] bg-[var(--cs-surface)] px-3 py-1.5 text-xs text-[var(--cs-text)] shadow-xs focus:border-[#C8A96B] focus:outline-none"
+                    />
+                  </div>
+                </MarketingFieldGroup>
 
-              {/* Badges Manager */}
-              <div className="space-y-2 rounded-xl border border-white/5 bg-white/[0.02] p-3">
-                <label className="text-xs font-semibold uppercase tracking-wider text-[#C8A96B]">
-                  Promotional Badges
-                </label>
-                <div className="flex flex-wrap gap-1.5">
-                  {formValues.badges.map((badge, idx) => (
-                    <span
-                      key={idx}
-                      className="inline-flex items-center gap-1 rounded-full border border-[#D4B57A]/40 bg-[#163A2B] px-2.5 py-0.5 text-[11px] text-[#F6EBD6]"
-                    >
-                      {badge}
-                      <button
-                        type="button"
-                        onClick={() => handleRemoveBadge(idx)}
-                        className="text-red-400 hover:text-red-300"
-                        aria-label={`Remove badge ${badge}`}
+                {/* 3. Badges Manager */}
+                <MarketingFieldGroup
+                  title="3. Promotional Badges"
+                  description="Highlight key tags on public catalog cards"
+                >
+                  <div className="flex flex-wrap gap-1.5">
+                    {formValues.badges.map((badge, idx) => (
+                      <span
+                        key={idx}
+                        className="inline-flex items-center gap-1 rounded-full border border-[#C8A96B]/30 bg-[#C8A96B]/10 px-2.5 py-0.5 text-[11px] font-semibold text-[#8C6D23] dark:text-[#D4B57A]"
                       >
-                        &times;
-                      </button>
-                    </span>
-                  ))}
-                </div>
-                <div className="flex gap-2 pt-1">
-                  <input
-                    type="text"
-                    value={newBadgeText}
-                    onChange={(e) => setNewBadgeText(e.target.value)}
-                    placeholder="e.g. Bestseller, Couples"
-                    className="flex-1 rounded-lg border border-white/10 bg-[#061410] px-3 py-1.5 text-xs text-[#F6EBD6] focus:border-[#C8A96B] focus:outline-none"
-                  />
-                  <button
-                    type="button"
-                    onClick={handleAddBadge}
-                    className="rounded-lg bg-[#163A2B] px-3 py-1.5 text-xs text-[#F6EBD6] hover:bg-[#1D4A35]"
-                  >
-                    Add
-                  </button>
-                </div>
-              </div>
-
-              {/* Inclusions Manager */}
-              <div className="space-y-2 rounded-xl border border-white/5 bg-white/[0.02] p-3">
-                <label className="text-xs font-semibold uppercase tracking-wider text-[#C8A96B]">
-                  Service Inclusions
-                </label>
-                <div className="flex flex-wrap gap-1.5">
-                  {formValues.inclusions.map((inclusion, idx) => (
-                    <span
-                      key={idx}
-                      className="inline-flex items-center gap-1 rounded-full border border-white/20 bg-[#061410] px-2.5 py-0.5 text-[11px] text-[#F6EBD6]"
+                        {badge}
+                        <button
+                          type="button"
+                          onClick={() => handleRemoveBadge(idx)}
+                          className="text-red-500 hover:text-red-700"
+                          aria-label={`Remove badge ${badge}`}
+                        >
+                          <X className="h-3 w-3" />
+                        </button>
+                      </span>
+                    ))}
+                  </div>
+                  <div className="flex gap-2 pt-1">
+                    <input
+                      type="text"
+                      value={newBadgeText}
+                      onChange={(e) => setNewBadgeText(e.target.value)}
+                      placeholder="e.g. Bestseller, Couples"
+                      className="flex-1 rounded-lg border border-[var(--cs-border)] bg-[var(--cs-surface)] px-3 py-1.5 text-xs text-[var(--cs-text)] shadow-xs focus:border-[#C8A96B] focus:outline-none"
+                    />
+                    <button
+                      type="button"
+                      onClick={handleAddBadge}
+                      className="inline-flex items-center gap-1 rounded-lg bg-[#163A2B] px-3 py-1.5 text-xs font-semibold text-[#F6EBD6] hover:bg-[#1D4A35]"
                     >
-                      {inclusion}
-                      <button
-                        type="button"
-                        onClick={() => handleRemoveInclusion(idx)}
-                        className="text-red-400 hover:text-red-300"
-                        aria-label={`Remove inclusion ${inclusion}`}
+                      <Plus className="h-3.5 w-3.5" />
+                      Add
+                    </button>
+                  </div>
+                </MarketingFieldGroup>
+
+                {/* 4. Inclusions Manager */}
+                <MarketingFieldGroup
+                  title="4. Service Inclusions"
+                  description="Amenities included with this therapy"
+                >
+                  <div className="flex flex-wrap gap-1.5">
+                    {formValues.inclusions.map((inclusion, idx) => (
+                      <span
+                        key={idx}
+                        className="inline-flex items-center gap-1 rounded-full border border-[var(--cs-border)] bg-[var(--cs-surface)] px-2.5 py-0.5 text-[11px] font-medium text-[var(--cs-text)]"
                       >
-                        &times;
-                      </button>
-                    </span>
-                  ))}
-                </div>
-                <div className="flex gap-2 pt-1">
-                  <input
-                    type="text"
-                    value={newInclusionText}
-                    onChange={(e) => setNewInclusionText(e.target.value)}
-                    placeholder="e.g. Aromatherapy oils, Hot towel"
-                    className="flex-1 rounded-lg border border-white/10 bg-[#061410] px-3 py-1.5 text-xs text-[#F6EBD6] focus:border-[#C8A96B] focus:outline-none"
-                  />
-                  <button
-                    type="button"
-                    onClick={handleAddInclusion}
-                    className="rounded-lg bg-[#163A2B] px-3 py-1.5 text-xs text-[#F6EBD6] hover:bg-[#1D4A35]"
-                  >
-                    Add
-                  </button>
-                </div>
+                        {inclusion}
+                        <button
+                          type="button"
+                          onClick={() => handleRemoveInclusion(idx)}
+                          className="text-red-500 hover:text-red-700"
+                          aria-label={`Remove inclusion ${inclusion}`}
+                        >
+                          <X className="h-3 w-3" />
+                        </button>
+                      </span>
+                    ))}
+                  </div>
+                  <div className="flex gap-2 pt-1">
+                    <input
+                      type="text"
+                      value={newInclusionText}
+                      onChange={(e) => setNewInclusionText(e.target.value)}
+                      placeholder="e.g. Aromatherapy oils, Hot towel"
+                      className="flex-1 rounded-lg border border-[var(--cs-border)] bg-[var(--cs-surface)] px-3 py-1.5 text-xs text-[var(--cs-text)] shadow-xs focus:border-[#C8A96B] focus:outline-none"
+                    />
+                    <button
+                      type="button"
+                      onClick={handleAddInclusion}
+                      className="inline-flex items-center gap-1 rounded-lg bg-[#163A2B] px-3 py-1.5 text-xs font-semibold text-[#F6EBD6] hover:bg-[#1D4A35]"
+                    >
+                      <Plus className="h-3.5 w-3.5" />
+                      Add
+                    </button>
+                  </div>
+                </MarketingFieldGroup>
               </div>
 
               {/* Action Buttons */}
-              <div className="flex flex-wrap items-center justify-between gap-2 border-t border-white/10 pt-3">
-                <button
-                  type="button"
-                  onClick={() => setFormValues(initialValues)}
-                  disabled={!isDirty}
-                  className="rounded-lg border border-white/15 px-3 py-1.5 text-xs text-[#9AA89A] hover:bg-white/5 disabled:opacity-40"
-                >
-                  Revert
-                </button>
-
-                <div className="flex items-center gap-2">
-                  <form action={saveAction}>
-                    <input type="hidden" name="id" value={activeServiceDraft?.id || ""} />
-                    <input type="hidden" name="contentType" value="service" />
-                    <input type="hidden" name="contentKey" value={currentService.id} />
-                    <input type="hidden" name="title" value={currentService.name} />
-                    <input type="hidden" name="body" value={formValues.description} />
-                    <input type="hidden" name="imageUrl" value={formValues.imageUrl} />
-                    <input type="hidden" name="altText" value={formValues.imageAlt} />
-                    <input
-                      type="hidden"
-                      name="metadata"
-                      value={JSON.stringify({
-                        shortDescription: formValues.shortDescription,
-                        badges: formValues.badges,
-                        inclusions: formValues.inclusions,
-                      })}
-                    />
-                    <button
-                      type="submit"
-                      disabled={isSaving}
-                      className="inline-flex items-center gap-1.5 rounded-lg border border-[#D4B57A]/40 bg-[#163A2B] px-3 py-1.5 text-xs font-semibold text-[#F6EBD6] hover:bg-[#1D4A35] disabled:opacity-50"
-                    >
-                      <Save className="h-3.5 w-3.5 text-[#C8A96B]" />
-                      {isSaving ? "Saving..." : "Save Draft"}
-                    </button>
-                  </form>
-
-                  {/* Submit for Review (Marketer / Owner) */}
-                  {activeServiceDraft &&
-                    ["draft", "changes_requested"].includes(activeServiceDraft.status) && (
-                      <form action={submitAction}>
-                        <input type="hidden" name="id" value={activeServiceDraft.id} />
+              <div className="mt-5">
+                <MarketingActionBar
+                  role={role}
+                  draftStatus={
+                    activeServiceDraft?.status as
+                      | "draft"
+                      | "submitted"
+                      | "changes_requested"
+                      | "approved"
+                      | "published"
+                      | null
+                  }
+                  isDirty={isDirty}
+                  isSaving={isSaving}
+                  isSubmitting={isSubmitting}
+                  isPublishing={isPublishing || isOwnerUpdating}
+                  onRevert={() => setFormValues(initialValues)}
+                  customActions={
+                    <div className="flex flex-wrap items-center gap-2">
+                      <form action={saveAction}>
+                        <input type="hidden" name="id" value={activeServiceDraft?.id || ""} />
+                        <input type="hidden" name="contentType" value="service" />
+                        <input type="hidden" name="contentKey" value={currentService.id} />
+                        <input type="hidden" name="title" value={currentService.name} />
+                        <input type="hidden" name="body" value={formValues.description} />
+                        <input type="hidden" name="imageUrl" value={formValues.imageUrl} />
+                        <input type="hidden" name="altText" value={formValues.imageAlt} />
+                        <input
+                          type="hidden"
+                          name="metadata"
+                          value={JSON.stringify({
+                            shortDescription: formValues.shortDescription,
+                            badges: formValues.badges,
+                            inclusions: formValues.inclusions,
+                          })}
+                        />
                         <button
                           type="submit"
-                          disabled={isSubmitting}
-                          className="inline-flex items-center gap-1.5 rounded-lg bg-[#C8A96B] px-3 py-1.5 text-xs font-semibold text-[#10261D] hover:bg-[#D4B57A] disabled:opacity-50"
+                          disabled={isSaving}
+                          className="inline-flex items-center gap-1.5 rounded-lg border border-[var(--cs-border)] bg-[var(--cs-surface-warm)] px-3 py-1.5 text-xs font-semibold text-[var(--cs-text)] shadow-xs transition hover:bg-[var(--cs-surface)] disabled:opacity-50"
                         >
-                          <Send className="h-3.5 w-3.5" />
-                          {isSubmitting ? "Submitting..." : "Submit for Review"}
+                          <Save className="h-3.5 w-3.5 text-[#C8A96B]" />
+                          {isSaving ? "Saving..." : "Save Draft"}
                         </button>
                       </form>
-                    )}
 
-                  {role === "owner" && (
-                    <>
+                      {/* Submit for Review (Marketer / Owner) */}
                       {activeServiceDraft &&
-                      ["submitted", "approved"].includes(activeServiceDraft.status) ? (
-                        <form action={publishAction}>
-                          <input type="hidden" name="id" value={activeServiceDraft.id} />
-                          <button
-                            type="submit"
-                            disabled={isPublishing}
-                            className="inline-flex items-center gap-1.5 rounded-lg bg-emerald-600 px-3 py-1.5 text-xs font-semibold text-white hover:bg-emerald-500 disabled:opacity-50"
-                          >
-                            <CheckCircle className="h-3.5 w-3.5" />
-                            {isPublishing ? "Publishing..." : "Publish to Live"}
-                          </button>
-                        </form>
-                      ) : (
-                        <form action={ownerUpdateAction}>
-                          <input type="hidden" name="serviceId" value={currentService.id} />
-                          <input type="hidden" name="imageUrl" value={formValues.imageUrl} />
-                          <input type="hidden" name="imageAlt" value={formValues.imageAlt} />
-                          <input type="hidden" name="description" value={formValues.description} />
-                          <input
-                            type="hidden"
-                            name="shortDescription"
-                            value={formValues.shortDescription}
-                          />
-                          <input
-                            type="hidden"
-                            name="badges"
-                            value={JSON.stringify(formValues.badges)}
-                          />
-                          <input
-                            type="hidden"
-                            name="inclusions"
-                            value={JSON.stringify(formValues.inclusions)}
-                          />
-                          <button
-                            type="submit"
-                            disabled={isOwnerUpdating}
-                            className="inline-flex items-center gap-1.5 rounded-lg bg-emerald-600 px-3 py-1.5 text-xs font-semibold text-white hover:bg-emerald-500 disabled:opacity-50"
-                          >
-                            <CheckCircle className="h-3.5 w-3.5" />
-                            {isOwnerUpdating ? "Updating..." : "Update Live Service"}
-                          </button>
-                        </form>
-                      )}
-                    </>
-                  )}
-                </div>
-              </div>
-            </div>
+                        ["draft", "changes_requested"].includes(activeServiceDraft.status) && (
+                          <form action={submitAction}>
+                            <input type="hidden" name="id" value={activeServiceDraft.id} />
+                            <button
+                              type="submit"
+                              disabled={isSubmitting}
+                              className="inline-flex items-center gap-1.5 rounded-lg bg-[#C8A96B] px-3 py-1.5 text-xs font-semibold text-[#10261D] shadow-xs transition hover:bg-[#D4B57A] disabled:opacity-50"
+                            >
+                              <Send className="h-3.5 w-3.5" />
+                              {isSubmitting ? "Submitting..." : "Submit for Review"}
+                            </button>
+                          </form>
+                        )}
 
-            {/* Live Card Preview */}
-            <div className="rounded-2xl border border-[#D4B57A]/15 bg-[#0A1F18]/90 p-5 shadow-xl backdrop-blur-md space-y-4">
+                      {role === "owner" && (
+                        <>
+                          {activeServiceDraft &&
+                          ["submitted", "approved"].includes(activeServiceDraft.status) ? (
+                            <form action={publishAction}>
+                              <input type="hidden" name="id" value={activeServiceDraft.id} />
+                              <button
+                                type="submit"
+                                disabled={isPublishing}
+                                className="inline-flex items-center gap-1.5 rounded-lg bg-[#163A2B] px-3.5 py-1.5 text-xs font-semibold text-[#F6EBD6] shadow-xs transition hover:bg-[#1D4A35] disabled:opacity-50"
+                              >
+                                <CheckCircle className="h-3.5 w-3.5 text-[#C8A96B]" />
+                                {isPublishing ? "Publishing..." : "Publish to Live"}
+                              </button>
+                            </form>
+                          ) : (
+                            <form action={ownerUpdateAction}>
+                              <input type="hidden" name="serviceId" value={currentService.id} />
+                              <input type="hidden" name="imageUrl" value={formValues.imageUrl} />
+                              <input type="hidden" name="imageAlt" value={formValues.imageAlt} />
+                              <input
+                                type="hidden"
+                                name="description"
+                                value={formValues.description}
+                              />
+                              <input
+                                type="hidden"
+                                name="shortDescription"
+                                value={formValues.shortDescription}
+                              />
+                              <input
+                                type="hidden"
+                                name="badges"
+                                value={JSON.stringify(formValues.badges)}
+                              />
+                              <input
+                                type="hidden"
+                                name="inclusions"
+                                value={JSON.stringify(formValues.inclusions)}
+                              />
+                              <button
+                                type="submit"
+                                disabled={isOwnerUpdating}
+                                className="inline-flex items-center gap-1.5 rounded-lg bg-[#163A2B] px-3.5 py-1.5 text-xs font-semibold text-[#F6EBD6] shadow-xs transition hover:bg-[#1D4A35] disabled:opacity-50"
+                              >
+                                <CheckCircle className="h-3.5 w-3.5 text-[#C8A96B]" />
+                                {isOwnerUpdating ? "Updating..." : "Update Live Service"}
+                              </button>
+                            </form>
+                          )}
+                        </>
+                      )}
+                    </div>
+                  }
+                />
+              </div>
+            </MarketingStudioPanel>
+
+            {/* Right Column: Live Card Preview (Dark Spa Visual Standard) */}
+            <div className="rounded-2xl border border-[#D4B57A]/15 bg-[#0A1F18]/95 p-5 shadow-xl backdrop-blur-md space-y-4">
               <div className="flex items-center justify-between border-b border-[#D4B57A]/15 pb-3">
                 <div className="flex items-center gap-2">
                   <Eye className="h-4 w-4 text-[#C8A96B]" />
@@ -679,6 +716,7 @@ export function ServicesStudioView({
               <div className="overflow-hidden rounded-xl border border-[#D4B57A]/20 bg-[#0D2B20]/90 p-4 shadow-xl backdrop-blur-xl">
                 <div className="relative mb-3 h-40 w-full overflow-hidden rounded-lg bg-[#031B16]">
                   {formValues.imageUrl ? (
+                    // eslint-disable-next-line @next/next/no-img-element
                     <img
                       src={formValues.imageUrl}
                       alt={formValues.imageAlt}
@@ -774,18 +812,6 @@ export function ServicesStudioView({
           </div>
         </div>
       </div>
-
-      {/* Universal Media Picker Modal */}
-      {showMediaPicker && (
-        <UniversalMediaPicker
-          isOpen={showMediaPicker}
-          onClose={() => setShowMediaPicker(false)}
-          onSelect={handleMediaSelect}
-          currentUrl={formValues.imageUrl}
-          title={`Choose Photo for ${currentService.name}`}
-          availableAssets={mediaAssets}
-        />
-      )}
     </div>
   );
 }

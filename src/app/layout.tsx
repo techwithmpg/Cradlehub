@@ -46,62 +46,98 @@ const manrope = Manrope({
   weight: ["400", "500", "600", "700"],
 });
 
-export const metadata: Metadata = {
-  metadataBase: new URL(SITE_DOMAIN),
-  title: {
-    default: `${BUSINESS_NAME} | ${BUSINESS_TAGLINE}`,
-    template: `%s | ${BUSINESS_NAME}`,
-  },
-  description: DEFAULT_DESCRIPTION,
-  keywords: [
-    "Cradle Wellness Living",
-    "Cradle Massage and Wellness Spa",
-    "massage spa Bacolod",
-    "wellness spa Bacolod",
-    "home service massage Bacolod",
-    "book massage Bacolod",
-    "spa services Bacolod",
-    "Bacolod massage",
-    "Bacolod wellness spa",
-    "in-spa booking Bacolod",
-    "home service massage",
-  ],
-  openGraph: {
-    siteName: BUSINESS_NAME,
-    locale: "en_PH",
-    type: "website",
-    images: [
-      {
-        url: DEFAULT_OG_IMAGE,
-        alt: `${BUSINESS_NAME} — Massage and spa services in Bacolod`,
-        width: 1200,
-        height: 630,
-      },
-    ],
-  },
-  twitter: {
-    card: "summary_large_image",
-    title: `${BUSINESS_NAME} | ${BUSINESS_TAGLINE}`,
+import {
+  getPublishedBrandSettingsCached,
+  type PublishedBrandSettings,
+} from "@/lib/queries/marketing-brand";
+
+export async function generateMetadata(): Promise<Metadata> {
+  let brandSettings: PublishedBrandSettings | null = null;
+  try {
+    brandSettings = await getPublishedBrandSettingsCached();
+  } catch {
+    // Fail-closed to static fallback
+  }
+
+  const pkg = brandSettings?.siteIconPackage;
+  const iconList: { url: string; sizes?: string; type?: string }[] = [];
+
+  if (pkg?.icons?.icon32 || pkg?.icons?.ico) {
+    if (pkg.icons.icon16)
+      iconList.push({ url: pkg.icons.icon16, sizes: "16x16", type: "image/png" });
+    if (pkg.icons.icon32)
+      iconList.push({ url: pkg.icons.icon32, sizes: "32x32", type: "image/png" });
+    if (pkg.icons.icon48)
+      iconList.push({ url: pkg.icons.icon48, sizes: "48x48", type: "image/png" });
+    if (pkg.icons.icon192)
+      iconList.push({ url: pkg.icons.icon192, sizes: "192x192", type: "image/png" });
+    if (pkg.icons.icon512)
+      iconList.push({ url: pkg.icons.icon512, sizes: "512x512", type: "image/png" });
+    if (pkg.icons.ico) iconList.push({ url: pkg.icons.ico });
+  } else {
+    iconList.push({ url: "/favicon.ico" });
+    iconList.push({ url: "/icon.png", type: "image/png", sizes: "512x512" });
+  }
+
+  const appleList: { url: string; sizes?: string; type?: string }[] = [];
+  if (pkg?.icons?.apple180) {
+    appleList.push({ url: pkg.icons.apple180, sizes: "180x180", type: "image/png" });
+  } else {
+    appleList.push({ url: "/apple-icon.png", sizes: "180x180", type: "image/png" });
+  }
+
+  return {
+    metadataBase: new URL(SITE_DOMAIN),
+    title: {
+      default: `${BUSINESS_NAME} | ${brandSettings?.taglineText || BUSINESS_TAGLINE}`,
+      template: `%s | ${BUSINESS_NAME}`,
+    },
     description: DEFAULT_DESCRIPTION,
-    images: [DEFAULT_OG_IMAGE],
-  },
-  robots: {
-    index: true,
-    follow: true,
-  },
-  alternates: {
-    canonical: SITE_DOMAIN,
-  },
-  icons: {
-    icon: [
-      { url: "/favicon.ico" },
-      { url: "/icon.png", type: "image/png", sizes: "512x512" },
+    keywords: [
+      "Cradle Wellness Living",
+      "Cradle Massage and Wellness Spa",
+      "massage spa Bacolod",
+      "wellness spa Bacolod",
+      "home service massage Bacolod",
+      "book massage Bacolod",
+      "spa services Bacolod",
+      "Bacolod massage",
+      "Bacolod wellness spa",
+      "in-spa booking Bacolod",
+      "home service massage",
     ],
-    apple: [
-      { url: "/apple-icon.png", sizes: "180x180", type: "image/png" },
-    ],
-  },
-};
+    openGraph: {
+      siteName: BUSINESS_NAME,
+      locale: "en_PH",
+      type: "website",
+      images: [
+        {
+          url: DEFAULT_OG_IMAGE,
+          alt: `${BUSINESS_NAME} — Massage and spa services in Bacolod`,
+          width: 1200,
+          height: 630,
+        },
+      ],
+    },
+    twitter: {
+      card: "summary_large_image",
+      title: `${BUSINESS_NAME} | ${brandSettings?.taglineText || BUSINESS_TAGLINE}`,
+      description: DEFAULT_DESCRIPTION,
+      images: [DEFAULT_OG_IMAGE],
+    },
+    robots: {
+      index: true,
+      follow: true,
+    },
+    alternates: {
+      canonical: SITE_DOMAIN,
+    },
+    icons: {
+      icon: iconList,
+      apple: appleList,
+    },
+  };
+}
 
 export default function RootLayout({
   children,

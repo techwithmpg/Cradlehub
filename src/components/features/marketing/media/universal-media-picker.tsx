@@ -16,6 +16,11 @@ import {
 } from "lucide-react";
 import type { MarketingMediaAssetRow } from "@/lib/queries/marketing-media";
 import { uploadMediaFileAction } from "@/app/(dashboard)/marketing/media/actions";
+import {
+  getMediaContract,
+  validateMediaAssetAgainstContract,
+  type MarketingMediaIntentKey,
+} from "@/lib/marketing/media-contracts";
 
 export type SelectedMediaValue = {
   id?: string;
@@ -32,6 +37,7 @@ export type UniversalMediaPickerProps = {
   title?: string;
   availableAssets?: MarketingMediaAssetRow[];
   filterSectionKey?: string;
+  mediaIntent?: MarketingMediaIntentKey;
 };
 
 function statusBadgeColors(status: string) {
@@ -61,11 +67,14 @@ export function UniversalMediaPicker({
   title = "Select Media Asset",
   availableAssets = [],
   filterSectionKey,
+  mediaIntent,
 }: UniversalMediaPickerProps) {
   const [activeTab, setActiveTab] = useState<"library" | "upload">("library");
   const [search, setSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState<string>("all");
   const [userSelectedAsset, setUserSelectedAsset] = useState<MarketingMediaAssetRow | null>(null);
+
+  const contract = useMemo(() => (mediaIntent ? getMediaContract(mediaIntent) : null), [mediaIntent]);
 
   const [uploadState, uploadAction, uploadPending] = useActionState(uploadMediaFileAction, {});
   const modalRef = useRef<HTMLDivElement>(null);
@@ -280,6 +289,27 @@ export function UniversalMediaPicker({
           </button>
         </div>
 
+        {/* Requirement Banner when mediaIntent is specified */}
+        {contract && (
+          <div
+            style={{
+              padding: "0.6rem 1.25rem",
+              background: "rgba(200, 169, 107, 0.08)",
+              borderBottom: "1px solid rgba(200, 169, 107, 0.2)",
+              display: "flex",
+              alignItems: "center",
+              gap: 8,
+              fontSize: 12,
+              color: "#8C6D23",
+            }}
+          >
+            <span style={{ fontWeight: 700, color: "#9A7B38" }}>
+              Requirement ({contract.id.replace(/_/g, " ")}):
+            </span>
+            <span>{contract.requirementText}</span>
+          </div>
+        )}
+
         {/* Navigation Tabs */}
         <div
           style={{
@@ -454,6 +484,12 @@ export function UniversalMediaPicker({
                 ) : (
                   filteredAssets.map((asset) => {
                     const isArchived = asset.status === "archived";
+                    const contractCheck = contract
+                      ? validateMediaAssetAgainstContract(asset, contract)
+                      : { isCompatible: true };
+                    const isContractIncompatible = !contractCheck.isCompatible;
+                    const isDisabled = isArchived || isContractIncompatible;
+
                     const isSelected =
                       selectedAsset?.id === asset.id ||
                       selectedAsset?.public_url === asset.public_url;
@@ -464,13 +500,17 @@ export function UniversalMediaPicker({
                         key={asset.id}
                         type="button"
                         onClick={() => {
-                          if (!isArchived) {
+                          if (!isDisabled) {
                             setUserSelectedAsset(asset);
                           }
                         }}
-                        disabled={isArchived}
+                        disabled={isDisabled}
                         title={
-                          isArchived ? "Archived asset cannot be selected" : (asset.title ?? "")
+                          isArchived
+                            ? "Archived asset cannot be selected"
+                            : isContractIncompatible
+                              ? (contractCheck.reason ?? "Incompatible with required shape/format")
+                              : (asset.title ?? "")
                         }
                         style={{
                           display: "flex",
@@ -481,8 +521,8 @@ export function UniversalMediaPicker({
                             : "1px solid var(--cs-border)",
                           background: isSelected ? "var(--cs-surface-warm)" : "var(--cs-surface)",
                           overflow: "hidden",
-                          cursor: isArchived ? "not-allowed" : "pointer",
-                          opacity: isArchived ? 0.55 : 1,
+                          cursor: isDisabled ? "not-allowed" : "pointer",
+                          opacity: isDisabled ? 0.45 : 1,
                           textAlign: "left",
                           padding: 0,
                           position: "relative",
@@ -525,7 +565,7 @@ export function UniversalMediaPicker({
                             </div>
                           )}
 
-                          {isSelected && !isArchived && (
+                          {isSelected && !isDisabled && (
                             <div
                               style={{
                                 position: "absolute",
@@ -546,7 +586,30 @@ export function UniversalMediaPicker({
                             </div>
                           )}
 
-                          {isArchived && (
+                          {isContractIncompatible && (
+                            <span
+                              style={{
+                                position: "absolute",
+                                top: 4,
+                                left: 4,
+                                right: 4,
+                                borderRadius: 4,
+                                background: "rgba(185, 28, 28, 0.85)",
+                                color: "#fff",
+                                fontSize: 9,
+                                fontWeight: 700,
+                                padding: "2px 4px",
+                                textAlign: "center",
+                                whiteSpace: "nowrap",
+                                overflow: "hidden",
+                                textOverflow: "ellipsis",
+                              }}
+                            >
+                              {contractCheck.reason || "Incompatible"}
+                            </span>
+                          )}
+
+                          {isArchived && !isContractIncompatible && (
                             <div
                               style={{
                                 position: "absolute",

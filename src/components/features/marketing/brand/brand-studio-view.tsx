@@ -1,20 +1,15 @@
 "use client";
 
-import { useActionState, useEffect, useMemo, useState } from "react";
-import Image from "next/image";
+import { useActionState, useMemo, useState } from "react";
 import {
-  AlertCircle,
   CheckCircle,
-  Clock,
   Eye,
-  Globe,
-  ImageIcon,
+  Laptop,
   MessageSquare,
-  RotateCcw,
+  RefreshCw,
   Save,
   Send,
-  Sparkles,
-  Upload,
+  Smartphone,
 } from "lucide-react";
 import type {
   MarketingContentDraftRow,
@@ -25,8 +20,7 @@ import type {
   MarketingBrandSettingRow,
   MarketingBrandSettingValue,
 } from "@/lib/queries/marketing-brand";
-import type { SelectedMediaValue } from "@/components/features/marketing/media/universal-media-picker";
-import { UniversalMediaPicker } from "@/components/features/marketing/media/universal-media-picker";
+import type { GeneratedSiteIconPackage } from "@/lib/marketing/icon-generator";
 import { BrandLogo } from "@/components/shared/brand-logo";
 import {
   saveMarketingDraftAction,
@@ -34,11 +28,13 @@ import {
 } from "@/app/(dashboard)/marketing/actions";
 import {
   approveMarketingDraftAction,
-  archiveMarketingDraftAction,
   publishMarketingDraftAction,
   requestMarketingDraftChangesAction,
 } from "@/app/(dashboard)/owner/marketing/actions";
-import { updateBrandSettingAction } from "@/app/(dashboard)/marketing/brand-actions";
+import {
+  generateSiteIconAction,
+  updateBrandSettingAction,
+} from "@/app/(dashboard)/marketing/brand-actions";
 import {
   Dialog,
   DialogContent,
@@ -46,6 +42,10 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
+import { MarketingStudioPanel } from "@/components/features/marketing/shared/marketing-studio-panel";
+import { MarketingFieldGroup } from "@/components/features/marketing/shared/marketing-field-group";
+import { MarketingMediaField } from "@/components/features/marketing/shared/marketing-media-field";
+import { MarketingActionBar } from "@/components/features/marketing/shared/marketing-action-bar";
 
 export type BrandStudioViewProps = {
   role: "digital_marketer" | "owner";
@@ -62,8 +62,10 @@ type BrandFormValues = {
   footerLogoAlt: string;
   brandMarkUrl: string;
   brandMarkAlt: string;
+  siteIconMasterUrl: string;
   siteIconUrl: string;
   siteIconAlt: string;
+  siteIconPackage: GeneratedSiteIconPackage | null;
   taglineText: string;
   taglineSubtext: string;
 };
@@ -105,6 +107,11 @@ export function BrandStudioView({
     initialNoticeState
   );
 
+  const [iconGenState, iconGenAction, isGeneratingIcons] = useActionState(
+    generateSiteIconAction,
+    {}
+  );
+
   // Find published values
   const publishedMap = useMemo(() => {
     const map: Record<string, MarketingBrandSettingValue> = {};
@@ -136,42 +143,68 @@ export function BrandStudioView({
 
   // Initial form values
   const initialValues: BrandFormValues = useMemo(() => {
+    const livePkg =
+      publishedMap.site_icon?.package &&
+      typeof publishedMap.site_icon.package === "object"
+        ? (publishedMap.site_icon.package as GeneratedSiteIconPackage)
+        : null;
+
     if (activeDraft?.metadata && typeof activeDraft.metadata === "object") {
-      const meta = activeDraft.metadata as Record<string, string>;
+      const meta = activeDraft.metadata as Record<string, unknown>;
+      const draftPkg =
+        meta.siteIconPackage && typeof meta.siteIconPackage === "object"
+          ? (meta.siteIconPackage as GeneratedSiteIconPackage)
+          : livePkg;
+
       return {
         headerLogoUrl:
           activeDraft.image_url ||
-          meta.headerLogoUrl ||
+          (meta.headerLogoUrl as string) ||
           (publishedMap.header_logo?.url as string) ||
           "",
         headerLogoAlt:
           activeDraft.alt_text ||
-          meta.headerLogoAlt ||
+          (meta.headerLogoAlt as string) ||
           (publishedMap.header_logo?.alt as string) ||
           "Cradle Wellness Living",
         footerLogoUrl:
           activeDraft.secondary_image_url ||
-          meta.footerLogoUrl ||
+          (meta.footerLogoUrl as string) ||
           (publishedMap.footer_logo?.url as string) ||
           "",
         footerLogoAlt:
-          meta.footerLogoAlt ||
+          (meta.footerLogoAlt as string) ||
           (publishedMap.footer_logo?.alt as string) ||
           "Cradle Wellness Living",
-        brandMarkUrl: meta.brandMarkUrl || (publishedMap.brand_mark?.url as string) || "",
+        brandMarkUrl:
+          (meta.brandMarkUrl as string) || (publishedMap.brand_mark?.url as string) || "",
         brandMarkAlt:
-          meta.brandMarkAlt || (publishedMap.brand_mark?.alt as string) || "Cradle Brand Mark",
-        siteIconUrl: meta.siteIconUrl || (publishedMap.site_icon?.url as string) || "/favicon.ico",
+          (meta.brandMarkAlt as string) ||
+          (publishedMap.brand_mark?.alt as string) ||
+          "Cradle Brand Mark",
+        siteIconMasterUrl:
+          (meta.siteIconMasterUrl as string) ||
+          draftPkg?.sourceUrl ||
+          (publishedMap.brand_mark?.url as string) ||
+          "",
+        siteIconUrl:
+          (meta.siteIconUrl as string) ||
+          draftPkg?.icons?.icon32 ||
+          (publishedMap.site_icon?.url as string) ||
+          "/favicon.ico",
         siteIconAlt:
-          meta.siteIconAlt || (publishedMap.site_icon?.alt as string) || "Cradle Site Icon",
+          (meta.siteIconAlt as string) ||
+          (publishedMap.site_icon?.alt as string) ||
+          "Cradle Site Icon",
+        siteIconPackage: draftPkg,
         taglineText:
           activeDraft.title ||
-          meta.taglineText ||
+          (meta.taglineText as string) ||
           (publishedMap.brand_tagline?.text as string) ||
           "A sanctuary of calm in Bacolod.",
         taglineSubtext:
           activeDraft.subtitle ||
-          meta.taglineSubtext ||
+          (meta.taglineSubtext as string) ||
           (publishedMap.brand_tagline?.subtext as string) ||
           "Holistic Wellness & Massage Therapy",
       };
@@ -184,8 +217,12 @@ export function BrandStudioView({
       footerLogoAlt: (publishedMap.footer_logo?.alt as string) || "Cradle Wellness Living",
       brandMarkUrl: (publishedMap.brand_mark?.url as string) || "",
       brandMarkAlt: (publishedMap.brand_mark?.alt as string) || "Cradle Brand Mark",
-      siteIconUrl: (publishedMap.site_icon?.url as string) || "/favicon.ico",
+      siteIconMasterUrl:
+        livePkg?.sourceUrl || (publishedMap.brand_mark?.url as string) || "",
+      siteIconUrl:
+        livePkg?.icons?.icon32 || (publishedMap.site_icon?.url as string) || "/favicon.ico",
       siteIconAlt: (publishedMap.site_icon?.alt as string) || "Cradle Site Icon",
+      siteIconPackage: livePkg,
       taglineText:
         (publishedMap.brand_tagline?.text as string) || "A sanctuary of calm in Bacolod.",
       taglineSubtext:
@@ -194,31 +231,30 @@ export function BrandStudioView({
   }, [activeDraft, publishedMap]);
 
   const [formValues, setFormValues] = useState<BrandFormValues>(initialValues);
-  const [activeTab, setActiveTab] = useState<"header" | "footer" | "mark" | "favicon">("header");
+  const [previewTab, setPreviewTab] = useState<"header" | "footer" | "mark" | "favicon">("header");
   const [previewMode, setPreviewMode] = useState<"draft" | "live">("draft");
-  const [pickerTarget, setPickerTarget] = useState<keyof BrandFormValues | null>(null);
   const [showChangesModal, setShowChangesModal] = useState(false);
   const [reviewNote, setReviewNote] = useState("");
 
+  // Derive generated package from action state or form state
+  const currentSiteIconPackage = useMemo(() => {
+    if (iconGenState?.success && iconGenState.package) {
+      return iconGenState.package;
+    }
+    return formValues.siteIconPackage;
+  }, [iconGenState, formValues.siteIconPackage]);
+
+  const currentSiteIconUrl = useMemo(() => {
+    return currentSiteIconPackage?.icons?.icon32 || formValues.siteIconUrl;
+  }, [currentSiteIconPackage, formValues.siteIconUrl]);
+
   const isDirty = useMemo(() => {
+    if (iconGenState?.success && iconGenState.package) return true;
     return JSON.stringify(formValues) !== JSON.stringify(initialValues);
-  }, [formValues, initialValues]);
+  }, [formValues, initialValues, iconGenState]);
 
-  const handleFieldChange = (field: keyof BrandFormValues, value: string) => {
+  const handleFieldChange = (field: keyof BrandFormValues, value: unknown) => {
     setFormValues((prev) => ({ ...prev, [field]: value }));
-  };
-
-  const handleMediaSelect = (value: SelectedMediaValue) => {
-    if (!pickerTarget) return;
-    const urlField = pickerTarget;
-    const altField = pickerTarget.replace("Url", "Alt") as keyof BrandFormValues;
-
-    setFormValues((prev) => ({
-      ...prev,
-      [urlField]: value.publicUrl || "",
-      [altField]: prev[altField] || value.altText || "",
-    }));
-    setPickerTarget(null);
   };
 
   const handleRevert = () => {
@@ -229,11 +265,11 @@ export function BrandStudioView({
     <div className="space-y-6">
       {/* Top Banner / Review Note */}
       {activeDraft?.status === "changes_requested" && activeDraft.review_note && (
-        <div className="rounded-xl border border-amber-500/30 bg-amber-500/10 p-4 text-amber-200">
+        <div className="rounded-xl border border-amber-500/30 bg-amber-500/10 p-4 text-amber-800 dark:text-amber-200">
           <div className="flex items-start gap-3">
-            <MessageSquare className="h-5 w-5 shrink-0 text-amber-400" />
+            <MessageSquare className="h-5 w-5 shrink-0 text-amber-500" />
             <div>
-              <p className="text-xs font-semibold uppercase tracking-wider text-amber-300">
+              <p className="text-xs font-semibold uppercase tracking-wider text-amber-700 dark:text-amber-300">
                 Owner Review Note (
                 {activeDraft.reviewed_at
                   ? new Date(activeDraft.reviewed_at).toLocaleDateString()
@@ -248,384 +284,479 @@ export function BrandStudioView({
 
       {/* Action Notices */}
       {saveState?.error && (
-        <div className="rounded-lg border border-red-500/30 bg-red-500/10 p-3 text-xs text-red-300">
+        <div className="rounded-lg border border-red-500/30 bg-red-500/10 p-3 text-xs text-red-700 dark:text-red-300">
           {saveState.error}
         </div>
       )}
       {saveState?.message && (
-        <div className="rounded-lg border border-green-500/30 bg-green-500/10 p-3 text-xs text-green-300">
+        <div className="rounded-lg border border-green-500/30 bg-green-500/10 p-3 text-xs text-green-700 dark:text-green-300">
           {saveState.message}
         </div>
       )}
       {ownerDirectState?.message && (
-        <div className="rounded-lg border border-green-500/30 bg-green-500/10 p-3 text-xs text-green-300">
+        <div className="rounded-lg border border-green-500/30 bg-green-500/10 p-3 text-xs text-green-700 dark:text-green-300">
           {ownerDirectState.message}
         </div>
       )}
       {ownerDirectState?.error && (
-        <div className="rounded-lg border border-red-500/30 bg-red-500/10 p-3 text-xs text-red-300">
+        <div className="rounded-lg border border-red-500/30 bg-red-500/10 p-3 text-xs text-red-700 dark:text-red-300">
           {ownerDirectState.error}
+        </div>
+      )}
+      {iconGenState?.message && (
+        <div className="rounded-lg border border-emerald-500/30 bg-emerald-500/10 p-3 text-xs text-emerald-800 dark:text-emerald-300">
+          {iconGenState.message}
+        </div>
+      )}
+      {iconGenState?.error && (
+        <div className="rounded-lg border border-red-500/30 bg-red-500/10 p-3 text-xs text-red-700 dark:text-red-300">
+          {iconGenState.error}
         </div>
       )}
 
       {/* Main 2-Column Studio Layout */}
       <div className="grid grid-cols-1 gap-6 lg:grid-cols-12">
-        {/* Left Column: Form Controls */}
+        {/* Left Column: Form Controls (Standardized Light Panels) */}
         <div className="space-y-6 lg:col-span-6">
-          <div className="rounded-2xl border border-[#D4B57A]/15 bg-[#0A1F18]/90 p-6 shadow-xl backdrop-blur-md">
-            <div className="flex items-center justify-between border-b border-[#D4B57A]/15 pb-4">
-              <div>
-                <h2 className="text-lg font-medium text-[#F6EBD6]">Brand Identity & Assets</h2>
-                <p className="text-xs text-[#9AA89A]">
-                  Manage header & footer logos, brand marks, and site identity
-                </p>
-              </div>
-              <div className="flex items-center gap-2">
-                {isDirty && (
-                  <span className="inline-flex items-center rounded-full bg-amber-500/20 px-2.5 py-0.5 text-[11px] font-medium text-amber-300">
-                    Unsaved Edits
-                  </span>
-                )}
-                <span className="inline-flex items-center rounded-full bg-[#163A2B] px-2.5 py-0.5 text-[11px] font-medium text-[#C8A96B]">
-                  {activeDraft ? `Draft: ${activeDraft.status}` : "Live Synced"}
-                </span>
-              </div>
-            </div>
-
-            {/* Form Fields */}
-            <div className="mt-6 space-y-5">
-              {/* Header Logo */}
-              <div className="space-y-2 rounded-xl border border-white/5 bg-white/[0.02] p-4">
-                <div className="flex items-center justify-between">
-                  <label className="text-xs font-semibold uppercase tracking-wider text-[#C8A96B]">
-                    Header Logo (Horizontal)
+          <MarketingStudioPanel
+            title="Brand Identity & Visual Assets"
+            description="Manage official logos, brand mark, site icon package, and mission copy"
+            badge={
+              <span className="inline-flex items-center rounded-full bg-[var(--cs-surface-warm)] px-2.5 py-0.5 text-[11px] font-semibold text-[var(--cs-text-secondary)] border border-[var(--cs-border)]">
+                {activeDraft ? `Draft: ${activeDraft.status}` : "Live Synced"}
+              </span>
+            }
+          >
+            <div className="space-y-6">
+              {/* 1. Header Logo */}
+              <MarketingFieldGroup
+                title="1. Header Logo"
+                description="Prominent horizontal brand signature in top navigation"
+              >
+                <MarketingMediaField
+                  label="Header Logo (Horizontal)"
+                  intent="HEADER_LOGO"
+                  value={formValues.headerLogoUrl}
+                  altValue={formValues.headerLogoAlt}
+                  onChange={(url, alt) => {
+                    handleFieldChange("headerLogoUrl", url);
+                    if (alt) handleFieldChange("headerLogoAlt", alt);
+                  }}
+                  availableAssets={mediaAssets}
+                />
+                <div>
+                  <label className="text-xs font-semibold text-[var(--cs-text)]">
+                    Logo Alt Text
                   </label>
-                  <button
-                    type="button"
-                    onClick={() => setPickerTarget("headerLogoUrl")}
-                    className="inline-flex items-center gap-1.5 rounded-lg border border-[#D4B57A]/30 bg-[#163A2B] px-2.5 py-1 text-xs text-[#F6EBD6] hover:bg-[#1D4A35]"
-                  >
-                    <ImageIcon className="h-3.5 w-3.5 text-[#C8A96B]" />
-                    Choose Media
-                  </button>
+                  <input
+                    type="text"
+                    value={formValues.headerLogoAlt}
+                    onChange={(e) => handleFieldChange("headerLogoAlt", e.target.value)}
+                    placeholder="Cradle Wellness Living"
+                    className="mt-1 w-full rounded-lg border border-[var(--cs-border)] bg-[var(--cs-surface)] px-3 py-2 text-xs text-[var(--cs-text)] shadow-xs focus:border-[#C8A96B] focus:outline-none"
+                  />
                 </div>
-                <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-                  <div>
-                    <span className="text-[11px] text-[#9AA89A]">Logo Image URL / Path</span>
-                    <input
-                      type="text"
-                      value={formValues.headerLogoUrl}
-                      onChange={(e) => handleFieldChange("headerLogoUrl", e.target.value)}
-                      placeholder="/assets/brand/cradle-logo-horizontal.svg"
-                      className="mt-1 w-full rounded-lg border border-white/10 bg-[#061410] px-3 py-2 text-xs text-[#F6EBD6] focus:border-[#C8A96B] focus:outline-none"
-                    />
-                  </div>
-                  <div>
-                    <span className="text-[11px] text-[#9AA89A]">Alt Text</span>
-                    <input
-                      type="text"
-                      value={formValues.headerLogoAlt}
-                      onChange={(e) => handleFieldChange("headerLogoAlt", e.target.value)}
-                      placeholder="Cradle Wellness Living"
-                      className="mt-1 w-full rounded-lg border border-white/10 bg-[#061410] px-3 py-2 text-xs text-[#F6EBD6] focus:border-[#C8A96B] focus:outline-none"
-                    />
-                  </div>
-                </div>
-              </div>
+              </MarketingFieldGroup>
 
-              {/* Footer Logo */}
-              <div className="space-y-2 rounded-xl border border-white/5 bg-white/[0.02] p-4">
-                <div className="flex items-center justify-between">
-                  <label className="text-xs font-semibold uppercase tracking-wider text-[#C8A96B]">
-                    Footer Logo (Alternate / Contrast)
+              {/* 2. Footer Logo */}
+              <MarketingFieldGroup
+                title="2. Footer Logo"
+                description="Secondary/contrast logo rendered in footer and dark sections"
+              >
+                <MarketingMediaField
+                  label="Footer Logo (Horizontal)"
+                  intent="FOOTER_LOGO"
+                  value={formValues.footerLogoUrl}
+                  altValue={formValues.footerLogoAlt}
+                  onChange={(url, alt) => {
+                    handleFieldChange("footerLogoUrl", url);
+                    if (alt) handleFieldChange("footerLogoAlt", alt);
+                  }}
+                  availableAssets={mediaAssets}
+                />
+                <div>
+                  <label className="text-xs font-semibold text-[var(--cs-text)]">
+                    Footer Logo Alt Text
                   </label>
-                  <button
-                    type="button"
-                    onClick={() => setPickerTarget("footerLogoUrl")}
-                    className="inline-flex items-center gap-1.5 rounded-lg border border-[#D4B57A]/30 bg-[#163A2B] px-2.5 py-1 text-xs text-[#F6EBD6] hover:bg-[#1D4A35]"
-                  >
-                    <ImageIcon className="h-3.5 w-3.5 text-[#C8A96B]" />
-                    Choose Media
-                  </button>
+                  <input
+                    type="text"
+                    value={formValues.footerLogoAlt}
+                    onChange={(e) => handleFieldChange("footerLogoAlt", e.target.value)}
+                    placeholder="Cradle Wellness Living"
+                    className="mt-1 w-full rounded-lg border border-[var(--cs-border)] bg-[var(--cs-surface)] px-3 py-2 text-xs text-[var(--cs-text)] shadow-xs focus:border-[#C8A96B] focus:outline-none"
+                  />
                 </div>
-                <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-                  <div>
-                    <span className="text-[11px] text-[#9AA89A]">Logo Image URL / Path</span>
-                    <input
-                      type="text"
-                      value={formValues.footerLogoUrl}
-                      onChange={(e) => handleFieldChange("footerLogoUrl", e.target.value)}
-                      placeholder="/assets/brand/cradle-logo-horizontal.svg"
-                      className="mt-1 w-full rounded-lg border border-white/10 bg-[#061410] px-3 py-2 text-xs text-[#F6EBD6] focus:border-[#C8A96B] focus:outline-none"
-                    />
-                  </div>
-                  <div>
-                    <span className="text-[11px] text-[#9AA89A]">Alt Text</span>
-                    <input
-                      type="text"
-                      value={formValues.footerLogoAlt}
-                      onChange={(e) => handleFieldChange("footerLogoAlt", e.target.value)}
-                      placeholder="Cradle Wellness Living"
-                      className="mt-1 w-full rounded-lg border border-white/10 bg-[#061410] px-3 py-2 text-xs text-[#F6EBD6] focus:border-[#C8A96B] focus:outline-none"
-                    />
-                  </div>
-                </div>
-              </div>
+              </MarketingFieldGroup>
 
-              {/* Brand Mark */}
-              <div className="space-y-2 rounded-xl border border-white/5 bg-white/[0.02] p-4">
-                <div className="flex items-center justify-between">
-                  <label className="text-xs font-semibold uppercase tracking-wider text-[#C8A96B]">
-                    Brand Mark / Emblem
+              {/* 3. Brand Mark */}
+              <MarketingFieldGroup
+                title="3. Brand Mark"
+                description="Square emblem for avatars, social sharing, and watermarks"
+              >
+                <MarketingMediaField
+                  label="Brand Mark (Square)"
+                  intent="BRAND_MARK"
+                  value={formValues.brandMarkUrl}
+                  altValue={formValues.brandMarkAlt}
+                  onChange={(url, alt) => {
+                    handleFieldChange("brandMarkUrl", url);
+                    if (alt) handleFieldChange("brandMarkAlt", alt);
+                  }}
+                  availableAssets={mediaAssets}
+                />
+                <div>
+                  <label className="text-xs font-semibold text-[var(--cs-text)]">
+                    Brand Mark Alt Text
                   </label>
-                  <button
-                    type="button"
-                    onClick={() => setPickerTarget("brandMarkUrl")}
-                    className="inline-flex items-center gap-1.5 rounded-lg border border-[#D4B57A]/30 bg-[#163A2B] px-2.5 py-1 text-xs text-[#F6EBD6] hover:bg-[#1D4A35]"
-                  >
-                    <ImageIcon className="h-3.5 w-3.5 text-[#C8A96B]" />
-                    Choose Media
-                  </button>
+                  <input
+                    type="text"
+                    value={formValues.brandMarkAlt}
+                    onChange={(e) => handleFieldChange("brandMarkAlt", e.target.value)}
+                    placeholder="Cradle Brand Mark"
+                    className="mt-1 w-full rounded-lg border border-[var(--cs-border)] bg-[var(--cs-surface)] px-3 py-2 text-xs text-[var(--cs-text)] shadow-xs focus:border-[#C8A96B] focus:outline-none"
+                  />
                 </div>
-                <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-                  <div>
-                    <span className="text-[11px] text-[#9AA89A]">Mark Image URL</span>
-                    <input
-                      type="text"
-                      value={formValues.brandMarkUrl}
-                      onChange={(e) => handleFieldChange("brandMarkUrl", e.target.value)}
-                      placeholder="/assets/brand/cradle-logo-mark.svg"
-                      className="mt-1 w-full rounded-lg border border-white/10 bg-[#061410] px-3 py-2 text-xs text-[#F6EBD6] focus:border-[#C8A96B] focus:outline-none"
-                    />
-                  </div>
-                  <div>
-                    <span className="text-[11px] text-[#9AA89A]">Alt Text</span>
-                    <input
-                      type="text"
-                      value={formValues.brandMarkAlt}
-                      onChange={(e) => handleFieldChange("brandMarkAlt", e.target.value)}
-                      placeholder="Cradle Brand Mark"
-                      className="mt-1 w-full rounded-lg border border-white/10 bg-[#061410] px-3 py-2 text-xs text-[#F6EBD6] focus:border-[#C8A96B] focus:outline-none"
-                    />
-                  </div>
-                </div>
-              </div>
+              </MarketingFieldGroup>
 
-              {/* Site Icon / Favicon Asset */}
-              <div className="space-y-2 rounded-xl border border-white/5 bg-white/[0.02] p-4">
-                <div className="flex items-center justify-between">
-                  <div>
-                    <label className="text-xs font-semibold uppercase tracking-wider text-[#C8A96B]">
-                      Site Icon / Favicon Asset
-                    </label>
-                    <p className="text-[11px] text-[#9AA89A]">
-                      Root browser icon preview and manifest icon registration
+              {/* 4. Dynamic Site Icon Package Generator */}
+              <MarketingFieldGroup
+                title="4. Website & Device Icon Package"
+                description="Upload one master brand image (SVG/PNG min 512x512) to automatically generate all 8 required web/device icons"
+                badge={
+                  formValues.siteIconPackage ? (
+                    <span className="inline-flex items-center gap-1 rounded-full bg-emerald-100 px-2 py-0.5 text-[10px] font-bold text-emerald-800 dark:bg-emerald-950/40 dark:text-emerald-300">
+                      <CheckCircle className="h-3 w-3" />
+                      8 Variants Ready ({formValues.siteIconPackage.version})
+                    </span>
+                  ) : (
+                    <span className="inline-flex items-center rounded-full bg-amber-100 px-2 py-0.5 text-[10px] font-bold text-amber-800 dark:bg-amber-950/40 dark:text-amber-300">
+                      Package Unconfigured
+                    </span>
+                  )
+                }
+              >
+                <MarketingMediaField
+                  label="Master Brand Icon Source"
+                  intent="SITE_ICON_MASTER"
+                  value={formValues.siteIconMasterUrl}
+                  altValue={formValues.siteIconAlt}
+                  onChange={(url, alt) => {
+                    handleFieldChange("siteIconMasterUrl", url);
+                    if (alt) handleFieldChange("siteIconAlt", alt);
+                  }}
+                  availableAssets={mediaAssets}
+                  helperText="Recommended: 1024x1024 SVG or high-resolution PNG with transparent background."
+                />
+
+                {/* Generator Trigger */}
+                <div className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-[var(--cs-border)] bg-[var(--cs-surface)] p-3">
+                  <div className="text-xs">
+                    <p className="font-semibold text-[var(--cs-text)]">
+                      Automatic Variant Generation
+                    </p>
+                    <p className="text-[11px] text-[var(--cs-text-secondary)]">
+                      Produces 16, 32, 48, 180, 192, 512, maskable 512, and ICO containers.
                     </p>
                   </div>
-                  <button
-                    type="button"
-                    onClick={() => setPickerTarget("siteIconUrl")}
-                    className="inline-flex items-center gap-1.5 rounded-lg border border-[#D4B57A]/30 bg-[#163A2B] px-2.5 py-1 text-xs text-[#F6EBD6] hover:bg-[#1D4A35]"
-                  >
-                    <ImageIcon className="h-3.5 w-3.5 text-[#C8A96B]" />
-                    Choose Media
-                  </button>
-                </div>
-                <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-                  <div>
-                    <span className="text-[11px] text-[#9AA89A]">Icon URL / File</span>
-                    <input
-                      type="text"
-                      value={formValues.siteIconUrl}
-                      onChange={(e) => handleFieldChange("siteIconUrl", e.target.value)}
-                      placeholder="/favicon.ico"
-                      className="mt-1 w-full rounded-lg border border-white/10 bg-[#061410] px-3 py-2 text-xs text-[#F6EBD6] focus:border-[#C8A96B] focus:outline-none"
-                    />
-                  </div>
-                  <div>
-                    <span className="text-[11px] text-[#9AA89A]">Alt Text</span>
-                    <input
-                      type="text"
-                      value={formValues.siteIconAlt}
-                      onChange={(e) => handleFieldChange("siteIconAlt", e.target.value)}
-                      placeholder="Cradle Site Icon"
-                      className="mt-1 w-full rounded-lg border border-white/10 bg-[#061410] px-3 py-2 text-xs text-[#F6EBD6] focus:border-[#C8A96B] focus:outline-none"
-                    />
-                  </div>
-                </div>
-              </div>
 
-              {/* Brand Tagline */}
-              <div className="space-y-3 rounded-xl border border-white/5 bg-white/[0.02] p-4">
-                <label className="text-xs font-semibold uppercase tracking-wider text-[#C8A96B]">
-                  Brand Tagline & Mission Copy
-                </label>
+                  <form action={iconGenAction}>
+                    <input
+                      type="hidden"
+                      name="sourceUrl"
+                      value={formValues.siteIconMasterUrl || formValues.brandMarkUrl}
+                    />
+                    <button
+                      type="submit"
+                      disabled={
+                        isGeneratingIcons ||
+                        (!formValues.siteIconMasterUrl && !formValues.brandMarkUrl)
+                      }
+                      className="inline-flex items-center gap-1.5 rounded-lg bg-[#163A2B] px-3.5 py-2 text-xs font-semibold text-[#F6EBD6] shadow-xs transition hover:bg-[#1D4A35] disabled:opacity-50"
+                    >
+                      <RefreshCw
+                        className={`h-3.5 w-3.5 text-[#C8A96B] ${
+                          isGeneratingIcons ? "animate-spin" : ""
+                        }`}
+                      />
+                      {isGeneratingIcons ? "Generating Icons..." : "Generate Icon Package"}
+                    </button>
+                  </form>
+                </div>
+
+                {/* Generated Icon Variants Grid */}
+                {currentSiteIconPackage && currentSiteIconPackage.icons && (
+                  <div className="space-y-3 rounded-xl border border-[var(--cs-border-subtle)] bg-[var(--cs-surface)] p-3.5">
+                    <p className="text-[11px] font-bold uppercase tracking-wider text-[var(--cs-text-secondary)]">
+                      Generated Icon Variants
+                    </p>
+                    <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5">
+                      {[
+                        { label: "Favicon 16px", key: "icon16", dim: "16x16" },
+                        { label: "Favicon 32px", key: "icon32", dim: "32x32" },
+                        { label: "Favicon 48px", key: "icon48", dim: "48x48" },
+                        { label: "Apple Touch", key: "apple180", dim: "180x180" },
+                        { label: "Android PWA", key: "icon192", dim: "192x192" },
+                        { label: "Splash 512px", key: "icon512", dim: "512x512" },
+                        { label: "Maskable 512", key: "maskable512", dim: "512x512 (Padded)" },
+                        { label: "Legacy ICO", key: "ico", dim: "Multi-size" },
+                      ].map((item) => {
+                        const url =
+                          currentSiteIconPackage?.icons[
+                            item.key as keyof GeneratedSiteIconPackage["icons"]
+                          ];
+                        return (
+                          <div
+                            key={item.key}
+                            className="flex flex-col items-center rounded-lg border border-[var(--cs-border)] bg-[var(--cs-surface-warm)] p-2 text-center"
+                          >
+                            <div className="h-10 w-10 flex items-center justify-center rounded bg-[var(--cs-surface)] border border-[var(--cs-border-subtle)] overflow-hidden">
+                              {url ? (
+                                // eslint-disable-next-line @next/next/no-img-element
+                                <img
+                                  src={url}
+                                  alt={item.label}
+                                  className="h-full w-full object-contain p-0.5"
+                                />
+                              ) : (
+                                <span className="text-[10px] text-[var(--cs-text-tertiary)]">
+                                  N/A
+                                </span>
+                              )}
+                            </div>
+                            <span className="mt-1 text-[11px] font-medium text-[var(--cs-text)]">
+                              {item.label}
+                            </span>
+                            <span className="text-[10px] text-[var(--cs-text-tertiary)]">
+                              {item.dim}
+                            </span>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  </div>
+                )}
+              </MarketingFieldGroup>
+
+              {/* 5. Tagline & Mission */}
+              <MarketingFieldGroup
+                title="5. Brand Tagline & Mission"
+                description="Core marketing message and descriptive mission statement"
+              >
                 <div>
-                  <span className="text-[11px] text-[#9AA89A]">Primary Tagline</span>
+                  <label className="text-xs font-semibold text-[var(--cs-text)]">
+                    Primary Tagline
+                  </label>
                   <input
                     type="text"
                     value={formValues.taglineText}
                     onChange={(e) => handleFieldChange("taglineText", e.target.value)}
                     placeholder="A sanctuary of calm in Bacolod."
-                    className="mt-1 w-full rounded-lg border border-white/10 bg-[#061410] px-3 py-2 text-xs text-[#F6EBD6] focus:border-[#C8A96B] focus:outline-none"
+                    className="mt-1 w-full rounded-lg border border-[var(--cs-border)] bg-[var(--cs-surface)] px-3 py-2 text-xs text-[var(--cs-text)] shadow-xs focus:border-[#C8A96B] focus:outline-none"
                   />
                 </div>
                 <div>
-                  <span className="text-[11px] text-[#9AA89A]">Mission Subtext</span>
+                  <label className="text-xs font-semibold text-[var(--cs-text)]">
+                    Mission Subtext
+                  </label>
                   <textarea
                     value={formValues.taglineSubtext}
                     onChange={(e) => handleFieldChange("taglineSubtext", e.target.value)}
                     rows={2}
                     placeholder="Experience genuine renewal with our certified massage therapists."
-                    className="mt-1 w-full rounded-lg border border-white/10 bg-[#061410] px-3 py-2 text-xs text-[#F6EBD6] focus:border-[#C8A96B] focus:outline-none"
+                    className="mt-1 w-full rounded-lg border border-[var(--cs-border)] bg-[var(--cs-surface)] px-3 py-2 text-xs text-[var(--cs-text)] shadow-xs focus:border-[#C8A96B] focus:outline-none"
                   />
                 </div>
-              </div>
+              </MarketingFieldGroup>
             </div>
 
             {/* Workflow Action Bar */}
-            <div className="mt-6 flex flex-wrap items-center justify-between gap-3 border-t border-white/10 pt-4">
-              <button
-                type="button"
-                onClick={handleRevert}
-                disabled={!isDirty}
-                className="inline-flex items-center gap-1.5 rounded-lg border border-white/15 px-3 py-2 text-xs text-[#9AA89A] hover:bg-white/5 disabled:opacity-40"
-              >
-                <RotateCcw className="h-3.5 w-3.5" />
-                Revert to Saved
-              </button>
-
-              <div className="flex flex-wrap items-center gap-2">
-                {/* Save Draft Action */}
-                <form action={saveAction}>
-                  <input type="hidden" name="id" value={activeDraft?.id || ""} />
-                  <input type="hidden" name="contentType" value="brand" />
-                  <input type="hidden" name="contentKey" value="brand_identity" />
-                  <input type="hidden" name="title" value={formValues.taglineText} />
-                  <input type="hidden" name="subtitle" value={formValues.taglineSubtext} />
-                  <input type="hidden" name="imageUrl" value={formValues.headerLogoUrl} />
-                  <input type="hidden" name="secondaryImageUrl" value={formValues.footerLogoUrl} />
-                  <input type="hidden" name="altText" value={formValues.headerLogoAlt} />
-                  <input
-                    type="hidden"
-                    name="metadata"
-                    value={JSON.stringify({
-                      headerLogoUrl: formValues.headerLogoUrl,
-                      headerLogoAlt: formValues.headerLogoAlt,
-                      footerLogoUrl: formValues.footerLogoUrl,
-                      footerLogoAlt: formValues.footerLogoAlt,
-                      brandMarkUrl: formValues.brandMarkUrl,
-                      brandMarkAlt: formValues.brandMarkAlt,
-                      siteIconUrl: formValues.siteIconUrl,
-                      siteIconAlt: formValues.siteIconAlt,
-                      taglineText: formValues.taglineText,
-                      taglineSubtext: formValues.taglineSubtext,
-                    })}
-                  />
-                  <button
-                    type="submit"
-                    disabled={isSaving}
-                    className="inline-flex items-center gap-1.5 rounded-lg border border-[#D4B57A]/40 bg-[#163A2B] px-4 py-2 text-xs font-semibold text-[#F6EBD6] hover:bg-[#1D4A35] disabled:opacity-50"
-                  >
-                    <Save className="h-3.5 w-3.5 text-[#C8A96B]" />
-                    {isSaving ? "Saving..." : "Save Draft"}
-                  </button>
-                </form>
-
-                {/* Submit for Review (Marketer / Owner) */}
-                {activeDraft && ["draft", "changes_requested"].includes(activeDraft.status) && (
-                  <form action={submitAction}>
-                    <input type="hidden" name="id" value={activeDraft.id} />
-                    <button
-                      type="submit"
-                      disabled={isSubmitting}
-                      className="inline-flex items-center gap-1.5 rounded-lg bg-[#C8A96B] px-4 py-2 text-xs font-semibold text-[#10261D] hover:bg-[#D4B57A] disabled:opacity-50"
-                    >
-                      <Send className="h-3.5 w-3.5" />
-                      {isSubmitting ? "Submitting..." : "Submit for Review"}
-                    </button>
-                  </form>
-                )}
-
-                {/* Owner Approve & Publish Controls */}
-                {role === "owner" && (
-                  <>
-                    {activeDraft && activeDraft.status === "submitted" && (
+            <div className="mt-6">
+              <MarketingActionBar
+                role={role}
+                draftStatus={
+                  activeDraft?.status as
+                    | "draft"
+                    | "submitted"
+                    | "changes_requested"
+                    | "approved"
+                    | "published"
+                    | null
+                }
+                isDirty={isDirty}
+                isSaving={isSaving}
+                isSubmitting={isSubmitting}
+                isPublishing={isPublishing || isOwnerDirectSaving}
+                onRevert={handleRevert}
+                customActions={
+                  <div className="flex flex-wrap items-center gap-2">
+                    {/* Marketer & Owner Save Draft Action */}
+                    <form action={saveAction}>
+                      <input type="hidden" name="id" value={activeDraft?.id || ""} />
+                      <input type="hidden" name="contentType" value="brand" />
+                      <input type="hidden" name="contentKey" value="brand_identity" />
+                      <input type="hidden" name="title" value={formValues.taglineText} />
+                      <input type="hidden" name="subtitle" value={formValues.taglineSubtext} />
+                      <input type="hidden" name="imageUrl" value={formValues.headerLogoUrl} />
+                      <input
+                        type="hidden"
+                        name="secondaryImageUrl"
+                        value={formValues.footerLogoUrl}
+                      />
+                      <input type="hidden" name="altText" value={formValues.headerLogoAlt} />
+                      <input
+                        type="hidden"
+                        name="metadata"
+                        value={JSON.stringify({
+                          headerLogoUrl: formValues.headerLogoUrl,
+                          headerLogoAlt: formValues.headerLogoAlt,
+                          footerLogoUrl: formValues.footerLogoUrl,
+                          footerLogoAlt: formValues.footerLogoAlt,
+                          brandMarkUrl: formValues.brandMarkUrl,
+                          brandMarkAlt: formValues.brandMarkAlt,
+                          siteIconMasterUrl: formValues.siteIconMasterUrl,
+                          siteIconUrl: currentSiteIconUrl,
+                          siteIconAlt: formValues.siteIconAlt,
+                          siteIconPackage: currentSiteIconPackage,
+                          taglineText: formValues.taglineText,
+                          taglineSubtext: formValues.taglineSubtext,
+                        })}
+                      />
                       <button
-                        type="button"
-                        onClick={() => setShowChangesModal(true)}
-                        className="inline-flex items-center gap-1.5 rounded-lg border border-amber-500/40 bg-amber-500/10 px-3 py-2 text-xs font-medium text-amber-300 hover:bg-amber-500/20"
+                        type="submit"
+                        disabled={isSaving}
+                        className="inline-flex items-center gap-1.5 rounded-lg border border-[var(--cs-border)] bg-[var(--cs-surface-warm)] px-3.5 py-2 text-xs font-semibold text-[var(--cs-text)] shadow-xs transition hover:bg-[var(--cs-surface)] disabled:opacity-50"
                       >
-                        <MessageSquare className="h-3.5 w-3.5" />
-                        Request Changes
+                        <Save className="h-3.5 w-3.5 text-[#C8A96B]" />
+                        {isSaving ? "Saving..." : "Save Draft"}
                       </button>
-                    )}
+                    </form>
 
-                    {activeDraft && ["submitted", "approved"].includes(activeDraft.status) ? (
-                      <form action={publishAction}>
-                        <input type="hidden" name="id" value={activeDraft.id} />
-                        <button
-                          type="submit"
-                          disabled={isPublishing}
-                          className="inline-flex items-center gap-1.5 rounded-lg bg-emerald-600 px-4 py-2 text-xs font-semibold text-white hover:bg-emerald-500 disabled:opacity-50"
-                        >
-                          <CheckCircle className="h-3.5 w-3.5" />
-                          {isPublishing ? "Publishing..." : "Publish to Live"}
-                        </button>
-                      </form>
-                    ) : (
-                      <form action={ownerDirectAction}>
-                        <input
-                          type="hidden"
-                          name="headerLogoUrl"
-                          value={formValues.headerLogoUrl}
-                        />
-                        <input
-                          type="hidden"
-                          name="headerLogoAlt"
-                          value={formValues.headerLogoAlt}
-                        />
-                        <input
-                          type="hidden"
-                          name="footerLogoUrl"
-                          value={formValues.footerLogoUrl}
-                        />
-                        <input
-                          type="hidden"
-                          name="footerLogoAlt"
-                          value={formValues.footerLogoAlt}
-                        />
-                        <input type="hidden" name="brandMarkUrl" value={formValues.brandMarkUrl} />
-                        <input type="hidden" name="brandMarkAlt" value={formValues.brandMarkAlt} />
-                        <input type="hidden" name="siteIconUrl" value={formValues.siteIconUrl} />
-                        <input type="hidden" name="siteIconAlt" value={formValues.siteIconAlt} />
-                        <input type="hidden" name="taglineText" value={formValues.taglineText} />
-                        <input
-                          type="hidden"
-                          name="taglineSubtext"
-                          value={formValues.taglineSubtext}
-                        />
-                        <input type="hidden" name="draftId" value={activeDraft?.id || ""} />
-                        <button
-                          type="submit"
-                          disabled={isOwnerDirectSaving}
-                          className="inline-flex items-center gap-1.5 rounded-lg bg-emerald-600 px-4 py-2 text-xs font-semibold text-white hover:bg-emerald-500 disabled:opacity-50"
-                        >
-                          <CheckCircle className="h-3.5 w-3.5" />
-                          {isOwnerDirectSaving ? "Publishing..." : "Publish Live Settings"}
-                        </button>
-                      </form>
+                    {/* Submit for Review (Marketer / Owner) */}
+                    {activeDraft &&
+                      ["draft", "changes_requested"].includes(activeDraft.status) && (
+                        <form action={submitAction}>
+                          <input type="hidden" name="id" value={activeDraft.id} />
+                          <button
+                            type="submit"
+                            disabled={isSubmitting}
+                            className="inline-flex items-center gap-1.5 rounded-lg bg-[#C8A96B] px-3.5 py-2 text-xs font-semibold text-[#10261D] shadow-xs transition hover:bg-[#D4B57A] disabled:opacity-50"
+                          >
+                            <Send className="h-3.5 w-3.5" />
+                            {isSubmitting ? "Submitting..." : "Submit for Review"}
+                          </button>
+                        </form>
+                      )}
+
+                    {/* Owner Approve & Publish Controls */}
+                    {role === "owner" && (
+                      <>
+                        {activeDraft && activeDraft.status === "submitted" && (
+                          <button
+                            type="button"
+                            onClick={() => setShowChangesModal(true)}
+                            className="inline-flex items-center gap-1.5 rounded-lg border border-amber-500/40 bg-amber-500/10 px-3 py-2 text-xs font-medium text-amber-800 dark:text-amber-300 hover:bg-amber-500/20"
+                          >
+                            <MessageSquare className="h-3.5 w-3.5" />
+                            Request Changes
+                          </button>
+                        )}
+
+                        {activeDraft &&
+                        ["submitted", "approved"].includes(activeDraft.status) ? (
+                          <form action={publishAction}>
+                            <input type="hidden" name="id" value={activeDraft.id} />
+                            <button
+                              type="submit"
+                              disabled={isPublishing}
+                              className="inline-flex items-center gap-1.5 rounded-lg bg-[#163A2B] px-4 py-2 text-xs font-semibold text-[#F6EBD6] shadow-xs transition hover:bg-[#1D4A35] disabled:opacity-50"
+                            >
+                              <CheckCircle className="h-3.5 w-3.5 text-[#C8A96B]" />
+                              {isPublishing ? "Publishing..." : "Publish to Live"}
+                            </button>
+                          </form>
+                        ) : (
+                          <form action={ownerDirectAction}>
+                            <input
+                              type="hidden"
+                              name="headerLogoUrl"
+                              value={formValues.headerLogoUrl}
+                            />
+                            <input
+                              type="hidden"
+                              name="headerLogoAlt"
+                              value={formValues.headerLogoAlt}
+                            />
+                            <input
+                              type="hidden"
+                              name="footerLogoUrl"
+                              value={formValues.footerLogoUrl}
+                            />
+                            <input
+                              type="hidden"
+                              name="footerLogoAlt"
+                              value={formValues.footerLogoAlt}
+                            />
+                            <input
+                              type="hidden"
+                              name="brandMarkUrl"
+                              value={formValues.brandMarkUrl}
+                            />
+                            <input
+                              type="hidden"
+                              name="brandMarkAlt"
+                              value={formValues.brandMarkAlt}
+                            />
+                            <input
+                              type="hidden"
+                              name="siteIconUrl"
+                              value={currentSiteIconUrl}
+                            />
+                            <input
+                              type="hidden"
+                              name="siteIconAlt"
+                              value={formValues.siteIconAlt}
+                            />
+                            <input
+                              type="hidden"
+                              name="siteIconPackage"
+                              value={
+                                currentSiteIconPackage
+                                  ? JSON.stringify(currentSiteIconPackage)
+                                  : ""
+                              }
+                            />
+                            <input
+                              type="hidden"
+                              name="taglineText"
+                              value={formValues.taglineText}
+                            />
+                            <input
+                              type="hidden"
+                              name="taglineSubtext"
+                              value={formValues.taglineSubtext}
+                            />
+                            <button
+                              type="submit"
+                              disabled={isOwnerDirectSaving}
+                              className="inline-flex items-center gap-1.5 rounded-lg bg-[#163A2B] px-4 py-2 text-xs font-semibold text-[#F6EBD6] shadow-xs transition hover:bg-[#1D4A35] disabled:opacity-50"
+                            >
+                              <CheckCircle className="h-3.5 w-3.5 text-[#C8A96B]" />
+                              {isOwnerDirectSaving ? "Publishing..." : "Publish Live Directly"}
+                            </button>
+                          </form>
+                        )}
+                      </>
                     )}
-                  </>
-                )}
-              </div>
+                  </div>
+                }
+              />
             </div>
-          </div>
+          </MarketingStudioPanel>
         </div>
 
-        {/* Right Column: High-Fidelity Brand Preview */}
+        {/* Right Column: High-Fidelity Public Brand Live Preview */}
         <div className="space-y-6 lg:col-span-6">
-          <div className="rounded-2xl border border-[#D4B57A]/15 bg-[#0A1F18]/90 p-6 shadow-xl backdrop-blur-md">
+          <div className="rounded-2xl border border-[#D4B57A]/15 bg-[#0A1F18]/95 p-6 shadow-xl backdrop-blur-md">
             <div className="flex items-center justify-between border-b border-[#D4B57A]/15 pb-4">
               <div className="flex items-center gap-2">
                 <Eye className="h-4 w-4 text-[#C8A96B]" />
@@ -658,21 +789,21 @@ export function BrandStudioView({
             </div>
 
             {/* Preview Sub-tabs */}
-            <div className="mt-4 flex gap-2 border-b border-white/5 pb-3">
+            <div className="mt-4 flex flex-wrap gap-2 border-b border-white/5 pb-3">
               {(
                 [
                   { id: "header", label: "Header Navbar" },
                   { id: "footer", label: "Footer" },
                   { id: "mark", label: "Brand Mark" },
-                  { id: "favicon", label: "Browser Tab / Icon" },
+                  { id: "favicon", label: "Browser & Device Icons" },
                 ] as const
               ).map((tab) => (
                 <button
                   key={tab.id}
                   type="button"
-                  onClick={() => setActiveTab(tab.id)}
+                  onClick={() => setPreviewTab(tab.id)}
                   className={`rounded-lg px-3 py-1.5 text-xs font-medium transition-colors ${
-                    activeTab === tab.id
+                    previewTab === tab.id
                       ? "bg-[#C8A96B]/15 text-[#C8A96B]"
                       : "text-[#9AA89A] hover:text-[#F6EBD6]"
                   }`}
@@ -685,7 +816,7 @@ export function BrandStudioView({
             {/* Active Preview Surface */}
             <div className="mt-5 overflow-hidden rounded-xl border border-white/10 bg-[#031B16] p-4">
               {/* Header Preview */}
-              {activeTab === "header" && (
+              {previewTab === "header" && (
                 <div className="space-y-4">
                   <div className="rounded-lg border border-[#C8A96B]/20 bg-[#10261D] p-4">
                     <div className="flex items-center justify-between">
@@ -720,12 +851,13 @@ export function BrandStudioView({
               )}
 
               {/* Footer Preview */}
-              {activeTab === "footer" && (
+              {previewTab === "footer" && (
                 <div className="space-y-4">
                   <div className="rounded-lg border border-[#163A2B] bg-[#10261D] p-6 text-[#9AA89A]">
                     <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
                       <div className="max-w-xs space-y-2">
                         {previewMode === "draft" && formValues.footerLogoUrl ? (
+                          // eslint-disable-next-line @next/next/no-img-element
                           <img
                             src={formValues.footerLogoUrl}
                             alt={formValues.footerLogoAlt}
@@ -768,10 +900,11 @@ export function BrandStudioView({
               )}
 
               {/* Brand Mark Preview */}
-              {activeTab === "mark" && (
+              {previewTab === "mark" && (
                 <div className="flex flex-col items-center justify-center space-y-4 py-8">
                   <div className="flex h-28 w-28 items-center justify-center rounded-2xl border border-[#D4B57A]/20 bg-[#10261D] p-4 shadow-inner">
                     {previewMode === "draft" && formValues.brandMarkUrl ? (
+                      // eslint-disable-next-line @next/next/no-img-element
                       <img
                         src={formValues.brandMarkUrl}
                         alt={formValues.brandMarkAlt}
@@ -792,38 +925,103 @@ export function BrandStudioView({
                 </div>
               )}
 
-              {/* Favicon Preview */}
-              {activeTab === "favicon" && (
-                <div className="space-y-4">
-                  {/* Browser Tab Mock */}
-                  <div className="rounded-lg border border-white/10 bg-[#1E293B] p-2 text-slate-200">
-                    <div className="flex items-center gap-2 rounded-md bg-[#0F172A] px-3 py-1.5 text-xs">
-                      {previewMode === "draft" && formValues.siteIconUrl ? (
-                        <img
-                          src={formValues.siteIconUrl}
-                          alt={formValues.siteIconAlt}
-                          className="h-4 w-4 rounded-sm object-contain"
-                          onError={(e) => {
-                            (e.target as HTMLElement).style.display = "none";
-                          }}
-                        />
-                      ) : (
-                        <div className="h-3.5 w-3.5 rounded-full bg-[#C8A96B]" />
-                      )}
-                      <span className="truncate font-medium">
-                        Cradle Wellness Living | Massage & Spa
-                      </span>
+              {/* Favicon & Device Preview */}
+              {previewTab === "favicon" && (
+                <div className="space-y-5">
+                  {/* Browser Tabs Simulation */}
+                  <div className="space-y-2">
+                    <div className="flex items-center gap-1.5 text-xs text-[#C8A96B] font-semibold">
+                      <Laptop className="h-3.5 w-3.5" />
+                      Browser Tab Preview (16px / 32px Favicon)
+                    </div>
+
+                    {/* Dark Browser Tab */}
+                    <div className="rounded-lg border border-white/10 bg-[#1E293B] p-2 text-slate-200">
+                      <div className="flex items-center gap-2 rounded-md bg-[#0F172A] px-3 py-1.5 text-xs">
+                        {previewMode === "draft" &&
+                        (currentSiteIconPackage?.icons?.icon32 || currentSiteIconUrl) ? (
+                          // eslint-disable-next-line @next/next/no-img-element
+                          <img
+                            src={
+                              currentSiteIconPackage?.icons?.icon32 ||
+                              currentSiteIconUrl
+                            }
+                            alt={formValues.siteIconAlt}
+                            className="h-4 w-4 rounded-xs object-contain"
+                            onError={(e) => {
+                              (e.target as HTMLElement).style.display = "none";
+                            }}
+                          />
+                        ) : (
+                          <div className="h-3.5 w-3.5 rounded-full bg-[#C8A96B]" />
+                        )}
+                        <span className="truncate font-medium">
+                          Cradle Wellness Living | Luxury Spa
+                        </span>
+                      </div>
+                    </div>
+
+                    {/* Light Browser Tab */}
+                    <div className="rounded-lg border border-slate-300 bg-slate-200 p-2 text-slate-800">
+                      <div className="flex items-center gap-2 rounded-md bg-white px-3 py-1.5 text-xs shadow-xs">
+                        {previewMode === "draft" &&
+                        (currentSiteIconPackage?.icons?.icon32 || currentSiteIconUrl) ? (
+                          // eslint-disable-next-line @next/next/no-img-element
+                          <img
+                            src={
+                              currentSiteIconPackage?.icons?.icon32 ||
+                              currentSiteIconUrl
+                            }
+                            alt={formValues.siteIconAlt}
+                            className="h-4 w-4 rounded-xs object-contain"
+                            onError={(e) => {
+                              (e.target as HTMLElement).style.display = "none";
+                            }}
+                          />
+                        ) : (
+                          <div className="h-3.5 w-3.5 rounded-full bg-[#C8A96B]" />
+                        )}
+                        <span className="truncate font-medium">
+                          Cradle Wellness Living | Luxury Spa
+                        </span>
+                      </div>
                     </div>
                   </div>
-                  <div className="rounded-lg border border-white/5 bg-white/[0.02] p-4 text-xs text-[#9AA89A] space-y-2">
-                    <p className="font-semibold text-[#C8A96B]">
-                      Next.js Static Favicon Architecture Note:
-                    </p>
-                    <p>
-                      The public site icon is served via Next.js root layout at{" "}
-                      <code className="text-[#F6EBD6]">/favicon.ico</code>. Selecting an asset here
-                      registers it in site metadata and manifest settings.
-                    </p>
+
+                  {/* Mobile Home Screen App Icon Simulation */}
+                  <div className="space-y-2">
+                    <div className="flex items-center gap-1.5 text-xs text-[#C8A96B] font-semibold">
+                      <Smartphone className="h-3.5 w-3.5" />
+                      Mobile & Tablet Home Screen (180px Apple Touch / 192px Android)
+                    </div>
+                    <div className="flex items-center gap-4 rounded-xl border border-white/10 bg-[#061410] p-4">
+                      <div className="h-16 w-16 rounded-2xl bg-white p-2 shadow-lg border border-white/10 flex items-center justify-center overflow-hidden">
+                        {currentSiteIconPackage?.icons?.apple180 ||
+                        currentSiteIconPackage?.icons?.icon192 ||
+                        formValues.siteIconMasterUrl ||
+                        formValues.brandMarkUrl ? (
+                          // eslint-disable-next-line @next/next/no-img-element
+                          <img
+                            src={
+                              currentSiteIconPackage?.icons?.apple180 ||
+                              currentSiteIconPackage?.icons?.icon192 ||
+                              formValues.siteIconMasterUrl ||
+                              formValues.brandMarkUrl
+                            }
+                            alt="Home Screen Icon"
+                            className="h-full w-full object-contain"
+                          />
+                        ) : (
+                          <BrandLogo mode="mark" size="sm" variant="dark" />
+                        )}
+                      </div>
+                      <div className="text-xs">
+                        <p className="font-bold text-[#F6EBD6]">Cradle Spa</p>
+                        <p className="text-[11px] text-[#9AA89A]">
+                          Automatic safe-area containment with transparent background
+                        </p>
+                      </div>
+                    </div>
                   </div>
                 </div>
               )}
@@ -831,18 +1029,6 @@ export function BrandStudioView({
           </div>
         </div>
       </div>
-
-      {/* Universal Media Picker Modal */}
-      {pickerTarget && (
-        <UniversalMediaPicker
-          isOpen={!!pickerTarget}
-          onClose={() => setPickerTarget(null)}
-          onSelect={handleMediaSelect}
-          currentUrl={formValues[pickerTarget] as string}
-          title={`Choose Media for ${pickerTarget.replace("Url", "")}`}
-          availableAssets={mediaAssets}
-        />
-      )}
 
       {/* Request Changes Dialog (Owner) */}
       <Dialog open={showChangesModal} onOpenChange={setShowChangesModal}>

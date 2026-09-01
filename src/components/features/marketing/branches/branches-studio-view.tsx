@@ -1,51 +1,35 @@
 "use client";
 
-import { useActionState, useEffect, useMemo, useState } from "react";
-import Image from "next/image";
+import { useActionState, useMemo, useState } from "react";
 import {
-  AlertCircle,
   Building2,
   CheckCircle,
   Clock,
-  ExternalLink,
   Eye,
   Globe,
-  ImageIcon,
   Mail,
   MapPin,
   MessageCircle,
-  MessageSquare,
-  Navigation,
   Phone,
-  RotateCcw,
   Save,
   Send,
-  Sparkles,
 } from "lucide-react";
-import type { Database, Json } from "@/types/supabase";
+import type { Database } from "@/types/supabase";
 import type {
   MarketingContentDraftRow,
   MarketingContentRevisionRow,
 } from "@/lib/queries/marketing-content";
 import type { MarketingMediaAssetRow } from "@/lib/queries/marketing-media";
-import type { SelectedMediaValue } from "@/components/features/marketing/media/universal-media-picker";
-import { UniversalMediaPicker } from "@/components/features/marketing/media/universal-media-picker";
 import {
   saveMarketingDraftAction,
   submitMarketingDraftAction,
 } from "@/app/(dashboard)/marketing/actions";
-import {
-  publishMarketingDraftAction,
-  requestMarketingDraftChangesAction,
-} from "@/app/(dashboard)/owner/marketing/actions";
+import { publishMarketingDraftAction } from "@/app/(dashboard)/owner/marketing/actions";
 import { updateBranchPresentationAction } from "@/app/(dashboard)/marketing/branch-actions";
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogHeader,
-  DialogTitle,
-} from "@/components/ui/dialog";
+import { MarketingStudioPanel } from "@/components/features/marketing/shared/marketing-studio-panel";
+import { MarketingFieldGroup } from "@/components/features/marketing/shared/marketing-field-group";
+import { MarketingMediaField } from "@/components/features/marketing/shared/marketing-media-field";
+import { MarketingActionBar } from "@/components/features/marketing/shared/marketing-action-bar";
 
 type BranchRow = Database["public"]["Tables"]["branches"]["Row"];
 
@@ -89,7 +73,7 @@ export function BranchesStudioView({
   role,
   branches = [],
   drafts = [],
-  revisions = [],
+  revisions: _revisions = [],
   mediaAssets = [],
 }: BranchesStudioViewProps) {
   // Sort branches: Main Spa first, SM second
@@ -101,16 +85,17 @@ export function BranchesStudioView({
         b.name.toLowerCase().includes("main") || b.name.toLowerCase().includes("lacson");
       if (aIsMain && !bIsMain) return -1;
       if (!aIsMain && bIsMain) return 1;
-      return (a.sort_order ?? 0) - (b.sort_order ?? 0);
+      return a.name.localeCompare(b.name);
     });
   }, [branches]);
 
-  const [selectedBranchId, setSelectedBranchId] = useState<string>(sortedBranches[0]?.id || "");
+  const [selectedBranchId, setSelectedBranchId] = useState<string>(
+    sortedBranches[0]?.id || ""
+  );
 
-  const initialNoticeState: { success: boolean; message?: string; error?: string } = {
-    success: true,
-  };
+  const initialNoticeState = { success: true, message: "" };
 
+  // Action states
   const [saveState, saveAction, isSaving] = useActionState(
     saveMarketingDraftAction,
     initialNoticeState
@@ -119,12 +104,12 @@ export function BranchesStudioView({
     submitMarketingDraftAction,
     initialNoticeState
   );
-  const [ownerUpdateState, ownerUpdateAction, isOwnerUpdating] = useActionState(
-    updateBranchPresentationAction,
-    initialNoticeState
-  );
   const [publishState, publishAction, isPublishing] = useActionState(
     publishMarketingDraftAction,
+    initialNoticeState
+  );
+  const [ownerUpdateState, ownerUpdateAction, isOwnerUpdating] = useActionState(
+    updateBranchPresentationAction,
     initialNoticeState
   );
 
@@ -132,31 +117,35 @@ export function BranchesStudioView({
     return sortedBranches.find((b) => b.id === selectedBranchId) || sortedBranches[0];
   }, [sortedBranches, selectedBranchId]);
 
-  // Find active draft for selected branch
+  // Find active mutable draft for current branch ONLY
   const activeBranchDraft = useMemo(() => {
-    if (!currentBranch) return undefined;
+    if (!currentBranch) return null;
     const branchKey = `branch_${currentBranch.id.replace(/-/g, "_")}`;
+
     const draftFromAction =
       (saveState?.success && (saveState as { draft?: MarketingContentDraftRow }).draft) ||
       (submitState?.success && (submitState as { draft?: MarketingContentDraftRow }).draft);
 
     if (
       draftFromAction &&
+      draftFromAction.content_type === "section" &&
       draftFromAction.content_key === branchKey &&
       ["draft", "submitted", "changes_requested", "approved"].includes(draftFromAction.status)
     ) {
       return draftFromAction;
     }
 
-    return drafts.find(
-      (d) =>
-        d.content_type === "section" &&
-        d.content_key === branchKey &&
-        ["draft", "submitted", "changes_requested", "approved"].includes(d.status)
+    return (
+      drafts.find(
+        (d) =>
+          d.content_type === "section" &&
+          d.content_key === branchKey &&
+          ["draft", "submitted", "changes_requested", "approved"].includes(d.status)
+      ) ?? null
     );
-  }, [drafts, currentBranch, saveState, submitState]);
+  }, [currentBranch, drafts, saveState, submitState]);
 
-  // Initial form values from branch and draft
+  // Initialize form values from active mutable draft or live branch row
   const initialValues: BranchFormValues = useMemo(() => {
     if (!currentBranch) {
       return {
@@ -166,7 +155,7 @@ export function BranchesStudioView({
         email: "",
         fbPage: "",
         messengerLink: "",
-        openingHours: "",
+        openingHours: "10:00 AM - 10:00 PM Daily",
         mapsEmbedUrl: "",
         imageUrl: "",
       };
@@ -234,7 +223,6 @@ export function BranchesStudioView({
   }, [currentBranch, activeBranchDraft]);
 
   const [formValues, setFormValues] = useState<BranchFormValues>(initialValues);
-  const [showMediaPicker, setShowMediaPicker] = useState(false);
 
   // Sync form values when selected branch changes
   const handleSelectBranch = (branchId: string) => {
@@ -318,19 +306,11 @@ export function BranchesStudioView({
     setFormValues((prev) => ({ ...prev, [field]: value }));
   };
 
-  const handleMediaSelect = (value: SelectedMediaValue) => {
-    setFormValues((prev) => ({
-      ...prev,
-      imageUrl: value.publicUrl || "",
-    }));
-    setShowMediaPicker(false);
-  };
-
   if (!currentBranch) {
     return (
-      <div className="rounded-2xl border border-white/10 bg-[#0A1F18] p-8 text-center text-[#9AA89A]">
+      <div className="rounded-2xl border border-[var(--cs-border)] bg-[var(--cs-surface)] p-8 text-center text-[var(--cs-text-secondary)]">
         <Building2 className="mx-auto h-8 w-8 text-[#C8A96B] mb-2" />
-        <p className="text-sm font-medium text-[#F6EBD6]">No active branches found</p>
+        <p className="text-sm font-medium text-[var(--cs-text)]">No active branches found</p>
       </div>
     );
   }
@@ -339,28 +319,42 @@ export function BranchesStudioView({
     <div className="space-y-6">
       {/* Action notices */}
       {ownerUpdateState?.message && (
-        <div className="rounded-lg border border-green-500/30 bg-green-500/10 p-3 text-xs text-green-300">
+        <div className="rounded-lg border border-green-500/30 bg-green-500/10 p-3 text-xs text-green-700 dark:text-green-300">
           {ownerUpdateState.message}
         </div>
       )}
       {ownerUpdateState?.error && (
-        <div className="rounded-lg border border-red-500/30 bg-red-500/10 p-3 text-xs text-red-300">
+        <div className="rounded-lg border border-red-500/30 bg-red-500/10 p-3 text-xs text-red-700 dark:text-red-300">
           {ownerUpdateState.error}
         </div>
       )}
+      {publishState?.message && (
+        <div className="rounded-lg border border-green-500/30 bg-green-500/10 p-3 text-xs text-green-700 dark:text-green-300">
+          {publishState.message}
+        </div>
+      )}
+      {publishState?.error && (
+        <div className="rounded-lg border border-red-500/30 bg-red-500/10 p-3 text-xs text-red-700 dark:text-red-300">
+          {publishState.error}
+        </div>
+      )}
       {saveState?.message && (
-        <div className="rounded-lg border border-green-500/30 bg-green-500/10 p-3 text-xs text-green-300">
+        <div className="rounded-lg border border-green-500/30 bg-green-500/10 p-3 text-xs text-green-700 dark:text-green-300">
           {saveState.message}
         </div>
       )}
 
-      {/* Branch Selection Tabs */}
-      <div className="flex flex-wrap items-center justify-between gap-4 rounded-2xl border border-[#D4B57A]/15 bg-[#0A1F18]/90 p-4 shadow-lg backdrop-blur-md">
-        <div className="flex items-center gap-2">
-          <Building2 className="h-5 w-5 text-[#C8A96B]" />
+      {/* Branch Selection Bar (Standardized Light Panel) */}
+      <div className="flex flex-wrap items-center justify-between gap-4 rounded-2xl border border-[var(--cs-border)] bg-[var(--cs-surface)] p-4 shadow-xs">
+        <div className="flex items-center gap-2.5">
+          <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-[var(--cs-surface-warm)] border border-[var(--cs-border)] text-[#C8A96B]">
+            <Building2 className="h-5 w-5" />
+          </div>
           <div>
-            <h3 className="text-sm font-medium text-[#F6EBD6]">Select Branch to Manage</h3>
-            <p className="text-xs text-[#9AA89A]">Manage public contact info, hours, and photos</p>
+            <h3 className="text-sm font-bold text-[var(--cs-text)]">Select Branch to Manage</h3>
+            <p className="text-xs text-[var(--cs-text-secondary)]">
+              Manage public contact info, hours, and branch photography
+            </p>
           </div>
         </div>
 
@@ -375,18 +369,18 @@ export function BranchesStudioView({
                 key={branch.id}
                 type="button"
                 onClick={() => handleSelectBranch(branch.id)}
-                className={`flex items-center gap-2 rounded-xl px-4 py-2 text-xs font-medium transition-all ${
+                className={`flex items-center gap-2 rounded-xl px-4 py-2 text-xs font-semibold transition-all ${
                   isSelected
-                    ? "border border-[#C8A96B]/50 bg-[#163A2B] text-[#F6EBD6] shadow-md"
-                    : "border border-white/5 bg-[#061410] text-[#9AA89A] hover:border-white/20 hover:text-[#F6EBD6]"
+                    ? "border border-[#C8A96B]/50 bg-[#163A2B] text-[#F6EBD6] shadow-sm"
+                    : "border border-[var(--cs-border)] bg-[var(--cs-surface-warm)] text-[var(--cs-text-secondary)] hover:border-[#C8A96B]/30 hover:text-[var(--cs-text)]"
                 }`}
               >
                 <MapPin
-                  className={`h-3.5 w-3.5 ${isSelected ? "text-[#C8A96B]" : "text-[#9AA89A]"}`}
+                  className={`h-3.5 w-3.5 ${isSelected ? "text-[#C8A96B]" : "text-[var(--cs-text-tertiary)]"}`}
                 />
                 <span>{branch.name}</span>
                 {isMain && (
-                  <span className="rounded bg-[#C8A96B]/20 px-1.5 py-0.2 text-[10px] text-[#C8A96B]">
+                  <span className="rounded bg-[#C8A96B]/20 px-1.5 py-0.5 text-[10px] text-[#C8A96B]">
                     Flagship
                   </span>
                 )}
@@ -398,273 +392,290 @@ export function BranchesStudioView({
 
       {/* Studio 2-Column Grid */}
       <div className="grid grid-cols-1 gap-6 lg:grid-cols-12">
-        {/* Left Column: Form Controls */}
+        {/* Left Column: Form Controls (Standardized Light Panels) */}
         <div className="space-y-6 lg:col-span-6">
-          <div className="rounded-2xl border border-[#D4B57A]/15 bg-[#0A1F18]/90 p-6 shadow-xl backdrop-blur-md">
-            <div className="flex items-center justify-between border-b border-[#D4B57A]/15 pb-4">
-              <div>
-                <h2 className="text-lg font-medium text-[#F6EBD6]">{currentBranch.name}</h2>
-                <p className="text-xs text-[#9AA89A]">Public Presentation & Contact Channels</p>
-              </div>
-              {isDirty && (
-                <span className="rounded-full bg-amber-500/20 px-2.5 py-0.5 text-[11px] font-medium text-amber-300">
-                  Unsaved Changes
-                </span>
-              )}
-            </div>
-
-            <div className="mt-6 space-y-4">
-              {/* Branch Name & Address */}
-              <div className="space-y-3 rounded-xl border border-white/5 bg-white/[0.02] p-4">
-                <label className="text-xs font-semibold uppercase tracking-wider text-[#C8A96B]">
-                  Branch Identification & Location
-                </label>
+          <MarketingStudioPanel
+            title={currentBranch.name}
+            description="Public presentation, contact channels, and location details"
+            badge={
+              <span className="inline-flex items-center rounded-full bg-[var(--cs-surface-warm)] px-2.5 py-0.5 text-[11px] font-semibold text-[var(--cs-text-secondary)] border border-[var(--cs-border)]">
+                {activeBranchDraft ? `Draft: ${activeBranchDraft.status}` : "Live Synced"}
+              </span>
+            }
+          >
+            <div className="space-y-5">
+              {/* 1. Branch Identification */}
+              <MarketingFieldGroup
+                title="1. Branch Identification & Location"
+                description="Official branch name and full physical address"
+              >
                 <div>
-                  <span className="text-[11px] text-[#9AA89A]">Public Branch Name</span>
+                  <label className="text-xs font-semibold text-[var(--cs-text)]">
+                    Public Branch Name
+                  </label>
                   <input
                     type="text"
                     aria-label="Public Branch Name"
                     value={formValues.name}
                     onChange={(e) => handleFieldChange("name", e.target.value)}
-                    className="mt-1 w-full rounded-lg border border-white/10 bg-[#061410] px-3 py-2 text-xs text-[#F6EBD6] focus:border-[#C8A96B] focus:outline-none"
+                    className="mt-1 w-full rounded-lg border border-[var(--cs-border)] bg-[var(--cs-surface)] px-3 py-2 text-xs text-[var(--cs-text)] shadow-xs focus:border-[#C8A96B] focus:outline-none"
                   />
                 </div>
                 <div>
-                  <span className="text-[11px] text-[#9AA89A]">Full Street Address</span>
+                  <label className="text-xs font-semibold text-[var(--cs-text)]">
+                    Full Street Address
+                  </label>
                   <textarea
                     rows={2}
                     aria-label="Full Street Address"
                     value={formValues.address}
                     onChange={(e) => handleFieldChange("address", e.target.value)}
-                    className="mt-1 w-full rounded-lg border border-white/10 bg-[#061410] px-3 py-2 text-xs text-[#F6EBD6] focus:border-[#C8A96B] focus:outline-none"
+                    className="mt-1 w-full rounded-lg border border-[var(--cs-border)] bg-[var(--cs-surface)] px-3 py-2 text-xs text-[var(--cs-text)] shadow-xs focus:border-[#C8A96B] focus:outline-none"
                   />
                 </div>
-              </div>
+              </MarketingFieldGroup>
 
-              {/* Direct Contact Channels */}
-              <div className="space-y-3 rounded-xl border border-white/5 bg-white/[0.02] p-4">
-                <label className="text-xs font-semibold uppercase tracking-wider text-[#C8A96B]">
-                  Guest Contact Channels
-                </label>
+              {/* 2. Guest Contact Channels */}
+              <MarketingFieldGroup
+                title="2. Guest Contact Channels"
+                description="Phone, email, and social direct booking channels"
+              >
                 <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
                   <div>
-                    <span className="text-[11px] text-[#9AA89A]">Primary Phone</span>
+                    <label className="text-xs font-semibold text-[var(--cs-text)]">
+                      Primary Phone
+                    </label>
                     <input
                       type="text"
                       aria-label="Primary Phone"
                       value={formValues.phone}
                       onChange={(e) => handleFieldChange("phone", e.target.value)}
                       placeholder="0917-xxx-xxxx / (034) 433-xxxx"
-                      className="mt-1 w-full rounded-lg border border-white/10 bg-[#061410] px-3 py-2 text-xs text-[#F6EBD6] focus:border-[#C8A96B] focus:outline-none"
+                      className="mt-1 w-full rounded-lg border border-[var(--cs-border)] bg-[var(--cs-surface)] px-3 py-2 text-xs text-[var(--cs-text)] shadow-xs focus:border-[#C8A96B] focus:outline-none"
                     />
                   </div>
                   <div>
-                    <span className="text-[11px] text-[#9AA89A]">Branch Email</span>
+                    <label className="text-xs font-semibold text-[var(--cs-text)]">
+                      Branch Email
+                    </label>
                     <input
                       type="email"
                       aria-label="Branch Email"
                       value={formValues.email}
                       onChange={(e) => handleFieldChange("email", e.target.value)}
                       placeholder="branch@cradlemassage.ph"
-                      className="mt-1 w-full rounded-lg border border-white/10 bg-[#061410] px-3 py-2 text-xs text-[#F6EBD6] focus:border-[#C8A96B] focus:outline-none"
+                      className="mt-1 w-full rounded-lg border border-[var(--cs-border)] bg-[var(--cs-surface)] px-3 py-2 text-xs text-[var(--cs-text)] shadow-xs focus:border-[#C8A96B] focus:outline-none"
                     />
                   </div>
                 </div>
 
                 <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
                   <div>
-                    <span className="text-[11px] text-[#9AA89A]">Facebook Page URL</span>
+                    <label className="text-xs font-semibold text-[var(--cs-text)]">
+                      Facebook Page URL
+                    </label>
                     <input
                       type="text"
                       value={formValues.fbPage}
                       onChange={(e) => handleFieldChange("fbPage", e.target.value)}
                       placeholder="https://facebook.com/..."
-                      className="mt-1 w-full rounded-lg border border-white/10 bg-[#061410] px-3 py-2 text-xs text-[#F6EBD6] focus:border-[#C8A96B] focus:outline-none"
+                      className="mt-1 w-full rounded-lg border border-[var(--cs-border)] bg-[var(--cs-surface)] px-3 py-2 text-xs text-[var(--cs-text)] shadow-xs focus:border-[#C8A96B] focus:outline-none"
                     />
                   </div>
                   <div>
-                    <span className="text-[11px] text-[#9AA89A]">Messenger Link (m.me)</span>
+                    <label className="text-xs font-semibold text-[var(--cs-text)]">
+                      Messenger Link (m.me)
+                    </label>
                     <input
                       type="text"
                       value={formValues.messengerLink}
                       onChange={(e) => handleFieldChange("messengerLink", e.target.value)}
                       placeholder="https://m.me/..."
-                      className="mt-1 w-full rounded-lg border border-white/10 bg-[#061410] px-3 py-2 text-xs text-[#F6EBD6] focus:border-[#C8A96B] focus:outline-none"
+                      className="mt-1 w-full rounded-lg border border-[var(--cs-border)] bg-[var(--cs-surface)] px-3 py-2 text-xs text-[var(--cs-text)] shadow-xs focus:border-[#C8A96B] focus:outline-none"
                     />
                   </div>
                 </div>
 
                 <div>
-                  <span className="text-[11px] text-[#9AA89A]">Opening Hours Schedule</span>
+                  <label className="text-xs font-semibold text-[var(--cs-text)]">
+                    Opening Hours Schedule
+                  </label>
                   <input
                     type="text"
                     value={formValues.openingHours}
                     onChange={(e) => handleFieldChange("openingHours", e.target.value)}
                     placeholder="10:00 AM - 10:00 PM Daily"
-                    className="mt-1 w-full rounded-lg border border-white/10 bg-[#061410] px-3 py-2 text-xs text-[#F6EBD6] focus:border-[#C8A96B] focus:outline-none"
+                    className="mt-1 w-full rounded-lg border border-[var(--cs-border)] bg-[var(--cs-surface)] px-3 py-2 text-xs text-[var(--cs-text)] shadow-xs focus:border-[#C8A96B] focus:outline-none"
                   />
                 </div>
-              </div>
+              </MarketingFieldGroup>
 
-              {/* Photo & Map Embed */}
-              <div className="space-y-3 rounded-xl border border-white/5 bg-white/[0.02] p-4">
-                <div className="flex items-center justify-between">
-                  <label className="text-xs font-semibold uppercase tracking-wider text-[#C8A96B]">
-                    Branch Photo & Map Embed
+              {/* 3. Branch Photography & Map Embed */}
+              <MarketingFieldGroup
+                title="3. Branch Photography & Map"
+                description="High-resolution exterior/interior hero photo (16:9) and map embed"
+              >
+                <MarketingMediaField
+                  label="Branch Hero Photo (16:9 Landscape)"
+                  intent="BRANCH_PHOTO"
+                  value={formValues.imageUrl}
+                  altValue={formValues.name}
+                  onChange={(url) => handleFieldChange("imageUrl", url)}
+                  availableAssets={mediaAssets}
+                />
+                <div>
+                  <label className="text-xs font-semibold text-[var(--cs-text)]">
+                    Google Maps Embed URL
                   </label>
-                  <button
-                    type="button"
-                    onClick={() => setShowMediaPicker(true)}
-                    className="inline-flex items-center gap-1.5 rounded-lg border border-[#D4B57A]/30 bg-[#163A2B] px-2.5 py-1 text-xs text-[#F6EBD6] hover:bg-[#1D4A35]"
-                  >
-                    <ImageIcon className="h-3.5 w-3.5 text-[#C8A96B]" />
-                    Choose Photo
-                  </button>
-                </div>
-                <div>
-                  <span className="text-[11px] text-[#9AA89A]">Branch Photo URL</span>
-                  <input
-                    type="text"
-                    value={formValues.imageUrl}
-                    onChange={(e) => handleFieldChange("imageUrl", e.target.value)}
-                    placeholder="/images/spa/cradle-main-spa.webp"
-                    className="mt-1 w-full rounded-lg border border-white/10 bg-[#061410] px-3 py-2 text-xs text-[#F6EBD6] focus:border-[#C8A96B] focus:outline-none"
-                  />
-                </div>
-                <div>
-                  <span className="text-[11px] text-[#9AA89A]">Google Maps Embed URL</span>
                   <input
                     type="text"
                     value={formValues.mapsEmbedUrl}
                     onChange={(e) => handleFieldChange("mapsEmbedUrl", e.target.value)}
                     placeholder="https://www.google.com/maps/embed?..."
-                    className="mt-1 w-full rounded-lg border border-white/10 bg-[#061410] px-3 py-2 text-xs text-[#F6EBD6] focus:border-[#C8A96B] focus:outline-none"
+                    className="mt-1 w-full rounded-lg border border-[var(--cs-border)] bg-[var(--cs-surface)] px-3 py-2 text-xs text-[var(--cs-text)] shadow-xs focus:border-[#C8A96B] focus:outline-none"
                   />
                 </div>
-              </div>
+              </MarketingFieldGroup>
             </div>
 
-            {/* Action Bar */}
-            <div className="mt-6 flex flex-wrap items-center justify-between gap-3 border-t border-white/10 pt-4">
-              <button
-                type="button"
-                onClick={() => setFormValues(initialValues)}
-                disabled={!isDirty}
-                className="inline-flex items-center gap-1.5 rounded-lg border border-white/15 px-3 py-2 text-xs text-[#9AA89A] hover:bg-white/5 disabled:opacity-40"
-              >
-                <RotateCcw className="h-3.5 w-3.5" />
-                Revert
-              </button>
-
-              <div className="flex flex-wrap items-center gap-2">
-                {/* Save Draft Action (Marketer) */}
-                <form action={saveAction}>
-                  <input type="hidden" name="id" value={activeBranchDraft?.id || ""} />
-                  <input type="hidden" name="contentType" value="section" />
-                  <input
-                    type="hidden"
-                    name="contentKey"
-                    value={`branch_${currentBranch.id.replace(/-/g, "_")}`}
-                  />
-                  <input type="hidden" name="title" value={formValues.name} />
-                  <input type="hidden" name="subtitle" value={formValues.openingHours} />
-                  <input type="hidden" name="body" value={formValues.address} />
-                  <input type="hidden" name="ctaLabel" value={formValues.phone} />
-                  <input type="hidden" name="imageUrl" value={formValues.imageUrl} />
-                  <input
-                    type="hidden"
-                    name="metadata"
-                    value={JSON.stringify({
-                      branchId: currentBranch.id,
-                      name: formValues.name,
-                      address: formValues.address,
-                      phone: formValues.phone,
-                      email: formValues.email,
-                      fbPage: formValues.fbPage,
-                      messengerLink: formValues.messengerLink,
-                      openingHours: formValues.openingHours,
-                      mapsEmbedUrl: formValues.mapsEmbedUrl,
-                      imageUrl: formValues.imageUrl,
-                    })}
-                  />
-                  <button
-                    type="submit"
-                    disabled={isSaving}
-                    className="inline-flex items-center gap-1.5 rounded-lg border border-[#D4B57A]/40 bg-[#163A2B] px-4 py-2 text-xs font-semibold text-[#F6EBD6] hover:bg-[#1D4A35] disabled:opacity-50"
-                  >
-                    <Save className="h-3.5 w-3.5 text-[#C8A96B]" />
-                    {isSaving ? "Saving..." : "Save Draft"}
-                  </button>
-                </form>
-
-                {/* Submit for Review (Marketer / Owner) */}
-                {activeBranchDraft &&
-                  ["draft", "changes_requested"].includes(activeBranchDraft.status) && (
-                    <form action={submitAction}>
-                      <input type="hidden" name="id" value={activeBranchDraft.id} />
+            {/* Workflow Action Bar */}
+            <div className="mt-6">
+              <MarketingActionBar
+                role={role}
+                draftStatus={
+                  activeBranchDraft?.status as
+                    | "draft"
+                    | "submitted"
+                    | "changes_requested"
+                    | "approved"
+                    | "published"
+                    | null
+                }
+                isDirty={isDirty}
+                isSaving={isSaving}
+                isSubmitting={isSubmitting}
+                isPublishing={isPublishing || isOwnerUpdating}
+                onRevert={() => setFormValues(initialValues)}
+                customActions={
+                  <div className="flex flex-wrap items-center gap-2">
+                    {/* Save Draft Action (Marketer & Owner) */}
+                    <form action={saveAction}>
+                      <input type="hidden" name="id" value={activeBranchDraft?.id || ""} />
+                      <input type="hidden" name="contentType" value="section" />
+                      <input
+                        type="hidden"
+                        name="contentKey"
+                        value={`branch_${currentBranch.id.replace(/-/g, "_")}`}
+                      />
+                      <input type="hidden" name="title" value={formValues.name} />
+                      <input type="hidden" name="subtitle" value={formValues.openingHours} />
+                      <input type="hidden" name="body" value={formValues.address} />
+                      <input type="hidden" name="ctaLabel" value={formValues.phone} />
+                      <input type="hidden" name="imageUrl" value={formValues.imageUrl} />
+                      <input
+                        type="hidden"
+                        name="metadata"
+                        value={JSON.stringify({
+                          branchId: currentBranch.id,
+                          name: formValues.name,
+                          address: formValues.address,
+                          phone: formValues.phone,
+                          email: formValues.email,
+                          fbPage: formValues.fbPage,
+                          messengerLink: formValues.messengerLink,
+                          openingHours: formValues.openingHours,
+                          mapsEmbedUrl: formValues.mapsEmbedUrl,
+                          imageUrl: formValues.imageUrl,
+                        })}
+                      />
                       <button
                         type="submit"
-                        disabled={isSubmitting}
-                        className="inline-flex items-center gap-1.5 rounded-lg bg-[#C8A96B] px-4 py-2 text-xs font-semibold text-[#10261D] hover:bg-[#D4B57A] disabled:opacity-50"
+                        disabled={isSaving}
+                        className="inline-flex items-center gap-1.5 rounded-lg border border-[var(--cs-border)] bg-[var(--cs-surface-warm)] px-3.5 py-2 text-xs font-semibold text-[var(--cs-text)] shadow-xs transition hover:bg-[var(--cs-surface)] disabled:opacity-50"
                       >
-                        <Send className="h-3.5 w-3.5" />
-                        {isSubmitting ? "Submitting..." : "Submit for Review"}
+                        <Save className="h-3.5 w-3.5 text-[#C8A96B]" />
+                        {isSaving ? "Saving..." : "Save Draft"}
                       </button>
                     </form>
-                  )}
 
-                {/* Owner Direct Update / Canonical Publish */}
-                {role === "owner" && (
-                  <>
+                    {/* Submit for Review (Marketer / Owner) */}
                     {activeBranchDraft &&
-                    ["submitted", "approved"].includes(activeBranchDraft.status) ? (
-                      <form action={publishAction}>
-                        <input type="hidden" name="id" value={activeBranchDraft.id} />
-                        <button
-                          type="submit"
-                          disabled={isPublishing}
-                          className="inline-flex items-center gap-1.5 rounded-lg bg-emerald-600 px-4 py-2 text-xs font-semibold text-white hover:bg-emerald-500 disabled:opacity-50"
-                        >
-                          <CheckCircle className="h-3.5 w-3.5" />
-                          {isPublishing ? "Publishing..." : "Publish to Live"}
-                        </button>
-                      </form>
-                    ) : (
-                      <form action={ownerUpdateAction}>
-                        <input type="hidden" name="branchId" value={currentBranch.id} />
-                        <input type="hidden" name="name" value={formValues.name} />
-                        <input type="hidden" name="address" value={formValues.address} />
-                        <input type="hidden" name="phone" value={formValues.phone} />
-                        <input type="hidden" name="email" value={formValues.email} />
-                        <input type="hidden" name="fbPage" value={formValues.fbPage} />
-                        <input
-                          type="hidden"
-                          name="messengerLink"
-                          value={formValues.messengerLink}
-                        />
-                        <input type="hidden" name="openingHours" value={formValues.openingHours} />
-                        <input type="hidden" name="mapsEmbedUrl" value={formValues.mapsEmbedUrl} />
-                        <input type="hidden" name="imageUrl" value={formValues.imageUrl} />
-                        <button
-                          type="submit"
-                          disabled={isOwnerUpdating}
-                          className="inline-flex items-center gap-1.5 rounded-lg bg-emerald-600 px-4 py-2 text-xs font-semibold text-white hover:bg-emerald-500 disabled:opacity-50"
-                        >
-                          <CheckCircle className="h-3.5 w-3.5" />
-                          {isOwnerUpdating ? "Updating..." : "Update Live Branch"}
-                        </button>
-                      </form>
+                      ["draft", "changes_requested"].includes(activeBranchDraft.status) && (
+                        <form action={submitAction}>
+                          <input type="hidden" name="id" value={activeBranchDraft.id} />
+                          <button
+                            type="submit"
+                            disabled={isSubmitting}
+                            className="inline-flex items-center gap-1.5 rounded-lg bg-[#C8A96B] px-3.5 py-2 text-xs font-semibold text-[#10261D] shadow-xs transition hover:bg-[#D4B57A] disabled:opacity-50"
+                          >
+                            <Send className="h-3.5 w-3.5" />
+                            {isSubmitting ? "Submitting..." : "Submit for Review"}
+                          </button>
+                        </form>
+                      )}
+
+                    {/* Owner Direct Update / Canonical Publish */}
+                    {role === "owner" && (
+                      <>
+                        {activeBranchDraft &&
+                        ["submitted", "approved"].includes(activeBranchDraft.status) ? (
+                          <form action={publishAction}>
+                            <input type="hidden" name="id" value={activeBranchDraft.id} />
+                            <button
+                              type="submit"
+                              disabled={isPublishing}
+                              className="inline-flex items-center gap-1.5 rounded-lg bg-[#163A2B] px-4 py-2 text-xs font-semibold text-[#F6EBD6] shadow-xs transition hover:bg-[#1D4A35] disabled:opacity-50"
+                            >
+                              <CheckCircle className="h-3.5 w-3.5 text-[#C8A96B]" />
+                              {isPublishing ? "Publishing..." : "Publish to Live"}
+                            </button>
+                          </form>
+                        ) : (
+                          <form action={ownerUpdateAction}>
+                            <input type="hidden" name="branchId" value={currentBranch.id} />
+                            <input type="hidden" name="name" value={formValues.name} />
+                            <input type="hidden" name="address" value={formValues.address} />
+                            <input type="hidden" name="phone" value={formValues.phone} />
+                            <input type="hidden" name="email" value={formValues.email} />
+                            <input type="hidden" name="fbPage" value={formValues.fbPage} />
+                            <input
+                              type="hidden"
+                              name="messengerLink"
+                              value={formValues.messengerLink}
+                            />
+                            <input
+                              type="hidden"
+                              name="openingHours"
+                              value={formValues.openingHours}
+                            />
+                            <input
+                              type="hidden"
+                              name="mapsEmbedUrl"
+                              value={formValues.mapsEmbedUrl}
+                            />
+                            <input type="hidden" name="imageUrl" value={formValues.imageUrl} />
+                            <button
+                              type="submit"
+                              disabled={isOwnerUpdating}
+                              className="inline-flex items-center gap-1.5 rounded-lg bg-[#163A2B] px-4 py-2 text-xs font-semibold text-[#F6EBD6] shadow-xs transition hover:bg-[#1D4A35] disabled:opacity-50"
+                            >
+                              <CheckCircle className="h-3.5 w-3.5 text-[#C8A96B]" />
+                              {isOwnerUpdating ? "Updating..." : "Update Live Branch"}
+                            </button>
+                          </form>
+                        )}
+                      </>
                     )}
-                  </>
-                )}
-              </div>
+                  </div>
+                }
+              />
             </div>
-          </div>
+          </MarketingStudioPanel>
         </div>
 
-        {/* Right Column: Public Card Live Preview */}
+        {/* Right Column: Public Card Live Preview (Dark Spa Visual Standard) */}
         <div className="space-y-6 lg:col-span-6">
-          <div className="rounded-2xl border border-[#D4B57A]/15 bg-[#0A1F18]/90 p-6 shadow-xl backdrop-blur-md">
+          <div className="rounded-2xl border border-[#D4B57A]/15 bg-[#0A1F18]/95 p-6 shadow-xl backdrop-blur-md">
             <div className="flex items-center justify-between border-b border-[#D4B57A]/15 pb-4">
               <div className="flex items-center gap-2">
                 <Eye className="h-4 w-4 text-[#C8A96B]" />
@@ -679,6 +690,7 @@ export function BranchesStudioView({
                 {/* Photo */}
                 <div className="relative mb-5 h-44 w-full overflow-hidden rounded-xl bg-[#031B16]">
                   {formValues.imageUrl ? (
+                    // eslint-disable-next-line @next/next/no-img-element
                     <img
                       src={formValues.imageUrl}
                       alt={formValues.name}
@@ -773,18 +785,6 @@ export function BranchesStudioView({
           </div>
         </div>
       </div>
-
-      {/* Universal Media Picker Modal */}
-      {showMediaPicker && (
-        <UniversalMediaPicker
-          isOpen={showMediaPicker}
-          onClose={() => setShowMediaPicker(false)}
-          onSelect={handleMediaSelect}
-          currentUrl={formValues.imageUrl}
-          title={`Choose Branch Photo for ${formValues.name}`}
-          availableAssets={mediaAssets}
-        />
-      )}
     </div>
   );
 }

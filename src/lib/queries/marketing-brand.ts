@@ -6,6 +6,7 @@ import { logError } from "@/lib/logger";
 import { cacheTags, invalidateTag } from "@/lib/cache/cache-tags";
 
 import type { Json } from "@/types/supabase";
+import type { GeneratedSiteIconPackage } from "@/lib/marketing/icon-generator";
 
 export type PublishedBrandSettings = {
   headerLogoUrl: string | null;
@@ -16,6 +17,7 @@ export type PublishedBrandSettings = {
   brandMarkAlt: string;
   siteIconUrl: string | null;
   siteIconAlt: string;
+  siteIconPackage: GeneratedSiteIconPackage | null;
   taglineText: string;
   taglineSubtext: string;
 };
@@ -138,6 +140,13 @@ export const getPublishedBrandSettingsCached = cache(
           map[row.setting_key] = row.value;
         }
       }
+      const siteIconPkg =
+        map.site_icon?.package &&
+        typeof map.site_icon.package === "object" &&
+        (map.site_icon.package as GeneratedSiteIconPackage).generationStatus === "ready"
+          ? (map.site_icon.package as GeneratedSiteIconPackage)
+          : null;
+
       return {
         headerLogoUrl: (map.header_logo?.url as string) || null,
         headerLogoAlt: (map.header_logo?.alt as string) || "Cradle Wellness Living",
@@ -145,8 +154,13 @@ export const getPublishedBrandSettingsCached = cache(
         footerLogoAlt: (map.footer_logo?.alt as string) || "Cradle Wellness Living",
         brandMarkUrl: (map.brand_mark?.url as string) || null,
         brandMarkAlt: (map.brand_mark?.alt as string) || "Cradle Brand Mark",
-        siteIconUrl: (map.site_icon?.url as string) || "/favicon.ico",
+        siteIconUrl:
+          siteIconPkg?.icons?.icon32 ||
+          siteIconPkg?.icons?.ico ||
+          (map.site_icon?.url as string) ||
+          "/favicon.ico",
         siteIconAlt: (map.site_icon?.alt as string) || "Cradle Site Icon",
+        siteIconPackage: siteIconPkg,
         taglineText: (map.brand_tagline?.text as string) || "A sanctuary of calm in Bacolod.",
         taglineSubtext:
           (map.brand_tagline?.subtext as string) ||
