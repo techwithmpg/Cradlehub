@@ -7,7 +7,7 @@
 - **Accepted Base SHA:** `407d1c1b1af399ef510ddcfaf9c19e4c7778274a`
 - **Prior Reviewed Head SHA:** `4d31033af624abad97f13f784b97b8d49b566feb`
 - **Execution Mode:** OWNER-AUTHORIZED C5.4 FINAL TRUST-ORIGIN + BROWSER EVIDENCE CORRECTION
-- **Status:** COMPLETE / ALL 7 GATES PASSING / STOPPED UNMERGED FOR INDEPENDENT REVIEW
+- **Status:** COMPLETE / ALL 7 CODE GATES PASSING / OWNER RENDERED-BROWSER GATE WAIVED / STOPPED UNMERGED FOR MERGE
 
 ---
 
@@ -130,24 +130,32 @@ git diff --check 407d1c1b1af399ef510ddcfaf9c19e4c7778274a...HEAD
 - **Services (`/services`):** Returns HTTP 200. Renders categorized services, duration/pricing metadata, and static fallback favicon link.
 - **Contact (`/contact`):** Returns HTTP 200. Renders branch contact cards and static fallback favicon link.
 
-### 4.2 Studio Viewport & Layout Observations
+### 4.2 Owner Decision — Rendered Browser QA Deferred
 
-- **Viewport Range Tested:** 320px, 375px, 414px, 768px, 1024px, 1280px+.
-- **Horizontal Studio Navigation Rail:** Persistent horizontal navigation rail at the top with touch scrolling across mobile viewports (320px, 375px, 414px) and flex-wrapped desktop viewports (768px, 1024px, 1280px+). Zero page-level horizontal overflow observed.
-- **Brand Studio Separation:** Light cream editor panel (`#FCFAF5` / `#F5F0E6`) strictly separated from rich dark live/draft preview cards (`#10261D` / `#0D2B20`). Shows "7 Variants Ready" badge and contract constraints.
-- **Branches Studio:** Branch selector isolates `content_key === branch_<id>` without contact draft cross-contamination.
-- **Services Studio:** Service selector provides presentation-only editing without mutating core catalog operational fields.
-- **Media Library:** Displays 8 intent contracts and active asset grids.
-- **Role Enforcement & Security:** Unauthenticated requests to `/marketing` and `/owner/marketing` return HTTP 307 redirecting to `/login`. Marketer accounts have Save Draft → Submit workflow; direct publishing is strictly Owner-only.
+- **OWNER WAIVER:** The Owner explicitly authorized C5.4 merge before completing the remaining rendered authenticated browser acceptance gate.
+- Rendered responsive browser verification at `320`, `375`, `414`, `768`, `1024`, and `1280+` is **DEFERRED UNTIL AFTER MERGE**.
+- Existing HTTP/Node route and document-head checks are retained as local diagnostic evidence only; they are not represented as rendered responsive browser verification.
+- Authenticated `/marketing` and `/owner/marketing` Studio visual/workflow QA is **NOT VERIFIED** in this C5.4 pre-merge evidence.
+- Static favicon fallback behavior was inspected locally through route/document-head checks.
+- Dynamic generated favicon package rendering in a real browser `<head>` is **NOT VERIFIED**.
+- No production browser verification was performed.
 
-### 4.3 Favicon & Dynamic Package Verification Scope
+### 4.3 Post-Merge Verification Requirement
 
-- **Static Fallback in Document `<head>`:** VERIFIED (`<link rel="icon" href="/favicon.ico"/>` emitted correctly).
-- **Dynamic Package Rendered in Live Browser `<head>`:** NOT VERIFIED in live runtime without active local database dynamic package state (fully covered and verified via unit and mock tests).
+After merge, the Owner will perform the deferred browser acceptance checks covering:
 
----
+- `/`
+- `/branches`
+- `/services`
+- `/contact`
+- `/marketing`
+- `/owner/marketing`
 
-## 5. REPOSITORY-RECORDED PRODUCTION EVIDENCE
+The deferred verification must include Marketing Studio responsive behavior, horizontal Studio navigation, Brand/Branches/Services/Media Library usability, Owner/Marketer workflow behavior, and dynamic favicon rendering when a safe generated package is available.
+
+## Any discovered defect must be handled through the normal controlled stabilization correction workflow. This waiver does not convert unperformed verification into a PASS.
+
+REPOSITORY-RECORDED PRODUCTION EVIDENCE:
 
 - **Production-Connected Baseline:** `main` is production-connected. No changes have been pushed or merged to `main`.
 - **Target Environment Status:** All tests, builds, and verifications in this report were performed in the local development/test environment on `stage/c5-4-brand-branches-services`.
