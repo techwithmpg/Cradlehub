@@ -4,7 +4,8 @@
 
 - **Program:** Controlled Stabilization
 - **Current stage:** C4 — UI/UX and Workflow Planning (Digital Marketing Workspace)
-- **C4 status:** ACTIVE / UI-UX & WORKFLOW PLANNING ONLY
+- **C4 status:** UI/UX & WORKFLOW PLAN DELIVERED / AWAITING INDEPENDENT REVIEW
+- **C4 report:** `docs/audits/C4_MARKETING_UIUX_WORKFLOW_PLAN.md`
 - **C3 status:** CLOSED / ACCEPTED
 - **Accepted C3 scope freeze merge:** `d19ce34753e09244b8aad0e1d10c964302a33e7c`
 - **C3 report:** `docs/audits/C3_MARKETING_SCOPE_FREEZE.md`
