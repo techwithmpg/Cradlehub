@@ -8,8 +8,9 @@
 **Pre-correction Remote Head:** `4fadc01e25b821c6e9ee4a55c0245e94fe17ef87`
 **Hardening Correction SHA:** `3460c0a72e22eb2d05b529380439027b6d413a8b`
 **Scope Isolation SHA:** `faf863d82d431c4fceeefffc373bb22288339c79`
-**Previous Reviewed Head:** `bda8cea7a51dcb2b7e4666ee869deca8cb371c3e`
-**Final Safety Correction SHA:** `df7deb97e20cf35450410ffdf4f0e74f8cf1c15f`
+**Previous Reviewed Remote Head:** `bda8cea7a51dcb2b7e4666ee869deca8cb371c3e`
+**Product Safety Correction SHA:** `df7deb97e20cf35450410ffdf4f0e74f8cf1c15f`
+**Late Test Correction SHA:** `bc02bd5bcae7284f1837a7b8e5033c46e273ce3b`
 **Date:** 2026-09-01
 **Scope Authorization:** C5 Pass 2 — Central Media Library & Universal Media Picker ONLY.
 
@@ -112,7 +113,7 @@ In accordance with owner authorization and the final independent safety review f
 - `tests/lib/marketing/media-library.test.tsx`
   - 14 component and validation tests for schemas, `UniversalMediaPicker` (including archived asset selection blocking, escape key dismissal, and focus trapping), `MediaLibraryView` (including incomplete coverage banner and zero hard delete controls).
 - `tests/lib/marketing/media-queries.test.ts`
-  - 16 unit tests covering fail-closed asset lookup on DB error or missing row, immutable storage identity, protected metadata preservation, role boundary enforcement, missing-store fail-closed behavior, zero-usage safe archive permission, and upload finalization failure handling.
+  - 17 unit tests covering fail-closed asset lookup on DB error (both Digital Marketer and Owner) or missing row, immutable storage identity, protected metadata preservation, role boundary enforcement, missing-store fail-closed behavior, zero-usage safe archive permission, and upload finalization failure handling.
 - `tests/lib/auth/workspace-access.test.ts`
   - Verified navigation contract and prefetch configuration.
 - `docs/50-state/evidence/C5_2_MEDIA_LIBRARY.md`
@@ -124,8 +125,8 @@ In accordance with owner authorization and the final independent safety review f
 
 | Quality Gate | Command | Result | Details |
 |---|---|---|---|
-| **Targeted Vitest Tests** | `pnpm vitest run tests/lib/marketing/media-usage.test.ts tests/lib/marketing/media-library.test.tsx tests/lib/marketing/media-queries.test.ts` | **PASS** | 3 test files passed, 39 total tests passed, 0 failures. |
-| **Full Unit & Integration Suite** | `pnpm vitest run` | **PASS** | 204 test files passed, 1,423 total tests passed, 0 failures. |
+| **Targeted Vitest Tests** | `pnpm vitest run tests/lib/marketing/media-usage.test.ts tests/lib/marketing/media-library.test.tsx tests/lib/marketing/media-queries.test.ts` | **PASS** | 3 test files passed, 40 total tests passed, 0 failures. |
+| **Full Unit & Integration Suite** | `pnpm vitest run` | **PASS** | 204 test files passed, 1,424 total tests passed, 0 failures. |
 | **TypeScript Type Check** | `pnpm type-check` | **PASS** | `tsc --noEmit` exited 0 with 0 errors. |
 | **ESLint Static Analysis** | `pnpm lint` | **PASS** | ESLint exited 0 with 0 errors and 0 warnings. |
 | **Code Style Formatting** | `pnpm format:check` | **PASS** | Read-only format verification passed across all incremental files. |
