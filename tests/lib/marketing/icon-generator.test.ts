@@ -110,4 +110,54 @@ describe("Dynamic Site Icon Generator", () => {
     expect(result.error).toContain("below the minimum requirement");
     expect(result.package).toBeUndefined();
   });
+
+  it("attempts cleanup of newly created objects if storage upload fails midway", async () => {
+    const mockRemove = vi.fn().mockResolvedValue({ error: null });
+    let uploadCallCount = 0;
+    const mockUpload = vi.fn().mockImplementation(() => {
+      uploadCallCount++;
+      if (uploadCallCount === 2) {
+        return Promise.resolve({ error: { message: "Simulated Storage Failure" } });
+      }
+      return Promise.resolve({ error: null });
+    });
+
+    const mockSupabase = {
+      storage: {
+        from: vi.fn().mockReturnValue({
+          upload: mockUpload,
+          getPublicUrl: vi
+            .fn()
+            .mockReturnValue({ data: { publicUrl: "https://storage/variant.png" } }),
+          remove: mockRemove,
+        }),
+      },
+    };
+
+    const masterBuffer = await sharp({
+      create: {
+        width: 512,
+        height: 512,
+        channels: 4,
+        background: { r: 200, g: 169, b: 107, alpha: 1 },
+      },
+    })
+      .png()
+      .toBuffer();
+
+    const result = await generateSiteIconPackageFromBuffer({
+      masterBuffer,
+      declaredMime: "image/png",
+      sourceUrl: "https://example.com/brand-master.png",
+      sourceAssetId: "asset-uuid-123",
+      supabase: mockSupabase as never,
+      customVersion: "vtest-cleanup",
+    });
+
+    expect(result.success).toBe(false);
+    expect(result.error).toContain("Storage upload failed");
+    expect(mockRemove).toHaveBeenCalledWith(
+      expect.arrayContaining(["brand/site-icon/vtest-cleanup/icon-16.png"])
+    );
+  });
 });

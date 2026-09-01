@@ -87,12 +87,14 @@ export async function generateSiteIconPackageFromBuffer({
   sourceUrl,
   sourceAssetId,
   customVersion,
+  supabase: injectedSupabase,
 }: {
   masterBuffer: Buffer;
   declaredMime: string;
   sourceUrl: string;
   sourceAssetId?: string | null;
   customVersion?: string;
+  supabase?: Awaited<ReturnType<typeof createClient>> | null;
 }): Promise<{ success: boolean; package?: GeneratedSiteIconPackage; error?: string }> {
   // 1. Authoritative Validation
   const contract = getMediaContract("SITE_ICON_MASTER");
@@ -114,11 +116,13 @@ export async function generateSiteIconPackageFromBuffer({
     const generatedAt = new Date().toISOString();
 
     const iconsMap: Partial<Record<keyof GeneratedSiteIconPackage["icons"], string>> = {};
-    let supabase: Awaited<ReturnType<typeof createClient>> | null = null;
-    try {
-      supabase = await createClient();
-    } catch {
-      // Test environment
+    let supabase = injectedSupabase;
+    if (!supabase) {
+      try {
+        supabase = await createClient();
+      } catch {
+        // Test environment
+      }
     }
 
     // 3. Generate and upload all variants
@@ -174,6 +178,23 @@ export async function generateSiteIconPackageFromBuffer({
             error: uploadError,
             storagePath,
           });
+
+          // Safely clean up only the newly created partial objects for this version
+          const partialPaths = Object.keys(iconsMap)
+            .map((k) => {
+              const v = SITE_ICON_VARIANTS.find((x) => x.name === k);
+              return v ? `brand/site-icon/${version}/${v.filename}` : null;
+            })
+            .filter(Boolean) as string[];
+
+          if (partialPaths.length > 0) {
+            try {
+              await supabase.storage.from(PUBLIC_MEDIA_BUCKET).remove(partialPaths);
+            } catch (cleanupErr) {
+              logError("marketing.site_icon_partial_cleanup_error", { cleanupErr });
+            }
+          }
+
           return {
             success: false,
             error: `Storage upload failed for ${variant.filename}: ${uploadError.message}`,

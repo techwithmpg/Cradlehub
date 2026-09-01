@@ -418,18 +418,26 @@ describe("Draft Publication Pipelines (C5.4 Review Corrections)", () => {
       const draftUuid = "55555555-5555-4555-8555-555555555555";
       const validPackage = {
         version: "v2026",
-        sourceUrl: "https://storage/master-icon.png",
+        sourceUrl:
+          "https://lsrbwqhvzjfpiabeolkv.supabase.co/storage/v1/object/public/public-site-media/media/master.png",
         sourceAssetId: "asset-123",
         generationStatus: "ready",
         generatedAt: "2026-09-02T00:00:00Z",
         icons: {
-          icon16: "https://storage/icon-16.png",
-          icon32: "https://storage/icon-32.png",
-          icon48: "https://storage/icon-48.png",
-          apple180: "https://storage/apple-touch-icon-180.png",
-          icon192: "https://storage/icon-192.png",
-          icon512: "https://storage/icon-512.png",
-          maskable512: "https://storage/maskable-512.png",
+          icon16:
+            "https://lsrbwqhvzjfpiabeolkv.supabase.co/storage/v1/object/public/public-site-media/brand/site-icon/v2026/icon-16.png",
+          icon32:
+            "https://lsrbwqhvzjfpiabeolkv.supabase.co/storage/v1/object/public/public-site-media/brand/site-icon/v2026/icon-32.png",
+          icon48:
+            "https://lsrbwqhvzjfpiabeolkv.supabase.co/storage/v1/object/public/public-site-media/brand/site-icon/v2026/icon-48.png",
+          apple180:
+            "https://lsrbwqhvzjfpiabeolkv.supabase.co/storage/v1/object/public/public-site-media/brand/site-icon/v2026/apple-touch-icon-180.png",
+          icon192:
+            "https://lsrbwqhvzjfpiabeolkv.supabase.co/storage/v1/object/public/public-site-media/brand/site-icon/v2026/icon-192.png",
+          icon512:
+            "https://lsrbwqhvzjfpiabeolkv.supabase.co/storage/v1/object/public/public-site-media/brand/site-icon/v2026/icon-512.png",
+          maskable512:
+            "https://lsrbwqhvzjfpiabeolkv.supabase.co/storage/v1/object/public/public-site-media/brand/site-icon/v2026/maskable-512.png",
         },
       };
 
@@ -459,6 +467,18 @@ describe("Draft Publication Pipelines (C5.4 Review Corrections)", () => {
           if (table === "staff") {
             return { select: vi.fn().mockReturnValue(createStaffQuery()) };
           }
+          if (table === "marketing_media_assets") {
+            return {
+              select: vi.fn().mockReturnValue({
+                eq: vi.fn().mockReturnValue({
+                  maybeSingle: vi.fn().mockResolvedValue({
+                    data: { id: "asset-123", status: "published", bucket_path: "media/master.png" },
+                    error: null,
+                  }),
+                }),
+              }),
+            };
+          }
           if (table === "marketing_content_drafts") {
             return {
               select: vi.fn().mockReturnValue({
@@ -487,7 +507,7 @@ describe("Draft Publication Pipelines (C5.4 Review Corrections)", () => {
           expect.objectContaining({
             settingKey: "site_icon",
             value: expect.objectContaining({
-              url: "https://storage/icon-32.png",
+              url: validPackage.icons.icon32,
               package: validPackage,
             }),
           }),
@@ -495,7 +515,7 @@ describe("Draft Publication Pipelines (C5.4 Review Corrections)", () => {
       );
     });
 
-    it("fails closed when brand draft contains an incomplete or non-ready siteIconPackage", async () => {
+    it("fails closed when brand draft contains an incomplete or untrusted siteIconPackage", async () => {
       const draftUuid = "66666666-6666-4666-8666-666666666666";
       const brokenPackage = {
         version: "v2026",
@@ -544,7 +564,7 @@ describe("Draft Publication Pipelines (C5.4 Review Corrections)", () => {
 
       expect(result.success).toBe(false);
       if (!result.success) {
-        expect(result.error).toContain("incomplete or unverified dynamic site icon package");
+        expect(result.error).toContain("generationStatus is 'failed', expected 'ready'");
       }
       expect(mockUpdateBrandSettingsBatchOwner).not.toHaveBeenCalled();
     });

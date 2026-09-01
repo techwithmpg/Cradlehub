@@ -16,6 +16,7 @@ import {
   type MarketingContentDraftInput,
 } from "@/lib/validations/marketing";
 import { updatePublicSiteSection } from "@/lib/queries/public-site";
+import { validateTrustedSiteIconPackage } from "@/lib/marketing/icon-package-validator";
 
 export type MarketingContentType = (typeof MARKETING_CONTENT_TYPES)[number];
 export type MarketingDraftStatus = (typeof MARKETING_DRAFT_STATUSES)[number];
@@ -622,19 +623,18 @@ export async function publishMarketingContentDraft(
         : {};
 
     let validatedSiteIconPackage: Record<string, unknown> | undefined;
-    if (meta.siteIconPackage && typeof meta.siteIconPackage === "object" && !Array.isArray(meta.siteIconPackage)) {
-      const rawPkg = meta.siteIconPackage as Record<string, unknown>;
-      const icons = (rawPkg.icons || {}) as Record<string, string>;
-      const requiredIcons = ["icon16", "icon32", "icon48", "apple180", "icon192", "icon512", "maskable512"];
-      const hasAllIcons = requiredIcons.every((k) => typeof icons[k] === "string" && icons[k].trim().length > 0);
-
-      if (rawPkg.generationStatus !== "ready" || !hasAllIcons) {
+    if (meta.siteIconPackage) {
+      const validation = await validateTrustedSiteIconPackage(
+        meta.siteIconPackage,
+        context.supabase
+      );
+      if (!validation.isValid || !validation.validatedPackage) {
         return {
           success: false,
-          error: "Brand draft contains an incomplete or unverified dynamic site icon package.",
+          error: validation.error || "Brand draft contains an invalid dynamic site icon package.",
         };
       }
-      validatedSiteIconPackage = rawPkg;
+      validatedSiteIconPackage = validation.validatedPackage as unknown as Record<string, unknown>;
     }
 
     const { updateBrandSettingsBatchOwner } = await import("@/lib/queries/marketing-brand");

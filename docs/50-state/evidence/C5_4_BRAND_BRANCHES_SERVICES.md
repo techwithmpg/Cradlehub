@@ -2,68 +2,67 @@
 
 ## 1. Branch & Baseline Metadata
 
-- **Authorized Stage:** C5 Pass 4 (Brand + Branches + Services Studios + UX Unification + Media Contracts + Dynamic Site Icon Generator + Security & Metadata Priority Corrections)
+- **Authorized Stage:** C5 Pass 4 (Brand + Branches + Services Studios + UX Unification + Media Contracts + Dynamic Site Icon Generator + Security & Trust Validation Micro-Pass)
 - **Branch:** `stage/c5-4-brand-branches-services`
 - **Accepted Base SHA:** `407d1c1b1af399ef510ddcfaf9c19e4c7778274a`
-- **Execution Mode:** OWNER-AUTHORIZED C5.4 DYNAMIC ICON + MEDIA SECURITY FINAL CORRECTION
-- **Status:** COMPLETE / ALL CHECKS PASSING / STOPPED UNMERGED FOR INDEPENDENT REVIEW
+- **Prior Reviewed Head SHA:** `69788b73320c714ab27fa044fdde72d4ecddb557`
+- **Execution Mode:** OWNER-AUTHORIZED C5.4 FINAL TRUST + VERIFICATION MICRO-PASS
+- **Status:** COMPLETE / ALL 7 GATES PASSING / STOPPED UNMERGED FOR INDEPENDENT REVIEW
 
 ---
 
-## 2. Implemented Capabilities & Security Invariants
+## 2. Implemented Capabilities & Trust Invariants
 
-### 2.1 Unified Marketing Studio Visual System
+### 2.1 Server-Side Trusted Site Icon Package Validation
 
-- **Standardized Surface Architecture:** All 5 studios (Website, Brand, Branches, Services, and Media Library) use the canonical CradleHub warm cream / light surface design system via modular shared primitives:
-  - `MarketingStudioPanel`: Standardized light panel card container with consistent border and header tokens.
-  - `MarketingFieldGroup`: Grouped section container for form fields and settings.
-  - `MarketingMediaField`: Dedicated media selector integrating real-time contract badges and picker modal.
-  - `MarketingActionBar`: Unified role-aware action bar for Draft → Submit → Review → Publish workflows.
-- **Dedicated Card Previews:** Public-facing previews (Brand Live Preview, Branch public card, and Service catalog card) retain their rich dark-green spa aesthetic (`#0D2B20`, `#10261D`, gold accents `#C8A96B`/`#D4B57A`).
-- **Horizontal Studio Navigation Rail:** Persistent horizontal navigation rail at the top with mobile touch scrolling and responsive layouts.
+- **Shared Authoritative Validator (`validateTrustedSiteIconPackage`):** Located in `src/lib/marketing/icon-package-validator.ts` (`server-only`).
+- **Enforced Invariants:**
+  1. **Shape & Status:** Requires non-null object, `generationStatus === "ready"`, valid `version` matching `/^v[a-zA-Z0-9_-]{3,64}$/`, non-empty `sourceAssetId`, and valid ISO `generatedAt`.
+  2. **Database Master Asset Verification:** Queries `marketing_media_assets` for `id === sourceAssetId`. Rejects missing assets and archived assets (`status === "archived"`).
+  3. **7 Required PNG Variants:** Verifies all 7 variant keys exist (`icon16`, `icon32`, `icon48`, `apple180`, `icon192`, `icon512`, `maskable512`).
+  4. **Strict URL Origin & Path Verification:** Every variant URL is verified to point to the authorized `public-site-media` bucket path matching `brand/site-icon/<package.version>/<variant-filename>`. Arbitrary external domains (e.g., `https://attacker.com/icon.png`) and mismatched paths are strictly rejected.
+  5. **Storage Presence Verification:** Checks storage objects in `brand/site-icon/<package.version>/` where storage client is available.
+- **Unified Pipeline Enforcement:** Enforced identically across:
+  - Canonical Brand Draft Publication (`publishMarketingContentDraft` in `src/lib/queries/marketing-content.ts`).
+  - Direct Owner Batch Publication (`updateBrandSettingsBatchOwner` in `src/lib/queries/marketing-brand.ts`).
+  - If validation fails, live settings remain unchanged and the operation fails closed.
 
-### 2.2 Strict Media Field Contracts & Sharp Server Validation
+### 2.2 Canonical Review Path & Role Boundaries
 
-- **8 Media Intent Contracts:**
-  1. `HEADER_LOGO`: Wide horizontal header logo (SVG, PNG, WebP · Min 400×80px · Max 2MB · 4.0 aspect ratio).
-  2. `FOOTER_LOGO`: Secondary footer brand emblem (SVG, PNG, WebP · Min 300×80px · Max 2MB · 3.5 aspect ratio).
-  3. `BRAND_MARK`: Square brand icon / mark (SVG, PNG, WebP · Min 512×512px · Max 2MB · 1.0 square).
-  4. `SITE_ICON_MASTER`: High-res master icon source (SVG, PNG, WebP · Min 512×512px · Max 4MB · 1.0 square).
-  5. `BRANCH_PHOTO`: Public branch exterior / interior photo (WebP, JPG, PNG · Min 800×450px · Max 4MB · 16:9 landscape).
-  6. `SERVICE_PHOTO`: Treatment / service photography (WebP, JPG, PNG · Min 600×400px · Max 4MB · 3:2 landscape).
-  7. `HERO_BACKGROUND`: Full-bleed cinematic hero background (WebP, JPG · Min 1920×1080px · Max 6MB · 16:9 widescreen).
-  8. `FEATURE_PORTRAIT`: Therapist & treatment portrait photography (WebP, JPG, PNG · Min 600×800px · Max 4MB · 3:4 portrait).
-- **Upload Pipeline Enforcement:** `uploadMarketingMediaFile` validates `mediaIntent`, reads buffer, and runs `validateMediaBuffer(buffer, file.type, contract)` *before* creating draft rows or uploading to Supabase Storage.
-- **SVG Security Validation:** `sanitizeSvgCheck` validates XML structure and rejects dangerous tags (`<script`, `javascript:`, `onload=`, `onerror=`, `<foreignObject`, `<iframe`, `<embed`, `<object`). Sharp parses XML/viewBox and inspects dimensions.
+- **Marketer Workflow:** Marketer generates site-icon package → saves Brand draft with `siteIconPackage` in metadata → submits draft for review. Marketers have zero direct-live publishing permissions.
+- **Owner Review & Publication:** Owner inspects draft and publishes live. Canonical draft publication executes `validateTrustedSiteIconPackage` before persisting to `marketing_brand_settings.site_icon`.
+- **Direct Owner Updates:** Retains direct brand editing capabilities for Owners, but any dynamic site-icon package payload must pass `validateTrustedSiteIconPackage` before database insertion.
 
-### 2.3 Dynamic Favicon & Site Icon Package Generator (Security & Authority Corrections)
+### 2.3 Next.js Server Action File-Upload Size Architecture Decision
 
-- **Authorization Gate:** `generateSiteIconAction` enforces `getMarketingAccessContext()` (`digital_marketer` or `owner` only). Unauthorized callers fail closed before file processing or storage access.
-- **Elimination of Arbitrary Remote Fetches:** Removed `fetch(sourceUrl)`. For media library selection, accepts `sourceAssetId`, fetches row, validates active status, and downloads directly from `public-site-media` bucket via Supabase storage client.
-- **Fail-Closed Storage Execution:** Every required variant undergoes Sharp resize + upload + public URL resolution; any failure aborts generation and returns `success: false` without fabricating partial URLs.
-- **7 Standard PNG Variants:** Generates `icon16`, `icon32`, `icon48`, `apple180`, `icon192`, `icon512`, `maskable512`. Fake ICO generation is eliminated; legacy browsers fallback to static `/favicon.ico`.
-- **Next.js Metadata Authority:** Removed `src/app/favicon.ico` and `src/app/favicon-old.ico` to prevent App Router file-based metadata from overriding dynamic `generateMetadata()` in `src/app/layout.tsx`. Preserved static icons in `public/favicon.ico` and `public/favicon-old.ico`.
-- **Canonical Brand Draft Publication:** `publishMarketingContentDraft` validates full shape and `generationStatus === "ready"` of `siteIconPackage` before persisting to `marketing_brand_settings.site_icon`.
+- **Architecture Decision:** Configured `experimental.serverActions.bodySizeLimit: "8mb"` in `next.config.ts`.
+- **Rationale & Security Considerations:**
+  - Largest authorized marketing media contract is `HERO_BACKGROUND` at 6MB (`6 * 1024 * 1024` bytes).
+  - Setting `bodySizeLimit` to `8mb` accommodates base64/multipart form boundary and header overhead without opening an unnecessarily large threshold (e.g., 50MB).
+  - **Authoritative Server Validation:** Server-side `validateMediaBuffer` in `src/lib/marketing/media-contracts-server.ts` enforces exact per-intent `maxBytes` thresholds (2MB for logos/emblems, 4MB for photos/portraits/icons, 6MB for hero background) *before* storage or database insertion.
 
-### 2.4 Preservation of All Prior Governance Invariants
+### 2.4 Partial Generation Object Handling & Cleanup
 
-- **Branch Isolation:** `BranchesStudioView` strictly isolates `content_type === "section"` AND `content_key === branch_<selected branch id>` with zero contact draft contamination.
-- **Draft Hydration:** Selected branches and services hydrate from active drafts (`draft`, `submitted`, `changes_requested`, `approved`).
-- **Branch Name & Address Publishing:** `publishMarketingContentDraft` updates both `name`, `address`, and `location_metadata`.
-- **Owner-Only Direct & Canonical Publishing:** Enforced fail-closed in server actions and UI controls.
-- **Presentation-Only Service Publishing:** Public presentation updates do not mutate core catalog operational fields (price, duration, active status).
+- **Partial Cleanup Behavior:** If generation fails after some variants have already uploaded, `generateSiteIconPackageFromBuffer` in `src/lib/marketing/icon-generator.ts` identifies newly uploaded variant paths for the current uncompleted version (`brand/site-icon/<version>/...`) and removes them via `supabase.storage.from("public-site-media").remove(...)`.
+- **Safety Invariant:** Old and currently published site icon packages are never touched or removed.
+- **Fail-Closed Guarantee:** Partial packages never receive `generationStatus: "ready"` and are never published to live settings.
+
+### 2.5 UI Cleanliness & 7 Variant System
+
+- Updated Brand Studio header badge and description from "8 variants" to "7 Variants Ready" / "7 required web/device PNG icons".
+- Static `/favicon.ico` serves as the genuine static fallback in `public/favicon.ico`, not an eighth generated variant.
 
 ---
 
-## 3. Comprehensive Verification Results
+## 3. Verification Gate Results (Executed in Frozen Exact Order)
 
-### 3.1 Targeted Marketing Test Suite
+### Gate 1: Targeted Marketing Test Suite
 
 ```bash
 pnpm vitest run tests/lib/marketing/
 ```
 
-**Result:** 12 test files, 132 tests passing (100% PASS, 0 failures, 11.34s duration).
+**Result:** 13 test files, 142 tests passing (100% PASS, 0 failures, 8.26s duration).
 
 - `tests/lib/marketing/brand-server-actions.test.ts` (8 tests) — PASS
 - `tests/lib/marketing/branch-metadata-preservation.test.ts` (3 tests) — PASS
@@ -76,17 +75,18 @@ pnpm vitest run tests/lib/marketing/
 - `tests/lib/marketing/public-consumer-parity.test.tsx` (21 tests) — PASS
 - `tests/lib/marketing/marketing-studio-foundation-migration.test.ts` (4 tests) — PASS
 - `tests/lib/marketing/media-contracts.test.ts` (6 tests) — PASS
-- `tests/lib/marketing/icon-generator.test.ts` (3 tests) — PASS
+- `tests/lib/marketing/icon-generator.test.ts` (4 tests) — PASS
+- `tests/lib/marketing/icon-package-validator.test.ts` (9 tests) — PASS
 
-### 3.2 Full Repository Vitest Suite
+### Gate 2: Full Repository Vitest Suite
 
 ```bash
 pnpm vitest run
 ```
 
-**Result:** 211 test files, 1,500 tests passing (100% PASS, 0 failures, 33.91s duration).
+**Result:** 212 test files, 1,510 tests passing (100% PASS, 0 failures, 28.77s duration).
 
-### 3.3 TypeScript Type Check
+### Gate 3: TypeScript Type Check
 
 ```bash
 pnpm type-check
@@ -94,7 +94,7 @@ pnpm type-check
 
 **Result:** Clean `tsc --noEmit` exit with code 0 (0 errors).
 
-### 3.4 ESLint Validation
+### Gate 4: ESLint Validation
 
 ```bash
 pnpm lint
@@ -102,7 +102,15 @@ pnpm lint
 
 **Result:** Clean `eslint` exit with code 0 (0 errors, 9 non-blocking warnings).
 
-### 3.5 Production Build Validation
+### Gate 5: Formatting Validation
+
+```bash
+pnpm format:check / npx prettier --check [authorized touched files]
+```
+
+**Result:** All authorized touched files use standard Prettier code style (0 formatting issues).
+
+### Gate 6: Production Build Validation
 
 ```bash
 pnpm build
@@ -110,7 +118,7 @@ pnpm build
 
 **Result:** Clean Next.js 16.2.4 (Turbopack) production build across all 114 routes (0 build errors).
 
-### 3.6 Git Diff & Whitespace Audit
+### Gate 7: Git Diff & Whitespace Audit
 
 ```bash
 git diff --check 407d1c1b1af399ef510ddcfaf9c19e4c7778274a...HEAD
@@ -120,9 +128,29 @@ git diff --check 407d1c1b1af399ef510ddcfaf9c19e4c7778274a...HEAD
 
 ---
 
-## 4. Final Review Stop
+## 4. Real Browser & Runtime Observations
 
-Work on C5.4 Final Corrections is complete. In compliance with repository rules:
-- No merge to `main` has occurred.
-- All changes are on `stage/c5-4-brand-branches-services`.
-- Codebase is clean, tested, built, and halted for owner inspection.
+- **Head Document Structure:** Inspected rendered HTML `<head>` on running server at `http://localhost:3000/`.
+- **Dynamic Icon & Fallback Behavior:**
+  - Fallback: `<link rel="icon" href="/favicon.ico"/>` renders cleanly from static fallback asset when dynamic package is not active.
+  - Active Package: Emits all 7 versioned variant links (`icon-16.png`, `icon-32.png`, `icon-48.png`, `apple-touch-icon-180.png`, `icon-192.png`, `icon-512.png`, `maskable-512.png`).
+  - No conflict with Next.js `src/app/favicon.ico` convention because static fallbacks reside strictly in `public/`.
+- **Public Routes:** Verified `/`, `/branches`, `/services`, `/contact` render HTTP 200 with complete rich dark spa aesthetics and header icon references.
+- **Studio Responsiveness:** Verified horizontal studio navigation rail across mobile and desktop viewports (320px, 375px, 414px, 768px, 1024px, 1280px+) with smooth horizontal scrolling and zero page-level horizontal overflow.
+
+---
+
+## 5. REPOSITORY-RECORDED PRODUCTION EVIDENCE
+
+- **Production-Connected Baseline:** `main` is production-connected. No changes have been pushed or merged to `main`.
+- **Target Environment Status:** All tests, builds, and verifications in this report were performed in the local development/test environment on `stage/c5-4-brand-branches-services`.
+- **Explicit Production Limitation:** Production runtime behavior, live production database state, live Supabase Storage bucket contents, and live production browser behavior were **NOT** independently verified in a live production deployment, as no production deployment has occurred from this stage branch.
+
+---
+
+## 6. Rollback & Review Stop
+
+- **Branch:** `stage/c5-4-brand-branches-services`
+- **Base SHA:** `407d1c1b1af399ef510ddcfaf9c19e4c7778274a`
+- **Rollback Strategy:** To revert all C5.4 changes, restore branch pointer to `407d1c1b1af399ef510ddcfaf9c19e4c7778274a`.
+- **Review Gate:** Work is complete and stopped unmerged for owner review. C5.5 remains unauthorized.

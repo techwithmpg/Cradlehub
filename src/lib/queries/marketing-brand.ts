@@ -7,6 +7,7 @@ import { cacheTags, invalidateTag } from "@/lib/cache/cache-tags";
 
 import type { Json } from "@/types/supabase";
 import type { GeneratedSiteIconPackage } from "@/lib/marketing/icon-generator";
+import { validateTrustedSiteIconPackage } from "@/lib/marketing/icon-package-validator";
 
 export type PublishedBrandSettings = {
   headerLogoUrl: string | null;
@@ -154,10 +155,7 @@ export const getPublishedBrandSettingsCached = cache(
         footerLogoAlt: (map.footer_logo?.alt as string) || "Cradle Wellness Living",
         brandMarkUrl: (map.brand_mark?.url as string) || null,
         brandMarkAlt: (map.brand_mark?.alt as string) || "Cradle Brand Mark",
-        siteIconUrl:
-          siteIconPkg?.icons?.icon32 ||
-          (map.site_icon?.url as string) ||
-          "/favicon.ico",
+        siteIconUrl: siteIconPkg?.icons?.icon32 || (map.site_icon?.url as string) || "/favicon.ico",
         siteIconAlt: (map.site_icon?.alt as string) || "Cradle Site Icon",
         siteIconPackage: siteIconPkg,
         taglineText: (map.brand_tagline?.text as string) || "A sanctuary of calm in Bacolod.",
@@ -205,6 +203,24 @@ export async function updateBrandSettingsBatchOwner(
         return { success: false, error: "Only owners can publish live brand settings directly." };
       }
       staffId = me?.id ?? null;
+    }
+
+    // Validate any dynamic site icon package before writing to live settings
+    for (const s of settings) {
+      if (s.settingKey === "site_icon" && s.value && typeof s.value === "object") {
+        const siteIconVal = s.value as Record<string, unknown>;
+        if (siteIconVal.package) {
+          const validation = await validateTrustedSiteIconPackage(siteIconVal.package, supabase);
+          if (!validation.isValid) {
+            return {
+              success: false,
+              error:
+                validation.error ||
+                "Direct brand publish failed: invalid dynamic site icon package.",
+            };
+          }
+        }
+      }
     }
 
     const now = new Date().toISOString();

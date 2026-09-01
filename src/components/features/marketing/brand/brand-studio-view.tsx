@@ -145,8 +145,7 @@ export function BrandStudioView({
   // Initial form values
   const initialValues: BrandFormValues = useMemo(() => {
     const livePkg =
-      publishedMap.site_icon?.package &&
-      typeof publishedMap.site_icon.package === "object"
+      publishedMap.site_icon?.package && typeof publishedMap.site_icon.package === "object"
         ? (publishedMap.site_icon.package as GeneratedSiteIconPackage)
         : null;
 
@@ -219,8 +218,7 @@ export function BrandStudioView({
       footerLogoAlt: (publishedMap.footer_logo?.alt as string) || "Cradle Wellness Living",
       brandMarkUrl: (publishedMap.brand_mark?.url as string) || "",
       brandMarkAlt: (publishedMap.brand_mark?.alt as string) || "Cradle Brand Mark",
-      siteIconMasterUrl:
-        livePkg?.sourceUrl || (publishedMap.brand_mark?.url as string) || "",
+      siteIconMasterUrl: livePkg?.sourceUrl || (publishedMap.brand_mark?.url as string) || "",
       siteIconMasterAssetId: livePkg?.sourceAssetId || null,
       siteIconUrl:
         livePkg?.icons?.icon32 || (publishedMap.site_icon?.url as string) || "/favicon.ico",
@@ -424,12 +422,12 @@ export function BrandStudioView({
               {/* 4. Dynamic Site Icon Package Generator */}
               <MarketingFieldGroup
                 title="4. Website & Device Icon Package"
-                description="Upload one master brand image (SVG/PNG min 512x512) to automatically generate all 8 required web/device icons"
+                description="Upload one master brand image (SVG/PNG min 512x512) to automatically generate all 7 required web/device PNG icons"
                 badge={
                   formValues.siteIconPackage ? (
                     <span className="inline-flex items-center gap-1 rounded-full bg-emerald-100 px-2 py-0.5 text-[10px] font-bold text-emerald-800 dark:bg-emerald-950/40 dark:text-emerald-300">
-                      <CheckCircle className="h-3 w-3" />
-                      8 Variants Ready ({formValues.siteIconPackage.version})
+                      <CheckCircle className="h-3 w-3" />7 Variants Ready (
+                      {formValues.siteIconPackage.version})
                     </span>
                   ) : (
                     <span className="inline-flex items-center rounded-full bg-amber-100 px-2 py-0.5 text-[10px] font-bold text-amber-800 dark:bg-amber-950/40 dark:text-amber-300">
@@ -640,20 +638,19 @@ export function BrandStudioView({
                     </form>
 
                     {/* Submit for Review (Marketer / Owner) */}
-                    {activeDraft &&
-                      ["draft", "changes_requested"].includes(activeDraft.status) && (
-                        <form action={submitAction}>
-                          <input type="hidden" name="id" value={activeDraft.id} />
-                          <button
-                            type="submit"
-                            disabled={isSubmitting}
-                            className="inline-flex items-center gap-1.5 rounded-lg bg-[#C8A96B] px-3.5 py-2 text-xs font-semibold text-[#10261D] shadow-xs transition hover:bg-[#D4B57A] disabled:opacity-50"
-                          >
-                            <Send className="h-3.5 w-3.5" />
-                            {isSubmitting ? "Submitting..." : "Submit for Review"}
-                          </button>
-                        </form>
-                      )}
+                    {activeDraft && ["draft", "changes_requested"].includes(activeDraft.status) && (
+                      <form action={submitAction}>
+                        <input type="hidden" name="id" value={activeDraft.id} />
+                        <button
+                          type="submit"
+                          disabled={isSubmitting}
+                          className="inline-flex items-center gap-1.5 rounded-lg bg-[#C8A96B] px-3.5 py-2 text-xs font-semibold text-[#10261D] shadow-xs transition hover:bg-[#D4B57A] disabled:opacity-50"
+                        >
+                          <Send className="h-3.5 w-3.5" />
+                          {isSubmitting ? "Submitting..." : "Submit for Review"}
+                        </button>
+                      </form>
+                    )}
 
                     {/* Owner Approve & Publish Controls */}
                     {role === "owner" && (
@@ -669,8 +666,7 @@ export function BrandStudioView({
                           </button>
                         )}
 
-                        {activeDraft &&
-                        ["submitted", "approved"].includes(activeDraft.status) ? (
+                        {activeDraft && ["submitted", "approved"].includes(activeDraft.status) ? (
                           <form action={publishAction}>
                             <input type="hidden" name="id" value={activeDraft.id} />
                             <button
@@ -714,11 +710,7 @@ export function BrandStudioView({
                               name="brandMarkAlt"
                               value={formValues.brandMarkAlt}
                             />
-                            <input
-                              type="hidden"
-                              name="siteIconUrl"
-                              value={currentSiteIconUrl}
-                            />
+                            <input type="hidden" name="siteIconUrl" value={currentSiteIconUrl} />
                             <input
                               type="hidden"
                               name="siteIconAlt"
@@ -728,9 +720,7 @@ export function BrandStudioView({
                               type="hidden"
                               name="siteIconPackage"
                               value={
-                                currentSiteIconPackage
-                                  ? JSON.stringify(currentSiteIconPackage)
-                                  : ""
+                                currentSiteIconPackage ? JSON.stringify(currentSiteIconPackage) : ""
                               }
                             />
                             <input
@@ -950,10 +940,7 @@ export function BrandStudioView({
                         (currentSiteIconPackage?.icons?.icon32 || currentSiteIconUrl) ? (
                           // eslint-disable-next-line @next/next/no-img-element
                           <img
-                            src={
-                              currentSiteIconPackage?.icons?.icon32 ||
-                              currentSiteIconUrl
-                            }
+                            src={currentSiteIconPackage?.icons?.icon32 || currentSiteIconUrl}
                             alt={formValues.siteIconAlt}
                             className="h-4 w-4 rounded-xs object-contain"
                             onError={(e) => {
@@ -976,10 +963,7 @@ export function BrandStudioView({
                         (currentSiteIconPackage?.icons?.icon32 || currentSiteIconUrl) ? (
                           // eslint-disable-next-line @next/next/no-img-element
                           <img
-                            src={
-                              currentSiteIconPackage?.icons?.icon32 ||
-                              currentSiteIconUrl
-                            }
+                            src={currentSiteIconPackage?.icons?.icon32 || currentSiteIconUrl}
                             alt={formValues.siteIconAlt}
                             className="h-4 w-4 rounded-xs object-contain"
                             onError={(e) => {
