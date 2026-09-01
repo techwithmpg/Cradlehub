@@ -7,6 +7,7 @@
 **Initial C4 Delivery SHA:** `c65f3049370be6eedc3dea8c2d007ead968cd28c`
 **Whitespace Cleanup SHA:** `829037f53d14b721245dba6d59389f41c7bc0664`
 **First Correction SHA:** `83e9dd27db652cae3610c546184538ff3d806f52`
+**Second Correction SHA:** `53739b20ffe51298bd845d3cd08c850faae30191`
 **Branch:** `stage/c4-marketing-uiux-workflow-plan`
 **Date:** 2026-09-01
 **Status:** PLAN CORRECTED / AWAITING INDEPENDENT REVIEW (C5+ NOT AUTHORIZED)
@@ -494,10 +495,18 @@ Repository inspection shows that `getPublicServiceCatalog()` currently consumes:
 4. **Validation:** Requires marketer to enter an archive reason (e.g. *"Licensing contract expired"*).
 5. **Draft Behavior:** Asset status transitions to `submitted` for archive review (`marketing_media_assets.status = 'submitted'`).
 6. **Review Behavior:** Request appears in Owner's review queue under `Media Archive Requests`.
-7. **Owner Action:** Owner inspects usage locations, stages replacement image in affected sections, and clicks `Finalize Archive` (`marketing_media_assets.status = 'archived'`).
-8. **Error Recovery:** If marketer accidentally requests archive, they can click `Cancel Request` prior to owner finalization.
+7. **Owner Workflow & Explicit Archive Guard:**
+   - Owner reviews every usage of the old asset across public sections, services, brand, and drafts.
+   - Stages replacement/removal for every affected public consumer.
+   - Reviews affected drafts/routes/components.
+   - Publishes the authorized replacements/removals through the appropriate module-specific publishers.
+   - Re-runs usage analysis to confirm there are **ZERO remaining ACTIVE LIVE references** to the old asset.
+   - Verifies that any remaining active draft references are either updated to replacement assets or clearly flagged/blocked from future publication.
+   - **Explicit Archive Guard:** `FINALIZE ARCHIVE IS BLOCKED WHILE ACTIVE LIVE REFERENCES REMAIN.` (The archive action itself does NOT remove an image from live content).
+   - Only after active live references reach 0 does the Owner click `Finalize Archive` (`marketing_media_assets.status = 'archived'`).
+8. **Error Recovery:** If active live usages remain, the `Finalize Archive` button is disabled with an explanatory tooltip listing the active live routes requiring replacement first. If marketer accidentally requests archive, they can click `Cancel Request` prior to owner finalization.
 9. **Responsive Behavior:** Inspector opens as full-screen modal on mobile viewports (< 768px).
-10. **Success Confirmation:** Toast: *"Asset soft-archived. Underlying file retained for link integrity."*
+10. **Success Confirmation:** Toast: *"Asset soft-archived. Underlying file retained in Storage for link integrity."*
 
 ---
 
@@ -575,27 +584,32 @@ sequenceDiagram
     Marketer->>Srv: Submit draft bundle with replacement references
     Srv->>DB: Update drafts (status='submitted')
 
-    Note over Owner,DB: 4. Owner Review & Module-Aware Publish
+    Note over Owner,DB: 4. Owner Review & Publish Replacements
     Owner->>ML: Inspect affected routes and components
-    Owner->>Srv: Publish authorized mutations per module
+    Owner->>Srv: Publish authorized replacement drafts per module
     Srv->>DB: Update live tables & create revisions via insertMarketingRevision()
-    Note over DB: Physical storage file of old asset is permanently retained
 
-    Note over Owner,DB: 5. Optional Soft-Archive of Old Asset
-    Owner->>Srv: Soft-archive old asset (status='archived')
-    Srv->>DB: Set marketing_media_assets.status = 'archived'
+    Note over Owner,DB: 5. Verify Active Live Usages = 0 & Guarded Archive
+    Owner->>ML: Re-run usage analysis on old asset
+    alt Active Live References > 0
+        ML-->>Owner: ARCHIVE BLOCKED: Active live references remain
+    else Active Live References == 0
+        Owner->>Srv: Finalize archive of old asset
+        Srv->>DB: Set marketing_media_assets.status = 'archived'
+        Note over DB: Underlying physical file in Storage is permanently retained
+    end
 ```
 
-### 9-Step Safe Media Replacement Workflow:
+### 9-Step Safe Media Replacement & Archive Workflow:
 1. **Select / Upload Replacement:** Marketer uploads or selects the replacement asset in Media Library.
 2. **Execute Usage Analysis:** System scans all known C3 consumer references (`public_site_sections`, `public_site_assets`, `marketing_content_drafts`, `services`, branch references, `marketing_brand_settings`, `marketing_seo_settings`, `branch_services`).
 3. **Display Affected Consumers:** UI lists every section, service, or draft currently referencing the old asset.
 4. **Stage Replacement in Drafts:** The replacement asset URL is staged into candidate drafts. The live website is NOT modified automatically.
 5. **Marketer Submits Drafts:** Marketer submits the updated drafts for review.
 6. **Owner Inspects Changes:** Owner reviews visual diffs across all affected routes and components.
-7. **Owner Executes Live Publication:** Owner publishes the reviewed drafts via module-specific publishers.
-8. **Permanent File Retention:** The physical file of the old asset is permanently retained in Storage to prevent broken historical URLs.
-9. **Owner Finalizes Archive:** Owner marks the old asset record as `marketing_media_assets.status = 'archived'`.
+7. **Owner Executes Live Publication:** Owner publishes the reviewed replacement drafts via module-specific publishers.
+8. **Verify Active Live Usage = 0 (Archive Guard):** System verifies that zero active live references remain. `FINALIZE ARCHIVE IS BLOCKED WHILE ACTIVE LIVE REFERENCES REMAIN.` (Staging a draft and archiving the old asset before publishing the replacement is strictly prohibited for expired/licensed content).
+9. **Owner Finalizes Archive:** Only after live active references reach 0 does the Owner mark the old asset record as `marketing_media_assets.status = 'archived'`. The underlying storage file is permanently retained in Storage to prevent broken historical URLs.
 
 ---
 
@@ -651,12 +665,12 @@ The Marketing Workspace UI adapts across 6 standard viewport widths:
 | Contract Item | Verified Repository Fact | Target UX Requirement | Recommendation | Security / Data Risk | Implementation Dependency | Owner Decision Required? |
 | :--- | :--- | :--- | :--- | :--- | :--- | :---: |
 | **1. Branch Draft Persistence Gap** | Database enum currently lacks `content_type = 'branch'`. | Marketer can edit public branch copy in draft and submit for review. | **Preferred:** Introduce dedicated `content_type = 'branch'` in authorized schema stage. **Alternative:** Owner-only direct branch editing until draft pipeline exists. (Reject hijacking `brand` type). | Low; drafts are completely isolated from operational booking tables. | Requires C5 schema/draft handler specification. | **YES** |
-| **2. Service Source-of-Truth Decision** | Catalog data spans `services` and `branch_services`; `getPublicServiceCatalog()` consumes master `services`. `services.name` is operational catalog identity. | Marketers edit public service copy/images without touching operational pricing/durations or renaming CRM catalog. | **Recommendation:** Destination for marketing image/alt is master `services.image_url` / `image_alt`. Destination for public title/description is `services.metadata` (or presentation overrides). **Do NOT overwrite `services.name` directly.** | High if `services.name` is overwritten; zero risk if isolated to presentation fields. | C5 service draft publisher implementation. | **YES** |
+| **2. Service Source-of-Truth Decision** | Catalog data spans `services` and `branch_services`; `getPublicServiceCatalog()` consumes master `services`. `services.name` is operational catalog identity. | Marketers edit public service copy/images without touching operational pricing/durations or renaming CRM catalog. | **Recommendation:** Destination for marketing image/alt is master `services.image_url` / `image_alt`. Destination for public title/description is `services.metadata` (or presentation overrides). **Do NOT overwrite `services.name` directly.** | Reduced operational risk when isolated to presentation fields (presentation regressions on public site remain possible). | C5 service draft publisher implementation. | **YES** |
 | **3. Service Draft → Live Publish Mapping** | `publishMarketingContentDraft()` throws error if `content_type !== 'section'`. | Owner can approve and publish service presentation drafts to live catalog. | Extend `publishMarketingContentDraft()` server handler to support `content_type = 'service'` writing to approved service presentation fields. | Overwriting operational fields; mitigated by strict whitelist of presentation fields. | Server action extension in C5. | **YES** |
 | **4. Brand Draft → Live Publish Mapping** | Brand settings reside in `marketing_brand_settings` (`value` JSONB); no draft publish pipeline exists. | Marketer proposes brand logo/favicon; Owner reviews and publishes live. | Create brand draft publisher that updates `marketing_brand_settings.value` and triggers `revalidatePath('/', 'layout')`. | Breaking site-wide header/footer logo; mitigated by bundled static SVG fallback. | Server action extension in C5. | **YES** |
 | **5. SEO Draft → Live Publish Mapping & Live Consumer** | `buildMetadata()` does not read `marketing_seo_settings`; draft publish pipeline is missing. | Marketers manage Search & Social metadata per route in draft; Owner publishes live; public pages consume approved SEO. | Create SEO draft publisher and integrate `buildMetadata()` to resolve `marketing_seo_settings` with static fallback. | Malformed meta tags; mitigated by structured form controls with length limits. | Server action and SEO helper refactor in C5. | **YES** |
 | **6. Website Section Image Alt/Link Persistence** | `public_site_sections` table lacks first-class `alt_text` column (`alt_text` is in drafts and `metadata`). | Image alt text is preserved when published to live public site. | Store `alt_text` inside `public_site_sections.metadata` JSONB upon publish, and read via existing metadata helpers. | Missing alt text degrading public SEO/a11y; mitigated by structured metadata helper. | Client/server metadata parsing in C5. | **NO** (Within existing schema) |
-| **7. Media Hard-Delete Enforcement Gap** | Product rule is PROHIBITED; migration defines DELETE policy for owner/marketer; live Storage policy is UNKNOWN. | Hard delete is excluded from product UX; only non-destructive soft-archive exists. | Remove UI delete buttons; in future security stage, update Storage DELETE policy to reject browser client deletion. | Direct client bypass via Supabase SDK; mitigated by omitting client delete methods and enforcing soft-archive. | Storage policy update in authorized security stage. | **YES** |
+| **7. Media Hard-Delete Enforcement Gap** | Product rule is PROHIBITED; migration defines DELETE policy for owner/marketer; live Storage policy is UNKNOWN. | Hard delete is excluded from product UX; only non-destructive soft-archive exists. | **HARD DELETE:** Prohibited by target product contract. **UI:** No delete control (UX safeguard only). **TECHNICAL ENFORCEMENT:** Not proven / Storage policy gap unresolved. **REQUIRED FUTURE WORK:** Separately authorized Storage-policy / server-enforcement reconciliation. | Direct client bypass via Supabase SDK if policies permit; omitting UI controls does NOT technically prevent direct API bypass. | Storage policy update in authorized security stage. | **YES** |
 | **8. Owner Direct-Edit Audit Consistency** | Direct mutations in `/owner/marketing` write to `public_site_sections` without calling `insertMarketingRevision()`. | Every live mutation produces an immutable revision record. | Refactor owner direct mutation server action to unconditionally invoke `insertMarketingRevision()`. | Unaudited live copy changes; eliminated by standardizing server mutation pipeline. | Server action refactor in C5. | **NO** (Strict adherence to C2/C3 contract) |
 | **9. Desktop / Mobile Public Parity** | Desktop Home reads `public_site_sections`; Mobile Home hardcodes static copy and slides. | Mobile Home dynamically displays published section copy and slides. | Refactor `PublicMobileHome` and `MobileHomeHeroCarousel` to consume `public_site_sections` props. | Visual divergence between desktop and mobile visitors; resolved by unified data flow. | Public consumer refactor in C5. | **NO** (Mandated by MKT-001) |
 
@@ -670,9 +684,9 @@ The Marketing Workspace UI adapts across 6 standard viewport widths:
    - **Shared Query & Mutation Helpers:** `src/lib/queries/marketing-content.ts` (independently enforces authenticated role/operation checks).
    - *Architecture Recommendation:* A future centralized mutation boundary (e.g. `src/actions/marketing.ts`) is an optional **RECOMMENDATION** for code organization, not an existing repository fact.
 2. **Defense-in-Depth for Media Deletion:**
-   - UI excludes all hard-delete controls.
+   - UI excludes all hard-delete controls (UX safeguard).
    - Client-side code in `/marketing` will contain zero invocations of `supabase.storage.from(...).remove()`.
-   - Soft-archiving updates metadata `marketing_media_assets.status = 'archived'`.
+   - Soft-archiving updates the first-class `marketing_media_assets.status` column to `'archived'`.
 3. **Strict Server-Side Mutation Boundaries:**
    - Browser clients never write directly to PostgreSQL tables via client Supabase SDK. All mutations flow through validated server actions.
 
