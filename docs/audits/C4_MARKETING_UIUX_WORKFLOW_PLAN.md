@@ -8,6 +8,7 @@
 **Whitespace Cleanup SHA:** `829037f53d14b721245dba6d59389f41c7bc0664`
 **First Correction SHA:** `83e9dd27db652cae3610c546184538ff3d806f52`
 **Second Correction SHA:** `53739b20ffe51298bd845d3cd08c850faae30191`
+**Third Correction SHA:** `5e91c01ef972542a7aa7df1044e938a69573528e`
 **Branch:** `stage/c4-marketing-uiux-workflow-plan`
 **Date:** 2026-09-01
 **Status:** PLAN CORRECTED / AWAITING INDEPENDENT REVIEW (C5+ NOT AUTHORIZED)
@@ -193,7 +194,7 @@ Website Studio
     - Sticky preview rendering live component layout with viewport switcher (Desktop, Tablet, Mobile) and mode switcher (Draft, Live, Side-by-Side Compare).
 - **Footer Action Bar:**
   - `Digital Marketer`: `Save Draft` (Secondary button), `Submit for Review` (Primary Sand button with optional reviewer note dialog).
-  - `Owner`: `Save Draft / Working Copy` (does NOT perform direct live mutation), `Request Changes` (with note), `Schedule Publication`, `Publish to Live Website` (Primary Sand button dispatching to authorized publisher).
+  - `Owner`: `Save Working Copy / Draft` (Secondary button saving draft only; does NOT perform direct live mutation), `Request Changes` (with note), `Schedule Publication`, `Publish to Live Website` (Primary Sand button dispatching to authorized atomic publisher).
 
 ---
 
@@ -425,6 +426,10 @@ Repository inspection shows that `getPublicServiceCatalog()` currently consumes:
 
 1. **Dedicated Owner Studio (`/owner/marketing`):**
    - Owners access all marketer capabilities plus exclusive review and publication controls.
+   - **Owner Draft-First Contract:** Owner edits strictly adhere to the draft/working copy model:
+     `Owner Edit → Save Working Copy / Draft → Review → Approve if required → Publish → Live mutation + required audit revision`.
+   - Owner "Save Working Copy / Draft" saves changes solely to the working draft and does NOT mutate live state.
+   - Direct-live Marketing editing paths are retired in favor of this controlled draft-publication workflow.
 2. **Module-Specific Dispatch Architecture:**
    - *Current Repository Fact:* `publishMarketingContentDraft()` only handles `content_type = 'section'` to `public_site_sections`.
    - *Target Dispatch Contract:* The universal Owner Review Drawer dispatches to module-specific publisher handlers:
@@ -433,12 +438,18 @@ Repository inspection shows that `getPublicServiceCatalog()` currently consumes:
      - **SEO Settings:** Dispatches to SEO publisher (target UX; writes to `marketing_seo_settings`).
      - **Services:** Dispatches to service presentation publisher (target UX; writes to approved service destination).
      - **Branches:** Dispatches to branch presentation publisher (target UX; unresolved draft pipeline).
-3. **Owner Decision Controls:**
-   - **Save Working Copy / Draft:** Saves edits to the working draft. Does NOT perform a silent direct-live mutation.
-   - **Request Changes:** Opens dialog requiring a written feedback note (`reviewNote`), transitions draft to `changes_requested`.
-   - **Approve:** Marks draft as `approved`.
-   - **Schedule Publication:** Sets target publication timestamp (for manual execution or future scheduler).
-   - **Publish Live:** Executes the module-specific publisher, updates live tables, creates an immutable record in `marketing_content_revisions` via `insertMarketingRevision()`, triggers Next.js path revalidation, and displays success toast.
+3. **Owner Decision Controls & Lifecycle:**
+   - **Save Working Copy / Draft:** Saves edits to the working draft (draft lifecycle only). Does NOT mutate live state.
+   - **Request Changes:** Opens dialog requiring a written feedback note (`reviewNote`), transitions draft to `changes_requested` (draft lifecycle only).
+   - **Approve:** Marks draft as `approved` (draft lifecycle only).
+   - **Schedule Publication:** Sets target publication timestamp (draft lifecycle only).
+   - **Publish Live:** Executes the module-specific publisher as a controlled atomic / fail-closed publication operation.
+4. **Audit-Integrity & Failure Contract:**
+   - *Current Repository Fact:* `insertMarketingRevision()` attempts revision insert, logs errors, and returns `void`. It currently behaves as best-effort logging without rolling back live mutations.
+   - *Target Audit Contract:* A successful publication requires BOTH:
+     (A) Authorized live destination was updated, AND
+     (B) Required immutable marketing revision was successfully persisted to `marketing_content_revisions`.
+   - *Fail-Closed Rule:* If revision persistence fails, the publication must NOT be reported as successful and no success toast is shown. Live publication and audit logging must succeed atomically or fail closed.
 
 ---
 
@@ -671,7 +682,7 @@ The Marketing Workspace UI adapts across 6 standard viewport widths:
 | **5. SEO Draft → Live Publish Mapping & Live Consumer** | `buildMetadata()` does not read `marketing_seo_settings`; draft publish pipeline is missing. | Marketers manage Search & Social metadata per route in draft; Owner publishes live; public pages consume approved SEO. | Create SEO draft publisher and integrate `buildMetadata()` to resolve `marketing_seo_settings` with static fallback. | Malformed meta tags; mitigated by structured form controls with length limits. | Server action and SEO helper refactor in C5. | **YES** |
 | **6. Website Section Image Alt/Link Persistence** | `public_site_sections` table lacks first-class `alt_text` column (`alt_text` is in drafts and `metadata`). | Image alt text is preserved when published to live public site. | Store `alt_text` inside `public_site_sections.metadata` JSONB upon publish, and read via existing metadata helpers. | Missing alt text degrading public SEO/a11y; mitigated by structured metadata helper. | Client/server metadata parsing in C5. | **NO** (Within existing schema) |
 | **7. Media Hard-Delete Enforcement Gap** | Product rule is PROHIBITED; migration defines DELETE policy for owner/marketer; live Storage policy is UNKNOWN. | Hard delete is excluded from product UX; only non-destructive soft-archive exists. | **HARD DELETE:** Prohibited by target product contract. **UI:** No delete control (UX safeguard only). **TECHNICAL ENFORCEMENT:** Not proven / Storage policy gap unresolved. **REQUIRED FUTURE WORK:** Separately authorized Storage-policy / server-enforcement reconciliation. | Direct client bypass via Supabase SDK if policies permit; omitting UI controls does NOT technically prevent direct API bypass. | Storage policy update in authorized security stage. | **YES** |
-| **8. Owner Direct-Edit Audit Consistency** | Direct mutations in `/owner/marketing` write to `public_site_sections` without calling `insertMarketingRevision()`. | Every live mutation produces an immutable revision record. | Refactor owner direct mutation server action to unconditionally invoke `insertMarketingRevision()`. | Unaudited live copy changes; eliminated by standardizing server mutation pipeline. | Server action refactor in C5. | **NO** (Strict adherence to C2/C3 contract) |
+| **8. Owner Direct-Edit Audit Consistency** | Current Owner direct public-site mutation bypasses the normal draft/revision lifecycle. `insertMarketingRevision()` requires a draft and currently logs errors without rolling back. | All Marketing live mutations originate from an authorized draft/working copy publication operation. Live publication and required revision persistence must succeed atomically or fail closed. | Retire/bypass the direct-live Owner editing path for Marketing content and route Owner edits through the same controlled draft publication contract. Live publication and required revision persistence must succeed atomically or fail closed. | A live mutation whose revision write fails creates unaudited production-visible content. | EXACT ATOMICITY MECHANISM = C5 IMPLEMENTATION DESIGN DECISION (e.g. database transaction, RPC, or transactional server mechanism; separate DB authorization required if schema/RPC changes needed). | **NO** (Draft-first principle already accepted in C3/C4) |
 | **9. Desktop / Mobile Public Parity** | Desktop Home reads `public_site_sections`; Mobile Home hardcodes static copy and slides. | Mobile Home dynamically displays published section copy and slides. | Refactor `PublicMobileHome` and `MobileHomeHeroCarousel` to consume `public_site_sections` props. | Visual divergence between desktop and mobile visitors; resolved by unified data flow. | Public consumer refactor in C5. | **NO** (Mandated by MKT-001) |
 
 ---
@@ -709,16 +720,21 @@ Before authorizing caching or speculative performance optimizations in C5, the f
 ### 1. Required Verification Evidence (C5 Target Gates)
 1. **Type Safety & Build Verification:** `pnpm build` and `tsc --noEmit` exit code 0.
 2. **Unit & Integration Test Suite:** Vitest tests covering all marketing server actions, role verification, revision creation, and draft lifecycle transitions.
-3. **Interactive Usability Verification:** Successful execution of the 5 acceptance missions in test environment.
-4. **Accessibility Audit:** 100% compliance with focus rings, label associations, and 44x44px touch targets.
-5. **Audit Trail Verification:** Proof that every live update inserts a corresponding row in `marketing_content_revisions`.
+3. **Audit Atomicity / Fail-Closed Test Gate:** Dedicated automated test suite proving:
+   - *Successful publish:* Authorized live mutation exists AND matching immutable revision exists in `marketing_content_revisions`.
+   - *Forced revision failure:* Live mutation is NOT left accepted or visible without matching audit evidence (fails closed / rolls back).
+   - *Owner working-copy save:* Draft is persisted without mutating live state.
+   - *Digital Marketer boundary:* Digital Marketer role cannot trigger live publication.
+   - *Audit provenance:* Generated revision belongs to the exact draft/publication operation.
+4. **Interactive Usability Verification:** Successful execution of the 5 acceptance missions in test environment.
+5. **Accessibility Audit:** 100% compliance with focus rings, label associations, and 44x44px touch targets.
 
 ### 2. Recommended C5 Correction-Pass Sequence
 1. **Pass 1 — Public Consumer Parity & Component Grounding:** Refactor `PublicMobileHome` to consume `public_site_sections` and ground public components for preview isolation.
 2. **Pass 2 — Central Media Library & Universal Picker:** Implement `Media Library` grid, Inspector drawer, usage tracker, and `Universal Media Picker` modal.
 3. **Pass 3 — Website Studio & High-Fidelity Preview:** Implement Website section editor, viewport preview rail, Live vs Draft diff, and Unsaved Changes Guard.
 4. **Pass 4 — Brand, Branches, and Services Studios:** Implement Brand asset slots, Branches public presentation editor, and Services marketing copy editor.
-5. **Pass 5 — Draft Queue, Owner Review Studio & Audit Trail:** Implement Drafts queue, Owner review drawer, change request workflow, and live publishing with automatic `insertMarketingRevision()` audit logging.
+5. **Pass 5 — Draft Queue, Owner Review Studio & Audit Trail:** Implement Drafts queue, Owner review drawer, change request workflow, and live publishing with atomic / fail-closed `insertMarketingRevision()` audit logging.
 
 ---
 
