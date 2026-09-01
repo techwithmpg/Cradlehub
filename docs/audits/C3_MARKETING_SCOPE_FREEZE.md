@@ -7,6 +7,7 @@
 **Initial C3 Delivery SHA:** `9cfeb8a3be1c1bb41d51f75d47b64b207de0913c`
 **Whitespace Cleanup SHA:** `ee617056b6b588bbf2bef56c54e2da7044199c88`
 **Source-of-Truth Correction SHA:** `7c6a40b52baba34d65d487b2aa473fc3d8d410bd`
+**Service & Publication Correction SHA:** `b632cbcbdeb0436b1bc4a52af2bf823cf2596356`
 **Branch:** `stage/c3-marketing-scope-freeze`
 **Date:** 2026-09-01
 **Status:** SCOPE CORRECTED / AWAITING INDEPENDENT REVIEW (C4 / C5+ NOT AUTHORIZED)
@@ -158,7 +159,7 @@ To preserve strict stabilization boundaries and prevent speculative feature cree
 | **Branch Public Presentation** | `branches` (Canonical single entity) | Unresolved draft dependency | `owner` (Marketer: Target Draft/Suggest) | Booking dispatch, mapping, travel fee | `/branches`, `/`, Header Phone, Footer | `revalidateTag(cacheTags.publicBranches)` — **Branch draft persistence & publish pipeline is UNRESOLVED**. |
 | **Service Public Presentation** | `services` + `branch_services` | `marketing_content_drafts` (`content_type = 'service'`) | `owner` (Marketer: Target Draft/Suggest) | Operational catalog, therapist allocation | `/services`, `/`, `/book` via `getPublicServiceCatalog()` (`services` + `services.metadata`) | `revalidatePath('/services')`, `revalidatePath('/book')` — Draft content type exists; **Safe draft-to-live publication mapping is UNRESOLVED**. |
 | **Media Assets & Files** | `marketing_media_assets` | Storage bucket `public-site-media` | `digital_marketer` / `owner` | None | All public image consumers | CDN / Storage Cache-Control — Asset upload & soft-archive foundation exists. |
-| **Revision Audit Log** | `marketing_content_revisions` | Automated audit triggers | `owner` / `digital_marketer` (Read) | Internal audit | None | None — Audit log records live mutations. |
+| **Revision Audit Log** | `marketing_content_revisions` | `insertMarketingRevision()` server-side helper | `owner` / `digital_marketer` (Read) | Internal audit | None | **Explicit server-side revision insert** — `marketing_content_revisions` is populated explicitly by controlled server-side actions via `insertMarketingRevision()`; no database trigger is assumed. |
 
 ---
 
@@ -176,8 +177,8 @@ To preserve strict stabilization boundaries and prevent speculative feature cree
 | **Publish Section Draft to Live Website** | DENY | DENY | ALLOW | DENY |
 | **Archive Live / Draft Content** | DENY | DENY | ALLOW | DENY |
 | **Upload Media to `public-site-media`** | DENY | ALLOW | ALLOW | DENY |
-| **Soft-Archive Media Assets** | DENY | ALLOW | ALLOW | DENY |
-| **Hard-Delete Media Files** | DENY | DENY (Soft-archive only) | DENY (Soft-archive only) | DENY |
+| **Soft-Archive Media Assets** | DENY | TARGET REQUEST / REVIEW WORKFLOW *(Cannot directly finalize archived status under current RLS policy; final archive authority remains Owner)* | ALLOW | DENY |
+| **Hard-Delete Media Files** | DENY | PROHIBITED BY PRODUCT CONTRACT *(Storage DELETE policy gap recorded; client bypass prevented by server contract)* | PROHIBITED BY PRODUCT CONTRACT *(Storage DELETE policy gap recorded; client bypass prevented by server contract)* | DENY |
 | **Edit Public Branch Phone / Hours / Social** | DENY | ALLOW — TARGET DRAFT/REVIEW WORKFLOW *(persistence mapping unresolved)* | ALLOW (Direct & Review) | DENY |
 | **Edit Branch Location / Name / Address** | DENY | DENY (Read-Only) | ALLOW (Owner Ops Path) | DENY |
 | **Edit Branch Activation (`is_active`)** | DENY | DENY | ALLOW (Owner Ops Path) | DENY |
@@ -265,7 +266,10 @@ To preserve strict stabilization boundaries and prevent speculative feature cree
   - `file_size`, `mime_type`, `dimensions`, `usage_count`, and `usage_references` are NOT asserted as existing physical database columns.
   - *Product Requirement:* Media Library must display and track dimensions, MIME type, file size, usage count, and usage references in the UI.
   - *Persistence Policy:* Physical persistence choice (runtime derivation, `metadata` JSONB storage, or future schema columns) is deferred to later authorized architecture/schema design. No schema migration is authorized by C3.
-- **Marketer Writable:** Asset upload (single upload required; bulk upload is optional), `title`, `alt_text` (minimum 3 characters enforced), `section_key` association, `content_key` association, soft-archive toggle (`status = 'archived'`).
+- **Marketer Writable Authority:**
+  - Digital Marketers can upload media, edit draft media metadata (`title`, `alt_text` with minimum 3 characters enforced, `section_key`, `content_key`), and submit/request media removal or archiving through the review workflow.
+  - Digital Marketers CANNOT directly finalize `status = 'archived'` under the current repository RLS with-check policy (which restricts marketer updates to `status IN ('draft', 'submitted')`).
+  - Final archive authority remains strictly with the Owner unless a separately authorized security decision modifies the policy.
 - **Prohibited:** Unreferenced hard deletion from Storage without soft-archive grace period; upload without valid alt text.
 
 ---
@@ -388,7 +392,7 @@ stateDiagram-v2
 
 ---
 
-## K. Media Lifecycle Contract
+## K. Media Lifecycle & Storage Security Contract
 
 1. **Upload Requirements:**
    - Supported MIME types: `image/jpeg`, `image/png`, `image/webp`, `image/svg+xml`.
@@ -399,8 +403,15 @@ stateDiagram-v2
    `public-site-media/{section_key}/{timestamp}_{sanitized_filename}.{ext}`
 3. **Public URL Structure:**
    Derived from Supabase Storage public bucket endpoint; stored as canonical string alongside `bucket_path`.
-4. **Lifecycle State Enforcement:**
-   `draft` → `submitted` → `approved` → `published` → `archived`. Hard deletion from Supabase Storage is prohibited for all referenced assets.
+4. **Lifecycle State & Role Ownership:**
+   - **Digital Marketer Role:** `upload → edit draft metadata → submit / request archive`.
+   - **Owner Role:** `approve → publish → finalize archive` (unless a separately authorized security decision changes this boundary).
+   - Non-destructive soft-archiving: Assets are transitioned to `status = 'archived'`. Underlying storage objects are permanently retained to prevent broken historical URLs.
+5. **STORAGE HARD-DELETE ENFORCEMENT GAP (Security Dependency):**
+   - **Media Hard-Delete Product Rule:** PROHIBITED.
+   - **Current Repository Storage Policy:** The repository migration defines a Storage DELETE policy for `public-site-media` that permits authenticated `owner` and `digital_marketer` roles.
+   - **Live Storage Policy State:** `UNKNOWN / NOT INDEPENDENTLY VERIFIED`.
+   - **Enforcement Gap & Boundary:** A later authorized implementation/security stage must reconcile the Storage policy or implement server-side enforcement so browser clients cannot bypass the no-hard-delete rule. Any RLS / Storage policy change requires explicit authorization. No migrations are modified or applied in C3.
 
 ---
 
@@ -494,7 +505,7 @@ The future Marketing Studio must empower a non-technical digital marketer to ind
 | :---: | :--- | :--- | :--- |
 | **Mission 1** | Replace Website Logo | Open Brand Studio → Upload new logo file → Add alt text → Preview on light & dark mockups → Submit for Owner review. | Brand logo updates across header, footer, and shell upon Owner approval; SVG fallback remains intact. |
 | **Mission 2** | Propose SM Branch Public Phone Update | Open Branches Studio → Select SM Branch → Edit public candidate phone & opening hours copy → Save & Submit for Owner review. | Public phone updates on `/branches` and header phone widget upon Owner approval; operational slot interval & travel fees remain 100% untouched. |
-| **Mission 3** | Archive Expired Model Photo Safely | Open Media Library → Select photo → Inspect "Usage Locations" (shows Hero & About) → Replace asset with new photo → Archive old asset. | System replaces image URLs across affected sections, warns user of impact, and archives old asset without broken links. |
+| **Mission 3** | Archive Expired Model Photo Safely | Open Media Library → Select photo → Inspect "Usage Locations" (shows Hero & About) → Replace asset with new photo → Request archive. | System replaces image URLs across affected sections, warns user of impact, and archives old asset without broken links upon Owner approval. |
 | **Mission 4** | Update Public Image for Service | Open Services Studio → Select "Signature Cradle Massage" → Pick new image from Media Picker → Save & Submit for Owner review. | Marketing image updates on `/services` catalog upon Owner approval; operational price (PHP), duration (mins), and buffers remain 100% untouched. |
 | **Mission 5** | Update Homepage Hero Copy & Preview | Open Website Studio → Edit Hero Headline & Subtitle → Toggle Mobile & Desktop Draft Previews → Inspect Live vs. Draft diff → Submit. | Marketer inspects exact pixel-accurate preview on desktop and mobile before submission; publishing synchronizes both desktop and mobile homepages. |
 
