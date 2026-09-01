@@ -205,8 +205,26 @@ describe("marketing media queries - role boundaries and safety enforcement", () 
     }
   });
 
-  it("fails closed when existing asset state lookup produces a DB error", async () => {
+  it("fails closed when existing asset state lookup produces a DB error for digital marketer", async () => {
     mockStaff = { id: "staff-dm", system_role: "digital_marketer" };
+    mockDbSelectData = null;
+    mockDbSelectError = { message: "Database connection failed" };
+    lastUpdatePayload = null;
+
+    const res = await saveMarketingMediaAsset({
+      id: TEST_ASSET_ID,
+      altText: "Updated alt text",
+    });
+
+    expect(res.success).toBe(false);
+    if (!res.success) {
+      expect(res.error).toBe("Could not verify the current media asset state.");
+    }
+    expect(lastUpdatePayload).toBeNull();
+  });
+
+  it("fails closed when existing asset state lookup produces a DB error for owner", async () => {
+    mockStaff = { id: "staff-owner", system_role: "owner" };
     mockDbSelectData = null;
     mockDbSelectError = { message: "Database connection failed" };
     lastUpdatePayload = null;
