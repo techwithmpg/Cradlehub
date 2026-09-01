@@ -3,11 +3,12 @@
 **Program:** Controlled Stabilization  
 **Stage:** C2 — Structured Diagnostics (READ-ONLY)  
 **Target:** CradleHub Web — Digital Marketing Workspace (`/marketing`, `/owner/marketing`) & Public-Site Consumers  
-**Base SHA:** `3f402e033e1d1ca05b8cc8a4f2764823f7aaa622` (Accepted C1 truth consolidation merge on `main`)  
-**Branch:** `stage/c2-marketing-diagnostics`  
-**Head SHA:** `3f402e033e1d1ca05b8cc8a4f2764823f7aaa622`  
-**Date:** 2026-09-01  
-**Status:** COMPLETE (Diagnostics Only — Zero Implementation / Zero Production Mutation)
+**Base SHA:** `3f402e033e1d1ca05b8cc8a4f2764823f7aaa622` (Accepted C1 truth consolidation merge on `main`)
+**Branch:** `stage/c2-marketing-diagnostics`
+**Original C2 Diagnostic Delivery SHA:** `88a0136b246bbfbcf780a7cd4a30ec7c651fa2df`
+**Current Correction Commit SHA:** (Recorded in git log upon commit; reported in handoff)
+**Date:** 2026-09-01
+**Status:** REPORT CORRECTED / AWAITING INDEPENDENT REVIEW (Zero Implementation / Zero Production Mutation)
 
 ---
 
@@ -274,15 +275,16 @@ stateDiagram-v2
 Audit performed against repository design standards and modern UI/UX guidelines:
 
 1. **Visual Language & Colors:**
-   - The workspace correctly follows the CradleHub `--cs-*` token hierarchy:
-     - Background: Warm cream (`var(--cs-bg)`).
-     - Surface: Clean white / surface cards (`var(--cs-surface)`).
-     - Sidebar: Dark warm slate (`var(--cs-sidebar)`).
-     - Workspace Accent: Muted purple (`#7C3AED` / `#8B5CF6`) designating Digital Marketing identity.
-     - Action Family: Sand / Gold (`#C8A96B` / `#D4B57A`) for primary action CTA.
+   - The workspace correctly follows the CradleHub `--cs-*` token hierarchy from `src/app/globals.css` and `src/components/features/dashboard/sidebar.tsx`:
+     - Background: Warm cream (`--cs-bg: #F5F2EE`, surface: `--cs-surface: #FFFFFF`, warm surface: `--cs-surface-warm: #FAF8F5`).
+     - Sidebar: Dark warm brown/slate (`--cs-sidebar: #1E1916`, hover: `--cs-sidebar-hover: #2A2420`, active: `--cs-sidebar-active: #332C28`).
+     - Workspace Accent: Muted purple (`--cs-owner-accent: #7A5A8A`, `accentBg: rgba(122, 90, 138, 0.15)`) designating Marketing workspace identity and selection.
+     - Action Family: Cradle Sand action family (`--cs-sand: #A67B5B`, `--cs-sand-dark: #8A6347`, `--cs-sand-light: #C4966E`) for primary and important actions.
+     - Semantic status colors remain semantic (success/warning/error/info tokens).
+     - No independent green concept theme or heavy purple tinting across the entire UI.
 2. **Accessibility Observations:**
    - **Labels:** Several input fields in `marketing-workspace.tsx` and `marketing-studio.tsx` rely on visual container labels without explicit `id` and `htmlFor` association.
-   - **Keyboard Navigation & Focus:** Focus styling is custom; needs consistent `focus-visible:ring-2 focus-visible:ring-[#C8A96B]` outline across all inputs and buttons.
+   - **Keyboard Navigation & Focus:** Focus styling is custom; needs consistent `focus-visible:ring-2 focus-visible:ring-[#A67B5B]` outline across all inputs and buttons.
    - **Action State Feedback:** Draft saves update state via `useActionState`, but lack an `aria-live="polite"` container for screen reader announcements.
    - **Touch Targets:** Navigation tabs and icon action buttons in desktop view are 32px height; need minimum 44x44px clickable target on responsive touch viewports.
 
@@ -296,7 +298,7 @@ Audit performed against repository design standards and modern UI/UX guidelines:
      - `getPublicSiteAssets('gallery', { includeDisabled: true })`
      - `getMarketingContentDrafts()`
      - `getMarketingContentRevisions(12)`
-   - Total query execution time is low (< 60ms in local testing).
+   - C2 confirmed the four initial queries are initiated in parallel via `Promise.all()`. C2 did not preserve a controlled timing measurement sufficient to claim a latency figure. Performance must be measured before any caching/query optimization decision (Measure First policy).
 2. **Revalidation Efficiency:**
    - Publishing mutates `public_site_sections` and invokes `revalidatePath('/')` and `revalidateMarketingWorkspace()`.
    - Tag-based caching (`cacheTags.publicBranches`) cleanly isolates branch changes from marketing section changes.
@@ -328,25 +330,42 @@ Audit performed against repository design standards and modern UI/UX guidelines:
 
 ---
 
-## O. Recommendations for C3 Scope Freeze
+## O. Recommendations for C3 Scope Freeze (Planning Context Only — Implementation Not Authorized)
 
-Based on the verified diagnostic findings, the recommended C3 Scope Freeze for the Digital Marketing Workspace is:
+Based on the verified diagnostic findings, the recommended C3 Scope Freeze for the Digital Marketing Studio comprises five independent user-facing modules, secondary navigation, contextual SEO, and universal subsystems:
 
-1. **Module 1: Website Content Studio**
-   - Manage homepage sections (Hero, About, Promotion Banner, Before You Book) with unified draft/review/publish workflow.
-   - Harmonize Desktop and Mobile public consumers so mobile consumes published sections seamlessly.
-2. **Module 2: Media Library**
-   - Unified media browser for `public-site-media` bucket and `marketing_media_assets`.
-   - Asset replacement with usage safety and soft-archiving.
-3. **Module 3: Brand & SEO Studio (Secondary)**
-   - Manage brand assets (logos, favicon) with SVG fallback.
-   - Manage route-level SEO metadata.
-4. **Module 4: Branch & Service Public Copy Studio**
-   - Allow digital marketer to edit public titles, public descriptions, and marketing images for branches and services without touching operational prices, durations, or rules.
-5. **Universal Components:**
-   - Universal Media Picker.
-   - High-fidelity live Draft Preview (Desktop / Tablet / Mobile).
-   - Unsaved-changes protection guard.
+### Five Core User-Facing Modules
+1. **Website Studio:**
+   - Dedicated management for public-site pages/sections (Hero, About, Promotion/Quote Banner, Before You Book).
+   - Harmonize Desktop (`home-page-sections.tsx`) and Mobile (`public-mobile-home.tsx` / `mobile-home-hero-carousel.tsx`) public consumers so mobile consumes published sections seamlessly.
+2. **Brand Studio:**
+   - Dedicated management for brand identity assets (Primary Logo, Dark/Light variants, Logo Mark, Favicon, Social Image).
+   - Preserves static SVG fallback while allowing dynamic resolution from `marketing_brand_settings`.
+3. **Branches Studio:**
+   - Dedicated management for public-facing branch presentation fields (`name`, `address`, `phone`, `email`, `opening_hours`, `maps_embed_url`, `messenger_link`, `sort_order`).
+   - Strictly isolates public presentation from operational branch controls (`is_active`, `slot_interval_minutes`, travel fee parameters, staff assignments).
+4. **Services Studio:**
+   - Dedicated management for public marketing presentation (`public_title`, `public_description`, `custom_image_url`, `image_alt`, `is_featured`, `sort_order`).
+   - Strictly isolates marketing fields from operational catalog properties (base/custom `price`, `duration_minutes`, `buffer_before`/`buffer_after`, `available_in_spa`/`available_home_service`, therapist qualifications).
+5. **Media Library:**
+   - Dedicated universal media browser for `public-site-media` bucket and `marketing_media_assets`.
+   - Asset replacement safety, usage tracking, and soft-archiving without broken links.
+
+### Secondary Navigation
+- **Drafts:** Dedicated overview of in-progress drafts, pending reviews, scheduled items, and revision history.
+- **Settings:** Workspace-level preferences and defaults.
+
+### Contextual SEO Architecture
+- SEO is embedded contextually within each edited entity (e.g., Website Page: Content \| Images \| Search & Social; Service: Content \| Images \| Search & Social) rather than isolated into an artificial separate module.
+- No separate standalone Analytics or Campaigns modules (out of scope for immediate stabilization).
+
+### Universal Subsystems
+- **Universal Media Picker:** Reusable asset selection across all studio modules.
+- **High-Fidelity Draft Preview:** Reuses the exact same presentational components as live public pages.
+- **Responsive Viewport Toggle:** Desktop, Tablet, and Mobile preview frames.
+- **Live vs Draft Comparison:** Visual diff view before submission/approval.
+- **Unsaved Changes Guard:** Protection against accidental navigation or loss of in-progress edits.
+- **Draft / Review / Publish Workflow:** Draft → Submitted → Changes Requested / Approved → Scheduled / Published → Archived.
 
 ---
 

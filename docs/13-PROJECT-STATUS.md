@@ -4,7 +4,7 @@
 
 - **Program:** Controlled Stabilization
 - **Current stage:** C2 — Structured Diagnostics (Digital Marketing Workspace)
-- **C2 status:** COMPLETE / REPORT DELIVERED
+- **C2 status:** REPORT CORRECTED / AWAITING INDEPENDENT REVIEW
 - **C2 report:** `docs/audits/C2_MARKETING_STRUCTURED_DIAGNOSTICS_REPORT.md`
 - **C1 status:** CLOSED / ACCEPTED
 - **Accepted C1 truth consolidation merge:** `3f402e033e1d1ca05b8cc8a4f2764823f7aaa622`
@@ -55,4 +55,4 @@ CradleHub is a Next.js 16.2.4 / React 19.2.4 web application using Supabase Post
 - GitHub protection/ruleset and Vercel linkage/deployed-commit unknowns; and
 - production-connected `main` release safety.
 
-C1 is CLOSED and ACCEPTED at merge SHA `3f402e033e1d1ca05b8cc8a4f2764823f7aaa622`. C2 Structured Diagnostics for the Digital Marketing Workspace is COMPLETE. Product fixes, UI implementation, database/Storage mutation, migration actions, and C3 or later work are NOT AUTHORIZED without explicit owner instruction.
+C1 is CLOSED and ACCEPTED at merge SHA `3f402e033e1d1ca05b8cc8a4f2764823f7aaa622`. C2 Structured Diagnostics for the Digital Marketing Workspace report has been corrected and is awaiting independent review. Product fixes, UI implementation, database/Storage mutation, migration actions, and C3 or later work are NOT AUTHORIZED without explicit owner instruction.
