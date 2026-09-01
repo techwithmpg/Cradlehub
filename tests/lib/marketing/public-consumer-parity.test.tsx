@@ -2,21 +2,26 @@
  * @vitest-environment jsdom
  */
 
-import { describe, it, expect, afterEach } from "vitest";
+import { describe, it, expect, afterEach, vi } from "vitest";
 import React from "react";
 import { render, screen, cleanup } from "@testing-library/react";
+
+vi.mock("server-only", () => ({}));
 import {
   resolvePublicSiteSections,
   type PublicSiteSectionRow,
 } from "@/lib/public/normalized-sections";
 import { MobileHomeHeroCarousel } from "@/components/public/mobile/mobile-home-hero-carousel";
 import { MobileFinalCta } from "@/components/public/mobile/mobile-final-cta";
+import { PublicMobileHome } from "@/components/public/mobile/public-mobile-home";
 import { SPA_IMAGES } from "@/constants/spa-images";
+import type { PublicCatalogService } from "@/lib/queries/services";
 
 describe("C5.1 Public Consumer Parity & Component Grounding", () => {
   afterEach(cleanup);
+
   describe("resolvePublicSiteSections", () => {
-    it("resolves canonical default public sections when input is empty or null", () => {
+    it("resolves canonical default public sections when input is empty or null without inventing quote CTA", () => {
       const normalized = resolvePublicSiteSections(null);
 
       expect(normalized.hero.title).toBe("Restore Your Body. Quiet Your Mind.");
@@ -32,7 +37,12 @@ describe("C5.1 Public Consumer Parity & Component Grounding", () => {
       expect(normalized.about.subtitle).toBe("Spa Philosophy");
       expect(normalized.about.isEnabled).toBe(true);
 
+      // Quote banner default must NOT invent a CTA label or body
       expect(normalized.quoteBanner.title).toBe("Give yourself permission to pause.");
+      expect(normalized.quoteBanner.subtitle).toBe("Pause Here");
+      expect(normalized.quoteBanner.body).toBe("");
+      expect(normalized.quoteBanner.ctaLabel).toBe("");
+      expect(normalized.quoteBanner.ctaHref).toBe("/book");
       expect(normalized.quoteBanner.isEnabled).toBe(true);
 
       expect(normalized.beforeYouBook.title).toBe("Plan your visit with clear expectations.");
@@ -97,6 +107,35 @@ describe("C5.1 Public Consumer Parity & Component Grounding", () => {
       expect(normalized.quoteBanner.subtitle).toBe("Seasonal Special");
       expect(normalized.quoteBanner.body).toBe("Enjoy 20% off all renewal packages this month.");
       expect(normalized.quoteBanner.ctaLabel).toBe("Book Special");
+      expect(normalized.quoteBanner.ctaHref).toBe("/book?promo=summer");
+    });
+
+    it("leaves quote banner ctaLabel and body empty when database row has empty/null values", () => {
+      const rows: PublicSiteSectionRow[] = [
+        {
+          id: "sec-2",
+          section_key: "quote_banner",
+          title: "Calm Atmosphere",
+          subtitle: "Quiet Space",
+          body: null,
+          cta_label: null,
+          cta_href: "/book",
+          image_url: null,
+          secondary_image_url: null,
+          sort_order: 50,
+          is_enabled: true,
+          metadata: {},
+          created_at: "2026-09-01T00:00:00Z",
+          updated_at: "2026-09-01T00:00:00Z",
+        },
+      ];
+
+      const normalized = resolvePublicSiteSections(rows);
+
+      expect(normalized.quoteBanner.title).toBe("Calm Atmosphere");
+      expect(normalized.quoteBanner.subtitle).toBe("Quiet Space");
+      expect(normalized.quoteBanner.body).toBe("");
+      expect(normalized.quoteBanner.ctaLabel).toBe("");
     });
 
     it("respects is_enabled: false across sections", () => {
@@ -210,8 +249,8 @@ describe("C5.1 Public Consumer Parity & Component Grounding", () => {
     });
   });
 
-  describe("MobileFinalCta presentation grounding", () => {
-    it("renders custom quote banner copy and link when quoteBanner is supplied", () => {
+  describe("MobileFinalCta presentation grounding & fallback parity", () => {
+    it("renders custom quote banner copy and link when quoteBanner is supplied with CTA", () => {
       const normalized = resolvePublicSiteSections([
         {
           id: "sec-2",
@@ -242,6 +281,34 @@ describe("C5.1 Public Consumer Parity & Component Grounding", () => {
       expect(cta.getAttribute("href")).toBe("/book?promo=anniversary");
     });
 
+    it("does NOT render CTA button or body paragraph when quoteBanner has empty body and ctaLabel", () => {
+      const normalized = resolvePublicSiteSections([
+        {
+          id: "sec-2",
+          section_key: "quote_banner",
+          title: "Quiet Retreat",
+          subtitle: "Pause Here",
+          body: null,
+          cta_label: null,
+          cta_href: "/book",
+          image_url: null,
+          secondary_image_url: null,
+          sort_order: 50,
+          is_enabled: true,
+          metadata: {},
+          created_at: "2026-09-01T00:00:00Z",
+          updated_at: "2026-09-01T00:00:00Z",
+        },
+      ]);
+
+      render(<MobileFinalCta quoteBanner={normalized.quoteBanner} />);
+
+      expect(screen.getByRole("heading", { name: "Quiet Retreat" })).toBeDefined();
+      expect(screen.getByText("Pause Here")).toBeDefined();
+      expect(screen.queryByRole("link")).toBeNull();
+      expect(screen.queryByText("Book your pause today.")).toBeNull();
+    });
+
     it("returns null when quote banner is disabled", () => {
       const normalized = resolvePublicSiteSections([
         {
@@ -264,6 +331,145 @@ describe("C5.1 Public Consumer Parity & Component Grounding", () => {
 
       const { container } = render(<MobileFinalCta quoteBanner={normalized.quoteBanner} />);
       expect(container.firstChild).toBeNull();
+    });
+
+    it("uses standalone fallback copy when entire quoteBanner prop is absent", () => {
+      render(<MobileFinalCta />);
+
+      expect(screen.getByRole("heading", { name: "Your calm is waiting" })).toBeDefined();
+      expect(screen.getByText("Book your pause")).toBeDefined();
+      expect(screen.getByText("Book your pause today.")).toBeDefined();
+      expect(screen.getByRole("link", { name: /Book Now/i })).toBeDefined();
+    });
+  });
+
+  describe("Public-safe service filtering parity", () => {
+    const mockServices: PublicCatalogService[] = [
+      {
+        id: "srv-public-1",
+        name: "Swedish Relaxation Massage",
+        categoryName: "Massage & Bodywork",
+        categoryOrder: 1,
+        subcategory: "Massage",
+        description: "Classic full-body gentle soothing massage.",
+        shortDescription: "Classic full-body gentle soothing massage.",
+        durationMinutes: 60,
+        durationText: "60 mins",
+        price: 800,
+        priceLabel: "₱800",
+        packagePax: null,
+        packageDurationText: null,
+        requiresConsultation: false,
+        badges: ["Popular"],
+        inclusions: ["Full body massage", "Aromatherapy"],
+        isCatalogOnly: false,
+        availableInSpa: true,
+        availableHomeService: true,
+        imageUrl: SPA_IMAGES.hero,
+        imageAlt: "Swedish Massage",
+        isPublicBookable: true,
+        isCsrOnly: false,
+        isVip: false,
+      },
+      {
+        id: "srv-csr-only",
+        name: "Private Internal VIP Retainer",
+        categoryName: "Packages",
+        categoryOrder: 2,
+        subcategory: "Packages",
+        description: "Staff internal CSR service.",
+        shortDescription: "Staff internal CSR service.",
+        durationMinutes: 120,
+        durationText: "120 mins",
+        price: 5000,
+        priceLabel: "₱5,000",
+        packagePax: null,
+        packageDurationText: null,
+        requiresConsultation: false,
+        badges: [],
+        inclusions: [],
+        isCatalogOnly: false,
+        availableInSpa: true,
+        availableHomeService: false,
+        imageUrl: SPA_IMAGES.hero,
+        imageAlt: "Internal Service",
+        isPublicBookable: true,
+        isCsrOnly: true,
+        isVip: false,
+      },
+      {
+        id: "srv-vip-hidden",
+        name: "Secret Celebrity Suite Treatment",
+        categoryName: "Signature Packages",
+        categoryOrder: 3,
+        subcategory: "Signature",
+        description: "Hidden VIP treatment not for public display.",
+        shortDescription: "Hidden VIP treatment not for public display.",
+        durationMinutes: 180,
+        durationText: "180 mins",
+        price: 10000,
+        priceLabel: "₱10,000",
+        packagePax: null,
+        packageDurationText: null,
+        requiresConsultation: false,
+        badges: [],
+        inclusions: [],
+        isCatalogOnly: false,
+        availableInSpa: true,
+        availableHomeService: false,
+        imageUrl: SPA_IMAGES.hero,
+        imageAlt: "VIP Service",
+        isPublicBookable: true,
+        isCsrOnly: false,
+        isVip: true,
+      },
+      {
+        id: "srv-non-public-bookable",
+        name: "Archived Seasonal Promo",
+        categoryName: "Massage & Bodywork",
+        categoryOrder: 1,
+        subcategory: "Massage",
+        description: "Unlisted inactive service.",
+        shortDescription: "Unlisted inactive service.",
+        durationMinutes: 45,
+        durationText: "45 mins",
+        price: 600,
+        priceLabel: "₱600",
+        packagePax: null,
+        packageDurationText: null,
+        requiresConsultation: false,
+        badges: [],
+        inclusions: [],
+        isCatalogOnly: true,
+        availableInSpa: false,
+        availableHomeService: false,
+        imageUrl: SPA_IMAGES.hero,
+        imageAlt: "Archived Promo",
+        isPublicBookable: false,
+        isCsrOnly: false,
+        isVip: false,
+      },
+    ];
+
+    it("filters out CSR-only, VIP, and non-public-bookable services when supplied through props", async () => {
+      const publicMobileComponent = await PublicMobileHome({
+        services: mockServices,
+        branches: [],
+      });
+
+      render(publicMobileComponent);
+
+      // Public-bookable service MUST be present
+      expect(screen.getByText("Swedish Relaxation Massage")).toBeDefined();
+
+      // CSR-only service MUST be excluded
+      expect(screen.queryByText("Private Internal VIP Retainer")).toBeNull();
+
+      // VIP/hidden service MUST be excluded
+      expect(screen.queryByText("Secret Celebrity Suite Treatment")).toBeNull();
+
+      // Non-public bookable service MUST be excluded
+      expect(screen.queryByText("Archived Seasonal Promo")).toBeNull();
     });
   });
 });

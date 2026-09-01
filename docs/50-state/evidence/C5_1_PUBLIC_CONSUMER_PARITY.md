@@ -1,4 +1,4 @@
-# C5.1 Public Consumer Parity & Component Grounding Evidence Report
+# C5.1 Public Consumer Parity & Component Grounding Evidence Report (Corrected)
 
 - **Date:** 2026-09-01
 - **Program:** Controlled Stabilization
@@ -7,15 +7,20 @@
 - **Accepted Base SHA:** `d7958594e9d7369791acd29277c92a8eabf6bac3`
 - **Branch:** `stage/c5-1-public-consumer-parity`
 - **Governance Ref:** `docs/11-DECISION-LOG.md` (`GOV-020`)
-- **Status:** IMPLEMENTED / QUALITY GATES PASSED / READY FOR INDEPENDENT REVIEW
+- **Status:** CORRECTED / QUALITY GATES PASSED / AWAITING INDEPENDENT REVIEW
 
 ---
 
-## 1. Executive Summary
+## 1. Executive Summary & Objective
 
-C5 Pass 1 resolves the core public consumer divergence diagnosed in C2 (`MKT-001`) and planned in C4. Prior to C5.1, desktop public rendering consumed managed section data (`public_site_sections`) via `HomePageSections`, while mobile public rendering (`PublicMobileHome` and `MobileHomeHeroCarousel`) rendered hardcoded, static text.
+C5 Pass 1 establishes single-source canonical presentation parity between desktop and mobile public homepages, resolves the core public consumer divergence diagnosed in C2 (`MKT-001`), and prepares components for future in-memory Marketing Studio preview without modifying database schemas or applying migrations.
 
-C5 Pass 1 establishes single-source canonical parity across desktop and mobile, extracts typed presentational adapters, and isolates presentation components from direct database access so that future Marketing Studio preview rails can render real components in-memory with draft data.
+Following independent review feedback, this corrected pass:
+1. Restores strict public-service safety filtering (`isPublicBookable && !isCsrOnly && !isVip`) in `PublicMobileHome` across both prop-supplied and fallback paths.
+2. Restores exact pre-C5 desktop Quote Banner fallback semantics (default `ctaLabel = ""` so no CTA is invented when unconfigured).
+3. Aligns `MobileFinalCta` to strictly honor canonical normalized `quoteBanner` props without inventing text through `||` fallbacks.
+4. Removes speculative `.catch(() => [])` root query error swallowing in `src/app/page.tsx`.
+5. Accurately documents structural query consolidation without claiming unmeasured performance improvements.
 
 ---
 
@@ -33,44 +38,37 @@ C5 Pass 1 establishes single-source canonical parity across desktop and mobile, 
 
 ---
 
-## 3. Architecture & Implementation Summary
+## 3. Architecture & Corrections Applied
 
 ### 3.1 Normalized Presentation Adapter (`src/lib/public/normalized-sections.ts`)
-Creates typed presentation interfaces:
-- `NormalizedHeroSection`: title, subtitle, ctaLabel, ctaHref, imageUrl, secondaryImageUrl, secondaryCtaLabel, secondaryCtaHref, brandEyebrow, isEnabled.
-- `NormalizedAboutSection`: title, subtitle, body, paragraphs, imageUrl, secondaryImageUrl, isEnabled.
-- `NormalizedQuoteBannerSection`: title, subtitle, body, ctaLabel, ctaHref, imageUrl, isEnabled.
-- `NormalizedBeforeYouBookSection`: title, subtitle, body, items, isEnabled.
-- `NormalizedSignatureServicesSection`: title, subtitle, body, isVisible.
-- `NormalizedGallerySection`: isVisible.
-- `resolvePublicSiteSections(sections)`: Pure deterministic resolver that applies canonical defaults for any omitted or empty fields and respects `is_enabled: false` visibility flags.
+- **Hero:** Resolves `title`, `subtitle`, `ctaLabel`, `ctaHref`, `imageUrl`, `secondaryImageUrl`, `secondaryCtaLabel`, `secondaryCtaHref`, `brandEyebrow`, and `isEnabled`.
+- **About:** Resolves `title`, `subtitle`, `body`, `paragraphs`, `imageUrl`, `secondaryImageUrl`, and `isEnabled`.
+- **Quote Banner:** Resolves `title`, `subtitle`, `body` (default `""`), `ctaLabel` (default `""`), `ctaHref` (`"/book"`), `imageUrl`, and `isEnabled`. Absence of configured CTA or body produces empty strings and does not invent text.
+- **Before You Book:** Resolves `title`, `subtitle`, `body`, `items`, and `isEnabled`.
+- **Signature Services & Gallery:** Resolves visibility flags `isVisible`.
 
-### 3.2 Mobile Public Grounding (`src/components/public/mobile/`)
-- **`MobileHomeHeroCarousel` (`mobile-home-hero-carousel.tsx`):**
-  - Consumes `NormalizedHeroSection` directly.
-  - Dynamically renders canonical title, subtitle, primary CTA label & href, secondary CTA label & href, and brand eyebrow.
-  - Uses managed `hero.imageUrl` for Slide 1 with fallback to `SPA_IMAGES.heroMobile`.
-  - Preserves ambient multi-slide carousel background visuals (Slide 2 `SPA_IMAGES.heroWide`, Slide 3 `SPA_IMAGES.heroAmbience`).
-  - Returns `null` when `hero.isEnabled === false`, matching desktop visibility gating.
-- **`MobileFinalCta` (`mobile-final-cta.tsx`):**
-  - Consumes `NormalizedQuoteBannerSection`.
-  - Dynamically renders quote banner title, body, and CTA label & href with fallback to calm defaults.
-  - Returns `null` when `quoteBanner.isEnabled === false`.
-- **`PublicMobileHome` (`public-mobile-home.tsx`):**
-  - Accepts `branches`, `services`, and `sections: NormalizedPublicSiteSections` props.
-  - Passes canonical `hero` and `quoteBanner` data to presentational subcomponents without performing internal database queries.
-- **`MobileScrollEffects` (`mobile-scroll-effects.tsx`):**
-  - Added defensive browser checks for `window.matchMedia` and `IntersectionObserver`.
+### 3.2 Public Service Filtering Safety (`src/components/public/mobile/public-mobile-home.tsx`)
+- Defines `isPublicSafeService = (s) => Boolean(s.isPublicBookable && !s.isCsrOnly && !s.isVip)`.
+- Filters services regardless of whether they are supplied via props from `HomePage` or fetched through the compatibility fallback.
+- Guarantees CSR-only, VIP/hidden, and non-public-bookable services are never forwarded to `MobileCalmCategories`, `MobileMostLovedTreatments`, or `MobileSignatureRituals`.
 
-### 3.3 Desktop Public Grounding (`src/components/public/home-page-sections.tsx`)
-- Standardized `HomePageSections` to accept `sections?: NormalizedPublicSiteSections` and `services?: PublicCatalogService[]`.
-- Eliminated redundant inline section parsers and replaced them with `resolvePublicSiteSections`.
-- Preserved 100% desktop visual hierarchy, layout, styling, and typography.
+### 3.3 Mobile Final CTA Parity (`src/components/public/mobile/mobile-final-cta.tsx`)
+- When `quoteBanner` prop is supplied:
+  - `isEnabled === false` returns `null`.
+  - Renders `quoteBanner.title`, `quoteBanner.subtitle`, `quoteBanner.imageUrl`.
+  - `quoteBanner.body` is rendered only if non-empty (`body ? <p>{body}</p> : null`).
+  - `quoteBanner.ctaLabel` is rendered only if non-empty (`ctaLabel ? <Link>{ctaLabel}</Link> : null`).
+  - Does NOT convert empty strings into fallback text.
+- Standalone fallback copy is used only when the entire `quoteBanner` prop is omitted.
 
-### 3.4 Root Public Page Integration (`src/app/page.tsx`)
-- Concurrently fetches `getPublicBranches()`, `getPublicServiceCatalog()`, and `getPublicSiteSections({ includeDisabled: true })`.
-- Resolves `normalizedSections = resolvePublicSiteSections(managedSections)`.
-- Passes the same resolved data to both `<PublicMobileHome />` and `<HomePageSections />`, guaranteeing single-source consumer parity.
+### 3.4 Query Error Semantics Preservation (`src/app/page.tsx`)
+- Removed `.catch(() => [])` wrappers from `getPublicServiceCatalog()` and `getPublicSiteSections({ includeDisabled: true })`.
+- Standard Next.js server component query semantics preserved.
+
+### 3.5 Component Grounding & Query Consolidation Clarification
+- The root homepage supplies normalized data so the normal homepage render does not require duplicate component-level queries.
+- Compatibility fallback querying remains inside standalone components if props are omitted.
+- Query consolidation alters structural component data flow; no measured latency or throughput claims are made as no live benchmark was executed.
 
 ---
 
@@ -78,8 +76,8 @@ Creates typed presentation interfaces:
 
 ### 4.1 Automated Test Suite
 - **Command:** `pnpm vitest run`
-- **Result:** 201 test files passed, 1380 tests passed, 0 failures.
-- **New Test Suite:** `tests/lib/marketing/public-consumer-parity.test.tsx` (8 unit & component tests covering canonical resolution, custom field mapping, visibility gating, and component prop grounding).
+- **Result:** 201 test files passed, 1384 tests passed, 0 failures.
+- **Unit & Contract Coverage:** `tests/lib/marketing/public-consumer-parity.test.tsx` (12 tests covering canonical resolution, quote banner empty/custom CTA semantics, hero grounding and ambient slides, visibility gating, and mixed-catalog service filtering).
 
 ### 4.2 TypeScript Type-Check
 - **Command:** `pnpm type-check` (`tsc --noEmit`)
@@ -90,8 +88,8 @@ Creates typed presentation interfaces:
 - **Result:** 0 errors, 0 warnings (Exit code 0).
 
 ### 4.4 Code Formatting
-- **Command:** `pnpm format:check`
-- **Result:** All incremental files compliant with Prettier.
+- **Command:** `npx prettier --check` on authorized files
+- **Result:** 100% compliant with Prettier.
 
 ### 4.5 Production Build
 - **Command:** `pnpm build` (`next build`)
@@ -99,30 +97,41 @@ Creates typed presentation interfaces:
 
 ### 4.6 Diff Check
 - **Command:** `git diff --check`
-- **Result:** Clean (no whitespace or conflict markers).
+- **Result:** Clean (no whitespace, CRLF, or merge conflict issues).
 
 ---
 
-## 5. File Inventory
+## 5. Responsive & Interaction QA Summary (Local Environment)
+
+- **Target:** Local Development Server (`http://localhost:3000/`)
+- **Evaluated Viewports:**
+  - `320px`: Mobile hero title wraps cleanly without horizontal overflow; CTAs stack cleanly; touch targets $\ge 48\text{px}$.
+  - `375px`: Hero carousel displays canonical managed hero title & copy on Slide 1; ambient multi-slide carousel indicators functional; service categories and Final CTA render with no clipping.
+  - `414px`: Fluid padding and typography layout adapt cleanly.
+  - `768px`: Tablet breakpoint transitions smoothly from mobile layout to desktop view.
+  - `1280px`: Desktop homepage displays full hero typography, philosophy section, service category cards, Quote Banner without invented CTA, Why Guests Choose Cradle grid, and FAQ accordion.
+- **Console Health:** Zero runtime exceptions or unhandled promise rejections on root render.
+
+---
+
+## 6. File Inventory
 
 | File | Type | Purpose |
 |---|---|---|
 | `src/lib/public/normalized-sections.ts` | NEW | Typed presentation models & deterministic section normalizer |
 | `src/components/public/mobile/mobile-home-hero-carousel.tsx` | MODIFIED | Grounded mobile hero to consume canonical Hero data |
-| `src/components/public/mobile/mobile-final-cta.tsx` | MODIFIED | Grounded mobile final CTA to consume quote banner data |
+| `src/components/public/mobile/mobile-final-cta.tsx` | MODIFIED | Grounded mobile final CTA to exact quoteBanner semantics |
 | `src/components/public/mobile/mobile-scroll-effects.tsx` | MODIFIED | Defensive checks for window.matchMedia & IntersectionObserver |
-| `src/components/public/mobile/public-mobile-home.tsx` | MODIFIED | Prop acceptance for canonical sections & services |
+| `src/components/public/mobile/public-mobile-home.tsx` | MODIFIED | Restored public-safe service filtering & prop acceptance |
 | `src/components/public/home-page-sections.tsx` | MODIFIED | Standardized desktop sections to use normalized adapter |
-| `src/app/page.tsx` | MODIFIED | Root public page single-source fetching & prop dispatch |
-| `tests/lib/marketing/public-consumer-parity.test.tsx` | NEW | Unit & component tests for consumer parity |
+| `src/app/page.tsx` | MODIFIED | Single-source root queries without broad error swallowing |
+| `tests/lib/marketing/public-consumer-parity.test.tsx` | NEW | Unit & contract tests for parity, fallback, and service safety |
 | `docs/50-state/evidence/C5_1_PUBLIC_CONSUMER_PARITY.md` | NEW | C5.1 implementation and verification evidence report |
 
 ---
 
-## 6. Stop Condition & Next Gate
+## 7. Status & Next Gate
 
-C5 Pass 1 implementation is complete, verified, and pushed to `stage/c5-1-public-consumer-parity`.
-In accordance with governance rules:
-- **DO NOT MERGE C5.1.**
-- **STOP AND AWAIT INDEPENDENT REVIEW & OWNER GATE.**
-- Later C5 passes (Passes 2–5) remain strictly NOT AUTHORIZED.
+- **C5 Pass 1 Status:** CORRECTED / AWAITING INDEPENDENT REVIEW
+- **C5 Pass 2+ Status:** STRICTLY NOT AUTHORIZED (Withheld pending owner gate)
+- **Branch Action:** Pushed to `stage/c5-1-public-consumer-parity`; **DO NOT MERGE**.

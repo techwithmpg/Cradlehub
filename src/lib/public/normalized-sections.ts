@@ -174,7 +174,7 @@ export function resolvePublicSiteSections(
     title: sectionText(quoteRow, "title", "Give yourself permission to pause."),
     subtitle: sectionText(quoteRow, "subtitle", "Pause Here"),
     body: sectionText(quoteRow, "body", ""),
-    ctaLabel: sectionText(quoteRow, "cta_label", "Book Appointment"),
+    ctaLabel: sectionText(quoteRow, "cta_label", ""),
     ctaHref: sectionText(quoteRow, "cta_href", "/book"),
     imageUrl: sectionText(quoteRow, "image_url", SPA_IMAGES.ctaBanner),
     isEnabled: isSectionEnabled("quote_banner", true),

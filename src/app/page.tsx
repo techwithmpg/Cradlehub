@@ -23,8 +23,8 @@ export const metadata: Metadata = buildMetadata({
 export default async function HomePage() {
   const [branches, services, managedSections, cookieStore] = await Promise.all([
     getPublicBranches(),
-    getPublicServiceCatalog().catch(() => []),
-    getPublicSiteSections({ includeDisabled: true }).catch(() => []),
+    getPublicServiceCatalog(),
+    getPublicSiteSections({ includeDisabled: true }),
     cookies(),
   ]);
   const hasSeenMobilePreloader = cookieStore.get(MOBILE_PRELOADER_COOKIE)?.value === "1";

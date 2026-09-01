@@ -38,17 +38,22 @@ export type PublicMobileHomeProps = {
   sections?: NormalizedPublicSiteSections;
 };
 
+const isPublicSafeService = (s: PublicCatalogService) =>
+  Boolean(s.isPublicBookable && !s.isCsrOnly && !s.isVip);
+
 export async function PublicMobileHome({
   branches = [],
   services: initialServices,
   managedSections,
   sections: initialSections,
 }: PublicMobileHomeProps) {
-  let services: PublicCatalogService[] = initialServices ?? [];
-  if (!initialServices) {
+  let services: PublicCatalogService[] = [];
+  if (initialServices) {
+    services = initialServices.filter(isPublicSafeService);
+  } else {
     try {
       const all = await getPublicServiceCatalog();
-      services = all.filter((s) => s.isPublicBookable && !s.isCsrOnly && !s.isVip);
+      services = all.filter(isPublicSafeService);
     } catch {
       // non-fatal — section hidden when data unavailable
     }
