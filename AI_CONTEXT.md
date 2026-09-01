@@ -12,10 +12,12 @@
 - C0B status: **CLOSED / ACCEPTED**
 - C1 accepted truth consolidation merge SHA: `3f402e033e1d1ca05b8cc8a4f2764823f7aaa622`
 - C1 status: **CLOSED / ACCEPTED**
+- C2 accepted diagnostics merge SHA: `694873dfe9b9572a56620951bb69024492fe04c0`
+- C2 status: **CLOSED / ACCEPTED**
 - Last governance closeout verification: 2026-09-01
-- Current stage: **C2 — Structured Diagnostics (Digital Marketing Workspace)**
-- C2 status: **INDEPENDENT REVIEW PASS / OWNER ACCEPTED / MERGE GATE IN PROGRESS**
-- Next stage: **C3 — AUTHORIZED AFTER ACCEPTED C2 MERGE / SCOPE FREEZE ONLY**
+- Current stage: **C3 — Scope Freeze (Digital Marketing Workspace)**
+- C3 status: **ACTIVE / SCOPE FREEZE ONLY**
+- Next stage: **C4 — NOT AUTHORIZED**
 
 The recorded SHAs are stable closeout anchors, not declarations of the current `main` head. At the start of every session, fetch and re-resolve `origin/main`; inspect newer accepted work rather than recreating an older state.
 
@@ -57,7 +59,7 @@ The recorded SHAs are stable closeout anchors, not declarations of the current `
 
 ## Current authorization
 
-C0B and C1 are closed and accepted. C2 Structured Diagnostics for the Digital Marketing Workspace delivered `docs/audits/C2_MARKETING_STRUCTURED_DIAGNOSTICS_REPORT.md` and achieved independent review PASS and owner acceptance. C2 merge gate is in progress. Conditioned on successful C2 merge into main, C3 Scope Freeze is authorized for the Digital Marketing Workspace using the five-module structure: (1) Website, (2) Brand, (3) Branches, (4) Services, (5) Media Library, with Drafts and Settings as secondary navigation and contextual SEO. Writable and read-only field-level boundaries, existing `--cs-*` marketing theme tokens, draft-first workflow, and Owner-only approval/publishing boundaries remain strictly enforced. C4 design implementation and C5+ coding are NOT AUTHORIZED.
+C0B, C1, and C2 are closed and accepted. C2 diagnostics was merged into main at `694873dfe9b9572a56620951bb69024492fe04c0`. C3 Scope Freeze is active for the Digital Marketing Workspace using the five-module structure: (1) Website, (2) Brand, (3) Branches, (4) Services, (5) Media Library, with Drafts and Settings as secondary navigation and contextual SEO. Writable and read-only field-level boundaries, existing `--cs-*` marketing theme tokens, draft-first workflow, and Owner-only approval/publishing boundaries remain strictly enforced. C3 is documentation and scope freeze only. C4 design implementation and C5+ coding are NOT AUTHORIZED.
 
 ## Historical context policy
 
