@@ -1,7 +1,7 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
-import { updateBrandSettingOwner } from "@/lib/queries/marketing-brand";
+import { updateBrandSettingsBatchOwner } from "@/lib/queries/marketing-brand";
 
 export async function updateBrandSettingAction(
   _prevState: { success: boolean; message?: string; error?: string },
@@ -18,43 +18,64 @@ export async function updateBrandSettingAction(
   const taglineText = formData.get("taglineText")?.toString() || "";
   const taglineSubtext = formData.get("taglineSubtext")?.toString() || "";
 
-  try {
-    // Update individual setting keys in marketing_brand_settings
-    await Promise.all([
-      updateBrandSettingOwner("header_logo", "Header Logo", {
+  const batchPayload = [
+    {
+      settingKey: "header_logo",
+      label: "Header Logo",
+      value: {
         url: headerLogoUrl,
         alt: headerLogoAlt,
-        variant: "dark",
-      }),
-      updateBrandSettingOwner("footer_logo", "Footer Logo", {
+        variant: "dark" as const,
+      },
+    },
+    {
+      settingKey: "footer_logo",
+      label: "Footer Logo",
+      value: {
         url: footerLogoUrl,
         alt: footerLogoAlt,
-        variant: "dark",
-      }),
-      updateBrandSettingOwner("brand_mark", "Brand Mark", {
+        variant: "dark" as const,
+      },
+    },
+    {
+      settingKey: "brand_mark",
+      label: "Brand Mark",
+      value: {
         url: brandMarkUrl,
         alt: brandMarkAlt,
-        variant: "dark",
-      }),
-      updateBrandSettingOwner("site_icon", "Site Icon", {
+        variant: "dark" as const,
+      },
+    },
+    {
+      settingKey: "site_icon",
+      label: "Site Icon",
+      value: {
         url: siteIconUrl,
         alt: siteIconAlt,
-      }),
-      updateBrandSettingOwner("brand_tagline", "Brand Tagline & Mission", {
+      },
+    },
+    {
+      settingKey: "brand_tagline",
+      label: "Brand Tagline & Mission",
+      value: {
         text: taglineText,
         subtext: taglineSubtext,
-      }),
-    ]);
+      },
+    },
+  ];
 
-    revalidatePath("/marketing");
-    revalidatePath("/owner/marketing");
-    revalidatePath("/");
-
-    return { success: true, message: "Brand identity settings published live." };
-  } catch (err) {
+  const result = await updateBrandSettingsBatchOwner(batchPayload);
+  if (!result.success) {
     return {
       success: false,
-      error: err instanceof Error ? err.message : "Failed to publish brand settings.",
+      error: result.error ?? "Failed to publish brand settings live.",
     };
   }
+
+  revalidatePath("/marketing");
+  revalidatePath("/owner/marketing");
+  revalidatePath("/(public)", "layout");
+  revalidatePath("/");
+
+  return { success: true, message: "Brand identity settings published live." };
 }

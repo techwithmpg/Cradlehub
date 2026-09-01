@@ -296,7 +296,9 @@ export async function getMarketingMediaUsageContext(): Promise<MediaUsageContext
       id: b.id,
       name: b.name,
       location_metadata:
-        b.location_metadata && typeof b.location_metadata === "object" && !Array.isArray(b.location_metadata)
+        b.location_metadata &&
+        typeof b.location_metadata === "object" &&
+        !Array.isArray(b.location_metadata)
           ? (b.location_metadata as Record<string, unknown>)
           : null,
       is_active: b.is_active,

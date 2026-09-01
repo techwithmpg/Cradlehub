@@ -8,6 +8,7 @@ export type MediaAssetUsageConsumerType =
   | "draft"
   | "service"
   | "brand"
+  | "branch"
   | "seo"
   | "other";
 

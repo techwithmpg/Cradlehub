@@ -24,10 +24,9 @@ type SupabaseServerClient = Awaited<ReturnType<typeof createClient>>;
 type SupabaseAdminClient = ReturnType<typeof createAdminClient>;
 type SupabaseReadClient = SupabaseServerClient | SupabaseAdminClient;
 
-export type ServiceProfileRow =
-  Database["public"]["Tables"]["services"]["Row"] & {
-    service_categories: { id: string; name: string } | null;
-  };
+export type ServiceProfileRow = Database["public"]["Tables"]["services"]["Row"] & {
+  service_categories: { id: string; name: string } | null;
+};
 
 export type BranchServiceCatalogOptions = {
   audience?: ServiceAudience;
@@ -380,10 +379,7 @@ export async function validateBranchServiceEligibility(input: {
   const client = await resolveClient(input.useAdminClient);
   const [rules, servicesResult, branchRows] = await Promise.all([
     getBranchBookingRulesOrDefault(input.branchId),
-    client
-      .from("services")
-      .select("id, is_active")
-      .in("id", uniqueServiceIds),
+    client.from("services").select("id, is_active").in("id", uniqueServiceIds),
     queryBranchServices(client, input.branchId, true),
   ]);
 
@@ -394,13 +390,8 @@ export async function validateBranchServiceEligibility(input: {
       (service) => [service.id, service]
     )
   );
-  const branchRowsByServiceId = new Map(
-    branchRows.map((row) => [row.service_id, row])
-  );
-  const results: Record<
-    string,
-    ReturnType<typeof validatePureBranchServiceEligibility>
-  > = {};
+  const branchRowsByServiceId = new Map(branchRows.map((row) => [row.service_id, row]));
+  const results: Record<string, ReturnType<typeof validatePureBranchServiceEligibility>> = {};
 
   for (const serviceId of uniqueServiceIds) {
     results[serviceId] = validatePureBranchServiceEligibility({
@@ -523,14 +514,10 @@ export function branchServicesToServiceProfileRows(
     rows.push({
       ...service,
       name: branchService.public_title?.trim() || service.name,
-      description:
-        branchService.public_description?.trim() || service.description,
-      duration_minutes:
-        branchService.custom_duration_minutes ?? service.duration_minutes,
+      description: branchService.public_description?.trim() || service.description,
+      duration_minutes: branchService.custom_duration_minutes ?? service.duration_minutes,
       price: branchService.custom_price ?? service.price,
-      service_categories: category
-        ? { id: category.id, name: category.name }
-        : null,
+      service_categories: category ? { id: category.id, name: category.name } : null,
     } as unknown as ServiceProfileRow);
   }
 

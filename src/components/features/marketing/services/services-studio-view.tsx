@@ -1,6 +1,6 @@
 "use client";
 
-import { useActionState, useMemo, useState } from "react";
+import { useActionState, useEffect, useMemo, useState } from "react";
 import Image from "next/image";
 import {
   AlertCircle,
@@ -78,8 +78,23 @@ export function ServicesStudioView({
 
   const [selectedCategory, setSelectedCategory] = useState("All");
   const [searchQuery, setSearchQuery] = useState("");
-  const [selectedServiceId, setSelectedServiceId] = useState<string>(
-    services[0]?.id || ""
+  const [selectedServiceId, setSelectedServiceId] = useState<string>(services[0]?.id || "");
+
+  const initialNoticeState: { success: boolean; message?: string; error?: string } = {
+    success: true,
+  };
+
+  const [saveState, saveAction, isSaving] = useActionState(
+    saveMarketingDraftAction,
+    initialNoticeState
+  );
+  const [submitState, submitAction, isSubmitting] = useActionState(
+    submitMarketingDraftAction,
+    initialNoticeState
+  );
+  const [ownerUpdateState, ownerUpdateAction, isOwnerUpdating] = useActionState(
+    updateServicePresentationAction,
+    initialNoticeState
   );
 
   // Filtered service list
@@ -96,22 +111,32 @@ export function ServicesStudioView({
 
   const currentService = useMemo(() => {
     return (
-      filteredServices.find((s) => s.id === selectedServiceId) ||
-      filteredServices[0] ||
-      services[0]
+      filteredServices.find((s) => s.id === selectedServiceId) || filteredServices[0] || services[0]
     );
   }, [filteredServices, selectedServiceId, services]);
 
   // Find active draft for selected service
   const activeServiceDraft = useMemo(() => {
     if (!currentService) return undefined;
+    const draftFromAction =
+      (saveState?.success && (saveState as { draft?: MarketingContentDraftRow }).draft) ||
+      (submitState?.success && (submitState as { draft?: MarketingContentDraftRow }).draft);
+
+    if (
+      draftFromAction &&
+      draftFromAction.content_key === currentService.id &&
+      ["draft", "submitted", "changes_requested"].includes(draftFromAction.status)
+    ) {
+      return draftFromAction;
+    }
+
     return drafts.find(
       (d) =>
         d.content_type === "service" &&
         d.content_key === currentService.id &&
         ["draft", "submitted", "changes_requested"].includes(d.status)
     );
-  }, [drafts, currentService]);
+  }, [drafts, currentService, saveState, submitState]);
 
   // Initial values
   const initialValues: ServiceFormValues = useMemo(() => {
@@ -130,13 +155,18 @@ export function ServicesStudioView({
       const meta = activeServiceDraft.metadata as Record<string, unknown>;
       return {
         imageUrl: activeServiceDraft.image_url || currentService.imageUrl || "",
-        imageAlt: activeServiceDraft.alt_text || currentService.imageAlt || `${currentService.name} service`,
+        imageAlt:
+          activeServiceDraft.alt_text ||
+          currentService.imageAlt ||
+          `${currentService.name} service`,
         description: activeServiceDraft.body || currentService.description || "",
         shortDescription:
           (typeof meta.shortDescription === "string" && meta.shortDescription) ||
           currentService.shortDescription ||
           "",
-        badges: Array.isArray(meta.badges) ? (meta.badges as string[]) : currentService.badges || [],
+        badges: Array.isArray(meta.badges)
+          ? (meta.badges as string[])
+          : currentService.badges || [],
         inclusions: Array.isArray(meta.inclusions)
           ? (meta.inclusions as string[])
           : currentService.inclusions || [],
@@ -176,12 +206,6 @@ export function ServicesStudioView({
   const isDirty = useMemo(() => {
     return JSON.stringify(formValues) !== JSON.stringify(initialValues);
   }, [formValues, initialValues]);
-
-  const initialNoticeState: { success: boolean; message?: string; error?: string } = { success: true };
-
-  const [saveState, saveAction, isSaving] = useActionState(saveMarketingDraftAction, initialNoticeState);
-  const [submitState, submitAction, isSubmitting] = useActionState(submitMarketingDraftAction, initialNoticeState);
-  const [ownerUpdateState, ownerUpdateAction, isOwnerUpdating] = useActionState(updateServicePresentationAction, initialNoticeState);
 
   const handleAddBadge = () => {
     if (!newBadgeText.trim()) return;
@@ -411,11 +435,15 @@ export function ServicesStudioView({
                   Service Copy & Details
                 </label>
                 <div>
-                  <span className="text-[11px] text-[#9AA89A]">Short Description (Cards & Mobile)</span>
+                  <span className="text-[11px] text-[#9AA89A]">
+                    Short Description (Cards & Mobile)
+                  </span>
                   <textarea
                     rows={2}
                     value={formValues.shortDescription}
-                    onChange={(e) => setFormValues((p) => ({ ...p, shortDescription: e.target.value }))}
+                    onChange={(e) =>
+                      setFormValues((p) => ({ ...p, shortDescription: e.target.value }))
+                    }
                     placeholder="Brief highlights of this therapy..."
                     className="mt-1 w-full rounded-lg border border-white/10 bg-[#061410] px-3 py-1.5 text-xs text-[#F6EBD6] focus:border-[#C8A96B] focus:outline-none"
                   />
@@ -473,6 +501,47 @@ export function ServicesStudioView({
                 </div>
               </div>
 
+              {/* Inclusions Manager */}
+              <div className="space-y-2 rounded-xl border border-white/5 bg-white/[0.02] p-3">
+                <label className="text-xs font-semibold uppercase tracking-wider text-[#C8A96B]">
+                  Service Inclusions
+                </label>
+                <div className="flex flex-wrap gap-1.5">
+                  {formValues.inclusions.map((inclusion, idx) => (
+                    <span
+                      key={idx}
+                      className="inline-flex items-center gap-1 rounded-full border border-white/20 bg-[#061410] px-2.5 py-0.5 text-[11px] text-[#F6EBD6]"
+                    >
+                      {inclusion}
+                      <button
+                        type="button"
+                        onClick={() => handleRemoveInclusion(idx)}
+                        className="text-red-400 hover:text-red-300"
+                        aria-label={`Remove inclusion ${inclusion}`}
+                      >
+                        &times;
+                      </button>
+                    </span>
+                  ))}
+                </div>
+                <div className="flex gap-2 pt-1">
+                  <input
+                    type="text"
+                    value={newInclusionText}
+                    onChange={(e) => setNewInclusionText(e.target.value)}
+                    placeholder="e.g. Aromatherapy oils, Hot towel"
+                    className="flex-1 rounded-lg border border-white/10 bg-[#061410] px-3 py-1.5 text-xs text-[#F6EBD6] focus:border-[#C8A96B] focus:outline-none"
+                  />
+                  <button
+                    type="button"
+                    onClick={handleAddInclusion}
+                    className="rounded-lg bg-[#163A2B] px-3 py-1.5 text-xs text-[#F6EBD6] hover:bg-[#1D4A35]"
+                  >
+                    Add
+                  </button>
+                </div>
+              </div>
+
               {/* Action Buttons */}
               <div className="flex flex-wrap items-center justify-between gap-2 border-t border-white/10 pt-3">
                 <button
@@ -512,15 +581,43 @@ export function ServicesStudioView({
                     </button>
                   </form>
 
+                  {/* Submit for Review (Marketer / Owner) */}
+                  {activeServiceDraft &&
+                    ["draft", "changes_requested"].includes(activeServiceDraft.status) && (
+                      <form action={submitAction}>
+                        <input type="hidden" name="id" value={activeServiceDraft.id} />
+                        <button
+                          type="submit"
+                          disabled={isSubmitting}
+                          className="inline-flex items-center gap-1.5 rounded-lg bg-[#C8A96B] px-3 py-1.5 text-xs font-semibold text-[#10261D] hover:bg-[#D4B57A] disabled:opacity-50"
+                        >
+                          <Send className="h-3.5 w-3.5" />
+                          {isSubmitting ? "Submitting..." : "Submit for Review"}
+                        </button>
+                      </form>
+                    )}
+
                   {role === "owner" && (
                     <form action={ownerUpdateAction}>
                       <input type="hidden" name="serviceId" value={currentService.id} />
                       <input type="hidden" name="imageUrl" value={formValues.imageUrl} />
                       <input type="hidden" name="imageAlt" value={formValues.imageAlt} />
                       <input type="hidden" name="description" value={formValues.description} />
-                      <input type="hidden" name="shortDescription" value={formValues.shortDescription} />
-                      <input type="hidden" name="badges" value={JSON.stringify(formValues.badges)} />
-                      <input type="hidden" name="inclusions" value={JSON.stringify(formValues.inclusions)} />
+                      <input
+                        type="hidden"
+                        name="shortDescription"
+                        value={formValues.shortDescription}
+                      />
+                      <input
+                        type="hidden"
+                        name="badges"
+                        value={JSON.stringify(formValues.badges)}
+                      />
+                      <input
+                        type="hidden"
+                        name="inclusions"
+                        value={JSON.stringify(formValues.inclusions)}
+                      />
                       <button
                         type="submit"
                         disabled={isOwnerUpdating}
@@ -587,12 +684,16 @@ export function ServicesStudioView({
                       <p className="text-sm font-bold text-[#C8A96B]">
                         {formatCurrency(currentService.price)}
                       </p>
-                      <p className="text-[10px] text-[#9AA89A]">{currentService.durationMinutes} min</p>
+                      <p className="text-[10px] text-[#9AA89A]">
+                        {currentService.durationMinutes} min
+                      </p>
                     </div>
                   </div>
 
                   <p className="text-xs text-[#9AA89A] line-clamp-2">
-                    {formValues.shortDescription || formValues.description || "A Cradle wellness treatment."}
+                    {formValues.shortDescription ||
+                      formValues.description ||
+                      "A Cradle wellness treatment."}
                   </p>
 
                   <div className="flex items-center justify-between pt-2 border-t border-white/5 text-[11px]">
@@ -600,8 +701,8 @@ export function ServicesStudioView({
                       {currentService.availableInSpa && currentService.availableHomeService
                         ? "In-Spa & Home Service"
                         : currentService.availableInSpa
-                        ? "In-Spa Only"
-                        : "Home Service Only"}
+                          ? "In-Spa Only"
+                          : "Home Service Only"}
                     </span>
                     <span className="rounded-full border border-[#C8A96B]/40 px-2.5 py-0.5 text-[10px] font-medium text-[#C8A96B]">
                       Book Service
@@ -616,18 +717,24 @@ export function ServicesStudioView({
                   <span className="font-semibold text-[#C8A96B]">Mobile Public Filtering:</span>
                   <span
                     className={`rounded-full px-2 py-0.5 text-[10px] font-medium ${
-                      currentService.isPublicBookable && !currentService.isCsrOnly && !currentService.isVip
+                      currentService.isPublicBookable &&
+                      !currentService.isCsrOnly &&
+                      !currentService.isVip
                         ? "bg-emerald-500/20 text-emerald-300"
                         : "bg-amber-500/20 text-amber-300"
                     }`}
                   >
-                    {currentService.isPublicBookable && !currentService.isCsrOnly && !currentService.isVip
+                    {currentService.isPublicBookable &&
+                    !currentService.isCsrOnly &&
+                    !currentService.isVip
                       ? "Eligible for Mobile Home"
                       : "Filtered from Mobile Home"}
                   </span>
                 </div>
                 <p className="text-[11px]">
-                  Invariant: <code className="text-[#F6EBD6]">isPublicBookable && !isCsrOnly && !isVip</code>. Booking semantics remain strictly operational.
+                  Invariant:{" "}
+                  <code className="text-[#F6EBD6]">isPublicBookable && !isCsrOnly && !isVip</code>.
+                  Booking semantics remain strictly operational.
                 </p>
               </div>
             </div>

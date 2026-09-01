@@ -5,27 +5,32 @@ import {
   getMarketingContentDrafts,
   getMarketingContentRevisions,
 } from "@/lib/queries/marketing-content";
-import {
-  getMarketingMediaAssets,
-  getMarketingMediaUsageMap,
-} from "@/lib/queries/marketing-media";
+import { getMarketingMediaAssets, getMarketingMediaUsageMap } from "@/lib/queries/marketing-media";
 import { getMarketingBrandSettings } from "@/lib/queries/marketing-brand";
 import { getPublicBranches } from "@/lib/queries/branches";
 import { getPublicServiceCatalog } from "@/lib/queries/services";
 import { MarketingStudio } from "./marketing-studio";
 
 export default async function MarketingStudioPage() {
-  const [sections, galleryAssets, drafts, revisions, mediaAssets, brandSettings, branches, services] =
-    await Promise.all([
-      getPublicSiteSections({ includeDisabled: true }),
-      getPublicSiteAssets("gallery", { includeDisabled: true }),
-      getMarketingContentDrafts(),
-      getMarketingContentRevisions(16),
-      getMarketingMediaAssets({ limit: 150 }),
-      getMarketingBrandSettings(),
-      getPublicBranches().catch(() => []),
-      getPublicServiceCatalog().catch(() => []),
-    ]);
+  const [
+    sections,
+    galleryAssets,
+    drafts,
+    revisions,
+    mediaAssets,
+    brandSettings,
+    branches,
+    services,
+  ] = await Promise.all([
+    getPublicSiteSections({ includeDisabled: true }),
+    getPublicSiteAssets("gallery", { includeDisabled: true }),
+    getMarketingContentDrafts(),
+    getMarketingContentRevisions(16),
+    getMarketingMediaAssets({ limit: 150 }),
+    getMarketingBrandSettings(),
+    getPublicBranches().catch(() => []),
+    getPublicServiceCatalog().catch(() => []),
+  ]);
 
   const mediaUsageMap = await getMarketingMediaUsageMap(mediaAssets);
 

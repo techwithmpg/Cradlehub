@@ -605,28 +605,182 @@ export async function publishMarketingContentDraft(
     return { success: false, error: existing.error.message };
   }
   if (!existing.data) return { success: false, error: "Draft not found." };
-  if (existing.data.content_type !== "section") {
-    return { success: false, error: "Only section drafts can publish to the homepage right now." };
-  }
   if (!["submitted", "approved", "scheduled"].includes(existing.data.status)) {
     return { success: false, error: "Submit or approve the draft before publishing." };
   }
 
-  const published = await updatePublicSiteSection({
-    sectionKey: existing.data.content_key,
-    title: existing.data.title ?? "",
-    subtitle: existing.data.subtitle ?? "",
-    body: existing.data.body ?? "",
-    ctaLabel: existing.data.cta_label ?? "",
-    ctaHref: existing.data.cta_href ?? "",
-    imageUrl: existing.data.image_url ?? "",
-    secondaryImageUrl: existing.data.secondary_image_url ?? "",
-    sortOrder: existing.data.sort_order,
-    isEnabled: existing.data.is_enabled,
-    metadata: existing.data.metadata,
-  });
+  let sourceSectionId: string | null = null;
 
-  if (!published.success) return { success: false, error: published.error };
+  if (existing.data.content_type === "brand") {
+    // Publish Brand draft to marketing_brand_settings
+    const meta =
+      existing.data.metadata &&
+      typeof existing.data.metadata === "object" &&
+      !Array.isArray(existing.data.metadata)
+        ? (existing.data.metadata as Record<string, unknown>)
+        : {};
+
+    const { updateBrandSettingsBatchOwner } = await import("@/lib/queries/marketing-brand");
+    const brandResult = await updateBrandSettingsBatchOwner([
+      {
+        settingKey: "header_logo",
+        label: "Header Logo",
+        value: {
+          url: (meta.headerLogoUrl as string) || existing.data.image_url || "",
+          alt: (meta.headerLogoAlt as string) || existing.data.alt_text || "Cradle Wellness Living",
+          variant: "dark" as const,
+        },
+      },
+      {
+        settingKey: "footer_logo",
+        label: "Footer Logo",
+        value: {
+          url: (meta.footerLogoUrl as string) || existing.data.secondary_image_url || "",
+          alt: (meta.footerLogoAlt as string) || "Cradle Wellness Living",
+          variant: "dark" as const,
+        },
+      },
+      {
+        settingKey: "brand_mark",
+        label: "Brand Mark",
+        value: {
+          url: (meta.brandMarkUrl as string) || "",
+          alt: (meta.brandMarkAlt as string) || "Cradle Brand Mark",
+          variant: "dark" as const,
+        },
+      },
+      {
+        settingKey: "site_icon",
+        label: "Site Icon",
+        value: {
+          url: (meta.siteIconUrl as string) || "/favicon.ico",
+          alt: (meta.siteIconAlt as string) || "Cradle Site Icon",
+        },
+      },
+      {
+        settingKey: "brand_tagline",
+        label: "Brand Tagline & Mission",
+        value: {
+          text:
+            (meta.taglineText as string) ||
+            existing.data.title ||
+            "A sanctuary of calm in Bacolod.",
+          subtext:
+            (meta.taglineSubtext as string) ||
+            existing.data.subtitle ||
+            "Experience genuine renewal with our certified massage therapists and calming atmosphere.",
+        },
+      },
+    ]);
+
+    if (!brandResult.success) {
+      return {
+        success: false,
+        error: brandResult.error ?? "Failed to publish brand settings live.",
+      };
+    }
+  } else if (existing.data.content_type === "service") {
+    // Publish Service presentation draft to services table
+    const serviceId = existing.data.content_key;
+    const meta =
+      existing.data.metadata &&
+      typeof existing.data.metadata === "object" &&
+      !Array.isArray(existing.data.metadata)
+        ? (existing.data.metadata as Record<string, unknown>)
+        : {};
+
+    const badges = Array.isArray(meta.badges) ? (meta.badges as string[]) : [];
+    const inclusions = Array.isArray(meta.inclusions) ? (meta.inclusions as string[]) : [];
+
+    const { updateServiceAction } = await import("@/app/(dashboard)/owner/services/actions");
+    const serviceResult = await updateServiceAction({
+      serviceId,
+      description: existing.data.body || undefined,
+      shortDescription: existing.data.subtitle || undefined,
+      imageUrl: existing.data.image_url || undefined,
+      badges,
+      inclusions,
+    });
+
+    if (!serviceResult.success) {
+      return {
+        success: false,
+        error: serviceResult.error ?? "Failed to publish service presentation live.",
+      };
+    }
+  } else if (
+    existing.data.content_type === "section" &&
+    existing.data.content_key.startsWith("branch_")
+  ) {
+    // Publish Branch presentation draft
+    const branchId = existing.data.content_key.replace("branch_", "");
+    const meta =
+      existing.data.metadata &&
+      typeof existing.data.metadata === "object" &&
+      !Array.isArray(existing.data.metadata)
+        ? (existing.data.metadata as Record<string, unknown>)
+        : {};
+
+    const { data: existingBranch } = await context.supabase
+      .from("branches")
+      .select("location_metadata")
+      .eq("id", branchId)
+      .maybeSingle();
+
+    const existingBranchMeta =
+      existingBranch?.location_metadata &&
+      typeof existingBranch.location_metadata === "object" &&
+      !Array.isArray(existingBranch.location_metadata)
+        ? (existingBranch.location_metadata as Record<string, unknown>)
+        : {};
+
+    const mergedLocationMetadata = {
+      ...existingBranchMeta,
+      image_url: existing.data.image_url || null,
+    };
+
+    const { updateBranchAction } = await import("@/app/(dashboard)/owner/branches/actions");
+    const branchResult = await updateBranchAction({
+      branchId,
+      phone: (meta.phone as string) || existing.data.cta_label || null,
+      email: (meta.email as string) || null,
+      fbPage: (meta.fbPage as string) || null,
+      messengerLink: (meta.messengerLink as string) || null,
+      openingHours: (meta.openingHours as string) || null,
+      mapsEmbedUrl: (meta.mapsEmbedUrl as string) || null,
+      locationMetadata: mergedLocationMetadata,
+    });
+
+    if (!branchResult.success) {
+      return {
+        success: false,
+        error: branchResult.error ?? "Failed to publish branch presentation live.",
+      };
+    }
+  } else if (existing.data.content_type === "section") {
+    // Standard Homepage section draft
+    const published = await updatePublicSiteSection({
+      sectionKey: existing.data.content_key,
+      title: existing.data.title ?? "",
+      subtitle: existing.data.subtitle ?? "",
+      body: existing.data.body ?? "",
+      ctaLabel: existing.data.cta_label ?? "",
+      ctaHref: existing.data.cta_href ?? "",
+      imageUrl: existing.data.image_url ?? "",
+      secondaryImageUrl: existing.data.secondary_image_url ?? "",
+      sortOrder: existing.data.sort_order,
+      isEnabled: existing.data.is_enabled,
+      metadata: existing.data.metadata,
+    });
+
+    if (!published.success) return { success: false, error: published.error };
+    sourceSectionId = published.section.id;
+  } else {
+    return {
+      success: false,
+      error: `Publishing for content type ${existing.data.content_type} is not supported.`,
+    };
+  }
 
   const now = new Date().toISOString();
   const result = await table<MarketingContentDraftRow>(context.supabase, "marketing_content_drafts")
@@ -638,7 +792,7 @@ export async function publishMarketingContentDraft(
       published_by: context.staffId,
       published_at: now,
       updated_by: context.staffId,
-      source_section_id: published.section.id,
+      source_section_id: sourceSectionId,
     })
     .eq("id", existing.data.id)
     .select(DRAFT_SELECT)
@@ -650,13 +804,13 @@ export async function publishMarketingContentDraft(
     }
     return {
       success: false,
-      error: result.error?.message ?? "Public section saved, but draft lock failed.",
+      error: result.error?.message ?? "Live changes saved, but draft lock failed.",
     };
   }
 
   await insertMarketingRevision(context.supabase, result.data, "published", context.staffId);
   revalidatePublishedSite();
-  return { success: true, draft: result.data, message: "Draft published to the public site." };
+  return { success: true, draft: result.data, message: "Draft published to live successfully." };
 }
 
 export async function archiveMarketingContentDraft(

@@ -3,6 +3,7 @@ import { revalidateTag as nextRevalidateTag } from "next/cache";
 export const cacheTags = {
   serviceCatalog: "service-catalog",
   publicBranches: "public-branches",
+  marketingBrand: "marketing-brand",
   branchBookingRules: (branchId: string) => `branch-booking-rules:${branchId}`,
   branchServices: (branchId: string) => `branch-services:${branchId}`,
   branchAssignableServices: (branchId: string) => `branch-assignable-services:${branchId}`,

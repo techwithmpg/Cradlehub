@@ -1,6 +1,6 @@
 "use client";
 
-import { useActionState, useMemo, useState } from "react";
+import { useActionState, useEffect, useMemo, useState } from "react";
 import Image from "next/image";
 import {
   AlertCircle,
@@ -66,7 +66,11 @@ type BranchFormValues = {
 };
 
 function getBranchImageUrl(branch: BranchRow): string {
-  if (branch.location_metadata && typeof branch.location_metadata === "object" && !Array.isArray(branch.location_metadata)) {
+  if (
+    branch.location_metadata &&
+    typeof branch.location_metadata === "object" &&
+    !Array.isArray(branch.location_metadata)
+  ) {
     const meta = branch.location_metadata as Record<string, unknown>;
     if (typeof meta.image_url === "string" && meta.image_url.trim().length > 0) {
       return meta.image_url;
@@ -87,16 +91,33 @@ export function BranchesStudioView({
   // Sort branches: Main Spa first, SM second
   const sortedBranches = useMemo(() => {
     return [...branches].sort((a, b) => {
-      const aIsMain = a.name.toLowerCase().includes("main") || a.name.toLowerCase().includes("lacson");
-      const bIsMain = b.name.toLowerCase().includes("main") || b.name.toLowerCase().includes("lacson");
+      const aIsMain =
+        a.name.toLowerCase().includes("main") || a.name.toLowerCase().includes("lacson");
+      const bIsMain =
+        b.name.toLowerCase().includes("main") || b.name.toLowerCase().includes("lacson");
       if (aIsMain && !bIsMain) return -1;
       if (!aIsMain && bIsMain) return 1;
       return (a.sort_order ?? 0) - (b.sort_order ?? 0);
     });
   }, [branches]);
 
-  const [selectedBranchId, setSelectedBranchId] = useState<string>(
-    sortedBranches[0]?.id || ""
+  const [selectedBranchId, setSelectedBranchId] = useState<string>(sortedBranches[0]?.id || "");
+
+  const initialNoticeState: { success: boolean; message?: string; error?: string } = {
+    success: true,
+  };
+
+  const [saveState, saveAction, isSaving] = useActionState(
+    saveMarketingDraftAction,
+    initialNoticeState
+  );
+  const [submitState, submitAction, isSubmitting] = useActionState(
+    submitMarketingDraftAction,
+    initialNoticeState
+  );
+  const [ownerUpdateState, ownerUpdateAction, isOwnerUpdating] = useActionState(
+    updateBranchPresentationAction,
+    initialNoticeState
   );
 
   const currentBranch = useMemo(() => {
@@ -106,12 +127,25 @@ export function BranchesStudioView({
   // Find active draft for selected branch
   const activeBranchDraft = useMemo(() => {
     if (!currentBranch) return undefined;
+    const branchKey = `branch_${currentBranch.id.replace(/-/g, "_")}`;
+    const draftFromAction =
+      (saveState?.success && (saveState as { draft?: MarketingContentDraftRow }).draft) ||
+      (submitState?.success && (submitState as { draft?: MarketingContentDraftRow }).draft);
+
+    if (
+      draftFromAction &&
+      draftFromAction.content_key === branchKey &&
+      ["draft", "submitted", "changes_requested"].includes(draftFromAction.status)
+    ) {
+      return draftFromAction;
+    }
+
     return drafts.find(
       (d) =>
-        (d.content_type === "section" && d.content_key === `branch_${currentBranch.id.replace(/-/g, "_")}`) ||
+        (d.content_type === "section" && d.content_key === branchKey) ||
         (d.content_type === "section" && d.content_key === "contact")
     );
-  }, [drafts, currentBranch]);
+  }, [drafts, currentBranch, saveState, submitState]);
 
   // Initial form values from branch and draft
   const initialValues: BranchFormValues = useMemo(() => {
@@ -173,12 +207,6 @@ export function BranchesStudioView({
     return JSON.stringify(formValues) !== JSON.stringify(initialValues);
   }, [formValues, initialValues]);
 
-  const initialNoticeState: { success: boolean; message?: string; error?: string } = { success: true };
-
-  const [saveState, saveAction, isSaving] = useActionState(saveMarketingDraftAction, initialNoticeState);
-  const [submitState, submitAction, isSubmitting] = useActionState(submitMarketingDraftAction, initialNoticeState);
-  const [ownerUpdateState, ownerUpdateAction, isOwnerUpdating] = useActionState(updateBranchPresentationAction, initialNoticeState);
-
   const handleFieldChange = (field: keyof BranchFormValues, value: string) => {
     setFormValues((prev) => ({ ...prev, [field]: value }));
   };
@@ -232,7 +260,9 @@ export function BranchesStudioView({
         <div className="flex flex-wrap gap-2">
           {sortedBranches.map((branch) => {
             const isSelected = branch.id === selectedBranchId;
-            const isMain = branch.name.toLowerCase().includes("main") || branch.name.toLowerCase().includes("lacson");
+            const isMain =
+              branch.name.toLowerCase().includes("main") ||
+              branch.name.toLowerCase().includes("lacson");
             return (
               <button
                 key={branch.id}
@@ -244,7 +274,9 @@ export function BranchesStudioView({
                     : "border border-white/5 bg-[#061410] text-[#9AA89A] hover:border-white/20 hover:text-[#F6EBD6]"
                 }`}
               >
-                <MapPin className={`h-3.5 w-3.5 ${isSelected ? "text-[#C8A96B]" : "text-[#9AA89A]"}`} />
+                <MapPin
+                  className={`h-3.5 w-3.5 ${isSelected ? "text-[#C8A96B]" : "text-[#9AA89A]"}`}
+                />
                 <span>{branch.name}</span>
                 {isMain && (
                   <span className="rounded bg-[#C8A96B]/20 px-1.5 py-0.2 text-[10px] text-[#C8A96B]">
@@ -418,7 +450,11 @@ export function BranchesStudioView({
                 <form action={saveAction}>
                   <input type="hidden" name="id" value={activeBranchDraft?.id || ""} />
                   <input type="hidden" name="contentType" value="section" />
-                  <input type="hidden" name="contentKey" value={`branch_${currentBranch.id.replace(/-/g, "_")}`} />
+                  <input
+                    type="hidden"
+                    name="contentKey"
+                    value={`branch_${currentBranch.id.replace(/-/g, "_")}`}
+                  />
                   <input type="hidden" name="title" value={formValues.name} />
                   <input type="hidden" name="subtitle" value={formValues.openingHours} />
                   <input type="hidden" name="body" value={formValues.address} />
@@ -449,6 +485,22 @@ export function BranchesStudioView({
                     {isSaving ? "Saving..." : "Save Draft"}
                   </button>
                 </form>
+
+                {/* Submit for Review (Marketer / Owner) */}
+                {activeBranchDraft &&
+                  ["draft", "changes_requested"].includes(activeBranchDraft.status) && (
+                    <form action={submitAction}>
+                      <input type="hidden" name="id" value={activeBranchDraft.id} />
+                      <button
+                        type="submit"
+                        disabled={isSubmitting}
+                        className="inline-flex items-center gap-1.5 rounded-lg bg-[#C8A96B] px-4 py-2 text-xs font-semibold text-[#10261D] hover:bg-[#D4B57A] disabled:opacity-50"
+                      >
+                        <Send className="h-3.5 w-3.5" />
+                        {isSubmitting ? "Submitting..." : "Submit for Review"}
+                      </button>
+                    </form>
+                  )}
 
                 {/* Owner Direct Update */}
                 {role === "owner" && (
@@ -506,7 +558,9 @@ export function BranchesStudioView({
                     </div>
                   )}
                   <div className="absolute top-3 left-3 rounded-full bg-[#10261D]/80 px-3 py-1 text-[11px] font-semibold text-[#C8A96B] backdrop-blur-md">
-                    {currentBranch.name.toLowerCase().includes("sm") ? "Mall Location" : "Flagship Sanctuary"}
+                    {currentBranch.name.toLowerCase().includes("sm")
+                      ? "Mall Location"
+                      : "Flagship Sanctuary"}
                   </div>
                 </div>
 
@@ -516,7 +570,10 @@ export function BranchesStudioView({
                     <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-[#163A2B] text-[#C8A96B] shrink-0">
                       <MapPin className="h-4 w-4" />
                     </div>
-                    <h4 className="text-xl font-medium text-[#F6EBD6]" style={{ fontFamily: "var(--sp-font-display)" }}>
+                    <h4
+                      className="text-xl font-medium text-[#F6EBD6]"
+                      style={{ fontFamily: "var(--sp-font-display)" }}
+                    >
                       {formValues.name || "Branch Name"}
                     </h4>
                   </div>
@@ -574,7 +631,10 @@ export function BranchesStudioView({
               <div className="rounded-xl border border-white/5 bg-white/[0.02] p-4 text-xs text-[#9AA89A] space-y-2">
                 <p className="font-semibold text-[#C8A96B]">Public Consumer Impact:</p>
                 <p>
-                  Updates to this branch immediately update the public <code className="text-[#F6EBD6]">/branches</code> directory, <code className="text-[#F6EBD6]">/contact</code> cards, and <code className="text-[#F6EBD6]">SiteFooter</code> contact schedule.
+                  Updates to this branch immediately update the public{" "}
+                  <code className="text-[#F6EBD6]">/branches</code> directory,{" "}
+                  <code className="text-[#F6EBD6]">/contact</code> cards, and{" "}
+                  <code className="text-[#F6EBD6]">SiteFooter</code> contact schedule.
                 </p>
               </div>
             </div>

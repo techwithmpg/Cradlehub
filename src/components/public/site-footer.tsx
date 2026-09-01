@@ -6,6 +6,9 @@ type BranchRow = Database["public"]["Tables"]["branches"]["Row"];
 
 type SiteFooterProps = {
   branches?: BranchRow[];
+  logoUrl?: string | null;
+  logoAlt?: string;
+  taglineText?: string | null;
 };
 
 function IconFacebook({ className }: { className?: string }) {
@@ -18,7 +21,16 @@ function IconFacebook({ className }: { className?: string }) {
 
 function IconInstagram({ className }: { className?: string }) {
   return (
-    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className} aria-hidden="true">
+    <svg
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="2"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      className={className}
+      aria-hidden="true"
+    >
       <rect x="2" y="2" width="20" height="20" rx="5" ry="5" />
       <circle cx="12" cy="12" r="4" />
       <circle cx="17.5" cy="6.5" r="0.5" fill="currentColor" stroke="none" />
@@ -53,23 +65,30 @@ const QUICK_LINKS = [
   { href: "/contact", label: "Contact" },
 ];
 
-export function SiteFooter({ branches }: SiteFooterProps) {
+export function SiteFooter({ branches, logoUrl, logoAlt, taglineText }: SiteFooterProps) {
   const firstBranchHours = branches?.[0]?.opening_hours;
   const hoursText = firstBranchHours ?? "Open daily · Book online";
+  const displayTagline = taglineText || "A sanctuary of calm in Bacolod.";
 
   return (
     <footer className="public-site-footer bg-[#10261D] text-[#9AA89A]">
       <div className="mx-auto max-w-7xl px-6 py-8 md:py-12">
         <div className="flex flex-col md:flex-row md:items-start md:justify-between gap-8">
-
           {/* Brand + Social */}
           <div className="md:max-w-xs">
-            <Link href="/" className="inline-flex mb-3 hover:opacity-85 transition-opacity duration-300">
-              <BrandLogo size="md" variant="dark" className="w-32 md:w-40" />
+            <Link
+              href="/"
+              className="inline-flex mb-3 hover:opacity-85 transition-opacity duration-300"
+            >
+              <BrandLogo
+                size="md"
+                variant="dark"
+                className="w-32 md:w-40"
+                customUrl={logoUrl}
+                customAlt={logoAlt}
+              />
             </Link>
-            <p className="text-[13px] leading-relaxed">
-              A sanctuary of calm in Bacolod.
-            </p>
+            <p className="text-[13px] leading-relaxed">{displayTagline}</p>
             <div className="flex items-center gap-2.5 mt-3">
               {SOCIALS.map((s) => (
                 <a
@@ -109,9 +128,7 @@ export function SiteFooter({ branches }: SiteFooterProps) {
         {/* Bottom line */}
         <div className="mt-8 pt-5 border-t border-[#163A2B]">
           <div className="flex flex-col sm:flex-row items-center justify-between gap-2">
-            <p className="text-[11px] text-[#6B7A6F]">
-              {hoursText}
-            </p>
+            <p className="text-[11px] text-[#6B7A6F]">{hoursText}</p>
             <p className="text-[11px] text-[#6B7A6F]">
               &copy; {new Date().getFullYear()} Cradle Massage & Wellness Spa. All rights reserved.
             </p>

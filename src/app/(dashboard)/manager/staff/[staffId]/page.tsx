@@ -1,5 +1,9 @@
 import { notFound } from "next/navigation";
-import { getStaffByBranchWithBranches, getPendingStaffByBranch, getStaffServices } from "@/lib/queries/staff";
+import {
+  getStaffByBranchWithBranches,
+  getPendingStaffByBranch,
+  getStaffServices,
+} from "@/lib/queries/staff";
 import { getManagerBranchId } from "@/lib/queries/manager-context";
 import { getBranchById } from "@/lib/queries/branches";
 import { getAssignableServicesForStaff } from "@/lib/services/service-catalog";

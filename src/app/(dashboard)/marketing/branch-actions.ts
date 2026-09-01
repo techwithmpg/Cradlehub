@@ -27,9 +27,29 @@ export async function updateBranchPresentationAction(
   if (context.role !== "owner") {
     return {
       success: false,
-      error: "Only owners can publish live branch updates directly. Marketers should save as draft for review.",
+      error:
+        "Only owners can publish live branch updates directly. Marketers should save as draft for review.",
     };
   }
+
+  // Fetch existing branch row to preserve all unknown location_metadata keys
+  const { data: existingBranch } = await context.supabase
+    .from("branches")
+    .select("location_metadata")
+    .eq("id", branchId)
+    .maybeSingle();
+
+  const existingMeta =
+    existingBranch?.location_metadata &&
+    typeof existingBranch.location_metadata === "object" &&
+    !Array.isArray(existingBranch.location_metadata)
+      ? (existingBranch.location_metadata as Record<string, unknown>)
+      : {};
+
+  const mergedLocationMetadata = {
+    ...existingMeta,
+    image_url: imageUrl,
+  };
 
   const result = await updateBranchAction({
     branchId,
@@ -41,9 +61,7 @@ export async function updateBranchPresentationAction(
     messengerLink,
     openingHours,
     mapsEmbedUrl,
-    locationMetadata: {
-      image_url: imageUrl,
-    },
+    locationMetadata: mergedLocationMetadata,
   });
 
   if (!result.success) {

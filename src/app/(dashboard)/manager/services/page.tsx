@@ -7,10 +7,7 @@ import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { PageHeader } from "@/components/features/dashboard/page-header";
 import { ServicesOfferedTab } from "@/components/features/manager-settings/services-offered-tab";
 import { getDevBypassLayoutStaff, isDevAuthBypassEnabled } from "@/lib/dev-bypass";
-import {
-  getBranchServiceCatalog,
-  getMasterServiceCatalog,
-} from "@/lib/services/service-catalog";
+import { getBranchServiceCatalog, getMasterServiceCatalog } from "@/lib/services/service-catalog";
 import { createClient } from "@/lib/supabase/server";
 
 type BranchRelation = { name: string } | Array<{ name: string }> | null;
@@ -20,18 +17,11 @@ type ManagerStaffContext = {
   branches: BranchRelation;
 };
 
-const MANAGER_SERVICE_ROLES = new Set([
-  "owner",
-  "manager",
-  "assistant_manager",
-  "store_manager",
-]);
+const MANAGER_SERVICE_ROLES = new Set(["owner", "manager", "assistant_manager", "store_manager"]);
 
 function firstBranchName(branches: BranchRelation) {
   if (!branches) return "your assigned branch";
-  return Array.isArray(branches)
-    ? branches[0]?.name ?? "your assigned branch"
-    : branches.name;
+  return Array.isArray(branches) ? (branches[0]?.name ?? "your assigned branch") : branches.name;
 }
 
 async function getManagerServicesPageData() {

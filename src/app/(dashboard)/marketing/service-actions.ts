@@ -36,7 +36,8 @@ export async function updateServicePresentationAction(
   if (context.role !== "owner") {
     return {
       success: false,
-      error: "Only owners can publish live service presentation updates. Marketers should save as draft for review.",
+      error:
+        "Only owners can publish live service presentation updates. Marketers should save as draft for review.",
     };
   }
 
@@ -53,9 +54,13 @@ export async function updateServicePresentationAction(
     return { success: false, error: fetchError?.message ?? "Service not found." };
   }
 
-  const existingMeta = (existingService.metadata && typeof existingService.metadata === "object" && !Array.isArray(existingService.metadata)
-    ? existingService.metadata
-    : {}) as Record<string, Json>;
+  const existingMeta = (
+    existingService.metadata &&
+    typeof existingService.metadata === "object" &&
+    !Array.isArray(existingService.metadata)
+      ? existingService.metadata
+      : {}
+  ) as Record<string, Json>;
 
   const updatedMetadata: Record<string, Json> = {
     ...existingMeta,

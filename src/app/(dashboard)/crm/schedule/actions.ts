@@ -17,7 +17,10 @@ import {
   toCrmStaffServiceRows,
 } from "@/components/features/crm/staff/service-row-adapter";
 import type { ServiceLite } from "@/app/(dashboard)/owner/branches/[branchId]/branch-services-panel";
-import type { StaffProfileBranch, StaffProfileService } from "@/components/features/crm/staff/edit-staff-profile-types";
+import type {
+  StaffProfileBranch,
+  StaffProfileService,
+} from "@/components/features/crm/staff/edit-staff-profile-types";
 import type { StaffMember } from "@/components/features/staff/staff-management-utils";
 
 const uuid = z.guid("Invalid staff ID");
@@ -164,7 +167,7 @@ export type StaffFullScheduleResult =
 
 function first<T>(value: OneOrMany<T>): T | null {
   if (!value) return null;
-  return Array.isArray(value) ? value[0] ?? null : value;
+  return Array.isArray(value) ? (value[0] ?? null) : value;
 }
 
 function normalizeShiftType(value: string | null | undefined): "opening" | "closing" | "single" {
@@ -218,8 +221,7 @@ async function getActorContext(
 }
 
 async function getStaffProfileActionContext(): Promise<
-  | { ok: true; context: StaffProfileActionContext }
-  | { ok: false; error: string }
+  { ok: true; context: StaffProfileActionContext } | { ok: false; error: string }
 > {
   const supabase = await createClient();
   const {
@@ -260,10 +262,10 @@ async function getStaffProfileActionContext(): Promise<
 
   return {
     ok: true,
-      context: {
-        actorBranchId: actor.branch_id,
-        actorRole,
-      },
+    context: {
+      actorBranchId: actor.branch_id,
+      actorRole,
+    },
   };
 }
 
@@ -398,7 +400,9 @@ export async function getStaffFullScheduleAction(
   try {
     const { data: staffData, error: staffError } = await admin
       .from("staff")
-      .select("id, full_name, nickname, avatar_url, staff_type, system_role, branch_id, branches(name)")
+      .select(
+        "id, full_name, nickname, avatar_url, staff_type, system_role, branch_id, branches(name)"
+      )
       .eq("id", staffId)
       .maybeSingle();
 
@@ -409,39 +413,42 @@ export async function getStaffFullScheduleAction(
     const actor = await getActorContext(staff.branch_id);
     if (!actor.ok) return actor;
 
-    const [schedulesResult, overridesResult, blockedResult, bookingsResult] =
-      await Promise.all([
-        admin
-          .from("staff_schedules")
-          .select("id, day_of_week, start_time, end_time, is_active, shift_type, window_order, ends_next_day")
-          .eq("staff_id", staffId)
-          .order("day_of_week")
-          .order("window_order"),
-        admin
-          .from("schedule_overrides")
-          .select("id, override_date, is_day_off, shift_type, start_time, end_time, reason")
-          .eq("staff_id", staffId)
-          .gte("override_date", startDate)
-          .lte("override_date", endDate)
-          .order("override_date"),
-        admin
-          .from("blocked_times")
-          .select("id, block_date, start_time, end_time, reason")
-          .eq("staff_id", staffId)
-          .gte("block_date", startDate)
-          .lte("block_date", endDate)
-          .order("block_date")
-          .order("start_time"),
-        admin
-          .from("bookings")
-          .select("id, booking_date, start_time, end_time, status, services(name), customers(full_name)")
-          .eq("staff_id", staffId)
-          .gte("booking_date", startDate)
-          .lte("booking_date", endDate)
-          .not("status", "in", '("cancelled","no_show")')
-          .order("booking_date")
-          .order("start_time"),
-      ]);
+    const [schedulesResult, overridesResult, blockedResult, bookingsResult] = await Promise.all([
+      admin
+        .from("staff_schedules")
+        .select(
+          "id, day_of_week, start_time, end_time, is_active, shift_type, window_order, ends_next_day"
+        )
+        .eq("staff_id", staffId)
+        .order("day_of_week")
+        .order("window_order"),
+      admin
+        .from("schedule_overrides")
+        .select("id, override_date, is_day_off, shift_type, start_time, end_time, reason")
+        .eq("staff_id", staffId)
+        .gte("override_date", startDate)
+        .lte("override_date", endDate)
+        .order("override_date"),
+      admin
+        .from("blocked_times")
+        .select("id, block_date, start_time, end_time, reason")
+        .eq("staff_id", staffId)
+        .gte("block_date", startDate)
+        .lte("block_date", endDate)
+        .order("block_date")
+        .order("start_time"),
+      admin
+        .from("bookings")
+        .select(
+          "id, booking_date, start_time, end_time, status, services(name), customers(full_name)"
+        )
+        .eq("staff_id", staffId)
+        .gte("booking_date", startDate)
+        .lte("booking_date", endDate)
+        .not("status", "in", '("cancelled","no_show")')
+        .order("booking_date")
+        .order("start_time"),
+    ]);
 
     const firstError =
       schedulesResult.error ??

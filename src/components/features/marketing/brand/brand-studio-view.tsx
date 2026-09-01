@@ -1,6 +1,6 @@
 "use client";
 
-import { useActionState, useMemo, useState } from "react";
+import { useActionState, useEffect, useMemo, useState } from "react";
 import Image from "next/image";
 import {
   AlertCircle,
@@ -76,6 +76,30 @@ export function BrandStudioView({
   revisions = [],
   mediaAssets = [],
 }: BrandStudioViewProps) {
+  const initialNoticeState: ActionNoticeState = { success: true };
+
+  // Action states
+  const [saveState, saveAction, isSaving] = useActionState(
+    saveMarketingDraftAction,
+    initialNoticeState
+  );
+  const [submitState, submitAction, isSubmitting] = useActionState(
+    submitMarketingDraftAction,
+    initialNoticeState
+  );
+  const [ownerDirectState, ownerDirectAction, isOwnerDirectSaving] = useActionState(
+    updateBrandSettingAction,
+    initialNoticeState
+  );
+  const [approveState, approveAction, isApproving] = useActionState(
+    approveMarketingDraftAction,
+    initialNoticeState
+  );
+  const [changesState, changesAction, isRequestingChanges] = useActionState(
+    requestMarketingDraftChangesAction,
+    initialNoticeState
+  );
+
   // Find published values
   const publishedMap = useMemo(() => {
     const map: Record<string, MarketingBrandSettingValue> = {};
@@ -87,28 +111,63 @@ export function BrandStudioView({
 
   // Find active mutable draft
   const activeDraft = useMemo(() => {
+    const draftFromAction =
+      (saveState?.success && (saveState as { draft?: MarketingContentDraftRow }).draft) ||
+      (submitState?.success && (submitState as { draft?: MarketingContentDraftRow }).draft);
+
+    if (
+      draftFromAction &&
+      ["draft", "submitted", "changes_requested"].includes(draftFromAction.status)
+    ) {
+      return draftFromAction;
+    }
+
     return drafts.find(
       (d) =>
-        d.content_type === "brand" &&
-        ["draft", "submitted", "changes_requested"].includes(d.status)
+        d.content_type === "brand" && ["draft", "submitted", "changes_requested"].includes(d.status)
     );
-  }, [drafts]);
+  }, [drafts, saveState, submitState]);
 
   // Initial form values
   const initialValues: BrandFormValues = useMemo(() => {
     if (activeDraft?.metadata && typeof activeDraft.metadata === "object") {
       const meta = activeDraft.metadata as Record<string, string>;
       return {
-        headerLogoUrl: activeDraft.image_url || meta.headerLogoUrl || (publishedMap.header_logo?.url as string) || "",
-        headerLogoAlt: activeDraft.alt_text || meta.headerLogoAlt || (publishedMap.header_logo?.alt as string) || "Cradle Wellness Living",
-        footerLogoUrl: activeDraft.secondary_image_url || meta.footerLogoUrl || (publishedMap.footer_logo?.url as string) || "",
-        footerLogoAlt: meta.footerLogoAlt || (publishedMap.footer_logo?.alt as string) || "Cradle Wellness Living",
+        headerLogoUrl:
+          activeDraft.image_url ||
+          meta.headerLogoUrl ||
+          (publishedMap.header_logo?.url as string) ||
+          "",
+        headerLogoAlt:
+          activeDraft.alt_text ||
+          meta.headerLogoAlt ||
+          (publishedMap.header_logo?.alt as string) ||
+          "Cradle Wellness Living",
+        footerLogoUrl:
+          activeDraft.secondary_image_url ||
+          meta.footerLogoUrl ||
+          (publishedMap.footer_logo?.url as string) ||
+          "",
+        footerLogoAlt:
+          meta.footerLogoAlt ||
+          (publishedMap.footer_logo?.alt as string) ||
+          "Cradle Wellness Living",
         brandMarkUrl: meta.brandMarkUrl || (publishedMap.brand_mark?.url as string) || "",
-        brandMarkAlt: meta.brandMarkAlt || (publishedMap.brand_mark?.alt as string) || "Cradle Brand Mark",
+        brandMarkAlt:
+          meta.brandMarkAlt || (publishedMap.brand_mark?.alt as string) || "Cradle Brand Mark",
         siteIconUrl: meta.siteIconUrl || (publishedMap.site_icon?.url as string) || "/favicon.ico",
-        siteIconAlt: meta.siteIconAlt || (publishedMap.site_icon?.alt as string) || "Cradle Site Icon",
-        taglineText: activeDraft.title || meta.taglineText || (publishedMap.brand_tagline?.text as string) || "A sanctuary of calm in Bacolod.",
-        taglineSubtext: activeDraft.subtitle || meta.taglineSubtext || (publishedMap.brand_tagline?.subtext as string) || "Holistic Wellness & Massage Therapy",
+        siteIconAlt:
+          meta.siteIconAlt || (publishedMap.site_icon?.alt as string) || "Cradle Site Icon",
+        taglineText:
+          activeDraft.title ||
+          meta.taglineText ||
+          (publishedMap.brand_tagline?.text as string) ||
+          "A sanctuary of calm in Bacolod.",
+        taglineSubtext:
+          activeDraft.subtitle ||
+          meta.taglineSubtext ||
+          (publishedMap.brand_tagline?.subtext as string) ||
+          "Holistic Wellness & Massage Therapy",
       };
     }
 
@@ -121,8 +180,10 @@ export function BrandStudioView({
       brandMarkAlt: (publishedMap.brand_mark?.alt as string) || "Cradle Brand Mark",
       siteIconUrl: (publishedMap.site_icon?.url as string) || "/favicon.ico",
       siteIconAlt: (publishedMap.site_icon?.alt as string) || "Cradle Site Icon",
-      taglineText: (publishedMap.brand_tagline?.text as string) || "A sanctuary of calm in Bacolod.",
-      taglineSubtext: (publishedMap.brand_tagline?.subtext as string) || "Holistic Wellness & Massage Therapy",
+      taglineText:
+        (publishedMap.brand_tagline?.text as string) || "A sanctuary of calm in Bacolod.",
+      taglineSubtext:
+        (publishedMap.brand_tagline?.subtext as string) || "Holistic Wellness & Massage Therapy",
     };
   }, [activeDraft, publishedMap]);
 
@@ -132,15 +193,6 @@ export function BrandStudioView({
   const [pickerTarget, setPickerTarget] = useState<keyof BrandFormValues | null>(null);
   const [showChangesModal, setShowChangesModal] = useState(false);
   const [reviewNote, setReviewNote] = useState("");
-
-  const initialNoticeState: ActionNoticeState = { success: true };
-
-  // Action states
-  const [saveState, saveAction, isSaving] = useActionState(saveMarketingDraftAction, initialNoticeState);
-  const [submitState, submitAction, isSubmitting] = useActionState(submitMarketingDraftAction, initialNoticeState);
-  const [ownerDirectState, ownerDirectAction, isOwnerDirectSaving] = useActionState(updateBrandSettingAction, initialNoticeState);
-  const [approveState, approveAction, isApproving] = useActionState(approveMarketingDraftAction, initialNoticeState);
-  const [changesState, changesAction, isRequestingChanges] = useActionState(requestMarketingDraftChangesAction, initialNoticeState);
 
   const isDirty = useMemo(() => {
     return JSON.stringify(formValues) !== JSON.stringify(initialValues);
@@ -153,7 +205,7 @@ export function BrandStudioView({
   const handleMediaSelect = (value: SelectedMediaValue) => {
     if (!pickerTarget) return;
     const urlField = pickerTarget;
-    const altField = (pickerTarget.replace("Url", "Alt")) as keyof BrandFormValues;
+    const altField = pickerTarget.replace("Url", "Alt") as keyof BrandFormValues;
 
     setFormValues((prev) => ({
       ...prev,
@@ -176,7 +228,11 @@ export function BrandStudioView({
             <MessageSquare className="h-5 w-5 shrink-0 text-amber-400" />
             <div>
               <p className="text-xs font-semibold uppercase tracking-wider text-amber-300">
-                Owner Review Note ({activeDraft.reviewed_at ? new Date(activeDraft.reviewed_at).toLocaleDateString() : "Recent"})
+                Owner Review Note (
+                {activeDraft.reviewed_at
+                  ? new Date(activeDraft.reviewed_at).toLocaleDateString()
+                  : "Recent"}
+                )
               </p>
               <p className="mt-1 text-sm">{activeDraft.review_note}</p>
             </div>
@@ -509,7 +565,11 @@ export function BrandStudioView({
                       <input type="hidden" name="siteIconUrl" value={formValues.siteIconUrl} />
                       <input type="hidden" name="siteIconAlt" value={formValues.siteIconAlt} />
                       <input type="hidden" name="taglineText" value={formValues.taglineText} />
-                      <input type="hidden" name="taglineSubtext" value={formValues.taglineSubtext} />
+                      <input
+                        type="hidden"
+                        name="taglineSubtext"
+                        value={formValues.taglineSubtext}
+                      />
                       <input type="hidden" name="draftId" value={activeDraft?.id || ""} />
                       <button
                         type="submit"
@@ -639,10 +699,16 @@ export function BrandStudioView({
                           <BrandLogo size="md" variant="dark" className="w-36" />
                         )}
                         <p className="text-xs text-[#FCFAF5]">
-                          {previewMode === "draft" ? formValues.taglineText : (publishedMap.brand_tagline?.text as string) || "A sanctuary of calm in Bacolod."}
+                          {previewMode === "draft"
+                            ? formValues.taglineText
+                            : (publishedMap.brand_tagline?.text as string) ||
+                              "A sanctuary of calm in Bacolod."}
                         </p>
                         <p className="text-[11px] text-[#6B7A6F]">
-                          {previewMode === "draft" ? formValues.taglineSubtext : (publishedMap.brand_tagline?.subtext as string) || "Holistic Wellness & Massage Therapy"}
+                          {previewMode === "draft"
+                            ? formValues.taglineSubtext
+                            : (publishedMap.brand_tagline?.subtext as string) ||
+                              "Holistic Wellness & Massage Therapy"}
                         </p>
                       </div>
                       <div className="grid grid-cols-2 gap-4 text-xs">
@@ -683,7 +749,9 @@ export function BrandStudioView({
                     <p className="text-sm font-medium text-[#F6EBD6]">
                       {formValues.brandMarkAlt || "Cradle Brand Mark"}
                     </p>
-                    <p className="text-xs text-[#9AA89A]">Used for mobile icons, avatars, and watermarks</p>
+                    <p className="text-xs text-[#9AA89A]">
+                      Used for mobile icons, avatars, and watermarks
+                    </p>
                   </div>
                 </div>
               )}
@@ -706,13 +774,19 @@ export function BrandStudioView({
                       ) : (
                         <div className="h-3.5 w-3.5 rounded-full bg-[#C8A96B]" />
                       )}
-                      <span className="truncate font-medium">Cradle Wellness Living | Massage & Spa</span>
+                      <span className="truncate font-medium">
+                        Cradle Wellness Living | Massage & Spa
+                      </span>
                     </div>
                   </div>
                   <div className="rounded-lg border border-white/5 bg-white/[0.02] p-4 text-xs text-[#9AA89A] space-y-2">
-                    <p className="font-semibold text-[#C8A96B]">Next.js Static Favicon Architecture Note:</p>
+                    <p className="font-semibold text-[#C8A96B]">
+                      Next.js Static Favicon Architecture Note:
+                    </p>
                     <p>
-                      The public site icon is served via Next.js root layout at <code className="text-[#F6EBD6]">/favicon.ico</code>. Selecting an asset here registers it in site metadata and manifest settings.
+                      The public site icon is served via Next.js root layout at{" "}
+                      <code className="text-[#F6EBD6]">/favicon.ico</code>. Selecting an asset here
+                      registers it in site metadata and manifest settings.
                     </p>
                   </div>
                 </div>

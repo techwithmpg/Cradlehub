@@ -507,9 +507,7 @@ export async function createInhouseBookingMultiAction(
 
     const { data: branchOverrides, error: branchOverridesError } = await admin
       .from("branch_services")
-      .select(
-        "service_id, custom_price, custom_duration_minutes"
-      )
+      .select("service_id, custom_price, custom_duration_minutes")
       .eq("branch_id", resolvedBranchId)
       .in("service_id", d.serviceIds)
       .eq("is_active", true);

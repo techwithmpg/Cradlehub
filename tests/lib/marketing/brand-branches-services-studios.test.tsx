@@ -240,11 +240,7 @@ describe("C5.4 Brand Studio", () => {
 
   it("renders BrandStudioView for Digital Marketer with draft controls", () => {
     render(
-      <BrandStudioView
-        role="digital_marketer"
-        brandSettings={mockBrandSettings}
-        drafts={[]}
-      />
+      <BrandStudioView role="digital_marketer" brandSettings={mockBrandSettings} drafts={[]} />
     );
 
     expect(screen.getByText("Brand Identity & Assets")).toBeDefined();
@@ -254,24 +250,14 @@ describe("C5.4 Brand Studio", () => {
   });
 
   it("renders BrandStudioView for Owner with live publish controls", () => {
-    render(
-      <BrandStudioView
-        role="owner"
-        brandSettings={mockBrandSettings}
-        drafts={[]}
-      />
-    );
+    render(<BrandStudioView role="owner" brandSettings={mockBrandSettings} drafts={[]} />);
 
     expect(screen.getByText("Publish Live Settings")).toBeDefined();
   });
 
   it("allows switching preview sub-tabs (Header, Footer, Mark, Favicon)", () => {
     render(
-      <BrandStudioView
-        role="digital_marketer"
-        brandSettings={mockBrandSettings}
-        drafts={[]}
-      />
+      <BrandStudioView role="digital_marketer" brandSettings={mockBrandSettings} drafts={[]} />
     );
 
     const footerTab = screen.getByText("Footer");
@@ -290,13 +276,7 @@ describe("C5.4 Brand Studio", () => {
 
 describe("C5.4 Branches Studio", () => {
   it("renders BranchesStudioView and distinguishes Main Spa and SM branches", () => {
-    render(
-      <BranchesStudioView
-        role="digital_marketer"
-        branches={mockBranches}
-        drafts={[]}
-      />
-    );
+    render(<BranchesStudioView role="digital_marketer" branches={mockBranches} drafts={[]} />);
 
     expect(screen.getAllByText("Cradle Main Spa (Lacson)").length).toBeGreaterThan(0);
     expect(screen.getAllByText("Cradle SM City Bacolod").length).toBeGreaterThan(0);
@@ -304,16 +284,11 @@ describe("C5.4 Branches Studio", () => {
   });
 
   it("allows switching branches and displays corresponding contact channels", () => {
-    render(
-      <BranchesStudioView
-        role="owner"
-        branches={mockBranches}
-        drafts={[]}
-      />
-    );
+    render(<BranchesStudioView role="owner" branches={mockBranches} drafts={[]} />);
 
     const smButtons = screen.getAllByRole("button", { name: /Cradle SM City Bacolod/i });
-    fireEvent.click(smButtons[0]);
+    expect(smButtons.length).toBeGreaterThan(0);
+    fireEvent.click(smButtons[0]!);
 
     expect(screen.getAllByDisplayValue("Cradle SM City Bacolod").length).toBeGreaterThan(0);
     expect(screen.getAllByDisplayValue("0918-987-6543").length).toBeGreaterThan(0);
@@ -323,13 +298,7 @@ describe("C5.4 Branches Studio", () => {
 
 describe("C5.4 Services Studio", () => {
   it("renders ServicesStudioView with category tabs and service listing", () => {
-    render(
-      <ServicesStudioView
-        role="digital_marketer"
-        services={mockServices}
-        drafts={[]}
-      />
-    );
+    render(<ServicesStudioView role="digital_marketer" services={mockServices} drafts={[]} />);
 
     expect(screen.getByText("Catalog Services (2)")).toBeDefined();
     expect(screen.getAllByText("Swedish Signature Massage").length).toBeGreaterThan(0);
@@ -337,13 +306,7 @@ describe("C5.4 Services Studio", () => {
   });
 
   it("filters services by category and search query", () => {
-    render(
-      <ServicesStudioView
-        role="digital_marketer"
-        services={mockServices}
-        drafts={[]}
-      />
-    );
+    render(<ServicesStudioView role="digital_marketer" services={mockServices} drafts={[]} />);
 
     const searchInput = screen.getByPlaceholderText("Search service name...");
     fireEvent.change(searchInput, { target: { value: "Swedish" } });
@@ -353,13 +316,7 @@ describe("C5.4 Services Studio", () => {
   });
 
   it("correctly indicates mobile eligibility invariants", () => {
-    render(
-      <ServicesStudioView
-        role="digital_marketer"
-        services={mockServices}
-        drafts={[]}
-      />
-    );
+    render(<ServicesStudioView role="digital_marketer" services={mockServices} drafts={[]} />);
 
     // Swedish is public bookable -> eligible for mobile home
     expect(screen.getByText("Eligible for Mobile Home")).toBeDefined();
@@ -371,21 +328,19 @@ describe("C5.4 Services Studio", () => {
     expect(screen.getByText("Filtered from Mobile Home")).toBeDefined();
   });
 
-  it("allows adding and removing promotional badges and inclusions in editor", () => {
-    render(
-      <ServicesStudioView
-        role="owner"
-        services={mockServices}
-        drafts={[]}
-      />
-    );
+  it("allows digital marketer to save draft but not update directly", () => {
+    render(<ServicesStudioView role="digital_marketer" services={mockServices} drafts={[]} />);
+    expect(screen.getByText("Catalog Services (2)")).toBeDefined();
+    expect(screen.getAllByText("Swedish Signature Massage").length).toBeGreaterThan(0);
+    expect(screen.getByText("Save Draft")).toBeDefined();
+    expect(screen.queryByText("Update Live Service")).toBeNull();
+  });
 
-    const badgeInput = screen.getByPlaceholderText("e.g. Bestseller, Couples");
-    fireEvent.change(badgeInput, { target: { value: "New Special" } });
-    const addBadgeButton = screen.getByRole("button", { name: "Add" });
-    fireEvent.click(addBadgeButton);
+  it("allows owner to update service directly", () => {
+    render(<ServicesStudioView role="owner" services={mockServices} drafts={[]} />);
 
-    expect(screen.getAllByText("New Special").length).toBeGreaterThan(0);
+    expect(screen.getByText("Update Live Service")).toBeDefined();
+    expect(screen.getByText("Save Draft")).toBeDefined();
   });
 });
 
@@ -406,6 +361,7 @@ describe("C5.4 Media Usage Analyzer & Safe Cleanup", () => {
       reviewed_by: null,
       reviewed_at: null,
       created_at: new Date().toISOString(),
+      updated_at: new Date().toISOString(),
     };
 
     const usage = analyzeMediaAssetUsage(asset, {
@@ -426,7 +382,7 @@ describe("C5.4 Media Usage Analyzer & Safe Cleanup", () => {
 
     expect(usage.canSafelyArchive).toBe(false);
     expect(usage.totalLiveUsages).toBe(1);
-    expect(usage.usages[0].consumerType).toBe("branch");
+    expect(usage.usages[0]?.consumerType).toBe("branch");
     expect(usage.blockingReasons.length).toBeGreaterThan(0);
   });
 });

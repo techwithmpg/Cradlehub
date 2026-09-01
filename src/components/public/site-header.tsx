@@ -8,24 +8,26 @@ import { BrandLogo } from "@/components/shared/brand-logo";
 
 type SiteHeaderProps = {
   primaryPhone?: { label: string; href: string };
+  logoUrl?: string | null;
+  logoAlt?: string;
 };
 
 const navLinks = [
-  { href: "/",          label: "Home" },
-  { href: "/services",  label: "Services" },
-  { href: "/book",      label: "Book" },
-  { href: "/branches",  label: "Branches" },
-  { href: "/about",     label: "About" },
-  { href: "/contact",   label: "Contact" },
+  { href: "/", label: "Home" },
+  { href: "/services", label: "Services" },
+  { href: "/book", label: "Book" },
+  { href: "/branches", label: "Branches" },
+  { href: "/about", label: "About" },
+  { href: "/contact", label: "Contact" },
 ];
 
-export function SiteHeader({ primaryPhone }: SiteHeaderProps) {
-  const [scrolled,    setScrolled]    = useState(false);
-  const [mobileOpen, setMobileOpen]  = useState(false);
+export function SiteHeader({ primaryPhone, logoUrl, logoAlt }: SiteHeaderProps) {
+  const [scrolled, setScrolled] = useState(false);
+  const [mobileOpen, setMobileOpen] = useState(false);
   const pathname = usePathname();
 
-  const isHome      = pathname === "/";
-  const isHeroMode  = !scrolled && isHome; // desktop-only transparent hero mode
+  const isHome = pathname === "/";
+  const isHeroMode = !scrolled && isHome; // desktop-only transparent hero mode
 
   useEffect(() => {
     const onScroll = () => setScrolled(window.scrollY > 24);
@@ -54,8 +56,8 @@ export function SiteHeader({ primaryPhone }: SiteHeaderProps) {
           isHeroMode
             ? "md:bg-transparent md:border-transparent md:shadow-none"
             : scrolled
-            ? "md:bg-[#10261D]/95 md:backdrop-blur-md md:shadow-[0_1px_20px_rgba(0,0,0,0.18)] md:border-[#D4B57A]/20"
-            : "md:bg-[#10261D] md:border-transparent",
+              ? "md:bg-[#10261D]/95 md:backdrop-blur-md md:shadow-[0_1px_20px_rgba(0,0,0,0.18)] md:border-[#D4B57A]/20"
+              : "md:bg-[#10261D] md:border-transparent",
         ].join(" ")}
         style={{ paddingTop: "env(safe-area-inset-top, 0px)" }}
       >
@@ -73,8 +75,18 @@ export function SiteHeader({ primaryPhone }: SiteHeaderProps) {
           </button>
 
           {/* Center: logo */}
-          <Link href="/" aria-label="Cradle Wellness Spa — Home" className="absolute left-1/2 -translate-x-1/2">
-            <BrandLogo size="sm" variant="dark" className="w-28" />
+          <Link
+            href="/"
+            aria-label="Cradle Wellness Spa — Home"
+            className="absolute left-1/2 -translate-x-1/2"
+          >
+            <BrandLogo
+              size="sm"
+              variant="dark"
+              className="w-28"
+              customUrl={logoUrl}
+              customAlt={logoAlt}
+            />
           </Link>
 
           {/* Right: call button */}
@@ -97,6 +109,8 @@ export function SiteHeader({ primaryPhone }: SiteHeaderProps) {
               size="md"
               variant="dark"
               className="w-32 sm:w-36 md:w-44 lg:w-52 group-hover:opacity-85"
+              customUrl={logoUrl}
+              customAlt={logoAlt}
             />
           </Link>
 
@@ -118,10 +132,10 @@ export function SiteHeader({ primaryPhone }: SiteHeaderProps) {
                         ? "text-white"
                         : "text-[#F6EBD6]"
                       : isHeroMode
-                      ? "text-white/65 hover:text-white"
-                      : scrolled
-                      ? "text-[#F6EBD6]/65 hover:text-[#F6EBD6]"
-                      : "text-white/65 hover:text-white",
+                        ? "text-white/65 hover:text-white"
+                        : scrolled
+                          ? "text-[#F6EBD6]/65 hover:text-[#F6EBD6]"
+                          : "text-white/65 hover:text-white",
                   ].join(" ")}
                 >
                   {link.label}
@@ -138,9 +152,9 @@ export function SiteHeader({ primaryPhone }: SiteHeaderProps) {
             href="/book"
             className="inline-flex items-center rounded-full px-6 py-2.5 text-[12px] font-semibold tracking-widest uppercase transition-all duration-300 hover:shadow-lg hover:-translate-y-0.5"
             style={{
-              background:  "linear-gradient(135deg, #C8A96B, #B68A3C)",
-              color:       "#10261D",
-              boxShadow:   isHeroMode
+              background: "linear-gradient(135deg, #C8A96B, #B68A3C)",
+              color: "#10261D",
+              boxShadow: isHeroMode
                 ? "0 4px 20px rgba(200,169,107,0.45)"
                 : "0 4px 16px rgba(200,169,107,0.35)",
             }}
@@ -199,9 +213,7 @@ export function SiteHeader({ primaryPhone }: SiteHeaderProps) {
                     style={{ fontFamily: "var(--sp-font-body)" }}
                   >
                     {link.label}
-                    {isActive && (
-                      <span className="ml-auto h-1.5 w-1.5 rounded-full bg-[#C8A96B]" />
-                    )}
+                    {isActive && <span className="ml-auto h-1.5 w-1.5 rounded-full bg-[#C8A96B]" />}
                   </Link>
                 );
               })}
@@ -213,7 +225,7 @@ export function SiteHeader({ primaryPhone }: SiteHeaderProps) {
                 className="flex w-full items-center justify-center rounded-full px-6 py-3.5 text-[12px] font-semibold tracking-widest uppercase"
                 style={{
                   background: "linear-gradient(135deg, #C8A96B, #B68A3C)",
-                  color:      "#10261D",
+                  color: "#10261D",
                 }}
               >
                 Book Appointment

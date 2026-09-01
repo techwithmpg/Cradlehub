@@ -59,7 +59,7 @@ export function InviteStaffForm({
   const [selectedStaffType, setSelectedStaffType] = useState<StaffType | "">("");
   const [selectedBranchId, setSelectedBranchId] = useState("");
   const showServiceCapabilities = isServiceStaffType(selectedStaffType);
-  const services = selectedBranchId ? servicesByBranch[selectedBranchId] ?? [] : [];
+  const services = selectedBranchId ? (servicesByBranch[selectedBranchId] ?? []) : [];
 
   const [state, formAction, pending] = useActionState(
     async (_prev: StaffActionState, formData: FormData): Promise<StaffActionState> => {
@@ -117,7 +117,10 @@ export function InviteStaffForm({
         padding: "1.5rem",
       }}
     >
-      <form action={formAction} style={{ display: "flex", flexDirection: "column", gap: "1.25rem" }}>
+      <form
+        action={formAction}
+        style={{ display: "flex", flexDirection: "column", gap: "1.25rem" }}
+      >
         {state.error && (
           <div
             style={{
@@ -244,7 +247,9 @@ export function InviteStaffForm({
             >
               Service Capability
             </legend>
-            <p style={{ fontSize: "0.75rem", color: "var(--cs-text-muted)", margin: "0 0 0.75rem" }}>
+            <p
+              style={{ fontSize: "0.75rem", color: "var(--cs-text-muted)", margin: "0 0 0.75rem" }}
+            >
               Assign only the spa services this service provider can perform.
             </p>
             <div style={{ display: "flex", flexDirection: "column", gap: "0.75rem" }}>
@@ -306,16 +311,12 @@ export function InviteStaffForm({
   );
 }
 
-function SectionHeader({
-  title,
-  description,
-}: {
-  title: string;
-  description: string;
-}) {
+function SectionHeader({ title, description }: { title: string; description: string }) {
   return (
     <div style={{ borderBottom: "1px solid var(--cs-border-soft)", paddingBottom: "0.75rem" }}>
-      <h2 style={{ margin: 0, fontSize: "1rem", fontWeight: 700, color: "var(--cs-text)" }}>{title}</h2>
+      <h2 style={{ margin: 0, fontSize: "1rem", fontWeight: 700, color: "var(--cs-text)" }}>
+        {title}
+      </h2>
       <p style={{ margin: "0.25rem 0 0", fontSize: "0.8125rem", color: "var(--cs-text-muted)" }}>
         {description}
       </p>

@@ -8,6 +8,7 @@ import { MobileFirstVisitPreloader } from "@/components/shared/mobile-first-visi
 import { getPublicBranches } from "@/lib/queries/branches";
 import { getPublicServiceCatalog } from "@/lib/queries/services";
 import { getPublicSiteSections } from "@/lib/queries/public-site";
+import { getPublishedBrandSettingsCached } from "@/lib/queries/marketing-brand";
 import { resolvePublicSiteSections } from "@/lib/public/normalized-sections";
 import { MOBILE_PRELOADER_COOKIE } from "@/lib/public/mobile-preloader";
 import { buildMetadata } from "@/lib/seo/metadata";
@@ -21,10 +22,11 @@ export const metadata: Metadata = buildMetadata({
 });
 
 export default async function HomePage() {
-  const [branches, services, managedSections, cookieStore] = await Promise.all([
+  const [branches, services, managedSections, brand, cookieStore] = await Promise.all([
     getPublicBranches(),
     getPublicServiceCatalog(),
     getPublicSiteSections({ includeDisabled: true }),
+    getPublishedBrandSettingsCached(),
     cookies(),
   ]);
   const hasSeenMobilePreloader = cookieStore.get(MOBILE_PRELOADER_COOKIE)?.value === "1";
@@ -78,14 +80,23 @@ export default async function HomePage() {
   return (
     <div className="sp-public">
       <MobileFirstVisitPreloader initiallyVisible={!hasSeenMobilePreloader} />
-      <SiteHeader primaryPhone={primaryPhone} />
+      <SiteHeader
+        primaryPhone={primaryPhone}
+        logoUrl={brand.headerLogoUrl}
+        logoAlt={brand.headerLogoAlt}
+      />
       <main>
         <PublicMobileHome branches={branches} services={services} sections={normalizedSections} />
         <div className="hidden md:block">
           <HomePageSections branches={branches} services={services} sections={normalizedSections} />
         </div>
       </main>
-      <SiteFooter branches={branches} />
+      <SiteFooter
+        branches={branches}
+        logoUrl={brand.footerLogoUrl}
+        logoAlt={brand.footerLogoAlt}
+        taglineText={brand.taglineText}
+      />
       <LocalBusinessJsonLd />
       <FAQPageJsonLd faqs={homepageFaqs} />
     </div>

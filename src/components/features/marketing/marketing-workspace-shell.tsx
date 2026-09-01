@@ -1,15 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import {
-  Building2,
-  Globe,
-  ImageIcon,
-  Layout,
-  Sparkles,
-  Utensils,
-  Wand2,
-} from "lucide-react";
+import { Building2, Globe, ImageIcon, Layout, Sparkles, Utensils, Wand2 } from "lucide-react";
 import type { MarketingSectionDefault } from "@/lib/marketing/public-section-defaults";
 import type {
   MarketingContentDraftRow,

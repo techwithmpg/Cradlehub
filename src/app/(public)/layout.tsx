@@ -5,6 +5,7 @@ import { SiteFooter } from "@/components/public/site-footer";
 import { MobileFirstVisitPreloader } from "@/components/shared/mobile-first-visit-preloader";
 import { OfflineBanner } from "@/components/shared/offline-banner";
 import { getPublicBranchesCached } from "@/lib/queries/branches";
+import { getPublishedBrandSettingsCached } from "@/lib/queries/marketing-brand";
 import { MOBILE_PRELOADER_COOKIE } from "@/lib/public/mobile-preloader";
 import {
   BUSINESS_NAME,
@@ -48,12 +49,12 @@ export const metadata: Metadata = {
 };
 
 export default async function PublicLayout({ children }: { children: React.ReactNode }) {
-  const [branches, cookieStore] = await Promise.all([
+  const [branches, brand, cookieStore] = await Promise.all([
     getPublicBranchesCached(),
+    getPublishedBrandSettingsCached(),
     cookies(),
   ]);
-  const hasSeenMobilePreloader =
-    cookieStore.get(MOBILE_PRELOADER_COOKIE)?.value === "1";
+  const hasSeenMobilePreloader = cookieStore.get(MOBILE_PRELOADER_COOKIE)?.value === "1";
   const primaryPhone = branches[0]?.phone
     ? { label: branches[0].phone, href: `tel:${branches[0].phone.replace(/\s/g, "")}` }
     : undefined;
@@ -62,9 +63,18 @@ export default async function PublicLayout({ children }: { children: React.React
     <div className="sp-public">
       <MobileFirstVisitPreloader initiallyVisible={!hasSeenMobilePreloader} />
       <OfflineBanner />
-      <SiteHeader primaryPhone={primaryPhone} />
+      <SiteHeader
+        primaryPhone={primaryPhone}
+        logoUrl={brand.headerLogoUrl}
+        logoAlt={brand.headerLogoAlt}
+      />
       <main>{children}</main>
-      <SiteFooter branches={branches} />
+      <SiteFooter
+        branches={branches}
+        logoUrl={brand.footerLogoUrl}
+        logoAlt={brand.footerLogoAlt}
+        taglineText={brand.taglineText}
+      />
     </div>
   );
 }
