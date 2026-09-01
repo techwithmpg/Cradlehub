@@ -17,6 +17,22 @@ export type PreviewViewport = "desktop" | "tablet" | "mobile";
 
 type BranchRow = Database["public"]["Tables"]["branches"]["Row"];
 
+export const VIEWPORT_TARGET_WIDTHS: Record<PreviewViewport, number> = {
+  desktop: 1280,
+  tablet: 768,
+  mobile: 375,
+};
+
+/**
+ * Calculates a non-upscaled visual scale factor (<= 1) based on available container width
+ * and target viewport width.
+ */
+export function calculateViewportScale(availableWidth: number, targetWidth: number): number {
+  if (availableWidth <= 0 || targetWidth <= 0) return 1;
+  if (availableWidth >= targetWidth) return 1;
+  return Math.min(1, Math.max(0.1, availableWidth / targetWidth));
+}
+
 export type IsolatedViewportFrameProps = {
   viewport: PreviewViewport;
   title: string;
@@ -26,9 +42,10 @@ export type IsolatedViewportFrameProps = {
 
 /**
  * IsolatedViewportFrame encapsulates the preview inside an iframe container
- * so CSS/Tailwind media queries (@media min-width, md:, lg:) evaluate directly
- * against the selected preview viewport width (1280px, 768px, 375px) rather than
- * the author's host window size.
+ * with a STRICTLY FIXED internal layout width (1280px Desktop, 768px Tablet, 375px Mobile)
+ * so CSS/Tailwind media queries (@media min-width, md:, lg:) evaluate genuinely against
+ * the selected target width. If the host pane is narrower, visual scaling (CSS transform)
+ * is applied without reducing the iframe's internal CSS layout width.
  */
 export function IsolatedViewportFrame({
   viewport,
@@ -36,10 +53,36 @@ export function IsolatedViewportFrame({
   className = "",
   children,
 }: IsolatedViewportFrameProps) {
+  const containerRef = useRef<HTMLDivElement>(null);
   const iframeRef = useRef<HTMLIFrameElement>(null);
   const [mountNode, setMountNode] = useState<HTMLElement | null>(null);
+  const [scale, setScale] = useState<number>(1);
 
-  const widthStyle = viewport === "desktop" ? "1280px" : viewport === "tablet" ? "768px" : "375px";
+  const targetWidth = VIEWPORT_TARGET_WIDTHS[viewport];
+  const iframeHeight = 840;
+
+  useEffect(() => {
+    if (!containerRef.current) return;
+    const container = containerRef.current;
+
+    const updateScale = () => {
+      const containerWidth = container.clientWidth;
+      if (containerWidth > 0) {
+        setScale(calculateViewportScale(containerWidth, targetWidth));
+      }
+    };
+
+    updateScale();
+
+    if (typeof ResizeObserver !== "undefined") {
+      const observer = new ResizeObserver(updateScale);
+      observer.observe(container);
+      return () => {
+        observer.disconnect();
+      };
+    }
+    return undefined;
+  }, [targetWidth]);
 
   useEffect(() => {
     if (!iframeRef.current) return;
@@ -70,27 +113,45 @@ export function IsolatedViewportFrame({
     setMountNode(doc.body);
   }, [viewport]);
 
+  const scaledWidth = targetWidth * scale;
+  const scaledHeight = iframeHeight * scale;
+
   return (
     <div
+      ref={containerRef}
       data-testid={`isolated-viewport-${viewport}`}
       data-viewport={viewport}
-      className={`flex justify-center w-full h-full ${className}`}
+      data-scale={scale}
+      className={`flex justify-center w-full overflow-hidden ${className}`}
     >
-      <iframe
-        ref={iframeRef}
-        title={title}
-        data-viewport={viewport}
+      <div
         style={{
-          width: widthStyle,
-          maxWidth: "100%",
-          height: "100%",
-          minHeight: "720px",
-          border: "none",
+          width: `${scaledWidth}px`,
+          height: `${scaledHeight}px`,
+          position: "relative",
         }}
-        className="transition-all bg-white shadow-md rounded-lg overflow-hidden"
+        className="transition-all"
       >
-        {mountNode ? createPortal(children, mountNode) : null}
-      </iframe>
+        <iframe
+          ref={iframeRef}
+          title={title}
+          data-viewport={viewport}
+          data-target-width={targetWidth}
+          style={{
+            width: `${targetWidth}px`,
+            minWidth: `${targetWidth}px`,
+            maxWidth: "none",
+            height: `${iframeHeight}px`,
+            minHeight: `${iframeHeight}px`,
+            border: "none",
+            transform: `scale(${scale})`,
+            transformOrigin: "top left",
+          }}
+          className="bg-white shadow-md rounded-lg overflow-auto"
+        >
+          {mountNode ? createPortal(children, mountNode) : null}
+        </iframe>
+      </div>
     </div>
   );
 }

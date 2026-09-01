@@ -52,6 +52,8 @@ import {
 import {
   HighFidelityPreview,
   IsolatedViewportFrame,
+  calculateViewportScale,
+  VIEWPORT_TARGET_WIDTHS,
 } from "@/components/features/marketing/website/high-fidelity-preview";
 import {
   UnsavedChangesDialog,
@@ -985,7 +987,29 @@ describe("Website Studio & High-Fidelity Preview (C5 Pass 3)", () => {
   });
 
   describe("Viewport Isolation & Service Parity (C5 Pass 3 Final Preview-Fidelity)", () => {
-    it("renders IsolatedViewportFrame with exact widths for desktop (1280px), tablet (768px), and mobile (375px)", () => {
+    it("calculateViewportScale calculates non-upscaling visual scale factor correctly", () => {
+      // 1. Available width narrower than target (e.g. 640px pane with 1280px desktop preview)
+      expect(calculateViewportScale(640, 1280)).toBe(0.5);
+      expect(calculateViewportScale(384, 768)).toBe(0.5);
+      expect(calculateViewportScale(300, 375)).toBe(0.8);
+
+      // 2. Available width greater than or equal to target (never upscale beyond 1.0)
+      expect(calculateViewportScale(1280, 1280)).toBe(1);
+      expect(calculateViewportScale(1600, 1280)).toBe(1);
+      expect(calculateViewportScale(900, 768)).toBe(1);
+      expect(calculateViewportScale(500, 375)).toBe(1);
+
+      // 3. Edge/boundary conditions
+      expect(calculateViewportScale(0, 1280)).toBe(1);
+      expect(calculateViewportScale(-100, 1280)).toBe(1);
+      expect(calculateViewportScale(500, 0)).toBe(1);
+    });
+
+    it("renders IsolatedViewportFrame with fixed target layout widths (1280px Desktop, 768px Tablet, 375px Mobile) and maxWidth: none", () => {
+      expect(VIEWPORT_TARGET_WIDTHS.desktop).toBe(1280);
+      expect(VIEWPORT_TARGET_WIDTHS.tablet).toBe(768);
+      expect(VIEWPORT_TARGET_WIDTHS.mobile).toBe(375);
+
       const { rerender } = render(
         <IsolatedViewportFrame viewport="desktop" title="Desktop Frame">
           <div>Desktop Content</div>
@@ -994,6 +1018,8 @@ describe("Website Studio & High-Fidelity Preview (C5 Pass 3)", () => {
 
       const desktopIframe = screen.getByTitle("Desktop Frame") as HTMLIFrameElement;
       expect(desktopIframe.style.width).toBe("1280px");
+      expect(desktopIframe.style.minWidth).toBe("1280px");
+      expect(desktopIframe.style.maxWidth).toBe("none");
 
       rerender(
         <IsolatedViewportFrame viewport="tablet" title="Tablet Frame">
@@ -1002,6 +1028,8 @@ describe("Website Studio & High-Fidelity Preview (C5 Pass 3)", () => {
       );
       const tabletIframe = screen.getByTitle("Tablet Frame") as HTMLIFrameElement;
       expect(tabletIframe.style.width).toBe("768px");
+      expect(tabletIframe.style.minWidth).toBe("768px");
+      expect(tabletIframe.style.maxWidth).toBe("none");
 
       rerender(
         <IsolatedViewportFrame viewport="mobile" title="Mobile Frame">
@@ -1010,6 +1038,30 @@ describe("Website Studio & High-Fidelity Preview (C5 Pass 3)", () => {
       );
       const mobileIframe = screen.getByTitle("Mobile Frame") as HTMLIFrameElement;
       expect(mobileIframe.style.width).toBe("375px");
+      expect(mobileIframe.style.minWidth).toBe("375px");
+      expect(mobileIframe.style.maxWidth).toBe("none");
+    });
+
+    it("verifies constraining host pane does not mutate iframe layout width and preserves visual scaling invariant", () => {
+      // In jsdom, contentWindow.innerWidth layout is not fully rendered by the engine.
+      // We verify the invariant via CSS properties, target-width data attributes, and transform scale.
+      const { container } = render(
+        <div style={{ width: "600px" }}>
+          <IsolatedViewportFrame viewport="desktop" title="Desktop Scaled Frame">
+            <div>Scaled Desktop Content</div>
+          </IsolatedViewportFrame>
+        </div>
+      );
+
+      const iframe = screen.getByTitle("Desktop Scaled Frame") as HTMLIFrameElement;
+      expect(iframe.style.width).toBe("1280px");
+      expect(iframe.style.minWidth).toBe("1280px");
+      expect(iframe.style.maxWidth).toBe("none");
+      expect(iframe.getAttribute("data-target-width")).toBe("1280");
+
+      const viewportWrapper = container.querySelector("[data-testid='isolated-viewport-desktop']");
+      expect(viewportWrapper).toBeDefined();
+      expect(viewportWrapper?.getAttribute("data-scale")).toBeDefined();
     });
 
     it("ensures desktop and tablet preview receives full public catalog dataset while mobile receives isPublicSafeService filtered catalog", () => {

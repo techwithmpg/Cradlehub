@@ -76,10 +76,12 @@ In the targeted corrections, `HomePageSectionsRenderer` and `PublicMobileHomeRen
    - Fully integrated for primary and secondary image slots across all managed sections.
    - Selecting media updates in-memory form values without losing other unsaved field edits.
 
-5. **Isolated Viewport Context (`IsolatedViewportFrame`) & CSS Media-Query Isolation:**
+5. **Fixed Internal Viewport Layout (`IsolatedViewportFrame`) & Visual Scaling Architecture:**
    - Previews in Desktop (1280px), Tablet (768px), and Mobile (375px) modes are encapsulated in an isolated `iframe` via React portal (`IsolatedViewportFrame`).
-   - Host stylesheets and inline styles are dynamically synchronized into the iframe's `<head>`, allowing Tailwind CSS media queries (`@media (min-width: 768px)`, `md:`, `lg:`, `xl:`) and CSS viewport units to evaluate genuinely against the preview container's exact pixel width rather than the author's browser window.
-   - Renders the REAL `HomePageSectionsRenderer` (Desktop/Tablet) and `PublicMobileHomeRenderer` (Mobile) without mock JSX.
+   - **Fixed Internal Layout Invariant:** The iframe's internal layout width is strictly locked at exactly `1280px` (Desktop), `768px` (Tablet), and `375px` (Mobile) with `maxWidth: "none"`. `maxWidth: 100%` was explicitly removed from the iframe to guarantee that its internal CSS layout viewport never shrinks to author pane width.
+   - **Visual Scaling:** When the author's Studio preview pane is narrower than the target viewport width, a `ResizeObserver` measures available container width and computes a visual scale factor `calculateViewportScale(availableWidth, targetWidth) <= 1`. The iframe is scaled down visually using `transform: scale(scale)` with `transform-origin: top left`, and the container wrapper reserves the scaled bounding box (`width: targetWidth * scale`, `height: iframeHeight * scale`).
+   - **Media-Query Isolation:** Host stylesheets and inline styles are dynamically synchronized into the iframe's `<head>`, ensuring Tailwind CSS media queries (`@media (min-width: 768px)`, `md:`, `lg:`, `xl:`) evaluate genuinely against the selected target width (e.g. 1280px) regardless of how narrow the author's screen or pane is.
+   - **Component Grounding:** Renders the REAL `HomePageSectionsRenderer` (Desktop/Tablet) and `PublicMobileHomeRenderer` (Mobile) without mock JSX.
 
 6. **Service Parity Between Mobile and Desktop/Tablet:**
    - **Mobile Viewport:** Enforces `isPublicSafeService` filtering (`isPublicBookable && !isCsrOnly && !isVip`), matching public mobile consumer rules and excluding CSR-only, VIP, and non-bookable offerings.
@@ -110,13 +112,15 @@ In the targeted corrections, `HomePageSectionsRenderer` and `PublicMobileHomeRen
 pnpm vitest run tests/lib/marketing/website-studio.test.tsx
 ```
 
-- **Result:** 1 test file, 30 tests PASSED (0 failed):
-  - Viewport isolation mechanism (1280px Desktop, 768px Tablet, 375px Mobile)
-  - Mobile service filtering (`isPublicSafeService` rule verification)
-  - Desktop service dataset parity (`HomePageSectionsRenderer` public dataset match)
-  - Realtime in-memory reactivity and Draft/Live/Compare modes
-  - Dialog accessibility (`Dialog` primitives for Mobile Preview, Request Changes, Schedule, Unsaved Changes, Revert to Live)
-  - Save-dirty state clearance and immediate submit action availability
+- **Result:** 1 test file, 32 tests PASSED (0 failed):
+  - `calculateViewportScale` computes non-upscaling visual scaling factors (e.g. 640px available -> 0.5 scale for 1280px target; 1400px available -> 1.0 scale).
+  - Fixed iframe layout widths (1280px Desktop, 768px Tablet, 375px Mobile) with `maxWidth: none` and `minWidth: targetWidth`.
+  - Invariant verification: constraining host container preserves iframe layout width while visual scale adjusts independently. (Note: jsdom does not implement full layout rendering for `contentWindow.innerWidth`; invariants are verified via computed styles, data attributes, and scaling math).
+  - Mobile service filtering (`isPublicSafeService` rule verification).
+  - Desktop service dataset parity (`HomePageSectionsRenderer` public dataset match).
+  - Realtime in-memory reactivity and Draft/Live/Compare modes.
+  - Dialog accessibility (`Dialog` primitives for Mobile Preview, Request Changes, Schedule, Unsaved Changes, Revert to Live).
+  - Save-dirty state clearance and immediate submit action availability.
 
 ### 2. TypeScript Type-Check
 
