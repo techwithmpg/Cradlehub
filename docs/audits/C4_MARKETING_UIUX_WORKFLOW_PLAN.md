@@ -6,6 +6,7 @@
 **Base SHA:** `fb94e2f8163017fae83ab267cfb96ee483dc994c` (Accepted C3 closeout merge commit on `main`)
 **Initial C4 Delivery SHA:** `c65f3049370be6eedc3dea8c2d007ead968cd28c`
 **Whitespace Cleanup SHA:** `829037f53d14b721245dba6d59389f41c7bc0664`
+**First Correction SHA:** `83e9dd27db652cae3610c546184538ff3d806f52`
 **Branch:** `stage/c4-marketing-uiux-workflow-plan`
 **Date:** 2026-09-01
 **Status:** PLAN CORRECTED / AWAITING INDEPENDENT REVIEW (C5+ NOT AUTHORIZED)
@@ -27,7 +28,7 @@
 5. **Canonical Public Identity & Location Context:**
    - Canonical Public Domain: `SITE_DOMAIN = https://cradlewellnessliving.com`
    - Canonical Primary Location: Bacolod City, Philippines.
-   - The workspace and public site represent Cradle Wellness Living in Bacolod City. No cross-project or unproven branch data (e.g. Pampanga/Clark/Telabastagan) is assumed.
+   - The workspace and public site represent Cradle Wellness Living in Bacolod City. No cross-project or unproven branch data is assumed.
 
 ---
 
@@ -60,7 +61,7 @@ graph TD
     end
 
     subgraph PrimaryNav["Five Core Primary Modules"]
-        M1["1. Website Studio<br/>• Page / Route Selector<br/>• Section List & Status<br/>• Form Editor & Media Picker<br/>• High-Fidelity Preview Rail"]
+        M1["1. Website Studio<br/>• Route / Page Selector<br/>• Home Section List & Category Badges<br/>• Form Editor & Media Picker<br/>• High-Fidelity Preview Rail"]
         M2["2. Brand Studio<br/>• 6 Visual Asset Slots<br/>• Context Previews (Header, Footer, Social)<br/>• Bundled SVG Fallback Preserved"]
         M3["3. Branches Studio<br/>• Dynamic Branch Selection List<br/>• Public Contact / Hours / Social Form<br/>• Read-Only Location / Ops Data"]
         M4["4. Services Studio<br/>• Existing Services Catalog<br/>• Public Appearance / Image / Alt Form<br/>• Read-Only Ops Pricing / Durations"]
@@ -129,17 +130,21 @@ graph TD
 ## E. Website Studio UI/UX Specification
 
 ### 1. Section Source-of-Truth Classification
-Repository inspection reveals that not all public homepage areas currently possess database rows in `public_site_sections`. Website Studio classifies sections into two distinct operational groups:
+Repository inspection reveals three distinct categories of homepage and public content:
 
-#### Category A: Existing Managed Section Contracts (Proven Database Backing)
-- **`hero`:** Backed by `PUBLIC_SITE_SECTION_DEFAULTS` and `public_site_sections`.
-- **`about`:** Backed by `PUBLIC_SITE_SECTION_DEFAULTS` and `public_site_sections`.
-- **`quote_banner`:** Backed by `PUBLIC_SITE_SECTION_DEFAULTS` and `public_site_sections`.
-- **`before_you_book`:** Backed by `PUBLIC_SITE_SECTION_DEFAULTS` and `public_site_sections`.
+#### Category A: Seeded Managed Section Contracts (Proven Defaults in Repository)
+- **`hero`:** Backed by `PUBLIC_SITE_SECTION_DEFAULTS` constant and `public_site_sections` table.
+- **`about`:** Backed by `PUBLIC_SITE_SECTION_DEFAULTS` constant and `public_site_sections` table.
+- **`quote_banner`:** Backed by `PUBLIC_SITE_SECTION_DEFAULTS` constant and `public_site_sections` table.
+- **`before_you_book`:** Backed by `PUBLIC_SITE_SECTION_DEFAULTS` constant and `public_site_sections` table.
+
+#### Category B: Consumer-Recognized Managed Keys (Persisted Row Presence Not Proven)
 - **`signature_services`:** Checked dynamically in `HomePageSections` (`src/components/public/home-page-sections.tsx`); lacks seeded defaults in repository constant.
-- **`gallery`:** Checked dynamically in `HomePageSections`; mapped to `public_site_assets`.
+- **`gallery`:** Checked dynamically in `HomePageSections`. Currently, the public gallery renders static components (`ServiceShowcaseCarousel` / `SERVICE_SHOWCASE_SLIDES`). The `gallery` section key in `HomePageSections` acts as a visibility gate, but its content is not dynamically mapped to `public_site_assets` in the current codebase.
+  - *Target UX Requirement:* Media Library should eventually drive Gallery slides.
+  - *Integration Dependency:* `CONSUMER / PERSISTENCE INTEGRATION DEPENDENCY` (requires C5 consumer refactor).
 
-#### Category B: Currently Static Public Components / Future Management Candidates
+#### Category C: Static Public Components / Future Management Candidates
 The following homepage components are currently backed by static constants or hardcoded component copy in the repository:
 - `Experience` (Spa experience highlights)
 - `Choose Your Setting` (Setting selector)
@@ -147,22 +152,36 @@ The following homepage components are currently backed by static constants or ha
 - `Wellness Team` (Staff highlights)
 - `Reasons Guests Visit` (Guest benefits)
 - `Contact Presentation` (Homepage contact teaser)
+- *Governance Status:* `SOURCE OF TRUTH / DRAFT PERSISTENCE = UNRESOLVED IMPLEMENTATION DEPENDENCY`. The system does NOT silently assume `public_site_sections` rows exist.
 
-> [!IMPORTANT]
-> **Source-of-Truth & Persistence Gap for Category B:**
-> C4 specifies the target editing UX for these areas, but explicitly records: `SOURCE OF TRUTH / DRAFT PERSISTENCE = UNRESOLVED IMPLEMENTATION DEPENDENCY`. The system does NOT silently assume `public_site_sections` rows already exist for Category B. A future authorized schema/seed stage must establish their persistence.
+### 2. Website Route / Section Navigation Hierarchy
+Website Studio visually distinguishes between **Verified Public Routes** and **Modular Homepage Sections**:
 
-### 2. Route-Level Page Content vs. Homepage Section Editing
-- **Homepage Section Editing:** Manages sections mounted on the root `/` route.
-- **Dedicated Route-Level Pages (`/about`, `/contact`, `/branches`, `/services`, `/book`):** Governed by route-level page layouts. Future marketing management of route-level static pages is distinguished from modular homepage section editing.
+```
+Website Studio
+├── Route Selector: Home (/)
+│   ├── hero (Seeded Managed Contract)
+│   ├── about (Seeded Managed Contract)
+│   ├── quote_banner (Seeded Managed Contract)
+│   ├── before_you_book (Seeded Managed Contract)
+│   ├── signature_services (Consumer-Recognized Key)
+│   ├── gallery (Consumer-Recognized Key / Static Carousel Consumer)
+│   └── Static Component Candidates (Experience, Team, etc. - Marked "Static Component")
+├── Route Selector: Services (/services) [Contextual Page SEO & Copy]
+├── Route Selector: Book (/book) [Contextual Page SEO]
+├── Route Selector: Branches (/branches) [Contextual Page SEO]
+├── Route Selector: About (/about) [Route-Level Page Content Candidate]
+├── Route Selector: Contact (/contact) [Route-Level Page Content Candidate]
+└── Other Verified Public Routes (/products, /home-service-massage-bacolod, /massage-spa-bacolod)
+```
+
+> [!NOTE]
+> `before_you_book` is an in-page section of the Home route (`/`), not a standalone route. Route-level pages are presented in the top route selector only where a proven content contract exists or labeled as future candidates.
 
 ### 3. Layout & Workspace Hierarchy
-- **Header Bar:**
-  - Page Selector: `Home` (default), with tabs/selectors for distinct public routes (`About`, `Contact`, `Before You Book / Info`).
-  - Global Page Action: Live Status indicator (`Published`, `Draft in Review`, `Unsaved Changes`), View Live Page link, Unsaved Changes Guard status.
 - **Three-Pane Split View (Desktop ≥ 1280px):**
   - **Left Pane (280px) — Section List:**
-    - Displays Category A managed sections with primary badges, and Category B candidates marked with status pills (`Managed Live` vs. `Static Component`).
+    - Displays Category A managed sections with primary badges, Category B recognized keys, and Category C static candidates marked with status pills (`Managed Live` vs. `Static Component`).
     - Section Item Card: Title, enabled badge (`is_enabled`), status indicator (`Live`, `Draft`, `Needs Review`), selection highlight.
   - **Center Pane (Flexible 480px–600px) — Form Editor:**
     - Structured, friendly field controls mapping directly to schema fields without exposing JSON:
@@ -188,20 +207,15 @@ Brand Studio organizes identity assets into **6 dedicated card slots** correspon
 5. **Favicon (`favicon`):** 32x32 / 48x48 icon for browser tabs.
 6. **Social Sharing Image (`social_image`):** 1200x630 OpenGraph card image for Facebook/Twitter previews.
 
-### 2. Slot Card Interaction Pattern
-- Each card displays:
-  - Asset Slot Title & Purpose description.
-  - Thumbnail Preview Box with background checkerboard / surface toggle (Light vs. Dark background preview).
-  - Current Asset Metadata: File dimensions, format, resolution health indicator.
-  - Action Controls: `Replace Asset` (opens Media Picker), `Revert to Bundled Fallback` (restores bundled static vector).
-- **Live Context Previews:**
-  - Public Site Header Simulation (Desktop & Mobile).
-  - Public Site Footer Simulation.
-  - Social Media Card Preview (Facebook/iMessage share simulation).
-- **Verified Fallback Assets:**
+### 2. Slot Card Interaction Pattern & Consumer Integration
+- **Slot Card Controls:** Asset Title, Thumbnail Preview Box with surface toggle (Light vs. Dark background preview), Metadata (dimensions, format), `Replace Asset` button, and `Revert to Bundled Fallback` button.
+- **Verified Bundled Fallback Assets:**
   - Horizontal Brand Logo: `@/assets/brand/cradle-logo-horizontal.svg`
   - Logo Mark / Icon: `@/assets/brand/cradle-logo-mark.svg`
-  - If a slot has no uploaded asset, the UI automatically falls back to these verified bundled static vectors. Any future additional bundled variants are labeled as proposed.
+- **Brand Live-Consumer Integration Dependency:**
+  - *Current Repository Fact:* `BrandLogo` statically imports the SVG files above and does NOT consume `marketing_brand_settings`.
+  - *Target Contract:* A future Brand publisher alone is insufficient; target implementation requires:
+    `Reviewed Brand draft → Approved marketing_brand_settings value → BrandLogo / public consumer resolves approved setting → Static SVG fallback if unavailable/invalid`.
 
 ---
 
@@ -219,7 +233,7 @@ Brand Studio organizes identity assets into **6 dedicated card slots** correspon
   - Facebook Page URL (`fb_page`).
   - Facebook Messenger Link (`messenger_link`).
   - Public Opening Hours Copy (`opening_hours`).
-  - Public Branch Photos (`photos` via Media Picker).
+  - Public Branch Photos: `TARGET MEDIA ASSOCIATION` (Persistence/source mapping is an `UNRESOLVED IMPLEMENTATION DEPENDENCY`; no new branch photo schema is authorized in C4).
 - **Shared Canonical Location & Identity (Read-Only to Marketers):**
   - Branch Name (`name`), Street Address (`address`), City (`city`), Barangay (`barangay`), Coordinates (`latitude`, `longitude`), Place ID (`place_id`), Maps Embed URL (`maps_embed_url`), Sort Order (`sort_order`).
   - Clearly styled in disabled container with badge: *"Managed by Branch Setup / Owner"*.
@@ -243,15 +257,15 @@ Brand Studio organizes identity assets into **6 dedicated card slots** correspon
 - **Strict Prohibition:** NO "Add Service", NO "Delete Service", NO operational pricing/duration mutation.
 
 ### 2. Field-by-Field Source-of-Truth Recommendation
-To preserve catalog integrity without breaking operational booking/CRM consumers, C4 evaluates each service marketing field:
+Repository inspection shows that `getPublicServiceCatalog()` currently consumes: `service.name`, `service.description`, `service.image_url`, `service.image_alt`, and existing metadata keys (`public_short_description`, `duration_text`, `price_label`, `service_badges`, `inclusions`). It does NOT currently consume `services.metadata.public_title` or `services.metadata.is_featured`.
 
-| Presentation Field | Verified Repository Fact | Recommended Target Destination | Side Effect & Consumer Analysis | Governance / Decision Status |
+| Presentation Field | Verified Repository Fact | Recommended Target Destination | Consumer Resolution & Integration Requirement | Governance / Decision Status |
 | :--- | :--- | :--- | :--- | :--- |
-| **Public Image (`image_url`)** | `services.image_url` is consumed by `getPublicServiceCatalog()`. | Master `services.image_url`. | Updates public service card image across `/services` and `/book`. Safe for marketing presentation. | **RECOMMENDATION** (C5 implementation dependency) |
-| **Image Alt Text (`image_alt`)** | `services.image_alt` exists in master table. | Master `services.image_alt`. | Provides accessible description for public image. Safe for marketing presentation. | **RECOMMENDATION** (C5 implementation dependency) |
-| **Public Title / Display Name** | `services.name` is canonical identity used by therapist booking, CRM, cashier, and receipts. | **Destination A (Recommended):** Store public presentation title in `services.metadata.public_title` (or `branch_services.public_title` if branch-specific). **Do NOT overwrite `services.name` directly.** | Overwriting `services.name` directly would silently rename operational services across internal staff dispatch, POS, and historical booking logs. | **RECOMMENDATION — OWNER DECISION REQUIRED** |
-| **Public Description** | `services.description` is public-facing copy consumed by catalog. | Master `services.description` (or `services.metadata.public_description`). | Safe for marketing copy adjustments. | **RECOMMENDATION** (C5 implementation dependency) |
-| **Featured Badge (`is_featured`)** | `branch_services.is_featured` exists per branch; master `services` uses `metadata`. | Master `services.metadata.is_featured` for global catalog, or `branch_services.is_featured` for branch-specific. | Highlights service on public homepage signature services list. | **RECOMMENDATION — OWNER DECISION REQUIRED** |
+| **Public Image (`image_url`)** | `services.image_url` is currently consumed by `getPublicServiceCatalog()`. | Master `services.image_url`. | Existing consumer reads this field directly. Safe for marketing presentation. | **RECOMMENDATION** (C5 implementation dependency) |
+| **Image Alt Text (`image_alt`)** | `services.image_alt` is currently consumed by `getPublicServiceCatalog()`. | Master `services.image_alt`. | Existing consumer reads this field directly. Safe for marketing presentation. | **RECOMMENDATION** (C5 implementation dependency) |
+| **Public Title / Display Name** | `services.name` is canonical identity used by therapist booking, CRM, cashier, and receipts. `metadata.public_title` is NOT currently consumed. | **Candidate Destination:** Store public presentation title in `services.metadata.public_title` (or `branch_services.public_title`). **Do NOT overwrite `services.name` directly.** | *Current Consumer:* NOT IMPLEMENTED. *Target:* Public catalog card title. *Required Consumer Change:* `getPublicServiceCatalog()` must be updated to resolve `metadata.public_title ?? service.name`. | **RECOMMENDATION — OWNER DECISION REQUIRED** |
+| **Public Description** | `services.description` is consumed by catalog; `public_short_description` exists in `metadata`. | Master `services.description` for main body, or existing `services.metadata.public_short_description` for summary card. | Prefer existing presentation-specific semantics (`public_short_description`) rather than inventing overlapping keys. | **RECOMMENDATION** (C5 implementation dependency) |
+| **Featured Badge (`is_featured`)** | `branch_services.is_featured` exists per branch; `services.metadata.is_featured` is NOT currently consumed. | **Candidate Destination:** `services.metadata.is_featured` for global catalog, or `branch_services.is_featured` for branch-specific. | *Current Consumer:* NOT IMPLEMENTED. *Target:* Homepage signature services filter. *Required Consumer Change:* Public component must explicitly resolve `metadata.is_featured`. | **RECOMMENDATION — OWNER DECISION REQUIRED** |
 | **Operational Parameters (`price`, `duration`, `buffer`, `category`, `delivery`)** | Master `services` + `branch_services`. | **READ-ONLY IN MARKETING STUDIO.** | Changing these modifies cashier pricing, appointment duration grids, and therapist eligibility. Prohibited in Marketing Studio. | **FROZEN REPOSITORY FACT** |
 
 ---
@@ -268,7 +282,7 @@ To preserve catalog integrity without breaking operational booking/CRM consumers
   - High-resolution thumbnail with aspect-ratio preservation.
   - Asset Title and Section Tag pill.
   - Usage Count Badge (e.g. `Used in 3 places`).
-  - Lifecycle Status Badge: `Draft` (Slate), `Submitted` (Amber), `Approved` (Blue), `Published` (Emerald), `Archived` (Muted Gray).
+  - Lifecycle Status Badge: `draft` (Slate), `submitted` (Amber), `approved` (Blue), `published` (Emerald), `archived` (Muted Gray).
   - Selection Checkbox for batch archive requests.
 
 ### 2. Asset Inspector & Derived Metadata Drawer
@@ -279,8 +293,8 @@ To preserve catalog integrity without breaking operational booking/CRM consumers
   - **Usage Location Tracker:** Live list of every section, service, or draft referencing this asset URL.
   - **Actions:**
     - `Replace Image File`: Stages replacement asset across affected drafts (see Section S for safe workflow).
-    - `Request Soft-Archive` (Digital Marketer): Opens usage warning dialog and submits archive request.
-    - `Finalize Archive` (Owner): Soft-archives asset (`status = 'archived'`).
+    - `Request Soft-Archive` (Digital Marketer): Opens usage warning dialog and submits archive request (`marketing_media_assets.status = 'submitted'`).
+    - `Finalize Archive` (Owner): Soft-archives asset (`marketing_media_assets.status = 'archived'`).
     - **NO Hard-Delete Button:** Hard deletion is completely excluded from the UI layout.
 
 ---
@@ -294,12 +308,16 @@ To preserve catalog integrity without breaking operational booking/CRM consumers
      - `My Drafts` (Filter by current user)
      - `Needs Review` (Drafts submitted for owner approval)
      - `Changes Requested` (Drafts sent back with owner review notes)
+     - `Approved` (Approved content awaiting publication)
      - `Scheduled` (Approved content with target publication dates)
-     - `Publication History` (Immutable log of published content revisions)
-2. **Draft Queue Table Columns:**
+     - `Published / History` (Immutable log of published content revisions)
+     - `Archived` (Soft-archived drafts)
+2. **Canonical Draft Lifecycle Mapping:**
+   - Visual Badges map directly to canonical lifecycle values: `draft`, `submitted`, `changes_requested`, `approved`, `scheduled`, `published`, `archived`.
+3. **Draft Queue Table Columns:**
    - **Target Content:** Section/Entity Name (e.g., `Home > Hero Section`, `Signature Massage`).
    - **Module:** Badge (`Website`, `Brand`, `Branches`, `Services`, `Media`).
-   - **Draft Status:** Canonical lifecycle badge (`draft`, `submitted`, `changes_requested`, `approved`, `published`).
+   - **Draft Status:** Canonical lifecycle badge.
    - **Last Modified:** Relative timestamp and author name.
    - **Review Note:** Preview of latest review feedback.
    - **Actions:** `Edit Draft`, `Preview Changes`, `Review / Publish` (Owner).
@@ -318,25 +336,26 @@ To preserve catalog integrity without breaking operational booking/CRM consumers
 
 ## L. Contextual SEO Interaction Pattern
 
-1. **Route-Level Architecture:**
-   - `marketing_seo_settings` stores SEO metadata keyed by `route_path`.
-   - Verified public routes on `SITE_DOMAIN` (`https://cradlewellnessliving.com`):
-     - `/` (Home)
-     - `/services` (Services Catalog)
-     - `/book` (Online Booking)
-     - `/branches` (Branch Locations)
-     - `/about` (About Cradle)
-     - `/contact` (Contact & Hours)
-     - `/products` (Wellness Products)
-     - `/home-service-massage-bacolod` (Home Service Bacolod Landing)
-     - `/massage-spa-bacolod` (Spa Bacolod Landing)
-2. **Interaction & Mapping Design:**
-   - **Website Studio:** "Search & Social" tab maps directly to the specific page/route being edited (e.g. `/`, `/about`, `/contact`). It does NOT generate conflicting SEO records per homepage sub-section.
-   - **Services Studio:**
-     - The `/services` route owns page-level Search & Social metadata.
-     - Individual service cards manage card presentation copy (`public_title`, `public_description`, `og_image_url`).
-     - Future individual service-detail SEO (e.g. dedicated deep-link pages) requires a separately authorized route/product decision.
-3. **Form Fields:**
+1. **Route-Level Architecture & Current Live Consumer Gap:**
+   - *Current Repository Fact:* `src/lib/seo/metadata.ts` `buildMetadata()` builds Next.js Metadata from function input, `SITE_DOMAIN`, `DEFAULT_DESCRIPTION`, `DEFAULT_OG_IMAGE`, `DEFAULT_OG_IMAGE_ALT`, and `CORE_KEYWORDS`. It does NOT currently read `marketing_seo_settings`.
+   - *Integration Gap:*
+     - **SEO Draft Persistence:** Foundation exists (`marketing_seo_settings` table).
+     - **SEO Publisher:** Not implemented.
+     - **SEO Live Consumer:** Not implemented. Updating `marketing_seo_settings` alone would NOT change public metadata.
+   - *Target Requirement:* Future implementation requires BOTH:
+     1. Reviewed draft → `marketing_seo_settings` publication contract.
+     2. Route metadata consumers / `buildMetadata()` integration that safely resolves approved settings with static fallback.
+2. **Verified Public Routes Inventory (`SITE_DOMAIN = https://cradlewellnessliving.com`):**
+   - `/` (Home)
+   - `/services` (Services Catalog)
+   - `/book` (Online Booking)
+   - `/branches` (Branch Locations)
+   - `/about` (About Cradle)
+   - `/contact` (Contact & Hours)
+   - `/products` (Wellness Products)
+   - `/home-service-massage-bacolod` (Home Service Bacolod Landing)
+   - `/massage-spa-bacolod` (Spa Bacolod Landing)
+3. **Form Fields & Previews:**
    - Page Meta Title (Character meter: optimal 50–60 chars).
    - Meta Description (Auto-resizing textarea: optimal 120–155 chars).
    - Social Sharing Image (OG Image via Media Picker: optimal 1200x630px).
@@ -473,9 +492,9 @@ To preserve catalog integrity without breaking operational booking/CRM consumers
    - Clicks `Request Soft-Archive` button.
 3. **Modal / Sheet Usage:** Usage-Impact Warning Dialog opens displaying: *"This image is actively referenced in public content. Archiving will retain the file to prevent broken links, but flags it as inactive in the media browser."*
 4. **Validation:** Requires marketer to enter an archive reason (e.g. *"Licensing contract expired"*).
-5. **Draft Behavior:** Asset status transitions to `submitted` for archive review.
+5. **Draft Behavior:** Asset status transitions to `submitted` for archive review (`marketing_media_assets.status = 'submitted'`).
 6. **Review Behavior:** Request appears in Owner's review queue under `Media Archive Requests`.
-7. **Owner Action:** Owner inspects usage locations, stages replacement image in affected sections, and clicks `Finalize Archive`.
+7. **Owner Action:** Owner inspects usage locations, stages replacement image in affected sections, and clicks `Finalize Archive` (`marketing_media_assets.status = 'archived'`).
 8. **Error Recovery:** If marketer accidentally requests archive, they can click `Cancel Request` prior to owner finalization.
 9. **Responsive Behavior:** Inspector opens as full-screen modal on mobile viewports (< 768px).
 10. **Success Confirmation:** Toast: *"Asset soft-archived. Underlying file retained for link integrity."*
@@ -513,7 +532,7 @@ To preserve catalog integrity without breaking operational booking/CRM consumers
    - Clicks `Choose Image` on Primary Image slot; selects new high-res hero image from Media Picker.
    - Right Preview Rail immediately updates live in memory.
    - Marketer clicks `Mobile (375px)` icon on Preview Rail toolbar.
-   - Preview container shrinks smoothly to 375px showing exact mobile carousel layout, font wrapping, and CTA thumb reachability.
+   - Preview container shrinks smoothly to 375px showing mobile carousel layout, font wrapping, and CTA thumb reachability.
    - Marketer clicks `Desktop (1280px)` icon to verify wide desktop hero layout.
    - Marketer toggles `Compare` mode to see side-by-side split diff against currently live Hero.
 3. **Modal / Sheet Usage:** Viewport and mode toggles switch seamlessly within the sticky preview rail without opening modals.
@@ -523,7 +542,11 @@ To preserve catalog integrity without breaking operational booking/CRM consumers
 7. **Owner Action:** Owner opens `/owner/marketing`, selects submitted Hero draft, toggles mobile preview, clicks `Publish Live`.
 8. **Error Recovery:** Marketer can click `Revert to Live` button at any time to discard unsubmitted draft changes.
 9. **Responsive Behavior:** On tablet/mobile devices, the Preview Rail is accessed via a floating `Preview` action button that slides open a full-height preview sheet.
-10. **Success Confirmation:** Toast: *"Hero section published live. Changes are now visible to desktop and mobile visitors."*
+10. **Implementation Prerequisite & Parity Dependency:**
+    - *Prerequisite:* MKT-001 public Desktop/Mobile consumer parity must be corrected and verified first in C5.
+    - *Known Reality:* Until mobile consumer parity is implemented, mobile preview rendering and publishing cannot be certified as exact for the live mobile homepage.
+    - *Success Criteria:* After mobile consumer parity is implemented and verified, published Hero content renders consistently across desktop and mobile. Zero browser verification is claimed in C4.
+11. **Success Confirmation:** Toast: *"Hero section published live. Changes are now visible to visitors."*
 
 ---
 
@@ -572,7 +595,7 @@ sequenceDiagram
 6. **Owner Inspects Changes:** Owner reviews visual diffs across all affected routes and components.
 7. **Owner Executes Live Publication:** Owner publishes the reviewed drafts via module-specific publishers.
 8. **Permanent File Retention:** The physical file of the old asset is permanently retained in Storage to prevent broken historical URLs.
-9. **Owner Finalizes Archive:** Owner marks the old asset record as `status = 'archived'`.
+9. **Owner Finalizes Archive:** Owner marks the old asset record as `marketing_media_assets.status = 'archived'`.
 
 ---
 
@@ -631,7 +654,7 @@ The Marketing Workspace UI adapts across 6 standard viewport widths:
 | **2. Service Source-of-Truth Decision** | Catalog data spans `services` and `branch_services`; `getPublicServiceCatalog()` consumes master `services`. `services.name` is operational catalog identity. | Marketers edit public service copy/images without touching operational pricing/durations or renaming CRM catalog. | **Recommendation:** Destination for marketing image/alt is master `services.image_url` / `image_alt`. Destination for public title/description is `services.metadata` (or presentation overrides). **Do NOT overwrite `services.name` directly.** | High if `services.name` is overwritten; zero risk if isolated to presentation fields. | C5 service draft publisher implementation. | **YES** |
 | **3. Service Draft → Live Publish Mapping** | `publishMarketingContentDraft()` throws error if `content_type !== 'section'`. | Owner can approve and publish service presentation drafts to live catalog. | Extend `publishMarketingContentDraft()` server handler to support `content_type = 'service'` writing to approved service presentation fields. | Overwriting operational fields; mitigated by strict whitelist of presentation fields. | Server action extension in C5. | **YES** |
 | **4. Brand Draft → Live Publish Mapping** | Brand settings reside in `marketing_brand_settings` (`value` JSONB); no draft publish pipeline exists. | Marketer proposes brand logo/favicon; Owner reviews and publishes live. | Create brand draft publisher that updates `marketing_brand_settings.value` and triggers `revalidatePath('/', 'layout')`. | Breaking site-wide header/footer logo; mitigated by bundled static SVG fallback. | Server action extension in C5. | **YES** |
-| **5. SEO Draft → Live Publish Mapping** | SEO settings reside in `marketing_seo_settings` and `buildMetadata()` constants; draft publish pipeline is missing. | Marketers manage Search & Social metadata per route in draft; Owner publishes live. | Create SEO draft publisher updating `marketing_seo_settings` and triggering route revalidations. | Malformed meta tags; mitigated by structured form controls with length limits. | Server action extension in C5. | **YES** |
+| **5. SEO Draft → Live Publish Mapping & Live Consumer** | `buildMetadata()` does not read `marketing_seo_settings`; draft publish pipeline is missing. | Marketers manage Search & Social metadata per route in draft; Owner publishes live; public pages consume approved SEO. | Create SEO draft publisher and integrate `buildMetadata()` to resolve `marketing_seo_settings` with static fallback. | Malformed meta tags; mitigated by structured form controls with length limits. | Server action and SEO helper refactor in C5. | **YES** |
 | **6. Website Section Image Alt/Link Persistence** | `public_site_sections` table lacks first-class `alt_text` column (`alt_text` is in drafts and `metadata`). | Image alt text is preserved when published to live public site. | Store `alt_text` inside `public_site_sections.metadata` JSONB upon publish, and read via existing metadata helpers. | Missing alt text degrading public SEO/a11y; mitigated by structured metadata helper. | Client/server metadata parsing in C5. | **NO** (Within existing schema) |
 | **7. Media Hard-Delete Enforcement Gap** | Product rule is PROHIBITED; migration defines DELETE policy for owner/marketer; live Storage policy is UNKNOWN. | Hard delete is excluded from product UX; only non-destructive soft-archive exists. | Remove UI delete buttons; in future security stage, update Storage DELETE policy to reject browser client deletion. | Direct client bypass via Supabase SDK; mitigated by omitting client delete methods and enforcing soft-archive. | Storage policy update in authorized security stage. | **YES** |
 | **8. Owner Direct-Edit Audit Consistency** | Direct mutations in `/owner/marketing` write to `public_site_sections` without calling `insertMarketingRevision()`. | Every live mutation produces an immutable revision record. | Refactor owner direct mutation server action to unconditionally invoke `insertMarketingRevision()`. | Unaudited live copy changes; eliminated by standardizing server mutation pipeline. | Server action refactor in C5. | **NO** (Strict adherence to C2/C3 contract) |
@@ -642,17 +665,16 @@ The Marketing Workspace UI adapts across 6 standard viewport widths:
 ## X. Security-Gap Planning Decisions & Server Architecture
 
 1. **Current Verified Server Architecture:**
-   - Marketer Actions: `src/app/(dashboard)/marketing/actions.ts`
-   - Owner Marketing Actions: `src/app/(dashboard)/owner/marketing/actions.ts` (enforces `requireOwner()` boundary).
-   - Shared Query Helpers: `src/lib/queries/marketing-content.ts` (enforces authenticated role checks).
-   - *Architecture Recommendation:* A future centralized mutation boundary (e.g. `src/actions/marketing.ts`) is a **RECOMMENDATION** for code organization, not an existing repository fact.
+   - **Digital Marketer Actions:** `src/app/(dashboard)/marketing/actions.ts` (authenticates user and enforces marketing-role authorization; save/submit draft authority only).
+   - **Owner Marketing Actions:** `src/app/(dashboard)/owner/marketing/actions.ts` (enforces server-side owner authorization via `requireOwner()`; review, approve, schedule, publish, and archive authority).
+   - **Shared Query & Mutation Helpers:** `src/lib/queries/marketing-content.ts` (independently enforces authenticated role/operation checks).
+   - *Architecture Recommendation:* A future centralized mutation boundary (e.g. `src/actions/marketing.ts`) is an optional **RECOMMENDATION** for code organization, not an existing repository fact.
 2. **Defense-in-Depth for Media Deletion:**
    - UI excludes all hard-delete controls.
    - Client-side code in `/marketing` will contain zero invocations of `supabase.storage.from(...).remove()`.
-   - Soft-archiving updates metadata `status = 'archived'`.
+   - Soft-archiving updates metadata `marketing_media_assets.status = 'archived'`.
 3. **Strict Server-Side Mutation Boundaries:**
-   - All draft saving, submission, review, and publishing actions execute through dedicated server actions protected by server-side session authentication and role verification (`requireOwner()`).
-   - Browser clients never write directly to PostgreSQL tables via client Supabase SDK.
+   - Browser clients never write directly to PostgreSQL tables via client Supabase SDK. All mutations flow through validated server actions.
 
 ---
 
