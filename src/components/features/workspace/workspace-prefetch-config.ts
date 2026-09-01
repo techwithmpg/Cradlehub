@@ -94,7 +94,7 @@ export const OWNER_PREFETCH: WorkspacePrefetchConfig = {
 
 export const MARKETING_PREFETCH: WorkspacePrefetchConfig = {
   immediate: [],
-  idle: ["/marketing"],
+  idle: ["/marketing", "/marketing/media"],
   hover: [],
 };
 

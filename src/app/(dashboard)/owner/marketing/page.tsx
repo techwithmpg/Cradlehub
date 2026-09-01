@@ -5,14 +5,16 @@ import {
   getMarketingContentDrafts,
   getMarketingContentRevisions,
 } from "@/lib/queries/marketing-content";
+import { getMarketingMediaAssets } from "@/lib/queries/marketing-media";
 import { MarketingStudio } from "./marketing-studio";
 
 export default async function MarketingStudioPage() {
-  const [sections, galleryAssets, drafts, revisions] = await Promise.all([
+  const [sections, galleryAssets, drafts, revisions, mediaAssets] = await Promise.all([
     getPublicSiteSections({ includeDisabled: true }),
     getPublicSiteAssets("gallery", { includeDisabled: true }),
     getMarketingContentDrafts(),
     getMarketingContentRevisions(16),
+    getMarketingMediaAssets({ limit: 150 }),
   ]);
 
   return (
@@ -28,6 +30,7 @@ export default async function MarketingStudioPage() {
         galleryAssets={galleryAssets}
         drafts={drafts}
         revisions={revisions}
+        mediaAssets={mediaAssets}
       />
     </div>
   );

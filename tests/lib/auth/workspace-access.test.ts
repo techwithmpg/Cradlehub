@@ -164,7 +164,8 @@ describe("Owner navigation and prefetch config", () => {
   it("defines the dedicated Marketing nav and prefetch route", () => {
     expect(NAV_CONFIG.marketing?.items).toEqual([
       { label: "Drafts", href: "/marketing", icon: "Sparkles" },
+      { label: "Media Library", href: "/marketing/media", icon: "Image" },
     ]);
-    expect(MARKETING_PREFETCH.idle).toEqual(["/marketing"]);
+    expect(MARKETING_PREFETCH.idle).toEqual(["/marketing", "/marketing/media"]);
   });
 });
