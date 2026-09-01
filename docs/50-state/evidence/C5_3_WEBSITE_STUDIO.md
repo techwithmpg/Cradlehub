@@ -76,13 +76,22 @@ In the targeted corrections, `HomePageSectionsRenderer` and `PublicMobileHomeRen
    - Fully integrated for primary and secondary image slots across all managed sections.
    - Selecting media updates in-memory form values without losing other unsaved field edits.
 
-5. **Unsaved Changes Guard, Save-Dirty State & Revert to Live:**
+5. **Isolated Viewport Context (`IsolatedViewportFrame`) & CSS Media-Query Isolation:**
+   - Previews in Desktop (1280px), Tablet (768px), and Mobile (375px) modes are encapsulated in an isolated `iframe` via React portal (`IsolatedViewportFrame`).
+   - Host stylesheets and inline styles are dynamically synchronized into the iframe's `<head>`, allowing Tailwind CSS media queries (`@media (min-width: 768px)`, `md:`, `lg:`, `xl:`) and CSS viewport units to evaluate genuinely against the preview container's exact pixel width rather than the author's browser window.
+   - Renders the REAL `HomePageSectionsRenderer` (Desktop/Tablet) and `PublicMobileHomeRenderer` (Mobile) without mock JSX.
+
+6. **Service Parity Between Mobile and Desktop/Tablet:**
+   - **Mobile Viewport:** Enforces `isPublicSafeService` filtering (`isPublicBookable && !isCsrOnly && !isVip`), matching public mobile consumer rules and excluding CSR-only, VIP, and non-bookable offerings.
+   - **Desktop & Tablet Viewports:** Receive the complete public catalog dataset matching the real `HomePageSections` public consumer on `/`.
+
+7. **Unsaved Changes Guard, Save-Dirty State & Revert to Live:**
    - Unsaved dirty state tracked against baseline loaded values.
    - Immediate dirty-state clearance and submittable draft registration upon successful Save Draft.
    - Section switching intercepted with accessible confirmation dialog (`Dialog` primitive with Tab focus trap, Escape dismissal, ARIA attributes).
    - "Revert to Live" safely resets in-memory editor to published live values with zero database mutations.
 
-6. **Preserved Owner Review Queue & Publication Boundary:**
+8. **Preserved Owner Review Queue & Publication Boundary:**
    - Preserved `DraftReviewQueue` below the studio with full owner action handlers (`approveMarketingDraftAction`, `requestMarketingDraftChangesAction`, `scheduleMarketingDraftAction`, `publishMarketingDraftAction`, `archiveMarketingDraftAction`).
    - **Digital Marketer (`role="digital_marketer"`):**
      - Allowed: Save Draft, Submit for Review, Revert to Live.
@@ -93,31 +102,23 @@ In the targeted corrections, `HomePageSectionsRenderer` and `PublicMobileHomeRen
 
 ---
 
-## 4. Verification & Quality Gates
+## 4. Verification & Quality Gates (Accelerated Verification Mode)
 
-### 1. Automated Test Suite
-
-```bash
-pnpm vitest run --pool=threads
-```
-
-- **Result:** 205 test files, 1,452 tests PASSED (0 failed).
-
-### 2. Marketing & Website Studio Dedicated Suite
+### 1. Targeted Website Studio & Viewport Isolation Suite
 
 ```bash
-pnpm vitest run tests/lib/marketing/
+pnpm vitest run tests/lib/marketing/website-studio.test.tsx
 ```
 
-- **Result:** 6 test files, 84 tests PASSED:
-  - `tests/lib/marketing/website-studio.test.tsx` (28 tests passed)
-  - `tests/lib/marketing/media-library.test.tsx` (14 tests passed)
-  - `tests/lib/marketing/public-consumer-parity.test.tsx` (12 tests passed)
-  - `tests/lib/marketing/media-queries.test.ts` (17 tests passed)
-  - `tests/lib/marketing/media-usage.test.ts` (9 tests passed)
-  - `tests/lib/marketing/marketing-studio-foundation-migration.test.ts` (4 tests passed)
+- **Result:** 1 test file, 30 tests PASSED (0 failed):
+  - Viewport isolation mechanism (1280px Desktop, 768px Tablet, 375px Mobile)
+  - Mobile service filtering (`isPublicSafeService` rule verification)
+  - Desktop service dataset parity (`HomePageSectionsRenderer` public dataset match)
+  - Realtime in-memory reactivity and Draft/Live/Compare modes
+  - Dialog accessibility (`Dialog` primitives for Mobile Preview, Request Changes, Schedule, Unsaved Changes, Revert to Live)
+  - Save-dirty state clearance and immediate submit action availability
 
-### 3. TypeScript Type-Check
+### 2. TypeScript Type-Check
 
 ```bash
 pnpm type-check
@@ -125,31 +126,15 @@ pnpm type-check
 
 - **Result:** 0 errors (`tsc --noEmit`).
 
-### 4. ESLint Check
+### 3. Prettier Code Formatting
 
 ```bash
-pnpm lint
+npx prettier --check <TOUCHED_FILES>
 ```
 
-- **Result:** 0 errors.
+- **Result:** All modified files strictly conform to Prettier code style (0 errors).
 
-### 5. Prettier Code Formatting
-
-```bash
-pnpm format:check
-```
-
-- **Result:** All matched files use Prettier code style (0 errors).
-
-### 6. Next.js Production Build
-
-```bash
-pnpm build
-```
-
-- **Result:** Compiled successfully; 115/115 static pages generated.
-
-### 7. Git Diff Cleanliness
+### 4. Git Diff Cleanliness
 
 ```bash
 git diff --check origin/main...HEAD

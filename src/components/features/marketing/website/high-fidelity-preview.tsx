@@ -1,6 +1,7 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
+import { createPortal } from "react-dom";
 import { Columns2, Globe, Monitor, Pencil, Smartphone, Tablet } from "lucide-react";
 import type { NormalizedPublicSiteSections } from "@/lib/public/normalized-sections";
 import type { PublicCatalogService } from "@/lib/queries/services";
@@ -15,6 +16,84 @@ export type PreviewMode = "draft" | "live" | "compare";
 export type PreviewViewport = "desktop" | "tablet" | "mobile";
 
 type BranchRow = Database["public"]["Tables"]["branches"]["Row"];
+
+export type IsolatedViewportFrameProps = {
+  viewport: PreviewViewport;
+  title: string;
+  className?: string;
+  children: React.ReactNode;
+};
+
+/**
+ * IsolatedViewportFrame encapsulates the preview inside an iframe container
+ * so CSS/Tailwind media queries (@media min-width, md:, lg:) evaluate directly
+ * against the selected preview viewport width (1280px, 768px, 375px) rather than
+ * the author's host window size.
+ */
+export function IsolatedViewportFrame({
+  viewport,
+  title,
+  className = "",
+  children,
+}: IsolatedViewportFrameProps) {
+  const iframeRef = useRef<HTMLIFrameElement>(null);
+  const [mountNode, setMountNode] = useState<HTMLElement | null>(null);
+
+  const widthStyle = viewport === "desktop" ? "1280px" : viewport === "tablet" ? "768px" : "375px";
+
+  useEffect(() => {
+    if (!iframeRef.current) return;
+    const doc = iframeRef.current.contentDocument;
+    if (!doc) return;
+
+    const head = doc.head;
+    if (head) {
+      head.innerHTML = "";
+      // Replicate document stylesheets and style elements to ensure Tailwind classes apply
+      document.querySelectorAll('link[rel="stylesheet"], style').forEach((node) => {
+        head.appendChild(node.cloneNode(true));
+      });
+      const resetStyle = doc.createElement("style");
+      resetStyle.textContent = `
+        *, ::before, ::after { box-sizing: border-box; }
+        html, body {
+          margin: 0;
+          padding: 0;
+          min-height: 100%;
+          font-family: inherit;
+          background: #ffffff;
+          color: #1c1917;
+        }
+      `;
+      head.appendChild(resetStyle);
+    }
+    setMountNode(doc.body);
+  }, [viewport]);
+
+  return (
+    <div
+      data-testid={`isolated-viewport-${viewport}`}
+      data-viewport={viewport}
+      className={`flex justify-center w-full h-full ${className}`}
+    >
+      <iframe
+        ref={iframeRef}
+        title={title}
+        data-viewport={viewport}
+        style={{
+          width: widthStyle,
+          maxWidth: "100%",
+          height: "100%",
+          minHeight: "720px",
+          border: "none",
+        }}
+        className="transition-all bg-white shadow-md rounded-lg overflow-hidden"
+      >
+        {mountNode ? createPortal(children, mountNode) : null}
+      </iframe>
+    </div>
+  );
+}
 
 export type HighFidelityPreviewProps = {
   draftSections: NormalizedPublicSiteSections;
@@ -39,7 +118,10 @@ export function HighFidelityPreview({
   const [mode, setMode] = useState<PreviewMode>(initialMode);
   const [viewport, setViewport] = useState<PreviewViewport>(initialViewport);
 
-  const publicServices = services.filter(isPublicSafeService);
+  // Parity rule: Mobile preview filters for public-safe services; Desktop/Tablet receives the public service dataset.
+  const mobileServices = services.filter(isPublicSafeService);
+  const desktopServices = services;
+
   const activeSections = mode === "live" ? liveSections : draftSections;
 
   return (
@@ -170,19 +252,24 @@ export function HighFidelityPreview({
                 [LIVE] Published Site
               </div>
               <div className="flex-1 overflow-auto max-h-[700px]">
-                {viewport === "mobile" ? (
-                  <PublicMobileHomeRenderer
-                    sections={liveSections}
-                    branches={branches}
-                    services={publicServices}
-                  />
-                ) : (
-                  <HomePageSectionsRenderer
-                    sections={liveSections}
-                    branches={branches}
-                    services={publicServices}
-                  />
-                )}
+                <IsolatedViewportFrame
+                  viewport={viewport}
+                  title={`[LIVE] Published Site ${viewport.toUpperCase()} Preview`}
+                >
+                  {viewport === "mobile" ? (
+                    <PublicMobileHomeRenderer
+                      sections={liveSections}
+                      branches={branches}
+                      services={mobileServices}
+                    />
+                  ) : (
+                    <HomePageSectionsRenderer
+                      sections={liveSections}
+                      branches={branches}
+                      services={desktopServices}
+                    />
+                  )}
+                </IsolatedViewportFrame>
               </div>
             </div>
 
@@ -192,46 +279,46 @@ export function HighFidelityPreview({
                 [DRAFT] Working Editor State
               </div>
               <div className="flex-1 overflow-auto max-h-[700px]">
-                {viewport === "mobile" ? (
-                  <PublicMobileHomeRenderer
-                    sections={draftSections}
-                    branches={branches}
-                    services={publicServices}
-                  />
-                ) : (
-                  <HomePageSectionsRenderer
-                    sections={draftSections}
-                    branches={branches}
-                    services={publicServices}
-                  />
-                )}
+                <IsolatedViewportFrame
+                  viewport={viewport}
+                  title={`[DRAFT] Working Editor State ${viewport.toUpperCase()} Preview`}
+                >
+                  {viewport === "mobile" ? (
+                    <PublicMobileHomeRenderer
+                      sections={draftSections}
+                      branches={branches}
+                      services={mobileServices}
+                    />
+                  ) : (
+                    <HomePageSectionsRenderer
+                      sections={draftSections}
+                      branches={branches}
+                      services={desktopServices}
+                    />
+                  )}
+                </IsolatedViewportFrame>
               </div>
             </div>
           </div>
         ) : (
-          <div
-            className={`transition-all shadow-md rounded-lg overflow-hidden bg-white ${
-              viewport === "desktop"
-                ? "w-full max-w-5xl"
-                : viewport === "tablet"
-                  ? "w-[768px] max-w-full"
-                  : "w-[375px]"
-            }`}
+          <IsolatedViewportFrame
+            viewport={viewport}
+            title={`High-Fidelity ${viewport.toUpperCase()} Preview`}
           >
             {viewport === "mobile" ? (
               <PublicMobileHomeRenderer
                 sections={activeSections}
                 branches={branches}
-                services={publicServices}
+                services={mobileServices}
               />
             ) : (
               <HomePageSectionsRenderer
                 sections={activeSections}
                 branches={branches}
-                services={publicServices}
+                services={desktopServices}
               />
             )}
-          </div>
+          </IsolatedViewportFrame>
         )}
       </div>
     </div>

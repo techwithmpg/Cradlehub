@@ -49,13 +49,33 @@ import {
   PublicMobileHomeRenderer,
   isPublicSafeService,
 } from "@/components/public/mobile/public-mobile-home";
-import { HighFidelityPreview } from "@/components/features/marketing/website/high-fidelity-preview";
+import {
+  HighFidelityPreview,
+  IsolatedViewportFrame,
+} from "@/components/features/marketing/website/high-fidelity-preview";
 import {
   UnsavedChangesDialog,
   RevertToLiveDialog,
 } from "@/components/features/marketing/website/unsaved-changes-dialog";
 import { resolvePublicSiteSections } from "@/lib/public/normalized-sections";
 import { act } from "react";
+
+function getPreviewIframeBody(titleMatcher?: RegExp | string): HTMLElement {
+  const iframes = Array.from(document.querySelectorAll("iframe"));
+  if (iframes.length === 0) return document.body;
+  if (titleMatcher) {
+    for (const iframe of iframes) {
+      if (
+        typeof titleMatcher === "string"
+          ? iframe.title.includes(titleMatcher)
+          : titleMatcher.test(iframe.title)
+      ) {
+        return iframe.contentDocument?.body || (iframe as unknown as HTMLElement);
+      }
+    }
+  }
+  return iframes[0]?.contentDocument?.body || document.body;
+}
 
 const mockSaveMarketingDraftAction = vi.fn(async (prevState: unknown, formData: FormData) => {
   const contentKey = String(formData.get("contentKey") || "hero");
@@ -250,6 +270,113 @@ const mockDrafts: MarketingContentDraftRow[] = [
   },
 ];
 
+const mockServices: PublicCatalogService[] = [
+  {
+    id: "svc-public-1",
+    name: "Swedish Relaxation Massage",
+    categoryName: "Massage Services",
+    categoryOrder: 1,
+    subcategory: "Signature",
+    description: "Full body relaxation",
+    durationMinutes: 60,
+    durationText: "60 mins",
+    price: 800,
+    priceLabel: "₱800",
+    shortDescription: "Full body relaxation",
+    packagePax: null,
+    packageDurationText: null,
+    requiresConsultation: false,
+    badges: ["Popular"],
+    inclusions: ["Aromatherapy oil"],
+    isPublicBookable: true,
+    isCsrOnly: false,
+    isVip: false,
+    isCatalogOnly: false,
+    availableInSpa: true,
+    availableHomeService: true,
+    imageUrl: "/images/swedish.jpg",
+    imageAlt: "Swedish Relaxation Massage",
+  },
+  {
+    id: "svc-csr-1",
+    name: "Internal CSR Only Addon",
+    categoryName: "Add-ons",
+    categoryOrder: 2,
+    subcategory: "Add-ons",
+    description: "Only staff can select this",
+    durationMinutes: 15,
+    durationText: "15 mins",
+    price: 200,
+    priceLabel: "₱200",
+    shortDescription: "Staff only addon",
+    packagePax: null,
+    packageDurationText: null,
+    requiresConsultation: false,
+    badges: [],
+    inclusions: [],
+    isPublicBookable: true,
+    isCsrOnly: true,
+    isVip: false,
+    isCatalogOnly: false,
+    availableInSpa: true,
+    availableHomeService: false,
+    imageUrl: "/images/addon.jpg",
+    imageAlt: "Internal CSR Only Addon",
+  },
+  {
+    id: "svc-vip-1",
+    name: "VIP Executive Spa Treatment",
+    categoryName: "Executive Packages",
+    categoryOrder: 3,
+    subcategory: "Packages",
+    description: "Invitation-only VIP service",
+    durationMinutes: 120,
+    durationText: "120 mins",
+    price: 3500,
+    priceLabel: "₱3,500",
+    shortDescription: "VIP treatment",
+    packagePax: 1,
+    packageDurationText: "2 hours",
+    requiresConsultation: true,
+    badges: ["VIP"],
+    inclusions: ["Private suite"],
+    isPublicBookable: true,
+    isCsrOnly: false,
+    isVip: true,
+    isCatalogOnly: false,
+    availableInSpa: true,
+    availableHomeService: false,
+    imageUrl: "/images/vip.jpg",
+    imageAlt: "VIP Executive Spa Treatment",
+  },
+  {
+    id: "svc-nonbookable-1",
+    name: "Discontinued Seasonal Scrub",
+    categoryName: "Body Scrubs",
+    categoryOrder: 4,
+    subcategory: "Scrubs",
+    description: "Not bookable online",
+    durationMinutes: 45,
+    durationText: "45 mins",
+    price: 600,
+    priceLabel: "₱600",
+    shortDescription: "Seasonal scrub",
+    packagePax: null,
+    packageDurationText: null,
+    requiresConsultation: false,
+    badges: [],
+    inclusions: [],
+    isPublicBookable: false,
+    isCsrOnly: false,
+    isVip: false,
+    isCatalogOnly: true,
+    availableInSpa: true,
+    availableHomeService: false,
+    imageUrl: "/images/scrub.jpg",
+    imageAlt: "Discontinued Seasonal Scrub",
+  },
+];
+
 describe("Website Studio & High-Fidelity Preview (C5 Pass 3)", () => {
   describe("WebsiteStudioView - Information Architecture & Roles", () => {
     it("renders Website Studio header and digital marketer role indicator", () => {
@@ -426,8 +553,11 @@ describe("Website Studio & High-Fidelity Preview (C5 Pass 3)", () => {
       const titleInput = screen.getByLabelText(/Main Title \/ Headline/i);
       fireEvent.change(titleInput, { target: { value: "Live In-Memory Edited Hero" } });
 
-      // Verify that the High-Fidelity Preview rail reflects the in-memory update
-      const previewHeading = screen.getByRole("heading", { name: "Live In-Memory Edited Hero" });
+      // Verify that the High-Fidelity Preview iframe reflects the in-memory update
+      const previewBody = getPreviewIframeBody(/Preview/i);
+      const previewHeading = within(previewBody).getByRole("heading", {
+        name: "Live In-Memory Edited Hero",
+      });
       expect(previewHeading).toBeDefined();
     });
 
@@ -446,7 +576,10 @@ describe("Website Studio & High-Fidelity Preview (C5 Pass 3)", () => {
       fireEvent.click(liveModeBtn);
 
       expect(screen.getByText("Published Live Version")).toBeDefined();
-      expect(screen.getByRole("heading", { name: "Published Hero Title" })).toBeDefined();
+      const previewBody = getPreviewIframeBody(/LIVE|Live|Preview/i);
+      expect(
+        within(previewBody).getByRole("heading", { name: "Published Hero Title" })
+      ).toBeDefined();
     });
 
     it("renders Compare mode with both [LIVE] and [DRAFT] frames", () => {
@@ -465,6 +598,11 @@ describe("Website Studio & High-Fidelity Preview (C5 Pass 3)", () => {
       expect(screen.getByText(/Comparing Live vs Working Draft/i)).toBeDefined();
       expect(screen.getByText("[LIVE] Published Site")).toBeDefined();
       expect(screen.getByText("[DRAFT] Working Editor State")).toBeDefined();
+
+      const liveBody = getPreviewIframeBody(/\[LIVE\]/i);
+      const draftBody = getPreviewIframeBody(/\[DRAFT\]/i);
+      expect(within(liveBody).getByText("Published Hero Title")).toBeDefined();
+      expect(within(draftBody).getByText("Draft Hero Headline")).toBeDefined();
     });
 
     it("switches viewports between Desktop, Tablet, and Mobile without losing editor state", () => {
@@ -486,9 +624,10 @@ describe("Website Studio & High-Fidelity Preview (C5 Pass 3)", () => {
       const mobileBtn = screen.getByRole("button", { name: /Mobile Viewport/i });
       fireEvent.click(mobileBtn);
 
-      // Verify Mobile hero renders the updated draft headline
+      // Verify Mobile hero renders the updated draft headline inside iframe
+      const mobileBody = getPreviewIframeBody(/MOBILE/i);
       expect(
-        screen.getAllByText(/Draft Hero Headline - Unsaved State Check/i).length
+        within(mobileBody).getAllByText(/Draft Hero Headline - Unsaved State Check/i).length
       ).toBeGreaterThanOrEqual(1);
 
       // Switch to Tablet Viewport
@@ -769,113 +908,6 @@ describe("Website Studio & High-Fidelity Preview (C5 Pass 3)", () => {
   });
 
   describe("Mobile Preview Parity & Public Safe Service Rules", () => {
-    const mockServices: PublicCatalogService[] = [
-      {
-        id: "svc-public-1",
-        name: "Swedish Relaxation Massage",
-        categoryName: "Massage Therapy Services",
-        categoryOrder: 1,
-        subcategory: "Signature",
-        description: "Full body relaxation",
-        durationMinutes: 60,
-        durationText: "60 mins",
-        price: 800,
-        priceLabel: "₱800",
-        shortDescription: "Full body relaxation",
-        packagePax: null,
-        packageDurationText: null,
-        requiresConsultation: false,
-        badges: ["Popular"],
-        inclusions: ["Aromatherapy oil"],
-        isPublicBookable: true,
-        isCsrOnly: false,
-        isVip: false,
-        isCatalogOnly: false,
-        availableInSpa: true,
-        availableHomeService: true,
-        imageUrl: "/images/swedish.jpg",
-        imageAlt: "Swedish Relaxation Massage",
-      },
-      {
-        id: "svc-csr-1",
-        name: "Internal CSR Only Addon",
-        categoryName: "Add-ons",
-        categoryOrder: 2,
-        subcategory: "Add-ons",
-        description: "Only staff can select this",
-        durationMinutes: 15,
-        durationText: "15 mins",
-        price: 200,
-        priceLabel: "₱200",
-        shortDescription: "Staff only addon",
-        packagePax: null,
-        packageDurationText: null,
-        requiresConsultation: false,
-        badges: [],
-        inclusions: [],
-        isPublicBookable: true,
-        isCsrOnly: true,
-        isVip: false,
-        isCatalogOnly: false,
-        availableInSpa: true,
-        availableHomeService: false,
-        imageUrl: "/images/addon.jpg",
-        imageAlt: "Internal CSR Only Addon",
-      },
-      {
-        id: "svc-vip-1",
-        name: "VIP Executive Spa Treatment",
-        categoryName: "Executive Packages",
-        categoryOrder: 3,
-        subcategory: "Packages",
-        description: "Invitation-only VIP service",
-        durationMinutes: 120,
-        durationText: "120 mins",
-        price: 3500,
-        priceLabel: "₱3,500",
-        shortDescription: "VIP treatment",
-        packagePax: 1,
-        packageDurationText: "2 hours",
-        requiresConsultation: true,
-        badges: ["VIP"],
-        inclusions: ["Private suite"],
-        isPublicBookable: true,
-        isCsrOnly: false,
-        isVip: true,
-        isCatalogOnly: false,
-        availableInSpa: true,
-        availableHomeService: false,
-        imageUrl: "/images/vip.jpg",
-        imageAlt: "VIP Executive Spa Treatment",
-      },
-      {
-        id: "svc-nonbookable-1",
-        name: "Discontinued Seasonal Scrub",
-        categoryName: "Body Scrubs",
-        categoryOrder: 4,
-        subcategory: "Scrubs",
-        description: "Not bookable online",
-        durationMinutes: 45,
-        durationText: "45 mins",
-        price: 600,
-        priceLabel: "₱600",
-        shortDescription: "Seasonal scrub",
-        packagePax: null,
-        packageDurationText: null,
-        requiresConsultation: false,
-        badges: [],
-        inclusions: [],
-        isPublicBookable: false,
-        isCsrOnly: false,
-        isVip: false,
-        isCatalogOnly: true,
-        availableInSpa: true,
-        availableHomeService: false,
-        imageUrl: "/images/scrub.jpg",
-        imageAlt: "Discontinued Seasonal Scrub",
-      },
-    ];
-
     it("isPublicSafeService filters correctly by public bookability, CSR-only, and VIP rules", () => {
       // 1. Public-bookable normal service -> TRUE
       expect(isPublicSafeService(mockServices[0]!)).toBe(true);
@@ -942,12 +974,101 @@ describe("Website Studio & High-Fidelity Preview (C5 Pass 3)", () => {
         />
       );
 
-      // Studio mobile preview displays public service in desktop environment
-      expect(screen.getByText("Swedish Relaxation Massage")).toBeDefined();
+      // Studio mobile preview displays public service inside isolated iframe
+      const previewBody = getPreviewIframeBody(/MOBILE/i);
+      expect(within(previewBody).getByText("Swedish Relaxation Massage")).toBeDefined();
       // Excludes CSR-only, VIP, and non-bookable
-      expect(screen.queryByText("Internal CSR Only Addon")).toBeNull();
-      expect(screen.queryByText("VIP Executive Spa Treatment")).toBeNull();
-      expect(screen.queryByText("Discontinued Seasonal Scrub")).toBeNull();
+      expect(within(previewBody).queryByText("Internal CSR Only Addon")).toBeNull();
+      expect(within(previewBody).queryByText("VIP Executive Spa Treatment")).toBeNull();
+      expect(within(previewBody).queryByText("Discontinued Seasonal Scrub")).toBeNull();
+    });
+  });
+
+  describe("Viewport Isolation & Service Parity (C5 Pass 3 Final Preview-Fidelity)", () => {
+    it("renders IsolatedViewportFrame with exact widths for desktop (1280px), tablet (768px), and mobile (375px)", () => {
+      const { rerender } = render(
+        <IsolatedViewportFrame viewport="desktop" title="Desktop Frame">
+          <div>Desktop Content</div>
+        </IsolatedViewportFrame>
+      );
+
+      const desktopIframe = screen.getByTitle("Desktop Frame") as HTMLIFrameElement;
+      expect(desktopIframe.style.width).toBe("1280px");
+
+      rerender(
+        <IsolatedViewportFrame viewport="tablet" title="Tablet Frame">
+          <div>Tablet Content</div>
+        </IsolatedViewportFrame>
+      );
+      const tabletIframe = screen.getByTitle("Tablet Frame") as HTMLIFrameElement;
+      expect(tabletIframe.style.width).toBe("768px");
+
+      rerender(
+        <IsolatedViewportFrame viewport="mobile" title="Mobile Frame">
+          <div>Mobile Content</div>
+        </IsolatedViewportFrame>
+      );
+      const mobileIframe = screen.getByTitle("Mobile Frame") as HTMLIFrameElement;
+      expect(mobileIframe.style.width).toBe("375px");
+    });
+
+    it("ensures desktop and tablet preview receives full public catalog dataset while mobile receives isPublicSafeService filtered catalog", () => {
+      const sectionsWithServices: PublicSiteSectionRow[] = [
+        ...mockPublishedSections,
+        {
+          id: "pub-sig-1",
+          section_key: "signature_services",
+          title: "Explore Our Most Loved Services",
+          subtitle: "Signature Treatments",
+          body: "Handcrafted therapies tailored for full-body restoration.",
+          cta_label: "View Menu",
+          cta_href: "/services",
+          image_url: null,
+          secondary_image_url: null,
+          sort_order: 2,
+          is_enabled: true,
+          metadata: {},
+          created_at: "2026-08-01T00:00:00Z",
+          updated_at: "2026-08-01T00:00:00Z",
+        },
+      ];
+      const normalized = resolvePublicSiteSections(sectionsWithServices);
+
+      // Desktop rendering receives full catalog
+      const { unmount } = render(
+        <HighFidelityPreview
+          draftSections={normalized}
+          liveSections={normalized}
+          initialMode="draft"
+          initialViewport="desktop"
+          branches={[]}
+          services={mockServices}
+        />
+      );
+
+      const desktopPreview = getPreviewIframeBody(/DESKTOP/i);
+      // Desktop signature services receives full service list
+      expect(within(desktopPreview).getByText("Swedish Relaxation Massage")).toBeDefined();
+
+      unmount();
+
+      // Mobile rendering receives filtered catalog
+      render(
+        <HighFidelityPreview
+          draftSections={normalized}
+          liveSections={normalized}
+          initialMode="draft"
+          initialViewport="mobile"
+          branches={[]}
+          services={mockServices}
+        />
+      );
+
+      const mobilePreview = getPreviewIframeBody(/MOBILE/i);
+      expect(within(mobilePreview).getByText("Swedish Relaxation Massage")).toBeDefined();
+      expect(within(mobilePreview).queryByText("Internal CSR Only Addon")).toBeNull();
+      expect(within(mobilePreview).queryByText("VIP Executive Spa Treatment")).toBeNull();
+      expect(within(mobilePreview).queryByText("Discontinued Seasonal Scrub")).toBeNull();
     });
   });
 
