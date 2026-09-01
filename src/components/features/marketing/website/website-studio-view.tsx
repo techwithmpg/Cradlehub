@@ -213,9 +213,7 @@ export function WebsiteStudioView({
   role,
   sectionDefaults,
   publishedSections,
-  galleryAssets: _galleryAssets = [],
   drafts,
-  revisions: _revisions = [],
   mediaAssets = [],
   branches = [],
   services = [],
@@ -225,11 +223,6 @@ export function WebsiteStudioView({
 
   // In-memory form state for the currently active section
   const [formState, setFormState] = useState<SectionFormValues>(() =>
-    getInitialFormValues("hero", drafts, publishedSections, sectionDefaults)
-  );
-
-  // Baseline loaded values to calculate dirty state
-  const [baselineFormState, setBaselineFormState] = useState<SectionFormValues>(() =>
     getInitialFormValues("hero", drafts, publishedSections, sectionDefaults)
   );
 
@@ -274,16 +267,111 @@ export function WebsiteStudioView({
     {}
   );
 
-  // Current active draft for this section
+  // Derive effective drafts by applying recent server action results to initial drafts
+  const effectiveDrafts = useMemo(() => {
+    let list = [...drafts];
+    if (saveState.success && saveState.draft) {
+      const saved = saveState.draft;
+      const idx = list.findIndex(
+        (d) =>
+          d.id === saved.id ||
+          (d.content_type === saved.content_type && d.content_key === saved.content_key)
+      );
+      if (idx >= 0) {
+        list[idx] = saved;
+      } else {
+        list = [saved, ...list];
+      }
+    }
+    if (submitState.success && submitState.draft) {
+      const submitted = submitState.draft;
+      const idx = list.findIndex((d) => d.id === submitted.id);
+      if (idx >= 0) {
+        list[idx] = submitted;
+      } else {
+        list = [submitted, ...list];
+      }
+    }
+    if (approveState.success && approveState.draft) {
+      const approved = approveState.draft;
+      const idx = list.findIndex((d) => d.id === approved.id);
+      if (idx >= 0) {
+        list[idx] = approved;
+      } else {
+        list = [approved, ...list];
+      }
+    }
+    if (requestState.success && requestState.draft) {
+      const req = requestState.draft;
+      const idx = list.findIndex((d) => d.id === req.id);
+      if (idx >= 0) {
+        list[idx] = req;
+      } else {
+        list = [req, ...list];
+      }
+    }
+    if (scheduleState.success && scheduleState.draft) {
+      const sch = scheduleState.draft;
+      const idx = list.findIndex((d) => d.id === sch.id);
+      if (idx >= 0) {
+        list[idx] = sch;
+      } else {
+        list = [sch, ...list];
+      }
+    }
+    if (publishState.success && publishState.draft) {
+      const pub = publishState.draft;
+      const idx = list.findIndex((d) => d.id === pub.id);
+      if (idx >= 0) {
+        list[idx] = pub;
+      } else {
+        list = [pub, ...list];
+      }
+    }
+    if (archiveState.success && archiveState.draft) {
+      const arch = archiveState.draft;
+      const idx = list.findIndex((d) => d.id === arch.id);
+      if (idx >= 0) {
+        list[idx] = arch;
+      } else {
+        list = [arch, ...list];
+      }
+    }
+    return list;
+  }, [
+    drafts,
+    saveState,
+    submitState,
+    approveState,
+    requestState,
+    scheduleState,
+    publishState,
+    archiveState,
+  ]);
+
+  // Current active draft for this section from effectiveDrafts
   const activeDraft = useMemo(
-    () => drafts.find((d) => d.content_type === "section" && d.content_key === activeSectionKey),
-    [drafts, activeSectionKey]
+    () =>
+      effectiveDrafts.find(
+        (d) => d.content_type === "section" && d.content_key === activeSectionKey
+      ),
+    [effectiveDrafts, activeSectionKey]
   );
+
+  // Baseline loaded values to calculate dirty state
+  const baselineValues = useMemo(() => {
+    return getInitialFormValues(
+      activeSectionKey,
+      effectiveDrafts,
+      publishedSections,
+      sectionDefaults
+    );
+  }, [activeSectionKey, effectiveDrafts, publishedSections, sectionDefaults]);
 
   // Determine if working editor has unsaved changes
   const isDirty = useMemo(() => {
-    return JSON.stringify(formState) !== JSON.stringify(baselineFormState);
-  }, [formState, baselineFormState]);
+    return JSON.stringify(formState) !== JSON.stringify(baselineValues);
+  }, [formState, baselineValues]);
 
   // Derived feedback from server actions or local state
   const feedback = useMemo(() => {
@@ -338,9 +426,13 @@ export function WebsiteStudioView({
       setIsUnsavedDialogOpen(true);
     } else {
       setActiveSectionKey(nextKey);
-      const nextValues = getInitialFormValues(nextKey, drafts, publishedSections, sectionDefaults);
+      const nextValues = getInitialFormValues(
+        nextKey,
+        effectiveDrafts,
+        publishedSections,
+        sectionDefaults
+      );
       setFormState(nextValues);
-      setBaselineFormState(nextValues);
       setLocalFeedback(null);
     }
   };
@@ -350,12 +442,11 @@ export function WebsiteStudioView({
       setActiveSectionKey(pendingSectionKey);
       const nextValues = getInitialFormValues(
         pendingSectionKey,
-        drafts,
+        effectiveDrafts,
         publishedSections,
         sectionDefaults
       );
       setFormState(nextValues);
-      setBaselineFormState(nextValues);
       setPendingSectionKey(null);
       setLocalFeedback(null);
     }
@@ -840,9 +931,19 @@ export function WebsiteStudioView({
 
       {/* ── Owner Request Changes Modal ────────────────────────────── */}
       {ownerModal === "request_changes" && activeDraft && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/45 p-4 backdrop-blur-xs">
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/45 p-4 backdrop-blur-xs"
+          role="dialog"
+          aria-modal="true"
+          aria-labelledby="request-changes-modal-title"
+        >
           <div className="w-full max-w-md rounded-2xl border border-[var(--cs-border)] bg-[var(--cs-surface)] p-6 shadow-2xl">
-            <h3 className="text-base font-semibold text-[var(--cs-text)]">Request Changes</h3>
+            <h3
+              id="request-changes-modal-title"
+              className="text-base font-semibold text-[var(--cs-text)]"
+            >
+              Request Changes
+            </h3>
             <p className="mt-1 text-xs text-[var(--cs-text-secondary)]">
               Provide specific feedback to the digital marketer on what to adjust.
             </p>
@@ -880,9 +981,16 @@ export function WebsiteStudioView({
 
       {/* ── Owner Schedule Modal ───────────────────────────────────── */}
       {ownerModal === "schedule" && activeDraft && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/45 p-4 backdrop-blur-xs">
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/45 p-4 backdrop-blur-xs"
+          role="dialog"
+          aria-modal="true"
+          aria-labelledby="schedule-modal-title"
+        >
           <div className="w-full max-w-md rounded-2xl border border-[var(--cs-border)] bg-[var(--cs-surface)] p-6 shadow-2xl">
-            <h3 className="text-base font-semibold text-[var(--cs-text)]">Schedule Publication</h3>
+            <h3 id="schedule-modal-title" className="text-base font-semibold text-[var(--cs-text)]">
+              Schedule Publication
+            </h3>
             <p className="mt-1 text-xs text-[var(--cs-text-secondary)]">
               Select date and time to publish this section update.
             </p>

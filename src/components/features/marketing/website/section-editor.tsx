@@ -543,6 +543,7 @@ export function SectionEditor({
               {values.imageUrl ? (
                 <div className="flex items-center gap-3">
                   <div className="relative h-16 w-24 shrink-0 overflow-hidden rounded-lg border border-[var(--cs-border)] bg-stone-100">
+                    {/* eslint-disable-next-line @next/next/no-img-element */}
                     <img
                       src={values.imageUrl}
                       alt={values.altText || "Section primary image preview"}
@@ -601,6 +602,7 @@ export function SectionEditor({
                 {values.secondaryImageUrl ? (
                   <div className="flex items-center gap-3">
                     <div className="relative h-16 w-24 shrink-0 overflow-hidden rounded-lg border border-[var(--cs-border)] bg-stone-100">
+                      {/* eslint-disable-next-line @next/next/no-img-element */}
                       <img
                         src={values.secondaryImageUrl}
                         alt="Secondary image preview"

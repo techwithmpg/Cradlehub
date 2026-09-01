@@ -1,4 +1,3 @@
-import { getPublicServiceCatalog } from "@/lib/queries/services";
 import type { PublicCatalogService } from "@/lib/queries/services";
 import type { Database } from "@/types/supabase";
 import {
@@ -41,26 +40,17 @@ export type PublicMobileHomeProps = {
 const isPublicSafeService = (s: PublicCatalogService) =>
   Boolean(s.isPublicBookable && !s.isCsrOnly && !s.isVip);
 
-export async function PublicMobileHome({
+export type PublicMobileHomeRendererProps = {
+  sections: NormalizedPublicSiteSections;
+  branches?: BranchRow[];
+  services?: PublicCatalogService[];
+};
+
+export function PublicMobileHomeRenderer({
+  sections,
   branches = [],
-  services: initialServices,
-  managedSections,
-  sections: initialSections,
-}: PublicMobileHomeProps) {
-  let services: PublicCatalogService[] = [];
-  if (initialServices) {
-    services = initialServices.filter(isPublicSafeService);
-  } else {
-    try {
-      const all = await getPublicServiceCatalog();
-      services = all.filter(isPublicSafeService);
-    } catch {
-      // non-fatal — section hidden when data unavailable
-    }
-  }
-
-  const resolvedSections = initialSections ?? resolvePublicSiteSections(managedSections);
-
+  services = [],
+}: PublicMobileHomeRendererProps) {
   const featured = services.slice(0, 4);
   const branchNames = branches.map((b) => b.name).filter(Boolean);
   const branchAddresses = branches.map((b) => b.address).filter(Boolean);
@@ -76,7 +66,7 @@ export async function PublicMobileHome({
   return (
     <div className="bg-[#061912] pb-0 text-[#F3E9D2] md:hidden">
       {/* ── Hero Carousel (consuming canonical Hero data) ───────────────────── */}
-      <MobileHomeHeroCarousel hero={resolvedSections.hero} />
+      <MobileHomeHeroCarousel hero={sections.hero} />
 
       {/* ── Calm mobile journey ───────────────────────────────────────────── */}
       <div className="-mt-5 rounded-t-[30px] bg-[#061912] pt-2 shadow-[0_-18px_44px_rgba(0,0,0,0.24)]">
@@ -138,8 +128,26 @@ export async function PublicMobileHome({
         </section>
 
         {/* ── Final CTA (consuming canonical quote banner / final CTA data) ─── */}
-        <MobileFinalCta quoteBanner={resolvedSections.quoteBanner} />
+        <MobileFinalCta quoteBanner={sections.quoteBanner} />
       </div>
     </div>
+  );
+}
+
+export function PublicMobileHome({
+  branches = [],
+  services = [],
+  managedSections,
+  sections,
+}: PublicMobileHomeProps) {
+  const publicServices = services.filter(isPublicSafeService);
+  const resolvedSections = sections ?? resolvePublicSiteSections(managedSections);
+
+  return (
+    <PublicMobileHomeRenderer
+      sections={resolvedSections}
+      branches={branches}
+      services={publicServices}
+    />
   );
 }

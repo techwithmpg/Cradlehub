@@ -17,6 +17,22 @@ vi.mock("next/image", () => ({
   ),
 }));
 
+class MockIntersectionObserver {
+  observe = vi.fn();
+  unobserve = vi.fn();
+  disconnect = vi.fn();
+}
+Object.defineProperty(window, "IntersectionObserver", {
+  writable: true,
+  configurable: true,
+  value: MockIntersectionObserver,
+});
+Object.defineProperty(global, "IntersectionObserver", {
+  writable: true,
+  configurable: true,
+  value: MockIntersectionObserver,
+});
+
 import { WebsiteStudioView } from "@/components/features/marketing/website/website-studio-view";
 import {
   LinkPicker,
@@ -24,7 +40,10 @@ import {
 } from "@/components/features/marketing/website/link-picker";
 import { PUBLIC_SITE_SECTION_DEFAULTS } from "@/lib/marketing/public-section-defaults";
 import type { MarketingContentDraftRow } from "@/lib/queries/marketing-content";
+import type { MarketingMediaAssetRow } from "@/lib/queries/marketing-media";
 import type { PublicSiteSectionRow } from "@/lib/queries/public-site";
+import { HomePageSectionsRenderer } from "@/components/public/home-page-sections";
+import { resolvePublicSiteSections } from "@/lib/public/normalized-sections";
 
 const mockPublishedSections: PublicSiteSectionRow[] = [
   {
@@ -233,7 +252,7 @@ describe("Website Studio & High-Fidelity Preview (C5 Pass 3)", () => {
       fireEvent.click(expBtn);
 
       expect(screen.getByText("Static / Not Managed Here")).toBeDefined();
-      expect(screen.getByText("The Cradle Experience")).toBeDefined();
+      expect(screen.getAllByText("The Cradle Experience").length).toBeGreaterThanOrEqual(1);
       expect(screen.getByText(/statically rendered by public theme components/i)).toBeDefined();
       // No save draft button for static section
       expect(screen.queryByRole("button", { name: /Save Draft/i })).toBeNull();
@@ -475,6 +494,103 @@ describe("Website Studio & High-Fidelity Preview (C5 Pass 3)", () => {
       fireEvent.click(beforeBtn);
       expect(screen.getByText("Before You Book Guide")).toBeDefined();
       expect(screen.getByText("Booking Guidelines Checklist Items")).toBeDefined();
+    });
+
+    it("preserves other unsaved editor fields when opening and selecting from UniversalMediaPicker", () => {
+      const mockMediaAssets: MarketingMediaAssetRow[] = [
+        {
+          id: "media-hero-1",
+          bucket_path: "media/1725170000-hero-spa.jpg",
+          public_url: "https://example.com/media/1725170000-hero-spa.jpg",
+          title: "Treatment Room 1",
+          alt_text: "Selected treatment room",
+          section_key: "hero",
+          content_key: null,
+          status: "published",
+          metadata: { sizeBytes: 512000, mimeType: "image/jpeg" },
+          created_by: "staff-1",
+          updated_by: "staff-1",
+          reviewed_by: "owner-1",
+          reviewed_at: "2026-09-01T00:00:00Z",
+          created_at: "2026-09-01T00:00:00Z",
+          updated_at: "2026-09-01T00:00:00Z",
+        },
+      ];
+
+      render(
+        <WebsiteStudioView
+          role="digital_marketer"
+          sectionDefaults={PUBLIC_SITE_SECTION_DEFAULTS}
+          publishedSections={mockPublishedSections}
+          drafts={mockDrafts}
+          mediaAssets={mockMediaAssets}
+        />
+      );
+
+      // 1. Make an unsaved edit to title
+      const titleInput = screen.getByLabelText(/Main Title \/ Headline/i) as HTMLInputElement;
+      fireEvent.change(titleInput, { target: { value: "Preserved Unsaved Title" } });
+      expect(titleInput.value).toBe("Preserved Unsaved Title");
+
+      // 2. Open Media Picker
+      const chooseButtons = screen.getAllByRole("button", {
+        name: /Change Image|Choose from Media Library/i,
+      });
+      fireEvent.click(chooseButtons[0]!);
+
+      // Modal should be open
+      expect(screen.getByText(/Select Primary Image/i)).toBeDefined();
+
+      // 3. Select the active asset from library
+      const assetImage = screen.getByAltText("Selected treatment room");
+      fireEvent.click(assetImage);
+
+      const confirmBtn = screen.getByRole("button", { name: /Select Image/i });
+      fireEvent.click(confirmBtn);
+
+      // 4. Verify title field STILL has the unsaved value
+      expect(titleInput.value).toBe("Preserved Unsaved Title");
+    });
+  });
+
+  describe("Save-Dirty State & Immediate Submission", () => {
+    it("handles section editing and dirty state tracking", () => {
+      render(
+        <WebsiteStudioView
+          role="digital_marketer"
+          sectionDefaults={PUBLIC_SITE_SECTION_DEFAULTS}
+          publishedSections={mockPublishedSections}
+          drafts={mockDrafts}
+        />
+      );
+
+      // Verify dirty state triggers discard warning on navigate
+      const titleInput = screen.getByLabelText(/Main Title \/ Headline/i) as HTMLInputElement;
+      fireEvent.change(titleInput, { target: { value: "Dirty Title" } });
+
+      const aboutBtn = screen.getByRole("button", { name: /About & Philosophy/i });
+      fireEvent.click(aboutBtn);
+
+      // Dialog should appear
+      expect(screen.getByText("Unsaved Section Changes")).toBeDefined();
+
+      // Cancel dialog
+      const stayBtn = screen.getByRole("button", { name: /Stay and Keep Editing/i });
+      fireEvent.click(stayBtn);
+      expect(titleInput.value).toBe("Dirty Title");
+    });
+  });
+
+  describe("Real Public Component Grounding", () => {
+    it("renders public component implementation directly through HomePageSectionsRenderer", () => {
+      const normalized = resolvePublicSiteSections(mockPublishedSections);
+      const { container } = render(
+        <HomePageSectionsRenderer sections={normalized} branches={[]} services={[]} />
+      );
+
+      // Verify canonical sections are present
+      expect(container.querySelector("h1")?.textContent).toContain("Published Hero Title");
+      expect(container.textContent).toContain("Published About Title");
     });
   });
 });

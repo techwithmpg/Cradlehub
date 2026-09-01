@@ -35,6 +35,25 @@ export function UnsavedChangesDialog({
       if (e.key === "Escape") {
         e.preventDefault();
         onStay();
+        return;
+      }
+
+      if (e.key === "Tab" && modalRef.current) {
+        const focusableElements = modalRef.current.querySelectorAll<HTMLElement>(
+          'button, [href], input, select, textarea, [tabindex]:not([tabindex="-1"])'
+        );
+        if (focusableElements.length > 0) {
+          const first = focusableElements[0];
+          const last = focusableElements[focusableElements.length - 1];
+
+          if (e.shiftKey && document.activeElement === first) {
+            e.preventDefault();
+            last?.focus();
+          } else if (!e.shiftKey && document.activeElement === last) {
+            e.preventDefault();
+            first?.focus();
+          }
+        }
       }
     };
 
@@ -115,16 +134,46 @@ export function RevertToLiveDialog({
   onCancel,
   onConfirm,
 }: RevertToLiveDialogProps) {
+  const modalRef = useRef<HTMLDivElement>(null);
+  const cancelButtonRef = useRef<HTMLButtonElement>(null);
+
   useEffect(() => {
     if (!isOpen) return;
+
+    const previouslyFocused = document.activeElement as HTMLElement | null;
+    cancelButtonRef.current?.focus();
+
     const handleKeyDown = (e: KeyboardEvent) => {
       if (e.key === "Escape") {
         e.preventDefault();
         onCancel();
+        return;
+      }
+
+      if (e.key === "Tab" && modalRef.current) {
+        const focusableElements = modalRef.current.querySelectorAll<HTMLElement>(
+          'button, [href], input, select, textarea, [tabindex]:not([tabindex="-1"])'
+        );
+        if (focusableElements.length > 0) {
+          const first = focusableElements[0];
+          const last = focusableElements[focusableElements.length - 1];
+
+          if (e.shiftKey && document.activeElement === first) {
+            e.preventDefault();
+            last?.focus();
+          } else if (!e.shiftKey && document.activeElement === last) {
+            e.preventDefault();
+            first?.focus();
+          }
+        }
       }
     };
+
     window.addEventListener("keydown", handleKeyDown);
-    return () => window.removeEventListener("keydown", handleKeyDown);
+    return () => {
+      window.removeEventListener("keydown", handleKeyDown);
+      previouslyFocused?.focus();
+    };
   }, [isOpen, onCancel]);
 
   if (!isOpen) return null;
@@ -136,7 +185,10 @@ export function RevertToLiveDialog({
       aria-modal="true"
       aria-labelledby="revert-dialog-title"
     >
-      <div className="w-full max-w-md rounded-2xl border border-[var(--cs-border)] bg-[var(--cs-surface)] p-6 shadow-2xl animate-in fade-in zoom-in-95">
+      <div
+        ref={modalRef}
+        className="w-full max-w-md rounded-2xl border border-[var(--cs-border)] bg-[var(--cs-surface)] p-6 shadow-2xl animate-in fade-in zoom-in-95"
+      >
         <div className="flex items-start gap-3.5">
           <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-blue-50 text-blue-600 dark:bg-blue-950/40 dark:text-blue-400">
             <RotateCcw className="h-5 w-5" aria-hidden="true" />
@@ -154,6 +206,7 @@ export function RevertToLiveDialog({
 
         <div className="mt-6 flex justify-end gap-2">
           <button
+            ref={cancelButtonRef}
             type="button"
             onClick={onCancel}
             className="inline-flex min-h-9 items-center justify-center rounded-lg border border-[var(--cs-border)] bg-[var(--cs-surface)] px-4 text-xs font-semibold text-[var(--cs-text)] transition hover:bg-[var(--cs-surface-warm)]"
