@@ -6,10 +6,12 @@ import type {
   MarketingContentRevisionRow,
 } from "@/lib/queries/marketing-content";
 import type { MarketingMediaAssetRow } from "@/lib/queries/marketing-media";
+import type { MediaAssetUsageSummary } from "@/lib/marketing/media-usage-analyzer";
+import type { MarketingBrandSettingRow } from "@/lib/queries/marketing-brand";
 import type { PublicCatalogService } from "@/lib/queries/services";
 import type { PublicSiteAssetRow, PublicSiteSectionRow } from "@/lib/queries/public-site";
 import type { Database } from "@/types/supabase";
-import { WebsiteStudioView } from "@/components/features/marketing/website/website-studio-view";
+import { MarketingWorkspaceShell } from "@/components/features/marketing/marketing-workspace-shell";
 
 type BranchRow = Database["public"]["Tables"]["branches"]["Row"];
 
@@ -20,6 +22,8 @@ export type MarketingWorkspaceProps = {
   drafts: MarketingContentDraftRow[];
   revisions: MarketingContentRevisionRow[];
   mediaAssets?: MarketingMediaAssetRow[];
+  mediaUsageMap?: Record<string, MediaAssetUsageSummary>;
+  brandSettings?: MarketingBrandSettingRow[];
   branches?: BranchRow[];
   services?: PublicCatalogService[];
 };
@@ -31,11 +35,13 @@ export function MarketingWorkspace({
   drafts,
   revisions,
   mediaAssets = [],
+  mediaUsageMap = {},
+  brandSettings = [],
   branches = [],
   services = [],
 }: MarketingWorkspaceProps) {
   return (
-    <WebsiteStudioView
+    <MarketingWorkspaceShell
       role="digital_marketer"
       sectionDefaults={sectionDefaults}
       publishedSections={publishedSections}
@@ -43,6 +49,8 @@ export function MarketingWorkspace({
       drafts={drafts}
       revisions={revisions}
       mediaAssets={mediaAssets}
+      mediaUsageMap={mediaUsageMap}
+      brandSettings={brandSettings}
       branches={branches}
       services={services}
     />

@@ -26,6 +26,7 @@ import {
   getMarketingContentDrafts,
   type MarketingContentDraftRow,
 } from "@/lib/queries/marketing-content";
+import { getPublicBranches } from "@/lib/queries/branches";
 import { getPublicServiceCatalog } from "@/lib/queries/services";
 
 export type MarketingMediaAssetRow = {
@@ -281,6 +282,29 @@ export async function getMarketingMediaUsageContext(): Promise<MediaUsageContext
     unresolvedStores.push("services");
   }
 
+  let branches:
+    | Array<{
+        id: string;
+        name: string;
+        location_metadata?: Record<string, unknown> | null;
+        is_active?: boolean;
+      }>
+    | undefined;
+  try {
+    const rawBranches = await getPublicBranches();
+    branches = (rawBranches ?? []).map((b) => ({
+      id: b.id,
+      name: b.name,
+      location_metadata:
+        b.location_metadata && typeof b.location_metadata === "object" && !Array.isArray(b.location_metadata)
+          ? (b.location_metadata as Record<string, unknown>)
+          : null,
+      is_active: b.is_active,
+    }));
+  } catch {
+    unresolvedStores.push("branches");
+  }
+
   let brandSettings:
     | Array<{
         id: string;
@@ -358,6 +382,7 @@ export async function getMarketingMediaUsageContext(): Promise<MediaUsageContext
     publicAssets,
     drafts,
     services,
+    branches,
     brandSettings,
     seoSettings,
     unresolvedStores: unresolvedStores.length > 0 ? unresolvedStores : undefined,

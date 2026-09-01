@@ -7,10 +7,12 @@ import type {
   MarketingContentRevisionRow,
 } from "@/lib/queries/marketing-content";
 import type { MarketingMediaAssetRow } from "@/lib/queries/marketing-media";
+import type { MediaAssetUsageSummary } from "@/lib/marketing/media-usage-analyzer";
+import type { MarketingBrandSettingRow } from "@/lib/queries/marketing-brand";
 import type { PublicCatalogService } from "@/lib/queries/services";
 import type { PublicSiteAssetRow, PublicSiteSectionRow } from "@/lib/queries/public-site";
 import type { Database } from "@/types/supabase";
-import { WebsiteStudioView } from "@/components/features/marketing/website/website-studio-view";
+import { MarketingWorkspaceShell } from "@/components/features/marketing/marketing-workspace-shell";
 import {
   approveMarketingDraftAction,
   archiveMarketingDraftAction,
@@ -29,6 +31,8 @@ export type MarketingStudioProps = {
   drafts: MarketingContentDraftRow[];
   revisions: MarketingContentRevisionRow[];
   mediaAssets?: MarketingMediaAssetRow[];
+  mediaUsageMap?: Record<string, MediaAssetUsageSummary>;
+  brandSettings?: MarketingBrandSettingRow[];
   branches?: BranchRow[];
   services?: PublicCatalogService[];
 };
@@ -138,66 +142,53 @@ function DraftReviewItem({ draft }: { draft: MarketingContentDraftRow }) {
               disabled={busy}
               className="inline-flex min-h-8 items-center rounded-lg border border-[var(--cs-border)] bg-[var(--cs-surface)] px-3 text-xs font-semibold text-[var(--cs-text)] transition hover:bg-[var(--cs-surface-warm)] disabled:opacity-50"
             >
-              {changesPending ? "Sending..." : "Request Changes"}
+              Request Changes
+            </button>
+            <button
+              type="submit"
+              formAction={approveAction}
+              disabled={busy}
+              className="inline-flex min-h-8 items-center rounded-lg bg-[var(--cs-primary)] px-3 text-xs font-semibold text-white transition hover:opacity-90 disabled:opacity-50"
+            >
+              Approve
             </button>
           </div>
         </form>
 
-        <div className="grid gap-2">
-          <form action={approveAction}>
-            <input type="hidden" name="id" value={currentDraft.id} />
-            <input type="hidden" name="reviewNote" value="" />
-            <button
-              type="submit"
-              disabled={busy}
-              className="w-full inline-flex min-h-8 items-center justify-center rounded-lg border border-[var(--cs-border)] bg-[var(--cs-surface)] px-3 text-xs font-semibold text-[var(--cs-text)] transition hover:bg-[var(--cs-surface-warm)] disabled:opacity-50"
-            >
-              {approvePending ? "Approving..." : "Approve"}
-            </button>
-          </form>
-
-          <form action={publishAction}>
-            <input type="hidden" name="id" value={currentDraft.id} />
-            <button
-              type="submit"
-              disabled={busy || !canPublish}
-              className="w-full inline-flex min-h-8 items-center justify-center rounded-lg bg-[var(--cs-primary)] px-3 text-xs font-semibold text-white transition hover:opacity-90 disabled:opacity-50"
-            >
-              {publishPending ? "Publishing..." : "Publish to Live"}
-            </button>
-          </form>
-        </div>
-      </div>
-
-      <div className="grid gap-2 sm:grid-cols-[1fr_auto]">
-        <form action={scheduleAction} className="flex gap-2">
+        <form action={scheduleAction} className="grid gap-2">
           <input type="hidden" name="id" value={currentDraft.id} />
-          <input type="hidden" name="reviewNote" value="" />
           <input
             type="datetime-local"
             name="scheduledFor"
-            disabled={busy}
-            className="flex-1 rounded-lg border border-[var(--cs-border)] bg-[var(--cs-surface)] px-2.5 py-1 text-xs text-[var(--cs-text)] outline-none"
+            className="w-full rounded-lg border border-[var(--cs-border)] bg-[var(--cs-surface)] p-2 text-xs text-[var(--cs-text)] outline-none"
           />
-          <button
-            type="submit"
-            disabled={busy}
-            className="inline-flex min-h-8 items-center rounded-lg border border-[var(--cs-border)] bg-[var(--cs-surface)] px-3 text-xs font-semibold text-[var(--cs-text)] transition hover:bg-[var(--cs-surface-warm)] disabled:opacity-50"
-          >
-            {schedulePending ? "Scheduling..." : "Schedule"}
-          </button>
-        </form>
-
-        <form action={archiveAction}>
-          <input type="hidden" name="id" value={currentDraft.id} />
-          <input type="hidden" name="reviewNote" value="" />
-          <button
-            type="submit"
-            disabled={busy}
-            className="w-full inline-flex min-h-8 items-center justify-center rounded-lg border border-red-200 bg-red-50 px-3 text-xs font-semibold text-red-700 transition hover:bg-red-100 disabled:opacity-50 dark:border-red-900/40 dark:bg-red-950/30 dark:text-red-300"
-          >
-            {archivePending ? "Archiving..." : "Archive"}
-          </button>
+          <div className="flex flex-wrap gap-2">
+            <button
+              type="submit"
+              disabled={busy}
+              className="inline-flex min-h-8 items-center rounded-lg border border-[var(--cs-border)] bg-[var(--cs-surface)] px-3 text-xs font-semibold text-[var(--cs-text)] transition hover:bg-[var(--cs-surface-warm)] disabled:opacity-50"
+            >
+              Schedule
+            </button>
+            {canPublish && (
+              <button
+                type="submit"
+                formAction={publishAction}
+                disabled={busy}
+                className="inline-flex min-h-8 items-center rounded-lg bg-emerald-600 px-3 text-xs font-semibold text-white transition hover:bg-emerald-500 disabled:opacity-50"
+              >
+                Publish Live
+              </button>
+            )}
+            <button
+              type="submit"
+              formAction={archiveAction}
+              disabled={busy}
+              className="inline-flex min-h-8 items-center rounded-lg border border-red-200 bg-red-50 px-3 text-xs font-semibold text-red-700 transition hover:bg-red-100 disabled:opacity-50 dark:border-red-900/40 dark:bg-red-950/30 dark:text-red-300"
+            >
+              Archive
+            </button>
+          </div>
         </form>
       </div>
     </article>
@@ -249,12 +240,14 @@ export function MarketingStudio({
   drafts,
   revisions,
   mediaAssets = [],
+  mediaUsageMap = {},
+  brandSettings = [],
   branches = [],
   services = [],
 }: MarketingStudioProps) {
   return (
     <div className="space-y-6">
-      <WebsiteStudioView
+      <MarketingWorkspaceShell
         role="owner"
         sectionDefaults={sectionDefaults}
         publishedSections={sections}
@@ -262,6 +255,8 @@ export function MarketingStudio({
         drafts={drafts}
         revisions={revisions}
         mediaAssets={mediaAssets}
+        mediaUsageMap={mediaUsageMap}
+        brandSettings={brandSettings}
         branches={branches}
         services={services}
       />

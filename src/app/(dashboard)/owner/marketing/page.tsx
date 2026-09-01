@@ -5,28 +5,35 @@ import {
   getMarketingContentDrafts,
   getMarketingContentRevisions,
 } from "@/lib/queries/marketing-content";
-import { getMarketingMediaAssets } from "@/lib/queries/marketing-media";
+import {
+  getMarketingMediaAssets,
+  getMarketingMediaUsageMap,
+} from "@/lib/queries/marketing-media";
+import { getMarketingBrandSettings } from "@/lib/queries/marketing-brand";
 import { getPublicBranches } from "@/lib/queries/branches";
 import { getPublicServiceCatalog } from "@/lib/queries/services";
 import { MarketingStudio } from "./marketing-studio";
 
 export default async function MarketingStudioPage() {
-  const [sections, galleryAssets, drafts, revisions, mediaAssets, branches, services] =
+  const [sections, galleryAssets, drafts, revisions, mediaAssets, brandSettings, branches, services] =
     await Promise.all([
       getPublicSiteSections({ includeDisabled: true }),
       getPublicSiteAssets("gallery", { includeDisabled: true }),
       getMarketingContentDrafts(),
       getMarketingContentRevisions(16),
       getMarketingMediaAssets({ limit: 150 }),
+      getMarketingBrandSettings(),
       getPublicBranches().catch(() => []),
       getPublicServiceCatalog().catch(() => []),
     ]);
+
+  const mediaUsageMap = await getMarketingMediaUsageMap(mediaAssets);
 
   return (
     <div>
       <PageHeader
         title="Marketing Studio"
-        description="Manage public homepage copy, imagery, gallery items, and promotional sections."
+        description="Manage public homepage copy, brand identity, branch details, service catalog presentation, and promotional sections."
       />
 
       <MarketingStudio
@@ -36,6 +43,8 @@ export default async function MarketingStudioPage() {
         drafts={drafts}
         revisions={revisions}
         mediaAssets={mediaAssets}
+        mediaUsageMap={mediaUsageMap}
+        brandSettings={brandSettings}
         branches={branches}
         services={services}
       />

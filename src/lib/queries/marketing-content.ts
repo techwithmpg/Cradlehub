@@ -180,7 +180,7 @@ function draftSnapshot(draft: MarketingContentDraftRow): Record<string, unknown>
   };
 }
 
-async function getMarketingAccessContext(): Promise<MarketingAccessContext | null> {
+export async function getMarketingAccessContext(): Promise<MarketingAccessContext | null> {
   const supabase = await createClient();
   const {
     data: { user },

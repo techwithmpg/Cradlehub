@@ -54,6 +54,12 @@ export type MediaUsageContextData = {
     value: Record<string, unknown>;
     status: string;
   }[];
+  branches?: readonly {
+    id: string;
+    name: string;
+    location_metadata?: Record<string, unknown> | null;
+    is_active?: boolean;
+  }[];
   seoSettings?: readonly {
     id: string;
     route_path: string;
@@ -294,6 +300,24 @@ export function analyzeMediaAssetUsage(
           field: matchOg ? "og_image_url" : "metadata",
           label: `SEO: ${seo.route_path}`,
           context: `Status: ${seo.status}`,
+          isLive,
+        });
+      }
+    }
+  }
+
+  // 7. Check Branch Photos (Live if active branch)
+  if (context.branches) {
+    for (const branch of context.branches) {
+      if (branch.location_metadata && searchJsonValues(branch.location_metadata, asset)) {
+        const isLive = branch.is_active !== false;
+        usages.push({
+          consumerType: "branch",
+          entityId: branch.id,
+          entityKey: branch.name,
+          field: "location_metadata",
+          label: `Branch: ${branch.name}`,
+          context: isLive ? "Active Branch Location" : "Inactive Branch",
           isLive,
         });
       }
