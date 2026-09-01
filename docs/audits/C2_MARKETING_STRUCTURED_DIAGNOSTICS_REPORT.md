@@ -350,8 +350,12 @@ Based on the verified diagnostic findings, the recommended C3 Scope Freeze for t
    - Dedicated management for brand identity assets (Primary Logo, Dark/Light variants, Logo Mark, Favicon, Social Image).
    - Preserves static SVG fallback while allowing dynamic resolution from `marketing_brand_settings`.
 3. **Branches Studio:**
-   - Dedicated management for public-facing branch presentation fields (`name`, `address`, `phone`, `email`, `opening_hours`, `maps_embed_url`, `messenger_link`, `sort_order`).
-   - Strictly isolates public presentation from operational branch controls (`is_active`, `slot_interval_minutes`, travel fee parameters, staff assignments).
+   - Presents the existing canonical server-recognized branches; Digital Marketer cannot create or delete operational branches.
+   - Marketing-editable candidates for C3 scope freeze are limited to explicitly public-content fields such as `phone`, `secondary_phone`, `email`, `fb_page`, `messenger_link`, `opening_hours`, and public branch photos/content.
+   - Shared canonical identity/location values such as `name`, `address`, `city`, `barangay`, `latitude`, `longitude`, `place_id`, and `location_metadata` remain read-only to the marketer or require an Owner-reviewed workflow unless C3 explicitly proves and freezes a safe field-level authority boundary.
+   - `maps_embed_url` and `sort_order` must not be assumed marketer-owned without explicit C3 source-of-truth/consumer review.
+   - Operational controls remain strictly prohibited: `is_active`, `slot_interval_minutes`, travel fee configuration, branch resources, staff assignments.
+   - No duplicate branch source of truth may be introduced.
 4. **Services Studio:**
    - Dedicated management for public marketing presentation (`public_title`, `public_description`, `custom_image_url`, `image_alt`, `is_featured`, `sort_order`).
    - Strictly isolates marketing fields from operational catalog properties (base/custom `price`, `duration_minutes`, `buffer_before`/`buffer_after`, `available_in_spa`/`available_home_service`, therapist qualifications).
