@@ -18,11 +18,12 @@ function useCalmInView() {
     const element = ref.current;
     if (!element) return;
 
-    const prefersReducedMotion = window.matchMedia(
-      "(prefers-reduced-motion: reduce)"
-    ).matches;
+    const prefersReducedMotion =
+      typeof window !== "undefined" && typeof window.matchMedia === "function"
+        ? window.matchMedia("(prefers-reduced-motion: reduce)").matches
+        : false;
 
-    if (prefersReducedMotion) {
+    if (prefersReducedMotion || typeof IntersectionObserver === "undefined") {
       const timeoutId = window.setTimeout(() => setIsVisible(true), 0);
       return () => window.clearTimeout(timeoutId);
     }
@@ -48,11 +49,7 @@ type MobileFadeUpProps = HTMLAttributes<HTMLDivElement> & {
   children: ReactNode;
 };
 
-export function MobileFadeUp({
-  children,
-  className,
-  ...props
-}: MobileFadeUpProps) {
+export function MobileFadeUp({ children, className, ...props }: MobileFadeUpProps) {
   const { ref, isVisible } = useCalmInView();
 
   return (
@@ -91,11 +88,7 @@ export function MobileScrollFloatHeading({
         )}
       >
         {words.map((word, index) => (
-          <span
-            key={`${word}-${index}`}
-            aria-hidden="true"
-            className="mobile-scroll-float-word"
-          >
+          <span key={`${word}-${index}`} aria-hidden="true" className="mobile-scroll-float-word">
             {word}
             {index < words.length - 1 ? "\u00a0" : ""}
           </span>

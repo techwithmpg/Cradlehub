@@ -6,6 +6,9 @@ import { HomePageSections } from "@/components/public/home-page-sections";
 import { PublicMobileHome } from "@/components/public/mobile/public-mobile-home";
 import { MobileFirstVisitPreloader } from "@/components/shared/mobile-first-visit-preloader";
 import { getPublicBranches } from "@/lib/queries/branches";
+import { getPublicServiceCatalog } from "@/lib/queries/services";
+import { getPublicSiteSections } from "@/lib/queries/public-site";
+import { resolvePublicSiteSections } from "@/lib/public/normalized-sections";
 import { MOBILE_PRELOADER_COOKIE } from "@/lib/public/mobile-preloader";
 import { buildMetadata } from "@/lib/seo/metadata";
 import { LocalBusinessJsonLd, FAQPageJsonLd } from "@/components/seo/structured-data";
@@ -18,21 +21,24 @@ export const metadata: Metadata = buildMetadata({
 });
 
 export default async function HomePage() {
-  const [branches, cookieStore] = await Promise.all([
+  const [branches, services, managedSections, cookieStore] = await Promise.all([
     getPublicBranches(),
+    getPublicServiceCatalog().catch(() => []),
+    getPublicSiteSections({ includeDisabled: true }).catch(() => []),
     cookies(),
   ]);
-  const hasSeenMobilePreloader =
-    cookieStore.get(MOBILE_PRELOADER_COOKIE)?.value === "1";
+  const hasSeenMobilePreloader = cookieStore.get(MOBILE_PRELOADER_COOKIE)?.value === "1";
   const primaryPhone = branches[0]?.phone
     ? { label: branches[0].phone, href: `tel:${branches[0].phone.replace(/\s/g, "")}` }
     : undefined;
+
+  const normalizedSections = resolvePublicSiteSections(managedSections);
 
   const branchNames = branches.map((b) => b.name).filter(Boolean);
   const branchListText =
     branchNames.length >= 2
       ? `${branchNames.slice(0, -1).join(", ")} and ${branchNames[branchNames.length - 1]}`
-      : branchNames[0] ?? "our Bacolod branches";
+      : (branchNames[0] ?? "our Bacolod branches");
 
   const homepageFaqs = [
     {
@@ -74,9 +80,9 @@ export default async function HomePage() {
       <MobileFirstVisitPreloader initiallyVisible={!hasSeenMobilePreloader} />
       <SiteHeader primaryPhone={primaryPhone} />
       <main>
-        <PublicMobileHome branches={branches} />
+        <PublicMobileHome branches={branches} services={services} sections={normalizedSections} />
         <div className="hidden md:block">
-          <HomePageSections branches={branches} />
+          <HomePageSections branches={branches} services={services} sections={normalizedSections} />
         </div>
       </main>
       <SiteFooter branches={branches} />
