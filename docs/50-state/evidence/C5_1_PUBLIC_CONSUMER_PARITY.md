@@ -1,13 +1,15 @@
-# C5.1 Public Consumer Parity & Component Grounding Evidence Report (Corrected)
+# C5.1 Public Consumer Parity & Component Grounding Evidence Report
 
 - **Date:** 2026-09-01
 - **Program:** Controlled Stabilization
 - **Stage:** C5 — Implementation (Digital Marketing Workspace)
 - **Pass:** Pass 1 — Public Consumer Parity & Component Grounding
 - **Accepted Base SHA:** `d7958594e9d7369791acd29277c92a8eabf6bac3`
+- **Initial C5.1 Implementation SHA:** `3d9d6f851b8194af300b68293a29020310233168`
+- **Corrected C5.1 Head SHA:** `7ce538558bc9c80bb05e63992e0bc866c3741ebf`
 - **Branch:** `stage/c5-1-public-consumer-parity`
 - **Governance Ref:** `docs/11-DECISION-LOG.md` (`GOV-020`)
-- **Status:** CORRECTED / QUALITY GATES PASSED / AWAITING INDEPENDENT REVIEW
+- **Status:** EVIDENCE CORRECTED / QUALITY GATES PASSED / AWAITING FINAL INDEPENDENT REVIEW
 
 ---
 
@@ -103,18 +105,43 @@ Following independent review feedback, this corrected pass:
 
 ## 5. Responsive & Interaction QA Summary (Local Environment)
 
-- **Target:** Local Development Server (`http://localhost:3000/`)
-- **Evaluated Viewports:**
-  - `320px`: Mobile hero title wraps cleanly without horizontal overflow; CTAs stack cleanly; touch targets $\ge 48\text{px}$.
-  - `375px`: Hero carousel displays canonical managed hero title & copy on Slide 1; ambient multi-slide carousel indicators functional; service categories and Final CTA render with no clipping.
-  - `414px`: Fluid padding and typography layout adapt cleanly.
+- **Target:** `http://localhost:3000/`
+- **Environment:** LOCAL DEVELOPMENT SERVER
+- **Method:** Local interactive browser QA and server-rendered DOM inspection.
+- **Evaluated Viewports & Observations:**
+  - `320px`: Mobile hero title wraps cleanly without horizontal overflow; CTAs stack cleanly; Hero CTA touch targets are 44px high (`h-11`) and meet the accepted $44 \times 44\text{px}$ minimum.
+  - `375px`: Hero carousel displays canonical managed hero title & copy on Slide 1; ambient three-slide background sequence remained functional; service categories and Final CTA render with no clipping or horizontal scroll.
+  - `414px`: Fluid padding and typography layout adapt cleanly across expanded mobile widths.
   - `768px`: Tablet breakpoint transitions smoothly from mobile layout to desktop view.
   - `1280px`: Desktop homepage displays full hero typography, philosophy section, service category cards, Quote Banner without invented CTA, Why Guests Choose Cradle grid, and FAQ accordion.
-- **Console Health:** Zero runtime exceptions or unhandled promise rejections on root render.
+- **Artifact Retention Note:** No screenshot artifact retained; observations are local interactive QA.
+- **Console & SSR Health:** Zero runtime exceptions or unhandled promise rejections on root render.
 
 ---
 
-## 6. File Inventory
+## 6. Limitations
+
+- **Local verification only:** Testing was conducted against the local development server; no production browser QA is claimed.
+- **Zero live database mutation:** No live database rows were mutated during C5.1.
+- **Zero production data mutation:** Production databases and services were untouched.
+- **No schema / RLS / Auth / Storage verification:** C5.1 strictly excluded data-layer and infrastructure modifications.
+- **Marketing Studio UI unchanged:** Marketing Studio UI/UX is not implemented in Pass 1.
+- **Public consumer grounding only:** Scope is strictly limited to public desktop and mobile presentation consumers.
+- **Later passes unauthorized:** Media Library, Website Studio, Brand Studio, Branches Studio, and Services Studio remain unauthorized future passes.
+- **No performance improvement claimed:** While query structure was consolidated, no latency or throughput improvement is claimed as no formal benchmark was conducted.
+
+---
+
+## 7. Rollback Considerations
+
+- **Current State:** The branch `stage/c5-1-public-consumer-parity` is currently unmerged.
+- **Pre-Merge Rollback:** Discard or close the working branch with zero impact on `origin/main`.
+- **Post-Merge Rollback:** If a regression is discovered after merge, revert the C5.1 merge commit via the standard reviewed pull request workflow.
+- **Database Safety:** No database or migration rollback steps are required because C5.1 contains zero schema, DDL, or data modifications.
+
+---
+
+## 8. File Inventory
 
 | File | Type | Purpose |
 |---|---|---|
@@ -130,8 +157,8 @@ Following independent review feedback, this corrected pass:
 
 ---
 
-## 7. Status & Next Gate
+## 9. Status & Next Gate
 
-- **C5 Pass 1 Status:** CORRECTED / AWAITING INDEPENDENT REVIEW
-- **C5 Pass 2+ Status:** STRICTLY NOT AUTHORIZED (Withheld pending owner gate)
+- **C5 Pass 1 Status:** EVIDENCE CORRECTED / AWAITING FINAL INDEPENDENT REVIEW
+- **C5 Pass 2+ Status:** STRICTLY NOT AUTHORIZED (Withheld pending owner review and gate authorization)
 - **Branch Action:** Pushed to `stage/c5-1-public-consumer-parity`; **DO NOT MERGE**.
