@@ -20,13 +20,15 @@
 - C4 status: **CLOSED / ACCEPTED**
 - C5 Pass 1 accepted parity merge SHA: `1f5d71ce3472684c9a94ad83d6c2e36a9d1b1971`
 - C5 Pass 1 status: **CLOSED / ACCEPTED**
+- C5 Pass 2 accepted media library merge SHA: `12ddaf44fe951e0f167084dafd51627d2836c70b`
+- C5 Pass 2 status: **CLOSED / ACCEPTED**
 - Last governance closeout verification: 2026-09-01
 - Current stage: **C5 — Implementation (Digital Marketing Workspace)**
-- C5 status: **PASS 2 ACTIVE (Central Media Library & Universal Media Picker)**
+- C5 status: **NO NEXT PASS ACTIVE (AWAITING EXPLICIT OWNER AUTHORIZATION)**
 - Next stage: **C5 PASS 3+ — NOT AUTHORIZED**
 
 > [!NOTE]
-> C5 Pass 2 authorizes the Central Media Library and Universal Media Picker only. It does NOT authorize schema/database changes, migrations, RLS, Storage policy changes, Auth changes, security-policy mutation, or production data mutation. Later C5 passes remain strictly not authorized.
+> C5 Pass 2 (Central Media Library and Universal Media Picker) is closed and accepted. C5 Pass 3 and all subsequent implementation passes remain strictly not authorized pending explicit future owner authorization. No schema/database changes, migrations, RLS, Storage policy changes, Auth changes, security-policy mutation, or production data mutation are authorized.
 
 The recorded SHAs are stable closeout anchors, not declarations of the current `main` head. At the start of every session, fetch and re-resolve `origin/main`; inspect newer accepted work rather than recreating an older state.
 

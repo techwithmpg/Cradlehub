@@ -12,7 +12,12 @@
 **First Safety Evidence SHA:** `1fcfd979c85caea812f0620c1e2e3a076f79e322`
 **Test Type-Assertion Refinement SHA:** `f0fed905437f582872fda8628c6d37bd37fcb3a1`
 **Late Safety Regression Test SHA:** `bc02bd5b39e9ecea58861213ec0e34f84167641d`
-**Pre-final-evidence Reviewed Head:** `011c7a971da433a6d4b9d8f8ffc481d04524bbbe`
+**Final Implementation Reviewed Head:** `c76d799c9bb72724f6d37dbfcd51fb3be9d87a7f`
+**Accepted Implementation Merge SHA:** `12ddaf44fe951e0f167084dafd51627d2836c70b` (PR #10)
+**Closeout Branch:** `stage/c5-2-closeout`
+**Closeout State:** **CLOSED / ACCEPTED**
+**Owner Approval Date:** 2026-09-01
+**Independent Review Verdict:** **PASS**
 **Date:** 2026-09-01
 **Scope Authorization:** C5 Pass 2 — Central Media Library & Universal Media Picker ONLY.
 
@@ -39,7 +44,7 @@ In accordance with owner authorization and independent-review corrections for **
    - Safe archive is permitted only when all 6 stores resolve successfully and `totalLiveUsages === 0`.
 
 4. **Storage-Success / DB-Finalization Failure Handling:**
-   - In `uploadMarketingMediaFile`, draft reservations are created in `marketing_media_assets` *before* Storage upload.
+   - In `uploadMarketingMediaFile`, draft reservations are created in `marketing_media_assets` _before_ Storage upload.
    - If Storage upload succeeds but database finalization update fails, the function returns `success: false` with a clear diagnostic message.
    - The record is preserved with metadata `uploadStatus: "finalization_failed"`, `publicUrlCandidate`, and the specific database error without performing destructive hard-deletes.
 
@@ -63,6 +68,7 @@ In accordance with owner authorization and independent-review corrections for **
 ## 2. Implementation File Inventory (Strict 18-File Allow-List)
 
 ### A. Validation Schemas & Contracts
+
 - `src/lib/validations/marketing.ts`
   - `MARKETING_MEDIA_STATUSES = ["draft", "submitted", "approved", "published", "archived"]`
   - `marketingMediaAssetInputSchema`: Validates `id` (UUID), `altText >= 3` characters, `bucketPath` regex pattern `^[a-z0-9][a-z0-9_./-]*$`.
@@ -70,6 +76,7 @@ In accordance with owner authorization and independent-review corrections for **
   - `marketingMediaArchiveSchema`: Validates asset archive requests.
 
 ### B. Usage Analyzer & Query Layer
+
 - `src/lib/marketing/media-usage-analyzer.ts`
   - `analyzeMediaAssetUsage(asset, context)`: Analyzes live vs draft references across all 6 consumer stores.
   - `batchAnalyzeMediaUsage(assets, context)`: Batch evaluation for media grids and library browsing.
@@ -86,6 +93,7 @@ In accordance with owner authorization and independent-review corrections for **
   - `uploadMarketingMediaFile(formData)`: Non-destructive tracked reservation upload workflow with fail-closed finalization.
 
 ### C. Server Actions & Routes
+
 - `src/app/(dashboard)/marketing/media/actions.ts`
   - `uploadMediaFileAction`, `saveMediaMetadataAction`, `submitMediaForReviewAction`, `approveMediaAssetAction`, `publishMediaAssetAction`, `archiveMediaAssetAction`.
 - `src/app/(dashboard)/marketing/media/page.tsx`
@@ -96,6 +104,7 @@ In accordance with owner authorization and independent-review corrections for **
   - Owner Marketing Studio entry point with media integration.
 
 ### D. UI Components & Integration
+
 - `src/components/features/marketing/media/universal-media-picker.tsx`
   - Universal media picker modal with Library browsing, search, status filters, selection preview drawer, direct upload, focus trap, and archived asset selection prevention.
 - `src/components/features/marketing/media/media-library-view.tsx`
@@ -110,6 +119,7 @@ In accordance with owner authorization and independent-review corrections for **
   - Configured idle prefetch for `/marketing/media`.
 
 ### E. Automated Test Suites & Evidence
+
 - `tests/lib/marketing/media-usage.test.ts`
   - 9 unit tests for matching algorithms, live section detection, draft reference handling, service catalog scanning, brand/SEO scanning, incomplete usage fail-closed behavior, batch analysis, and archive blocking.
 - `tests/lib/marketing/media-library.test.tsx`
@@ -125,15 +135,15 @@ In accordance with owner authorization and independent-review corrections for **
 
 ## 3. Quality Gate Results
 
-| Quality Gate | Command | Result | Details |
-|---|---|---|---|
-| **Targeted Vitest Tests** | `pnpm vitest run tests/lib/marketing/media-usage.test.ts tests/lib/marketing/media-library.test.tsx tests/lib/marketing/media-queries.test.ts` | **PASS** | 3 test files passed, 40 total tests passed, 0 failures. |
-| **Full Unit & Integration Suite** | `pnpm vitest run` | **PASS** | 204 test files passed, 1,424 total tests passed, 0 failures. |
-| **TypeScript Type Check** | `pnpm type-check` | **PASS** | `tsc --noEmit` exited 0 with 0 errors. |
-| **ESLint Static Analysis** | `pnpm lint` | **PASS** | ESLint exited 0 with 0 errors and 0 warnings. |
-| **Code Style Formatting** | `pnpm format:check` | **PASS** | Read-only format verification passed across all incremental files. |
-| **Next.js Production Build** | `pnpm build` | **PASS** | Next.js 16.2.4 (Turbopack) successfully compiled 115 static/dynamic routes including `/marketing/media`. |
-| **Git Diff Inspection** | `git diff --check origin/main...HEAD` | **PASS** | Zero conflict markers, whitespace errors, or uncommitted files across the 18 authorized files. |
+| Quality Gate                      | Command                                                                                                                                        | Result   | Details                                                                                                  |
+| --------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------- | -------- | -------------------------------------------------------------------------------------------------------- |
+| **Targeted Vitest Tests**         | `pnpm vitest run tests/lib/marketing/media-usage.test.ts tests/lib/marketing/media-library.test.tsx tests/lib/marketing/media-queries.test.ts` | **PASS** | 3 test files passed, 40 total tests passed, 0 failures.                                                  |
+| **Full Unit & Integration Suite** | `pnpm vitest run`                                                                                                                              | **PASS** | 204 test files passed, 1,424 total tests passed, 0 failures.                                             |
+| **TypeScript Type Check**         | `pnpm type-check`                                                                                                                              | **PASS** | `tsc --noEmit` exited 0 with 0 errors.                                                                   |
+| **ESLint Static Analysis**        | `pnpm lint`                                                                                                                                    | **PASS** | ESLint exited 0 with 0 errors and 0 warnings.                                                            |
+| **Code Style Formatting**         | `pnpm format:check`                                                                                                                            | **PASS** | Read-only format verification passed across all incremental files.                                       |
+| **Next.js Production Build**      | `pnpm build`                                                                                                                                   | **PASS** | Next.js 16.2.4 (Turbopack) successfully compiled 115 static/dynamic routes including `/marketing/media`. |
+| **Git Diff Inspection**           | `git diff --check origin/main...HEAD`                                                                                                          | **PASS** | Zero conflict markers, whitespace errors, or uncommitted files across the 18 authorized files.           |
 
 ---
 
@@ -172,6 +182,10 @@ In accordance with owner authorization and independent-review corrections for **
 
 ---
 
-## 7. Stop Condition & Review Request
+## 7. Stop Condition & Closeout Record
 
-Implementation, hardening, safety verification, and scope isolation for **C5 Pass 2** are complete and fully verified. Technical implementation is accepted. Status: **IMPLEMENTATION TECHNICALLY ACCEPTED / EVIDENCE CORRECTED / AWAITING FINAL INDEPENDENT REVIEW**. **DO NOT MERGE.**
+Implementation, hardening, safety verification, and scope isolation for **C5 Pass 2** were completed and verified with independent review **PASS** and owner approval on 2026-09-01. The implementation branch was merged into production-connected `main` at merge SHA `12ddaf44fe951e0f167084dafd51627d2836c70b` via PR #10.
+
+**C5 Pass 2 Status:** **CLOSED / ACCEPTED**
+**Current Implementation State:** **NO NEXT C5 PASS ACTIVE (AWAITING EXPLICIT OWNER AUTHORIZATION)**
+**C5 Pass 3+ Status:** **STRICTLY NOT AUTHORIZED**
