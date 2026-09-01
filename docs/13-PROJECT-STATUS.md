@@ -4,12 +4,13 @@
 
 - **Program:** Controlled Stabilization
 - **Current stage:** C5 — Implementation (Digital Marketing Workspace)
-- **C5 status:** PASS 1 ACTIVE (Public Consumer Parity & Component Grounding)
-- **C5 Pass 2+:** NOT AUTHORIZED
+- **C5 status:** PASS 1 OWNER ACCEPTED / MERGE GATE IN PROGRESS
+- **Independent review:** PASS
+- **C5 Pass 2:** CONDITIONALLY AUTHORIZED AFTER ACCEPTED C5.1 CLOSEOUT
+- **C5 Pass 3+:** NOT AUTHORIZED
 - **C4 status:** CLOSED / ACCEPTED
 - **Accepted C4 UI/UX plan merge:** `b90b2d70d05b8d6082f707babed8995799c2ab2d`
 - **C4 report:** `docs/audits/C4_MARKETING_UIUX_WORKFLOW_PLAN.md`
-- **Independent review:** PASS
 - **C3 status:** CLOSED / ACCEPTED
 - **Accepted C3 scope freeze merge:** `d19ce34753e09244b8aad0e1d10c964302a33e7c`
 - **C3 report:** `docs/audits/C3_MARKETING_SCOPE_FREEZE.md`
@@ -23,7 +24,7 @@
 - **Accepted C0B governance merge:** `03dbd57ed4be6f9b1f0bd30c7fd22a225e68ec2a`
 - **External review:** PASS
 - **Merge verification:** PASS
-- **Next stage:** C5+ — NOT AUTHORIZED
+- **Next stage:** C5 Pass 2 conditionally authorized after C5.1 closeout; C5 Pass 3+ NOT AUTHORIZED
 
 ## Current safety state
 
@@ -74,4 +75,4 @@ CradleHub is a Next.js 16.2.4 / React 19.2.4 web application using Supabase Post
 - GitHub protection/ruleset and Vercel linkage/deployed-commit unknowns; and
 - production-connected `main` release safety.
 
-C1, C2, and C3 are CLOSED and ACCEPTED. C3 Scope Freeze was merged into main at `d19ce34753e09244b8aad0e1d10c964302a33e7c`. C4 UI/UX and Workflow Planning is ACTIVE for the frozen Digital Marketing Workspace scope (planning/specification only). Product fixes, UI implementation, database/Storage mutation, migration actions, and C5+ coding remain strictly NOT AUTHORIZED.
+C0B, C1, C2, C3, and C4 are CLOSED and ACCEPTED. C5 Pass 1 (Public Consumer Parity & Component Grounding) is OWNER ACCEPTED with independent review PASS, and its merge gate into main is active. Conditioned on successful accepted C5.1 closeout, C5 Pass 2 (Central Media Library & Universal Media Picker) is conditionally authorized. C5 Pass 2 does NOT authorize schema/database mutation, migrations, RLS/Auth/Storage policy changes, production data mutation, or C5 Pass 3+. C5 Pass 3+ remains strictly NOT AUTHORIZED.
