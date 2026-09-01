@@ -1,12 +1,12 @@
 # C5 Pass 2 Evidence Report: Central Media Library & Universal Media Picker
 
-**Repository:** CradleHub Web (`E:\cradlehub`)  
-**Canonical Remote:** `https://github.com/techwithmpg/Cradlehub.git`  
-**Working Branch:** `stage/c5-2-media-library`  
-**Accepted Main Base SHA:** `6303bae6921d2ae1b8fa4d9d80f8d2cadb72b7b6` (PR #9 Closeout)  
-**Original Implementation SHA:** `ef87d080e5669f00d969bcb51b6e319b16a417ae`  
-**Pre-correction Remote Head:** `4fadc01e25b821c6e9ee4a55c0245e94fe17ef87`  
-**Date:** 2026-09-01  
+**Repository:** CradleHub Web (`E:\cradlehub`)
+**Canonical Remote:** `https://github.com/techwithmpg/Cradlehub.git`
+**Working Branch:** `stage/c5-2-media-library`
+**Accepted Main Base SHA:** `6303bae6921d2ae1b8fa4d9d80f8d2cadb72b7b6` (PR #9 Closeout)
+**Original Implementation SHA:** `ef87d080e5669f00d969bcb51b6e319b16a417ae`
+**Pre-correction Remote Head:** `4fadc01e25b821c6e9ee4a55c0245e94fe17ef87`
+**Date:** 2026-09-01
 **Scope Authorization:** C5 Pass 2 — Central Media Library & Universal Media Picker ONLY.
 
 ---
