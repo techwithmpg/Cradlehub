@@ -17,11 +17,16 @@ let mockStaff: { id: string; system_role: string } | null = {
 };
 
 let mockDbSelectData: unknown = null;
+let mockDbSelectError: unknown = null;
 let mockDbInsertData: unknown = null;
 let mockDbInsertError: unknown = null;
 let mockDbUpdateData: unknown = null;
 let mockDbUpdateError: unknown = null;
+let lastUpdatePayload: Record<string, unknown> | null = null;
 let mockStorageUploadError: unknown = null;
+
+let mockBrandError: unknown = null;
+let mockSeoError: unknown = null;
 
 const mockStorageUpload = vi.fn().mockImplementation(() => {
   return Promise.resolve({ error: mockStorageUploadError });
@@ -60,8 +65,11 @@ const mockSupabase = {
 
     if (tableName === "marketing_brand_settings") {
       return {
-        select: vi.fn().mockImplementation(() =>
-          Promise.resolve({
+        select: vi.fn().mockImplementation(() => {
+          if (mockBrandError) {
+            return Promise.resolve({ data: null, error: mockBrandError });
+          }
+          return Promise.resolve({
             data: [
               {
                 id: "brand-1",
@@ -72,15 +80,18 @@ const mockSupabase = {
               },
             ],
             error: null,
-          })
-        ),
+          });
+        }),
       };
     }
 
     if (tableName === "marketing_seo_settings") {
       return {
-        select: vi.fn().mockImplementation(() =>
-          Promise.resolve({
+        select: vi.fn().mockImplementation(() => {
+          if (mockSeoError) {
+            return Promise.resolve({ data: null, error: mockSeoError });
+          }
+          return Promise.resolve({
             data: [
               {
                 id: "seo-1",
@@ -92,8 +103,8 @@ const mockSupabase = {
               },
             ],
             error: null,
-          })
-        ),
+          });
+        }),
       };
     }
 
@@ -107,25 +118,32 @@ const mockSupabase = {
             Promise.resolve({ data: mockDbInsertData, error: mockDbInsertError })
           ),
       })),
-      update: vi.fn().mockImplementation(() => ({
-        eq: vi.fn().mockReturnThis(),
-        select: vi.fn().mockReturnThis(),
-        single: vi
-          .fn()
-          .mockImplementation(() =>
-            Promise.resolve({ data: mockDbUpdateData, error: mockDbUpdateError })
-          ),
-      })),
+      update: vi.fn().mockImplementation((payload: Record<string, unknown>) => {
+        lastUpdatePayload = payload;
+        return {
+          eq: vi.fn().mockReturnThis(),
+          select: vi.fn().mockReturnThis(),
+          single: vi
+            .fn()
+            .mockImplementation(() =>
+              Promise.resolve({ data: mockDbUpdateData, error: mockDbUpdateError })
+            ),
+        };
+      }),
       eq: vi.fn().mockReturnThis(),
       in: vi.fn().mockReturnThis(),
       order: vi.fn().mockReturnThis(),
       limit: vi.fn().mockReturnThis(),
       maybeSingle: vi
         .fn()
-        .mockImplementation(() => Promise.resolve({ data: mockDbSelectData, error: null })),
+        .mockImplementation(() =>
+          Promise.resolve({ data: mockDbSelectData, error: mockDbSelectError })
+        ),
       single: vi
         .fn()
-        .mockImplementation(() => Promise.resolve({ data: mockDbSelectData, error: null })),
+        .mockImplementation(() =>
+          Promise.resolve({ data: mockDbSelectData, error: mockDbSelectError })
+        ),
     };
     return builder;
   }),
@@ -171,7 +189,9 @@ describe("marketing media queries - role boundaries and safety enforcement", () 
       bucket_path: "media/1-hero.jpg",
       status: "approved",
       alt_text: "Approved hero photo",
+      metadata: {},
     };
+    mockDbSelectError = null;
 
     const res = await saveMarketingMediaAsset({
       id: TEST_ASSET_ID,
@@ -185,6 +205,115 @@ describe("marketing media queries - role boundaries and safety enforcement", () 
     }
   });
 
+  it("fails closed when existing asset state lookup produces a DB error", async () => {
+    mockStaff = { id: "staff-dm", system_role: "digital_marketer" };
+    mockDbSelectData = null;
+    mockDbSelectError = { message: "Database connection failed" };
+    lastUpdatePayload = null;
+
+    const res = await saveMarketingMediaAsset({
+      id: TEST_ASSET_ID,
+      altText: "Updated alt text",
+    });
+
+    expect(res.success).toBe(false);
+    if (!res.success) {
+      expect(res.error).toBe("Could not verify the current media asset state.");
+    }
+    expect(lastUpdatePayload).toBeNull();
+  });
+
+  it("fails closed when existing asset is not found", async () => {
+    mockStaff = { id: "staff-owner", system_role: "owner" };
+    mockDbSelectData = null;
+    mockDbSelectError = null;
+    lastUpdatePayload = null;
+
+    const res = await saveMarketingMediaAsset({
+      id: TEST_ASSET_ID,
+      altText: "Updated alt text",
+    });
+
+    expect(res.success).toBe(false);
+    if (!res.success) {
+      expect(res.error).toBe("Media asset not found.");
+    }
+    expect(lastUpdatePayload).toBeNull();
+  });
+
+  it("preserves immutable storage identity (bucket_path and public_url) on existing asset edits", async () => {
+    mockStaff = { id: "staff-dm", system_role: "digital_marketer" };
+    mockDbSelectData = {
+      id: TEST_ASSET_ID,
+      bucket_path: "media/canonical-path.jpg",
+      public_url: "https://example.com/canonical-url.jpg",
+      status: "draft",
+      alt_text: "Original Alt",
+      metadata: { originalFileName: "pic.jpg" },
+    };
+    mockDbSelectError = null;
+    mockDbUpdateData = {
+      id: TEST_ASSET_ID,
+      bucket_path: "media/canonical-path.jpg",
+      public_url: "https://example.com/canonical-url.jpg",
+      status: "draft",
+      alt_text: "New Alt",
+      metadata: { originalFileName: "pic.jpg" },
+    };
+    lastUpdatePayload = null;
+
+    const res = await saveMarketingMediaAsset({
+      id: TEST_ASSET_ID,
+      bucketPath: "media/tampered-path.jpg",
+      publicUrl: "https://example.com/tampered-url.jpg",
+      altText: "New Alt",
+      title: "New Title",
+    });
+
+    expect(res.success).toBe(true);
+    expect(lastUpdatePayload).toBeDefined();
+    expect(lastUpdatePayload?.bucket_path).toBeUndefined();
+    expect(lastUpdatePayload?.public_url).toBeUndefined();
+    expect(lastUpdatePayload?.title).toBe("New Title");
+    expect(lastUpdatePayload?.alt_text).toBe("New Alt");
+  });
+
+  it("protects system tracking metadata fields from client overwrite", async () => {
+    mockStaff = { id: "staff-dm", system_role: "digital_marketer" };
+    mockDbSelectData = {
+      id: TEST_ASSET_ID,
+      bucket_path: "media/hero.jpg",
+      public_url: "https://example.com/hero.jpg",
+      status: "draft",
+      alt_text: "Hero",
+      metadata: {
+        uploadStatus: "completed",
+        sizeBytes: 12345,
+        mimeType: "image/jpeg",
+        originalFileName: "hero.jpg",
+      },
+    };
+    mockDbSelectError = null;
+    mockDbUpdateData = mockDbSelectData;
+    lastUpdatePayload = null;
+
+    const res = await saveMarketingMediaAsset({
+      id: TEST_ASSET_ID,
+      altText: "New Hero Alt",
+      metadata: {
+        uploadStatus: "forged_status",
+        sizeBytes: 9999999,
+        customUserTag: "autumn-campaign",
+      },
+    });
+
+    expect(res.success).toBe(true);
+    const updatedMeta = lastUpdatePayload?.metadata as Record<string, unknown>;
+    expect(updatedMeta.uploadStatus).toBe("completed"); // Preserved
+    expect(updatedMeta.sizeBytes).toBe(12345); // Preserved
+    expect(updatedMeta.customUserTag).toBe("autumn-campaign"); // Allowed
+  });
+
   it("allows digital marketer modification of draft assets", async () => {
     mockStaff = { id: "staff-dm", system_role: "digital_marketer" };
     mockDbSelectData = {
@@ -192,7 +321,9 @@ describe("marketing media queries - role boundaries and safety enforcement", () 
       bucket_path: "media/1-hero.jpg",
       status: "draft",
       alt_text: "Draft hero photo",
+      metadata: {},
     };
+    mockDbSelectError = null;
     mockDbUpdateData = {
       id: TEST_ASSET_ID,
       bucket_path: "media/1-hero.jpg",
@@ -202,7 +333,6 @@ describe("marketing media queries - role boundaries and safety enforcement", () 
 
     const res = await saveMarketingMediaAsset({
       id: TEST_ASSET_ID,
-      bucketPath: "media/1-hero.jpg",
       altText: "Updated alt text",
     });
 
@@ -215,6 +345,7 @@ describe("marketing media queries - role boundaries and safety enforcement", () 
       id: TEST_ASSET_ID,
       status: "published",
     };
+    mockDbSelectError = null;
 
     const res = await updateMarketingMediaAssetStatus({
       id: TEST_ASSET_ID,
@@ -233,6 +364,7 @@ describe("marketing media queries - role boundaries and safety enforcement", () 
       id: TEST_ASSET_ID,
       status: "draft",
     };
+    mockDbSelectError = null;
 
     const res = await updateMarketingMediaAssetStatus({
       id: TEST_ASSET_ID,
@@ -253,6 +385,7 @@ describe("marketing media queries - role boundaries and safety enforcement", () 
       id: TEST_ASSET_ID,
       status: "draft",
     };
+    mockDbSelectError = null;
     mockDbUpdateData = {
       id: TEST_ASSET_ID,
       status: "submitted",
@@ -281,6 +414,8 @@ describe("marketing media queries - role boundaries and safety enforcement", () 
 
   it("loads complete six-store usage context without unresolved stores when all resolve", async () => {
     mockStaff = { id: "staff-owner", system_role: "owner" };
+    mockBrandError = null;
+    mockSeoError = null;
     const context = await getMarketingMediaUsageContext();
 
     expect(context.sections).toBeDefined();
@@ -292,8 +427,74 @@ describe("marketing media queries - role boundaries and safety enforcement", () 
     expect(context.unresolvedStores).toBeUndefined();
   });
 
+  it("fails closed when marketing_brand_settings table is missing or unreadable", async () => {
+    mockStaff = { id: "staff-owner", system_role: "owner" };
+    mockBrandError = { message: "relation marketing_brand_settings does not exist" };
+    mockSeoError = null;
+
+    const context = await getMarketingMediaUsageContext();
+    expect(context.unresolvedStores).toContain("marketing_brand_settings");
+
+    const asset = {
+      id: TEST_ASSET_ID,
+      bucket_path: "media/test.jpg",
+      public_url: "https://example.com/test.jpg",
+      title: "Test",
+      alt_text: "Test Alt",
+      section_key: null,
+      content_key: null,
+      status: "draft" as const,
+      metadata: {},
+      created_by: null,
+      updated_by: null,
+      reviewed_by: null,
+      reviewed_at: null,
+      created_at: "2026-09-01T00:00:00Z",
+      updated_at: "2026-09-01T00:00:00Z",
+    };
+
+    const map = await getMarketingMediaUsageMap([asset]);
+    expect(map[TEST_ASSET_ID]?.usageUnknown).toBe(true);
+    expect(map[TEST_ASSET_ID]?.canSafelyArchive).toBe(false);
+    mockBrandError = null;
+  });
+
+  it("fails closed when marketing_seo_settings table is missing or unreadable", async () => {
+    mockStaff = { id: "staff-owner", system_role: "owner" };
+    mockBrandError = null;
+    mockSeoError = { message: "relation marketing_seo_settings does not exist" };
+
+    const context = await getMarketingMediaUsageContext();
+    expect(context.unresolvedStores).toContain("marketing_seo_settings");
+
+    const asset = {
+      id: TEST_ASSET_ID,
+      bucket_path: "media/test.jpg",
+      public_url: "https://example.com/test.jpg",
+      title: "Test",
+      alt_text: "Test Alt",
+      section_key: null,
+      content_key: null,
+      status: "draft" as const,
+      metadata: {},
+      created_by: null,
+      updated_by: null,
+      reviewed_by: null,
+      reviewed_at: null,
+      created_at: "2026-09-01T00:00:00Z",
+      updated_at: "2026-09-01T00:00:00Z",
+    };
+
+    const map = await getMarketingMediaUsageMap([asset]);
+    expect(map[TEST_ASSET_ID]?.usageUnknown).toBe(true);
+    expect(map[TEST_ASSET_ID]?.canSafelyArchive).toBe(false);
+    mockSeoError = null;
+  });
+
   it("generates page-level usage map covering all assets with complete context", async () => {
     mockStaff = { id: "staff-owner", system_role: "owner" };
+    mockBrandError = null;
+    mockSeoError = null;
     const asset = {
       id: TEST_ASSET_ID,
       bucket_path: "media/logo.jpg",
@@ -317,6 +518,35 @@ describe("marketing media queries - role boundaries and safety enforcement", () 
     expect(map[TEST_ASSET_ID]?.usageUnknown).toBe(false);
     expect(map[TEST_ASSET_ID]?.totalLiveUsages).toBe(1); // from brand setting
     expect(map[TEST_ASSET_ID]?.canSafelyArchive).toBe(false);
+  });
+
+  it("permits safe archive when all stores resolve and asset has zero live usages", async () => {
+    mockStaff = { id: "staff-owner", system_role: "owner" };
+    mockBrandError = null;
+    mockSeoError = null;
+    const asset = {
+      id: "unreferenced-asset-id",
+      bucket_path: "media/unused-image.jpg",
+      public_url: "https://example.com/unused-image.jpg",
+      title: "Unused Image",
+      alt_text: "Unused Image Alt",
+      section_key: null,
+      content_key: null,
+      status: "published" as const,
+      metadata: {},
+      created_by: "staff-1",
+      updated_by: "staff-1",
+      reviewed_by: null,
+      reviewed_at: null,
+      created_at: "2026-09-01T00:00:00Z",
+      updated_at: "2026-09-01T00:00:00Z",
+    };
+
+    const map = await getMarketingMediaUsageMap([asset]);
+    expect(map["unreferenced-asset-id"]).toBeDefined();
+    expect(map["unreferenced-asset-id"]?.usageUnknown).toBe(false);
+    expect(map["unreferenced-asset-id"]?.totalLiveUsages).toBe(0);
+    expect(map["unreferenced-asset-id"]?.canSafelyArchive).toBe(true);
   });
 
   it("fails closed when storage upload succeeds but DB finalization update fails", async () => {

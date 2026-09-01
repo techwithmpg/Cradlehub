@@ -309,11 +309,7 @@ export async function getMarketingMediaUsageContext(): Promise<MediaUsageContext
         .select("id, setting_key, label, value, status");
 
       if (brandError) {
-        if (!isMissingMarketingTableError(brandError.message)) {
-          unresolvedStores.push("marketing_brand_settings");
-        } else {
-          brandSettings = [];
-        }
+        unresolvedStores.push("marketing_brand_settings");
       } else {
         brandSettings = (brandData ?? []).map((b) => ({
           id: b.id,
@@ -336,11 +332,7 @@ export async function getMarketingMediaUsageContext(): Promise<MediaUsageContext
         .select("id, route_path, title, og_image_url, metadata, status");
 
       if (seoError) {
-        if (!isMissingMarketingTableError(seoError.message)) {
-          unresolvedStores.push("marketing_seo_settings");
-        } else {
-          seoSettings = [];
-        }
+        unresolvedStores.push("marketing_seo_settings");
       } else {
         seoSettings = (seoData ?? []).map((s) => ({
           id: s.id,
@@ -405,37 +397,91 @@ export async function saveMarketingMediaAsset(
   const context = await getMarketingAccessContext();
   if (!context) return { success: false, error: "Unauthorized" };
 
-  const { id, bucketPath, publicUrl, title, altText, sectionKey, metadata } = parsed.data;
+  const { id, bucketPath, publicUrl, title, altText, sectionKey, contentKey, metadata } =
+    parsed.data;
   const assetsTable = table<MarketingMediaAssetRow>(context.supabase, "marketing_media_assets");
 
   if (id) {
-    // Check role boundaries on update:
-    // Digital Marketers may only edit metadata for assets in 'draft' or 'submitted' status
-    const existing = await assetsTable.select("status").eq("id", id).maybeSingle();
+    // Fail closed on asset lookup before applying authorization or mutations
+    const existing = await assetsTable
+      .select("status, bucket_path, public_url, metadata")
+      .eq("id", id)
+      .maybeSingle();
 
-    if (existing.data) {
-      const currentStatus = existing.data.status;
-      if (
-        context.role === "digital_marketer" &&
-        currentStatus !== "draft" &&
-        currentStatus !== "submitted"
-      ) {
-        return {
-          success: false,
-          error: `Digital marketers can only edit draft or submitted media assets. Current asset is ${currentStatus}.`,
-        };
-      }
+    if (existing.error) {
+      logError("marketing.media_asset_lookup_failed", { error: existing.error, id });
+      return {
+        success: false,
+        error: "Could not verify the current media asset state.",
+      };
     }
 
+    if (!existing.data) {
+      return {
+        success: false,
+        error: "Media asset not found.",
+      };
+    }
+
+    const currentStatus = existing.data.status;
+    if (
+      context.role === "digital_marketer" &&
+      currentStatus !== "draft" &&
+      currentStatus !== "submitted"
+    ) {
+      return {
+        success: false,
+        error: `Digital marketers can only edit draft or submitted media assets. Current asset is ${currentStatus}.`,
+      };
+    }
+
+    if (context.role === "owner" && currentStatus === "archived") {
+      return {
+        success: false,
+        error: "Archived media assets cannot be modified. Unarchive the asset first.",
+      };
+    }
+
+    // Preserve protected system metadata fields from existing record
+    const existingMeta = (
+      existing.data.metadata && typeof existing.data.metadata === "object"
+        ? existing.data.metadata
+        : {}
+    ) as Record<string, unknown>;
+
+    const protectedFields = [
+      "uploadStatus",
+      "uploadError",
+      "publicUrlCandidate",
+      "mimeType",
+      "sizeBytes",
+      "originalFileName",
+      "uploadedAt",
+    ];
+
+    let mergedMetadata = existingMeta;
+    if (metadata !== undefined && typeof metadata === "object" && metadata !== null) {
+      const userMeta = { ...metadata };
+      for (const key of protectedFields) {
+        if (key in existingMeta) {
+          userMeta[key] = existingMeta[key];
+        } else {
+          delete userMeta[key];
+        }
+      }
+      mergedMetadata = { ...existingMeta, ...userMeta };
+    }
+
+    // Immutable storage identity: DO NOT accept client updates to bucket_path or public_url
     const updatePayload: Record<string, unknown> = {
       updated_by: context.staffId,
+      metadata: mergedMetadata,
     };
-    if (bucketPath !== undefined) updatePayload.bucket_path = bucketPath;
-    if (publicUrl !== undefined) updatePayload.public_url = publicUrl;
+
     if (title !== undefined) updatePayload.title = cleanText(title);
     if (altText !== undefined) updatePayload.alt_text = altText;
     if (sectionKey !== undefined) updatePayload.section_key = cleanText(sectionKey);
-    if (metadata !== undefined) updatePayload.metadata = metadata;
+    if (contentKey !== undefined) updatePayload.content_key = cleanText(contentKey);
 
     const result = await assetsTable
       .update(updatePayload)
@@ -451,12 +497,17 @@ export async function saveMarketingMediaAsset(
     return { success: true, asset: result.data, message: "Media asset updated." };
   }
 
+  if (!bucketPath) {
+    return { success: false, error: "Bucket path is required for new media assets." };
+  }
+
   const insertPayload = {
-    bucket_path: bucketPath!,
+    bucket_path: bucketPath,
     public_url: publicUrl ?? null,
-    title: cleanText(title) || bucketPath!.split("/").pop() || "Untitled Image",
+    title: cleanText(title) || bucketPath.split("/").pop() || "Untitled Image",
     alt_text: altText ?? "Media asset",
     section_key: cleanText(sectionKey),
+    content_key: cleanText(contentKey),
     status: "draft",
     metadata: metadata ?? {},
     created_by: context.staffId,

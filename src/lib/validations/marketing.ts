@@ -123,12 +123,13 @@ export const marketingMediaAssetInputSchema = z.object({
   bucketPath: z
     .string()
     .trim()
-    .min(1, "Bucket path is required")
     .max(500, "Bucket path is too long")
     .regex(
       bucketPathRegex,
       "Bucket path must use lowercase alphanumeric, dash, underscore, dot, or slash"
-    ),
+    )
+    .optional()
+    .nullable(),
   publicUrl: optionalImageUrl,
   metadata: jsonObject,
 });
