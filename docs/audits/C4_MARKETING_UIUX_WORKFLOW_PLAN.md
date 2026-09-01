@@ -1,12 +1,12 @@
 # C4 Digital Marketing Workspace UI/UX and Workflow Plan
 
-**Program:** Controlled Stabilization  
-**Stage:** C4 — UI/UX and Workflow Planning (DESIGN SPECIFICATION ONLY — ZERO PRODUCT CODE / ZERO SCHEMA MUTATION / ZERO PRODUCTION MUTATION)  
-**Target:** CradleHub Web — Digital Marketing Workspace (`/marketing`, `/owner/marketing`) & Public-Site Consumers  
-**Base SHA:** `fb94e2f8163017fae83ab267cfb96ee483dc994c` (Accepted C3 closeout merge commit on `main`)  
-**Branch:** `stage/c4-marketing-uiux-workflow-plan`  
-**Date:** 2026-09-01  
-**Status:** UI/UX & WORKFLOW PLAN DELIVERED / AWAITING INDEPENDENT REVIEW (C5+ NOT AUTHORIZED)  
+**Program:** Controlled Stabilization
+**Stage:** C4 — UI/UX and Workflow Planning (DESIGN SPECIFICATION ONLY — ZERO PRODUCT CODE / ZERO SCHEMA MUTATION / ZERO PRODUCTION MUTATION)
+**Target:** CradleHub Web — Digital Marketing Workspace (`/marketing`, `/owner/marketing`) & Public-Site Consumers
+**Base SHA:** `fb94e2f8163017fae83ab267cfb96ee483dc994c` (Accepted C3 closeout merge commit on `main`)
+**Branch:** `stage/c4-marketing-uiux-workflow-plan`
+**Date:** 2026-09-01
+**Status:** UI/UX & WORKFLOW PLAN DELIVERED / AWAITING INDEPENDENT REVIEW (C5+ NOT AUTHORIZED)
 
 ---
 
