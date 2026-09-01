@@ -1089,8 +1089,8 @@ function ImagePickerField({
           onClick={() => setIsPickerOpen(true)}
           className="cs-btn cs-btn-secondary"
           style={{
-            height: 38,
-            padding: "0 0.75rem",
+            minHeight: 44,
+            padding: "0 0.875rem",
             fontSize: 12,
             fontWeight: 650,
             display: "inline-flex",

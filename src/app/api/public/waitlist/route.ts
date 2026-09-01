@@ -11,18 +11,23 @@ const WAITLIST_COOLDOWN_MS = 5 * 60 * 1000;
 
 const uuid = z.guid("Invalid ID");
 
-const schema = z.object({
-  website:        z.string().max(0, "Unable to submit this request").optional(),
-  branchId:      uuid,
-  customerName:  z.string().min(2).max(100),
-  customerPhone: z.string().min(7).max(20),
-  customerEmail: z.string().email().optional().or(z.literal("")),
-  preferredDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional(),
-  preferredTime: z.string().optional(),
-  serviceId:     uuid.optional(),
-  visitType:     z.enum(["in_spa", "home_service"]).optional(),
-  notes:         z.string().max(500).optional(),
-}).strict();
+const schema = z
+  .object({
+    website: z.string().max(0, "Unable to submit this request").optional(),
+    branchId: uuid,
+    customerName: z.string().min(2).max(100),
+    customerPhone: z.string().min(7).max(20),
+    customerEmail: z.string().email().optional().or(z.literal("")),
+    preferredDate: z
+      .string()
+      .regex(/^\d{4}-\d{2}-\d{2}$/)
+      .optional(),
+    preferredTime: z.string().optional(),
+    serviceId: uuid.optional(),
+    visitType: z.enum(["in_spa", "home_service"]).optional(),
+    notes: z.string().max(500).optional(),
+  })
+  .strict();
 
 function normalizePhone(value: string): string {
   return value.replace(/\D/g, "");
@@ -31,18 +36,27 @@ function normalizePhone(value: string): string {
 export async function POST(request: NextRequest) {
   const declaredLength = Number(request.headers.get("content-length") ?? "0");
   if (declaredLength > MAX_WAITLIST_PAYLOAD_BYTES) {
-    return NextResponse.json({ error: "Please shorten your request and try again." }, { status: 413 });
+    return NextResponse.json(
+      { error: "Please shorten your request and try again." },
+      { status: 413 }
+    );
   }
 
   let body: unknown;
   try {
     const rawBody = await request.text();
     if (new TextEncoder().encode(rawBody).length > MAX_WAITLIST_PAYLOAD_BYTES) {
-      return NextResponse.json({ error: "Please shorten your request and try again." }, { status: 413 });
+      return NextResponse.json(
+        { error: "Please shorten your request and try again." },
+        { status: 413 }
+      );
     }
     body = JSON.parse(rawBody);
   } catch {
-    return NextResponse.json({ error: "Please check your details and try again." }, { status: 400 });
+    return NextResponse.json(
+      { error: "Please check your details and try again." },
+      { status: 400 }
+    );
   }
 
   const parsed = schema.safeParse(body);
@@ -74,7 +88,10 @@ export async function POST(request: NextRequest) {
       serviceId: d.serviceId ?? null,
       error: duplicateError,
     });
-    return NextResponse.json({ error: "We could not submit your request. Please try again." }, { status: 500 });
+    return NextResponse.json(
+      { error: "We could not submit your request. Please try again." },
+      { status: 500 }
+    );
   }
   if (duplicate?.length) {
     return NextResponse.json(
@@ -95,10 +112,7 @@ export async function POST(request: NextRequest) {
   }
 
   if (!branch) {
-    return NextResponse.json(
-      { error: "Please choose an active branch." },
-      { status: 400 }
-    );
+    return NextResponse.json({ error: "Please choose an active branch." }, { status: 400 });
   }
 
   if (d.serviceId) {
@@ -121,25 +135,22 @@ export async function POST(request: NextRequest) {
         return NextResponse.json({ error: message }, { status: 400 });
       }
     } catch {
-      return NextResponse.json(
-        { error: "Could not validate selected service" },
-        { status: 500 }
-      );
+      return NextResponse.json({ error: "Could not validate selected service" }, { status: 500 });
     }
   }
 
   const { data, error } = await supabase
     .from("waitlist_requests")
     .insert({
-      branch_id:      d.branchId,
-      customer_name:  d.customerName,
+      branch_id: d.branchId,
+      customer_name: d.customerName,
       customer_phone: d.customerPhone,
       customer_email: d.customerEmail || null,
       preferred_date: d.preferredDate ?? null,
       preferred_time: d.preferredTime ?? null,
-      service_id:     d.serviceId ?? null,
-      visit_type:     d.visitType ?? null,
-      notes:          d.notes ?? null,
+      service_id: d.serviceId ?? null,
+      visit_type: d.visitType ?? null,
+      notes: d.notes ?? null,
     })
     .select("id")
     .single();
@@ -151,7 +162,10 @@ export async function POST(request: NextRequest) {
       serviceId: d.serviceId ?? null,
       error,
     });
-    return NextResponse.json({ error: "We could not submit your request. Please try again." }, { status: 500 });
+    return NextResponse.json(
+      { error: "We could not submit your request. Please try again." },
+      { status: 500 }
+    );
   }
 
   try {
@@ -165,7 +179,11 @@ export async function POST(request: NextRequest) {
         : `${d.customerName} joined the waitlist.`,
       entityType: "waitlist_request",
       entityId: data.id,
-      actionHref: getNotificationTargetPath({ workspace: "crm", entityType: "waitlist_request", entityId: data.id }),
+      actionHref: getNotificationTargetPath({
+        workspace: "crm",
+        entityType: "waitlist_request",
+        entityId: data.id,
+      }),
       priority: "normal",
       requiresAction: true,
       dedupeKey: `waitlist:${data.id}:submitted`,

@@ -3,8 +3,9 @@
 import { useActionState, useEffect, useMemo, useRef, useState } from "react";
 import Image from "next/image";
 import {
+  AlertCircle,
+  Archive,
   Check,
-  CheckCircle2,
   FileImage,
   Filter,
   Image as ImageIcon,
@@ -67,7 +68,8 @@ export function UniversalMediaPicker({
   const [userSelectedAsset, setUserSelectedAsset] = useState<MarketingMediaAssetRow | null>(null);
 
   const [uploadState, uploadAction, uploadPending] = useActionState(uploadMediaFileAction, {});
-  const fileInputRef = useRef<HTMLInputElement>(null);
+  const modalRef = useRef<HTMLDivElement>(null);
+  const previousActiveElementRef = useRef<HTMLElement | null>(null);
 
   const assets = useMemo(() => {
     if (!uploadState.asset) return availableAssets;
@@ -79,20 +81,67 @@ export function UniversalMediaPicker({
     if (userSelectedAsset) return userSelectedAsset;
     if (uploadState.asset) return uploadState.asset;
     if (currentUrl) {
-      return (
-        assets.find((a) => a.public_url === currentUrl || a.bucket_path === currentUrl) ?? null
-      );
+      const match =
+        assets.find((a) => a.public_url === currentUrl || a.bucket_path === currentUrl) ?? null;
+      if (match) return match;
     }
     return null;
   }, [userSelectedAsset, uploadState.asset, currentUrl, assets]);
 
-  // Handle escape key
+  // Focus restoration & initial focus placement
+  useEffect(() => {
+    if (isOpen) {
+      previousActiveElementRef.current = document.activeElement as HTMLElement | null;
+      const timer = setTimeout(() => {
+        const firstFocusable = modalRef.current?.querySelector<HTMLElement>(
+          'input:not([disabled]), button:not([disabled]), [tabindex]:not([tabindex="-1"])'
+        );
+        firstFocusable?.focus();
+      }, 50);
+      return () => clearTimeout(timer);
+    } else if (previousActiveElementRef.current) {
+      previousActiveElementRef.current.focus();
+      previousActiveElementRef.current = null;
+    }
+    return undefined;
+  }, [isOpen]);
+
+  // Focus trap and escape key handling
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
-      if (e.key === "Escape" && isOpen) {
+      if (!isOpen) return;
+
+      if (e.key === "Escape") {
+        e.preventDefault();
         onClose();
+        return;
+      }
+
+      if (e.key === "Tab") {
+        const focusable = modalRef.current?.querySelectorAll<HTMLElement>(
+          'button:not([disabled]), [href], input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])'
+        );
+        if (!focusable || focusable.length === 0) return;
+
+        const first = focusable[0];
+        const last = focusable[focusable.length - 1];
+
+        if (first && last) {
+          if (e.shiftKey) {
+            if (document.activeElement === first) {
+              e.preventDefault();
+              last.focus();
+            }
+          } else {
+            if (document.activeElement === last) {
+              e.preventDefault();
+              first.focus();
+            }
+          }
+        }
       }
     };
+
     window.addEventListener("keydown", handleKeyDown);
     return () => window.removeEventListener("keydown", handleKeyDown);
   }, [isOpen, onClose]);
@@ -118,8 +167,13 @@ export function UniversalMediaPicker({
 
   if (!isOpen) return null;
 
+  const isSelectedArchived = selectedAsset?.status === "archived";
+  const canConfirmSelection = Boolean(
+    selectedAsset && !isSelectedArchived && selectedAsset.public_url
+  );
+
   const handleConfirm = () => {
-    if (selectedAsset?.public_url) {
+    if (selectedAsset && selectedAsset.status !== "archived" && selectedAsset.public_url) {
       onSelect({
         id: selectedAsset.id,
         publicUrl: selectedAsset.public_url,
@@ -148,6 +202,7 @@ export function UniversalMediaPicker({
       }}
     >
       <div
+        ref={modalRef}
         style={{
           width: "100%",
           maxWidth: 960,
@@ -175,14 +230,15 @@ export function UniversalMediaPicker({
           <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
             <div
               style={{
-                width: 36,
-                height: 36,
+                width: 44,
+                height: 44,
                 borderRadius: 8,
                 background: "var(--cs-primary-muted, rgba(99, 102, 241, 0.1))",
                 display: "flex",
                 alignItems: "center",
                 justifyContent: "center",
                 color: "var(--cs-primary)",
+                flexShrink: 0,
               }}
             >
               <ImageIcon className="size-5" />
@@ -195,7 +251,7 @@ export function UniversalMediaPicker({
                 {title}
               </h2>
               <p style={{ margin: "2px 0 0", fontSize: 12, color: "var(--cs-text-muted)" }}>
-                Choose an existing image or upload a new one.
+                Choose an active image or upload a new one.
               </p>
             </div>
           </div>
@@ -205,8 +261,10 @@ export function UniversalMediaPicker({
             aria-label="Close dialog"
             className="cs-btn-icon"
             style={{
-              width: 36,
-              height: 36,
+              width: 44,
+              height: 44,
+              minWidth: 44,
+              minHeight: 44,
               display: "flex",
               alignItems: "center",
               justifyContent: "center",
@@ -215,9 +273,10 @@ export function UniversalMediaPicker({
               background: "transparent",
               cursor: "pointer",
               color: "var(--cs-text-muted)",
+              transition: "border-color 0.15s ease, color 0.15s ease, background-color 0.15s ease",
             }}
           >
-            <X className="size-4" />
+            <X className="size-5" />
           </button>
         </div>
 
@@ -235,7 +294,8 @@ export function UniversalMediaPicker({
             type="button"
             onClick={() => setActiveTab("library")}
             style={{
-              padding: "0.75rem 0.25rem",
+              padding: "0.75rem 0.5rem",
+              minHeight: 44,
               border: 0,
               borderBottom:
                 activeTab === "library" ? "2px solid var(--cs-primary)" : "2px solid transparent",
@@ -247,6 +307,7 @@ export function UniversalMediaPicker({
               display: "inline-flex",
               alignItems: "center",
               gap: 6,
+              transition: "color 0.15s ease, border-color 0.15s ease",
             }}
           >
             <FileImage className="size-4" />
@@ -256,7 +317,8 @@ export function UniversalMediaPicker({
             type="button"
             onClick={() => setActiveTab("upload")}
             style={{
-              padding: "0.75rem 0.25rem",
+              padding: "0.75rem 0.5rem",
+              minHeight: 44,
               border: 0,
               borderBottom:
                 activeTab === "upload" ? "2px solid var(--cs-primary)" : "2px solid transparent",
@@ -268,6 +330,7 @@ export function UniversalMediaPicker({
               display: "inline-flex",
               alignItems: "center",
               gap: 6,
+              transition: "color 0.15s ease, border-color 0.15s ease",
             }}
           >
             <Upload className="size-4" />
@@ -298,7 +361,7 @@ export function UniversalMediaPicker({
                     className="size-4"
                     style={{
                       position: "absolute",
-                      left: 10,
+                      left: 12,
                       top: "50%",
                       transform: "translateY(-50%)",
                       color: "var(--cs-text-muted)",
@@ -311,7 +374,8 @@ export function UniversalMediaPicker({
                     placeholder="Search by title, alt text, path..."
                     style={{
                       width: "100%",
-                      padding: "0.5rem 0.75rem 0.5rem 2rem",
+                      minHeight: 44,
+                      padding: "0.5rem 0.75rem 0.5rem 2.25rem",
                       borderRadius: 6,
                       border: "1px solid var(--cs-border)",
                       background: "var(--cs-surface)",
@@ -323,12 +387,13 @@ export function UniversalMediaPicker({
                 </div>
 
                 <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
-                  <Filter className="size-3.5" style={{ color: "var(--cs-text-muted)" }} />
+                  <Filter className="size-4" style={{ color: "var(--cs-text-muted)" }} />
                   <select
                     value={statusFilter}
                     onChange={(e) => setStatusFilter(e.target.value)}
                     style={{
-                      padding: "0.5rem 0.65rem",
+                      minHeight: 44,
+                      padding: "0.5rem 0.75rem",
                       borderRadius: 6,
                       border: "1px solid var(--cs-border)",
                       background: "var(--cs-surface)",
@@ -343,6 +408,7 @@ export function UniversalMediaPicker({
                     <option value="approved">Approved</option>
                     <option value="submitted">Submitted</option>
                     <option value="draft">Draft</option>
+                    <option value="archived">Archived (Read-Only)</option>
                   </select>
                 </div>
               </div>
@@ -380,22 +446,32 @@ export function UniversalMediaPicker({
                       type="button"
                       onClick={() => setActiveTab("upload")}
                       className="cs-btn cs-btn-secondary"
-                      style={{ fontSize: 12, padding: "0.4rem 0.75rem" }}
+                      style={{ fontSize: 12, padding: "0.5rem 1rem", minHeight: 44 }}
                     >
-                      <Upload className="size-3.5" style={{ marginRight: 6 }} /> Upload Image
+                      <Upload className="size-4" style={{ marginRight: 6 }} /> Upload Image
                     </button>
                   </div>
                 ) : (
                   filteredAssets.map((asset) => {
+                    const isArchived = asset.status === "archived";
                     const isSelected =
                       selectedAsset?.id === asset.id ||
                       selectedAsset?.public_url === asset.public_url;
                     const badge = statusBadgeColors(asset.status);
+
                     return (
                       <button
                         key={asset.id}
                         type="button"
-                        onClick={() => setUserSelectedAsset(asset)}
+                        onClick={() => {
+                          if (!isArchived) {
+                            setUserSelectedAsset(asset);
+                          }
+                        }}
+                        disabled={isArchived}
+                        title={
+                          isArchived ? "Archived asset cannot be selected" : (asset.title ?? "")
+                        }
                         style={{
                           display: "flex",
                           flexDirection: "column",
@@ -405,12 +481,15 @@ export function UniversalMediaPicker({
                             : "1px solid var(--cs-border)",
                           background: isSelected ? "var(--cs-surface-warm)" : "var(--cs-surface)",
                           overflow: "hidden",
-                          cursor: "pointer",
+                          cursor: isArchived ? "not-allowed" : "pointer",
+                          opacity: isArchived ? 0.55 : 1,
                           textAlign: "left",
                           padding: 0,
                           position: "relative",
                           outline: "none",
-                          transition: "all 0.15s ease",
+                          minHeight: 44,
+                          transition:
+                            "border-color 0.15s ease, background-color 0.15s ease, opacity 0.15s ease",
                         }}
                       >
                         {/* Thumbnail Container */}
@@ -446,7 +525,7 @@ export function UniversalMediaPicker({
                             </div>
                           )}
 
-                          {isSelected && (
+                          {isSelected && !isArchived && (
                             <div
                               style={{
                                 position: "absolute",
@@ -464,6 +543,26 @@ export function UniversalMediaPicker({
                               }}
                             >
                               <Check className="size-3.5 stroke-[3]" />
+                            </div>
+                          )}
+
+                          {isArchived && (
+                            <div
+                              style={{
+                                position: "absolute",
+                                top: 6,
+                                right: 6,
+                                width: 22,
+                                height: 22,
+                                borderRadius: "50%",
+                                background: "#57534E",
+                                color: "#fff",
+                                display: "flex",
+                                alignItems: "center",
+                                justifyContent: "center",
+                              }}
+                            >
+                              <Archive className="size-3" />
                             </div>
                           )}
 
@@ -520,196 +619,245 @@ export function UniversalMediaPicker({
               </div>
             </div>
 
-            {/* Preview Sidebar */}
-            {selectedAsset ? (
-              <div
+            {/* Sidebar Preview of Selection */}
+            <div
+              style={{
+                width: 280,
+                borderLeft: "1px solid var(--cs-border)",
+                background: "var(--cs-surface-warm)",
+                padding: "1rem",
+                display: "flex",
+                flexDirection: "column",
+                overflowY: "auto",
+              }}
+            >
+              <h3
                 style={{
-                  width: 280,
-                  borderLeft: "1px solid var(--cs-border)",
-                  background: "var(--cs-surface-warm)",
-                  padding: "1rem",
-                  display: "flex",
-                  flexDirection: "column",
-                  gap: 12,
-                  overflowY: "auto",
+                  fontSize: 12,
+                  fontWeight: 700,
+                  color: "var(--cs-text-secondary)",
+                  textTransform: "uppercase",
+                  letterSpacing: "0.05em",
+                  margin: "0 0 0.75rem",
                 }}
               >
-                <div
-                  style={{
-                    fontSize: 12,
-                    fontWeight: 700,
-                    color: "var(--cs-text-secondary)",
-                    textTransform: "uppercase",
-                  }}
-                >
-                  Selected Asset
-                </div>
+                Selected Image
+              </h3>
 
-                <div
-                  style={{
-                    width: "100%",
-                    aspectRatio: "16 / 10",
-                    position: "relative",
-                    borderRadius: 8,
-                    overflow: "hidden",
-                    border: "1px solid var(--cs-border)",
-                    background: "var(--cs-surface)",
-                  }}
-                >
-                  {selectedAsset.public_url ? (
-                    <Image
-                      src={selectedAsset.public_url}
-                      alt={selectedAsset.alt_text}
-                      fill
-                      sizes="280px"
-                      style={{ objectFit: "contain" }}
-                    />
-                  ) : (
-                    <div
-                      style={{
-                        width: "100%",
-                        height: "100%",
-                        display: "flex",
-                        alignItems: "center",
-                        justifyContent: "center",
-                      }}
-                    >
-                      <ImageIcon className="size-8 opacity-30" />
-                    </div>
-                  )}
-                </div>
-
-                <div>
-                  <div style={{ fontSize: 13, fontWeight: 700, color: "var(--cs-text)" }}>
-                    {selectedAsset.title || "Untitled Image"}
-                  </div>
+              {selectedAsset ? (
+                <div style={{ display: "flex", flexDirection: "column", gap: "0.75rem" }}>
                   <div
                     style={{
-                      fontSize: 11,
+                      width: "100%",
+                      aspectRatio: "16 / 10",
+                      position: "relative",
+                      borderRadius: 8,
+                      overflow: "hidden",
+                      border: "1px solid var(--cs-border)",
+                      background: "var(--cs-surface)",
+                    }}
+                  >
+                    {selectedAsset.public_url ? (
+                      <Image
+                        src={selectedAsset.public_url}
+                        alt={selectedAsset.alt_text}
+                        fill
+                        sizes="280px"
+                        style={{ objectFit: "cover" }}
+                      />
+                    ) : (
+                      <div
+                        style={{
+                          width: "100%",
+                          height: "100%",
+                          display: "flex",
+                          alignItems: "center",
+                          justifyContent: "center",
+                          color: "var(--cs-text-muted)",
+                        }}
+                      >
+                        <ImageIcon className="size-8 opacity-30" />
+                      </div>
+                    )}
+                  </div>
+
+                  {isSelectedArchived && (
+                    <div
+                      style={{
+                        padding: "0.5rem 0.75rem",
+                        borderRadius: 6,
+                        background: "#FEF2F2",
+                        border: "1px solid #FCA5A5",
+                        color: "#991B1B",
+                        fontSize: 11,
+                        display: "flex",
+                        alignItems: "center",
+                        gap: 6,
+                      }}
+                    >
+                      <AlertCircle className="size-4 shrink-0" />
+                      <span>Archived asset cannot be selected for active use.</span>
+                    </div>
+                  )}
+
+                  <div>
+                    <label
+                      style={{
+                        fontSize: 10,
+                        fontWeight: 700,
+                        color: "var(--cs-text-muted)",
+                        textTransform: "uppercase",
+                      }}
+                    >
+                      Title
+                    </label>
+                    <div
+                      style={{
+                        fontSize: 12,
+                        fontWeight: 650,
+                        color: "var(--cs-text)",
+                        marginTop: 2,
+                      }}
+                    >
+                      {selectedAsset.title || "Untitled Image"}
+                    </div>
+                  </div>
+
+                  <div>
+                    <label
+                      style={{
+                        fontSize: 10,
+                        fontWeight: 700,
+                        color: "var(--cs-text-muted)",
+                        textTransform: "uppercase",
+                      }}
+                    >
+                      Alt Text
+                    </label>
+                    <div
+                      style={{
+                        fontSize: 12,
+                        color: "var(--cs-text)",
+                        marginTop: 2,
+                        lineHeight: 1.4,
+                      }}
+                    >
+                      {selectedAsset.alt_text}
+                    </div>
+                  </div>
+
+                  <div>
+                    <label
+                      style={{
+                        fontSize: 10,
+                        fontWeight: 700,
+                        color: "var(--cs-text-muted)",
+                        textTransform: "uppercase",
+                      }}
+                    >
+                      Status
+                    </label>
+                    <div style={{ marginTop: 4 }}>
+                      <span
+                        style={{
+                          borderRadius: 4,
+                          border: `1px solid ${statusBadgeColors(selectedAsset.status).border}`,
+                          background: statusBadgeColors(selectedAsset.status).bg,
+                          color: statusBadgeColors(selectedAsset.status).text,
+                          fontSize: 10,
+                          fontWeight: 700,
+                          padding: "2px 6px",
+                          textTransform: "capitalize",
+                        }}
+                      >
+                        {selectedAsset.status}
+                      </span>
+                    </div>
+                  </div>
+
+                  <div
+                    style={{
+                      borderTop: "1px solid var(--cs-border-soft)",
+                      paddingTop: "0.5rem",
+                      fontSize: 10,
                       color: "var(--cs-text-muted)",
-                      marginTop: 2,
                       wordBreak: "break-all",
                     }}
                   >
-                    {selectedAsset.bucket_path}
+                    Path: {selectedAsset.bucket_path}
                   </div>
                 </div>
-
-                <div style={{ borderTop: "1px solid var(--cs-border-soft)", paddingTop: 10 }}>
-                  <div style={{ fontSize: 11, fontWeight: 650, color: "var(--cs-text-secondary)" }}>
-                    Alt Text (Accessibility)
-                  </div>
-                  <div
-                    style={{
-                      fontSize: 12,
-                      color: "var(--cs-text)",
-                      marginTop: 4,
-                      background: "var(--cs-surface)",
-                      padding: "6px 8px",
-                      borderRadius: 6,
-                      border: "1px solid var(--cs-border-soft)",
-                      display: "flex",
-                      alignItems: "flex-start",
-                      gap: 6,
-                    }}
-                  >
-                    <CheckCircle2 className="size-3.5 text-emerald-600 shrink-0 mt-0.5" />
-                    <span>{selectedAsset.alt_text}</span>
-                  </div>
-                </div>
-
+              ) : (
                 <div
                   style={{
-                    borderTop: "1px solid var(--cs-border-soft)",
-                    paddingTop: 10,
-                    fontSize: 11,
+                    padding: "2rem 1rem",
+                    textAlign: "center",
                     color: "var(--cs-text-muted)",
+                    fontSize: 12,
                   }}
                 >
-                  <div>
-                    Status:{" "}
-                    <strong style={{ color: "var(--cs-text)", textTransform: "capitalize" }}>
-                      {selectedAsset.status}
-                    </strong>
-                  </div>
-                  {selectedAsset.section_key && (
-                    <div style={{ marginTop: 4 }}>
-                      Section:{" "}
-                      <strong style={{ color: "var(--cs-text)" }}>
-                        {selectedAsset.section_key}
-                      </strong>
-                    </div>
-                  )}
-                </div>
-              </div>
-            ) : null}
-          </div>
-        ) : (
-          /* Upload Tab */
-          <div
-            style={{
-              padding: "2rem",
-              minHeight: 400,
-              display: "flex",
-              alignItems: "center",
-              justifyContent: "center",
-            }}
-          >
-            <form
-              action={uploadAction}
-              style={{
-                width: "100%",
-                maxWidth: 480,
-                display: "flex",
-                flexDirection: "column",
-                gap: "1rem",
-              }}
-            >
-              {uploadState.error && (
-                <div
-                  style={{
-                    padding: "0.75rem",
-                    borderRadius: 8,
-                    background: "#FEE2E2",
-                    border: "1px solid #FCA5A5",
-                    color: "#991B1B",
-                    fontSize: 13,
-                  }}
-                >
-                  {uploadState.error}
+                  <p style={{ margin: 0 }}>Click an active image in the library to select it.</p>
                 </div>
               )}
-
+            </div>
+          </div>
+        ) : (
+          /* Direct Upload Tab */
+          <div style={{ padding: "1.5rem 2rem", overflowY: "auto", maxHeight: 520 }}>
+            {uploadState.error && (
               <div
-                onClick={() => fileInputRef.current?.click()}
                 style={{
-                  border: "2px dashed var(--cs-border)",
-                  borderRadius: 10,
-                  padding: "2.5rem 1.5rem",
-                  textAlign: "center",
-                  cursor: "pointer",
-                  background: "var(--cs-surface-warm)",
-                  transition: "border-color 0.15s ease",
+                  padding: "0.75rem 1rem",
+                  borderRadius: 6,
+                  background: "#FEF2F2",
+                  border: "1px solid #FCA5A5",
+                  color: "#991B1B",
+                  fontSize: 12,
+                  marginBottom: "1rem",
+                  display: "flex",
+                  alignItems: "center",
+                  gap: 8,
                 }}
               >
-                <Upload
-                  className="size-8"
-                  style={{ margin: "0 auto 8px", color: "var(--cs-primary)" }}
-                />
-                <p style={{ margin: 0, fontSize: 14, fontWeight: 650, color: "var(--cs-text)" }}>
-                  Click to choose an image file
-                </p>
-                <p style={{ margin: "4px 0 0", fontSize: 12, color: "var(--cs-text-muted)" }}>
-                  JPG, PNG, WebP, SVG, GIF up to 10MB
-                </p>
+                <AlertCircle className="size-4 shrink-0" />
+                <span>{uploadState.error}</span>
+              </div>
+            )}
+
+            <form
+              action={uploadAction}
+              style={{ display: "flex", flexDirection: "column", gap: "1rem" }}
+            >
+              <div>
+                <label
+                  style={{
+                    display: "block",
+                    fontSize: 12,
+                    fontWeight: 650,
+                    color: "var(--cs-text)",
+                    marginBottom: 4,
+                  }}
+                >
+                  Image File <span style={{ color: "var(--cs-danger, #EF4444)" }}>*</span>
+                </label>
                 <input
-                  ref={fileInputRef}
                   type="file"
                   name="file"
-                  accept="image/jpeg,image/png,image/webp,image/svg+xml,image/gif"
                   required
-                  style={{ display: "none" }}
+                  accept="image/jpeg,image/png,image/webp,image/svg+xml,image/gif"
+                  style={{
+                    width: "100%",
+                    minHeight: 44,
+                    padding: "0.5rem",
+                    borderRadius: 6,
+                    border: "1px solid var(--cs-border)",
+                    background: "var(--cs-surface)",
+                    fontSize: 12,
+                  }}
                 />
+                <p style={{ margin: "4px 0 0", fontSize: 11, color: "var(--cs-text-muted)" }}>
+                  JPG, PNG, WebP, SVG, or GIF up to 10MB.
+                </p>
               </div>
 
               <div>
@@ -722,15 +870,16 @@ export function UniversalMediaPicker({
                     marginBottom: 4,
                   }}
                 >
-                  Title / Name (Optional)
+                  Title / Name
                 </label>
                 <input
                   type="text"
                   name="title"
-                  placeholder="e.g. Couples Massage Treatment Room"
+                  placeholder="e.g. Hero Spa Banner"
                   style={{
                     width: "100%",
-                    padding: "0.625rem 0.75rem",
+                    minHeight: 44,
+                    padding: "0.5rem 0.75rem",
                     borderRadius: 6,
                     border: "1px solid var(--cs-border)",
                     background: "var(--cs-surface)",
@@ -751,17 +900,19 @@ export function UniversalMediaPicker({
                     marginBottom: 4,
                   }}
                 >
-                  Alt Text (Required, at least 3 characters) *
+                  Alt Text (Accessibility){" "}
+                  <span style={{ color: "var(--cs-danger, #EF4444)" }}>*</span>
                 </label>
                 <input
                   type="text"
                   name="altText"
                   required
                   minLength={3}
-                  placeholder="e.g. Serene massage room with ambient lighting"
+                  placeholder="Descriptive explanation for screen readers (min 3 chars)"
                   style={{
                     width: "100%",
-                    padding: "0.625rem 0.75rem",
+                    minHeight: 44,
+                    padding: "0.5rem 0.75rem",
                     borderRadius: 6,
                     border: "1px solid var(--cs-border)",
                     background: "var(--cs-surface)",
@@ -772,35 +923,43 @@ export function UniversalMediaPicker({
                 />
               </div>
 
-              <input type="hidden" name="sectionKey" value={filterSectionKey ?? ""} />
+              {filterSectionKey && (
+                <input type="hidden" name="sectionKey" value={filterSectionKey} />
+              )}
 
-              <button
-                type="submit"
-                disabled={uploadPending}
-                className="cs-btn cs-btn-primary"
-                style={{
-                  height: 44,
-                  display: "flex",
-                  alignItems: "center",
-                  justifyContent: "center",
-                  gap: 8,
-                  fontSize: 13,
-                  fontWeight: 650,
-                  marginTop: 8,
-                }}
-              >
-                {uploadPending ? (
-                  <>
-                    <Loader2 className="size-4 animate-spin" />
-                    Uploading...
-                  </>
-                ) : (
-                  <>
-                    <Upload className="size-4" />
-                    Upload & Select
-                  </>
-                )}
-              </button>
+              <div style={{ display: "flex", justifyContent: "flex-end", gap: 10, marginTop: 8 }}>
+                <button
+                  type="button"
+                  onClick={() => setActiveTab("library")}
+                  className="cs-btn cs-btn-secondary"
+                  style={{ fontSize: 13, padding: "0.5rem 1rem", minHeight: 44 }}
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  disabled={uploadPending}
+                  className="cs-btn cs-btn-primary"
+                  style={{
+                    fontSize: 13,
+                    padding: "0.5rem 1.25rem",
+                    minHeight: 44,
+                    display: "inline-flex",
+                    alignItems: "center",
+                    gap: 6,
+                  }}
+                >
+                  {uploadPending ? (
+                    <>
+                      <Loader2 className="size-4 animate-spin" /> Uploading...
+                    </>
+                  ) : (
+                    <>
+                      <Upload className="size-4" /> Upload and Select
+                    </>
+                  )}
+                </button>
+              </div>
             </form>
           </div>
         )}
@@ -810,37 +969,56 @@ export function UniversalMediaPicker({
           style={{
             display: "flex",
             alignItems: "center",
-            justifyContent: "flex-end",
-            gap: 10,
-            padding: "0.875rem 1.25rem",
+            justifyContent: "space-between",
+            padding: "0.75rem 1.25rem",
             borderTop: "1px solid var(--cs-border)",
             background: "var(--cs-surface-warm)",
           }}
         >
-          <button
-            type="button"
-            onClick={onClose}
-            className="cs-btn cs-btn-secondary"
-            style={{ minHeight: 44, padding: "0 1rem", fontSize: 13, fontWeight: 600 }}
-          >
-            Cancel
-          </button>
-          <button
-            type="button"
-            disabled={!selectedAsset?.public_url}
-            onClick={handleConfirm}
-            className="cs-btn cs-btn-primary"
-            style={{
-              minHeight: 44,
-              padding: "0 1.25rem",
-              fontSize: 13,
-              fontWeight: 650,
-              opacity: selectedAsset?.public_url ? 1 : 0.5,
-              cursor: selectedAsset?.public_url ? "pointer" : "not-allowed",
-            }}
-          >
-            Select Image
-          </button>
+          <div style={{ fontSize: 12, color: "var(--cs-text-muted)" }}>
+            {selectedAsset ? (
+              isSelectedArchived ? (
+                <span style={{ color: "#DC2626", fontWeight: 600 }}>
+                  Cannot choose archived asset.
+                </span>
+              ) : (
+                <span>
+                  Selected: <strong>{selectedAsset.title || selectedAsset.bucket_path}</strong>
+                </span>
+              )
+            ) : (
+              "No active image selected"
+            )}
+          </div>
+
+          <div style={{ display: "flex", gap: 10 }}>
+            <button
+              type="button"
+              onClick={onClose}
+              className="cs-btn cs-btn-secondary"
+              style={{ fontSize: 13, padding: "0.5rem 1rem", minHeight: 44 }}
+            >
+              Cancel
+            </button>
+            <button
+              type="button"
+              onClick={handleConfirm}
+              disabled={!canConfirmSelection}
+              className="cs-btn cs-btn-primary"
+              style={{
+                fontSize: 13,
+                padding: "0.5rem 1.25rem",
+                minHeight: 44,
+                display: "inline-flex",
+                alignItems: "center",
+                gap: 6,
+                cursor: canConfirmSelection ? "pointer" : "not-allowed",
+                opacity: canConfirmSelection ? 1 : 0.5,
+              }}
+            >
+              <Check className="size-4" /> Select Image
+            </button>
+          </div>
         </div>
       </div>
     </div>

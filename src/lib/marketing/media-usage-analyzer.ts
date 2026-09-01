@@ -30,7 +30,8 @@ export type MediaAssetUsageSummary = {
   totalDraftUsages: number;
   canSafelyArchive: boolean;
   blockingReasons: string[];
-  usageUnknown?: boolean;
+  usageUnknown: boolean;
+  unresolvedStores?: string[];
 };
 
 export type MediaUsageContextData = {
@@ -58,8 +59,10 @@ export type MediaUsageContextData = {
     route_path: string;
     title?: string | null;
     og_image_url?: string | null;
+    metadata?: Record<string, unknown>;
     status: string;
   }[];
+  unresolvedStores?: readonly string[];
 };
 
 function normalizeUrlOrPath(val?: string | null): string {
@@ -125,6 +128,23 @@ export function analyzeMediaAssetUsage(
   context: MediaUsageContextData
 ): MediaAssetUsageSummary {
   const usages: MediaAssetUsage[] = [];
+  const blockingReasons: string[] = [];
+  const unresolvedList: string[] = [];
+
+  if (context.unresolvedStores && context.unresolvedStores.length > 0) {
+    unresolvedList.push(...context.unresolvedStores);
+  }
+
+  // Check required stores completeness
+  if (context.sections === undefined) unresolvedList.push("public_site_sections");
+  if (context.publicAssets === undefined) unresolvedList.push("public_site_assets");
+  if (context.drafts === undefined) unresolvedList.push("marketing_content_drafts");
+  if (context.services === undefined) unresolvedList.push("services");
+  if (context.brandSettings === undefined) unresolvedList.push("marketing_brand_settings");
+  if (context.seoSettings === undefined) unresolvedList.push("marketing_seo_settings");
+
+  const uniqueUnresolved = Array.from(new Set(unresolvedList));
+  const usageUnknown = uniqueUnresolved.length > 0;
 
   // 1. Check Public Site Sections (Live)
   if (context.sections) {
@@ -241,10 +261,11 @@ export function analyzeMediaAssetUsage(
     }
   }
 
-  // 5. Check Brand Settings
+  // 5. Check Brand Settings (Live if published)
   if (context.brandSettings) {
     for (const brand of context.brandSettings) {
       if (searchJsonValues(brand.value, asset)) {
+        const isLive = brand.status === "published";
         usages.push({
           consumerType: "brand",
           entityId: brand.id,
@@ -252,24 +273,28 @@ export function analyzeMediaAssetUsage(
           field: "value",
           label: `Brand Setting: ${brand.label || brand.setting_key}`,
           context: `Status: ${brand.status}`,
-          isLive: brand.status === "published",
+          isLive,
         });
       }
     }
   }
 
-  // 6. Check SEO Settings
+  // 6. Check SEO Settings (Live if published)
   if (context.seoSettings) {
     for (const seo of context.seoSettings) {
-      if (matchesMediaAsset(asset, seo.og_image_url)) {
+      const matchOg = matchesMediaAsset(asset, seo.og_image_url);
+      const matchMeta = seo.metadata ? searchJsonValues(seo.metadata, asset) : false;
+
+      if (matchOg || matchMeta) {
+        const isLive = seo.status === "published";
         usages.push({
           consumerType: "seo",
           entityId: seo.id,
           entityKey: seo.route_path,
-          field: "og_image_url",
+          field: matchOg ? "og_image_url" : "metadata",
           label: `SEO: ${seo.route_path}`,
           context: `Status: ${seo.status}`,
-          isLive: seo.status === "published",
+          isLive,
         });
       }
     }
@@ -277,7 +302,14 @@ export function analyzeMediaAssetUsage(
 
   const totalLiveUsages = usages.filter((u) => u.isLive).length;
   const totalDraftUsages = usages.filter((u) => !u.isLive).length;
-  const blockingReasons: string[] = [];
+
+  if (usageUnknown) {
+    blockingReasons.push(
+      `Usage coverage incomplete: unable to verify ${uniqueUnresolved.join(
+        ", "
+      )}. Archive cannot be finalized.`
+    );
+  }
 
   if (totalLiveUsages > 0) {
     blockingReasons.push(
@@ -287,6 +319,8 @@ export function analyzeMediaAssetUsage(
     );
   }
 
+  const canSafelyArchive = totalLiveUsages === 0 && !usageUnknown && blockingReasons.length === 0;
+
   return {
     assetId: asset.id,
     publicUrl: asset.public_url,
@@ -294,9 +328,10 @@ export function analyzeMediaAssetUsage(
     usages,
     totalLiveUsages,
     totalDraftUsages,
-    canSafelyArchive: totalLiveUsages === 0,
+    canSafelyArchive,
     blockingReasons,
-    usageUnknown: false,
+    usageUnknown,
+    unresolvedStores: uniqueUnresolved.length > 0 ? uniqueUnresolved : undefined,
   };
 }
 

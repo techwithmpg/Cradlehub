@@ -62,6 +62,11 @@ describe("media asset matching and usage analyzer", () => {
           updated_at: "2026-09-01T00:00:00Z",
         },
       ],
+      publicAssets: [],
+      drafts: [],
+      services: [],
+      brandSettings: [],
+      seoSettings: [],
     };
 
     const summary = analyzeMediaAssetUsage(sampleAsset, context);
@@ -74,8 +79,10 @@ describe("media asset matching and usage analyzer", () => {
     expect(summary.usages[0]?.isLive).toBe(true);
   });
 
-  it("allows archiving when only draft references exist", () => {
+  it("allows archiving when only draft references exist and coverage is complete", () => {
     const context: MediaUsageContextData = {
+      sections: [],
+      publicAssets: [],
       drafts: [
         {
           id: "draft-1",
@@ -110,6 +117,9 @@ describe("media asset matching and usage analyzer", () => {
           updated_at: "2026-09-01T00:00:00Z",
         },
       ],
+      services: [],
+      brandSettings: [],
+      seoSettings: [],
     };
 
     const summary = analyzeMediaAssetUsage(sampleAsset, context);
@@ -122,6 +132,9 @@ describe("media asset matching and usage analyzer", () => {
 
   it("detects service catalog usages as live and blocks archiving", () => {
     const context: MediaUsageContextData = {
+      sections: [],
+      publicAssets: [],
+      drafts: [],
       services: [
         {
           id: "srv-signature",
@@ -131,6 +144,8 @@ describe("media asset matching and usage analyzer", () => {
           isPublicBookable: true,
         },
       ],
+      brandSettings: [],
+      seoSettings: [],
     };
 
     const summary = analyzeMediaAssetUsage(sampleAsset, context);
@@ -139,16 +154,85 @@ describe("media asset matching and usage analyzer", () => {
     expect(summary.usages[0]?.consumerType).toBe("service");
   });
 
-  it("treats unreferenced assets as completely safe to archive", () => {
+  it("blocks archiving when published brand settings reference the asset", () => {
     const context: MediaUsageContextData = {
       sections: [],
+      publicAssets: [],
       drafts: [],
       services: [],
+      brandSettings: [
+        {
+          id: "brand-logo",
+          setting_key: "brand_logo",
+          label: "Brand Logo Primary",
+          value: { logoUrl: sampleAsset.public_url },
+          status: "published",
+        },
+      ],
+      seoSettings: [],
+    };
+
+    const summary = analyzeMediaAssetUsage(sampleAsset, context);
+    expect(summary.totalLiveUsages).toBe(1);
+    expect(summary.canSafelyArchive).toBe(false);
+    expect(summary.usages[0]?.consumerType).toBe("brand");
+    expect(summary.usages[0]?.isLive).toBe(true);
+  });
+
+  it("blocks archiving when published SEO settings reference the asset", () => {
+    const context: MediaUsageContextData = {
+      sections: [],
+      publicAssets: [],
+      drafts: [],
+      services: [],
+      brandSettings: [],
+      seoSettings: [
+        {
+          id: "seo-home",
+          route_path: "/",
+          title: "Home",
+          og_image_url: sampleAsset.public_url,
+          status: "published",
+        },
+      ],
+    };
+
+    const summary = analyzeMediaAssetUsage(sampleAsset, context);
+    expect(summary.totalLiveUsages).toBe(1);
+    expect(summary.canSafelyArchive).toBe(false);
+    expect(summary.usages[0]?.consumerType).toBe("seo");
+    expect(summary.usages[0]?.isLive).toBe(true);
+  });
+
+  it("fails closed and blocks archiving when usage coverage is unknown/incomplete", () => {
+    const context: MediaUsageContextData = {
+      sections: [],
+      publicAssets: [],
+      drafts: [],
+      services: [],
+      unresolvedStores: ["marketing_brand_settings", "marketing_seo_settings"],
+    };
+
+    const summary = analyzeMediaAssetUsage(sampleAsset, context);
+    expect(summary.usageUnknown).toBe(true);
+    expect(summary.canSafelyArchive).toBe(false);
+    expect(summary.blockingReasons.some((r) => r.includes("Usage coverage incomplete"))).toBe(true);
+  });
+
+  it("treats unreferenced assets as completely safe to archive when all stores are scanned", () => {
+    const context: MediaUsageContextData = {
+      sections: [],
+      publicAssets: [],
+      drafts: [],
+      services: [],
+      brandSettings: [],
+      seoSettings: [],
     };
 
     const summary = analyzeMediaAssetUsage(sampleAsset, context);
     expect(summary.totalLiveUsages).toBe(0);
     expect(summary.totalDraftUsages).toBe(0);
+    expect(summary.usageUnknown).toBe(false);
     expect(summary.canSafelyArchive).toBe(true);
     expect(summary.blockingReasons).toEqual([]);
   });
@@ -181,6 +265,11 @@ describe("media asset matching and usage analyzer", () => {
           updated_at: "2026-09-01T00:00:00Z",
         },
       ],
+      publicAssets: [],
+      drafts: [],
+      services: [],
+      brandSettings: [],
+      seoSettings: [],
     };
 
     const map = batchAnalyzeMediaUsage([sampleAsset, asset2], context);

@@ -8,7 +8,6 @@ import { PasswordInput } from "@/components/shared/password-input";
 // ── Types ─────────────────────────────────────────────────────────────────
 type Branch = { id: string; name: string };
 
-
 type WizardData = {
   accessCode: string;
   fullName: string;
@@ -32,24 +31,34 @@ type WizardData = {
 
 const INITIAL_DATA: WizardData = {
   accessCode: "",
-  fullName: "", nickname: "", email: "", phone: "", address: "",
-  profilePicture: null, profilePreviewUrl: null,
-  preferredBranchId: "", preferredRole: "", serviceIds: [],
-  emergencyContactName: "", emergencyContactPhone: "", experienceNotes: "",
-  password: "", confirmPassword: "",
+  fullName: "",
+  nickname: "",
+  email: "",
+  phone: "",
+  address: "",
+  profilePicture: null,
+  profilePreviewUrl: null,
+  preferredBranchId: "",
+  preferredRole: "",
+  serviceIds: [],
+  emergencyContactName: "",
+  emergencyContactPhone: "",
+  experienceNotes: "",
+  password: "",
+  confirmPassword: "",
   consent: false,
   branchConfirmed: false,
 };
 
 // ── Constants ──────────────────────────────────────────────────────────────
 const STEPS = [
-  { label: "Access",   icon: "🔐" },
-  { label: "Profile",  icon: "👤" },
-  { label: "Role",     icon: "💼" },
+  { label: "Access", icon: "🔐" },
+  { label: "Profile", icon: "👤" },
+  { label: "Role", icon: "💼" },
   { label: "Services", icon: "✂️" },
-  { label: "Contact",  icon: "🆘" },
-  { label: "Account",  icon: "🔒" },
-  { label: "Review",   icon: "✅" },
+  { label: "Contact", icon: "🆘" },
+  { label: "Account", icon: "🔒" },
+  { label: "Review", icon: "✅" },
 ];
 
 const FIELD_ERROR_STEPS: Record<string, number> = {
@@ -131,8 +140,8 @@ function StepIndicator({ current }: { current: number }) {
                   backgroundColor: done
                     ? "var(--cs-success, #16A34A)"
                     : active
-                    ? "var(--cs-sand)"
-                    : "var(--cs-surface)",
+                      ? "var(--cs-sand)"
+                      : "var(--cs-surface)",
                   border: `2px solid ${done ? "var(--cs-success, #16A34A)" : active ? "var(--cs-sand)" : "var(--cs-border)"}`,
                   color: done || active ? "#fff" : "var(--cs-text-muted)",
                   transition: "all 0.25s ease",
@@ -145,7 +154,11 @@ function StepIndicator({ current }: { current: number }) {
                 style={{
                   fontSize: "0.625rem",
                   fontWeight: active ? 600 : 400,
-                  color: active ? "var(--cs-sand)" : done ? "var(--cs-success, #16A34A)" : "var(--cs-text-muted)",
+                  color: active
+                    ? "var(--cs-sand)"
+                    : done
+                      ? "var(--cs-success, #16A34A)"
+                      : "var(--cs-text-muted)",
                   textTransform: "uppercase",
                   letterSpacing: "0.04em",
                   whiteSpace: "nowrap",
@@ -174,7 +187,11 @@ function StepIndicator({ current }: { current: number }) {
 }
 
 // ── Step components ────────────────────────────────────────────────────────
-function Step1Access({ data, onChange, errors }: {
+function Step1Access({
+  data,
+  onChange,
+  errors,
+}: {
   data: WizardData;
   onChange: (k: keyof WizardData, v: unknown) => void;
   errors: Record<string, string>;
@@ -183,15 +200,32 @@ function Step1Access({ data, onChange, errors }: {
     <div style={{ display: "flex", flexDirection: "column", gap: "1.25rem" }}>
       <div style={{ textAlign: "center", marginBottom: "0.5rem" }}>
         <div style={{ fontSize: "3rem", marginBottom: "0.5rem" }}>🔐</div>
-        <h2 style={{ fontFamily: "var(--font-playfair), serif", fontSize: "1.375rem", fontWeight: 600, color: "var(--cs-text)", margin: "0 0 0.375rem" }}>
+        <h2
+          style={{
+            fontFamily: "var(--font-playfair), serif",
+            fontSize: "1.375rem",
+            fontWeight: 600,
+            color: "var(--cs-text)",
+            margin: "0 0 0.375rem",
+          }}
+        >
           Enter Access Code
         </h2>
-        <p style={{ fontSize: "0.875rem", color: "var(--cs-text-muted)", lineHeight: 1.5, margin: 0 }}>
+        <p
+          style={{
+            fontSize: "0.875rem",
+            color: "var(--cs-text-muted)",
+            lineHeight: 1.5,
+            margin: 0,
+          }}
+        >
           Your manager will have given you a code to begin this application.
         </p>
       </div>
       <div style={{ display: "flex", flexDirection: "column", gap: "0.375rem" }}>
-        <label htmlFor="accessCode" style={labelStyle}>Access code *</label>
+        <label htmlFor="accessCode" style={labelStyle}>
+          Access code *
+        </label>
         <input
           id="accessCode"
           type="password"
@@ -213,7 +247,11 @@ function Step1Access({ data, onChange, errors }: {
   );
 }
 
-function Step2Profile({ data, onChange, errors }: {
+function Step2Profile({
+  data,
+  onChange,
+  errors,
+}: {
   data: WizardData;
   onChange: (k: keyof WizardData, v: unknown) => void;
   errors: Record<string, string>;
@@ -224,17 +262,20 @@ function Step2Profile({ data, onChange, errors }: {
     fileInputRef.current?.click();
   }, []);
 
-  const handleFileChange = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
-    if (!["image/jpeg", "image/png", "image/webp"].includes(file.type)) {
-      return;
-    }
-    if (file.size > 5 * 1024 * 1024) return;
-    const url = URL.createObjectURL(file);
-    onChange("profilePicture", file);
-    onChange("profilePreviewUrl", url);
-  }, [onChange]);
+  const handleFileChange = useCallback(
+    (e: React.ChangeEvent<HTMLInputElement>) => {
+      const file = e.target.files?.[0];
+      if (!file) return;
+      if (!["image/jpeg", "image/png", "image/webp"].includes(file.type)) {
+        return;
+      }
+      if (file.size > 5 * 1024 * 1024) return;
+      const url = URL.createObjectURL(file);
+      onChange("profilePicture", file);
+      onChange("profilePreviewUrl", url);
+    },
+    [onChange]
+  );
 
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: "1.125rem" }}>
@@ -244,7 +285,15 @@ function Step2Profile({ data, onChange, errors }: {
       </div>
 
       {/* Photo upload */}
-      <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: "0.5rem", marginBottom: "0.25rem" }}>
+      <div
+        style={{
+          display: "flex",
+          flexDirection: "column",
+          alignItems: "center",
+          gap: "0.5rem",
+          marginBottom: "0.25rem",
+        }}
+      >
         <button
           type="button"
           onClick={handlePhotoClick}
@@ -275,7 +324,9 @@ function Step2Profile({ data, onChange, errors }: {
           ) : (
             <div style={{ textAlign: "center" }}>
               <div style={{ fontSize: "1.5rem" }}>📷</div>
-              <div style={{ fontSize: "0.625rem", color: "var(--cs-text-muted)", marginTop: 2 }}>Add photo</div>
+              <div style={{ fontSize: "0.625rem", color: "var(--cs-text-muted)", marginTop: 2 }}>
+                Add photo
+              </div>
             </div>
           )}
         </button>
@@ -293,40 +344,87 @@ function Step2Profile({ data, onChange, errors }: {
       </div>
 
       <div style={{ display: "flex", flexDirection: "column", gap: "0.375rem" }}>
-        <label htmlFor="fullName" style={labelStyle}>Full name *</label>
-        <input id="fullName" style={inputStyle} value={data.fullName} onChange={(e) => onChange("fullName", e.target.value)} placeholder="Maria Santos" />
+        <label htmlFor="fullName" style={labelStyle}>
+          Full name *
+        </label>
+        <input
+          id="fullName"
+          style={inputStyle}
+          value={data.fullName}
+          onChange={(e) => onChange("fullName", e.target.value)}
+          placeholder="Maria Santos"
+        />
         <FieldError msg={errors.fullName} />
       </div>
 
       <div style={{ display: "flex", flexDirection: "column", gap: "0.375rem" }}>
-        <label htmlFor="nickname" style={labelStyle}>Nickname</label>
-        <input id="nickname" style={inputStyle} value={data.nickname} onChange={(e) => onChange("nickname", e.target.value)} placeholder="Example: Mia, Joy, Ate Rose" />
+        <label htmlFor="nickname" style={labelStyle}>
+          Nickname
+        </label>
+        <input
+          id="nickname"
+          style={inputStyle}
+          value={data.nickname}
+          onChange={(e) => onChange("nickname", e.target.value)}
+          placeholder="Example: Mia, Joy, Ate Rose"
+        />
         <span style={{ fontSize: "0.75rem", color: "var(--cs-text-muted)" }}>
           Optional. This is the name clients may recognize during booking.
         </span>
       </div>
 
       <div style={{ display: "flex", flexDirection: "column", gap: "0.375rem" }}>
-        <label htmlFor="email" style={labelStyle}>Email address *</label>
-        <input id="email" type="email" style={inputStyle} value={data.email} onChange={(e) => onChange("email", e.target.value)} placeholder="maria@example.com" />
+        <label htmlFor="email" style={labelStyle}>
+          Email address *
+        </label>
+        <input
+          id="email"
+          type="email"
+          style={inputStyle}
+          value={data.email}
+          onChange={(e) => onChange("email", e.target.value)}
+          placeholder="maria@example.com"
+        />
         <FieldError msg={errors.email} />
       </div>
 
       <div style={{ display: "flex", flexDirection: "column", gap: "0.375rem" }}>
-        <label htmlFor="phone" style={labelStyle}>Phone number *</label>
-        <input id="phone" type="tel" style={inputStyle} value={data.phone} onChange={(e) => onChange("phone", e.target.value)} placeholder="+63 XXX XXX XXXX" />
+        <label htmlFor="phone" style={labelStyle}>
+          Phone number *
+        </label>
+        <input
+          id="phone"
+          type="tel"
+          style={inputStyle}
+          value={data.phone}
+          onChange={(e) => onChange("phone", e.target.value)}
+          placeholder="+63 XXX XXX XXXX"
+        />
         <FieldError msg={errors.phone} />
       </div>
 
       <div style={{ display: "flex", flexDirection: "column", gap: "0.375rem" }}>
-        <label htmlFor="address" style={labelStyle}>Address</label>
-        <input id="address" style={inputStyle} value={data.address} onChange={(e) => onChange("address", e.target.value)} placeholder="Street, City, Province" />
+        <label htmlFor="address" style={labelStyle}>
+          Address
+        </label>
+        <input
+          id="address"
+          style={inputStyle}
+          value={data.address}
+          onChange={(e) => onChange("address", e.target.value)}
+          placeholder="Street, City, Province"
+        />
       </div>
     </div>
   );
 }
 
-function Step3Role({ data, onChange, branches, errors }: {
+function Step3Role({
+  data,
+  onChange,
+  branches,
+  errors,
+}: {
   data: WizardData;
   onChange: (k: keyof WizardData, v: unknown) => void;
   branches: Branch[];
@@ -342,7 +440,9 @@ function Step3Role({ data, onChange, branches, errors }: {
       {/* Role cards */}
       <div style={{ display: "flex", flexDirection: "column", gap: "0.375rem" }}>
         <span style={labelStyle}>Preferred role *</span>
-        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "0.625rem", marginTop: 2 }}>
+        <div
+          style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "0.625rem", marginTop: 2 }}
+        >
           {ONBOARDING_ROLE_OPTIONS.map((role) => {
             const selected = data.preferredRole === role.value;
             return (
@@ -362,14 +462,26 @@ function Step3Role({ data, onChange, branches, errors }: {
                   backgroundColor: selected ? "rgba(180,148,111,0.08)" : "var(--cs-surface)",
                   cursor: "pointer",
                   transition: "all 0.15s ease",
-                  gridColumn: ["other", "managerial", "salon_head", "digital_marketer"].includes(role.value) ? "1 / -1" : undefined,
+                  gridColumn: ["other", "managerial", "salon_head", "digital_marketer"].includes(
+                    role.value
+                  )
+                    ? "1 / -1"
+                    : undefined,
                 }}
               >
                 <span style={{ fontSize: "1.75rem" }}>{role.icon}</span>
-                <span style={{ fontSize: "0.875rem", fontWeight: 600, color: selected ? "var(--cs-sand)" : "var(--cs-text)" }}>
+                <span
+                  style={{
+                    fontSize: "0.875rem",
+                    fontWeight: 600,
+                    color: selected ? "var(--cs-sand)" : "var(--cs-text)",
+                  }}
+                >
                   {role.label}
                 </span>
-                <span style={{ fontSize: "0.6875rem", color: "var(--cs-text-muted)" }}>{role.sublabel}</span>
+                <span style={{ fontSize: "0.6875rem", color: "var(--cs-text-muted)" }}>
+                  {role.sublabel}
+                </span>
               </button>
             );
           })}
@@ -403,7 +515,9 @@ function Step3Role({ data, onChange, branches, errors }: {
             </div>
           </div>
         ) : (
-          <div style={{ display: "grid", gridTemplateColumns: "1fr", gap: "0.625rem", marginTop: 2 }}>
+          <div
+            style={{ display: "grid", gridTemplateColumns: "1fr", gap: "0.625rem", marginTop: 2 }}
+          >
             {branches.map((b) => {
               const selected = data.preferredBranchId === b.id;
               return (
@@ -425,7 +539,13 @@ function Step3Role({ data, onChange, branches, errors }: {
                   }}
                 >
                   <span style={{ fontSize: "1.25rem" }}>🏢</span>
-                  <span style={{ fontSize: "0.9375rem", fontWeight: 600, color: selected ? "var(--cs-sand)" : "var(--cs-text)" }}>
+                  <span
+                    style={{
+                      fontSize: "0.9375rem",
+                      fontWeight: 600,
+                      color: selected ? "var(--cs-sand)" : "var(--cs-text)",
+                    }}
+                  >
                     {b.name}
                   </span>
                 </button>
@@ -439,7 +559,15 @@ function Step3Role({ data, onChange, branches, errors }: {
       {/* Branch confirmation */}
       <div style={{ display: "flex", flexDirection: "column", gap: "0.25rem" }}>
         <label
-          style={{ display: "flex", alignItems: "flex-start", gap: "0.625rem", cursor: "pointer", fontSize: "0.8125rem", color: "var(--cs-text-secondary)", lineHeight: 1.55 }}
+          style={{
+            display: "flex",
+            alignItems: "flex-start",
+            gap: "0.625rem",
+            cursor: "pointer",
+            fontSize: "0.8125rem",
+            color: "var(--cs-text-secondary)",
+            lineHeight: 1.55,
+          }}
         >
           <input
             type="checkbox"
@@ -455,15 +583,14 @@ function Step3Role({ data, onChange, branches, errors }: {
   );
 }
 
-function Step4Services({ data }: {
-  data: WizardData;
-}) {
+function Step4Services({ data }: { data: WizardData }) {
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: "1.25rem" }}>
       <div style={{ textAlign: "center" }}>
         <h2 style={stepTitleStyle}>Services You Offer</h2>
         <p style={stepSubStyle}>
-          Choose the services you can confidently perform. A manager will review and confirm before your profile becomes fully active.
+          Choose the services you can confidently perform. A manager will review and confirm before
+          your profile becomes fully active.
         </p>
       </div>
 
@@ -477,8 +604,9 @@ function Step4Services({ data }: {
           lineHeight: 1.5,
         }}
       >
-        <strong style={{ color: "var(--cs-text)" }}>Tip:</strong> If you are unsure, leave this empty and a manager will assign services during your review.
-        You will still be visible for booking under legacy scheduling until specialization is configured.
+        <strong style={{ color: "var(--cs-text)" }}>Tip:</strong> If you are unsure, leave this
+        empty and a manager will assign services during your review. You will still be visible for
+        booking under legacy scheduling until specialization is configured.
       </div>
 
       <div style={{ display: "flex", flexDirection: "column", gap: "0.5rem" }}>
@@ -493,15 +621,19 @@ function Step4Services({ data }: {
             color: "var(--cs-text-muted)",
           }}
         >
-          Service selection will be enabled once your application is submitted and reviewed by a manager.
-          For now, your preferred role is recorded and services will be assigned during approval.
+          Service selection will be enabled once your application is submitted and reviewed by a
+          manager. For now, your preferred role is recorded and services will be assigned during
+          approval.
         </div>
       </div>
     </div>
   );
 }
 
-function Step4Emergency({ data, onChange }: {
+function Step4Emergency({
+  data,
+  onChange,
+}: {
   data: WizardData;
   onChange: (k: keyof WizardData, v: unknown) => void;
 }) {
@@ -513,17 +645,36 @@ function Step4Emergency({ data, onChange }: {
       </div>
 
       <div style={{ display: "flex", flexDirection: "column", gap: "0.375rem" }}>
-        <label htmlFor="ecName" style={labelStyle}>Contact name</label>
-        <input id="ecName" style={inputStyle} value={data.emergencyContactName} onChange={(e) => onChange("emergencyContactName", e.target.value)} placeholder="Juan Santos" />
+        <label htmlFor="ecName" style={labelStyle}>
+          Contact name
+        </label>
+        <input
+          id="ecName"
+          style={inputStyle}
+          value={data.emergencyContactName}
+          onChange={(e) => onChange("emergencyContactName", e.target.value)}
+          placeholder="Juan Santos"
+        />
       </div>
 
       <div style={{ display: "flex", flexDirection: "column", gap: "0.375rem" }}>
-        <label htmlFor="ecPhone" style={labelStyle}>Contact phone</label>
-        <input id="ecPhone" type="tel" style={inputStyle} value={data.emergencyContactPhone} onChange={(e) => onChange("emergencyContactPhone", e.target.value)} placeholder="+63 XXX XXX XXXX" />
+        <label htmlFor="ecPhone" style={labelStyle}>
+          Contact phone
+        </label>
+        <input
+          id="ecPhone"
+          type="tel"
+          style={inputStyle}
+          value={data.emergencyContactPhone}
+          onChange={(e) => onChange("emergencyContactPhone", e.target.value)}
+          placeholder="+63 XXX XXX XXXX"
+        />
       </div>
 
       <div style={{ display: "flex", flexDirection: "column", gap: "0.375rem" }}>
-        <label htmlFor="expNotes" style={labelStyle}>Experience &amp; background</label>
+        <label htmlFor="expNotes" style={labelStyle}>
+          Experience &amp; background
+        </label>
         <textarea
           id="expNotes"
           rows={4}
@@ -544,7 +695,11 @@ function Step4Emergency({ data, onChange }: {
   );
 }
 
-function Step5Account({ data, onChange, errors }: {
+function Step5Account({
+  data,
+  onChange,
+  errors,
+}: {
   data: WizardData;
   onChange: (k: keyof WizardData, v: unknown) => void;
   errors: Record<string, string>;
@@ -559,7 +714,9 @@ function Step5Account({ data, onChange, errors }: {
       </div>
 
       <div style={{ display: "flex", flexDirection: "column", gap: "0.375rem" }}>
-        <label htmlFor="password" style={labelStyle}>Password *</label>
+        <label htmlFor="password" style={labelStyle}>
+          Password *
+        </label>
         <PasswordInput
           id="password"
           style={inputStyle}
@@ -590,29 +747,41 @@ function Step5Account({ data, onChange, errors }: {
           </div>
         )}
         <FieldError msg={errors.password} />
-        <p style={{ fontSize: "0.75rem", color: "var(--cs-text-muted)", margin: "0.25rem 0 0", lineHeight: 1.5 }}>
+        <p
+          style={{
+            fontSize: "0.75rem",
+            color: "var(--cs-text-muted)",
+            margin: "0.25rem 0 0",
+            lineHeight: 1.5,
+          }}
+        >
           Save your password somewhere safe. The front desk cannot see your password.
         </p>
       </div>
 
       <div style={{ display: "flex", flexDirection: "column", gap: "0.375rem" }}>
-        <label htmlFor="confirmPassword" style={labelStyle}>Confirm password *</label>
+        <label htmlFor="confirmPassword" style={labelStyle}>
+          Confirm password *
+        </label>
         <PasswordInput
           id="confirmPassword"
           style={{
             ...inputStyle,
-            borderColor: data.confirmPassword && data.password !== data.confirmPassword
-              ? "#DC2626"
-              : data.confirmPassword && data.password === data.confirmPassword
-              ? "#16A34A"
-              : undefined,
+            borderColor:
+              data.confirmPassword && data.password !== data.confirmPassword
+                ? "#DC2626"
+                : data.confirmPassword && data.password === data.confirmPassword
+                  ? "#16A34A"
+                  : undefined,
           }}
           value={data.confirmPassword}
           onChange={(e) => onChange("confirmPassword", e.target.value)}
           placeholder="Re-enter password"
         />
         {data.confirmPassword && data.password === data.confirmPassword && (
-          <span style={{ fontSize: "0.75rem", color: "#16A34A", fontWeight: 500 }}>Passwords match ✓</span>
+          <span style={{ fontSize: "0.75rem", color: "#16A34A", fontWeight: 500 }}>
+            Passwords match ✓
+          </span>
         )}
         <FieldError msg={errors.confirmPassword} />
       </div>
@@ -622,14 +791,32 @@ function Step5Account({ data, onChange, errors }: {
 
 function ReviewRow({ label, value }: { label: string; value?: string | null }) {
   return (
-    <div style={{ display: "flex", gap: "0.5rem", fontSize: "0.8125rem", padding: "0.375rem 0", borderBottom: "1px solid var(--cs-border)" }}>
+    <div
+      style={{
+        display: "flex",
+        gap: "0.5rem",
+        fontSize: "0.8125rem",
+        padding: "0.375rem 0",
+        borderBottom: "1px solid var(--cs-border)",
+      }}
+    >
       <span style={{ color: "var(--cs-text-muted)", minWidth: 140, flexShrink: 0 }}>{label}</span>
-      <span style={{ color: "var(--cs-text)", fontWeight: 500, wordBreak: "break-word" }}>{value || "—"}</span>
+      <span style={{ color: "var(--cs-text)", fontWeight: 500, wordBreak: "break-word" }}>
+        {value || "—"}
+      </span>
     </div>
   );
 }
 
-function Step6Review({ data, onChange, errors, serverError, isPending, onSubmit, selectedBranchName }: {
+function Step6Review({
+  data,
+  onChange,
+  errors,
+  serverError,
+  isPending,
+  onSubmit,
+  selectedBranchName,
+}: {
   data: WizardData;
   onChange: (k: keyof WizardData, v: unknown) => void;
   errors: Record<string, string>;
@@ -655,36 +842,72 @@ function Step6Review({ data, onChange, errors, serverError, isPending, onSubmit,
           <img
             src={data.profilePreviewUrl}
             alt="Profile"
-            style={{ width: 72, height: 72, borderRadius: "50%", objectFit: "cover", border: "2px solid var(--cs-border)" }}
+            style={{
+              width: 72,
+              height: 72,
+              borderRadius: "50%",
+              objectFit: "cover",
+              border: "2px solid var(--cs-border)",
+            }}
           />
         </div>
       )}
 
       <div style={{ display: "flex", flexDirection: "column" }}>
-        <ReviewRow label="Full name"             value={data.fullName} />
-        <ReviewRow label="Nickname"              value={data.nickname} />
-        <ReviewRow label="Email"                 value={data.email} />
-        <ReviewRow label="Phone"                 value={data.phone} />
-        <ReviewRow label="Address"               value={data.address} />
-        <ReviewRow label="Preferred role"        value={roleLabel} />
-        <ReviewRow label="Branch"                value={selectedBranchName} />
-        <ReviewRow label="Services selected"     value={serviceCount > 0 ? `${serviceCount} service(s)` : "None selected — manager will assign during review"} />
-        <ReviewRow label="Emergency contact"     value={data.emergencyContactName} />
-        <ReviewRow label="Emergency phone"       value={data.emergencyContactPhone} />
+        <ReviewRow label="Full name" value={data.fullName} />
+        <ReviewRow label="Nickname" value={data.nickname} />
+        <ReviewRow label="Email" value={data.email} />
+        <ReviewRow label="Phone" value={data.phone} />
+        <ReviewRow label="Address" value={data.address} />
+        <ReviewRow label="Preferred role" value={roleLabel} />
+        <ReviewRow label="Branch" value={selectedBranchName} />
+        <ReviewRow
+          label="Services selected"
+          value={
+            serviceCount > 0
+              ? `${serviceCount} service(s)`
+              : "None selected — manager will assign during review"
+          }
+        />
+        <ReviewRow label="Emergency contact" value={data.emergencyContactName} />
+        <ReviewRow label="Emergency phone" value={data.emergencyContactPhone} />
         {data.experienceNotes && (
-          <ReviewRow label="Experience notes" value={data.experienceNotes.slice(0, 80) + (data.experienceNotes.length > 80 ? "…" : "")} />
+          <ReviewRow
+            label="Experience notes"
+            value={
+              data.experienceNotes.slice(0, 80) + (data.experienceNotes.length > 80 ? "…" : "")
+            }
+          />
         )}
       </div>
 
       {serverError && (
-        <div role="alert" style={{ padding: "0.75rem", backgroundColor: "#FEF2F2", border: "1px solid #FECACA", borderRadius: 8, fontSize: "0.875rem", color: "#991B1B" }}>
+        <div
+          role="alert"
+          style={{
+            padding: "0.75rem",
+            backgroundColor: "#FEF2F2",
+            border: "1px solid #FECACA",
+            borderRadius: 8,
+            fontSize: "0.875rem",
+            color: "#991B1B",
+          }}
+        >
           {serverError}
         </div>
       )}
 
       {/* Consent */}
       <label
-        style={{ display: "flex", alignItems: "flex-start", gap: "0.625rem", cursor: "pointer", fontSize: "0.8125rem", color: "var(--cs-text-secondary)", lineHeight: 1.55 }}
+        style={{
+          display: "flex",
+          alignItems: "flex-start",
+          gap: "0.625rem",
+          cursor: "pointer",
+          fontSize: "0.8125rem",
+          color: "var(--cs-text-secondary)",
+          lineHeight: 1.55,
+        }}
       >
         <input
           type="checkbox"
@@ -692,8 +915,8 @@ function Step6Review({ data, onChange, errors, serverError, isPending, onSubmit,
           onChange={(e) => onChange("consent", e.target.checked)}
           style={{ marginTop: 3, flexShrink: 0 }}
         />
-        I confirm that all information is accurate and I understand that my account
-        will only be activated once approved by a manager or owner.
+        I confirm that all information is accurate and I understand that my account will only be
+        activated once approved by a manager or owner.
       </label>
       <FieldError msg={errors.consent} />
 
@@ -774,7 +997,11 @@ export function StaffOnboardingForm({ branches }: { branches: Branch[] }) {
   const update = useCallback((key: keyof WizardData, value: unknown) => {
     setData((prev) => ({ ...prev, [key]: value }));
     setServerError(undefined);
-    setErrors((prev) => { const next = { ...prev }; delete next[key]; return next; });
+    setErrors((prev) => {
+      const next = { ...prev };
+      delete next[key];
+      return next;
+    });
   }, []);
 
   // Per-step validation
@@ -786,13 +1013,16 @@ export function StaffOnboardingForm({ branches }: { branches: Branch[] }) {
     }
     if (step === 1) {
       if (!data.fullName.trim()) errs.fullName = "Full name is required";
-      if (!data.email.trim() || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(data.email)) errs.email = "Valid email is required";
+      if (!data.email.trim() || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(data.email))
+        errs.email = "Valid email is required";
       if (!data.phone.trim()) errs.phone = "Phone number is required";
     }
     if (step === 2) {
       if (!data.preferredRole) errs.preferredRole = "Please choose a role";
-      if (!data.preferredBranchId) errs.preferredBranchId = "Please select the branch where you normally work.";
-      if (!data.branchConfirmed) errs.branchConfirmed = "Please confirm this is the branch where you normally work.";
+      if (!data.preferredBranchId)
+        errs.preferredBranchId = "Please select the branch where you normally work.";
+      if (!data.branchConfirmed)
+        errs.branchConfirmed = "Please confirm this is the branch where you normally work.";
     }
     if (step === 4) {
       // Services step is optional — no validation required
@@ -820,22 +1050,22 @@ export function StaffOnboardingForm({ branches }: { branches: Branch[] }) {
     setServerError(undefined);
     setErrors({});
     const fd = new FormData();
-    fd.append("accessCode",           data.accessCode);
-    fd.append("fullName",             data.fullName);
-    fd.append("nickname",             data.nickname);
-    fd.append("email",                data.email);
-    fd.append("phone",                data.phone);
-    fd.append("address",              data.address);
-    fd.append("preferredBranchId",    data.preferredBranchId);
-    fd.append("branchConfirmed",      data.branchConfirmed ? "on" : "off");
-    fd.append("preferredRole",        data.preferredRole);
+    fd.append("accessCode", data.accessCode);
+    fd.append("fullName", data.fullName);
+    fd.append("nickname", data.nickname);
+    fd.append("email", data.email);
+    fd.append("phone", data.phone);
+    fd.append("address", data.address);
+    fd.append("preferredBranchId", data.preferredBranchId);
+    fd.append("branchConfirmed", data.branchConfirmed ? "on" : "off");
+    fd.append("preferredRole", data.preferredRole);
     data.serviceIds.forEach((id) => fd.append("serviceIds", id));
     fd.append("emergencyContactName", data.emergencyContactName);
-    fd.append("emergencyContactPhone",data.emergencyContactPhone);
-    fd.append("experienceNotes",      data.experienceNotes);
-    fd.append("password",             data.password);
-    fd.append("confirmPassword",      data.confirmPassword);
-    fd.append("consent",              "on");
+    fd.append("emergencyContactPhone", data.emergencyContactPhone);
+    fd.append("experienceNotes", data.experienceNotes);
+    fd.append("password", data.password);
+    fd.append("confirmPassword", data.confirmPassword);
+    fd.append("consent", "on");
     if (data.profilePicture) fd.append("profilePicture", data.profilePicture);
 
     startTransition(async () => {
@@ -870,10 +1100,26 @@ export function StaffOnboardingForm({ branches }: { branches: Branch[] }) {
         }}
       >
         <div style={{ fontSize: "3rem", marginBottom: "0.875rem" }}>🎉</div>
-        <h2 style={{ fontFamily: "var(--font-playfair), serif", fontSize: "1.5rem", fontWeight: 600, color: "var(--cs-text)", marginBottom: "0.625rem" }}>
+        <h2
+          style={{
+            fontFamily: "var(--font-playfair), serif",
+            fontSize: "1.5rem",
+            fontWeight: 600,
+            color: "var(--cs-text)",
+            marginBottom: "0.625rem",
+          }}
+        >
           Application Submitted!
         </h2>
-        <p style={{ fontSize: "0.9375rem", color: "var(--cs-text-muted)", lineHeight: 1.65, maxWidth: 380, margin: "0 auto 2rem" }}>
+        <p
+          style={{
+            fontSize: "0.9375rem",
+            color: "var(--cs-text-muted)",
+            lineHeight: 1.65,
+            maxWidth: 380,
+            margin: "0 auto 2rem",
+          }}
+        >
           Your profile has been submitted. Please wait for approval before logging in.
         </p>
         <a
@@ -909,9 +1155,11 @@ export function StaffOnboardingForm({ branches }: { branches: Branch[] }) {
 
       {/* Step content */}
       <div style={{ minHeight: 320 }}>
-        {step === 0 && <Step1Access  data={data} onChange={update} errors={errors} />}
+        {step === 0 && <Step1Access data={data} onChange={update} errors={errors} />}
         {step === 1 && <Step2Profile data={data} onChange={update} errors={errors} />}
-        {step === 2 && <Step3Role    data={data} onChange={update} branches={branches} errors={errors} />}
+        {step === 2 && (
+          <Step3Role data={data} onChange={update} branches={branches} errors={errors} />
+        )}
         {step === 3 && <Step4Services data={data} />}
         {step === 4 && <Step4Emergency data={data} onChange={update} />}
         {step === 5 && <Step5Account data={data} onChange={update} errors={errors} />}

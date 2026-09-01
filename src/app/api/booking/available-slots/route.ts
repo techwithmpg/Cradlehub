@@ -9,9 +9,9 @@ const uuid = z.guid("Invalid ID");
 const anyDate = z.string().regex(/^\d{4}-\d{2}-\d{2}$/, "Date must be YYYY-MM-DD");
 
 const multiSlotsSchema = z.object({
-  branchId:   uuid,
+  branchId: uuid,
   serviceIds: z.array(uuid).min(1).max(5),
-  date:       anyDate,
+  date: anyDate,
   deliveryType: z.enum(["in_spa", "home_service"]).optional(),
 });
 
@@ -22,9 +22,9 @@ export async function GET(request: NextRequest) {
   // ── Multi-service path ──────────────────────────────────────────────────────
   if (serviceIdsParam) {
     const raw = {
-      branchId:   searchParams.get("branchId") ?? undefined,
+      branchId: searchParams.get("branchId") ?? undefined,
       serviceIds: serviceIdsParam.split(",").filter(Boolean),
-      date:       searchParams.get("date") ?? undefined,
+      date: searchParams.get("date") ?? undefined,
       deliveryType: searchParams.get("deliveryType") ?? undefined,
     };
 
@@ -49,8 +49,7 @@ export async function GET(request: NextRequest) {
         return NextResponse.json(
           {
             slots: [],
-            error:
-              "One or more selected services are not available for this booking type.",
+            error: "One or more selected services are not available for this booking type.",
             reason: { code: "service_ineligible" },
           },
           { status: 400 }
@@ -74,10 +73,10 @@ export async function GET(request: NextRequest) {
 
   // ── Single-service path (backward-compatible) ───────────────────────────────
   const raw = {
-    branchId:  searchParams.get("branchId")  ?? undefined,
+    branchId: searchParams.get("branchId") ?? undefined,
     serviceId: searchParams.get("serviceId") ?? undefined,
-    staffId:   searchParams.get("staffId")   ?? undefined,
-    date:      searchParams.get("date")      ?? undefined,
+    staffId: searchParams.get("staffId") ?? undefined,
+    date: searchParams.get("date") ?? undefined,
   };
 
   const parsed = getAvailableSlotsSchema.safeParse(raw);
@@ -90,9 +89,7 @@ export async function GET(request: NextRequest) {
 
   try {
     const deliveryType =
-      searchParams.get("deliveryType") === "home_service"
-        ? "home_service"
-        : "in_spa";
+      searchParams.get("deliveryType") === "home_service" ? "home_service" : "in_spa";
     const serviceEligibility = await validateBranchServiceEligibility({
       branchId: parsed.data.branchId,
       serviceIds: [parsed.data.serviceId],

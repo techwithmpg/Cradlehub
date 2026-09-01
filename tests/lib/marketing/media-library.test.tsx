@@ -72,6 +72,23 @@ const mockAssets: MarketingMediaAssetRow[] = [
     created_at: "2026-09-01T01:00:00Z",
     updated_at: "2026-09-01T01:00:00Z",
   },
+  {
+    id: "a1b2c3d4-e5f6-4a5b-8c9d-0e1f2a3b4c5d",
+    bucket_path: "media/1725170002-old-promo.jpg",
+    public_url: "https://example.com/media/1725170002-old-promo.jpg",
+    title: "Old Promotional Banner",
+    alt_text: "Historical promotion asset",
+    section_key: "hero",
+    content_key: null,
+    status: "archived",
+    metadata: { sizeBytes: 150000, mimeType: "image/jpeg" },
+    created_by: "staff-1",
+    updated_by: "staff-1",
+    reviewed_by: "owner-1",
+    reviewed_at: "2026-09-01T00:00:00Z",
+    created_at: "2026-09-01T00:00:00Z",
+    updated_at: "2026-09-01T00:00:00Z",
+  },
 ];
 
 describe("marketing media validation schemas", () => {
@@ -126,7 +143,7 @@ describe("marketing media validation schemas", () => {
 });
 
 describe("UniversalMediaPicker component", () => {
-  it("renders when isOpen is true and displays media assets with alt text", () => {
+  it("renders when isOpen is true and displays active media assets with alt text", () => {
     const handleClose = vi.fn();
     const handleSelect = vi.fn();
 
@@ -145,7 +162,7 @@ describe("UniversalMediaPicker component", () => {
     expect(screen.getByText("Serene spa environment with warm lighting")).toBeDefined();
   });
 
-  it("allows selecting an asset and confirming selection", () => {
+  it("allows selecting an active asset and confirming selection", () => {
     const handleClose = vi.fn();
     const handleSelect = vi.fn();
 
@@ -179,6 +196,32 @@ describe("UniversalMediaPicker component", () => {
     expect(handleClose).toHaveBeenCalled();
   });
 
+  it("blocks selection of archived assets", () => {
+    const handleClose = vi.fn();
+    const handleSelect = vi.fn();
+
+    render(
+      <UniversalMediaPicker
+        isOpen={true}
+        onClose={handleClose}
+        onSelect={handleSelect}
+        availableAssets={mockAssets}
+      />
+    );
+
+    // Archived asset button should be disabled
+    const archivedCards = screen.getAllByTitle("Archived asset cannot be selected");
+    expect(archivedCards.length).toBeGreaterThanOrEqual(1);
+    expect(archivedCards[0]?.getAttribute("disabled")).not.toBeNull();
+
+    // Confirm button should remain disabled
+    const selectButton = screen.getByRole("button", { name: "Select Image" });
+    expect(selectButton.getAttribute("disabled")).not.toBeNull();
+
+    fireEvent.click(selectButton);
+    expect(handleSelect).not.toHaveBeenCalled();
+  });
+
   it("closes on cancel without calling onSelect", () => {
     const handleClose = vi.fn();
     const handleSelect = vi.fn();
@@ -197,6 +240,22 @@ describe("UniversalMediaPicker component", () => {
 
     expect(handleClose).toHaveBeenCalled();
     expect(handleSelect).not.toHaveBeenCalled();
+  });
+
+  it("closes on Escape key press", () => {
+    const handleClose = vi.fn();
+
+    render(
+      <UniversalMediaPicker
+        isOpen={true}
+        onClose={handleClose}
+        onSelect={vi.fn()}
+        availableAssets={mockAssets}
+      />
+    );
+
+    fireEvent.keyDown(window, { key: "Escape" });
+    expect(handleClose).toHaveBeenCalled();
   });
 
   it("filters assets by search keyword", () => {
@@ -254,6 +313,7 @@ describe("MediaLibraryView component", () => {
         totalDraftUsages: 0,
         canSafelyArchive: false,
         blockingReasons: ["Referenced by 1 live consumer"],
+        usageUnknown: false,
       },
     };
 
@@ -289,6 +349,7 @@ describe("MediaLibraryView component", () => {
         totalDraftUsages: 0,
         canSafelyArchive: false,
         blockingReasons: ["Referenced by 1 live consumer"],
+        usageUnknown: false,
       },
     };
 
@@ -305,6 +366,36 @@ describe("MediaLibraryView component", () => {
     expect(screen.getByText("Section: Hero")).toBeDefined();
     expect(screen.getByText("Live")).toBeDefined();
     expect(screen.getByText(/Cannot archive: referenced by 1 live consumer/)).toBeDefined();
+  });
+
+  it("displays explicit 'Usage incomplete / archive cannot be finalized' when usage coverage is unknown", () => {
+    const asset0 = mockAssets[0]!;
+    const usageMap: Record<string, MediaAssetUsageSummary> = {
+      [asset0.id]: {
+        assetId: asset0.id,
+        publicUrl: asset0.public_url,
+        bucketPath: asset0.bucket_path,
+        usages: [],
+        totalLiveUsages: 0,
+        totalDraftUsages: 0,
+        canSafelyArchive: false,
+        blockingReasons: ["Usage coverage incomplete: unable to verify marketing_brand_settings"],
+        usageUnknown: true,
+      },
+    };
+
+    render(
+      <MediaLibraryView initialAssets={mockAssets} initialUsageMap={usageMap} userRole="owner" />
+    );
+
+    const firstCard = screen.getAllByText("Cradle Sanctuary Hero")[0];
+    if (firstCard) {
+      fireEvent.click(firstCard);
+    }
+
+    expect(
+      screen.getAllByText("Usage incomplete / archive cannot be finalized").length
+    ).toBeGreaterThanOrEqual(1);
   });
 
   it("contains ZERO hard delete controls anywhere in the view or inspector", () => {

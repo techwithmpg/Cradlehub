@@ -1,23 +1,26 @@
 "use client";
 
-import { useActionState, useMemo, useRef, useState } from "react";
+import { useActionState, useEffect, useMemo, useRef, useState } from "react";
 import Image from "next/image";
 import {
+  AlertCircle,
   Archive,
   Check,
   CheckCircle2,
   Copy,
-  Eye,
+  FileImage,
   Filter,
-  Grid,
+  Grid3X3,
   Image as ImageIcon,
-  List,
+  LayoutList,
+  Plus,
   Search,
   Send,
   ShieldAlert,
   Upload,
   X,
 } from "lucide-react";
+import type { MarketingMediaStatus } from "@/lib/validations/marketing";
 import type { MarketingMediaAssetRow } from "@/lib/queries/marketing-media";
 import type { MediaAssetUsageSummary } from "@/lib/marketing/media-usage-analyzer";
 import {
@@ -29,13 +32,13 @@ import {
   uploadMediaFileAction,
 } from "@/app/(dashboard)/marketing/media/actions";
 
-type MediaLibraryViewProps = {
+export type MediaLibraryViewProps = {
   initialAssets: MarketingMediaAssetRow[];
-  initialUsageMap?: Record<string, MediaAssetUsageSummary>;
-  userRole?: "owner" | "digital_marketer";
+  initialUsageMap: Record<string, MediaAssetUsageSummary>;
+  userRole: "owner" | "digital_marketer";
 };
 
-function statusBadgeColors(status: string) {
+function statusBadgeColors(status: MarketingMediaStatus) {
   switch (status) {
     case "published":
       return { bg: "#DCFCE7", text: "#14532D", border: "#86EFAC" };
@@ -54,97 +57,144 @@ function statusBadgeColors(status: string) {
   }
 }
 
-function formatBytes(bytes?: number): string {
-  if (!bytes || bytes <= 0) return "Unknown size";
-  const k = 1024;
-  const sizes = ["Bytes", "KB", "MB", "GB"];
-  const i = Math.floor(Math.log(bytes) / Math.log(k));
-  return `${parseFloat((bytes / Math.pow(k, i)).toFixed(1))} ${sizes[i]}`;
-}
-
 export function MediaLibraryView({
   initialAssets,
-  initialUsageMap = {},
-  userRole = "owner",
+  initialUsageMap,
+  userRole,
 }: MediaLibraryViewProps) {
-  const [assets, setAssets] = useState<MarketingMediaAssetRow[]>(initialAssets);
-  const [search, setSearch] = useState("");
-  const [statusFilter, setStatusFilter] = useState("all");
-  const [sortBy, setSortBy] = useState<"newest" | "oldest" | "title">("newest");
-  const [viewMode, setViewMode] = useState<"grid" | "list">("grid");
-  const [selectedAsset, setSelectedAsset] = useState<MarketingMediaAssetRow | null>(null);
+  const [selectedAssetId, setSelectedAssetId] = useState<string | null>(null);
   const [isUploadOpen, setIsUploadOpen] = useState(false);
+  const [search, setSearch] = useState("");
+  const [statusFilter, setStatusFilter] = useState<string>("all");
+  const [viewMode, setViewMode] = useState<"grid" | "list">("grid");
+  const [sortBy, setSortBy] = useState<"newest" | "oldest" | "title">("newest");
   const [copied, setCopied] = useState(false);
 
-  // Inspector actions
+  const uploadModalRef = useRef<HTMLDivElement>(null);
+  const uploadTriggerRef = useRef<HTMLButtonElement>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
+
+  // Server actions
   const [saveState, saveAction, savePending] = useActionState(saveMediaMetadataAction, {});
   const [submitState, submitAction, submitPending] = useActionState(submitMediaForReviewAction, {});
   const [approveState, approveAction, approvePending] = useActionState(approveMediaAssetAction, {});
   const [publishState, publishAction, publishPending] = useActionState(publishMediaAssetAction, {});
   const [archiveState, archiveAction, archivePending] = useActionState(archiveMediaAssetAction, {});
-
-  // Upload action
   const [uploadState, uploadAction, uploadPending] = useActionState(uploadMediaFileAction, {});
-  const fileInputRef = useRef<HTMLInputElement>(null);
 
-  // Sync state updates from actions
-  const activeStateAsset =
-    saveState.asset ??
-    submitState.asset ??
-    approveState.asset ??
-    publishState.asset ??
-    archiveState.asset ??
-    uploadState.asset;
+  const latestActionAsset =
+    uploadState.asset ||
+    saveState.asset ||
+    submitState.asset ||
+    approveState.asset ||
+    publishState.asset ||
+    archiveState.asset;
 
-  if (activeStateAsset) {
-    const existingIndex = assets.findIndex((a) => a.id === activeStateAsset.id);
-    if (existingIndex >= 0) {
-      if (assets[existingIndex] !== activeStateAsset) {
-        const updated = [...assets];
-        updated[existingIndex] = activeStateAsset;
-        setAssets(updated);
-        if (selectedAsset?.id === activeStateAsset.id) {
-          setSelectedAsset(activeStateAsset);
+  const assets = useMemo(() => {
+    if (!latestActionAsset) return initialAssets;
+    const exists = initialAssets.some((a) => a.id === latestActionAsset.id);
+    if (exists) {
+      return initialAssets.map((a) => (a.id === latestActionAsset.id ? latestActionAsset : a));
+    }
+    return [latestActionAsset, ...initialAssets];
+  }, [initialAssets, latestActionAsset]);
+
+  const selectedAsset = useMemo(() => {
+    if (selectedAssetId) {
+      return assets.find((a) => a.id === selectedAssetId) ?? null;
+    }
+    if (latestActionAsset) {
+      return latestActionAsset;
+    }
+    return null;
+  }, [selectedAssetId, latestActionAsset, assets]);
+
+  // Focus trap & accessibility for upload modal
+  useEffect(() => {
+    if (isUploadOpen) {
+      const timer = setTimeout(() => {
+        const firstFocusable = uploadModalRef.current?.querySelector<HTMLElement>(
+          'input:not([disabled]), button:not([disabled]), [tabindex]:not([tabindex="-1"])'
+        );
+        firstFocusable?.focus();
+      }, 50);
+      return () => clearTimeout(timer);
+    } else if (uploadTriggerRef.current) {
+      uploadTriggerRef.current.focus();
+    }
+    return undefined;
+  }, [isUploadOpen]);
+
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (!isUploadOpen) return;
+
+      if (e.key === "Escape") {
+        e.preventDefault();
+        setIsUploadOpen(false);
+        return;
+      }
+
+      if (e.key === "Tab") {
+        const focusable = uploadModalRef.current?.querySelectorAll<HTMLElement>(
+          'button:not([disabled]), [href], input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])'
+        );
+        if (!focusable || focusable.length === 0) return;
+
+        const first = focusable[0];
+        const last = focusable[focusable.length - 1];
+
+        if (first && last) {
+          if (e.shiftKey) {
+            if (document.activeElement === first) {
+              e.preventDefault();
+              last.focus();
+            }
+          } else {
+            if (document.activeElement === last) {
+              e.preventDefault();
+              first.focus();
+            }
+          }
         }
       }
-    } else {
-      setAssets([activeStateAsset, ...assets]);
-      setSelectedAsset(activeStateAsset);
-    }
-  }
+    };
+
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
+  }, [isUploadOpen]);
 
   const filteredAssets = useMemo(() => {
-    const list = assets.filter((asset) => {
-      if (statusFilter !== "all" && asset.status !== statusFilter) {
-        return false;
-      }
-      if (search.trim()) {
-        const term = search.trim().toLowerCase();
-        const inTitle = asset.title?.toLowerCase().includes(term);
-        const inAlt = asset.alt_text?.toLowerCase().includes(term);
-        const inPath = asset.bucket_path.toLowerCase().includes(term);
-        if (!inTitle && !inAlt && !inPath) return false;
-      }
-      return true;
-    });
-
-    list.sort((a, b) => {
-      if (sortBy === "newest") {
+    return assets
+      .filter((asset) => {
+        if (statusFilter !== "all" && asset.status !== statusFilter) {
+          return false;
+        }
+        if (search.trim()) {
+          const term = search.trim().toLowerCase();
+          const inTitle = asset.title?.toLowerCase().includes(term);
+          const inAlt = asset.alt_text?.toLowerCase().includes(term);
+          const inPath = asset.bucket_path.toLowerCase().includes(term);
+          const inSection = asset.section_key?.toLowerCase().includes(term);
+          if (!inTitle && !inAlt && !inPath && !inSection) return false;
+        }
+        return true;
+      })
+      .sort((a, b) => {
+        if (sortBy === "title") {
+          return (a.title || a.bucket_path).localeCompare(b.title || b.bucket_path);
+        }
+        if (sortBy === "oldest") {
+          return new Date(a.created_at).getTime() - new Date(b.created_at).getTime();
+        }
         return new Date(b.created_at).getTime() - new Date(a.created_at).getTime();
-      }
-      if (sortBy === "oldest") {
-        return new Date(a.created_at).getTime() - new Date(b.created_at).getTime();
-      }
-      return (a.title || "").localeCompare(b.title || "");
-    });
-
-    return list;
+      });
   }, [assets, statusFilter, search, sortBy]);
 
-  const selectedUsage = selectedAsset ? initialUsageMap[selectedAsset.id] : undefined;
+  const selectedUsage = selectedAsset ? initialUsageMap[selectedAsset.id] : null;
 
-  const handleCopyUrl = (url?: string | null) => {
-    if (url) {
+  const handleCopyUrl = (url: string | null) => {
+    if (url && typeof navigator !== "undefined") {
       navigator.clipboard.writeText(url);
       setCopied(true);
       setTimeout(() => setCopied(false), 2000);
@@ -173,7 +223,7 @@ export function MediaLibraryView({
               className="size-4"
               style={{
                 position: "absolute",
-                left: 10,
+                left: 12,
                 top: "50%",
                 transform: "translateY(-50%)",
                 color: "var(--cs-text-muted)",
@@ -186,7 +236,8 @@ export function MediaLibraryView({
               placeholder="Search assets by title, alt text, path..."
               style={{
                 width: "100%",
-                padding: "0.5rem 0.75rem 0.5rem 2rem",
+                minHeight: 44,
+                padding: "0.5rem 0.75rem 0.5rem 2.25rem",
                 borderRadius: 6,
                 border: "1px solid var(--cs-border)",
                 background: "var(--cs-surface)",
@@ -198,12 +249,13 @@ export function MediaLibraryView({
           </div>
 
           <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
-            <Filter className="size-3.5" style={{ color: "var(--cs-text-muted)" }} />
+            <Filter className="size-4" style={{ color: "var(--cs-text-muted)" }} />
             <select
               value={statusFilter}
               onChange={(e) => setStatusFilter(e.target.value)}
               style={{
-                padding: "0.5rem 0.65rem",
+                minHeight: 44,
+                padding: "0.5rem 0.75rem",
                 borderRadius: 6,
                 border: "1px solid var(--cs-border)",
                 background: "var(--cs-surface)",
@@ -226,7 +278,8 @@ export function MediaLibraryView({
             value={sortBy}
             onChange={(e) => setSortBy(e.target.value as "newest" | "oldest" | "title")}
             style={{
-              padding: "0.5rem 0.65rem",
+              minHeight: 44,
+              padding: "0.5rem 0.75rem",
               borderRadius: 6,
               border: "1px solid var(--cs-border)",
               background: "var(--cs-surface)",
@@ -254,44 +307,58 @@ export function MediaLibraryView({
             <button
               type="button"
               onClick={() => setViewMode("grid")}
+              aria-label="Grid view"
+              className="cs-btn-icon"
               style={{
-                padding: "0.4rem 0.6rem",
+                width: 44,
+                height: 44,
+                minWidth: 44,
+                minHeight: 44,
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "center",
                 border: 0,
                 background: viewMode === "grid" ? "var(--cs-surface-warm)" : "transparent",
                 color: viewMode === "grid" ? "var(--cs-primary)" : "var(--cs-text-muted)",
                 cursor: "pointer",
-                display: "flex",
-                alignItems: "center",
+                transition: "background-color 0.15s ease, color 0.15s ease",
               }}
-              aria-label="Grid view"
             >
-              <Grid className="size-4" />
+              <Grid3X3 className="size-4" />
             </button>
             <button
               type="button"
               onClick={() => setViewMode("list")}
+              aria-label="List view"
+              className="cs-btn-icon"
               style={{
-                padding: "0.4rem 0.6rem",
+                width: 44,
+                height: 44,
+                minWidth: 44,
+                minHeight: 44,
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "center",
                 border: 0,
                 borderLeft: "1px solid var(--cs-border)",
                 background: viewMode === "list" ? "var(--cs-surface-warm)" : "transparent",
                 color: viewMode === "list" ? "var(--cs-primary)" : "var(--cs-text-muted)",
                 cursor: "pointer",
-                display: "flex",
-                alignItems: "center",
+                transition: "background-color 0.15s ease, color 0.15s ease",
               }}
-              aria-label="List view"
             >
-              <List className="size-4" />
+              <LayoutList className="size-4" />
             </button>
           </div>
 
           <button
+            ref={uploadTriggerRef}
             type="button"
             onClick={() => setIsUploadOpen(true)}
             className="cs-btn cs-btn-primary"
             style={{
-              height: 40,
+              minHeight: 44,
+              padding: "0 1.25rem",
               display: "inline-flex",
               alignItems: "center",
               gap: 6,
@@ -299,23 +366,21 @@ export function MediaLibraryView({
               fontWeight: 650,
             }}
           >
-            <Upload className="size-4" />
-            Upload Asset
+            <Plus className="size-4" /> Upload Asset
           </button>
         </div>
       </div>
 
-      {/* Main Grid + Inspector Layout */}
+      {/* Main Content Area */}
       <div
         style={{
           display: "grid",
           gridTemplateColumns: selectedAsset ? "minmax(0, 1fr) 380px" : "minmax(0, 1fr)",
-          gap: "1rem",
+          gap: "1.25rem",
           alignItems: "start",
         }}
-        className="max-xl:!grid-cols-1"
       >
-        {/* Asset Collection */}
+        {/* Assets Browser */}
         <div
           style={{
             border: "1px solid var(--cs-border)",
@@ -325,6 +390,34 @@ export function MediaLibraryView({
             minHeight: 480,
           }}
         >
+          <div
+            style={{
+              display: "flex",
+              justifyContent: "space-between",
+              alignItems: "center",
+              marginBottom: "1rem",
+              paddingBottom: "0.5rem",
+              borderBottom: "1px solid var(--cs-border-soft)",
+            }}
+          >
+            <div style={{ fontSize: 13, fontWeight: 700, color: "var(--cs-text)" }}>
+              Media Library Assets ({filteredAssets.length})
+            </div>
+            {statusFilter !== "all" && (
+              <span
+                style={{
+                  fontSize: 11,
+                  padding: "2px 8px",
+                  borderRadius: 999,
+                  background: "var(--cs-surface-warm)",
+                  color: "var(--cs-text-muted)",
+                }}
+              >
+                Filtered: {statusFilter}
+              </span>
+            )}
+          </div>
+
           {filteredAssets.length === 0 ? (
             <div
               style={{
@@ -333,32 +426,39 @@ export function MediaLibraryView({
                 color: "var(--cs-text-muted)",
               }}
             >
-              <ImageIcon className="size-10" style={{ margin: "0 auto 10px", opacity: 0.3 }} />
-              <h3 style={{ fontSize: 15, fontWeight: 700, margin: 0, color: "var(--cs-text)" }}>
+              <FileImage className="size-12 opacity-30" style={{ margin: "0 auto 12px" }} />
+              <h3
+                style={{
+                  fontSize: 15,
+                  fontWeight: 700,
+                  margin: "0 0 4px",
+                  color: "var(--cs-text)",
+                }}
+              >
                 No media assets found
               </h3>
-              <p style={{ fontSize: 13, margin: "6px 0 16px" }}>
+              <p style={{ fontSize: 12, margin: "0 0 1rem" }}>
                 {search
-                  ? "No assets match your search filters."
-                  : "Upload public site images to start organizing."}
+                  ? "No assets match your search criteria."
+                  : "Upload media assets to get started."}
               </p>
               <button
                 type="button"
                 onClick={() => setIsUploadOpen(true)}
                 className="cs-btn cs-btn-secondary"
-                style={{ fontSize: 13, minHeight: 44, padding: "0 1rem" }}
+                style={{ minHeight: 44, padding: "0 1rem" }}
               >
-                <Upload className="size-4" style={{ marginRight: 6 }} /> Upload First Image
+                <Plus className="size-4" style={{ marginRight: 6 }} /> Upload First Image
               </button>
             </div>
           ) : viewMode === "grid" ? (
+            /* Grid View */
             <div
               style={{
                 display: "grid",
-                gridTemplateColumns: "repeat(auto-fill, minmax(180px, 1fr))",
+                gridTemplateColumns: "repeat(auto-fill, minmax(160px, 1fr))",
                 gap: "1rem",
               }}
-              className="max-sm:!grid-cols-1 max-md:!grid-cols-2"
             >
               {filteredAssets.map((asset) => {
                 const isSelected = selectedAsset?.id === asset.id;
@@ -370,24 +470,27 @@ export function MediaLibraryView({
                   <button
                     key={asset.id}
                     type="button"
-                    onClick={() => setSelectedAsset(asset)}
+                    onClick={() => setSelectedAssetId(asset.id)}
                     style={{
                       display: "flex",
                       flexDirection: "column",
-                      borderRadius: 10,
+                      borderRadius: 8,
                       border: isSelected
                         ? "2px solid var(--cs-primary)"
-                        : "1px solid var(--cs-border)",
+                        : "1px solid var(--cs-border-soft)",
                       background: isSelected ? "var(--cs-surface-warm)" : "var(--cs-surface)",
                       overflow: "hidden",
                       cursor: "pointer",
                       textAlign: "left",
                       padding: 0,
+                      position: "relative",
                       outline: "none",
-                      boxShadow: isSelected ? "0 0 0 1px var(--cs-primary)" : "none",
-                      transition: "transform 0.15s ease, box-shadow 0.15s ease",
+                      minHeight: 44,
+                      transition:
+                        "border-color 0.15s ease, background-color 0.15s ease, box-shadow 0.15s ease",
                     }}
                   >
+                    {/* Thumbnail */}
                     <div
                       style={{
                         width: "100%",
@@ -402,7 +505,7 @@ export function MediaLibraryView({
                           src={asset.public_url}
                           alt={asset.alt_text}
                           fill
-                          sizes="200px"
+                          sizes="180px"
                           style={{ objectFit: "cover" }}
                         />
                       ) : (
@@ -416,10 +519,11 @@ export function MediaLibraryView({
                             color: "var(--cs-text-muted)",
                           }}
                         >
-                          <ImageIcon className="size-8 opacity-30" />
+                          <ImageIcon className="size-6 opacity-40" />
                         </div>
                       )}
 
+                      {/* Status Badge */}
                       <span
                         style={{
                           position: "absolute",
@@ -431,43 +535,36 @@ export function MediaLibraryView({
                           color: badge.text,
                           fontSize: 10,
                           fontWeight: 700,
-                          padding: "2px 6px",
+                          padding: "1px 5px",
                           textTransform: "capitalize",
                         }}
                       >
                         {asset.status}
                       </span>
 
+                      {/* Live Usage Indicator */}
                       {liveCount > 0 && (
                         <span
                           style={{
                             position: "absolute",
                             top: 6,
                             right: 6,
-                            borderRadius: 12,
-                            background: "rgba(0, 0, 0, 0.7)",
+                            borderRadius: 999,
+                            background: "var(--cs-primary)",
                             color: "#fff",
                             fontSize: 10,
-                            fontWeight: 650,
-                            padding: "2px 6px",
-                            display: "flex",
-                            alignItems: "center",
-                            gap: 4,
+                            fontWeight: 750,
+                            padding: "1px 6px",
+                            boxShadow: "0 1px 3px rgba(0,0,0,0.3)",
                           }}
                         >
-                          <Eye className="size-3" /> {liveCount}
+                          {liveCount} live
                         </span>
                       )}
                     </div>
 
-                    <div
-                      style={{
-                        padding: "0.625rem 0.75rem",
-                        display: "flex",
-                        flexDirection: "column",
-                        gap: 2,
-                      }}
-                    >
+                    {/* Metadata summary */}
+                    <div style={{ padding: "8px 10px" }}>
                       <div
                         style={{
                           fontSize: 12,
@@ -487,6 +584,7 @@ export function MediaLibraryView({
                           whiteSpace: "nowrap",
                           overflow: "hidden",
                           textOverflow: "ellipsis",
+                          marginTop: 2,
                         }}
                       >
                         {asset.alt_text}
@@ -508,7 +606,7 @@ export function MediaLibraryView({
                 return (
                   <div
                     key={asset.id}
-                    onClick={() => setSelectedAsset(asset)}
+                    onClick={() => setSelectedAssetId(asset.id)}
                     style={{
                       display: "flex",
                       alignItems: "center",
@@ -520,6 +618,8 @@ export function MediaLibraryView({
                         : "1px solid var(--cs-border-soft)",
                       background: isSelected ? "var(--cs-surface-warm)" : "var(--cs-surface)",
                       cursor: "pointer",
+                      minHeight: 44,
+                      transition: "border-color 0.15s ease, background-color 0.15s ease",
                     }}
                   >
                     <div
@@ -620,11 +720,14 @@ export function MediaLibraryView({
               </div>
               <button
                 type="button"
-                onClick={() => setSelectedAsset(null)}
+                onClick={() => setSelectedAssetId(null)}
+                aria-label="Close asset inspector"
                 className="cs-btn-icon"
                 style={{
-                  width: 32,
-                  height: 32,
+                  width: 44,
+                  height: 44,
+                  minWidth: 44,
+                  minHeight: 44,
                   display: "flex",
                   alignItems: "center",
                   justifyContent: "center",
@@ -633,9 +736,10 @@ export function MediaLibraryView({
                   background: "transparent",
                   cursor: "pointer",
                   color: "var(--cs-text-muted)",
+                  transition: "border-color 0.15s ease, color 0.15s ease",
                 }}
               >
-                <X className="size-4" />
+                <X className="size-5" />
               </button>
             </div>
 
@@ -657,7 +761,7 @@ export function MediaLibraryView({
                   alt={selectedAsset.alt_text}
                   fill
                   sizes="380px"
-                  style={{ objectFit: "contain" }}
+                  style={{ objectFit: "cover" }}
                 />
               ) : (
                 <div
@@ -703,16 +807,24 @@ export function MediaLibraryView({
                 <button
                   type="button"
                   onClick={() => handleCopyUrl(selectedAsset.public_url)}
+                  aria-label="Copy public URL"
                   title="Copy URL"
                   style={{
+                    width: 44,
+                    height: 44,
+                    minWidth: 44,
+                    minHeight: 44,
                     background: "transparent",
                     border: 0,
                     cursor: "pointer",
                     color: copied ? "var(--cs-primary)" : "var(--cs-text-muted)",
-                    padding: 2,
+                    display: "flex",
+                    alignItems: "center",
+                    justifyContent: "center",
+                    borderRadius: 4,
                   }}
                 >
-                  {copied ? <Check className="size-3.5" /> : <Copy className="size-3.5" />}
+                  {copied ? <Check className="size-4" /> : <Copy className="size-4" />}
                 </button>
               </div>
             )}
@@ -749,12 +861,13 @@ export function MediaLibraryView({
                   defaultValue={selectedAsset.title ?? ""}
                   style={{
                     width: "100%",
-                    padding: "0.5rem 0.65rem",
+                    minHeight: 44,
+                    padding: "0.5rem 0.75rem",
                     borderRadius: 6,
                     border: "1px solid var(--cs-border)",
                     background: "var(--cs-surface)",
                     color: "var(--cs-text)",
-                    fontSize: 13,
+                    fontSize: 12,
                     outline: "none",
                   }}
                 />
@@ -772,45 +885,125 @@ export function MediaLibraryView({
                 >
                   Alt Text (Accessibility) *
                 </label>
-                <input
-                  type="text"
+                <textarea
                   name="altText"
+                  rows={2}
                   required
-                  minLength={3}
                   defaultValue={selectedAsset.alt_text}
                   style={{
                     width: "100%",
-                    padding: "0.5rem 0.65rem",
+                    minHeight: 64,
+                    padding: "0.5rem 0.75rem",
                     borderRadius: 6,
                     border: "1px solid var(--cs-border)",
                     background: "var(--cs-surface)",
                     color: "var(--cs-text)",
-                    fontSize: 13,
+                    fontSize: 12,
+                    outline: "none",
+                    resize: "vertical",
+                  }}
+                />
+              </div>
+
+              <div>
+                <label
+                  style={{
+                    display: "block",
+                    fontSize: 11,
+                    fontWeight: 650,
+                    color: "var(--cs-text-secondary)",
+                    marginBottom: 4,
+                  }}
+                >
+                  Section Key / Group
+                </label>
+                <input
+                  type="text"
+                  name="sectionKey"
+                  defaultValue={selectedAsset.section_key ?? ""}
+                  placeholder="e.g. hero, gallery, about"
+                  style={{
+                    width: "100%",
+                    minHeight: 44,
+                    padding: "0.5rem 0.75rem",
+                    borderRadius: 6,
+                    border: "1px solid var(--cs-border)",
+                    background: "var(--cs-surface)",
+                    color: "var(--cs-text)",
+                    fontSize: 12,
                     outline: "none",
                   }}
                 />
               </div>
 
+              {saveState.error && (
+                <div
+                  style={{
+                    padding: "0.5rem",
+                    borderRadius: 6,
+                    background: "#FEE2E2",
+                    border: "1px solid #FCA5A5",
+                    color: "#991B1B",
+                    fontSize: 11,
+                  }}
+                >
+                  {saveState.error}
+                </div>
+              )}
+
+              {saveState.success && (
+                <div
+                  style={{
+                    padding: "0.5rem",
+                    borderRadius: 6,
+                    background: "#DCFCE7",
+                    border: "1px solid #86EFAC",
+                    color: "#166534",
+                    fontSize: 11,
+                  }}
+                >
+                  Details updated successfully.
+                </div>
+              )}
+
               <button
                 type="submit"
                 disabled={savePending}
                 className="cs-btn cs-btn-secondary"
-                style={{ minHeight: 40, fontSize: 12, fontWeight: 650 }}
+                style={{ fontSize: 12, minHeight: 44, padding: "0 0.75rem" }}
               >
                 {savePending ? "Saving..." : "Save Details"}
               </button>
             </form>
 
-            {/* Workflow Status Actions */}
+            {/* Workflow & Status Actions */}
             <div style={{ borderTop: "1px solid var(--cs-border-soft)", paddingTop: "0.75rem" }}>
               <div
-                style={{ fontSize: 12, fontWeight: 700, color: "var(--cs-text)", marginBottom: 8 }}
+                style={{ fontSize: 12, fontWeight: 700, color: "var(--cs-text)", marginBottom: 6 }}
               >
-                Workflow Status:{" "}
-                <span style={{ textTransform: "capitalize" }}>{selectedAsset.status}</span>
+                Workflow Lifecycle
               </div>
 
-              <div style={{ display: "flex", flexWrap: "wrap", gap: 6 }}>
+              <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 10 }}>
+                <span style={{ fontSize: 11, color: "var(--cs-text-muted)" }}>Current Status:</span>
+                <span
+                  style={{
+                    borderRadius: 4,
+                    border: `1px solid ${statusBadgeColors(selectedAsset.status).border}`,
+                    background: statusBadgeColors(selectedAsset.status).bg,
+                    color: statusBadgeColors(selectedAsset.status).text,
+                    fontSize: 11,
+                    fontWeight: 700,
+                    padding: "2px 6px",
+                    textTransform: "capitalize",
+                  }}
+                >
+                  {selectedAsset.status}
+                </span>
+              </div>
+
+              {/* Status Action Buttons */}
+              <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
                 {selectedAsset.status === "draft" && (
                   <form action={submitAction}>
                     <input type="hidden" name="id" value={selectedAsset.id} />
@@ -818,9 +1011,9 @@ export function MediaLibraryView({
                       type="submit"
                       disabled={submitPending}
                       className="cs-btn cs-btn-primary"
-                      style={{ fontSize: 12, padding: "0.4rem 0.75rem", minHeight: 38 }}
+                      style={{ fontSize: 12, padding: "0 0.75rem", minHeight: 44, width: "100%" }}
                     >
-                      <Send className="size-3.5" style={{ marginRight: 4 }} /> Submit for Review
+                      <Send className="size-4" style={{ marginRight: 6 }} /> Submit for Review
                     </button>
                   </form>
                 )}
@@ -832,9 +1025,9 @@ export function MediaLibraryView({
                       type="submit"
                       disabled={approvePending}
                       className="cs-btn cs-btn-primary"
-                      style={{ fontSize: 12, padding: "0.4rem 0.75rem", minHeight: 38 }}
+                      style={{ fontSize: 12, padding: "0 0.75rem", minHeight: 44, width: "100%" }}
                     >
-                      <Check className="size-3.5" style={{ marginRight: 4 }} /> Approve Asset
+                      <Check className="size-4" style={{ marginRight: 6 }} /> Approve Asset
                     </button>
                   </form>
                 )}
@@ -846,9 +1039,9 @@ export function MediaLibraryView({
                       type="submit"
                       disabled={publishPending}
                       className="cs-btn cs-btn-primary"
-                      style={{ fontSize: 12, padding: "0.4rem 0.75rem", minHeight: 38 }}
+                      style={{ fontSize: 12, padding: "0 0.75rem", minHeight: 44, width: "100%" }}
                     >
-                      <CheckCircle2 className="size-3.5" style={{ marginRight: 4 }} /> Publish Asset
+                      <CheckCircle2 className="size-4" style={{ marginRight: 6 }} /> Publish Asset
                     </button>
                   </form>
                 )}
@@ -876,8 +1069,9 @@ export function MediaLibraryView({
                             marginRight: 4,
                           }}
                         />
-                        Cannot archive: referenced by {selectedUsage.totalLiveUsages} live
-                        consumer(s).
+                        {selectedUsage.usageUnknown
+                          ? "Usage incomplete / archive cannot be finalized"
+                          : `Cannot archive: referenced by ${selectedUsage.totalLiveUsages} live consumer(s).`}
                       </div>
                     ) : (
                       <form action={archiveAction}>
@@ -888,13 +1082,13 @@ export function MediaLibraryView({
                           className="cs-btn cs-btn-secondary"
                           style={{
                             fontSize: 12,
-                            padding: "0.4rem 0.75rem",
-                            minHeight: 38,
+                            padding: "0 0.75rem",
+                            minHeight: 44,
                             width: "100%",
                             color: "var(--cs-text-muted)",
                           }}
                         >
-                          <Archive className="size-3.5" style={{ marginRight: 4 }} /> Safely Archive
+                          <Archive className="size-4" style={{ marginRight: 6 }} /> Safely Archive
                           Asset
                         </button>
                       </form>
@@ -911,7 +1105,21 @@ export function MediaLibraryView({
               >
                 Usage References
               </div>
-              {selectedUsage && selectedUsage.usages.length > 0 ? (
+
+              {selectedUsage?.usageUnknown ? (
+                <div
+                  style={{
+                    padding: "0.5rem",
+                    borderRadius: 6,
+                    background: "#FEF3C7",
+                    border: "1px solid #FDE68A",
+                    color: "#92400E",
+                    fontSize: 11,
+                  }}
+                >
+                  Usage incomplete / archive cannot be finalized
+                </div>
+              ) : selectedUsage && selectedUsage.usages.length > 0 ? (
                 <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
                   {selectedUsage.usages.map((u, i) => (
                     <div
@@ -958,25 +1166,13 @@ export function MediaLibraryView({
                 paddingTop: "0.75rem",
                 fontSize: 11,
                 color: "var(--cs-text-muted)",
-                display: "flex",
-                flexDirection: "column",
-                gap: 3,
               }}
             >
-              <div>
-                Path: <span style={{ color: "var(--cs-text)" }}>{selectedAsset.bucket_path}</span>
+              <div style={{ marginBottom: 2 }}>
+                <strong>Bucket Path:</strong> {selectedAsset.bucket_path}
               </div>
               <div>
-                Size:{" "}
-                <span style={{ color: "var(--cs-text)" }}>
-                  {formatBytes((selectedAsset.metadata as Record<string, number>)?.sizeBytes)}
-                </span>
-              </div>
-              <div>
-                Added:{" "}
-                <span style={{ color: "var(--cs-text)" }}>
-                  {new Date(selectedAsset.created_at).toLocaleDateString()}
-                </span>
+                <strong>Uploaded:</strong> {new Date(selectedAsset.created_at).toLocaleDateString()}
               </div>
             </div>
           </aside>
@@ -988,6 +1184,7 @@ export function MediaLibraryView({
         <div
           role="dialog"
           aria-modal="true"
+          aria-labelledby="upload-dialog-title"
           style={{
             position: "fixed",
             inset: 0,
@@ -1001,6 +1198,7 @@ export function MediaLibraryView({
           }}
         >
           <div
+            ref={uploadModalRef}
             style={{
               width: "100%",
               maxWidth: 480,
@@ -1015,16 +1213,22 @@ export function MediaLibraryView({
             }}
           >
             <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-              <h3 style={{ fontSize: 16, fontWeight: 700, margin: 0, color: "var(--cs-text)" }}>
+              <h3
+                id="upload-dialog-title"
+                style={{ fontSize: 16, fontWeight: 700, margin: 0, color: "var(--cs-text)" }}
+              >
                 Upload Media Asset
               </h3>
               <button
                 type="button"
                 onClick={() => setIsUploadOpen(false)}
+                aria-label="Close upload dialog"
                 className="cs-btn-icon"
                 style={{
-                  width: 32,
-                  height: 32,
+                  width: 44,
+                  height: 44,
+                  minWidth: 44,
+                  minHeight: 44,
                   display: "flex",
                   alignItems: "center",
                   justifyContent: "center",
@@ -1033,17 +1237,15 @@ export function MediaLibraryView({
                   background: "transparent",
                   cursor: "pointer",
                   color: "var(--cs-text-muted)",
+                  transition: "border-color 0.15s ease, color 0.15s ease",
                 }}
               >
-                <X className="size-4" />
+                <X className="size-5" />
               </button>
             </div>
 
             <form
-              action={async (formData) => {
-                await uploadAction(formData);
-                setIsUploadOpen(false);
-              }}
+              action={uploadAction}
               style={{ display: "flex", flexDirection: "column", gap: "1rem" }}
             >
               {uploadState.error && (
@@ -1055,9 +1257,13 @@ export function MediaLibraryView({
                     border: "1px solid #FCA5A5",
                     color: "#991B1B",
                     fontSize: 13,
+                    display: "flex",
+                    alignItems: "center",
+                    gap: 8,
                   }}
                 >
-                  {uploadState.error}
+                  <AlertCircle className="size-4 shrink-0" />
+                  <span>{uploadState.error}</span>
                 </div>
               )}
 
@@ -1070,6 +1276,7 @@ export function MediaLibraryView({
                   textAlign: "center",
                   cursor: "pointer",
                   background: "var(--cs-surface-warm)",
+                  minHeight: 44,
                 }}
               >
                 <Upload
@@ -1110,6 +1317,7 @@ export function MediaLibraryView({
                   placeholder="e.g. Signature Facial Treatment"
                   style={{
                     width: "100%",
+                    minHeight: 44,
                     padding: "0.625rem 0.75rem",
                     borderRadius: 6,
                     border: "1px solid var(--cs-border)",
@@ -1141,6 +1349,7 @@ export function MediaLibraryView({
                   placeholder="e.g. Guest enjoying a calming facial massage"
                   style={{
                     width: "100%",
+                    minHeight: 44,
                     padding: "0.625rem 0.75rem",
                     borderRadius: 6,
                     border: "1px solid var(--cs-border)",

@@ -4,7 +4,10 @@ import { getMyBranchBookingRulesAction } from "@/app/(dashboard)/owner/branches/
 import { ensureBranchSetupWarningNotifications } from "@/lib/notifications/setup-warnings";
 import { getSchedulingRules } from "@/lib/scheduling/rules/get-scheduling-rules";
 import { getMasterServiceCatalog } from "@/lib/services/service-catalog";
-import type { GlobalService, ServiceLite } from "@/app/(dashboard)/owner/branches/[branchId]/branch-services-panel";
+import type {
+  GlobalService,
+  ServiceLite,
+} from "@/app/(dashboard)/owner/branches/[branchId]/branch-services-panel";
 
 export default async function ManagerSettingsPage() {
   const [result, allServices] = await Promise.all([

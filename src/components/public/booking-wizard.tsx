@@ -149,22 +149,22 @@ type InitialCustomer = {
 };
 
 const STEPS_BASE = [
-  { id: 1, name: "branch",    label: "Branch" },
-  { id: 2, name: "visit",     label: "Visit Type" },
-  { id: 3, name: "services",  label: "Services" },
+  { id: 1, name: "branch", label: "Branch" },
+  { id: 2, name: "visit", label: "Visit Type" },
+  { id: 3, name: "services", label: "Services" },
   { id: 4, name: "date_time", label: "Date & Time" },
   { id: 5, name: "therapist", label: "Therapist" },
-  { id: 6, name: "details",   label: "Details" },
+  { id: 6, name: "details", label: "Details" },
 ];
 
 const STEPS_HS = [
-  { id: 1, name: "branch",    label: "Branch" },
-  { id: 2, name: "visit",     label: "Visit Type" },
-  { id: 3, name: "services",  label: "Services" },
-  { id: 4, name: "location",  label: "Location" },
+  { id: 1, name: "branch", label: "Branch" },
+  { id: 2, name: "visit", label: "Visit Type" },
+  { id: 3, name: "services", label: "Services" },
+  { id: 4, name: "location", label: "Location" },
   { id: 5, name: "date_time", label: "Date & Time" },
   { id: 6, name: "therapist", label: "Therapist" },
-  { id: 7, name: "details",   label: "Details" },
+  { id: 7, name: "details", label: "Details" },
 ];
 
 const MOBILE_PROGRESS_STEPS = ["Branch", "Service", "Date & Time", "Details", "Confirm"] as const;
@@ -190,10 +190,8 @@ const WARM_IDLE_CARD_CLS =
   "border-[#D4B57A]/25 bg-[#0D2B20]/58 hover:border-[#D4B57A]/55 hover:bg-[#0D2B20]/72";
 const WARM_PRIMARY_BUTTON_CLS =
   "bg-gradient-to-r from-[#D4B57A] via-[#C8A96A] to-[#B88945] text-[#031B16] shadow-[0_18px_42px_rgba(200,169,106,0.25)]";
-const WARM_DISABLED_BUTTON_CLS =
-  "border border-[#D4B57A]/18 bg-[#0A261E]/62 text-[#F6EBD6]/38";
-const WARM_SKELETON_CLS =
-  "bg-[#05241D]/65 after:via-[#D4B57A]/18";
+const WARM_DISABLED_BUTTON_CLS = "border border-[#D4B57A]/18 bg-[#0A261E]/62 text-[#F6EBD6]/38";
+const WARM_SKELETON_CLS = "bg-[#05241D]/65 after:via-[#D4B57A]/18";
 const BOOKING_CALENDAR_CLASSNAMES = {
   root: "w-fit text-[#F6EBD6]",
   months: "relative flex flex-col gap-4 md:flex-row",
@@ -206,15 +204,13 @@ const BOOKING_CALENDAR_CLASSNAMES = {
   button_next:
     "size-(--cell-size) select-none rounded-lg border border-[#D4B57A]/25 bg-[#05241D]/55 p-0 text-[#D4B57A] transition-colors hover:border-[#D4B57A]/55 hover:bg-[#0D2B20]/80 aria-disabled:opacity-35",
   weekdays: "flex",
-  weekday:
-    "flex-1 rounded-lg text-[0.8rem] font-medium text-[#F6EBD6]/58 select-none",
+  weekday: "flex-1 rounded-lg text-[0.8rem] font-medium text-[#F6EBD6]/58 select-none",
   week: "mt-2 flex w-full",
   month_grid: "w-full border-collapse",
   day: "group/day relative aspect-square h-full w-full rounded-lg p-0 text-center select-none",
   day_button:
     "relative isolate z-10 flex aspect-square size-auto w-full min-w-(--cell-size) flex-col gap-1 rounded-lg border border-transparent bg-transparent text-[#F6EBD6] leading-none font-medium transition-colors hover:border-[#D4B57A]/55 hover:bg-[#05241D]/80 focus-visible:border-[#D4B57A]/75 focus-visible:ring-2 focus-visible:ring-[#D4B57A]/20 disabled:text-[#F6EBD6]/24 disabled:hover:border-transparent disabled:hover:bg-transparent data-[selected-single=true]:border-[#D4B57A] data-[selected-single=true]:bg-[#D4B57A] data-[selected-single=true]:text-[#031B16] data-[selected-single=true]:shadow-[0_0_22px_rgba(212,181,122,0.22)] data-[selected-single=true]:hover:bg-[#D4B57A]",
-  today:
-    "rounded-lg border border-[#D4B57A]/45 bg-[#05241D]/72 text-[#F6EBD6]",
+  today: "rounded-lg border border-[#D4B57A]/45 bg-[#05241D]/72 text-[#F6EBD6]",
   outside: "text-[#F6EBD6]/24 aria-selected:text-[#031B16]",
   disabled: "text-[#F6EBD6]/22 opacity-45",
   selected: "rounded-lg",
@@ -226,7 +222,7 @@ function getSteps(isHomeService: boolean) {
 }
 
 function getStepName(stepNum: number, isHomeService: boolean): string {
-  return (getSteps(isHomeService).find((s) => s.id === stepNum)?.name) ?? "branch";
+  return getSteps(isHomeService).find((s) => s.id === stepNum)?.name ?? "branch";
 }
 
 function getMobileProgressIndex(stepName: string) {
@@ -310,9 +306,7 @@ function normalizePublicSlots(rawSlots: Slot[]): Slot[] {
       byTime.set(slot.slot_time, slot);
     }
   }
-  return Array.from(byTime.values()).sort((a, b) =>
-    a.slot_time.localeCompare(b.slot_time)
-  );
+  return Array.from(byTime.values()).sort((a, b) => a.slot_time.localeCompare(b.slot_time));
 }
 
 // Unique available therapists at a specific slot_time, sorted by tier then name.
@@ -368,14 +362,10 @@ function qualifiedStaffPreferenceOptions(
   availableStaff: StaffOption[],
   selectedServiceIds: string[]
 ): StaffOption[] {
-  const availableById = new Map(
-    availableStaff.map((member) => [member.staff_id, member])
-  );
+  const availableById = new Map(availableStaff.map((member) => [member.staff_id, member]));
 
   return Array.from(staffLookup.entries())
-    .filter(([, lookup]) =>
-      staffQualifiedForSelectedServices(lookup, selectedServiceIds)
-    )
+    .filter(([, lookup]) => staffQualifiedForSelectedServices(lookup, selectedServiceIds))
     .map(([staffId, lookup]) => {
       const available = availableById.get(staffId);
       const fullName = lookup.fullName ?? lookup.name ?? "Staff member";
@@ -394,11 +384,8 @@ function qualifiedStaffPreferenceOptions(
       const availabilityDifference =
         Number(b.staff_schedule_available) - Number(a.staff_schedule_available);
       if (availabilityDifference !== 0) return availabilityDifference;
-      const tierDifference =
-        (TIER_ORDER[a.staff_tier] ?? 9) - (TIER_ORDER[b.staff_tier] ?? 9);
-      return tierDifference !== 0
-        ? tierDifference
-        : a.staff_name.localeCompare(b.staff_name);
+      const tierDifference = (TIER_ORDER[a.staff_tier] ?? 9) - (TIER_ORDER[b.staff_tier] ?? 9);
+      return tierDifference !== 0 ? tierDifference : a.staff_name.localeCompare(b.staff_name);
     });
 }
 
@@ -427,9 +414,7 @@ export function BookingWizard({
   const [services, setServices] = useState<Service[]>([]);
   const [rawSlots, setRawSlots] = useState<Slot[]>([]);
   const [slots, setSlots] = useState<Slot[]>([]);
-  const [bookingRules, setBookingRules] = useState<BranchBookingRules | null>(
-    null
-  );
+  const [bookingRules, setBookingRules] = useState<BranchBookingRules | null>(null);
   const [staffLookup, setStaffLookup] = useState<Map<string, StaffLookup>>(new Map());
   const [existingHsBookings, setExistingHsBookings] = useState<ExistingHsBooking[]>([]);
   const [hsDriverCapacity, setHsDriverCapacity] = useState(1);
@@ -450,9 +435,7 @@ export function BookingWizard({
   const [selectedServices, setSelectedServices] = useState<Service[]>([]);
   const [selectedDate, setSelectedDate] = useState<Date | undefined>(undefined);
   const [selectedSlot, setSelectedSlot] = useState<Slot | null>(null);
-  const [selectedStaff, setSelectedStaff] = useState<"auto" | string>(
-    DEFAULT_STAFF_PREFERENCE
-  );
+  const [selectedStaff, setSelectedStaff] = useState<"auto" | string>(DEFAULT_STAFF_PREFERENCE);
   const [bookingType, setBookingType] = useState<BookingType>(
     // Seed from initialVisitType when provided (CRM walk-in / home-service routing).
     // Falls back to "in_spa" default — preserves existing public booking behavior.
@@ -506,10 +489,7 @@ export function BookingWizard({
     [bookingType, mode]
   );
   const visitType = useMemo(
-    () =>
-      isVisitTypeEnabled(selectedVisitType, bookingRules)
-        ? selectedVisitType
-        : "in_spa",
+    () => (isVisitTypeEnabled(selectedVisitType, bookingRules) ? selectedVisitType : "in_spa"),
     [bookingRules, selectedVisitType]
   );
   const isHomeService = visitType === "home_service";
@@ -522,48 +502,34 @@ export function BookingWizard({
   const eligibleServices = useMemo(
     () =>
       services.filter((svc) =>
-        isHomeService
-          ? (svc.availableHomeService ?? false)
-          : (svc.availableInSpa ?? true)
+        isHomeService ? (svc.availableHomeService ?? false) : (svc.availableInSpa ?? true)
       ),
     [services, isHomeService]
   );
   const availableStaffAtSlot = useMemo(
     () =>
       selectedSlot
-        ? staffAtSlot(
-            rawSlots,
-            selectedSlot.slot_time,
-            staffLookup,
-            selectedServiceIds
-          )
+        ? staffAtSlot(rawSlots, selectedSlot.slot_time, staffLookup, selectedServiceIds)
         : [],
     [rawSlots, selectedSlot, selectedServiceIds, staffLookup]
   );
   const staffPreferenceOptions = useMemo(
     () =>
       mode === "public"
-        ? qualifiedStaffPreferenceOptions(
-            staffLookup,
-            availableStaffAtSlot,
-            selectedServiceIds
-          )
+        ? qualifiedStaffPreferenceOptions(staffLookup, availableStaffAtSlot, selectedServiceIds)
         : availableStaffAtSlot,
     [availableStaffAtSlot, mode, selectedServiceIds, staffLookup]
   );
-  const selectedStaffForBooking = useMemo(
-    () => {
-      // Public manual choices are preferences: qualification is required, but
-      // schedule conflicts are reviewed by CRM after the booking is received.
-      if (selectedStaff !== "auto") {
-        return staffPreferenceOptions.some((s) => s.staff_id === selectedStaff)
-          ? selectedStaff
-          : DEFAULT_STAFF_PREFERENCE;
-      }
-      return DEFAULT_STAFF_PREFERENCE;
-    },
-    [selectedStaff, staffPreferenceOptions]
-  );
+  const selectedStaffForBooking = useMemo(() => {
+    // Public manual choices are preferences: qualification is required, but
+    // schedule conflicts are reviewed by CRM after the booking is received.
+    if (selectedStaff !== "auto") {
+      return staffPreferenceOptions.some((s) => s.staff_id === selectedStaff)
+        ? selectedStaff
+        : DEFAULT_STAFF_PREFERENCE;
+    }
+    return DEFAULT_STAFF_PREFERENCE;
+  }, [selectedStaff, staffPreferenceOptions]);
 
   // Dispatch status per slot_time (home_service only)
   const dispatchStatuses = useMemo<Map<string, SlotDispatchStatus>>(() => {
@@ -576,7 +542,7 @@ export function BookingWizard({
           totalDuration,
           existingHsBookings,
           form.hsZone,
-          hsDriverCapacity,
+          hsDriverCapacity
         ),
       ])
     );
@@ -599,7 +565,9 @@ export function BookingWizard({
           const preferredBranch =
             (initialBranchId
               ? nextBranches.find((branch) => branch.id === initialBranchId)
-              : null) ?? nextBranches[0] ?? null;
+              : null) ??
+            nextBranches[0] ??
+            null;
           setSelectedBranch(preferredBranch);
         }
         setLoadingBranches(false);
@@ -672,7 +640,9 @@ export function BookingWizard({
           setHsDriverCapacity(data.driverCapacity);
         }
       })
-      .catch(() => { /* non-fatal — dispatch filter degrades to "ok" */ });
+      .catch(() => {
+        /* non-fatal — dispatch filter degrades to "ok" */
+      });
   }, [isHomeService, selectedBranch, selectedDate]);
 
   // Fetch slots when branch + services + date are all selected
@@ -689,9 +659,7 @@ export function BookingWizard({
       date: dateStr,
       deliveryType: visitType,
     });
-    fetch(
-      `/api/booking/available-slots?${params.toString()}`
-    )
+    fetch(`/api/booking/available-slots?${params.toString()}`)
       .then(async (r) => {
         const data = await r.json();
         if (!r.ok) {
@@ -701,11 +669,7 @@ export function BookingWizard({
       })
       .then((data) => {
         const all = (data.slots ?? []) as Slot[];
-        const visitTypeSlots = filterSlotsByVisitType(
-          all,
-          visitType,
-          bookingRules
-        );
+        const visitTypeSlots = filterSlotsByVisitType(all, visitType, bookingRules);
         setRawSlots(visitTypeSlots);
         setSlots(normalizePublicSlots(visitTypeSlots));
         setAvailabilityMessage(data.reason?.message ?? "");
@@ -723,9 +687,7 @@ export function BookingWizard({
   const toggleService = useCallback((svc: Service) => {
     setSelectedServices((prev) => {
       const idx = prev.findIndex((s) => s.id === svc.id);
-      return idx >= 0
-        ? [...prev.slice(0, idx), ...prev.slice(idx + 1)]
-        : [...prev, svc];
+      return idx >= 0 ? [...prev.slice(0, idx), ...prev.slice(idx + 1)] : [...prev, svc];
     });
     // Downstream state depends on service selection
     setRawSlots([]);
@@ -735,25 +697,28 @@ export function BookingWizard({
     setAvailabilityMessage("");
   }, []);
 
-  const handleVisitTypeSelect = useCallback((nextVisitType: VisitType) => {
-    if (!isVisitTypeEnabled(nextVisitType, bookingRules)) return;
-    setBookingType(getBookingTypeForVisitType(nextVisitType, mode));
-    // Clear services that aren't eligible for the new visit type
-    setSelectedServices((prev) =>
-      prev.filter((svc) =>
-        nextVisitType === "home_service"
-          ? (svc.availableHomeService ?? false)
-          : (svc.availableInSpa ?? true)
-      )
-    );
-    setRawSlots([]);
-    setSlots([]);
-    setSelectedSlot(null);
-    setSelectedStaff(DEFAULT_STAFF_PREFERENCE);
-    setAvailabilityMessage("");
-    setExistingHsBookings([]);
-    setHsDriverCapacity(1);
-  }, [bookingRules, mode]);
+  const handleVisitTypeSelect = useCallback(
+    (nextVisitType: VisitType) => {
+      if (!isVisitTypeEnabled(nextVisitType, bookingRules)) return;
+      setBookingType(getBookingTypeForVisitType(nextVisitType, mode));
+      // Clear services that aren't eligible for the new visit type
+      setSelectedServices((prev) =>
+        prev.filter((svc) =>
+          nextVisitType === "home_service"
+            ? (svc.availableHomeService ?? false)
+            : (svc.availableInSpa ?? true)
+        )
+      );
+      setRawSlots([]);
+      setSlots([]);
+      setSelectedSlot(null);
+      setSelectedStaff(DEFAULT_STAFF_PREFERENCE);
+      setAvailabilityMessage("");
+      setExistingHsBookings([]);
+      setHsDriverCapacity(1);
+    },
+    [bookingRules, mode]
+  );
 
   useEffect(() => {
     if (mode === "public" && isMobileBookingViewport()) {
@@ -808,9 +773,7 @@ export function BookingWizard({
       })
     ) {
       setSelectedSlot(null);
-      setFormError(
-        "That time has already passed. Please select a later time."
-      );
+      setFormError("That time has already passed. Please select a later time.");
       setStep(isHomeService ? 5 : 4);
       return;
     }
@@ -830,22 +793,21 @@ export function BookingWizard({
     const hsPayload =
       visitType === "home_service"
         ? {
-            homeServiceAddress:          form.hsAddress || undefined,
-            homeServiceAddressDetails:   form.hsAddressDetails || undefined,
-            homeServiceBarangay:         form.hsBarangay || undefined,
-            homeServiceCity:             form.hsCity || undefined,
-            homeServiceLandmark:         form.hsLandmark || undefined,
-            homeServiceParkingNotes:     form.hsParkingNotes || undefined,
-            homeServiceCustomerNotes:    form.hsParkingNotes || undefined,
-            homeServiceZone:             form.hsZone || "unknown",
-            homeServiceLat:              form.hsLat ?? undefined,
-            homeServiceLng:              form.hsLng ?? undefined,
-            homeServicePlaceId:          form.hsPlaceId || undefined,
+            homeServiceAddress: form.hsAddress || undefined,
+            homeServiceAddressDetails: form.hsAddressDetails || undefined,
+            homeServiceBarangay: form.hsBarangay || undefined,
+            homeServiceCity: form.hsCity || undefined,
+            homeServiceLandmark: form.hsLandmark || undefined,
+            homeServiceParkingNotes: form.hsParkingNotes || undefined,
+            homeServiceCustomerNotes: form.hsParkingNotes || undefined,
+            homeServiceZone: form.hsZone || "unknown",
+            homeServiceLat: form.hsLat ?? undefined,
+            homeServiceLng: form.hsLng ?? undefined,
+            homeServicePlaceId: form.hsPlaceId || undefined,
             homeServiceFormattedAddress: form.hsFormattedAddress || undefined,
-            homeServiceAddressComponents: form.hsAddressComponents.length > 0
-              ? form.hsAddressComponents
-              : undefined,
-            homeServiceMapUrl:           form.hsMapUrl || undefined,
+            homeServiceAddressComponents:
+              form.hsAddressComponents.length > 0 ? form.hsAddressComponents : undefined,
+            homeServiceMapUrl: form.hsMapUrl || undefined,
           }
         : {};
 
@@ -867,10 +829,10 @@ export function BookingWizard({
       mode === "inhouse"
         ? await createInhouseBookingMultiAction({
             ...payload,
-            type:             getBookingTypeForVisitType(visitType, "inhouse"),
-            paymentMethod:    form.paymentMethod as "cash" | "gcash" | "maya" | "card" | "other",
+            type: getBookingTypeForVisitType(visitType, "inhouse"),
+            paymentMethod: form.paymentMethod as "cash" | "gcash" | "maya" | "card" | "other",
             paymentReference: form.paymentReference.trim() || undefined,
-            paymentNote:      form.paymentNote.trim() || undefined,
+            paymentNote: form.paymentNote.trim() || undefined,
           })
         : await createOnlineBookingMultiAction({
             ...payload,
@@ -884,11 +846,12 @@ export function BookingWizard({
         "staffPreferenceNeedsConfirmation" in result &&
         result.staffPreferenceNeedsConfirmation === true;
       toast.success(mode === "inhouse" ? "Booking saved" : "Booking request received", {
-        description: mode === "inhouse"
-          ? "Appointment saved to the CRM workspace."
-          : staffPreferenceNeedsConfirmation
-            ? "Your booking has been received. Our team will confirm your selected staff preference."
-            : "Our CRM team will contact you shortly to confirm payment and finalize your appointment.",
+        description:
+          mode === "inhouse"
+            ? "Appointment saved to the CRM workspace."
+            : staffPreferenceNeedsConfirmation
+              ? "Your booking has been received. Our team will confirm your selected staff preference."
+              : "Our CRM team will contact you shortly to confirm payment and finalize your appointment.",
       });
       setSuccess({
         bookingId: result.bookingId,
@@ -900,13 +863,24 @@ export function BookingWizard({
         result.message.toLowerCase().includes("fetch") ||
         result.message.toLowerCase().includes("network") ||
         result.message.toLowerCase().includes("failed to");
-      const description = isNetworkError
-        ? "Check your connection and try again."
-        : result.message;
+      const description = isNetworkError ? "Check your connection and try again." : result.message;
       toast.error("Booking failed", { description });
       setFormError(description);
     }
-  }, [selectedBranch, selectedServices, selectedDate, selectedSlot, visitType, bookingRules, selectedStaffForBooking, form, mode, isHomeService, successStep, isOffline]);
+  }, [
+    selectedBranch,
+    selectedServices,
+    selectedDate,
+    selectedSlot,
+    visitType,
+    bookingRules,
+    selectedStaffForBooking,
+    form,
+    mode,
+    isHomeService,
+    successStep,
+    isOffline,
+  ]);
 
   const preciseHomeServiceLocationSelected = isPreciseHomeServiceLocation(form);
   const preciseLocationRequired = mode === "public" && isHomeService;
@@ -919,27 +893,31 @@ export function BookingWizard({
 
   // Public home-service location is Google place-first; zone stays unknown for
   // backward-compatible dispatch metadata and can be refined by operations later.
-  const locationValid =
-    !isHomeService
-      ? true
-      : preciseLocationRequired
-        ? preciseHomeServiceLocationSelected
-        : form.hsZone !== "unknown" && form.hsZone !== "";
+  const locationValid = !isHomeService
+    ? true
+    : preciseLocationRequired
+      ? preciseHomeServiceLocationSelected
+      : form.hsZone !== "unknown" && form.hsZone !== "";
 
   const canProceed =
-    currentStepName === "branch"    ? !!selectedBranch
-    : currentStepName === "visit"   ? !!bookingType && isVisitTypeEnabled(visitType, bookingRules)
-    : currentStepName === "services" ? selectedServices.length > 0
-    : currentStepName === "location" ? locationValid
-    : currentStepName === "date_time" ? !!selectedSlot
-    : currentStepName === "therapist" ? true
-    : currentStepName === "details"  ? (
-        form.fullName.trim().length >= 2 &&
-        form.phone.trim().length >= 7 &&
-        hsAddressFilled &&
-        (mode !== "inhouse" || form.paymentMethod.trim().length > 0)
-      )
-    : false;
+    currentStepName === "branch"
+      ? !!selectedBranch
+      : currentStepName === "visit"
+        ? !!bookingType && isVisitTypeEnabled(visitType, bookingRules)
+        : currentStepName === "services"
+          ? selectedServices.length > 0
+          : currentStepName === "location"
+            ? locationValid
+            : currentStepName === "date_time"
+              ? !!selectedSlot
+              : currentStepName === "therapist"
+                ? true
+                : currentStepName === "details"
+                  ? form.fullName.trim().length >= 2 &&
+                    form.phone.trim().length >= 7 &&
+                    hsAddressFilled &&
+                    (mode !== "inhouse" || form.paymentMethod.trim().length > 0)
+                  : false;
   const canClickContinue = currentStepName === "location" || canProceed;
   const mobileProgressIndex = getMobileProgressIndex(currentStepName);
 
@@ -990,10 +968,7 @@ export function BookingWizard({
             >
               Book Your Pause
             </p>
-            <h1
-              className="text-3xl sm:text-4xl font-medium"
-              style={WARM_HEADING_STYLE}
-            >
+            <h1 className="text-3xl sm:text-4xl font-medium" style={WARM_HEADING_STYLE}>
               Choose your care
             </h1>
             <p className="mx-auto mt-3 max-w-xl text-[14px] leading-6" style={WARM_BODY_STYLE}>
@@ -1072,8 +1047,8 @@ export function BookingWizard({
                         step > s.id
                           ? "border border-[#D4B57A]/45 bg-[#05241D] text-[#D4B57A]"
                           : step === s.id
-                          ? "bg-gradient-to-r from-[#D4B57A] via-[#C8A96A] to-[#B88945] text-[#031B16]"
-                          : "border border-[#D4B57A]/22 bg-[#05241D]/70 text-[#F6EBD6]/42"
+                            ? "bg-gradient-to-r from-[#D4B57A] via-[#C8A96A] to-[#B88945] text-[#031B16]"
+                            : "border border-[#D4B57A]/22 bg-[#05241D]/70 text-[#F6EBD6]/42"
                       }`}
                     >
                       {step > s.id ? <Check className="h-3.5 w-3.5" /> : s.id}
@@ -1234,9 +1209,7 @@ export function BookingWizard({
                   bookingId={success.bookingId}
                   services={selectedServices}
                   mode={mode}
-                  staffPreferenceNeedsConfirmation={
-                    success.staffPreferenceNeedsConfirmation
-                  }
+                  staffPreferenceNeedsConfirmation={success.staffPreferenceNeedsConfirmation}
                 />
               )}
             </div>
@@ -1251,7 +1224,10 @@ export function BookingWizard({
                       : "fixed inset-x-0 bottom-0 z-40 flex items-center justify-between gap-3 border-t border-[#D4B57A]/25 bg-[#031B16]/82 px-4 py-3 shadow-[0_-18px_50px_rgba(0,0,0,0.35)] backdrop-blur-xl md:static md:mt-10 md:border-t md:bg-transparent md:px-0 md:pt-8 md:shadow-none md:backdrop-blur-0"
                     : "flex items-center justify-between mt-10 pt-8 border-t border-[#EDE4D3]"
                 }
-                style={{ paddingBottom: mode === "public" ? "max(0.75rem, env(safe-area-inset-bottom))" : undefined }}
+                style={{
+                  paddingBottom:
+                    mode === "public" ? "max(0.75rem, env(safe-area-inset-bottom))" : undefined,
+                }}
               >
                 <button
                   onClick={handleBack}
@@ -1285,9 +1261,7 @@ export function BookingWizard({
                     disabled={!canProceed || submitting || isOffline}
                     className={[
                       "inline-flex min-h-12 flex-1 items-center justify-center gap-2 rounded-[7px] px-8 py-3 text-[12px] font-semibold tracking-widest uppercase transition-all duration-300 disabled:cursor-not-allowed disabled:opacity-40 hover:shadow-lg md:flex-none md:rounded-full",
-                      canProceed && !isOffline
-                        ? WARM_PRIMARY_BUTTON_CLS
-                        : WARM_DISABLED_BUTTON_CLS,
+                      canProceed && !isOffline ? WARM_PRIMARY_BUTTON_CLS : WARM_DISABLED_BUTTON_CLS,
                     ].join(" ")}
                   >
                     {submitting ? (
@@ -1355,10 +1329,17 @@ function SummaryRow({
         <p className="text-[11px] font-medium uppercase tracking-wide" style={WARM_LABEL_STYLE}>
           {label}
         </p>
-        <p className="text-[13px] font-medium mt-0.5" style={value ? WARM_BODY_STYLE : WARM_MUTED_STYLE}>
+        <p
+          className="text-[13px] font-medium mt-0.5"
+          style={value ? WARM_BODY_STYLE : WARM_MUTED_STYLE}
+        >
           {value || placeholder}
         </p>
-        {sub && <p className="text-[11px] mt-0.5" style={WARM_MUTED_STYLE}>{sub}</p>}
+        {sub && (
+          <p className="text-[11px] mt-0.5" style={WARM_MUTED_STYLE}>
+            {sub}
+          </p>
+        )}
       </div>
     </div>
   );
@@ -1420,11 +1401,11 @@ function BookingSummary({
   const selectedStaffOption =
     selectedStaff === "auto"
       ? null
-      : availableStaff.find((s) => s.staff_id === selectedStaff) ?? null;
+      : (availableStaff.find((s) => s.staff_id === selectedStaff) ?? null);
   const staffLabel =
     selectedStaff === "auto"
       ? "Any available provider"
-      : selectedStaffOption?.staff_full_name ?? selectedStaffOption?.staff_name;
+      : (selectedStaffOption?.staff_full_name ?? selectedStaffOption?.staff_name);
   const staffSubLabel =
     selectedStaffOption && staffLabel
       ? `${selectedStaffOption.staff_nickname?.trim() || getTherapistInitials(staffLabel)} · ${
@@ -1448,10 +1429,7 @@ function BookingSummary({
     return (
       <div className="sticky top-24">
         <div className={`rounded-[20px] p-6 ${WARM_GLASS_PANEL_CLS}`}>
-          <h3
-            className="text-[21px] font-medium"
-            style={WARM_HEADING_STYLE}
-          >
+          <h3 className="text-[21px] font-medium" style={WARM_HEADING_STYLE}>
             Booking Summary
           </h3>
 
@@ -1459,13 +1437,19 @@ function BookingSummary({
             <TherapistSummaryItem icon={Building} label="Branch">
               {branch?.name ?? <span className="font-medium text-[#F6EBD6]/45">Not selected</span>}
             </TherapistSummaryItem>
-            <TherapistSummaryItem icon={visitType === "home_service" ? Home : User} label="Visit Type">
+            <TherapistSummaryItem
+              icon={visitType === "home_service" ? Home : User}
+              label="Visit Type"
+            >
               <p>{visitOption.label}</p>
               <p className="mt-1 text-[12px] font-medium" style={WARM_MUTED_STYLE}>
                 {formatTime(availability.startTime)} - {formatTime(availability.endTime)}
               </p>
             </TherapistSummaryItem>
-            <TherapistSummaryItem icon={Sparkles} label={services.length === 1 ? "Service" : "Services"}>
+            <TherapistSummaryItem
+              icon={Sparkles}
+              label={services.length === 1 ? "Service" : "Services"}
+            >
               {services.length === 0 ? (
                 <span className="font-medium text-[#F6EBD6]/45">Not selected</span>
               ) : (
@@ -1485,9 +1469,7 @@ function BookingSummary({
             <TherapistSummaryItem icon={User} label="Therapist">
               {staffLabel ?? <span className="font-medium text-[#F6EBD6]/45">Not selected</span>}
               {staffSubLabel ? (
-                <p className="mt-1 text-[12px] font-medium text-[#F6EBD6]/60">
-                  {staffSubLabel}
-                </p>
+                <p className="mt-1 text-[12px] font-medium text-[#F6EBD6]/60">{staffSubLabel}</p>
               ) : null}
             </TherapistSummaryItem>
           </div>
@@ -1497,10 +1479,7 @@ function BookingSummary({
               <ShieldCheck className="h-5 w-5" />
             </div>
             <div>
-              <p
-                className="text-[14px] font-semibold"
-                style={WARM_HEADING_STYLE}
-              >
+              <p className="text-[14px] font-semibold" style={WARM_HEADING_STYLE}>
                 Your booking is safe with us
               </p>
               <p className="mt-2 text-[13px] leading-6" style={WARM_BODY_STYLE}>
@@ -1510,7 +1489,10 @@ function BookingSummary({
           </div>
         </div>
 
-        <div className="mt-5 flex flex-wrap items-center justify-center gap-x-3 gap-y-2 text-[12px]" style={WARM_MUTED_STYLE}>
+        <div
+          className="mt-5 flex flex-wrap items-center justify-center gap-x-3 gap-y-2 text-[12px]"
+          style={WARM_MUTED_STYLE}
+        >
           <span className="inline-flex items-center gap-1.5">
             <ShieldCheck className="h-3.5 w-3.5 text-[#B68A3C]" />
             Secure booking
@@ -1531,13 +1513,8 @@ function BookingSummary({
   }
 
   return (
-    <div
-      className={`sticky top-28 rounded-2xl p-6 ${WARM_GLASS_PANEL_CLS}`}
-    >
-      <h3
-        className="text-[14px] font-semibold mb-5"
-        style={WARM_HEADING_STYLE}
-      >
+    <div className={`sticky top-28 rounded-2xl p-6 ${WARM_GLASS_PANEL_CLS}`}>
+      <h3 className="text-[14px] font-semibold mb-5" style={WARM_HEADING_STYLE}>
         Booking Summary
       </h3>
       <div className="flex flex-col gap-5">
@@ -1622,9 +1599,7 @@ function StepBranches({
           <Skeleton
             key={i}
             className={
-              mode === "public"
-                ? `h-24 rounded-xl md:h-28 ${WARM_SKELETON_CLS}`
-                : "h-28 rounded-xl"
+              mode === "public" ? `h-24 rounded-xl md:h-28 ${WARM_SKELETON_CLS}` : "h-28 rounded-xl"
             }
           />
         ))}
@@ -1653,7 +1628,10 @@ function StepBranches({
       >
         Select Branch
       </h2>
-      <p className="mb-3 text-[12px] leading-5 md:mb-8 md:text-[14px] md:leading-6" style={WARM_BODY_STYLE}>
+      <p
+        className="mb-3 text-[12px] leading-5 md:mb-8 md:text-[14px] md:leading-6"
+        style={WARM_BODY_STYLE}
+      >
         Please choose the branch where you would like to book.
       </p>
       <div className="grid gap-3 sm:grid-cols-2 md:gap-4">
@@ -1662,9 +1640,7 @@ function StepBranches({
             key={branch.id}
             onClick={() => onSelect(branch)}
             className={`grid min-h-[96px] grid-cols-[72px_1fr_auto] gap-2.5 rounded-[10px] border p-2.5 text-left transition-all duration-300 md:flex md:min-h-0 md:items-start md:gap-4 md:rounded-xl md:p-5 ${
-              selected?.id === branch.id
-                ? WARM_SELECTED_CARD_CLS
-                : WARM_IDLE_CARD_CLS
+              selected?.id === branch.id ? WARM_SELECTED_CARD_CLS : WARM_IDLE_CARD_CLS
             }`}
           >
             <div className="relative h-[76px] overflow-hidden rounded-[7px] bg-[#05241D] md:hidden">
@@ -1694,7 +1670,10 @@ function StepBranches({
                 {branch.name}
               </p>
               {branch.address && (
-                <p className="mt-1 line-clamp-2 text-[11px] leading-4 md:text-[12px]" style={WARM_MUTED_STYLE}>
+                <p
+                  className="mt-1 line-clamp-2 text-[11px] leading-4 md:text-[12px]"
+                  style={WARM_MUTED_STYLE}
+                >
                   {branch.address}
                 </p>
               )}
@@ -1838,13 +1817,10 @@ function StepDateTime({
   const today = new Date();
   today.setHours(0, 0, 0, 0);
   const maxDate = new Date(today);
-  maxDate.setDate(
-    maxDate.getDate() + (bookingRules?.maxAdvanceBookingDays ?? 30)
-  );
+  maxDate.setDate(maxDate.getDate() + (bookingRules?.maxAdvanceBookingDays ?? 30));
 
   const availableSlots = slots.filter((s) => s.available);
-  const isTodaySelected =
-    !!selectedDate && toLocalYmd(selectedDate) === toLocalYmd(new Date());
+  const isTodaySelected = !!selectedDate && toLocalYmd(selectedDate) === toLocalYmd(new Date());
   const visitOption = VISIT_TYPE_OPTIONS[visitType];
   const availability = getVisitTypeAvailability(visitType, bookingRules);
   const emptyMessage =
@@ -1852,10 +1828,9 @@ function StepDateTime({
     (slots.length > 0
       ? "No available times for this date. Try another day."
       : "No available staff for this service at this branch.");
-  const displayEmptyMessage =
-    isTodaySelected
-      ? "No more available slots today. Please choose another date."
-      : emptyMessage;
+  const displayEmptyMessage = isTodaySelected
+    ? "No more available slots today. Please choose another date."
+    : emptyMessage;
 
   const closeTimeSheet = useCallback(() => {
     setIsTimeSheetOpen(false);
@@ -1916,7 +1891,10 @@ function StepDateTime({
 
       <div className="grid gap-4 md:grid-cols-2 md:gap-8">
         <div>
-          <p className="mb-2 text-[11px] font-semibold uppercase tracking-wide md:mb-3 md:text-[12px]" style={WARM_LABEL_STYLE}>
+          <p
+            className="mb-2 text-[11px] font-semibold uppercase tracking-wide md:mb-3 md:text-[12px]"
+            style={WARM_LABEL_STYLE}
+          >
             Date
           </p>
           <div
@@ -1942,9 +1920,7 @@ function StepDateTime({
                   ? "rounded-md bg-transparent p-0 text-[#F6EBD6] [--cell-radius:0.65rem] [--cell-size:2rem] min-[390px]:[--cell-size:2.15rem] sm:[--cell-size:2.5rem] [&_.rdp-chevron]:text-[#D4B57A]"
                   : "rounded-md"
               }
-              classNames={
-                mode === "public" ? BOOKING_CALENDAR_CLASSNAMES : undefined
-              }
+              classNames={mode === "public" ? BOOKING_CALENDAR_CLASSNAMES : undefined}
             />
           </div>
 
@@ -1961,24 +1937,24 @@ function StepDateTime({
         </div>
 
         <div className="hidden md:block">
-          <p className="mb-3 text-[12px] font-semibold uppercase tracking-wide" style={WARM_LABEL_STYLE}>
+          <p
+            className="mb-3 text-[12px] font-semibold uppercase tracking-wide"
+            style={WARM_LABEL_STYLE}
+          >
             Available Times
           </p>
           <p className="text-[12px] mb-3" style={WARM_MUTED_STYLE}>
-            {visitOption.label}: {formatTime(availability.startTime)} - {formatTime(availability.endTime)}
+            {visitOption.label}: {formatTime(availability.startTime)} -{" "}
+            {formatTime(availability.endTime)}
           </p>
           {serviceCount === 0 ? (
-            <div
-              className="flex items-center justify-center h-48 rounded-xl border border-dashed border-[#D4B57A]/25 bg-[#05241D]/50"
-            >
+            <div className="flex items-center justify-center h-48 rounded-xl border border-dashed border-[#D4B57A]/25 bg-[#05241D]/50">
               <p className="text-[13px]" style={WARM_MUTED_STYLE}>
                 Choose a service to see available times.
               </p>
             </div>
           ) : !selectedDate ? (
-            <div
-              className="flex items-center justify-center h-48 rounded-xl border border-dashed border-[#D4B57A]/25 bg-[#05241D]/50"
-            >
+            <div className="flex items-center justify-center h-48 rounded-xl border border-dashed border-[#D4B57A]/25 bg-[#05241D]/50">
               <p className="text-[13px]" style={WARM_MUTED_STYLE}>
                 Choose a date to see available times.
               </p>
@@ -1993,18 +1969,14 @@ function StepDateTime({
                   <Skeleton
                     key={i}
                     className={
-                      mode === "public"
-                        ? `h-10 rounded-lg ${WARM_SKELETON_CLS}`
-                        : "h-10 rounded-lg"
+                      mode === "public" ? `h-10 rounded-lg ${WARM_SKELETON_CLS}` : "h-10 rounded-lg"
                     }
                   />
                 ))}
               </div>
             </div>
           ) : availableSlots.length === 0 ? (
-            <div
-              className="flex items-center justify-center h-48 rounded-xl border border-dashed border-[#D4B57A]/25 bg-[#05241D]/50 px-5 text-center"
-            >
+            <div className="flex items-center justify-center h-48 rounded-xl border border-dashed border-[#D4B57A]/25 bg-[#05241D]/50 px-5 text-center">
               <p className="text-[13px]" style={WARM_MUTED_STYLE}>
                 {displayEmptyMessage}
               </p>
@@ -2119,14 +2091,10 @@ function TimeSlotButton({
         {isSelected && <Check className="h-3 w-3" aria-hidden="true" />}
       </span>
       {isWarning && !isSelected && (
-        <span className="mt-0.5 text-[9px] font-semibold leading-none text-amber-300">
-          Review
-        </span>
+        <span className="mt-0.5 text-[9px] font-semibold leading-none text-amber-300">Review</span>
       )}
       {isHard && mode === "inhouse" && (
-        <span className="mt-0.5 text-[9px] font-semibold leading-none text-red-300">
-          Conflict
-        </span>
+        <span className="mt-0.5 text-[9px] font-semibold leading-none text-red-300">Conflict</span>
       )}
     </button>
   );
@@ -2238,20 +2206,13 @@ function MobileTimeBottomSheet({
               Choose a service first to see available times.
             </MobileTimeSheetMessage>
           ) : !selectedDate ? (
-            <MobileTimeSheetMessage>
-              Choose a date to see available times.
-            </MobileTimeSheetMessage>
+            <MobileTimeSheetMessage>Choose a date to see available times.</MobileTimeSheetMessage>
           ) : loading ? (
             <div className="rounded-xl border border-[#D4B57A]/20 bg-[#05241D]/55 px-4 py-5">
-              <p className="mb-3 text-[13px] text-[#F6EBD6]/68">
-                Checking available times...
-              </p>
+              <p className="mb-3 text-[13px] text-[#F6EBD6]/68">Checking available times...</p>
               <div className="grid grid-cols-2 gap-2">
                 {Array.from({ length: 6 }).map((_, index) => (
-                  <Skeleton
-                    key={index}
-                    className={`h-11 rounded-lg ${WARM_SKELETON_CLS}`}
-                  />
+                  <Skeleton key={index} className={`h-11 rounded-lg ${WARM_SKELETON_CLS}`} />
                 ))}
               </div>
             </div>
@@ -2339,9 +2300,12 @@ function StepTherapist({
 }
 
 // ── Shared input style ─────────────────────────────────────────────────────────
-const INPUT_CLS = "w-full rounded-xl border border-[#D4B57A]/25 bg-[#05241D]/70 px-4 py-3 text-[14px] text-[#F6EBD6] placeholder:text-[#F6EBD6]/45 outline-none transition-all focus:border-[#D4B57A]/75 focus:ring-2 focus:ring-[#D4B57A]/25";
-const PUBLIC_INPUT_CLS = "w-full rounded-xl border border-[#D4B57A]/25 bg-[#05241D]/75 px-4 py-3 text-[14px] text-[#F6EBD6] placeholder:text-[#F6EBD6]/45 outline-none transition-all selection:bg-[#D4B57A]/30 focus:border-[#D4B57A]/75 focus:ring-2 focus:ring-[#D4B57A]/20";
-const LABEL_CLS = "flex items-center gap-2 text-[12px] font-semibold uppercase tracking-wide mb-2 text-[#D4B57A]";
+const INPUT_CLS =
+  "w-full rounded-xl border border-[#D4B57A]/25 bg-[#05241D]/70 px-4 py-3 text-[14px] text-[#F6EBD6] placeholder:text-[#F6EBD6]/45 outline-none transition-all focus:border-[#D4B57A]/75 focus:ring-2 focus:ring-[#D4B57A]/25";
+const PUBLIC_INPUT_CLS =
+  "w-full rounded-xl border border-[#D4B57A]/25 bg-[#05241D]/75 px-4 py-3 text-[14px] text-[#F6EBD6] placeholder:text-[#F6EBD6]/45 outline-none transition-all selection:bg-[#D4B57A]/30 focus:border-[#D4B57A]/75 focus:ring-2 focus:ring-[#D4B57A]/20";
+const LABEL_CLS =
+  "flex items-center gap-2 text-[12px] font-semibold uppercase tracking-wide mb-2 text-[#D4B57A]";
 
 // ── Step 4 (HS only): Location ────────────────────────────────────────────────
 
@@ -2356,14 +2320,10 @@ function isPreciseHomeServiceLocation(form: DetailsForm): boolean {
   );
 }
 
-function getAddressComponent(
-  components: GoogleAddressComponent[],
-  types: string[]
-): string {
+function getAddressComponent(components: GoogleAddressComponent[], types: string[]): string {
   return (
-    components.find((component) =>
-      types.some((type) => component.types.includes(type))
-    )?.long_name ?? ""
+    components.find((component) => types.some((type) => component.types.includes(type)))
+      ?.long_name ?? ""
   );
 }
 
@@ -2475,7 +2435,9 @@ function StepLocation({
               onChange={(event) => onChange({ ...form, hsZone: event.target.value })}
               className={fieldClassName}
             >
-              <option value="" disabled>Select your zone...</option>
+              <option value="" disabled>
+                Select your zone...
+              </option>
               {HS_ZONE_OPTIONS.filter((option) => option.value !== "unknown").map((option) => (
                 <option key={option.value} value={option.value}>
                   {option.label}
@@ -2515,9 +2477,7 @@ function StepLocation({
               </p>
             </>
           ) : (
-            <div
-              className="flex items-start gap-3 rounded-xl border border-[#D4B57A]/28 bg-[#0D2B20]/65 px-4 py-3 backdrop-blur-xl"
-            >
+            <div className="flex items-start gap-3 rounded-xl border border-[#D4B57A]/28 bg-[#0D2B20]/65 px-4 py-3 backdrop-blur-xl">
               <Check className="mt-0.5 h-4 w-4 shrink-0 text-[#D4B57A]" />
               <div className="min-w-0 flex-1">
                 <p className="text-[11px] font-semibold uppercase tracking-wide text-[#D4B57A]">
@@ -2558,8 +2518,7 @@ function StepLocation({
 
         <div>
           <label htmlFor="hs-delivery-notes" className={LABEL_CLS}>
-            Delivery notes{" "}
-            <span className="normal-case font-normal">(optional)</span>
+            Delivery notes <span className="normal-case font-normal">(optional)</span>
           </label>
           <textarea
             id="hs-delivery-notes"
@@ -2602,12 +2561,12 @@ type DetailsForm = {
 };
 
 const HS_ZONE_OPTIONS: { value: string; label: string }[] = [
-  { value: "unknown",               label: "Not sure / Let CSR confirm" },
-  { value: "central_bacolod",       label: "Central Bacolod" },
+  { value: "unknown", label: "Not sure / Let CSR confirm" },
+  { value: "central_bacolod", label: "Central Bacolod" },
   { value: "north_bacolod_talisay", label: "North Bacolod / Talisay" },
-  { value: "south_bacolod_alijis",  label: "South Bacolod / Alijis" },
-  { value: "east_bacolod",          label: "East Bacolod" },
-  { value: "outside_bacolod",       label: "Outside Bacolod" },
+  { value: "south_bacolod_alijis", label: "South Bacolod / Alijis" },
+  { value: "east_bacolod", label: "East Bacolod" },
+  { value: "outside_bacolod", label: "Outside Bacolod" },
 ];
 
 function StepDetails({
@@ -2671,8 +2630,7 @@ function StepDetails({
         <div>
           <label className={LABEL_CLS}>
             <Mail className="h-3.5 w-3.5" />
-            Email{" "}
-            <span className="normal-case font-normal">(optional)</span>
+            Email <span className="normal-case font-normal">(optional)</span>
           </label>
           <input
             type="email"
@@ -2686,8 +2644,7 @@ function StepDetails({
         <div>
           <label className={LABEL_CLS}>
             <FileText className="h-3.5 w-3.5" />
-            Notes{" "}
-            <span className="normal-case font-normal">(optional)</span>
+            Notes <span className="normal-case font-normal">(optional)</span>
           </label>
           <textarea
             value={form.notes}
@@ -2700,9 +2657,7 @@ function StepDetails({
 
         {/* CRM In-House Payment Capture */}
         {mode === "inhouse" && (
-          <div
-            className="flex flex-col gap-4 rounded-2xl border border-[#D4B57A]/25 bg-[#0D2B20]/65 p-5 backdrop-blur-xl"
-          >
+          <div className="flex flex-col gap-4 rounded-2xl border border-[#D4B57A]/25 bg-[#0D2B20]/65 p-5 backdrop-blur-xl">
             <div className="flex items-center gap-2 mb-1">
               <Sparkles className="h-4 w-4" style={WARM_LABEL_STYLE} />
               <p className="text-[13px] font-semibold" style={WARM_HEADING_STYLE}>
@@ -2720,15 +2675,15 @@ function StepDetails({
             </p>
 
             <div>
-              <label className={LABEL_CLS}>
-                Payment method *
-              </label>
+              <label className={LABEL_CLS}>Payment method *</label>
               <select
                 value={form.paymentMethod}
                 onChange={(e) => onChange({ ...form, paymentMethod: e.target.value })}
                 className={fieldClassName}
               >
-                <option value="" disabled>Select payment method…</option>
+                <option value="" disabled>
+                  Select payment method…
+                </option>
                 <option value="cash">Cash</option>
                 <option value="gcash">GCash</option>
                 <option value="maya">Maya</option>
@@ -2739,8 +2694,7 @@ function StepDetails({
 
             <div>
               <label className={LABEL_CLS}>
-                Reference / receipt no.{" "}
-                <span className="normal-case font-normal">(optional)</span>
+                Reference / receipt no. <span className="normal-case font-normal">(optional)</span>
               </label>
               <input
                 type="text"
@@ -2753,8 +2707,7 @@ function StepDetails({
 
             <div>
               <label className={LABEL_CLS}>
-                Payment note{" "}
-                <span className="normal-case font-normal">(optional)</span>
+                Payment note <span className="normal-case font-normal">(optional)</span>
               </label>
               <textarea
                 value={form.paymentNote}
@@ -2769,9 +2722,7 @@ function StepDetails({
 
         {/* Home Service Address */}
         {isHomeService && (
-          <div
-            className="flex flex-col gap-4 rounded-2xl border border-[#D4B57A]/25 bg-[#0D2B20]/65 p-5 backdrop-blur-xl"
-          >
+          <div className="flex flex-col gap-4 rounded-2xl border border-[#D4B57A]/25 bg-[#0D2B20]/65 p-5 backdrop-blur-xl">
             <div className="flex items-center gap-2 mb-1">
               <Home className="h-4 w-4" style={WARM_LABEL_STYLE} />
               <p className="text-[13px] font-semibold" style={WARM_HEADING_STYLE}>
@@ -2785,14 +2736,20 @@ function StepDetails({
               </span>
             </div>
             <p className="text-[12px] -mt-2" style={WARM_BODY_STYLE}>
-              We will use the selected Google location from the Location step for dispatch and routing.
+              We will use the selected Google location from the Location step for dispatch and
+              routing.
             </p>
 
             {mode === "inhouse" && (
               <div className="flex items-center gap-2 rounded-xl border border-[#D4B57A]/22 bg-[#05241D]/58 px-4 py-3">
                 <MapPin className="h-4 w-4 shrink-0" style={WARM_LABEL_STYLE} />
                 <div className="flex-1 min-w-0">
-                  <p className="text-[11px] font-semibold uppercase tracking-wide" style={WARM_LABEL_STYLE}>Zone</p>
+                  <p
+                    className="text-[11px] font-semibold uppercase tracking-wide"
+                    style={WARM_LABEL_STYLE}
+                  >
+                    Zone
+                  </p>
                   <p className="text-[13px] font-medium" style={WARM_BODY_STYLE}>
                     {HS_ZONE_OPTIONS.find((o) => o.value === form.hsZone)?.label ?? form.hsZone}
                   </p>
@@ -2801,9 +2758,7 @@ function StepDetails({
             )}
 
             {isPreciseHomeServiceLocation(form) ? (
-              <div
-                className="flex items-start gap-3 rounded-xl border border-[#D4B57A]/22 bg-[#05241D]/58 px-4 py-3"
-              >
+              <div className="flex items-start gap-3 rounded-xl border border-[#D4B57A]/22 bg-[#05241D]/58 px-4 py-3">
                 <Check className="mt-0.5 h-4 w-4 shrink-0 text-[#D4B57A]" />
                 <div className="min-w-0">
                   <p className="text-[11px] font-semibold uppercase tracking-wide text-[#D4B57A]">
@@ -2825,7 +2780,10 @@ function StepDetails({
 
             {form.hsAddressDetails && (
               <div className="rounded-xl border border-[#D4B57A]/22 bg-[#05241D]/58 px-4 py-3">
-                <p className="text-[11px] font-semibold uppercase tracking-wide" style={WARM_LABEL_STYLE}>
+                <p
+                  className="text-[11px] font-semibold uppercase tracking-wide"
+                  style={WARM_LABEL_STYLE}
+                >
                   House / Unit Details
                 </p>
                 <p className="mt-0.5 text-[13px]" style={WARM_BODY_STYLE}>
@@ -2837,9 +2795,7 @@ function StepDetails({
             {mode === "inhouse" && (
               <div className="grid sm:grid-cols-2 gap-4">
                 <div>
-                  <label className={LABEL_CLS}>
-                    Barangay *
-                  </label>
+                  <label className={LABEL_CLS}>Barangay *</label>
                   <input
                     type="text"
                     value={form.hsBarangay}
@@ -2849,9 +2805,7 @@ function StepDetails({
                   />
                 </div>
                 <div>
-                  <label className={LABEL_CLS}>
-                    City / Municipality *
-                  </label>
+                  <label className={LABEL_CLS}>City / Municipality *</label>
                   <input
                     type="text"
                     value={form.hsCity}
@@ -2893,10 +2847,7 @@ function StepSuccess({
       <div className="mx-auto mb-6 flex h-20 w-20 items-center justify-center rounded-full border border-[#D4B57A]/40 bg-[#0D2B20]/72 text-[#D4B57A] shadow-[0_20px_54px_rgba(0,0,0,0.32)]">
         <Check className="h-10 w-10" />
       </div>
-      <h2
-        className="text-2xl sm:text-3xl font-medium mb-3"
-        style={WARM_HEADING_STYLE}
-      >
+      <h2 className="text-2xl sm:text-3xl font-medium mb-3" style={WARM_HEADING_STYLE}>
         {mode === "inhouse" ? "Booking Saved" : "Your calm is booked"}
       </h2>
       <p className="text-[15px] max-w-md mx-auto mb-6" style={WARM_BODY_STYLE}>
@@ -2914,23 +2865,20 @@ function StepSuccess({
       ) : null}
 
       {mode === "public" && (
-        <div
-          className="mx-auto mb-6 max-w-md rounded-xl border border-[#D4B57A]/25 bg-[#0D2B20]/65 px-5 py-4 text-left backdrop-blur-xl"
-        >
+        <div className="mx-auto mb-6 max-w-md rounded-xl border border-[#D4B57A]/25 bg-[#0D2B20]/65 px-5 py-4 text-left backdrop-blur-xl">
           <p className="text-[12px] font-semibold uppercase tracking-wide" style={WARM_LABEL_STYLE}>
             Next step
           </p>
           <p className="mt-1 text-[13px] leading-6" style={WARM_BODY_STYLE}>
-            Wait for our CRM confirmation. We are temporarily holding your selected time while we process your request, so please keep your phone nearby.
+            Wait for our CRM confirmation. We are temporarily holding your selected time while we
+            process your request, so please keep your phone nearby.
           </p>
         </div>
       )}
 
       {/* Service list recap */}
       {services.length > 0 && (
-        <div
-          className="mb-6 inline-flex flex-col items-start gap-1.5 rounded-xl border border-[#D4B57A]/25 bg-[#0D2B20]/65 px-6 py-4 text-left backdrop-blur-xl"
-        >
+        <div className="mb-6 inline-flex flex-col items-start gap-1.5 rounded-xl border border-[#D4B57A]/25 bg-[#0D2B20]/65 px-6 py-4 text-left backdrop-blur-xl">
           {services.map((s) => (
             <div key={s.id} className="flex items-center gap-2">
               <Check className="h-3.5 w-3.5 shrink-0" style={WARM_LABEL_STYLE} />
@@ -2942,9 +2890,7 @@ function StepSuccess({
         </div>
       )}
 
-      <div
-        className="mb-8 inline-flex items-center gap-3 rounded-xl border border-[#D4B57A]/25 bg-[#0D2B20]/65 px-6 py-4 backdrop-blur-xl"
-      >
+      <div className="mb-8 inline-flex items-center gap-3 rounded-xl border border-[#D4B57A]/25 bg-[#0D2B20]/65 px-6 py-4 backdrop-blur-xl">
         <span className="text-[12px] font-medium uppercase tracking-wide" style={WARM_LABEL_STYLE}>
           Booking ID
         </span>

@@ -25,7 +25,11 @@ const ALL_TIERS = [
 ];
 
 function formatDate(iso: string) {
-  return new Date(iso).toLocaleDateString("en-PH", { year: "numeric", month: "short", day: "numeric" });
+  return new Date(iso).toLocaleDateString("en-PH", {
+    year: "numeric",
+    month: "short",
+    day: "numeric",
+  });
 }
 
 function readRequestNickname(metadata: OnboardingRequest["metadata"]): string | null {
@@ -61,9 +65,9 @@ export function RequestCard({
     requestedSystemRole,
   });
 
-  const availableRoles = approvalCheck.assignableRoles.map((r) => ({ 
-    value: r, 
-    label: ROLE_LABELS[r] ?? r 
+  const availableRoles = approvalCheck.assignableRoles.map((r) => ({
+    value: r,
+    label: ROLE_LABELS[r] ?? r,
   }));
 
   const defaultBranchId = request.requested_branch_id ?? "";
@@ -71,26 +75,38 @@ export function RequestCard({
   const nickname = readRequestNickname(request.metadata);
 
   const canonicalReviewerRole = canonicalizeSystemRole(reviewerSystemRole);
-  const canChangeApprovalBranch = isOwner(canonicalReviewerRole) || isManager(canonicalReviewerRole);
+  const canChangeApprovalBranch =
+    isOwner(canonicalReviewerRole) || isManager(canonicalReviewerRole);
 
-  const [selectedBranchId, setSelectedBranchId] = useState(defaultBranchId || branches[0]?.id || "");
+  const [selectedBranchId, setSelectedBranchId] = useState(
+    defaultBranchId || branches[0]?.id || ""
+  );
   const selectedBranchName = branches.find((b) => b.id === selectedBranchId)?.name ?? "—";
-  const requestedBranchName = branches.find((b) => b.id === request.requested_branch_id)?.name ?? request.requested_branch_id ?? "—";
+  const requestedBranchName =
+    branches.find((b) => b.id === request.requested_branch_id)?.name ??
+    request.requested_branch_id ??
+    "—";
   const branchChanged = selectedBranchId !== request.requested_branch_id;
-  
+
   // Smart default role assignment
   const initialRole = () => {
     if (approvalCheck.assignableRoles.includes(requestedSystemRole)) return requestedSystemRole;
-    return approvalCheck.assignableRoles.includes("staff") ? "staff" : (approvalCheck.assignableRoles[0] ?? "staff");
+    return approvalCheck.assignableRoles.includes("staff")
+      ? "staff"
+      : (approvalCheck.assignableRoles[0] ?? "staff");
   };
 
   const [selectedRole, setSelectedRole] = useState(initialRole());
   const [selectedTier, setSelectedTier] = useState(isApplicantTherapist ? "junior" : "n/a");
 
-  const requestedServiceIds = (request.metadata as { requested_service_ids?: string[] } | null)?.requested_service_ids ?? [];
+  const requestedServiceIds =
+    (request.metadata as { requested_service_ids?: string[] } | null)?.requested_service_ids ?? [];
 
   function handleApprove() {
-    if (!request.staff_id) { setApproveError("No staff record linked to this request."); return; }
+    if (!request.staff_id) {
+      setApproveError("No staff record linked to this request.");
+      return;
+    }
     setApproveError(null);
     startTransition(async () => {
       const result = await approveOnboardingAction({
@@ -152,12 +168,22 @@ export function RequestCard({
             {request.full_name}
           </div>
           <div style={{ fontSize: "0.8125rem", color: "var(--cs-text-muted)" }}>
-            {request.email} · {nickname ? `Known as ${nickname} · ` : ""}{request.phone ?? "—"}
+            {request.email} · {nickname ? `Known as ${nickname} · ` : ""}
+            {request.phone ?? "—"}
           </div>
         </div>
         <div style={{ display: "flex", alignItems: "center", gap: "0.5rem", flexShrink: 0 }}>
           {!canApprove && isSubmitted && (
-            <span style={{ fontSize: "0.75rem", fontWeight: 600, color: "var(--cs-error)", background: "var(--cs-error-bg)", padding: "2px 8px", borderRadius: 4 }}>
+            <span
+              style={{
+                fontSize: "0.75rem",
+                fontWeight: 600,
+                color: "var(--cs-error)",
+                background: "var(--cs-error-bg)",
+                padding: "2px 8px",
+                borderRadius: 4,
+              }}
+            >
               Owner/Manager required
             </span>
           )}
@@ -168,19 +194,25 @@ export function RequestCard({
               padding: "3px 10px",
               borderRadius: 20,
               backgroundColor:
-                request.status === "submitted" ? "var(--cs-warning-bg, #FEF9C3)" :
-                request.status === "approved"  ? "var(--cs-success-bg)" :
-                "var(--cs-border)",
+                request.status === "submitted"
+                  ? "var(--cs-warning-bg, #FEF9C3)"
+                  : request.status === "approved"
+                    ? "var(--cs-success-bg)"
+                    : "var(--cs-border)",
               color:
-                request.status === "submitted" ? "#92400E" :
-                request.status === "approved"  ? "var(--cs-success)" :
-                "var(--cs-text-muted)",
+                request.status === "submitted"
+                  ? "#92400E"
+                  : request.status === "approved"
+                    ? "var(--cs-success)"
+                    : "var(--cs-text-muted)",
               textTransform: "capitalize",
             }}
           >
             {request.status}
           </span>
-          <span style={{ color: "var(--cs-text-muted)", fontSize: 12 }}>{expanded ? "▲" : "▼"}</span>
+          <span style={{ color: "var(--cs-text-muted)", fontSize: 12 }}>
+            {expanded ? "▲" : "▼"}
+          </span>
         </div>
       </button>
 
@@ -204,12 +236,32 @@ export function RequestCard({
             }}
           >
             {[
-              { label: "Preferred role", value: getOnboardingRoleLabel(request.preferred_role ?? "") },
+              {
+                label: "Preferred role",
+                value: getOnboardingRoleLabel(request.preferred_role ?? ""),
+              },
               { label: "Nickname", value: nickname ?? "—" },
-              { label: "Requested branch", value: branches.find(b => b.id === request.requested_branch_id)?.name ?? request.requested_branch_id ?? "No preference" },
-              { label: "Services requested", value: requestedServiceIds.length > 0 ? `${requestedServiceIds.length} service(s)` : "None — will use legacy fallback" },
+              {
+                label: "Requested branch",
+                value:
+                  branches.find((b) => b.id === request.requested_branch_id)?.name ??
+                  request.requested_branch_id ??
+                  "No preference",
+              },
+              {
+                label: "Services requested",
+                value:
+                  requestedServiceIds.length > 0
+                    ? `${requestedServiceIds.length} service(s)`
+                    : "None — will use legacy fallback",
+              },
               { label: "Address", value: request.address ?? "—" },
-              { label: "Emergency contact", value: request.emergency_contact_name ? `${request.emergency_contact_name} · ${request.emergency_contact_phone ?? "—"}` : "—" },
+              {
+                label: "Emergency contact",
+                value: request.emergency_contact_name
+                  ? `${request.emergency_contact_name} · ${request.emergency_contact_phone ?? "—"}`
+                  : "—",
+              },
               { label: "Submitted", value: formatDate(request.created_at) },
             ].map(({ label, value }) => (
               <div key={label}>
@@ -231,7 +283,15 @@ export function RequestCard({
                 marginBottom: "0.875rem",
               }}
             >
-              <span style={{ fontWeight: 600, color: "var(--cs-text-muted)", textTransform: "uppercase", fontSize: "0.6875rem", letterSpacing: "0.04em" }}>
+              <span
+                style={{
+                  fontWeight: 600,
+                  color: "var(--cs-text-muted)",
+                  textTransform: "uppercase",
+                  fontSize: "0.6875rem",
+                  letterSpacing: "0.04em",
+                }}
+              >
                 Experience notes
               </span>
               <p style={{ margin: "0.375rem 0 0" }}>{request.experience_notes}</p>
@@ -251,23 +311,50 @@ export function RequestCard({
                 gap: "0.75rem",
               }}
             >
-              <div style={{ fontSize: "0.75rem", fontWeight: 600, color: "var(--cs-text-muted)", textTransform: "uppercase", letterSpacing: "0.04em" }}>
+              <div
+                style={{
+                  fontSize: "0.75rem",
+                  fontWeight: 600,
+                  color: "var(--cs-text-muted)",
+                  textTransform: "uppercase",
+                  letterSpacing: "0.04em",
+                }}
+              >
                 Assign &amp; Approve
               </div>
 
               {!canApprove && (
-                <div style={{ padding: "0.75rem", backgroundColor: "#FEF2F2", border: "1px solid #FEE2E2", borderRadius: 6, fontSize: "0.8125rem", color: "#991B1B" }}>
+                <div
+                  style={{
+                    padding: "0.75rem",
+                    backgroundColor: "#FEF2F2",
+                    border: "1px solid #FEE2E2",
+                    borderRadius: 6,
+                    fontSize: "0.8125rem",
+                    color: "#991B1B",
+                  }}
+                >
                   <strong>{approvalCheck.reason ?? "Owner/Manager approval required."}</strong>
                   <p style={{ margin: "4px 0 0", color: "#B91C1C", fontSize: "0.75rem" }}>
-                    This role has management access and cannot be approved from the current workspace.
+                    This role has management access and cannot be approved from the current
+                    workspace.
                   </p>
                 </div>
               )}
 
-              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: "0.5rem", opacity: canApprove ? 1 : 0.5, pointerEvents: canApprove ? "auto" : "none" }}>
+              <div
+                style={{
+                  display: "grid",
+                  gridTemplateColumns: "1fr 1fr 1fr",
+                  gap: "0.5rem",
+                  opacity: canApprove ? 1 : 0.5,
+                  pointerEvents: canApprove ? "auto" : "none",
+                }}
+              >
                 <div style={{ display: "flex", flexDirection: "column", gap: "0.25rem" }}>
                   <label style={{ fontSize: "0.75rem", color: "var(--cs-text-muted)" }}>
-                    Branch {branchChanged && canChangeApprovalBranch && (
+                    Branch{" "}
+                    {branchChanged && canChangeApprovalBranch && (
                       <span style={{ color: "var(--cs-error)", fontWeight: 600 }}>(changed)</span>
                     )}
                   </label>
@@ -283,7 +370,9 @@ export function RequestCard({
                     }}
                   >
                     {branches.map((b) => (
-                      <option key={b.id} value={b.id}>{b.name}</option>
+                      <option key={b.id} value={b.id}>
+                        {b.name}
+                      </option>
                     ))}
                   </select>
                   {!canChangeApprovalBranch && (
@@ -301,7 +390,9 @@ export function RequestCard({
                     style={selectStyle}
                   >
                     {availableRoles.map((r) => (
-                      <option key={r.value} value={r.value}>{r.label}</option>
+                      <option key={r.value} value={r.value}>
+                        {r.label}
+                      </option>
                     ))}
                   </select>
                 </div>
@@ -316,7 +407,9 @@ export function RequestCard({
                     style={selectStyle}
                   >
                     {ALL_TIERS.map((t) => (
-                      <option key={t.value} value={t.value}>{t.label}</option>
+                      <option key={t.value} value={t.value}>
+                        {t.label}
+                      </option>
                     ))}
                   </select>
                   {isApplicantTherapist && selectedTier === "n/a" && (
@@ -328,12 +421,24 @@ export function RequestCard({
               </div>
 
               {branchChanged && canChangeApprovalBranch && (
-                <div style={{ padding: "0.625rem 0.75rem", backgroundColor: "#FEF2F2", border: "1px solid #FEE2E2", borderRadius: 6, fontSize: "0.8125rem", color: "#991B1B" }}>
-                  <strong>Branch change:</strong> approving into <em>{selectedBranchName}</em> instead of the requested <em>{requestedBranchName}</em>.
+                <div
+                  style={{
+                    padding: "0.625rem 0.75rem",
+                    backgroundColor: "#FEF2F2",
+                    border: "1px solid #FEE2E2",
+                    borderRadius: 6,
+                    fontSize: "0.8125rem",
+                    color: "#991B1B",
+                  }}
+                >
+                  <strong>Branch change:</strong> approving into <em>{selectedBranchName}</em>{" "}
+                  instead of the requested <em>{requestedBranchName}</em>.
                 </div>
               )}
 
-              {approveError && <p style={{ fontSize: "0.8125rem", color: "#DC2626", margin: 0 }}>{approveError}</p>}
+              {approveError && (
+                <p style={{ fontSize: "0.8125rem", color: "#DC2626", margin: 0 }}>{approveError}</p>
+              )}
 
               <button
                 onClick={handleApprove}
@@ -346,8 +451,8 @@ export function RequestCard({
                   color: "#fff",
                   fontSize: "0.875rem",
                   fontWeight: 600,
-                  cursor: (isPending || !canApprove) ? "not-allowed" : "pointer",
-                  opacity: (isPending || !canApprove) ? 0.7 : 1,
+                  cursor: isPending || !canApprove ? "not-allowed" : "pointer",
+                  opacity: isPending || !canApprove ? 0.7 : 1,
                   alignSelf: "flex-start",
                 }}
               >
@@ -355,8 +460,24 @@ export function RequestCard({
               </button>
 
               {/* Reject section */}
-              <div style={{ borderTop: "1px solid var(--cs-border)", paddingTop: "0.75rem", display: "flex", flexDirection: "column", gap: "0.5rem" }}>
-                <div style={{ fontSize: "0.75rem", fontWeight: 600, color: "var(--cs-text-muted)", textTransform: "uppercase", letterSpacing: "0.04em" }}>
+              <div
+                style={{
+                  borderTop: "1px solid var(--cs-border)",
+                  paddingTop: "0.75rem",
+                  display: "flex",
+                  flexDirection: "column",
+                  gap: "0.5rem",
+                }}
+              >
+                <div
+                  style={{
+                    fontSize: "0.75rem",
+                    fontWeight: 600,
+                    color: "var(--cs-text-muted)",
+                    textTransform: "uppercase",
+                    letterSpacing: "0.04em",
+                  }}
+                >
                   Reject
                 </div>
                 <input
@@ -370,7 +491,11 @@ export function RequestCard({
                     padding: "0 0.75rem",
                   }}
                 />
-                {rejectError && <p style={{ fontSize: "0.8125rem", color: "#DC2626", margin: 0 }}>{rejectError}</p>}
+                {rejectError && (
+                  <p style={{ fontSize: "0.8125rem", color: "#DC2626", margin: 0 }}>
+                    {rejectError}
+                  </p>
+                )}
                 <button
                   onClick={handleReject}
                   disabled={isPending}
@@ -394,8 +519,17 @@ export function RequestCard({
           )}
 
           {!isSubmitted && request.rejection_reason && (
-            <div style={{ fontSize: "0.8125rem", color: "var(--cs-text-muted)", padding: "0.625rem", backgroundColor: "var(--cs-surface-warm)", borderRadius: 6 }}>
-              <span style={{ fontWeight: 600 }}>Reason: </span>{request.rejection_reason}
+            <div
+              style={{
+                fontSize: "0.8125rem",
+                color: "var(--cs-text-muted)",
+                padding: "0.625rem",
+                backgroundColor: "var(--cs-surface-warm)",
+                borderRadius: 6,
+              }}
+            >
+              <span style={{ fontWeight: 600 }}>Reason: </span>
+              {request.rejection_reason}
             </div>
           )}
         </div>

@@ -14,8 +14,16 @@ import {
   analyzeMediaAssetUsage,
   type MediaAssetUsageSummary,
 } from "@/lib/marketing/media-usage-analyzer";
-import { getPublicSiteAssets, getPublicSiteSections } from "@/lib/queries/public-site";
-import { getMarketingContentDrafts } from "@/lib/queries/marketing-content";
+import {
+  getPublicSiteAssets,
+  getPublicSiteSections,
+  type PublicSiteAssetRow,
+  type PublicSiteSectionRow,
+} from "@/lib/queries/public-site";
+import {
+  getMarketingContentDrafts,
+  type MarketingContentDraftRow,
+} from "@/lib/queries/marketing-content";
 import { getPublicServiceCatalog } from "@/lib/queries/services";
 
 export type MarketingMediaAssetRow = {
@@ -34,6 +42,23 @@ export type MarketingMediaAssetRow = {
   reviewed_at: string | null;
   created_at: string;
   updated_at: string;
+};
+
+export type MarketingBrandSettingRow = {
+  id: string;
+  setting_key: string;
+  label: string;
+  value: Record<string, unknown>;
+  status: MarketingMediaStatus;
+};
+
+export type MarketingSeoSettingRow = {
+  id: string;
+  route_path: string;
+  title: string | null;
+  og_image_url: string | null;
+  metadata: Record<string, unknown>;
+  status: MarketingMediaStatus;
 };
 
 type ActionResult<T extends object | undefined = undefined> =
@@ -92,7 +117,9 @@ function cleanText(value?: string | null): string | null {
 function isMissingMarketingTableError(message: string): boolean {
   const lower = message.toLowerCase();
   return (
-    lower.includes("marketing_media_assets") &&
+    (lower.includes("marketing_media_assets") ||
+      lower.includes("marketing_brand_settings") ||
+      lower.includes("marketing_seo_settings")) &&
     (lower.includes("does not exist") ||
       lower.includes("schema cache") ||
       lower.includes("could not find"))
@@ -180,8 +207,8 @@ export async function getMarketingMediaAssets(filters?: {
       const matchTitle = asset.title?.toLowerCase().includes(term);
       const matchAlt = asset.alt_text?.toLowerCase().includes(term);
       const matchPath = asset.bucket_path?.toLowerCase().includes(term);
-      const matchSection = asset.section_key?.toLowerCase().includes(term);
-      return Boolean(matchTitle || matchAlt || matchPath || matchSection);
+      const matchKey = asset.section_key?.toLowerCase().includes(term);
+      return Boolean(matchTitle || matchAlt || matchPath || matchKey);
     });
   }
 
@@ -214,18 +241,134 @@ export async function getMarketingMediaAssetById(
 export async function getMarketingMediaAssetUsage(
   asset: MarketingMediaAssetRow
 ): Promise<MediaAssetUsageSummary> {
-  const [sections, publicAssets, drafts, services] = await Promise.all([
-    getPublicSiteSections({ includeDisabled: true }),
-    getPublicSiteAssets("gallery", { includeDisabled: true }),
-    getMarketingContentDrafts(),
-    getPublicServiceCatalog(),
-  ]);
+  const unresolvedStores: string[] = [];
+
+  let sections: PublicSiteSectionRow[] | undefined;
+  try {
+    sections = await getPublicSiteSections({ includeDisabled: true });
+  } catch {
+    unresolvedStores.push("public_site_sections");
+  }
+
+  let publicAssets: PublicSiteAssetRow[] | undefined;
+  try {
+    publicAssets = await getPublicSiteAssets("gallery", { includeDisabled: true });
+  } catch {
+    unresolvedStores.push("public_site_assets");
+  }
+
+  let drafts: MarketingContentDraftRow[] | undefined;
+  try {
+    drafts = await getMarketingContentDrafts();
+  } catch {
+    unresolvedStores.push("marketing_content_drafts");
+  }
+
+  let services:
+    | Array<{
+        id: string;
+        name: string;
+        slug?: string;
+        imageUrl?: string | null;
+        imageAlt?: string | null;
+        isPublicBookable?: boolean;
+        isCsrOnly?: boolean;
+      }>
+    | undefined;
+  try {
+    services = await getPublicServiceCatalog();
+  } catch {
+    unresolvedStores.push("services");
+  }
+
+  let brandSettings:
+    | Array<{
+        id: string;
+        setting_key: string;
+        label: string;
+        value: Record<string, unknown>;
+        status: string;
+      }>
+    | undefined;
+  let seoSettings:
+    | Array<{
+        id: string;
+        route_path: string;
+        title?: string | null;
+        og_image_url?: string | null;
+        metadata?: Record<string, unknown>;
+        status: string;
+      }>
+    | undefined;
+
+  const context = await getMarketingAccessContext();
+  if (context) {
+    try {
+      const { data: brandData, error: brandError } = await context.supabase
+        .from("marketing_brand_settings")
+        .select("id, setting_key, label, value, status");
+
+      if (brandError) {
+        if (!isMissingMarketingTableError(brandError.message)) {
+          unresolvedStores.push("marketing_brand_settings");
+        } else {
+          brandSettings = [];
+        }
+      } else {
+        brandSettings = (brandData ?? []).map((b) => ({
+          id: b.id,
+          setting_key: b.setting_key,
+          label: b.label,
+          value:
+            b.value && typeof b.value === "object" && !Array.isArray(b.value)
+              ? (b.value as Record<string, unknown>)
+              : {},
+          status: b.status,
+        }));
+      }
+    } catch {
+      unresolvedStores.push("marketing_brand_settings");
+    }
+
+    try {
+      const { data: seoData, error: seoError } = await context.supabase
+        .from("marketing_seo_settings")
+        .select("id, route_path, title, og_image_url, metadata, status");
+
+      if (seoError) {
+        if (!isMissingMarketingTableError(seoError.message)) {
+          unresolvedStores.push("marketing_seo_settings");
+        } else {
+          seoSettings = [];
+        }
+      } else {
+        seoSettings = (seoData ?? []).map((s) => ({
+          id: s.id,
+          route_path: s.route_path,
+          title: s.title,
+          og_image_url: s.og_image_url,
+          metadata:
+            s.metadata && typeof s.metadata === "object" && !Array.isArray(s.metadata)
+              ? (s.metadata as Record<string, unknown>)
+              : {},
+          status: s.status,
+        }));
+      }
+    } catch {
+      unresolvedStores.push("marketing_seo_settings");
+    }
+  } else {
+    unresolvedStores.push("marketing_brand_settings", "marketing_seo_settings");
+  }
 
   return analyzeMediaAssetUsage(asset, {
     sections,
     publicAssets,
     drafts,
     services,
+    brandSettings,
+    seoSettings,
+    unresolvedStores: unresolvedStores.length > 0 ? unresolvedStores : undefined,
   });
 }
 
@@ -256,8 +399,21 @@ export async function saveMarketingMediaAsset(
       return { success: false, error: "Media asset not found." };
     }
 
-    if (context.role !== "owner" && existing.data.status === "archived") {
-      return { success: false, error: "Archived media assets cannot be modified." };
+    const currentStatus = existing.data.status;
+
+    // Digital Marketer can ONLY edit draft or submitted assets
+    if (context.role !== "owner") {
+      if (!["draft", "submitted"].includes(currentStatus)) {
+        return {
+          success: false,
+          error: `Digital marketers can only edit draft or submitted media assets. Current status is ${currentStatus}.`,
+        };
+      }
+    } else if (currentStatus === "archived") {
+      return {
+        success: false,
+        error: "Archived media assets cannot be modified. Unarchive the asset first.",
+      };
     }
 
     const payload = {
@@ -329,14 +485,12 @@ export async function updateMarketingMediaAssetStatus(
 
   const { id, status } = parsed.data;
 
-  // Digital Marketer can only transition draft <-> submitted
-  if (context.role !== "owner") {
-    if (!["draft", "submitted"].includes(status)) {
-      return {
-        success: false,
-        error: "Only the Owner can approve, publish, or archive media assets.",
-      };
-    }
+  // Generic status update MUST NEVER set 'archived'
+  if (status === "archived") {
+    return {
+      success: false,
+      error: "Archiving must be performed through the safe archive action.",
+    };
   }
 
   const assetsTable = table<MarketingMediaAssetRow>(context.supabase, "marketing_media_assets");
@@ -344,6 +498,45 @@ export async function updateMarketingMediaAssetStatus(
 
   if (existing.error || !existing.data) {
     return { success: false, error: "Media asset not found." };
+  }
+
+  const currentStatus = existing.data.status;
+
+  if (currentStatus === "archived") {
+    return {
+      success: false,
+      error: "Archived media assets cannot have their status updated directly.",
+    };
+  }
+
+  // Digital Marketer role boundary enforcement
+  if (context.role !== "owner") {
+    const isAllowedMarketerTransition =
+      (currentStatus === "draft" && status === "submitted") ||
+      (currentStatus === "submitted" && status === "draft");
+
+    if (!isAllowedMarketerTransition) {
+      return {
+        success: false,
+        error: `Digital marketers can only transition between draft and submitted states. Cannot change from ${currentStatus} to ${status}.`,
+      };
+    }
+  } else {
+    // Owner role lifecycle enforcement
+    const isAllowedOwnerTransition =
+      (currentStatus === "draft" && status === "submitted") ||
+      (currentStatus === "submitted" && status === "draft") ||
+      (currentStatus === "submitted" && status === "approved") ||
+      (currentStatus === "approved" && status === "published") ||
+      (currentStatus === "approved" && status === "draft") ||
+      (currentStatus === "published" && status === "draft");
+
+    if (!isAllowedOwnerTransition) {
+      return {
+        success: false,
+        error: `Invalid status transition from ${currentStatus} to ${status}.`,
+      };
+    }
   }
 
   const now = new Date().toISOString();
@@ -398,14 +591,26 @@ export async function archiveMarketingMediaAsset(
     return { success: false, error: "Media asset not found." };
   }
 
-  // Strict Archive Safety: Verify ZERO active live references
+  if (existing.data.status === "archived") {
+    return { success: false, error: "Asset is already archived." };
+  }
+
+  // Strict Archive Safety: Verify ZERO active live references and complete usage coverage
   const usageSummary = await getMarketingMediaAssetUsage(existing.data);
-  if (!usageSummary.canSafelyArchive) {
+  if (usageSummary.usageUnknown) {
+    return {
+      success: false,
+      error:
+        usageSummary.blockingReasons[0] ||
+        "Cannot archive asset: usage coverage incomplete. Unable to verify all consumers.",
+    };
+  }
+  if (!usageSummary.canSafelyArchive || usageSummary.totalLiveUsages > 0) {
     return {
       success: false,
       error:
         usageSummary.blockingReasons[0] ??
-        "Cannot archive asset: it is currently referenced by live public site sections or services.",
+        `Cannot archive asset: referenced by ${usageSummary.totalLiveUsages} live consumer(s).`,
     };
   }
 
@@ -476,7 +681,49 @@ export async function uploadMarketingMediaFile(
   const timestamp = Date.now();
   const bucketPath = `media/${timestamp}-${sanitizedFileName}`;
 
-  // Upload to Supabase Storage
+  const title = cleanText(rawTitle) || file.name.replace(/\.[^/.]+$/, "");
+  const baseAlt = cleanText(rawAltText) || title || "Public site image";
+  const altText = baseAlt.length >= 3 ? baseAlt : `${baseAlt} image`;
+
+  const assetsTable = table<MarketingMediaAssetRow>(context.supabase, "marketing_media_assets");
+
+  // Step 1: Pre-reserve/track draft row in database BEFORE Storage upload
+  const draftPayload = {
+    bucket_path: bucketPath,
+    public_url: null,
+    title,
+    alt_text: altText,
+    section_key: cleanText(sectionKey),
+    status: "draft",
+    metadata: {
+      originalFileName: file.name,
+      mimeType: file.type,
+      sizeBytes: file.size,
+      uploadStatus: "pending",
+      uploadedAt: new Date().toISOString(),
+    },
+    created_by: context.staffId,
+    updated_by: context.staffId,
+  };
+
+  const initialInsert = await assetsTable.insert(draftPayload).select(MEDIA_ASSET_SELECT).single();
+
+  if (initialInsert.error || !initialInsert.data) {
+    if (initialInsert.error && isMissingMarketingTableError(initialInsert.error.message)) {
+      return {
+        success: false,
+        error: "Marketing media tables are not available yet in this environment.",
+      };
+    }
+    return {
+      success: false,
+      error: initialInsert.error?.message ?? "Could not initialize media record for upload.",
+    };
+  }
+
+  const draftRow = initialInsert.data;
+
+  // Step 2: Upload to Supabase Storage
   try {
     const arrayBuffer = await file.arrayBuffer();
     const buffer = Buffer.from(arrayBuffer);
@@ -490,36 +737,71 @@ export async function uploadMarketingMediaFile(
 
     if (uploadError) {
       logError("marketing.storage_upload_failed", { error: uploadError, bucketPath });
+
+      // Record failed upload status in tracked draft row without deleting
+      await assetsTable
+        .update({
+          metadata: {
+            ...draftRow.metadata,
+            uploadStatus: "failed",
+            uploadError: uploadError.message,
+          },
+          updated_by: context.staffId,
+        })
+        .eq("id", draftRow.id);
+
       return {
         success: false,
         error: `Storage upload failed: ${uploadError.message}`,
       };
     }
 
+    // Step 3: Finalize draft row with public URL
     const {
       data: { publicUrl },
     } = context.supabase.storage.from(PUBLIC_MEDIA_BUCKET).getPublicUrl(bucketPath);
 
-    const title = cleanText(rawTitle) || file.name.replace(/\.[^/.]+$/, "");
-    const altText = cleanText(rawAltText) || title || "Public site image";
+    const finalizedResult = await assetsTable
+      .update({
+        public_url: publicUrl,
+        metadata: {
+          ...draftRow.metadata,
+          uploadStatus: "completed",
+        },
+        updated_by: context.staffId,
+      })
+      .eq("id", draftRow.id)
+      .select(MEDIA_ASSET_SELECT)
+      .single();
 
-    const metadata = {
-      originalFileName: file.name,
-      mimeType: file.type,
-      sizeBytes: file.size,
-      uploadedAt: new Date().toISOString(),
+    if (finalizedResult.error || !finalizedResult.data) {
+      return {
+        success: true,
+        asset: { ...draftRow, public_url: publicUrl },
+        message: "Media uploaded successfully.",
+      };
+    }
+
+    revalidateMediaLibrary();
+    return {
+      success: true,
+      asset: finalizedResult.data,
+      message: "Media uploaded and cataloged.",
     };
-
-    return saveMarketingMediaAsset({
-      bucketPath,
-      publicUrl,
-      title,
-      altText: altText.length >= 3 ? altText : `${altText} image`,
-      sectionKey: cleanText(sectionKey),
-      metadata,
-    });
   } catch (err) {
     logError("marketing.media_upload_exception", { error: err });
+
+    await assetsTable
+      .update({
+        metadata: {
+          ...draftRow.metadata,
+          uploadStatus: "failed",
+          uploadError: err instanceof Error ? err.message : "Unknown upload error",
+        },
+        updated_by: context.staffId,
+      })
+      .eq("id", draftRow.id);
+
     return {
       success: false,
       error: "An unexpected error occurred while processing the upload.",
