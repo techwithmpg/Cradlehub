@@ -15,12 +15,12 @@ import {
   Sparkles,
   Users,
 } from "lucide-react";
-import { getPublicSiteSections, type PublicSiteSectionRow } from "@/lib/queries/public-site";
+import type { PublicSiteSectionRow } from "@/lib/queries/public-site";
 import {
   resolvePublicSiteSections,
   type NormalizedPublicSiteSections,
 } from "@/lib/public/normalized-sections";
-import { getPublicServiceCatalog, type PublicCatalogService } from "@/lib/queries/services";
+import type { PublicCatalogService } from "@/lib/queries/services";
 import {
   PUBLIC_CATALOG_CATEGORY_DETAILS,
   PUBLIC_CATALOG_CATEGORY_NAMES,
@@ -100,33 +100,18 @@ export type HomePageSectionsProps = {
   sections?: NormalizedPublicSiteSections;
 };
 
-export async function HomePageSections({
+export type HomePageSectionsRendererProps = {
+  sections: NormalizedPublicSiteSections;
+  branches?: BranchRow[];
+  services?: PublicCatalogService[];
+};
+
+export function HomePageSectionsRenderer({
+  sections,
   branches = [],
-  services: initialServices,
-  managedSections: initialManagedSections,
-  sections: initialSections,
-}: HomePageSectionsProps) {
-  let services = initialServices ?? [];
-  let resolvedSections = initialSections;
-
-  if (!initialServices || (!resolvedSections && !initialManagedSections)) {
-    const [fetchedServices, fetchedSections] = await Promise.all([
-      !initialServices ? getPublicServiceCatalog() : Promise.resolve([]),
-      !resolvedSections && !initialManagedSections
-        ? getPublicSiteSections({ includeDisabled: true })
-        : Promise.resolve([]),
-    ]);
-    if (!initialServices) services = fetchedServices;
-    if (!resolvedSections && !initialManagedSections) {
-      resolvedSections = resolvePublicSiteSections(fetchedSections);
-    }
-  }
-
-  if (!resolvedSections) {
-    resolvedSections = resolvePublicSiteSections(initialManagedSections);
-  }
-
-  const { hero, about, quoteBanner, beforeYouBook, signatureServices, gallery } = resolvedSections;
+  services = [],
+}: HomePageSectionsRendererProps) {
+  const { hero, about, quoteBanner, beforeYouBook, signatureServices, gallery } = sections;
 
   const serviceCategoryCards = PUBLIC_CATALOG_CATEGORY_NAMES.map((categoryName) => {
     const categoryServices = servicesForCategory(services, categoryName);
@@ -851,5 +836,18 @@ export async function HomePageSections({
         </div>
       </section>
     </>
+  );
+}
+
+export function HomePageSections({
+  branches = [],
+  services = [],
+  managedSections,
+  sections,
+}: HomePageSectionsProps) {
+  const resolvedSections = sections ?? resolvePublicSiteSections(managedSections);
+
+  return (
+    <HomePageSectionsRenderer sections={resolvedSections} branches={branches} services={services} />
   );
 }

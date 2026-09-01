@@ -1,736 +1,61 @@
 "use client";
 
-import { useActionState, useCallback, useEffect, useMemo, useState } from "react";
-import { Image as ImageIcon } from "lucide-react";
-import {
-  approveMarketingDraftAction,
-  archiveMarketingDraftAction,
-  createMarketingAssetAction,
-  disableMarketingAssetAction,
-  publishMarketingDraftAction,
-  requestMarketingDraftChangesAction,
-  saveMarketingSectionAction,
-  scheduleMarketingDraftAction,
-  updateMarketingAssetAction,
-  type MarketingActionState,
-} from "./actions";
+import { useActionState } from "react";
+import type { MarketingSectionDefault } from "@/lib/marketing/public-section-defaults";
 import type {
   MarketingContentDraftRow,
   MarketingContentRevisionRow,
 } from "@/lib/queries/marketing-content";
 import type { MarketingMediaAssetRow } from "@/lib/queries/marketing-media";
+import type { PublicCatalogService } from "@/lib/queries/services";
 import type { PublicSiteAssetRow, PublicSiteSectionRow } from "@/lib/queries/public-site";
-import { UniversalMediaPicker } from "@/components/features/marketing/media/universal-media-picker";
+import type { Database } from "@/types/supabase";
+import { WebsiteStudioView } from "@/components/features/marketing/website/website-studio-view";
+import {
+  approveMarketingDraftAction,
+  archiveMarketingDraftAction,
+  publishMarketingDraftAction,
+  requestMarketingDraftChangesAction,
+  scheduleMarketingDraftAction,
+  type MarketingActionState,
+} from "./actions";
 
-type SectionDefault = {
-  sectionKey: string;
-  label: string;
-  description: string;
-  title: string;
-  subtitle: string;
-  body: string;
-  ctaLabel: string;
-  ctaHref: string;
-  imageUrl: string;
-  secondaryImageUrl: string;
-  sortOrder: number;
-  isEnabled: boolean;
-  metadata: Record<string, unknown>;
-};
+type BranchRow = Database["public"]["Tables"]["branches"]["Row"];
 
-type MarketingStudioProps = {
-  sectionDefaults: readonly SectionDefault[];
+export type MarketingStudioProps = {
+  sectionDefaults: readonly MarketingSectionDefault[];
   sections: PublicSiteSectionRow[];
   galleryAssets: PublicSiteAssetRow[];
   drafts: MarketingContentDraftRow[];
   revisions: MarketingContentRevisionRow[];
   mediaAssets?: MarketingMediaAssetRow[];
+  branches?: BranchRow[];
+  services?: PublicCatalogService[];
 };
-
-const tabs = [
-  { id: "hero", label: "Hero" },
-  { id: "about", label: "About" },
-  { id: "gallery", label: "Gallery" },
-  { id: "quote_banner", label: "Promotion" },
-  { id: "before_you_book", label: "Before You Book" },
-] as const;
-
-const fieldStyle: React.CSSProperties = {
-  width: "100%",
-  border: "1px solid var(--cs-border)",
-  borderRadius: 8,
-  background: "var(--cs-surface)",
-  color: "var(--cs-text)",
-  padding: "0.625rem 0.75rem",
-  fontSize: "0.875rem",
-  outline: "none",
-};
-
-function metadataObject(value: PublicSiteSectionRow["metadata"] | Record<string, unknown>) {
-  if (value && typeof value === "object" && !Array.isArray(value)) {
-    return value as Record<string, unknown>;
-  }
-  return {};
-}
-
-function textValue(value: unknown): string {
-  return typeof value === "string" ? value : "";
-}
-
-function sectionValue(
-  section: PublicSiteSectionRow | undefined,
-  fallback: SectionDefault,
-  field: keyof Pick<
-    PublicSiteSectionRow,
-    "title" | "subtitle" | "body" | "cta_label" | "cta_href" | "image_url" | "secondary_image_url"
-  >
-): string {
-  const fallbackMap = {
-    title: fallback.title,
-    subtitle: fallback.subtitle,
-    body: fallback.body,
-    cta_label: fallback.ctaLabel,
-    cta_href: fallback.ctaHref,
-    image_url: fallback.imageUrl,
-    secondary_image_url: fallback.secondaryImageUrl,
-  } satisfies Record<typeof field, string>;
-
-  return section?.[field] ?? fallbackMap[field] ?? "";
-}
-
-function itemsText(section: PublicSiteSectionRow | undefined, fallback: SectionDefault) {
-  const sectionItems = metadataObject(section?.metadata ?? {}).items;
-  if (Array.isArray(sectionItems)) {
-    return sectionItems.filter((item): item is string => typeof item === "string").join("\n");
-  }
-
-  const fallbackItems = metadataObject(fallback.metadata).items;
-  if (Array.isArray(fallbackItems)) {
-    return fallbackItems.filter((item): item is string => typeof item === "string").join("\n");
-  }
-
-  return "";
-}
-
-function ApplySectionResult({
-  state,
-  onSaved,
-}: {
-  state: MarketingActionState;
-  onSaved: (section: PublicSiteSectionRow) => void;
-}) {
-  useEffect(() => {
-    if (state.section) onSaved(state.section);
-  }, [onSaved, state.section]);
-
-  return null;
-}
-
-function ApplyAssetResult({
-  state,
-  onSaved,
-}: {
-  state: MarketingActionState;
-  onSaved: (asset: PublicSiteAssetRow) => void;
-}) {
-  useEffect(() => {
-    if (state.asset) onSaved(state.asset);
-  }, [onSaved, state.asset]);
-
-  return null;
-}
-
-function ApplyDisabledAssetResult({
-  state,
-  onDisabled,
-}: {
-  state: MarketingActionState;
-  onDisabled: (assetId: string) => void;
-}) {
-  useEffect(() => {
-    if (state.disabledAssetId) onDisabled(state.disabledAssetId);
-  }, [onDisabled, state.disabledAssetId]);
-
-  return null;
-}
-
-function ApplyDraftResult({
-  state,
-  onSaved,
-}: {
-  state: MarketingActionState;
-  onSaved: (draft: MarketingContentDraftRow) => void;
-}) {
-  useEffect(() => {
-    if (state.draft) onSaved(state.draft);
-  }, [onSaved, state.draft]);
-
-  return null;
-}
-
-export function MarketingStudio({
-  sectionDefaults,
-  sections,
-  galleryAssets,
-  drafts,
-  revisions,
-  mediaAssets = [],
-}: MarketingStudioProps) {
-  const [activeTab, setActiveTab] = useState<(typeof tabs)[number]["id"]>("hero");
-  const [workspaceSections, setWorkspaceSections] = useState(sections);
-  const [workspaceAssets, setWorkspaceAssets] = useState(galleryAssets);
-  const [workspaceDrafts, setWorkspaceDrafts] = useState(drafts);
-  const saveSection = useCallback((saved: PublicSiteSectionRow) => {
-    setWorkspaceSections((current) => {
-      const remaining = current.filter((section) => section.section_key !== saved.section_key);
-      return [...remaining, saved].sort((a, b) => a.sort_order - b.sort_order);
-    });
-  }, []);
-  const saveAsset = useCallback((saved: PublicSiteAssetRow) => {
-    setWorkspaceAssets((current) => {
-      const remaining = current.filter((asset) => asset.id !== saved.id);
-      return [...remaining, saved].sort((a, b) => a.sort_order - b.sort_order);
-    });
-  }, []);
-  const disableAsset = useCallback((assetId: string) => {
-    setWorkspaceAssets((current) =>
-      current.map((asset) => (asset.id === assetId ? { ...asset, is_enabled: false } : asset))
-    );
-  }, []);
-  const saveDraft = useCallback((saved: MarketingContentDraftRow) => {
-    setWorkspaceDrafts((current) => {
-      const remaining = current.filter((draft) => draft.id !== saved.id);
-      return [saved, ...remaining].sort(
-        (a, b) => new Date(b.updated_at).getTime() - new Date(a.updated_at).getTime()
-      );
-    });
-  }, []);
-  const sectionsByKey = useMemo(
-    () => new Map(workspaceSections.map((section) => [section.section_key, section])),
-    [workspaceSections]
-  );
-
-  const activeSection = sectionDefaults.find((section) => section.sectionKey === activeTab);
-
-  return (
-    <div style={{ display: "flex", flexDirection: "column", gap: "1rem" }}>
-      <div
-        style={{
-          display: "flex",
-          gap: "0.5rem",
-          overflowX: "auto",
-          paddingBottom: "0.25rem",
-        }}
-      >
-        {tabs.map((tab) => (
-          <button
-            key={tab.id}
-            type="button"
-            onClick={() => setActiveTab(tab.id)}
-            style={{
-              border: "1px solid var(--cs-border)",
-              borderRadius: 8,
-              padding: "0.625rem 0.875rem",
-              whiteSpace: "nowrap",
-              fontSize: "0.8125rem",
-              fontWeight: 600,
-              color: activeTab === tab.id ? "var(--cs-text-inverse)" : "var(--cs-text)",
-              background: activeTab === tab.id ? "var(--cs-sidebar)" : "var(--cs-surface)",
-              cursor: "pointer",
-            }}
-          >
-            {tab.label}
-          </button>
-        ))}
-      </div>
-
-      {activeTab === "gallery" ? (
-        <GalleryManager assets={workspaceAssets} onSaved={saveAsset} onDisabled={disableAsset} />
-      ) : activeSection ? (
-        <SectionEditor
-          key={`${activeSection.sectionKey}:${sectionsByKey.get(activeSection.sectionKey)?.updated_at ?? "default"}`}
-          fallback={activeSection}
-          section={sectionsByKey.get(activeSection.sectionKey)}
-          onSaved={saveSection}
-          mediaAssets={mediaAssets}
-        />
-      ) : null}
-
-      <DraftReviewQueue drafts={workspaceDrafts} revisions={revisions} onSaved={saveDraft} />
-    </div>
-  );
-}
-
-function SectionEditor({
-  fallback,
-  section,
-  onSaved,
-  mediaAssets = [],
-}: {
-  fallback: SectionDefault;
-  section?: PublicSiteSectionRow;
-  onSaved: (section: PublicSiteSectionRow) => void;
-  mediaAssets?: MarketingMediaAssetRow[];
-}) {
-  const [state, formAction, pending] = useActionState(saveMarketingSectionAction, {});
-  const metadata = metadataObject(section?.metadata ?? fallback.metadata);
-  const secondaryCtaLabel =
-    textValue(metadata.secondaryCtaLabel) || textValue(fallback.metadata.secondaryCtaLabel);
-  const secondaryCtaHref =
-    textValue(metadata.secondaryCtaHref) || textValue(fallback.metadata.secondaryCtaHref);
-  const imageUrl = sectionValue(section, fallback, "image_url");
-
-  return (
-    <div
-      style={{
-        display: "grid",
-        gridTemplateColumns: "minmax(0, 1fr) minmax(280px, 360px)",
-        gap: "1rem",
-        alignItems: "start",
-      }}
-      className="max-lg:!grid-cols-1"
-    >
-      <form
-        action={formAction}
-        style={{
-          background: "var(--cs-surface)",
-          border: "1px solid var(--cs-border)",
-          borderRadius: 10,
-          padding: "1rem",
-          display: "flex",
-          flexDirection: "column",
-          gap: "0.875rem",
-        }}
-      >
-        <ApplySectionResult state={state} onSaved={onSaved} />
-        <input type="hidden" name="sectionKey" value={fallback.sectionKey} />
-        <input type="hidden" name="sortOrder" value={section?.sort_order ?? fallback.sortOrder} />
-
-        <div>
-          <div
-            style={{
-              fontSize: "0.8125rem",
-              fontWeight: 700,
-              color: "var(--cs-text)",
-            }}
-          >
-            {fallback.label}
-          </div>
-          <p
-            style={{
-              margin: "0.25rem 0 0",
-              color: "var(--cs-text-muted)",
-              fontSize: "0.8125rem",
-              lineHeight: 1.5,
-            }}
-          >
-            {fallback.description}
-          </p>
-        </div>
-
-        <ActionNotice state={state} />
-
-        <label style={{ display: "flex", alignItems: "center", gap: "0.5rem" }}>
-          <input
-            type="checkbox"
-            name="isEnabled"
-            defaultChecked={section?.is_enabled ?? fallback.isEnabled}
-          />
-          <span style={{ fontSize: "0.875rem", color: "var(--cs-text)" }}>Published</span>
-        </label>
-
-        <InputField
-          label="Title / Headline"
-          name="title"
-          defaultValue={sectionValue(section, fallback, "title")}
-        />
-        <InputField
-          label="Subtitle / Eyebrow"
-          name="subtitle"
-          defaultValue={sectionValue(section, fallback, "subtitle")}
-        />
-        <TextAreaField
-          label="Body copy"
-          name="body"
-          defaultValue={sectionValue(section, fallback, "body")}
-          rows={fallback.sectionKey === "before_you_book" ? 4 : 6}
-        />
-
-        {fallback.sectionKey === "before_you_book" && (
-          <TextAreaField
-            label="Bullet list, one item per line"
-            name="items"
-            defaultValue={itemsText(section, fallback)}
-            rows={7}
-          />
-        )}
-
-        <div
-          style={{
-            display: "grid",
-            gridTemplateColumns: "repeat(2, minmax(0, 1fr))",
-            gap: "0.875rem",
-          }}
-          className="max-sm:!grid-cols-1"
-        >
-          <InputField
-            label="CTA label"
-            name="ctaLabel"
-            defaultValue={sectionValue(section, fallback, "cta_label")}
-          />
-          <InputField
-            label="CTA link"
-            name="ctaHref"
-            defaultValue={sectionValue(section, fallback, "cta_href")}
-            placeholder="/book"
-          />
-        </div>
-
-        {fallback.sectionKey === "hero" && (
-          <div
-            style={{
-              display: "grid",
-              gridTemplateColumns: "repeat(2, minmax(0, 1fr))",
-              gap: "0.875rem",
-            }}
-            className="max-sm:!grid-cols-1"
-          >
-            <InputField
-              label="Secondary CTA label"
-              name="secondaryCtaLabel"
-              defaultValue={secondaryCtaLabel}
-            />
-            <InputField
-              label="Secondary CTA link"
-              name="secondaryCtaHref"
-              defaultValue={secondaryCtaHref}
-              placeholder="#plan-your-visit"
-            />
-          </div>
-        )}
-
-        <ImagePickerField
-          label="Image URL"
-          name="imageUrl"
-          defaultValue={imageUrl}
-          placeholder="/images/spa/hero.jpg or https://..."
-          mediaAssets={mediaAssets}
-          sectionKey={fallback.sectionKey}
-        />
-        <ImagePickerField
-          label="Secondary image URL"
-          name="secondaryImageUrl"
-          defaultValue={sectionValue(section, fallback, "secondary_image_url")}
-          placeholder="/images/spa/about-secondary.jpg"
-          mediaAssets={mediaAssets}
-          sectionKey={fallback.sectionKey}
-        />
-
-        <button
-          type="submit"
-          disabled={pending}
-          className="cs-btn cs-btn-primary"
-          style={{ alignSelf: "flex-start", opacity: pending ? 0.65 : 1 }}
-        >
-          {pending ? "Saving..." : "Save Section"}
-        </button>
-      </form>
-
-      <PreviewCard
-        title={sectionValue(section, fallback, "title")}
-        subtitle={sectionValue(section, fallback, "subtitle")}
-        body={sectionValue(section, fallback, "body")}
-        imageUrl={imageUrl}
-      />
-    </div>
-  );
-}
-
-function GalleryManager({
-  assets,
-  onSaved,
-  onDisabled,
-}: {
-  assets: PublicSiteAssetRow[];
-  onSaved: (asset: PublicSiteAssetRow) => void;
-  onDisabled: (assetId: string) => void;
-}) {
-  return (
-    <div style={{ display: "flex", flexDirection: "column", gap: "1rem" }}>
-      <div
-        style={{
-          background: "var(--cs-surface)",
-          border: "1px solid var(--cs-border)",
-          borderRadius: 10,
-          padding: "1rem",
-        }}
-      >
-        <h3
-          style={{
-            margin: 0,
-            fontSize: "0.875rem",
-            fontWeight: 700,
-            color: "var(--cs-text)",
-          }}
-        >
-          Add Gallery Image
-        </h3>
-        <p
-          style={{
-            margin: "0.25rem 0 1rem",
-            color: "var(--cs-text-muted)",
-            fontSize: "0.8125rem",
-          }}
-        >
-          Upload support is not configured yet. Add a local public path or safe image URL.
-        </p>
-        <AssetCreateForm onSaved={onSaved} />
-      </div>
-
-      <div
-        style={{
-          display: "grid",
-          gridTemplateColumns: "repeat(2, minmax(0, 1fr))",
-          gap: "1rem",
-        }}
-        className="max-lg:!grid-cols-1"
-      >
-        {assets.length === 0 ? (
-          <div
-            style={{
-              gridColumn: "1 / -1",
-              border: "1px dashed var(--cs-border-strong)",
-              borderRadius: 10,
-              padding: "1.5rem",
-              color: "var(--cs-text-muted)",
-              background: "var(--cs-surface-warm)",
-              fontSize: "0.875rem",
-            }}
-          >
-            No managed gallery assets yet. The public homepage will use local fallback gallery
-            cards.
-          </div>
-        ) : (
-          assets.map((asset) => (
-            <AssetEditor
-              key={`${asset.id}:${asset.updated_at}:${asset.is_enabled}`}
-              asset={asset}
-              onSaved={onSaved}
-              onDisabled={onDisabled}
-            />
-          ))
-        )}
-      </div>
-    </div>
-  );
-}
-
-function AssetCreateForm({ onSaved }: { onSaved: (asset: PublicSiteAssetRow) => void }) {
-  const [state, formAction, pending] = useActionState(createMarketingAssetAction, {});
-
-  return (
-    <form action={formAction} style={{ display: "grid", gap: "0.875rem" }}>
-      <ApplyAssetResult state={state} onSaved={onSaved} />
-      <ActionNotice state={state} />
-      <input type="hidden" name="sectionKey" value="gallery" />
-      <div
-        style={{
-          display: "grid",
-          gridTemplateColumns: "repeat(2, minmax(0, 1fr))",
-          gap: "0.875rem",
-        }}
-        className="max-sm:!grid-cols-1"
-      >
-        <InputField label="Title" name="title" defaultValue="" />
-        <InputField label="Sort order" name="sortOrder" defaultValue="0" type="number" />
-      </div>
-      <InputField
-        label="Image URL"
-        name="imageUrl"
-        defaultValue=""
-        placeholder="/images/spa/about.jpg or https://..."
-      />
-      <InputField label="Alt text" name="altText" defaultValue="" />
-      <InputField label="Optional link" name="linkHref" defaultValue="" placeholder="/book" />
-      <label style={{ display: "flex", alignItems: "center", gap: "0.5rem" }}>
-        <input type="checkbox" name="isEnabled" defaultChecked />
-        <span style={{ fontSize: "0.875rem" }}>Published</span>
-      </label>
-      <button
-        type="submit"
-        disabled={pending}
-        className="cs-btn cs-btn-primary"
-        style={{ justifySelf: "start", opacity: pending ? 0.65 : 1 }}
-      >
-        {pending ? "Adding..." : "Add Image"}
-      </button>
-    </form>
-  );
-}
-
-function AssetEditor({
-  asset,
-  onSaved,
-  onDisabled,
-}: {
-  asset: PublicSiteAssetRow;
-  onSaved: (asset: PublicSiteAssetRow) => void;
-  onDisabled: (assetId: string) => void;
-}) {
-  const [updateState, updateAction, updatePending] = useActionState(updateMarketingAssetAction, {});
-  const [disableState, disableAction, disablePending] = useActionState(
-    disableMarketingAssetAction,
-    {}
-  );
-
-  return (
-    <div
-      style={{
-        border: "1px solid var(--cs-border)",
-        borderRadius: 10,
-        background: "var(--cs-surface)",
-        overflow: "hidden",
-      }}
-    >
-      {asset.image_url && (
-        // eslint-disable-next-line @next/next/no-img-element
-        <img
-          src={asset.image_url}
-          alt={asset.alt_text ?? "Public site gallery asset"}
-          style={{ width: "100%", height: 180, objectFit: "cover", display: "block" }}
-        />
-      )}
-      <div style={{ padding: "1rem" }}>
-        <form action={updateAction} style={{ display: "grid", gap: "0.75rem" }}>
-          <ApplyAssetResult state={updateState} onSaved={onSaved} />
-          <ActionNotice state={updateState} />
-          <input type="hidden" name="id" value={asset.id} />
-          <input type="hidden" name="sectionKey" value={asset.section_key ?? "gallery"} />
-          <InputField label="Title" name="title" defaultValue={asset.title ?? ""} />
-          <InputField label="Image URL" name="imageUrl" defaultValue={asset.image_url} />
-          <InputField label="Alt text" name="altText" defaultValue={asset.alt_text ?? ""} />
-          <InputField label="Optional link" name="linkHref" defaultValue={asset.link_href ?? ""} />
-          <InputField
-            label="Sort order"
-            name="sortOrder"
-            defaultValue={String(asset.sort_order)}
-            type="number"
-          />
-          <label style={{ display: "flex", alignItems: "center", gap: "0.5rem" }}>
-            <input type="checkbox" name="isEnabled" defaultChecked={asset.is_enabled} />
-            <span style={{ fontSize: "0.875rem" }}>Published</span>
-          </label>
-          <div style={{ display: "flex", flexWrap: "wrap", gap: "0.5rem" }}>
-            <button
-              type="submit"
-              disabled={updatePending}
-              className="cs-btn cs-btn-primary"
-              style={{ opacity: updatePending ? 0.65 : 1 }}
-            >
-              {updatePending ? "Saving..." : "Save Image"}
-            </button>
-          </div>
-        </form>
-
-        <form action={disableAction} style={{ marginTop: "0.5rem" }}>
-          <ApplyDisabledAssetResult state={disableState} onDisabled={onDisabled} />
-          <input type="hidden" name="id" value={asset.id} />
-          <button
-            type="submit"
-            disabled={disablePending}
-            className="cs-btn cs-btn-secondary"
-            style={{ opacity: disablePending ? 0.65 : 1 }}
-          >
-            {disablePending ? "Disabling..." : "Disable Image"}
-          </button>
-          <ActionNotice state={disableState} />
-        </form>
-      </div>
-    </div>
-  );
-}
 
 function statusLabel(status: string): string {
   return status.replace(/_/g, " ").replace(/\b\w/g, (letter) => letter.toUpperCase());
 }
 
-function DraftReviewQueue({
-  drafts,
-  revisions,
-  onSaved,
-}: {
-  drafts: MarketingContentDraftRow[];
-  revisions: MarketingContentRevisionRow[];
-  onSaved: (draft: MarketingContentDraftRow) => void;
-}) {
-  const visibleDrafts = drafts.filter((draft) => draft.status !== "archived").slice(0, 12);
+function ActionNotice({ state }: { state: MarketingActionState }) {
+  if (!state.error && !state.message) return null;
 
   return (
-    <section
-      style={{
-        border: "1px solid var(--cs-border)",
-        borderRadius: 10,
-        background: "var(--cs-surface)",
-        padding: "1rem",
-      }}
+    <div
+      role="status"
+      aria-live="polite"
+      className={`rounded-lg border px-3 py-2 text-xs ${
+        state.error
+          ? "border-red-200 bg-red-50 text-red-800 dark:border-red-900/40 dark:bg-red-950/30 dark:text-red-300"
+          : "border-green-200 bg-green-50 text-green-800 dark:border-green-900/40 dark:bg-green-950/30 dark:text-green-300"
+      }`}
     >
-      <div
-        style={{
-          display: "flex",
-          alignItems: "baseline",
-          justifyContent: "space-between",
-          gap: "1rem",
-        }}
-      >
-        <div>
-          <h2 style={{ margin: 0, fontSize: "0.95rem", color: "var(--cs-text)" }}>
-            Draft Review Queue
-          </h2>
-          <p style={{ margin: "0.25rem 0 0", color: "var(--cs-text-muted)", fontSize: 13 }}>
-            Review protected Marketing workspace drafts before they affect the public site.
-          </p>
-        </div>
-        <span style={{ color: "var(--cs-text-muted)", fontSize: 12 }}>
-          {revisions.length} recent revision{revisions.length === 1 ? "" : "s"}
-        </span>
-      </div>
-
-      {visibleDrafts.length === 0 ? (
-        <div
-          style={{
-            marginTop: "1rem",
-            border: "1px dashed var(--cs-border-strong)",
-            borderRadius: 8,
-            padding: "1rem",
-            color: "var(--cs-text-muted)",
-            background: "var(--cs-surface-warm)",
-            fontSize: 13,
-          }}
-        >
-          No draft reviews are waiting.
-        </div>
-      ) : (
-        <div style={{ marginTop: "1rem", display: "grid", gap: "0.875rem" }}>
-          {visibleDrafts.map((draft) => (
-            <DraftReviewItem
-              key={`${draft.id}:${draft.updated_at}`}
-              draft={draft}
-              onSaved={onSaved}
-            />
-          ))}
-        </div>
-      )}
-    </section>
+      {state.error ?? state.message}
+    </div>
   );
 }
 
-function DraftReviewItem({
-  draft,
-  onSaved,
-}: {
-  draft: MarketingContentDraftRow;
-  onSaved: (draft: MarketingContentDraftRow) => void;
-}) {
+function DraftReviewItem({ draft }: { draft: MarketingContentDraftRow }) {
   const [approveState, approveAction, approvePending] = useActionState(
     approveMarketingDraftAction,
     {}
@@ -751,6 +76,7 @@ function DraftReviewItem({
     archiveMarketingDraftAction,
     {}
   );
+
   const currentDraft =
     approveState.draft ??
     changesState.draft ??
@@ -758,69 +84,38 @@ function DraftReviewItem({
     publishState.draft ??
     archiveState.draft ??
     draft;
+
   const busy =
     approvePending || changesPending || schedulePending || publishPending || archivePending;
   const canPublish = ["submitted", "approved", "scheduled"].includes(currentDraft.status);
 
   return (
-    <article
-      style={{
-        border: "1px solid var(--cs-border-soft)",
-        borderRadius: 8,
-        padding: "0.875rem",
-        display: "grid",
-        gap: "0.75rem",
-      }}
-    >
-      <ApplyDraftResult state={approveState} onSaved={onSaved} />
-      <ApplyDraftResult state={changesState} onSaved={onSaved} />
-      <ApplyDraftResult state={scheduleState} onSaved={onSaved} />
-      <ApplyDraftResult state={publishState} onSaved={onSaved} />
-      <ApplyDraftResult state={archiveState} onSaved={onSaved} />
-
-      <div
-        style={{
-          display: "flex",
-          justifyContent: "space-between",
-          alignItems: "flex-start",
-          gap: "0.75rem",
-        }}
-      >
-        <div style={{ minWidth: 0 }}>
-          <div style={{ color: "var(--cs-text)", fontSize: 14, fontWeight: 750 }}>
+    <article className="grid gap-3 rounded-lg border border-[var(--cs-border)] bg-[var(--cs-surface)] p-3.5">
+      <div className="flex items-start justify-between gap-3">
+        <div className="min-w-0">
+          <div className="text-sm font-bold text-[var(--cs-text)]">
             {currentDraft.title || currentDraft.content_key}
           </div>
-          <div style={{ marginTop: 3, color: "var(--cs-text-muted)", fontSize: 12 }}>
+          <div className="mt-0.5 text-xs text-[var(--cs-text-secondary)]">
             {currentDraft.content_type} / {currentDraft.content_key}
           </div>
         </div>
-        <span
-          style={{
-            border: "1px solid var(--cs-border-soft)",
-            borderRadius: 8,
-            padding: "0.2rem 0.5rem",
-            color: "var(--cs-text-secondary)",
-            background: "var(--cs-surface-warm)",
-            fontSize: 12,
-            fontWeight: 700,
-            whiteSpace: "nowrap",
-          }}
-        >
+        <span className="inline-flex shrink-0 items-center rounded-md border border-[var(--cs-border)] bg-[var(--cs-surface-warm)] px-2 py-0.5 text-xs font-semibold text-[var(--cs-text-secondary)]">
           {statusLabel(currentDraft.status)}
         </span>
       </div>
 
-      {currentDraft.body ? (
-        <p style={{ margin: 0, color: "var(--cs-text-secondary)", fontSize: 13, lineHeight: 1.55 }}>
+      {currentDraft.body && (
+        <p className="text-xs leading-relaxed text-[var(--cs-text-secondary)]">
           {currentDraft.body}
         </p>
-      ) : null}
+      )}
 
-      {currentDraft.review_note ? (
-        <div style={{ color: "var(--cs-text-muted)", fontSize: 12 }}>
+      {currentDraft.review_note && (
+        <div className="rounded-md bg-amber-50 p-2 text-xs text-amber-800 dark:bg-amber-950/30 dark:text-amber-300">
           Review note: {currentDraft.review_note}
         </div>
-      ) : null}
+      )}
 
       <ActionNotice state={approveState} />
       <ActionNotice state={changesState} />
@@ -828,43 +123,34 @@ function DraftReviewItem({
       <ActionNotice state={publishState} />
       <ActionNotice state={archiveState} />
 
-      <div
-        style={{
-          display: "grid",
-          gridTemplateColumns: "minmax(0, 1fr) 220px",
-          gap: "0.75rem",
-        }}
-        className="max-lg:!grid-cols-1"
-      >
-        <form action={changesAction} style={{ display: "grid", gap: "0.5rem" }}>
+      <div className="grid gap-3 lg:grid-cols-[1fr_220px]">
+        <form action={changesAction} className="grid gap-2">
           <input type="hidden" name="id" value={currentDraft.id} />
           <textarea
             name="reviewNote"
             rows={2}
-            placeholder="Owner note"
-            style={{ ...fieldStyle, resize: "vertical", lineHeight: 1.45 }}
+            placeholder="Owner review note..."
+            className="w-full rounded-lg border border-[var(--cs-border)] bg-[var(--cs-surface)] p-2 text-xs text-[var(--cs-text)] outline-none"
           />
-          <div style={{ display: "flex", flexWrap: "wrap", gap: "0.5rem" }}>
+          <div className="flex flex-wrap gap-2">
             <button
               type="submit"
               disabled={busy}
-              className="cs-btn cs-btn-secondary"
-              style={{ opacity: busy ? 0.6 : 1 }}
+              className="inline-flex min-h-8 items-center rounded-lg border border-[var(--cs-border)] bg-[var(--cs-surface)] px-3 text-xs font-semibold text-[var(--cs-text)] transition hover:bg-[var(--cs-surface-warm)] disabled:opacity-50"
             >
               {changesPending ? "Sending..." : "Request Changes"}
             </button>
           </div>
         </form>
 
-        <div style={{ display: "grid", gap: "0.5rem" }}>
+        <div className="grid gap-2">
           <form action={approveAction}>
             <input type="hidden" name="id" value={currentDraft.id} />
             <input type="hidden" name="reviewNote" value="" />
             <button
               type="submit"
               disabled={busy}
-              className="cs-btn cs-btn-secondary"
-              style={{ width: "100%", opacity: busy ? 0.6 : 1 }}
+              className="w-full inline-flex min-h-8 items-center justify-center rounded-lg border border-[var(--cs-border)] bg-[var(--cs-surface)] px-3 text-xs font-semibold text-[var(--cs-text)] transition hover:bg-[var(--cs-surface-warm)] disabled:opacity-50"
             >
               {approvePending ? "Approving..." : "Approve"}
             </button>
@@ -875,32 +161,28 @@ function DraftReviewItem({
             <button
               type="submit"
               disabled={busy || !canPublish}
-              className="cs-btn cs-btn-primary"
-              style={{ width: "100%", opacity: busy || !canPublish ? 0.55 : 1 }}
+              className="w-full inline-flex min-h-8 items-center justify-center rounded-lg bg-[var(--cs-primary)] px-3 text-xs font-semibold text-white transition hover:opacity-90 disabled:opacity-50"
             >
-              {publishPending ? "Publishing..." : "Publish"}
+              {publishPending ? "Publishing..." : "Publish to Live"}
             </button>
           </form>
         </div>
       </div>
 
-      <div
-        style={{ display: "grid", gridTemplateColumns: "minmax(0, 1fr) auto", gap: "0.5rem" }}
-        className="max-sm:!grid-cols-1"
-      >
-        <form
-          action={scheduleAction}
-          style={{ display: "grid", gridTemplateColumns: "minmax(0, 1fr) auto", gap: "0.5rem" }}
-          className="max-sm:!grid-cols-1"
-        >
+      <div className="grid gap-2 sm:grid-cols-[1fr_auto]">
+        <form action={scheduleAction} className="flex gap-2">
           <input type="hidden" name="id" value={currentDraft.id} />
           <input type="hidden" name="reviewNote" value="" />
-          <input type="datetime-local" name="scheduledFor" style={fieldStyle} disabled={busy} />
+          <input
+            type="datetime-local"
+            name="scheduledFor"
+            disabled={busy}
+            className="flex-1 rounded-lg border border-[var(--cs-border)] bg-[var(--cs-surface)] px-2.5 py-1 text-xs text-[var(--cs-text)] outline-none"
+          />
           <button
             type="submit"
             disabled={busy}
-            className="cs-btn cs-btn-secondary"
-            style={{ opacity: busy ? 0.6 : 1 }}
+            className="inline-flex min-h-8 items-center rounded-lg border border-[var(--cs-border)] bg-[var(--cs-surface)] px-3 text-xs font-semibold text-[var(--cs-text)] transition hover:bg-[var(--cs-surface-warm)] disabled:opacity-50"
           >
             {schedulePending ? "Scheduling..." : "Schedule"}
           </button>
@@ -912,8 +194,7 @@ function DraftReviewItem({
           <button
             type="submit"
             disabled={busy}
-            className="cs-btn cs-btn-secondary"
-            style={{ width: "100%", opacity: busy ? 0.6 : 1 }}
+            className="w-full inline-flex min-h-8 items-center justify-center rounded-lg border border-red-200 bg-red-50 px-3 text-xs font-semibold text-red-700 transition hover:bg-red-100 disabled:opacity-50 dark:border-red-900/40 dark:bg-red-950/30 dark:text-red-300"
           >
             {archivePending ? "Archiving..." : "Archive"}
           </button>
@@ -923,222 +204,69 @@ function DraftReviewItem({
   );
 }
 
-function PreviewCard({
-  title,
-  subtitle,
-  body,
-  imageUrl,
+function DraftReviewQueue({
+  drafts,
+  revisions,
 }: {
-  title: string;
-  subtitle: string;
-  body: string;
-  imageUrl: string;
+  drafts: MarketingContentDraftRow[];
+  revisions: MarketingContentRevisionRow[];
 }) {
+  const visibleDrafts = drafts.filter((draft) => draft.status !== "archived").slice(0, 12);
+
   return (
-    <aside
-      style={{
-        background: "var(--cs-surface)",
-        border: "1px solid var(--cs-border)",
-        borderRadius: 10,
-        overflow: "hidden",
-        position: "sticky",
-        top: 20,
-      }}
-      className="max-lg:!static"
-    >
-      {imageUrl ? (
-        // eslint-disable-next-line @next/next/no-img-element
-        <img
-          src={imageUrl}
-          alt=""
-          style={{ width: "100%", height: 190, objectFit: "cover", display: "block" }}
-        />
-      ) : null}
-      <div style={{ padding: "1rem" }}>
-        <p
-          style={{
-            margin: 0,
-            fontSize: "0.6875rem",
-            fontWeight: 700,
-            color: "var(--cs-sand)",
-            textTransform: "uppercase",
-            letterSpacing: "0.12em",
-          }}
-        >
-          Preview
-        </p>
-        <h3
-          style={{
-            margin: "0.5rem 0 0",
-            fontSize: "1.125rem",
-            color: "var(--cs-text)",
-            fontFamily: "var(--cs-font-display)",
-            lineHeight: 1.25,
-          }}
-        >
-          {title || "Untitled section"}
-        </h3>
-        {subtitle && (
-          <p
-            style={{
-              margin: "0.5rem 0 0",
-              fontSize: "0.8125rem",
-              color: "var(--cs-text-muted)",
-            }}
-          >
-            {subtitle}
+    <section className="rounded-xl border border-[var(--cs-border)] bg-[var(--cs-surface)] p-4 shadow-xs">
+      <div className="flex flex-wrap items-baseline justify-between gap-4">
+        <div>
+          <h2 className="text-sm font-bold text-[var(--cs-text)]">Draft Review Queue & History</h2>
+          <p className="mt-0.5 text-xs text-[var(--cs-text-secondary)]">
+            Review workspace drafts and audit history before they affect the live site.
           </p>
-        )}
-        {body && (
-          <p
-            style={{
-              margin: "0.75rem 0 0",
-              fontSize: "0.8125rem",
-              color: "var(--cs-text-secondary)",
-              lineHeight: 1.6,
-            }}
-          >
-            {body}
-          </p>
-        )}
+        </div>
+        <span className="text-xs text-[var(--cs-text-secondary)]">
+          {revisions.length} recent revision{revisions.length === 1 ? "" : "s"}
+        </span>
       </div>
-    </aside>
+
+      {visibleDrafts.length === 0 ? (
+        <div className="mt-3 rounded-lg border border-dashed border-[var(--cs-border)] bg-[var(--cs-surface-warm)] p-4 text-center text-xs text-[var(--cs-text-secondary)]">
+          No draft reviews are waiting in the queue.
+        </div>
+      ) : (
+        <div className="mt-4 space-y-3">
+          {visibleDrafts.map((draft) => (
+            <DraftReviewItem key={`${draft.id}:${draft.updated_at}`} draft={draft} />
+          ))}
+        </div>
+      )}
+    </section>
   );
 }
 
-function ActionNotice({ state }: { state: MarketingActionState }) {
-  if (!state.error && !state.message) return null;
-
-  return (
-    <div
-      role="status"
-      aria-live="polite"
-      style={{
-        borderRadius: 8,
-        padding: "0.625rem 0.75rem",
-        fontSize: "0.8125rem",
-        border: state.error ? "1px solid #FECACA" : "1px solid #BBF7D0",
-        background: state.error ? "#FEF2F2" : "#F0FDF4",
-        color: state.error ? "#991B1B" : "#15803D",
-      }}
-    >
-      {state.error ?? state.message}
-    </div>
-  );
-}
-
-function InputField({
-  label,
-  name,
-  defaultValue,
-  placeholder,
-  type = "text",
-}: {
-  label: string;
-  name: string;
-  defaultValue: string;
-  placeholder?: string;
-  type?: "text" | "number";
-}) {
-  return (
-    <label style={{ display: "grid", gap: "0.375rem" }}>
-      <span style={{ color: "var(--cs-text-muted)", fontSize: "0.8125rem" }}>{label}</span>
-      <input
-        name={name}
-        type={type}
-        defaultValue={defaultValue}
-        placeholder={placeholder}
-        style={fieldStyle}
-      />
-    </label>
-  );
-}
-
-function ImagePickerField({
-  label,
-  name,
-  defaultValue,
-  placeholder,
+export function MarketingStudio({
+  sectionDefaults,
+  sections,
+  galleryAssets,
+  drafts,
+  revisions,
   mediaAssets = [],
-  sectionKey,
-}: {
-  label: string;
-  name: string;
-  defaultValue: string;
-  placeholder?: string;
-  mediaAssets?: MarketingMediaAssetRow[];
-  sectionKey?: string;
-}) {
-  const [value, setValue] = useState(defaultValue);
-  const [isPickerOpen, setIsPickerOpen] = useState(false);
-
+  branches = [],
+  services = [],
+}: MarketingStudioProps) {
   return (
-    <div style={{ display: "grid", gap: "0.375rem" }}>
-      <span style={{ color: "var(--cs-text-muted)", fontSize: "0.8125rem" }}>{label}</span>
-      <div style={{ display: "flex", gap: "0.5rem", alignItems: "center" }}>
-        <input
-          name={name}
-          type="text"
-          value={value}
-          onChange={(e) => setValue(e.target.value)}
-          placeholder={placeholder}
-          style={{ ...fieldStyle, flex: 1 }}
-        />
-        <button
-          type="button"
-          onClick={() => setIsPickerOpen(true)}
-          className="cs-btn cs-btn-secondary"
-          style={{
-            minHeight: 44,
-            padding: "0 0.875rem",
-            fontSize: 12,
-            fontWeight: 650,
-            display: "inline-flex",
-            alignItems: "center",
-            gap: 6,
-            whiteSpace: "nowrap",
-            flexShrink: 0,
-          }}
-        >
-          <ImageIcon className="size-3.5" />
-          Choose Image
-        </button>
-      </div>
-
-      <UniversalMediaPicker
-        isOpen={isPickerOpen}
-        onClose={() => setIsPickerOpen(false)}
-        onSelect={(selected) => {
-          setValue(selected.publicUrl);
-        }}
-        currentUrl={value}
-        availableAssets={mediaAssets}
-        filterSectionKey={sectionKey}
+    <div className="space-y-6">
+      <WebsiteStudioView
+        role="owner"
+        sectionDefaults={sectionDefaults}
+        publishedSections={sections}
+        galleryAssets={galleryAssets}
+        drafts={drafts}
+        revisions={revisions}
+        mediaAssets={mediaAssets}
+        branches={branches}
+        services={services}
       />
+
+      <DraftReviewQueue drafts={drafts} revisions={revisions} />
     </div>
-  );
-}
-
-function TextAreaField({
-  label,
-  name,
-  defaultValue,
-  rows,
-}: {
-  label: string;
-  name: string;
-  defaultValue: string;
-  rows: number;
-}) {
-  return (
-    <label style={{ display: "grid", gap: "0.375rem" }}>
-      <span style={{ color: "var(--cs-text-muted)", fontSize: "0.8125rem" }}>{label}</span>
-      <textarea
-        name={name}
-        defaultValue={defaultValue}
-        rows={rows}
-        style={{ ...fieldStyle, resize: "vertical", lineHeight: 1.55 }}
-      />
-    </label>
   );
 }

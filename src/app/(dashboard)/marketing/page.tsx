@@ -5,17 +5,22 @@ import {
   getMarketingContentRevisions,
 } from "@/lib/queries/marketing-content";
 import { getMarketingMediaAssets } from "@/lib/queries/marketing-media";
+import { getPublicBranches } from "@/lib/queries/branches";
+import { getPublicServiceCatalog } from "@/lib/queries/services";
 import { getPublicSiteAssets, getPublicSiteSections } from "@/lib/queries/public-site";
 import { MarketingWorkspace } from "./marketing-workspace";
 
 export default async function MarketingWorkspacePage() {
-  const [sections, galleryAssets, drafts, revisions, mediaAssets] = await Promise.all([
-    getPublicSiteSections({ includeDisabled: true }),
-    getPublicSiteAssets("gallery", { includeDisabled: true }),
-    getMarketingContentDrafts(),
-    getMarketingContentRevisions(12),
-    getMarketingMediaAssets({ limit: 150 }),
-  ]);
+  const [sections, galleryAssets, drafts, revisions, mediaAssets, branches, services] =
+    await Promise.all([
+      getPublicSiteSections({ includeDisabled: true }),
+      getPublicSiteAssets("gallery", { includeDisabled: true }),
+      getMarketingContentDrafts(),
+      getMarketingContentRevisions(12),
+      getMarketingMediaAssets({ limit: 150 }),
+      getPublicBranches().catch(() => []),
+      getPublicServiceCatalog().catch(() => []),
+    ]);
 
   return (
     <div>
@@ -31,6 +36,8 @@ export default async function MarketingWorkspacePage() {
         drafts={drafts}
         revisions={revisions}
         mediaAssets={mediaAssets}
+        branches={branches}
+        services={services}
       />
     </div>
   );

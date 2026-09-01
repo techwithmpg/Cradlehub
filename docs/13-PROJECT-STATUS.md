@@ -4,8 +4,8 @@
 
 - **Program:** Controlled Stabilization
 - **Current stage:** C5 — Implementation (Digital Marketing Workspace)
-- **C5 status:** NO NEXT PASS ACTIVE (AWAITING EXPLICIT OWNER AUTHORIZATION)
-- **C5 Pass 3+:** NOT AUTHORIZED
+- **C5 status:** PASS 3 ACTIVE (Website Studio & High-Fidelity Preview ONLY)
+- **C5 Pass 4+:** NOT AUTHORIZED
 - **C5 Pass 2 status:** CLOSED / ACCEPTED
 - **Accepted C5 Pass 2 media library merge:** `12ddaf44fe951e0f167084dafd51627d2836c70b`
 - **Independent review:** PASS
@@ -79,4 +79,4 @@ CradleHub is a Next.js 16.2.4 / React 19.2.4 web application using Supabase Post
 - GitHub protection/ruleset and Vercel linkage/deployed-commit unknowns; and
 - production-connected `main` release safety.
 
-C0B, C1, C2, C3, C4, C5 Pass 1, and C5 Pass 2 are CLOSED and ACCEPTED. C5 Pass 2 (Central Media Library & Universal Media Picker) was merged into main at `12ddaf44fe951e0f167084dafd51627d2836c70b` and closed via documentation closeout merged at `d815a6fe31b9ed2092f31bb3b491d285a90d6083`. NO NEXT PASS ACTIVE. C5 Pass 3 and all later passes remain strictly NOT AUTHORIZED pending explicit future owner authorization.
+C0B, C1, C2, C3, C4, C5 Pass 1, and C5 Pass 2 are CLOSED and ACCEPTED. C5 Pass 3 (Website Studio & High-Fidelity Preview) is ACTIVE from accepted main SHA `f71f0b0c9d0de60a11386814cd23c200ca99496b`. C5 Pass 4, Pass 5, and all later passes remain strictly NOT AUTHORIZED pending explicit future owner authorization.

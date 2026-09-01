@@ -24,11 +24,11 @@
 - C5 Pass 2 status: **CLOSED / ACCEPTED**
 - Last governance closeout verification: 2026-09-01
 - Current stage: **C5 — Implementation (Digital Marketing Workspace)**
-- C5 status: **NO NEXT PASS ACTIVE (AWAITING EXPLICIT OWNER AUTHORIZATION)**
-- Next stage: **C5 PASS 3+ — NOT AUTHORIZED**
+- C5 status: **PASS 3 ACTIVE (Website Studio & High-Fidelity Preview ONLY)**
+- Next stage: **C5 PASS 4+ — NOT AUTHORIZED**
 
 > [!NOTE]
-> C5 Pass 2 (Central Media Library and Universal Media Picker) is closed and accepted. C5 Pass 3 and all subsequent implementation passes remain strictly not authorized pending explicit future owner authorization. No schema/database changes, migrations, RLS, Storage policy changes, Auth changes, security-policy mutation, or production data mutation are authorized.
+> C5 Pass 3 authorizes Website Studio and High-Fidelity Preview only. It does NOT authorize schema/database changes, migrations, RLS, Storage policy changes, Auth changes, security-policy mutation, production data mutation, Brand/Branches/Services Studios (Pass 4), or Atomic Review Queue (Pass 5). C5 Pass 4+ remains strictly not authorized.
 
 The recorded SHAs are stable closeout anchors, not declarations of the current `main` head. At the start of every session, fetch and re-resolve `origin/main`; inspect newer accepted work rather than recreating an older state.
 
@@ -72,13 +72,11 @@ The recorded SHAs are stable closeout anchors, not declarations of the current `
 
 C0B, C1, C2, C3, C4, C5 Pass 1, and C5 Pass 2 are closed and accepted.
 
-C5 Pass 2 — Central Media Library & Universal Media Picker — was merged into main at `12ddaf44fe951e0f167084dafd51627d2836c70b` and closed through the documentation closeout merged at `d815a6fe31b9ed2092f31bb3b491d285a90d6083`.
+C5 Pass 3 — Website Studio & High-Fidelity Preview — is ACTIVE from accepted main SHA `f71f0b0c9d0de60a11386814cd23c200ca99496b`.
 
-No next C5 implementation pass is active.
+C5 Pass 4, Pass 5, and all later passes remain strictly NOT AUTHORIZED pending explicit future owner authorization.
 
-C5 Pass 3 and all later passes remain strictly NOT AUTHORIZED pending explicit future owner authorization.
-
-No schema/database mutation, migrations, Auth/RLS/Storage-policy changes, or production-data mutation are authorized by the C5.2 closeout.
+No schema/database mutation, migrations, Auth/RLS/Storage-policy changes, or production-data mutation are authorized.
 
 ## Historical context policy
 
