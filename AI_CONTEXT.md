@@ -18,8 +18,11 @@
 - C3 status: **CLOSED / ACCEPTED**
 - Last governance closeout verification: 2026-09-01
 - Current stage: **C4 — UI/UX and Workflow Planning (Digital Marketing Workspace)**
-- C4 status: **PLAN CORRECTED / AWAITING INDEPENDENT REVIEW**
-- Next stage: **C5+ — NOT AUTHORIZED**
+- C4 status: **INDEPENDENT REVIEW PASS / OWNER ACCEPTED / MERGE GATE IN PROGRESS**
+- Next stage: **C5 PASS 1 — AUTHORIZED ONLY AFTER ACCEPTED C4 CLOSEOUT** (Authorized Pass: **PUBLIC CONSUMER PARITY & COMPONENT GROUNDING**; later C5 passes remain **NOT AUTHORIZED**)
+
+> [!NOTE]
+> C5 Pass 1 authorizes frontend component grounding and public consumer parity only. It does NOT authorize schema/database changes, migrations, RLS, Storage policy changes, Auth changes, security-policy mutation, or production data mutation. Later C5 passes remain strictly not authorized.
 
 The recorded SHAs are stable closeout anchors, not declarations of the current `main` head. At the start of every session, fetch and re-resolve `origin/main`; inspect newer accepted work rather than recreating an older state.
 
