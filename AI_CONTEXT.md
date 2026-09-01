@@ -14,10 +14,12 @@
 - C1 status: **CLOSED / ACCEPTED**
 - C2 accepted diagnostics merge SHA: `694873dfe9b9572a56620951bb69024492fe04c0`
 - C2 status: **CLOSED / ACCEPTED**
+- C3 accepted scope freeze merge SHA: `d19ce34753e09244b8aad0e1d10c964302a33e7c`
+- C3 status: **CLOSED / ACCEPTED**
 - Last governance closeout verification: 2026-09-01
-- Current stage: **C3 — Scope Freeze (Digital Marketing Workspace)**
-- C3 status: **INDEPENDENT REVIEW PASS / OWNER ACCEPTED / MERGE GATE IN PROGRESS**
-- Next stage: **C4 — AUTHORIZED ONLY AFTER ACCEPTED C3 MERGE / UI-UX & WORKFLOW PLANNING ONLY**
+- Current stage: **C4 — UI/UX and Workflow Planning (Digital Marketing Workspace)**
+- C4 status: **ACTIVE / UI-UX & WORKFLOW PLANNING ONLY**
+- Next stage: **C5+ — NOT AUTHORIZED**
 
 The recorded SHAs are stable closeout anchors, not declarations of the current `main` head. At the start of every session, fetch and re-resolve `origin/main`; inspect newer accepted work rather than recreating an older state.
 
@@ -59,7 +61,7 @@ The recorded SHAs are stable closeout anchors, not declarations of the current `
 
 ## Current authorization
 
-C0B, C1, and C2 are closed and accepted. C3 Scope Freeze for the Digital Marketing Workspace delivered `docs/audits/C3_MARKETING_SCOPE_FREEZE.md` defining the five-module structure (Website, Brand, Branches, Services, Media Library), secondary navigation (Drafts, Settings), contextual SEO, universal subsystem contracts, and strict field-level authorization boundaries. C3 achieved independent review PASS and was accepted by the owner on 2026-09-01; the C3 merge gate into main is in progress. Conditioned on accepted C3 merge into main, C4 UI/UX and Workflow Planning is authorized for the frozen Digital Marketing Workspace scope only. C4 does NOT authorize product implementation, schema/database changes, migrations, RLS changes, Storage changes, Auth changes, production mutation, or C5+ coding.
+C0B, C1, C2, and C3 are closed and accepted. C3 Scope Freeze for the Digital Marketing Workspace was merged into main at `d19ce34753e09244b8aad0e1d10c964302a33e7c`. C4 UI/UX and Workflow Planning is ACTIVE for the frozen Digital Marketing Workspace scope only (Website, Brand, Branches, Services, Media Library, with Drafts and Settings secondary, and contextual SEO). C4 is design, workflow, and specification planning only. C4 does NOT authorize product implementation, schema/database changes, migrations, RLS changes, Storage changes, Auth changes, production mutation, or C5+ coding.
 
 ## Historical context policy
 

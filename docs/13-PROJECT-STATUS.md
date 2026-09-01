@@ -3,8 +3,10 @@
 ## Current program
 
 - **Program:** Controlled Stabilization
-- **Current stage:** C3 — Scope Freeze (Digital Marketing Workspace)
-- **C3 status:** OWNER ACCEPTED / MERGE GATE IN PROGRESS
+- **Current stage:** C4 — UI/UX and Workflow Planning (Digital Marketing Workspace)
+- **C4 status:** ACTIVE / UI-UX & WORKFLOW PLANNING ONLY
+- **C3 status:** CLOSED / ACCEPTED
+- **Accepted C3 scope freeze merge:** `d19ce34753e09244b8aad0e1d10c964302a33e7c`
 - **C3 report:** `docs/audits/C3_MARKETING_SCOPE_FREEZE.md`
 - **Independent review:** PASS
 - **C2 status:** CLOSED / ACCEPTED
@@ -17,12 +19,12 @@
 - **Accepted C0B governance merge:** `03dbd57ed4be6f9b1f0bd30c7fd22a225e68ec2a`
 - **External review:** PASS
 - **Merge verification:** PASS
-- **Next stage:** C4 — AUTHORIZED ONLY AFTER ACCEPTED C3 MERGE / PLANNING ONLY (C5+ NOT AUTHORIZED)
+- **Next stage:** C5+ — NOT AUTHORIZED
 
 ## Current safety state
 
 - `main` is production-connected.
-- No product implementation, database/schema mutation, migration action, or production mutation was performed in C2 diagnostics or C3 scope freeze.
+- No product implementation, database/schema mutation, migration action, or production mutation was performed in C2 diagnostics, C3 scope freeze, or C4 planning.
 - Historical migration reconciliation is constrained: 84 local-only versions remain intentionally unmarked.
 - Attendance operational enforcement remains not training-ready until its recorded gates pass.
 
@@ -53,7 +55,7 @@
 - Formatting gate: FAIL — 93 existing incremental files.
 - Live CradleHub database verification: NOT AVAILABLE; no substitute project used.
 - Production web read-only check: HTTP 200, served by Vercel/Next.js; deployed project/commit remains unverified.
-- Product/database/production mutation in C1/C2/C3: NONE.
+- Product/database/production mutation in C1/C2/C3/C4: NONE.
 
 ## Verified repository summary
 
@@ -68,4 +70,4 @@ CradleHub is a Next.js 16.2.4 / React 19.2.4 web application using Supabase Post
 - GitHub protection/ruleset and Vercel linkage/deployed-commit unknowns; and
 - production-connected `main` release safety.
 
-C1 and C2 are CLOSED and ACCEPTED. C3 Scope Freeze for the Digital Marketing Workspace achieved independent review PASS and owner acceptance on 2026-09-01; C3 merge gate into main is in progress. Conditioned on accepted C3 merge, C4 UI/UX and Workflow Planning is authorized for planning/specification only. Product fixes, UI implementation, database/Storage mutation, migration actions, and C5+ coding remain NOT AUTHORIZED.
+C1, C2, and C3 are CLOSED and ACCEPTED. C3 Scope Freeze was merged into main at `d19ce34753e09244b8aad0e1d10c964302a33e7c`. C4 UI/UX and Workflow Planning is ACTIVE for the frozen Digital Marketing Workspace scope (planning/specification only). Product fixes, UI implementation, database/Storage mutation, migration actions, and C5+ coding remain strictly NOT AUTHORIZED.
