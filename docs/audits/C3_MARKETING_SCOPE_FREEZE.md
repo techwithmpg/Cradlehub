@@ -8,6 +8,7 @@
 **Whitespace Cleanup SHA:** `ee617056b6b588bbf2bef56c54e2da7044199c88`
 **Source-of-Truth Correction SHA:** `7c6a40b52baba34d65d487b2aa473fc3d8d410bd`
 **Service & Publication Correction SHA:** `b632cbcbdeb0436b1bc4a52af2bf823cf2596356`
+**Security & Audit Correction SHA:** `714aa7e8e93f3f13d3fb6557650aa4f2753aa108`
 **Branch:** `stage/c3-marketing-scope-freeze`
 **Date:** 2026-09-01
 **Status:** SCOPE CORRECTED / AWAITING INDEPENDENT REVIEW (C4 / C5+ NOT AUTHORIZED)
@@ -178,14 +179,16 @@ To preserve strict stabilization boundaries and prevent speculative feature cree
 | **Archive Live / Draft Content** | DENY | DENY | ALLOW | DENY |
 | **Upload Media to `public-site-media`** | DENY | ALLOW | ALLOW | DENY |
 | **Soft-Archive Media Assets** | DENY | TARGET REQUEST / REVIEW WORKFLOW *(Cannot directly finalize archived status under current RLS policy; final archive authority remains Owner)* | ALLOW | DENY |
-| **Hard-Delete Media Files** | DENY | PROHIBITED BY PRODUCT CONTRACT *(Storage DELETE policy gap recorded; client bypass prevented by server contract)* | PROHIBITED BY PRODUCT CONTRACT *(Storage DELETE policy gap recorded; client bypass prevented by server contract)* | DENY |
+| **Hard-Delete Media Files** | DENY | PROHIBITED BY TARGET PRODUCT CONTRACT *(repository Storage DELETE enforcement gap unresolved)* | PROHIBITED BY TARGET PRODUCT CONTRACT *(repository Storage DELETE enforcement gap unresolved)* | DENY |
 | **Edit Public Branch Phone / Hours / Social** | DENY | ALLOW — TARGET DRAFT/REVIEW WORKFLOW *(persistence mapping unresolved)* | ALLOW (Direct & Review) | DENY |
 | **Edit Branch Location / Name / Address** | DENY | DENY (Read-Only) | ALLOW (Owner Ops Path) | DENY |
 | **Edit Branch Activation (`is_active`)** | DENY | DENY | ALLOW (Owner Ops Path) | DENY |
 | **Edit Service Public Copy / Image** | DENY | ALLOW — TARGET DRAFT/REVIEW WORKFLOW *(persistence mapping unresolved)* | ALLOW (Direct & Review) | DENY |
 | **Edit Service Price / Duration / Visibility** | DENY | DENY | ALLOW (Owner Ops Path) | DENY |
 
-*Note on Authorization vs. Runtime Support:* "ALLOW — TARGET DRAFT/REVIEW WORKFLOW" specifies the target role authority under the product contract. It does NOT claim that the underlying persistence and publishing pipeline is already fully implemented at runtime.
+*Note on Authorization vs. Runtime Support:*
+1. "ALLOW — TARGET DRAFT/REVIEW WORKFLOW" specifies the target role authority under the product contract. It does NOT claim that the underlying persistence and publishing pipeline is already fully implemented at runtime.
+2. The target product contract prohibits hard deletion of media assets, but C3 does not claim that current repository or live Storage policy already prevents direct client deletion. A later separately authorized security implementation must prove or establish enforcement. Server-side protection against client bypass is not claimed as an existing proven control.
 
 ---
 
