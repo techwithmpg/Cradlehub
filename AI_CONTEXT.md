@@ -18,13 +18,15 @@
 - C3 status: **CLOSED / ACCEPTED**
 - C4 accepted UI/UX plan merge SHA: `b90b2d70d05b8d6082f707babed8995799c2ab2d`
 - C4 status: **CLOSED / ACCEPTED**
+- C5 Pass 1 accepted parity merge SHA: `1f5d71ce3472684c9a94ad83d6c2e36a9d1b1971`
+- C5 Pass 1 status: **CLOSED / ACCEPTED**
 - Last governance closeout verification: 2026-09-01
 - Current stage: **C5 — Implementation (Digital Marketing Workspace)**
-- C5 status: **PASS 1 OWNER ACCEPTED / MERGE GATE IN PROGRESS**
-- Next stage: **C5 PASS 2 — CONDITIONALLY AUTHORIZED AFTER C5.1 CLOSEOUT (C5 PASS 3+: NOT AUTHORIZED)**
+- C5 status: **PASS 2 ACTIVE (Central Media Library & Universal Media Picker)**
+- Next stage: **C5 PASS 3+ — NOT AUTHORIZED**
 
 > [!NOTE]
-> C5 Pass 1 authorizes frontend component grounding and public consumer parity only. It does NOT authorize schema/database changes, migrations, RLS, Storage policy changes, Auth changes, security-policy mutation, or production data mutation. Later C5 passes remain strictly not authorized.
+> C5 Pass 2 authorizes the Central Media Library and Universal Media Picker only. It does NOT authorize schema/database changes, migrations, RLS, Storage policy changes, Auth changes, security-policy mutation, or production data mutation. Later C5 passes remain strictly not authorized.
 
 The recorded SHAs are stable closeout anchors, not declarations of the current `main` head. At the start of every session, fetch and re-resolve `origin/main`; inspect newer accepted work rather than recreating an older state.
 
@@ -66,7 +68,7 @@ The recorded SHAs are stable closeout anchors, not declarations of the current `
 
 ## Current authorization
 
-C0B, C1, C2, C3, and C4 are closed and accepted. C5 Pass 1 (Public Consumer Parity & Component Grounding) is OWNER ACCEPTED with independent review PASS, and its merge gate into main is active. Conditioned on successful accepted C5.1 closeout, C5 Pass 2 (Central Media Library & Universal Media Picker) is conditionally authorized. C5 Pass 2 does NOT authorize schema/database mutation, migrations, RLS/Auth/Storage policy changes, production data mutation, or C5 Pass 3+. C5 Pass 3+ remains strictly NOT AUTHORIZED.
+C0B, C1, C2, C3, C4, and C5 Pass 1 are closed and accepted. C5 Pass 1 (Public Consumer Parity & Component Grounding) was merged into main at `1f5d71ce3472684c9a94ad83d6c2e36a9d1b1971`. C5 Pass 2 (Central Media Library & Universal Media Picker) is ACTIVE. C5 Pass 2 does NOT authorize schema/database mutation, migrations, RLS/Auth/Storage policy changes, production data mutation, or C5 Pass 3+. C5 Pass 3+ remains strictly NOT AUTHORIZED.
 
 ## Historical context policy
 

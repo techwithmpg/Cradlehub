@@ -4,10 +4,11 @@
 
 - **Program:** Controlled Stabilization
 - **Current stage:** C5 — Implementation (Digital Marketing Workspace)
-- **C5 status:** PASS 1 OWNER ACCEPTED / MERGE GATE IN PROGRESS
-- **Independent review:** PASS
-- **C5 Pass 2:** CONDITIONALLY AUTHORIZED AFTER ACCEPTED C5.1 CLOSEOUT
+- **C5 status:** PASS 2 ACTIVE (Central Media Library & Universal Media Picker)
 - **C5 Pass 3+:** NOT AUTHORIZED
+- **C5 Pass 1 status:** CLOSED / ACCEPTED
+- **Accepted C5 Pass 1 parity merge:** `1f5d71ce3472684c9a94ad83d6c2e36a9d1b1971`
+- **Independent review:** PASS
 - **C4 status:** CLOSED / ACCEPTED
 - **Accepted C4 UI/UX plan merge:** `b90b2d70d05b8d6082f707babed8995799c2ab2d`
 - **C4 report:** `docs/audits/C4_MARKETING_UIUX_WORKFLOW_PLAN.md`
@@ -24,7 +25,7 @@
 - **Accepted C0B governance merge:** `03dbd57ed4be6f9b1f0bd30c7fd22a225e68ec2a`
 - **External review:** PASS
 - **Merge verification:** PASS
-- **Next stage:** C5 Pass 2 conditionally authorized after C5.1 closeout; C5 Pass 3+ NOT AUTHORIZED
+- **Next stage:** C5 Pass 3+ NOT AUTHORIZED
 
 ## Current safety state
 
@@ -75,4 +76,4 @@ CradleHub is a Next.js 16.2.4 / React 19.2.4 web application using Supabase Post
 - GitHub protection/ruleset and Vercel linkage/deployed-commit unknowns; and
 - production-connected `main` release safety.
 
-C0B, C1, C2, C3, and C4 are CLOSED and ACCEPTED. C5 Pass 1 (Public Consumer Parity & Component Grounding) is OWNER ACCEPTED with independent review PASS, and its merge gate into main is active. Conditioned on successful accepted C5.1 closeout, C5 Pass 2 (Central Media Library & Universal Media Picker) is conditionally authorized. C5 Pass 2 does NOT authorize schema/database mutation, migrations, RLS/Auth/Storage policy changes, production data mutation, or C5 Pass 3+. C5 Pass 3+ remains strictly NOT AUTHORIZED.
+C0B, C1, C2, C3, C4, and C5 Pass 1 are CLOSED and ACCEPTED. C5 Pass 1 was merged into main at `1f5d71ce3472684c9a94ad83d6c2e36a9d1b1971`. C5 Pass 2 (Central Media Library & Universal Media Picker) is ACTIVE. C5 Pass 2 does NOT authorize schema/database mutation, migrations, RLS/Auth/Storage policy changes, production data mutation, or C5 Pass 3+. C5 Pass 3+ remains strictly NOT AUTHORIZED.
