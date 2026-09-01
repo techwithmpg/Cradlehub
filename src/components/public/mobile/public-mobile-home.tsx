@@ -37,7 +37,7 @@ export type PublicMobileHomeProps = {
   sections?: NormalizedPublicSiteSections;
 };
 
-const isPublicSafeService = (s: PublicCatalogService) =>
+export const isPublicSafeService = (s: PublicCatalogService) =>
   Boolean(s.isPublicBookable && !s.isCsrOnly && !s.isVip);
 
 export type PublicMobileHomeRendererProps = {
@@ -64,7 +64,7 @@ export function PublicMobileHomeRenderer({
       : (branchAddresses[0] ?? "");
 
   return (
-    <div className="bg-[#061912] pb-0 text-[#F3E9D2] md:hidden">
+    <div className="bg-[#061912] pb-0 text-[#F3E9D2]">
       {/* ── Hero Carousel (consuming canonical Hero data) ───────────────────── */}
       <MobileHomeHeroCarousel hero={sections.hero} />
 
@@ -144,10 +144,12 @@ export function PublicMobileHome({
   const resolvedSections = sections ?? resolvePublicSiteSections(managedSections);
 
   return (
-    <PublicMobileHomeRenderer
-      sections={resolvedSections}
-      branches={branches}
-      services={publicServices}
-    />
+    <div className="md:hidden">
+      <PublicMobileHomeRenderer
+        sections={resolvedSections}
+        branches={branches}
+        services={publicServices}
+      />
+    </div>
   );
 }

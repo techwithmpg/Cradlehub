@@ -3,7 +3,7 @@
  */
 
 import { describe, expect, it, afterEach, vi } from "vitest";
-import { render, screen, fireEvent, cleanup } from "@testing-library/react";
+import { render, screen, fireEvent, cleanup, within } from "@testing-library/react";
 
 afterEach(() => {
   cleanup();
@@ -42,8 +42,103 @@ import { PUBLIC_SITE_SECTION_DEFAULTS } from "@/lib/marketing/public-section-def
 import type { MarketingContentDraftRow } from "@/lib/queries/marketing-content";
 import type { MarketingMediaAssetRow } from "@/lib/queries/marketing-media";
 import type { PublicSiteSectionRow } from "@/lib/queries/public-site";
+import type { PublicCatalogService } from "@/lib/queries/services";
 import { HomePageSectionsRenderer } from "@/components/public/home-page-sections";
+import {
+  PublicMobileHome,
+  PublicMobileHomeRenderer,
+  isPublicSafeService,
+} from "@/components/public/mobile/public-mobile-home";
+import { HighFidelityPreview } from "@/components/features/marketing/website/high-fidelity-preview";
+import {
+  UnsavedChangesDialog,
+  RevertToLiveDialog,
+} from "@/components/features/marketing/website/unsaved-changes-dialog";
 import { resolvePublicSiteSections } from "@/lib/public/normalized-sections";
+import { act } from "react";
+
+const mockSaveMarketingDraftAction = vi.fn(async (prevState: unknown, formData: FormData) => {
+  const contentKey = String(formData.get("contentKey") || "hero");
+  const title = String(formData.get("title") || "");
+  const id = String(formData.get("id") || `mock-draft-${contentKey}`);
+  let metadata: Record<string, unknown> = {};
+  try {
+    const raw = String(formData.get("metadataJson") || "{}");
+    metadata = JSON.parse(raw);
+  } catch {
+    metadata = {};
+  }
+  return {
+    success: true,
+    draft: {
+      id,
+      content_type: "section" as const,
+      content_key: contentKey,
+      title,
+      subtitle: String(formData.get("subtitle") || ""),
+      body: String(formData.get("body") || ""),
+      cta_label: String(formData.get("ctaLabel") || ""),
+      cta_href: String(formData.get("ctaHref") || ""),
+      image_url: String(formData.get("imageUrl") || ""),
+      secondary_image_url: String(formData.get("secondaryImageUrl") || ""),
+      alt_text: String(formData.get("altText") || ""),
+      link_href: String(formData.get("linkHref") || ""),
+      sort_order: Number(formData.get("sortOrder")) || 0,
+      is_enabled: formData.has("isEnabled") && formData.get("isEnabled") !== "false",
+      metadata,
+      status: "draft" as const,
+      created_by: "marketer-1",
+      updated_by: "marketer-1",
+      reviewed_by: null,
+      reviewed_at: null,
+      review_note: null,
+      scheduled_for: null,
+      published_at: null,
+      created_at: "2026-09-01T00:00:00Z",
+      updated_at: "2026-09-01T00:00:00Z",
+    },
+  };
+});
+
+const mockSubmitMarketingDraftAction = vi.fn(async (prevState: unknown, formData: FormData) => {
+  const id = String(formData.get("id") || "mock-draft-1");
+  return {
+    success: true,
+    draft: {
+      id,
+      content_type: "section" as const,
+      content_key: "hero",
+      title: "Submitted Hero Title",
+      subtitle: "",
+      body: "",
+      cta_label: "",
+      cta_href: "",
+      image_url: "",
+      secondary_image_url: "",
+      alt_text: "",
+      link_href: "",
+      sort_order: 0,
+      is_enabled: true,
+      metadata: {},
+      status: "pending_review" as const,
+      created_by: "marketer-1",
+      updated_by: "marketer-1",
+      reviewed_by: null,
+      reviewed_at: null,
+      review_note: null,
+      scheduled_for: null,
+      published_at: null,
+      created_at: "2026-09-01T00:00:00Z",
+      updated_at: "2026-09-01T00:00:00Z",
+    },
+  };
+});
+
+vi.mock("@/app/(dashboard)/marketing/actions", () => ({
+  saveMarketingDraftAction: (prev: unknown, fd: FormData) => mockSaveMarketingDraftAction(prev, fd),
+  submitMarketingDraftAction: (prev: unknown, fd: FormData) =>
+    mockSubmitMarketingDraftAction(prev, fd),
+}));
 
 const mockPublishedSections: PublicSiteSectionRow[] = [
   {
@@ -447,7 +542,10 @@ describe("Website Studio & High-Fidelity Preview (C5 Pass 3)", () => {
       fireEvent.click(revertBtns[0]!);
 
       expect(screen.getByText(/Revert Hero Header to Live Values\?/i)).toBeDefined();
-      const dialogConfirmBtn = screen.getAllByRole("button", { name: /Revert to Live/i })[1]!;
+      const dialogElement = screen.getByRole("dialog");
+      const dialogConfirmBtn = within(dialogElement).getByRole("button", {
+        name: /Revert to Live/i,
+      });
       fireEvent.click(dialogConfirmBtn);
 
       // Verify form state was reset to published values
@@ -578,6 +676,322 @@ describe("Website Studio & High-Fidelity Preview (C5 Pass 3)", () => {
       const stayBtn = screen.getByRole("button", { name: /Stay and Keep Editing/i });
       fireEvent.click(stayBtn);
       expect(titleInput.value).toBe("Dirty Title");
+    });
+
+    it("edit -> successful Save Draft -> dirty state clears", async () => {
+      render(
+        <WebsiteStudioView
+          role="digital_marketer"
+          sectionDefaults={PUBLIC_SITE_SECTION_DEFAULTS}
+          publishedSections={mockPublishedSections}
+          drafts={[]}
+        />
+      );
+
+      // 1. Initially clean
+      expect(screen.queryByText(/Unsaved edits/i)).toBeNull();
+
+      // 2. Edit field -> becomes dirty
+      const titleInput = screen.getByLabelText(/Main Title \/ Headline/i) as HTMLInputElement;
+      fireEvent.change(titleInput, { target: { value: "Brand New Saved Hero Title" } });
+      expect(screen.getByText(/Unsaved edits/i)).toBeDefined();
+
+      // 3. Submit form / Save Draft
+      const saveBtn = screen.getByRole("button", { name: /Save Draft/i });
+      await act(async () => {
+        fireEvent.click(saveBtn);
+      });
+
+      // 4. Dirty state indicator clears after successful save
+      expect(screen.queryByText(/Unsaved edits/i)).toBeNull();
+      expect(titleInput.value).toBe("Brand New Saved Hero Title");
+    });
+
+    it("navigation after successful Save does NOT show unsaved-changes dialog", async () => {
+      render(
+        <WebsiteStudioView
+          role="digital_marketer"
+          sectionDefaults={PUBLIC_SITE_SECTION_DEFAULTS}
+          publishedSections={mockPublishedSections}
+          drafts={[]}
+        />
+      );
+
+      // Edit and Save
+      const titleInput = screen.getByLabelText(/Main Title \/ Headline/i) as HTMLInputElement;
+      fireEvent.change(titleInput, { target: { value: "Clean Saved Title" } });
+
+      const saveBtn = screen.getByRole("button", { name: /Save Draft/i });
+      await act(async () => {
+        fireEvent.click(saveBtn);
+      });
+
+      // Navigate to another section
+      const aboutBtn = screen.getByRole("button", { name: /About & Philosophy/i });
+      await act(async () => {
+        fireEvent.click(aboutBtn);
+      });
+
+      // Dialog should NOT be present
+      expect(screen.queryByText("Unsaved Section Changes")).toBeNull();
+      // Active section should now be About (loaded published title for About section)
+      const aboutTitleInput = screen.getByLabelText(/Main Title \/ Headline/i) as HTMLInputElement;
+      expect(aboutTitleInput.value).toBe("Published About Title");
+    });
+
+    it("successful creation of a new section draft immediately exposes Submit for Review without reload", async () => {
+      render(
+        <WebsiteStudioView
+          role="digital_marketer"
+          sectionDefaults={PUBLIC_SITE_SECTION_DEFAULTS}
+          publishedSections={mockPublishedSections}
+          drafts={[]} // No pre-existing drafts
+        />
+      );
+
+      // Before save: draft does not exist so Submit for Review is not rendered
+      expect(screen.queryByRole("button", { name: /Submit for Review/i })).toBeNull();
+
+      // Edit title and Save
+      const titleInput = screen.getByLabelText(/Main Title \/ Headline/i) as HTMLInputElement;
+      fireEvent.change(titleInput, { target: { value: "Submittable Hero Title" } });
+
+      const saveBtn = screen.getByRole("button", { name: /Save Draft/i });
+      await act(async () => {
+        fireEvent.click(saveBtn);
+      });
+
+      // After save: draft is now recognized and Submit for Review is immediately active
+      const submitBtnAfter = screen.getByRole("button", { name: /Submit for Review/i });
+      expect(submitBtnAfter).toBeDefined();
+      expect(submitBtnAfter.hasAttribute("disabled")).toBe(false);
+    });
+  });
+
+  describe("Mobile Preview Parity & Public Safe Service Rules", () => {
+    const mockServices: PublicCatalogService[] = [
+      {
+        id: "svc-public-1",
+        name: "Swedish Relaxation Massage",
+        categoryName: "Massage Therapy Services",
+        categoryOrder: 1,
+        subcategory: "Signature",
+        description: "Full body relaxation",
+        durationMinutes: 60,
+        durationText: "60 mins",
+        price: 800,
+        priceLabel: "₱800",
+        shortDescription: "Full body relaxation",
+        packagePax: null,
+        packageDurationText: null,
+        requiresConsultation: false,
+        badges: ["Popular"],
+        inclusions: ["Aromatherapy oil"],
+        isPublicBookable: true,
+        isCsrOnly: false,
+        isVip: false,
+        isCatalogOnly: false,
+        availableInSpa: true,
+        availableHomeService: true,
+        imageUrl: "/images/swedish.jpg",
+        imageAlt: "Swedish Relaxation Massage",
+      },
+      {
+        id: "svc-csr-1",
+        name: "Internal CSR Only Addon",
+        categoryName: "Add-ons",
+        categoryOrder: 2,
+        subcategory: "Add-ons",
+        description: "Only staff can select this",
+        durationMinutes: 15,
+        durationText: "15 mins",
+        price: 200,
+        priceLabel: "₱200",
+        shortDescription: "Staff only addon",
+        packagePax: null,
+        packageDurationText: null,
+        requiresConsultation: false,
+        badges: [],
+        inclusions: [],
+        isPublicBookable: true,
+        isCsrOnly: true,
+        isVip: false,
+        isCatalogOnly: false,
+        availableInSpa: true,
+        availableHomeService: false,
+        imageUrl: "/images/addon.jpg",
+        imageAlt: "Internal CSR Only Addon",
+      },
+      {
+        id: "svc-vip-1",
+        name: "VIP Executive Spa Treatment",
+        categoryName: "Executive Packages",
+        categoryOrder: 3,
+        subcategory: "Packages",
+        description: "Invitation-only VIP service",
+        durationMinutes: 120,
+        durationText: "120 mins",
+        price: 3500,
+        priceLabel: "₱3,500",
+        shortDescription: "VIP treatment",
+        packagePax: 1,
+        packageDurationText: "2 hours",
+        requiresConsultation: true,
+        badges: ["VIP"],
+        inclusions: ["Private suite"],
+        isPublicBookable: true,
+        isCsrOnly: false,
+        isVip: true,
+        isCatalogOnly: false,
+        availableInSpa: true,
+        availableHomeService: false,
+        imageUrl: "/images/vip.jpg",
+        imageAlt: "VIP Executive Spa Treatment",
+      },
+      {
+        id: "svc-nonbookable-1",
+        name: "Discontinued Seasonal Scrub",
+        categoryName: "Body Scrubs",
+        categoryOrder: 4,
+        subcategory: "Scrubs",
+        description: "Not bookable online",
+        durationMinutes: 45,
+        durationText: "45 mins",
+        price: 600,
+        priceLabel: "₱600",
+        shortDescription: "Seasonal scrub",
+        packagePax: null,
+        packageDurationText: null,
+        requiresConsultation: false,
+        badges: [],
+        inclusions: [],
+        isPublicBookable: false,
+        isCsrOnly: false,
+        isVip: false,
+        isCatalogOnly: true,
+        availableInSpa: true,
+        availableHomeService: false,
+        imageUrl: "/images/scrub.jpg",
+        imageAlt: "Discontinued Seasonal Scrub",
+      },
+    ];
+
+    it("isPublicSafeService filters correctly by public bookability, CSR-only, and VIP rules", () => {
+      // 1. Public-bookable normal service -> TRUE
+      expect(isPublicSafeService(mockServices[0]!)).toBe(true);
+
+      // 2. CSR-only service -> FALSE
+      expect(isPublicSafeService(mockServices[1]!)).toBe(false);
+
+      // 3. VIP service -> FALSE
+      expect(isPublicSafeService(mockServices[2]!)).toBe(false);
+
+      // 4. Non-public bookable service -> FALSE
+      expect(isPublicSafeService(mockServices[3]!)).toBe(false);
+    });
+
+    it("PublicMobileHomeRenderer renders in desktop test environment without md:hidden", () => {
+      const normalized = resolvePublicSiteSections(mockPublishedSections);
+      const { container } = render(
+        <PublicMobileHomeRenderer
+          sections={normalized}
+          branches={[]}
+          services={mockServices.filter(isPublicSafeService)}
+        />
+      );
+
+      // The root element of the renderer must NOT contain md:hidden
+      const rootDiv = container.firstElementChild as HTMLElement;
+      expect(rootDiv.classList.contains("md:hidden")).toBe(false);
+
+      // Public service is rendered
+      expect(screen.getByText("Swedish Relaxation Massage")).toBeDefined();
+      // Excluded services are not rendered
+      expect(screen.queryByText("Internal CSR Only Addon")).toBeNull();
+      expect(screen.queryByText("VIP Executive Spa Treatment")).toBeNull();
+      expect(screen.queryByText("Discontinued Seasonal Scrub")).toBeNull();
+    });
+
+    it("PublicMobileHome applies md:hidden wrapper for public consumer responsiveness", () => {
+      const normalized = resolvePublicSiteSections(mockPublishedSections);
+      const { container } = render(
+        <PublicMobileHome sections={normalized} branches={[]} services={mockServices} />
+      );
+
+      // Public wrapper must contain md:hidden
+      const wrapperDiv = container.firstElementChild as HTMLElement;
+      expect(wrapperDiv.classList.contains("md:hidden")).toBe(true);
+
+      // Renders public service and filters out unsafe services
+      expect(screen.getByText("Swedish Relaxation Massage")).toBeDefined();
+      expect(screen.queryByText("Internal CSR Only Addon")).toBeNull();
+      expect(screen.queryByText("VIP Executive Spa Treatment")).toBeNull();
+      expect(screen.queryByText("Discontinued Seasonal Scrub")).toBeNull();
+    });
+
+    it("HighFidelityPreview in mobile viewport renders filtered public services in desktop test environment", () => {
+      const normalized = resolvePublicSiteSections(mockPublishedSections);
+      render(
+        <HighFidelityPreview
+          draftSections={normalized}
+          liveSections={normalized}
+          initialMode="draft"
+          initialViewport="mobile"
+          branches={[]}
+          services={mockServices}
+        />
+      );
+
+      // Studio mobile preview displays public service in desktop environment
+      expect(screen.getByText("Swedish Relaxation Massage")).toBeDefined();
+      // Excludes CSR-only, VIP, and non-bookable
+      expect(screen.queryByText("Internal CSR Only Addon")).toBeNull();
+      expect(screen.queryByText("VIP Executive Spa Treatment")).toBeNull();
+      expect(screen.queryByText("Discontinued Seasonal Scrub")).toBeNull();
+    });
+  });
+
+  describe("Dialog Accessibility & Component Primitives", () => {
+    it("UnsavedChangesDialog renders with accessible Dialog primitive", () => {
+      const onStay = vi.fn();
+      const onDiscard = vi.fn();
+
+      render(
+        <UnsavedChangesDialog
+          isOpen={true}
+          onStay={onStay}
+          onDiscard={onDiscard}
+          title="Unsaved Section Changes"
+          message="You have unsaved changes in this section."
+        />
+      );
+
+      expect(screen.getByText("Unsaved Section Changes")).toBeDefined();
+      expect(screen.getByText("You have unsaved changes in this section.")).toBeDefined();
+
+      const stayBtn = screen.getByRole("button", { name: /Stay and Keep Editing/i });
+      fireEvent.click(stayBtn);
+      expect(onStay).toHaveBeenCalledTimes(1);
+    });
+
+    it("RevertToLiveDialog renders with accessible Dialog primitive", () => {
+      const onCancel = vi.fn();
+      const onConfirm = vi.fn();
+
+      render(
+        <RevertToLiveDialog
+          isOpen={true}
+          sectionName="Hero Section"
+          onCancel={onCancel}
+          onConfirm={onConfirm}
+        />
+      );
+
+      expect(screen.getByText(/Revert Hero Section to Live Values\?/i)).toBeDefined();
+
+      const confirmBtn = screen.getByRole("button", { name: /Revert to Live/i });
+      fireEvent.click(confirmBtn);
+      expect(onConfirm).toHaveBeenCalledTimes(1);
     });
   });
 

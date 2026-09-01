@@ -6,7 +6,10 @@ import type { NormalizedPublicSiteSections } from "@/lib/public/normalized-secti
 import type { PublicCatalogService } from "@/lib/queries/services";
 import type { Database } from "@/types/supabase";
 import { HomePageSectionsRenderer } from "@/components/public/home-page-sections";
-import { PublicMobileHomeRenderer } from "@/components/public/mobile/public-mobile-home";
+import {
+  PublicMobileHomeRenderer,
+  isPublicSafeService,
+} from "@/components/public/mobile/public-mobile-home";
 
 export type PreviewMode = "draft" | "live" | "compare";
 export type PreviewViewport = "desktop" | "tablet" | "mobile";
@@ -36,6 +39,7 @@ export function HighFidelityPreview({
   const [mode, setMode] = useState<PreviewMode>(initialMode);
   const [viewport, setViewport] = useState<PreviewViewport>(initialViewport);
 
+  const publicServices = services.filter(isPublicSafeService);
   const activeSections = mode === "live" ? liveSections : draftSections;
 
   return (
@@ -49,11 +53,11 @@ export function HighFidelityPreview({
             onClick={() => setMode("draft")}
             className={`inline-flex items-center gap-1.5 rounded-md px-2.5 py-1 text-xs font-semibold transition ${
               mode === "draft"
-                ? "bg-[var(--cs-primary)] text-white shadow-xs"
+                ? "bg-purple-600 text-white shadow-xs"
                 : "text-[var(--cs-text-secondary)] hover:text-[var(--cs-text)]"
             }`}
           >
-            <Pencil className="h-3.5 w-3.5" />
+            <Pencil className="h-3 w-3" />
             Draft
           </button>
           <button
@@ -61,11 +65,11 @@ export function HighFidelityPreview({
             onClick={() => setMode("live")}
             className={`inline-flex items-center gap-1.5 rounded-md px-2.5 py-1 text-xs font-semibold transition ${
               mode === "live"
-                ? "bg-[var(--cs-primary)] text-white shadow-xs"
+                ? "bg-emerald-600 text-white shadow-xs"
                 : "text-[var(--cs-text-secondary)] hover:text-[var(--cs-text)]"
             }`}
           >
-            <Globe className="h-3.5 w-3.5" />
+            <Globe className="h-3 w-3" />
             Live
           </button>
           <button
@@ -77,7 +81,7 @@ export function HighFidelityPreview({
                 : "text-[var(--cs-text-secondary)] hover:text-[var(--cs-text)]"
             }`}
           >
-            <Columns2 className="h-3.5 w-3.5" />
+            <Columns2 className="h-3 w-3" />
             Compare
           </button>
         </div>
@@ -87,9 +91,9 @@ export function HighFidelityPreview({
           <button
             type="button"
             onClick={() => setViewport("desktop")}
-            className={`p-1.5 rounded-md text-xs transition ${
+            className={`p-1.5 rounded-md transition ${
               viewport === "desktop"
-                ? "bg-[var(--cs-primary)] text-white"
+                ? "bg-[var(--cs-surface-warm)] text-[var(--cs-primary)] font-bold shadow-xs"
                 : "text-[var(--cs-text-secondary)] hover:text-[var(--cs-text)]"
             }`}
             title="Desktop Viewport (1280px)"
@@ -100,9 +104,9 @@ export function HighFidelityPreview({
           <button
             type="button"
             onClick={() => setViewport("tablet")}
-            className={`p-1.5 rounded-md text-xs transition ${
+            className={`p-1.5 rounded-md transition ${
               viewport === "tablet"
-                ? "bg-[var(--cs-primary)] text-white"
+                ? "bg-[var(--cs-surface-warm)] text-[var(--cs-primary)] font-bold shadow-xs"
                 : "text-[var(--cs-text-secondary)] hover:text-[var(--cs-text)]"
             }`}
             title="Tablet Viewport (768px)"
@@ -113,9 +117,9 @@ export function HighFidelityPreview({
           <button
             type="button"
             onClick={() => setViewport("mobile")}
-            className={`p-1.5 rounded-md text-xs transition ${
+            className={`p-1.5 rounded-md transition ${
               viewport === "mobile"
-                ? "bg-[var(--cs-primary)] text-white"
+                ? "bg-[var(--cs-surface-warm)] text-[var(--cs-primary)] font-bold shadow-xs"
                 : "text-[var(--cs-text-secondary)] hover:text-[var(--cs-text)]"
             }`}
             title="Mobile Viewport (375px)"
@@ -124,26 +128,35 @@ export function HighFidelityPreview({
             <Smartphone className="h-3.5 w-3.5" />
           </button>
         </div>
+      </div>
 
-        {/* Status / Indicator */}
-        <div className="flex items-center gap-2">
+      {/* ── Status Bar ─────────────────────────────────────────── */}
+      <div className="flex items-center justify-between border-b border-[var(--cs-border)] bg-[var(--cs-surface)] px-4 py-1.5 text-[11px] text-[var(--cs-text-secondary)]">
+        <div>
           {mode === "draft" && (
-            <span className="inline-flex items-center gap-1 rounded-md bg-purple-50 px-2 py-0.5 text-[11px] font-semibold text-purple-700 dark:bg-purple-950/40 dark:text-purple-300">
+            <span className="inline-flex items-center gap-1 text-purple-700 font-medium dark:text-purple-300">
               <span className="h-1.5 w-1.5 rounded-full bg-purple-500 animate-pulse" />
-              Draft Preview (In-Memory)
+              In-Memory Working Draft
             </span>
           )}
           {mode === "live" && (
-            <span className="inline-flex items-center gap-1 rounded-md bg-emerald-50 px-2 py-0.5 text-[11px] font-semibold text-emerald-700 dark:bg-emerald-950/40 dark:text-emerald-300">
+            <span className="inline-flex items-center gap-1 text-emerald-700 font-medium dark:text-emerald-300">
               <span className="h-1.5 w-1.5 rounded-full bg-emerald-500" />
               Published Live Version
             </span>
           )}
           {mode === "compare" && (
-            <span className="inline-flex items-center gap-1 rounded-md bg-blue-50 px-2 py-0.5 text-[11px] font-semibold text-blue-700 dark:bg-blue-950/40 dark:text-blue-300">
+            <span className="inline-flex items-center gap-1 text-[var(--cs-text)] font-medium">
               Comparing Live vs Working Draft
             </span>
           )}
+        </div>
+        <div className="font-mono text-[10px] uppercase text-[var(--cs-text-muted)]">
+          {viewport === "desktop"
+            ? "1280px Desktop"
+            : viewport === "tablet"
+              ? "768px Tablet"
+              : "375px Mobile"}
         </div>
       </div>
 
@@ -161,13 +174,13 @@ export function HighFidelityPreview({
                   <PublicMobileHomeRenderer
                     sections={liveSections}
                     branches={branches}
-                    services={services}
+                    services={publicServices}
                   />
                 ) : (
                   <HomePageSectionsRenderer
                     sections={liveSections}
                     branches={branches}
-                    services={services}
+                    services={publicServices}
                   />
                 )}
               </div>
@@ -183,13 +196,13 @@ export function HighFidelityPreview({
                   <PublicMobileHomeRenderer
                     sections={draftSections}
                     branches={branches}
-                    services={services}
+                    services={publicServices}
                   />
                 ) : (
                   <HomePageSectionsRenderer
                     sections={draftSections}
                     branches={branches}
-                    services={services}
+                    services={publicServices}
                   />
                 )}
               </div>
@@ -209,13 +222,13 @@ export function HighFidelityPreview({
               <PublicMobileHomeRenderer
                 sections={activeSections}
                 branches={branches}
-                services={services}
+                services={publicServices}
               />
             ) : (
               <HomePageSectionsRenderer
                 sections={activeSections}
                 branches={branches}
-                services={services}
+                services={publicServices}
               />
             )}
           </div>

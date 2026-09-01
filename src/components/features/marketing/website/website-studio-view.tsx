@@ -39,6 +39,13 @@ import {
 import { SectionEditor, type SectionFormValues } from "./section-editor";
 import { HighFidelityPreview } from "./high-fidelity-preview";
 import { RevertToLiveDialog, UnsavedChangesDialog } from "./unsaved-changes-dialog";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogDescription,
+} from "@/components/ui/dialog";
 
 type BranchRow = Database["public"]["Tables"]["branches"]["Row"];
 
@@ -899,25 +906,20 @@ export function WebsiteStudioView({
       </div>
 
       {/* ── Fullscreen Preview Modal (Mobile & Tablet) ─────────────── */}
-      {isMobilePreviewOpen && (
-        <div
-          className="fixed inset-0 z-50 flex flex-col bg-black/60 backdrop-blur-xs p-4 xl:hidden"
-          role="dialog"
-          aria-modal="true"
+      <Dialog open={isMobilePreviewOpen} onOpenChange={setIsMobilePreviewOpen}>
+        <DialogContent
+          showCloseButton={true}
+          className="flex h-[90vh] max-h-[90vh] w-[95vw] max-w-5xl flex-col p-0 overflow-hidden xl:hidden"
         >
-          <div className="flex items-center justify-between rounded-t-xl bg-[var(--cs-surface)] px-4 py-2.5 border-b border-[var(--cs-border)]">
-            <span className="text-xs font-bold text-[var(--cs-text)]">
+          <DialogHeader className="px-4 py-2.5 border-b border-[var(--cs-border)] bg-[var(--cs-surface)]">
+            <DialogTitle className="text-xs font-bold text-[var(--cs-text)]">
               Website Studio Live Preview
-            </span>
-            <button
-              type="button"
-              onClick={() => setIsMobilePreviewOpen(false)}
-              className="rounded-lg p-1 text-[var(--cs-text-secondary)] hover:bg-[var(--cs-surface-warm)]"
-            >
-              <X className="h-5 w-5" />
-            </button>
-          </div>
-          <div className="flex-1 overflow-hidden rounded-b-xl bg-[var(--cs-surface)]">
+            </DialogTitle>
+            <DialogDescription className="sr-only">
+              Interactive high-fidelity preview of website sections
+            </DialogDescription>
+          </DialogHeader>
+          <div className="flex-1 overflow-hidden bg-[var(--cs-surface)]">
             <HighFidelityPreview
               draftSections={draftNormalizedSections}
               liveSections={liveNormalizedSections}
@@ -926,27 +928,24 @@ export function WebsiteStudioView({
               services={services}
             />
           </div>
-        </div>
-      )}
+        </DialogContent>
+      </Dialog>
 
       {/* ── Owner Request Changes Modal ────────────────────────────── */}
-      {ownerModal === "request_changes" && activeDraft && (
-        <div
-          className="fixed inset-0 z-50 flex items-center justify-center bg-black/45 p-4 backdrop-blur-xs"
-          role="dialog"
-          aria-modal="true"
-          aria-labelledby="request-changes-modal-title"
-        >
-          <div className="w-full max-w-md rounded-2xl border border-[var(--cs-border)] bg-[var(--cs-surface)] p-6 shadow-2xl">
-            <h3
-              id="request-changes-modal-title"
-              className="text-base font-semibold text-[var(--cs-text)]"
-            >
+      <Dialog
+        open={ownerModal === "request_changes" && Boolean(activeDraft)}
+        onOpenChange={(open) => !open && setOwnerModal(null)}
+      >
+        <DialogContent className="w-full max-w-md rounded-2xl border border-[var(--cs-border)] bg-[var(--cs-surface)] p-6 shadow-2xl">
+          <DialogHeader>
+            <DialogTitle className="text-base font-semibold text-[var(--cs-text)]">
               Request Changes
-            </h3>
-            <p className="mt-1 text-xs text-[var(--cs-text-secondary)]">
+            </DialogTitle>
+            <DialogDescription className="mt-1 text-xs text-[var(--cs-text-secondary)]">
               Provide specific feedback to the digital marketer on what to adjust.
-            </p>
+            </DialogDescription>
+          </DialogHeader>
+          {activeDraft && (
             <form action={requestAction} className="mt-4 space-y-4">
               <input type="hidden" name="id" value={activeDraft.id} />
               <textarea
@@ -975,25 +974,25 @@ export function WebsiteStudioView({
                 </button>
               </div>
             </form>
-          </div>
-        </div>
-      )}
+          )}
+        </DialogContent>
+      </Dialog>
 
       {/* ── Owner Schedule Modal ───────────────────────────────────── */}
-      {ownerModal === "schedule" && activeDraft && (
-        <div
-          className="fixed inset-0 z-50 flex items-center justify-center bg-black/45 p-4 backdrop-blur-xs"
-          role="dialog"
-          aria-modal="true"
-          aria-labelledby="schedule-modal-title"
-        >
-          <div className="w-full max-w-md rounded-2xl border border-[var(--cs-border)] bg-[var(--cs-surface)] p-6 shadow-2xl">
-            <h3 id="schedule-modal-title" className="text-base font-semibold text-[var(--cs-text)]">
+      <Dialog
+        open={ownerModal === "schedule" && Boolean(activeDraft)}
+        onOpenChange={(open) => !open && setOwnerModal(null)}
+      >
+        <DialogContent className="w-full max-w-md rounded-2xl border border-[var(--cs-border)] bg-[var(--cs-surface)] p-6 shadow-2xl">
+          <DialogHeader>
+            <DialogTitle className="text-base font-semibold text-[var(--cs-text)]">
               Schedule Publication
-            </h3>
-            <p className="mt-1 text-xs text-[var(--cs-text-secondary)]">
+            </DialogTitle>
+            <DialogDescription className="mt-1 text-xs text-[var(--cs-text-secondary)]">
               Select date and time to publish this section update.
-            </p>
+            </DialogDescription>
+          </DialogHeader>
+          {activeDraft && (
             <form action={scheduleAction} className="mt-4 space-y-4">
               <input type="hidden" name="id" value={activeDraft.id} />
               <div>
@@ -1026,9 +1025,9 @@ export function WebsiteStudioView({
                 </button>
               </div>
             </form>
-          </div>
-        </div>
-      )}
+          )}
+        </DialogContent>
+      </Dialog>
 
       {/* ── Unsaved Changes Confirmation Modal ────────────────────── */}
       <UnsavedChangesDialog

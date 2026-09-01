@@ -7,10 +7,10 @@
 - **Date:** 2026-09-01
 - **Branch:** `stage/c5-3-website-studio`
 - **Accepted Starting Base SHA:** `f71f0b0c9d0de60a11386814cd23c200ca99496b`
-- **Original Contaminated Implementation Head SHA:** `3fb22d2458a8810ab54230a5d77e01b6b3b7ca34`
 - **Scope-Isolation Correction SHA:** `facfa4dd49a007b1e8c57f96d448c56954b0c27f`
-- **Previous Candidate Head SHA:** `216fac56bb5fa1606b4e94a6f786f3ba8121e340`
-- **Final Reviewed Candidate Head SHA:** `cfa54cb99646b96e57a3e761d7b8782f9d504543`
+- **Previous Reviewed Candidate SHA:** `216fac56bb5fa1606b4e94a6f786f3ba8121e340`
+- **Targeted Implementation Correction SHA:** `9af281d98396ebae8e191329b8a401df6b09d311`
+- **Review Candidate Head:** Resolve from `origin/stage/c5-3-website-studio` at independent review time.
 - **Active Governance Decision:** `GOV-025` recorded in `docs/11-DECISION-LOG.md`
 - **Scope Compliance:** Website Studio & High-Fidelity Preview ONLY. Real public presentation grounding extracted from existing public components without altering consumer behavior. Preserved existing Owner review queue and C5.2 Media Library. No migrations, no database schema mutations, no Auth/RLS/Storage policy modifications, no production-data mutations. C5 Pass 4 and Pass 5 remain strictly NOT AUTHORIZED.
 
@@ -20,7 +20,7 @@
 
 A repository-wide formatting command (`pnpm format`) introduced unrelated formatting changes across CRM, booking, staff onboarding, manager operations, and public APIs in commit `3fb22d2458a8810ab54230a5d77e01b6b3b7ca34`. Those paths were restored exactly to `origin/main` in a non-rewriting cleanup commit (`facfa4dd49a007b1e8c57f96d448c56954b0c27f`).
 
-In the final targeted correction, `HomePageSectionsRenderer` and `PublicMobileHomeRenderer` were extracted from existing public home components to provide true component grounding for the studio preview without duplicating presentation code.
+In the targeted corrections, `HomePageSectionsRenderer` and `PublicMobileHomeRenderer` were extracted from existing public home components to provide true component grounding for the studio preview without duplicating presentation code, responsive hiding was removed from the pure renderer and kept on the public wrapper, and all modals were upgraded to repository `Dialog` primitives.
 
 ### Exact 16-File Scope Inventory:
 
@@ -53,6 +53,7 @@ In the final targeted correction, `HomePageSectionsRenderer` and `PublicMobileHo
    - **Left Rail (Section Navigation):** Groups homepage components into Managed Sections, Display Gates, and Static Context.
    - **Center Rail (Structured Section Editor):** Friendly form controls with copy fields, checklist item managers, Universal Media Picker integration, and safe LinkPicker destination selector. Zero raw JSON editor or Supabase jargon exposed to users.
    - **Right Rail (High-Fidelity Preview):** Grounded directly in `HomePageSectionsRenderer` and `PublicMobileHomeRenderer` with live in-memory reactivity, Draft/Live/Compare modes, and Desktop (1280px), Tablet (768px), and Mobile (375px) viewports.
+   - **Public Parity:** Pure `PublicMobileHomeRenderer` contains no `md:hidden`, allowing responsive preview within the desktop studio rail; public `PublicMobileHome` retains `md:hidden` for mobile-only public rendering. Both share identical `isPublicSafeService` filtering (`isPublicBookable && !isCsrOnly && !isVip`).
 
 2. **Homepage Section Classification & Governance:**
    - **Category A (Managed Contracts):**
@@ -78,7 +79,7 @@ In the final targeted correction, `HomePageSectionsRenderer` and `PublicMobileHo
 5. **Unsaved Changes Guard, Save-Dirty State & Revert to Live:**
    - Unsaved dirty state tracked against baseline loaded values.
    - Immediate dirty-state clearance and submittable draft registration upon successful Save Draft.
-   - Section switching intercepted with accessible confirmation dialog (Tab focus trap, Escape dismissal, ARIA attributes).
+   - Section switching intercepted with accessible confirmation dialog (`Dialog` primitive with Tab focus trap, Escape dismissal, ARIA attributes).
    - "Revert to Live" safely resets in-memory editor to published live values with zero database mutations.
 
 6. **Preserved Owner Review Queue & Publication Boundary:**
@@ -88,7 +89,7 @@ In the final targeted correction, `HomePageSectionsRenderer` and `PublicMobileHo
      - Prominent review note alert displayed when draft status is `changes_requested`.
      - Prohibited: No Approve, Schedule, Publish, or Archive controls.
    - **Owner (`role="owner"`):**
-     - Full governance controls: Save Draft, Request Changes (with review note modal), Approve, Schedule (with date/time modal), Publish to Live, Archive Draft, and Revert to Live.
+     - Full governance controls: Save Draft, Request Changes (with accessible `Dialog` review note modal), Approve, Schedule (with accessible `Dialog` date/time modal), Publish to Live, Archive Draft, and Revert to Live.
 
 ---
 
@@ -100,7 +101,7 @@ In the final targeted correction, `HomePageSectionsRenderer` and `PublicMobileHo
 pnpm vitest run --pool=threads
 ```
 
-- **Result:** 205 test files, 1,443 tests PASSED (0 failed).
+- **Result:** 205 test files, 1,452 tests PASSED (0 failed).
 
 ### 2. Marketing & Website Studio Dedicated Suite
 
@@ -108,8 +109,8 @@ pnpm vitest run --pool=threads
 pnpm vitest run tests/lib/marketing/
 ```
 
-- **Result:** 6 test files, 75 tests PASSED:
-  - `tests/lib/marketing/website-studio.test.tsx` (19 tests passed)
+- **Result:** 6 test files, 84 tests PASSED:
+  - `tests/lib/marketing/website-studio.test.tsx` (28 tests passed)
   - `tests/lib/marketing/media-library.test.tsx` (14 tests passed)
   - `tests/lib/marketing/public-consumer-parity.test.tsx` (12 tests passed)
   - `tests/lib/marketing/media-queries.test.ts` (17 tests passed)
@@ -154,7 +155,7 @@ pnpm build
 git diff --check origin/main...HEAD
 ```
 
-- **Result:** 0 whitespace or conflict errors across exact 14-file scope.
+- **Result:** 0 whitespace or conflict errors across exact 16-file scope.
 
 ---
 
