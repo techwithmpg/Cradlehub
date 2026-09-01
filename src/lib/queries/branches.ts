@@ -53,14 +53,25 @@ export async function getPublicBranches() {
 
 export async function getBranchById(branchId: string) {
   const supabase = await createClient();
-  const { data, error } = await supabase.from("branches").select("*").eq("id", branchId).single();
+  const { data, error } = await supabase
+    .from("branches")
+    .select("*")
+    .eq("id", branchId)
+    .single();
   if (error) throw new Error(error.message);
   return data;
 }
 
-export async function getBranchServices(branchId: string, options?: { publicOnly?: boolean }) {
+export async function getBranchServices(
+  branchId: string,
+  options?: { publicOnly?: boolean }
+) {
   return getBranchServiceCatalog(branchId, {
-    audience: options?.publicOnly ? "public" : options?.publicOnly === false ? "crm" : "management",
+    audience: options?.publicOnly
+      ? "public"
+      : options?.publicOnly === false
+        ? "crm"
+        : "management",
   });
 }
 
@@ -80,7 +91,11 @@ export async function getBranchWithFullDetail(branchId: string) {
   const supabase = await createClient();
 
   const [branchResult, servicesResult, staffResult, resourcesResult] = await Promise.all([
-    supabase.from("branches").select("*").eq("id", branchId).single(),
+    supabase
+      .from("branches")
+      .select("*")
+      .eq("id", branchId)
+      .single(),
 
     getBranchServicesForManagement(branchId),
 
@@ -102,9 +117,9 @@ export async function getBranchWithFullDetail(branchId: string) {
   if (branchResult.error) throw new Error(branchResult.error.message);
 
   return {
-    branch: branchResult.data,
-    services: servicesResult ?? [],
-    staff: staffResult.data ?? [],
+    branch:    branchResult.data,
+    services:  servicesResult ?? [],
+    staff:     staffResult.data     ?? [],
     resources: resourcesResult.data ?? [],
   };
 }
@@ -120,10 +135,16 @@ export async function getBranchesOverview() {
 
   const [branchesResult, staffCounts, bookingCounts] = await Promise.all([
     // All branches (including inactive so owner can reactivate)
-    supabase.from("branches").select("*").order("name"),
+    supabase
+      .from("branches")
+      .select("*")
+      .order("name"),
 
     // Active staff count per branch
-    supabase.from("staff").select("branch_id").eq("is_active", true),
+    supabase
+      .from("staff")
+      .select("branch_id")
+      .eq("is_active", true),
 
     // Today's non-cancelled bookings per branch
     supabase

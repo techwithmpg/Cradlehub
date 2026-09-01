@@ -21,7 +21,9 @@ import {
   resolveScheduleForStaffDay,
   type IndividualScheduleSourceRow,
 } from "@/lib/schedule/resolve-staff-schedule";
-import { validateBranchServiceEligibility } from "@/lib/services/service-catalog";
+import {
+  validateBranchServiceEligibility,
+} from "@/lib/services/service-catalog";
 import type { ServiceDeliveryMode } from "@/lib/services/service-types";
 
 type StaffProviderRow = {

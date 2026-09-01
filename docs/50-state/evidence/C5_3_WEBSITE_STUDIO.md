@@ -1,20 +1,47 @@
 # C5 Pass 3 Evidence — Website Studio & High-Fidelity Preview
 
-## 1. Executive Summary
+## 1. Executive Summary & Governance Coordinates
 
 - **Pass:** C5 Pass 3 (Website Studio & High-Fidelity Preview)
-- **Status:** IMPLEMENTED & VERIFIED
+- **Status:** IMPLEMENTED / AWAITING INDEPENDENT REVIEW
 - **Date:** 2026-09-01
 - **Branch:** `stage/c5-3-website-studio`
-- **Accepted Main Base SHA:** `f71f0b0c9d0de60a11386814cd23c200ca99496b`
+- **Accepted Starting Base SHA:** `f71f0b0c9d0de60a11386814cd23c200ca99496b`
+- **Original Contaminated Implementation Head SHA:** `3fb22d2458a8810ab54230a5d77e01b6b3b7ca34`
+- **Scope-Isolation Correction SHA:** `PENDING_COMMIT`
+- **Final Reviewed Candidate Head SHA:** `PENDING_COMMIT`
 - **Active Governance Decision:** `GOV-025` recorded in `docs/11-DECISION-LOG.md`
 - **Scope Compliance:** Website Studio & High-Fidelity Preview ONLY. No migrations, no database schema mutations, no Auth/RLS/Storage policy modifications, no production-data mutations. C5 Pass 4 and Pass 5 remain strictly NOT AUTHORIZED.
 
 ---
 
-## 2. Core Deliverables & Mental Model
+## 2. Scope Incident & Isolation Record
+
+A repository-wide formatting command (`pnpm format`) introduced unrelated formatting changes across CRM, booking, staff onboarding, manager operations, and public APIs in commit `3fb22d2458a8810ab54230a5d77e01b6b3b7ca34`. Those paths were restored exactly to `origin/main` in a new non-rewriting cleanup commit before final review without force-pushing or rewriting published history.
+
+### Exact 14-File Scope Inventory:
+
+1. `AI_CONTEXT.md`
+2. `docs/11-DECISION-LOG.md`
+3. `docs/13-PROJECT-STATUS.md`
+4. `docs/50-state/evidence/C5_3_WEBSITE_STUDIO.md`
+5. `src/app/(dashboard)/marketing/marketing-workspace.tsx`
+6. `src/app/(dashboard)/marketing/page.tsx`
+7. `src/app/(dashboard)/owner/marketing/marketing-studio.tsx`
+8. `src/app/(dashboard)/owner/marketing/page.tsx`
+9. `src/components/features/marketing/website/high-fidelity-preview.tsx`
+10. `src/components/features/marketing/website/link-picker.tsx`
+11. `src/components/features/marketing/website/section-editor.tsx`
+12. `src/components/features/marketing/website/unsaved-changes-dialog.tsx`
+13. `src/components/features/marketing/website/website-studio-view.tsx`
+14. `tests/lib/marketing/website-studio.test.tsx`
+
+---
+
+## 3. Core Deliverables & Mental Model
 
 ### Target Mental Model:
+
 `SEE IT → CHANGE IT → PREVIEW IT → SAVE DRAFT → SUBMIT → OWNER REVIEWS → PUBLISH SAFELY`
 
 1. **3-Pane Information Architecture:**
@@ -58,20 +85,24 @@
 
 ---
 
-## 3. Verification & Quality Gates
+## 4. Verification & Quality Gates
 
 ### 1. Automated Test Suite
+
 ```bash
 pnpm vitest run --pool=threads
 ```
-- **Result:** 205 test files, 1,438 tests PASSED (0 failed).
+
+- **Result:** 205 test files, 1,440 tests PASSED (0 failed).
 
 ### 2. Marketing & Website Studio Dedicated Suite
+
 ```bash
 pnpm vitest run tests/lib/marketing/
 ```
-- **Result:** 6 test files, 70 tests PASSED:
-  - `tests/lib/marketing/website-studio.test.tsx` (14 tests passed)
+
+- **Result:** 6 test files, 72 tests PASSED:
+  - `tests/lib/marketing/website-studio.test.tsx` (16 tests passed)
   - `tests/lib/marketing/media-library.test.tsx` (14 tests passed)
   - `tests/lib/marketing/public-consumer-parity.test.tsx` (12 tests passed)
   - `tests/lib/marketing/media-queries.test.ts` (17 tests passed)
@@ -79,41 +110,57 @@ pnpm vitest run tests/lib/marketing/
   - `tests/lib/marketing/marketing-studio-foundation-migration.test.ts` (4 tests passed)
 
 ### 3. TypeScript Type-Check
+
 ```bash
 pnpm type-check
 ```
-- **Result:** 0 errors.
+
+- **Result:** 0 errors (`tsc --noEmit`).
 
 ### 4. ESLint Check
+
 ```bash
 pnpm lint
 ```
+
 - **Result:** 0 errors.
 
 ### 5. Prettier Code Formatting
+
 ```bash
 pnpm format:check
 ```
+
 - **Result:** All matched files use Prettier code style (0 errors).
 
 ### 6. Next.js Production Build
+
 ```bash
 pnpm build
 ```
-- **Result:** Compiled successfully in 52s; 115/115 static pages generated.
+
+- **Result:** Compiled successfully; 115/115 static pages generated.
 
 ### 7. Git Diff Cleanliness
+
 ```bash
 git diff --check origin/main...HEAD
 ```
-- **Result:** 0 whitespace or conflict errors.
+
+- **Result:** 0 whitespace or conflict errors across exact 14-file scope.
 
 ---
 
-## 4. Prohibitions & Safety Confirmation
+## 5. Production & Rollback Declarations
 
-- **SQL / Migrations:** NO migrations created or applied.
-- **Database Schema:** ZERO database schema changes.
-- **Auth / RLS / Storage:** ZERO modifications to authentication, RLS, or storage policies.
-- **Production Data:** ZERO mutations to production data.
-- **Out of Scope Passes:** C5 Pass 4 (Brand / Branches / Services Studio) and Pass 5 (Review Queue / Atomic Revisions) remain strictly NOT implemented.
+### Production Verification Limitations:
+
+No production-data mutation was reported or intentionally performed during the recorded C5.3 workflow. Production database, Storage, deployment, and runtime state were not independently verified.
+
+### REPOSITORY-RECORDED PRODUCTION EVIDENCE:
+
+The final isolated C5.3 branch introduces no SQL migrations, schema changes, Auth changes, RLS changes, or Storage-policy changes.
+
+### Rollback Protocol:
+
+Code rollback is available through git revert of the C5.3 commits. Any runtime drafts or content mutations created through later use of the feature would require state-aware reconciliation. No production runtime state was independently verified during this implementation review.

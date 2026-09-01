@@ -1,6 +1,10 @@
 import type { Database } from "@/types/supabase";
 
-export type ServiceAudience = "public" | "crm" | "management" | "staff_assignment";
+export type ServiceAudience =
+  | "public"
+  | "crm"
+  | "management"
+  | "staff_assignment";
 
 export type ServiceDeliveryMode = "in_spa" | "home_service" | "any";
 
@@ -12,7 +16,10 @@ export type BranchBookingRulesLike = {
 };
 
 export type ServiceCategoryRelation =
-  | Pick<Database["public"]["Tables"]["service_categories"]["Row"], "id" | "name" | "display_order">
+  | Pick<
+      Database["public"]["Tables"]["service_categories"]["Row"],
+      "id" | "name" | "display_order"
+    >
   | Array<
       Pick<
         Database["public"]["Tables"]["service_categories"]["Row"],

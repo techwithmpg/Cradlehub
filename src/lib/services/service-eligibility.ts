@@ -11,7 +11,11 @@ import type {
 
 type BranchServiceFlags = Pick<
   BranchServiceCatalogRow,
-  "is_active" | "available_in_spa" | "available_home_service" | "visibility" | "booking_visibility"
+  | "is_active"
+  | "available_in_spa"
+  | "available_home_service"
+  | "visibility"
+  | "booking_visibility"
 >;
 
 type ServiceActiveFlag = { is_active?: boolean | null } | null | undefined;
@@ -57,7 +61,10 @@ export function isVisibleForAudience(
 }
 
 export function isDeliveryModeEnabled(
-  branchService: Pick<BranchServiceFlags, "available_in_spa" | "available_home_service">,
+  branchService: Pick<
+    BranchServiceFlags,
+    "available_in_spa" | "available_home_service"
+  >,
   deliveryMode: ServiceDeliveryMode,
   rules: BranchBookingRulesLike | null | undefined
 ): boolean {
@@ -69,7 +76,8 @@ export function isDeliveryModeEnabled(
   }
 
   return (
-    branchService.available_in_spa || (homeServiceEnabled && branchService.available_home_service)
+    branchService.available_in_spa ||
+    (homeServiceEnabled && branchService.available_home_service)
   );
 }
 
@@ -115,7 +123,13 @@ export function validateBranchServiceEligibility(input: {
     if (!isVisibleForAudience(input.branchService.visibility, input.audience)) {
       reasons.push("not_visible_to_audience");
     }
-    if (!isDeliveryModeEnabled(input.branchService, input.deliveryMode, input.rules)) {
+    if (
+      !isDeliveryModeEnabled(
+        input.branchService,
+        input.deliveryMode,
+        input.rules
+      )
+    ) {
       reasons.push("delivery_mode_unavailable");
     }
   }
@@ -133,14 +147,18 @@ export function normalizeBranchServiceRow<T extends Record<string, unknown>>(
 } {
   const visibility = normalizeServiceVisibility({
     visibility: typeof row.visibility === "string" ? row.visibility : null,
-    bookingVisibility: typeof row.booking_visibility === "string" ? row.booking_visibility : null,
+    bookingVisibility:
+      typeof row.booking_visibility === "string" ? row.booking_visibility : null,
   });
 
   return {
     ...row,
-    available_in_spa: typeof row.available_in_spa === "boolean" ? row.available_in_spa : true,
+    available_in_spa:
+      typeof row.available_in_spa === "boolean" ? row.available_in_spa : true,
     available_home_service:
-      typeof row.available_home_service === "boolean" ? row.available_home_service : false,
+      typeof row.available_home_service === "boolean"
+        ? row.available_home_service
+        : false,
     visibility,
     booking_visibility: toLegacyBookingVisibility(visibility),
   };

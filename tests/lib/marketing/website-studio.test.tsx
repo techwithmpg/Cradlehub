@@ -436,4 +436,45 @@ describe("Website Studio & High-Fidelity Preview (C5 Pass 3)", () => {
       expect(titleInput.value).toBe("Published Hero Title");
     });
   });
+
+  describe("UI Cleanliness & Media Picker Integration", () => {
+    it("ensures normal UI has no raw JSON textareas or database/Supabase jargon", () => {
+      render(
+        <WebsiteStudioView
+          role="digital_marketer"
+          sectionDefaults={PUBLIC_SITE_SECTION_DEFAULTS}
+          publishedSections={mockPublishedSections}
+          drafts={mockDrafts}
+        />
+      );
+
+      // Verify no raw JSON textarea exists
+      expect(screen.queryByPlaceholderText(/metadataJson/i)).toBeNull();
+      expect(screen.queryByText(/supabase/i)).toBeNull();
+      expect(screen.queryByText(/postgres/i)).toBeNull();
+      expect(screen.queryByText(/storage bucket/i)).toBeNull();
+    });
+
+    it("navigates between all Category A managed sections", () => {
+      render(
+        <WebsiteStudioView
+          role="digital_marketer"
+          sectionDefaults={PUBLIC_SITE_SECTION_DEFAULTS}
+          publishedSections={mockPublishedSections}
+          drafts={mockDrafts}
+        />
+      );
+
+      // Quote banner
+      const quoteBtn = screen.getByRole("button", { name: /Promotion \/ Quote Banner/i });
+      fireEvent.click(quoteBtn);
+      expect(screen.getByText("Promotion / Quote Banner Section")).toBeDefined();
+
+      // Before you book
+      const beforeBtn = screen.getByRole("button", { name: /Before You Book/i });
+      fireEvent.click(beforeBtn);
+      expect(screen.getByText("Before You Book Section")).toBeDefined();
+      expect(screen.getByText("Checklist & Guidance Items")).toBeDefined();
+    });
+  });
 });
