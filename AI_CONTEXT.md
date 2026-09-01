@@ -16,7 +16,7 @@
 - C2 status: **CLOSED / ACCEPTED**
 - Last governance closeout verification: 2026-09-01
 - Current stage: **C3 — Scope Freeze (Digital Marketing Workspace)**
-- C3 status: **SCOPE FROZEN / AWAITING OWNER REVIEW**
+- C3 status: **SCOPE CORRECTED / AWAITING INDEPENDENT REVIEW**
 - Next stage: **C4 — NOT AUTHORIZED**
 
 The recorded SHAs are stable closeout anchors, not declarations of the current `main` head. At the start of every session, fetch and re-resolve `origin/main`; inspect newer accepted work rather than recreating an older state.

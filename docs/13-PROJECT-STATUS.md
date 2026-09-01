@@ -4,7 +4,7 @@
 
 - **Program:** Controlled Stabilization
 - **Current stage:** C3 — Scope Freeze (Digital Marketing Workspace)
-- **C3 status:** SCOPE FROZEN / AWAITING OWNER REVIEW
+- **C3 status:** SCOPE CORRECTED / AWAITING INDEPENDENT REVIEW
 - **C3 report:** `docs/audits/C3_MARKETING_SCOPE_FREEZE.md`
 - **C2 status:** CLOSED / ACCEPTED
 - **Accepted C2 diagnostics merge:** `694873dfe9b9572a56620951bb69024492fe04c0`
@@ -68,4 +68,4 @@ CradleHub is a Next.js 16.2.4 / React 19.2.4 web application using Supabase Post
 - GitHub protection/ruleset and Vercel linkage/deployed-commit unknowns; and
 - production-connected `main` release safety.
 
-C1 and C2 are CLOSED and ACCEPTED. C2 diagnostics was merged into main at `694873dfe9b9572a56620951bb69024492fe04c0`. C3 Scope Freeze for the Digital Marketing Workspace is FROZEN in `docs/audits/C3_MARKETING_SCOPE_FREEZE.md` and is awaiting owner review. Product fixes, UI implementation, database/Storage mutation, migration actions, and C4 or later work are NOT AUTHORIZED without explicit owner instruction.
+C1 and C2 are CLOSED and ACCEPTED. C2 diagnostics was merged into main at `694873dfe9b9572a56620951bb69024492fe04c0`. C3 Scope Freeze for the Digital Marketing Workspace is delivered in `docs/audits/C3_MARKETING_SCOPE_FREEZE.md` (corrected) and is awaiting independent review. Product fixes, UI implementation, database/Storage mutation, migration actions, and C4 or later work are NOT AUTHORIZED without explicit owner instruction.

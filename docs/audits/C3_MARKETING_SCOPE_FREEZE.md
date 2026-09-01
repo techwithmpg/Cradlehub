@@ -4,9 +4,11 @@
 **Stage:** C3 — Scope Freeze (DOCUMENTATION ONLY — ZERO CODE / ZERO UI / ZERO PRODUCTION MUTATION)
 **Target:** CradleHub Web — Digital Marketing Workspace (`/marketing`, `/owner/marketing`) & Public-Site Consumers
 **Base SHA:** `01c36375327b688fdd6e69fbbc130307d17da0eb` (Accepted C2 closeout merge commit on `main`)
+**Initial C3 Delivery SHA:** `9cfeb8a3be1c1bb41d51f75d47b64b207de0913c`
+**Whitespace Cleanup SHA:** `ee617056b6b588bbf2bef56c54e2da7044199c88`
 **Branch:** `stage/c3-marketing-scope-freeze`
 **Date:** 2026-09-01
-**Status:** SCOPE FROZEN / AWAITING OWNER REVIEW (C4 / C5+ NOT AUTHORIZED)
+**Status:** SCOPE CORRECTED / AWAITING INDEPENDENT REVIEW (C4 / C5+ NOT AUTHORIZED)
 
 ---
 
@@ -18,7 +20,10 @@
    - Zero UI implementation, zero component creation, zero schema/database mutation, zero migration execution, zero Storage modification, zero production mutation.
    - C4 Design Implementation and C5+ Coding remain strictly **NOT AUTHORIZED** until separate explicit owner authorization.
 3. **Database & Environment Target:** LOCAL / STABILIZATION REPOSITORY GOVERNANCE. Live production Supabase mutations are strictly prohibited.
-4. **Evidence Classification:** All repository-grounded facts are classified as `VERIFIED REPOSITORY FACT`. Historical migration artifacts are classified as `REPOSITORY-RECORDED PRODUCTION EVIDENCE`. Live Supabase runtime state remains `NOT INDEPENDENTLY VERIFIED`.
+4. **Evidence Classification:**
+   - Repository source code and migration file contents = `VERIFIED REPOSITORY FACT / intended database definition recorded in repo`.
+   - Actual live production database/RLS/Storage application = `UNKNOWN / NOT INDEPENDENTLY VERIFIED`.
+   - `REPOSITORY-RECORDED PRODUCTION EVIDENCE` is used strictly where the repository contains a recorded production event or observation. Live DB/RLS/Storage truth is never inferred merely from migration presence.
 
 ---
 
@@ -94,30 +99,31 @@ graph TD
      - About (Company story, values, spa highlights).
      - Contact (Public contact copy, hours summary).
      - Secondary informational sections.
-   - Core capabilities: Rich section editing, copy adjustment, image selection via Media Picker, CTA configuration, section visibility toggling, contextual Search & Social metadata, responsive Draft Preview, and Live vs. Draft visual comparison.
+   - Core capabilities: Rich section editing, copy adjustment, image selection via Media Picker, CTA configuration, section visibility toggling (`is_enabled`), contextual Search & Social metadata, responsive Draft Preview, and Live vs. Draft visual comparison.
 2. **Brand Studio (`/marketing` & `/owner/marketing` > Brand):**
-   - Dedicated visual identity asset management:
-     - Primary Logo (Horizontal full logo).
-     - Light / Reversed Logo (For dark navigation/footers).
-     - Dark Logo (For light backgrounds).
-     - Logo Mark (Standalone brand icon / emblem).
-     - Favicon (Browser tab icon).
-     - Social Sharing Image (Default OpenGraph card image).
-   - Core capabilities: Brand asset upload, dimensions validation, SVG fallback toggle, preview across light/dark surfaces. Global design-system CSS token editing is strictly out of scope.
+   - Dedicated visual identity asset management for logical brand asset keys stored via `marketing_brand_settings.value`:
+     - Primary Logo (Horizontal full logo, logical key `logo_primary`).
+     - Light / Reversed Logo (For dark navigation/footers, logical key `logo_light` / `logo_reversed`).
+     - Dark Logo (For light backgrounds, logical key `logo_dark`).
+     - Logo Mark (Standalone brand icon / emblem, logical key `logo_mark`).
+     - Favicon (Browser tab icon, logical key `favicon`).
+     - Social Sharing Image (Default OpenGraph card image, logical key `social_image`).
+   - Core capabilities: Brand asset upload/selection via Media Picker, dimensions validation, SVG fallback toggle, preview across light/dark surfaces. Global design-system CSS token editing is strictly out of scope.
 3. **Branches Studio (`/marketing` & `/owner/marketing` > Branches):**
-   - Dedicated management of public-facing branch presentation fields for existing canonical branch records.
-   - Core capabilities: Edit public phone, secondary phone, email, Facebook page, Messenger link, public opening hours copy, maps embed URL, and branch gallery photos.
-   - Strict operational isolation: Marketer cannot create, delete, activate, deactivate, or modify operational booking grid/travel fee parameters for branches.
+   - Dedicated management of public-facing branch candidate copy for existing canonical branch records:
+     - Public candidate fields: `phone`, `secondary_phone`, `email`, `fb_page`, `messenger_link`, `opening_hours`, and public branch photos/content.
+     - Shared canonical identity and location fields (`name`, `address`, `city`, `barangay`, `latitude`, `longitude`, `place_id`, `location_metadata`, `maps_embed_url`, `sort_order`) remain read-only to Digital Marketers pending explicit authorized decision.
+     - Strict operational isolation: Marketers cannot create, delete, activate, deactivate, or modify operational booking grid/travel fee parameters for branches.
 4. **Services Studio (`/marketing` & `/owner/marketing` > Services):**
-   - Dedicated management of public marketing copy and imagery for existing catalog services.
-   - Core capabilities: Edit public title, public description, custom marketing image, image alt text, featured status, marketing category grouping, and contextual Search & Social metadata.
-   - Strict catalog isolation: Marketer cannot alter operational base prices, custom branch prices, durations, buffer times, delivery modes, or therapist eligibility.
+   - Dedicated management of public marketing copy and imagery for existing catalog services:
+     - Candidate presentation fields: `public_title`, `public_description`, `custom_image_url`, `image_alt`, `is_featured` / presentation state (where existing source supports it), and contextual Search & Social metadata (`meta_title`, `meta_description`, `og_image_url`).
+     - Strict catalog isolation: Marketers cannot alter operational base prices, custom branch prices, durations, buffer times, delivery modes (`available_in_spa`, `available_home_service`), operational service category, or therapist eligibility.
 5. **Media Library (`/marketing` & `/owner/marketing` > Media):**
    - Central visual asset repository for `public-site-media` bucket and `marketing_media_assets`.
-   - Core capabilities: Bulk upload, visual grid browser, title/alt-text tagging (minimum 3 characters enforced), asset search and tag filtering, asset replacement with reference updating, usage locations inspector, usage-impact warning dialog, and non-destructive soft-archiving.
+   - Core capabilities: Asset upload (bulk upload is optional, not a blocking V1 requirement), visual grid browser, title/alt-text tagging (minimum 3 characters enforced), asset search and tag filtering, asset replacement with reference updating, usage locations inspector, usage-impact warning dialog, and non-destructive soft-archiving.
 6. **Secondary Navigation:**
-   - **Drafts (`/marketing/drafts` / `/owner/marketing/drafts`):** Unified queue of active drafts, items pending owner review, scheduled releases, and historical audit revisions.
-   - **Settings (`/marketing/settings` / `/owner/marketing/settings`):** Workspace preferences, notification settings, and default preview viewports.
+   - **Drafts (`/marketing/drafts` / `/owner/marketing/drafts`):** Unified queue of active drafts, items pending owner review, scheduled items, and historical audit revisions.
+   - **Settings (`/marketing/settings` / `/owner/marketing/settings`):** Workspace UI preferences (e.g. default preview viewport, editor layout preferences). No speculative notification subsystem is in scope.
 
 ---
 
@@ -127,12 +133,13 @@ To preserve strict stabilization boundaries and prevent speculative feature cree
 
 1. **NO Overview KPI / Analytics Dashboard:** No website visitor graphs, conversion tracking, revenue attribution, or traffic telemetry.
 2. **NO Campaigns / Marketing Automation:** No email campaign builder, SMS dispatch, discount code generator, voucher management, or newsletter tooling.
-3. **NO Marketer Direct Publishing:** Non-owner marketers cannot publish directly to live tables (`public_site_sections`, `public_site_assets`, `branches`, `services`).
-4. **NO Operational Catalog Mutation:** Marketers cannot alter service base price, branch custom price, duration minutes, buffer times, spa/home service delivery availability, booking visibility, customer tier restrictions, or therapist qualification rules.
+3. **NO Marketer Direct Publishing:** Non-owner marketers cannot publish directly to live tables (`public_site_sections`, `public_site_assets`, `branches`, `services`, `marketing_brand_settings`).
+4. **NO Operational Catalog Mutation:** Marketers cannot alter service base price, branch custom price, duration minutes, buffer times, spa/home service delivery availability, booking visibility, operational service category, customer tier restrictions, or therapist qualification rules.
 5. **NO Operational Branch Mutation:** Marketers cannot create branches, delete branches, toggle `is_active`, alter `slot_interval_minutes`, modify `home_service_free_km` / `home_service_extra_km_fee`, edit branch resources, or manage staff assignments.
 6. **NO Operational CRM / Booking / Attendance Access:** Marketers have zero access to customer booking records, client PII, therapist dispatch, attendance scanning, GPS logs, payroll, or cashier reconciliation.
-7. **NO Database / Migration Reconciliation:** No bulk execution of historical migrations or database schema rewrites during marketing stabilization.
+7. **NO Database / Migration Reconciliation:** No bulk execution of historical migrations or database schema rewrites during marketing stabilization. No schema migrations are authorized by C3.
 8. **NO Global Theme Redesign:** No green redesign, heavy purple tinting, or substitution of public site `--pw-*` / `--sp-*` classes into the internal dashboard.
+9. **NO Speculative Automatic Scheduler:** No automated cron/background publishing daemon.
 
 ---
 
@@ -145,10 +152,10 @@ To preserve strict stabilization boundaries and prevent speculative feature cree
 | **Promotion / Quote Banner** | `public_site_sections` (`quote_banner`) | `marketing_content_drafts` | `owner` (Draft: `digital_marketer`) | None | Desktop & Mobile Home | `revalidatePath('/')` |
 | **Before You Book** | `public_site_sections` (`before_you_book`) | `marketing_content_drafts` | `owner` (Draft: `digital_marketer`) | None | Desktop & Mobile Home | `revalidatePath('/')` |
 | **Gallery Images** | `public_site_assets` (`gallery`) | `marketing_media_assets` | `owner` (Draft: `digital_marketer`) | None | Desktop Home Gallery | `revalidatePath('/')` |
-| **Brand Identity Assets** | `marketing_brand_settings` | Static SVGs (Fallback) | `owner` (Draft: `digital_marketer`) | Dashboard Shell, Auth, Mobile Header | Public Header, Footer, Favicon | `revalidatePath('/', 'layout')` |
+| **Brand Identity Assets** | `marketing_brand_settings` (`value` JSONB) | Static SVGs (Fallback) | `owner` (Draft: `digital_marketer`) | Dashboard Shell, Auth, Mobile Header | Public Header, Footer, Favicon | `revalidatePath('/', 'layout')` |
 | **Route SEO Metadata** | `marketing_seo_settings` | `buildMetadata()` constants | `owner` (Draft: `digital_marketer`) | None | HTML `<head>` metadata | Route-level ISR/SSR |
-| **Branch Public Presentation** | `branches` (Public copy columns) | None (Owner-reviewed direct edit) | `owner` (Marketer: Read/Suggest) | Booking dispatch, mapping, travel fee | `/branches`, `/`, Header Phone, Footer | `revalidateTag(cacheTags.publicBranches)` |
-| **Service Public Presentation** | `services` (Public copy columns) | None (Owner-reviewed direct edit) | `owner` (Marketer: Read/Suggest) | Operational catalog, therapist allocation | `/services`, `/`, `/book` | `revalidatePath('/services')`, `revalidatePath('/book')` |
+| **Branch Public Presentation** | `branches` (Public copy columns) | Unresolved draft dependency (See Sec. G.3) | `owner` (Marketer: Read/Suggest) | Booking dispatch, mapping, travel fee | `/branches`, `/`, Header Phone, Footer | `revalidateTag(cacheTags.publicBranches)` |
+| **Service Public Presentation** | `services` (Public copy columns) | `marketing_content_drafts` (`content_type = 'service'`) | `owner` (Marketer: Read/Suggest) | Operational catalog, therapist allocation | `/services`, `/`, `/book` | `revalidatePath('/services')`, `revalidatePath('/book')` |
 | **Media Assets & Files** | `marketing_media_assets` | Storage bucket `public-site-media` | `digital_marketer` / `owner` | None | All public image consumers | CDN / Storage Cache-Control |
 | **Revision Audit Log** | `marketing_content_revisions` | Automated audit triggers | `owner` / `digital_marketer` (Read) | Internal audit | None | None |
 
@@ -181,32 +188,59 @@ To preserve strict stabilization boundaries and prevent speculative feature cree
 ## G. Field Ownership & Mutability Matrix
 
 ### 1. Website Studio Sections (`public_site_sections` / `marketing_content_drafts`)
-- **Marketer Writable (via Draft):** `title`, `subtitle`, `body`, `image_url`, `alt_text`, `cta_text`, `cta_link`, `cta_secondary_text`, `cta_secondary_link`, `is_active` (visibility toggle in draft), structured `metadata` fields (e.g. proof points, badge text, step highlights).
+- **Canonical Database Schema (`public_site_sections`):** `id`, `section_key`, `title`, `subtitle`, `body`, `cta_label`, `cta_href`, `image_url`, `secondary_image_url`, `sort_order`, `is_enabled`, `metadata`, audit fields.
+- **Canonical Marketing Draft Schema (`marketing_content_drafts`):** `id`, `content_type`, `content_key`, `title`, `subtitle`, `body`, `cta_label`, `cta_href`, `image_url`, `secondary_image_url`, `alt_text`, `link_href`, `metadata`, `status`, audit fields.
+- **Field Mapping & UI Label Policy:**
+  - Friendly UI labels (e.g. "CTA Text", "CTA Link", "Secondary CTA") map strictly onto canonical fields (`cta_label`, `cta_href`) and structured `metadata`.
+  - Secondary CTA properties that are currently metadata-driven remain described as structured `metadata` unless a later authorized schema decision modifies persistence.
+  - C3 does NOT invent new columns.
+- **Marketer Writable (via Draft):** `title`, `subtitle`, `body`, `cta_label`, `cta_href`, `image_url`, `secondary_image_url`, `alt_text`, `link_href`, `is_enabled` (draft toggle), structured `metadata` (e.g. proof points, badge text, step highlights, secondary CTA properties).
 - **Marketer Read-Only / System Controlled:** `section_key`, `created_at`, `updated_at`, `reviewed_by`, `published_at`, `published_by`.
 - **Prohibited:** Raw JSON strings in textareas; direct mutation of live rows without owner approval.
 
 ### 2. Brand Studio (`marketing_brand_settings`)
-- **Marketer Writable (via Draft):** `logo_primary_url`, `logo_dark_url`, `logo_mark_url`, `favicon_url`, `social_image_url`, asset dimensions, fallback SVG toggle.
+- **Canonical Database Schema:** `id`, `setting_key`, `label`, `value` JSONB, `status`, audit fields.
+- **Data Model Specification:**
+  - `marketing_brand_settings` does NOT define physical database columns `logo_primary_url`, `logo_dark_url`, etc.
+  - Logical brand asset slots are represented as logical setting keys and structured values stored through `marketing_brand_settings.value`:
+    - `setting_key = 'logo_primary'` → `value = { url, asset_id, alt_text, dimensions, fallback_svg_enabled }`
+    - `setting_key = 'logo_light'` / `'logo_reversed'` → `value = { url, asset_id, alt_text, dimensions }`
+    - `setting_key = 'logo_dark'` → `value = { url, asset_id, alt_text, dimensions }`
+    - `setting_key = 'logo_mark'` → `value = { url, asset_id, alt_text, dimensions }`
+    - `setting_key = 'favicon'` → `value = { url, asset_id }`
+    - `setting_key = 'social_image'` → `value = { url, asset_id, dimensions }`
+- **Marketer Writable (via Draft):** Values stored within the `value` JSONB payload for recognized logical keys.
+- **Static SVG Fallback:** Static SVG fallback remains mandatory for `BrandLogo` components.
 - **Marketer Prohibited:** Altering global CSS variables (`--cs-*`, `--pw-*`), typography scales, root colors, or theme configurations.
 
 ### 3. Branches Studio (`branches`)
-- **Shared Canonical Identity / Location Data (READ-ONLY to Marketer / Maintained via Owner Ops):**
-  - `name`, `address`, `city`, `barangay`, `latitude`, `longitude`, `place_id`, `location_metadata`.
 - **Marketer-Editable Candidates (Field-by-Field C3 Freeze):**
-  - `phone`, `secondary_phone`, `email`, `fb_page`, `messenger_link`, `opening_hours`, public branch photos/content.
-  - `maps_embed_url` and `sort_order` remain read-only pending explicit source-of-truth validation in future authorized implementation.
+  - `phone`, `secondary_phone`, `email`, `fb_page`, `messenger_link`, `opening_hours`, and public branch photos/content.
+- **Shared Canonical Identity & Location Data (READ-ONLY to Marketer / Maintained via Owner Ops):**
+  - `name`, `address`, `city`, `barangay`, `latitude`, `longitude`, `place_id`, `location_metadata`, `maps_embed_url`, `sort_order`.
 - **Strictly Prohibited Operational Fields:**
   - `is_active`, `slot_interval_minutes`, `home_service_free_km`, `home_service_extra_km_fee`, `branch_resources`, staff assignments.
+- **No Duplicate Branch Source of Truth:** `branches` remains the single canonical entity.
+- **BRANCH DRAFT-PERSISTENCE GAP (Unresolved Implementation Dependency):**
+  - *Requirement:* Digital Marketers must be able to propose/update public branch candidate fields and submit for Owner review.
+  - *Repository Fact:* Current `marketing_content_drafts.content_type` enum only supports `'section'`, `'asset'`, `'brand'`, `'seo'`, `'service'`. There is NO `'branch'` content type in the repository schema or TypeScript definitions.
+  - *Status:* `BRANCH PUBLIC-CONTENT EDITING REQUIREMENT = IN SCOPE`; `CURRENT SAFE DRAFT PERSISTENCE = UNRESOLVED IMPLEMENTATION DEPENDENCY`.
+  - *Constraint:* C4 must design the safe interaction and data contract. Any later addition of a branch draft type/schema path requires explicit authorized implementation/database review. Marketers must NOT mutate `branches` directly from browser code, and other `content_type` values must not be abused.
 
 ### 4. Services Studio (`services` & `branch_services`)
 - **Marketer-Editable Presentation Fields (via Draft / Reviewed Path):**
-  - `public_title`, `public_description`, `custom_image_url`, `image_alt`, `is_featured`, contextual SEO metadata (`meta_title`, `meta_description`, `og_image_url`).
+  - `public_title`, `public_description`, `custom_image_url`, `image_alt`, `is_featured` / presentation state (where existing source supports it), and contextual Search & Social metadata (`meta_title`, `meta_description`, `og_image_url`).
+- **Operational Service Category:** Operational service category remains read-only unless separately proven.
 - **Strictly Prohibited Operational Fields:**
   - Base `price`, custom branch `price`, base `duration_minutes`, custom branch `duration_minutes`, `buffer_before`, `buffer_after`, `available_in_spa`, `available_home_service`, `visibility`, `booking_visibility`, `customer_tier_required`, `requires_senior_staff`, `requires_special_setup`.
 
 ### 5. Media Library (`marketing_media_assets` & `public-site-media`)
-- **Marketer Writable:** File upload, `title`, `alt_text` (minimum 3 characters enforced), `section_key` association, `content_key` association, soft-archive toggle (`status = 'archived'`).
-- **System Controlled:** `bucket_path`, `public_url`, `file_size`, `mime_type`, `dimensions`, `usage_count`, `usage_references`.
+- **Canonical Database Schema:** `id`, `bucket_path`, `public_url`, `title`, `alt_text`, `section_key`, `content_key`, `status`, `metadata` JSONB, `created_by`, `updated_by`, `reviewed_by`, `reviewed_at`, `created_at`, `updated_at`.
+- **Physical vs. Derived Attribute Contract:**
+  - `file_size`, `mime_type`, `dimensions`, `usage_count`, and `usage_references` are NOT asserted as existing physical database columns.
+  - *Product Requirement:* Media Library must display and track dimensions, MIME type, file size, usage count, and usage references in the UI.
+  - *Persistence Policy:* Physical persistence choice (runtime derivation, `metadata` JSONB storage, or future schema columns) is deferred to later authorized architecture/schema design. No schema migration is authorized by C3.
+- **Marketer Writable:** Asset upload (single upload required; bulk upload is optional), `title`, `alt_text` (minimum 3 characters enforced), `section_key` association, `content_key` association, soft-archive toggle (`status = 'archived'`).
 - **Prohibited:** Unreferenced hard deletion from Storage without soft-archive grace period; upload without valid alt text.
 
 ---
@@ -250,7 +284,7 @@ flowchart TD
     PSA -->|Gallery Assets| D_HOME
     MBS -->|Dynamic Logo & Mark with SVG Fallback| LOGO
     MSS -->|Search & Social Metadata| HEAD
-    BR -->|Public Phone, Hours, Embed| D_BRANCH
+    BR -->|Public Phone, Hours| D_BRANCH
     BR -->|Header Phone & Footer| D_HOME
     BR -->|Header Phone & Footer| M_HOME
     SRV -->|Public Title, Description, Image| D_SERV
@@ -265,7 +299,7 @@ flowchart TD
 ### 1. Universal Media Picker Contract
 - **Trigger:** Available inside all studio modules (Website, Brand, Branches, Services) wherever image selection occurs.
 - **Interface:** Modal dialog displaying thumbnail grid, search bar, tag filters, aspect-ratio filter, upload CTA, and asset details inspector.
-- **Selection Payload:** Returns `{ id: string, public_url: string, bucket_path: string, alt_text: string, dimensions: { width: number, height: number } }`.
+- **Selection Payload:** Returns `{ id: string, public_url: string, bucket_path: string, alt_text: string, dimensions?: { width: number, height: number } }`.
 - **Validation:** Disallows selection if `alt_text` is missing or fewer than 3 characters.
 
 ### 2. High-Fidelity Draft Preview Contract
@@ -293,9 +327,10 @@ stateDiagram-v2
     submitted --> approved: Owner approves draft
     approved --> scheduled: Owner sets future timestamp
     approved --> published: Owner publishes immediately
-    scheduled --> published: Scheduled release triggers
+    scheduled --> published: Owner publishes when due, OR authorized scheduler in future stage
     published --> archived: Owner archives section
 ```
+*Note on Scheduled Releases:* `scheduleMarketingContentDraft()` sets `status = 'scheduled'` and `scheduled_for = timestamp`. Publication remains an Owner-only action. Automatic background scheduling is NOT an existing feature and is not frozen as a requirement in C3.
 
 ### 6. Asset Usage Tracking & Safe Replacement
 - **Usage Scanner:** Scans `public_site_sections`, `public_site_assets`, `services`, `branches`, `marketing_brand_settings`, and active drafts for references to a given media asset ID or URL.
@@ -325,6 +360,7 @@ stateDiagram-v2
    - Supported MIME types: `image/jpeg`, `image/png`, `image/webp`, `image/svg+xml`.
    - Maximum file size: 5 MB per asset.
    - Required metadata: Asset `title` and `alt_text` (minimum 3 characters).
+   - Single upload is mandatory; bulk upload is optional and non-blocking for V1.
 2. **Storage Path Convention:**
    `public-site-media/{section_key}/{timestamp}_{sanitized_filename}.{ext}`
 3. **Public URL Structure:**
@@ -397,11 +433,11 @@ Before any future implementation can be accepted or merged into `main`, the foll
 
 For future authorized stages, the recommended phased execution sequence is:
 
-1. **Phase 1 (C4 Scope):** Visual & Interaction Design Freeze. Author complete component wireframes, design specifications, and interaction contracts for the 5 modules without changing production code.
+1. **Phase 1 (C4 Scope):** Visual & Interaction Design Freeze. Author complete component wireframes, design specifications, and interaction contracts for the 5 modules without changing production code. Resolve branch-draft interaction contract.
 2. **Phase 2 (C5.1 Scope):** Core Subsystems & Media Foundation. Implement Universal Media Picker, media usage tracking, and soft-archive lifecycle.
 3. **Phase 3 (C5.2 Scope):** Website Studio & Mobile Consumer Parity. Unify desktop/mobile public components, implement presentational preview prop pattern, and wire draft-first publishing.
 4. **Phase 4 (C5.3 Scope):** Brand Studio. Implement dynamic brand settings loader with static SVG fallback.
-5. **Phase 5 (C5.4 Scope):** Branches & Services Public Copy Studios. Implement field-level public copy editing with strict operational isolation.
+5. **Phase 5 (C5.4 Scope):** Branches & Services Public Copy Studios. Implement field-level public copy editing with strict operational isolation and authorized branch draft path.
 6. **Phase 6 (C5.5 Scope):** End-to-End QA, A11y, Performance Benchmarking & Closeout.
 
 ---
@@ -423,7 +459,7 @@ The future Marketing Studio must empower a non-technical digital marketer to ind
 | Mission # | Acceptance Goal | Marketer User Flow | Success Verification |
 | :---: | :--- | :--- | :--- |
 | **Mission 1** | Replace Website Logo | Open Brand Studio → Upload new logo file → Add alt text → Preview on light & dark mockups → Submit for Owner review. | Brand logo updates across header, footer, and shell upon Owner approval; SVG fallback remains intact. |
-| **Mission 2** | Update SM Branch Public Phone | Open Branches Studio → Select SM Branch → Edit public phone & opening hours copy → Save & Submit. | Public phone updates on `/branches` and header phone widget; operational slot interval & travel fees remain 100% untouched. |
+| **Mission 2** | Propose SM Branch Public Phone Update | Open Branches Studio → Select SM Branch → Edit public candidate phone & opening hours copy → Save & Submit for Owner review. | Public phone updates on `/branches` and header phone widget upon Owner approval; operational slot interval & travel fees remain 100% untouched. |
 | **Mission 3** | Archive Expired Model Photo Safely | Open Media Library → Select photo → Inspect "Usage Locations" (shows Hero & About) → Replace asset with new photo → Archive old asset. | System replaces image URLs across affected sections, warns user of impact, and archives old asset without broken links. |
 | **Mission 4** | Update Public Image for Service | Open Services Studio → Select "Signature Cradle Massage" → Pick new image from Media Picker → Save & Submit. | Marketing image updates on `/services` catalog; operational price (PHP), duration (mins), and buffers remain 100% untouched. |
 | **Mission 5** | Update Homepage Hero Copy & Preview | Open Website Studio → Edit Hero Headline & Subtitle → Toggle Mobile & Desktop Draft Previews → Inspect Live vs. Draft diff → Submit. | Marketer inspects exact pixel-accurate preview on desktop and mobile before submission; publishing synchronizes both desktop and mobile homepages. |
@@ -434,11 +470,11 @@ The future Marketing Studio must empower a non-technical digital marketer to ind
 
 ```
 ============================================================
-STAGE C3 STATUS: SCOPE FROZEN / AWAITING OWNER REVIEW
+STAGE C3 STATUS: SCOPE CORRECTED / AWAITING INDEPENDENT REVIEW
 C4 DESIGN IMPLEMENTATION: STRICTLY NOT AUTHORIZED
 C5+ PRODUCT CODING: STRICTLY NOT AUTHORIZED
 PRODUCTION MUTATION: STRICTLY PROHIBITED
 ============================================================
 ```
 
-This document represents the complete, frozen scope specification for the Digital Marketing Workspace. In accordance with Controlled Stabilization governance, work stops here. No code changes, UI implementations, or production actions may proceed without explicit owner review and authorization.
+This document represents the corrected frozen scope specification for the Digital Marketing Workspace. In accordance with Controlled Stabilization governance, work stops here. No code changes, UI implementations, or production actions may proceed without explicit owner review and authorization.
