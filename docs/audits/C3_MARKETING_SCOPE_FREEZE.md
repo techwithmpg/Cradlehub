@@ -6,6 +6,7 @@
 **Base SHA:** `01c36375327b688fdd6e69fbbc130307d17da0eb` (Accepted C2 closeout merge commit on `main`)
 **Initial C3 Delivery SHA:** `9cfeb8a3be1c1bb41d51f75d47b64b207de0913c`
 **Whitespace Cleanup SHA:** `ee617056b6b588bbf2bef56c54e2da7044199c88`
+**Source-of-Truth Correction SHA:** `7c6a40b52baba34d65d487b2aa473fc3d8d410bd`
 **Branch:** `stage/c3-marketing-scope-freeze`
 **Date:** 2026-09-01
 **Status:** SCOPE CORRECTED / AWAITING INDEPENDENT REVIEW (C4 / C5+ NOT AUTHORIZED)
@@ -116,11 +117,11 @@ graph TD
      - Strict operational isolation: Marketers cannot create, delete, activate, deactivate, or modify operational booking grid/travel fee parameters for branches.
 4. **Services Studio (`/marketing` & `/owner/marketing` > Services):**
    - Dedicated management of public marketing copy and imagery for existing catalog services:
-     - Candidate presentation fields: `public_title`, `public_description`, `custom_image_url`, `image_alt`, `is_featured` / presentation state (where existing source supports it), and contextual Search & Social metadata (`meta_title`, `meta_description`, `og_image_url`).
-     - Strict catalog isolation: Marketers cannot alter operational base prices, custom branch prices, durations, buffer times, delivery modes (`available_in_spa`, `available_home_service`), operational service category, or therapist eligibility.
+     - Candidate presentation fields: `public_title` / public name, `public_description`, `custom_image_url`, `image_alt`, `is_featured` / presentation state (where existing source supports it), and contextual Search & Social metadata (`meta_title`, `meta_description`, `og_image_url`).
+     - Strict catalog isolation: Marketers cannot alter operational base prices, custom branch prices, durations, buffer times, delivery modes (`available_in_spa`, `available_home_service`), operational service category (`category_id`), customer tier restrictions, or therapist eligibility.
 5. **Media Library (`/marketing` & `/owner/marketing` > Media):**
    - Central visual asset repository for `public-site-media` bucket and `marketing_media_assets`.
-   - Core capabilities: Asset upload (bulk upload is optional, not a blocking V1 requirement), visual grid browser, title/alt-text tagging (minimum 3 characters enforced), asset search and tag filtering, asset replacement with reference updating, usage locations inspector, usage-impact warning dialog, and non-destructive soft-archiving.
+   - Core capabilities: Asset upload (single upload required; bulk upload is optional and non-blocking for V1), visual grid browser, title/alt-text tagging (minimum 3 characters enforced), asset search and tag filtering, asset replacement with reference updating, usage locations inspector, usage-impact warning dialog, and non-destructive soft-archiving.
 6. **Secondary Navigation:**
    - **Drafts (`/marketing/drafts` / `/owner/marketing/drafts`):** Unified queue of active drafts, items pending owner review, scheduled items, and historical audit revisions.
    - **Settings (`/marketing/settings` / `/owner/marketing/settings`):** Workspace UI preferences (e.g. default preview viewport, editor layout preferences). No speculative notification subsystem is in scope.
@@ -134,7 +135,7 @@ To preserve strict stabilization boundaries and prevent speculative feature cree
 1. **NO Overview KPI / Analytics Dashboard:** No website visitor graphs, conversion tracking, revenue attribution, or traffic telemetry.
 2. **NO Campaigns / Marketing Automation:** No email campaign builder, SMS dispatch, discount code generator, voucher management, or newsletter tooling.
 3. **NO Marketer Direct Publishing:** Non-owner marketers cannot publish directly to live tables (`public_site_sections`, `public_site_assets`, `branches`, `services`, `marketing_brand_settings`).
-4. **NO Operational Catalog Mutation:** Marketers cannot alter service base price, branch custom price, duration minutes, buffer times, spa/home service delivery availability, booking visibility, operational service category, customer tier restrictions, or therapist qualification rules.
+4. **NO Operational Catalog Mutation:** Marketers cannot alter service base price, branch custom price, duration minutes, buffer times, spa/home service delivery availability, booking visibility, operational service category (`category_id`), customer tier restrictions, or therapist qualification rules.
 5. **NO Operational Branch Mutation:** Marketers cannot create branches, delete branches, toggle `is_active`, alter `slot_interval_minutes`, modify `home_service_free_km` / `home_service_extra_km_fee`, edit branch resources, or manage staff assignments.
 6. **NO Operational CRM / Booking / Attendance Access:** Marketers have zero access to customer booking records, client PII, therapist dispatch, attendance scanning, GPS logs, payroll, or cashier reconciliation.
 7. **NO Database / Migration Reconciliation:** No bulk execution of historical migrations or database schema rewrites during marketing stabilization. No schema migrations are authorized by C3.
@@ -145,19 +146,19 @@ To preserve strict stabilization boundaries and prevent speculative feature cree
 
 ## E. Source-of-Truth Matrix
 
-| Editable Entity / Concept | Canonical Database Source | Interim Storage / Draft Source | Owning Role | Operational Consumers | Public Consumers | Revalidation Tags / Paths |
+| Editable Entity / Concept | Canonical Operational / Live Entity | Interim Storage / Draft Source | Owning Role | Operational Consumers | Public Consumers & Source Truth | Revalidation / Draft Publication Status |
 | :--- | :--- | :--- | :--- | :--- | :--- | :--- |
-| **Homepage Hero** | `public_site_sections` (`hero`) | `marketing_content_drafts` | `owner` (Draft: `digital_marketer`) | None | Desktop & Mobile Home | `revalidatePath('/')` |
-| **Homepage About** | `public_site_sections` (`about`) | `marketing_content_drafts` | `owner` (Draft: `digital_marketer`) | None | Desktop & Mobile Home | `revalidatePath('/')` |
-| **Promotion / Quote Banner** | `public_site_sections` (`quote_banner`) | `marketing_content_drafts` | `owner` (Draft: `digital_marketer`) | None | Desktop & Mobile Home | `revalidatePath('/')` |
-| **Before You Book** | `public_site_sections` (`before_you_book`) | `marketing_content_drafts` | `owner` (Draft: `digital_marketer`) | None | Desktop & Mobile Home | `revalidatePath('/')` |
-| **Gallery Images** | `public_site_assets` (`gallery`) | `marketing_media_assets` | `owner` (Draft: `digital_marketer`) | None | Desktop Home Gallery | `revalidatePath('/')` |
-| **Brand Identity Assets** | `marketing_brand_settings` (`value` JSONB) | Static SVGs (Fallback) | `owner` (Draft: `digital_marketer`) | Dashboard Shell, Auth, Mobile Header | Public Header, Footer, Favicon | `revalidatePath('/', 'layout')` |
-| **Route SEO Metadata** | `marketing_seo_settings` | `buildMetadata()` constants | `owner` (Draft: `digital_marketer`) | None | HTML `<head>` metadata | Route-level ISR/SSR |
-| **Branch Public Presentation** | `branches` (Public copy columns) | Unresolved draft dependency (See Sec. G.3) | `owner` (Marketer: Read/Suggest) | Booking dispatch, mapping, travel fee | `/branches`, `/`, Header Phone, Footer | `revalidateTag(cacheTags.publicBranches)` |
-| **Service Public Presentation** | `services` (Public copy columns) | `marketing_content_drafts` (`content_type = 'service'`) | `owner` (Marketer: Read/Suggest) | Operational catalog, therapist allocation | `/services`, `/`, `/book` | `revalidatePath('/services')`, `revalidatePath('/book')` |
-| **Media Assets & Files** | `marketing_media_assets` | Storage bucket `public-site-media` | `digital_marketer` / `owner` | None | All public image consumers | CDN / Storage Cache-Control |
-| **Revision Audit Log** | `marketing_content_revisions` | Automated audit triggers | `owner` / `digital_marketer` (Read) | Internal audit | None | None |
+| **Homepage Hero** | `public_site_sections` (`hero`) | `marketing_content_drafts` | `owner` (Draft: `digital_marketer`) | None | Desktop & Mobile Home (`home-page-sections.tsx`) | `revalidatePath('/')` — Reviewed draft → live publish path exists. |
+| **Homepage About** | `public_site_sections` (`about`) | `marketing_content_drafts` | `owner` (Draft: `digital_marketer`) | None | Desktop & Mobile Home (`home-page-sections.tsx`) | `revalidatePath('/')` — Reviewed draft → live publish path exists. |
+| **Promotion / Quote Banner** | `public_site_sections` (`quote_banner`) | `marketing_content_drafts` | `owner` (Draft: `digital_marketer`) | None | Desktop & Mobile Home (`home-page-sections.tsx`) | `revalidatePath('/')` — Reviewed draft → live publish path exists. |
+| **Before You Book** | `public_site_sections` (`before_you_book`) | `marketing_content_drafts` | `owner` (Draft: `digital_marketer`) | None | Desktop & Mobile Home (`home-page-sections.tsx`) | `revalidatePath('/')` — Reviewed draft → live publish path exists. |
+| **Gallery Images** | `public_site_assets` (`gallery`) | `marketing_media_assets` | `owner` (Draft: `digital_marketer`) | None | Desktop Home Gallery | `revalidatePath('/')` — Asset draft foundation exists. |
+| **Brand Identity Assets** | `marketing_brand_settings` (`value` JSONB) | Static SVGs (Fallback) | `owner` (Draft: `digital_marketer`) | Dashboard Shell, Auth, Mobile Header | Public Header, Footer, Favicon | `revalidatePath('/', 'layout')` — Brand storage exists; **Safe reviewed draft → live publish mapping is UNRESOLVED**. |
+| **Route SEO Metadata** | `marketing_seo_settings` | `buildMetadata()` constants | `owner` (Draft: `digital_marketer`) | None | HTML `<head>` metadata | Route-level ISR/SSR — SEO storage exists; **Safe reviewed draft → live publish mapping is UNRESOLVED**. |
+| **Branch Public Presentation** | `branches` (Canonical single entity) | Unresolved draft dependency | `owner` (Marketer: Target Draft/Suggest) | Booking dispatch, mapping, travel fee | `/branches`, `/`, Header Phone, Footer | `revalidateTag(cacheTags.publicBranches)` — **Branch draft persistence & publish pipeline is UNRESOLVED**. |
+| **Service Public Presentation** | `services` + `branch_services` | `marketing_content_drafts` (`content_type = 'service'`) | `owner` (Marketer: Target Draft/Suggest) | Operational catalog, therapist allocation | `/services`, `/`, `/book` via `getPublicServiceCatalog()` (`services` + `services.metadata`) | `revalidatePath('/services')`, `revalidatePath('/book')` — Draft content type exists; **Safe draft-to-live publication mapping is UNRESOLVED**. |
+| **Media Assets & Files** | `marketing_media_assets` | Storage bucket `public-site-media` | `digital_marketer` / `owner` | None | All public image consumers | CDN / Storage Cache-Control — Asset upload & soft-archive foundation exists. |
+| **Revision Audit Log** | `marketing_content_revisions` | Automated audit triggers | `owner` / `digital_marketer` (Read) | Internal audit | None | None — Audit log records live mutations. |
 
 ---
 
@@ -168,20 +169,22 @@ To preserve strict stabilization boundaries and prevent speculative feature cree
 | **View Live Public Site** | ALLOW | ALLOW | ALLOW | ALLOW |
 | **Access `/marketing` Workspace** | DENY | ALLOW | ALLOW | DENY |
 | **Access `/owner/marketing` Studio** | DENY | DENY | ALLOW | DENY |
-| **Create / Edit / Save Marketing Drafts** | DENY | ALLOW | ALLOW | DENY |
+| **Create / Edit / Save Website Section Drafts** | DENY | ALLOW | ALLOW | DENY |
 | **Submit Draft for Review** | DENY | ALLOW | ALLOW | DENY |
 | **Approve / Request Changes on Draft** | DENY | DENY | ALLOW | DENY |
 | **Schedule Draft Publication** | DENY | DENY | ALLOW | DENY |
-| **Publish Draft to Live Website** | DENY | DENY | ALLOW | DENY |
+| **Publish Section Draft to Live Website** | DENY | DENY | ALLOW | DENY |
 | **Archive Live / Draft Content** | DENY | DENY | ALLOW | DENY |
 | **Upload Media to `public-site-media`** | DENY | ALLOW | ALLOW | DENY |
 | **Soft-Archive Media Assets** | DENY | ALLOW | ALLOW | DENY |
 | **Hard-Delete Media Files** | DENY | DENY (Soft-archive only) | DENY (Soft-archive only) | DENY |
-| **Edit Public Branch Phone / Hours / Social** | DENY | ALLOW (Draft / Review) | ALLOW (Direct & Review) | DENY |
+| **Edit Public Branch Phone / Hours / Social** | DENY | ALLOW — TARGET DRAFT/REVIEW WORKFLOW *(persistence mapping unresolved)* | ALLOW (Direct & Review) | DENY |
 | **Edit Branch Location / Name / Address** | DENY | DENY (Read-Only) | ALLOW (Owner Ops Path) | DENY |
 | **Edit Branch Activation (`is_active`)** | DENY | DENY | ALLOW (Owner Ops Path) | DENY |
-| **Edit Service Public Copy / Image** | DENY | ALLOW (Draft / Review) | ALLOW (Direct & Review) | DENY |
+| **Edit Service Public Copy / Image** | DENY | ALLOW — TARGET DRAFT/REVIEW WORKFLOW *(persistence mapping unresolved)* | ALLOW (Direct & Review) | DENY |
 | **Edit Service Price / Duration / Visibility** | DENY | DENY | ALLOW (Owner Ops Path) | DENY |
+
+*Note on Authorization vs. Runtime Support:* "ALLOW — TARGET DRAFT/REVIEW WORKFLOW" specifies the target role authority under the product contract. It does NOT claim that the underlying persistence and publishing pipeline is already fully implemented at runtime.
 
 ---
 
@@ -193,8 +196,13 @@ To preserve strict stabilization boundaries and prevent speculative feature cree
 - **Field Mapping & UI Label Policy:**
   - Friendly UI labels (e.g. "CTA Text", "CTA Link", "Secondary CTA") map strictly onto canonical fields (`cta_label`, `cta_href`) and structured `metadata`.
   - Secondary CTA properties that are currently metadata-driven remain described as structured `metadata` unless a later authorized schema decision modifies persistence.
-  - C3 does NOT invent new columns.
-- **Marketer Writable (via Draft):** `title`, `subtitle`, `body`, `cta_label`, `cta_href`, `image_url`, `secondary_image_url`, `alt_text`, `link_href`, `is_enabled` (draft toggle), structured `metadata` (e.g. proof points, badge text, step highlights, secondary CTA properties).
+  - C3 does NOT invent new database columns.
+- **WEBSITE SECTION IMAGE ALT / LINK LIVE PERSISTENCE GAP (Unresolved Implementation Detail):**
+  - `marketing_content_drafts` contains `alt_text` and `link_href`.
+  - However, `public_site_sections` canonical columns and `publishMarketingContentDraft()` do not currently persist `alt_text` or `link_href` as first-class section columns.
+  - *Status:* `WEBSITE SECTION IMAGE ALT REQUIREMENT = IN SCOPE`; `CURRENT LIVE PERSISTENCE MAPPING = UNRESOLVED IMPLEMENTATION DETAIL`.
+  - *Constraint:* C4 must determine the safe canonical mapping (e.g. structured `metadata` JSONB using existing schema, `public_site_asset` reference, or another explicitly authorized design). No new database column is authorized by C3. `link_href` must not be represented as a live section column unless a consumer requires and supports it.
+- **Marketer Writable (via Draft):** `title`, `subtitle`, `body`, `cta_label`, `cta_href`, `image_url`, `secondary_image_url`, `alt_text`, `is_enabled` (draft toggle), structured `metadata` (e.g. proof points, badge text, step highlights, secondary CTA properties).
 - **Marketer Read-Only / System Controlled:** `section_key`, `created_at`, `updated_at`, `reviewed_by`, `published_at`, `published_by`.
 - **Prohibited:** Raw JSON strings in textareas; direct mutation of live rows without owner approval.
 
@@ -209,7 +217,7 @@ To preserve strict stabilization boundaries and prevent speculative feature cree
     - `setting_key = 'logo_mark'` → `value = { url, asset_id, alt_text, dimensions }`
     - `setting_key = 'favicon'` → `value = { url, asset_id }`
     - `setting_key = 'social_image'` → `value = { url, asset_id, dimensions }`
-- **Marketer Writable (via Draft):** Values stored within the `value` JSONB payload for recognized logical keys.
+- **Marketer Writable (via Target Draft):** Values stored within the `value` JSONB payload for recognized logical keys.
 - **Static SVG Fallback:** Static SVG fallback remains mandatory for `BrandLogo` components.
 - **Marketer Prohibited:** Altering global CSS variables (`--cs-*`, `--pw-*`), typography scales, root colors, or theme configurations.
 
@@ -228,11 +236,28 @@ To preserve strict stabilization boundaries and prevent speculative feature cree
   - *Constraint:* C4 must design the safe interaction and data contract. Any later addition of a branch draft type/schema path requires explicit authorized implementation/database review. Marketers must NOT mutate `branches` directly from browser code, and other `content_type` values must not be abused.
 
 ### 4. Services Studio (`services` & `branch_services`)
-- **Marketer-Editable Presentation Fields (via Draft / Reviewed Path):**
-  - `public_title`, `public_description`, `custom_image_url`, `image_alt`, `is_featured` / presentation state (where existing source supports it), and contextual Search & Social metadata (`meta_title`, `meta_description`, `og_image_url`).
-- **Operational Service Category:** Operational service category remains read-only unless separately proven.
+- **Repository Truth & Public Consumer Architecture:**
+  - **Master `services` Table:** Supplies canonical master catalog records: `id`, `name`, `description`, `image_url`, `image_alt`, `metadata` JSONB, `price`, `duration_minutes`, `category_id`, `is_active`, `buffer_before`, `buffer_after`.
+  - **`branch_services` Table:** May supply branch-level presentation overrides (`public_title`, `public_description`, `custom_image_url`, `is_featured`, `sort_order`) alongside operational fields (`custom_price`, `custom_duration_minutes`, `available_in_spa`, `available_home_service`, `visibility`, `booking_visibility`, `customer_tier_required`, `requires_senior_staff`, `requires_special_setup`).
+  - **Current Public Catalog Consumer (`getPublicServiceCatalog`):** Primarily renders `service.name`, `service.description`, `service.image_url`, `service.image_alt`, with additional presentation values resolved from `services.metadata`. It does NOT currently consume `branch_services.public_title` / `public_description` / `custom_image_url` for general catalog display.
+- **Product Requirement Frozen in C3:**
+  - Services Studio must allow a marketer to propose/edit:
+    - Public-facing service title / copy.
+    - Public marketing description.
+    - Public image (`custom_image_url` / `image_url`).
+    - Image alt text (`image_alt`).
+    - Featured / presentation ordering where safely supported.
+    - Contextual Search & Social metadata (`meta_title`, `meta_description`, `og_image_url`).
+- **SERVICE PRESENTATION SOURCE-OF-TRUTH DECISION (Requires C4 Design / Implementation Contract):**
+  - C3 does NOT declare `branch_services` override columns as the canonical public marketing source.
+  - C4 must evaluate and freeze whether each presentation value:
+    - **Option A:** Edits canonical master `services` columns (`name`, `description`, `image_url`, `image_alt`).
+    - **Option B:** Uses existing structured `services.metadata` JSONB.
+    - **Option C:** Uses `branch_services` override fields.
+    - **Option D:** Uses another already-authorized marketing draft mapping.
+  - No duplicate catalog data may be introduced.
 - **Strictly Prohibited Operational Fields:**
-  - Base `price`, custom branch `price`, base `duration_minutes`, custom branch `duration_minutes`, `buffer_before`, `buffer_after`, `available_in_spa`, `available_home_service`, `visibility`, `booking_visibility`, `customer_tier_required`, `requires_senior_staff`, `requires_special_setup`.
+  - Base `price`, custom branch `price`, base `duration_minutes`, custom branch `duration_minutes`, `buffer_before`, `buffer_after`, `available_in_spa`, `available_home_service`, `visibility`, `booking_visibility`, `customer_tier_required`, `requires_senior_staff`, `requires_special_setup`, operational service category (`category_id`).
 
 ### 5. Media Library (`marketing_media_assets` & `public-site-media`)
 - **Canonical Database Schema:** `id`, `bucket_path`, `public_url`, `title`, `alt_text`, `section_key`, `content_key`, `status`, `metadata` JSONB, `created_by`, `updated_by`, `reviewed_by`, `reviewed_at`, `created_at`, `updated_at`.
@@ -287,7 +312,7 @@ flowchart TD
     BR -->|Public Phone, Hours| D_BRANCH
     BR -->|Header Phone & Footer| D_HOME
     BR -->|Header Phone & Footer| M_HOME
-    SRV -->|Public Title, Description, Image| D_SERV
+    SRV -->|Public Title, Description, Image via getPublicServiceCatalog| D_SERV
     SRV -->|Featured Services| D_HOME
     SRV -->|Featured Services| M_HOME
 ```
@@ -316,7 +341,7 @@ flowchart TD
 - **Browser Navigation Warning:** Listens to `beforeunload` event if form state is dirty.
 - **Client-Side Route Guard:** Intercepts internal tab/workspace switching when unsaved draft modifications exist, presenting a confirmation dialog (*Discard changes / Keep editing*).
 
-### 5. Draft / Review / Publish State Machine
+### 5. Draft / Review / Publish State Machine & Non-Section Publishing Gap
 ```mermaid
 stateDiagram-v2
     [*] --> draft: Marketer / Owner edits
@@ -330,7 +355,16 @@ stateDiagram-v2
     scheduled --> published: Owner publishes when due, OR authorized scheduler in future stage
     published --> archived: Owner archives section
 ```
-*Note on Scheduled Releases:* `scheduleMarketingContentDraft()` sets `status = 'scheduled'` and `scheduled_for = timestamp`. Publication remains an Owner-only action. Automatic background scheduling is NOT an existing feature and is not frozen as a requirement in C3.
+
+#### NON-SECTION DRAFT PUBLICATION GAP (Critical Implementation Dependency):
+- **Repository Fact:** In the current codebase, server action `publishMarketingContentDraft()` explicitly enforces `if (draft.content_type !== 'section') throw new Error(...)` and only updates `public_site_sections`.
+- **Current Pipeline Status across Content Types:**
+  - **SECTION (`content_type = 'section'`):** Existing reviewed draft → `public_site_sections` publication path is implemented and functional.
+  - **SERVICE (`content_type = 'service'`):** Draft content type exists in database enum, but safe draft → canonical service presentation publication path is **NOT currently implemented** in server actions.
+  - **BRAND (`content_type = 'brand'`):** Brand settings storage exists, but generic marketing draft → live brand publication path is **NOT currently implemented** through `publishMarketingContentDraft()`.
+  - **SEO (`content_type = 'seo'`):** SEO settings storage exists, but generic marketing draft → live SEO publication path is **NOT currently implemented** through `publishMarketingContentDraft()`.
+  - **BRANCH (No draft content type):** No branch draft type exists in the database schema; draft persistence and publication are completely **UNRESOLVED**.
+- **Scope Rule:** These non-section workflows are frozen as **PRODUCT REQUIREMENTS**, not existing runtime features. C4 must design interaction and data contracts. C5 implementation must not invent generic publishing behavior without explicit authorization and source-of-truth review. Owner remains the sole publication authority.
 
 ### 6. Asset Usage Tracking & Safe Replacement
 - **Usage Scanner:** Scans `public_site_sections`, `public_site_assets`, `services`, `branches`, `marketing_brand_settings`, and active drafts for references to a given media asset ID or URL.
@@ -433,11 +467,11 @@ Before any future implementation can be accepted or merged into `main`, the foll
 
 For future authorized stages, the recommended phased execution sequence is:
 
-1. **Phase 1 (C4 Scope):** Visual & Interaction Design Freeze. Author complete component wireframes, design specifications, and interaction contracts for the 5 modules without changing production code. Resolve branch-draft interaction contract.
+1. **Phase 1 (C4 Scope):** Visual & Interaction Design Freeze. Author complete component wireframes, design specifications, and interaction contracts for the 5 modules without changing production code. Resolve branch-draft interaction contract, service presentation source-of-truth mapping, and non-section publication contracts.
 2. **Phase 2 (C5.1 Scope):** Core Subsystems & Media Foundation. Implement Universal Media Picker, media usage tracking, and soft-archive lifecycle.
 3. **Phase 3 (C5.2 Scope):** Website Studio & Mobile Consumer Parity. Unify desktop/mobile public components, implement presentational preview prop pattern, and wire draft-first publishing.
 4. **Phase 4 (C5.3 Scope):** Brand Studio. Implement dynamic brand settings loader with static SVG fallback.
-5. **Phase 5 (C5.4 Scope):** Branches & Services Public Copy Studios. Implement field-level public copy editing with strict operational isolation and authorized branch draft path.
+5. **Phase 5 (C5.4 Scope):** Branches & Services Public Copy Studios. Implement field-level public copy editing with strict operational isolation and authorized publication paths.
 6. **Phase 6 (C5.5 Scope):** End-to-End QA, A11y, Performance Benchmarking & Closeout.
 
 ---
@@ -461,7 +495,7 @@ The future Marketing Studio must empower a non-technical digital marketer to ind
 | **Mission 1** | Replace Website Logo | Open Brand Studio → Upload new logo file → Add alt text → Preview on light & dark mockups → Submit for Owner review. | Brand logo updates across header, footer, and shell upon Owner approval; SVG fallback remains intact. |
 | **Mission 2** | Propose SM Branch Public Phone Update | Open Branches Studio → Select SM Branch → Edit public candidate phone & opening hours copy → Save & Submit for Owner review. | Public phone updates on `/branches` and header phone widget upon Owner approval; operational slot interval & travel fees remain 100% untouched. |
 | **Mission 3** | Archive Expired Model Photo Safely | Open Media Library → Select photo → Inspect "Usage Locations" (shows Hero & About) → Replace asset with new photo → Archive old asset. | System replaces image URLs across affected sections, warns user of impact, and archives old asset without broken links. |
-| **Mission 4** | Update Public Image for Service | Open Services Studio → Select "Signature Cradle Massage" → Pick new image from Media Picker → Save & Submit. | Marketing image updates on `/services` catalog; operational price (PHP), duration (mins), and buffers remain 100% untouched. |
+| **Mission 4** | Update Public Image for Service | Open Services Studio → Select "Signature Cradle Massage" → Pick new image from Media Picker → Save & Submit for Owner review. | Marketing image updates on `/services` catalog upon Owner approval; operational price (PHP), duration (mins), and buffers remain 100% untouched. |
 | **Mission 5** | Update Homepage Hero Copy & Preview | Open Website Studio → Edit Hero Headline & Subtitle → Toggle Mobile & Desktop Draft Previews → Inspect Live vs. Draft diff → Submit. | Marketer inspects exact pixel-accurate preview on desktop and mobile before submission; publishing synchronizes both desktop and mobile homepages. |
 
 ---
