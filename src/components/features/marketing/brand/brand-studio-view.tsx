@@ -35,6 +35,7 @@ import {
 import {
   approveMarketingDraftAction,
   archiveMarketingDraftAction,
+  publishMarketingDraftAction,
   requestMarketingDraftChangesAction,
 } from "@/app/(dashboard)/owner/marketing/actions";
 import { updateBrandSettingAction } from "@/app/(dashboard)/marketing/brand-actions";
@@ -97,6 +98,10 @@ export function BrandStudioView({
   );
   const [changesState, changesAction, isRequestingChanges] = useActionState(
     requestMarketingDraftChangesAction,
+    initialNoticeState
+  );
+  const [publishState, publishAction, isPublishing] = useActionState(
+    publishMarketingDraftAction,
     initialNoticeState
   );
 
@@ -555,31 +560,61 @@ export function BrandStudioView({
                       </button>
                     )}
 
-                    <form action={ownerDirectAction}>
-                      <input type="hidden" name="headerLogoUrl" value={formValues.headerLogoUrl} />
-                      <input type="hidden" name="headerLogoAlt" value={formValues.headerLogoAlt} />
-                      <input type="hidden" name="footerLogoUrl" value={formValues.footerLogoUrl} />
-                      <input type="hidden" name="footerLogoAlt" value={formValues.footerLogoAlt} />
-                      <input type="hidden" name="brandMarkUrl" value={formValues.brandMarkUrl} />
-                      <input type="hidden" name="brandMarkAlt" value={formValues.brandMarkAlt} />
-                      <input type="hidden" name="siteIconUrl" value={formValues.siteIconUrl} />
-                      <input type="hidden" name="siteIconAlt" value={formValues.siteIconAlt} />
-                      <input type="hidden" name="taglineText" value={formValues.taglineText} />
-                      <input
-                        type="hidden"
-                        name="taglineSubtext"
-                        value={formValues.taglineSubtext}
-                      />
-                      <input type="hidden" name="draftId" value={activeDraft?.id || ""} />
-                      <button
-                        type="submit"
-                        disabled={isOwnerDirectSaving}
-                        className="inline-flex items-center gap-1.5 rounded-lg bg-emerald-600 px-4 py-2 text-xs font-semibold text-white hover:bg-emerald-500 disabled:opacity-50"
-                      >
-                        <CheckCircle className="h-3.5 w-3.5" />
-                        {isOwnerDirectSaving ? "Publishing..." : "Publish Live Settings"}
-                      </button>
-                    </form>
+                    {activeDraft && ["submitted", "approved"].includes(activeDraft.status) ? (
+                      <form action={publishAction}>
+                        <input type="hidden" name="id" value={activeDraft.id} />
+                        <button
+                          type="submit"
+                          disabled={isPublishing}
+                          className="inline-flex items-center gap-1.5 rounded-lg bg-emerald-600 px-4 py-2 text-xs font-semibold text-white hover:bg-emerald-500 disabled:opacity-50"
+                        >
+                          <CheckCircle className="h-3.5 w-3.5" />
+                          {isPublishing ? "Publishing..." : "Publish to Live"}
+                        </button>
+                      </form>
+                    ) : (
+                      <form action={ownerDirectAction}>
+                        <input
+                          type="hidden"
+                          name="headerLogoUrl"
+                          value={formValues.headerLogoUrl}
+                        />
+                        <input
+                          type="hidden"
+                          name="headerLogoAlt"
+                          value={formValues.headerLogoAlt}
+                        />
+                        <input
+                          type="hidden"
+                          name="footerLogoUrl"
+                          value={formValues.footerLogoUrl}
+                        />
+                        <input
+                          type="hidden"
+                          name="footerLogoAlt"
+                          value={formValues.footerLogoAlt}
+                        />
+                        <input type="hidden" name="brandMarkUrl" value={formValues.brandMarkUrl} />
+                        <input type="hidden" name="brandMarkAlt" value={formValues.brandMarkAlt} />
+                        <input type="hidden" name="siteIconUrl" value={formValues.siteIconUrl} />
+                        <input type="hidden" name="siteIconAlt" value={formValues.siteIconAlt} />
+                        <input type="hidden" name="taglineText" value={formValues.taglineText} />
+                        <input
+                          type="hidden"
+                          name="taglineSubtext"
+                          value={formValues.taglineSubtext}
+                        />
+                        <input type="hidden" name="draftId" value={activeDraft?.id || ""} />
+                        <button
+                          type="submit"
+                          disabled={isOwnerDirectSaving}
+                          className="inline-flex items-center gap-1.5 rounded-lg bg-emerald-600 px-4 py-2 text-xs font-semibold text-white hover:bg-emerald-500 disabled:opacity-50"
+                        >
+                          <CheckCircle className="h-3.5 w-3.5" />
+                          {isOwnerDirectSaving ? "Publishing..." : "Publish Live Settings"}
+                        </button>
+                      </form>
+                    )}
                   </>
                 )}
               </div>

@@ -5,7 +5,87 @@ import { createClient } from "@/lib/supabase/server";
 import { isDevAuthBypassEnabled } from "@/lib/dev-bypass";
 import { cacheTags, invalidateTag } from "@/lib/cache/cache-tags";
 import { getMarketingAccessContext } from "@/lib/queries/marketing-content";
-import type { Json } from "@/types/supabase";
+import type { Database, Json } from "@/types/supabase";
+
+export interface UpdateServicePresentationParams {
+  serviceId: string;
+  description?: string | null;
+  shortDescription?: string | null;
+  imageUrl?: string | null;
+  imageAlt?: string | null;
+  badges?: string[];
+  inclusions?: string[];
+}
+
+export async function updateServicePresentationDirect(
+  supabase: Awaited<ReturnType<typeof createClient>>,
+  params: UpdateServicePresentationParams
+): Promise<{ success: boolean; error?: string }> {
+  const {
+    serviceId,
+    description,
+    shortDescription,
+    imageUrl,
+    imageAlt,
+    badges = [],
+    inclusions = [],
+  } = params;
+
+  // Fetch existing service metadata so we preserve non-marketing metadata fields
+  const { data: existingService, error: fetchError } = await supabase
+    .from("services")
+    .select("metadata")
+    .eq("id", serviceId)
+    .single();
+
+  if (fetchError || !existingService) {
+    return {
+      success: false,
+      error: `Failed to read existing service: ${fetchError?.message ?? "Service not found."}`,
+    };
+  }
+
+  const existingMeta = (
+    existingService.metadata &&
+    typeof existingService.metadata === "object" &&
+    !Array.isArray(existingService.metadata)
+      ? existingService.metadata
+      : {}
+  ) as Record<string, Json>;
+
+  const updatedMetadata: Record<string, Json> = {
+    ...existingMeta,
+    public_short_description:
+      shortDescription ?? (existingMeta.public_short_description as Json) ?? null,
+    service_badges: badges,
+    inclusions: inclusions,
+  };
+
+  const updatePayload: Database["public"]["Tables"]["services"]["Update"] = {
+    metadata: updatedMetadata as unknown as Json,
+  };
+  if (imageUrl !== undefined) updatePayload.image_url = imageUrl;
+  if (imageAlt !== undefined) updatePayload.image_alt = imageAlt;
+  if (description !== undefined) updatePayload.description = description;
+
+  const { error: updateError } = await supabase
+    .from("services")
+    .update(updatePayload)
+    .eq("id", serviceId);
+
+  if (updateError) {
+    return { success: false, error: updateError.message };
+  }
+
+  invalidateTag(cacheTags.serviceCatalog);
+  revalidatePath("/marketing");
+  revalidatePath("/owner/marketing");
+  revalidatePath("/services");
+  revalidatePath("/book");
+  revalidatePath("/");
+
+  return { success: true };
+}
 
 export async function updateServicePresentationAction(
   _prevState: { success: boolean; message?: string; error?: string },
@@ -41,54 +121,19 @@ export async function updateServicePresentationAction(
     };
   }
 
-  const supabase = await createClient();
+  const result = await updateServicePresentationDirect(context.supabase, {
+    serviceId,
+    description,
+    shortDescription,
+    imageUrl,
+    imageAlt,
+    badges,
+    inclusions,
+  });
 
-  // Fetch existing service metadata so we preserve non-marketing metadata fields
-  const { data: existingService, error: fetchError } = await supabase
-    .from("services")
-    .select("metadata")
-    .eq("id", serviceId)
-    .single();
-
-  if (fetchError || !existingService) {
-    return { success: false, error: fetchError?.message ?? "Service not found." };
+  if (!result.success) {
+    return { success: false, error: result.error };
   }
-
-  const existingMeta = (
-    existingService.metadata &&
-    typeof existingService.metadata === "object" &&
-    !Array.isArray(existingService.metadata)
-      ? existingService.metadata
-      : {}
-  ) as Record<string, Json>;
-
-  const updatedMetadata: Record<string, Json> = {
-    ...existingMeta,
-    public_short_description: shortDescription,
-    service_badges: badges,
-    inclusions: inclusions,
-  };
-
-  const { error: updateError } = await supabase
-    .from("services")
-    .update({
-      image_url: imageUrl,
-      image_alt: imageAlt,
-      description: description,
-      metadata: updatedMetadata as unknown as Json,
-    })
-    .eq("id", serviceId);
-
-  if (updateError) {
-    return { success: false, error: updateError.message };
-  }
-
-  invalidateTag(cacheTags.serviceCatalog);
-  revalidatePath("/marketing");
-  revalidatePath("/owner/marketing");
-  revalidatePath("/services");
-  revalidatePath("/book");
-  revalidatePath("/");
 
   return { success: true, message: "Service public presentation updated live." };
 }

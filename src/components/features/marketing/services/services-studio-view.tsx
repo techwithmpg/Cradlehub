@@ -1,26 +1,7 @@
 "use client";
 
-import { useActionState, useEffect, useMemo, useState } from "react";
-import Image from "next/image";
-import {
-  AlertCircle,
-  Badge,
-  CheckCircle,
-  Clock,
-  ExternalLink,
-  Eye,
-  Filter,
-  Globe,
-  ImageIcon,
-  Plus,
-  RotateCcw,
-  Save,
-  Search,
-  Send,
-  Sparkles,
-  Tag,
-  Trash2,
-} from "lucide-react";
+import { useActionState, useMemo, useState } from "react";
+import { CheckCircle, Eye, ImageIcon, Save, Search, Send } from "lucide-react";
 import type {
   MarketingContentDraftRow,
   MarketingContentRevisionRow,
@@ -33,6 +14,7 @@ import {
   saveMarketingDraftAction,
   submitMarketingDraftAction,
 } from "@/app/(dashboard)/marketing/actions";
+import { publishMarketingDraftAction } from "@/app/(dashboard)/owner/marketing/actions";
 import { updateServicePresentationAction } from "@/app/(dashboard)/marketing/service-actions";
 
 export type ServicesStudioViewProps = {
@@ -94,6 +76,10 @@ export function ServicesStudioView({
   );
   const [ownerUpdateState, ownerUpdateAction, isOwnerUpdating] = useActionState(
     updateServicePresentationAction,
+    initialNoticeState
+  );
+  const [publishState, publishAction, isPublishing] = useActionState(
+    publishMarketingDraftAction,
     initialNoticeState
   );
 
@@ -598,35 +584,52 @@ export function ServicesStudioView({
                     )}
 
                   {role === "owner" && (
-                    <form action={ownerUpdateAction}>
-                      <input type="hidden" name="serviceId" value={currentService.id} />
-                      <input type="hidden" name="imageUrl" value={formValues.imageUrl} />
-                      <input type="hidden" name="imageAlt" value={formValues.imageAlt} />
-                      <input type="hidden" name="description" value={formValues.description} />
-                      <input
-                        type="hidden"
-                        name="shortDescription"
-                        value={formValues.shortDescription}
-                      />
-                      <input
-                        type="hidden"
-                        name="badges"
-                        value={JSON.stringify(formValues.badges)}
-                      />
-                      <input
-                        type="hidden"
-                        name="inclusions"
-                        value={JSON.stringify(formValues.inclusions)}
-                      />
-                      <button
-                        type="submit"
-                        disabled={isOwnerUpdating}
-                        className="inline-flex items-center gap-1.5 rounded-lg bg-emerald-600 px-3 py-1.5 text-xs font-semibold text-white hover:bg-emerald-500 disabled:opacity-50"
-                      >
-                        <CheckCircle className="h-3.5 w-3.5" />
-                        {isOwnerUpdating ? "Updating..." : "Update Live Service"}
-                      </button>
-                    </form>
+                    <>
+                      {activeServiceDraft &&
+                      ["submitted", "approved"].includes(activeServiceDraft.status) ? (
+                        <form action={publishAction}>
+                          <input type="hidden" name="id" value={activeServiceDraft.id} />
+                          <button
+                            type="submit"
+                            disabled={isPublishing}
+                            className="inline-flex items-center gap-1.5 rounded-lg bg-emerald-600 px-3 py-1.5 text-xs font-semibold text-white hover:bg-emerald-500 disabled:opacity-50"
+                          >
+                            <CheckCircle className="h-3.5 w-3.5" />
+                            {isPublishing ? "Publishing..." : "Publish to Live"}
+                          </button>
+                        </form>
+                      ) : (
+                        <form action={ownerUpdateAction}>
+                          <input type="hidden" name="serviceId" value={currentService.id} />
+                          <input type="hidden" name="imageUrl" value={formValues.imageUrl} />
+                          <input type="hidden" name="imageAlt" value={formValues.imageAlt} />
+                          <input type="hidden" name="description" value={formValues.description} />
+                          <input
+                            type="hidden"
+                            name="shortDescription"
+                            value={formValues.shortDescription}
+                          />
+                          <input
+                            type="hidden"
+                            name="badges"
+                            value={JSON.stringify(formValues.badges)}
+                          />
+                          <input
+                            type="hidden"
+                            name="inclusions"
+                            value={JSON.stringify(formValues.inclusions)}
+                          />
+                          <button
+                            type="submit"
+                            disabled={isOwnerUpdating}
+                            className="inline-flex items-center gap-1.5 rounded-lg bg-emerald-600 px-3 py-1.5 text-xs font-semibold text-white hover:bg-emerald-500 disabled:opacity-50"
+                          >
+                            <CheckCircle className="h-3.5 w-3.5" />
+                            {isOwnerUpdating ? "Updating..." : "Update Live Service"}
+                          </button>
+                        </form>
+                      )}
+                    </>
                   )}
                 </div>
               </div>

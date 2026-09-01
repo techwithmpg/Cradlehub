@@ -689,15 +689,23 @@ export async function publishMarketingContentDraft(
         ? (existing.data.metadata as Record<string, unknown>)
         : {};
 
+    const shortDescription =
+      (typeof meta.shortDescription === "string" && meta.shortDescription) ||
+      existing.data.subtitle ||
+      null;
     const badges = Array.isArray(meta.badges) ? (meta.badges as string[]) : [];
     const inclusions = Array.isArray(meta.inclusions) ? (meta.inclusions as string[]) : [];
+    const imageAlt =
+      existing.data.alt_text || (typeof meta.imageAlt === "string" ? meta.imageAlt : null);
 
-    const { updateServiceAction } = await import("@/app/(dashboard)/owner/services/actions");
-    const serviceResult = await updateServiceAction({
+    const { updateServicePresentationDirect } =
+      await import("@/app/(dashboard)/marketing/service-actions");
+    const serviceResult = await updateServicePresentationDirect(context.supabase, {
       serviceId,
-      description: existing.data.body || undefined,
-      shortDescription: existing.data.subtitle || undefined,
-      imageUrl: existing.data.image_url || undefined,
+      description: existing.data.body || null,
+      shortDescription,
+      imageUrl: existing.data.image_url || null,
+      imageAlt,
       badges,
       inclusions,
     });
@@ -713,7 +721,6 @@ export async function publishMarketingContentDraft(
     existing.data.content_key.startsWith("branch_")
   ) {
     // Publish Branch presentation draft
-    const branchId = existing.data.content_key.replace("branch_", "");
     const meta =
       existing.data.metadata &&
       typeof existing.data.metadata === "object" &&
@@ -721,14 +728,33 @@ export async function publishMarketingContentDraft(
         ? (existing.data.metadata as Record<string, unknown>)
         : {};
 
-    const { data: existingBranch } = await context.supabase
+    const branchId =
+      typeof meta.branchId === "string" && meta.branchId.trim().length > 0
+        ? meta.branchId.trim()
+        : null;
+
+    if (!branchId) {
+      return {
+        success: false,
+        error: "Branch draft is missing a valid canonical branchId in metadata.",
+      };
+    }
+
+    const { data: existingBranch, error: fetchBranchError } = await context.supabase
       .from("branches")
       .select("location_metadata")
       .eq("id", branchId)
-      .maybeSingle();
+      .single();
+
+    if (fetchBranchError || !existingBranch) {
+      return {
+        success: false,
+        error: `Failed to read existing branch metadata: ${fetchBranchError?.message || "Branch not found."}`,
+      };
+    }
 
     const existingBranchMeta =
-      existingBranch?.location_metadata &&
+      existingBranch.location_metadata &&
       typeof existingBranch.location_metadata === "object" &&
       !Array.isArray(existingBranch.location_metadata)
         ? (existingBranch.location_metadata as Record<string, unknown>)

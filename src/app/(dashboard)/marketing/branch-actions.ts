@@ -33,14 +33,21 @@ export async function updateBranchPresentationAction(
   }
 
   // Fetch existing branch row to preserve all unknown location_metadata keys
-  const { data: existingBranch } = await context.supabase
+  const { data: existingBranch, error: fetchError } = await context.supabase
     .from("branches")
     .select("location_metadata")
     .eq("id", branchId)
-    .maybeSingle();
+    .single();
+
+  if (fetchError || !existingBranch) {
+    return {
+      success: false,
+      error: `Failed to read existing branch metadata: ${fetchError?.message || "Branch not found."}`,
+    };
+  }
 
   const existingMeta =
-    existingBranch?.location_metadata &&
+    existingBranch.location_metadata &&
     typeof existingBranch.location_metadata === "object" &&
     !Array.isArray(existingBranch.location_metadata)
       ? (existingBranch.location_metadata as Record<string, unknown>)

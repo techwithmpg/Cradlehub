@@ -32,8 +32,9 @@ describe("Branch Metadata Preservation", () => {
 
     const mockSelect = vi.fn().mockReturnValue({
       eq: vi.fn().mockReturnValue({
-        maybeSingle: vi.fn().mockResolvedValue({
+        single: vi.fn().mockResolvedValue({
           data: { location_metadata: existingMetadata },
+          error: null,
         }),
       }),
     });
@@ -89,6 +90,40 @@ describe("Branch Metadata Preservation", () => {
 
     expect(result.success).toBe(false);
     expect(result.error).toContain("Only owners can publish live branch updates directly");
+    expect(mockUpdateBranchAction).not.toHaveBeenCalled();
+  });
+
+  it("fails closed when existing branch metadata cannot be read and performs zero updates", async () => {
+    const mockSelect = vi.fn().mockReturnValue({
+      eq: vi.fn().mockReturnValue({
+        single: vi.fn().mockResolvedValue({
+          data: null,
+          error: { message: "Database read timeout or connection failed" },
+        }),
+      }),
+    });
+
+    const mockSupabase = {
+      from: vi.fn().mockReturnValue({
+        select: mockSelect,
+      }),
+    };
+
+    mockGetMarketingAccessContext.mockResolvedValue({
+      role: "owner",
+      staffId: "owner-1",
+      supabase: mockSupabase,
+    });
+
+    const formData = new FormData();
+    formData.append("branchId", "branch-uuid-fail");
+    formData.append("name", "Bacolod Flagship");
+    formData.append("imageUrl", "https://example.com/new-image.jpg");
+
+    const result = await updateBranchPresentationAction({ success: true }, formData);
+
+    expect(result.success).toBe(false);
+    expect(result.error).toContain("Failed to read existing branch metadata");
     expect(mockUpdateBranchAction).not.toHaveBeenCalled();
   });
 });

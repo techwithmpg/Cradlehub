@@ -34,6 +34,10 @@ import {
   saveMarketingDraftAction,
   submitMarketingDraftAction,
 } from "@/app/(dashboard)/marketing/actions";
+import {
+  publishMarketingDraftAction,
+  requestMarketingDraftChangesAction,
+} from "@/app/(dashboard)/owner/marketing/actions";
 import { updateBranchPresentationAction } from "@/app/(dashboard)/marketing/branch-actions";
 import {
   Dialog,
@@ -117,6 +121,10 @@ export function BranchesStudioView({
   );
   const [ownerUpdateState, ownerUpdateAction, isOwnerUpdating] = useActionState(
     updateBranchPresentationAction,
+    initialNoticeState
+  );
+  const [publishState, publishAction, isPublishing] = useActionState(
+    publishMarketingDraftAction,
     initialNoticeState
   );
 
@@ -502,28 +510,49 @@ export function BranchesStudioView({
                     </form>
                   )}
 
-                {/* Owner Direct Update */}
+                {/* Owner Direct Update / Canonical Publish */}
                 {role === "owner" && (
-                  <form action={ownerUpdateAction}>
-                    <input type="hidden" name="branchId" value={currentBranch.id} />
-                    <input type="hidden" name="name" value={formValues.name} />
-                    <input type="hidden" name="address" value={formValues.address} />
-                    <input type="hidden" name="phone" value={formValues.phone} />
-                    <input type="hidden" name="email" value={formValues.email} />
-                    <input type="hidden" name="fbPage" value={formValues.fbPage} />
-                    <input type="hidden" name="messengerLink" value={formValues.messengerLink} />
-                    <input type="hidden" name="openingHours" value={formValues.openingHours} />
-                    <input type="hidden" name="mapsEmbedUrl" value={formValues.mapsEmbedUrl} />
-                    <input type="hidden" name="imageUrl" value={formValues.imageUrl} />
-                    <button
-                      type="submit"
-                      disabled={isOwnerUpdating}
-                      className="inline-flex items-center gap-1.5 rounded-lg bg-emerald-600 px-4 py-2 text-xs font-semibold text-white hover:bg-emerald-500 disabled:opacity-50"
-                    >
-                      <CheckCircle className="h-3.5 w-3.5" />
-                      {isOwnerUpdating ? "Updating..." : "Update Live Branch"}
-                    </button>
-                  </form>
+                  <>
+                    {activeBranchDraft &&
+                    ["submitted", "approved"].includes(activeBranchDraft.status) ? (
+                      <form action={publishAction}>
+                        <input type="hidden" name="id" value={activeBranchDraft.id} />
+                        <button
+                          type="submit"
+                          disabled={isPublishing}
+                          className="inline-flex items-center gap-1.5 rounded-lg bg-emerald-600 px-4 py-2 text-xs font-semibold text-white hover:bg-emerald-500 disabled:opacity-50"
+                        >
+                          <CheckCircle className="h-3.5 w-3.5" />
+                          {isPublishing ? "Publishing..." : "Publish to Live"}
+                        </button>
+                      </form>
+                    ) : (
+                      <form action={ownerUpdateAction}>
+                        <input type="hidden" name="branchId" value={currentBranch.id} />
+                        <input type="hidden" name="name" value={formValues.name} />
+                        <input type="hidden" name="address" value={formValues.address} />
+                        <input type="hidden" name="phone" value={formValues.phone} />
+                        <input type="hidden" name="email" value={formValues.email} />
+                        <input type="hidden" name="fbPage" value={formValues.fbPage} />
+                        <input
+                          type="hidden"
+                          name="messengerLink"
+                          value={formValues.messengerLink}
+                        />
+                        <input type="hidden" name="openingHours" value={formValues.openingHours} />
+                        <input type="hidden" name="mapsEmbedUrl" value={formValues.mapsEmbedUrl} />
+                        <input type="hidden" name="imageUrl" value={formValues.imageUrl} />
+                        <button
+                          type="submit"
+                          disabled={isOwnerUpdating}
+                          className="inline-flex items-center gap-1.5 rounded-lg bg-emerald-600 px-4 py-2 text-xs font-semibold text-white hover:bg-emerald-500 disabled:opacity-50"
+                        >
+                          <CheckCircle className="h-3.5 w-3.5" />
+                          {isOwnerUpdating ? "Updating..." : "Update Live Branch"}
+                        </button>
+                      </form>
+                    )}
+                  </>
                 )}
               </div>
             </div>
