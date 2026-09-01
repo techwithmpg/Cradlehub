@@ -29,7 +29,10 @@ export default async function StaffDetailPage({
   params: Promise<{ staffId: string }>;
 }) {
   const { staffId } = await params;
-  const [allStaff, branches] = await Promise.all([getAllStaff(), getAllBranches()]);
+  const [allStaff, branches] = await Promise.all([
+    getAllStaff(),
+    getAllBranches(),
+  ]);
   const typedStaff = allStaff as StaffWithBranch[];
   const typedBranches = branches as BranchRow[];
   const staffMember = typedStaff.find((s) => s.id === staffId);

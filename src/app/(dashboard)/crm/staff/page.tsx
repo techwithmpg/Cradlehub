@@ -8,7 +8,9 @@ import { getBranchStaffAndServiceAssignments } from "@/lib/queries/crm-services"
 import { getBranchAssignableServices } from "@/lib/services/service-catalog";
 import { CrmStaffWorkspace } from "@/components/features/crm/staff/crm-staff-workspace";
 import type { StaffMember } from "@/components/features/staff/staff-management-utils";
-import type { ServiceLite } from "@/app/(dashboard)/owner/branches/[branchId]/branch-services-panel";
+import type {
+  ServiceLite,
+} from "@/app/(dashboard)/owner/branches/[branchId]/branch-services-panel";
 import type { StaffForServicePanel, ServiceAssignmentRow } from "@/lib/queries/crm-services";
 import {
   getCrmStaffNestedService,
@@ -24,9 +26,7 @@ export const metadata = { title: "Staff | Front Desk" };
 
 async function getCrmStaffPageContext() {
   const supabase = await createClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
+  const { data: { user } } = await supabase.auth.getUser();
   if (!user) return { status: "unauthorized" as const };
 
   const { data: me, error } = await supabase
@@ -42,12 +42,7 @@ async function getCrmStaffPageContext() {
   }
 
   const resolvedMe =
-    (me as {
-      id: string;
-      system_role: string;
-      branch_id: string | null;
-      branches: { name: string } | null;
-    } | null) ??
+    (me as { id: string; system_role: string; branch_id: string | null; branches: { name: string } | null } | null) ??
     (isDevAuthBypassEnabled()
       ? {
           id: "dev-bypass-id",
@@ -85,16 +80,14 @@ export default async function CrmStaffPage({
 }: {
   searchParams: Promise<{ tab?: string; status?: string }>;
 }) {
-  const [ctx, params] = await Promise.all([getCrmStaffPageContext(), searchParams]);
+  const [ctx, params] = await Promise.all([
+    getCrmStaffPageContext(),
+    searchParams,
+  ]);
 
   if (ctx.status === "unauthorized") redirect("/crm");
 
-  const initialTab = (():
-    | "applications"
-    | "branch-corrections"
-    | "management"
-    | "assignments"
-    | "status" => {
+  const initialTab = ((): "applications" | "branch-corrections" | "management" | "assignments" | "status" => {
     if (params.tab === "applications") return "applications";
     if (params.tab === "branch-corrections") return "branch-corrections";
     if (params.tab === "management") return "management";
@@ -111,8 +104,7 @@ export default async function CrmStaffPage({
         context="Branch required"
       >
         <div className="rounded-xl border border-[var(--cs-border)] bg-[var(--cs-surface)] p-6 text-sm text-[var(--cs-text-muted)]">
-          Your profile is not linked to an active branch. Contact your manager or owner to assign
-          you to a branch.
+          Your profile is not linked to an active branch. Contact your manager or owner to assign you to a branch.
         </div>
       </CrmOperationalPageShell>
     );
@@ -121,18 +113,20 @@ export default async function CrmStaffPage({
   const branchId = ctx.branchId;
 
   // Fetch data for all tabs in parallel (some may be unused)
-  const [allStaffResult, pendingStaffResult, branchesResult, servicesResult] =
-    await Promise.allSettled([
-      getStaffByBranchWithBranches(branchId),
-      getPendingStaffByBranch(branchId),
-      getAllBranches(),
-      getBranchAssignableServices(branchId),
-    ]);
+  const [
+    allStaffResult,
+    pendingStaffResult,
+    branchesResult,
+    servicesResult,
+  ] = await Promise.allSettled([
+    getStaffByBranchWithBranches(branchId),
+    getPendingStaffByBranch(branchId),
+    getAllBranches(),
+    getBranchAssignableServices(branchId),
+  ]);
 
-  const allStaff =
-    allStaffResult.status === "fulfilled" ? (allStaffResult.value as StaffMember[]) : [];
-  const pendingStaff =
-    pendingStaffResult.status === "fulfilled" ? (pendingStaffResult.value as StaffMember[]) : [];
+  const allStaff = allStaffResult.status === "fulfilled" ? (allStaffResult.value as StaffMember[]) : [];
+  const pendingStaff = pendingStaffResult.status === "fulfilled" ? (pendingStaffResult.value as StaffMember[]) : [];
   const branches = branchesResult.status === "fulfilled" ? branchesResult.value : [];
 
   let activeServices: ServiceLite[] = [];
@@ -143,11 +137,18 @@ export default async function CrmStaffPage({
   if (servicesResult.status === "fulfilled") {
     const services = servicesResult.value as ServiceLite[];
     const eligible = services.filter(
-      (s) => s.is_active && getCrmStaffNestedService(s) !== null && getCrmStaffServiceId(s) !== null
+      (s) =>
+        s.is_active &&
+        getCrmStaffNestedService(s) !== null &&
+        getCrmStaffServiceId(s) !== null
     );
     activeServices = eligible;
     const activeServiceIds = Array.from(
-      new Set(eligible.map(getCrmStaffServiceId).filter((id): id is string => id !== null))
+      new Set(
+        eligible
+          .map(getCrmStaffServiceId)
+          .filter((id): id is string => id !== null)
+      )
     );
 
     if (activeServiceIds.length > 0) {
@@ -167,10 +168,9 @@ export default async function CrmStaffPage({
   } else {
     console.error("[crm/staff] branch services query failed", {
       branchId,
-      error:
-        servicesResult.reason instanceof Error
-          ? servicesResult.reason.message
-          : String(servicesResult.reason),
+      error: servicesResult.reason instanceof Error
+        ? servicesResult.reason.message
+        : String(servicesResult.reason),
     });
     providerAssignmentsError =
       "Service assignments could not be loaded. Please refresh and try again.";
@@ -219,9 +219,15 @@ export default async function CrmStaffPage({
 
 // ── Onboarding requests ───────────────────────────────────────────────────────
 
-async function fetchOnboardingRequests(systemRole: string, branchId: string | null) {
+async function fetchOnboardingRequests(
+  systemRole: string,
+  branchId: string | null
+) {
   const admin = createAdminClient();
-  let query = admin.from("staff_onboarding_requests").select("*").eq("status", "submitted");
+  let query = admin
+    .from("staff_onboarding_requests")
+    .select("*")
+    .eq("status", "submitted");
 
   if (systemRole !== "owner" && branchId) {
     query = query.eq("requested_branch_id", branchId);
