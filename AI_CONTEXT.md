@@ -70,7 +70,15 @@ The recorded SHAs are stable closeout anchors, not declarations of the current `
 
 ## Current authorization
 
-C0B, C1, C2, C3, C4, and C5 Pass 1 are closed and accepted. C5 Pass 1 (Public Consumer Parity & Component Grounding) was merged into main at `1f5d71ce3472684c9a94ad83d6c2e36a9d1b1971`. C5 Pass 2 (Central Media Library & Universal Media Picker) is ACTIVE. C5 Pass 2 does NOT authorize schema/database mutation, migrations, RLS/Auth/Storage policy changes, production data mutation, or C5 Pass 3+. C5 Pass 3+ remains strictly NOT AUTHORIZED.
+C0B, C1, C2, C3, C4, C5 Pass 1, and C5 Pass 2 are closed and accepted.
+
+C5 Pass 2 — Central Media Library & Universal Media Picker — was merged into main at `12ddaf44fe951e0f167084dafd51627d2836c70b` and closed through the documentation closeout merged at `d815a6fe31b9ed2092f31bb3b491d285a90d6083`.
+
+No next C5 implementation pass is active.
+
+C5 Pass 3 and all later passes remain strictly NOT AUTHORIZED pending explicit future owner authorization.
+
+No schema/database mutation, migrations, Auth/RLS/Storage-policy changes, or production-data mutation are authorized by the C5.2 closeout.
 
 ## Historical context policy
 
