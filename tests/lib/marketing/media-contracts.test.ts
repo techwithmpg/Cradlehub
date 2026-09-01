@@ -1,4 +1,7 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
+
+vi.mock("server-only", () => ({}));
+
 import sharp from "sharp";
 import {
   getMediaContract,
@@ -82,14 +85,83 @@ describe("Marketing Media Contracts System", () => {
     expect(nonSquareResult.error).toContain("aspect ratio");
   });
 
-  it("validates SVG assets gracefully regardless of fixed raster dimensions", async () => {
-    const svgBuffer = Buffer.from(
-      `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100"><circle cx="50" cy="50" r="40" fill="#C8A96B"/></svg>`
-    );
+  it("BRANCH_PHOTO contract rejects SVG and GIF formats", async () => {
+    const branchContract = getMediaContract("BRANCH_PHOTO");
 
+    // 1. SVG rejected for BRANCH_PHOTO
+    const svgBuffer = Buffer.from(
+      `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 800 450"><rect width="800" height="450" fill="#0D2B20"/></svg>`
+    );
+    const svgResult = await validateMediaBuffer(svgBuffer, "image/svg+xml", branchContract);
+    expect(svgResult.isValid).toBe(false);
+    expect(svgResult.error).toContain("Vector SVG format is not allowed");
+
+    // 2. GIF rejected for BRANCH_PHOTO
+    const gifBuffer = await sharp({
+      create: {
+        width: 800,
+        height: 450,
+        channels: 4,
+        background: { r: 13, g: 43, b: 32, alpha: 1 },
+      },
+    })
+      .gif()
+      .toBuffer();
+    const gifResult = await validateMediaBuffer(gifBuffer, "image/gif", branchContract);
+    expect(gifResult.isValid).toBe(false);
+    expect(gifResult.error).toContain("not supported");
+  });
+
+  it("HEADER_LOGO contract rejects JPG and requires SVG, PNG, or WebP with transparency", async () => {
+    const headerLogoContract = getMediaContract("HEADER_LOGO");
+
+    const jpgBuffer = await sharp({
+      create: {
+        width: 800,
+        height: 200,
+        channels: 3,
+        background: { r: 13, g: 43, b: 32 },
+      },
+    })
+      .jpeg()
+      .toBuffer();
+
+    const jpgResult = await validateMediaBuffer(jpgBuffer, "image/jpeg", headerLogoContract);
+    expect(jpgResult.isValid).toBe(false);
+    expect(jpgResult.error).toContain("not supported");
+  });
+
+  it("validates safe SVG assets and rejects malicious or corrupt SVGs", async () => {
     const contract = getMediaContract("SITE_ICON_MASTER");
-    const result = await validateMediaBuffer(svgBuffer, "image/svg+xml", contract);
-    expect(result.isValid).toBe(true);
+
+    // 1. Safe valid SVG
+    const safeSvg = Buffer.from(
+      `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512"><circle cx="256" cy="256" r="200" fill="#C8A96B"/></svg>`
+    );
+    const safeResult = await validateMediaBuffer(safeSvg, "image/svg+xml", contract);
+    expect(safeResult.isValid).toBe(true);
+
+    // 2. Malicious SVG with embedded <script>
+    const maliciousScriptSvg = Buffer.from(
+      `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512"><script>alert('xss')</script><circle cx="256" cy="256" r="200" fill="#C8A96B"/></svg>`
+    );
+    const scriptResult = await validateMediaBuffer(maliciousScriptSvg, "image/svg+xml", contract);
+    expect(scriptResult.isValid).toBe(false);
+    expect(scriptResult.error).toContain("Security validation failed");
+
+    // 3. Malicious SVG with onload attribute
+    const maliciousOnloadSvg = Buffer.from(
+      `<svg xmlns="http://www.w3.org/2000/svg" onload="fetch('https://evil.com')"><circle cx="256" cy="256" r="200" fill="#C8A96B"/></svg>`
+    );
+    const onloadResult = await validateMediaBuffer(maliciousOnloadSvg, "image/svg+xml", contract);
+    expect(onloadResult.isValid).toBe(false);
+    expect(onloadResult.error).toContain("Security validation failed");
+
+    // 4. Corrupt unparseable SVG
+    const corruptSvg = Buffer.from("<svg>this is not valid xml <><<<<");
+    const corruptResult = await validateMediaBuffer(corruptSvg, "image/svg+xml", contract);
+    expect(corruptResult.isValid).toBe(false);
+    expect(corruptResult.error).toContain("Could not parse or decode SVG artwork");
   });
 
   it("evaluates compatibility on media library asset rows and tolerates legacy untracked assets", () => {

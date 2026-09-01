@@ -62,7 +62,7 @@ export async function generateMetadata(): Promise<Metadata> {
   const pkg = brandSettings?.siteIconPackage;
   const iconList: { url: string; sizes?: string; type?: string }[] = [];
 
-  if (pkg?.icons?.icon32 || pkg?.icons?.ico) {
+  if (pkg?.icons?.icon32) {
     if (pkg.icons.icon16)
       iconList.push({ url: pkg.icons.icon16, sizes: "16x16", type: "image/png" });
     if (pkg.icons.icon32)
@@ -73,17 +73,13 @@ export async function generateMetadata(): Promise<Metadata> {
       iconList.push({ url: pkg.icons.icon192, sizes: "192x192", type: "image/png" });
     if (pkg.icons.icon512)
       iconList.push({ url: pkg.icons.icon512, sizes: "512x512", type: "image/png" });
-    if (pkg.icons.ico) iconList.push({ url: pkg.icons.ico });
   } else {
     iconList.push({ url: "/favicon.ico" });
-    iconList.push({ url: "/icon.png", type: "image/png", sizes: "512x512" });
   }
 
   const appleList: { url: string; sizes?: string; type?: string }[] = [];
   if (pkg?.icons?.apple180) {
     appleList.push({ url: pkg.icons.apple180, sizes: "180x180", type: "image/png" });
-  } else {
-    appleList.push({ url: "/apple-icon.png", sizes: "180x180", type: "image/png" });
   }
 
   return {

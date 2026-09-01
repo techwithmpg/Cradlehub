@@ -28,6 +28,11 @@ import {
 } from "@/lib/queries/marketing-content";
 import { getPublicBranches } from "@/lib/queries/branches";
 import { getPublicServiceCatalog } from "@/lib/queries/services";
+import {
+  getMediaContract,
+  type MarketingMediaIntentKey,
+} from "@/lib/marketing/media-contracts";
+import { validateMediaBuffer } from "@/lib/marketing/media-contracts-server";
 
 export type MarketingMediaAssetRow = {
   id: string;
@@ -129,7 +134,7 @@ function isMissingMarketingTableError(message: string): boolean {
   );
 }
 
-async function getMarketingAccessContext(): Promise<MarketingAccessContext | null> {
+export async function getMarketingAccessContext(): Promise<MarketingAccessContext | null> {
   const supabase = await createClient();
   const {
     data: { user },
@@ -735,29 +740,69 @@ export async function uploadMarketingMediaFile(
   const rawTitle = (formData.get("title") as string) || "";
   const rawAltText = (formData.get("altText") as string) || "";
   const sectionKey = (formData.get("sectionKey") as string) || "";
+  const mediaIntent = (formData.get("mediaIntent") as string) || "";
 
-  // Validation
-  const allowedMimeTypes = [
-    "image/jpeg",
-    "image/jpg",
-    "image/png",
-    "image/webp",
-    "image/svg+xml",
-    "image/gif",
-  ];
-  if (!allowedMimeTypes.includes(file.type.toLowerCase())) {
-    return {
-      success: false,
-      error: "Unsupported file type. Please upload a JPG, PNG, WebP, SVG, or GIF image.",
-    };
-  }
+  const arrayBuffer = await file.arrayBuffer();
+  const buffer = Buffer.from(arrayBuffer);
 
-  const maxBytes = 10 * 1024 * 1024; // 10MB
-  if (file.size > maxBytes) {
-    return {
-      success: false,
-      error: "File size exceeds 10MB limit. Please upload an optimized image.",
-    };
+  let validatedWidth: number | undefined;
+  let validatedHeight: number | undefined;
+  let validatedFormat: string | undefined;
+
+  // Intent-based authoritative contract validation
+  if (mediaIntent) {
+    const validIntents: MarketingMediaIntentKey[] = [
+      "HEADER_LOGO",
+      "FOOTER_LOGO",
+      "BRAND_MARK",
+      "SITE_ICON_MASTER",
+      "BRANCH_PHOTO",
+      "SERVICE_PHOTO",
+      "HERO_BACKGROUND",
+      "FEATURE_PORTRAIT",
+    ];
+
+    if (!validIntents.includes(mediaIntent as MarketingMediaIntentKey)) {
+      return { success: false, error: "Invalid media intent specified." };
+    }
+
+    const contract = getMediaContract(mediaIntent as MarketingMediaIntentKey);
+    const validation = await validateMediaBuffer(buffer, file.type, contract);
+
+    if (!validation.isValid) {
+      return {
+        success: false,
+        error: validation.error || `File does not meet requirements for ${contract.purpose}.`,
+      };
+    }
+
+    validatedWidth = validation.width;
+    validatedHeight = validation.height;
+    validatedFormat = validation.format;
+  } else {
+    // Generic fallback validation
+    const allowedMimeTypes = [
+      "image/jpeg",
+      "image/jpg",
+      "image/png",
+      "image/webp",
+      "image/svg+xml",
+      "image/gif",
+    ];
+    if (!allowedMimeTypes.includes(file.type.toLowerCase())) {
+      return {
+        success: false,
+        error: "Unsupported file type. Please upload a JPG, PNG, WebP, SVG, or GIF image.",
+      };
+    }
+
+    const maxBytes = 10 * 1024 * 1024; // 10MB
+    if (file.size > maxBytes) {
+      return {
+        success: false,
+        error: "File size exceeds 10MB limit. Please upload an optimized image.",
+      };
+    }
   }
 
   const sanitizedFileName = file.name
@@ -786,6 +831,10 @@ export async function uploadMarketingMediaFile(
       originalFileName: file.name,
       mimeType: file.type,
       sizeBytes: file.size,
+      mediaIntent: mediaIntent || undefined,
+      width: validatedWidth,
+      height: validatedHeight,
+      format: validatedFormat,
       uploadStatus: "pending",
       uploadedAt: new Date().toISOString(),
     },
@@ -812,9 +861,6 @@ export async function uploadMarketingMediaFile(
 
   // Step 2: Upload to Supabase Storage
   try {
-    const arrayBuffer = await file.arrayBuffer();
-    const buffer = Buffer.from(arrayBuffer);
-
     const { error: uploadError } = await context.supabase.storage
       .from(PUBLIC_MEDIA_BUCKET)
       .upload(bucketPath, buffer, {

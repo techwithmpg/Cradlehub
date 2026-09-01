@@ -412,4 +412,141 @@ describe("Draft Publication Pipelines (C5.4 Review Corrections)", () => {
       });
     });
   });
+
+  describe("Brand Draft Publication & Site Icon Package Flow", () => {
+    it("publishes brand draft and persists validated siteIconPackage to marketing_brand_settings", async () => {
+      const draftUuid = "55555555-5555-4555-8555-555555555555";
+      const validPackage = {
+        version: "v2026",
+        sourceUrl: "https://storage/master-icon.png",
+        sourceAssetId: "asset-123",
+        generationStatus: "ready",
+        generatedAt: "2026-09-02T00:00:00Z",
+        icons: {
+          icon16: "https://storage/icon-16.png",
+          icon32: "https://storage/icon-32.png",
+          icon48: "https://storage/icon-48.png",
+          apple180: "https://storage/apple-touch-icon-180.png",
+          icon192: "https://storage/icon-192.png",
+          icon512: "https://storage/icon-512.png",
+          maskable512: "https://storage/maskable-512.png",
+        },
+      };
+
+      const mockDraftRow = {
+        id: draftUuid,
+        content_type: "brand",
+        content_key: "brand_identity",
+        status: "approved",
+        title: "A sanctuary of calm in Bacolod.",
+        subtitle: "Experience genuine renewal.",
+        image_url: "https://storage/logo.png",
+        alt_text: "Cradle Logo",
+        metadata: {
+          headerLogoUrl: "https://storage/logo.png",
+          siteIconPackage: validPackage,
+          siteIconAlt: "Cradle Spa Favicon",
+        },
+      };
+
+      mockUpdateBrandSettingsBatchOwner.mockResolvedValue({ success: true });
+
+      currentMockSupabase = {
+        auth: {
+          getUser: vi.fn().mockResolvedValue({ data: { user: { id: "owner-user-01" } } }),
+        },
+        from: vi.fn((table: string) => {
+          if (table === "staff") {
+            return { select: vi.fn().mockReturnValue(createStaffQuery()) };
+          }
+          if (table === "marketing_content_drafts") {
+            return {
+              select: vi.fn().mockReturnValue({
+                eq: vi.fn().mockReturnValue({
+                  maybeSingle: vi.fn().mockResolvedValue({
+                    data: mockDraftRow,
+                    error: null,
+                  }),
+                }),
+              }),
+              update: vi.fn().mockReturnValue(createDraftUpdateQuery(mockDraftRow)),
+            };
+          }
+          if (table === "marketing_content_revisions") {
+            return createRevisionsQuery();
+          }
+          return {};
+        }),
+      };
+
+      const result = await publishMarketingContentDraft({ id: draftUuid });
+
+      expect(result.success).toBe(true);
+      expect(mockUpdateBrandSettingsBatchOwner).toHaveBeenCalledWith(
+        expect.arrayContaining([
+          expect.objectContaining({
+            settingKey: "site_icon",
+            value: expect.objectContaining({
+              url: "https://storage/icon-32.png",
+              package: validPackage,
+            }),
+          }),
+        ])
+      );
+    });
+
+    it("fails closed when brand draft contains an incomplete or non-ready siteIconPackage", async () => {
+      const draftUuid = "66666666-6666-4666-8666-666666666666";
+      const brokenPackage = {
+        version: "v2026",
+        sourceUrl: "https://storage/master.png",
+        generationStatus: "failed", // Not ready!
+        icons: {
+          icon16: "",
+        },
+      };
+
+      const mockDraftRow = {
+        id: draftUuid,
+        content_type: "brand",
+        content_key: "brand_identity",
+        status: "approved",
+        metadata: {
+          siteIconPackage: brokenPackage,
+        },
+      };
+
+      currentMockSupabase = {
+        auth: {
+          getUser: vi.fn().mockResolvedValue({ data: { user: { id: "owner-user-01" } } }),
+        },
+        from: vi.fn((table: string) => {
+          if (table === "staff") {
+            return { select: vi.fn().mockReturnValue(createStaffQuery()) };
+          }
+          if (table === "marketing_content_drafts") {
+            return {
+              select: vi.fn().mockReturnValue({
+                eq: vi.fn().mockReturnValue({
+                  maybeSingle: vi.fn().mockResolvedValue({
+                    data: mockDraftRow,
+                    error: null,
+                  }),
+                }),
+              }),
+            };
+          }
+          return {};
+        }),
+      };
+
+      const result = await publishMarketingContentDraft({ id: draftUuid });
+
+      expect(result.success).toBe(false);
+      if (!result.success) {
+        expect(result.error).toContain("incomplete or unverified dynamic site icon package");
+      }
+      expect(mockUpdateBrandSettingsBatchOwner).not.toHaveBeenCalled();
+    });
+  });
 });

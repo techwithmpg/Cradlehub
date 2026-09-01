@@ -18,7 +18,6 @@ export type GeneratedSiteIconPackage = {
     icon192: string;
     icon512: string;
     maskable512: string;
-    ico?: string;
   };
 };
 
@@ -37,7 +36,6 @@ export const SITE_ICON_VARIANTS: readonly IconVariantDefinition[] = [
   { name: "icon192", filename: "icon-192.png", size: 192 },
   { name: "icon512", filename: "icon-512.png", size: 512 },
   { name: "maskable512", filename: "maskable-512.png", size: 512, isMaskable: true },
-  { name: "ico", filename: "favicon.ico", size: 32 },
 ] as const;
 
 const PUBLIC_MEDIA_BUCKET = "public-site-media";
@@ -81,6 +79,7 @@ export async function normalizeToSquareMaster(
 
 /**
  * Authoritative server-side generation of complete site icon package from a master image buffer.
+ * Fails closed if any required variant cannot be generated or uploaded.
  */
 export async function generateSiteIconPackageFromBuffer({
   masterBuffer,
@@ -114,12 +113,12 @@ export async function generateSiteIconPackageFromBuffer({
     const version = customVersion || `v${Date.now()}`;
     const generatedAt = new Date().toISOString();
 
-    const iconsMap: Record<string, string> = {};
+    const iconsMap: Partial<Record<keyof GeneratedSiteIconPackage["icons"], string>> = {};
     let supabase: Awaited<ReturnType<typeof createClient>> | null = null;
     try {
       supabase = await createClient();
     } catch {
-      // Test or offline environment
+      // Test environment
     }
 
     // 3. Generate and upload all variants
@@ -163,27 +162,62 @@ export async function generateSiteIconPackageFromBuffer({
       const storagePath = `brand/site-icon/${version}/${variant.filename}`;
 
       if (supabase?.storage) {
-        try {
-          const { error: uploadError } = await supabase.storage
-            .from(PUBLIC_MEDIA_BUCKET)
-            .upload(storagePath, variantBuffer, {
-              contentType: variant.filename.endsWith(".ico") ? "image/x-icon" : "image/png",
-              upsert: true,
-            });
+        const { error: uploadError } = await supabase.storage
+          .from(PUBLIC_MEDIA_BUCKET)
+          .upload(storagePath, variantBuffer, {
+            contentType: "image/png",
+            upsert: true,
+          });
 
-          if (!uploadError) {
-            const { data } = supabase.storage.from(PUBLIC_MEDIA_BUCKET).getPublicUrl(storagePath);
-            if (data?.publicUrl) {
-              iconsMap[variant.name] = data.publicUrl;
-            }
-          }
-        } catch {
-          // Fallback to local / public URL
+        if (uploadError) {
+          logError("marketing.site_icon_variant_upload_failed", {
+            error: uploadError,
+            storagePath,
+          });
+          return {
+            success: false,
+            error: `Storage upload failed for ${variant.filename}: ${uploadError.message}`,
+          };
+        }
+
+        const { data } = supabase.storage.from(PUBLIC_MEDIA_BUCKET).getPublicUrl(storagePath);
+        if (!data?.publicUrl) {
+          return {
+            success: false,
+            error: `Could not resolve public URL for ${variant.filename}`,
+          };
+        }
+        iconsMap[variant.name] = data.publicUrl;
+      } else {
+        // Fallback in test-only environment
+        if (process.env.NODE_ENV === "test") {
+          iconsMap[variant.name] = `/brand/site-icon/${version}/${variant.filename}`;
+        } else {
+          return {
+            success: false,
+            error: `Storage client unavailable to store variant ${variant.filename}`,
+          };
         }
       }
+    }
 
-      if (!iconsMap[variant.name]) {
-        iconsMap[variant.name] = `/brand/site-icon/${version}/${variant.filename}`;
+    // Fail closed if any required variant is missing
+    const requiredKeys: (keyof GeneratedSiteIconPackage["icons"])[] = [
+      "icon16",
+      "icon32",
+      "icon48",
+      "apple180",
+      "icon192",
+      "icon512",
+      "maskable512",
+    ];
+
+    for (const key of requiredKeys) {
+      if (!iconsMap[key]) {
+        return {
+          success: false,
+          error: `Required icon variant '${key}' failed to generate or upload.`,
+        };
       }
     }
 
@@ -194,14 +228,13 @@ export async function generateSiteIconPackageFromBuffer({
       generationStatus: "ready",
       generatedAt,
       icons: {
-        icon16: iconsMap.icon16 || "",
-        icon32: iconsMap.icon32 || "",
-        icon48: iconsMap.icon48 || "",
-        apple180: iconsMap.apple180 || "",
-        icon192: iconsMap.icon192 || "",
-        icon512: iconsMap.icon512 || "",
-        maskable512: iconsMap.maskable512 || "",
-        ico: iconsMap.ico || iconsMap.icon32 || "",
+        icon16: iconsMap.icon16!,
+        icon32: iconsMap.icon32!,
+        icon48: iconsMap.icon48!,
+        apple180: iconsMap.apple180!,
+        icon192: iconsMap.icon192!,
+        icon512: iconsMap.icon512!,
+        maskable512: iconsMap.maskable512!,
       },
     };
 

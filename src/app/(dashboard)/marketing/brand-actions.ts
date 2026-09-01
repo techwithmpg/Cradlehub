@@ -102,51 +102,95 @@ export async function generateSiteIconAction(
   _prevState: GenerateIconState,
   formData: FormData
 ): Promise<GenerateIconState> {
+  const { getMarketingAccessContext, getMarketingMediaAssetById, uploadMarketingMediaFile } =
+    await import("@/lib/queries/marketing-media");
   const { generateSiteIconPackageFromBuffer } = await import("@/lib/marketing/icon-generator");
 
+  // 1. Marketing Authorization Boundary (digital_marketer or owner only)
+  const context = await getMarketingAccessContext();
+  if (!context || (context.role !== "owner" && context.role !== "digital_marketer")) {
+    return {
+      success: false,
+      error: "Unauthorized: only digital marketers or owners can generate site icon packages.",
+    };
+  }
+
   const file = formData.get("masterFile") as File | null;
-  const sourceUrl = formData.get("sourceUrl")?.toString() || "";
-  const sourceAssetId = formData.get("sourceAssetId")?.toString() || null;
+  const rawSourceAssetId = formData.get("sourceAssetId")?.toString() || null;
 
   let buffer: Buffer | null = null;
   let mime = "";
+  let sourceUrl = "";
+  let sourceAssetId: string | null = rawSourceAssetId;
 
-  if (file && file.size > 0) {
+  // 2. Trusted Asset Flow via Media Library ID
+  if (sourceAssetId) {
+    const asset = await getMarketingMediaAssetById(sourceAssetId);
+    if (!asset || asset.status === "archived") {
+      return {
+        success: false,
+        error: "Selected media asset is invalid, archived, or not found.",
+      };
+    }
+
+    if (!asset.bucket_path) {
+      return {
+        success: false,
+        error: "Selected media asset does not have a valid storage path.",
+      };
+    }
+
+    const { data: blob, error: downloadError } = await context.supabase.storage
+      .from("public-site-media")
+      .download(asset.bucket_path);
+
+    if (downloadError || !blob) {
+      return {
+        success: false,
+        error: `Could not download asset from trusted storage: ${downloadError?.message || "Storage object missing"}`,
+      };
+    }
+
+    const arrayBuf = await blob.arrayBuffer();
+    buffer = Buffer.from(arrayBuf);
+    const meta = (asset.metadata || {}) as Record<string, unknown>;
+    mime = blob.type || (typeof meta.mimeType === "string" ? meta.mimeType : "image/png");
+    sourceUrl = asset.public_url || asset.bucket_path;
+  } else if (file && file.size > 0) {
+    // 3. Direct Master Upload Flow: Save master asset first to track provenance
+    const uploadForm = new FormData();
+    uploadForm.append("file", file);
+    uploadForm.append("title", "Site Icon Master");
+    uploadForm.append("altText", "Master Brand Site Icon");
+    uploadForm.append("mediaIntent", "SITE_ICON_MASTER");
+
+    const uploadRes = await uploadMarketingMediaFile(uploadForm);
+    if (!uploadRes.success) {
+      return {
+        success: false,
+        error: uploadRes.error || "Failed to validate and store master icon asset.",
+      };
+    }
+
+    sourceAssetId = uploadRes.asset.id;
+    sourceUrl = uploadRes.asset.public_url || uploadRes.asset.bucket_path;
     const arrayBuf = await file.arrayBuffer();
     buffer = Buffer.from(arrayBuf);
     mime = file.type || "image/png";
-  } else if (sourceUrl) {
-    try {
-      // If relative URL or external URL, fetch it
-      const fetchUrl = sourceUrl.startsWith("http")
-        ? sourceUrl
-        : `${process.env.NEXT_PUBLIC_APP_URL || "http://localhost:3000"}${sourceUrl}`;
-      const res = await fetch(fetchUrl);
-      if (!res.ok) {
-        return { success: false, error: `Could not load master image from ${sourceUrl}` };
-      }
-      const arrayBuf = await res.arrayBuffer();
-      buffer = Buffer.from(arrayBuf);
-      mime = res.headers.get("content-type") || "image/png";
-    } catch (err) {
-      return {
-        success: false,
-        error: `Could not fetch source icon image: ${err instanceof Error ? err.message : "Unknown error"}`,
-      };
-    }
   }
 
   if (!buffer) {
     return {
       success: false,
-      error: "Please provide a master brand icon file or select an asset from the media library.",
+      error: "Please provide a master brand icon file or select an active asset from the media library.",
     };
   }
 
+  // 4. Generate derived package from trusted buffer
   const result = await generateSiteIconPackageFromBuffer({
     masterBuffer: buffer,
     declaredMime: mime,
-    sourceUrl: sourceUrl || "uploaded-master-icon",
+    sourceUrl,
     sourceAssetId,
   });
 
@@ -157,6 +201,6 @@ export async function generateSiteIconAction(
   return {
     success: true,
     package: result.package,
-    message: "Site icon package generated successfully (8 variants ready).",
+    message: "Site icon package generated successfully (7 variants ready).",
   };
 }

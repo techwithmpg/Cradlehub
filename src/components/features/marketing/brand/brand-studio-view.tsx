@@ -63,6 +63,7 @@ type BrandFormValues = {
   brandMarkUrl: string;
   brandMarkAlt: string;
   siteIconMasterUrl: string;
+  siteIconMasterAssetId?: string | null;
   siteIconUrl: string;
   siteIconAlt: string;
   siteIconPackage: GeneratedSiteIconPackage | null;
@@ -187,6 +188,7 @@ export function BrandStudioView({
           draftPkg?.sourceUrl ||
           (publishedMap.brand_mark?.url as string) ||
           "",
+        siteIconMasterAssetId: draftPkg?.sourceAssetId || null,
         siteIconUrl:
           (meta.siteIconUrl as string) ||
           draftPkg?.icons?.icon32 ||
@@ -219,6 +221,7 @@ export function BrandStudioView({
       brandMarkAlt: (publishedMap.brand_mark?.alt as string) || "Cradle Brand Mark",
       siteIconMasterUrl:
         livePkg?.sourceUrl || (publishedMap.brand_mark?.url as string) || "",
+      siteIconMasterAssetId: livePkg?.sourceAssetId || null,
       siteIconUrl:
         livePkg?.icons?.icon32 || (publishedMap.site_icon?.url as string) || "/favicon.ico",
       siteIconAlt: (publishedMap.site_icon?.alt as string) || "Cradle Site Icon",
@@ -440,9 +443,10 @@ export function BrandStudioView({
                   intent="SITE_ICON_MASTER"
                   value={formValues.siteIconMasterUrl}
                   altValue={formValues.siteIconAlt}
-                  onChange={(url, alt) => {
+                  onChange={(url, alt, assetId) => {
                     handleFieldChange("siteIconMasterUrl", url);
                     if (alt) handleFieldChange("siteIconAlt", alt);
+                    if (assetId) handleFieldChange("siteIconMasterAssetId", assetId);
                   }}
                   availableAssets={mediaAssets}
                   helperText="Recommended: 1024x1024 SVG or high-resolution PNG with transparent background."
@@ -455,7 +459,7 @@ export function BrandStudioView({
                       Automatic Variant Generation
                     </p>
                     <p className="text-[11px] text-[var(--cs-text-secondary)]">
-                      Produces 16, 32, 48, 180, 192, 512, maskable 512, and ICO containers.
+                      Produces 16, 32, 48, 180, 192, 512, and maskable 512 PNG packages.
                     </p>
                   </div>
 
@@ -464,6 +468,11 @@ export function BrandStudioView({
                       type="hidden"
                       name="sourceUrl"
                       value={formValues.siteIconMasterUrl || formValues.brandMarkUrl}
+                    />
+                    <input
+                      type="hidden"
+                      name="sourceAssetId"
+                      value={formValues.siteIconMasterAssetId || ""}
                     />
                     <button
                       type="submit"
@@ -487,7 +496,7 @@ export function BrandStudioView({
                 {currentSiteIconPackage && currentSiteIconPackage.icons && (
                   <div className="space-y-3 rounded-xl border border-[var(--cs-border-subtle)] bg-[var(--cs-surface)] p-3.5">
                     <p className="text-[11px] font-bold uppercase tracking-wider text-[var(--cs-text-secondary)]">
-                      Generated Icon Variants
+                      Generated Icon Variants (7 Active Variants)
                     </p>
                     <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5">
                       {[
@@ -498,7 +507,6 @@ export function BrandStudioView({
                         { label: "Android PWA", key: "icon192", dim: "192x192" },
                         { label: "Splash 512px", key: "icon512", dim: "512x512" },
                         { label: "Maskable 512", key: "maskable512", dim: "512x512 (Padded)" },
-                        { label: "Legacy ICO", key: "ico", dim: "Multi-size" },
                       ].map((item) => {
                         const url =
                           currentSiteIconPackage?.icons[

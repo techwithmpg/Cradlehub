@@ -6,7 +6,38 @@ import {
 } from "./media-contracts";
 
 /**
+ * Validates that an SVG does not contain embedded executable scripts, event handlers, or unsafe tags.
+ */
+function sanitizeSvgCheck(content: string): { isSafe: boolean; reason?: string } {
+  const lower = content.toLowerCase();
+  const dangerousPatterns = [
+    "<script",
+    "javascript:",
+    "onload=",
+    "onerror=",
+    "onclick=",
+    "onmouseover=",
+    "<foreignobject",
+    "<iframe",
+    "<embed",
+    "<object",
+  ];
+
+  for (const pattern of dangerousPatterns) {
+    if (lower.includes(pattern)) {
+      return {
+        isSafe: false,
+        reason: `SVG contains prohibited executable element or attribute (${pattern.replace(/[<=]/g, "")}).`,
+      };
+    }
+  }
+
+  return { isSafe: true };
+}
+
+/**
  * Server-side Sharp-based buffer validation for uploaded images.
+ * Enforces file size limits, MIME types, decodability, resolution, and aspect ratio.
  */
 export async function validateMediaBuffer(
   buffer: Buffer,
@@ -19,23 +50,79 @@ export async function validateMediaBuffer(
       isValid: false,
       error: `File size exceeds the ${mbLimit} MB limit for this field.`,
       reason: `Exceeds max size (${mbLimit} MB)`,
+      byteSize: buffer.length,
     };
   }
 
-  // Handle SVG directly
-  if (declaredMime === "image/svg+xml" || contract.svgAllowed && buffer.toString("utf8", 0, 100).includes("<svg")) {
+  const rawHead = buffer.toString("utf8", 0, Math.min(buffer.length, 512)).toLowerCase();
+  const isSvg = declaredMime === "image/svg+xml" || rawHead.includes("<svg") || rawHead.includes("<?xml");
+
+  if (isSvg) {
     if (!contract.svgAllowed) {
       return {
         isValid: false,
-        error: "Vector SVG format is not allowed for this photography field.",
+        error: "Vector SVG format is not allowed for this photography field. Please upload a WebP, JPG, or PNG image.",
         reason: "SVG not allowed",
+        byteSize: buffer.length,
       };
     }
-    return {
-      isValid: true,
-      format: "svg",
-      byteSize: buffer.length,
-    };
+
+    const svgString = buffer.toString("utf8");
+    const safety = sanitizeSvgCheck(svgString);
+    if (!safety.isSafe) {
+      return {
+        isValid: false,
+        error: `Security validation failed: ${safety.reason}`,
+        reason: "Malicious or unsafe SVG",
+        byteSize: buffer.length,
+      };
+    }
+
+    try {
+      const metadata = await sharp(buffer).metadata();
+      if (metadata.format !== "svg") {
+        return {
+          isValid: false,
+          error: "Corrupt or unreadable SVG artwork.",
+          reason: "Corrupt SVG",
+          byteSize: buffer.length,
+        };
+      }
+
+      const width = metadata.width || 0;
+      const height = metadata.height || 0;
+
+      // If dimensions exist in viewBox or attributes, check aspect ratio
+      if (width > 0 && height > 0) {
+        const ratio = width / height;
+        if (ratio < contract.aspectRatio.min || ratio > contract.aspectRatio.max) {
+          return {
+            isValid: false,
+            error: `SVG aspect ratio (${ratio.toFixed(2)}) does not match the expected shape (target: ${contract.aspectRatio.target.toFixed(2)}).`,
+            reason: `Incorrect aspect ratio (${ratio.toFixed(2)})`,
+            width,
+            height,
+            format: "svg",
+            byteSize: buffer.length,
+          };
+        }
+      }
+
+      return {
+        isValid: true,
+        width: width || undefined,
+        height: height || undefined,
+        format: "svg",
+        byteSize: buffer.length,
+      };
+    } catch (err) {
+      return {
+        isValid: false,
+        error: `Could not parse or decode SVG artwork: ${err instanceof Error ? err.message : "Corrupt SVG"}`,
+        reason: "Corrupt or invalid SVG",
+        byteSize: buffer.length,
+      };
+    }
   }
 
   // Probe raster metadata with sharp
@@ -64,6 +151,7 @@ export async function validateMediaBuffer(
         format,
         width,
         height,
+        byteSize: buffer.length,
       };
     }
 
@@ -75,6 +163,7 @@ export async function validateMediaBuffer(
         width,
         height,
         format,
+        byteSize: buffer.length,
       };
     }
 
@@ -87,6 +176,7 @@ export async function validateMediaBuffer(
         width,
         height,
         format,
+        byteSize: buffer.length,
       };
     }
 
@@ -102,6 +192,7 @@ export async function validateMediaBuffer(
       isValid: false,
       error: `Could not decode image: ${err instanceof Error ? err.message : "Corrupt or invalid image file"}`,
       reason: "Corrupt or unreadable image",
+      byteSize: buffer.length,
     };
   }
 }

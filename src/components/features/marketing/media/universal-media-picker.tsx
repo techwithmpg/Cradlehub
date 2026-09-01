@@ -907,7 +907,11 @@ export function UniversalMediaPicker({
                   type="file"
                   name="file"
                   required
-                  accept="image/jpeg,image/png,image/webp,image/svg+xml,image/gif"
+                  accept={
+                    contract
+                      ? contract.allowedMimeTypes.join(",")
+                      : "image/jpeg,image/png,image/webp,image/svg+xml,image/gif"
+                  }
                   style={{
                     width: "100%",
                     minHeight: 44,
@@ -919,7 +923,9 @@ export function UniversalMediaPicker({
                   }}
                 />
                 <p style={{ margin: "4px 0 0", fontSize: 11, color: "var(--cs-text-muted)" }}>
-                  JPG, PNG, WebP, SVG, or GIF up to 10MB.
+                  {contract
+                    ? contract.requirementText
+                    : "JPG, PNG, WebP, SVG, or GIF up to 10MB."}
                 </p>
               </div>
 
@@ -988,6 +994,9 @@ export function UniversalMediaPicker({
 
               {filterSectionKey && (
                 <input type="hidden" name="sectionKey" value={filterSectionKey} />
+              )}
+              {mediaIntent && (
+                <input type="hidden" name="mediaIntent" value={mediaIntent} />
               )}
 
               <div style={{ display: "flex", justifyContent: "flex-end", gap: 10, marginTop: 8 }}>

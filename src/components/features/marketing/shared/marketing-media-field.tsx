@@ -17,7 +17,7 @@ export type MarketingMediaFieldProps = {
   intent: MarketingMediaIntentKey;
   value: string;
   altValue?: string;
-  onChange: (value: string, altText?: string) => void;
+  onChange: (value: string, altText?: string, assetId?: string) => void;
   availableAssets?: MarketingMediaAssetRow[];
   disabled?: boolean;
   helperText?: string;
@@ -99,7 +99,7 @@ export function MarketingMediaField({
             {value && !disabled && (
               <button
                 type="button"
-                onClick={() => onChange("", "")}
+                onClick={() => onChange("", "", undefined)}
                 className="inline-flex items-center gap-1 rounded-lg px-2 py-1 text-xs text-red-600 hover:bg-red-50 dark:hover:bg-red-950/20"
                 aria-label={`Clear ${label}`}
               >
@@ -116,7 +116,7 @@ export function MarketingMediaField({
           isOpen={showPicker}
           onClose={() => setShowPicker(false)}
           onSelect={(selected: SelectedMediaValue) => {
-            onChange(selected.publicUrl, selected.altText);
+            onChange(selected.publicUrl, selected.altText, selected.id);
             setShowPicker(false);
           }}
           currentUrl={value}

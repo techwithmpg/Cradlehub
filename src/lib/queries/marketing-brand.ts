@@ -156,7 +156,6 @@ export const getPublishedBrandSettingsCached = cache(
         brandMarkAlt: (map.brand_mark?.alt as string) || "Cradle Brand Mark",
         siteIconUrl:
           siteIconPkg?.icons?.icon32 ||
-          siteIconPkg?.icons?.ico ||
           (map.site_icon?.url as string) ||
           "/favicon.ico",
         siteIconAlt: (map.site_icon?.alt as string) || "Cradle Site Icon",

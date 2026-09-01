@@ -1,4 +1,7 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
+
+vi.mock("server-only", () => ({}));
+
 import sharp from "sharp";
 import {
   generateSiteIconPackageFromBuffer,
@@ -35,8 +38,8 @@ describe("Dynamic Site Icon Generator", () => {
     expect(svgMeta.height).toBe(1024);
   });
 
-  it("defines all 8 required icon variants including standard favicons, apple touch, and maskable icons", () => {
-    expect(SITE_ICON_VARIANTS.length).toBe(8);
+  it("defines all 7 required PNG icon variants without fake ICO generation", () => {
+    expect(SITE_ICON_VARIANTS.length).toBe(7);
     const names = SITE_ICON_VARIANTS.map((v) => v.name);
     expect(names).toEqual([
       "icon16",
@@ -46,11 +49,10 @@ describe("Dynamic Site Icon Generator", () => {
       "icon192",
       "icon512",
       "maskable512",
-      "ico",
     ]);
   });
 
-  it("generates a complete site icon package from a valid 512x512 master PNG buffer", async () => {
+  it("generates a complete site icon package from a valid 512x512 master PNG buffer in test environment", async () => {
     const masterBuffer = await sharp({
       create: {
         width: 512,
@@ -66,6 +68,7 @@ describe("Dynamic Site Icon Generator", () => {
       masterBuffer,
       declaredMime: "image/png",
       sourceUrl: "https://example.com/brand-master.png",
+      sourceAssetId: "asset-uuid-123",
       customVersion: "vtest123",
     });
 
@@ -74,6 +77,7 @@ describe("Dynamic Site Icon Generator", () => {
     if (!result.package) return;
 
     expect(result.package.version).toBe("vtest123");
+    expect(result.package.sourceAssetId).toBe("asset-uuid-123");
     expect(result.package.generationStatus).toBe("ready");
     expect(result.package.icons.icon16).toBeTruthy();
     expect(result.package.icons.icon32).toBeTruthy();
@@ -82,7 +86,6 @@ describe("Dynamic Site Icon Generator", () => {
     expect(result.package.icons.icon192).toBeTruthy();
     expect(result.package.icons.icon512).toBeTruthy();
     expect(result.package.icons.maskable512).toBeTruthy();
-    expect(result.package.icons.ico).toBeTruthy();
   });
 
   it("fails gracefully and returns validation error for undersized source image", async () => {
@@ -104,6 +107,7 @@ describe("Dynamic Site Icon Generator", () => {
     });
 
     expect(result.success).toBe(false);
-    expect(result.error).toContain("below the minimum");
+    expect(result.error).toContain("below the minimum requirement");
+    expect(result.package).toBeUndefined();
   });
 });

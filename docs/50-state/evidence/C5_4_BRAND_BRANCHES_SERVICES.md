@@ -2,15 +2,15 @@
 
 ## 1. Branch & Baseline Metadata
 
-- **Authorized Stage:** C5 Pass 4 (Brand + Branches + Services Studios + UX Unification + Media Contracts + Dynamic Site Icon Generator)
+- **Authorized Stage:** C5 Pass 4 (Brand + Branches + Services Studios + UX Unification + Media Contracts + Dynamic Site Icon Generator + Security & Metadata Priority Corrections)
 - **Branch:** `stage/c5-4-brand-branches-services`
 - **Accepted Base SHA:** `407d1c1b1af399ef510ddcfaf9c19e4c7778274a`
-- **Execution Mode:** OWNER-AUTHORIZED C5.4 FINAL UX + MEDIA CONTRACT + DYNAMIC BRAND ICON GENERATOR CORRECTION
+- **Execution Mode:** OWNER-AUTHORIZED C5.4 DYNAMIC ICON + MEDIA SECURITY FINAL CORRECTION
 - **Status:** COMPLETE / ALL CHECKS PASSING / STOPPED UNMERGED FOR INDEPENDENT REVIEW
 
 ---
 
-## 2. Implemented Capabilities & Governance Invariants
+## 2. Implemented Capabilities & Security Invariants
 
 ### 2.1 Unified Marketing Studio Visual System
 
@@ -33,23 +33,17 @@
   6. `SERVICE_PHOTO`: Treatment / service photography (WebP, JPG, PNG · Min 600×400px · Max 4MB · 3:2 landscape).
   7. `HERO_BACKGROUND`: Full-bleed cinematic hero background (WebP, JPG · Min 1920×1080px · Max 6MB · 16:9 widescreen).
   8. `FEATURE_PORTRAIT`: Therapist & treatment portrait photography (WebP, JPG, PNG · Min 600×800px · Max 4MB · 3:4 portrait).
-- **Architecture Boundary:** Client-safe contracts in `src/lib/marketing/media-contracts.ts` and server-only `sharp` buffer validation in `src/lib/marketing/media-contracts-server.ts`.
-- **Universal Media Picker Integration:** Displays active contract requirement banner, filters assets, and flags non-compliant or legacy media with human-readable guidance.
+- **Upload Pipeline Enforcement:** `uploadMarketingMediaFile` validates `mediaIntent`, reads buffer, and runs `validateMediaBuffer(buffer, file.type, contract)` *before* creating draft rows or uploading to Supabase Storage.
+- **SVG Security Validation:** `sanitizeSvgCheck` validates XML structure and rejects dangerous tags (`<script`, `javascript:`, `onload=`, `onerror=`, `<foreignObject`, `<iframe`, `<embed`, `<object`). Sharp parses XML/viewBox and inspects dimensions.
 
-### 2.3 Dynamic Favicon & Site Icon Package Generator
+### 2.3 Dynamic Favicon & Site Icon Package Generator (Security & Authority Corrections)
 
-- **Single Master Asset Upload:** Upload ONE high-resolution master brand image (SVG/PNG/WebP, min 512×512px).
-- **8 Generated Variants:**
-  - `icon-16x16.png` (Standard favicon)
-  - `icon-32x32.png` (Standard desktop favicon)
-  - `icon-48x48.png` (High-DPI favicon)
-  - `apple-touch-icon-180x180.png` (iOS Safari Home Screen)
-  - `icon-192x192.png` (Android / PWA icon)
-  - `icon-512x512.png` (PWA splash / HD device icon)
-  - `icon-maskable-512x512.png` (Android Adaptive icon with safe 10% inset containment)
-  - `favicon.ico` (Multi-resolution legacy Windows/IE fallback icon)
-- **Draft vs. Live Preview:** Full browser tab and mobile home screen preview simulations in Brand Studio.
-- **Next.js Root Metadata Consumer:** Dynamic `generateMetadata()` in `src/app/layout.tsx` consumes cached published brand site-icon package with static fallback to `/favicon.ico`.
+- **Authorization Gate:** `generateSiteIconAction` enforces `getMarketingAccessContext()` (`digital_marketer` or `owner` only). Unauthorized callers fail closed before file processing or storage access.
+- **Elimination of Arbitrary Remote Fetches:** Removed `fetch(sourceUrl)`. For media library selection, accepts `sourceAssetId`, fetches row, validates active status, and downloads directly from `public-site-media` bucket via Supabase storage client.
+- **Fail-Closed Storage Execution:** Every required variant undergoes Sharp resize + upload + public URL resolution; any failure aborts generation and returns `success: false` without fabricating partial URLs.
+- **7 Standard PNG Variants:** Generates `icon16`, `icon32`, `icon48`, `apple180`, `icon192`, `icon512`, `maskable512`. Fake ICO generation is eliminated; legacy browsers fallback to static `/favicon.ico`.
+- **Next.js Metadata Authority:** Removed `src/app/favicon.ico` and `src/app/favicon-old.ico` to prevent App Router file-based metadata from overriding dynamic `generateMetadata()` in `src/app/layout.tsx`. Preserved static icons in `public/favicon.ico` and `public/favicon-old.ico`.
+- **Canonical Brand Draft Publication:** `publishMarketingContentDraft` validates full shape and `generationStatus === "ready"` of `siteIconPackage` before persisting to `marketing_brand_settings.site_icon`.
 
 ### 2.4 Preservation of All Prior Governance Invariants
 
@@ -69,11 +63,11 @@
 pnpm vitest run tests/lib/marketing/
 ```
 
-**Result:** 12 test files, 123 tests passing (100% PASS, 0 failures, 10.33s duration).
+**Result:** 12 test files, 132 tests passing (100% PASS, 0 failures, 11.34s duration).
 
-- `tests/lib/marketing/brand-server-actions.test.ts` (3 tests) — PASS
+- `tests/lib/marketing/brand-server-actions.test.ts` (8 tests) — PASS
 - `tests/lib/marketing/branch-metadata-preservation.test.ts` (3 tests) — PASS
-- `tests/lib/marketing/draft-publication-pipelines.test.ts` (5 tests) — PASS
+- `tests/lib/marketing/draft-publication-pipelines.test.ts` (7 tests) — PASS
 - `tests/lib/marketing/brand-branches-services-studios.test.tsx` (16 tests) — PASS
 - `tests/lib/marketing/website-studio.test.tsx` (32 tests) — PASS
 - `tests/lib/marketing/media-queries.test.ts` (14 tests) — PASS
@@ -81,7 +75,7 @@ pnpm vitest run tests/lib/marketing/
 - `tests/lib/marketing/media-library.test.tsx` (9 tests) — PASS
 - `tests/lib/marketing/public-consumer-parity.test.tsx` (21 tests) — PASS
 - `tests/lib/marketing/marketing-studio-foundation-migration.test.ts` (4 tests) — PASS
-- `tests/lib/marketing/media-contracts.test.ts` (4 tests) — PASS
+- `tests/lib/marketing/media-contracts.test.ts` (6 tests) — PASS
 - `tests/lib/marketing/icon-generator.test.ts` (3 tests) — PASS
 
 ### 3.2 Full Repository Vitest Suite
@@ -90,7 +84,7 @@ pnpm vitest run tests/lib/marketing/
 pnpm vitest run
 ```
 
-**Result:** 211 test files, 1,491 tests passing (100% PASS, 0 failures, 33.40s duration).
+**Result:** 211 test files, 1,500 tests passing (100% PASS, 0 failures, 33.91s duration).
 
 ### 3.3 TypeScript Type Check
 
@@ -98,90 +92,37 @@ pnpm vitest run
 pnpm type-check
 ```
 
-**Result:** Exit Code 0 (0 errors).
+**Result:** Clean `tsc --noEmit` exit with code 0 (0 errors).
 
-### 3.4 ESLint Static Analysis
+### 3.4 ESLint Validation
 
 ```bash
 pnpm lint
 ```
 
-**Result:** Exit Code 0 (0 errors, 9 non-blocking warnings).
+**Result:** Clean `eslint` exit with code 0 (0 errors, 9 non-blocking warnings).
 
-### 3.5 Next.js Production Build
+### 3.5 Production Build Validation
 
 ```bash
 pnpm build
 ```
 
-**Result:** Exit Code 0 (Compiled successfully; 115/115 static & dynamic pages generated).
+**Result:** Clean Next.js 16.2.4 (Turbopack) production build across all 114 routes (0 build errors).
 
-### 3.6 Git Diff Check Against Accepted Base
+### 3.6 Git Diff & Whitespace Audit
 
 ```bash
 git diff --check 407d1c1b1af399ef510ddcfaf9c19e4c7778274a...HEAD
 ```
 
-**Result:** Exit Code 0 (0 whitespace / conflict markers).
+**Result:** 0 whitespace errors, 0 merge conflicts.
 
 ---
 
-## 4. Modified & Created Files Inventory
+## 4. Final Review Stop
 
-```
-docs/50-state/evidence/C5_4_BRAND_BRANCHES_SERVICES.md
-src/app/(dashboard)/marketing/branch-actions.ts
-src/app/(dashboard)/marketing/brand-actions.ts
-src/app/(dashboard)/marketing/marketing-workspace.tsx
-src/app/(dashboard)/marketing/page.tsx
-src/app/(dashboard)/marketing/service-actions.ts
-src/app/(dashboard)/owner/marketing/marketing-studio.tsx
-src/app/(dashboard)/owner/marketing/page.tsx
-src/app/(public)/branches/page.tsx
-src/app/(public)/layout.tsx
-src/app/layout.tsx
-src/app/page.tsx
-src/components/features/marketing/branches/branches-studio-view.tsx
-src/components/features/marketing/brand/brand-studio-view.tsx
-src/components/features/marketing/marketing-workspace-shell.tsx
-src/components/features/marketing/media/universal-media-picker.tsx
-src/components/features/marketing/services/services-studio-view.tsx
-src/components/features/marketing/shared/marketing-action-bar.tsx
-src/components/features/marketing/shared/marketing-field-group.tsx
-src/components/features/marketing/shared/marketing-media-field.tsx
-src/components/features/marketing/shared/marketing-studio-panel.tsx
-src/components/public/mobile/public-mobile-branches.tsx
-src/components/public/site-footer.tsx
-src/components/public/site-header.tsx
-src/components/shared/brand-logo.tsx
-src/lib/cache/cache-tags.ts
-src/lib/marketing/icon-generator.ts
-src/lib/marketing/media-contracts-server.ts
-src/lib/marketing/media-contracts.ts
-src/lib/marketing/media-usage-analyzer.ts
-src/lib/queries/marketing-brand.ts
-src/lib/queries/marketing-content.ts
-src/lib/queries/marketing-media.ts
-tests/lib/marketing/branch-metadata-preservation.test.ts
-tests/lib/marketing/brand-branches-services-studios.test.tsx
-tests/lib/marketing/brand-server-actions.test.ts
-tests/lib/marketing/draft-publication-pipelines.test.ts
-tests/lib/marketing/icon-generator.test.ts
-tests/lib/marketing/media-contracts.test.ts
-tests/lib/marketing/media-queries.test.ts
-```
-
----
-
-## 5. Production Evidence & Stop Condition
-
-```
-REPOSITORY-RECORDED PRODUCTION EVIDENCE:
-C5.4 Brand + Branches + Services Studios Final UX, Media Contracts, and Dynamic Site Icon Generator Corrections have been fully implemented, verified, and reconciled on branch stage/c5-4-brand-branches-services based on accepted main 407d1c1b1af399ef510ddcfaf9c19e4c7778274a.
-
-All 1,491 repository tests pass across 211 test files, TypeScript compilation passes with 0 errors, ESLint passes with 0 errors, Prettier formatting is validated, Next.js production build succeeds with 115 routes optimized, and root layout metadata dynamically serves the published brand icon package with static fallback.
-
-In strict compliance with repository agent rules and owner governance:
-- Zero schema migrations, RLS changes, Auth, or Storage-policy modifications were introduced.
-- Branch stage/c5-4-brand-branches-services is stopped unmerged for independent owner review.
-```
+Work on C5.4 Final Corrections is complete. In compliance with repository rules:
+- No merge to `main` has occurred.
+- All changes are on `stage/c5-4-brand-branches-services`.
+- Codebase is clean, tested, built, and halted for owner inspection.

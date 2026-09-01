@@ -621,6 +621,22 @@ export async function publishMarketingContentDraft(
         ? (existing.data.metadata as Record<string, unknown>)
         : {};
 
+    let validatedSiteIconPackage: Record<string, unknown> | undefined;
+    if (meta.siteIconPackage && typeof meta.siteIconPackage === "object" && !Array.isArray(meta.siteIconPackage)) {
+      const rawPkg = meta.siteIconPackage as Record<string, unknown>;
+      const icons = (rawPkg.icons || {}) as Record<string, string>;
+      const requiredIcons = ["icon16", "icon32", "icon48", "apple180", "icon192", "icon512", "maskable512"];
+      const hasAllIcons = requiredIcons.every((k) => typeof icons[k] === "string" && icons[k].trim().length > 0);
+
+      if (rawPkg.generationStatus !== "ready" || !hasAllIcons) {
+        return {
+          success: false,
+          error: "Brand draft contains an incomplete or unverified dynamic site icon package.",
+        };
+      }
+      validatedSiteIconPackage = rawPkg;
+    }
+
     const { updateBrandSettingsBatchOwner } = await import("@/lib/queries/marketing-brand");
     const brandResult = await updateBrandSettingsBatchOwner([
       {
@@ -654,8 +670,12 @@ export async function publishMarketingContentDraft(
         settingKey: "site_icon",
         label: "Site Icon",
         value: {
-          url: (meta.siteIconUrl as string) || "/favicon.ico",
+          url:
+            (validatedSiteIconPackage?.icons as Record<string, string>)?.icon32 ||
+            (meta.siteIconUrl as string) ||
+            "/favicon.ico",
           alt: (meta.siteIconAlt as string) || "Cradle Site Icon",
+          ...(validatedSiteIconPackage ? { package: validatedSiteIconPackage } : {}),
         },
       },
       {
