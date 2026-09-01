@@ -7,9 +7,13 @@
 - **Accepted Base SHA:** `d7958594e9d7369791acd29277c92a8eabf6bac3`
 - **Initial C5.1 Implementation SHA:** `3d9d6f851b8194af300b68293a29020310233168`
 - **Corrected C5.1 Head SHA:** `7ce538558bc9c80bb05e63992e0bc866c3741ebf`
+- **Reviewed Evidence Head SHA:** `f8b1a73ef580979e00ca47df1eb92f77e22a20d7`
+- **Governance Head SHA:** `d1317ed1ba4ac245b51faeac22c170426d6a1374`
+- **Accepted Main Merge SHA:** `1f5d71ce3472684c9a94ad83d6c2e36a9d1b1971`
+- **PR Number:** 8
 - **Branch:** `stage/c5-1-public-consumer-parity`
-- **Governance Ref:** `docs/11-DECISION-LOG.md` (`GOV-020`)
-- **Status:** EVIDENCE CORRECTED / QUALITY GATES PASSED / AWAITING FINAL INDEPENDENT REVIEW
+- **Governance Ref:** `docs/11-DECISION-LOG.md` (`GOV-021`, `GOV-022`)
+- **Status:** CLOSED / ACCEPTED INTO MAIN (PR #8)
 
 ---
 
@@ -159,6 +163,7 @@ Following independent review feedback, this corrected pass:
 
 ## 9. Status & Next Gate
 
-- **C5 Pass 1 Status:** EVIDENCE CORRECTED / AWAITING FINAL INDEPENDENT REVIEW
-- **C5 Pass 2+ Status:** STRICTLY NOT AUTHORIZED (Withheld pending owner review and gate authorization)
-- **Branch Action:** Pushed to `stage/c5-1-public-consumer-parity`; **DO NOT MERGE**.
+- **C5 Pass 1 Status:** CLOSED / ACCEPTED INTO MAIN (PR #8, Merge SHA `1f5d71ce3472684c9a94ad83d6c2e36a9d1b1971`)
+- **C5 Pass 2 Status:** ACTIVE (Central Media Library & Universal Media Picker)
+- **C5 Pass 3+ Status:** STRICTLY NOT AUTHORIZED (Withheld pending owner review and stage gate authorization)
+- **Branch Action:** Merged into `main` via PR #8.
