@@ -20,7 +20,9 @@ import type { Json } from "@/types/supabase";
 
 async function requireOwner() {
   const supabase = await createClient();
-  const { data: { user } } = await supabase.auth.getUser();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
   if (!user) return null;
 
   // Super-admin and dev bypass both get owner-level access.
@@ -41,7 +43,9 @@ async function requireOwner() {
 // Returns supabase client if caller is owner OR is a branch-scoped manager/CRM role for the given branch.
 async function requireOwnerOrBranchManager(branchId: string) {
   const supabase = await createClient();
-  const { data: { user } } = await supabase.auth.getUser();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
   if (!user) return null;
 
   // Super-admin gets owner-level access on any branch.
@@ -104,20 +108,20 @@ export async function createBranchAction(rawInput: unknown) {
   const { data, error } = await supabase
     .from("branches")
     .insert({
-      name:                   d.name,
-      address:                d.address,
-      phone:                  d.phone       ?? null,
-      email:                  d.email       ?? null,
-      maps_embed_url:         d.mapsEmbedUrl  ?? null,
-      fb_page:                d.fbPage        ?? null,
-      messenger_link:         d.messengerLink ?? null,
-      place_id:               d.placeId       ?? null,
-      latitude:               d.latitude      ?? null,
-      longitude:              d.longitude     ?? null,
-      city:                   d.city          ?? null,
-      barangay:               d.barangay      ?? null,
-      location_metadata:      (d.locationMetadata ?? {}) as Json,
-      slot_interval_minutes:  d.slotIntervalMinutes,
+      name: d.name,
+      address: d.address,
+      phone: d.phone ?? null,
+      email: d.email ?? null,
+      maps_embed_url: d.mapsEmbedUrl ?? null,
+      fb_page: d.fbPage ?? null,
+      messenger_link: d.messengerLink ?? null,
+      place_id: d.placeId ?? null,
+      latitude: d.latitude ?? null,
+      longitude: d.longitude ?? null,
+      city: d.city ?? null,
+      barangay: d.barangay ?? null,
+      location_metadata: (d.locationMetadata ?? {}) as Json,
+      slot_interval_minutes: d.slotIntervalMinutes,
     })
     .select("id")
     .single();
@@ -140,23 +144,25 @@ export async function updateBranchAction(rawInput: unknown) {
   const { error } = await supabase
     .from("branches")
     .update({
-      ...(updates.name                !== undefined && { name: updates.name }),
-      ...(updates.address             !== undefined && { address: updates.address }),
-      ...(updates.phone               !== undefined && { phone: updates.phone }),
-      ...(updates.email               !== undefined && { email: updates.email }),
-      ...(updates.mapsEmbedUrl        !== undefined && { maps_embed_url: updates.mapsEmbedUrl }),
-      ...(updates.fbPage              !== undefined && { fb_page: updates.fbPage }),
-      ...(updates.messengerLink       !== undefined && { messenger_link: updates.messengerLink }),
-      ...(updates.placeId             !== undefined && { place_id: updates.placeId }),
-      ...(updates.latitude            !== undefined && { latitude: updates.latitude }),
-      ...(updates.longitude           !== undefined && { longitude: updates.longitude }),
-      ...(updates.city                !== undefined && { city: updates.city }),
-      ...(updates.barangay            !== undefined && { barangay: updates.barangay }),
-      ...(updates.locationMetadata    !== undefined && {
+      ...(updates.name !== undefined && { name: updates.name }),
+      ...(updates.address !== undefined && { address: updates.address }),
+      ...(updates.phone !== undefined && { phone: updates.phone }),
+      ...(updates.email !== undefined && { email: updates.email }),
+      ...(updates.mapsEmbedUrl !== undefined && { maps_embed_url: updates.mapsEmbedUrl }),
+      ...(updates.fbPage !== undefined && { fb_page: updates.fbPage }),
+      ...(updates.messengerLink !== undefined && { messenger_link: updates.messengerLink }),
+      ...(updates.placeId !== undefined && { place_id: updates.placeId }),
+      ...(updates.latitude !== undefined && { latitude: updates.latitude }),
+      ...(updates.longitude !== undefined && { longitude: updates.longitude }),
+      ...(updates.city !== undefined && { city: updates.city }),
+      ...(updates.barangay !== undefined && { barangay: updates.barangay }),
+      ...(updates.locationMetadata !== undefined && {
         location_metadata: (updates.locationMetadata ?? {}) as Json,
       }),
-      ...(updates.slotIntervalMinutes !== undefined && { slot_interval_minutes: updates.slotIntervalMinutes }),
-      ...(updates.isActive            !== undefined && { is_active: updates.isActive }),
+      ...(updates.slotIntervalMinutes !== undefined && {
+        slot_interval_minutes: updates.slotIntervalMinutes,
+      }),
+      ...(updates.isActive !== undefined && { is_active: updates.isActive }),
     })
     .eq("id", branchId);
 
@@ -187,9 +193,7 @@ export async function getBranchDetailAction(branchId: string) {
 }
 
 export async function updateBranchBookingRulesAction(rawInput: unknown) {
-  const { updateBranchBookingRules } = await import(
-    "@/lib/queries/branch-booking-rules"
-  );
+  const { updateBranchBookingRules } = await import("@/lib/queries/branch-booking-rules");
   return updateBranchBookingRules(rawInput);
 }
 
@@ -261,18 +265,16 @@ export async function addBranchServiceAction(
           is_active: true,
         })
         .eq("id", existing.id)
-    : admin
-        .from("branch_services")
-        .insert({
-          branch_id: branchId,
-          service_id: serviceId,
-          custom_price: customPrice ?? null,
-          is_active: true,
-          available_in_spa: true,
-          available_home_service: false,
-          visibility: "public",
-          booking_visibility: "public",
-        });
+    : admin.from("branch_services").insert({
+        branch_id: branchId,
+        service_id: serviceId,
+        custom_price: customPrice ?? null,
+        is_active: true,
+        available_in_spa: true,
+        available_home_service: false,
+        visibility: "public",
+        booking_visibility: "public",
+      });
 
   const { error } = await mutation;
 
@@ -293,10 +295,7 @@ export async function updateBranchServiceEligibilityAction(
   const auth = await requireOwnerOrBranchManager(branchId);
   if (!auth) return { success: false, error: "Unauthorized" };
 
-  const homeServiceError = await rejectDisabledHomeService(
-    branchId,
-    availableHomeService
-  );
+  const homeServiceError = await rejectDisabledHomeService(branchId, availableHomeService);
   if (homeServiceError) return { success: false, error: homeServiceError };
 
   const admin = createAdminClient();
@@ -317,12 +316,18 @@ export async function updateBranchServiceEligibilityAction(
   if (!updated) {
     return {
       success: false as const,
-      error: "No branch_services row matched (branch_id, service_id). Verify the service is added to this branch.",
+      error:
+        "No branch_services row matched (branch_id, service_id). Verify the service is added to this branch.",
     };
   }
 
   revalidateBranchServiceSurfaces(branchId);
-  logBusinessEvent("branch_service.eligibility_updated", { branchId, serviceId, availableInSpa, availableHomeService });
+  logBusinessEvent("branch_service.eligibility_updated", {
+    branchId,
+    serviceId,
+    availableInSpa,
+    availableHomeService,
+  });
   return {
     success: true as const,
     savedAvailableHomeService: updated.available_home_service,
@@ -338,16 +343,12 @@ export async function updateBranchServiceHomeServiceByIdAction(
   branchServiceId: string,
   availableHomeService: boolean
 ): Promise<
-  | { success: true; savedAvailableHomeService: boolean }
-  | { success: false; error: string }
+  { success: true; savedAvailableHomeService: boolean } | { success: false; error: string }
 > {
   const auth = await requireOwnerOrBranchManager(branchId);
   if (!auth) return { success: false, error: "Unauthorized" };
 
-  const homeServiceError = await rejectDisabledHomeService(
-    branchId,
-    availableHomeService
-  );
+  const homeServiceError = await rejectDisabledHomeService(branchId, availableHomeService);
   if (homeServiceError) return { success: false, error: homeServiceError };
 
   const admin = createAdminClient();
@@ -355,8 +356,8 @@ export async function updateBranchServiceHomeServiceByIdAction(
   const { data: updated, error } = await admin
     .from("branch_services")
     .update({ available_home_service: availableHomeService })
-    .eq("id", branchServiceId)      // Match by PK — unambiguous
-    .eq("branch_id", branchId)      // Branch scope guard
+    .eq("id", branchServiceId) // Match by PK — unambiguous
+    .eq("branch_id", branchId) // Branch scope guard
     .select("id, available_home_service")
     .maybeSingle();
 
@@ -459,13 +460,14 @@ export async function updateBranchServiceDeliveryModeAction(
   if (!auth) return { success: false, error: "Unauthorized" };
 
   const enablesHomeService = mode === "home_service" || mode === "both";
-  const homeServiceError = await rejectDisabledHomeService(
-    branchId,
-    enablesHomeService
-  );
+  const homeServiceError = await rejectDisabledHomeService(branchId, enablesHomeService);
   if (homeServiceError) return { success: false, error: homeServiceError };
 
-  const updates: { is_active: boolean; available_in_spa?: boolean; available_home_service?: boolean } =
+  const updates: {
+    is_active: boolean;
+    available_in_spa?: boolean;
+    available_home_service?: boolean;
+  } =
     mode === "hidden"
       ? { is_active: false }
       : {
@@ -493,7 +495,9 @@ export async function updateBranchServiceDeliveryModeAction(
 // ── Manager: get own branch booking rules ────────────────────────────────
 export async function getMyBranchBookingRulesAction() {
   const supabase = await createClient();
-  const { data: { user } } = await supabase.auth.getUser();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
   if (!user) return { error: "Unauthorized" };
 
   // Super-admin: resolve a real branch and grant access.

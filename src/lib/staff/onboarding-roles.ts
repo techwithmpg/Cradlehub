@@ -6,16 +6,26 @@
  */
 
 export const ONBOARDING_ROLE_OPTIONS = [
-  { value: "therapist",   label: "Massage Therapist",      sublabel: "Bodywork & recovery",      icon: "💆" },
-  { value: "nail_tech",   label: "Nail Technician",        sublabel: "Manicure & pedicure",      icon: "💅" },
-  { value: "aesthetician",label: "Aesthetician",           sublabel: "Facials & skin care",      icon: "✨" },
-  { value: "driver",      label: "Driver",                 sublabel: "Home service transport",   icon: "🚗" },
-  { value: "utility",     label: "Utility / Housekeeping", sublabel: "Room prep & maintenance",  icon: "🧹" },
-  { value: "csr",         label: "CSR / Front Desk",       sublabel: "Customer service",         icon: "🎧" },
-  { value: "digital_marketer", label: "Social Media / Marketing", sublabel: "Content & public site", icon: "📣" },
-  { value: "salon_head",  label: "Salon Head",             sublabel: "Salon department lead",    icon: "👑" },
-  { value: "managerial",  label: "Manager",                sublabel: "Management role",          icon: "📊" },
-  { value: "other",       label: "Other / To be assigned", sublabel: "Role TBD",                 icon: "📋" },
+  { value: "therapist", label: "Massage Therapist", sublabel: "Bodywork & recovery", icon: "💆" },
+  { value: "nail_tech", label: "Nail Technician", sublabel: "Manicure & pedicure", icon: "💅" },
+  { value: "aesthetician", label: "Aesthetician", sublabel: "Facials & skin care", icon: "✨" },
+  { value: "driver", label: "Driver", sublabel: "Home service transport", icon: "🚗" },
+  {
+    value: "utility",
+    label: "Utility / Housekeeping",
+    sublabel: "Room prep & maintenance",
+    icon: "🧹",
+  },
+  { value: "csr", label: "CSR / Front Desk", sublabel: "Customer service", icon: "🎧" },
+  {
+    value: "digital_marketer",
+    label: "Social Media / Marketing",
+    sublabel: "Content & public site",
+    icon: "📣",
+  },
+  { value: "salon_head", label: "Salon Head", sublabel: "Salon department lead", icon: "👑" },
+  { value: "managerial", label: "Manager", sublabel: "Management role", icon: "📊" },
+  { value: "other", label: "Other / To be assigned", sublabel: "Role TBD", icon: "📋" },
 ] as const;
 
 export type OnboardingRoleValue = (typeof ONBOARDING_ROLE_OPTIONS)[number]["value"];
@@ -46,16 +56,26 @@ export function getOnboardingRoleLabel(value: string): string {
  */
 export function mapPreferredRoleToStaffType(preferredRole: string): string {
   switch (normalizeOnboardingRole(preferredRole)) {
-    case "therapist":    return "therapist";
-    case "nail_tech":    return "nail_tech";
-    case "aesthetician": return "aesthetician";
-    case "driver":       return "driver";
-    case "utility":      return "utility";
-    case "csr":          return "csr";
-    case "digital_marketer": return "managerial";
-    case "salon_head":   return "salon_head";
-    case "managerial":   return "managerial";
-    default:             return "therapist"; // safe fallback
+    case "therapist":
+      return "therapist";
+    case "nail_tech":
+      return "nail_tech";
+    case "aesthetician":
+      return "aesthetician";
+    case "driver":
+      return "driver";
+    case "utility":
+      return "utility";
+    case "csr":
+      return "csr";
+    case "digital_marketer":
+      return "managerial";
+    case "salon_head":
+      return "salon_head";
+    case "managerial":
+      return "managerial";
+    default:
+      return "therapist"; // safe fallback
   }
 }
 

@@ -6,16 +6,21 @@ import {
   getMarketingContentRevisions,
 } from "@/lib/queries/marketing-content";
 import { getMarketingMediaAssets } from "@/lib/queries/marketing-media";
+import { getPublicBranches } from "@/lib/queries/branches";
+import { getPublicServiceCatalog } from "@/lib/queries/services";
 import { MarketingStudio } from "./marketing-studio";
 
 export default async function MarketingStudioPage() {
-  const [sections, galleryAssets, drafts, revisions, mediaAssets] = await Promise.all([
-    getPublicSiteSections({ includeDisabled: true }),
-    getPublicSiteAssets("gallery", { includeDisabled: true }),
-    getMarketingContentDrafts(),
-    getMarketingContentRevisions(16),
-    getMarketingMediaAssets({ limit: 150 }),
-  ]);
+  const [sections, galleryAssets, drafts, revisions, mediaAssets, branches, services] =
+    await Promise.all([
+      getPublicSiteSections({ includeDisabled: true }),
+      getPublicSiteAssets("gallery", { includeDisabled: true }),
+      getMarketingContentDrafts(),
+      getMarketingContentRevisions(16),
+      getMarketingMediaAssets({ limit: 150 }),
+      getPublicBranches().catch(() => []),
+      getPublicServiceCatalog().catch(() => []),
+    ]);
 
   return (
     <div>
@@ -31,6 +36,8 @@ export default async function MarketingStudioPage() {
         drafts={drafts}
         revisions={revisions}
         mediaAssets={mediaAssets}
+        branches={branches}
+        services={services}
       />
     </div>
   );

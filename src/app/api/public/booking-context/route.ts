@@ -22,12 +22,7 @@ type BranchRow = Pick<
 
 type ServiceRow = Pick<
   Database["public"]["Tables"]["services"]["Row"],
-  | "id"
-  | "name"
-  | "description"
-  | "is_active"
-  | "duration_minutes"
-  | "price"
+  "id" | "name" | "description" | "is_active" | "duration_minutes" | "price"
 > & {
   metadata?: Json | null;
   image_url?: string | null;
@@ -83,7 +78,9 @@ async function getPublicStaffByBranch(branchId: string): Promise<StaffWithServic
   const supabase = createAdminClient();
   const { data, error } = await supabase
     .from("staff")
-    .select("id, full_name, tier, is_active, staff_type, system_role, is_head, nickname, avatar_url, archived_at, merged_into_staff_id, metadata, staff_services(service_id)")
+    .select(
+      "id, full_name, tier, is_active, staff_type, system_role, is_head, nickname, avatar_url, archived_at, merged_into_staff_id, metadata, staff_services(service_id)"
+    )
     .eq("branch_id", branchId)
     .eq("is_active", true)
     .order("tier")
@@ -198,25 +195,17 @@ export async function GET(request: NextRequest) {
 
   // Build per-staff service maps from the embedded staff_services join — no extra round-trip.
   const serviceIdsByStaff = new Map<string, string[]>(
-    rawStaff.map((member) => [
-      member.id,
-      (member.staff_services ?? []).map((ss) => ss.service_id),
-    ])
+    rawStaff.map((member) => [member.id, (member.staff_services ?? []).map((ss) => ss.service_id)])
   );
   const serviceIdsWithStaffMappings = new Set(
-    rawStaff.flatMap((member) =>
-      (member.staff_services ?? []).map((ss) => ss.service_id)
-    )
+    rawStaff.flatMap((member) => (member.staff_services ?? []).map((ss) => ss.service_id))
   );
 
   const staff = rawStaff
     .filter(
       (member) =>
         isOperationalStaff(member) &&
-        canActAsBookingServiceProvider(
-          member,
-          (serviceIdsByStaff.get(member.id)?.length ?? 0) > 0
-        )
+        canActAsBookingServiceProvider(member, (serviceIdsByStaff.get(member.id)?.length ?? 0) > 0)
     )
     .map((member) => ({
       id: member.id,

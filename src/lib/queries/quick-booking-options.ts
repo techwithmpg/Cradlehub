@@ -84,7 +84,9 @@ export async function getQuickBookingOptions(branchId: string): Promise<{
     getBranchServiceCatalog(branchId, { audience: "crm" }),
     admin
       .from("staff")
-      .select("id, full_name, nickname, is_active, staff_type, system_role, archived_at, merged_into_staff_id, staff_services(service_id)")
+      .select(
+        "id, full_name, nickname, is_active, staff_type, system_role, archived_at, merged_into_staff_id, staff_services(service_id)"
+      )
       .eq("branch_id", branchId)
       .eq("is_active", true)
       .is("archived_at", null)

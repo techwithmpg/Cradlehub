@@ -65,12 +65,11 @@ export type PublicCatalogService = {
   imageAlt: string;
 };
 
-const DEFAULT_CATALOG_DESCRIPTION =
-  "A Cradle service from the public wellness menu.";
+const DEFAULT_CATALOG_DESCRIPTION = "A Cradle service from the public wellness menu.";
 
 function firstCategory(value: CategoryRelation | undefined): CategoryRow | null {
   if (!value) return null;
-  return Array.isArray(value) ? value[0] ?? null : value;
+  return Array.isArray(value) ? (value[0] ?? null) : value;
 }
 
 function metadataObject(value: Json | undefined): Record<string, Json> {
@@ -80,11 +79,7 @@ function metadataObject(value: Json | undefined): Record<string, Json> {
   return {};
 }
 
-function metadataText(
-  metadata: Record<string, Json>,
-  key: string,
-  fallback: string
-): string {
+function metadataText(metadata: Record<string, Json>, key: string, fallback: string): string {
   const value = metadata[key];
   return typeof value === "string" && value.trim().length > 0 ? value : fallback;
 }
@@ -98,10 +93,7 @@ function metadataNumber(metadata: Record<string, Json>, key: string): number | n
   return typeof value === "number" && Number.isFinite(value) ? value : null;
 }
 
-function metadataStringArray(
-  metadata: Record<string, Json>,
-  key: string
-): string[] {
+function metadataStringArray(metadata: Record<string, Json>, key: string): string[] {
   const value = metadata[key];
   if (!Array.isArray(value)) return [];
   return value.filter((item): item is string => typeof item === "string" && item.trim().length > 0);
@@ -188,12 +180,10 @@ export async function getPublicServiceCatalog(): Promise<PublicCatalogService[]>
       );
 
     if (!legacy.error) {
-      branchServicesData = ((legacy.data ?? []) as LegacyBranchServiceCatalogRow[]).map(
-        (row) => ({
-          ...row,
-          visibility: row.booking_visibility ?? "public",
-        })
-      );
+      branchServicesData = ((legacy.data ?? []) as LegacyBranchServiceCatalogRow[]).map((row) => ({
+        ...row,
+        visibility: row.booking_visibility ?? "public",
+      }));
     } else if (!isMissingBranchServiceCatalogColumnError(legacy.error.message)) {
       throw new Error(legacy.error.message);
     } else {
@@ -203,14 +193,16 @@ export async function getPublicServiceCatalog(): Promise<PublicCatalogService[]>
 
       if (fallback.error) throw new Error(fallback.error.message);
 
-      branchServicesData = ((fallback.data ?? []) as Array<Pick<LegacyBranchServiceCatalogRow, "service_id" | "is_active" | "custom_price">>).map(
-        (row) => ({
-          ...row,
-          available_in_spa: true,
-          available_home_service: false,
-          visibility: "public",
-        })
-      );
+      branchServicesData = (
+        (fallback.data ?? []) as Array<
+          Pick<LegacyBranchServiceCatalogRow, "service_id" | "is_active" | "custom_price">
+        >
+      ).map((row) => ({
+        ...row,
+        available_in_spa: true,
+        available_home_service: false,
+        visibility: "public",
+      }));
     }
   }
 
@@ -232,16 +224,11 @@ export async function getPublicServiceCatalog(): Promise<PublicCatalogService[]>
     const branchRows = (branchRowsByService.get(service.id) ?? []).filter((row) => row.is_active);
     const publicRows = branchRows.filter((row) => row.visibility === "public");
     const isPublicBookable = publicRows.length > 0;
-    const isCsrOnly =
-      !isPublicBookable &&
-      branchRows.some((row) => row.visibility === "internal");
-    const isVip =
-      !isPublicBookable &&
-      branchRows.some((row) => row.visibility === "hidden");
+    const isCsrOnly = !isPublicBookable && branchRows.some((row) => row.visibility === "internal");
+    const isVip = !isPublicBookable && branchRows.some((row) => row.visibility === "hidden");
     const isCatalogOnly = branchRows.length === 0;
     const requiresConsultation =
-      metadataBoolean(metadata, "requires_consultation") ||
-      categoryName === "Spa Party Packages";
+      metadataBoolean(metadata, "requires_consultation") || categoryName === "Spa Party Packages";
     const serviceImage = resolveServiceImage({
       id: service.id,
       name: service.name,

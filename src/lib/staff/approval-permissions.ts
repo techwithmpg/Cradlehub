@@ -30,7 +30,9 @@ export const OPERATIONAL_SYSTEM_ROLES = [
 ] as const;
 
 export function isSensitiveSystemRole(role: string): boolean {
-  return SENSITIVE_SYSTEM_ROLES.includes(canonicalizeSystemRole(role) as (typeof SENSITIVE_SYSTEM_ROLES)[number]);
+  return SENSITIVE_SYSTEM_ROLES.includes(
+    canonicalizeSystemRole(role) as (typeof SENSITIVE_SYSTEM_ROLES)[number]
+  );
 }
 
 export function isOperationalSystemRole(role: string): boolean {

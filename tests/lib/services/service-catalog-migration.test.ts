@@ -37,8 +37,9 @@ describe("service catalogue repair migration contract", () => {
     expect(sql).toContain("current_setting('request.jwt.claim.role', true)");
     expect(sql).toContain("current_setting('request.jwt.claims', true)");
     expect(sql).toContain("v_request_role <> 'service_role'");
-    expect(sql.indexOf("SELECT coalesce(array_agg(requested.service_id)"))
-      .toBeLessThan(sql.indexOf("DELETE FROM public.staff_services existing_assignment"));
+    expect(sql.indexOf("SELECT coalesce(array_agg(requested.service_id)")).toBeLessThan(
+      sql.indexOf("DELETE FROM public.staff_services existing_assignment")
+    );
   });
 
   it("prevents future service creation drift with an idempotent in-spa-only trigger", () => {
