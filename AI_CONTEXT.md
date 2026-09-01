@@ -16,10 +16,12 @@
 - C2 status: **CLOSED / ACCEPTED**
 - C3 accepted scope freeze merge SHA: `d19ce34753e09244b8aad0e1d10c964302a33e7c`
 - C3 status: **CLOSED / ACCEPTED**
+- C4 accepted UI/UX plan merge SHA: `b90b2d70d05b8d6082f707babed8995799c2ab2d`
+- C4 status: **CLOSED / ACCEPTED**
 - Last governance closeout verification: 2026-09-01
-- Current stage: **C4 — UI/UX and Workflow Planning (Digital Marketing Workspace)**
-- C4 status: **INDEPENDENT REVIEW PASS / OWNER ACCEPTED / MERGE GATE IN PROGRESS**
-- Next stage: **C5 PASS 1 — AUTHORIZED ONLY AFTER ACCEPTED C4 CLOSEOUT** (Authorized Pass: **PUBLIC CONSUMER PARITY & COMPONENT GROUNDING**; later C5 passes remain **NOT AUTHORIZED**)
+- Current stage: **C5 — Implementation (Digital Marketing Workspace)**
+- C5 status: **PASS 1 ACTIVE (Public Consumer Parity & Component Grounding)**
+- Next stage: **C5 PASS 2+ — NOT AUTHORIZED**
 
 > [!NOTE]
 > C5 Pass 1 authorizes frontend component grounding and public consumer parity only. It does NOT authorize schema/database changes, migrations, RLS, Storage policy changes, Auth changes, security-policy mutation, or production data mutation. Later C5 passes remain strictly not authorized.
