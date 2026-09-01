@@ -4,21 +4,38 @@
 
 - **Program:** Controlled Stabilization
 - **Current stage:** C1 — Current-System Truth Consolidation
-- **C1 status:** EVIDENCE COMPLETE / PASS RECOMMENDED / AWAITING OWNER REVIEW
+- **C1 status:** OWNER ACCEPTED / MERGE GATE IN PROGRESS
 - **C1 accepted-main baseline:** `4f9291c7d457ec49b071e766df4c23ca1e4f1558`
+- **C1 closeout reconciliation base:** `18216622422a760ec015f22515c93cf99102d6a5`
+- **C1 closeout branch:** `stage/c1-closeout`
 - **C0B status:** CLOSED / ACCEPTED
 - **Accepted C0B governance merge:** `03dbd57ed4be6f9b1f0bd30c7fd22a225e68ec2a`
 - **External review:** PASS
 - **Merge verification:** PASS
 - **C0B production deployment verification:** PASS (repository-recorded)
-- **Next stage:** C2 — NOT AUTHORIZED
+- **Next stage:** C2 — AUTHORIZED AFTER ACCEPTED C1 MERGE / DIGITAL MARKETING WORKSPACE DIAGNOSTICS ONLY
 
 ## Current safety state
 
 - `main` is production-connected.
-- No production mutation is authorized in C1.
+- No product implementation, database/schema mutation, migration action, or production mutation is authorized in this C1 closeout or in C2 diagnostics.
 - Historical migration reconciliation is constrained: 84 local-only versions remain intentionally unmarked.
 - Attendance operational enforcement remains not training-ready until its repository-recorded gates pass.
+
+## Authorized C2 scope after C1 merge acceptance
+
+C2 is limited to read-only Structured Diagnostics for the Digital Marketing Workspace:
+
+- `/marketing`, `/owner/marketing`, and their existing shared consumers;
+- public-site sections/assets, marketing drafts/revisions, brand and SEO settings;
+- media/Storage ownership and authorization boundaries;
+- public branch fields versus operational branch authority;
+- service marketing fields versus operational service authority;
+- preview, review, approval, scheduling, and publish boundaries;
+- existing public-page consumers and cache/revalidation side effects;
+- relevant tests, performance dependencies, failure states, and safe replacement paths.
+
+C2 does not authorize UI implementation, product fixes, schema changes, migration application/reconciliation, RLS changes, Storage mutation, production mutation, or unrelated Web diagnostics.
 
 ## C1 verification summary
 
@@ -45,6 +62,6 @@ CradleHub is a Next.js 16.2.4 / React 19.2.4 web application using Supabase Post
 - GitHub protection/ruleset and Vercel linkage/deployed-commit unknowns; and
 - production-connected `main` release safety.
 
-C1 is recommended PASS subject to owner review and the required merge gate. Do not merge or deploy from this status alone. Product fixes and C2 diagnostics are not authorized.
+C1 owner review is ACCEPTED and the PASS recommendation was approved on 2026-09-01. This closeout branch must still pass final diff/review and the required merge gate. After C1 is accepted into main, C2 read-only Structured Diagnostics may begin for the Digital Marketing Workspace only. Product fixes, UI implementation, database/Storage mutation, migration actions, and C3 or later work are not authorized.
 
-**C2 IS NOT AUTHORIZED.**
+**C2 IS CONDITIONALLY AUTHORIZED: only after C1 merge acceptance, and only for Digital Marketing Workspace structured diagnostics.**

@@ -13,7 +13,7 @@
 - Last governance closeout verification: 2026-08-26
 - C1 accepted-main baseline at authorization: `4f9291c7d457ec49b071e766df4c23ca1e4f1558`
 - C1 evidence verification: 2026-08-27
-- Current stage: **C1 — PASS RECOMMENDED / AWAITING OWNER REVIEW**
+- Current stage: **C1 — OWNER ACCEPTED / MERGE GATE IN PROGRESS**
 
 The recorded SHA is the stable C0B closeout anchor, not a declaration of the current `main` head. At the start of every session, fetch and re-resolve `origin/main`; inspect newer accepted work rather than recreating an older state.
 
@@ -55,7 +55,7 @@ The recorded SHA is the stable C0B closeout anchor, not a declaration of the cur
 
 ## Current authorization
 
-C0B is closed and accepted. The owner explicitly authorized C1 current-system truth consolidation on 2026-08-27. C1 evidence is complete on `stage/c1-truth-consolidation` and is recommended PASS, subject to owner review and the required merge gate. C1 did not change product behavior or any database/production environment. C2 and all later stages remain not authorized.
+C0B is closed and accepted. C1 current-system truth consolidation was owner-accepted on 2026-09-01. `stage/c1-closeout` exists only to complete the C1 merge gate against the current accepted `main`. Upon successful C1 merge acceptance, C2 Structured Diagnostics is authorized only for the Digital Marketing Workspace. C2 is read-only diagnostics: no product implementation, database/schema mutation, migration reconciliation, production mutation, or unrelated Web work is authorized. C3 and later stages remain not authorized.
 
 ## Historical context policy
 

@@ -208,7 +208,7 @@ These are candidates/evidence, not authorized fixes or project decisions.
 
 ## 15. C1 gate status
 
-**Recommendation: PASS — awaiting owner review.**
+**Owner review: ACCEPTED — C1 PASS approved on 2026-09-01; merge gate in progress.**
 
 - Accepted baseline verified: yes.
 - Exact accepted runtime and frozen-lockfile dependency reproduction: yes.
@@ -220,4 +220,4 @@ These are candidates/evidence, not authorized fixes or project decisions.
 
 The formatting failure and unknown live controls remain recorded work candidates; they do not prevent C1 from establishing a reproducible current-system baseline.
 
-**C2 IS NOT AUTHORIZED.**
+**C2 DIGITAL MARKETING WORKSPACE STRUCTURED DIAGNOSTICS IS AUTHORIZED ONLY AFTER THIS C1 CLOSEOUT IS ACCEPTED INTO main. NO IMPLEMENTATION OR PRODUCTION/DATABASE MUTATION IS AUTHORIZED.**
