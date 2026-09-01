@@ -4,7 +4,8 @@
 
 - **Program:** Controlled Stabilization
 - **Current stage:** C3 — Scope Freeze (Digital Marketing Workspace)
-- **C3 status:** ACTIVE / SCOPE FREEZE ONLY
+- **C3 status:** SCOPE FROZEN / AWAITING OWNER REVIEW
+- **C3 report:** `docs/audits/C3_MARKETING_SCOPE_FREEZE.md`
 - **C2 status:** CLOSED / ACCEPTED
 - **Accepted C2 diagnostics merge:** `694873dfe9b9572a56620951bb69024492fe04c0`
 - **C2 report:** `docs/audits/C2_MARKETING_STRUCTURED_DIAGNOSTICS_REPORT.md`
@@ -16,14 +17,23 @@
 - **Accepted C0B governance merge:** `03dbd57ed4be6f9b1f0bd30c7fd22a225e68ec2a`
 - **External review:** PASS
 - **Merge verification:** PASS
-- **Next stage:** C4 — NOT AUTHORIZED (Awaiting completion and owner review of C3 scope freeze)
+- **Next stage:** C4 — NOT AUTHORIZED (Awaiting owner review of C3 scope freeze)
 
 ## Current safety state
 
 - `main` is production-connected.
-- No product implementation, database/schema mutation, migration action, or production mutation was performed in C2 diagnostics.
+- No product implementation, database/schema mutation, migration action, or production mutation was performed in C2 diagnostics or C3 scope freeze.
 - Historical migration reconciliation is constrained: 84 local-only versions remain intentionally unmarked.
-- Attendance operational enforcement remains not training-ready until its repository-recorded gates pass.
+- Attendance operational enforcement remains not training-ready until its recorded gates pass.
+
+## C3 Marketing Scope Freeze summary
+
+- Five core modules frozen: (1) Website, (2) Brand, (3) Branches, (4) Services, (5) Media Library.
+- Secondary navigation frozen: Drafts and Settings.
+- Contextual SEO frozen across page and service levels.
+- Shared subsystem contracts frozen: Universal Media Picker, High-Fidelity Draft Preview, Viewport Toggles (Desktop/Tablet/Mobile), Live vs Draft Diff, Unsaved Changes Guard, and Asset Usage Tracking.
+- Five acceptance missions frozen for non-technical digital marketer operations.
+- Strict operational isolation preserved: Zero marketer access to prices, durations, operational branch activations, travel fees, attendance, payroll, or database RLS.
 
 ## C2 Marketing Diagnostics summary
 
@@ -43,7 +53,7 @@
 - Formatting gate: FAIL — 93 existing incremental files.
 - Live CradleHub database verification: NOT AVAILABLE; no substitute project used.
 - Production web read-only check: HTTP 200, served by Vercel/Next.js; deployed project/commit remains unverified.
-- Product/database/production mutation in C1/C2: NONE.
+- Product/database/production mutation in C1/C2/C3: NONE.
 
 ## Verified repository summary
 
@@ -58,4 +68,4 @@ CradleHub is a Next.js 16.2.4 / React 19.2.4 web application using Supabase Post
 - GitHub protection/ruleset and Vercel linkage/deployed-commit unknowns; and
 - production-connected `main` release safety.
 
-C1 and C2 are CLOSED and ACCEPTED. C2 diagnostics was merged into main at `694873dfe9b9572a56620951bb69024492fe04c0`. C3 Scope Freeze for the Digital Marketing Workspace is ACTIVE. Product fixes, UI implementation, database/Storage mutation, migration actions, and C4 or later work are NOT AUTHORIZED without explicit owner instruction.
+C1 and C2 are CLOSED and ACCEPTED. C2 diagnostics was merged into main at `694873dfe9b9572a56620951bb69024492fe04c0`. C3 Scope Freeze for the Digital Marketing Workspace is FROZEN in `docs/audits/C3_MARKETING_SCOPE_FREEZE.md` and is awaiting owner review. Product fixes, UI implementation, database/Storage mutation, migration actions, and C4 or later work are NOT AUTHORIZED without explicit owner instruction.

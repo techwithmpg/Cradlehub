@@ -16,7 +16,7 @@
 - C2 status: **CLOSED / ACCEPTED**
 - Last governance closeout verification: 2026-09-01
 - Current stage: **C3 — Scope Freeze (Digital Marketing Workspace)**
-- C3 status: **ACTIVE / SCOPE FREEZE ONLY**
+- C3 status: **SCOPE FROZEN / AWAITING OWNER REVIEW**
 - Next stage: **C4 — NOT AUTHORIZED**
 
 The recorded SHAs are stable closeout anchors, not declarations of the current `main` head. At the start of every session, fetch and re-resolve `origin/main`; inspect newer accepted work rather than recreating an older state.
@@ -59,7 +59,7 @@ The recorded SHAs are stable closeout anchors, not declarations of the current `
 
 ## Current authorization
 
-C0B, C1, and C2 are closed and accepted. C2 diagnostics was merged into main at `694873dfe9b9572a56620951bb69024492fe04c0`. C3 Scope Freeze is active for the Digital Marketing Workspace using the five-module structure: (1) Website, (2) Brand, (3) Branches, (4) Services, (5) Media Library, with Drafts and Settings as secondary navigation and contextual SEO. Writable and read-only field-level boundaries, existing `--cs-*` marketing theme tokens, draft-first workflow, and Owner-only approval/publishing boundaries remain strictly enforced. C3 is documentation and scope freeze only. C4 design implementation and C5+ coding are NOT AUTHORIZED.
+C0B, C1, and C2 are closed and accepted. C2 diagnostics was merged into main at `694873dfe9b9572a56620951bb69024492fe04c0`. C3 Scope Freeze for the Digital Marketing Workspace delivered `docs/audits/C3_MARKETING_SCOPE_FREEZE.md` defining the five-module structure (Website, Brand, Branches, Services, Media Library), secondary navigation (Drafts, Settings), contextual SEO, universal subsystem contracts, and strict field-level authorization boundaries. C3 is documentation and scope freeze only. C4 design implementation and C5+ coding are NOT AUTHORIZED pending owner review of the C3 scope freeze.
 
 ## Historical context policy
 
