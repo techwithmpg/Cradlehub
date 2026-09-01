@@ -1,8 +1,8 @@
 # C2 Structured Diagnostics Report: Digital Marketing Workspace & Public-Site Consumers
 
-**Program:** Controlled Stabilization  
-**Stage:** C2 — Structured Diagnostics (READ-ONLY)  
-**Target:** CradleHub Web — Digital Marketing Workspace (`/marketing`, `/owner/marketing`) & Public-Site Consumers  
+**Program:** Controlled Stabilization
+**Stage:** C2 — Structured Diagnostics (READ-ONLY)
+**Target:** CradleHub Web — Digital Marketing Workspace (`/marketing`, `/owner/marketing`) & Public-Site Consumers
 **Base SHA:** `3f402e033e1d1ca05b8cc8a4f2764823f7aaa622` (Accepted C1 truth consolidation merge on `main`)
 **Branch:** `stage/c2-marketing-diagnostics`
 **Original C2 Diagnostic Delivery SHA:** `88a0136b246bbfbcf780a7cd4a30ec7c651fa2df`
