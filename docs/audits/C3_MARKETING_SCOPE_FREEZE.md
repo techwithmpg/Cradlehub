@@ -1,12 +1,12 @@
 # C3 Digital Marketing Workspace Scope Freeze
 
-**Program:** Controlled Stabilization  
-**Stage:** C3 — Scope Freeze (DOCUMENTATION ONLY — ZERO CODE / ZERO UI / ZERO PRODUCTION MUTATION)  
-**Target:** CradleHub Web — Digital Marketing Workspace (`/marketing`, `/owner/marketing`) & Public-Site Consumers  
-**Base SHA:** `01c36375327b688fdd6e69fbbc130307d17da0eb` (Accepted C2 closeout merge commit on `main`)  
-**Branch:** `stage/c3-marketing-scope-freeze`  
-**Date:** 2026-09-01  
-**Status:** SCOPE FROZEN / AWAITING OWNER REVIEW (C4 / C5+ NOT AUTHORIZED)  
+**Program:** Controlled Stabilization
+**Stage:** C3 — Scope Freeze (DOCUMENTATION ONLY — ZERO CODE / ZERO UI / ZERO PRODUCTION MUTATION)
+**Target:** CradleHub Web — Digital Marketing Workspace (`/marketing`, `/owner/marketing`) & Public-Site Consumers
+**Base SHA:** `01c36375327b688fdd6e69fbbc130307d17da0eb` (Accepted C2 closeout merge commit on `main`)
+**Branch:** `stage/c3-marketing-scope-freeze`
+**Date:** 2026-09-01
+**Status:** SCOPE FROZEN / AWAITING OWNER REVIEW (C4 / C5+ NOT AUTHORIZED)
 
 ---
 
