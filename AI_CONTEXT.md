@@ -22,13 +22,15 @@
 - C5 Pass 1 status: **CLOSED / ACCEPTED**
 - C5 Pass 2 accepted media library merge SHA: `12ddaf44fe951e0f167084dafd51627d2836c70b`
 - C5 Pass 2 status: **CLOSED / ACCEPTED**
+- C5 Pass 3 accepted website studio merge SHA: `43e233280397751e9b64fb03bb46fe5b180bf56c`
+- C5 Pass 3 status: **CLOSED / ACCEPTED**
 - Last governance closeout verification: 2026-09-01
 - Current stage: **C5 — Implementation (Digital Marketing Workspace)**
-- C5 status: **PASS 3 ACTIVE (Website Studio & High-Fidelity Preview ONLY)**
-- Next stage: **C5 PASS 4+ — NOT AUTHORIZED**
+- C5 status: **PASS 4 ACTIVE / AUTHORIZED (Brand, Branches, and Services Studios)**
+- Next stage: **C5 PASS 5 — NOT AUTHORIZED**
 
 > [!NOTE]
-> C5 Pass 3 authorizes Website Studio and High-Fidelity Preview only. It does NOT authorize schema/database changes, migrations, RLS, Storage policy changes, Auth changes, security-policy mutation, production data mutation, Brand/Branches/Services Studios (Pass 4), or Atomic Review Queue (Pass 5). C5 Pass 4+ remains strictly not authorized.
+> C5 Pass 3 (Website Studio & High-Fidelity Preview) is closed and accepted. C5 Pass 4 is active and authorized exclusively for Brand, Branches, and Services Studios under the accelerated execution decision. C5 Pass 5 (Atomic Review Queue) remains strictly not authorized. No schema/database mutation, migrations, Auth/RLS/Storage-policy changes, or production-data mutation are authorized.
 
 The recorded SHAs are stable closeout anchors, not declarations of the current `main` head. At the start of every session, fetch and re-resolve `origin/main`; inspect newer accepted work rather than recreating an older state.
 

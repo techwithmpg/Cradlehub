@@ -4,8 +4,13 @@
 
 - **Program:** Controlled Stabilization
 - **Current stage:** C5 — Implementation (Digital Marketing Workspace)
-- **C5 status:** PASS 3 ACTIVE (Website Studio & High-Fidelity Preview ONLY)
-- **C5 Pass 4+:** NOT AUTHORIZED
+- **C5 status:** PASS 4 ACTIVE / AUTHORIZED (Brand, Branches, and Services Studios)
+- **C5 Pass 5+:** NOT AUTHORIZED
+- **C5 Pass 3 status:** CLOSED / ACCEPTED
+- **Accepted C5 Pass 3 website studio merge:** `43e233280397751e9b64fb03bb46fe5b180bf56c`
+- **Accepted C5 Pass 3 implementation head:** `fe4111ec43f738517a94f76e1c2d3ae763fbd5c8`
+- **Implementation PR:** #13
+- **Independent review:** PASS
 - **C5 Pass 2 status:** CLOSED / ACCEPTED
 - **Accepted C5 Pass 2 media library merge:** `12ddaf44fe951e0f167084dafd51627d2836c70b`
 - **Independent review:** PASS
@@ -28,7 +33,7 @@
 - **Accepted C0B governance merge:** `03dbd57ed4be6f9b1f0bd30c7fd22a225e68ec2a`
 - **External review:** PASS
 - **Merge verification:** PASS
-- **Next stage:** C5 Pass 3+ NOT AUTHORIZED
+- **Next stage:** C5 Pass 5 NOT AUTHORIZED
 
 ## Current safety state
 
