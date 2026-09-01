@@ -16,8 +16,8 @@
 - C2 status: **CLOSED / ACCEPTED**
 - Last governance closeout verification: 2026-09-01
 - Current stage: **C3 — Scope Freeze (Digital Marketing Workspace)**
-- C3 status: **SCOPE CORRECTED / AWAITING INDEPENDENT REVIEW**
-- Next stage: **C4 — NOT AUTHORIZED**
+- C3 status: **INDEPENDENT REVIEW PASS / OWNER ACCEPTED / MERGE GATE IN PROGRESS**
+- Next stage: **C4 — AUTHORIZED ONLY AFTER ACCEPTED C3 MERGE / UI-UX & WORKFLOW PLANNING ONLY**
 
 The recorded SHAs are stable closeout anchors, not declarations of the current `main` head. At the start of every session, fetch and re-resolve `origin/main`; inspect newer accepted work rather than recreating an older state.
 
@@ -59,7 +59,7 @@ The recorded SHAs are stable closeout anchors, not declarations of the current `
 
 ## Current authorization
 
-C0B, C1, and C2 are closed and accepted. C2 diagnostics was merged into main at `694873dfe9b9572a56620951bb69024492fe04c0`. C3 Scope Freeze for the Digital Marketing Workspace delivered `docs/audits/C3_MARKETING_SCOPE_FREEZE.md` defining the five-module structure (Website, Brand, Branches, Services, Media Library), secondary navigation (Drafts, Settings), contextual SEO, universal subsystem contracts, and strict field-level authorization boundaries. C3 is documentation and scope freeze only. C4 design implementation and C5+ coding are NOT AUTHORIZED pending owner review of the C3 scope freeze.
+C0B, C1, and C2 are closed and accepted. C3 Scope Freeze for the Digital Marketing Workspace delivered `docs/audits/C3_MARKETING_SCOPE_FREEZE.md` defining the five-module structure (Website, Brand, Branches, Services, Media Library), secondary navigation (Drafts, Settings), contextual SEO, universal subsystem contracts, and strict field-level authorization boundaries. C3 achieved independent review PASS and was accepted by the owner on 2026-09-01; the C3 merge gate into main is in progress. Conditioned on accepted C3 merge into main, C4 UI/UX and Workflow Planning is authorized for the frozen Digital Marketing Workspace scope only. C4 does NOT authorize product implementation, schema/database changes, migrations, RLS changes, Storage changes, Auth changes, production mutation, or C5+ coding.
 
 ## Historical context policy
 

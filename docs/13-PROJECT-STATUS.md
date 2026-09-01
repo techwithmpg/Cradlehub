@@ -4,12 +4,12 @@
 
 - **Program:** Controlled Stabilization
 - **Current stage:** C3 — Scope Freeze (Digital Marketing Workspace)
-- **C3 status:** SCOPE CORRECTED / AWAITING INDEPENDENT REVIEW
+- **C3 status:** OWNER ACCEPTED / MERGE GATE IN PROGRESS
 - **C3 report:** `docs/audits/C3_MARKETING_SCOPE_FREEZE.md`
+- **Independent review:** PASS
 - **C2 status:** CLOSED / ACCEPTED
 - **Accepted C2 diagnostics merge:** `694873dfe9b9572a56620951bb69024492fe04c0`
 - **C2 report:** `docs/audits/C2_MARKETING_STRUCTURED_DIAGNOSTICS_REPORT.md`
-- **Independent review:** PASS
 - **C1 status:** CLOSED / ACCEPTED
 - **Accepted C1 truth consolidation merge:** `3f402e033e1d1ca05b8cc8a4f2764823f7aaa622`
 - **C1 accepted-main baseline:** `4f9291c7d457ec49b071e766df4c23ca1e4f1558`
@@ -17,7 +17,7 @@
 - **Accepted C0B governance merge:** `03dbd57ed4be6f9b1f0bd30c7fd22a225e68ec2a`
 - **External review:** PASS
 - **Merge verification:** PASS
-- **Next stage:** C4 — NOT AUTHORIZED (Awaiting owner review of C3 scope freeze)
+- **Next stage:** C4 — AUTHORIZED ONLY AFTER ACCEPTED C3 MERGE / PLANNING ONLY (C5+ NOT AUTHORIZED)
 
 ## Current safety state
 
@@ -68,4 +68,4 @@ CradleHub is a Next.js 16.2.4 / React 19.2.4 web application using Supabase Post
 - GitHub protection/ruleset and Vercel linkage/deployed-commit unknowns; and
 - production-connected `main` release safety.
 
-C1 and C2 are CLOSED and ACCEPTED. C2 diagnostics was merged into main at `694873dfe9b9572a56620951bb69024492fe04c0`. C3 Scope Freeze for the Digital Marketing Workspace is delivered in `docs/audits/C3_MARKETING_SCOPE_FREEZE.md` (corrected) and is awaiting independent review. Product fixes, UI implementation, database/Storage mutation, migration actions, and C4 or later work are NOT AUTHORIZED without explicit owner instruction.
+C1 and C2 are CLOSED and ACCEPTED. C3 Scope Freeze for the Digital Marketing Workspace achieved independent review PASS and owner acceptance on 2026-09-01; C3 merge gate into main is in progress. Conditioned on accepted C3 merge, C4 UI/UX and Workflow Planning is authorized for planning/specification only. Product fixes, UI implementation, database/Storage mutation, migration actions, and C5+ coding remain NOT AUTHORIZED.

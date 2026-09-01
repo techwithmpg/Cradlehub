@@ -9,9 +9,10 @@
 **Source-of-Truth Correction SHA:** `7c6a40b52baba34d65d487b2aa473fc3d8d410bd`
 **Service & Publication Correction SHA:** `b632cbcbdeb0436b1bc4a52af2bf823cf2596356`
 **Security & Audit Correction SHA:** `714aa7e8e93f3f13d3fb6557650aa4f2753aa108`
+**Hard-Delete Wording Correction SHA:** `7d4e4ee5523f6d909d05eb15c8e4859f8af3a78f`
 **Branch:** `stage/c3-marketing-scope-freeze`
 **Date:** 2026-09-01
-**Status:** SCOPE CORRECTED / AWAITING INDEPENDENT REVIEW (C4 / C5+ NOT AUTHORIZED)
+**Status:** OWNER ACCEPTED / MERGE GATE IN PROGRESS (C4 AUTHORIZED ONLY AFTER ACCEPTED C3 MERGE / C5+ NOT AUTHORIZED)
 
 ---
 
