@@ -411,10 +411,7 @@ export async function saveMarketingMediaAsset(
   if (id) {
     // Check role boundaries on update:
     // Digital Marketers may only edit metadata for assets in 'draft' or 'submitted' status
-    const existing = await assetsTable
-      .select("status")
-      .eq("id", id)
-      .maybeSingle();
+    const existing = await assetsTable.select("status").eq("id", id).maybeSingle();
 
     if (existing.data) {
       const currentStatus = existing.data.status;
@@ -514,7 +511,10 @@ export async function updateMarketingMediaAssetStatus(
   }
 
   if (currentStatus === "archived") {
-    return { success: false, error: "Archived media assets cannot have their status updated directly." };
+    return {
+      success: false,
+      error: "Archived media assets cannot have their status updated directly.",
+    };
   }
 
   // Strict Lifecycle State Machine & Role Enforcement

@@ -1,8 +1,5 @@
 import { PageHeader } from "@/components/features/dashboard/page-header";
-import {
-  getMarketingMediaAssets,
-  getMarketingMediaUsageMap,
-} from "@/lib/queries/marketing-media";
+import { getMarketingMediaAssets, getMarketingMediaUsageMap } from "@/lib/queries/marketing-media";
 import { MediaLibraryView } from "@/components/features/marketing/media/media-library-view";
 import { createClient } from "@/lib/supabase/server";
 
