@@ -6,6 +6,7 @@
 **Base SHA:** `3f402e033e1d1ca05b8cc8a4f2764823f7aaa622` (Accepted C1 truth consolidation merge on `main`)
 **Branch:** `stage/c2-marketing-diagnostics`
 **Original C2 Diagnostic Delivery SHA:** `88a0136b246bbfbcf780a7cd4a30ec7c651fa2df`
+**First Correction Commit SHA:** `65c153edd7128f15237b65c69323819734177ec8`
 **Current Correction Commit SHA:** (Recorded in git log upon commit; reported in handoff)
 **Date:** 2026-09-01
 **Status:** REPORT CORRECTED / AWAITING INDEPENDENT REVIEW (Zero Implementation / Zero Production Mutation)
@@ -192,13 +193,13 @@ A major finding of C2 diagnostics is the **divergence between desktop and mobile
 
 ## G. Media & Storage Architecture
 
-1. **Storage Bucket:** `public-site-media`
-   - Configured as public (`public = true`).
-   - RLS Policies (Migration `20260803042453_marketing_studio_foundation.sql`):
+1. **Storage Bucket (`public-site-media`):**
+   - **Verified Repository Fact:** The repository migration `supabase/migrations/20260803042453_marketing_studio_foundation.sql` defines `public-site-media` as a public bucket (`public = true`) and defines RLS policies:
      - `SELECT`: Allowed for `anon` and `authenticated`.
      - `INSERT`, `UPDATE`, `DELETE`: Restricted to `authenticated` users with `public.get_auth_role() in ('owner', 'digital_marketer')`.
-2. **Media Assets Table:** `marketing_media_assets`
-   - Fields: `id`, `bucket_path`, `public_url`, `title`, `alt_text` (min 3 chars required), `section_key`, `content_key`, `status` (`draft`, `submitted`, `approved`, `published`, `archived`), `metadata`, `created_by`, `updated_by`, `reviewed_by`.
+   - **Live State Unknown:** LIVE APPLICATION OF THIS MIGRATION / STORAGE POLICY STATE WAS NOT VERIFIED IN C2.
+2. **Media Assets Table (`marketing_media_assets`):**
+   - **Verified Repository Fact:** Fields defined in repository schema: `id`, `bucket_path`, `public_url`, `title`, `alt_text` (min 3 chars required), `section_key`, `content_key`, `status` (`draft`, `submitted`, `approved`, `published`, `archived`), `metadata`, `created_by`, `updated_by`, `reviewed_by`.
 3. **Orphan & Replacement Risks:**
    - Current codebase lacks an automated usage-reference tracking mechanism. If an image is deleted from Storage or replaced in `marketing_media_assets`, live `public_site_sections.image_url` or `marketing_content_drafts.image_url` may point to broken URLs if not validated.
    - Safe refactor path: Media picker must store both `bucket_path` and `public_url`, with soft-archiving instead of hard deletion.
@@ -224,13 +225,17 @@ A major finding of C2 diagnostics is the **divergence between desktop and mobile
 ## I. Branch & Service Boundaries
 
 ### 1. Branch Entity Boundary
-- **Public Presentation Fields (Marketing Domain):**
-  - `name`, `address`, `city`, `barangay`, `phone`, `secondary_phone`, `email`, `fb_page`, `messenger_link`, `maps_embed_url`, `opening_hours`, `sort_order`, `latitude`, `longitude`, `place_id`, `location_metadata`.
-- **Operational Configuration (Strictly Owner/Ops Domain):**
-  - `is_active` (Branch operational status).
+- **Shared Canonical Branch Identity / Location Data (Operational & Public Consumer Value):**
+  - `name`, `address`, `city`, `barangay`, `latitude`, `longitude`, `place_id`, `location_metadata`.
+  - *Governance & Ownership Rule:* These fields appear on public pages, but they are canonical shared branch records with critical operational consumers (booking dispatch, travel fee calculation, mapping, branch identification) and are maintained through the operational branch management path. Digital Marketer role is NOT granted ownership merely because a field is visible publicly.
+- **Operational Configuration (Strictly Ops / Owner Domain):**
+  - `is_active` (Operational branch activation).
   - `slot_interval_minutes` (Booking grid calculation).
-  - `home_service_free_km` & `home_service_extra_km_fee` (Pricing logic).
+  - `home_service_free_km` & `home_service_extra_km_fee` (Pricing and travel fee calculation).
   - Branch resources (`branch_resources`) & staff assignments (`staff`).
+- **Public Copy & Marketing Candidates (Field-by-Field Decision in Future C3 Scope Freeze):**
+  - Safe marketer-editable candidates: `phone`, `secondary_phone`, `email`, `fb_page`, `messenger_link`, `opening_hours`, `maps_embed_url`, public photos/content.
+  - Even shared address/location changes must preserve operational consumers and should remain read-only or owner-reviewed until C3 explicitly freezes the authority boundary. Under no circumstances should a duplicate branch table be created.
 
 ### 2. Service Entity Boundary
 - **Public Marketing Fields (Marketing Domain):**
@@ -282,11 +287,14 @@ Audit performed against repository design standards and modern UI/UX guidelines:
      - Action Family: Cradle Sand action family (`--cs-sand: #A67B5B`, `--cs-sand-dark: #8A6347`, `--cs-sand-light: #C4966E`) for primary and important actions.
      - Semantic status colors remain semantic (success/warning/error/info tokens).
      - No independent green concept theme or heavy purple tinting across the entire UI.
-2. **Accessibility Observations:**
-   - **Labels:** Several input fields in `marketing-workspace.tsx` and `marketing-studio.tsx` rely on visual container labels without explicit `id` and `htmlFor` association.
-   - **Keyboard Navigation & Focus:** Focus styling is custom; needs consistent `focus-visible:ring-2 focus-visible:ring-[#A67B5B]` outline across all inputs and buttons.
-   - **Action State Feedback:** Draft saves update state via `useActionState`, but lack an `aria-live="polite"` container for screen reader announcements.
-   - **Touch Targets:** Navigation tabs and icon action buttons in desktop view are 32px height; need minimum 44x44px clickable target on responsive touch viewports.
+2. **Accessibility Observations (Static Repository Inspection Only — Not Browser Test Failures):**
+   - **Label Associations:** Repository inspection verifies that `InputField` and `TextAreaField` wrap inputs inside `<label>`, which provides valid accessible label association.
+   - **Action State Feedback:** Repository inspection verifies that `ActionNotice` in both `/marketing` and `/owner/marketing` already includes `role="status"` and `aria-live="polite"`.
+   - **Verified Focus & Outline Issues:** Custom editor `fieldStyle` sets `outline: "none"` without attaching focus ring styling; inputs/textareas do not receive the standard `--cs-focus-ring` treatment (`0 0 0 3px rgba(166,123,91,0.2)`).
+   - **Global Focus Selector Scope:** Global `focus-visible` handling in `src/app/globals.css` currently targets `button:focus-visible`, `a:focus-visible`, and `[role="button"]:focus-visible`, leaving custom editor text inputs and textareas without visible focus indicator.
+   - **Missing Label on Review Note:** The Owner `reviewNote` textarea in `src/app/(dashboard)/owner/marketing/marketing-studio.tsx` is placeholder-only (`placeholder="Owner note"`) and lacks an explicit `<label>` or `aria-label`.
+   - **Touch Targets on Compact Viewports:** Secondary navigation tabs and icon action buttons in desktop view are styled with 32px visual height; they require a minimum 44x44px clickable touch target on responsive/touch viewports.
+   - **Recommendation:** Reuse the existing `--cs-focus-ring` token (`var(--cs-focus-ring)`) on input focus rather than introducing hardcoded new colors.
 
 ---
 
@@ -316,7 +324,7 @@ Audit performed against repository design standards and modern UI/UX guidelines:
 | **P1** | MKT-002 | Owner Direct Mutation | `/owner/marketing` allows direct mutation of `public_site_sections` bypassing draft history. | Creates unversioned live changes with no revision record in `marketing_content_revisions`. | Unify owner studio to always create/record an audit revision on direct edit. |
 | **P1** | MKT-003 | Brand Logo Decoupling | `BrandLogo` component is statically bundled to SVG files; `marketing_brand_settings` is unconsumed. | Brand settings UI cannot dynamically update logo/favicon without code changes. | Build structured brand loader with fallback to static SVGs in future authorized stage. |
 | **P2** | MKT-004 | Media Orphan Lifecycle | Deleting or replacing images has no cascade check against active drafts or live sections. | Potential broken image links if files in `public-site-media` are deleted prematurely. | Implement soft-archive flag on `marketing_media_assets` and prohibit hard storage deletion if in use. |
-| **P2** | MKT-005 | Accessibility / Form Labels | Form inputs lack explicit `htmlFor` attributes and `aria-live` save notifications. | Reduced accessibility compliance for screen reader and keyboard-only users. | Add accessible form labels, descriptive ARIA attributes, and live status announcement regions. |
+| **P2** | MKT-005 | Focus Ring & Touch Sizing (Repo Inspection) | Editor inputs use `outline: none` without `--cs-focus-ring`; owner `reviewNote` is placeholder-only; touch targets < 44px on compact viewports. | Potential focus visibility deficit and sub-44px touch targets on mobile/touch viewports. | Attach `var(--cs-focus-ring)` on focus, add explicit `<label>` to `reviewNote`, and enforce 44px min touch target on mobile viewports. |
 | **P3** | MKT-006 | Unstructured JSON Metadata | Section metadata (`metadata` JSONB) is edited as raw JSON string or unvalidated object. | Syntax errors in JSON textarea can reject draft saves. | Replace raw JSON textareas with structured form fields per section type. |
 
 ---
@@ -369,8 +377,60 @@ Based on the verified diagnostic findings, the recommended C3 Scope Freeze for t
 
 ---
 
-## P. Production Evidence Classification
+## P. Production Evidence Classification & Evidence Tiers
 
-- **Classification:** `REPOSITORY-RECORDED PRODUCTION EVIDENCE`
-- **Scope Verified:** Repository code, database migrations, server actions, queries, component trees, and static assets.
-- **Live Database Status:** Live Supabase database verification was not available in this read-only diagnostic stage. No live production mutations were attempted or executed.
+- **Three Evidence Tiers Applied in C2 Diagnostics:**
+  1. **VERIFIED REPOSITORY FACT:** Application source code, Server Actions (`actions.ts`), TypeScript schemas, presentational components, CSS design tokens, and UI logic inspected directly in the repository.
+  2. **REPOSITORY-RECORDED PRODUCTION EVIDENCE:** Repository migration files (`20260803042453_marketing_studio_foundation.sql`), decision log entries, and audit records.
+  3. **INDEPENDENTLY VERIFIED LIVE FACT:** Independently proven runtime observations (e.g., HTTP 200 checks on the public site).
+- **Explicit Classification Statements:**
+  - Server Action authorization boundaries (`actions.ts`) = **VERIFIED REPOSITORY FACT**.
+  - Migration-defined RLS & Storage policies = **VERIFIED REPOSITORY FACT / Intended database policy recorded in repository**.
+  - Live Supabase database, live RLS enforcement, and live Storage bucket state = **UNKNOWN / NOT INDEPENDENTLY VERIFIED IN C2**.
+  - Production database truth is NOT inferred from migration filenames or local migration count.
+
+---
+
+## Q. Required Later Implementation / QA Evidence
+
+The following test and quality evidence must be collected in future authorized implementation/QA stages:
+
+1. **Digital Marketer Role Browser QA:** Authenticated browser test verifying marketer draft creation, editing, media selection, and draft submission.
+2. **Owner Role Browser QA:** Authenticated browser test verifying owner review, change request, approval, scheduling, publishing, and archiving.
+3. **Marketer Publish Gate Confirmation:** Proof that non-owner marketers cannot publish directly to live tables.
+4. **Marketer Catalog Boundary Confirmation:** Proof that marketers cannot alter service prices, durations, buffers, categories, or eligibility.
+5. **Marketer Branch Boundary Confirmation:** Proof that marketers cannot alter operational branch activation, slot intervals, travel fees, or staff.
+6. **Desktop Public-Page Rendering QA:** Verification of published content across all desktop public routes (`/`, `/about`, `/services`, `/branches`, `/contact`).
+7. **Mobile Public-Page Rendering QA:** Verification of published content across mobile public routes.
+8. **Desktop / Mobile Content Parity:** Verification that publishing a draft synchronizes both desktop and mobile consumers without divergence.
+9. **High-Fidelity Draft vs Live Preview Parity:** Visual and structural parity check between draft preview and live published page.
+10. **Media Upload / Select / Replace / Archive QA:** Verification of media upload, alt-text requirement, safe replacement, and soft-archiving.
+11. **Asset Usage-Impact QA:** Verification that replacing or archiving media does not break live section references.
+12. **Keyboard Navigation & Visible Focus QA:** Verification of visible focus rings (`--cs-focus-ring`) and keyboard usability across all inputs and interactive elements.
+13. **Responsive Viewport QA:** Layout verification across 320px, 375px, 414px, 768px, 1024px, and desktop viewports.
+14. **Measured Performance Baseline:** Controlled latency measurement of marketing queries before and after any caching or query optimization decisions.
+15. **Revalidation Behavior QA:** Verification that `revalidatePath` and tag revalidation invalidate cached views immediately upon publishing.
+16. **Failure & Error-State Tests:** Verification of validation error handling, unauthorized mutation rejection, and network failure states.
+17. **Rollback & Recovery Verification:** Verification of fallback recovery paths if published data is malformed.
+
+---
+
+## R. Unknowns & Limitations
+
+1. **Live Supabase Schema Unverified:** Live Supabase database tables and column types were not independently queried in C2.
+2. **Live RLS Enforcement Unverified:** Live Postgres RLS policy execution was not tested against a live database instance in C2.
+3. **Live Storage Policy / Bucket State Unverified:** Live Supabase Storage bucket configuration and permissions were not verified in C2.
+4. **No Controlled Latency Benchmark:** No controlled empirical timing benchmark was captured during C2 read-only diagnostics.
+5. **No Authenticated Browser QA:** End-to-end browser interaction testing was not performed in C2 read-only diagnostics.
+6. **No Production Deployment Verification:** The proposed future system has not been deployed or verified on production infrastructure.
+
+---
+
+## S. Rollback Considerations for Later Implementation
+
+1. **Preserve Static BrandLogo SVG Fallback:** Static SVGs (`cradle-logo-horizontal.svg`, `cradle-logo-mark.svg`) must remain bundled as fallback defaults if dynamic brand queries fail.
+2. **Preserve Public Section Defaults:** `PUBLIC_SITE_SECTION_DEFAULTS` constants must remain intact to ensure seamless rendering when database records are absent or loading.
+3. **Preserve Existing Live Paths:** Do not decommission or remove existing live query/mutation paths until new consumers and preview paths are fully verified.
+4. **Soft-Archive Rather Than Destructive Delete:** Media assets must use soft-archiving (`status = 'archived'`) to prevent broken links in active or past sections.
+5. **Retain Draft & Revision History:** Preserve full audit trails in `marketing_content_revisions` for recovery and rollback of published changes.
+6. **No Unrelated Schema Cleanup:** Avoid bulk migration reconciliation or unrelated schema cleanup during marketing implementation.
