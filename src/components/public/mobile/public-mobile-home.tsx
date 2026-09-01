@@ -1,6 +1,11 @@
 import { getPublicServiceCatalog } from "@/lib/queries/services";
 import type { PublicCatalogService } from "@/lib/queries/services";
 import type { Database } from "@/types/supabase";
+import {
+  resolvePublicSiteSections,
+  type NormalizedPublicSiteSections,
+  type PublicSiteSectionRow,
+} from "@/lib/public/normalized-sections";
 import { MobileHomeHeroCarousel } from "./mobile-home-hero-carousel";
 import { MobileCalmCategories } from "./mobile-calm-categories";
 import { MobileMostLovedTreatments } from "./mobile-most-loved-treatments";
@@ -16,25 +21,45 @@ type BranchRow = Database["public"]["Tables"]["branches"]["Row"];
 // ── Static data ──────────────────────────────────────────────────────────────
 
 const TESTIMONIALS = [
-  { text: "The service felt calm, careful, and professional from start to finish.", name: "A. Guest" },
+  {
+    text: "The service felt calm, careful, and professional from start to finish.",
+    name: "A. Guest",
+  },
   { text: "The space is clean, peaceful, and easy to relax in.", name: "Cradle Client" },
   { text: "A refreshing experience that makes self-care feel simple.", name: "Regular Guest" },
 ] as const;
 
 // ── Component ────────────────────────────────────────────────────────────────
 
-type PublicMobileHomeProps = {
+export type PublicMobileHomeProps = {
   branches?: BranchRow[];
+  services?: PublicCatalogService[];
+  managedSections?: PublicSiteSectionRow[];
+  sections?: NormalizedPublicSiteSections;
 };
 
-export async function PublicMobileHome({ branches = [] }: PublicMobileHomeProps) {
+const isPublicSafeService = (s: PublicCatalogService) =>
+  Boolean(s.isPublicBookable && !s.isCsrOnly && !s.isVip);
+
+export async function PublicMobileHome({
+  branches = [],
+  services: initialServices,
+  managedSections,
+  sections: initialSections,
+}: PublicMobileHomeProps) {
   let services: PublicCatalogService[] = [];
-  try {
-    const all = await getPublicServiceCatalog();
-    services = all.filter((s) => s.isPublicBookable && !s.isCsrOnly && !s.isVip);
-  } catch {
-    // non-fatal — section hidden when data unavailable
+  if (initialServices) {
+    services = initialServices.filter(isPublicSafeService);
+  } else {
+    try {
+      const all = await getPublicServiceCatalog();
+      services = all.filter(isPublicSafeService);
+    } catch {
+      // non-fatal — section hidden when data unavailable
+    }
   }
+
+  const resolvedSections = initialSections ?? resolvePublicSiteSections(managedSections);
 
   const featured = services.slice(0, 4);
   const branchNames = branches.map((b) => b.name).filter(Boolean);
@@ -42,16 +67,16 @@ export async function PublicMobileHome({ branches = [] }: PublicMobileHomeProps)
   const branchListText =
     branchNames.length >= 2
       ? `${branchNames.slice(0, -1).join(", ")} and ${branchNames[branchNames.length - 1]}`
-      : branchNames[0] ?? "our Bacolod branches";
+      : (branchNames[0] ?? "our Bacolod branches");
   const branchAddressText =
     branchAddresses.length >= 2
       ? `${branchAddresses.slice(0, -1).join(" and ")}`
-      : branchAddresses[0] ?? "";
+      : (branchAddresses[0] ?? "");
 
   return (
     <div className="bg-[#061912] pb-0 text-[#F3E9D2] md:hidden">
-      {/* ── Hero Carousel ─────────────────────────────────────────────────── */}
-      <MobileHomeHeroCarousel />
+      {/* ── Hero Carousel (consuming canonical Hero data) ───────────────────── */}
+      <MobileHomeHeroCarousel hero={resolvedSections.hero} />
 
       {/* ── Calm mobile journey ───────────────────────────────────────────── */}
       <div className="-mt-5 rounded-t-[30px] bg-[#061912] pt-2 shadow-[0_-18px_44px_rgba(0,0,0,0.24)]">
@@ -112,8 +137,8 @@ export async function PublicMobileHome({ branches = [] }: PublicMobileHomeProps)
           </MobileFadeUp>
         </section>
 
-        {/* ── Final CTA ───────────────────────────────────────────────────── */}
-        <MobileFinalCta />
+        {/* ── Final CTA (consuming canonical quote banner / final CTA data) ─── */}
+        <MobileFinalCta quoteBanner={resolvedSections.quoteBanner} />
       </div>
     </div>
   );
