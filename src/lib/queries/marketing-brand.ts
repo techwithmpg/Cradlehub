@@ -5,7 +5,8 @@ import { isDevAuthBypassEnabled } from "@/lib/dev-bypass";
 import { logError } from "@/lib/logger";
 import { cacheTags, invalidateTag } from "@/lib/cache/cache-tags";
 
-import type { Json } from "@/types/supabase";
+import type { SupabaseClient } from "@supabase/supabase-js";
+import type { Database, Json } from "@/types/supabase";
 import type { GeneratedSiteIconPackage } from "@/lib/marketing/icon-generator";
 import { validateTrustedSiteIconPackage } from "@/lib/marketing/icon-package-validator";
 
@@ -178,10 +179,11 @@ export async function updateBrandSettingOwner(
 }
 
 export async function updateBrandSettingsBatchOwner(
-  settings: Array<{ settingKey: string; label: string; value: MarketingBrandSettingValue }>
+  settings: Array<{ settingKey: string; label: string; value: MarketingBrandSettingValue }>,
+  customSupabase?: SupabaseClient<Database>
 ): Promise<{ success: boolean; error?: string }> {
   try {
-    const supabase = await createClient();
+    const supabase = customSupabase ?? (await createClient());
     const {
       data: { user },
     } = await supabase.auth.getUser();
@@ -205,13 +207,19 @@ export async function updateBrandSettingsBatchOwner(
       staffId = me?.id ?? null;
     }
 
-    // Validate any dynamic site icon package before writing to live settings
+    // Validate any dynamic site icon package and persist only the normalized validated package
+    const sanitizedSettings: Array<{
+      settingKey: string;
+      label: string;
+      value: MarketingBrandSettingValue;
+    }> = [];
+
     for (const s of settings) {
       if (s.settingKey === "site_icon" && s.value && typeof s.value === "object") {
         const siteIconVal = s.value as Record<string, unknown>;
         if (siteIconVal.package) {
           const validation = await validateTrustedSiteIconPackage(siteIconVal.package, supabase);
-          if (!validation.isValid) {
+          if (!validation.isValid || !validation.validatedPackage) {
             return {
               success: false,
               error:
@@ -219,12 +227,22 @@ export async function updateBrandSettingsBatchOwner(
                 "Direct brand publish failed: invalid dynamic site icon package.",
             };
           }
+          sanitizedSettings.push({
+            ...s,
+            value: {
+              url: validation.validatedPackage.icons.icon32,
+              alt: (siteIconVal.alt as string) || "Cradle Site Icon",
+              package: validation.validatedPackage,
+            },
+          });
+          continue;
         }
       }
+      sanitizedSettings.push(s);
     }
 
     const now = new Date().toISOString();
-    const rowsToUpsert = settings.map((s) => ({
+    const rowsToUpsert = sanitizedSettings.map((s) => ({
       setting_key: s.settingKey,
       label: s.label,
       value: s.value as unknown as Json,

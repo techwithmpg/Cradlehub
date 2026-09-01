@@ -497,6 +497,27 @@ describe("Draft Publication Pipelines (C5.4 Review Corrections)", () => {
           }
           return {};
         }),
+        storage: {
+          from: vi.fn((bucket: string) => ({
+            list: vi.fn().mockResolvedValue({
+              data: [
+                "icon-16.png",
+                "icon-32.png",
+                "icon-48.png",
+                "apple-touch-icon-180.png",
+                "icon-192.png",
+                "icon-512.png",
+                "maskable-512.png",
+              ].map((name) => ({ name })),
+              error: null,
+            }),
+            getPublicUrl: vi.fn((path: string) => ({
+              data: {
+                publicUrl: `https://lsrbwqhvzjfpiabeolkv.supabase.co/storage/v1/object/public/${bucket}/${path}`,
+              },
+            })),
+          })),
+        },
       };
 
       const result = await publishMarketingContentDraft({ id: draftUuid });
