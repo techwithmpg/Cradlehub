@@ -10,12 +10,13 @@
 
 - C0B accepted governance merge SHA: `03dbd57ed4be6f9b1f0bd30c7fd22a225e68ec2a`
 - C0B status: **CLOSED / ACCEPTED**
-- Last governance closeout verification: 2026-08-26
-- C1 accepted-main baseline at authorization: `4f9291c7d457ec49b071e766df4c23ca1e4f1558`
-- C1 evidence verification: 2026-08-27
-- Current stage: **C1 — OWNER ACCEPTED / MERGE GATE IN PROGRESS**
+- C1 accepted truth consolidation merge SHA: `3f402e033e1d1ca05b8cc8a4f2764823f7aaa622`
+- C1 status: **CLOSED / ACCEPTED**
+- Last governance closeout verification: 2026-09-01
+- Current stage: **C2 — Structured Diagnostics (Digital Marketing Workspace)**
+- C2 status: **DIAGNOSTICS COMPLETE / REPORT DELIVERED**
 
-The recorded SHA is the stable C0B closeout anchor, not a declaration of the current `main` head. At the start of every session, fetch and re-resolve `origin/main`; inspect newer accepted work rather than recreating an older state.
+The recorded SHAs are stable closeout anchors, not declarations of the current `main` head. At the start of every session, fetch and re-resolve `origin/main`; inspect newer accepted work rather than recreating an older state.
 
 ## Authority order
 
@@ -55,7 +56,7 @@ The recorded SHA is the stable C0B closeout anchor, not a declaration of the cur
 
 ## Current authorization
 
-C0B is closed and accepted. C1 current-system truth consolidation was owner-accepted on 2026-09-01. `stage/c1-closeout` exists only to complete the C1 merge gate against the current accepted `main`. Upon successful C1 merge acceptance, C2 Structured Diagnostics is authorized only for the Digital Marketing Workspace. C2 is read-only diagnostics: no product implementation, database/schema mutation, migration reconciliation, production mutation, or unrelated Web work is authorized. C3 and later stages remain not authorized.
+C0B and C1 are closed and accepted. C1 merge was accepted into main at `3f402e033e1d1ca05b8cc8a4f2764823f7aaa622`. C2 Structured Diagnostics for the Digital Marketing Workspace has completed and delivered `docs/audits/C2_MARKETING_STRUCTURED_DIAGNOSTICS_REPORT.md`. C2 is read-only diagnostics: zero product implementation, database/schema mutation, migration reconciliation, production mutation, or unrelated Web work occurred. C3 and later stages remain not authorized pending owner review of the C2 report.
 
 ## Historical context policy
 

@@ -3,39 +3,32 @@
 ## Current program
 
 - **Program:** Controlled Stabilization
-- **Current stage:** C1 — Current-System Truth Consolidation
-- **C1 status:** OWNER ACCEPTED / MERGE GATE IN PROGRESS
+- **Current stage:** C2 — Structured Diagnostics (Digital Marketing Workspace)
+- **C2 status:** COMPLETE / REPORT DELIVERED
+- **C2 report:** `docs/audits/C2_MARKETING_STRUCTURED_DIAGNOSTICS_REPORT.md`
+- **C1 status:** CLOSED / ACCEPTED
+- **Accepted C1 truth consolidation merge:** `3f402e033e1d1ca05b8cc8a4f2764823f7aaa622`
 - **C1 accepted-main baseline:** `4f9291c7d457ec49b071e766df4c23ca1e4f1558`
-- **C1 closeout reconciliation base:** `18216622422a760ec015f22515c93cf99102d6a5`
-- **C1 closeout branch:** `stage/c1-closeout`
 - **C0B status:** CLOSED / ACCEPTED
 - **Accepted C0B governance merge:** `03dbd57ed4be6f9b1f0bd30c7fd22a225e68ec2a`
 - **External review:** PASS
 - **Merge verification:** PASS
-- **C0B production deployment verification:** PASS (repository-recorded)
-- **Next stage:** C2 — AUTHORIZED AFTER ACCEPTED C1 MERGE / DIGITAL MARKETING WORKSPACE DIAGNOSTICS ONLY
+- **Next stage:** C3 — NOT AUTHORIZED (Awaiting owner review of C2 report and C3 scope freeze)
 
 ## Current safety state
 
 - `main` is production-connected.
-- No product implementation, database/schema mutation, migration action, or production mutation is authorized in this C1 closeout or in C2 diagnostics.
+- No product implementation, database/schema mutation, migration action, or production mutation was performed in C2 diagnostics.
 - Historical migration reconciliation is constrained: 84 local-only versions remain intentionally unmarked.
 - Attendance operational enforcement remains not training-ready until its repository-recorded gates pass.
 
-## Authorized C2 scope after C1 merge acceptance
+## C2 Marketing Diagnostics summary
 
-C2 is limited to read-only Structured Diagnostics for the Digital Marketing Workspace:
-
-- `/marketing`, `/owner/marketing`, and their existing shared consumers;
-- public-site sections/assets, marketing drafts/revisions, brand and SEO settings;
-- media/Storage ownership and authorization boundaries;
-- public branch fields versus operational branch authority;
-- service marketing fields versus operational service authority;
-- preview, review, approval, scheduling, and publish boundaries;
-- existing public-page consumers and cache/revalidation side effects;
-- relevant tests, performance dependencies, failure states, and safe replacement paths.
-
-C2 does not authorize UI implementation, product fixes, schema changes, migration application/reconciliation, RLS changes, Storage mutation, production mutation, or unrelated Web diagnostics.
+- Full mapping of consumers, sources of truth, ownership boundaries, media/Storage, branding, branches, services, draft preview, and publishing workflows completed.
+- P1 discovery: Public Mobile Home (`PublicMobileHome` / `MobileHomeHeroCarousel`) uses hardcoded copy and ignores `public_site_sections` (only desktop consumes published sections).
+- P1 discovery: Owner marketing studio allows direct live mutation of `public_site_sections` without recording a revision in `marketing_content_revisions`.
+- P1 discovery: `BrandLogo` component is statically bound to SVG assets and does not consume `marketing_brand_settings`.
+- Strict authorization boundary confirmed: `digital_marketer` has draft/media rights only; operational prices, durations, schedules, attendance, staff, and RBAC are completely protected.
 
 ## C1 verification summary
 
@@ -47,7 +40,7 @@ C2 does not authorize UI implementation, product fixes, schema changes, migratio
 - Formatting gate: FAIL — 93 existing incremental files.
 - Live CradleHub database verification: NOT AVAILABLE; no substitute project used.
 - Production web read-only check: HTTP 200, served by Vercel/Next.js; deployed project/commit remains unverified.
-- Product/database/production mutation in C1: NONE.
+- Product/database/production mutation in C1/C2: NONE.
 
 ## Verified repository summary
 
@@ -58,10 +51,8 @@ CradleHub is a Next.js 16.2.4 / React 19.2.4 web application using Supabase Post
 - historical migration-history limitation and unavailable live database verification;
 - Attendance operational gates;
 - formatting baseline failure;
-- privileged service-role/super-admin boundaries requiring C2 review;
+- privileged service-role/super-admin boundaries requiring review;
 - GitHub protection/ruleset and Vercel linkage/deployed-commit unknowns; and
 - production-connected `main` release safety.
 
-C1 owner review is ACCEPTED and the PASS recommendation was approved on 2026-09-01. This closeout branch must still pass final diff/review and the required merge gate. After C1 is accepted into main, C2 read-only Structured Diagnostics may begin for the Digital Marketing Workspace only. Product fixes, UI implementation, database/Storage mutation, migration actions, and C3 or later work are not authorized.
-
-**C2 IS CONDITIONALLY AUTHORIZED: only after C1 merge acceptance, and only for Digital Marketing Workspace structured diagnostics.**
+C1 is CLOSED and ACCEPTED at merge SHA `3f402e033e1d1ca05b8cc8a4f2764823f7aaa622`. C2 Structured Diagnostics for the Digital Marketing Workspace is COMPLETE. Product fixes, UI implementation, database/Storage mutation, migration actions, and C3 or later work are NOT AUTHORIZED without explicit owner instruction.
