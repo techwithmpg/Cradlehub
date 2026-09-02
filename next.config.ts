@@ -1,6 +1,7 @@
 import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
+  serverExternalPackages: ["sharp"],
   experimental: {
     // Cache dynamic (auth-gated) page payloads in the client-side router for
     // 2 minutes. Without this, every navigation re-fetches from the server

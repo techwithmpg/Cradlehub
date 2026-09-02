@@ -173,6 +173,7 @@ vi.mock("@/lib/queries/services", () => ({
 }));
 
 import {
+  getMarketingMediaAssets,
   saveMarketingMediaAsset,
   updateMarketingMediaAssetStatus,
   archiveMarketingMediaAsset,
@@ -606,5 +607,17 @@ describe("marketing media queries - role boundaries and safety enforcement", () 
     if (!result.success) {
       expect(result.error).toContain("catalog finalization failed");
     }
+  });
+
+  it("ensures media query and listing functions execute without requiring eager sharp initialization", async () => {
+    mockStaff = { id: "staff-dm", system_role: "digital_marketer" };
+    mockDbSelectData = [];
+    mockDbSelectError = null;
+
+    const assets = await getMarketingMediaAssets();
+    expect(assets).toEqual([]);
+
+    const usageMap = await getMarketingMediaUsageMap([]);
+    expect(usageMap).toEqual({});
   });
 });

@@ -32,7 +32,6 @@ import {
   getMediaContract,
   type MarketingMediaIntentKey,
 } from "@/lib/marketing/media-contracts";
-import { validateMediaBuffer } from "@/lib/marketing/media-contracts-server";
 
 export type MarketingMediaAssetRow = {
   id: string;
@@ -767,6 +766,7 @@ export async function uploadMarketingMediaFile(
     }
 
     const contract = getMediaContract(mediaIntent as MarketingMediaIntentKey);
+    const { validateMediaBuffer } = await import("@/lib/marketing/media-contracts-server");
     const validation = await validateMediaBuffer(buffer, file.type, contract);
 
     if (!validation.isValid) {
