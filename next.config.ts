@@ -2,6 +2,12 @@ import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
   serverExternalPackages: ["sharp"],
+  outputFileTracingIncludes: {
+    "/*": [
+      "./node_modules/.pnpm/@img+sharp-libvips-linux-x64@*/node_modules/@img/sharp-libvips-linux-x64/**/*",
+      "./node_modules/.pnpm/@img+sharp-linux-x64@*/node_modules/@img/sharp-linux-x64/**/*",
+    ],
+  },
   experimental: {
     // Cache dynamic (auth-gated) page payloads in the client-side router for
     // 2 minutes. Without this, every navigation re-fetches from the server

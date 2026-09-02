@@ -6,6 +6,17 @@ vi.mock("next/cache", () => ({
   revalidateTag: vi.fn(),
   unstable_cache: vi.fn((fn: (...args: unknown[]) => unknown) => fn),
 }));
+const mockValidateMediaBuffer = vi.fn().mockResolvedValue({
+  isValid: true,
+  width: 1920,
+  height: 1080,
+  format: "jpeg",
+});
+
+vi.mock("@/lib/marketing/media-contracts-server", () => ({
+  validateMediaBuffer: (...args: unknown[]) => mockValidateMediaBuffer(...args),
+}));
+
 vi.mock("@/lib/logger", () => ({
   logError: vi.fn(),
   logInfo: vi.fn(),
@@ -614,10 +625,48 @@ describe("marketing media queries - role boundaries and safety enforcement", () 
     mockDbSelectData = [];
     mockDbSelectError = null;
 
+    mockValidateMediaBuffer.mockClear();
+
+    // 1. Read operations must not invoke native server-side image validation
     const assets = await getMarketingMediaAssets();
     expect(assets).toEqual([]);
 
     const usageMap = await getMarketingMediaUsageMap([]);
     expect(usageMap).toEqual({});
+
+    expect(mockValidateMediaBuffer).not.toHaveBeenCalled();
+
+    // 2. Binary upload write operations with media intent dynamically invoke server-side media validation
+    const file = new File(["sample image bytes"], "hero.jpg", { type: "image/jpeg" });
+    const formData = new FormData();
+    formData.append("file", file);
+    formData.append("mediaIntent", "HERO_BACKGROUND");
+    formData.append("title", "Hero Image");
+    formData.append("altText", "Hero Alt");
+    formData.append("sectionKey", "hero");
+
+    mockDbInsertData = {
+      id: TEST_ASSET_ID,
+      bucket_path: "media/1725170000-hero.jpg",
+      public_url: null,
+      title: "Hero Image",
+      alt_text: "Hero Alt",
+      section_key: "hero",
+      status: "draft",
+      metadata: { uploadStatus: "pending" },
+    };
+    mockDbInsertError = null;
+    mockDbUpdateData = {
+      id: TEST_ASSET_ID,
+      bucket_path: "media/1725170000-hero.jpg",
+      public_url: "https://example.com/media/hero.jpg",
+      status: "draft",
+    };
+    mockDbUpdateError = null;
+
+    await uploadMarketingMediaFile(formData);
+
+    // Verify dynamic import of media-contracts-server was executed during binary upload validation
+    expect(mockValidateMediaBuffer).toHaveBeenCalledTimes(1);
   });
 });
