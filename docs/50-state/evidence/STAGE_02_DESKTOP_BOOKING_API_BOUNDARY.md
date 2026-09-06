@@ -8,6 +8,10 @@ Hosted Stage 02 Desktop booking API boundary
 
 `stage/02-desktop-booking-api`
 
+## Current Stage HEAD
+
+`5061e35c30222aebc311b4ee3e9b5e260712c252`
+
 ## Previous Reviewed HEAD
 
 `f37f84feeb5a33d132c500a3369beab5904c695a`
@@ -22,14 +26,20 @@ Hosted Stage 02 Desktop booking API boundary
 
 ## Reconciled Main Commits Incorporated
 
-1. `c38b573a` - test(marketing): add regression tests for desktop responsive layout
-2. `4c207fa1` - fix(marketing): enforce desktop-first min-width media queries in marketing layouts
-3. `624b4d3c` - fix(packaging): copy sharp native binaries to standalone build output
-4. `cddd96e6` - build(sharp): package linux-x64 sharp prebuilt binaries for standalone output
+1. `c38b573a2be99ed9102d2f1c9bd342acaff7b9a1`
+   `fix(marketing): resolve Sharp Linux runtime packaging and decouple read query boundary`
+2. `4c207fa17a23fb8da36cf7ec55b94ddccebfe51d`
+   `fix(marketing): add outputFileTracingIncludes for sharp libvips and strengthen import-guard regression test`
+3. `624b4d3ca3dc0831e905447bcc1360de26afc032`
+   `test(marketing): enforce Sharp import boundary`
+4. `cddd96e63ac37a1a720ccb94f037f4820833f150`
+   `docs(marketing): record P0 Sharp recovery evidence`
 
 ## Desktop Dependency
 
-`stage/02-bookings` @ `7afb30ccb0996915544dae4c41c9e653bc9f310e` (and reviewed integration @ `8c972d533e72163884c632171242314a46e090ca`)
+`stage/02-bookings` @ `9268a95d1ada8b2d963cceb56f0b0b5a1d69e83f`
+
+This is the current reviewed Desktop Stage 02 head that targets this hosted booking boundary.
 
 ## Changed Files vs Current Main
 
