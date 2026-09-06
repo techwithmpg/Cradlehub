@@ -1,4 +1,4 @@
-# Hosted Stage 03 Desktop Customer Read Boundary Evidence
+# Hosted Stage 03 — Desktop Customer API Evidence
 
 ## Target
 
@@ -6,23 +6,41 @@ Hosted CradleHub (`techwithmpg/Cradlehub`)
 
 ## Stage
 
-Stage 03 — Customers hosted read boundary
+Stage 03 - Customers hosted read boundary (Harden Security & Correctness Boundary)
 
 ## Branch
 
 `stage/03-desktop-customer-api`
 
-## BASE_SHA
+## Historical Commit Timeline
 
-`f8455078d212b55595c277c577a80d89995c7585`
-
-## Implementation HEAD
-
-`b8c5f2e0436d4bc2eb76fbe6d52571efc565fc36`
+- **BASE_SHA**: `f8455078d212b55595c277c577a80d89995c7585`
+- **Original Implementation Snapshot**: `b8c5f2e0e5eab7cc46c179ea34cba7eac1655a4e`
+- **Original Evidence Snapshot**: `6074331fed4f64ef57d1fc8da1fa5b27224fac7a`
+- **Security/Correctness Correction Implementation HEAD**: `176de5f8d22f6d893d4166462861d1b835886cdf`
 
 ## Desktop Dependency
 
 `stage/03-customers` @ `ec87769bba591d87f98a04640004f35c71086d80`
+
+## Security & Correctness Boundary Correction Summary
+
+1. **User-Scoped Authenticated Supabase Client**:
+   - The Stage 03 customer read engine now strictly executes queries using the authenticated user's Supabase client instantiated inside `verifyDesktopBearerAuth` (`NEXT_PUBLIC_SUPABASE_URL`, `NEXT_PUBLIC_SUPABASE_ANON_KEY`, `Authorization: Bearer <token>`).
+   - `createAdminClient`, `SUPABASE_SERVICE_ROLE_KEY`, and service-role / RLS-bypass access have been completely removed from the Stage 03 customer engine.
+   - The user-scoped client is passed in the execution context (`{ operator, supabase }`).
+   - The raw Bearer token is never returned and the client is never serialized into HTTP responses.
+2. **Database Error Truthfulness & Fail-Closed Behavior**:
+   - **Branch Lookup**: Database error returns `SERVER_DATABASE_ERROR` (500); missing branch returns `BRANCH_NOT_FOUND` (400).
+   - **Branch Customer Membership**: Database error returns `SERVER_DATABASE_ERROR` (500); true 0 rows returns legitimate empty state (`{ data: [], total: 0 }`).
+   - **KPI Queries**: Errors from `repeat`, `lapsed`, `newThisMonth`, or `totalVisits` queries fail closed with `SERVER_DATABASE_ERROR` (500). No 0s or false defaults are substituted for failed database queries.
+   - **Customer Detail & History**: Membership check errors and query errors fail closed with `SERVER_DATABASE_ERROR` (500).
+3. **Strict Request Parameter Validation**:
+   - **`tab`**: Optional (defaults to `all`). If present, must be strictly one of: `all`, `repeat`, `lapsed`, `followup`. Any other value returns 400 `VALIDATION_ERROR`.
+   - **`page`**: Optional (defaults to 1). If present, must be an integer >= 1. Rejects `0`, `-1`, `1.5`, `abc`, and empty strings with 400 `VALIDATION_ERROR`.
+   - **`pageSize`**: Optional (defaults to 25). If present, must be an integer between 1 and 100 inclusive. Rejects `0`, `101`, `1.5`, `abc`, and empty strings with 400 `VALIDATION_ERROR`.
+   - **`q`**: Optional trimmed search string. Maximum length 100 characters. Rejects strings longer than 100 characters with 400 `VALIDATION_ERROR`.
+   - **`branchId`**: Validated as UUID string and authorized against operator role context.
 
 ## Implementation Scope
 
@@ -33,146 +51,51 @@ Owner-authorized, read-only hosted customer API boundary:
 
 ## Changed Files vs Base
 
-- `src/lib/customers/desktop-customer-engine.ts` [NEW] — Authoritative server-only customer read engine (`import "server-only";`)
-- `src/app/api/desktop/v1/customers/route.ts` [NEW] — Dedicated authenticated GET endpoint for customer list, search, segments, and KPIs
-- `src/app/api/desktop/v1/customers/[customerId]/route.ts` [NEW] — Dedicated authenticated GET endpoint for customer detail and branch-filtered history
-- `tests/lib/customers/desktop-customer-engine.test.ts` [NEW] — Unit tests for authorization, branch privacy, segments, KPIs, detail membership, history filtering, and data minimization
-- `tests/api/desktop-v1-customers.test.ts` [NEW] — Route-level tests for Bearer auth enforcement, HTTP status mapping, error responses, and `Cache-Control: no-store`
-- `docs/50-state/evidence/stage-03-desktop-customer-api.md` [NEW] — This hosted evidence document
+- `src/lib/auth/desktop-bearer-auth.ts` - Extended `DesktopBearerAuthResult` on success to return user-scoped `client`
+- `src/lib/customers/desktop-customer-engine.ts` - User-scoped customer read engine, strict parameter validation, fail-closed DB error handling, 0 service-role usage
+- `src/app/api/desktop/v1/customers/route.ts` - Dedicated authenticated GET endpoint passing `{ operator, supabase: authResult.client }`
+- `src/app/api/desktop/v1/customers/[customerId]/route.ts` - Dedicated authenticated GET endpoint passing `{ operator, supabase: authResult.client }`
+- `tests/lib/auth/desktop-bearer-auth.test.ts` - Unit tests asserting authenticated client return, token privacy, and error handling
+- `tests/lib/customers/desktop-customer-engine.test.ts` - Unit tests for context validation, strict parameter rejection, fail-closed DB error truthfulness, segment filtering, KPIs, and branch history isolation
+- `tests/api/desktop-v1-customers.test.ts` - Route-level tests for Bearer auth enforcement, parameter validation mapping to 400, and HTTP status codes
+- `tests/api/desktop-v1-bookings.test.ts` - Updated mock bearer auth results to include `client` for compatibility
+- `docs/50-state/evidence/stage-03-desktop-customer-api.md` - Corrected hosted evidence document
 
-## Authentication Model
+## Security Grep Checks
 
-- Reuses canonical `verifyDesktopBearerAuth(request)` from `@/lib/auth/desktop-bearer-auth`.
-- Authenticates incoming Bearer token against Supabase auth.
-- Resolves active staff profile linked to `auth_user_id` (`staff` table).
-- Enforces CRM workspace role permission (`canAccessCrmWorkspace(staffRole)`).
-- Strictly fail-closed (`isDevBypass: false`; no dev bypass shortcuts).
-- Returns 401 `UNAUTHORIZED` on missing, malformed, or invalid tokens.
-- Returns 403 `STAFF_NOT_FOUND` if user has no active staff record.
-- Returns 403 `CRM_PERMISSION_DENIED` if staff role is not authorized for CRM workspace.
-
-## Server-Side Branch Privacy & Authorization
-
-Because the `customers` table contains no `branch_id` column:
-
-1. **Non-Owner Operators**:
-   - Authoritative branch is strictly `operator.staff.branch_id`.
-   - Renderer-supplied `branchId` cannot override the staff branch.
-   - Supplying a different `branchId` immediately returns 403 `CRM_BRANCH_FORBIDDEN`.
-2. **Owner Operators**:
-   - Supports selecting a branch context via query parameter `branchId` (or falling back to `staff.branch_id`).
-   - Verifies the selected branch exists in the `branches` table before querying; returns 400 `BRANCH_NOT_FOUND` if invalid.
-   - If no branch context is provided and staff has no branch, returns 400 `BRANCH_REQUIRED`.
-3. **List & Search Membership Scoping**:
-   - Customer branch membership is resolved server-side through `bookings` records where `branch_id = effectiveBranchId` and `customer_id IS NOT NULL`.
-   - Never loads global customers for desktop filtering.
-4. **Detail Membership Scoping**:
-   - Before returning customer profile, the server verifies the customer has at least one booking in `bookings` for `effectiveBranchId`.
-   - If no booking membership exists, returns 404 `CUSTOMER_NOT_FOUND`.
-5. **Booking History Filtering**:
-   - Booking history is queried strictly with composite filter: `customer_id = customerId` AND `branch_id = effectiveBranchId`.
-   - Never returns global booking history from other branches.
-
-## List Endpoint Contract
-
-`GET /api/desktop/v1/customers`
-
-- **Query Parameters**:
-  - `tab`: `all` | `repeat` | `lapsed` | `followup` (default `all`)
-  - `q`: optional name/phone search query (trimmed, sanitized)
-  - `page`: default 1
-  - `pageSize`: default 25, maximum 100
-  - `branchId`: optional UUID string (validated per server-side branch rules)
-- **Business Definitions**:
-  - `Repeat`: $\ge 2$ bookings (`total_bookings >= 2`)
-  - `Lapsed`: $\ge 30$ days since last booking and at least one booking (`total_bookings >= 1` and `last_booking_date < 30_days_ago`)
-  - `KPIs`:
-    - `totalCustomers`: count of distinct customers with bookings at effective branch
-    - `repeatClients`: count of branch customers with $\ge 2$ bookings
-    - `lapsedClients`: count of branch customers with $\ge 1$ booking and last visit $\ge 30$ days ago
-    - `newThisMonth`: count of branch customers whose `first_booking_date` falls in the current month
-    - `totalVisits`: sum of `total_bookings` across branch customers
+- `git grep -n "createAdminClient" -- src/app/api/desktop/v1/customers src/lib/customers` -> 0 results.
+- `git grep -n "SUPABASE_SERVICE_ROLE" -- src/app/api/desktop/v1/customers src/lib/customers` -> 0 results.
+- `git grep -n -E "Access-Control-Allow-Origin|pricePaid|paymentMethod|paymentReference|totalRevenue|revenue" -- src/app/api/desktop/v1/customers src/lib/customers` -> 0 results.
 
 ## Data Minimization & Privacy
 
-- **List Rows (`data`)**: Contains only operational listing fields:
-  - `id`
-  - `fullName`
-  - `phone`
-  - `email`
-  - `totalBookings`
-  - `firstBookingDate`
-  - `lastBookingDate`
-  - `preferredStaffId`
-  - `preferredStaffName`
-- **List Prohibitions**: Sensitive notes (`notes`, `healthNotes`, `pressurePreference`, `birthday`) are strictly omitted from list and search payloads.
-- **Detail Profile (`customer`)**: Operational profile fields required for the Customer Inspector:
-  - `id`, `fullName`, `phone`, `email`, `firstBookingDate`, `lastBookingDate`, `totalBookings`, `notes`, `preferredStaffId`, `preferredStaffName`, `preferredVisitType`, `pressurePreference`, `healthNotes`, `birthday`, `loyaltyTier`.
-- **Booking History (`bookingHistory`)**: Allowed operational fields only:
-  - `id`, `bookingDate`, `startTime`, `status`, `type`, `serviceName`, `staffName`, `branchName`.
-- **Zero Finance / Payments**: NO `pricePaid`, `amount`, `paymentMethod`, `paymentStatus`, `paymentReference`, `totalRevenue`, `averageSpend`, `revenue` exposed anywhere in any customer payload.
-
-## Follow-up Architecture
-
-- Read-only direct query on `waitlist_requests` where `branch_id = effectiveBranchId`.
-- Completely decoupled from cookie-authenticated web Server Actions (`getWaitlistAction`).
-- Zero mutations (does not alter status `waiting`, `contacted`, `converted`, `cancelled`, `expired`).
-- Zero notification triggers.
-
-## Error Contract & Headers
-
-Standardized JSON error format:
-
-```json
-{
-  "ok": false,
-  "code": "...",
-  "message": "..."
-}
-```
-
-HTTP status mappings:
-
-- 401 `UNAUTHORIZED`
-- 403 `STAFF_NOT_FOUND`, `CRM_PERMISSION_DENIED`, `CRM_BRANCH_FORBIDDEN`
-- 404 `CUSTOMER_NOT_FOUND`
-- 400 `VALIDATION_ERROR`, `BRANCH_REQUIRED`, `BRANCH_NOT_FOUND`, `BRANCH_MISSING`
-- 500 `SERVER_CONFIG_ERROR`, `SERVER_DATABASE_ERROR`, `UNKNOWN_ERROR`
-
-All responses include:
-
-- `Cache-Control: no-store`
-- No raw database error leakage
-- No wildcard CORS headers
-
-## Security & Data Impact
-
-- **Read-Only**: Zero database mutations, zero writes.
-- **No Schema Changes**: No migrations, table alterations, or DDL.
-- **No RLS / Auth Changes**: No policy alterations or Supabase auth config changes.
-- **No Dev Bypass**: Engine strictly requires explicit verified operator context.
-- **No Service Role Leak**: Service role client operates solely within server-only boundaries; no service role keys or admin tokens reach responses.
+- **List Rows (`data`)**: Operational listing fields only (`id`, `fullName`, `phone`, `email`, `totalBookings`, `firstBookingDate`, `lastBookingDate`, `preferredStaffId`, `preferredStaffName`). Sensitive notes are omitted.
+- **Detail Profile (`customer`)**: Operational profile fields required for the Customer Inspector (`id`, `fullName`, `phone`, `email`, `firstBookingDate`, `lastBookingDate`, `totalBookings`, `notes`, `preferredStaffId`, `preferredStaffName`, `preferredVisitType`, `pressurePreference`, `healthNotes`, `birthday`, `loyaltyTier`).
+- **Booking History (`bookingHistory`)**: Operational booking fields only (`id`, `bookingDate`, `startTime`, `status`, `type`, `serviceName`, `staffName`, `branchName`).
+- **Zero Finance / Payments**: NO `pricePaid`, `amount`, `paymentMethod`, `paymentStatus`, `paymentReference`, `totalRevenue`, `averageSpend`, or `revenue` exposed anywhere.
 
 ## Verification Results
 
 1. **Focused Vitest Suite**:
    `pnpm vitest run tests/lib/customers/ tests/api/desktop-v1-customers.test.ts tests/lib/auth/desktop-bearer-auth.test.ts tests/api/desktop-v1-bookings.test.ts`
-   - 4 test files, 54 tests passed (0 failures).
-2. **ESLint**:
-   `pnpm lint` — Passed with 0 errors.
-3. **TypeScript**:
-   `pnpm type-check` — Passed with 0 errors.
-4. **Next.js Production Build**:
-   `pnpm build` — Compiled successfully in 44s, all 116 static/dynamic pages and routes built without error.
-5. **Formatting**:
-   `npx prettier --write` executed cleanly across all new/modified files.
-6. **Git Cleanliness**:
+   - 4 test files, 62 tests passed (0 failures).
+2. **Full Repository Test Suite**:
+   `pnpm test`
+   - 217 test files, 1586 tests passed (0 failures).
+3. **ESLint**:
+   `pnpm lint` - Passed with 0 errors.
+4. **TypeScript**:
+   `pnpm type-check` - Passed with 0 errors.
+5. **Next.js Production Build**:
+   `pnpm build` - Compiled successfully with Turbopack, all 116 static/dynamic routes generated cleanly.
+6. **Formatting**:
+   `npx prettier --write` executed cleanly across all modified files.
+7. **Git Cleanliness**:
    `git diff --check` passed cleanly.
 
-## Limitations
+## Production Runtime Statement
 
-- Customer updates (`PATCH` / `POST` customers) remain out of scope for Stage 03.
-- Finance and Payments metrics remain dormant and excluded from the customer boundary.
+No claim of live production verification is made in this evidence document. All verification was executed via strict automated tests, type checks, lint checks, and Next.js production builds on the local workspace.
 
 ## Rollback
 
