@@ -5,13 +5,11 @@ vi.mock("server-only", () => ({}));
 import {
   executeDesktopCustomerList,
   executeDesktopCustomerDetail,
+  type DesktopCustomerExecutionContext,
 } from "@/lib/customers/desktop-customer-engine";
-import * as adminSupabase from "@/lib/supabase/admin";
 import type { InhouseBookingOperator } from "@/lib/bookings/inhouse-booking-engine";
-
-vi.mock("@/lib/supabase/admin", () => ({
-  createAdminClient: vi.fn(),
-}));
+import type { SupabaseClient } from "@supabase/supabase-js";
+import type { Database } from "@/types/supabase";
 
 const BRANCH_AAA = "11111111-1111-1111-1111-111111111111";
 const BRANCH_BBB = "22222222-2222-2222-2222-222222222222";
@@ -26,14 +24,17 @@ describe("Desktop Customer Engine - Unit Tests", () => {
 
   beforeEach(() => {
     vi.clearAllMocks();
-
     mockSupabase = {
       from: vi.fn(),
     };
-    vi.mocked(adminSupabase.createAdminClient).mockReturnValue(
-      mockSupabase as unknown as ReturnType<typeof adminSupabase.createAdminClient>
-    );
   });
+
+  function makeContext(operator: InhouseBookingOperator): DesktopCustomerExecutionContext {
+    return {
+      operator,
+      supabase: mockSupabase as unknown as SupabaseClient<Database>,
+    };
+  }
 
   describe("Authentication & Authorization Enforcement", () => {
     it("rejects operator with no active staff record", async () => {
@@ -44,7 +45,7 @@ describe("Desktop Customer Engine - Unit Tests", () => {
         isDevBypass: false,
       };
 
-      const result = await executeDesktopCustomerList({}, operator);
+      const result = await executeDesktopCustomerList({}, makeContext(operator));
       expect(result).toEqual({
         ok: false,
         code: "STAFF_NOT_FOUND",
@@ -64,7 +65,7 @@ describe("Desktop Customer Engine - Unit Tests", () => {
         isDevBypass: false,
       };
 
-      const result = await executeDesktopCustomerList({}, operator);
+      const result = await executeDesktopCustomerList({}, makeContext(operator));
       expect(result).toEqual({
         ok: false,
         code: "CRM_PERMISSION_DENIED",
@@ -84,7 +85,7 @@ describe("Desktop Customer Engine - Unit Tests", () => {
         isDevBypass: false,
       };
 
-      const result = await executeDesktopCustomerList({}, operator);
+      const result = await executeDesktopCustomerList({}, makeContext(operator));
       expect(result).toEqual({
         ok: false,
         code: "CRM_BRANCH_FORBIDDEN",
@@ -104,7 +105,10 @@ describe("Desktop Customer Engine - Unit Tests", () => {
         isDevBypass: false,
       };
 
-      const result = await executeDesktopCustomerList({ branchId: BRANCH_BBB }, operator);
+      const result = await executeDesktopCustomerList(
+        { branchId: BRANCH_BBB },
+        makeContext(operator)
+      );
       expect(result).toEqual({
         ok: false,
         code: "CRM_BRANCH_FORBIDDEN",
@@ -126,7 +130,7 @@ describe("Desktop Customer Engine - Unit Tests", () => {
         isDevBypass: false,
       };
 
-      const result = await executeDesktopCustomerList({}, ownerOperator);
+      const result = await executeDesktopCustomerList({}, makeContext(ownerOperator));
       expect(result).toEqual({
         ok: false,
         code: "BRANCH_REQUIRED",
@@ -134,7 +138,7 @@ describe("Desktop Customer Engine - Unit Tests", () => {
       });
     });
 
-    it("rejects non-existent branch for owner", async () => {
+    it("rejects non-existent branch for owner with BRANCH_NOT_FOUND", async () => {
       const ownerOperator: InhouseBookingOperator = {
         authUserId: "owner-user",
         staff: {
@@ -159,11 +163,52 @@ describe("Desktop Customer Engine - Unit Tests", () => {
         return {};
       });
 
-      const result = await executeDesktopCustomerList({ branchId: BRANCH_AAA }, ownerOperator);
+      const result = await executeDesktopCustomerList(
+        { branchId: BRANCH_AAA },
+        makeContext(ownerOperator)
+      );
       expect(result).toEqual({
         ok: false,
         code: "BRANCH_NOT_FOUND",
         message: "Selected branch was not found.",
+      });
+    });
+
+    it("fails closed with SERVER_DATABASE_ERROR on branch database error", async () => {
+      const ownerOperator: InhouseBookingOperator = {
+        authUserId: "owner-user",
+        staff: {
+          id: STAFF_1,
+          branch_id: null,
+          system_role: "owner",
+        },
+        staffRole: "owner",
+        isDevBypass: false,
+      };
+
+      mockSupabase.from.mockImplementation((table: string) => {
+        if (table === "branches") {
+          return {
+            select: vi.fn().mockReturnValue({
+              eq: vi.fn().mockReturnValue({
+                maybeSingle: vi
+                  .fn()
+                  .mockResolvedValue({ data: null, error: { message: "DB timeout" } }),
+              }),
+            }),
+          };
+        }
+        return {};
+      });
+
+      const result = await executeDesktopCustomerList(
+        { branchId: BRANCH_AAA },
+        makeContext(ownerOperator)
+      );
+      expect(result).toEqual({
+        ok: false,
+        code: "SERVER_DATABASE_ERROR",
+        message: "Failed to verify branch.",
       });
     });
 
@@ -179,11 +224,190 @@ describe("Desktop Customer Engine - Unit Tests", () => {
         isDevBypass: false,
       };
 
-      const result = await executeDesktopCustomerList({ branchId: "not-a-uuid" }, ownerOperator);
+      const result = await executeDesktopCustomerList(
+        { branchId: "not-a-uuid" },
+        makeContext(ownerOperator)
+      );
       expect(result).toEqual({
         ok: false,
         code: "VALIDATION_ERROR",
         message: "Invalid branchId format.",
+      });
+    });
+  });
+
+  describe("Strict Parameter Validation", () => {
+    const validOperator: InhouseBookingOperator = {
+      authUserId: "user-manager",
+      staff: {
+        id: STAFF_1,
+        branch_id: BRANCH_AAA,
+        system_role: "manager",
+      },
+      staffRole: "manager",
+      isDevBypass: false,
+    };
+
+    it("rejects invalid tab values with VALIDATION_ERROR", async () => {
+      const result = await executeDesktopCustomerList(
+        { tab: "garbage" },
+        makeContext(validOperator)
+      );
+      expect(result).toEqual({
+        ok: false,
+        code: "VALIDATION_ERROR",
+        message: "Invalid tab parameter. Allowed values: all, repeat, lapsed, followup.",
+      });
+    });
+
+    it("rejects invalid page parameters (0, -1, 1.5, abc)", async () => {
+      for (const invalidPage of [0, -1, 1.5, "abc", "0", "-5", "1.5"]) {
+        const result = await executeDesktopCustomerList(
+          { page: invalidPage },
+          makeContext(validOperator)
+        );
+        expect(result).toEqual({
+          ok: false,
+          code: "VALIDATION_ERROR",
+          message: "Invalid page parameter. Must be an integer greater than or equal to 1.",
+        });
+      }
+    });
+
+    it("rejects invalid pageSize parameters (0, 101, 1.5, abc)", async () => {
+      for (const invalidPageSize of [0, 101, 1.5, "abc", "0", "101", "2.5"]) {
+        const result = await executeDesktopCustomerList(
+          { pageSize: invalidPageSize },
+          makeContext(validOperator)
+        );
+        expect(result).toEqual({
+          ok: false,
+          code: "VALIDATION_ERROR",
+          message: "Invalid pageSize parameter. Must be an integer between 1 and 100.",
+        });
+      }
+    });
+
+    it("rejects search queries longer than 100 characters", async () => {
+      const longQuery = "a".repeat(101);
+      const result = await executeDesktopCustomerList({ q: longQuery }, makeContext(validOperator));
+      expect(result).toEqual({
+        ok: false,
+        code: "VALIDATION_ERROR",
+        message: "Search query exceeds maximum length of 100 characters.",
+      });
+    });
+  });
+
+  describe("Database Error Truthfulness & Fail-Closed Behavior", () => {
+    const validOperator: InhouseBookingOperator = {
+      authUserId: "user-manager",
+      staff: {
+        id: STAFF_1,
+        branch_id: BRANCH_AAA,
+        system_role: "manager",
+      },
+      staffRole: "manager",
+      isDevBypass: false,
+    };
+
+    it("fails closed with SERVER_DATABASE_ERROR when bookings membership query fails", async () => {
+      mockSupabase.from.mockImplementation((table: string) => {
+        if (table === "branches") {
+          return {
+            select: vi.fn().mockReturnValue({
+              eq: vi.fn().mockReturnValue({
+                maybeSingle: vi.fn().mockResolvedValue({ data: { id: BRANCH_AAA }, error: null }),
+              }),
+            }),
+          };
+        }
+        if (table === "bookings") {
+          return {
+            select: vi.fn().mockReturnValue({
+              eq: vi.fn().mockReturnValue({
+                not: vi
+                  .fn()
+                  .mockResolvedValue({ data: null, error: { message: "Bookings DB error" } }),
+              }),
+            }),
+          };
+        }
+        return {};
+      });
+
+      const result = await executeDesktopCustomerList({}, makeContext(validOperator));
+      expect(result).toEqual({
+        ok: false,
+        code: "SERVER_DATABASE_ERROR",
+        message: "Failed to retrieve branch customer membership.",
+      });
+    });
+
+    it("fails closed with SERVER_DATABASE_ERROR when KPI queries fail", async () => {
+      mockSupabase.from.mockImplementation((table: string) => {
+        if (table === "branches") {
+          return {
+            select: vi.fn().mockReturnValue({
+              eq: vi.fn().mockReturnValue({
+                maybeSingle: vi.fn().mockResolvedValue({ data: { id: BRANCH_AAA }, error: null }),
+              }),
+            }),
+          };
+        }
+        if (table === "bookings") {
+          return {
+            select: vi.fn().mockReturnValue({
+              eq: vi.fn().mockReturnValue({
+                not: vi.fn().mockResolvedValue({
+                  data: [{ customer_id: CUSTOMER_1 }],
+                  error: null,
+                }),
+              }),
+            }),
+          };
+        }
+        if (table === "customers") {
+          return {
+            select: vi
+              .fn()
+              .mockImplementation((_cols: string, opts?: { count?: string; head?: boolean }) => {
+                if (opts?.count === "exact" && opts?.head === true) {
+                  return {
+                    in: vi.fn().mockReturnValue({
+                      gte: vi.fn().mockReturnValue({
+                        lt: vi
+                          .fn()
+                          .mockResolvedValue({ count: null, error: { message: "KPI DB Error" } }),
+                        count: null,
+                        error: { message: "KPI DB Error" },
+                        then: (cb: (val: unknown) => unknown) =>
+                          Promise.resolve({ count: null, error: { message: "KPI DB Error" } }).then(
+                            cb
+                          ),
+                      }),
+                    }),
+                  };
+                }
+                return {
+                  in: vi.fn().mockReturnValue({
+                    data: null,
+                    error: { message: "KPI DB Error" },
+                    then: (cb: (val: unknown) => unknown) =>
+                      Promise.resolve({ data: null, error: { message: "KPI DB Error" } }).then(cb),
+                  }),
+                };
+              }),
+          };
+        }
+        return {};
+      });
+
+      const result = await executeDesktopCustomerList({}, makeContext(validOperator));
+      expect(result).toEqual({
+        ok: false,
+        code: "SERVER_DATABASE_ERROR",
+        message: "Failed to calculate customer metrics.",
       });
     });
   });
@@ -200,7 +424,7 @@ describe("Desktop Customer Engine - Unit Tests", () => {
       isDevBypass: false,
     };
 
-    it("returns empty result when branch has no customer bookings", async () => {
+    it("returns empty result when branch has legitimately zero customer bookings", async () => {
       mockSupabase.from.mockImplementation((table: string) => {
         if (table === "branches") {
           return {
@@ -223,7 +447,7 @@ describe("Desktop Customer Engine - Unit Tests", () => {
         return {};
       });
 
-      const result = await executeDesktopCustomerList({}, validOperator);
+      const result = await executeDesktopCustomerList({}, makeContext(validOperator));
       expect(result).toEqual({
         ok: true,
         tab: "all",
@@ -331,7 +555,7 @@ describe("Desktop Customer Engine - Unit Tests", () => {
 
       const result = await executeDesktopCustomerList(
         { tab: "all", page: 1, pageSize: 25 },
-        validOperator
+        makeContext(validOperator)
       );
       expect(result.ok).toBe(true);
       if (!result.ok) return;
@@ -416,7 +640,10 @@ describe("Desktop Customer Engine - Unit Tests", () => {
         return {};
       });
 
-      const result = await executeDesktopCustomerList({ tab: "followup" }, validOperator);
+      const result = await executeDesktopCustomerList(
+        { tab: "followup" },
+        makeContext(validOperator)
+      );
       expect(result.ok).toBe(true);
       if (!result.ok) return;
 
@@ -452,7 +679,11 @@ describe("Desktop Customer Engine - Unit Tests", () => {
     };
 
     it("rejects invalid customerId UUID format", async () => {
-      const result = await executeDesktopCustomerDetail("invalid-id", {}, validOperator);
+      const result = await executeDesktopCustomerDetail(
+        "invalid-id",
+        {},
+        makeContext(validOperator)
+      );
       expect(result).toEqual({
         ok: false,
         code: "VALIDATION_ERROR",
@@ -485,11 +716,44 @@ describe("Desktop Customer Engine - Unit Tests", () => {
         return {};
       });
 
-      const result = await executeDesktopCustomerDetail(CUSTOMER_1, {}, validOperator);
+      const result = await executeDesktopCustomerDetail(CUSTOMER_1, {}, makeContext(validOperator));
       expect(result).toEqual({
         ok: false,
         code: "CUSTOMER_NOT_FOUND",
         message: "Customer not found or has no bookings at this branch.",
+      });
+    });
+
+    it("fails closed with SERVER_DATABASE_ERROR when membership check fails in DB", async () => {
+      mockSupabase.from.mockImplementation((table: string) => {
+        if (table === "branches") {
+          return {
+            select: vi.fn().mockReturnValue({
+              eq: vi.fn().mockReturnValue({
+                maybeSingle: vi.fn().mockResolvedValue({ data: { id: BRANCH_AAA }, error: null }),
+              }),
+            }),
+          };
+        }
+        if (table === "bookings") {
+          return {
+            select: vi.fn().mockReturnValue({
+              eq: vi.fn().mockReturnValue({
+                eq: vi.fn().mockReturnValue({
+                  limit: vi.fn().mockResolvedValue({ data: null, error: { message: "DB Error" } }),
+                }),
+              }),
+            }),
+          };
+        }
+        return {};
+      });
+
+      const result = await executeDesktopCustomerDetail(CUSTOMER_1, {}, makeContext(validOperator));
+      expect(result).toEqual({
+        ok: false,
+        code: "SERVER_DATABASE_ERROR",
+        message: "Failed to verify customer membership.",
       });
     });
 
@@ -579,7 +843,7 @@ describe("Desktop Customer Engine - Unit Tests", () => {
         return {};
       });
 
-      const result = await executeDesktopCustomerDetail(CUSTOMER_1, {}, validOperator);
+      const result = await executeDesktopCustomerDetail(CUSTOMER_1, {}, makeContext(validOperator));
       expect(result.ok).toBe(true);
       if (!result.ok) return;
 

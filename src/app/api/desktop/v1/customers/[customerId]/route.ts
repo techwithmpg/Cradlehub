@@ -50,12 +50,15 @@ export async function GET(
   const { searchParams } = req.nextUrl;
   const branchId = searchParams.get("branchId");
 
-  // 3. Delegate to server-only desktop customer engine
+  // 3. Delegate to server-only desktop customer engine using authenticated client
   try {
     const result = await executeDesktopCustomerDetail(
       customerId,
       { branchId },
-      authResult.operator
+      {
+        operator: authResult.operator,
+        supabase: authResult.client,
+      }
     );
 
     if (!result.ok) {

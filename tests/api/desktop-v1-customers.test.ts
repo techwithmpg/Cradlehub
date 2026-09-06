@@ -5,6 +5,8 @@ import { GET as detailHandler } from "@/app/api/desktop/v1/customers/[customerId
 import * as bearerAuth from "@/lib/auth/desktop-bearer-auth";
 import * as customerEngine from "@/lib/customers/desktop-customer-engine";
 import type { InhouseBookingOperator } from "@/lib/bookings/inhouse-booking-engine";
+import type { SupabaseClient } from "@supabase/supabase-js";
+import type { Database } from "@/types/supabase";
 
 vi.mock("@/lib/auth/desktop-bearer-auth", () => ({
   verifyDesktopBearerAuth: vi.fn(),
@@ -30,6 +32,10 @@ describe("Desktop v1 Customers API Boundary", () => {
     staffRole: "manager",
     isDevBypass: false,
   };
+
+  const mockClient = {
+    tag: "authenticated-user-supabase-client",
+  } as unknown as SupabaseClient<Database>;
 
   beforeEach(() => {
     vi.clearAllMocks();
@@ -62,6 +68,7 @@ describe("Desktop v1 Customers API Boundary", () => {
         ok: true,
         operator: validOperator,
         user: { id: "user-manager" },
+        client: mockClient,
       });
 
       vi.mocked(customerEngine.executeDesktopCustomerList).mockResolvedValueOnce({
@@ -90,6 +97,7 @@ describe("Desktop v1 Customers API Boundary", () => {
         ok: true,
         operator: validOperator,
         user: { id: "user-manager" },
+        client: mockClient,
       });
 
       vi.mocked(customerEngine.executeDesktopCustomerList).mockResolvedValueOnce({
@@ -111,11 +119,39 @@ describe("Desktop v1 Customers API Boundary", () => {
       });
     });
 
+    it("maps VALIDATION_ERROR to 400", async () => {
+      vi.mocked(bearerAuth.verifyDesktopBearerAuth).mockResolvedValueOnce({
+        ok: true,
+        operator: validOperator,
+        user: { id: "user-manager" },
+        client: mockClient,
+      });
+
+      vi.mocked(customerEngine.executeDesktopCustomerList).mockResolvedValueOnce({
+        ok: false,
+        code: "VALIDATION_ERROR",
+        message: "Invalid tab parameter. Allowed values: all, repeat, lapsed, followup.",
+      });
+
+      const req = new NextRequest("http://localhost:3000/api/desktop/v1/customers?tab=invalid");
+      const res = await listHandler(req);
+
+      expect(res.status).toBe(400);
+      expect(res.headers.get("cache-control")).toBe("no-store");
+      const json = await res.json();
+      expect(json).toEqual({
+        ok: false,
+        code: "VALIDATION_ERROR",
+        message: "Invalid tab parameter. Allowed values: all, repeat, lapsed, followup.",
+      });
+    });
+
     it("returns 500 UNKNOWN_ERROR when unhandled exception occurs", async () => {
       vi.mocked(bearerAuth.verifyDesktopBearerAuth).mockResolvedValueOnce({
         ok: true,
         operator: validOperator,
         user: { id: "user-manager" },
+        client: mockClient,
       });
 
       vi.mocked(customerEngine.executeDesktopCustomerList).mockRejectedValueOnce(
@@ -140,6 +176,7 @@ describe("Desktop v1 Customers API Boundary", () => {
         ok: true,
         operator: validOperator,
         user: { id: "user-manager" },
+        client: mockClient,
       });
 
       const expectedResponse: customerEngine.DesktopCustomerListResult = {
@@ -183,6 +220,20 @@ describe("Desktop v1 Customers API Boundary", () => {
       expect(res.headers.get("cache-control")).toBe("no-store");
       const json = await res.json();
       expect(json).toEqual(expectedResponse);
+
+      expect(customerEngine.executeDesktopCustomerList).toHaveBeenCalledWith(
+        {
+          tab: "all",
+          q: null,
+          page: "1",
+          pageSize: null,
+          branchId: null,
+        },
+        {
+          operator: validOperator,
+          supabase: mockClient,
+        }
+      );
     });
   });
 
@@ -215,6 +266,7 @@ describe("Desktop v1 Customers API Boundary", () => {
         ok: true,
         operator: validOperator,
         user: { id: "user-manager" },
+        client: mockClient,
       });
 
       vi.mocked(customerEngine.executeDesktopCustomerDetail).mockResolvedValueOnce({
@@ -243,6 +295,7 @@ describe("Desktop v1 Customers API Boundary", () => {
         ok: true,
         operator: validOperator,
         user: { id: "user-manager" },
+        client: mockClient,
       });
 
       const expectedResponse: customerEngine.DesktopCustomerDetailResult = {
@@ -291,6 +344,15 @@ describe("Desktop v1 Customers API Boundary", () => {
       expect(res.headers.get("cache-control")).toBe("no-store");
       const json = await res.json();
       expect(json).toEqual(expectedResponse);
+
+      expect(customerEngine.executeDesktopCustomerDetail).toHaveBeenCalledWith(
+        CUSTOMER_1,
+        { branchId: null },
+        {
+          operator: validOperator,
+          supabase: mockClient,
+        }
+      );
     });
   });
 });

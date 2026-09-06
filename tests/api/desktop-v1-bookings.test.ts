@@ -1,3 +1,5 @@
+import type { SupabaseClient } from "@supabase/supabase-js";
+import type { Database } from "@/types/supabase";
 import { describe, expect, it, vi, beforeEach } from "vitest";
 import { NextRequest } from "next/server";
 import { POST } from "@/app/api/desktop/v1/bookings/route";
@@ -141,6 +143,7 @@ describe("Desktop v1 Bookings API Boundary & Domain Integration", () => {
         ok: true,
         operator: validOperator,
         user: { id: "user-123" },
+        client: {} as unknown as SupabaseClient<Database>,
       });
 
       const req = new NextRequest("http://localhost:3000/api/desktop/v1/bookings", {
@@ -168,6 +171,7 @@ describe("Desktop v1 Bookings API Boundary & Domain Integration", () => {
         ok: true,
         operator: validOperator,
         user: { id: "user-123" },
+        client: {} as unknown as SupabaseClient<Database>,
       });
 
       vi.mocked(bookingEngine.executeInhouseBookingCreation).mockResolvedValueOnce({
@@ -208,6 +212,7 @@ describe("Desktop v1 Bookings API Boundary & Domain Integration", () => {
         ok: true,
         operator: validOperator,
         user: { id: "user-123" },
+        client: {} as unknown as SupabaseClient<Database>,
       });
 
       vi.mocked(bookingEngine.executeInhouseBookingCreation).mockResolvedValueOnce({
@@ -245,6 +250,7 @@ describe("Desktop v1 Bookings API Boundary & Domain Integration", () => {
         ok: true,
         operator: validOperator,
         user: { id: "user-123" },
+        client: {} as unknown as SupabaseClient<Database>,
       });
 
       vi.mocked(bookingEngine.executeInhouseBookingCreation).mockResolvedValueOnce({
@@ -283,6 +289,7 @@ describe("Desktop v1 Bookings API Boundary & Domain Integration", () => {
         ok: true,
         operator: validOperator,
         user: { id: "user-123" },
+        client: {} as unknown as SupabaseClient<Database>,
       });
 
       vi.mocked(bookingEngine.executeInhouseBookingCreation).mockResolvedValueOnce({
@@ -321,6 +328,7 @@ describe("Desktop v1 Bookings API Boundary & Domain Integration", () => {
         ok: true,
         operator: validOperator,
         user: { id: "user-123" },
+        client: {} as unknown as SupabaseClient<Database>,
       });
 
       vi.mocked(bookingEngine.executeInhouseBookingCreation).mockResolvedValueOnce({
@@ -360,6 +368,7 @@ describe("Desktop v1 Bookings API Boundary & Domain Integration", () => {
         ok: true,
         operator: validOperator,
         user: { id: "user-123" },
+        client: {} as unknown as SupabaseClient<Database>,
       });
 
       vi.mocked(bookingEngine.executeInhouseBookingCreation).mockResolvedValueOnce({
@@ -399,6 +408,7 @@ describe("Desktop v1 Bookings API Boundary & Domain Integration", () => {
         ok: true,
         operator: validOperator,
         user: { id: "user-123" },
+        client: {} as unknown as SupabaseClient<Database>,
       });
 
       vi.mocked(bookingEngine.executeInhouseBookingCreation).mockResolvedValueOnce({
@@ -437,6 +447,7 @@ describe("Desktop v1 Bookings API Boundary & Domain Integration", () => {
         ok: true,
         operator: validOperator,
         user: { id: "user-123" },
+        client: {} as unknown as SupabaseClient<Database>,
       });
 
       vi.mocked(bookingEngine.executeInhouseBookingCreation).mockResolvedValueOnce({
@@ -475,6 +486,7 @@ describe("Desktop v1 Bookings API Boundary & Domain Integration", () => {
         ok: true,
         operator: validOperator,
         user: { id: "user-123" },
+        client: {} as unknown as SupabaseClient<Database>,
       });
 
       vi.mocked(bookingEngine.executeInhouseBookingCreation).mockResolvedValueOnce({
@@ -513,6 +525,7 @@ describe("Desktop v1 Bookings API Boundary & Domain Integration", () => {
         ok: true,
         operator: validOperator,
         user: { id: "user-123" },
+        client: {} as unknown as SupabaseClient<Database>,
       });
 
       vi.mocked(bookingEngine.executeInhouseBookingCreation).mockResolvedValueOnce({
@@ -551,6 +564,7 @@ describe("Desktop v1 Bookings API Boundary & Domain Integration", () => {
         ok: true,
         operator: validOperator,
         user: { id: "user-123" },
+        client: {} as unknown as SupabaseClient<Database>,
       });
 
       vi.mocked(bookingEngine.executeInhouseBookingCreation).mockResolvedValueOnce({
@@ -589,6 +603,7 @@ describe("Desktop v1 Bookings API Boundary & Domain Integration", () => {
         ok: true,
         operator: validOperator,
         user: { id: "user-123" },
+        client: {} as unknown as SupabaseClient<Database>,
       });
 
       vi.mocked(bookingEngine.executeInhouseBookingCreation).mockRejectedValueOnce(
@@ -625,6 +640,7 @@ describe("Desktop v1 Bookings API Boundary & Domain Integration", () => {
         ok: true,
         operator: validOperator,
         user: { id: "user-123" },
+        client: {} as unknown as SupabaseClient<Database>,
       });
 
       vi.mocked(bookingEngine.executeInhouseBookingCreation).mockResolvedValueOnce({

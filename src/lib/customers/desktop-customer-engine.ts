@@ -1,6 +1,7 @@
 import "server-only";
 
-import { createAdminClient } from "@/lib/supabase/admin";
+import type { SupabaseClient } from "@supabase/supabase-js";
+import type { Database } from "@/types/supabase";
 import { canAccessCrmWorkspace } from "@/lib/auth/crm-permissions";
 import type { InhouseBookingOperator } from "@/lib/bookings/inhouse-booking-engine";
 import { logError } from "@/lib/logger";
@@ -13,6 +14,11 @@ export type DesktopCustomerListParams = {
   page?: number | string | null;
   pageSize?: number | string | null;
   branchId?: string | null;
+};
+
+export type DesktopCustomerExecutionContext = {
+  operator: InhouseBookingOperator;
+  supabase: SupabaseClient<Database>;
 };
 
 export type DesktopCustomerListItemDto = {
@@ -116,6 +122,33 @@ function isValidUuid(id: string | null | undefined): boolean {
   return typeof id === "string" && uuidRegex.test(id.trim());
 }
 
+function parseStrictInteger(
+  val: number | string | null | undefined,
+  minVal: number,
+  maxVal?: number
+): { ok: true; value: number } | { ok: false } {
+  if (val === undefined || val === null || val === "") return { ok: false };
+  if (typeof val === "number") {
+    if (!Number.isInteger(val) || val < minVal || (maxVal !== undefined && val > maxVal)) {
+      return { ok: false };
+    }
+    return { ok: true, value: val };
+  }
+  const str = val.trim();
+  if (!/^-?\d+$/.test(str)) {
+    return { ok: false };
+  }
+  const parsed = Number(str);
+  if (
+    !Number.isSafeInteger(parsed) ||
+    parsed < minVal ||
+    (maxVal !== undefined && parsed > maxVal)
+  ) {
+    return { ok: false };
+  }
+  return { ok: true, value: parsed };
+}
+
 function firstRelation<T>(rel: T | T[] | null | undefined): T | null {
   if (!rel) return null;
   return Array.isArray(rel) ? (rel[0] ?? null) : rel;
@@ -193,51 +226,77 @@ function resolveEffectiveBranch(
 }
 
 async function verifyBranchExists(
-  supabase: ReturnType<typeof createAdminClient>,
+  supabase: SupabaseClient<Database>,
   branchId: string
-): Promise<boolean> {
+): Promise<
+  { ok: true; exists: boolean } | { ok: false; code: "SERVER_DATABASE_ERROR"; message: string }
+> {
   const { data, error } = await supabase
     .from("branches")
     .select("id")
     .eq("id", branchId)
     .maybeSingle();
 
-  if (error || !data) return false;
-  return true;
+  if (error) {
+    logError("desktop.customers.branch_lookup.error", { error });
+    return {
+      ok: false,
+      code: "SERVER_DATABASE_ERROR",
+      message: "Failed to verify branch.",
+    };
+  }
+
+  return { ok: true, exists: Boolean(data) };
 }
 
 async function getBranchCustomerIds(
-  supabase: ReturnType<typeof createAdminClient>,
+  supabase: SupabaseClient<Database>,
   branchId: string
-): Promise<string[]> {
+): Promise<
+  | { ok: true; customerIds: string[] }
+  | { ok: false; code: "SERVER_DATABASE_ERROR"; message: string }
+> {
   const { data, error } = await supabase
     .from("bookings")
     .select("customer_id")
     .eq("branch_id", branchId)
     .not("customer_id", "is", null);
 
-  if (error || !data) return [];
+  if (error) {
+    logError("desktop.customers.membership_lookup.error", { error });
+    return {
+      ok: false,
+      code: "SERVER_DATABASE_ERROR",
+      message: "Failed to retrieve branch customer membership.",
+    };
+  }
 
   const unique = new Set<string>();
-  for (const row of data) {
+  for (const row of data ?? []) {
     if (row.customer_id) {
       unique.add(row.customer_id);
     }
   }
-  return Array.from(unique);
+  return { ok: true, customerIds: Array.from(unique) };
 }
 
 async function calculateBranchCustomerKpis(
-  supabase: ReturnType<typeof createAdminClient>,
+  supabase: SupabaseClient<Database>,
   branchCustomerIds: string[]
-): Promise<DesktopCustomerKpisDto> {
+): Promise<
+  | { ok: true; kpis: DesktopCustomerKpisDto }
+  | { ok: false; code: "SERVER_DATABASE_ERROR"; message: string }
+> {
   if (branchCustomerIds.length === 0) {
     return {
-      totalCustomers: 0,
-      repeatClients: 0,
-      lapsedClients: 0,
-      newThisMonth: 0,
-      totalVisits: 0,
+      ok: true,
+      kpis: {
+        totalCustomers: 0,
+        repeatClients: 0,
+        lapsedClients: 0,
+        newThisMonth: 0,
+        totalVisits: 0,
+      },
     };
   }
 
@@ -267,24 +326,108 @@ async function calculateBranchCustomerKpis(
     supabase.from("customers").select("total_bookings").in("id", branchCustomerIds),
   ]);
 
+  if (repeatRes.error || lapsedRes.error || newThisMonthRes.error || totalVisitsRes.error) {
+    logError("desktop.customers.kpi.error", {
+      repeatError: repeatRes.error,
+      lapsedError: lapsedRes.error,
+      newThisMonthError: newThisMonthRes.error,
+      totalVisitsError: totalVisitsRes.error,
+    });
+    return {
+      ok: false,
+      code: "SERVER_DATABASE_ERROR",
+      message: "Failed to calculate customer metrics.",
+    };
+  }
+
   const totalVisits = (totalVisitsRes.data ?? []).reduce(
     (sum, c) => sum + (c.total_bookings ?? 0),
     0
   );
 
   return {
-    totalCustomers: branchCustomerIds.length,
-    repeatClients: repeatRes.count ?? 0,
-    lapsedClients: lapsedRes.count ?? 0,
-    newThisMonth: newThisMonthRes.count ?? 0,
-    totalVisits,
+    ok: true,
+    kpis: {
+      totalCustomers: branchCustomerIds.length,
+      repeatClients: repeatRes.count ?? 0,
+      lapsedClients: lapsedRes.count ?? 0,
+      newThisMonth: newThisMonthRes.count ?? 0,
+      totalVisits,
+    },
   };
 }
 
 export async function executeDesktopCustomerList(
   params: DesktopCustomerListParams,
-  operator: InhouseBookingOperator
+  context: DesktopCustomerExecutionContext
 ): Promise<DesktopCustomerListResult> {
+  const { operator, supabase } = context;
+
+  // 1. Strict parameter validation
+  let tab: CustomerTabType = "all";
+  if (params.tab !== undefined && params.tab !== null && params.tab !== "") {
+    const rawTab = params.tab;
+    const validTabs: CustomerTabType[] = ["all", "repeat", "lapsed", "followup"];
+    if (!validTabs.includes(rawTab as CustomerTabType)) {
+      return {
+        ok: false,
+        code: "VALIDATION_ERROR",
+        message: "Invalid tab parameter. Allowed values: all, repeat, lapsed, followup.",
+      };
+    }
+    tab = rawTab as CustomerTabType;
+  }
+
+  let page = 1;
+  if (params.page !== undefined && params.page !== null && params.page !== "") {
+    const pageParsed = parseStrictInteger(params.page, 1);
+    if (!pageParsed.ok) {
+      return {
+        ok: false,
+        code: "VALIDATION_ERROR",
+        message: "Invalid page parameter. Must be an integer greater than or equal to 1.",
+      };
+    }
+    page = pageParsed.value;
+  }
+
+  let pageSize = 25;
+  if (params.pageSize !== undefined && params.pageSize !== null && params.pageSize !== "") {
+    const pageSizeParsed = parseStrictInteger(params.pageSize, 1, 100);
+    if (!pageSizeParsed.ok) {
+      return {
+        ok: false,
+        code: "VALIDATION_ERROR",
+        message: "Invalid pageSize parameter. Must be an integer between 1 and 100.",
+      };
+    }
+    pageSize = pageSizeParsed.value;
+  }
+
+  let searchTerm: string | null = null;
+  if (params.q !== undefined && params.q !== null && params.q !== "") {
+    const trimmed = params.q.trim();
+    if (trimmed.length > 100) {
+      return {
+        ok: false,
+        code: "VALIDATION_ERROR",
+        message: "Search query exceeds maximum length of 100 characters.",
+      };
+    }
+    searchTerm = trimmed.length > 0 ? trimmed : null;
+  }
+
+  if (params.branchId !== undefined && params.branchId !== null && params.branchId !== "") {
+    if (!isValidUuid(params.branchId)) {
+      return {
+        ok: false,
+        code: "VALIDATION_ERROR",
+        message: "Invalid branchId format.",
+      };
+    }
+  }
+
+  // 2. Resolve effective branch
   const branchRes = resolveEffectiveBranch(operator, params.branchId);
   if (!branchRes.ok) {
     return branchRes;
@@ -299,10 +442,12 @@ export async function executeDesktopCustomerList(
     };
   }
 
-  const supabase = createAdminClient();
-
-  const branchExists = await verifyBranchExists(supabase, effectiveBranchId);
-  if (!branchExists) {
+  // 3. Verify branch exists in DB (fail-closed on error)
+  const branchExistsRes = await verifyBranchExists(supabase, effectiveBranchId);
+  if (!branchExistsRes.ok) {
+    return branchExistsRes;
+  }
+  if (!branchExistsRes.exists) {
     return {
       ok: false,
       code: "BRANCH_NOT_FOUND",
@@ -310,32 +455,24 @@ export async function executeDesktopCustomerList(
     };
   }
 
-  // Parse tab
-  const rawTab = (params.tab ?? "all").toLowerCase().trim();
-  const validTabs: CustomerTabType[] = ["all", "repeat", "lapsed", "followup"];
-  const tab: CustomerTabType = validTabs.includes(rawTab as CustomerTabType)
-    ? (rawTab as CustomerTabType)
-    : "all";
-
-  // Parse pagination
-  const rawPage = Number(params.page ?? 1);
-  const page = Number.isFinite(rawPage) && rawPage > 0 ? Math.floor(rawPage) : 1;
-
-  const rawPageSize = Number(params.pageSize ?? 25);
-  const pageSize =
-    Number.isFinite(rawPageSize) && rawPageSize > 0
-      ? Math.min(Math.max(Math.floor(rawPageSize), 1), 100)
-      : 25;
-
   const from = (page - 1) * pageSize;
   const to = from + pageSize - 1;
 
-  const searchTerm = params.q?.trim() || null;
+  // 4. Retrieve branch customer membership (fail-closed on DB error)
+  const branchCustomersRes = await getBranchCustomerIds(supabase, effectiveBranchId);
+  if (!branchCustomersRes.ok) {
+    return branchCustomersRes;
+  }
+  const branchCustomerIds = branchCustomersRes.customerIds;
 
-  // Retrieve customer IDs belonging to effective branch
-  const branchCustomerIds = await getBranchCustomerIds(supabase, effectiveBranchId);
-  const kpis = await calculateBranchCustomerKpis(supabase, branchCustomerIds);
+  // 5. Calculate KPIs (fail-closed on DB error)
+  const kpisRes = await calculateBranchCustomerKpis(supabase, branchCustomerIds);
+  if (!kpisRes.ok) {
+    return kpisRes;
+  }
+  const kpis = kpisRes.kpis;
 
+  // 6. Handle tab=followup
   if (tab === "followup") {
     let waitlistQuery = supabase
       .from("waitlist_requests")
@@ -401,7 +538,7 @@ export async function executeDesktopCustomerList(
     };
   }
 
-  // Customer segment tabs: all, repeat, lapsed
+  // 7. If branch has zero customers
   if (branchCustomerIds.length === 0) {
     return {
       ok: true,
@@ -418,6 +555,7 @@ export async function executeDesktopCustomerList(
     };
   }
 
+  // 8. Execute customer segment query
   let customerQuery = supabase
     .from("customers")
     .select(
@@ -498,14 +636,30 @@ export async function executeDesktopCustomerList(
 export async function executeDesktopCustomerDetail(
   customerId: string,
   queryParams: { branchId?: string | null },
-  operator: InhouseBookingOperator
+  context: DesktopCustomerExecutionContext
 ): Promise<DesktopCustomerDetailResult> {
+  const { operator, supabase } = context;
+
   if (!isValidUuid(customerId)) {
     return {
       ok: false,
       code: "VALIDATION_ERROR",
       message: "Invalid customerId format.",
     };
+  }
+
+  if (
+    queryParams.branchId !== undefined &&
+    queryParams.branchId !== null &&
+    queryParams.branchId !== ""
+  ) {
+    if (!isValidUuid(queryParams.branchId)) {
+      return {
+        ok: false,
+        code: "VALIDATION_ERROR",
+        message: "Invalid branchId format.",
+      };
+    }
   }
 
   const branchRes = resolveEffectiveBranch(operator, queryParams.branchId);
@@ -522,10 +676,11 @@ export async function executeDesktopCustomerDetail(
     };
   }
 
-  const supabase = createAdminClient();
-
-  const branchExists = await verifyBranchExists(supabase, effectiveBranchId);
-  if (!branchExists) {
+  const branchExistsRes = await verifyBranchExists(supabase, effectiveBranchId);
+  if (!branchExistsRes.ok) {
+    return branchExistsRes;
+  }
+  if (!branchExistsRes.exists) {
     return {
       ok: false,
       code: "BRANCH_NOT_FOUND",

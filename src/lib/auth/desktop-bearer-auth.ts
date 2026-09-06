@@ -1,6 +1,6 @@
 import "server-only";
 
-import { createClient as createSupabaseClient } from "@supabase/supabase-js";
+import { createClient as createSupabaseClient, type SupabaseClient } from "@supabase/supabase-js";
 import type { Database } from "@/types/supabase";
 import { canonicalizeSystemRole } from "@/constants/staff";
 import { canAccessCrmWorkspace } from "@/lib/auth/crm-permissions";
@@ -11,6 +11,7 @@ export type DesktopBearerAuthResult =
       ok: true;
       operator: InhouseBookingOperator;
       user: { id: string; email?: string | null };
+      client: SupabaseClient<Database>;
     }
   | {
       ok: false;
@@ -133,5 +134,6 @@ export async function verifyDesktopBearerAuth(request: Request): Promise<Desktop
     ok: true,
     operator,
     user: { id: user.id, email: user.email },
+    client,
   };
 }

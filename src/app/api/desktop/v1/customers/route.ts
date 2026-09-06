@@ -50,7 +50,7 @@ export async function GET(req: NextRequest) {
   const pageSize = searchParams.get("pageSize");
   const branchId = searchParams.get("branchId");
 
-  // 3. Delegate to the server-only desktop customer engine
+  // 3. Delegate to the server-only desktop customer engine using the authenticated client
   try {
     const result = await executeDesktopCustomerList(
       {
@@ -60,7 +60,10 @@ export async function GET(req: NextRequest) {
         pageSize,
         branchId,
       },
-      authResult.operator
+      {
+        operator: authResult.operator,
+        supabase: authResult.client,
+      }
     );
 
     if (!result.ok) {
