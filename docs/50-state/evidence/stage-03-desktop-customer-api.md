@@ -74,6 +74,129 @@ Owner-authorized, read-only hosted customer API boundary:
 - **Booking History (`bookingHistory`)**: Operational booking fields only (`id`, `bookingDate`, `startTime`, `status`, `type`, `serviceName`, `staffName`, `branchName`).
 - **Zero Finance / Payments**: NO `pricePaid`, `amount`, `paymentMethod`, `paymentStatus`, `paymentReference`, `totalRevenue`, `averageSpend`, or `revenue` exposed anywhere.
 
+## RLS Compatibility Audit
+
+### 1. Canonical Application CRM Roles
+
+From `src/constants/staff-roles.ts` and `src/lib/auth/crm-permissions.ts`, application-level authorization allows the following roles to access CRM workspace functions (`canAccessCrmWorkspace`):
+
+- `owner`
+- `manager`
+- `assistant_manager`
+- `store_manager`
+- `crm` (including legacy aliases `csr`, `csr_head`, `csr_staff` normalized to `crm` per `20260701130406_normalize_front_desk_crm_roles.sql`)
+
+### 2. Database Role Resolution
+
+In PostgreSQL, `get_auth_role()` (defined in `20260429000003_helper_functions.sql`) returns the exact `system_role` text from `staff` for the authenticated user (`auth.uid()`):
+
+```sql
+SELECT system_role FROM staff WHERE auth_user_id = (SELECT auth.uid()) AND is_active = TRUE LIMIT 1;
+```
+
+`get_auth_role()` does NOT alias or canonicalize `assistant_manager` or `store_manager` to `manager`. They evaluate as `'assistant_manager'` and `'store_manager'` in RLS expressions.
+
+### 3. Target Table RLS Policy Matrix
+
+| Target Table            | `owner`     | `manager`            | `assistant_manager`  | `store_manager`      | `crm` (and legacy `csr_*`) | Effective Migration / Policy Proof                                                                                                                                                                                                                           |
+| :---------------------- | :---------- | :------------------- | :------------------- | :------------------- | :------------------------- | :----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **`branches`**          | ALLOW       | ALLOW                | ALLOW                | ALLOW                | ALLOW                      | `branches_public_read` (`is_active = true`), `branches_owner_all` (`20260429000005_rls_policies.sql`)                                                                                                                                                        |
+| **`services`**          | ALLOW       | ALLOW                | ALLOW                | ALLOW                | ALLOW                      | `services_public_read` (`is_active = true`), `services_owner_all` (`20260429000005_rls_policies.sql`)                                                                                                                                                        |
+| **`bookings`**          | ALLOW       | ALLOW                | **DENY**             | **DENY**             | ALLOW                      | `bookings_owner_all`, `bookings_manager_read_branch`, `bookings_crm_read_all` (`20260429000005_rls_policies.sql`), `bookings_csr_read_branch` (`20260510000004_csr_roles_rls.sql`). No policy exists for `assistant_manager` or `store_manager`.             |
+| **`customers`**         | ALLOW       | ALLOW                | **DENY**             | **DENY**             | ALLOW                      | `customers_owner_all`, `customers_manager_read_branch`, `customers_crm_read_all` (`20260429000005_rls_policies.sql`), `customers_csr_read_branch` (`20260510000004_csr_roles_rls.sql`). No policy exists for `assistant_manager` or `store_manager`.         |
+| **`waitlist_requests`** | ALLOW       | ALLOW                | **DENY**             | **DENY**             | ALLOW                      | `waitlist_owner_all`, `waitlist_desk_read` (`20260510000003_waitlist_rls.sql` for `manager`, `crm`, `csr_*`). No policy exists for `assistant_manager` or `store_manager`.                                                                                   |
+| **`staff`** (joined)    | ALLOW (all) | CONDITIONAL (branch) | CONDITIONAL (branch) | CONDITIONAL (branch) | CONDITIONAL (branch)       | `staff_owner_all`, `staff_manager_read_branch` (`20260429000005_rls_policies.sql`), `staff_operational_read_branch` (`20260529000002_crm_csr_schedule_rls.sql`). Branch staff resolve; cross-branch preferred staff evaluate to `null` for branch operators. |
+
+### 4. Compatibility Findings by Operational Flow
+
+- **Customer List / Search**:
+  - `owner`: **YES**
+  - `manager`: **YES**
+  - `crm`: **YES**
+  - `assistant_manager`: **NO** (blocked by RLS on `bookings` and `customers`)
+  - `store_manager`: **NO** (blocked by RLS on `bookings` and `customers`)
+- **KPI Queries**:
+  - `owner`: **YES**
+  - `manager`: **YES**
+  - `crm`: **YES**
+  - `assistant_manager`: **NO** (blocked by RLS on `bookings` and `customers`)
+  - `store_manager`: **NO** (blocked by RLS on `bookings` and `customers`)
+- **Follow-up Tab (`waitlist_requests`)**:
+  - `owner`: **YES**
+  - `manager`: **YES**
+  - `crm`: **YES**
+  - `assistant_manager`: **NO** (blocked by RLS on `waitlist_requests`)
+  - `store_manager`: **NO** (blocked by RLS on `waitlist_requests`)
+- **Customer Detail & History**:
+  - `owner`: **YES**
+  - `manager`: **YES**
+  - `crm`: **YES**
+  - `assistant_manager`: **NO** (blocked by RLS on `customers` and `bookings`)
+  - `store_manager`: **NO** (blocked by RLS on `customers` and `bookings`)
+- **Staff Joined Data**:
+  - All roles have branch-scoped SELECT on `staff`. When a customer's `preferred_staff_id` or booking history belongs to the operator's branch, `preferredStaffName` and `staffName` resolve correctly. If a preferred staff member belongs to another branch, RLS evaluates the joined row to `null` for non-owner roles.
+
+### 5. Mocked Test Limitations
+
+- Existing unit tests in `tests/lib/customers/desktop-customer-engine.test.ts` and route tests in `tests/api/desktop-v1-customers.test.ts` mock the Supabase query builder responses.
+- These tests verify application logic, error propagation, parameters, and query shapes.
+- They do **not** execute live PostgreSQL RLS policy evaluation against a real database engine.
+
+### 6. RLS Compatibility Status
+
+**STAGE 03 HOSTED CUSTOMER API NOT MERGEABLE YET — RLS COMPATIBILITY CHANGE REQUIRES OWNER AUTHORIZATION.**
+
+### 7. Minimum RLS Correction Proposal (Pending Owner Authorization)
+
+To allow `assistant_manager` and `store_manager` to perform read-only Customer queries at their own branch matching `manager` privileges:
+
+```sql
+-- 1. Bookings branch SELECT
+CREATE POLICY "bookings_management_operational_read_branch"
+  ON public.bookings FOR SELECT
+  TO authenticated
+  USING (
+    public.get_auth_role() IN ('assistant_manager', 'store_manager')
+    AND branch_id = public.get_auth_branch_id()
+  );
+
+-- 2. Customers branch SELECT (booking-derived)
+CREATE POLICY "customers_management_operational_read_branch"
+  ON public.customers FOR SELECT
+  TO authenticated
+  USING (
+    public.get_auth_role() IN ('assistant_manager', 'store_manager')
+    AND id IN (
+      SELECT customer_id FROM public.bookings
+      WHERE branch_id = public.get_auth_branch_id()
+        AND customer_id IS NOT NULL
+    )
+  );
+
+-- 3. Waitlist requests branch SELECT
+CREATE POLICY "waitlist_management_operational_read_branch"
+  ON public.waitlist_requests FOR SELECT
+  TO authenticated
+  USING (
+    public.get_auth_role() IN ('assistant_manager', 'store_manager')
+    AND branch_id = public.get_auth_branch_id()
+  );
+```
+
+**Rollback SQL**:
+
+```sql
+DROP POLICY IF EXISTS "bookings_management_operational_read_branch" ON public.bookings;
+DROP POLICY IF EXISTS "customers_management_operational_read_branch" ON public.customers;
+DROP POLICY IF EXISTS "waitlist_management_operational_read_branch" ON public.waitlist_requests;
+```
+
+**Security Analysis**:
+
+- Read-only (`FOR SELECT`). No `INSERT`, `UPDATE`, or `DELETE` permissions broadened.
+- Branch-scoped: `assistant_manager` and `store_manager` can only read customers, bookings, and waitlist items associated with their own `branch_id`.
+- Zero schema or table DDL changes.
+
 ## Verification Results
 
 1. **Focused Vitest Suite**:
