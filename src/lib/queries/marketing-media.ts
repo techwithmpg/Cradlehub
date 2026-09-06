@@ -28,11 +28,7 @@ import {
 } from "@/lib/queries/marketing-content";
 import { getPublicBranches } from "@/lib/queries/branches";
 import { getPublicServiceCatalog } from "@/lib/queries/services";
-import {
-  getMediaContract,
-  type MarketingMediaIntentKey,
-} from "@/lib/marketing/media-contracts";
-import { validateMediaBuffer } from "@/lib/marketing/media-contracts-server";
+import { getMediaContract, type MarketingMediaIntentKey } from "@/lib/marketing/media-contracts";
 
 export type MarketingMediaAssetRow = {
   id: string;
@@ -767,6 +763,7 @@ export async function uploadMarketingMediaFile(
     }
 
     const contract = getMediaContract(mediaIntent as MarketingMediaIntentKey);
+    const { validateMediaBuffer } = await import("@/lib/marketing/media-contracts-server");
     const validation = await validateMediaBuffer(buffer, file.type, contract);
 
     if (!validation.isValid) {

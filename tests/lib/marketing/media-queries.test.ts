@@ -6,6 +6,23 @@ vi.mock("next/cache", () => ({
   revalidateTag: vi.fn(),
   unstable_cache: vi.fn((fn: (...args: unknown[]) => unknown) => fn),
 }));
+const { mockValidateMediaBuffer, mockMediaContractsServerModuleLoad } = vi.hoisted(() => ({
+  mockValidateMediaBuffer: vi.fn().mockResolvedValue({
+    isValid: true,
+    width: 1920,
+    height: 1080,
+    format: "jpeg",
+  }),
+  mockMediaContractsServerModuleLoad: vi.fn(),
+}));
+
+vi.mock("@/lib/marketing/media-contracts-server", () => {
+  mockMediaContractsServerModuleLoad();
+  return {
+    validateMediaBuffer: (...args: unknown[]) => mockValidateMediaBuffer(...args),
+  };
+});
+
 vi.mock("@/lib/logger", () => ({
   logError: vi.fn(),
   logInfo: vi.fn(),
@@ -33,6 +50,15 @@ let mockSeoError: unknown = null;
 const mockStorageUpload = vi.fn().mockImplementation(() => {
   return Promise.resolve({ error: mockStorageUploadError });
 });
+
+const mockDbInsert = vi.fn().mockImplementation(() => ({
+  select: vi.fn().mockReturnThis(),
+  single: vi
+    .fn()
+    .mockImplementation(() =>
+      Promise.resolve({ data: mockDbInsertData, error: mockDbInsertError })
+    ),
+}));
 
 const mockStorageGetPublicUrl = vi.fn().mockImplementation((path: string) => ({
   data: { publicUrl: `https://example.com/storage/v1/object/public/public-site-media/${path}` },
@@ -112,14 +138,7 @@ const mockSupabase = {
 
     const builder: MockQueryBuilder = {
       select: vi.fn().mockReturnThis(),
-      insert: vi.fn().mockImplementation(() => ({
-        select: vi.fn().mockReturnThis(),
-        single: vi
-          .fn()
-          .mockImplementation(() =>
-            Promise.resolve({ data: mockDbInsertData, error: mockDbInsertError })
-          ),
-      })),
+      insert: mockDbInsert,
       update: vi.fn().mockImplementation((payload: Record<string, unknown>) => {
         lastUpdatePayload = payload;
         return {
@@ -173,6 +192,7 @@ vi.mock("@/lib/queries/services", () => ({
 }));
 
 import {
+  getMarketingMediaAssets,
   saveMarketingMediaAsset,
   updateMarketingMediaAssetStatus,
   archiveMarketingMediaAsset,
@@ -606,5 +626,90 @@ describe("marketing media queries - role boundaries and safety enforcement", () 
     if (!result.success) {
       expect(result.error).toContain("catalog finalization failed");
     }
+  });
+
+  it("keeps the Sharp-bearing validation module out of read paths and loads it for uploads", async () => {
+    mockStaff = { id: "staff-dm", system_role: "digital_marketer" };
+    mockDbSelectData = [];
+    mockDbSelectError = null;
+
+    mockValidateMediaBuffer.mockClear();
+    mockDbInsert.mockClear();
+    mockStorageUpload.mockClear();
+
+    // Read operations must not even initialize the module that imports Sharp.
+    const assets = await getMarketingMediaAssets();
+    expect(assets).toEqual([]);
+
+    const usageMap = await getMarketingMediaUsageMap([]);
+    expect(usageMap).toEqual({});
+
+    expect(mockValidateMediaBuffer).not.toHaveBeenCalled();
+    expect(mockMediaContractsServerModuleLoad).not.toHaveBeenCalled();
+
+    // Binary uploads with media intent dynamically initialize and invoke validation.
+    const file = new File(["sample image bytes"], "hero.jpg", { type: "image/jpeg" });
+    const formData = new FormData();
+    formData.append("file", file);
+    formData.append("mediaIntent", "HERO_BACKGROUND");
+    formData.append("title", "Hero Image");
+    formData.append("altText", "Hero Alt");
+    formData.append("sectionKey", "hero");
+
+    mockDbInsertData = {
+      id: TEST_ASSET_ID,
+      bucket_path: "media/1725170000-hero.jpg",
+      public_url: null,
+      title: "Hero Image",
+      alt_text: "Hero Alt",
+      section_key: "hero",
+      status: "draft",
+      metadata: { uploadStatus: "pending" },
+    };
+    mockDbInsertError = null;
+    mockDbUpdateData = {
+      id: TEST_ASSET_ID,
+      bucket_path: "media/1725170000-hero.jpg",
+      public_url: "https://example.com/media/hero.jpg",
+      status: "draft",
+    };
+    mockDbUpdateError = null;
+
+    const result = await uploadMarketingMediaFile(formData);
+
+    expect(result.success).toBe(true);
+    expect(mockMediaContractsServerModuleLoad).toHaveBeenCalledTimes(1);
+    expect(mockValidateMediaBuffer).toHaveBeenCalledTimes(1);
+    expect(mockDbInsert).toHaveBeenCalledTimes(1);
+    expect(mockStorageUpload).toHaveBeenCalledTimes(1);
+  });
+
+  it("rejects invalid intent-bound media before database reservation or Storage upload", async () => {
+    mockStaff = { id: "staff-dm", system_role: "digital_marketer" };
+    mockValidateMediaBuffer.mockResolvedValueOnce({
+      isValid: false,
+      error: "Image dimensions do not meet the hero contract.",
+    });
+    mockDbInsert.mockClear();
+    mockStorageUpload.mockClear();
+
+    const file = new File(["invalid image bytes"], "invalid-hero.jpg", {
+      type: "image/jpeg",
+    });
+    const formData = new FormData();
+    formData.append("file", file);
+    formData.append("mediaIntent", "HERO_BACKGROUND");
+    formData.append("title", "Invalid Hero");
+    formData.append("altText", "Invalid Hero Alt");
+    formData.append("sectionKey", "hero");
+
+    const result = await uploadMarketingMediaFile(formData);
+
+    expect(result).toEqual({
+      success: false,
+      error: "Image dimensions do not meet the hero contract.",
+    });
+    expect(mockDbInsert).not.toHaveBeenCalled();
+    expect(mockStorageUpload).not.toHaveBeenCalled();
   });
 });
