@@ -6,16 +6,22 @@ vi.mock("next/cache", () => ({
   revalidateTag: vi.fn(),
   unstable_cache: vi.fn((fn: (...args: unknown[]) => unknown) => fn),
 }));
-const mockValidateMediaBuffer = vi.fn().mockResolvedValue({
-  isValid: true,
-  width: 1920,
-  height: 1080,
-  format: "jpeg",
-});
-
-vi.mock("@/lib/marketing/media-contracts-server", () => ({
-  validateMediaBuffer: (...args: unknown[]) => mockValidateMediaBuffer(...args),
+const { mockValidateMediaBuffer, mockMediaContractsServerModuleLoad } = vi.hoisted(() => ({
+  mockValidateMediaBuffer: vi.fn().mockResolvedValue({
+    isValid: true,
+    width: 1920,
+    height: 1080,
+    format: "jpeg",
+  }),
+  mockMediaContractsServerModuleLoad: vi.fn(),
 }));
+
+vi.mock("@/lib/marketing/media-contracts-server", () => {
+  mockMediaContractsServerModuleLoad();
+  return {
+    validateMediaBuffer: (...args: unknown[]) => mockValidateMediaBuffer(...args),
+  };
+});
 
 vi.mock("@/lib/logger", () => ({
   logError: vi.fn(),
@@ -44,6 +50,15 @@ let mockSeoError: unknown = null;
 const mockStorageUpload = vi.fn().mockImplementation(() => {
   return Promise.resolve({ error: mockStorageUploadError });
 });
+
+const mockDbInsert = vi.fn().mockImplementation(() => ({
+  select: vi.fn().mockReturnThis(),
+  single: vi
+    .fn()
+    .mockImplementation(() =>
+      Promise.resolve({ data: mockDbInsertData, error: mockDbInsertError })
+    ),
+}));
 
 const mockStorageGetPublicUrl = vi.fn().mockImplementation((path: string) => ({
   data: { publicUrl: `https://example.com/storage/v1/object/public/public-site-media/${path}` },
@@ -123,14 +138,7 @@ const mockSupabase = {
 
     const builder: MockQueryBuilder = {
       select: vi.fn().mockReturnThis(),
-      insert: vi.fn().mockImplementation(() => ({
-        select: vi.fn().mockReturnThis(),
-        single: vi
-          .fn()
-          .mockImplementation(() =>
-            Promise.resolve({ data: mockDbInsertData, error: mockDbInsertError })
-          ),
-      })),
+      insert: mockDbInsert,
       update: vi.fn().mockImplementation((payload: Record<string, unknown>) => {
         lastUpdatePayload = payload;
         return {
@@ -620,14 +628,16 @@ describe("marketing media queries - role boundaries and safety enforcement", () 
     }
   });
 
-  it("ensures media query and listing functions execute without requiring eager sharp initialization", async () => {
+  it("keeps the Sharp-bearing validation module out of read paths and loads it for uploads", async () => {
     mockStaff = { id: "staff-dm", system_role: "digital_marketer" };
     mockDbSelectData = [];
     mockDbSelectError = null;
 
     mockValidateMediaBuffer.mockClear();
+    mockDbInsert.mockClear();
+    mockStorageUpload.mockClear();
 
-    // 1. Read operations must not invoke native server-side image validation
+    // Read operations must not even initialize the module that imports Sharp.
     const assets = await getMarketingMediaAssets();
     expect(assets).toEqual([]);
 
@@ -635,8 +645,9 @@ describe("marketing media queries - role boundaries and safety enforcement", () 
     expect(usageMap).toEqual({});
 
     expect(mockValidateMediaBuffer).not.toHaveBeenCalled();
+    expect(mockMediaContractsServerModuleLoad).not.toHaveBeenCalled();
 
-    // 2. Binary upload write operations with media intent dynamically invoke server-side media validation
+    // Binary uploads with media intent dynamically initialize and invoke validation.
     const file = new File(["sample image bytes"], "hero.jpg", { type: "image/jpeg" });
     const formData = new FormData();
     formData.append("file", file);
@@ -664,9 +675,41 @@ describe("marketing media queries - role boundaries and safety enforcement", () 
     };
     mockDbUpdateError = null;
 
-    await uploadMarketingMediaFile(formData);
+    const result = await uploadMarketingMediaFile(formData);
 
-    // Verify dynamic import of media-contracts-server was executed during binary upload validation
+    expect(result.success).toBe(true);
+    expect(mockMediaContractsServerModuleLoad).toHaveBeenCalledTimes(1);
     expect(mockValidateMediaBuffer).toHaveBeenCalledTimes(1);
+    expect(mockDbInsert).toHaveBeenCalledTimes(1);
+    expect(mockStorageUpload).toHaveBeenCalledTimes(1);
+  });
+
+  it("rejects invalid intent-bound media before database reservation or Storage upload", async () => {
+    mockStaff = { id: "staff-dm", system_role: "digital_marketer" };
+    mockValidateMediaBuffer.mockResolvedValueOnce({
+      isValid: false,
+      error: "Image dimensions do not meet the hero contract.",
+    });
+    mockDbInsert.mockClear();
+    mockStorageUpload.mockClear();
+
+    const file = new File(["invalid image bytes"], "invalid-hero.jpg", {
+      type: "image/jpeg",
+    });
+    const formData = new FormData();
+    formData.append("file", file);
+    formData.append("mediaIntent", "HERO_BACKGROUND");
+    formData.append("title", "Invalid Hero");
+    formData.append("altText", "Invalid Hero Alt");
+    formData.append("sectionKey", "hero");
+
+    const result = await uploadMarketingMediaFile(formData);
+
+    expect(result).toEqual({
+      success: false,
+      error: "Image dimensions do not meet the hero contract.",
+    });
+    expect(mockDbInsert).not.toHaveBeenCalled();
+    expect(mockStorageUpload).not.toHaveBeenCalled();
   });
 });
