@@ -4,8 +4,6 @@ import { createClient as createSupabaseClient } from "@supabase/supabase-js";
 import type { Database } from "@/types/supabase";
 import { canonicalizeSystemRole } from "@/constants/staff";
 import { canAccessCrmWorkspace } from "@/lib/auth/crm-permissions";
-import { resolveSuperAdminContext } from "@/lib/auth/super-admin";
-import { isDevAuthBypassEnabled, getDevBypassStaffRecord } from "@/lib/dev-bypass";
 import type { InhouseBookingOperator } from "@/lib/bookings/inhouse-booking-engine";
 
 export type DesktopBearerAuthResult =
@@ -33,7 +31,9 @@ export async function verifyDesktopBearerAuth(request: Request): Promise<Desktop
     };
   }
 
-  if (!authHeader.startsWith("Bearer ")) {
+  const trimmedHeader = authHeader.trim();
+  const match = /^Bearer(?:\s+(.*))?$/i.exec(trimmedHeader);
+  if (!match) {
     return {
       ok: false,
       status: 401,
@@ -42,7 +42,7 @@ export async function verifyDesktopBearerAuth(request: Request): Promise<Desktop
     };
   }
 
-  const token = authHeader.slice(7).trim();
+  const token = match[1]?.trim();
   if (!token) {
     return {
       ok: false,
@@ -91,45 +91,13 @@ export async function verifyDesktopBearerAuth(request: Request): Promise<Desktop
     };
   }
 
-  // Check super-admin override if configured
-  const superAdmin = await resolveSuperAdminContext(user.id);
-  if (superAdmin) {
-    const operator: InhouseBookingOperator = {
-      authUserId: user.id,
-      staff: {
-        id: superAdmin.id,
-        branch_id: superAdmin.branch_id,
-        system_role: "owner",
-      },
-      staffRole: "owner",
-    };
-    return { ok: true, operator, user: { id: user.id, email: user.email } };
-  }
-
-  // Query staff record
+  // Query active staff record linked to auth_user_id
   const { data: me, error: staffError } = await client
     .from("staff")
     .select("id, branch_id, system_role")
     .eq("auth_user_id", user.id)
     .eq("is_active", true)
     .maybeSingle();
-
-  // Dev bypass fallback if enabled
-  if (!me && isDevAuthBypassEnabled()) {
-    const mock = getDevBypassStaffRecord();
-    const role = canonicalizeSystemRole(mock.system_role);
-    const operator: InhouseBookingOperator = {
-      authUserId: user.id,
-      staff: {
-        id: mock.id,
-        branch_id: mock.branch_id,
-        system_role: mock.system_role,
-      },
-      staffRole: role,
-      isDevBypass: true,
-    };
-    return { ok: true, operator, user: { id: user.id, email: user.email } };
-  }
 
   if (staffError || !me) {
     return {

@@ -31,6 +31,11 @@ function mapDomainCodeToHttpStatus(code: string): number {
     case "SERVICE_UNAVAILABLE":
     case "SERVICE_NOT_CONFIGURED_FOR_BRANCH":
     case "TIME_TOO_LATE":
+    case "BOOKING_RULES_ERROR":
+    case "SERVICE_TIMING_ERROR":
+    case "REFERENCE_ERROR":
+    case "DISTANCE_FAILED":
+    case "MAX_DISTANCE_EXCEEDED":
       return 400;
     default:
       return 500;

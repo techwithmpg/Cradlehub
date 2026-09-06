@@ -203,6 +203,44 @@ describe("Desktop v1 Bookings API Boundary & Domain Integration", () => {
       );
     });
 
+    it("maps branch rules error to 400", async () => {
+      vi.mocked(bearerAuth.verifyDesktopBearerAuth).mockResolvedValueOnce({
+        ok: true,
+        operator: validOperator,
+        user: { id: "user-123" },
+      });
+
+      vi.mocked(bookingEngine.executeInhouseBookingCreation).mockResolvedValueOnce({
+        ok: false,
+        code: "BOOKING_RULES_ERROR",
+        message: "The selected time is outside branch booking hours.",
+      });
+
+      const payload = {
+        fullName: "Test Guest",
+        phone: "09171234567",
+        serviceIds: ["service-1"],
+        date: "2026-09-10",
+        startTime: "06:00",
+        type: "in_spa",
+      };
+
+      const req = new NextRequest("http://localhost:3000/api/desktop/v1/bookings", {
+        method: "POST",
+        headers: { Authorization: "Bearer valid-token" },
+        body: JSON.stringify(payload),
+      });
+
+      const res = await POST(req);
+      expect(res.status).toBe(400);
+      const json = await res.json();
+      expect(json).toEqual({
+        ok: false,
+        code: "BOOKING_RULES_ERROR",
+        message: "The selected time is outside branch booking hours.",
+      });
+    });
+
     it("maps cross-branch forbidden error to 403", async () => {
       vi.mocked(bearerAuth.verifyDesktopBearerAuth).mockResolvedValueOnce({
         ok: true,
@@ -277,6 +315,80 @@ describe("Desktop v1 Bookings API Boundary & Domain Integration", () => {
         ok: false,
         code: "SLOT_UNAVAILABLE",
         message: "That therapist or room was just booked. Please choose another available option.",
+      });
+    });
+
+    it("maps unknown domain error to 500", async () => {
+      vi.mocked(bearerAuth.verifyDesktopBearerAuth).mockResolvedValueOnce({
+        ok: true,
+        operator: validOperator,
+        user: { id: "user-123" },
+      });
+
+      vi.mocked(bookingEngine.executeInhouseBookingCreation).mockResolvedValueOnce({
+        ok: false,
+        code: "BOOKING_INSERT_FAILED",
+        message: "Could not create booking. Please select a different time.",
+      });
+
+      const payload = {
+        fullName: "Test Guest",
+        phone: "09171234567",
+        serviceIds: ["service-1"],
+        date: "2026-09-10",
+        startTime: "10:00",
+        type: "in_spa",
+      };
+
+      const req = new NextRequest("http://localhost:3000/api/desktop/v1/bookings", {
+        method: "POST",
+        headers: { Authorization: "Bearer valid-token" },
+        body: JSON.stringify(payload),
+      });
+
+      const res = await POST(req);
+      expect(res.status).toBe(500);
+      const json = await res.json();
+      expect(json).toEqual({
+        ok: false,
+        code: "BOOKING_INSERT_FAILED",
+        message: "Could not create booking. Please select a different time.",
+      });
+    });
+
+    it("returns 500 UNKNOWN_ERROR on unexpected execution exception", async () => {
+      vi.mocked(bearerAuth.verifyDesktopBearerAuth).mockResolvedValueOnce({
+        ok: true,
+        operator: validOperator,
+        user: { id: "user-123" },
+      });
+
+      vi.mocked(bookingEngine.executeInhouseBookingCreation).mockRejectedValueOnce(
+        new Error("Fatal crash in engine")
+      );
+
+      const payload = {
+        fullName: "Test Guest",
+        phone: "09171234567",
+        serviceIds: ["service-1"],
+        date: "2026-09-10",
+        startTime: "10:00",
+        type: "in_spa",
+      };
+
+      const req = new NextRequest("http://localhost:3000/api/desktop/v1/bookings", {
+        method: "POST",
+        headers: { Authorization: "Bearer valid-token" },
+        body: JSON.stringify(payload),
+      });
+
+      const res = await POST(req);
+      expect(res.status).toBe(500);
+      const json = await res.json();
+      expect(json).toEqual({
+        ok: false,
+        code: "UNKNOWN_ERROR",
+        message: "Could not create booking. Please try again.",
       });
     });
 
