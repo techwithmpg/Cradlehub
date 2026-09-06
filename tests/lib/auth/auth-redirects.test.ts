@@ -13,11 +13,12 @@ afterEach(() => {
 
 describe("auth redirect helpers", () => {
   it("builds public app URLs from NEXT_PUBLIC_APP_URL without duplicate slashes", () => {
-    vi.stubEnv("NEXT_PUBLIC_APP_URL", "https://cradlewellnessliving.com///");
+    vi.stubEnv("NEXT_PUBLIC_APP_URL", "https://www.cradlewellnessliving.com///");
+    vi.stubEnv("NODE_ENV", "production");
 
-    expect(getPublicAppUrl()).toBe("https://cradlewellnessliving.com");
+    expect(getPublicAppUrl()).toBe("https://www.cradlewellnessliving.com");
     expect(buildPasswordResetRedirectUrl()).toBe(
-      "https://cradlewellnessliving.com/reset-password"
+      "https://www.cradlewellnessliving.com/auth/callback?next=%2Freset-password&type=recovery"
     );
   });
 
@@ -25,7 +26,9 @@ describe("auth redirect helpers", () => {
     vi.stubEnv("NEXT_PUBLIC_APP_URL", "");
     vi.stubEnv("NODE_ENV", "development");
 
-    expect(buildPasswordResetRedirectUrl()).toBe("http://localhost:3000/reset-password");
+    expect(buildPasswordResetRedirectUrl()).toBe(
+      "http://localhost:3000/auth/callback?next=%2Freset-password&type=recovery"
+    );
   });
 
   it("fails when the production public app URL is missing", () => {
@@ -44,11 +47,24 @@ describe("auth redirect helpers", () => {
     );
   });
 
+  it("rejects insecure production origins", () => {
+    vi.stubEnv("NEXT_PUBLIC_APP_URL", "http://www.cradlewellnessliving.com");
+    vi.stubEnv("NODE_ENV", "production");
+
+    expect(() => getPublicAppUrl()).toThrow("NEXT_PUBLIC_APP_URL must use HTTPS in production.");
+  });
+
+  it("rejects public app URLs that include paths or query strings", () => {
+    vi.stubEnv("NEXT_PUBLIC_APP_URL", "https://www.cradlewellnessliving.com/login?source=recovery");
+
+    expect(() => getPublicAppUrl()).toThrow(
+      "NEXT_PUBLIC_APP_URL must contain only an application origin."
+    );
+  });
+
   it("allows expected internal workspace paths", () => {
     expect(sanitizeAuthRedirectPath("/reset-password")).toBe("/reset-password");
-    expect(sanitizeAuthRedirectPath("/crm/bookings?view=today")).toBe(
-      "/crm/bookings?view=today"
-    );
+    expect(sanitizeAuthRedirectPath("/crm/bookings?view=today")).toBe("/crm/bookings?view=today");
   });
 
   it("rejects external and callback redirects", () => {

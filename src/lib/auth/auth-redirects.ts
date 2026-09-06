@@ -2,8 +2,10 @@ const DEFAULT_SITE_ORIGIN = "http://localhost:3000";
 export const DEFAULT_AUTH_REDIRECT_PATH = "/select-workspace";
 export const PASSWORD_RESET_PATH = "/reset-password";
 export const PASSWORD_RECOVERY_SESSION_COOKIE = "cradle_password_recovery";
+export const PASSWORD_RECOVERY_SESSION_MAX_AGE_SECONDS = 10 * 60;
+export const PASSWORD_RECOVERY_ERROR = "invalid_or_expired";
 
-const AUTH_CALLBACK_PATH = "/auth/callback";
+export const AUTH_CALLBACK_PATH = "/auth/callback";
 const ALLOWED_REDIRECT_PREFIXES = [
   PASSWORD_RESET_PATH,
   DEFAULT_AUTH_REDIRECT_PATH,
@@ -91,7 +93,10 @@ export function resolveRequestOrigin(
   return normalizeOrigin(fallback) ?? DEFAULT_SITE_ORIGIN;
 }
 
-export function buildAuthCallbackRedirectUrl(origin: string, nextPath = PASSWORD_RESET_PATH): string {
+export function buildAuthCallbackRedirectUrl(
+  origin: string,
+  nextPath = PASSWORD_RESET_PATH
+): string {
   const url = new URL(AUTH_CALLBACK_PATH, origin);
   url.searchParams.set("next", sanitizeAuthRedirectPath(nextPath, PASSWORD_RESET_PATH));
   return url.toString();
@@ -102,16 +107,31 @@ export function getPublicAppUrl(): string {
 
   if (configuredUrl) {
     const appUrl = configuredUrl.replace(/\/+$/, "");
+    const parsedUrl = new URL(appUrl);
+
+    if (
+      parsedUrl.username ||
+      parsedUrl.password ||
+      (parsedUrl.pathname !== "/" && parsedUrl.pathname !== "") ||
+      parsedUrl.search ||
+      parsedUrl.hash
+    ) {
+      throw new Error("NEXT_PUBLIC_APP_URL must contain only an application origin.");
+    }
 
     if (process.env.NODE_ENV === "production") {
-      const hostname = new URL(appUrl).hostname;
+      const hostname = parsedUrl.hostname;
 
       if (hostname === "localhost" || hostname === "127.0.0.1" || hostname === "::1") {
         throw new Error("NEXT_PUBLIC_APP_URL must not be localhost in production.");
       }
+
+      if (parsedUrl.protocol !== "https:") {
+        throw new Error("NEXT_PUBLIC_APP_URL must use HTTPS in production.");
+      }
     }
 
-    return appUrl;
+    return parsedUrl.origin;
   }
 
   if (process.env.NODE_ENV === "development") {
@@ -122,5 +142,22 @@ export function getPublicAppUrl(): string {
 }
 
 export function buildPasswordResetRedirectUrl(): string {
-  return `${getPublicAppUrl()}${PASSWORD_RESET_PATH}`;
+  const url = new URL(buildAuthCallbackRedirectUrl(getPublicAppUrl(), PASSWORD_RESET_PATH));
+  url.searchParams.set("type", "recovery");
+  return url.toString();
+}
+
+export function getPasswordRecoveryCookieOptions(maxAge: number) {
+  return {
+    httpOnly: true,
+    maxAge,
+    path: PASSWORD_RESET_PATH,
+    sameSite: "lax" as const,
+    secure: process.env.NODE_ENV === "production",
+  };
+}
+
+export function buildInvalidPasswordRecoveryPath(): string {
+  const search = new URLSearchParams({ error: PASSWORD_RECOVERY_ERROR });
+  return `${PASSWORD_RESET_PATH}?${search.toString()}`;
 }

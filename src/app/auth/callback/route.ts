@@ -1,5 +1,9 @@
 import { NextRequest, NextResponse } from "next/server";
 import {
+  buildInvalidPasswordRecoveryPath,
+  DEFAULT_AUTH_REDIRECT_PATH,
+  getPasswordRecoveryCookieOptions,
+  PASSWORD_RECOVERY_SESSION_MAX_AGE_SECONDS,
   PASSWORD_RECOVERY_SESSION_COOKIE,
   PASSWORD_RESET_PATH,
   sanitizeAuthRedirectPath,
@@ -12,19 +16,43 @@ export async function GET(request: NextRequest) {
   const code = requestUrl.searchParams.get("code");
   const tokenHash = requestUrl.searchParams.get("token_hash");
   const type = requestUrl.searchParams.get("type");
-  const providerError = requestUrl.searchParams.get("error_description");
-  const nextPath = sanitizeAuthRedirectPath(
-    requestUrl.searchParams.get("next"),
-    "/select-workspace"
+  const providerError =
+    requestUrl.searchParams.get("error_description") ?? requestUrl.searchParams.get("error");
+  const requestedNextPath = requestUrl.searchParams.get("next");
+  const isRecoveryCallback = type === "recovery";
+  const hasRecoveryIntent =
+    isRecoveryCallback || Boolean(tokenHash) || requestedNextPath === PASSWORD_RESET_PATH;
+  const sanitizedNextPath = sanitizeAuthRedirectPath(
+    requestedNextPath,
+    isRecoveryCallback ? PASSWORD_RESET_PATH : DEFAULT_AUTH_REDIRECT_PATH
   );
+  const nextPath =
+    !isRecoveryCallback && sanitizedNextPath === PASSWORD_RESET_PATH
+      ? DEFAULT_AUTH_REDIRECT_PATH
+      : sanitizedNextPath;
+
+  function clearRecoveryMarker(response: NextResponse) {
+    response.cookies.set(PASSWORD_RECOVERY_SESSION_COOKIE, "", getPasswordRecoveryCookieOptions(0));
+    return response;
+  }
+
+  function invalidRecoveryResponse() {
+    return clearRecoveryMarker(
+      NextResponse.redirect(new URL(buildInvalidPasswordRecoveryPath(), requestUrl.origin))
+    );
+  }
 
   if (providerError) {
     logError("auth.callback_provider_error", { error: providerError });
-    return NextResponse.redirect(new URL("/login", requestUrl.origin));
+    return hasRecoveryIntent
+      ? invalidRecoveryResponse()
+      : clearRecoveryMarker(NextResponse.redirect(new URL("/login", requestUrl.origin)));
   }
 
-  if (!code && !(tokenHash && type === "recovery")) {
-    return NextResponse.redirect(new URL("/login", requestUrl.origin));
+  if (!code && !(tokenHash && isRecoveryCallback)) {
+    return hasRecoveryIntent
+      ? invalidRecoveryResponse()
+      : clearRecoveryMarker(NextResponse.redirect(new URL("/login", requestUrl.origin)));
   }
 
   const supabase = await createClient();
@@ -38,19 +66,33 @@ export async function GET(request: NextRequest) {
 
   if (error) {
     logError("auth.callback_code_exchange_failed", { error });
-    return NextResponse.redirect(new URL("/login", requestUrl.origin));
+    return isRecoveryCallback
+      ? invalidRecoveryResponse()
+      : clearRecoveryMarker(NextResponse.redirect(new URL("/login", requestUrl.origin)));
+  }
+
+  if (isRecoveryCallback) {
+    const {
+      data: { user },
+      error: userError,
+    } = await supabase.auth.getUser();
+
+    if (userError || !user) {
+      logError("auth.callback_recovery_session_missing", { error: userError });
+      return invalidRecoveryResponse();
+    }
   }
 
   const response = NextResponse.redirect(new URL(nextPath, requestUrl.origin));
 
-  if (nextPath === PASSWORD_RESET_PATH) {
-    response.cookies.set(PASSWORD_RECOVERY_SESSION_COOKIE, "1", {
-      httpOnly: true,
-      maxAge: 10 * 60,
-      path: PASSWORD_RESET_PATH,
-      sameSite: "lax",
-      secure: process.env.NODE_ENV === "production",
-    });
+  if (isRecoveryCallback && nextPath === PASSWORD_RESET_PATH) {
+    response.cookies.set(
+      PASSWORD_RECOVERY_SESSION_COOKIE,
+      "1",
+      getPasswordRecoveryCookieOptions(PASSWORD_RECOVERY_SESSION_MAX_AGE_SECONDS)
+    );
+  } else {
+    clearRecoveryMarker(response);
   }
 
   return response;

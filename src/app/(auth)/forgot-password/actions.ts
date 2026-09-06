@@ -19,10 +19,8 @@ const forgotPasswordSchema = z.object({
 
 const SUCCESS_MESSAGE =
   "If an account is connected to that email, a password-reset link has been sent.\n\nPlease check your inbox and spam folder.";
-const RATE_LIMIT_MESSAGE =
-  "A reset request was recently sent. Please wait before trying again.";
-const REQUEST_FAILED_MESSAGE =
-  "We could not send the reset link right now. Please try again.";
+const RATE_LIMIT_MESSAGE = "A reset request was recently sent. Please wait before trying again.";
+const REQUEST_FAILED_MESSAGE = "We could not send the reset link right now. Please try again.";
 
 export type ForgotPasswordState = {
   status?: "success";
@@ -107,7 +105,7 @@ export async function requestPasswordResetAction(
       error,
       targetEmailDomain: getEmailDomain(targetEmail),
     });
-    return { error: REQUEST_FAILED_MESSAGE };
+    return { status: "success", message: SUCCESS_MESSAGE };
   }
 
   return { status: "success", message: SUCCESS_MESSAGE };

@@ -3,8 +3,8 @@ import { PASSWORD_RECOVERY_SESSION_COOKIE } from "@/lib/auth/auth-redirects";
 import { PASSWORD_REQUIREMENT_MESSAGE } from "@/lib/auth/password-policy";
 
 const mocks = vi.hoisted(() => ({
-  cookieDelete: vi.fn(),
   cookieGet: vi.fn(),
+  cookieSet: vi.fn(),
   createClient: vi.fn(),
   getStaffAccountAccessRequestContext: vi.fn(() => ({
     ipHash: null,
@@ -21,8 +21,8 @@ const mocks = vi.hoisted(() => ({
 
 vi.mock("next/headers", () => ({
   cookies: vi.fn(async () => ({
-    delete: mocks.cookieDelete,
     get: mocks.cookieGet,
+    set: mocks.cookieSet,
   })),
   headers: mocks.headers,
 }));
@@ -32,11 +32,9 @@ vi.mock("@/lib/supabase/server", () => ({
 }));
 
 vi.mock("@/lib/auth/account-access-events", () => ({
-  getEmailDomain: (email: string | null | undefined) =>
-    email?.split("@")[1]?.toLowerCase() ?? null,
+  getEmailDomain: (email: string | null | undefined) => email?.split("@")[1]?.toLowerCase() ?? null,
   getStaffAccountAccessRequestContext: mocks.getStaffAccountAccessRequestContext,
-  normalizeAuditEmail: (email: string | null | undefined) =>
-    email?.trim().toLowerCase() || null,
+  normalizeAuditEmail: (email: string | null | undefined) => email?.trim().toLowerCase() || null,
   recordStaffAccountAccessEvent: mocks.recordStaffAccountAccessEvent,
 }));
 
@@ -90,6 +88,7 @@ beforeEach(() => {
 
 afterEach(() => {
   vi.clearAllMocks();
+  vi.unstubAllEnvs();
 });
 
 describe("updatePasswordAction", () => {
@@ -101,10 +100,7 @@ describe("updatePasswordAction", () => {
   });
 
   it("rejects password mismatches", async () => {
-    const result = await updatePasswordAction(
-      {},
-      resetFormData("Strong123", "Strong124")
-    );
+    const result = await updatePasswordAction({}, resetFormData("Strong123", "Strong124"));
 
     expect(result.fieldErrors?.confirmPassword).toBe("Passwords do not match");
     expect(mocks.updateUser).not.toHaveBeenCalled();
@@ -124,9 +120,61 @@ describe("updatePasswordAction", () => {
   it("updates the Supabase user password and signs out the recovery session", async () => {
     const result = await updatePasswordAction({}, resetFormData("Strong123"));
 
+    expect(mocks.updateUser).toHaveBeenCalledOnce();
     expect(mocks.updateUser).toHaveBeenCalledWith({ password: "Strong123" });
     expect(mocks.signOut).toHaveBeenCalled();
-    expect(mocks.cookieDelete).toHaveBeenCalledWith(PASSWORD_RECOVERY_SESSION_COOKIE);
+    expect(mocks.cookieSet).toHaveBeenCalledWith(
+      PASSWORD_RECOVERY_SESSION_COOKIE,
+      "",
+      expect.objectContaining({ maxAge: 0, path: "/reset-password" })
+    );
+    expect(mocks.recordStaffAccountAccessEvent).toHaveBeenCalledWith(
+      expect.objectContaining({ outcome: "success", targetAuthUserId: "auth-user-id" })
+    );
     expect(result.status).toBe("success");
+  });
+
+  it("rejects an expired Supabase session and clears the scoped marker", async () => {
+    mocks.getUser.mockResolvedValue({ data: { user: null }, error: new Error("expired") });
+
+    const result = await updatePasswordAction({}, resetFormData("Strong123"));
+
+    expect(result.error).toBe("This password-reset link is invalid or has expired.");
+    expect(mocks.updateUser).not.toHaveBeenCalled();
+    expect(mocks.cookieSet).toHaveBeenCalledWith(
+      PASSWORD_RECOVERY_SESSION_COOKIE,
+      "",
+      expect.objectContaining({ maxAge: 0, path: "/reset-password" })
+    );
+  });
+
+  it("records update failures and keeps the recovery session available for retry", async () => {
+    const updateError = new Error("provider update failed");
+    mocks.updateUser.mockResolvedValue({ error: updateError });
+
+    const result = await updatePasswordAction({}, resetFormData("Strong123"));
+
+    expect(result.error).toBe(
+      "We could not update your password. Please request a new reset link."
+    );
+    expect(mocks.recordStaffAccountAccessEvent).toHaveBeenCalledWith(
+      expect.objectContaining({ outcome: "error" })
+    );
+    expect(mocks.signOut).not.toHaveBeenCalled();
+    expect(mocks.cookieSet).not.toHaveBeenCalled();
+  });
+
+  it("finishes successfully and clears the marker even when sign-out reports an error", async () => {
+    const signOutError = new Error("sign out failed");
+    mocks.signOut.mockResolvedValue({ error: signOutError });
+
+    const result = await updatePasswordAction({}, resetFormData("Strong123"));
+
+    expect(result.status).toBe("success");
+    expect(mocks.cookieSet).toHaveBeenCalled();
+    expect(mocks.logError).toHaveBeenCalledWith(
+      "auth.password_update_sign_out_failed",
+      expect.objectContaining({ error: signOutError })
+    );
   });
 });

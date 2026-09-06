@@ -1,16 +1,11 @@
 import { cookies } from "next/headers";
 import { redirect } from "next/navigation";
 import { BrandLogo } from "@/components/shared/brand-logo";
-import {
-  PASSWORD_RECOVERY_SESSION_COOKIE,
-  PASSWORD_RESET_PATH,
-} from "@/lib/auth/auth-redirects";
+import { PASSWORD_RECOVERY_SESSION_COOKIE, PASSWORD_RESET_PATH } from "@/lib/auth/auth-redirects";
 import { createClient } from "@/lib/supabase/server";
 import { ResetPasswordForm } from "./reset-password-form";
 
-type ResetPasswordSearchParams = Promise<
-  Record<string, string | string[] | undefined>
->;
+type ResetPasswordSearchParams = Promise<Record<string, string | string[] | undefined>>;
 
 function getSearchParam(value: string | string[] | undefined): string | null {
   if (Array.isArray(value)) return value[0] ?? null;
@@ -27,6 +22,7 @@ function redirectRecoveryParamsToCallback(params: {
 
   if (params.code) {
     callbackParams.set("code", params.code);
+    callbackParams.set("type", "recovery");
   } else if (params.tokenHash && params.type === "recovery") {
     callbackParams.set("token_hash", params.tokenHash);
     callbackParams.set("type", params.type);
@@ -52,8 +48,7 @@ export default async function ResetPasswordPage({
   const hasProviderError =
     Boolean(getSearchParam(params.error)) || Boolean(getSearchParam(params.error_description));
   const cookieStore = await cookies();
-  const hasRecoverySession =
-    cookieStore.get(PASSWORD_RECOVERY_SESSION_COOKIE)?.value === "1";
+  const hasRecoverySession = cookieStore.get(PASSWORD_RECOVERY_SESSION_COOKIE)?.value === "1";
   let email: string | null = null;
   let hasValidRecoverySession = false;
 
@@ -86,10 +81,7 @@ export default async function ResetPasswordPage({
             </p>
           </div>
 
-          <ResetPasswordForm
-            email={email}
-            initialHasRecoverySession={hasValidRecoverySession}
-          />
+          <ResetPasswordForm email={email} initialHasRecoverySession={hasValidRecoverySession} />
         </div>
       </div>
     </main>

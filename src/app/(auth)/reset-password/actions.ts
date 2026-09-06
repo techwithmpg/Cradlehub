@@ -8,7 +8,10 @@ import {
   normalizeAuditEmail,
   recordStaffAccountAccessEvent,
 } from "@/lib/auth/account-access-events";
-import { PASSWORD_RECOVERY_SESSION_COOKIE } from "@/lib/auth/auth-redirects";
+import {
+  getPasswordRecoveryCookieOptions,
+  PASSWORD_RECOVERY_SESSION_COOKIE,
+} from "@/lib/auth/auth-redirects";
 import {
   getPasswordValidationError,
   PASSWORD_REQUIREMENT_MESSAGE,
@@ -92,6 +95,7 @@ export async function updatePasswordAction(
   } = await supabase.auth.getUser();
 
   if (userError || !user) {
+    cookieStore.set(PASSWORD_RECOVERY_SESSION_COOKIE, "", getPasswordRecoveryCookieOptions(0));
     return {
       error: "This password-reset link is invalid or has expired.",
     };
@@ -129,7 +133,7 @@ export async function updatePasswordAction(
   }
 
   const { error: signOutError } = await supabase.auth.signOut();
-  cookieStore.delete(PASSWORD_RECOVERY_SESSION_COOKIE);
+  cookieStore.set(PASSWORD_RECOVERY_SESSION_COOKIE, "", getPasswordRecoveryCookieOptions(0));
 
   if (signOutError) {
     logError("auth.password_update_sign_out_failed", {
