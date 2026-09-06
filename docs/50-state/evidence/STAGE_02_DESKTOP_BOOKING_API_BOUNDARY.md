@@ -14,7 +14,7 @@ Hosted CradleHub server boundary for Desktop Stage 02
 
 ## Previously Reviewed Hosted HEAD
 
-`7396ac4d2c5170a4882d9e142c07e2d827465f50`
+`7d04944188dc8e1cf61f49739307d1da3a3f2694`
 
 ## Desktop Dependency
 
@@ -24,30 +24,25 @@ Hosted CradleHub server boundary for Desktop Stage 02
 
 - `src/lib/bookings/inhouse-booking-engine.ts` [NEW] - Authoritative server-only domain engine
 - `src/lib/auth/desktop-bearer-auth.ts` [NEW] - Server-side Bearer token verification & active staff resolution helper (strictly aligned with canonical authority; no super-admin override)
-- `src/app/api/desktop/v1/bookings/route.ts` [NEW] - Dedicated authenticated API route for Desktop booking creation
+- `src/app/api/desktop/v1/bookings/route.ts` [NEW] - Dedicated authenticated API route for Desktop booking creation with domain-grounded HTTP status mapping
 - `src/lib/actions/inhouse-booking.ts` [MODIFIED] - Thin server action wrapper preserving existing cookie-session CRM UI behavior
 - `tests/lib/auth/desktop-bearer-auth.test.ts` [NEW] - Direct unit test suite verifying `verifyDesktopBearerAuth` helper authentication, schema enforcement, active staff query, role normalization, error handling, and super-admin override rejection
 - `tests/lib/bookings/inhouse-booking-engine-auth.test.ts` [NEW] - Direct unit test suite verifying `executeInhouseBookingCreation` branch guard, cross-branch rejection before database mutations, owner branch flexibility, and missing branch handling
 - `tests/api/desktop-v1-bookings.test.ts` [NEW] - Route-level HTTP and domain code mapping tests
 - `docs/50-state/evidence/STAGE_02_DESKTOP_BOOKING_API_BOUNDARY.md` [MODIFIED] - This evidence record
 
-## Security & Authorization Correction Summary
+## Domain Error-Mapping Correction Summary
 
-Following independent review of HEAD `7396ac4d2c5170a4882d9e142c07e2d827465f50`, the following corrections were applied:
+Following independent review of HEAD `7d04944188dc8e1cf61f49739307d1da3a3f2694`, the HTTP status code mapping in `src/app/api/desktop/v1/bookings/route.ts` was reconciled with actual reachable codes from `executeInhouseBookingCreation`:
 
-1. **Removed Unauthorized Super-Admin Expansion**:
-   - `resolveSuperAdminContext` and mock staff fallbacks were removed from `src/lib/auth/desktop-bearer-auth.ts`.
-   - The Desktop booking API requires the exact same canonical active staff context as the original hosted booking action (`staff` table lookup with `auth_user_id` and `is_active: true`, canonical system role, and `canAccessCrmWorkspace(role)`).
-   - A user whose ID matches super-admin configuration without an active staff record is denied access (`STAFF_NOT_FOUND`, HTTP 403).
-2. **Direct Authentication Helper Testing**:
-   - `verifyDesktopBearerAuth` is directly tested in `tests/lib/auth/desktop-bearer-auth.test.ts` without mocking the helper itself.
-   - Verified: missing header (401), malformed scheme (401), empty bearer (401), invalid/expired token (401), missing server config (500), no active staff record (403), query failure fail-closed (403), unauthorized role (403), authorized CRM role (200), legacy alias normalization (`csr` -> `crm`), super-admin without staff rejected (403), and token leakage prevention.
-3. **Direct Shared Engine Authorization & Branch Boundary Testing**:
-   - `executeInhouseBookingCreation` is directly tested in `tests/lib/bookings/inhouse-booking-engine-auth.test.ts` for branch authorization.
-   - Verified: non-owner operator attempting cross-branch booking is immediately rejected (`CRM_BRANCH_FORBIDDEN`) before any DB mutation or downstream rule validation occurs.
-   - Verified: owner operator is permitted to create bookings across branches.
-   - Verified: unassigned operator or missing branch is rejected (`BRANCH_MISSING`).
-   - Verified: non-CRM operator is rejected (`UNAUTHORIZED`).
+1. **`BOOKING_RULES_ERROR`**: Retained at HTTP 400. This is a client-correctable constraint failure (e.g. selected booking time is outside branch operating rules).
+2. **`SERVICE_TIMING_ERROR`**: Removed from HTTP 400; falls to HTTP 500 default. This code is returned when database reads for service buffers/duration fail during calculation, representing a server read failure rather than client input validation.
+3. **Unsupported Distance Codes Removed**: `DISTANCE_FAILED` and `MAX_DISTANCE_EXCEEDED` were removed from route mapping because they are not emitted by the booking engine. Home service distance calculation (`calculateHomeServiceDistanceQuote`) actually emits `BRANCH_NOT_FOUND` and `BRANCH_LOCATION_MISSING`.
+4. **Actual Home-Service Error Handling**:
+   - `BRANCH_NOT_FOUND` maps to HTTP 400 (invalid branch reference provided).
+   - `BRANCH_LOCATION_MISSING` falls to HTTP 500 (server branch coordinate configuration missing in database).
+5. **`REFERENCE_ERROR`**: Removed from HTTP 400; falls to HTTP 500 default. This code is derived from foreign key violations in the catch block, representing internal data integrity failures.
+6. **Route Test Grounding**: Every retained or mapped status code is covered by focused tests in `tests/api/desktop-v1-bookings.test.ts`.
 
 ## Server Action
 
@@ -93,12 +88,11 @@ All canonical domain side effects are strictly preserved:
 
 ## Verification Checks
 
-- `pnpm format:check` - PASSED (all target files formatted with Prettier)
+- `pnpm prettier --check src/app/api/desktop/v1/bookings/route.ts tests/api/desktop-v1-bookings.test.ts docs/50-state/evidence/STAGE_02_DESKTOP_BOOKING_API_BOUNDARY.md` - PASSED
 - `pnpm type-check` - PASSED (tsc --noEmit with 0 errors)
 - `pnpm lint` - PASSED (eslint with 0 errors)
-- `pnpm vitest run tests/lib/auth/desktop-bearer-auth.test.ts` - PASSED (13/13 tests pass)
-- `pnpm vitest run tests/lib/bookings/inhouse-booking-engine-auth.test.ts` - PASSED (5/5 tests pass)
-- `pnpm vitest run tests/api/desktop-v1-bookings.test.ts` - PASSED (13/13 tests pass)
+- `pnpm vitest run tests/api/desktop-v1-bookings.test.ts` - PASSED (17/17 tests pass)
+- `pnpm vitest run tests/lib/auth/desktop-bearer-auth.test.ts tests/lib/bookings/inhouse-booking-engine-auth.test.ts tests/api/desktop-v1-bookings.test.ts` - PASSED (35/35 tests pass)
 - `pnpm vitest run tests/lib/bookings/` - PASSED (all booking tests pass)
 - `pnpm build` - PASSED (Next.js production build succeeded)
 - `git diff --check` - PASSED (clean diff, no whitespace errors)

@@ -241,6 +241,45 @@ describe("Desktop v1 Bookings API Boundary & Domain Integration", () => {
       });
     });
 
+    it("maps BRANCH_NOT_FOUND to 400", async () => {
+      vi.mocked(bearerAuth.verifyDesktopBearerAuth).mockResolvedValueOnce({
+        ok: true,
+        operator: validOperator,
+        user: { id: "user-123" },
+      });
+
+      vi.mocked(bookingEngine.executeInhouseBookingCreation).mockResolvedValueOnce({
+        ok: false,
+        code: "BRANCH_NOT_FOUND",
+        message: "The selected branch could not be found.",
+      });
+
+      const payload = {
+        branchId: "00000000-0000-0000-0000-000000000099",
+        fullName: "Test Guest",
+        phone: "09171234567",
+        serviceIds: ["service-1"],
+        date: "2026-09-10",
+        startTime: "10:00",
+        type: "in_spa",
+      };
+
+      const req = new NextRequest("http://localhost:3000/api/desktop/v1/bookings", {
+        method: "POST",
+        headers: { Authorization: "Bearer valid-token" },
+        body: JSON.stringify(payload),
+      });
+
+      const res = await POST(req);
+      expect(res.status).toBe(400);
+      const json = await res.json();
+      expect(json).toEqual({
+        ok: false,
+        code: "BRANCH_NOT_FOUND",
+        message: "The selected branch could not be found.",
+      });
+    });
+
     it("maps cross-branch forbidden error to 403", async () => {
       vi.mocked(bearerAuth.verifyDesktopBearerAuth).mockResolvedValueOnce({
         ok: true,
@@ -318,7 +357,121 @@ describe("Desktop v1 Bookings API Boundary & Domain Integration", () => {
       });
     });
 
-    it("maps unknown domain error to 500", async () => {
+    it("maps SERVICE_TIMING_ERROR server calculation failure to 500", async () => {
+      vi.mocked(bearerAuth.verifyDesktopBearerAuth).mockResolvedValueOnce({
+        ok: true,
+        operator: validOperator,
+        user: { id: "user-123" },
+      });
+
+      vi.mocked(bookingEngine.executeInhouseBookingCreation).mockResolvedValueOnce({
+        ok: false,
+        code: "SERVICE_TIMING_ERROR",
+        message: "Could not calculate service timing. Please refresh and try again.",
+      });
+
+      const payload = {
+        fullName: "Test Guest",
+        phone: "09171234567",
+        serviceIds: ["service-1"],
+        date: "2026-09-10",
+        startTime: "10:00",
+        type: "in_spa",
+      };
+
+      const req = new NextRequest("http://localhost:3000/api/desktop/v1/bookings", {
+        method: "POST",
+        headers: { Authorization: "Bearer valid-token" },
+        body: JSON.stringify(payload),
+      });
+
+      const res = await POST(req);
+      expect(res.status).toBe(500);
+      const json = await res.json();
+      expect(json).toEqual({
+        ok: false,
+        code: "SERVICE_TIMING_ERROR",
+        message: "Could not calculate service timing. Please refresh and try again.",
+      });
+    });
+
+    it("maps BRANCH_LOCATION_MISSING server config issue to 500", async () => {
+      vi.mocked(bearerAuth.verifyDesktopBearerAuth).mockResolvedValueOnce({
+        ok: true,
+        operator: validOperator,
+        user: { id: "user-123" },
+      });
+
+      vi.mocked(bookingEngine.executeInhouseBookingCreation).mockResolvedValueOnce({
+        ok: false,
+        code: "BRANCH_LOCATION_MISSING",
+        message: "Branch location coordinates are not configured.",
+      });
+
+      const payload = {
+        fullName: "Test Guest",
+        phone: "09171234567",
+        serviceIds: ["service-1"],
+        date: "2026-09-10",
+        startTime: "10:00",
+        type: "home_service",
+      };
+
+      const req = new NextRequest("http://localhost:3000/api/desktop/v1/bookings", {
+        method: "POST",
+        headers: { Authorization: "Bearer valid-token" },
+        body: JSON.stringify(payload),
+      });
+
+      const res = await POST(req);
+      expect(res.status).toBe(500);
+      const json = await res.json();
+      expect(json).toEqual({
+        ok: false,
+        code: "BRANCH_LOCATION_MISSING",
+        message: "Branch location coordinates are not configured.",
+      });
+    });
+
+    it("maps REFERENCE_ERROR server database integrity issue to 500", async () => {
+      vi.mocked(bearerAuth.verifyDesktopBearerAuth).mockResolvedValueOnce({
+        ok: true,
+        operator: validOperator,
+        user: { id: "user-123" },
+      });
+
+      vi.mocked(bookingEngine.executeInhouseBookingCreation).mockResolvedValueOnce({
+        ok: false,
+        code: "REFERENCE_ERROR",
+        message: "A related record could not be found. Please refresh and try again.",
+      });
+
+      const payload = {
+        fullName: "Test Guest",
+        phone: "09171234567",
+        serviceIds: ["service-1"],
+        date: "2026-09-10",
+        startTime: "10:00",
+        type: "in_spa",
+      };
+
+      const req = new NextRequest("http://localhost:3000/api/desktop/v1/bookings", {
+        method: "POST",
+        headers: { Authorization: "Bearer valid-token" },
+        body: JSON.stringify(payload),
+      });
+
+      const res = await POST(req);
+      expect(res.status).toBe(500);
+      const json = await res.json();
+      expect(json).toEqual({
+        ok: false,
+        code: "REFERENCE_ERROR",
+        message: "A related record could not be found. Please refresh and try again.",
+      });
+    });
+
+    it("maps BOOKING_INSERT_FAILED database error to 500", async () => {
       vi.mocked(bearerAuth.verifyDesktopBearerAuth).mockResolvedValueOnce({
         ok: true,
         operator: validOperator,

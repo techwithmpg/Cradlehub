@@ -21,6 +21,7 @@ function mapDomainCodeToHttpStatus(code: string): number {
     case "VALIDATION_ERROR":
     case "INVALID_BOOKING_TIME":
     case "BRANCH_MISSING":
+    case "BRANCH_NOT_FOUND":
     case "HS_ADDRESS_MISSING":
     case "HS_LOCATION_MISSING":
     case "MANUAL_ARRANGEMENT_REQUIRED":
@@ -32,10 +33,6 @@ function mapDomainCodeToHttpStatus(code: string): number {
     case "SERVICE_NOT_CONFIGURED_FOR_BRANCH":
     case "TIME_TOO_LATE":
     case "BOOKING_RULES_ERROR":
-    case "SERVICE_TIMING_ERROR":
-    case "REFERENCE_ERROR":
-    case "DISTANCE_FAILED":
-    case "MAX_DISTANCE_EXCEEDED":
       return 400;
     default:
       return 500;
