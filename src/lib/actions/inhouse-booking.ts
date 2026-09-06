@@ -2,6 +2,7 @@
 
 import { createClient } from "@/lib/supabase/server";
 import { canonicalizeSystemRole } from "@/constants/staff";
+import { isDevAuthBypassEnabled } from "@/lib/dev-bypass";
 import {
   executeInhouseBookingCreation,
   type CreateInhouseBookingResult,
@@ -43,11 +44,13 @@ export async function createInhouseBookingMultiAction(
 
   const staff = (me ?? null) as StaffAuthContext | null;
   const staffRole = staff ? canonicalizeSystemRole(staff.system_role) : null;
+  const isDevBypass = isDevAuthBypassEnabled();
 
   const operator: InhouseBookingOperator = {
     authUserId: user.id,
     staff,
     staffRole,
+    isDevBypass,
   };
 
   return executeInhouseBookingCreation(rawInput, operator);

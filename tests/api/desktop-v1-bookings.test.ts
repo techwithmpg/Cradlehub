@@ -133,6 +133,7 @@ describe("Desktop v1 Bookings API Boundary & Domain Integration", () => {
         system_role: "front_desk",
       },
       staffRole: "front_desk",
+      isDevBypass: false,
     };
 
     it("returns 400 for invalid JSON syntax in request body", async () => {
@@ -148,7 +149,7 @@ describe("Desktop v1 Bookings API Boundary & Domain Integration", () => {
           Authorization: "Bearer valid-token",
           "Content-Type": "application/json",
         },
-        body: "invalid-json{",
+        body: "{ invalid json ...",
       });
 
       const res = await POST(req);
@@ -159,9 +160,50 @@ describe("Desktop v1 Bookings API Boundary & Domain Integration", () => {
         code: "VALIDATION_ERROR",
         message: "Invalid JSON payload.",
       });
+      expect(bookingEngine.executeInhouseBookingCreation).not.toHaveBeenCalled();
     });
 
-    it("maps domain validation failure to 400", async () => {
+    it("delegates to executeInhouseBookingCreation with parsed payload and operator", async () => {
+      vi.mocked(bearerAuth.verifyDesktopBearerAuth).mockResolvedValueOnce({
+        ok: true,
+        operator: validOperator,
+        user: { id: "user-123" },
+      });
+
+      vi.mocked(bookingEngine.executeInhouseBookingCreation).mockResolvedValueOnce({
+        ok: true,
+        bookingId: "booking-uuid-123",
+      });
+
+      const payload = {
+        fullName: "Test Guest",
+        phone: "09171234567",
+        serviceIds: ["service-1"],
+        date: "2026-09-10",
+        startTime: "10:00",
+        type: "in_spa",
+      };
+
+      const req = new NextRequest("http://localhost:3000/api/desktop/v1/bookings", {
+        method: "POST",
+        headers: { Authorization: "Bearer valid-token" },
+        body: JSON.stringify(payload),
+      });
+
+      const res = await POST(req);
+      expect(res.status).toBe(200);
+      const json = await res.json();
+      expect(json).toEqual({
+        ok: true,
+        bookingId: "booking-uuid-123",
+      });
+      expect(bookingEngine.executeInhouseBookingCreation).toHaveBeenCalledWith(
+        payload,
+        validOperator
+      );
+    });
+
+    it("maps VALIDATION_ERROR from engine to 400", async () => {
       vi.mocked(bearerAuth.verifyDesktopBearerAuth).mockResolvedValueOnce({
         ok: true,
         operator: validOperator,
@@ -171,12 +213,11 @@ describe("Desktop v1 Bookings API Boundary & Domain Integration", () => {
       vi.mocked(bookingEngine.executeInhouseBookingCreation).mockResolvedValueOnce({
         ok: false,
         code: "VALIDATION_ERROR",
-        message: "Please enter a valid Philippine mobile number (09xx or +639xx).",
+        message: "Full name is required.",
       });
 
       const payload = {
-        fullName: "Test Guest",
-        phone: "123",
+        phone: "09171234567",
         serviceIds: ["service-1"],
         date: "2026-09-10",
         startTime: "10:00",
@@ -195,15 +236,49 @@ describe("Desktop v1 Bookings API Boundary & Domain Integration", () => {
       expect(json).toEqual({
         ok: false,
         code: "VALIDATION_ERROR",
-        message: "Please enter a valid Philippine mobile number (09xx or +639xx).",
+        message: "Full name is required.",
       });
-      expect(bookingEngine.executeInhouseBookingCreation).toHaveBeenCalledWith(
-        payload,
-        validOperator
-      );
     });
 
-    it("maps branch rules error to 400", async () => {
+    it("maps INVALID_BOOKING_TIME to 400", async () => {
+      vi.mocked(bearerAuth.verifyDesktopBearerAuth).mockResolvedValueOnce({
+        ok: true,
+        operator: validOperator,
+        user: { id: "user-123" },
+      });
+
+      vi.mocked(bookingEngine.executeInhouseBookingCreation).mockResolvedValueOnce({
+        ok: false,
+        code: "INVALID_BOOKING_TIME",
+        message: "Invalid time format.",
+      });
+
+      const payload = {
+        fullName: "Test Guest",
+        phone: "09171234567",
+        serviceIds: ["service-1"],
+        date: "2026-09-10",
+        startTime: "25:00",
+        type: "in_spa",
+      };
+
+      const req = new NextRequest("http://localhost:3000/api/desktop/v1/bookings", {
+        method: "POST",
+        headers: { Authorization: "Bearer valid-token" },
+        body: JSON.stringify(payload),
+      });
+
+      const res = await POST(req);
+      expect(res.status).toBe(400);
+      const json = await res.json();
+      expect(json).toEqual({
+        ok: false,
+        code: "INVALID_BOOKING_TIME",
+        message: "Invalid time format.",
+      });
+    });
+
+    it("maps BOOKING_RULES_ERROR to 400", async () => {
       vi.mocked(bearerAuth.verifyDesktopBearerAuth).mockResolvedValueOnce({
         ok: true,
         operator: validOperator,
@@ -221,7 +296,7 @@ describe("Desktop v1 Bookings API Boundary & Domain Integration", () => {
         phone: "09171234567",
         serviceIds: ["service-1"],
         date: "2026-09-10",
-        startTime: "06:00",
+        startTime: "05:00",
         type: "in_spa",
       };
 
@@ -319,7 +394,7 @@ describe("Desktop v1 Bookings API Boundary & Domain Integration", () => {
       });
     });
 
-    it("maps slot / resource conflict to 409", async () => {
+    it("maps SLOT_UNAVAILABLE concurrency conflict to 409", async () => {
       vi.mocked(bearerAuth.verifyDesktopBearerAuth).mockResolvedValueOnce({
         ok: true,
         operator: validOperator,
@@ -329,7 +404,7 @@ describe("Desktop v1 Bookings API Boundary & Domain Integration", () => {
       vi.mocked(bookingEngine.executeInhouseBookingCreation).mockResolvedValueOnce({
         ok: false,
         code: "SLOT_UNAVAILABLE",
-        message: "That therapist or room was just booked. Please choose another available option.",
+        message: "This slot is no longer available.",
       });
 
       const payload = {
@@ -353,7 +428,7 @@ describe("Desktop v1 Bookings API Boundary & Domain Integration", () => {
       expect(json).toEqual({
         ok: false,
         code: "SLOT_UNAVAILABLE",
-        message: "That therapist or room was just booked. Please choose another available option.",
+        message: "This slot is no longer available.",
       });
     });
 
@@ -645,6 +720,7 @@ describe("Desktop v1 Bookings API Boundary & Domain Integration", () => {
           system_role: "manager",
         },
         staffRole: "manager",
+        isDevBypass: false,
       });
     });
   });

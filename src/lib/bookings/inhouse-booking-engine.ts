@@ -1,7 +1,6 @@
 import "server-only";
 
 import { createAdminClient } from "@/lib/supabase/admin";
-import { isDevAuthBypassEnabled } from "@/lib/dev-bypass";
 import type { Json } from "@/types/supabase";
 import {
   CRM_PRECISE_HOME_SERVICE_LOCATION_MESSAGE,
@@ -42,7 +41,7 @@ export type InhouseBookingOperator = {
     system_role: string;
   } | null;
   staffRole: string | null;
-  isDevBypass?: boolean;
+  isDevBypass: boolean;
 };
 
 type ServiceRow = {
@@ -109,7 +108,7 @@ export async function executeInhouseBookingCreation(
   const paymentReceived = d.paymentReceived ?? false;
   const cleanPhone = d.phone.replace(/\s/g, "");
 
-  const { staff, staffRole, isDevBypass = isDevAuthBypassEnabled() } = operator;
+  const { staff, staffRole, isDevBypass } = operator;
 
   if (isDevBypass) {
     // Dev bypass: allow booking creation with explicit branchId

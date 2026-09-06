@@ -337,6 +337,7 @@ describe("Desktop Bearer Auth Direct Verification", () => {
           system_role: "manager",
         },
         staffRole: "manager",
+        isDevBypass: false,
       },
       user: {
         id: "user-mgr-1",
@@ -392,6 +393,7 @@ describe("Desktop Bearer Auth Direct Verification", () => {
           system_role: "csr",
         },
         staffRole: "crm",
+        isDevBypass: false,
       },
       user: {
         id: "user-csr-1",
@@ -487,6 +489,52 @@ describe("Desktop Bearer Auth Direct Verification", () => {
       expect(result).not.toHaveProperty("accessToken");
       expect(result).not.toHaveProperty("access_token");
       expect(Object.prototype.hasOwnProperty.call(result.operator, "token")).toBe(false);
+    }
+  });
+
+  it("M. explicitly sets isDevBypass: false even when dev bypass environment flags are active", async () => {
+    process.env.DEV_AUTH_BYPASS = "true";
+    process.env.DEV_ALLOW_ALL_MODULES = "true";
+
+    const mockMaybeSingle = vi.fn().mockResolvedValue({
+      data: {
+        id: "staff-crm-1",
+        branch_id: "branch-test",
+        system_role: "crm",
+      },
+      error: null,
+    });
+    const mockEqIsActive = vi.fn().mockReturnValue({ maybeSingle: mockMaybeSingle });
+    const mockEqAuthUserId = vi.fn().mockReturnValue({ eq: mockEqIsActive });
+    const mockSelect = vi.fn().mockReturnValue({ eq: mockEqAuthUserId });
+    const mockFrom = vi.fn().mockReturnValue({ select: mockSelect });
+
+    const mockClient: MockSupabaseClient = {
+      auth: {
+        getUser: vi.fn().mockResolvedValue({
+          data: { user: { id: "user-crm-1", email: "crm@example.com" } },
+          error: null,
+        }),
+      },
+      from: mockFrom,
+    };
+
+    vi.mocked(createClient).mockReturnValue(
+      mockClient as unknown as ReturnType<typeof createClient>
+    );
+
+    const req = new Request("http://localhost:3000/api/desktop/v1/bookings", {
+      method: "POST",
+      headers: {
+        Authorization: "Bearer valid-token",
+      },
+    });
+
+    const result = await verifyDesktopBearerAuth(req);
+
+    expect(result.ok).toBe(true);
+    if (result.ok) {
+      expect(result.operator.isDevBypass).toBe(false);
     }
   });
 });

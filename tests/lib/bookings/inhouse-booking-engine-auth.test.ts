@@ -1,4 +1,4 @@
-import { describe, expect, it, vi, beforeEach } from "vitest";
+import { describe, expect, it, vi, beforeEach, afterEach } from "vitest";
 
 vi.mock("server-only", () => ({}));
 
@@ -30,8 +30,14 @@ const BRANCH_BBB = "22222222-2222-2222-2222-222222222222";
 const SERVICE_ID_1 = "33333333-3333-3333-3333-333333333333";
 
 describe("Inhouse Booking Engine Authorization & Branch Boundary", () => {
+  const originalEnv = process.env;
+
   beforeEach(() => {
     vi.clearAllMocks();
+  });
+
+  afterEach(() => {
+    process.env = originalEnv;
   });
 
   it("rejects non-owner operator attempting cross-branch booking before any DB mutation", async () => {
@@ -65,6 +71,48 @@ describe("Inhouse Booking Engine Authorization & Branch Boundary", () => {
     });
 
     // Assert that NO downstream privileged domain operations occurred
+    expect(branchRules.validateBookingAgainstBranchRules).not.toHaveBeenCalled();
+    expect(serviceCatalog.validateBranchServiceEligibility).not.toHaveBeenCalled();
+    expect(adminSupabase.createAdminClient).not.toHaveBeenCalled();
+  });
+
+  it("rejects non-owner cross-branch booking even when DEV_AUTH_BYPASS=true because operator isDevBypass is false", async () => {
+    process.env = {
+      ...originalEnv,
+      DEV_AUTH_BYPASS: "true",
+      DEV_ALLOW_ALL_MODULES: "true",
+      NODE_ENV: "development",
+    };
+
+    const nonOwnerOperator: InhouseBookingOperator = {
+      authUserId: "user-receptionist-1",
+      staff: {
+        id: "staff-rec-1",
+        branch_id: BRANCH_AAA,
+        system_role: "crm",
+      },
+      staffRole: "crm",
+      isDevBypass: false,
+    };
+
+    const crossBranchPayload = {
+      branchId: BRANCH_BBB,
+      fullName: "Cross Branch Customer",
+      phone: "09171234567",
+      serviceIds: [SERVICE_ID_1],
+      date: "2026-09-15",
+      startTime: "10:00",
+      type: "walkin",
+    };
+
+    const result = await executeInhouseBookingCreation(crossBranchPayload, nonOwnerOperator);
+
+    expect(result).toEqual({
+      ok: false,
+      code: "CRM_BRANCH_FORBIDDEN",
+      message: "You can only create bookings for your assigned branch.",
+    });
+
     expect(branchRules.validateBookingAgainstBranchRules).not.toHaveBeenCalled();
     expect(serviceCatalog.validateBranchServiceEligibility).not.toHaveBeenCalled();
     expect(adminSupabase.createAdminClient).not.toHaveBeenCalled();

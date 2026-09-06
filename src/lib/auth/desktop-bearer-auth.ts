@@ -126,6 +126,7 @@ export async function verifyDesktopBearerAuth(request: Request): Promise<Desktop
       system_role: me.system_role,
     },
     staffRole,
+    isDevBypass: false,
   };
 
   return {
