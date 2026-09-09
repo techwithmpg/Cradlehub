@@ -1,3 +1,4 @@
+import type { SupabaseClient } from "@supabase/supabase-js";
 import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import type { Database } from "@/types/supabase";
@@ -309,7 +310,7 @@ export type StaffAvailabilityItem = {
 };
 
 async function buildAvailabilityItems(
-  supabase: Awaited<ReturnType<typeof createClient>>,
+  supabase: SupabaseClient<Database>,
   staffList: StaffAvailabilityItem["staff"][],
   today: string,
   future: string
@@ -381,13 +382,16 @@ async function buildAvailabilityItems(
   }));
 }
 
-export async function getStaffWithAvailability(branchId: string): Promise<StaffAvailabilityItem[]> {
-  const supabase = await createClient();
+export async function getStaffWithAvailability(
+  branchId: string,
+  supabase?: SupabaseClient<Database>
+): Promise<StaffAvailabilityItem[]> {
+  const client = supabase ?? (await createClient());
   const today = new Date().toISOString().split("T")[0]!;
   const future = new Date(Date.now() + 90 * 24 * 60 * 60 * 1000).toISOString().split("T")[0]!;
 
   // Fetch all staff for the branch (active + inactive for full visibility)
-  const staffResult = await supabase
+  const staffResult = await client
     .from("staff")
     .select("id, full_name, nickname, avatar_url, tier, system_role, staff_type, is_head, is_active")
     .eq("branch_id", branchId)
@@ -397,7 +401,7 @@ export async function getStaffWithAvailability(branchId: string): Promise<StaffA
   if (staffResult.error) {
     // Graceful fallback: retry without newer org columns if migration not applied
     if (isMissingStaffOrgColumnsError(staffResult.error.message)) {
-      const fallback = await supabase
+      const fallback = await client
         .from("staff")
         .select("id, full_name, tier, system_role, is_active")
         .eq("branch_id", branchId)
@@ -405,7 +409,7 @@ export async function getStaffWithAvailability(branchId: string): Promise<StaffA
         .order("full_name");
       if (fallback.error) throw new Error(fallback.error.message);
       return buildAvailabilityItems(
-        supabase,
+        client,
         (fallback.data ?? []).map((r) => ({
           id: r.id,
           full_name: r.full_name,
@@ -436,7 +440,7 @@ export async function getStaffWithAvailability(branchId: string): Promise<StaffA
     is_active: r.is_active,
   }));
 
-  return buildAvailabilityItems(supabase, staffList, today, future);
+  return buildAvailabilityItems(client, staffList, today, future);
 }
 
 // ── Staff record for invite-claim onboarding (/onboard/[staffId]) ─────────

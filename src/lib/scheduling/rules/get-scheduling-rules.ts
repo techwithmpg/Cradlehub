@@ -1,4 +1,6 @@
+import type { SupabaseClient } from "@supabase/supabase-js";
 import { createClient } from "@/lib/supabase/server";
+import type { Database } from "@/types/supabase";
 import type { SchedulingRules } from "../types";
 
 const DEFAULTS: Omit<SchedulingRules, "id" | "branch_id" | "created_at" | "updated_at"> = {
@@ -23,10 +25,13 @@ const DEFAULTS: Omit<SchedulingRules, "id" | "branch_id" | "created_at" | "updat
   suggestions_require_manager_approval: true,
 };
 
-export async function getSchedulingRules(branchId: string): Promise<SchedulingRules> {
-  const supabase = await createClient();
+export async function getSchedulingRules(
+  branchId: string,
+  supabase?: SupabaseClient<Database>
+): Promise<SchedulingRules> {
+  const client = supabase ?? (await createClient());
 
-  const { data } = await supabase
+  const { data } = await client
     .from("scheduling_rules")
     .select("*")
     .eq("branch_id", branchId)

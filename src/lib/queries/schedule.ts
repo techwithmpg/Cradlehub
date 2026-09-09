@@ -1,4 +1,6 @@
+import type { SupabaseClient } from "@supabase/supabase-js";
 import { createClient } from "@/lib/supabase/server";
+import type { Database } from "@/types/supabase";
 import { getResolvedStaffSchedulesForDate } from "@/lib/queries/resolved-staff-schedules";
 import {
   getScheduleWindowSpan,
@@ -144,7 +146,7 @@ type CheckinQueryRow = {
 };
 
 async function loadOperationalStaff(
-  supabase: Awaited<ReturnType<typeof createClient>>,
+  supabase: SupabaseClient<Database>,
   branchId: string
 ): Promise<ScheduleStaffMetaRow[]> {
   const { data, error } = await supabase
@@ -310,8 +312,9 @@ function getAttendancePresence(params: {
 export async function getDailySchedule(params: {
   branchId: string;
   date: string;
+  supabase?: SupabaseClient<Database>;
 }): Promise<DailyScheduleStaffRow[]> {
-  const supabase = await createClient();
+  const supabase = params.supabase ?? (await createClient());
   const staffRows = await loadOperationalStaff(supabase, params.branchId);
   const staffIds = staffRows.map((staff) => staff.id);
 

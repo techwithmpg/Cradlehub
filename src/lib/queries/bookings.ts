@@ -1,4 +1,6 @@
+import type { SupabaseClient } from "@supabase/supabase-js";
 import { createClient } from "@/lib/supabase/server";
+import type { Database } from "@/types/supabase";
 import { attachBranchResources } from "@/lib/queries/booking-resources";
 import {
   CRM_PENDING_BOOKING_STATUSES,
@@ -584,9 +586,13 @@ export async function getWeekSchedule(branchId: string, startDate: string, endDa
 }
 
 // ── Manager dashboard stats for today ─────────────────────────────────────
-export async function getManagerDashboardStats(branchId: string, date: string) {
-  const supabase = await createClient();
-  const { data, error } = await supabase
+export async function getManagerDashboardStats(
+  branchId: string,
+  date: string,
+  supabase?: SupabaseClient<Database>
+) {
+  const client = supabase ?? (await createClient());
+  const { data, error } = await client
     .from("bookings")
     .select("status")
     .eq("branch_id", branchId)
