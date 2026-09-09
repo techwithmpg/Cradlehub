@@ -1,12 +1,6 @@
 "use client";
 
-import {
-  useCallback,
-  useMemo,
-  useState,
-  useTransition,
-  type FormEvent,
-} from "react";
+import { useCallback, useMemo, useState, useTransition, type FormEvent } from "react";
 import {
   AdminDialog,
   AdminOverlayBody,
@@ -15,10 +9,7 @@ import {
   ConfirmUnsavedChangesDialog,
 } from "@/components/shared/overlays";
 import { updateStaffAction } from "@/app/(dashboard)/owner/staff/actions";
-import {
-  getSystemRoleOptionsForAssigner,
-  isSensitiveSystemRole,
-} from "@/constants/staff";
+import { getSystemRoleOptionsForAssigner, isSensitiveSystemRole } from "@/constants/staff";
 import { getSystemRoleLabel } from "@/components/features/staff/staff-management-utils";
 import { EditStaffProfileFooter } from "./edit-staff-profile-footer";
 import { EditStaffProfileIdentityCard } from "./edit-staff-profile-identity-card";
@@ -50,12 +41,7 @@ type Props = {
   onSuccess: (staff: Partial<StaffMember> & { id: string }) => void;
 };
 
-const BRANCH_EDIT_ROLES = new Set([
-  "owner",
-  "manager",
-  "assistant_manager",
-  "store_manager",
-]);
+const BRANCH_EDIT_ROLES = new Set(["owner", "manager", "assistant_manager", "store_manager"]);
 
 export function CrmEditStaffProfileModal({
   open,
@@ -100,15 +86,10 @@ function ModalContent({
   onEditServices,
   onSuccess,
 }: Props & { staffMember: StaffMember }) {
-  const initialDraft = useMemo(
-    () => createStaffProfileDraft(staffMember),
-    [staffMember]
-  );
+  const initialDraft = useMemo(() => createStaffProfileDraft(staffMember), [staffMember]);
   const [draft, setDraft] = useState<StaffProfileDraft>(initialDraft);
   const [activeTab, setActiveTab] = useState<StaffProfileTab>("profile");
-  const [feedback, setFeedback] = useState<{ type: "error"; message: string } | null>(
-    null
-  );
+  const [feedback, setFeedback] = useState<{ type: "error"; message: string } | null>(null);
   const [showDiscardDialog, setShowDiscardDialog] = useState(false);
   const [pendingEditServices, setPendingEditServices] = useState(false);
   const [isSaving, startSaving] = useTransition();
@@ -120,15 +101,13 @@ function ModalContent({
   const changeCount = countStaffProfileChanges(initialDraft, draft);
   const hasUnsavedChanges = changeCount > 0;
   const isProtected = isSensitiveSystemRole(staffMember.system_role);
-  const assignableRoleOptions = getSystemRoleOptionsForAssigner(
-    reviewerSystemRole
-  ).map((option) => ({
-    value: option.value,
-    label: option.label,
-  }));
-  const roleOptions = assignableRoleOptions.some(
-    (option) => option.value === draft.systemRole
-  )
+  const assignableRoleOptions = getSystemRoleOptionsForAssigner(reviewerSystemRole).map(
+    (option) => ({
+      value: option.value,
+      label: option.label,
+    })
+  );
+  const roleOptions = assignableRoleOptions.some((option) => option.value === draft.systemRole)
     ? assignableRoleOptions
     : [
         {
@@ -137,22 +116,26 @@ function ModalContent({
         },
         ...assignableRoleOptions,
       ];
-  const canEditSystemRole = !isProtected && assignableRoleOptions.length > 0;
-  const canEditBranch =
-    !isProtected && BRANCH_EDIT_ROLES.has(reviewerSystemRole);
+  const canEditSystemRole =
+    !isProtected && assignableRoleOptions.some((option) => option.value === draft.systemRole);
+  const canEditBranch = !isProtected && BRANCH_EDIT_ROLES.has(reviewerSystemRole);
   const saveDisabled =
-    isSaving ||
-    isProtected ||
-    !hasUnsavedChanges ||
-    draft.fullName.trim().length < 2;
+    isSaving || isProtected || !hasUnsavedChanges || draft.fullName.trim().length < 2;
 
   const updateDraft = useCallback(
-    <Field extends keyof StaffProfileDraft>(
-      field: Field,
-      value: StaffProfileDraft[Field]
-    ) => {
+    <Field extends keyof StaffProfileDraft>(field: Field, value: StaffProfileDraft[Field]) => {
       setFeedback(null);
-      setDraft((current) => ({ ...current, [field]: value }));
+      setDraft((current) => {
+        if (field === "systemRole" && value === "digital_marketer") {
+          return {
+            ...current,
+            systemRole: "digital_marketer",
+            staffType: "managerial",
+          };
+        }
+
+        return { ...current, [field]: value };
+      });
     },
     []
   );
@@ -264,14 +247,7 @@ function ModalContent({
         onSuccess(result.staff);
       });
     },
-    [
-      canEditBranch,
-      canEditSystemRole,
-      draft,
-      onSuccess,
-      staffMember.id,
-      startSaving,
-    ]
+    [canEditBranch, canEditSystemRole, draft, onSuccess, staffMember.id, startSaving]
   );
 
   return (
@@ -293,24 +269,13 @@ function ModalContent({
         serviceCount={assignedServices.length}
       />
 
-      <EditStaffProfileTabs
-        activeTab={activeTab}
-        onTabChange={setActiveTab}
-      />
+      <EditStaffProfileTabs activeTab={activeTab} onTabChange={setActiveTab} />
 
-      <AdminOverlayBody
-        className="bg-[var(--cs-surface-warm)] px-6 py-5"
-        padded={false}
-      >
-        <form
-          id="crm-staff-edit-form"
-          onSubmit={handleSubmit}
-          className="space-y-4"
-        >
+      <AdminOverlayBody className="bg-[var(--cs-surface-warm)] px-6 py-5" padded={false}>
+        <form id="crm-staff-edit-form" onSubmit={handleSubmit} className="space-y-4">
           {isProtected ? (
             <div className="rounded-2xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-800">
-              This staff member has a protected system role. Editing requires
-              owner approval.
+              This staff member has a protected system role. Editing requires owner approval.
             </div>
           ) : null}
 
@@ -420,13 +385,7 @@ function ActiveTabContent({
     );
   }
 
-  return (
-    <EditStaffProfileInfoTab
-      draft={draft}
-      disabled={disabled}
-      onChange={onChange}
-    />
-  );
+  return <EditStaffProfileInfoTab draft={draft} disabled={disabled} onChange={onChange} />;
 }
 
 function nullableString(value: string): string | null {

@@ -118,4 +118,27 @@ describe("OnboardingReviewList RequestCard branch display", () => {
     const roleSelect = screen.getByTitle("Assign role") as HTMLSelectElement;
     expect(roleSelect.value).toBe("digital_marketer");
   });
+
+  it("defaults Social Media applications to the digital marketer role for managers", () => {
+    render(
+      <RequestCard
+        request={makeRequest({ preferred_role: "digital_marketer" })}
+        branches={BRANCHES}
+        reviewerSystemRole="manager"
+        reviewerBranchId="branch-main"
+      />
+    );
+
+    fireEvent.click(screen.getByText("Maria Santos"));
+
+    expect(screen.getByText("Social Media / Marketing")).toBeTruthy();
+
+    const roleSelect = screen.getByTitle("Assign role") as HTMLSelectElement;
+
+    expect(roleSelect.value).toBe("digital_marketer");
+
+    expect(
+      Array.from(roleSelect.options).some((option) => option.value === "digital_marketer")
+    ).toBe(true);
+  });
 });

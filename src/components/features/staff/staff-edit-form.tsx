@@ -1,6 +1,6 @@
 "use client";
 
-import { useActionState, useEffect } from "react";
+import { useActionState, useEffect, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
 import { updateStaffAction } from "@/app/(dashboard)/owner/staff/actions";
@@ -13,7 +13,15 @@ type ServiceRow = Database["public"]["Tables"]["services"]["Row"] & {
   service_categories: { id: string; name: string } | null;
 };
 type Tier = "senior" | "mid" | "junior" | "head" | "n/a";
-type StaffRole = "manager" | "crm" | "staff" | "service_head" | "service_staff" | "driver" | "utility";
+type StaffRole =
+  | "manager"
+  | "crm"
+  | "digital_marketer"
+  | "staff"
+  | "service_head"
+  | "service_staff"
+  | "driver"
+  | "utility";
 type StaffType = (typeof STAFF_TYPES)[number];
 
 type StaffActionState = {
@@ -26,6 +34,7 @@ const initialState: StaffActionState = {};
 const OWNER_ROLE_OPTIONS: { value: StaffRole; label: string }[] = [
   { value: "manager", label: "Manager" },
   { value: "crm", label: "CRM" },
+  { value: "digital_marketer", label: "Marketing Manager" },
   { value: "staff", label: "Staff" },
   { value: "service_head", label: "Service Head" },
   { value: "service_staff", label: "Service Staff" },
@@ -35,12 +44,17 @@ const OWNER_ROLE_OPTIONS: { value: StaffRole; label: string }[] = [
 
 const MANAGER_ROLE_OPTIONS: { value: StaffRole; label: string }[] = [
   { value: "crm", label: "CRM" },
+  { value: "digital_marketer", label: "Marketing Manager" },
   { value: "staff", label: "Staff" },
   { value: "service_head", label: "Service Head" },
   { value: "service_staff", label: "Service Staff" },
   { value: "driver", label: "Driver" },
   { value: "utility", label: "Utility" },
 ];
+
+const CRM_ROLE_OPTIONS: { value: StaffRole; label: string }[] = MANAGER_ROLE_OPTIONS.filter(
+  (option) => option.value !== "digital_marketer"
+);
 
 const SENSITIVE_SYSTEM_ROLES = new Set([
   "owner",
@@ -62,7 +76,13 @@ function nullableOptionalString(formValue: FormDataEntryValue | null): string | 
 }
 
 function isTier(value: string): value is Tier {
-  return value === "senior" || value === "mid" || value === "junior" || value === "head" || value === "n/a";
+  return (
+    value === "senior" ||
+    value === "mid" ||
+    value === "junior" ||
+    value === "head" ||
+    value === "n/a"
+  );
 }
 
 function isStaffRole(value: string): value is StaffRole {
@@ -96,10 +116,41 @@ export function StaffEditForm({
   onDirtyChange?: (dirty: boolean) => void;
   onSuccess?: () => void;
 }) {
-  const isManager = workspaceContext === "manager" || workspaceContext === "crm";
-  const isProtected = isManager && SENSITIVE_SYSTEM_ROLES.has(staffMember.system_role);
-  const roleOptions = isManager ? MANAGER_ROLE_OPTIONS : OWNER_ROLE_OPTIONS;
+  const isBranchScoped = workspaceContext === "manager" || workspaceContext === "crm";
+  const isProtected = isBranchScoped && SENSITIVE_SYSTEM_ROLES.has(staffMember.system_role);
+
   const defaultSystemRole = canonicalizeSystemRole(staffMember.system_role) as StaffRole;
+
+  const assignableRoleOptions =
+    workspaceContext === "owner"
+      ? OWNER_ROLE_OPTIONS
+      : workspaceContext === "manager"
+        ? MANAGER_ROLE_OPTIONS
+        : CRM_ROLE_OPTIONS;
+
+  const roleOptions = assignableRoleOptions.some((option) => option.value === defaultSystemRole)
+    ? assignableRoleOptions
+    : [
+        {
+          value: defaultSystemRole,
+          label: defaultSystemRole === "digital_marketer" ? "Marketing Manager" : defaultSystemRole,
+        },
+        ...assignableRoleOptions,
+      ];
+
+  const canEditSystemRole =
+    workspaceContext !== "crm" ||
+    assignableRoleOptions.some((option) => option.value === defaultSystemRole);
+
+  const initialStaffType = isStaffType(staffMember.staff_type ?? "")
+    ? (staffMember.staff_type as StaffType)
+    : "therapist";
+
+  const [selectedSystemRole, setSelectedSystemRole] = useState<StaffRole>(defaultSystemRole);
+
+  const [selectedStaffType, setSelectedStaffType] = useState<StaffType>(
+    defaultSystemRole === "digital_marketer" ? "managerial" : initialStaffType
+  );
 
   const [state, formAction, pending] = useActionState(
     async (_prev: StaffActionState, formData: FormData): Promise<StaffActionState> => {
@@ -225,7 +276,7 @@ export function StaffEditForm({
             name="branchId"
             label="Branch"
             defaultValue={staffMember.branch_id ?? ""}
-            disabled={isManager}
+            disabled={isBranchScoped}
           >
             {branches.map((branch) => (
               <option key={branch.id} value={branch.id}>
@@ -239,6 +290,16 @@ export function StaffEditForm({
             name="systemRole"
             label="System access role"
             defaultValue={defaultSystemRole}
+            value={selectedSystemRole}
+            disabled={!canEditSystemRole}
+            onChange={(event) => {
+              const nextRole = event.target.value as StaffRole;
+              setSelectedSystemRole(nextRole);
+
+              if (nextRole === "digital_marketer") {
+                setSelectedStaffType("managerial");
+              }
+            }}
           >
             {roleOptions.map((r) => (
               <option key={r.value} value={r.value}>
@@ -247,10 +308,27 @@ export function StaffEditForm({
             ))}
           </SelectField>
 
-          <SelectField id="staffType" name="staffType" label="Job function" defaultValue={staffMember.staff_type}>
-            {STAFF_TYPES.map((t) => (
+          <SelectField
+            id="staffType"
+            name="staffType"
+            label="Job function"
+            defaultValue={initialStaffType}
+            value={selectedSystemRole === "digital_marketer" ? "managerial" : selectedStaffType}
+            onChange={(event) => setSelectedStaffType(event.target.value as StaffType)}
+            helperText={
+              selectedSystemRole === "digital_marketer"
+                ? "Marketing Manager uses the Marketing / Management job function."
+                : undefined
+            }
+          >
+            {(selectedSystemRole === "digital_marketer"
+              ? STAFF_TYPES.filter((type) => type === "managerial")
+              : STAFF_TYPES
+            ).map((t) => (
               <option key={t} value={t}>
-                {STAFF_TYPE_LABELS[t]}
+                {selectedSystemRole === "digital_marketer" && t === "managerial"
+                  ? "Marketing / Management"
+                  : STAFF_TYPE_LABELS[t]}
               </option>
             ))}
           </SelectField>
@@ -304,7 +382,13 @@ export function StaffEditForm({
               >
                 Service capabilities
               </legend>
-              <p style={{ fontSize: "0.75rem", color: "var(--cs-text-muted)", margin: "0 0 0.75rem" }}>
+              <p
+                style={{
+                  fontSize: "0.75rem",
+                  color: "var(--cs-text-muted)",
+                  margin: "0 0 0.75rem",
+                }}
+              >
                 If left empty, this staff member will temporarily remain available under the legacy
                 scheduling behavior until service specialization is fully configured.
               </p>
@@ -321,7 +405,9 @@ export function StaffEditForm({
                     >
                       {category}
                     </div>
-                    <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "0.375rem" }}>
+                    <div
+                      style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "0.375rem" }}
+                    >
                       {catServices.map((s) => (
                         <label
                           key={s.id}
@@ -353,7 +439,12 @@ export function StaffEditForm({
             htmlFor="is-active"
             style={{ display: "flex", alignItems: "center", gap: "0.5rem", fontSize: "0.875rem" }}
           >
-            <input id="is-active" name="isActive" type="checkbox" defaultChecked={staffMember.is_active} />
+            <input
+              id="is-active"
+              name="isActive"
+              type="checkbox"
+              defaultChecked={staffMember.is_active}
+            />
             Active staff member
           </label>
 
@@ -495,7 +586,9 @@ function EditField({
         }}
       />
       {helperText ? (
-        <p style={{ margin: 0, fontSize: "0.75rem", color: "var(--cs-text-muted)" }}>{helperText}</p>
+        <p style={{ margin: 0, fontSize: "0.75rem", color: "var(--cs-text-muted)" }}>
+          {helperText}
+        </p>
       ) : null}
     </div>
   );
@@ -506,15 +599,21 @@ function SelectField({
   name,
   label,
   defaultValue,
+  value,
+  onChange,
   children,
   disabled,
+  helperText,
 }: {
   id: string;
   name: string;
   label: string;
   defaultValue: string;
+  value?: string;
+  onChange?: React.ChangeEventHandler<HTMLSelectElement>;
   children: React.ReactNode;
   disabled?: boolean;
+  helperText?: string;
 }) {
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: "0.5rem" }}>
@@ -522,7 +621,9 @@ function SelectField({
       <select
         id={id}
         name={name}
-        defaultValue={defaultValue}
+        defaultValue={value === undefined ? defaultValue : undefined}
+        value={value}
+        onChange={onChange}
         disabled={disabled}
         style={{
           height: 36,
@@ -537,6 +638,17 @@ function SelectField({
       >
         {children}
       </select>
+      {helperText ? (
+        <p
+          style={{
+            margin: 0,
+            fontSize: "0.75rem",
+            color: "var(--cs-text-muted)",
+          }}
+        >
+          {helperText}
+        </p>
+      ) : null}
     </div>
   );
 }

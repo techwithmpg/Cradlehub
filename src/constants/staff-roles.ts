@@ -42,7 +42,7 @@ export const SYSTEM_ROLE_LABELS: Record<SystemRole, string> = {
   staff: "Staff",
   service_head: "Service Head",
   service_staff: "Service Staff",
-  digital_marketer: "Digital Marketer",
+  digital_marketer: "Marketing Manager",
   driver: "Driver",
   utility: "Utility",
 };
@@ -80,6 +80,7 @@ export const OWNER_ASSIGNABLE_SYSTEM_ROLES = ACTIVE_SYSTEM_ROLES;
 
 export const MANAGER_ASSIGNABLE_SYSTEM_ROLES = [
   "crm",
+  "digital_marketer",
   "staff",
   "service_head",
   "service_staff",

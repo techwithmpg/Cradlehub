@@ -8,10 +8,7 @@ import {
   staffProfileCheckboxClass,
   staffProfileInputClass,
 } from "../edit-staff-profile-form-parts";
-import type {
-  StaffProfileBranch,
-  StaffProfileDraft,
-} from "../edit-staff-profile-types";
+import type { StaffProfileBranch, StaffProfileDraft } from "../edit-staff-profile-types";
 
 const TIER_OPTIONS = [
   { value: "senior", label: "Senior" },
@@ -67,17 +64,31 @@ export function EditStaffWorkSetupTab({
           </select>
         </StaffProfileField>
 
-        <StaffProfileField label="Job function" htmlFor="staff-type" required>
+        <StaffProfileField
+          label="Job function"
+          htmlFor="staff-type"
+          required
+          helper={
+            draft.systemRole === "digital_marketer"
+              ? "Marketing Manager uses the Marketing / Management job function."
+              : undefined
+          }
+        >
           <select
             id="staff-type"
-            value={draft.staffType}
+            value={draft.systemRole === "digital_marketer" ? "managerial" : draft.staffType}
             onChange={(event) => onChange("staffType", event.target.value)}
             disabled={disabled}
             className={staffProfileInputClass}
           >
-            {STAFF_TYPE_OPTIONS.map((option) => (
+            {(draft.systemRole === "digital_marketer"
+              ? STAFF_TYPE_OPTIONS.filter((option) => option.value === "managerial")
+              : STAFF_TYPE_OPTIONS
+            ).map((option) => (
               <option key={option.value} value={option.value}>
-                {option.label}
+                {draft.systemRole === "digital_marketer" && option.value === "managerial"
+                  ? "Marketing / Management"
+                  : option.label}
               </option>
             ))}
           </select>
