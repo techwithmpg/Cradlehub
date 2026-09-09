@@ -60,6 +60,24 @@ describe("Marketing Manager staff-management contract", () => {
     expect(workspace).toContain("Marketing / Management");
   });
 
+  it("uses the canonical onboarding approval workflow from Manager Staff Management", () => {
+    const workspace = source("src/components/features/staff/staff-approval-workspace.tsx");
+
+    const onboardingActions = source("src/app/staff-onboarding/actions.ts");
+
+    const staffActions = source("src/app/(dashboard)/owner/staff/actions.ts");
+
+    expect(workspace).toContain("approveOnboardingFromStaffManagementAction");
+
+    expect(workspace).not.toContain("updateStaffAction(buildPayload(true))");
+
+    expect(onboardingActions).toContain("return approveOnboardingAction({");
+
+    expect(staffActions).toContain(
+      "This staff member has a submitted onboarding request. Use Approve & Activate instead."
+    );
+  });
+
   it("enforces Marketing Manager job-function pairing on server write paths", () => {
     const staffActions = source("src/app/(dashboard)/owner/staff/actions.ts");
 

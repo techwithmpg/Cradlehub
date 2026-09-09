@@ -552,6 +552,72 @@ export async function approveOnboardingAction(input: {
   return { success: true };
 }
 
+// ── Staff Management approval adapter ─────────────────────────────────────
+// Resolves the one submitted request for the selected staff member and then
+// delegates to the canonical onboarding approval action above.
+// This prevents Staff Management from inventing a second activation path.
+export async function approveOnboardingFromStaffManagementAction(input: {
+  staffId: string;
+  branchId: string;
+  systemRole: string;
+  tier: string;
+  serviceIds?: string[];
+}): Promise<{ success: boolean; error?: string }> {
+  const supabase = await createClient();
+
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+
+  if (!user) {
+    return { success: false, error: "Not logged in" };
+  }
+
+  const { data: requests, error } = await supabase
+    .from("staff_onboarding_requests")
+    .select("id")
+    .eq("staff_id", input.staffId)
+    .eq("status", "submitted")
+    .order("created_at", { ascending: false })
+    .limit(2);
+
+  if (error) {
+    return {
+      success: false,
+      error: "Unable to verify the onboarding request.",
+    };
+  }
+
+  if (!requests || requests.length === 0) {
+    return {
+      success: false,
+      error:
+        "No submitted onboarding request exists for this staff member. Use Save Changes for ordinary staff updates.",
+    };
+  }
+
+  if (requests.length > 1) {
+    logError("staff.onboarding.multiple_submitted_requests", {
+      staffId: input.staffId,
+      requestCount: requests.length,
+    });
+
+    return {
+      success: false,
+      error: "Multiple submitted onboarding requests were found. Approval was stopped for review.",
+    };
+  }
+
+  return approveOnboardingAction({
+    requestId: requests[0]!.id,
+    staffId: input.staffId,
+    branchId: input.branchId,
+    systemRole: input.systemRole,
+    tier: input.tier,
+    serviceIds: input.serviceIds,
+  });
+}
+
 // ── Reject onboarding request (owner, manager, or CSR for MVP) ────────────
 export async function rejectOnboardingAction(input: {
   requestId: string;

@@ -3,6 +3,7 @@
 import { useState, useEffect, useTransition, useCallback, useMemo } from "react";
 import { useRouter } from "next/navigation";
 import { updateStaffAction } from "@/app/(dashboard)/owner/staff/actions";
+import { approveOnboardingFromStaffManagementAction } from "@/app/staff-onboarding/actions";
 import { STAFF_TYPES, STAFF_TYPE_LABELS, canonicalizeSystemRole } from "@/constants/staff";
 import {
   getStaffStatus,
@@ -1188,15 +1189,42 @@ export function StaffApprovalWorkspace({
 
   const handleApproveAndActivate = useCallback(() => {
     startTransition(async () => {
-      const res = await updateStaffAction(buildPayload(true));
-      setResult({ success: res.success, error: res.error });
+      const approvalBranchId = staffMember.branch_id ?? branch?.id ?? null;
+
+      if (!approvalBranchId) {
+        setResult({
+          success: false,
+          error: "A branch is required before this onboarding request can be approved.",
+        });
+        return;
+      }
+
+      const res = await approveOnboardingFromStaffManagementAction({
+        staffId: staffMember.id,
+        branchId: approvalBranchId,
+        systemRole: draft.systemRole,
+        tier: draft.tier,
+        serviceIds: draft.serviceIds.length > 0 ? draft.serviceIds : undefined,
+      });
+
+      setResult({
+        success: res.success,
+        error: res.error,
+      });
+
       if (res.success) {
-        setSavedDraft({ ...draft, isActive: true });
+        setSavedDraft({
+          ...draft,
+          isActive: true,
+        });
+
         localStorage.removeItem(storageKey);
+
+        router.push("/manager/staff?tab=active");
         router.refresh();
       }
     });
-  }, [buildPayload, draft, router, storageKey]);
+  }, [branch, draft, router, staffMember, storageKey]);
 
   const isProtected = SENSITIVE_SYSTEM_ROLES.has(staffMember.system_role);
 

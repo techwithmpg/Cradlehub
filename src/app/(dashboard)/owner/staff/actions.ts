@@ -252,6 +252,36 @@ export async function updateStaffAction(rawInput: unknown) {
     }
   }
 
+  // Activation of a submitted onboarding applicant must go through the
+  // canonical onboarding approval workflow so request state, reviewer audit,
+  // workflow events, and cache invalidation remain consistent.
+  if (updates.isActive === true) {
+    const admin = createAdminClient();
+
+    const { data: submittedRequest, error: submittedRequestError } = await admin
+      .from("staff_onboarding_requests")
+      .select("id")
+      .eq("staff_id", staffId)
+      .eq("status", "submitted")
+      .limit(1)
+      .maybeSingle();
+
+    if (submittedRequestError) {
+      return {
+        success: false,
+        error: "Unable to verify onboarding approval state.",
+      };
+    }
+
+    if (submittedRequest) {
+      return {
+        success: false,
+        error:
+          "This staff member has a submitted onboarding request. Use Approve & Activate instead.",
+      };
+    }
+  }
+
   const nextSystemRole =
     updates.systemRole !== undefined ? canonicalizeSystemRole(updates.systemRole) : undefined;
 
@@ -364,6 +394,33 @@ export async function toggleStaffActiveAction(rawInput: unknown) {
     }
     if (SENSITIVE_SYSTEM_ROLES.has(target.system_role as string)) {
       return { success: false, error: "This action requires owner approval." } as const;
+    }
+  }
+
+  if (isActive) {
+    const admin = createAdminClient();
+
+    const { data: submittedRequest, error: submittedRequestError } = await admin
+      .from("staff_onboarding_requests")
+      .select("id")
+      .eq("staff_id", staffId)
+      .eq("status", "submitted")
+      .limit(1)
+      .maybeSingle();
+
+    if (submittedRequestError) {
+      return {
+        success: false,
+        error: "Unable to verify onboarding approval state.",
+      } as const;
+    }
+
+    if (submittedRequest) {
+      return {
+        success: false,
+        error:
+          "This staff member has a submitted onboarding request. Use Approve & Activate instead.",
+      } as const;
     }
   }
 
