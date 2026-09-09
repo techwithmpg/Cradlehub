@@ -2,6 +2,7 @@ import { describe, expect, it, vi, beforeEach } from "vitest";
 import { NextRequest } from "next/server";
 import { GET as scheduleHandler } from "@/app/api/desktop/v1/schedule/route";
 import { GET as staffAvailabilityHandler } from "@/app/api/desktop/v1/schedule/staff-availability/route";
+import { GET as staffDetailHandler } from "@/app/api/desktop/v1/schedule/staff/[staffId]/route";
 import { POST as mutationsHandler } from "@/app/api/desktop/v1/schedule/mutations/route";
 import * as bearerAuth from "@/lib/auth/desktop-bearer-auth";
 import * as scheduleQueries from "@/lib/queries/schedule";
@@ -9,6 +10,7 @@ import * as bookingQueries from "@/lib/queries/bookings";
 import * as staffQueries from "@/lib/queries/staff";
 import * as schedulingRules from "@/lib/scheduling/rules/get-scheduling-rules";
 import * as scheduleMutations from "@/lib/schedule/schedule-mutations";
+import * as staffFullSchedule from "@/lib/schedule/staff-full-schedule";
 import type { InhouseBookingOperator } from "@/lib/bookings/inhouse-booking-engine";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type { Database } from "@/types/supabase";
@@ -44,6 +46,10 @@ vi.mock("@/lib/schedule/schedule-mutations", () => ({
   deleteScheduleOverride: vi.fn(),
   createBlockedTime: vi.fn(),
   deleteBlockedTime: vi.fn(),
+}));
+
+vi.mock("@/lib/schedule/staff-full-schedule", () => ({
+  getStaffFullSchedule: vi.fn(),
 }));
 
 vi.mock("@/lib/logger", () => ({
@@ -205,18 +211,24 @@ describe("Desktop v1 Schedule API — Daily Schedule (GET)", () => {
       expect(json.schedulingRules).toMatchObject({ min_daily_staff: 2 });
     });
 
-    it("returns schedulingRules as null if getSchedulingRules throws", async () => {
+    it("returns 500 if authoritative scheduling rules cannot be read", async () => {
       mockAuthOk();
       vi.mocked(scheduleQueries.getDailySchedule).mockResolvedValueOnce([]);
       vi.mocked(bookingQueries.getManagerDashboardStats).mockResolvedValueOnce({} as never);
-      vi.mocked(schedulingRules.getSchedulingRules).mockRejectedValueOnce(new Error("db error"));
+      vi.mocked(schedulingRules.getSchedulingRules).mockRejectedValueOnce(
+        new Error("rules query failed")
+      );
 
       const req = new NextRequest("http://localhost:3000/api/desktop/v1/schedule?date=2025-01-15");
       const res = await scheduleHandler(req);
       const json = await res.json();
 
-      expect(res.status).toBe(200);
-      expect(json.schedulingRules).toBeNull();
+      expect(res.status).toBe(500);
+      expect(json).toMatchObject({
+        ok: false,
+        code: "UNKNOWN_ERROR",
+      });
+      expect(JSON.stringify(json)).not.toContain("rules query failed");
     });
 
     it("returns 500 if getDailySchedule throws", async () => {
@@ -333,6 +345,134 @@ describe("Desktop v1 Schedule API — Staff Availability (GET)", () => {
   });
 });
 
+// ---------------------------------------------------------------------------
+// GET /api/desktop/v1/schedule/staff/[staffId]
+// ---------------------------------------------------------------------------
+
+describe("Desktop v1 Schedule API — Staff Detail (GET)", () => {
+  beforeEach(() => vi.clearAllMocks());
+
+  function context(staffId = STAFF_1) {
+    return {
+      params: Promise.resolve({ staffId }),
+    };
+  }
+
+  it("returns 401 when auth fails", async () => {
+    mockAuthFail();
+
+    const req = new NextRequest(
+      `http://localhost:3000/api/desktop/v1/schedule/staff/${STAFF_1}?startDate=2025-01-01&endDate=2025-01-31`
+    );
+
+    const res = await staffDetailHandler(req, context());
+
+    expect(res.status).toBe(401);
+    expect(staffFullSchedule.getStaffFullSchedule).not.toHaveBeenCalled();
+  });
+
+  it("returns 400 for an invalid staff id", async () => {
+    mockAuthOk();
+
+    const req = new NextRequest(
+      "http://localhost:3000/api/desktop/v1/schedule/staff/not-a-guid?startDate=2025-01-01&endDate=2025-01-31"
+    );
+
+    const res = await staffDetailHandler(req, context("not-a-guid"));
+
+    expect(res.status).toBe(400);
+    expect(staffFullSchedule.getStaffFullSchedule).not.toHaveBeenCalled();
+  });
+
+  it("returns 400 for an invalid date range", async () => {
+    mockAuthOk();
+
+    const req = new NextRequest(
+      `http://localhost:3000/api/desktop/v1/schedule/staff/${STAFF_1}?startDate=2025-02-31&endDate=2025-01-01`
+    );
+
+    const res = await staffDetailHandler(req, context());
+
+    expect(res.status).toBe(400);
+    expect(staffFullSchedule.getStaffFullSchedule).not.toHaveBeenCalled();
+  });
+
+  it("uses the authenticated operator branch and bearer client", async () => {
+    mockAuthOk();
+
+    vi.mocked(staffFullSchedule.getStaffFullSchedule).mockResolvedValueOnce({
+      staff: {
+        id: STAFF_1,
+        full_name: "Test Staff",
+        nickname: null,
+        avatar_url: null,
+        staff_type: "therapist",
+        system_role: "therapist",
+        branch_name: "Main Spa",
+      },
+      schedules: [],
+      custom_overrides: [],
+      blocked_times: [],
+      bookings: [],
+    });
+
+    const req = new NextRequest(
+      `http://localhost:3000/api/desktop/v1/schedule/staff/${STAFF_1}?startDate=2025-01-01&endDate=2025-01-31&branchId=99999999-9999-9999-9999-999999999999`
+    );
+
+    const res = await staffDetailHandler(req, context());
+
+    expect(res.status).toBe(200);
+
+    expect(staffFullSchedule.getStaffFullSchedule).toHaveBeenCalledWith({
+      supabase: mockClient,
+      branchId: BRANCH_AAA,
+      staffId: STAFF_1,
+      startDate: "2025-01-01",
+      endDate: "2025-01-31",
+    });
+  });
+
+  it("returns 404 without revealing cross-branch staff existence", async () => {
+    mockAuthOk();
+    vi.mocked(staffFullSchedule.getStaffFullSchedule).mockResolvedValueOnce(null);
+
+    const req = new NextRequest(
+      `http://localhost:3000/api/desktop/v1/schedule/staff/${STAFF_2}?startDate=2025-01-01&endDate=2025-01-31`
+    );
+
+    const res = await staffDetailHandler(req, context(STAFF_2));
+    const json = await res.json();
+
+    expect(res.status).toBe(404);
+    expect(json).toMatchObject({
+      ok: false,
+      code: "NOT_FOUND",
+    });
+  });
+
+  it("returns a truthful 500 when staff schedule reads fail", async () => {
+    mockAuthOk();
+
+    vi.mocked(staffFullSchedule.getStaffFullSchedule).mockRejectedValueOnce(
+      new Error("private database detail")
+    );
+
+    const req = new NextRequest(
+      `http://localhost:3000/api/desktop/v1/schedule/staff/${STAFF_1}?startDate=2025-01-01&endDate=2025-01-31`
+    );
+
+    const res = await staffDetailHandler(req, context());
+    const json = await res.json();
+
+    expect(res.status).toBe(500);
+    expect(json).toMatchObject({
+      ok: false,
+      code: "UNKNOWN_ERROR",
+    });
+    expect(JSON.stringify(json)).not.toContain("private database detail");
+  });
+});
 // ---------------------------------------------------------------------------
 // POST /api/desktop/v1/schedule/mutations
 // ---------------------------------------------------------------------------

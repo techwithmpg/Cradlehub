@@ -342,6 +342,13 @@ async function buildAvailabilityItems(
       .order("start_time"),
   ]);
 
+  const availabilityError =
+    schedulesResult.error ?? overridesResult.error ?? blockedResult.error ?? null;
+
+  if (availabilityError) {
+    throw new Error(availabilityError.message);
+  }
+
   const schedules = schedulesResult.data ?? [];
   const overrides = overridesResult.data ?? [];
   const blocked = blockedResult.data ?? [];

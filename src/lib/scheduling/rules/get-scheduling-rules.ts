@@ -31,11 +31,15 @@ export async function getSchedulingRules(
 ): Promise<SchedulingRules> {
   const client = supabase ?? (await createClient());
 
-  const { data } = await client
+  const { data, error } = await client
     .from("scheduling_rules")
     .select("*")
     .eq("branch_id", branchId)
     .maybeSingle();
+
+  if (error) {
+    throw new Error(error.message);
+  }
 
   if (!data) {
     const now = new Date().toISOString();
