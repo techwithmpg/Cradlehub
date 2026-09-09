@@ -9,7 +9,7 @@ import {
 } from "@/lib/staff/onboarding-roles";
 import { isTherapistRole } from "@/lib/staff/profile-completeness";
 import { ROLE_LABELS, isOwner, isManager } from "@/lib/permissions";
-import { canonicalizeSystemRole } from "@/constants/staff";
+import { canonicalizeSystemRole, getStaffManagementSystemRoleLabel } from "@/constants/staff";
 import { InlineWorkflowTaskCard } from "@/components/features/notifications/inline-workflow-task-card";
 import type { Database } from "@/types/supabase";
 import type { WorkflowTask } from "@/lib/notifications/types";
@@ -61,9 +61,12 @@ export function RequestCard({
     requestedSystemRole,
   });
 
-  const availableRoles = approvalCheck.assignableRoles.map((r) => ({ 
-    value: r, 
-    label: ROLE_LABELS[r] ?? r 
+  const availableRoles = approvalCheck.assignableRoles.map((r) => ({
+    value: r,
+    label:
+      r === "digital_marketer"
+        ? getStaffManagementSystemRoleLabel(r)
+        : (ROLE_LABELS[r] ?? r),
   }));
 
   const defaultBranchId = request.requested_branch_id ?? "";

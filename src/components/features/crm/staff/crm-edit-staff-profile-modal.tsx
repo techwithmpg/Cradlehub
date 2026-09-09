@@ -9,7 +9,11 @@ import {
   ConfirmUnsavedChangesDialog,
 } from "@/components/shared/overlays";
 import { updateStaffAction } from "@/app/(dashboard)/owner/staff/actions";
-import { getSystemRoleOptionsForAssigner, isSensitiveSystemRole } from "@/constants/staff";
+import {
+  getStaffManagementSystemRoleLabel,
+  getSystemRoleOptionsForAssigner,
+  isSensitiveSystemRole,
+} from "@/constants/staff";
 import { getSystemRoleLabel } from "@/components/features/staff/staff-management-utils";
 import { EditStaffProfileFooter } from "./edit-staff-profile-footer";
 import { EditStaffProfileIdentityCard } from "./edit-staff-profile-identity-card";
@@ -104,7 +108,7 @@ function ModalContent({
   const assignableRoleOptions = getSystemRoleOptionsForAssigner(reviewerSystemRole).map(
     (option) => ({
       value: option.value,
-      label: option.label,
+      label: getStaffManagementSystemRoleLabel(option.value),
     })
   );
   const roleOptions = assignableRoleOptions.some((option) => option.value === draft.systemRole)

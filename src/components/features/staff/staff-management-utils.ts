@@ -1,4 +1,4 @@
-import { STAFF_TYPE_LABELS, SYSTEM_ROLE_LABELS, canonicalizeSystemRole } from "@/constants/staff";
+import { STAFF_TYPE_LABELS, canonicalizeSystemRole, getStaffManagementSystemRoleLabel } from "@/constants/staff";
 import { getStaffAdminName, getStaffKnownAsLabel } from "@/lib/staff/display-name";
 import type { Database } from "@/types/supabase";
 
@@ -135,7 +135,10 @@ export function getStaffStatusLabel(status: StaffStatus): string {
 }
 
 export function getSystemRoleLabel(role: string): string {
-  return SYSTEM_ROLE_LABELS[role as keyof typeof SYSTEM_ROLE_LABELS] ?? titleCase(role);
+  const contextualLabel = getStaffManagementSystemRoleLabel(role);
+  const canonicalRole = canonicalizeSystemRole(role);
+
+  return contextualLabel === canonicalRole ? titleCase(contextualLabel) : contextualLabel;
 }
 
 export function getStaffTypeLabel(staffType: string | null | undefined): string {

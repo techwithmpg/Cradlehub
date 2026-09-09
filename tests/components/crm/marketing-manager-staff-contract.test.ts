@@ -1,15 +1,21 @@
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import { describe, expect, it } from "vitest";
-import { SYSTEM_ROLE_LABELS, getAssignableSystemRoles } from "@/constants/staff";
+import {
+  SYSTEM_ROLE_LABELS,
+  getAssignableSystemRoles,
+  getStaffManagementSystemRoleLabel,
+} from "@/constants/staff";
 
 function source(relativePath: string) {
   return readFileSync(join(process.cwd(), relativePath), "utf8").replace(/\r\n/g, "\n");
 }
 
 describe("Marketing Manager staff-management contract", () => {
-  it("keeps digital_marketer canonical while using Marketing Manager as its UI label", () => {
-    expect(SYSTEM_ROLE_LABELS.digital_marketer).toBe("Marketing Manager");
+  it("preserves the global role label while using Marketing Manager contextually", () => {
+    expect(SYSTEM_ROLE_LABELS.digital_marketer).toBe("Digital Marketer");
+
+    expect(getStaffManagementSystemRoleLabel("digital_marketer")).toBe("Marketing Manager");
 
     expect(getAssignableSystemRoles("owner")).toContain("digital_marketer");
 
@@ -20,6 +26,22 @@ describe("Marketing Manager staff-management contract", () => {
     expect(getAssignableSystemRoles("store_manager")).toContain("digital_marketer");
 
     expect(getAssignableSystemRoles("crm")).not.toContain("digital_marketer");
+  });
+
+  it("keeps Marketing Manager contextual to Staff Management surfaces", () => {
+    const staffUtils = source("src/components/features/staff/staff-management-utils.ts");
+
+    const crmModal = source("src/components/features/crm/staff/crm-edit-staff-profile-modal.tsx");
+
+    const onboardingReview = source(
+      "src/components/features/staff-onboarding/onboarding-review-list.tsx"
+    );
+
+    expect(staffUtils).toContain("getStaffManagementSystemRoleLabel(role)");
+
+    expect(crmModal).toContain("getStaffManagementSystemRoleLabel");
+
+    expect(onboardingReview).toContain("getStaffManagementSystemRoleLabel");
   });
 
   it("pairs Marketing Manager with managerial in Owner staff management", () => {

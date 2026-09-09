@@ -42,7 +42,7 @@ export const SYSTEM_ROLE_LABELS: Record<SystemRole, string> = {
   staff: "Staff",
   service_head: "Service Head",
   service_staff: "Service Staff",
-  digital_marketer: "Marketing Manager",
+  digital_marketer: "Digital Marketer",
   driver: "Driver",
   utility: "Utility",
 };
@@ -192,6 +192,20 @@ export function canonicalizeSystemRole<T extends string | null | undefined>(
 ): T extends string ? string : T {
   if (typeof role !== "string") return role as T extends string ? string : T;
   return (isFrontDeskRole(role) ? "crm" : role) as T extends string ? string : T;
+}
+
+export function getStaffManagementSystemRoleLabel(role: string): string {
+  const canonicalRole = canonicalizeSystemRole(role);
+
+  if (canonicalRole === "digital_marketer") {
+    return "Marketing Manager";
+  }
+
+  if (isSystemRole(canonicalRole)) {
+    return SYSTEM_ROLE_LABELS[canonicalRole];
+  }
+
+  return canonicalRole;
 }
 
 export function isManagerAssignableSystemRole(value: string): value is ManagerAssignableSystemRole {
