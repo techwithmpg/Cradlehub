@@ -18,6 +18,7 @@ export {
   SYSTEM_ROLES,
   canonicalizeSystemRole,
   getAssignableSystemRoles,
+  getStaffManagementSystemRoleLabel,
   getSystemRoleOptionsForAssigner,
   isFrontDeskRole,
   isManagerAssignableSystemRole,

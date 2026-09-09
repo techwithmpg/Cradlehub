@@ -16,6 +16,7 @@ import {
 } from "@/components/shared/overlays";
 import { updateStaffAction } from "@/app/(dashboard)/owner/staff/actions";
 import {
+  getStaffManagementSystemRoleLabel,
   getSystemRoleOptionsForAssigner,
   isSensitiveSystemRole,
 } from "@/constants/staff";
@@ -124,7 +125,7 @@ function ModalContent({
     reviewerSystemRole
   ).map((option) => ({
     value: option.value,
-    label: option.label,
+    label: getStaffManagementSystemRoleLabel(option.value),
   }));
   const roleOptions = assignableRoleOptions.some(
     (option) => option.value === draft.systemRole
@@ -137,7 +138,9 @@ function ModalContent({
         },
         ...assignableRoleOptions,
       ];
-  const canEditSystemRole = !isProtected && assignableRoleOptions.length > 0;
+  const canEditSystemRole =
+    !isProtected &&
+    assignableRoleOptions.some((option) => option.value === draft.systemRole);
   const canEditBranch =
     !isProtected && BRANCH_EDIT_ROLES.has(reviewerSystemRole);
   const saveDisabled =
@@ -152,7 +155,17 @@ function ModalContent({
       value: StaffProfileDraft[Field]
     ) => {
       setFeedback(null);
-      setDraft((current) => ({ ...current, [field]: value }));
+      setDraft((current) => {
+        if (field === "systemRole" && value === "digital_marketer") {
+          return {
+            ...current,
+            systemRole: "digital_marketer",
+            staffType: "managerial",
+          };
+        }
+
+        return { ...current, [field]: value };
+      });
     },
     []
   );

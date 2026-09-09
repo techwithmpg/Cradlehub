@@ -3,6 +3,7 @@
 import { useState, useEffect, useTransition, useCallback, useMemo } from "react";
 import { useRouter } from "next/navigation";
 import { updateStaffAction } from "@/app/(dashboard)/owner/staff/actions";
+import { approveOnboardingFromStaffManagementAction } from "@/app/staff-onboarding/actions";
 import { STAFF_TYPES, STAFF_TYPE_LABELS, canonicalizeSystemRole } from "@/constants/staff";
 import {
   getStaffStatus,
@@ -27,6 +28,7 @@ type BranchRow = Database["public"]["Tables"]["branches"]["Row"];
 
 const MANAGER_ROLE_OPTIONS = [
   { value: "crm",      label: "CRM" },
+  { value: "digital_marketer", label: "Marketing Manager" },
   { value: "staff",    label: "Staff" },
   { value: "service_head", label: "Service Head" },
   { value: "service_staff", label: "Service Staff" },
@@ -421,7 +423,14 @@ function StaffInformationCard({
             id="si-role"
             style={selectStyle}
             value={draft.systemRole}
-            onChange={(e) => onChange("systemRole", e.target.value)}
+            onChange={(e) => {
+              const nextRole = e.target.value;
+              onChange("systemRole", nextRole);
+
+              if (nextRole === "digital_marketer") {
+                onChange("staffType", "managerial");
+              }
+            }}
           >
             {MANAGER_ROLE_OPTIONS.map((r) => (
               <option key={r.value} value={r.value}>{r.label}</option>
@@ -435,13 +444,25 @@ function StaffInformationCard({
           <select
             id="si-type"
             style={selectStyle}
-            value={draft.staffType}
+            value={draft.systemRole === "digital_marketer" ? "managerial" : draft.staffType}
             onChange={(e) => onChange("staffType", e.target.value)}
           >
-            {STAFF_TYPES.map((t) => (
-              <option key={t} value={t}>{STAFF_TYPE_LABELS[t]}</option>
+            {(draft.systemRole === "digital_marketer"
+              ? STAFF_TYPES.filter((type) => type === "managerial")
+              : STAFF_TYPES
+            ).map((t) => (
+              <option key={t} value={t}>
+                {draft.systemRole === "digital_marketer" && t === "managerial"
+                  ? "Marketing / Management"
+                  : STAFF_TYPE_LABELS[t]}
+              </option>
             ))}
           </select>
+          {draft.systemRole === "digital_marketer" ? (
+            <p style={{ margin: "0.35rem 0 0", fontSize: "0.75rem", color: "var(--cs-text-muted)" }}>
+              Marketing Manager uses the Marketing / Management job function.
+            </p>
+          ) : null}
         </div>
 
         {/* Tier */}
@@ -1132,15 +1153,34 @@ export function StaffApprovalWorkspace({
 
   const handleApproveAndActivate = useCallback(() => {
     startTransition(async () => {
-      const res = await updateStaffAction(buildPayload(true));
+      const approvalBranchId = staffMember.branch_id ?? branch?.id ?? null;
+
+      if (!approvalBranchId) {
+        setResult({
+          success: false,
+          error: "A branch is required before this onboarding request can be approved.",
+        });
+        return;
+      }
+
+      const res = await approveOnboardingFromStaffManagementAction({
+        staffId: staffMember.id,
+        branchId: approvalBranchId,
+        systemRole: draft.systemRole,
+        tier: draft.tier,
+        serviceIds: draft.serviceIds.length > 0 ? draft.serviceIds : undefined,
+      });
+
       setResult({ success: res.success, error: res.error });
+
       if (res.success) {
         setSavedDraft({ ...draft, isActive: true });
         localStorage.removeItem(storageKey);
+        router.push("/manager/staff?tab=active");
         router.refresh();
       }
     });
-  }, [buildPayload, draft, router, storageKey]);
+  }, [branch, draft, router, staffMember, storageKey]);
 
   const isProtected = SENSITIVE_SYSTEM_ROLES.has(staffMember.system_role);
 

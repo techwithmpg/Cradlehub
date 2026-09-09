@@ -75,7 +75,7 @@ describe("Staff onboarding approval branch safety", () => {
     expect(result.assignableRoles).toContain("digital_marketer");
   });
 
-  it("blocks manager from approving digital marketing staff", () => {
+  it("allows manager to approve digital marketing staff for their own branch", () => {
     const result = canApproveStaffOnboarding({
       approverRole: "manager",
       approverBranchId: MAIN_BRANCH,
@@ -83,8 +83,20 @@ describe("Staff onboarding approval branch safety", () => {
       requestedSystemRole: "digital_marketer",
     });
 
+    expect(result.allowed).toBe(true);
+    expect(result.assignableRoles).toContain("digital_marketer");
+  });
+
+  it("still blocks manager from approving digital marketing staff for another branch", () => {
+    const result = canApproveStaffOnboarding({
+      approverRole: "manager",
+      approverBranchId: MAIN_BRANCH,
+      targetBranchId: SM_BRANCH,
+      requestedSystemRole: "digital_marketer",
+    });
+
     expect(result.allowed).toBe(false);
-    expect(result.reason).toContain("owner approval");
+    expect(result.reason).toContain("own branch");
   });
 
   it("blocks CRM from approving digital marketing staff", () => {

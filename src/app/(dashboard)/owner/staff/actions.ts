@@ -4,7 +4,7 @@ import { z } from "zod";
 import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { isDevAuthBypassEnabled } from "@/lib/dev-bypass";
-import { canonicalizeSystemRole } from "@/constants/staff";
+import { canonicalizeSystemRole, getAssignableSystemRoles } from "@/constants/staff";
 import { createStaffSchema, updateStaffSchema } from "@/lib/validations/staff";
 import type { Database } from "@/types/supabase";
 import { revalidatePath } from "next/cache";
@@ -123,7 +123,7 @@ export async function createStaffAction(rawInput: unknown) {
     phone:        d.phone       ?? null,
     tier:         d.tier,
     system_role:  d.systemRole,
-    staff_type:   d.staffType,
+    staff_type:   d.systemRole === "digital_marketer" ? "managerial" : d.staffType,
     is_head:      d.isHead,
   };
 
@@ -176,15 +176,6 @@ const SENSITIVE_SYSTEM_ROLES = new Set([
   "platform_admin",
 ]);
 
-const MANAGER_SAFE_ROLES = new Set([
-  "staff",
-  "crm",
-  "driver",
-  "utility",
-  "service_head",
-  "service_staff",
-]);
-
 // ── Update staff profile (owner or manager) ───────────────────────────────
 export async function updateStaffAction(rawInput: unknown) {
   const parsed = updateStaffSchema.safeParse(rawInput);
@@ -202,15 +193,19 @@ export async function updateStaffAction(rawInput: unknown) {
   const actorRole = canonicalizeSystemRole(ctx.me.system_role);
   const isBranchScoped = actorRole !== "owner";
 
+  const { data: target } = await ctx.supabase
+    .from("staff")
+    .select("branch_id, system_role")
+    .eq("id", staffId)
+    .single();
+
+  if (!target) {
+    return { success: false, error: "Staff record not found." };
+  }
+
   // Branch-scoped roles: branch scope + protected account + role safety checks
   if (isBranchScoped) {
-    const { data: target } = await ctx.supabase
-      .from("staff")
-      .select("branch_id, system_role")
-      .eq("id", staffId)
-      .single();
-
-    if (!target || target.branch_id !== ctx.me.branch_id) {
+    if (target.branch_id !== ctx.me.branch_id) {
       return { success: false, error: "You can only manage staff in your branch" };
     }
 
@@ -222,20 +217,64 @@ export async function updateStaffAction(rawInput: unknown) {
       return { success: false, error: "You can only assign staff to your own branch." };
     }
 
-    if (updates.systemRole !== undefined && !MANAGER_SAFE_ROLES.has(canonicalizeSystemRole(updates.systemRole))) {
-      return { success: false, error: "This role requires owner approval." };
+    if (
+      updates.systemRole !== undefined &&
+      !getAssignableSystemRoles(actorRole).some(
+        (role) => role === canonicalizeSystemRole(updates.systemRole)
+      )
+    ) {
+      return {
+        success: false,
+        error: "This role cannot be assigned with your permission level.",
+      };
+    }
+  }
+
+  // Submitted onboarding requests must be approved through the
+  // canonical onboarding workflow, never by a generic staff edit.
+  if (updates.isActive === true) {
+    const admin = createAdminClient();
+
+    const { data: submittedRequest, error: submittedRequestError } = await admin
+      .from("staff_onboarding_requests")
+      .select("id")
+      .eq("staff_id", staffId)
+      .eq("status", "submitted")
+      .limit(1)
+      .maybeSingle();
+
+    if (submittedRequestError) {
+      return {
+        success: false,
+        error: "Unable to verify onboarding approval state.",
+      };
+    }
+
+    if (submittedRequest) {
+      return {
+        success: false,
+        error:
+          "This staff member has a submitted onboarding request. Use Approve & Activate instead.",
+      };
     }
   }
 
   const nextSystemRole =
     updates.systemRole !== undefined ? canonicalizeSystemRole(updates.systemRole) : undefined;
+
+  const effectiveSystemRole =
+    nextSystemRole ?? canonicalizeSystemRole(target.system_role);
+
+  const nextStaffType =
+    effectiveSystemRole === "digital_marketer" ? "managerial" : updates.staffType;
+
   const updatePayload = {
     ...(updates.fullName   !== undefined && { full_name:    updates.fullName }),
     ...(updates.nickname   !== undefined && { nickname:     updates.nickname }),
     ...(updates.phone      !== undefined && { phone:        updates.phone }),
     ...(updates.tier       !== undefined && { tier:         updates.tier }),
     ...(nextSystemRole    !== undefined && { system_role:  nextSystemRole }),
-    ...(updates.staffType  !== undefined && { staff_type:   updates.staffType }),
+    ...(nextStaffType      !== undefined && { staff_type:   nextStaffType }),
     ...(updates.isHead     !== undefined && { is_head:      updates.isHead }),
     ...(updates.branchId   !== undefined && { branch_id:    updates.branchId }),
     ...(updates.isActive   !== undefined && { is_active:    updates.isActive }),
@@ -321,6 +360,33 @@ export async function toggleStaffActiveAction(rawInput: unknown) {
     }
     if (SENSITIVE_SYSTEM_ROLES.has(target.system_role as string)) {
       return { success: false, error: "This action requires owner approval." } as const;
+    }
+  }
+
+  if (isActive) {
+    const admin = createAdminClient();
+
+    const { data: submittedRequest, error: submittedRequestError } = await admin
+      .from("staff_onboarding_requests")
+      .select("id")
+      .eq("staff_id", staffId)
+      .eq("status", "submitted")
+      .limit(1)
+      .maybeSingle();
+
+    if (submittedRequestError) {
+      return {
+        success: false,
+        error: "Unable to verify onboarding approval state.",
+      } as const;
+    }
+
+    if (submittedRequest) {
+      return {
+        success: false,
+        error:
+          "This staff member has a submitted onboarding request. Use Approve & Activate instead.",
+      } as const;
     }
   }
 

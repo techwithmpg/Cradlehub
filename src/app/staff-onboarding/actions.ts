@@ -445,7 +445,10 @@ export async function approveOnboardingAction(input: {
       is_active: true,
       branch_id: input.branchId,
       system_role: input.systemRole,
-      staff_type: mapPreferredRoleToStaffType(request?.preferred_role ?? ""),
+      staff_type:
+        input.systemRole === "digital_marketer"
+          ? "managerial"
+          : mapPreferredRoleToStaffType(request?.preferred_role ?? ""),
       tier: input.tier,
       ...(nickname ? { nickname } : {}),
     })
@@ -514,6 +517,69 @@ export async function approveOnboardingAction(input: {
   invalidateOnboardingApprovalSurfaces(input.branchId);
 
   return { success: true };
+}
+
+// ── Staff Management approval adapter ─────────────────────────────────────
+// Resolve the submitted request, then delegate to the canonical approval
+// workflow so staff activation and onboarding review state stay synchronized.
+export async function approveOnboardingFromStaffManagementAction(input: {
+  staffId: string;
+  branchId: string;
+  systemRole: string;
+  tier: string;
+  serviceIds?: string[];
+}): Promise<{ success: boolean; error?: string }> {
+  const supabase = await createClient();
+  const { data: { user } } = await supabase.auth.getUser();
+
+  if (!user) {
+    return { success: false, error: "Not logged in" };
+  }
+
+  const { data: requests, error } = await supabase
+    .from("staff_onboarding_requests")
+    .select("id")
+    .eq("staff_id", input.staffId)
+    .eq("status", "submitted")
+    .order("created_at", { ascending: false })
+    .limit(2);
+
+  if (error) {
+    return {
+      success: false,
+      error: "Unable to verify the onboarding request.",
+    };
+  }
+
+  if (!requests || requests.length === 0) {
+    return {
+      success: false,
+      error:
+        "No submitted onboarding request exists for this staff member. Use Save Changes for ordinary staff updates.",
+    };
+  }
+
+  if (requests.length > 1) {
+    logError("staff.onboarding.multiple_submitted_requests", {
+      staffId: input.staffId,
+      requestCount: requests.length,
+    });
+
+    return {
+      success: false,
+      error:
+        "Multiple submitted onboarding requests were found. Approval was stopped for review.",
+    };
+  }
+
+  return approveOnboardingAction({
+    requestId: requests[0]!.id,
+    staffId: input.staffId,
+    branchId: input.branchId,
+    systemRole: input.systemRole,
+    tier: input.tier,
+    serviceIds: input.serviceIds,
+  });
 }
 
 // ── Reject onboarding request (owner, manager, or CSR for MVP) ────────────
