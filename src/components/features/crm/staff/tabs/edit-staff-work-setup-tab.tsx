@@ -8,7 +8,10 @@ import {
   staffProfileCheckboxClass,
   staffProfileInputClass,
 } from "../edit-staff-profile-form-parts";
-import type { StaffProfileBranch, StaffProfileDraft } from "../edit-staff-profile-types";
+import type {
+  StaffProfileBranch,
+  StaffProfileDraft,
+} from "../edit-staff-profile-types";
 
 const TIER_OPTIONS = [
   { value: "senior", label: "Senior" },
@@ -86,7 +89,8 @@ export function EditStaffWorkSetupTab({
               : STAFF_TYPE_OPTIONS
             ).map((option) => (
               <option key={option.value} value={option.value}>
-                {draft.systemRole === "digital_marketer" && option.value === "managerial"
+                {draft.systemRole === "digital_marketer" &&
+                option.value === "managerial"
                   ? "Marketing / Management"
                   : option.label}
               </option>

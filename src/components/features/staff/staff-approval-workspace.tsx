@@ -27,31 +27,28 @@ type BranchRow = Database["public"]["Tables"]["branches"]["Row"];
 // ── Constants ─────────────────────────────────────────────────────────────────
 
 const MANAGER_ROLE_OPTIONS = [
-  { value: "crm", label: "CRM" },
+  { value: "crm",      label: "CRM" },
   { value: "digital_marketer", label: "Marketing Manager" },
-  { value: "staff", label: "Staff" },
+  { value: "staff",    label: "Staff" },
   { value: "service_head", label: "Service Head" },
   { value: "service_staff", label: "Service Staff" },
-  { value: "driver", label: "Driver" },
-  { value: "utility", label: "Utility" },
+  { value: "driver",   label: "Driver" },
+  { value: "utility",  label: "Utility" },
 ] as const;
 
 const SENSITIVE_SYSTEM_ROLES = new Set([
-  "owner",
-  "manager",
-  "assistant_manager",
-  "store_manager",
-  "super_admin",
-  "platform_admin",
-  "branch_manager",
+  "owner", "manager", "assistant_manager", "store_manager",
+  "super_admin", "platform_admin", "branch_manager",
 ]);
 
-const SERVICE_CAPABLE_TYPES = new Set(["therapist", "nail_tech", "aesthetician", "salon_head"]);
+const SERVICE_CAPABLE_TYPES = new Set([
+  "therapist", "nail_tech", "aesthetician", "salon_head",
+]);
 
 const STATUS_STYLE: Record<string, { bg: string; color: string; border: string }> = {
-  active: { bg: "#F0FDF4", color: "#15803D", border: "#BBF7D0" },
+  active:   { bg: "#F0FDF4", color: "#15803D", border: "#BBF7D0" },
   awaiting: { bg: "#FFFBEB", color: "#92400E", border: "#FDE68A" },
-  invited: { bg: "#EFF6FF", color: "#1D4ED8", border: "#BFDBFE" },
+  invited:  { bg: "#EFF6FF", color: "#1D4ED8", border: "#BFDBFE" },
   inactive: { bg: "#F9FAFB", color: "#6B7280", border: "#E5E7EB" },
 };
 
@@ -60,14 +57,14 @@ const PREVIEW_CHIP_MAX = 6;
 // ── Draft types ───────────────────────────────────────────────────────────────
 
 type Draft = {
-  fullName: string;
-  nickname: string;
-  phone: string;
+  fullName:   string;
+  nickname:   string;
+  phone:      string;
   systemRole: string;
-  staffType: string;
-  isHead: boolean;
-  tier: string;
-  isActive: boolean;
+  staffType:  string;
+  isHead:     boolean;
+  tier:       string;
+  isActive:   boolean;
   serviceIds: string[];
 };
 
@@ -81,28 +78,28 @@ function draftKey(staffId: string) {
 
 function fromMember(member: StaffMember, serviceIds: string[]): Draft {
   return {
-    fullName: member.full_name,
-    nickname: member.nickname ?? "",
-    phone: member.phone ?? "",
+    fullName:   member.full_name,
+    nickname:   member.nickname ?? "",
+    phone:      member.phone ?? "",
     systemRole: canonicalizeSystemRole(member.system_role),
-    staffType: member.staff_type ?? "therapist",
-    isHead: member.is_head ?? false,
-    tier: member.tier ?? "n/a",
-    isActive: member.is_active,
+    staffType:  member.staff_type ?? "therapist",
+    isHead:     member.is_head ?? false,
+    tier:       member.tier ?? "n/a",
+    isActive:   member.is_active,
     serviceIds: [...serviceIds],
   };
 }
 
 function draftsEqual(a: Draft, b: Draft): boolean {
   return (
-    a.fullName === b.fullName &&
-    a.nickname === b.nickname &&
-    a.phone === b.phone &&
+    a.fullName   === b.fullName   &&
+    a.nickname   === b.nickname   &&
+    a.phone      === b.phone      &&
     a.systemRole === b.systemRole &&
-    a.staffType === b.staffType &&
-    a.isHead === b.isHead &&
-    a.tier === b.tier &&
-    a.isActive === b.isActive &&
+    a.staffType  === b.staffType  &&
+    a.isHead     === b.isHead     &&
+    a.tier       === b.tier       &&
+    a.isActive   === b.isActive   &&
     [...a.serviceIds].sort().join(",") === [...b.serviceIds].sort().join(",")
   );
 }
@@ -349,8 +346,7 @@ function StaffInformationCard({
             id: "protected-account",
             severity: "danger",
             title: "Elevated access — editing restricted",
-            description:
-              "This account has owner or manager-level access and cannot be edited from the manager workspace.",
+            description: "This account has owner or manager-level access and cannot be edited from the manager workspace.",
             impact: "Contact the account owner to make changes to this profile.",
             target: warningTargets.custom("protected-contact-owner"),
           }}
@@ -437,9 +433,7 @@ function StaffInformationCard({
             }}
           >
             {MANAGER_ROLE_OPTIONS.map((r) => (
-              <option key={r.value} value={r.value}>
-                {r.label}
-              </option>
+              <option key={r.value} value={r.value}>{r.label}</option>
             ))}
           </select>
         </div>
@@ -464,15 +458,8 @@ function StaffInformationCard({
               </option>
             ))}
           </select>
-
           {draft.systemRole === "digital_marketer" ? (
-            <p
-              style={{
-                margin: "0.35rem 0 0",
-                fontSize: "0.75rem",
-                color: "var(--cs-text-muted)",
-              }}
-            >
+            <p style={{ margin: "0.35rem 0 0", fontSize: "0.75rem", color: "var(--cs-text-muted)" }}>
               Marketing Manager uses the Marketing / Management job function.
             </p>
           ) : null}
@@ -617,9 +604,7 @@ function ServiceSummaryCard({
               color: count > 0 ? "var(--cs-text)" : "var(--cs-text-muted)",
             }}
           >
-            {count > 0
-              ? `${count} service${count !== 1 ? "s" : ""} assigned`
-              : "No services assigned"}
+            {count > 0 ? `${count} service${count !== 1 ? "s" : ""} assigned` : "No services assigned"}
           </p>
         </div>
         <button
@@ -677,9 +662,7 @@ function ServiceSummaryCard({
       {/* Preview chips */}
       {count > 0 && (
         <>
-          <div
-            style={{ display: "flex", flexWrap: "wrap", gap: "0.375rem", marginBottom: "0.625rem" }}
-          >
+          <div style={{ display: "flex", flexWrap: "wrap", gap: "0.375rem", marginBottom: "0.625rem" }}>
             {preview.map((id) => (
               <span
                 key={id}
@@ -747,8 +730,7 @@ function SummaryRow({
           textAlign: "right",
         }}
       >
-        {value}
-        {changed ? " *" : ""}
+        {value}{changed ? " *" : ""}
       </span>
     </div>
   );
@@ -778,16 +760,8 @@ function ActionBtn({
     ...(variant === "primary"
       ? { backgroundColor: "var(--cs-sand)", color: "#fff", border: "none" }
       : variant === "outline"
-        ? {
-            backgroundColor: "transparent",
-            color: "var(--cs-sand)",
-            border: "1px solid var(--cs-sand)",
-          }
-        : {
-            backgroundColor: "transparent",
-            color: "var(--cs-text-muted)",
-            border: "1px solid var(--cs-border)",
-          }),
+      ? { backgroundColor: "transparent", color: "var(--cs-sand)", border: "1px solid var(--cs-sand)" }
+      : { backgroundColor: "transparent", color: "var(--cs-text-muted)", border: "1px solid var(--cs-border)" }),
   };
   return (
     <button onClick={onClick} disabled={disabled} style={styles}>
@@ -872,9 +846,7 @@ function ApprovalSummaryPanel({
       </p>
 
       {/* Info rows */}
-      <div
-        style={{ display: "flex", flexDirection: "column", gap: "0.5rem", marginBottom: "1rem" }}
-      >
+      <div style={{ display: "flex", flexDirection: "column", gap: "0.5rem", marginBottom: "1rem" }}>
         <SummaryRow label="Branch" value={branchName} />
         <SummaryRow
           label="Role"
@@ -899,10 +871,13 @@ function ApprovalSummaryPanel({
         <SummaryRow
           label="Services"
           value={
-            draft.serviceIds.length > 0 ? `${draft.serviceIds.length} assigned` : "None assigned"
+            draft.serviceIds.length > 0
+              ? `${draft.serviceIds.length} assigned`
+              : "None assigned"
           }
           changed={
-            [...draft.serviceIds].sort().join(",") !== [...savedDraft.serviceIds].sort().join(",")
+            [...draft.serviceIds].sort().join(",") !==
+            [...savedDraft.serviceIds].sort().join(",")
           }
         />
         {draft.isHead && <SummaryRow label="" value="Department head ✓" />}
@@ -943,14 +918,7 @@ function ApprovalSummaryPanel({
       )}
 
       {/* Service + approval warnings — all actionable */}
-      <div
-        style={{
-          display: "flex",
-          flexDirection: "column",
-          gap: "0.5rem",
-          marginBottom: "0.875rem",
-        }}
-      >
+      <div style={{ display: "flex", flexDirection: "column", gap: "0.5rem", marginBottom: "0.875rem" }}>
         {draft.serviceIds.length > 0 ? (
           <ActionableWarning
             warning={{
@@ -970,8 +938,7 @@ function ApprovalSummaryPanel({
               id: "panel-no-services",
               severity: "warning",
               title: "No services selected",
-              description:
-                "This staff member will not appear in service-specific booking matching.",
+              description: "This staff member will not appear in service-specific booking matching.",
               impact: "Assign at least one service to enable proper booking matching.",
               actionLabel: "Edit services",
               target: warningTargets.staffServiceEditor(),
@@ -986,10 +953,9 @@ function ApprovalSummaryPanel({
               id: "panel-needs-approval",
               severity: "warning",
               title: status === "awaiting" ? "Awaiting approval" : "Staff member is inactive",
-              description:
-                status === "awaiting"
-                  ? "Use Approve & Activate below to make this staff member active."
-                  : "This staff member is not currently active.",
+              description: status === "awaiting"
+                ? "Use Approve & Activate below to make this staff member active."
+                : "This staff member is not currently active.",
               target: warningTargets.scrollTo("approval-actions"),
             }}
           />
@@ -1013,9 +979,7 @@ function ApprovalSummaryPanel({
             warning={{
               id: "save-result",
               severity: result.success ? "success" : "danger",
-              title: result.success
-                ? "Changes saved successfully."
-                : (result.error ?? "Something went wrong."),
+              title: result.success ? "Changes saved successfully." : (result.error ?? "Something went wrong."),
               target: warningTargets.custom(),
             }}
             onAction={onAction}
@@ -1026,12 +990,13 @@ function ApprovalSummaryPanel({
 
       {/* Actions */}
       {!isProtected && (
-        <div
-          id="approval-actions"
-          style={{ display: "flex", flexDirection: "column", gap: "0.5rem" }}
-        >
+        <div id="approval-actions" style={{ display: "flex", flexDirection: "column", gap: "0.5rem" }}>
           {canApprove && (
-            <ActionBtn variant="primary" onClick={onApproveAndActivate} disabled={isPending}>
+            <ActionBtn
+              variant="primary"
+              onClick={onApproveAndActivate}
+              disabled={isPending}
+            >
               {isPending ? "Saving…" : "Approve & Activate"}
             </ActionBtn>
           )}
@@ -1133,8 +1098,7 @@ export function StaffApprovalWorkspace({
   const handleToggleService = useCallback((id: string) => {
     setDraft((prev) => {
       const s = new Set(prev.serviceIds);
-      if (s.has(id)) s.delete(id);
-      else s.add(id);
+      if (s.has(id)) s.delete(id); else s.add(id);
       return { ...prev, serviceIds: Array.from(s) };
     });
     setResult(null);
@@ -1160,16 +1124,16 @@ export function StaffApprovalWorkspace({
 
   const buildPayload = useCallback(
     (overrideIsActive: boolean) => ({
-      staffId: staffMember.id,
-      fullName: draft.fullName.trim(),
-      nickname: draft.nickname.trim() || null,
-      phone: draft.phone.trim() || undefined,
-      tier: draft.tier,
+      staffId:    staffMember.id,
+      fullName:   draft.fullName.trim(),
+      nickname:   draft.nickname.trim() || null,
+      phone:      draft.phone.trim() || undefined,
+      tier:       draft.tier,
       systemRole: draft.systemRole,
-      staffType: draft.staffType,
-      isHead: draft.isHead,
-      branchId: staffMember.branch_id ?? undefined,
-      isActive: overrideIsActive,
+      staffType:  draft.staffType,
+      isHead:     draft.isHead,
+      branchId:   staffMember.branch_id ?? undefined,
+      isActive:   overrideIsActive,
       serviceIds: draft.serviceIds.length > 0 ? draft.serviceIds : undefined,
     }),
     [draft, staffMember]
@@ -1207,19 +1171,11 @@ export function StaffApprovalWorkspace({
         serviceIds: draft.serviceIds.length > 0 ? draft.serviceIds : undefined,
       });
 
-      setResult({
-        success: res.success,
-        error: res.error,
-      });
+      setResult({ success: res.success, error: res.error });
 
       if (res.success) {
-        setSavedDraft({
-          ...draft,
-          isActive: true,
-        });
-
+        setSavedDraft({ ...draft, isActive: true });
         localStorage.removeItem(storageKey);
-
         router.push("/manager/staff?tab=active");
         router.refresh();
       }
@@ -1239,14 +1195,21 @@ export function StaffApprovalWorkspace({
       />
 
       {showRestoreBanner && (
-        <DraftRestoreBanner onRestore={handleRestoreDraft} onDiscard={handleDiscardStoredDraft} />
+        <DraftRestoreBanner
+          onRestore={handleRestoreDraft}
+          onDiscard={handleDiscardStoredDraft}
+        />
       )}
 
       {/* Two-column responsive grid */}
       <div className="staff-approval-grid">
         {/* Left column */}
         <div>
-          <StaffInformationCard draft={draft} isProtected={isProtected} onChange={handleChange} />
+          <StaffInformationCard
+            draft={draft}
+            isProtected={isProtected}
+            onChange={handleChange}
+          />
           <ServiceSummaryCard
             services={services}
             selectedIds={draft.serviceIds}

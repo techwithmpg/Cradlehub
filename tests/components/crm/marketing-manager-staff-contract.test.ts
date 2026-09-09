@@ -109,7 +109,7 @@ describe("Marketing Manager staff-management contract", () => {
 
     expect(staffActions).toContain('effectiveSystemRole === "digital_marketer"');
 
-    expect(staffActions).toContain("staff_type: nextStaffType");
+    expect(staffActions).toMatch(/staff_type:\s+nextStaffType/);
 
     expect(onboardingActions).toContain('input.systemRole === "digital_marketer"');
   });
