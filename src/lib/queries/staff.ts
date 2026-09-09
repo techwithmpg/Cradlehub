@@ -16,11 +16,11 @@ type BranchStaff = BranchStaffCore &
 function isMissingStaffOrgColumnsError(message: string): boolean {
   const m = message.toLowerCase();
   return (
-    m.includes('column staff.staff_type does not exist') ||
+    m.includes("column staff.staff_type does not exist") ||
     m.includes('column "staff_type" does not exist') ||
-    m.includes('column staff.is_head does not exist') ||
+    m.includes("column staff.is_head does not exist") ||
     m.includes('column "is_head" does not exist') ||
-    m.includes('column staff.nickname does not exist') ||
+    m.includes("column staff.nickname does not exist") ||
     m.includes('column "nickname" does not exist') ||
     m.includes("could not find the 'is_head' column") ||
     m.includes("could not find the 'staff_type' column") ||
@@ -43,7 +43,9 @@ export async function getStaffByBranch(branchId: string) {
   const supabase = await createClient();
   const primary = await supabase
     .from("staff")
-    .select("id, full_name, nickname, tier, system_role, staff_type, is_head, phone, is_active, branch_id")
+    .select(
+      "id, full_name, nickname, tier, system_role, staff_type, is_head, phone, is_active, branch_id"
+    )
     .eq("branch_id", branchId)
     .eq("is_active", true)
     .order("tier")
@@ -136,7 +138,9 @@ export async function getStaffSchedule(staffId: string) {
   const supabase = await createClient();
   const { data, error } = await supabase
     .from("staff_schedules")
-    .select("id, staff_id, day_of_week, start_time, end_time, is_active, shift_type, window_order, ends_next_day, created_at")
+    .select(
+      "id, staff_id, day_of_week, start_time, end_time, is_active, shift_type, window_order, ends_next_day, created_at"
+    )
     .eq("staff_id", staffId)
     .eq("is_active", true)
     .order("day_of_week")
@@ -158,11 +162,7 @@ export async function getStaffOverrides(staffId: string, fromDate: string) {
 }
 
 // ── Blocked times for a staff member over a date range ────────────────────
-export async function getBlockedTimes(
-  staffId:  string,
-  fromDate: string,
-  toDate:   string
-) {
+export async function getBlockedTimes(staffId: string, fromDate: string, toDate: string) {
   const supabase = await createClient();
   const { data, error } = await supabase
     .from("blocked_times")
@@ -321,7 +321,9 @@ async function buildAvailabilityItems(
   const [schedulesResult, overridesResult, blockedResult] = await Promise.all([
     supabase
       .from("staff_schedules")
-      .select("id, staff_id, day_of_week, start_time, end_time, is_active, shift_type, window_order, ends_next_day, created_at")
+      .select(
+        "id, staff_id, day_of_week, start_time, end_time, is_active, shift_type, window_order, ends_next_day, created_at"
+      )
       .in("staff_id", staffIds),
     supabase
       .from("schedule_overrides")
@@ -393,7 +395,9 @@ export async function getStaffWithAvailability(
   // Fetch all staff for the branch (active + inactive for full visibility)
   const staffResult = await client
     .from("staff")
-    .select("id, full_name, nickname, avatar_url, tier, system_role, staff_type, is_head, is_active")
+    .select(
+      "id, full_name, nickname, avatar_url, tier, system_role, staff_type, is_head, is_active"
+    )
     .eq("branch_id", branchId)
     .order("tier")
     .order("full_name");
@@ -477,7 +481,7 @@ export async function getStaffForOnboard(staffId: string): Promise<StaffForOnboa
     is_active: data.is_active,
     created_at: data.created_at,
     branches: Array.isArray(data.branches)
-      ? (data.branches[0] as { name: string } | undefined) ?? null
+      ? ((data.branches[0] as { name: string } | undefined) ?? null)
       : (data.branches as { name: string } | null),
   };
 }

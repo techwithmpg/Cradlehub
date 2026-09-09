@@ -11,10 +11,7 @@ import {
   type ResolvedStaffScheduleWindow,
 } from "@/lib/schedule/resolve-staff-schedule";
 import { getStaffAdminName } from "@/lib/staff/display-name";
-import {
-  isOperationalStaff,
-  type OperationalStaffFlags,
-} from "@/lib/staff/operational-staff";
+import { isOperationalStaff, type OperationalStaffFlags } from "@/lib/staff/operational-staff";
 
 type OneOrMany<T> = T | T[] | null;
 type JsonRecord = Record<string, unknown>;
@@ -151,7 +148,9 @@ async function loadOperationalStaff(
 ): Promise<ScheduleStaffMetaRow[]> {
   const { data, error } = await supabase
     .from("staff")
-    .select("id, full_name, nickname, tier, staff_type, system_role, branch_id, is_active, archived_at, merged_into_staff_id, metadata")
+    .select(
+      "id, full_name, nickname, tier, staff_type, system_role, branch_id, is_active, archived_at, merged_into_staff_id, metadata"
+    )
     .eq("branch_id", branchId)
     .eq("is_active", true)
     .order("tier")
@@ -161,14 +160,12 @@ async function loadOperationalStaff(
     throw new Error(`Staff roster query failed: ${error.message}`);
   }
 
-  return ((data ?? []) as ScheduleStaffMetaRow[]).filter((staff) =>
-    isOperationalStaff(staff)
-  );
+  return ((data ?? []) as ScheduleStaffMetaRow[]).filter((staff) => isOperationalStaff(staff));
 }
 
 function firstRelation<T>(relation: OneOrMany<T> | undefined): T | null {
   if (!relation) return null;
-  return Array.isArray(relation) ? relation[0] ?? null : relation;
+  return Array.isArray(relation) ? (relation[0] ?? null) : relation;
 }
 
 function toAmountPaid(value: number | string | null | undefined): number | null {
@@ -321,9 +318,11 @@ export async function getDailySchedule(params: {
   if (staffIds.length === 0) return [];
 
   const [bookingsResult, blocksResult, overridesResult, checkinsResult] = await Promise.all([
-      supabase
+    supabase
       .from("bookings")
-      .select("id, staff_id, start_time, end_time, status, type, delivery_type, resource_id, service_id, payment_method, payment_status, amount_paid, services(name, metadata), customers(full_name), resource:branch_resources!bookings_resource_id_fkey(name, type, capacity)")
+      .select(
+        "id, staff_id, start_time, end_time, status, type, delivery_type, resource_id, service_id, payment_method, payment_status, amount_paid, services(name, metadata), customers(full_name), resource:branch_resources!bookings_resource_id_fkey(name, type, capacity)"
+      )
       .eq("branch_id", params.branchId)
       .eq("booking_date", params.date)
       .in("staff_id", staffIds),
@@ -339,7 +338,9 @@ export async function getDailySchedule(params: {
       .in("staff_id", staffIds),
     supabase
       .from("staff_shift_checkins")
-      .select("id, staff_id, status, checked_in_at, checked_out_at, attendance_business_date, shift_date, shift_instance_key")
+      .select(
+        "id, staff_id, status, checked_in_at, checked_out_at, attendance_business_date, shift_date, shift_instance_key"
+      )
       .eq("branch_id", params.branchId)
       .in("staff_id", staffIds)
       .or(`attendance_business_date.eq.${params.date},shift_date.eq.${params.date}`),
@@ -363,7 +364,9 @@ export async function getDailySchedule(params: {
 
   const bookingsByStaff = buildBookingsByStaff((bookingsResult.data ?? []) as BookingQueryRow[]);
   const blocksByStaff = buildBlocksByStaff((blocksResult.data ?? []) as BlockedTimeQueryRow[]);
-  const overridesByStaff = buildOverridesByStaff((overridesResult.data ?? []) as OverrideQueryRow[]);
+  const overridesByStaff = buildOverridesByStaff(
+    (overridesResult.data ?? []) as OverrideQueryRow[]
+  );
   const checkinsByStaff = buildCheckinsByStaff((checkinsResult.data ?? []) as CheckinQueryRow[]);
 
   const resolvedSchedules = await getResolvedStaffSchedulesForDate({

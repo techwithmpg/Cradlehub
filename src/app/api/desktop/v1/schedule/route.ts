@@ -4,6 +4,22 @@ import { getDailySchedule } from "@/lib/queries/schedule";
 import { getManagerDashboardStats } from "@/lib/queries/bookings";
 import { getSchedulingRules } from "@/lib/scheduling/rules/get-scheduling-rules";
 import { logError } from "@/lib/logger";
+function isValidCalendarDate(value: string): boolean {
+  const match = /^(\d{4})-(\d{2})-(\d{2})$/.exec(value);
+  if (!match) return false;
+
+  const year = Number(match[1]);
+  const month = Number(match[2]);
+  const day = Number(match[3]);
+
+  const parsed = new Date(Date.UTC(year, month - 1, day));
+
+  return (
+    parsed.getUTCFullYear() === year &&
+    parsed.getUTCMonth() === month - 1 &&
+    parsed.getUTCDate() === day
+  );
+}
 
 /**
  * GET /api/desktop/v1/schedule
@@ -33,7 +49,20 @@ export async function GET(req: NextRequest): Promise<NextResponse> {
   }
 
   const { operator, client } = authResult;
-  const branchId = operator.staff.branch_id;
+  const staff = operator.staff;
+
+  if (!staff) {
+    return NextResponse.json(
+      {
+        ok: false,
+        code: "STAFF_NOT_FOUND",
+        message: "No active staff profile found for this authenticated user.",
+      },
+      { status: 403, headers: { "Cache-Control": "no-store" } }
+    );
+  }
+
+  const branchId = staff.branch_id;
 
   if (!branchId) {
     return NextResponse.json(
@@ -47,7 +76,7 @@ export async function GET(req: NextRequest): Promise<NextResponse> {
   }
 
   const date = req.nextUrl.searchParams.get("date") ?? "";
-  if (!/^\d{4}-\d{2}-\d{2}$/.test(date)) {
+  if (!isValidCalendarDate(date)) {
     return NextResponse.json(
       {
         ok: false,

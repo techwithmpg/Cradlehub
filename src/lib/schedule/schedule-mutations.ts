@@ -214,7 +214,7 @@ type StaffScheduleMutationRpcClient = {
 };
 
 const INVALID_TIME_ERROR = "Please check the start and end times.";
-const PERMISSION_ERROR = "You do do not have permission to update this staff schedule.";
+const PERMISSION_ERROR = "You do not have permission to update this staff schedule.";
 const CROSS_BRANCH_EDIT_ERROR = "You can only edit schedules for staff in your assigned branch.";
 
 export const SCHEDULE_OVERRIDE_RETURNING_COLUMNS =
@@ -436,10 +436,7 @@ export async function replaceStaffWeeklyWindowSchedule(
 ): Promise<WeeklyScheduleMutationResult> {
   const parsed = updateWeeklyWindowScheduleSchema.safeParse(rawInput);
   if (!parsed.success) {
-    return scheduleFailure(
-      "INVALID_INPUT",
-      parsed.error.issues[0]?.message ?? "Invalid schedule."
-    );
+    return scheduleFailure("INVALID_INPUT", parsed.error.issues[0]?.message ?? "Invalid schedule.");
   }
 
   const { branchId, staffId, days } = parsed.data;
@@ -527,7 +524,7 @@ export async function upsertScheduleOverride(
 
   const expectedStart = isDayOff ? null : startTime!;
   const expectedEnd = isDayOff ? null : endTime!;
-  const expectedShiftType = isDayOff ? null : shiftType ?? null;
+  const expectedShiftType = isDayOff ? null : (shiftType ?? null);
   const { data, error } = await supabase
     .from("schedule_overrides")
     .upsert(

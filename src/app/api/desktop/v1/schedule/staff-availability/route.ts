@@ -28,7 +28,20 @@ export async function GET(req: NextRequest): Promise<NextResponse> {
   }
 
   const { operator, client } = authResult;
-  const branchId = operator.staff.branch_id;
+  const staff = operator.staff;
+
+  if (!staff) {
+    return NextResponse.json(
+      {
+        ok: false,
+        code: "STAFF_NOT_FOUND",
+        message: "No active staff profile found for this authenticated user.",
+      },
+      { status: 403, headers: { "Cache-Control": "no-store" } }
+    );
+  }
+
+  const branchId = staff.branch_id;
 
   if (!branchId) {
     return NextResponse.json(

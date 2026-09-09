@@ -1,4 +1,4 @@
-import type { SupabaseClient } from "@supabase/supabase-js";
+import type { SupabaseClient as SupabaseJsClient } from "@supabase/supabase-js";
 import { createClient } from "@/lib/supabase/server";
 import type { Database } from "@/types/supabase";
 import { attachBranchResources } from "@/lib/queries/booking-resources";
@@ -589,7 +589,7 @@ export async function getWeekSchedule(branchId: string, startDate: string, endDa
 export async function getManagerDashboardStats(
   branchId: string,
   date: string,
-  supabase?: SupabaseClient<Database>
+  supabase?: SupabaseJsClient<Database>
 ) {
   const client = supabase ?? (await createClient());
   const { data, error } = await client

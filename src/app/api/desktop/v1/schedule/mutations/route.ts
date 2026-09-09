@@ -38,9 +38,8 @@ import { logError } from "@/lib/logger";
  *      means Postgres RLS policies on staff_schedules, schedule_overrides,
  *      and blocked_times enforce branch-scoped write access.
  *
- * Roles: Management roles + crm (canAdjustStaffSchedule). Non-management
- *        CRM roles are rejected by assertMutationAuthority inside the shared
- *        functions, returning code "UNAUTHORIZED".
+ * Roles: canAdjustStaffSchedule is authoritative. Management roles and
+ *        canonical CRM/front-desk roles retain the current hosted behavior.
  */
 
 type ScheduleMutationAction =
@@ -95,7 +94,21 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
   }
 
   const { operator, client } = authResult;
-  const branchId = operator.staff.branch_id;
+  const staff = operator.staff;
+  const staffRole = operator.staffRole;
+
+  if (!staff || !staffRole) {
+    return NextResponse.json(
+      {
+        ok: false,
+        code: "CRM_PERMISSION_DENIED",
+        message: "Schedule access is unavailable for this account.",
+      },
+      { status: 403, headers: { "Cache-Control": "no-store" } }
+    );
+  }
+
+  const branchId = staff.branch_id;
 
   if (!branchId) {
     return NextResponse.json(
@@ -141,9 +154,9 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
 
   // 3. Build actor from server-resolved operator (never from client-supplied fields)
   const actor: ScheduleMutationActor = {
-    staffId: operator.staff.id,
+    staffId: staff.id,
     branchId,
-    role: operator.staffRole,
+    role: staffRole,
   };
 
   // 4. Dispatch to shared mutation function
@@ -189,7 +202,7 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
       error: err,
       action,
       branchId,
-      staffId: operator.staff.id,
+      staffId: staff.id,
     });
     return NextResponse.json(
       {

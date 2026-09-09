@@ -67,13 +67,6 @@ const validManagerOperator: InhouseBookingOperator = {
   isDevBypass: false,
 };
 
-const validCrmOperator: InhouseBookingOperator = {
-  authUserId: "user-crm",
-  staff: { id: STAFF_2, branch_id: BRANCH_AAA, system_role: "crm" },
-  staffRole: "crm",
-  isDevBypass: false,
-};
-
 function mockAuthOk(operator = validManagerOperator) {
   vi.mocked(bearerAuth.verifyDesktopBearerAuth).mockResolvedValueOnce({
     ok: true,
@@ -83,7 +76,11 @@ function mockAuthOk(operator = validManagerOperator) {
   });
 }
 
-function mockAuthFail(code = "UNAUTHORIZED", status = 401, message = "Authorization header is required.") {
+function mockAuthFail(
+  code = "UNAUTHORIZED",
+  status = 401,
+  message = "Authorization header is required."
+) {
   vi.mocked(bearerAuth.verifyDesktopBearerAuth).mockResolvedValueOnce({
     ok: false,
     status,
@@ -122,7 +119,11 @@ describe("Desktop v1 Schedule API — Daily Schedule (GET)", () => {
     });
 
     it("returns 403 when no active staff profile exists", async () => {
-      mockAuthFail("STAFF_NOT_FOUND", 403, "No active staff profile found for this authenticated user.");
+      mockAuthFail(
+        "STAFF_NOT_FOUND",
+        403,
+        "No active staff profile found for this authenticated user."
+      );
       const req = new NextRequest("http://localhost:3000/api/desktop/v1/schedule?date=2025-01-15", {
         headers: { Authorization: "Bearer token" },
       });
@@ -145,6 +146,13 @@ describe("Desktop v1 Schedule API — Daily Schedule (GET)", () => {
       expect(json.message).toMatch(/date/i);
     });
 
+    it("returns 400 for an impossible calendar date", async () => {
+      mockAuthOk();
+      const req = new NextRequest("http://localhost:3000/api/desktop/v1/schedule?date=2026-02-31");
+      const res = await scheduleHandler(req);
+      expect(res.status).toBe(400);
+      expect(scheduleQueries.getDailySchedule).not.toHaveBeenCalled();
+    });
     it("returns 400 when date param is not YYYY-MM-DD", async () => {
       mockAuthOk();
       const req = new NextRequest("http://localhost:3000/api/desktop/v1/schedule?date=bad-date");
@@ -175,9 +183,15 @@ describe("Desktop v1 Schedule API — Daily Schedule (GET)", () => {
 
     it("returns ok: true with branchId, date, staffRows, stats, schedulingRules", async () => {
       mockAuthOk();
-      vi.mocked(scheduleQueries.getDailySchedule).mockResolvedValueOnce([{ staff_id: STAFF_1 }] as never);
-      vi.mocked(bookingQueries.getManagerDashboardStats).mockResolvedValueOnce({ totalBookings: 5 } as never);
-      vi.mocked(schedulingRules.getSchedulingRules).mockResolvedValueOnce({ min_daily_staff: 2 } as never);
+      vi.mocked(scheduleQueries.getDailySchedule).mockResolvedValueOnce([
+        { staff_id: STAFF_1 },
+      ] as never);
+      vi.mocked(bookingQueries.getManagerDashboardStats).mockResolvedValueOnce({
+        totalBookings: 5,
+      } as never);
+      vi.mocked(schedulingRules.getSchedulingRules).mockResolvedValueOnce({
+        min_daily_staff: 2,
+      } as never);
 
       const req = new NextRequest("http://localhost:3000/api/desktop/v1/schedule?date=2025-01-15");
       const res = await scheduleHandler(req);
@@ -207,7 +221,9 @@ describe("Desktop v1 Schedule API — Daily Schedule (GET)", () => {
 
     it("returns 500 if getDailySchedule throws", async () => {
       mockAuthOk();
-      vi.mocked(scheduleQueries.getDailySchedule).mockRejectedValueOnce(new Error("Bookings query failed"));
+      vi.mocked(scheduleQueries.getDailySchedule).mockRejectedValueOnce(
+        new Error("Bookings query failed")
+      );
       vi.mocked(bookingQueries.getManagerDashboardStats).mockResolvedValueOnce({} as never);
       vi.mocked(schedulingRules.getSchedulingRules).mockResolvedValueOnce({} as never);
 
@@ -362,7 +378,11 @@ describe("Desktop v1 Schedule API — Mutations (POST)", () => {
       const res = await mutationsHandler(req);
       expect(res.status).toBe(400);
       const json = await res.json();
-      expect(json).toMatchObject({ ok: false, code: "VALIDATION_ERROR", message: "Invalid JSON payload." });
+      expect(json).toMatchObject({
+        ok: false,
+        code: "VALIDATION_ERROR",
+        message: "Invalid JSON payload.",
+      });
     });
 
     it("returns 400 when action is missing", async () => {
@@ -439,7 +459,10 @@ describe("Desktop v1 Schedule API — Mutations (POST)", () => {
       });
       const req = new NextRequest("http://localhost:3000/api/desktop/v1/schedule/mutations", {
         method: "POST",
-        body: JSON.stringify({ action: "replace_weekly_schedule", payload: { branchId: BRANCH_AAA } }),
+        body: JSON.stringify({
+          action: "replace_weekly_schedule",
+          payload: { branchId: BRANCH_AAA },
+        }),
       });
       const res = await mutationsHandler(req);
       expect(res.status).toBe(200);
