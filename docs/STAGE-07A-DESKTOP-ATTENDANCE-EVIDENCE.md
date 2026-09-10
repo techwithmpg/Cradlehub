@@ -12,7 +12,15 @@
 
 **BASE_SHA:** `f151dbfc9c87377cc418b6ed5dd5e316f0fa78ae`
 
-**HEAD_SHA:** `d4d6d80ab0cb40b40b9f9f320488ca234cb455bc`
+**HEAD_SHA:** `388bfe20835a3d1184c064ffa8aa011d5fcf0472`
+
+**Initial implementation SHA:** `d4d6d80ab0cb40b40b9f9f320488ca234cb455bc`
+
+**Initial evidence SHA:** `eedb27b1ecc4c772128133a472fb1374a48124b3`
+
+**Authority correction SHA:** `388bfe20835a3d1184c064ffa8aa011d5fcf0472`
+
+> `HEAD_SHA` identifies the latest Stage 07A runtime implementation/correction commit. A documentation-only evidence-sync commit follows it on the same stage branch.
 
 **Desktop accepted baseline:** `a1ddc3d298c8fbd4036fa0bb9cd7957b2161bad7`
 
@@ -70,14 +78,15 @@ Explicitly excluded:
 - Previously noisy navigation contract isolated run 1: **PASS — 4/4**
 - Previously noisy navigation contract isolated run 2: **PASS — 4/4**
 - Previously noisy navigation contract isolated run 3: **PASS — 4/4**
-- Full repository regression on the realigned base using `--testTimeout=15000`: **PASS — 224 test files, 1691/1691 tests**
+- Full repository regression before authority correction using `--testTimeout=15000`: **PASS — 224 test files, 1691/1691 tests**
+- Full repository regression after authority correction using `--testTimeout=15000`: **PASS — 224 test files, 1693/1693 tests**
 - `pnpm type-check`: **PASS**
 - `pnpm lint`: **PASS with 0 errors and 9 unrelated existing Marketing warnings**
 - Stage 07A Prettier verification after final formatting: **PASS**
 - `git diff --check`: **PASS**
 - `pnpm build` after final formatting: **PASS**
 
-The earlier default-timeout full-suite failure was reproduced as resource-contention noise: the same navigation test subsequently passed three isolated normal-timeout runs and passed inside the complete 1691-test regression with a 15-second test timeout.
+The earlier default-timeout full-suite failure was reproduced as resource-contention noise: the same navigation test subsequently passed three isolated normal-timeout runs and passed inside the complete pre-correction 1691-test regression with a 15-second test timeout. The corrected Stage 07A contract subsequently passed the complete 1693-test regression.
 
 ## Authority and security
 
@@ -94,6 +103,7 @@ The earlier default-timeout full-suite failure was reproduced as resource-conten
 - Bearer-auth reviewer identity is passed into the registration RPC path.
 - Existing hosted Attendance services remain authoritative.
 - Stage 07A correction review identified and closed a renderer-authority expansion in `update_rules`; regression tests prove hidden settings cannot reach the authoritative rule service.
+- Correction commit: `388bfe20835a3d1184c064ffa8aa011d5fcf0472`.
 
 ## Runtime evidence actually observed
 
@@ -129,11 +139,15 @@ Stage 07B remains separately gated and unauthorized.
 
 ## Rollback
 
-Revert implementation commit:
+Revert the Stage 07A authority correction first:
+
+`388bfe20835a3d1184c064ffa8aa011d5fcf0472`
+
+Then revert the original implementation commit:
 
 `d4d6d80ab0cb40b40b9f9f320488ca234cb455bc`
 
-Then revert the documentation-only evidence commit.
+Then revert/remove the Stage 07A documentation-only evidence commits.
 
 No migration rollback is required.
 
