@@ -16,13 +16,13 @@ import {
   replaceBranchAttendanceQrPoint,
 } from "@/lib/attendance/queries";
 import {
-  generateDeviceRecoveryLink,
   renameAttendanceDevice,
   revokeAttendanceDeviceWithReason,
   revokeDeviceRecoveryLink,
   type DeviceActionResult,
   type GenerateDeviceRecoveryInput,
 } from "@/lib/attendance/device-recovery";
+import { generateAttendanceDeviceRecoveryOperation } from "@/lib/attendance/device-recovery-operation";
 import {
   applyAttendanceCorrection,
   updateAttendanceRules,
@@ -379,33 +379,11 @@ export async function generateDeviceRecoveryLinkAction(
   if (!context.success) return context;
 
   try {
-    const recovery = await generateDeviceRecoveryLink({
+    const recovery = await generateAttendanceDeviceRecoveryOperation({
       ctx: context.data,
       input,
       origin: await getOrigin(),
     });
-    if (recovery.deliveryMethod === "staff_profile") {
-      await createOrUpdateNotification({
-        branchId: input.branchId,
-        targetWorkspace: "staff",
-        recipientStaffId: input.staffId,
-        actorStaffId: context.data.actorStaffId,
-        type: "attendance_device_recovery_ready",
-        title: "Connect your Attendance browser",
-        body: "CRM sent a secure browser connection request. Open this on the phone you want to use and tap Connect this browser now.",
-        entityType: "attendance_device_recovery",
-        entityId: recovery.tokenId,
-        actionHref: "/staff-portal/profile#attendance-phone",
-        priority: "high",
-        requiresAction: true,
-        dedupeKey: `attendance-profile-recovery:${recovery.tokenId}`,
-        metadata: {
-          tokenId: recovery.tokenId,
-          reason: input.reason,
-          deliveryMethod: "staff_profile",
-        },
-      });
-    }
     revalidateAttendanceSurfaces();
     return { success: true, data: recovery };
   } catch (error) {

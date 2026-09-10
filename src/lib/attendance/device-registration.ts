@@ -494,19 +494,34 @@ export async function reviewStaffDeviceRegistrationRequest(params: {
   reviewerNote?: string | null;
   rejectionReason?: StaffDeviceRegistrationRejectionReason | null;
   replacementDeviceId?: string | null;
+  reviewerAuthUserId?: string | null;
 }): Promise<StaffDeviceRegistrationRequest> {
-  const supabase = await createClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-  if (!user) throw new Error("Please sign in again.");
+  let reviewerAuthUserId = params.reviewerAuthUserId?.trim() || null;
+
+  // Hosted web calls retain their cookie-session identity path.
+  // Desktop calls supply the already-verified bearer-auth user ID.
+  if (!reviewerAuthUserId) {
+    const supabase = await createClient();
+    const {
+      data: { user },
+    } = await supabase.auth.getUser();
+
+    if (!user) throw new Error("Please sign in again.");
+    reviewerAuthUserId = user.id;
+  }
+
   if (!params.ctx.actorStaffId) throw new Error("Your CRM staff profile is not available.");
+
+  const existingRequest = await getRegistrationRequestById(params.requestId);
+  if (!existingRequest || existingRequest.branchId !== params.ctx.branchId) {
+    throw new Error("Phone request is not available in this workspace.");
+  }
   const tokenExpiresAt = new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString();
   const admin = asAttendanceDb(createAdminClient());
   const rpc = await admin.rpc("review_staff_device_registration_request", {
     p_request_id: params.requestId,
     p_review_status: params.decision,
-    p_reviewer_auth_user_id: user.id,
+    p_reviewer_auth_user_id: reviewerAuthUserId,
     p_reviewer_staff_id: params.ctx.actorStaffId,
     p_reviewer_note: params.reviewerNote?.trim() || undefined,
     p_rejection_reason: params.rejectionReason ?? undefined,
