@@ -386,10 +386,97 @@ describe("POST /api/desktop/v1/attendance/mutations", () => {
       ctx: expect.objectContaining({
         branchId: "branch-main",
       }),
-      input: expect.objectContaining({
+      input: {
         branchId: "branch-main",
-      }),
+        reason: "Rule update",
+        settings: {
+          late_grace_minutes: 10,
+        },
+      },
     });
+  });
+
+  it("allows only rules editable in the hosted Attendance UI", async () => {
+    mockedAuth.mockResolvedValue(authenticatedResult() as never);
+
+    mockedRules.mockResolvedValue({
+      settings: {
+        branch_id: "branch-main",
+      },
+    } as never);
+
+    const response = await POST(
+      request({
+        action: "update_rules",
+        payload: {
+          branchId: "branch-attacker",
+          reason: "Safe rule update",
+          settings: {
+            late_grace_minutes: 12,
+            clock_in_window_before_shift_minutes: 30,
+            duplicate_scan_debounce_minutes: 2,
+
+            // Hidden/internal settings must never cross the Desktop API
+            // mutation boundary merely because the domain type supports them.
+            timezone: "UTC",
+            attendance_day_boundary: "00:00",
+            early_leave_threshold_minutes: 999,
+            overtime_threshold_minutes: 999,
+            missing_schedule_behavior: "allow",
+            off_day_scan_behavior: "allow",
+            ambiguous_scan_behavior: "allow",
+            launch_recovery_enabled: true,
+            test_mode_enabled: true,
+          },
+        },
+      })
+    );
+
+    expect(response.status).toBe(200);
+
+    expect(mockedRules).toHaveBeenCalledWith({
+      ctx: expect.objectContaining({
+        branchId: "branch-main",
+        actorStaffId: "staff-1",
+      }),
+      input: {
+        branchId: "branch-main",
+        reason: "Safe rule update",
+        settings: {
+          late_grace_minutes: 12,
+          clock_in_window_before_shift_minutes: 30,
+          duplicate_scan_debounce_minutes: 2,
+        },
+      },
+    });
+  });
+
+  it("rejects update_rules when only non-editable settings are supplied", async () => {
+    mockedAuth.mockResolvedValue(authenticatedResult() as never);
+
+    const response = await POST(
+      request({
+        action: "update_rules",
+        payload: {
+          reason: "Attempt hidden rule update",
+          settings: {
+            timezone: "UTC",
+            test_mode_enabled: true,
+            launch_recovery_enabled: true,
+          },
+        },
+      })
+    );
+
+    expect(response.status).toBe(400);
+
+    expect(await response.json()).toMatchObject({
+      ok: false,
+      code: "VALIDATION_ERROR",
+      message: "No editable Attendance rules were provided.",
+    });
+
+    expect(mockedRules).not.toHaveBeenCalled();
   });
 
   it("generates phone recovery with server branch authority", async () => {

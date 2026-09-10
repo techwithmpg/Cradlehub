@@ -65,7 +65,8 @@ Explicitly excluded:
 
 ## Exact checks and results
 
-- Focused Stage 07A contract: **PASS — 30/30**
+- Focused Stage 07A contract before authority correction: **PASS — 30/30**
+- Focused Stage 07A contract after authority correction: **PASS — 32/32**
 - Previously noisy navigation contract isolated run 1: **PASS — 4/4**
 - Previously noisy navigation contract isolated run 2: **PASS — 4/4**
 - Previously noisy navigation contract isolated run 3: **PASS — 4/4**
@@ -83,6 +84,8 @@ The earlier default-timeout full-suite failure was reproduced as resource-conten
 - Supabase bearer authentication remains the Desktop identity boundary.
 - Actor and branch authority are resolved server-side.
 - Renderer-supplied branch authority is not trusted.
+- Desktop `update_rules` accepts only the three fields editable in the hosted Attendance UI: `late_grace_minutes`, `clock_in_window_before_shift_minutes`, and `duplicate_scan_debounce_minutes`.
+- Hidden/internal Attendance settings such as Test Mode, Launch Recovery, timezone, day-boundary and scan-behavior policy are stripped at the Desktop HTTP boundary.
 - Desktop mutation route does not instantiate `createAdminClient`.
 - No service-role credential is exposed to Desktop or renderer code.
 - Staff phone recovery remains server-only.
@@ -90,6 +93,7 @@ The earlier default-timeout full-suite failure was reproduced as resource-conten
 - Device registration review verifies request branch authority.
 - Bearer-auth reviewer identity is passed into the registration RPC path.
 - Existing hosted Attendance services remain authoritative.
+- Stage 07A correction review identified and closed a renderer-authority expansion in `update_rules`; regression tests prove hidden settings cannot reach the authoritative rule service.
 
 ## Runtime evidence actually observed
 

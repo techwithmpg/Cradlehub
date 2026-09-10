@@ -91,6 +91,26 @@ function optionalString(payload: Record<string, unknown>, key: string): string |
   return trimmed.length > 0 ? trimmed : null;
 }
 
+function editableAttendanceRules(
+  settings: Record<string, unknown>
+): Partial<UpdateAttendanceRulesInput["settings"]> {
+  const allowed: Partial<UpdateAttendanceRulesInput["settings"]> = {};
+
+  for (const key of [
+    "late_grace_minutes",
+    "clock_in_window_before_shift_minutes",
+    "duplicate_scan_debounce_minutes",
+  ] as const) {
+    const value = settings[key];
+
+    if (typeof value === "number" && Number.isFinite(value)) {
+      allowed[key] = value;
+    }
+  }
+
+  return allowed;
+}
+
 function safeAttendanceError(error: unknown, fallback: string): string {
   if (!(error instanceof Error)) return fallback;
 
@@ -398,9 +418,23 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
           );
         }
 
-        const input = {
-          ...(payload as unknown as UpdateAttendanceRulesInput),
+        const settings = editableAttendanceRules(payload.settings);
+
+        if (Object.keys(settings).length === 0) {
+          return NextResponse.json(
+            {
+              ok: false,
+              code: "VALIDATION_ERROR",
+              message: "No editable Attendance rules were provided.",
+            },
+            noStore(400)
+          );
+        }
+
+        const input: UpdateAttendanceRulesInput = {
           branchId,
+          settings,
+          reason: optionalString(payload, "reason"),
         };
 
         const result = await updateAttendanceRules({
