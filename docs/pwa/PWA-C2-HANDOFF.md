@@ -48,7 +48,7 @@ PWA-C2 — Structured Diagnostics. This correction pass remains **READ-ONLY DIAG
 
 ### D — C2 correction head
 
-The correction pass starts from reviewed C2 head `5f7ba977fbef3bb0ee93919e6c45631bb5bce3cb` and advances on `stage/pwa-c2-structured-diagnostics` upon commit of this corrected artifact.
+The correction pass started from reviewed C2 head `5f7ba977fbef3bb0ee93919e6c45631bb5bce3cb`. The corrected artifact is recorded at commit `923da9f5d1c0285a73831f95e0ef2b2036bead12` on `stage/pwa-c2-structured-diagnostics`.
 
 ### E — Changed files
 
@@ -80,7 +80,7 @@ No manifest/install flow or camera layer was found. A root push worker and a sel
 
 ### L — Exact research/tests/checks
 
-- **Starting-state check:** branch, HEAD, `origin/main` and remote C2 matched the owner-specified values; `git fetch --all --prune` executed cleanly with exit code 0; working tree clean before edits.
+- **Starting-state check:** branch, HEAD, `origin/main` and remote C2 matched the owner-specified values before edits; `git fetch --all --prune` was attempted but could not refresh `.git/FETCH_HEAD` in the sandbox, and the required escalated retry was rejected by automatic review due the account usage limit. The exact refs and clean working tree were independently verified before edits.
 - **Repository inspection:** source-only review of attendance, scanner, roles/workspaces, driver location/map, workers, mobile shells, notifications, data payloads and tests.
 - **Official research:** W3C Geolocation, Chrome service-worker/geolocation/background-sync, WebKit Home Screen/background behavior and Google Maps URL documentation are linked in the diagnostic report.
 - **Documentation checks:** `git diff --check`; changed-file scope and local link/anchor validation are required before publication.
