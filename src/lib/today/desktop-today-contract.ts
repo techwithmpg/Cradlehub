@@ -67,6 +67,7 @@ export type DesktopTodayQueueItem = {
   createdAt: string | null;
   stage: CradleFlowStage | null;
   isHomeService: boolean;
+  dispatchContextAvailable: boolean | null;
   driverId: string | null;
   driverName: string | null;
   noDriverWarning: boolean;
@@ -216,7 +217,9 @@ export function filterDesktopReadinessIssues(
  */
 export function computeDesktopTodayReadiness(params: {
   unassignedCount: number;
+  dispatchAvailable: boolean;
   dispatchItems?: RealDispatchItem[] | null;
+  dispatchError?: string | null;
   customIssues?: DesktopTodayReadinessIssue[];
 }): DesktopTodayReadiness {
   const issues: DesktopTodayReadinessIssue[] = [];
@@ -249,55 +252,70 @@ export function computeDesktopTodayReadiness(params: {
   }
 
   // 2. Dispatch / Home service operational readiness checks
-  if (params.dispatchItems && params.dispatchItems.length > 0) {
-    const awaitingDriver = params.dispatchItems.filter(
-      (item) =>
-        !item.driverId && item.bookingStatus !== "cancelled" && item.bookingStatus !== "completed"
-    );
-    if (awaitingDriver.length > 0) {
-      issues.push({
-        id: "dispatch:awaiting-driver",
-        scope: "dispatch",
-        severity: "warning",
-        title:
-          awaitingDriver.length +
-          " home-service booking" +
-          (awaitingDriver.length > 1 ? "s" : "") +
-          " awaiting driver assignment",
-        problem:
-          awaitingDriver.length +
-          " active home-service booking(s) scheduled for today do not have an assigned driver.",
-        impact: "Therapists may not be dispatched on time to customer locations.",
-        fix: "Assign an available driver in Home Service dispatch.",
-        actionLabel: "Open Dispatch",
-        actionHref: "/crm/dispatch",
-        count: awaitingDriver.length,
-      });
-    }
+  if (params.dispatchAvailable) {
+    if (params.dispatchItems && params.dispatchItems.length > 0) {
+      const awaitingDriver = params.dispatchItems.filter(
+        (item) =>
+          !item.driverId && item.bookingStatus !== "cancelled" && item.bookingStatus !== "completed"
+      );
+      if (awaitingDriver.length > 0) {
+        issues.push({
+          id: "dispatch:awaiting-driver",
+          scope: "dispatch",
+          severity: "warning",
+          title:
+            awaitingDriver.length +
+            " home-service booking" +
+            (awaitingDriver.length > 1 ? "s" : "") +
+            " awaiting driver assignment",
+          problem:
+            awaitingDriver.length +
+            " active home-service booking(s) scheduled for today do not have an assigned driver.",
+          impact: "Therapists may not be dispatched on time to customer locations.",
+          fix: "Assign an available driver in Home Service dispatch.",
+          actionLabel: "Open Dispatch",
+          actionHref: "/crm/dispatch",
+          count: awaitingDriver.length,
+        });
+      }
 
-    const needsLocationReview = params.dispatchItems.filter(
-      (item) => item.needsLocationReview && item.bookingStatus !== "cancelled"
-    );
-    if (needsLocationReview.length > 0) {
-      issues.push({
-        id: "dispatch:needs-location-review",
-        scope: "dispatch",
-        severity: "warning",
-        title:
-          needsLocationReview.length +
-          " home-service booking" +
-          (needsLocationReview.length > 1 ? "s" : "") +
-          " need location review",
-        problem:
-          needsLocationReview.length +
-          " home-service booking(s) require destination verification or coordinate confirmation.",
-        impact: "Drivers may be unable to navigate accurately to service destinations.",
-        fix: "Verify delivery address and location coordinates in Home Service.",
-        actionLabel: "Review Location",
-        actionHref: "/crm/dispatch",
-        count: needsLocationReview.length,
-      });
+      const needsLocationReview = params.dispatchItems.filter(
+        (item) => item.needsLocationReview && item.bookingStatus !== "cancelled"
+      );
+      if (needsLocationReview.length > 0) {
+        issues.push({
+          id: "dispatch:needs-location-review",
+          scope: "dispatch",
+          severity: "warning",
+          title:
+            needsLocationReview.length +
+            " home-service booking" +
+            (needsLocationReview.length > 1 ? "s" : "") +
+            " need location review",
+          problem:
+            needsLocationReview.length +
+            " home-service booking(s) require destination verification or coordinate confirmation.",
+          impact: "Drivers may be unable to navigate accurately to service destinations.",
+          fix: "Verify delivery address and location coordinates in Home Service.",
+          actionLabel: "Review Location",
+          actionHref: "/crm/dispatch",
+          count: needsLocationReview.length,
+        });
+      }
     }
+  } else {
+    // If dispatch query failed, emit an explicit warning issue and mark available = false
+    issues.push({
+      id: "system:dispatch-readiness-unavailable",
+      scope: "system",
+      severity: "warning",
+      title: "Home Service dispatch readiness could not be checked",
+      problem: "Operational dispatch data could not be retrieved for Home Service bookings.",
+      impact: "Driver assignment and location review warnings may not be displayed.",
+      fix: "Refresh the workspace to retry loading dispatch readiness.",
+      actionLabel: "Refresh",
+      actionHref: "/crm/today",
+    });
   }
 
   // Strictly filter out any payment issues
@@ -310,10 +328,12 @@ export function computeDesktopTodayReadiness(params: {
       : "ok";
 
   return {
-    available: true,
+    available: params.dispatchAvailable,
     status,
     issues: sanitizedIssues,
-    error: null,
+    error: params.dispatchAvailable
+      ? null
+      : (params.dispatchError ?? "Dispatch readiness checks could not be completed."),
   };
 }
 
@@ -380,6 +400,11 @@ export async function getDesktopTodayData(
       .eq("target_workspace", "crm")
       .eq("requires_action", true)
       .in("status", ["unread", "read"])
+      .not(
+        "type",
+        "in",
+        "(payment_pending,payment_overdue,reconciliation_submitted,marketing_content_updated)"
+      )
       .order("created_at", { ascending: false })
       .limit(20),
   ]);
@@ -406,16 +431,21 @@ export async function getDesktopTodayData(
     return dateCompare !== 0 ? dateCompare : a.start_time.localeCompare(b.start_time);
   });
 
-  // Query resource names
+  // Query resource names (throw on error to prevent fake null resource names)
   const resourceIds = [
     ...new Set(sortedBookings.map((b) => b.resource_id).filter(Boolean) as string[]),
   ];
   const resourceNameMap = new Map<string, string>();
   if (resourceIds.length > 0) {
-    const { data: resources } = await ctx.supabase
+    const { data: resources, error: resourceError } = await ctx.supabase
       .from("branch_resources")
       .select("id, name")
       .in("id", resourceIds);
+
+    if (resourceError) {
+      throw new Error("Failed to query branch resources: " + resourceError.message);
+    }
+
     for (const r of resources ?? []) {
       resourceNameMap.set(r.id, r.name);
     }
@@ -467,6 +497,7 @@ export async function getDesktopTodayData(
     const stage = getCradleFlowStage(b as unknown as CradleFlowBooking);
 
     // Map Home Service auxiliary context strictly from authoritative dispatch
+    let dispatchContextAvailable: boolean | null = null;
     let driverId: string | null = null;
     let driverName: string | null = null;
     let noDriverWarning = false;
@@ -477,18 +508,39 @@ export async function getDesktopTodayData(
     if (isHomeService) {
       if (isDispatchAvailable) {
         const dItem = dispatchItemMap.get(b.id);
-        driverId = dItem?.driverId ?? null;
-        driverName = dItem?.driverName ?? null;
-        noDriverWarning = !dItem?.driverId;
-        dispatchWarning = dispatchAlertMap.get(b.id) ?? null;
-        needsLocationReview = dItem?.needsLocationReview ?? false;
-        homeServiceAddress = dItem?.formattedAddress ?? null;
+        if (dItem) {
+          dispatchContextAvailable = true;
+          driverId = dItem.driverId ?? null;
+          driverName = dItem.driverName ?? null;
+          noDriverWarning = dItem.driverId === null;
+          dispatchWarning = dispatchAlertMap.get(b.id) ?? null;
+          needsLocationReview = dItem.needsLocationReview ?? false;
+          homeServiceAddress = dItem.formattedAddress ?? null;
+        } else {
+          // Home Service booking has no matching dispatch record for the loaded date
+          dispatchContextAvailable = false;
+          driverId = null;
+          driverName = null;
+          noDriverWarning = false;
+          dispatchWarning =
+            b.booking_date !== businessDate
+              ? "Dispatch context not loaded for future date"
+              : "Dispatch record not found";
+          needsLocationReview = false;
+          homeServiceAddress = null;
+        }
       } else {
-        // When dispatch query fails, DO NOT fabricate noDriverWarning=true
+        // Dispatch query itself failed
+        dispatchContextAvailable = false;
+        driverId = null;
+        driverName = null;
         noDriverWarning = false;
         dispatchWarning = "Dispatch context unavailable";
         needsLocationReview = false;
+        homeServiceAddress = null;
       }
+    } else {
+      dispatchContextAvailable = null;
     }
 
     return {
@@ -518,6 +570,7 @@ export async function getDesktopTodayData(
       createdAt: b.created_at ?? null,
       stage,
       isHomeService,
+      dispatchContextAvailable,
       driverId,
       driverName,
       noDriverWarning,
@@ -527,7 +580,7 @@ export async function getDesktopTodayData(
     };
   });
 
-  // Calculate CradleFlow counts
+  // Calculate CradleFlow counts for Today's operations (bookingDate === businessDate)
   let waiting = 0;
   let inService = 0;
   let readyToPay = 0;
@@ -535,13 +588,15 @@ export async function getDesktopTodayData(
   let homeService = 0;
 
   for (const item of queue) {
-    if (item.stage === "waiting") waiting++;
-    else if (item.stage === "in_service") inService++;
-    else if (item.stage === "ready_to_pay") readyToPay++;
-    else if (item.stage === "completed") completedService++;
+    if (item.bookingDate === businessDate) {
+      if (item.stage === "waiting") waiting++;
+      else if (item.stage === "in_service") inService++;
+      else if (item.stage === "ready_to_pay") readyToPay++;
+      else if (item.stage === "completed") completedService++;
 
-    if (item.isHomeService && item.stage !== null) {
-      homeService++;
+      if (item.isHomeService && item.stage !== null) {
+        homeService++;
+      }
     }
   }
 
@@ -566,7 +621,9 @@ export async function getDesktopTodayData(
   try {
     readiness = computeDesktopTodayReadiness({
       unassignedCount: unassignedRes.count ?? 0,
+      dispatchAvailable: dispatchResult.ok,
       dispatchItems: dispatchResult.ok ? dispatchResult.data.items : null,
+      dispatchError: dispatchResult.ok ? null : dispatchResult.error,
     });
   } catch (err) {
     readiness = {
