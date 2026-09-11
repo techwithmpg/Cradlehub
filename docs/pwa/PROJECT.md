@@ -9,9 +9,72 @@
 - Delivery status: see [PWA-C1 handoff](PWA-C1-HANDOFF.md). Review/acceptance and merge are separate gates.
 - Owner follow-up authorizes **commit + push of the completed eight-file review artifact only** on `stage/pwa-c1-current-system-truth` (PWA-GOV-002). This adds no research, implementation, merge, deployment or PWA-C2 scope.
 
-The owner states that the roadmap, feature scope, role concepts, intelligent scanner model, attendance model, remote off-site checkout direction, and driver live-map direction are approved. This instruction does not supply their detailed specifications. Preserve that approval without inventing permission matrices, scanner intent rules, geofences, tracking cadence, or acceptance criteria. Recover the approved detail before the relevant future scope/design gate; C1 can establish existing implementation without it.
+The owner-approved product direction is supplied and recorded below. The external-review correction request requires its durable preservation in C1. Exact engineering contracts remain deferred to PWA-C3/C4: permission matrices, endpoint/payload contracts, eligibility rules, tracking cadence, recovery behavior and measurable acceptance criteria must not be invented here. Product approval is not evidence that the current implementation satisfies these constraints.
 
 This is a distinct workstream within controlled Web stabilization. `PWA-C1` is not the earlier Web/Marketing `C1`. Existing Marketing decisions remain recorded; this task does not continue, close, or expand that workstream. Apply the authority order in [AI context](../../AI_CONTEXT.md) and [decision log](../11-DECISION-LOG.md), with the latest explicit owner instruction first.
+
+## Approved product constraints
+
+**PROJECT DECISION — OWNER APPROVED DIRECTION**
+
+All constraints in this section are supplied product decisions, not claims of current implementation, frozen C3 engineering contracts, or permission to implement. The [feature matrix](PWA-C1-TRUTH-MAP.md#11-owner-approved-pwa-feature-matrix) separately maps them to current repository evidence.
+
+### Product model
+
+- One CradleHub Staff PWA, using the existing authoritative CradleHub backend.
+- No separate PWA operational database or second source of operational authority.
+- Role/capability-aware UI for Therapist, service-provider / salon staff, CRM / General Staff, Utility and Driver operational groups.
+
+### Intelligent scanner
+
+- One primary Scan action; staff do not choose Attendance versus Service Start.
+- The camera reads the QR; the server resolves its purpose.
+- A QR does not grant authorization. The protected action remains server-authorized.
+- No fake local success; success requires server confirmation.
+
+### Attendance
+
+- Preserve the existing attendance/server/device model.
+- The server determines the valid next attendance action; the server timestamp is authoritative.
+- Attendance and service progress remain separate.
+
+### Service providers
+
+- Therapist, Nail Tech, Aesthetician/Facialist and Salon Head share the service-provider direction.
+- The existing booking/service state machine remains authoritative.
+- Service Start scanning adapts the existing service-start contract.
+- V1 has no service-end QR requirement.
+- Service completion must not automatically clock out the staff member.
+
+### Remote End Shift
+
+- Legitimate off-site staff may be eligible.
+- End Shift is a separate server-authorized and audited action, not a fake branch scan.
+- Eligibility must consider clock-in state, active work, remaining work and approved capability. Exact rules and capability mapping remain for the authorized engineering contract stages.
+
+### Driver
+
+- Driver is a first-class critical PWA role, with map-centered active-trip UX.
+- PWA location is intended to communicate with the existing CRM Live Map.
+- No hidden 24/7 tracking; the active-trip tracking lifecycle must be explicit.
+- Continuous/background location reliability is not assumed and must later be proven on real devices.
+- If pure PWA cannot satisfy the requirement, stop for an architecture decision rather than fabricate success.
+
+### Connectivity
+
+- V1 is online-first.
+- No authoritative offline Attendance, Service Start, service completion, trip transitions or remote checkout.
+- Server confirmation is required before success UI.
+
+### V1 exclusions
+
+- No separate native Android/iOS applications in initial scope.
+- No second authority database.
+- No broad offline mutation queue.
+- No GPS-based automatic attendance.
+- No hidden background surveillance.
+- No full Owner/Finance/Payroll/Marketing/Staff/Customer administration.
+- No speculative Utility-task backend.
 
 ## Approved roadmap and stage gates
 

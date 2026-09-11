@@ -25,6 +25,6 @@ These are source-backed investigation seams from [PWA-C1](pwa/PWA-C1-TRUTH-MAP.m
 | PWA-C1-003 | OPEN / ATTENDANCE SEAM | QR, shift-widget and controlled portal clock-out paths coexist. `getMyAttendanceData` can invoke a write-capable recalculation RPC; page reads cannot be assumed mutation-free. |
 | PWA-C1-004 | OPEN / DRIVER SEAM | Driver Route Map renders a placeholder; separate one-shot GPS and operations/customer map components exist. Mobile capture parity, background tracking and live convergence are unverified. |
 | PWA-C1-005 | OPEN / ACCESS SEAM | Driver/utility page checks, workspace grants and links differ; Utility is a Coming Soon surface. No new role permissions or utility functionality are inferred. |
-| PWA-C1-006 | OPEN / GOVERNANCE CONTEXT | Inherited Marketing authorization paragraphs conflict; PWA-C1 registers scoped authority without changing Marketing acceptance history. Detailed approved PWA models are not supplied as artifacts in this task. |
+| PWA-C1-006 | OPEN / GOVERNANCE CONTEXT | Inherited Marketing authorization paragraphs conflict; PWA-C1 registers scoped authority without changing Marketing acceptance history. Supplied owner-approved PWA product direction is recorded in PROJECT.md; exact engineering contracts remain deferred to PWA-C3/C4. |
 
 This register contains governance, repository, and stage-evidenced environment risks. Historical reports still require current evidence before promotion.
