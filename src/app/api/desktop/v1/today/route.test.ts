@@ -111,17 +111,30 @@ function createMockSupabase(params?: {
         };
       }
       if (table === "workspace_notifications") {
+        let currentItems = Array.isArray(notifications) ? [...notifications] : [];
         const queryBuilder = {
           eq: vi.fn().mockImplementation((col: string, val: unknown) => {
             recordedNotificationPredicates.eq.push([col, val]);
+            currentItems = currentItems.filter((item: any) => item && item[col] === val);
             return queryBuilder;
           }),
           in: vi.fn().mockImplementation((col: string, val: unknown) => {
             recordedNotificationPredicates.in.push([col, val]);
+            const allowed = Array.isArray(val) ? val : [];
+            currentItems = currentItems.filter((item: any) => item && allowed.includes(item[col]));
             return queryBuilder;
           }),
           not: vi.fn().mockImplementation((col: string, op: unknown, val: unknown) => {
             recordedNotificationPredicates.not.push([col, op, val]);
+            if (op === "in" && typeof val === "string") {
+              const trimmed = val.replace(/^\(|\)$/g, "");
+              const excluded = trimmed.split(",").map((s) => s.trim());
+              currentItems = currentItems.filter(
+                (item: any) => item && !excluded.includes(item[col])
+              );
+            } else if (op === "in" && Array.isArray(val)) {
+              currentItems = currentItems.filter((item: any) => item && !val.includes(item[col]));
+            }
             return queryBuilder;
           }),
           order: vi.fn().mockImplementation((col: string, opts: unknown) => {
@@ -131,7 +144,7 @@ function createMockSupabase(params?: {
           limit: vi.fn().mockImplementation((count: number) => {
             recordedNotificationPredicates.limit.push([count]);
             return Promise.resolve({
-              data: notificationsError ? null : notifications,
+              data: notificationsError ? null : currentItems.slice(0, count),
               error: notificationsError,
             });
           }),
@@ -1027,5 +1040,152 @@ describe("GET /api/desktop/v1/today", () => {
 
     const response = await GET(new NextRequest("https://example.test/api/desktop/v1/today"));
     expect(response.headers.get("Cache-Control")).toBe("no-store");
+  });
+
+  // 28. Notification response-isolation test with mixed dataset (Section 8)
+  it("proves notification response isolates allowed operational CRM notifications from a mixed dataset", async () => {
+    const mixedNotifications = [
+      // A. branch-main, target_workspace=crm, type=booking_created, requires_action=true, status=unread -> ALLOWED
+      {
+        id: "notif-allowed-1",
+        branch_id: "branch-main",
+        target_workspace: "crm",
+        type: "booking_created",
+        requires_action: true,
+        status: "unread",
+        title: "New Booking Created",
+        body: "Booking created for customer",
+        priority: "normal",
+        created_at: "2026-09-11T08:00:00Z",
+      },
+      // B. branch-other, target_workspace=crm, type=booking_created, requires_action=true -> EXCLUDED by branch_id
+      {
+        id: "notif-other-branch",
+        branch_id: "branch-other",
+        target_workspace: "crm",
+        type: "booking_created",
+        requires_action: true,
+        status: "unread",
+        title: "Other Branch Notification",
+        body: "Different branch",
+        priority: "normal",
+        created_at: "2026-09-11T08:00:00Z",
+      },
+      // C. branch-main, target_workspace=driver -> EXCLUDED by target_workspace
+      {
+        id: "notif-driver",
+        branch_id: "branch-main",
+        target_workspace: "driver",
+        type: "dispatch_assigned",
+        requires_action: true,
+        status: "unread",
+        title: "Driver Notification",
+        body: "Driver action required",
+        priority: "normal",
+        created_at: "2026-09-11T08:00:00Z",
+      },
+      // D. branch-main, target_workspace=staff -> EXCLUDED by target_workspace
+      {
+        id: "notif-staff",
+        branch_id: "branch-main",
+        target_workspace: "staff",
+        type: "schedule_updated",
+        requires_action: true,
+        status: "unread",
+        title: "Staff Notification",
+        body: "Staff action required",
+        priority: "normal",
+        created_at: "2026-09-11T08:00:00Z",
+      },
+      // E. branch-main, target_workspace=owner -> EXCLUDED by target_workspace
+      {
+        id: "notif-owner",
+        branch_id: "branch-main",
+        target_workspace: "owner",
+        type: "system_alert",
+        requires_action: true,
+        status: "unread",
+        title: "Owner Notification",
+        body: "Owner action required",
+        priority: "normal",
+        created_at: "2026-09-11T08:00:00Z",
+      },
+      // F. branch-main, target_workspace=crm, type=payment_pending -> EXCLUDED by dormant type filter
+      {
+        id: "notif-payment-pending",
+        branch_id: "branch-main",
+        target_workspace: "crm",
+        type: "payment_pending",
+        requires_action: true,
+        status: "unread",
+        title: "Payment Pending",
+        body: "Payment pending action",
+        priority: "normal",
+        created_at: "2026-09-11T08:00:00Z",
+      },
+      // G. branch-main, target_workspace=crm, type=payment_overdue -> EXCLUDED by dormant type filter
+      {
+        id: "notif-payment-overdue",
+        branch_id: "branch-main",
+        target_workspace: "crm",
+        type: "payment_overdue",
+        requires_action: true,
+        status: "unread",
+        title: "Payment Overdue",
+        body: "Payment overdue action",
+        priority: "normal",
+        created_at: "2026-09-11T08:00:00Z",
+      },
+      // H. branch-main, target_workspace=crm, type=reconciliation_submitted -> EXCLUDED by dormant type filter
+      {
+        id: "notif-reconciliation",
+        branch_id: "branch-main",
+        target_workspace: "crm",
+        type: "reconciliation_submitted",
+        requires_action: true,
+        status: "unread",
+        title: "Reconciliation Submitted",
+        body: "Reconciliation action",
+        priority: "normal",
+        created_at: "2026-09-11T08:00:00Z",
+      },
+      // I. branch-main, target_workspace=crm, type=marketing_content_updated -> EXCLUDED by dormant type filter
+      {
+        id: "notif-marketing",
+        branch_id: "branch-main",
+        target_workspace: "crm",
+        type: "marketing_content_updated",
+        requires_action: true,
+        status: "unread",
+        title: "Marketing Updated",
+        body: "Marketing action",
+        priority: "normal",
+        created_at: "2026-09-11T08:00:00Z",
+      },
+    ];
+
+    mockedAuth.mockResolvedValue(
+      authResult("branch-main", "crm", { notifications: mixedNotifications }) as never
+    );
+
+    const response = await GET(new NextRequest("https://example.test/api/desktop/v1/today"));
+    const body = await response.json();
+
+    expect(body.data.notifications.available).toBe(true);
+    expect(body.data.notifications.items).toHaveLength(1);
+    expect(body.data.notifications.items[0].id).toBe("notif-allowed-1");
+    expect(body.data.notifications.items[0].type).toBe("booking_created");
+    expect(body.data.notifications.items[0].title).toBe("New Booking Created");
+
+    // Explicitly verify none of the excluded IDs exist in the returned list
+    const returnedIds = body.data.notifications.items.map((n: { id: string }) => n.id);
+    expect(returnedIds).not.toContain("notif-other-branch");
+    expect(returnedIds).not.toContain("notif-driver");
+    expect(returnedIds).not.toContain("notif-staff");
+    expect(returnedIds).not.toContain("notif-owner");
+    expect(returnedIds).not.toContain("notif-payment-pending");
+    expect(returnedIds).not.toContain("notif-payment-overdue");
+    expect(returnedIds).not.toContain("notif-reconciliation");
+    expect(returnedIds).not.toContain("notif-marketing");
   });
 });
