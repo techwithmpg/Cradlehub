@@ -1,12 +1,12 @@
 # Project Status
 
-## Staff PWA workstream — 2026-09-11
+## Staff PWA workstream — 2026-09-12
 
-- Program: **OWNER APPROVED**. Authorized stage: **PWA-C1 — Current-System Truth ONLY**.
-- Baseline: `b2b9b6ec7579bbd9b519841cadf612ed133cbfcc`; branch: `stage/pwa-c1-current-system-truth`.
-- [Truth map](pwa/PWA-C1-TRUTH-MAP.md): delivered for review; owner acceptance and merge have not occurred.
-- [Project governance/roadmap](pwa/PROJECT.md) and [handoff/evidence](pwa/PWA-C1-HANDOFF.md) define current scope and results.
-- Owner follow-up authorizes committing and pushing the completed eight-file documentation artifact to the PWA-C1 review branch only (PWA-GOV-002). No feature, database, migration or production changes. PWA-C2+, implementation, merge and release certification remain unauthorized.
+- Program: **OWNER APPROVED**. Authorized stage: **PWA-C2 — Structured Diagnostics ONLY**.
+- PWA-C1 accepted merge: `ed8ae75d2d6fc9f3b8144dcabbe014f676e83a99`; fresh C2 branch: `stage/pwa-c2-structured-diagnostics`.
+- [C1 truth map](pwa/PWA-C1-TRUTH-MAP.md) is accepted baseline evidence; [C2 diagnostics](pwa/PWA-C2-STRUCTURED-DIAGNOSTICS.md) is the current read-only deliverable.
+- [Project governance/roadmap](pwa/PROJECT.md) and [C2 handoff/evidence](pwa/PWA-C2-HANDOFF.md) define current scope and results.
+- No feature, database, migration or production changes were authorized or performed. PWA-C3+, implementation, and release certification remain unauthorized.
 - The Marketing record below is retained. Its top-level Pass 4 state and final Pass 3 paragraph conflict; PWA-C1 does not resolve or advance that workstream. Older counts/tests describe their original baseline, not the current PWA baseline.
 
 ## Existing Web / Marketing status record

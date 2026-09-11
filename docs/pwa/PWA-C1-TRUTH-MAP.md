@@ -161,7 +161,7 @@ No tests were added or changed. The handoff distinguishes selected suites actual
 | Notifications | Worker, delivery-targeting, subscription-schema, settings-dialog and Realtime/dedupe tests under `tests/lib/notifications/` and `tests/components/notifications/` | Preserve root worker lifecycle, same-origin routing, subscription ownership and dedupe; add environment/device evidence only in an authorized stage |
 | Install/offline/utility | No dedicated PWA install/offline-outbox/utility execution test suite identified | Establish approved scope first; do not infer implementation from icons, banners or planned module labels |
 
-## 10. Unknowns carried forward, without starting PWA-C2
+## 10. Unknowns carried forward from PWA-C1
 
 These are investigation seams, not ranked defects, selected fixes, final scope or implementation authorization:
 
@@ -235,4 +235,4 @@ This table reuses the source anchors in sections 3–8 and test inventory in sec
 | CRM Live Map | Active-trip/bookings queries and latest location snapshots (§6) | Existing CRM/operations map and trip list | No location write path established in inspected map consumer; reads through operations action | Existing request/branch access and RLS; live enforcement not verified | 30-second polling replaces displayed trips; Google SDK renders positions | No dedicated Live Map integration/device suite found in C1 inventory | Preserve consumer; prove PWA-to-backend-to-map freshness/permissions before claiming synchronization |
 | Notifications | Workspace notifications/workflow records; subscriptions/preferences (§7) | Staff/driver/CRM/Owner UI, Realtime and OS cards | Record/workflow responses, subscription/preferences, delivery state | API context, supported role, same-origin/validated mutations; recipient/RLS and delivery targeting | Push delivery, toasts, dedupe, destination navigation, subscription renewal | Worker, settings, schema, delivery-targeting, Realtime/dedupe suites (§9) | Reuse pipeline; reconcile root worker lifecycle and minimize exposed data |
 
-**PWA-C1 stops here.** The reviewed artifact was committed and pushed at `590f2db526588c998a7a147eb126d379f2311877`. External review requested these documentation corrections; the corrected branch returns for external review. This is not an external PASS or owner acceptance. PWA-C2, feature implementation, cleanup, migration work, production access, merge and release certification remain unauthorized.
+**PWA-C1 stops here.** The reviewed artifact was originally committed at `590f2db526588c998a7a147eb126d379f2311877`, corrected for external review, accepted, and merged into `main` at `ed8ae75d2d6fc9f3b8144dcabbe014f676e83a99`. PWA-C2 is separately authorized on `stage/pwa-c2-structured-diagnostics`; feature implementation, cleanup, migration work, production access, merge and release certification remain outside the C2 authorization.
