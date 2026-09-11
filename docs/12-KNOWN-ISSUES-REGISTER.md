@@ -36,12 +36,12 @@ PWA-C2 structured diagnostics — 2026-09-12. These entries record source-backed
 | PWA-C2-003 | OPEN / P1 | Driver Route Map is a placeholder; one-shot GPS capture and 30-second Live Operations polling are separate. Continuous/background reliability and convergence are unverified. |
 | PWA-C2-004 | OPEN / P1 | Dedicated driver workspace exclusion conflicts with hardcoded `/staff-portal/...` links in the driver More menu. Route ownership requires a later navigation contract. |
 | PWA-C2-005 | OPEN / P1 | Existing role navigation has Today/Start/Jobs actions; no universal Scan action or camera decoder was found. |
-| PWA-C2-006 | OPEN / P1-P2 | Push subscription DELETE is not explicitly scoped to the current user in the route, while deployed RLS/policy behavior was not verified. |
+| PWA-C2-006 | OPEN / P2 | Push subscription DELETE is not explicitly scoped to the current user in the route, while deployed RLS/policy behavior was not verified. |
 | PWA-C2-007 | OPEN / P2 | Live Operations catches errors as an empty list and polls without explicit visibility/offline freshness state. |
 | PWA-C2-008 | OPEN / P2 | No manifest/install flow was found; legacy self-unregistering `sw.js` and push worker ownership require a foundation contract. |
 | PWA-C2-009 | OPEN / P2 | Customer identity/address and destination coordinates cross live-trip/map consumers without a documented minimization or caching contract. |
 | PWA-C2-010 | OPEN / P2 | No durable offline authoritative queue was found; this matches online-first direction but needs centralized acceptance behavior. |
 | PWA-C2-011 | OPEN / P2 | Google Maps script/key/readiness and geolocation dependencies have no real-device/provider evidence. |
-| PWA-C2-012 | BLOCKED BY APPROVED SCOPE | Utility remains a role-gated Coming Soon surface; no speculative Utility backend is authorized. |
+| PWA-C2-012 | BLOCKED BY APPROVED SCOPE / P3 | Utility remains a role-gated Coming Soon surface; no speculative Utility backend is authorized. |
 
 This register contains governance, repository, and stage-evidenced environment risks. Historical reports still require current evidence before promotion.

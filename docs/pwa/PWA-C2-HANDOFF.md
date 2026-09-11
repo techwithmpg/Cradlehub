@@ -4,10 +4,12 @@
 
 - Workstream: CradleHub Staff PWA
 - Stage: **PWA-C2 — Structured Diagnostics**
-- Status: **COMPLETE — SOURCE-ONLY DIAGNOSTICS**
+- Status: **READY FOR EXTERNAL RE-REVIEW — NOT ACCEPTED / NOT MERGED**
 - Branch: `stage/pwa-c2-structured-diagnostics`
 - Accepted main baseline: `ed8ae75d2d6fc9f3b8144dcabbe014f676e83a99`
-- Starting and current diagnostic head before this artifact: `ed8ae75d2d6fc9f3b8144dcabbe014f676e83a99`
+- Prior reviewed C2 head: `5f7ba977fbef3bb0ee93919e6c45631bb5bce3cb`
+- Correction Pass 1 head: `923da9f5d1c0285a73831f95e0ef2b2036bead12`
+- Current correction pass starting head: `923da9f5d1c0285a73831f95e0ef2b2036bead12`
 - Next stage: **PWA-C3 — NOT AUTHORIZED**
 
 ## Scope completed
@@ -48,7 +50,11 @@ PWA-C2 — Structured Diagnostics. This correction pass remains **READ-ONLY DIAG
 
 ### D — C2 correction head
 
-The correction pass started from reviewed C2 head `5f7ba977fbef3bb0ee93919e6c45631bb5bce3cb`. The corrected artifact is published on `stage/pwa-c2-structured-diagnostics` through the documentation commits `923da9f5`, `fc66dade`, and `860aa05b`.
+- Accepted main baseline: `ed8ae75d2d6fc9f3b8144dcabbe014f676e83a99`
+- Prior reviewed C2 head: `5f7ba977fbef3bb0ee93919e6c45631bb5bce3cb`
+- Correction Pass 1 head: `923da9f5d1c0285a73831f95e0ef2b2036bead12`
+- Current correction pass starting head: `923da9f5d1c0285a73831f95e0ef2b2036bead12`
+The final remote HEAD is reported in the return handoff after push.
 
 ### E — Changed files
 
@@ -72,7 +78,7 @@ Attendance is server/RPC and device-trust backed but has QR, direct widget, port
 
 ### J — Role/access conclusion
 
-Portal modes are presentation modes; workspace grants, proxy checks, page guards and server actions remain authority. Service-provider types share therapist mode. Driver has a dedicated workspace plus conflicting staff-portal child links. Utility is a Coming Soon surface with a redirect/back-link seam. CRM aliases canonicalize to CRM. No permissions were broadened.
+Portal modes are presentation modes; workspace grants, proxy checks, page guards and server actions remain authority. Service-provider types share therapist mode. Driver has a dedicated workspace plus conflicting staff-portal child links (source-level route/workspace mismatch; exact runtime reachability and redirect behavior remain UNKNOWN / NOT VERIFIED). Utility is a Coming Soon surface linking toward staff-portal while excluded from that workspace (source-visible navigation/access conflict; exact runtime redirect/access outcome is UNKNOWN / NOT VERIFIED). CRM aliases canonicalize to CRM. No permissions were broadened.
 
 ### K — PWA foundation conclusion
 
@@ -80,11 +86,13 @@ No manifest/install flow or camera layer was found. A root push worker and a sel
 
 ### L — Exact research/tests/checks
 
-- **Starting-state check:** branch, HEAD, `origin/main` and remote C2 matched the owner-specified values before edits; `git fetch --all --prune` was attempted but could not refresh `.git/FETCH_HEAD` in the sandbox, and the required escalated retry was rejected by automatic review due the account usage limit. The exact refs and clean working tree were independently verified before edits.
+- **Starting-state check:** `git fetch --all --prune` executed cleanly with exit code 0. Branch `stage/pwa-c2-structured-diagnostics`, accepted main `ed8ae75d2d6fc9f3b8144dcabbe014f676e83a99`, and working tree clean verified before edits.
 - **Repository inspection:** source-only review of attendance, scanner, roles/workspaces, driver location/map, workers, mobile shells, notifications, data payloads and tests.
 - **Official research:** W3C Geolocation, Chrome service-worker/geolocation/background-sync, WebKit Home Screen/background behavior and Google Maps URL documentation are linked in the diagnostic report.
-- **Documentation checks:** `git diff --check`; changed-file scope and local link/anchor validation are required before publication.
-- **Application tests:** no broad tests rerun; no technical runtime claim changed. Existing PWA-C1 targeted local evidence remains recorded separately.
+- **Documentation check `git diff --check`:** Exit code 0; 0 formatting or whitespace errors.
+- **Local markdown link audit:** Executed link verification across all active documentation files; result: 0 broken local links out of 46 audited links.
+- **Scope check:** `git diff --name-status 923da9f5d1c0285a73831f95e0ef2b2036bead12...HEAD` confirms only documentation files changed (`docs/pwa/PWA-C2-STRUCTURED-DIAGNOSTICS.md`, `docs/pwa/PWA-C2-HANDOFF.md`, `docs/12-KNOWN-ISSUES-REGISTER.md`).
+- **Application tests:** NOT RERUN — no runtime source or tests changed. Existing PWA-C1 local test evidence remains historical/local evidence only.
 
 ### M — Production impact
 
