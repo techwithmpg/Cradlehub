@@ -54,7 +54,7 @@ PWA-C2 — Structured Diagnostics. This correction pass remains **READ-ONLY DIAG
 - **PWA-C2 REVIEW BRANCH:** `stage/pwa-c2-structured-diagnostics`
 - **PWA-C2 reviewed documentation head:** `c2052943b3e488f2b3f270f01f65ba63417d5271`
 - **Prior C2 external handoff head:** `9357cde7281b6450811d6d1570120a580adc77d2`
-- **Current evidence commit:** Recording governance recovery of remote main (to be created)
+- **Governance recovery evidence commit:** `e84a0745bc834ebf3b74b001fd837a5a2b81cd66`
 - **Review status:** READY FOR EXTERNAL RE-REVIEW — NOT ACCEPTED / NOT MERGED
 
 The final remote HEAD is reported in the external return handoff after push to avoid self-reference.
@@ -144,7 +144,7 @@ Do not advance automatically. If the owner later authorizes PWA-C3, use the find
 - **PWA-C2 REVIEW BRANCH:** `stage/pwa-c2-structured-diagnostics`
 - **PWA-C2 reviewed documentation head:** `c2052943b3e488f2b3f270f01f65ba63417d5271`
 - **Prior C2 external handoff head:** `9357cde7281b6450811d6d1570120a580adc77d2`
-- **Current new evidence commit:** to be created
+- **Governance recovery evidence commit:** `e84a0745bc834ebf3b74b001fd837a5a2b81cd66`
 - **Review status:** READY FOR EXTERNAL RE-REVIEW — NOT ACCEPTED / NOT MERGED
 
 **Checks:**
