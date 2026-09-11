@@ -189,11 +189,26 @@ export type DesktopTodayData = {
   attendance: DesktopTodayAttendance;
   notifications: DesktopTodayNotifications;
 };
+```
 
-export type DesktopTodayResponse = {
-  ok: true;
-  data: DesktopTodayData;
-};
+### Successful HTTP Envelope
+
+The GET route returns the source data through:
+
+```ts
+desktopJson({
+  ok: true,
+  data,
+});
+```
+
+producing the standard success wire response:
+
+```json
+{
+  "ok": true,
+  "data": { ...DesktopTodayData }
+}
 ```
 
 ---
