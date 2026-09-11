@@ -31,4 +31,3 @@ The audit workflow's screenshot requirement could not be met safely because the 
 ## Gate
 
 PWA-C2 stops here. Owner review and any later PWA-C3 authorization are separate decisions.
-
