@@ -484,8 +484,12 @@ export async function getMyBookings(staffId: string, date: string) {
 }
 
 // ── Today's full branch schedule (manager timeline view) ──────────────────
-export async function getTodaysSchedule(branchId: string, date: string) {
-  const supabase = await createClient();
+export async function getTodaysSchedule(
+  branchId: string,
+  date: string,
+  client?: SupabaseJsClient<Database>
+) {
+  const supabase = client ?? (await createClient());
   return loadBookingRows(supabase, TODAY_SCHEDULE_SELECT_VARIANTS, async (select) => {
     const result = await supabase
       .from("bookings")
@@ -498,8 +502,12 @@ export async function getTodaysSchedule(branchId: string, date: string) {
 }
 
 // ── CRM pending / incoming queue (today forward) ─────────────────────────
-export async function getCrmPendingBookingQueue(branchId: string, fromDate: string) {
-  const supabase = await createClient();
+export async function getCrmPendingBookingQueue(
+  branchId: string,
+  fromDate: string,
+  client?: SupabaseJsClient<Database>
+) {
+  const supabase = client ?? (await createClient());
   return loadBookingRows(supabase, TODAY_SCHEDULE_SELECT_VARIANTS, async (select) => {
     const result = await supabase
       .from("bookings")

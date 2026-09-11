@@ -3,7 +3,6 @@ import {
   CLOSED_BOOKING_STATUSES,
   CrmBookingActionRow,
   DEV_BYPASS_STAFF_ID,
-  annotateLatestBookingEvent,
   assignBookingTherapist,
   bookingIdSchema,
   firstRelation,
@@ -13,8 +12,12 @@ import {
   prepareHomeServiceDispatch,
   recordBookingFollowup,
   rescheduleBooking,
-  withFollowupMetadata,
   type BookingOperationResult,
+  confirmCrmBooking,
+  markCrmBookingArrived,
+  startCrmBookingService,
+  completeCrmBookingService,
+  CONFIRMABLE_STATUSES,
 } from "@/lib/bookings/crm-booking-operations";
 
 import { canonicalizeSystemRole } from "@/constants/staff";
@@ -36,23 +39,7 @@ import { createAdminClient } from "@/lib/supabase/admin";
 import { createClient } from "@/lib/supabase/server";
 import { confirmBookingPaymentSchema } from "@/lib/validations/booking";
 import type { Database } from "@/types/supabase";
-import { revalidatePath } from "next/cache";
 import { z } from "zod";
-
-// Staff-portal paths to refresh after service lifecycle changes
-const STAFF_PORTAL_PATHS = [
-  "/staff-portal",
-  "/staff-portal/today",
-  "/staff-portal/schedule",
-  "/staff-portal/week",
-] as const;
-
-function revalidateServiceSurfaces(branchId: string): void {
-  revalidateOperationalBookingSurfaces(branchId);
-  for (const path of STAFF_PORTAL_PATHS) {
-    revalidatePath(path);
-  }
-}
 
 async function getCrmActionsContext() {
   const supabase = await createClient();
@@ -85,12 +72,6 @@ async function getCrmActionsContext() {
   if (!me || !me.branch_id || !role || !canAccessCrmWorkspace(role)) return null;
   return { supabase, authUserId: user.id, me: { ...me, system_role: role } };
 }
-
-const CONFIRMABLE_STATUSES = new Set(["pending_payment", "pending_crm_confirmation", "pending"]);
-
-const markBookingConfirmedSchema = bookingIdSchema.extend({
-  note: z.string().max(500).optional(),
-});
 
 const resolveStaffScheduleExceptionSchema = bookingIdSchema.extend({
   resolution: z.enum(["kept_selected_staff", "marked_resolved"]),
@@ -149,10 +130,6 @@ export type RoomAssignmentOptionsResult =
     }
   | { success: false; error: string };
 
-function normalizeProgress(status: string | null | undefined): string {
-  return status || "not_started";
-}
-
 function buildRoomBookingSummary(booking: CrmBookingActionRow) {
   return {
     id: booking.id,
@@ -168,92 +145,9 @@ function buildRoomBookingSummary(booking: CrmBookingActionRow) {
 export async function markBookingConfirmedAction(
   rawInput: unknown
 ): Promise<{ success: boolean; error?: string }> {
-  const parsed = markBookingConfirmedSchema.safeParse(rawInput);
-  if (!parsed.success) {
-    return { success: false, error: parsed.error.issues[0]?.message ?? "Invalid input" };
-  }
-
   const ctx = await getCrmActionsContext();
   if (!ctx) return { success: false, error: "Unauthorized" };
-
-  const bookingResult = await loadCrmBookingForAction(
-    ctx,
-    parsed.data.bookingId,
-    "booking.confirm"
-  );
-  if (!bookingResult.success) return bookingResult;
-  const booking = bookingResult.booking;
-  if (booking.status === "cancelled") {
-    return { success: false, error: "Booking is already cancelled." };
-  }
-  if (booking.status === "completed" || booking.booking_progress_status === "completed") {
-    return { success: false, error: "Completed bookings cannot be confirmed." };
-  }
-  if (booking.status === "no_show") {
-    return { success: false, error: "Booking status does not allow confirmation." };
-  }
-  if (booking.status !== "confirmed" && !CONFIRMABLE_STATUSES.has(booking.status)) {
-    return {
-      success: false,
-      error: `Booking cannot be confirmed from status "${booking.status}".`,
-    };
-  }
-
-  const currentProgress = normalizeProgress(booking.booking_progress_status);
-  const updatePayload: Database["public"]["Tables"]["bookings"]["Update"] = {
-    status: "confirmed",
-  };
-
-  if (currentProgress === "not_started") {
-    updatePayload.booking_progress_status = "not_started";
-  }
-
-  if (parsed.data.note?.trim()) {
-    updatePayload.metadata = withFollowupMetadata(booking.metadata, {
-      result: "confirmed",
-      note: parsed.data.note,
-      actorId: ctx.me.id === DEV_BYPASS_STAFF_ID ? null : ctx.me.id,
-    });
-  }
-
-  const admin = createAdminClient();
-  const { data: updatedRows, error } = await admin
-    .from("bookings")
-    .update(updatePayload)
-    .eq("id", booking.id)
-    .eq("branch_id", booking.branch_id)
-    .select("id");
-
-  if (error) {
-    logError("crm.booking_action_update_failed", {
-      action: "booking.confirm",
-      bookingId: booking.id,
-      authUserId: ctx.authUserId,
-      branchId: booking.branch_id,
-      code: "booking_update_failed",
-      error,
-    });
-    return { success: false, error: "Booking update failed. Please try again." };
-  }
-  if (!updatedRows || updatedRows.length === 0) {
-    return {
-      success: false,
-      error: "Booking could not be confirmed. You may not have permission to update it.",
-    };
-  }
-
-  await annotateLatestBookingEvent({
-    actorId: ctx.me.id === DEV_BYPASS_STAFF_ID ? null : ctx.me.id,
-    admin,
-    bookingId: booking.id,
-    note: parsed.data.note,
-    previousStatus: booking.status,
-    result: "confirmed",
-    nextStatus: "confirmed",
-  });
-
-  revalidateOperationalBookingSurfaces(booking.branch_id);
-  return { success: true };
+  return confirmCrmBooking(ctx, rawInput);
 }
 
 export async function recordBookingFollowupAction(
@@ -345,56 +239,9 @@ export async function resolveStaffScheduleExceptionAction(
 export async function markBookingArrivedAction(
   rawInput: unknown
 ): Promise<{ success: boolean; error?: string }> {
-  const parsed = bookingIdSchema.safeParse(rawInput);
-  if (!parsed.success) {
-    return { success: false, error: parsed.error.issues[0]?.message ?? "Invalid input" };
-  }
-
   const ctx = await getCrmActionsContext();
   if (!ctx) return { success: false, error: "Unauthorized" };
-
-  const bookingResult = await loadCrmBookingForAction(
-    ctx,
-    parsed.data.bookingId,
-    "booking.arrival.mark"
-  );
-  if (!bookingResult.success) return bookingResult;
-  const booking = bookingResult.booking;
-  if (CLOSED_BOOKING_STATUSES.has(booking.status)) {
-    return { success: false, error: "This booking can no longer be marked arrived." };
-  }
-  if (isHomeServiceBooking(booking)) {
-    return { success: false, error: "Customer arrival is only used for in-spa bookings." };
-  }
-
-  const currentProgress = normalizeProgress(booking.booking_progress_status);
-  if (currentProgress === "checked_in") {
-    revalidateOperationalBookingSurfaces(booking.branch_id);
-    return { success: true };
-  }
-  if (currentProgress !== "not_started") {
-    return { success: false, error: "This booking is already past arrival." };
-  }
-
-  const now = new Date().toISOString();
-  const admin = createAdminClient();
-  const { data: updatedRows, error } = await admin
-    .from("bookings")
-    .update({
-      booking_progress_status: "checked_in",
-      checked_in_at: now,
-    })
-    .eq("id", booking.id)
-    .eq("branch_id", booking.branch_id)
-    .select("id");
-
-  if (error) return { success: false, error: error.message };
-  if (!updatedRows || updatedRows.length === 0) {
-    return { success: false, error: "Booking could not be marked arrived." };
-  }
-
-  revalidateOperationalBookingSurfaces(booking.branch_id);
-  return { success: true };
+  return markCrmBookingArrived(ctx, rawInput);
 }
 
 export async function getRoomAssignmentOptionsAction(
@@ -792,55 +639,9 @@ export async function prepareHomeServiceDispatchAction(
 export async function crmStartServiceAction(
   rawInput: unknown
 ): Promise<{ success: boolean; error?: string }> {
-  const parsed = bookingIdSchema.safeParse(rawInput);
-  if (!parsed.success) {
-    return { success: false, error: parsed.error.issues[0]?.message ?? "Invalid booking ID" };
-  }
-
   const ctx = await getCrmActionsContext();
   if (!ctx) return { success: false, error: "Unauthorized" };
-
-  const bookingResult = await loadCrmBookingForAction(
-    ctx,
-    parsed.data.bookingId,
-    "booking.service.start"
-  );
-  if (!bookingResult.success) return bookingResult;
-  const booking = bookingResult.booking;
-
-  if (CLOSED_BOOKING_STATUSES.has(booking.status)) {
-    return { success: false, error: "This booking is already closed." };
-  }
-
-  if (isHomeServiceBooking(booking)) {
-    return { success: false, error: "Home-service sessions are started by the assigned staff." };
-  }
-
-  // Idempotent: fully started (both fields + timestamp set) → return success
-  if (
-    (booking.booking_progress_status === "session_started" || booking.status === "in_progress") &&
-    (booking as { session_started_at?: string | null }).session_started_at
-  ) {
-    return { success: true };
-  }
-
-  const admin = createAdminClient();
-  const { error } = await admin.rpc("start_booking_service_session", {
-    p_booking_id: parsed.data.bookingId,
-    p_source: "crm",
-    p_actor_staff_id: ctx.me.id,
-  });
-
-  if (error) {
-    logError("crm.start_service_failed", {
-      bookingId: parsed.data.bookingId,
-      error,
-    });
-    return { success: false, error: error.message };
-  }
-
-  revalidateServiceSurfaces(booking.branch_id);
-  return { success: true };
+  return startCrmBookingService(ctx, rawInput);
 }
 
 // ── CRM Service Complete ─────────────────────────────────────────────────────
@@ -852,46 +653,7 @@ export async function crmStartServiceAction(
 export async function crmCompleteServiceAction(
   rawInput: unknown
 ): Promise<{ success: boolean; error?: string }> {
-  const parsed = bookingIdSchema.safeParse(rawInput);
-  if (!parsed.success) {
-    return { success: false, error: parsed.error.issues[0]?.message ?? "Invalid booking ID" };
-  }
-
   const ctx = await getCrmActionsContext();
   if (!ctx) return { success: false, error: "Unauthorized" };
-
-  const bookingResult = await loadCrmBookingForAction(
-    ctx,
-    parsed.data.bookingId,
-    "booking.service.complete"
-  );
-  if (!bookingResult.success) return bookingResult;
-  const booking = bookingResult.booking;
-
-  // Idempotent: already completed → return success
-  if (booking.status === "completed" || booking.booking_progress_status === "completed") {
-    return { success: true };
-  }
-
-  if (booking.status === "cancelled" || booking.status === "no_show") {
-    return { success: false, error: "This booking is already closed." };
-  }
-
-  const admin = createAdminClient();
-  const { error } = await admin.rpc("complete_booking_service_session", {
-    p_booking_id: parsed.data.bookingId,
-    p_completion_source: "crm_manual",
-    p_actor_staff_id: ctx.me.id,
-  });
-
-  if (error) {
-    logError("crm.complete_service_failed", {
-      bookingId: parsed.data.bookingId,
-      error,
-    });
-    return { success: false, error: error.message };
-  }
-
-  revalidateServiceSurfaces(booking.branch_id);
-  return { success: true };
+  return completeCrmBookingService(ctx, rawInput);
 }

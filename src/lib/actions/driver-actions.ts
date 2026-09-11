@@ -1,5 +1,7 @@
 "use server";
 
+import type { SupabaseClient } from "@supabase/supabase-js";
+import type { Database } from "@/types/supabase";
 import { createClient } from "@/lib/supabase/server";
 import { getDevBypassLayoutStaff, isDevAuthBypassEnabled } from "@/lib/dev-bypass";
 import { canAccessCrmWorkspace } from "@/lib/auth/crm-permissions";
@@ -73,9 +75,12 @@ export async function assignBookingDriverAction(rawInput: unknown): Promise<{
 }
 // ── Fetch driver name map for a set of driver IDs ────────────────────────────
 // Used by control console pages to resolve driver_id → full_name.
-export async function getDriverNamesByIds(ids: string[]): Promise<Record<string, string>> {
+export async function getDriverNamesByIds(
+  ids: string[],
+  client?: SupabaseClient<Database>
+): Promise<Record<string, string>> {
   if (ids.length === 0) return {};
-  const supabase = await createClient();
+  const supabase = client ?? (await createClient());
   const { data } = await supabase.from("staff").select("id, full_name").in("id", ids);
   const map: Record<string, string> = {};
   for (const s of data ?? []) {
@@ -88,10 +93,11 @@ export async function getDriverNamesByIds(ids: string[]): Promise<Record<string,
 // Gracefully returns empty map if driver_id column doesn't exist yet.
 export async function getBranchBookingDriverIds(
   branchId: string,
-  date: string
+  date: string,
+  client?: SupabaseClient<Database>
 ): Promise<Record<string, string | null>> {
   try {
-    const supabase = await createClient();
+    const supabase = client ?? (await createClient());
     const { data, error } = await supabase
       .from("bookings")
       .select("id, driver_id")
