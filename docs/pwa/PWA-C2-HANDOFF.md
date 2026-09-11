@@ -48,7 +48,7 @@ PWA-C2 — Structured Diagnostics. This correction pass remains **READ-ONLY DIAG
 
 ### D — C2 correction head
 
-The correction pass started from reviewed C2 head `5f7ba977fbef3bb0ee93919e6c45631bb5bce3cb`. The corrected artifact is recorded at commit `923da9f5d1c0285a73831f95e0ef2b2036bead12` on `stage/pwa-c2-structured-diagnostics`.
+The correction pass started from reviewed C2 head `5f7ba977fbef3bb0ee93919e6c45631bb5bce3cb`. The corrected artifact is published on `stage/pwa-c2-structured-diagnostics` through the documentation commits `923da9f5`, `fc66dade`, and `860aa05b`.
 
 ### E — Changed files
 
