@@ -28,9 +28,13 @@ These remain Bookings-domain contracts and are not duplicated under Home Service
 
 At implementation completion, local HEAD and fetched `origin/main` both matched this SHA before Stage 08A was committed.
 
-## HEAD_SHA
+## IMPLEMENTATION_HEAD_SHA
 
-To be recorded in the final pushed-stage handoff after commit.
+`f502ef9648e19f1a97bf88337d12b7b40d3474a1`
+
+This is the Stage 08A implementation commit that was pushed and independently reviewed before this evidence-only correction.
+
+The evidence-correction commit SHA is recorded in the final stage handoff after this document correction is committed.
 
 ## Changed files
 
@@ -318,14 +322,15 @@ After an explicitly authorized merge, rollback should revert the Stage 08A merge
 
 Stage 08A is not accepted merely because implementation and tests pass.
 
-Required next steps:
+Current stage state:
 
-1. commit Stage 08A on its authorized branch
-2. push branch
-3. independently inspect GitHub diff/source/evidence/checks
-4. receive either:
+1. Stage 08A implementation commit `f502ef9648e19f1a97bf88337d12b7b40d3474a1` has already been pushed on the authorized branch.
+2. Independent GitHub review found this evidence-document correction was required.
+3. This correction is evidence-only and does not modify Stage 08A implementation behavior.
+4. After this correction is committed and pushed, ChatGPT must independently re-review the GitHub branch.
+5. The review result must be either:
    - `CHANGES REQUIRED`
    - `ACCEPTABLE FOR OWNER CONFIRMATION`
-5. owner confirms the stage
-6. merge only with explicit authorization
-7. STOP before Stage 08B unless separately authorized
+6. Owner confirmation is still required before merge.
+7. Merge only with explicit authorization.
+8. STOP before Stage 08B unless separately authorized.
