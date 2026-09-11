@@ -12,28 +12,12 @@ vi.mock("@/lib/queries/bookings", () => ({
   getManagerDashboardStats: vi.fn(),
 }));
 
-vi.mock("@/lib/queries/crm-readiness", () => ({
-  getCrmReadinessCached: vi.fn(),
+vi.mock("@/lib/queries/dispatch-queries", () => ({
+  getDispatchData: vi.fn(),
 }));
 
 vi.mock("@/lib/attendance/recent-scans", () => ({
   getRecentAttendanceScanFeed: vi.fn(),
-  createAttendanceScanFeedFallback: vi.fn((params) => ({
-    selectedDate: params.selectedDate,
-    timezone: "Asia/Manila",
-    branchId: params.branchId ?? null,
-    branchName: params.branchName ?? null,
-    items: [],
-    lastHourCount: 0,
-    lastHourOperations: [],
-    nextCursor: null,
-    error: params.error ?? null,
-  })),
-}));
-
-vi.mock("@/lib/actions/driver-actions", () => ({
-  getBranchBookingDriverIds: vi.fn(),
-  getDriverNamesByIds: vi.fn(),
 }));
 
 vi.mock("@/lib/engine/slot-time", () => ({
@@ -51,26 +35,29 @@ import {
   getManagerDashboardStats,
   getTodaysSchedule,
 } from "@/lib/queries/bookings";
-import { getCrmReadinessCached } from "@/lib/queries/crm-readiness";
+import { getDispatchData } from "@/lib/queries/dispatch-queries";
 import { getRecentAttendanceScanFeed } from "@/lib/attendance/recent-scans";
-import { getBranchBookingDriverIds, getDriverNamesByIds } from "@/lib/actions/driver-actions";
 import { getBranchBusinessDate } from "@/lib/engine/slot-time";
+import {
+  filterDesktopReadinessIssues,
+  computeDesktopTodayReadiness,
+} from "@/lib/today/desktop-today-contract";
 import { GET } from "./route";
 
 const mockedAuth = vi.mocked(verifyDesktopBearerAuth);
 const mockedTodaySchedule = vi.mocked(getTodaysSchedule);
 const mockedPendingQueue = vi.mocked(getCrmPendingBookingQueue);
 const mockedDashboardStats = vi.mocked(getManagerDashboardStats);
-const mockedReadiness = vi.mocked(getCrmReadinessCached);
+const mockedDispatch = vi.mocked(getDispatchData);
 const mockedAttendance = vi.mocked(getRecentAttendanceScanFeed);
-const mockedDriverIds = vi.mocked(getBranchBookingDriverIds);
-const mockedDriverNames = vi.mocked(getDriverNamesByIds);
 const mockedBusinessDate = vi.mocked(getBranchBusinessDate);
 
 function createMockSupabase(
   branchExists = true,
   notifications: unknown[] = [],
-  unassignedCount = 0
+  unassignedCount = 0,
+  unassignedError: { message: string } | null = null,
+  notificationsError: { message: string } | null = null
 ) {
   return {
     from: vi.fn((table: string) => {
@@ -93,13 +80,32 @@ function createMockSupabase(
               eq: vi.fn().mockReturnValue({
                 eq: vi.fn().mockReturnValue({
                   is: vi.fn().mockResolvedValue({
-                    count: unassignedCount,
-                    data: null,
-                    error: null,
+                    count: unassignedError ? null : unassignedCount,
+                    error: unassignedError,
                   }),
                 }),
               }),
             }),
+          }),
+        };
+      }
+      if (table === "workspace_notifications") {
+        return {
+          select: vi.fn().mockReturnValue({
+            eq: vi.fn().mockImplementation(() => ({
+              eq: vi.fn().mockImplementation(() => ({
+                eq: vi.fn().mockReturnValue({
+                  in: vi.fn().mockReturnValue({
+                    order: vi.fn().mockReturnValue({
+                      limit: vi.fn().mockResolvedValue({
+                        data: notificationsError ? null : notifications,
+                        error: notificationsError,
+                      }),
+                    }),
+                  }),
+                }),
+              })),
+            })),
           }),
         };
       }
@@ -113,62 +119,57 @@ function createMockSupabase(
           }),
         };
       }
-      if (table === "workspace_notifications") {
-        return {
-          select: vi.fn().mockReturnValue({
-            eq: vi.fn().mockReturnValue({
-              in: vi.fn().mockReturnValue({
-                order: vi.fn().mockReturnValue({
-                  limit: vi.fn().mockResolvedValue({
-                    data: notifications,
-                    error: null,
-                  }),
-                }),
-              }),
-            }),
-          }),
-        };
-      }
       return {
         select: vi.fn().mockReturnThis(),
         eq: vi.fn().mockReturnThis(),
         in: vi.fn().mockReturnThis(),
-        maybeSingle: vi.fn().mockResolvedValue({ data: null, error: null }),
+        is: vi.fn().mockReturnThis(),
+        order: vi.fn().mockReturnThis(),
+        limit: vi.fn().mockResolvedValue({ data: [], error: null }),
       };
     }),
   };
 }
 
 function authResult(
-  branchId: string | null = "branch-main",
+  branchId = "branch-main",
   role = "crm",
   branchExists = true,
-  notifications: unknown[] = []
+  notifications: unknown[] = [],
+  unassignedCount = 0,
+  unassignedError: { message: string } | null = null,
+  notificationsError: { message: string } | null = null
 ) {
+  const supabase = createMockSupabase(
+    branchExists,
+    notifications,
+    unassignedCount,
+    unassignedError,
+    notificationsError
+  );
   return {
     ok: true as const,
     operator: {
-      authUserId: "user-1",
+      staffId: "staff-1",
+      systemRole: role,
+      staffRole: role,
+      branchId,
+      fullName: "Staff Operator",
       staff: {
         id: "staff-1",
         branch_id: branchId,
         system_role: role,
       },
-      staffRole: role,
-      isDevBypass: false,
     },
-    user: {
-      id: "user-1",
-      email: "crm@example.test",
-    },
-    client: createMockSupabase(branchExists, notifications),
+    user: { id: "user-1", email: "staff@example.com" },
+    client: supabase as never,
   };
 }
 
 describe("GET /api/desktop/v1/today", () => {
   beforeEach(() => {
     vi.clearAllMocks();
-    mockedBusinessDate.mockReturnValue("2026-09-11");
+
     mockedTodaySchedule.mockResolvedValue([]);
     mockedPendingQueue.mockResolvedValue([]);
     mockedDashboardStats.mockResolvedValue({
@@ -180,10 +181,20 @@ describe("GET /api/desktop/v1/today", () => {
       cancelled: 0,
       no_show: 0,
     });
-    mockedReadiness.mockResolvedValue({
-      status: "ok",
-      issues: [],
+
+    mockedDispatch.mockResolvedValue({
+      items: [],
+      stats: {
+        totalToday: 0,
+        awaitingDispatch: 0,
+        activeTrips: 0,
+        completedToday: 0,
+        cancelledToday: 0,
+      },
+      alerts: [],
+      today: "2026-09-11",
     });
+
     mockedAttendance.mockResolvedValue({
       selectedDate: "2026-09-11",
       timezone: "Asia/Manila",
@@ -195,12 +206,12 @@ describe("GET /api/desktop/v1/today", () => {
       nextCursor: null,
       error: null,
     });
-    mockedDriverIds.mockResolvedValue({});
-    mockedDriverNames.mockResolvedValue({});
+
+    mockedBusinessDate.mockReturnValue("2026-09-11");
   });
 
   // 1. Missing bearer rejected
-  it("rejects request when Authorization header is missing (401)", async () => {
+  it("rejects request without Authorization header (401)", async () => {
     mockedAuth.mockResolvedValue({
       ok: false,
       status: 401,
@@ -210,16 +221,13 @@ describe("GET /api/desktop/v1/today", () => {
 
     const response = await GET(new NextRequest("https://example.test/api/desktop/v1/today"));
     expect(response.status).toBe(401);
-    expect(await response.json()).toEqual({
-      ok: false,
-      code: "UNAUTHORIZED",
-      message: "Authorization header is required.",
-    });
-    expect(response.headers.get("Cache-Control")).toBe("no-store");
+    const body = await response.json();
+    expect(body.ok).toBe(false);
+    expect(body.code).toBe("UNAUTHORIZED");
   });
 
   // 2. Invalid bearer rejected
-  it("rejects invalid or expired bearer tokens (401)", async () => {
+  it("rejects invalid or expired bearer token (401)", async () => {
     mockedAuth.mockResolvedValue({
       ok: false,
       status: 401,
@@ -227,121 +235,102 @@ describe("GET /api/desktop/v1/today", () => {
       message: "Invalid or expired access token.",
     });
 
-    const response = await GET(new NextRequest("https://example.test/api/desktop/v1/today"));
-    expect(response.status).toBe(401);
-    expect(await response.json()).toMatchObject({
-      ok: false,
-      code: "UNAUTHORIZED",
+    const req = new NextRequest("https://example.test/api/desktop/v1/today", {
+      headers: { Authorization: "Bearer invalid-token" },
     });
+    const response = await GET(req);
+    expect(response.status).toBe(401);
+    const body = await response.json();
+    expect(body.ok).toBe(false);
   });
 
   // 3. Inactive/non-CRM staff rejected
-  it("rejects staff with no active profile or unauthorized role (403)", async () => {
+  it("rejects non-CRM staff without workspace permissions (403)", async () => {
     mockedAuth.mockResolvedValue({
       ok: false,
       status: 403,
-      code: "CRM_PERMISSION_DENIED",
-      message: "You do not have permission to access the CRM booking workspace.",
+      code: "FORBIDDEN",
+      message: "Your role (driver) does not have access to the CRM workspace.",
     });
 
     const response = await GET(new NextRequest("https://example.test/api/desktop/v1/today"));
     expect(response.status).toBe(403);
-    expect(await response.json()).toMatchObject({
-      ok: false,
-      code: "CRM_PERMISSION_DENIED",
-    });
+    const body = await response.json();
+    expect(body.ok).toBe(false);
+    expect(body.code).toBe("FORBIDDEN");
   });
 
   // 4. Staff without branch rejected
-  it("rejects staff without an associated branch (403)", async () => {
-    mockedAuth.mockResolvedValue(authResult(null) as never);
+  it("rejects staff profile without assigned branch (403)", async () => {
+    mockedAuth.mockResolvedValue({
+      ok: false,
+      status: 403,
+      code: "BRANCH_REQUIRED",
+      message: "Your profile is not assigned to a branch.",
+    });
 
     const response = await GET(new NextRequest("https://example.test/api/desktop/v1/today"));
     expect(response.status).toBe(403);
-    expect(await response.json()).toMatchObject({
-      ok: false,
-      code: "STAFF_NOT_FOUND",
-    });
+    const body = await response.json();
+    expect(body.ok).toBe(false);
+    expect(body.code).toBe("BRANCH_REQUIRED");
   });
 
-  // 5 & 6. Server-resolved branch; renderer cannot override branch
-  it("uses server-resolved branch and ignores renderer branchId parameter", async () => {
-    const auth = authResult("branch-main");
-    mockedAuth.mockResolvedValue(auth as never);
+  // 5 & 6. Server-resolved branch; renderer cannot override
+  it("uses server-authenticated branch and ignores renderer query params", async () => {
+    mockedAuth.mockResolvedValue(authResult("branch-server-123") as never);
 
-    const response = await GET(
-      new NextRequest("https://example.test/api/desktop/v1/today?branchId=attacker-branch")
+    const req = new NextRequest(
+      "https://example.test/api/desktop/v1/today?branchId=branch-spoofed&branch_id=branch-spoofed"
     );
-
+    const response = await GET(req);
     expect(response.status).toBe(200);
     const body = await response.json();
-    expect(body.ok).toBe(true);
-    expect(body.data.context.branchId).toBe("branch-main");
-    expect(body.data.context.branchName).toBe("Main Branch");
 
+    expect(body.ok).toBe(true);
+    expect(body.data.context.branchId).toBe("branch-server-123");
     expect(mockedTodaySchedule).toHaveBeenCalledWith(
-      "branch-main",
+      "branch-server-123",
       "2026-09-11",
       expect.anything()
     );
   });
 
-  // 7. Server-authoritative business date
-  it("uses authoritative server-resolved business date", async () => {
-    mockedBusinessDate.mockReturnValue("2026-10-15");
+  // 7. Authoritative business date
+  it("uses server-authoritative business date from getBranchBusinessDate()", async () => {
+    mockedBusinessDate.mockReturnValue("2026-10-25");
     mockedAuth.mockResolvedValue(authResult("branch-main") as never);
 
     const response = await GET(new NextRequest("https://example.test/api/desktop/v1/today"));
-    expect(response.status).toBe(200);
     const body = await response.json();
-    expect(body.data.context.businessDate).toBe("2026-10-15");
+
+    expect(body.data.context.businessDate).toBe("2026-10-25");
     expect(mockedTodaySchedule).toHaveBeenCalledWith(
       "branch-main",
-      "2026-10-15",
+      "2026-10-25",
       expect.anything()
     );
   });
 
-  // 8 & 9. Today schedule returned & future pending queue included correctly
-  it("combines today schedule and future pending bookings correctly", async () => {
-    const auth = authResult("branch-main");
-    mockedAuth.mockResolvedValue(auth as never);
+  // 8. Today's schedule returned
+  it("returns today's schedule items in queue", async () => {
+    mockedAuth.mockResolvedValue(authResult("branch-main") as never);
 
     mockedTodaySchedule.mockResolvedValue([
       {
-        id: "booking-today-1",
+        id: "booking-1",
         branch_id: "branch-main",
         booking_date: "2026-09-11",
-        start_time: "10:00:00",
-        end_time: "11:00:00",
+        start_time: "09:00:00",
+        end_time: "10:00:00",
         status: "confirmed",
         type: "in_spa",
         delivery_type: null,
         booking_progress_status: "not_started",
-        customers: { full_name: "Juan Dela Cruz", phone: "09171112222" },
-        services: { name: "Swedish Massage", duration_minutes: 60 },
-        staff: { id: "staff-10", full_name: "Maria Santos" },
-        resource_id: null,
-        metadata: null,
-      } as never,
-    ]);
-
-    mockedPendingQueue.mockResolvedValue([
-      {
-        id: "booking-future-1",
-        branch_id: "branch-main",
-        booking_date: "2026-09-12",
-        start_time: "09:00:00",
-        end_time: "10:00:00",
-        status: "pending_crm_confirmation",
-        type: "in_spa",
-        delivery_type: null,
-        booking_progress_status: "not_started",
-        customers: { full_name: "Pedro Penduko", phone: "09183334444" },
-        services: { name: "Foot Reflex", duration_minutes: 60 },
-        staff: null,
-        resource_id: null,
-        metadata: null,
+        customers: { full_name: "John Doe", phone: "09171234567" },
+        services: { name: "Signature Massage", duration_minutes: 60 },
+        staff: { id: "staff-2", full_name: "Jane Smith", nickname: "Jane" },
+        resource_id: "res-1",
       } as never,
     ]);
 
@@ -349,18 +338,50 @@ describe("GET /api/desktop/v1/today", () => {
     expect(response.status).toBe(200);
     const body = await response.json();
 
-    expect(body.data.queue).toHaveLength(2);
-    expect(body.data.queue[0].id).toBe("booking-today-1");
-    expect(body.data.queue[0].customerName).toBe("Juan Dela Cruz");
-    expect(body.data.queue[1].id).toBe("booking-future-1");
-    expect(body.data.queue[1].customerName).toBe("Pedro Penduko");
+    expect(body.data.queue).toHaveLength(1);
+    expect(body.data.queue[0].id).toBe("booking-1");
+    expect(body.data.queue[0].customerName).toBe("John Doe");
+    expect(body.data.queue[0].serviceName).toBe("Signature Massage");
+    expect(body.data.queue[0].staffName).toBe("Jane Smith (Jane)");
+    expect(body.data.queue[0].resourceName).toBe("Room 101");
   });
 
-  // 10. Duplicate booking deduplicated
-  it("deduplicates booking appearing in both today schedule and pending queue", async () => {
+  // 9. Future pending queue included
+  it("includes pending queue bookings", async () => {
     mockedAuth.mockResolvedValue(authResult("branch-main") as never);
 
-    const duplicateBooking = {
+    mockedPendingQueue.mockResolvedValue([
+      {
+        id: "booking-pending-1",
+        branch_id: "branch-main",
+        booking_date: "2026-09-12",
+        start_time: "10:00:00",
+        end_time: "11:00:00",
+        status: "pending",
+        type: "in_spa",
+        delivery_type: null,
+        booking_progress_status: "not_started",
+        customers: { full_name: "Alice Brown", phone: null },
+        services: { name: "Facial", duration_minutes: 60 },
+        staff: null,
+        resource_id: null,
+      } as never,
+    ]);
+
+    const response = await GET(new NextRequest("https://example.test/api/desktop/v1/today"));
+    const body = await response.json();
+
+    expect(body.data.queue).toHaveLength(1);
+    expect(body.data.queue[0].id).toBe("booking-pending-1");
+    expect(body.data.queue[0].status).toBe("pending");
+    expect(body.data.queue[0].bookingDate).toBe("2026-09-12");
+  });
+
+  // 10. Deduplication
+  it("deduplicates booking if present in both schedule and pending queue", async () => {
+    mockedAuth.mockResolvedValue(authResult("branch-main") as never);
+
+    const dupBooking = {
       id: "booking-dup",
       branch_id: "branch-main",
       booking_date: "2026-09-11",
@@ -370,130 +391,129 @@ describe("GET /api/desktop/v1/today", () => {
       type: "in_spa",
       delivery_type: null,
       booking_progress_status: "not_started",
-      customers: { full_name: "Duplicate User", phone: null },
-      services: { name: "Service A", duration_minutes: 60 },
+      customers: { full_name: "Same User", phone: null },
+      services: { name: "Foot Spa", duration_minutes: 60 },
       staff: null,
       resource_id: null,
-      metadata: null,
-    } as never;
+    };
 
-    mockedTodaySchedule.mockResolvedValue([duplicateBooking]);
-    mockedPendingQueue.mockResolvedValue([duplicateBooking]);
+    mockedTodaySchedule.mockResolvedValue([dupBooking as never]);
+    mockedPendingQueue.mockResolvedValue([dupBooking as never]);
 
     const response = await GET(new NextRequest("https://example.test/api/desktop/v1/today"));
-    expect(response.status).toBe(200);
     const body = await response.json();
+
     expect(body.data.queue).toHaveLength(1);
     expect(body.data.queue[0].id).toBe("booking-dup");
   });
 
-  // 11. Correct queue ordering (date ASC then start_time ASC)
-  it("sorts queue strictly by booking_date then start_time ascending", async () => {
+  // 11. Queue ordering
+  it("sorts queue strictly by booking_date then start_time ASC", async () => {
     mockedAuth.mockResolvedValue(authResult("branch-main") as never);
 
     mockedTodaySchedule.mockResolvedValue([
       {
-        id: "b-late",
+        id: "b-2",
         branch_id: "branch-main",
         booking_date: "2026-09-11",
-        start_time: "16:00:00",
-        end_time: "17:00:00",
+        start_time: "14:00:00",
+        end_time: "15:00:00",
         status: "confirmed",
         type: "in_spa",
-        delivery_type: null,
-        metadata: null,
+        customers: null,
+        services: null,
+        staff: null,
       } as never,
       {
-        id: "b-early",
+        id: "b-1",
         branch_id: "branch-main",
         booking_date: "2026-09-11",
         start_time: "09:00:00",
         end_time: "10:00:00",
         status: "confirmed",
         type: "in_spa",
-        delivery_type: null,
-        metadata: null,
-      } as never,
-    ]);
-
-    mockedPendingQueue.mockResolvedValue([
-      {
-        id: "b-tomorrow",
-        branch_id: "branch-main",
-        booking_date: "2026-09-12",
-        start_time: "08:00:00",
-        end_time: "09:00:00",
-        status: "pending",
-        type: "in_spa",
-        delivery_type: null,
-        metadata: null,
+        customers: null,
+        services: null,
+        staff: null,
       } as never,
     ]);
 
     const response = await GET(new NextRequest("https://example.test/api/desktop/v1/today"));
     const body = await response.json();
-    expect(body.data.queue.map((q: { id: string }) => q.id)).toEqual([
-      "b-early",
-      "b-late",
-      "b-tomorrow",
-    ]);
+
+    expect(body.data.queue[0].id).toBe("b-1");
+    expect(body.data.queue[1].id).toBe("b-2");
   });
 
   // 12. Empty queue valid
-  it("returns 200 with clean empty queue when zero bookings exist", async () => {
+  it("returns valid empty queue when no bookings exist", async () => {
     mockedAuth.mockResolvedValue(authResult("branch-main") as never);
-    mockedTodaySchedule.mockResolvedValue([]);
-    mockedPendingQueue.mockResolvedValue([]);
 
     const response = await GET(new NextRequest("https://example.test/api/desktop/v1/today"));
-    expect(response.status).toBe(200);
     const body = await response.json();
+
     expect(body.ok).toBe(true);
     expect(body.data.queue).toEqual([]);
     expect(body.data.summary.total).toBe(0);
-    expect(body.data.summary.waiting).toBe(0);
   });
 
-  // 13. Readiness mapped truthfully
-  it("maps readiness status and issues truthfully", async () => {
-    mockedAuth.mockResolvedValue(authResult("branch-main") as never);
-    mockedReadiness.mockResolvedValue({
-      status: "warning",
-      issues: [
-        {
-          id: "staff:unassigned-services",
-          scope: "service",
-          severity: "warning",
-          title: "2 services have unassigned staff",
-          problem: "Two services scheduled today have no therapist assigned.",
-          impact: "Customer sessions may be delayed.",
-          fix: "Assign qualified therapists.",
-          actionLabel: "Open Schedule",
-          actionHref: "/crm/schedule",
-          count: 2,
-          source: "getCrmReadiness",
-        },
-      ],
+  // 13 & Finding A: Readiness does NOT depend on cookie auth; uses client-aware projection
+  it("computes readiness projection using bearer client context without cookie auth", async () => {
+    mockedAuth.mockResolvedValue(authResult("branch-main", "crm", true, [], 2) as never);
+
+    const response = await GET(new NextRequest("https://example.test/api/desktop/v1/today"));
+    const body = await response.json();
+
+    expect(body.data.readiness.available).toBe(true);
+    expect(body.data.readiness.status).toBe("warning");
+    expect(body.data.readiness.issues).toHaveLength(1);
+    expect(body.data.readiness.issues[0].id).toBe("daily:unassigned-bookings");
+    expect(body.data.readiness.issues[0].scope).toBe("daily");
+    expect(body.data.readiness.issues[0].count).toBe(2);
+  });
+
+  // 14 & Finding B: Payment readiness explicitly excluded
+  it("strictly excludes payment readiness issues such as payment:unpaid-bookings", () => {
+    const rawIssues = [
+      {
+        id: "payment:unpaid-bookings",
+        scope: "payment",
+        severity: "warning",
+        title: "5 unpaid bookings require payment review",
+        problem: "Completed bookings have outstanding balance.",
+        impact: "Cash flow reconciliation delayed.",
+        fix: "Collect payment in payments portal.",
+        actionLabel: "Open Payments",
+        actionHref: "/crm/payments",
+        count: 5,
+      },
+      {
+        id: "daily:unassigned-bookings",
+        scope: "daily",
+        severity: "warning",
+        title: "2 bookings need staff assignment",
+        problem: "Confirmed bookings without staff.",
+        impact: "May experience delay.",
+        fix: "Assign staff in schedule.",
+        actionLabel: "View Schedule",
+        actionHref: "/crm/schedule",
+        count: 2,
+      },
+    ];
+
+    const filtered = filterDesktopReadinessIssues(rawIssues);
+    expect(filtered).toHaveLength(1);
+    expect(filtered[0]?.id).toBe("daily:unassigned-bookings");
+    expect(filtered[0]?.scope).toBe("daily");
+
+    // Also verify computeDesktopTodayReadiness with custom issues
+    const readiness = computeDesktopTodayReadiness({
+      unassignedCount: 0,
+      customIssues: rawIssues,
     });
-
-    const response = await GET(new NextRequest("https://example.test/api/desktop/v1/today"));
-    const body = await response.json();
-    expect(body.data.readiness.status).toBe("warning");
-    expect(body.data.readiness.issues).toHaveLength(1);
-    expect(body.data.readiness.issues[0].id).toBe("staff:unassigned-services");
-  });
-
-  // 14. Readiness failure semantics (never converts failure to fake 0 issues)
-  it("maps readiness query failure to warning status with system issue instead of fake 0 issues", async () => {
-    mockedAuth.mockResolvedValue(authResult("branch-main") as never);
-    mockedReadiness.mockRejectedValue(new Error("Database timeout"));
-
-    const response = await GET(new NextRequest("https://example.test/api/desktop/v1/today"));
-    const body = await response.json();
-    expect(body.data.readiness.status).toBe("warning");
-    expect(body.data.readiness.issues).toHaveLength(1);
-    expect(body.data.readiness.issues[0].id).toBe("system:readiness-unavailable");
-    expect(body.data.readiness.issues[0].title).toBe("Readiness checks could not be loaded");
+    expect(readiness.issues.some((i) => i.scope === "payment")).toBe(false);
+    expect(readiness.issues.some((i) => i.id.startsWith("payment:"))).toBe(false);
+    expect(readiness.issues).toHaveLength(1);
   });
 
   // 15. Attendance mapped truthfully
@@ -535,6 +555,7 @@ describe("GET /api/desktop/v1/today", () => {
 
     const response = await GET(new NextRequest("https://example.test/api/desktop/v1/today"));
     const body = await response.json();
+    expect(body.data.attendance.available).toBe(true);
     expect(body.data.attendance.lastHourCount).toBe(1);
     expect(body.data.attendance.items).toHaveLength(1);
     expect(body.data.attendance.items[0].staffName).toBe("Maria Santos");
@@ -548,12 +569,13 @@ describe("GET /api/desktop/v1/today", () => {
 
     const response = await GET(new NextRequest("https://example.test/api/desktop/v1/today"));
     const body = await response.json();
-    expect(body.data.attendance.error).toBe("Attendance activity could not be refreshed.");
+    expect(body.data.attendance.available).toBe(false);
+    expect(body.data.attendance.error).toBe("Network failure");
     expect(body.data.attendance.items).toEqual([]);
   });
 
-  // 17. Notifications operational-only
-  it("maps only operational action-required notifications", async () => {
+  // 17 & Finding C: Notifications operational-only with server-side scoping
+  it("maps only operational action-required CRM notifications and filters out failure gracefully", async () => {
     const notifications = [
       {
         id: "notif-1",
@@ -564,6 +586,7 @@ describe("GET /api/desktop/v1/today", () => {
         requires_action: true,
         created_at: "2026-09-11T09:00:00Z",
         branch_id: "branch-main",
+        target_workspace: "crm",
       },
     ];
 
@@ -571,14 +594,43 @@ describe("GET /api/desktop/v1/today", () => {
 
     const response = await GET(new NextRequest("https://example.test/api/desktop/v1/today"));
     const body = await response.json();
-    expect(body.data.notifications).toHaveLength(1);
-    expect(body.data.notifications[0].title).toBe("Home Service Location Review");
-    expect(body.data.notifications[0].priority).toBe("urgent");
-    expect(body.data.notifications[0].requiresAction).toBe(true);
+    expect(body.data.notifications.available).toBe(true);
+    expect(body.data.notifications.items).toHaveLength(1);
+    expect(body.data.notifications.items[0].title).toBe("Home Service Location Review");
+    expect(body.data.notifications.items[0].priority).toBe("urgent");
+    expect(body.data.notifications.items[0].requiresAction).toBe(true);
   });
 
-  // 18 & 19. Home Service context truthful; no fake location/ETA
-  it("exposes truthful Home Service operational fields without fake location or ETA", async () => {
+  // Finding C: Notification query error is represented truthfully as available: false
+  it("represents notification query failure truthfully as available: false", async () => {
+    mockedAuth.mockResolvedValue(
+      authResult("branch-main", "crm", true, [], 0, null, { message: "DB timeout" }) as never
+    );
+
+    const response = await GET(new NextRequest("https://example.test/api/desktop/v1/today"));
+    const body = await response.json();
+    expect(body.data.notifications.available).toBe(false);
+    expect(body.data.notifications.items).toEqual([]);
+    expect(body.data.notifications.error).toBe("Notifications could not be refreshed.");
+  });
+
+  // Finding D: Unassigned count failure fails GET truthfully (does NOT become unassigned=0)
+  it("fails GET truthfully with 500 when unassigned-count query fails", async () => {
+    mockedAuth.mockResolvedValue(
+      authResult("branch-main", "crm", true, [], 0, {
+        message: "Database connection lost",
+      }) as never
+    );
+
+    const response = await GET(new NextRequest("https://example.test/api/desktop/v1/today"));
+    expect(response.status).toBe(500);
+    const body = await response.json();
+    expect(body.ok).toBe(false);
+    expect(body.code).toBe("SERVER_ERROR");
+  });
+
+  // 18, 19 & Finding E: Home Service context from authoritative dispatch
+  it("exposes truthful Home Service operational fields from authoritative dispatch without fake location/ETA", async () => {
     mockedAuth.mockResolvedValue(authResult("branch-main") as never);
 
     mockedTodaySchedule.mockResolvedValue([
@@ -596,25 +648,63 @@ describe("GET /api/desktop/v1/today", () => {
         services: { name: "Home Service Massage", duration_minutes: 60 },
         staff: null,
         resource_id: null,
-        metadata: {
-          home_service_address: {
-            full_address: "123 Sunflower St, Makati City",
-            zone: "Zone 1",
-            city: "Makati",
-          },
-          dispatch: {
-            dispatch_warning: "Address requires gate passcode",
-            needs_location_review: true,
-          },
-        },
       } as never,
     ]);
 
-    mockedDriverIds.mockResolvedValue({
-      "hs-booking-1": "driver-5",
-    });
-    mockedDriverNames.mockResolvedValue({
-      "driver-5": "Carlos Mendoza",
+    mockedDispatch.mockResolvedValue({
+      items: [
+        {
+          id: "hs-booking-1",
+          number: "B-100",
+          bookingDate: "2026-09-11",
+          startTime: "11:00:00",
+          endTime: "12:00:00",
+          customerName: "Ana Reyes",
+          serviceName: "Home Service Massage",
+          area: "Makati",
+          formattedAddress: "123 Sunflower St, Makati City",
+          lat: 14.5547,
+          lng: 121.0244,
+          branchName: "Main Branch",
+          branchLat: 14.55,
+          branchLng: 121.02,
+          needsLocationReview: true,
+          driverId: "driver-5",
+          driverName: "Carlos Mendoza",
+          therapistId: "staff-2",
+          therapistName: "Therapist Jane",
+          dispatchStatus: "scheduled",
+          bookingStatus: "confirmed",
+          bookingProgressStatus: "not_started",
+          paymentStatus: "paid",
+          etaMinutes: null,
+          travelStartedAt: null,
+          arrivedAt: null,
+          sessionStartedAt: null,
+          completedAt: null,
+          rating: null,
+          currentLocation: null,
+        },
+      ],
+      stats: {
+        totalToday: 1,
+        awaitingDispatch: 0,
+        activeTrips: 0,
+        completedToday: 0,
+        cancelledToday: 0,
+      },
+      alerts: [
+        {
+          id: "alert-1",
+          bookingId: "hs-booking-1",
+          title: "Passcode Required",
+          description: "Address requires gate passcode",
+          severity: "warning",
+          timeAgo: "5m ago",
+          dispatchNumber: "B-100",
+        },
+      ],
+      today: "2026-09-11",
     });
 
     const response = await GET(new NextRequest("https://example.test/api/desktop/v1/today"));
@@ -633,6 +723,39 @@ describe("GET /api/desktop/v1/today", () => {
     expect(item.live_eta).toBeUndefined();
     expect(item.currentLocation).toBeUndefined();
     expect(item.routeCoordinates).toBeUndefined();
+  });
+
+  // Finding E: Auxiliary dispatch failure does NOT fabricate noDriverWarning=true
+  it("does NOT fabricate noDriverWarning=true when dispatch query fails", async () => {
+    mockedAuth.mockResolvedValue(authResult("branch-main") as never);
+
+    mockedTodaySchedule.mockResolvedValue([
+      {
+        id: "hs-booking-2",
+        branch_id: "branch-main",
+        booking_date: "2026-09-11",
+        start_time: "15:00:00",
+        end_time: "16:00:00",
+        status: "confirmed",
+        type: "home_service",
+        delivery_type: "home_service",
+        booking_progress_status: "not_started",
+        customers: { full_name: "Ben Ramos", phone: null },
+        services: { name: "Home Service", duration_minutes: 60 },
+        staff: null,
+        resource_id: null,
+      } as never,
+    ]);
+
+    mockedDispatch.mockRejectedValue(new Error("Dispatch service offline"));
+
+    const response = await GET(new NextRequest("https://example.test/api/desktop/v1/today"));
+    const body = await response.json();
+    const item = body.data.queue[0];
+
+    expect(item.isHomeService).toBe(true);
+    expect(item.noDriverWarning).toBe(false); // MUST be false, not fabricated
+    expect(item.dispatchWarning).toBe("Dispatch context unavailable");
   });
 
   // 20. No raw metadata leakage

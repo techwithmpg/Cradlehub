@@ -7,12 +7,8 @@ import {
   getManagerDashboardStats,
   getTodaysSchedule,
 } from "@/lib/queries/bookings";
-import { getCrmReadinessCached } from "@/lib/queries/crm-readiness";
-import {
-  createAttendanceScanFeedFallback,
-  getRecentAttendanceScanFeed,
-} from "@/lib/attendance/recent-scans";
-import { getBranchBookingDriverIds, getDriverNamesByIds } from "@/lib/actions/driver-actions";
+import { getRecentAttendanceScanFeed } from "@/lib/attendance/recent-scans";
+import { getDispatchData, type RealDispatchItem } from "@/lib/queries/dispatch-queries";
 import { getStaffAdminName } from "@/lib/staff/display-name";
 import {
   getCradleFlowStage,
@@ -93,8 +89,10 @@ export type DesktopTodayReadinessIssue = {
 };
 
 export type DesktopTodayReadiness = {
+  available: boolean;
   status: ReadinessStatus;
   issues: DesktopTodayReadinessIssue[];
+  error: string | null;
 };
 
 export type DesktopTodayAttendanceItem = {
@@ -113,6 +111,7 @@ export type DesktopTodayAttendanceItem = {
 };
 
 export type DesktopTodayAttendance = {
+  available: boolean;
   selectedDate: string;
   timezone: string;
   lastHourCount: number;
@@ -130,13 +129,19 @@ export type DesktopTodayNotification = {
   requiresAction: boolean;
 };
 
+export type DesktopTodayNotifications = {
+  available: boolean;
+  items: DesktopTodayNotification[];
+  error: string | null;
+};
+
 export type DesktopTodayData = {
   context: DesktopTodayContext;
   summary: DesktopTodaySummary;
   queue: DesktopTodayQueueItem[];
   readiness: DesktopTodayReadiness;
   attendance: DesktopTodayAttendance;
-  notifications: DesktopTodayNotification[];
+  notifications: DesktopTodayNotifications;
 };
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
@@ -162,7 +167,7 @@ export function assertNoPaymentScopeLeak(payload: unknown, path = ""): void {
 
   if (Array.isArray(payload)) {
     for (let i = 0; i < payload.length; i++) {
-      assertNoPaymentScopeLeak(payload[i], `${path}[${i}]`);
+      assertNoPaymentScopeLeak(payload[i], path ? path + "[" + i + "]" : "[" + i + "]");
     }
     return;
   }
@@ -170,13 +175,146 @@ export function assertNoPaymentScopeLeak(payload: unknown, path = ""): void {
   for (const [key, value] of Object.entries(payload)) {
     if (FORBIDDEN_FINANCIAL_KEYS.has(key)) {
       throw new Error(
-        `Payment scope violation: forbidden financial field "${key}" detected at ${path || "root"}`
+        'Payment scope violation: forbidden financial field "' +
+          key +
+          '" detected at ' +
+          (path || "root")
       );
     }
     if (value && typeof value === "object") {
-      assertNoPaymentScopeLeak(value, path ? `${path}.${key}` : key);
+      assertNoPaymentScopeLeak(value, path ? path + "." + key : key);
     }
   }
+}
+
+/**
+ * Explicitly filter out any payment-scoped or payment-titled issues from
+ * Desktop readiness to maintain strict payment-scope boundary.
+ */
+export function filterDesktopReadinessIssues(
+  issues: DesktopTodayReadinessIssue[]
+): DesktopTodayReadinessIssue[] {
+  return issues.filter((issue) => {
+    // Reject scope === "payment"
+    if (issue.scope === "payment") return false;
+    // Reject issue IDs starting with "payment:"
+    if (issue.id.startsWith("payment:") || issue.id === "payment:unpaid-bookings") return false;
+    // Reject payment action targets
+    if (
+      issue.actionHref.includes("/crm/payments") ||
+      issue.actionHref.includes("/crm/reconciliation")
+    ) {
+      return false;
+    }
+    return true;
+  });
+}
+
+/**
+ * Compute operational readiness projection for Desktop Today using authoritative
+ * client-aware primitives. Does NOT use cookie-based getCrmReadinessCached.
+ */
+export function computeDesktopTodayReadiness(params: {
+  unassignedCount: number;
+  dispatchItems?: RealDispatchItem[] | null;
+  customIssues?: DesktopTodayReadinessIssue[];
+}): DesktopTodayReadiness {
+  const issues: DesktopTodayReadinessIssue[] = [];
+
+  if (params.customIssues && params.customIssues.length > 0) {
+    issues.push(...params.customIssues);
+  }
+
+  // 1. Unassigned bookings check
+  if (params.unassignedCount > 0) {
+    issues.push({
+      id: "daily:unassigned-bookings",
+      scope: "daily",
+      severity: "warning",
+      title:
+        params.unassignedCount +
+        " booking" +
+        (params.unassignedCount > 1 ? "s" : "") +
+        " need staff assignment",
+      problem:
+        "There are " +
+        params.unassignedCount +
+        " confirmed booking(s) today without an assigned staff member.",
+      impact: "Unassigned bookings may experience service delays or remain unfulfilled.",
+      fix: "Assign qualified staff members to pending bookings in the schedule.",
+      actionLabel: "View Schedule",
+      actionHref: "/crm/schedule",
+      count: params.unassignedCount,
+    });
+  }
+
+  // 2. Dispatch / Home service operational readiness checks
+  if (params.dispatchItems && params.dispatchItems.length > 0) {
+    const awaitingDriver = params.dispatchItems.filter(
+      (item) =>
+        !item.driverId && item.bookingStatus !== "cancelled" && item.bookingStatus !== "completed"
+    );
+    if (awaitingDriver.length > 0) {
+      issues.push({
+        id: "dispatch:awaiting-driver",
+        scope: "dispatch",
+        severity: "warning",
+        title:
+          awaitingDriver.length +
+          " home-service booking" +
+          (awaitingDriver.length > 1 ? "s" : "") +
+          " awaiting driver assignment",
+        problem:
+          awaitingDriver.length +
+          " active home-service booking(s) scheduled for today do not have an assigned driver.",
+        impact: "Therapists may not be dispatched on time to customer locations.",
+        fix: "Assign an available driver in Home Service dispatch.",
+        actionLabel: "Open Dispatch",
+        actionHref: "/crm/dispatch",
+        count: awaitingDriver.length,
+      });
+    }
+
+    const needsLocationReview = params.dispatchItems.filter(
+      (item) => item.needsLocationReview && item.bookingStatus !== "cancelled"
+    );
+    if (needsLocationReview.length > 0) {
+      issues.push({
+        id: "dispatch:needs-location-review",
+        scope: "dispatch",
+        severity: "warning",
+        title:
+          needsLocationReview.length +
+          " home-service booking" +
+          (needsLocationReview.length > 1 ? "s" : "") +
+          " need location review",
+        problem:
+          needsLocationReview.length +
+          " home-service booking(s) require destination verification or coordinate confirmation.",
+        impact: "Drivers may be unable to navigate accurately to service destinations.",
+        fix: "Verify delivery address and location coordinates in Home Service.",
+        actionLabel: "Review Location",
+        actionHref: "/crm/dispatch",
+        count: needsLocationReview.length,
+      });
+    }
+  }
+
+  // Strictly filter out any payment issues
+  const sanitizedIssues = filterDesktopReadinessIssues(issues);
+
+  const status: ReadinessStatus = sanitizedIssues.some((i) => i.severity === "critical")
+    ? "critical"
+    : sanitizedIssues.some((i) => i.severity === "warning")
+      ? "warning"
+      : "ok";
+
+  return {
+    available: true,
+    status,
+    issues: sanitizedIssues,
+    error: null,
+  };
 }
 
 // ── Main Loader ───────────────────────────────────────────────────────────────
@@ -188,14 +326,14 @@ export async function getDesktopTodayData(
   const branchId = ctx.me.branch_id;
   const businessDate = getBranchBusinessDate();
 
+  // 1. Critical schedule and booking queries (throw on error)
   const [
     rawBookings,
     pendingQueue,
     dashStats,
     unassignedRes,
-    readinessRaw,
-    driverIdMap,
-    attendanceFeed,
+    dispatchResult,
+    attendanceResult,
     notificationsRes,
   ] = await Promise.all([
     getTodaysSchedule(branchId, businessDate, ctx.supabase),
@@ -208,33 +346,50 @@ export async function getDesktopTodayData(
       .eq("booking_date", businessDate)
       .eq("status", "confirmed")
       .is("staff_id", null),
-    getCrmReadinessCached(branchId).catch(() => null),
-    getBranchBookingDriverIds(branchId, businessDate, ctx.supabase),
+    getDispatchData({
+      branchId,
+      date: businessDate,
+      supabase: ctx.supabase,
+      throwOnError: true,
+    }).then(
+      (data) => ({ ok: true as const, data }),
+      (err) => ({
+        ok: false as const,
+        error: err instanceof Error ? err.message : "Dispatch unavailable",
+      })
+    ),
     getRecentAttendanceScanFeed({
       workspace: "crm",
       branchId,
       branchName,
       selectedDate: businessDate,
       maxItems: 5,
-    }).catch(() =>
-      createAttendanceScanFeedFallback({
-        workspace: "crm",
-        branchId,
-        branchName,
-        selectedDate: businessDate,
-        error: "Attendance activity could not be refreshed.",
+    }).then(
+      (feed) => ({ ok: true as const, feed }),
+      (err) => ({
+        ok: false as const,
+        error: err instanceof Error ? err.message : "Attendance unavailable",
       })
     ),
     ctx.supabase
       .from("workspace_notifications")
-      .select("id, title, body, type, priority, requires_action, created_at, branch_id")
+      .select(
+        "id, title, body, type, priority, requires_action, created_at, branch_id, target_workspace"
+      )
+      .eq("branch_id", branchId)
+      .eq("target_workspace", "crm")
       .eq("requires_action", true)
       .in("status", ["unread", "read"])
       .order("created_at", { ascending: false })
       .limit(20),
   ]);
 
-  // Combine and deduplicate bookings
+  // Critical check: unassigned count query must not fail silently into 0
+  if (unassignedRes.error) {
+    throw new Error("Failed to query unassigned bookings: " + unassignedRes.error.message);
+  }
+
+  // Combine and deduplicate bookings (schedule prioritized over pending queue)
   type RawBookingRow = (typeof rawBookings)[number];
   const bookingsById = new Map<string, RawBookingRow>();
   for (const b of rawBookings) {
@@ -266,9 +421,21 @@ export async function getDesktopTodayData(
     }
   }
 
-  // Driver names
-  const driverIds = [...new Set(Object.values(driverIdMap).filter(Boolean) as string[])];
-  const driverNameMap = await getDriverNamesByIds(driverIds, ctx.supabase);
+  // Authoritative Home Service auxiliary dispatch mapping
+  const dispatchItemMap = new Map<string, RealDispatchItem>();
+  const dispatchAlertMap = new Map<string, string>();
+  const isDispatchAvailable = dispatchResult.ok;
+
+  if (dispatchResult.ok) {
+    for (const item of dispatchResult.data.items) {
+      dispatchItemMap.set(item.id, item);
+    }
+    for (const alert of dispatchResult.data.alerts) {
+      if (alert.bookingId) {
+        dispatchAlertMap.set(alert.bookingId, alert.description);
+      }
+    }
+  }
 
   type ScheduleRowFields = {
     id: string;
@@ -291,19 +458,38 @@ export async function getDesktopTodayData(
     services?: Relation<{ name: string; duration_minutes: number }>;
     staff?: Relation<{ id: string; full_name: string; nickname?: string | null }>;
     branch_resources?: Relation<{ name: string }>;
-    metadata?: Record<string, unknown> | null;
   };
 
   // Build normalized queue
   const queue: DesktopTodayQueueItem[] = sortedBookings.map((raw) => {
     const b = raw as unknown as ScheduleRowFields;
-    const meta = b.metadata as Record<string, unknown> | null;
-    const hsAddr = meta?.home_service_address as Record<string, unknown> | null;
-    const dispatch = meta?.dispatch as Record<string, unknown> | null;
     const isHomeService = b.type === "home_service" || b.delivery_type === "home_service";
-    const driverId = driverIdMap[b.id] ?? null;
-    const driverName = driverId ? (driverNameMap[driverId] ?? null) : null;
     const stage = getCradleFlowStage(b as unknown as CradleFlowBooking);
+
+    // Map Home Service auxiliary context strictly from authoritative dispatch
+    let driverId: string | null = null;
+    let driverName: string | null = null;
+    let noDriverWarning = false;
+    let dispatchWarning: string | null = null;
+    let needsLocationReview = false;
+    let homeServiceAddress: string | null = null;
+
+    if (isHomeService) {
+      if (isDispatchAvailable) {
+        const dItem = dispatchItemMap.get(b.id);
+        driverId = dItem?.driverId ?? null;
+        driverName = dItem?.driverName ?? null;
+        noDriverWarning = !dItem?.driverId;
+        dispatchWarning = dispatchAlertMap.get(b.id) ?? null;
+        needsLocationReview = dItem?.needsLocationReview ?? false;
+        homeServiceAddress = dItem?.formattedAddress ?? null;
+      } else {
+        // When dispatch query fails, DO NOT fabricate noDriverWarning=true
+        noDriverWarning = false;
+        dispatchWarning = "Dispatch context unavailable";
+        needsLocationReview = false;
+      }
+    }
 
     return {
       id: b.id,
@@ -334,11 +520,10 @@ export async function getDesktopTodayData(
       isHomeService,
       driverId,
       driverName,
-      noDriverWarning: isHomeService && !driverId,
-      dispatchWarning:
-        typeof dispatch?.dispatch_warning === "string" ? dispatch.dispatch_warning : null,
-      needsLocationReview: dispatch?.needs_location_review === true,
-      homeServiceAddress: typeof hsAddr?.full_address === "string" ? hsAddr.full_address : null,
+      noDriverWarning,
+      dispatchWarning,
+      needsLocationReview,
+      homeServiceAddress,
     };
   });
 
@@ -376,88 +561,107 @@ export async function getDesktopTodayData(
     homeService,
   };
 
-  // Map readiness truthfully
-  const readiness: DesktopTodayReadiness = readinessRaw
-    ? {
-        status: readinessRaw.status,
-        issues: readinessRaw.issues.map((issue) => ({
-          id: issue.id,
-          scope: issue.scope,
-          severity: issue.severity,
-          title: issue.title,
-          problem: issue.problem,
-          impact: issue.impact,
-          fix: issue.fix,
-          actionLabel: issue.actionLabel,
-          actionHref: issue.actionHref,
-          count: issue.count,
-        })),
-      }
-    : {
-        status: "warning",
-        issues: [
-          {
-            id: "system:readiness-unavailable",
-            scope: "system",
-            severity: "warning",
-            title: "Readiness checks could not be loaded",
-            problem: "Operational readiness status is temporarily unavailable.",
-            impact: "Potential operational warnings may not be displayed.",
-            fix: "Refresh the workspace to retry loading readiness checks.",
-            actionLabel: "Refresh",
-            actionHref: "/crm/today",
-          },
-        ],
-      };
+  // Map readiness truthfully (degradable optional section)
+  let readiness: DesktopTodayReadiness;
+  try {
+    readiness = computeDesktopTodayReadiness({
+      unassignedCount: unassignedRes.count ?? 0,
+      dispatchItems: dispatchResult.ok ? dispatchResult.data.items : null,
+    });
+  } catch (err) {
+    readiness = {
+      available: false,
+      status: "warning",
+      issues: [
+        {
+          id: "system:readiness-unavailable",
+          scope: "system",
+          severity: "warning",
+          title: "Readiness checks could not be loaded",
+          problem: "Operational readiness status is temporarily unavailable.",
+          impact: "Potential operational warnings may not be displayed.",
+          fix: "Refresh the workspace to retry loading readiness checks.",
+          actionLabel: "Refresh",
+          actionHref: "/crm/today",
+        },
+      ],
+      error: err instanceof Error ? err.message : "Readiness checks could not be loaded.",
+    };
+  }
 
-  // Map attendance snapshot
-  const attendance: DesktopTodayAttendance = {
-    selectedDate: attendanceFeed.selectedDate,
-    timezone: attendanceFeed.timezone,
-    lastHourCount: attendanceFeed.lastHourCount,
-    items: attendanceFeed.items.map((item) => ({
-      eventId: item.eventId,
-      staffId: item.staffId,
-      staffName: item.staffName,
-      staffNickname: item.staffNickname,
-      eventType: item.eventType,
-      outcome: item.outcome,
-      reasonCode: item.reasonCode,
-      message: item.message,
-      occurredAt: item.occurredAt,
-      clockInAt: item.clockInAt,
-      clockOutAt: item.clockOutAt,
-      sourceLabel: item.sourceLabel,
-    })),
-    error: attendanceFeed.error,
-  };
+  // Map attendance snapshot truthfully (degradable optional section)
+  let attendance: DesktopTodayAttendance;
+  if (attendanceResult.ok) {
+    const feed = attendanceResult.feed;
+    attendance = {
+      available: !feed.error,
+      selectedDate: feed.selectedDate,
+      timezone: feed.timezone,
+      lastHourCount: feed.lastHourCount,
+      items: feed.items.map((item) => ({
+        eventId: item.eventId,
+        staffId: item.staffId,
+        staffName: item.staffName,
+        staffNickname: item.staffNickname,
+        eventType: item.eventType,
+        outcome: item.outcome,
+        reasonCode: item.reasonCode,
+        message: item.message,
+        occurredAt: item.occurredAt,
+        clockInAt: item.clockInAt,
+        clockOutAt: item.clockOutAt,
+        sourceLabel: item.sourceLabel,
+      })),
+      error: feed.error,
+    };
+  } else {
+    attendance = {
+      available: false,
+      selectedDate: businessDate,
+      timezone: "Asia/Manila",
+      lastHourCount: 0,
+      items: [],
+      error: attendanceResult.error,
+    };
+  }
 
-  // Map notifications
-  const PRIORITY_RANK: Record<string, number> = {
-    urgent: 4,
-    high: 3,
-    medium: 2,
-    low: 1,
-  };
+  // Map notifications truthfully (degradable optional section)
+  let notifications: DesktopTodayNotifications;
+  if (notificationsRes.error) {
+    notifications = {
+      available: false,
+      items: [],
+      error: "Notifications could not be refreshed.",
+    };
+  } else {
+    const PRIORITY_RANK: Record<string, number> = {
+      critical: 4,
+      high: 3,
+      normal: 2,
+      low: 1,
+    };
 
-  const rawNotifications = notificationsRes.data ?? [];
-  const notifications: DesktopTodayNotification[] = rawNotifications
-    .filter((n) => !n.branch_id || n.branch_id === branchId)
-    .sort((a, b) => {
+    const rawNotifications = notificationsRes.data ?? [];
+    const sorted = [...rawNotifications].sort((a, b) => {
       const pDiff = (PRIORITY_RANK[b.priority] ?? 0) - (PRIORITY_RANK[a.priority] ?? 0);
       if (pDiff !== 0) return pDiff;
       return new Date(b.created_at).getTime() - new Date(a.created_at).getTime();
-    })
-    .slice(0, 5)
-    .map((n) => ({
-      id: n.id,
-      title: n.title,
-      body: n.body,
-      type: n.type,
-      priority: n.priority,
-      createdAt: n.created_at,
-      requiresAction: n.requires_action,
-    }));
+    });
+
+    notifications = {
+      available: true,
+      items: sorted.slice(0, 5).map((n) => ({
+        id: n.id,
+        title: n.title,
+        body: n.body,
+        type: n.type,
+        priority: n.priority,
+        createdAt: n.created_at,
+        requiresAction: n.requires_action,
+      })),
+      error: null,
+    };
+  }
 
   const data: DesktopTodayData = {
     context: {
