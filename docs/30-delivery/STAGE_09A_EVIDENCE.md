@@ -1,4 +1,4 @@
-# STAGE 09A — HOSTED TODAY DESKTOP CONTRACT EVIDENCE (CORRECTED)
+# STAGE 09A — HOSTED TODAY DESKTOP CONTRACT EVIDENCE (SECOND CORRECTION)
 
 ## Target
 
@@ -6,7 +6,7 @@ Hosted Today Desktop Contract
 
 ## Stage
 
-09A (Correction Pass)
+09A (Second Correction Pass)
 
 ## Branch
 
@@ -16,35 +16,27 @@ Hosted Today Desktop Contract
 
 `045e9193ae9cac427c13ddf97b053dee34f6ea62`
 
-## Original Implementation Commit
+## HEAD_SHA
 
-`992dba0bee88f102c4ceebe25e0b9a75dbf31579`
+`b07252c0228bb0ec730f944087d1eee1fad5aef8`
 
-## Previous Remote HEAD
+## Commit History
 
-`5d3ec123cc3547eff592fadf90c89fc318d947f6`
+- **Original Implementation**: `992dba0bee88f102c4ceebe25e0b9a75dbf31579`
+- **First Correction**: `2036da9aa3dfbc21729a6f9efcdc5d9b91055cde`
+- **Second Correction (Tested Implementation HEAD)**: `b07252c0228bb0ec730f944087d1eee1fad5aef8`
 
-## Corrected Tested Implementation HEAD
-
-`2036da9aa3dfbc21729a6f9efcdc5d9b91055cde`
-
-## Final Remote HEAD
-
-_(Assigned upon documentation commit and push)_
-
-### HEAD Convention Explanation
-
-`2036da9aa3dfbc21729a6f9efcdc5d9b91055cde` is the functional implementation commit verified by all test suites, TypeScript typecheck, ESLint, Prettier, and Next.js production build. The subsequent commit updates this delivery documentation in `docs/30-delivery/STAGE_09A_EVIDENCE.md`.
+_(Following documentation-only commit does not alter tested implementation. Final remote HEAD is recorded in the delivery handoff)._
 
 ---
 
 ## Exact Changed Files
 
-### Core Endpoints & Types
+### Core Endpoints & Contract Types
 
 - `src/app/api/desktop/v1/today/route.ts` — GET handler for Today workspace snapshot.
 - `src/app/api/desktop/v1/today/mutations/route.ts` — POST handler for Today operational mutations.
-- `src/lib/today/desktop-today-contract.ts` — Authoritative Desktop Today data loader, contract types, client-aware readiness projection, Home Service dispatch mapping, and payment scope guards.
+- `src/lib/today/desktop-today-contract.ts` — Authoritative Desktop Today data loader, contract types (including `dispatchContextAvailable`), client-aware readiness projection, Home Service dispatch mapping, database-level dormant notification filtering, and payment scope guards.
 
 ### Shared Operations & Queries
 
@@ -55,8 +47,8 @@ _(Assigned upon documentation commit and push)_
 
 ### Focused Tests
 
-- `src/app/api/desktop/v1/today/route.test.ts` — 23 tests verifying bearer auth, server-resolved branch, server-resolved business date, queue sorting, readiness projection without cookie auth, payment scope exclusion, notification scoping, critical vs optional failure semantics, authoritative Home Service context, and Cache-Control.
-- `src/app/api/desktop/v1/today/mutations/route.test.ts` — 14 tests verifying bearer auth, branch boundary, mutation actions, Home Service exclusions, idempotency, and payment mutation rejection.
+- `src/app/api/desktop/v1/today/route.test.ts` — 27 unit tests verifying bearer auth, server-resolved branch, server-resolved business date, queue sorting, resource query error handling, readiness projection without cookie auth, dispatch failure degraded readiness, payment readiness exclusion, future Home Service missing dispatch item semantics, today Home Service missing dispatch item semantics, authoritative null driver semantics, notification database predicates (branch, workspace, requires_action, unread/read, dormant exclusion), critical unassigned count failure semantics, today stage-count boundary semantics, closed booking semantics, and Cache-Control.
+- `src/app/api/desktop/v1/today/mutations/route.test.ts` — 14 unit tests verifying bearer auth, branch boundary, mutation actions, Home Service exclusions, idempotency, and payment mutation rejection.
 
 ---
 
@@ -115,6 +107,7 @@ _(Assigned upon documentation commit and push)_
         "createdAt": "string (ISO) | null",
         "stage": "waiting | in_service | ready_to_pay | completed | null",
         "isHomeService": true,
+        "dispatchContextAvailable": "boolean | null",
         "driverId": "string | null",
         "driverName": "string | null",
         "noDriverWarning": false,
@@ -186,106 +179,69 @@ _(Assigned upon documentation commit and push)_
 
 ---
 
-## Authoritative Business Logic & Semantics
+## Authoritative Business Logic & Second-Correction Truth Semantics
 
-### Business-Date Authority
+### 1. Resource Lookup Error Handling
 
-Today business date is server-resolved through `getBranchBusinessDate()`, using the canonical `BRANCH_TIMEZONE` currently set to `Asia/Manila`.
+The `branch_resources` query now inspects `resourceError`. If an error occurs, it is thrown, causing `GET /today` to fail truthfully with a 500 error instead of silently returning fake `resourceName: null`.
 
-- The renderer's Windows clock is NOT used.
-- No client-supplied date query parameter is accepted.
-- No arbitrary date parameter is supported.
+### 2. Truthful Readiness Partial Failure
 
-### Auth Model & Branch Authority
+- When `getDispatchData` succeeds, `readiness.available = true`.
+- When `getDispatchData` fails, `readiness.available = false` is strictly enforced, an explicit `system:dispatch-readiness-unavailable` issue is added, and `readiness.error` reports that dispatch readiness could not be refreshed.
+- Readiness does not depend on cookie-session authentication. It operates purely using the bearer client context and authoritative data sources.
+- Strict payment readiness exclusion: `filterDesktopReadinessIssues` strips any issue with `scope === "payment"`, ID prefix `payment:`, or payment/reconciliation URLs (including `payment:unpaid-bookings`).
 
-- Authenticated via `verifyDesktopBearerAuth(request)`.
-- The authenticated operator's `branch_id` is extracted server-side from active staff credentials.
-- The renderer cannot supply, override, or spoof `branchId` or `branch_id`.
-- Branch existence is verified against the database.
+### 3. Home Service Dispatch Context Availability & Semantics
 
-### Role Permissions
+The new `dispatchContextAvailable` field in `DesktopTodayQueueItem` has the following authoritative semantics:
 
-Authoritative check: `canAccessCrmWorkspace(role)`.
-The canonical CRM roles supported by source (`CRM_WORKSPACE_ROLES` in `src/lib/auth/crm-permissions.ts`) are:
+- `null`: The booking is not a Home Service booking (`isHomeService === false`).
+- `true`: The booking is a Home Service booking and an authoritative matching dispatch item was loaded for this booking.
+- `false`: The booking is a Home Service booking, but authoritative dispatch context was not available for that booking (e.g. future pending booking for tomorrow, booking unindexed for the date, or dispatch query failed).
 
-- `owner`
-- `manager`
-- `assistant_manager`
-- `store_manager`
-- Front-desk aliases canonicalized to `crm`: `crm`, `csr`, `csr_head`, `csr_staff`
+**Driver Warning Rule**:
 
-Non-CRM roles (`staff`, `driver`, `utility`, `service_head`, `service_staff`, `digital_marketer`) are rejected with 403 Forbidden.
+- `noDriverWarning` is set to `true` **ONLY** when `dispatchContextAvailable === true` AND authoritative `dItem.driverId === null`.
+- When `dispatchContextAvailable === false`, `noDriverWarning = false`, `driverId = null`, `driverName = null`, `needsLocationReview = false`, and `dispatchWarning` reports a truthful unavailable message (e.g. `"Dispatch context not loaded for future date"` or `"Dispatch context unavailable"`).
+- It NEVER fabricates a "No Driver Assigned" warning for unindexed or future bookings.
 
-### Readiness Auth Correction & Payment Exclusion
+### 4. Database-Level Dormant Notification Filtering
 
-1. **No Cookie-Session Auth**: Desktop Today readiness projection does not import or invoke `getCrmReadinessCached()` or any function depending on `createClient()` from `src/lib/supabase/server.ts`. It operates purely within the bearer-authenticated `ctx.supabase` context.
-2. **Strict Payment Scope Exclusion**:
-   - Filtered via `filterDesktopReadinessIssues`: rejects any issue where `issue.scope === "payment"`, `issue.id.startsWith("payment:")`, or `actionHref` points to payment/reconciliation URLs.
-   - Specifically guarantees that `payment:unpaid-bookings` and payment-review warnings never reach Desktop Today.
-3. **Operational Issues Projected**:
-   - `daily:unassigned-bookings`: Emitted when confirmed bookings today have no assigned staff.
-   - `dispatch:awaiting-driver`: Emitted when active home-service bookings have no assigned driver.
-   - `dispatch:needs-location-review`: Emitted when home-service bookings require address or location coordinate verification.
-
-### Notification Scoping & Authority
-
-The database query itself enforces scoping BEFORE ordering and limit:
+The notification query in `src/lib/today/desktop-today-contract.ts` applies strict dormant-scope exclusion in the database query **before** ordering and limiting:
 
 - `.eq("branch_id", branchId)`
 - `.eq("target_workspace", "crm")`
 - `.eq("requires_action", true)`
 - `.in("status", ["unread", "read"])`
+- `.not("type", "in", "(payment_pending,payment_overdue,reconciliation_submitted,marketing_content_updated)")`
 - `.order("created_at", { ascending: false })`
 - `.limit(20)`
 
-Non-CRM workspaces (`driver`, `staff`, `owner`, `utility`) and other branches are excluded in the database query. Query errors degrade truthfully to `{ available: false, items: [], error: "Notifications could not be refreshed." }` rather than falsely masquerading as "zero notifications".
+This guarantees that dormant payment, reconciliation, and marketing notifications never consume the result limit.
 
-### Critical vs. Optional Dependency Failure Semantics
+### 5. Today Operational Stage Count Semantics
 
-- **Critical Dependencies**:
-  - `getTodaysSchedule`, `getCrmPendingBookingQueue`, `getManagerDashboardStats`, and the `unassigned` count query are critical to operational truth.
-  - If any of these queries fail (including `unassignedRes.error`), `GET /api/desktop/v1/today` throws and fails truthfully with 500 SERVER_ERROR.
-  - It does NOT convert database errors into fake zeros (`unassigned = 0`) or empty queue (`queue: []`).
-- **Optional / Degradable Sections**:
-  - `readiness`: if computation fails, returns `available: false`, `status: "warning"`, and a fallback error issue.
-  - `attendance`: if feed query fails, returns `available: false` and preserves the error message.
-  - `notifications`: if query fails, returns `available: false` and `items: []`.
-  - Home Service auxiliary dispatch: if `getDispatchData` fails, home-service queue items retain `isHomeService: true`, set `noDriverWarning: false` (does NOT fabricate false "no driver" alerts), and report `dispatchWarning: "Dispatch context unavailable"`.
+Summary stage counts (`waiting`, `inService`, `readyToPay`, `completedService`, `homeService`) are calculated **strictly for today's operations** (`item.bookingDate === businessDate`). Future pending bookings remain present in the `queue` for operator situational awareness, but do not inflate Today's operational stage metrics.
 
-### Home Service Integration
+### 6. Closed Booking Semantics
 
-- Authoritative Home Service context is sourced from `getDispatchData({ branchId, date, supabase: ctx.supabase, throwOnError: true })`.
-- Exposes: `isHomeService`, `driverId`, `driverName`, `noDriverWarning`, `dispatchWarning`, `needsLocationReview`, `homeServiceAddress`.
-- Excludes: Continuous live GPS tracking, route coordinates, fake ETA, and raw metadata blobs.
+Today's schedule includes closed bookings (such as `status = 'cancelled'` or `status = 'no_show'`). In accordance with `getCradleFlowStage(b)`, closed bookings map to `stage: null`. They are preserved in the queue with their true status and `stage: null`.
 
-### Queue Membership Rule
+### 7. Attendance Auth Boundary
 
-- Combines `getTodaysSchedule(branchId, businessDate)` and `getCrmPendingBookingQueue(branchId, businessDate)`.
-- Excludes cancelled bookings (`status = 'cancelled'`).
-- Deduplicates by `bookingId` (today's schedule takes precedence).
-- Sorted by `bookingDate ASC, startTime ASC`.
+- The Desktop Today endpoint is authenticated via Desktop bearer token (`verifyDesktopBearerAuth`).
+- The branch ID is extracted from authenticated Desktop staff credentials and passed to the server-side attendance helper (`getRecentAttendanceScanFeed`).
+- Privileged server-side credentials remain internal to the server; no privileged secrets or service-role keys are exposed to the client or renderer.
 
----
+### 8. Authoritative Mutations & RPCs
 
-## Operational Mutations
+Mutations in `src/app/api/desktop/v1/today/mutations/route.ts` strictly delegate to verified shared business operations:
 
-- **Endpoint**: `POST /api/desktop/v1/today/mutations`
-- **Authorized Actions**:
-  1. `confirm_booking` — Validates confirmable status, transitions to `confirmed`, creates audit log.
-  2. `mark_arrived` — Validates `type !== 'home_service'`, sets arrival timestamp, creates check-in notification.
-  3. `start_service` — Validates `type !== 'home_service'`, sets `session_started_at` idempotently, transitions `pending` -> `confirmed`.
-  4. `complete_service` — Sets `session_completed_at`, updates status to `completed` (if not already paid/completed), calls `update_branch_daily_summary` RPC, records audit log.
-- **Shared Implementation**: Reuses extracted server operations from `src/lib/bookings/crm-booking-operations.ts` with zero duplicate business logic.
-- **Excluded Mutations**: Payment collection/updating/confirmation, rescheduling, cancellation, therapist assignment, and dispatch mutations.
-
----
-
-## Payment Scope Guard Verification
-
-- **Excluded Fields**: `total_collected`, `total_expected`, `total_unpaid`, `by_method`, `amount_paid`, `price_paid`, `payment_reference`.
-- **Excluded Actions**: `collect_payment`, `confirm_payment`, `update_payment`.
-- **Runtime Guard**: `assertNoPaymentScopeLeak` recursively scans outgoing response JSON.
-- **Readiness Filter**: `filterDesktopReadinessIssues` strips all payment-scoped issues.
+- `confirm_booking`: Validates status in `CONFIRMABLE_STATUSES`, sets `status = 'confirmed'`, records audit log.
+- `mark_arrived`: Validates `type !== 'home_service'`, rejects closed bookings, sets `checked_in_at`, creates notification.
+- `start_service`: Validates `type !== 'home_service'`, calls stored procedure `start_booking_service_session` RPC.
+- `complete_service`: Sets `session_completed_at`, marks status as completed if appropriate, calls `update_branch_daily_summary` RPC, records audit log.
 
 ---
 
@@ -293,10 +249,10 @@ Non-CRM workspaces (`driver`, `staff`, `owner`, `utility`) and other branches ar
 
 1. **Vitest Unit Tests**:
    - Command: `pnpm test run src/app/api/desktop/v1/today`
-   - Result: **37 passed** (23 in `route.test.ts`, 14 in `mutations/route.test.ts`).
+   - Result: **41 passed** (27 in `route.test.ts`, 14 in `mutations/route.test.ts`).
 2. **Full Desktop & Auth Regression Test Suite**:
    - Command: `pnpm test run src/app/api/desktop tests/api/desktop-v1-home-service-operations.test.ts tests/api/desktop-v1-home-service-reads.test.ts tests/api/desktop-v1-bookings.test.ts tests/api/desktop-v1-customers.test.ts tests/api/desktop-v1-schedule.test.ts tests/lib/auth/desktop-bearer-auth.test.ts tests/lib/bookings/inhouse-booking-engine-auth.test.ts`
-   - Result: **295 passed across 14 test files** (0 failures).
+   - Result: **299 passed across 14 test files** (0 failures).
 3. **TypeScript Compilation**:
    - Command: `pnpm run type-check` (`tsc --noEmit`)
    - Result: **0 errors**.
@@ -304,11 +260,11 @@ Non-CRM workspaces (`driver`, `staff`, `owner`, `utility`) and other branches ar
    - Command: `pnpm run lint "src/lib/today/desktop-today-contract.ts" "src/app/api/desktop/v1/today/route.test.ts"`
    - Result: **0 errors, 0 warnings**.
 5. **Prettier Formatting**:
-   - Command: `pnpm exec prettier --check "src/lib/today/desktop-today-contract.ts" "src/app/api/desktop/v1/today/route.test.ts"`
+   - Command: `pnpm exec prettier --check "src/lib/today/desktop-today-contract.ts" "src/app/api/desktop/v1/today/route.test.ts" "docs/30-delivery/STAGE_09A_EVIDENCE.md"`
    - Result: **All matched files use Prettier code style**.
 6. **Next.js Production Build**:
    - Command: `pnpm run build` (`next build`)
-   - Result: **Compiled successfully in 44s**, static generation completed (128/128), routes `/api/desktop/v1/today` and `/api/desktop/v1/today/mutations` compiled dynamically with exit code 0.
+   - Result: **Compiled successfully in 34s**, static generation completed (128/128), dynamic routes `/api/desktop/v1/today` and `/api/desktop/v1/today/mutations` compiled dynamically with exit code 0.
 7. **Git Diff Check**:
    - Command: `git diff --check`
    - Result: **0 errors**.
@@ -317,19 +273,7 @@ Non-CRM workspaces (`driver`, `staff`, `owner`, `utility`) and other branches ar
 
 ## Security & Data Impact
 
-- **Bearer Authentication**: Required on all Today Desktop endpoints; no browser cookie reliance.
-- **Branch Isolation**: Always server-resolved; renderer query parameters ignored.
-- **RLS & Database Schema**: Zero database migrations, zero schema alterations, zero RLS policies disabled.
-- **Secrets Protection**: No service role key or internal credentials exposed to the renderer.
-- **Payment Boundary**: Strict exclusion of dormant finance and payment capabilities.
-
----
-
-## Limitations & Rollback
-
-- **Limitations**:
-  - Realtime subscriptions remain on hosted web; Desktop Today contract provides snapshot queries with explicit refresh.
-  - Payment settlement must be managed via the hosted web interface.
-  - Home Service dispatch planning and driver assignment remain in the dedicated Home Service module.
-- **Rollback**:
-  - Reset branch to accepted base SHA `045e9193ae9cac427c13ddf97b053dee34f6ea62`.
+- **Bearer Auth Enforced**: All Desktop Today endpoints require valid Bearer token auth; zero cookie reliance.
+- **Branch Boundary**: Authenticated branch is strictly resolved server-side.
+- **Zero Schema Alterations**: Zero migrations, zero DDL, zero schema mutations.
+- **Dormant Payment Scope**: Zero financial amounts or payment actions exposed.
