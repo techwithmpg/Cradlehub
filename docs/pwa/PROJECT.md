@@ -4,13 +4,14 @@
 
 - Program: **OWNER APPROVED**, by explicit owner instruction on 2026-09-11.
 - Repository: `techwithmpg/Cradlehub`; target: the existing Web application / Staff Portal.
-- Authorized stage: **PWA-C2 — Structured Diagnostics only**.
+- Authorized stage: **PWA-C3 — Final Scope Freeze only**.
 - PWA-C1 was accepted and merged into `main` at `ed8ae75d2d6fc9f3b8144dcabbe014f676e83a99`.
-- PWA-C2 deliverable: read-only structured diagnostics from a fresh branch based on that accepted main.
-- Delivery status: see [PWA-C2 diagnostics](PWA-C2-STRUCTURED-DIAGNOSTICS.md) and [PWA-C2 handoff](PWA-C2-HANDOFF.md).
-- No implementation, schema/database change, migration, production mutation, or PWA-C3+ work is authorized.
+- PWA-C2 was accepted at the C2/main baseline `2b927303d2d6bc10b09a15f2542fdcfa6c066194`.
+- PWA-C3 deliverable: documentation-only final scope and contract freeze on `stage/pwa-c3-final-scope-freeze`.
+- Delivery status: see [PWA-C3 scope freeze](PWA-C3-FINAL-SCOPE-FREEZE.md) and [PWA-C3 handoff](PWA-C3-HANDOFF.md).
+- No runtime implementation, UI redesign, schema/database change, migration, production mutation, merge, or PWA-C4+ work is authorized.
 
-The owner-approved product direction is supplied and recorded below. The external-review correction request requires its durable preservation in C1. Exact engineering contracts remain deferred to PWA-C3/C4: permission matrices, endpoint/payload contracts, eligibility rules, tracking cadence, recovery behavior and measurable acceptance criteria must not be invented here. Product approval is not evidence that the current implementation satisfies these constraints.
+The owner-approved product direction is supplied and recorded below. PWA-C3 freezes the V1 boundary, source-of-truth rules, authorization rules, conceptual navigation, and later verification gates. UI layout and interaction detail remain for PWA-C4. Product approval and a C3 freeze are not evidence that the current implementation satisfies these constraints.
 
 This is a distinct workstream within controlled Web stabilization. `PWA-C1` is not the earlier Web/Marketing `C1`. Existing Marketing decisions remain recorded; this task does not continue, close, or expand that workstream. Apply the authority order in [AI context](../../AI_CONTEXT.md) and [decision log](../11-DECISION-LOG.md), with the latest explicit owner instruction first.
 
@@ -82,8 +83,8 @@ All constraints in this section are supplied product decisions, not claims of cu
 | Stage | Name | Execution authorization |
 | --- | --- | --- |
 | PWA-C1 | Current-System Truth | Closed / accepted at `ed8ae75d2d6fc9f3b8144dcabbe014f676e83a99` |
-| PWA-C2 | Structured Diagnostics | Authorized; deliver read-only diagnostics and stop |
-| PWA-C3 | Final Scope Freeze | Not authorized |
+| PWA-C2 | Structured Diagnostics | Closed / accepted at `2b927303d2d6bc10b09a15f2542fdcfa6c066194` |
+| PWA-C3 | Final Scope Freeze | Active on `stage/pwa-c3-final-scope-freeze`; documentation only |
 | PWA-C4 | UI/UX Specification | Not authorized |
 | PWA-C5 | Shared Foundation | Not authorized |
 | PWA-C6 | Intelligent Scanner | Not authorized |
@@ -133,3 +134,5 @@ Substantial handoffs follow [the active handoff protocol](../10-HANDOFF-PROTOCOL
 - [PWA-C1 status and handoff](PWA-C1-HANDOFF.md)
 - [PWA-C2 structured diagnostics](PWA-C2-STRUCTURED-DIAGNOSTICS.md)
 - [PWA-C2 status and handoff](PWA-C2-HANDOFF.md)
+- [PWA-C3 final scope freeze](PWA-C3-FINAL-SCOPE-FREEZE.md)
+- [PWA-C3 status and handoff](PWA-C3-HANDOFF.md)

@@ -8,13 +8,13 @@
 
 ## CradleHub Staff PWA — current task authorization (2026-09-12)
 
-- Program: **OWNER APPROVED**; current task: **PWA-C2 — Structured Diagnostics ONLY**.
-- Accepted PWA-C1 merge baseline: `ed8ae75d2d6fc9f3b8144dcabbe014f676e83a99`.
-- Dedicated branch: `stage/pwa-c2-structured-diagnostics`.
-- PWA-C2 is read-only diagnostics from a fresh branch off accepted main. **PWA-C3 and later stages, feature implementation, database/migration changes and production mutation are not authorized.**
-- [PWA project governance and roadmap](docs/pwa/PROJECT.md), [C1 truth map](docs/pwa/PWA-C1-TRUTH-MAP.md), [C2 diagnostics](docs/pwa/PWA-C2-STRUCTURED-DIAGNOSTICS.md), and [C2 handoff/status](docs/pwa/PWA-C2-HANDOFF.md) are active PWA governance references.
+- Program: **OWNER APPROVED**; current task: **PWA-C3 — Final Scope Freeze**.
+- Accepted C2/main baseline: `2b927303d2d6bc10b09a15f2542fdcfa6c066194`.
+- Dedicated branch: `stage/pwa-c3-final-scope-freeze`.
+- PWA-C3 is scope-definition and contract-freeze work only. **Runtime implementation, UI redesign, database/migration changes, production mutation, merge, PWA-C4 and later stages are not authorized.**
+- [PWA project governance and roadmap](docs/pwa/PROJECT.md), [C1 truth map](docs/pwa/PWA-C1-TRUTH-MAP.md), [C2 diagnostics](docs/pwa/PWA-C2-STRUCTURED-DIAGNOSTICS.md), [C2 handoff/status](docs/pwa/PWA-C2-HANDOFF.md), and [C3 scope freeze/handoff](docs/pwa/PWA-C3-FINAL-SCOPE-FREEZE.md) are active PWA governance references.
 - This is a separate workstream from the historical Web/Marketing C1-C5 sequence below. The inherited Marketing status and authorization paragraphs conflict; they are not authorization to perform Marketing work in this task. No Marketing acceptance/closeout is inferred here.
-- All repository claims about production must be labelled **REPOSITORY-RECORDED PRODUCTION EVIDENCE**; PWA-C1 and PWA-C2 performed no live production/device/database verification.
+- All repository claims about production must be labelled **REPOSITORY-RECORDED PRODUCTION EVIDENCE**; PWA-C1, PWA-C2 and PWA-C3 perform no live production/device/database verification.
 
 ## Accepted governance anchor
 

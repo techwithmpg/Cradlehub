@@ -44,4 +44,19 @@ PWA-C2 structured diagnostics — 2026-09-12. These entries record source-backed
 | PWA-C2-011 | OPEN / P2 | Google Maps script/key/readiness and geolocation dependencies have no real-device/provider evidence. |
 | PWA-C2-012 | BLOCKED BY APPROVED SCOPE | Utility remains a role-gated Coming Soon surface; no speculative Utility backend is authorized. |
 
+## Staff PWA scope-freeze decisions — 2026-09-12
+
+PWA-C3 converts the accepted C1/C2 evidence into scope decisions; these entries are not runtime verification and do not authorize fixes.
+
+| ID | Status | Evidence and implication |
+| --- | --- | --- |
+| PWA-C3-001 | FROZEN / V1 | Branch-day operational work uses the canonical CRM branch-business-date concept; C3 does not alter date utilities. |
+| PWA-C3-002 | FROZEN / CONTRACT GATE | Attendance remains server-authoritative with multiple preserved paths; C4 must define command, read-side effect, audit and reconciliation boundaries. |
+| PWA-C3-003 | FROZEN / DEVICE GATE | Driver is map-centered and trip-scoped; continuous/background delivery remains **UNPROVEN — REAL DEVICE TEST REQUIRED**. |
+| PWA-C3-004 | FROZEN / NAVIGATION | Dedicated `/driver` owns Driver V1; Staff Portal access is not broadened to preserve conflicting links. |
+| PWA-C3-005 | FROZEN / V1 | One server-resolved Scan action is in V1; camera implementation follows the C4/C6 contract. |
+| PWA-C3-006 | GATED / SECURITY | Push subscription ownership and deployed RLS remain a later security/reliability gate. |
+| PWA-C3-007 | FROZEN / ONLINE-FIRST | Operational mutations require server confirmation; failed offline mutations are not recorded and must not appear successful. |
+| PWA-C3-008 | BLOCKED / OUT OF SCOPE | Utility has no invented task-management backend; only proven role-aware surfaces may proceed. |
+
 This register contains governance, repository, and stage-evidenced environment risks. Historical reports still require current evidence before promotion.
