@@ -58,7 +58,13 @@ The final remote HEAD is reported in the return handoff after push.
 
 ### E — Changed files
 
-The correction will remain documentation-only. Changed paths are this handoff, [the C2 diagnostic report](PWA-C2-STRUCTURED-DIAGNOSTICS.md), and the stale C1 status framing in `PWA-C1-TRUTH-MAP.md`. The active governance/status pointers were already registered in the first C2 artifact. Runtime source, tests, dependencies, assets, SQL, migrations, environment settings, Auth/RLS/Storage policy, deployment configuration and production data remain unchanged.
+Correction Pass 2 changed exactly:
+
+- `docs/12-KNOWN-ISSUES-REGISTER.md`
+- `docs/pwa/PWA-C2-HANDOFF.md`
+- `docs/pwa/PWA-C2-STRUCTURED-DIAGNOSTICS.md`
+
+The cumulative PWA-C2 stage remains documentation-only (including historical C1 status framing in `docs/pwa/PWA-C1-TRUTH-MAP.md` and governance pointers in `AI_CONTEXT.md`, `docs/11-DECISION-LOG.md`, `docs/13-PROJECT-STATUS.md`, and `docs/pwa/PROJECT.md`). No runtime source, tests, dependencies, assets, SQL, migrations, schema, environment settings, Auth/RLS/Storage policy, deployment configuration, or production data changed.
 
 ### F — P0/P1/P2/P3 findings
 

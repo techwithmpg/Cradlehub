@@ -65,7 +65,7 @@ No C2 runtime code or tests changed, so no new application test result is claime
 
 ## C2 disposition
 
-PWA-C2 is complete as a source-only structured diagnostic. The findings are inputs to a separately authorized scope/design stage; they are not implementation authorization. PWA-C3 remains **NOT AUTHORIZED** until the owner explicitly advances the workstream.
+The PWA-C2 diagnostic content is complete for external re-review. The stage itself remains **NOT ACCEPTED / NOT MERGED** until external review passes and the owner explicitly confirms it. The findings are inputs to a separately authorized scope/design stage; they are not implementation authorization. PWA-C3 remains **NOT AUTHORIZED** until the owner explicitly advances the workstream.
 
 ## Attendance mutation map
 
