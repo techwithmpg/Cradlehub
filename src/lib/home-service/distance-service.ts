@@ -84,11 +84,7 @@ export async function calculateHomeServiceDistanceQuote(params: {
       .eq("id", params.branchId)
       .eq("is_active", true)
       .maybeSingle(),
-    admin
-      .from("branch_booking_rules")
-      .select("*")
-      .eq("branch_id", params.branchId)
-      .maybeSingle(),
+    admin.from("branch_booking_rules").select("*").eq("branch_id", params.branchId).maybeSingle(),
   ]);
 
   if (branchError || !branchData) {
@@ -123,8 +119,7 @@ export async function calculateHomeServiceDistanceQuote(params: {
   );
   const distanceSource: HomeServiceDistanceSource =
     googleDistanceKm === null ? "haversine_estimate" : "google_driving";
-  const distanceKm =
-    googleDistanceKm ?? haversineDistanceKm(origin, params.destination);
+  const distanceKm = googleDistanceKm ?? haversineDistanceKm(origin, params.destination);
   const extraKm = calculateExtraDistanceKm(distanceKm, freeKm);
   const travelFee = calculateHomeServiceTravelFee(distanceKm, freeKm, feePerExtraKm);
 
@@ -167,13 +162,16 @@ export function buildHomeServicePricingBreakdown(params: {
   };
 }
 
-export async function getHomeServiceBranchRouteOrigin(branchId: string): Promise<{
+export async function getHomeServiceBranchRouteOrigin(
+  branchId: string,
+  options?: { client?: ReturnType<typeof createAdminClient>; throwOnError?: boolean }
+): Promise<{
   branchId: string;
   branchName: string;
   lat: number;
   lng: number;
 } | null> {
-  const admin = createAdminClient();
+  const admin = options?.client ?? createAdminClient();
 
   const { data: branchData, error } = await admin
     .from("branches")
@@ -182,6 +180,7 @@ export async function getHomeServiceBranchRouteOrigin(branchId: string): Promise
     .eq("is_active", true)
     .maybeSingle();
 
+  if (error && options?.throwOnError) throw error;
   if (error || !branchData) return null;
 
   const branch = branchData as unknown as BranchDistanceRow;
@@ -195,5 +194,3 @@ export async function getHomeServiceBranchRouteOrigin(branchId: string): Promise
     lng: origin.lng,
   };
 }
-
-

@@ -9,9 +9,10 @@ import { createClient } from "@/lib/supabase/server";
  */
 export async function computeEndTime(
   startTime: string, // "HH:MM" or "HH:MM:SS"
-  serviceId: string
+  serviceId: string,
+  client?: Awaited<ReturnType<typeof createClient>>
 ): Promise<string> {
-  const supabase = await createClient();
+  const supabase = client ?? (await createClient());
 
   const { data, error } = await supabase.rpc("compute_booking_end_time", {
     p_start_time: startTime,

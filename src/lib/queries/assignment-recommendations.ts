@@ -1,3 +1,10 @@
+import type { SupabaseClient } from "@supabase/supabase-js";
+import type { Database } from "@/types/supabase";
+export type RecommendationQueryOptions = {
+  supabase?: SupabaseClient<Database>;
+  throwOnError?: boolean;
+  branchId?: string;
+};
 import { createClient } from "@/lib/supabase/server";
 import type {
   RecommendationContext,
@@ -40,17 +47,20 @@ export type ServiceForRecommendation = {
 // ── Booking fetch ──────────────────────────────────────────────────────────────
 
 export async function getBookingForRecommendation(
-  bookingId: string
+  bookingId: string,
+  options: RecommendationQueryOptions = {}
 ): Promise<BookingForRecommendation | null> {
-  const supabase = await createClient();
-  const { data, error } = await supabase
+  const supabase = options.supabase ?? (await createClient());
+  const query = supabase
     .from("bookings")
     .select(
       "id, branch_id, booking_date, start_time, end_time, delivery_type, type, staff_id, driver_id, service_id, metadata"
     )
-    .eq("id", bookingId)
-    .single();
+    .eq("id", bookingId);
+  if (options.branchId) query.eq("branch_id", options.branchId);
+  const { data, error } = await (options.throwOnError ? query.maybeSingle() : query.single());
 
+  if (error && options.throwOnError) throw error;
   if (error || !data) return null;
 
   return {
@@ -71,16 +81,18 @@ export async function getBookingForRecommendation(
 // ── Service fetch ──────────────────────────────────────────────────────────────
 
 export async function getServiceForRecommendation(
-  serviceId: string | null
+  serviceId: string | null,
+  options: RecommendationQueryOptions = {}
 ): Promise<ServiceForRecommendation | null> {
   if (!serviceId) return null;
-  const supabase = await createClient();
+  const supabase = options.supabase ?? (await createClient());
   const { data, error } = await supabase
     .from("services")
     .select("id, name, duration_minutes, service_categories ( name )")
     .eq("id", serviceId)
     .single();
 
+  if (error && options.throwOnError) throw error;
   if (error || !data) return null;
 
   const categoryName = (() => {
@@ -99,11 +111,16 @@ export async function getServiceForRecommendation(
 
 // ── Staff list ─────────────────────────────────────────────────────────────────
 
-export async function getBranchStaffForScoring(branchId: string): Promise<StaffForScoring[]> {
-  const supabase = await createClient();
+export async function getBranchStaffForScoring(
+  branchId: string,
+  options: RecommendationQueryOptions = {}
+): Promise<StaffForScoring[]> {
+  const supabase = options.supabase ?? (await createClient());
   const { data, error } = await supabase
     .from("staff")
-    .select("id, full_name, staff_type, system_role, tier, is_active, branch_id, archived_at, merged_into_staff_id, metadata")
+    .select(
+      "id, full_name, staff_type, system_role, tier, is_active, branch_id, archived_at, merged_into_staff_id, metadata"
+    )
     .eq("branch_id", branchId)
     .eq("is_active", true)
     .is("archived_at", null)
@@ -132,11 +149,12 @@ export async function getBranchStaffForScoring(branchId: string): Promise<StaffF
 
 export async function getStaffServicesForScoring(
   serviceId: string | null,
-  staffIds: string[]
+  staffIds: string[],
+  options: RecommendationQueryOptions = {}
 ): Promise<StaffServiceMapping[]> {
   if (!serviceId || staffIds.length === 0) return [];
 
-  const supabase = await createClient();
+  const supabase = options.supabase ?? (await createClient());
   const { data, error } = await supabase
     .from("staff_services")
     .select("staff_id, service_id")
@@ -151,14 +169,17 @@ export async function getStaffServicesForScoring(
 
 export async function getStaffSchedulesForScoring(
   staffIds: string[],
-  dayOfWeek: number
+  dayOfWeek: number,
+  options: RecommendationQueryOptions = {}
 ): Promise<ScheduleForScoring[]> {
   if (staffIds.length === 0) return [];
 
-  const supabase = await createClient();
+  const supabase = options.supabase ?? (await createClient());
   const { data, error } = await supabase
     .from("staff_schedules")
-    .select("id, staff_id, day_of_week, start_time, end_time, is_active, shift_type, window_order, ends_next_day")
+    .select(
+      "id, staff_id, day_of_week, start_time, end_time, is_active, shift_type, window_order, ends_next_day"
+    )
     .eq("day_of_week", dayOfWeek)
     .eq("is_active", true)
     .in("staff_id", staffIds);
@@ -171,11 +192,12 @@ export async function getStaffSchedulesForScoring(
 
 export async function getScheduleOverridesForScoring(
   staffIds: string[],
-  date: string
+  date: string,
+  options: RecommendationQueryOptions = {}
 ): Promise<OverrideForScoring[]> {
   if (staffIds.length === 0) return [];
 
-  const supabase = await createClient();
+  const supabase = options.supabase ?? (await createClient());
   const { data, error } = await supabase
     .from("schedule_overrides")
     .select("staff_id, override_date, is_day_off, shift_type, start_time, end_time")
@@ -190,11 +212,12 @@ export async function getScheduleOverridesForScoring(
 
 export async function getBlockedTimesForScoring(
   staffIds: string[],
-  date: string
+  date: string,
+  options: RecommendationQueryOptions = {}
 ): Promise<BlockForScoring[]> {
   if (staffIds.length === 0) return [];
 
-  const supabase = await createClient();
+  const supabase = options.supabase ?? (await createClient());
   const { data, error } = await supabase
     .from("blocked_times")
     .select("staff_id, block_date, start_time, end_time")
@@ -209,12 +232,15 @@ export async function getBlockedTimesForScoring(
 
 export async function getCheckinsForScoring(
   branchId: string,
-  date: string
+  date: string,
+  options: RecommendationQueryOptions = {}
 ): Promise<CheckinForScoring[]> {
-  const supabase = await createClient();
+  const supabase = options.supabase ?? (await createClient());
   const { data, error } = await supabase
     .from("staff_shift_checkins")
-    .select("staff_id, shift_date, status, checked_in_at, checked_out_at, attendance_status, shift_type, branch_id")
+    .select(
+      "staff_id, shift_date, status, checked_in_at, checked_out_at, attendance_status, shift_type, branch_id"
+    )
     .eq("branch_id", branchId)
     .eq("shift_date", date)
     .eq("is_test", false)
@@ -228,9 +254,10 @@ export async function getCheckinsForScoring(
 
 export async function getTherapistConflictBookings(
   branchId: string,
-  date: string
+  date: string,
+  options: RecommendationQueryOptions = {}
 ): Promise<ConflictBooking[]> {
-  const supabase = await createClient();
+  const supabase = options.supabase ?? (await createClient());
   const { data, error } = await supabase
     .from("bookings")
     .select("id, staff_id, start_time, end_time, status")
@@ -253,9 +280,10 @@ export async function getTherapistConflictBookings(
 
 export async function getDriverConflictBookings(
   branchId: string,
-  date: string
+  date: string,
+  options: RecommendationQueryOptions = {}
 ): Promise<ConflictBooking[]> {
-  const supabase = await createClient();
+  const supabase = options.supabase ?? (await createClient());
   const { data, error } = await supabase
     .from("bookings")
     .select("id, driver_id, start_time, end_time, status")
@@ -277,11 +305,12 @@ export async function getDriverConflictBookings(
 // ── Staff preferences ──────────────────────────────────────────────────────────
 
 export async function getStaffPreferencesForScoring(
-  staffIds: string[]
+  staffIds: string[],
+  options: RecommendationQueryOptions = {}
 ): Promise<StaffPreference[]> {
   if (staffIds.length === 0) return [];
 
-  const supabase = await createClient();
+  const supabase = options.supabase ?? (await createClient());
   const { data, error } = await supabase
     .from("staff_scheduling_preferences")
     .select("staff_id, can_do_home_service, can_drive, max_services_per_day, max_trips_per_day")
@@ -289,7 +318,10 @@ export async function getStaffPreferencesForScoring(
 
   if (error) {
     // Gracefully return empty if table doesn't exist yet
-    if (error.message.includes("does not exist") || error.message.includes("could not find")) {
+    if (
+      !options.throwOnError &&
+      (error.message.includes("does not exist") || error.message.includes("could not find"))
+    ) {
       return [];
     }
     throw new Error(error.message);
@@ -335,7 +367,8 @@ function resolveRecommendationBookingMode(
 
 async function buildContextFromBooking(
   booking: BookingForRecommendation,
-  conflictType: "therapist" | "driver"
+  conflictType: "therapist" | "driver",
+  options: RecommendationQueryOptions = {}
 ): Promise<RecommendationContext> {
   const { branch_id: branchId, booking_date: date, service_id: serviceId } = booking;
   const dayOfWeek = (() => {
@@ -343,7 +376,7 @@ async function buildContextFromBooking(
     return new Date(Number(y), Number(m) - 1, Number(d)).getDay();
   })();
 
-  const staffList = await getBranchStaffForScoring(branchId);
+  const staffList = await getBranchStaffForScoring(branchId, options);
   const staffIds = staffList.map((s) => s.id);
 
   const [
@@ -356,20 +389,19 @@ async function buildContextFromBooking(
     conflictBookings,
     preferences,
   ] = await Promise.all([
-    getServiceForRecommendation(serviceId),
-    getStaffServicesForScoring(serviceId, staffIds),
-    getStaffSchedulesForScoring(staffIds, dayOfWeek),
-    getScheduleOverridesForScoring(staffIds, date),
-    getBlockedTimesForScoring(staffIds, date),
-    getCheckinsForScoring(branchId, date),
+    getServiceForRecommendation(serviceId, options),
+    getStaffServicesForScoring(serviceId, staffIds, options),
+    getStaffSchedulesForScoring(staffIds, dayOfWeek, options),
+    getScheduleOverridesForScoring(staffIds, date, options),
+    getBlockedTimesForScoring(staffIds, date, options),
+    getCheckinsForScoring(branchId, date, options),
     conflictType === "driver"
-      ? getDriverConflictBookings(branchId, date)
-      : getTherapistConflictBookings(branchId, date),
-    getStaffPreferencesForScoring(staffIds),
+      ? getDriverConflictBookings(branchId, date, options)
+      : getTherapistConflictBookings(branchId, date, options),
+    getStaffPreferencesForScoring(staffIds, options),
   ]);
 
-  const isHomeService =
-    booking.delivery_type === "home_service" || booking.type === "home_service";
+  const isHomeService = booking.delivery_type === "home_service" || booking.type === "home_service";
 
   return {
     bookingDate: date,
@@ -400,20 +432,26 @@ async function buildContextFromBooking(
 
 export async function buildRecommendationContext(
   bookingId: string,
-  overrides: Partial<Pick<BookingForRecommendation, "booking_date" | "start_time" | "end_time">> = {}
+  overrides: Partial<
+    Pick<BookingForRecommendation, "booking_date" | "start_time" | "end_time">
+  > = {},
+  options: RecommendationQueryOptions = {}
 ): Promise<RecommendationContext | null> {
-  const booking = await getBookingForRecommendation(bookingId);
+  const booking = await getBookingForRecommendation(bookingId, options);
   if (!booking) return null;
-  return buildContextFromBooking({ ...booking, ...overrides }, "therapist");
+  return buildContextFromBooking({ ...booking, ...overrides }, "therapist", options);
 }
 
 // ── Convenience: build driver-specific context ─────────────────────────────────
 
 export async function buildDriverRecommendationContext(
   bookingId: string,
-  overrides: Partial<Pick<BookingForRecommendation, "booking_date" | "start_time" | "end_time">> = {}
+  overrides: Partial<
+    Pick<BookingForRecommendation, "booking_date" | "start_time" | "end_time">
+  > = {},
+  options: RecommendationQueryOptions = {}
 ): Promise<RecommendationContext | null> {
-  const booking = await getBookingForRecommendation(bookingId);
+  const booking = await getBookingForRecommendation(bookingId, options);
   if (!booking) return null;
-  return buildContextFromBooking({ ...booking, ...overrides }, "driver");
+  return buildContextFromBooking({ ...booking, ...overrides }, "driver", options);
 }

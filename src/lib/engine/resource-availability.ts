@@ -15,43 +15,48 @@ type BookingResourceRow = {
  * Checks if a physical resource (room/bed) has enough capacity for a new booking
  * during the requested time window.
  */
-export async function isResourceAvailable(params: {
-  resourceId: string;
-  date: string;
-  startTime: string;
-  endTime: string;
-  excludeBookingId?: string;
-}): Promise<boolean> {
+export async function isResourceAvailable(
+  params: {
+    resourceId: string;
+    date: string;
+    startTime: string;
+    endTime: string;
+    excludeBookingId?: string;
+  },
+  options?: { throwOnError?: boolean }
+): Promise<boolean> {
   const supabase = createAdminClient();
-  
+
   // 1. Get resource capacity
-  const { data: resource } = await supabase
+  const { data: resource, error: resourceError } = await supabase
     .from("branch_resources")
     .select("capacity")
     .eq("id", params.resourceId)
     .single();
-    
+
+  if (resourceError && options?.throwOnError) throw resourceError;
   if (!resource) return false;
-  
+
   // 2. Get overlapping bookings using this resource
-  const { data: overlaps } = await supabase
+  const { data: overlaps, error: overlapsError } = await supabase
     .from("bookings")
     .select("id, start_time, end_time, status, hold_expires_at")
     .eq("resource_id", params.resourceId)
     .eq("booking_date", params.date);
-    
+
+  if (overlapsError && options?.throwOnError) throw overlapsError;
   if (!overlaps) return true;
-  
+
   const start = timeToMinutes(params.startTime);
   const end = timeToMinutes(params.endTime);
-  
+
   const now = new Date();
-  const conflictingBookings = ((overlaps ?? []) as BookingResourceRow[]).filter(b => {
+  const conflictingBookings = ((overlaps ?? []) as BookingResourceRow[]).filter((b) => {
     if (params.excludeBookingId && b.id === params.excludeBookingId) return false;
     if (!bookingBlocksAvailability(b, now)) return false;
     return rangesOverlap(start, end, timeToMinutes(b.start_time), timeToMinutes(b.end_time));
   });
-  
+
   // Resource is available if current conflicts are less than capacity
   return conflictingBookings.length < resource.capacity;
 }

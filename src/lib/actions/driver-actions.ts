@@ -1,21 +1,10 @@
 "use server";
 
 import { createClient } from "@/lib/supabase/server";
-import { createAdminClient } from "@/lib/supabase/admin";
 import { getDevBypassLayoutStaff, isDevAuthBypassEnabled } from "@/lib/dev-bypass";
 import { canAccessCrmWorkspace } from "@/lib/auth/crm-permissions";
 import { logError } from "@/lib/logger";
-import { revalidatePath } from "next/cache";
-import { invalidateCrmWorkspace } from "@/lib/cache/cache-tags";
-import { z } from "zod";
-import { createNotification, resolveNotificationsForEntity } from "@/lib/notifications/create";
-
-const uuid = z.guid("Invalid ID");
-
-const assignDriverSchema = z.object({
-  bookingId: uuid,
-  driverId: uuid.nullable(),
-});
+import { assignHomeServiceDriver } from "@/lib/home-service/dispatch-operations";
 
 async function requireManagerOrCrm() {
   const supabase = await createClient();
@@ -45,8 +34,7 @@ async function requireManagerOrCrm() {
 
   if (!me) return { error: "No active staff record" } as const;
 
-  if (!canAccessCrmWorkspace(me.system_role))
-    return { error: "Insufficient permissions" } as const;
+  if (!canAccessCrmWorkspace(me.system_role)) return { error: "Insufficient permissions" } as const;
 
   return { supabase, me };
 }
@@ -56,140 +44,39 @@ export async function assignBookingDriverAction(rawInput: unknown): Promise<{
   success: boolean;
   error?: string;
 }> {
-  const parsed = assignDriverSchema.safeParse(rawInput);
-  if (!parsed.success)
-    return { success: false, error: parsed.error.issues[0]?.message };
-
   const ctx = await requireManagerOrCrm();
-  if ("error" in ctx) return { success: false, error: ctx.error };
 
-  const { bookingId, driverId } = parsed.data;
+  if ("error" in ctx) {
+    return { success: false, error: ctx.error };
+  }
 
-  // Fetch booking to validate delivery type and branch
-  const { data: booking, error: bookingErr } = await ctx.supabase
-    .from("bookings")
-    .select("id, branch_id, delivery_type, type, driver_id, payment_status, booking_date, start_time")
-    .eq("id", bookingId)
-    .single();
+  const result = await assignHomeServiceDriver(
+    ctx.supabase,
+    {
+      staffId: ctx.me.id,
+      branchId: ctx.me.branch_id,
+      role: ctx.me.system_role,
+      // Preserve current hosted behavior: owners may operate cross-branch.
+      allowOwnerCrossBranch: true,
+    },
+    rawInput
+  );
 
-  if (bookingErr || !booking)
-    return { success: false, error: "Booking not found" };
-
-  const isHomeService =
-    booking.delivery_type === "home_service" ||
-    booking.type === "home_service";
-  if (!isHomeService)
+  if (!result.ok) {
     return {
       success: false,
-      error: "Driver assignment is only available for home-service bookings",
+      error: result.message,
     };
-
-  // Branch scope — owners can cross-branch; managers/CRM must match
-  const isOwner = ctx.me.system_role === "owner";
-  if (!isOwner && ctx.me.branch_id !== booking.branch_id)
-    return { success: false, error: "Booking is not in your branch" };
-
-  // Validate driver exists in same branch with driver role/type
-  if (driverId !== null) {
-    const { data: driver, error: driverErr } = await ctx.supabase
-      .from("staff")
-      .select("id, branch_id, system_role, staff_type, is_active")
-      .eq("id", driverId)
-      .single();
-
-    if (driverErr || !driver)
-      return { success: false, error: "Driver staff record not found" };
-
-    if (!driver.is_active)
-      return { success: false, error: "Selected driver is not active" };
-
-    if (driver.branch_id !== booking.branch_id)
-      return {
-        success: false,
-        error: "Driver must belong to the same branch as the booking",
-      };
-
-    const isDriverRole =
-      driver.system_role === "driver" || driver.staff_type === "driver";
-    if (!isDriverRole)
-      return {
-        success: false,
-        error:
-          "Selected staff is not a driver (system_role or staff_type must be 'driver')",
-      };
   }
-
-  // Use admin client to bypass RLS on bookings.driver_id
-  const admin = createAdminClient();
-  const { error: updateErr } = await admin
-    .from("bookings")
-    .update({ driver_id: driverId })
-    .eq("id", bookingId);
-
-  if (updateErr) return { success: false, error: updateErr.message };
-
-  if (booking.driver_id !== driverId && booking.payment_status === "paid") {
-    await resolveNotificationsForEntity(
-      "booking",
-      booking.id,
-      "driver",
-      "home_service_assigned"
-    );
-
-    if (booking.driver_id) {
-      await createNotification({
-        branchId: booking.branch_id,
-        targetWorkspace: "driver",
-        recipientStaffId: booking.driver_id,
-        type: "booking_reassigned",
-        title: "Home Service trip reassigned",
-        body: `The trip on ${booking.booking_date} at ${booking.start_time} is no longer assigned to you.`,
-        entityType: "booking",
-        entityId: booking.id,
-        actionHref: `/driver/jobs/${booking.id}`,
-        priority: "normal",
-        dedupeKey: `booking:${booking.id}:driver_reassigned_from:${booking.driver_id}`,
-      });
-    }
-
-    if (driverId) {
-      await createNotification({
-        branchId: booking.branch_id,
-        targetWorkspace: "driver",
-        recipientStaffId: driverId,
-        type: "home_service_assigned",
-        title: "Home Service trip assigned",
-        body: `A confirmed trip is assigned to you on ${booking.booking_date} at ${booking.start_time}.`,
-        entityType: "booking",
-        entityId: booking.id,
-        actionHref: `/driver/jobs/${booking.id}`,
-        priority: "high",
-        requiresAction: true,
-        dedupeKey: `booking:${booking.id}:driver_assignment:${driverId}`,
-      });
-    }
-  }
-
-  revalidatePath("/manager/control");
-  revalidatePath("/crm/control");
-  revalidatePath("/crm/today");
-  revalidatePath("/driver");
-  invalidateCrmWorkspace(booking.branch_id);
 
   return { success: true };
 }
-
 // ── Fetch driver name map for a set of driver IDs ────────────────────────────
 // Used by control console pages to resolve driver_id → full_name.
-export async function getDriverNamesByIds(
-  ids: string[]
-): Promise<Record<string, string>> {
+export async function getDriverNamesByIds(ids: string[]): Promise<Record<string, string>> {
   if (ids.length === 0) return {};
   const supabase = await createClient();
-  const { data } = await supabase
-    .from("staff")
-    .select("id, full_name")
-    .in("id", ids);
+  const { data } = await supabase.from("staff").select("id, full_name").in("id", ids);
   const map: Record<string, string> = {};
   for (const s of data ?? []) {
     map[s.id] = s.full_name;
@@ -220,7 +107,12 @@ export async function getBranchBookingDriverIds(
     }
     return map;
   } catch (error) {
-    logError("Failed to fetch booking driver IDs", { error, action: "booking.getDriverIds", branchId, date });
+    logError("Failed to fetch booking driver IDs", {
+      error,
+      action: "booking.getDriverIds",
+      branchId,
+      date,
+    });
     return {};
   }
 }
@@ -241,17 +133,18 @@ export async function getAvailableBranchDrivers(
       .order("full_name");
     return (data ?? []).map((s) => ({ id: s.id, full_name: s.full_name }));
   } catch (error) {
-    logError("Failed to fetch available drivers", { error, action: "driver.getAvailable", branchId });
+    logError("Failed to fetch available drivers", {
+      error,
+      action: "driver.getAvailable",
+      branchId,
+    });
     return [];
   }
 }
 
 // ── Fetch today's trips assigned to a specific driver ────────────────────────
 // Uses regular client — RLS policy "bookings_driver_read_own" (Phase 5.1) covers this.
-export async function getDriverTodayTrips(
-  driverId: string,
-  date: string
-) {
+export async function getDriverTodayTrips(driverId: string, date: string) {
   const supabase = await createClient();
   const { data, error } = await supabase
     .from("bookings")

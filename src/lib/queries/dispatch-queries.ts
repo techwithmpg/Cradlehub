@@ -1,4 +1,6 @@
 import { createClient } from "@/lib/supabase/server";
+import type { SupabaseClient } from "@supabase/supabase-js";
+import type { Database } from "@/types/supabase";
 import { getHomeServiceBranchRouteOrigin } from "@/lib/home-service/distance-service";
 import { parseLiveEta } from "@/lib/bookings/ops-warnings";
 import { getStaffAdminName } from "@/lib/staff/display-name";
@@ -30,6 +32,12 @@ export interface RealDispatchItem {
   bookingProgressStatus: string;
   paymentStatus: string;
   etaMinutes: number | null;
+  eta?: {
+    minutes: number;
+    source: "stored_routes_api" | "stored_dispatch_estimate";
+    calculatedAt: string | null;
+    origin: string | null;
+  } | null;
   travelStartedAt: string | null;
   arrivedAt: string | null;
   sessionStartedAt: string | null;
@@ -78,7 +86,6 @@ function readNumber(value: unknown): number | null {
   return null;
 }
 
-
 type DispatchBranchLocationRow = {
   name?: string | null;
   latitude?: number | string | null;
@@ -95,7 +102,9 @@ function numberOrNull(value: number | string | null | undefined): number | null 
   return null;
 }
 
-function parseCoordinatesFromMapsUrl(value: string | null | undefined): { lat: number; lng: number } | null {
+function parseCoordinatesFromMapsUrl(
+  value: string | null | undefined
+): { lat: number; lng: number } | null {
   if (!value) return null;
 
   const qMatch = /[?&]q=(-?\d+(?:\.\d+)?),(-?\d+(?:\.\d+)?)/.exec(value);
@@ -241,7 +250,9 @@ function computeStats(items: RealDispatchItem[]): DispatchStats {
       ["awaiting_driver", "ready", "scheduled"].includes(item.dispatchStatus)
     ).length,
     activeTrips: items.filter((item) =>
-      ["released_to_driver", "in_route", "arrived_at_customer", "service_started"].includes(item.dispatchStatus)
+      ["released_to_driver", "in_route", "arrived_at_customer", "service_started"].includes(
+        item.dispatchStatus
+      )
     ).length,
     completedToday: items.filter((item) => item.dispatchStatus === "completed").length,
     cancelledToday: items.filter((item) => item.dispatchStatus === "cancelled").length,
@@ -253,6 +264,8 @@ export interface GetDispatchDataArgs {
   date: string;
   role?: string;
   staffId?: string;
+  supabase?: SupabaseClient<Database>;
+  throwOnError?: boolean;
 }
 
 export async function getDispatchData(args: GetDispatchDataArgs): Promise<DispatchData> {
@@ -264,8 +277,11 @@ export async function getDispatchData(args: GetDispatchDataArgs): Promise<Dispat
   };
 
   try {
-    const supabase = await createClient();
-    const branchRouteOrigin = await getHomeServiceBranchRouteOrigin(args.branchId);
+    const supabase = args.supabase ?? (await createClient());
+    const branchRouteOrigin = await getHomeServiceBranchRouteOrigin(args.branchId, {
+      client: args.supabase,
+      throwOnError: args.throwOnError,
+    });
     let query = supabase
       .from("bookings")
       .select(
@@ -283,8 +299,7 @@ export async function getDispatchData(args: GetDispatchDataArgs): Promise<Dispat
       .eq("branch_id", args.branchId)
       .eq("booking_date", args.date)
       .or("type.eq.home_service,delivery_type.eq.home_service")
-      .order("start_time", { ascending: true })
-      .limit(50);
+      .order("start_time", { ascending: true });
 
     if (args.role === "driver" && args.staffId) {
       query = query.eq("driver_id", args.staffId);
@@ -292,9 +307,25 @@ export async function getDispatchData(args: GetDispatchDataArgs): Promise<Dispat
       query = query.eq("staff_id", args.staffId);
     }
 
-    const { data: rawBookings, error: bookingsError } = await query;
+    const { data: firstPage, error: bookingsError } = await (args.throwOnError
+      ? query.order("id").range(0, 499)
+      : query.limit(50));
+    const rawBookings = [...(firstPage ?? [])];
+    if (args.throwOnError && !bookingsError && firstPage?.length === 500) {
+      for (let offset = 500; ; offset += 500) {
+        const { data: page, error } = await query.range(offset, offset + 499);
+        if (error) throw error;
+        rawBookings.push(...(page ?? []));
+        if (!page || page.length < 500) break;
+      }
+    }
 
-    if (bookingsError || !rawBookings || rawBookings.length === 0) {
+    if (bookingsError) {
+      if (args.throwOnError) throw bookingsError;
+      return empty;
+    }
+
+    if (!rawBookings || rawBookings.length === 0) {
       return empty;
     }
 
@@ -315,19 +346,52 @@ export async function getDispatchData(args: GetDispatchDataArgs): Promise<Dispat
             error: null,
           });
 
-    const snapshotsPromise =
-      bookingIds.length > 0
+    const snapshotsPromise = args.throwOnError
+      ? Promise.all(
+          rawBookings
+            .filter((booking) => booking.driver_id)
+            .map(async (booking) => {
+              const result = await supabase
+                .from("staff_location_snapshots")
+                .select("booking_id, lat, lng, recorded_at")
+                .eq("branch_id", args.branchId)
+                .eq("booking_id", booking.id)
+                .eq("staff_id", booking.driver_id!)
+                .order("recorded_at", { ascending: false })
+                .limit(1)
+                .maybeSingle();
+              if (result.error) throw result.error;
+              return result.data;
+            })
+        ).then((rows) => ({
+          data: rows.filter((row): row is NonNullable<typeof row> => row !== null),
+          error: null,
+        }))
+      : bookingIds.length > 0
         ? supabase
             .from("staff_location_snapshots")
             .select("booking_id, lat, lng, recorded_at")
             .in("booking_id", bookingIds)
             .order("recorded_at", { ascending: false })
         : Promise.resolve({
-            data: [] as { booking_id: string | null; lat: number; lng: number; recorded_at: string }[],
+            data: [] as {
+              booking_id: string | null;
+              lat: number;
+              lng: number;
+              recorded_at: string;
+            }[],
             error: null,
           });
 
     const [driversRes, snapshotsRes] = await Promise.all([driversPromise, snapshotsPromise]);
+
+    if (args.throwOnError && driversRes.error) {
+      throw driversRes.error;
+    }
+
+    if (args.throwOnError && snapshotsRes.error) {
+      throw snapshotsRes.error;
+    }
 
     const driverNameMap = new Map<string, string>();
     for (const driver of driversRes.data ?? []) {
@@ -404,7 +468,7 @@ export async function getDispatchData(args: GetDispatchDataArgs): Promise<Dispat
         branchLng: branchOrigin.branchLng ?? branchRouteOrigin?.lng ?? null,
         needsLocationReview: dispatch?.needs_location_review === true,
         driverId,
-        driverName: driverId ? driverNameMap.get(driverId) ?? null : null,
+        driverName: driverId ? (driverNameMap.get(driverId) ?? null) : null,
         therapistId,
         therapistName: therapist ? getStaffAdminName(therapist) : null,
         dispatchStatus,
@@ -412,6 +476,25 @@ export async function getDispatchData(args: GetDispatchDataArgs): Promise<Dispat
         bookingProgressStatus: progressStatus ?? "not_started",
         paymentStatus: booking.payment_status ?? "pending",
         etaMinutes: liveEta?.eta_minutes ?? readNumber(dispatch?.eta_minutes),
+        ...(args.throwOnError
+          ? {
+              eta: liveEta
+                ? {
+                    minutes: liveEta.eta_minutes,
+                    source: "stored_routes_api" as const,
+                    calculatedAt: liveEta.calculated_at,
+                    origin: liveEta.origin,
+                  }
+                : readNumber(dispatch?.eta_minutes) !== null
+                  ? {
+                      minutes: readNumber(dispatch?.eta_minutes)!,
+                      source: "stored_dispatch_estimate" as const,
+                      calculatedAt: null,
+                      origin: null,
+                    }
+                  : null,
+            }
+          : {}),
         travelStartedAt: booking.travel_started_at ?? null,
         arrivedAt: booking.arrived_at ?? null,
         sessionStartedAt: booking.session_started_at ?? null,
@@ -432,12 +515,8 @@ export async function getDispatchData(args: GetDispatchDataArgs): Promise<Dispat
       alerts: computeAlerts(items),
       today: args.date,
     };
-  } catch {
+  } catch (error) {
+    if (args.throwOnError) throw error;
     return empty;
   }
 }
-
-
-
-
-

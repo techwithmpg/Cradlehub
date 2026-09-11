@@ -425,8 +425,24 @@ export async function getAllBookings(filters?: {
   });
 }
 
-export async function getBookingById(bookingId: string) {
-  const supabase = await createClient();
+export async function getBookingById(
+  bookingId: string,
+  options?: { client: SupabaseJsClient<Database>; branchId: string }
+) {
+  const supabase = options?.client ?? (await createClient());
+  if (options) {
+    const { data, error } = await supabase
+      .from("bookings")
+      .select(
+        `${BOOKING_SELECT_WITH_PAYMENTS}, driver_id, booking_progress_status, checked_in_at, travel_started_at, arrived_at, session_started_at, session_completed_at, completed_at,
+      driver:staff!driver_id ( id, full_name ), booking_events ( id, from_status, to_status, notes, created_at )`
+      )
+      .eq("id", bookingId)
+      .eq("branch_id", options.branchId)
+      .maybeSingle();
+    if (error) throw error;
+    return data;
+  }
   return loadBookingRow(
     supabase,
     BOOKING_SELECT_VARIANTS.map((variant) => ({
