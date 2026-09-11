@@ -6,10 +6,10 @@
 - Stage: **PWA-C2 — Structured Diagnostics**
 - Status: **READY FOR EXTERNAL RE-REVIEW — NOT ACCEPTED / NOT MERGED**
 - Branch: `stage/pwa-c2-structured-diagnostics`
-- Accepted main baseline: `ed8ae75d2d6fc9f3b8144dcabbe014f676e83a99`
-- Prior reviewed C2 head: `5f7ba977fbef3bb0ee93919e6c45631bb5bce3cb`
-- Correction Pass 1 head: `923da9f5d1c0285a73831f95e0ef2b2036bead12`
-- Current correction pass starting head: `923da9f5d1c0285a73831f95e0ef2b2036bead12`
+- Accepted main baseline / Current remote main: `ed8ae75d2d6fc9f3b8144dcabbe014f676e83a99`
+- PWA-C2 reviewed documentation head: `c2052943b3e488f2b3f270f01f65ba63417d5271`
+- Prior C2 external handoff head: `9357cde7281b6450811d6d1570120a580adc77d2`
+- Governance repair: Remote `main` restored to accepted baseline via owner-authorized `--force-with-lease`
 - Next stage: **PWA-C3 — NOT AUTHORIZED**
 
 ## Scope completed
@@ -50,11 +50,11 @@ PWA-C2 — Structured Diagnostics. This correction pass remains **READ-ONLY DIAG
 
 ### D — C2 correction head
 
-- **Accepted main baseline:** `ed8ae75d2d6fc9f3b8144dcabbe014f676e83a99`
-- **Prior reviewed C2 head:** `5f7ba977fbef3bb0ee93919e6c45631bb5bce3cb`
-- **Correction Pass 1 head:** `923da9f5d1c0285a73831f95e0ef2b2036bead12`
-- **REVIEWED_DOCUMENTATION_HEAD_SHA:** `c2052943b3e488f2b3f270f01f65ba63417d5271`
-- **Branch:** `stage/pwa-c2-structured-diagnostics`
+- **ACCEPTED MAIN / CURRENT REMOTE MAIN:** `ed8ae75d2d6fc9f3b8144dcabbe014f676e83a99`
+- **PWA-C2 REVIEW BRANCH:** `stage/pwa-c2-structured-diagnostics`
+- **PWA-C2 reviewed documentation head:** `c2052943b3e488f2b3f270f01f65ba63417d5271`
+- **Prior C2 external handoff head:** `9357cde7281b6450811d6d1570120a580adc77d2`
+- **Current evidence commit:** Recording governance recovery of remote main (to be created)
 - **Review status:** READY FOR EXTERNAL RE-REVIEW — NOT ACCEPTED / NOT MERGED
 
 The final remote HEAD is reported in the external return handoff after push to avoid self-reference.
@@ -115,11 +115,36 @@ Database target, deployed RPC/RLS state, browser behavior, Android/iPhone behavi
 
 Do not advance automatically. If the owner later authorizes PWA-C3, use the findings to freeze business-date, attendance, role/access, scanner, driver, foundation, data-minimization and online-first scope. Do not treat every P2 finding as a C3 candidate; route-specific security and device/provider acceptance belong to later security/reliability gates.
 
+## Governance recovery record
+
+**OWNER-AUTHORIZED GOVERNANCE RECOVERY**
+
+- **Accepted baseline / Current restored remote main:** `ed8ae75d2d6fc9f3b8144dcabbe014f676e83a99`
+- **Incident:** Six PWA-C2 documentation commits had been fast-forwarded to remote `main` before external acceptance or owner merge authorization.
+- **Observed unauthorized main head:** `2b927303d2d6bc10b09a15f2542fdcfa6c066194`
+- **Impact:** Documentation only.
+  - Runtime source: UNCHANGED
+  - Tests: UNCHANGED
+  - Dependencies: UNCHANGED
+  - SQL / migrations / schema: UNCHANGED
+  - Auth / RLS: UNCHANGED
+  - Configuration: UNCHANGED
+- **Recovery:** Remote `main` was restored to accepted baseline `ed8ae75d2d6fc9f3b8144dcabbe014f676e83a99` using an owner-authorized, SHA-pinned `--force-with-lease`.
+- **Restored remote main:** `ed8ae75d2d6fc9f3b8144dcabbe014f676e83a99`
+- **Preserved C2 branch head before this evidence commit:** `9357cde7281b6450811d6d1570120a580adc77d2`
+- **PWA-C2 review branch:** `stage/pwa-c2-structured-diagnostics`
+- **PWA-C2 reviewed documentation head:** `c2052943b3e488f2b3f270f01f65ba63417d5271`
+- **Prior C2 external handoff head:** `9357cde7281b6450811d6d1570120a580adc77d2`
+- **C2 status:** PENDING EXTERNAL REVIEW / OWNER CONFIRMATION — NOT ACCEPTED / NOT MERGED
+- **PWA-C3:** NOT AUTHORIZED
+
 ## Review evidence and accountability block
 
-- **REVIEWED_DOCUMENTATION_HEAD_SHA:** `c2052943b3e488f2b3f270f01f65ba63417d5271`
-- **Accepted main baseline:** `ed8ae75d2d6fc9f3b8144dcabbe014f676e83a99`
-- **Branch:** `stage/pwa-c2-structured-diagnostics`
+- **ACCEPTED MAIN / CURRENT REMOTE MAIN:** `ed8ae75d2d6fc9f3b8144dcabbe014f676e83a99`
+- **PWA-C2 REVIEW BRANCH:** `stage/pwa-c2-structured-diagnostics`
+- **PWA-C2 reviewed documentation head:** `c2052943b3e488f2b3f270f01f65ba63417d5271`
+- **Prior C2 external handoff head:** `9357cde7281b6450811d6d1570120a580adc77d2`
+- **Current new evidence commit:** to be created
 - **Review status:** READY FOR EXTERNAL RE-REVIEW — NOT ACCEPTED / NOT MERGED
 
 **Checks:**
