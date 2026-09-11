@@ -1,5 +1,16 @@
 # Project Status
 
+## Staff PWA workstream — 2026-09-11
+
+- Program: **OWNER APPROVED**. Authorized stage: **PWA-C1 — Current-System Truth ONLY**.
+- Baseline: `b2b9b6ec7579bbd9b519841cadf612ed133cbfcc`; branch: `stage/pwa-c1-current-system-truth`.
+- [Truth map](pwa/PWA-C1-TRUTH-MAP.md): delivered for review; owner acceptance and merge have not occurred.
+- [Project governance/roadmap](pwa/PROJECT.md) and [handoff/evidence](pwa/PWA-C1-HANDOFF.md) define current scope and results.
+- Owner follow-up authorizes committing and pushing the completed eight-file documentation artifact to the PWA-C1 review branch only (PWA-GOV-002). No feature, database, migration or production changes. PWA-C2+, implementation, merge and release certification remain unauthorized.
+- The Marketing record below is retained. Its top-level Pass 4 state and final Pass 3 paragraph conflict; PWA-C1 does not resolve or advance that workstream. Older counts/tests describe their original baseline, not the current PWA baseline.
+
+## Existing Web / Marketing status record
+
 ## Current program
 
 - **Program:** Controlled Stabilization

@@ -1,5 +1,11 @@
 # Development Stages
 
+## Staff PWA sub-roadmap
+
+The owner-approved CradleHub Staff PWA program has its own [PWA-C1 through FINAL roadmap](pwa/PROJECT.md). As of 2026-09-11, only **PWA-C1 — Current-System Truth** is authorized for this workstream. Its completion authorizes neither PWA-C2 nor feature implementation. The Web/Marketing stages below remain a separate sequence.
+
+## Web stabilization stages
+
 | Stage | Objective | Allowed work | Forbidden work | Evidence and gate |
 | --- | --- | --- | --- | --- |
 | C0B — Governance & Live Context | Establish durable authority, safety, and context | Authorized governance documentation | Product, database, dependency, UI, and runtime changes | Documentation scope audit and external review |

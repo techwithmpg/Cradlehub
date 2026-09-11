@@ -6,6 +6,17 @@
 - Canonical repository: `https://github.com/techwithmpg/Cradlehub.git`
 - Accepted branch: `main`
 
+## CradleHub Staff PWA — current task authorization (2026-09-11)
+
+- Program: **OWNER APPROVED**; current task: **PWA-C1 — Current-System Truth ONLY**.
+- Fetched accepted repository baseline: `b2b9b6ec7579bbd9b519841cadf612ed133cbfcc`.
+- Dedicated branch: `stage/pwa-c1-current-system-truth`.
+- Follow-up owner authorization: commit and push the eight completed PWA-C1 documentation files to this review branch only (PWA-GOV-002). No merge, deployment or PWA-C2 authorization.
+- [PWA project governance and roadmap](docs/pwa/PROJECT.md), [truth map](docs/pwa/PWA-C1-TRUTH-MAP.md), and [handoff/status](docs/pwa/PWA-C1-HANDOFF.md) are active PWA governance references.
+- PWA-C1 is documentation/source inspection only. **PWA-C2 and later stages, feature implementation, database/migration changes and production mutation are not authorized.** Completion does not authorize advancement or merge.
+- This is a separate workstream from the historical Web/Marketing C1-C5 sequence below. The inherited Marketing status and authorization paragraphs conflict; they are not authorization to perform Marketing work in this task. No Marketing acceptance/closeout is inferred here.
+- All repository claims about production must be labelled **REPOSITORY-RECORDED PRODUCTION EVIDENCE**; PWA-C1 performed no live production/device/database verification.
+
 ## Accepted governance anchor
 
 - C0B accepted governance merge SHA: `03dbd57ed4be6f9b1f0bd30c7fd22a225e68ec2a`
@@ -46,6 +57,10 @@ The recorded SHAs are stable closeout anchors, not declarations of the current `
 8. Production state independently proven by authorized evidence
 
 ## Active governance manifest
+
+- [Staff PWA project governance](docs/pwa/PROJECT.md)
+- [Staff PWA current-system truth map](docs/pwa/PWA-C1-TRUTH-MAP.md)
+- [Staff PWA handoff and status](docs/pwa/PWA-C1-HANDOFF.md)
 
 - [Stabilization scope](docs/01-STABILIZATION-SCOPE.md)
 - [Current system map](docs/02-CURRENT-SYSTEM-MAP.md)

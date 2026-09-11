@@ -14,4 +14,17 @@
 | C1-003 | P1 | OPEN / C2 CANDIDATE | Authorization exception | `src/lib/auth/super-admin.ts` contains a source-coded user-ID allowlist that grants owner-level workspace context. | The exception bypasses normal active-staff role derivation and needs ownership/revocation/necessity review. | C2 | Repository fact; operational correctness was not tested. |
 | C1-004 | P1 | OPEN | Live evidence | The CradleHub ref matches linked/configured/URL metadata, but the active Supabase CLI account does not expose that project. | Live schema, migration, RLS, Auth, Storage, and data truth cannot be independently certified in C1. | C2 | `LIVE DATABASE VERIFICATION NOT AVAILABLE`; no substitute project was used. |
 
-This register contains current governance, repository, and C1-evidenced environment risks. Historical reports still require current evidence before promotion.
+## Staff PWA current-system unknowns — 2026-09-11
+
+These are source-backed investigation seams from [PWA-C1](pwa/PWA-C1-TRUTH-MAP.md), not severity-ranked defects or authorized fixes. PWA-C2 requires separate authorization.
+
+| ID | Status | Evidence and implication |
+| --- | --- | --- |
+| PWA-C1-001 | OPEN / EVIDENCE GAP | No installed-PWA/device/provider/live-database verification; repository production records remain **REPOSITORY-RECORDED PRODUCTION EVIDENCE**. |
+| PWA-C1-002 | OPEN / FOUNDATION INVENTORY | No install manifest or camera decoder found in searched app/public source; existing push worker and legacy cache-clearing worker require preservation and lifecycle analysis. |
+| PWA-C1-003 | OPEN / ATTENDANCE SEAM | QR, shift-widget and controlled portal clock-out paths coexist. `getMyAttendanceData` can invoke a write-capable recalculation RPC; page reads cannot be assumed mutation-free. |
+| PWA-C1-004 | OPEN / DRIVER SEAM | Driver Route Map renders a placeholder; separate one-shot GPS and operations/customer map components exist. Mobile capture parity, background tracking and live convergence are unverified. |
+| PWA-C1-005 | OPEN / ACCESS SEAM | Driver/utility page checks, workspace grants and links differ; Utility is a Coming Soon surface. No new role permissions or utility functionality are inferred. |
+| PWA-C1-006 | OPEN / GOVERNANCE CONTEXT | Inherited Marketing authorization paragraphs conflict; PWA-C1 registers scoped authority without changing Marketing acceptance history. Detailed approved PWA models are not supplied as artifacts in this task. |
+
+This register contains governance, repository, and stage-evidenced environment risks. Historical reports still require current evidence before promotion.
