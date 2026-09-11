@@ -1,6 +1,6 @@
 # PWA-C1 — Current-System Truth Map
 
-Inspection date: 2026-09-11. Correction date: 2026-09-12. Workstream: CradleHub Staff PWA. Status: **external review — CORRECTION REQUIRED; corrected artifact returning for review, not owner-accepted or release-certified**. Reviewed head: `590f2db526588c998a7a147eb126d379f2311877`. Authority and roadmap: [project governance](PROJECT.md).
+Inspection date: 2026-09-11. Correction date: 2026-09-12. Workstream: CradleHub Staff PWA. Status: **C1 external review — PASS; owner accepted and merged into `main` at `ed8ae75d2d6fc9f3b8144dcabbe014f676e83a99`**. The technical evidence below is preserved as historical C1 evidence; it is not release certification. Authority and roadmap: [project governance](PROJECT.md).
 
 ## 1. Accepted repository baseline
 
