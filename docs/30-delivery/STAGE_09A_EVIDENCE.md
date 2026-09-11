@@ -61,127 +61,139 @@ _(Following documentation-only commits do not alter tested implementation. Final
 
 ## Exact GET Response Schema
 
-`GET /api/desktop/v1/today` returns:
+`GET /api/desktop/v1/today` returns the exact TypeScript contract below:
 
-```json
-{
-  "ok": true,
-  "data": {
-    "context": {
-      "branchId": "string (UUID)",
-      "branchName": "string",
-      "businessDate": "string (YYYY-MM-DD)",
-      "role": "string"
-    },
-    "summary": {
-      "total": 0,
-      "pending": 0,
-      "confirmed": 0,
-      "inProgress": 0,
-      "completed": 0,
-      "cancelled": 0,
-      "noShow": 0,
-      "unassigned": 0,
-      "waiting": 0,
-      "inService": 0,
-      "readyToPay": 0,
-      "completedService": 0,
-      "homeService": 0
-    },
-    "queue": [
-      {
-        "id": "string (UUID)",
-        "bookingDate": "string (YYYY-MM-DD)",
-        "startTime": "string (HH:MM:SS)",
-        "endTime": "string (HH:MM:SS)",
-        "status": "string",
-        "bookingProgressStatus": "string",
-        "type": "string",
-        "deliveryType": "string | null",
-        "customerName": "string | null",
-        "customerPhone": "string | null",
-        "serviceName": "string | null",
-        "serviceDuration": "number | null",
-        "staffId": "string (UUID) | null",
-        "staffName": "string | null",
-        "resourceId": "string (UUID) | null",
-        "resourceName": "string | null",
-        "paymentStatus": "string | null",
-        "checkedInAt": "string (ISO) | null",
-        "sessionStartedAt": "string (ISO) | null",
-        "sessionDueAt": "string (ISO) | null",
-        "sessionCompletedAt": "string (ISO) | null",
-        "createdAt": "string (ISO) | null",
-        "stage": "waiting | in_service | ready_to_pay | completed | null",
-        "isHomeService": true,
-        "dispatchContextAvailable": "boolean | null",
-        "driverId": "string (UUID) | null",
-        "driverName": "string | null",
-        "noDriverWarning": false,
-        "dispatchWarning": "string | null",
-        "needsLocationReview": false,
-        "homeServiceAddress": "string | null"
-      }
-    ],
-    "readiness": {
-      "available": true,
-      "status": "ok | warning | critical",
-      "issues": [
-        {
-          "id": "string",
-          "scope": "string",
-          "severity": "string",
-          "title": "string",
-          "problem": "string",
-          "impact": "string",
-          "fix": "string",
-          "actionLabel": "string",
-          "actionHref": "string",
-          "count": 0
-        }
-      ],
-      "error": "string | null"
-    },
-    "attendance": {
-      "available": true,
-      "selectedDate": "string (YYYY-MM-DD)",
-      "timezone": "string",
-      "lastHourCount": 0,
-      "items": [
-        {
-          "eventId": "string",
-          "staffId": "string | null",
-          "staffName": "string",
-          "staffNickname": "string | null",
-          "eventType": "string",
-          "outcome": "string",
-          "reasonCode": "string | null",
-          "message": "string | null",
-          "occurredAt": "string (ISO)",
-          "clockInAt": "string (ISO) | null",
-          "clockOutAt": "string (ISO) | null",
-          "sourceLabel": "string | null"
-        }
-      ],
-      "error": "string | null"
-    },
-    "notifications": {
-      "available": true,
-      "items": [
-        {
-          "id": "string",
-          "title": "string",
-          "body": "string | null",
-          "type": "string",
-          "priority": "string",
-          "createdAt": "string (ISO)",
-          "requiresAction": true
-        }
-      ],
-      "error": "string | null"
-    }
-  }
-}
+```ts
+export type DesktopTodayContext = {
+  branchId: string;
+  branchName: string;
+  businessDate: string;
+  role: string;
+};
+
+export type DesktopTodaySummary = {
+  total: number;
+  pending: number;
+  confirmed: number;
+  inProgress: number;
+  completed: number;
+  cancelled: number;
+  noShow: number;
+  unassigned: number;
+  waiting: number;
+  inService: number;
+  readyToPay: number;
+  completedService: number;
+  homeService: number;
+};
+
+export type DesktopTodayQueueItem = {
+  id: string;
+  bookingDate: string;
+  startTime: string;
+  endTime: string;
+  status: string;
+  bookingProgressStatus: string;
+  type: string;
+  deliveryType: string | null;
+  customerName: string | null;
+  customerPhone: string | null;
+  serviceName: string | null;
+  serviceDuration: number | null;
+  staffId: string | null;
+  staffName: string | null;
+  resourceId: string | null;
+  resourceName: string | null;
+  paymentStatus: string | null;
+  checkedInAt: string | null;
+  sessionStartedAt: string | null;
+  sessionDueAt: string | null;
+  sessionCompletedAt: string | null;
+  createdAt: string | null;
+  stage: "waiting" | "in_service" | "ready_to_pay" | "completed" | null;
+  isHomeService: boolean;
+  dispatchContextAvailable: boolean | null;
+  driverId: string | null;
+  driverName: string | null;
+  noDriverWarning: boolean;
+  dispatchWarning: string | null;
+  needsLocationReview: boolean;
+  homeServiceAddress: string | null;
+};
+
+export type DesktopTodayReadinessIssue = {
+  id: string;
+  scope: string;
+  severity: string;
+  title: string;
+  problem: string;
+  impact: string;
+  fix: string;
+  actionLabel: string;
+  actionHref: string;
+  count?: number;
+};
+
+export type DesktopTodayReadiness = {
+  available: boolean;
+  status: "ok" | "warning" | "critical";
+  issues: DesktopTodayReadinessIssue[];
+  error: string | null;
+};
+
+export type DesktopTodayAttendanceItem = {
+  eventId: string;
+  staffId: string | null;
+  staffName: string;
+  staffNickname: string | null;
+  eventType: string;
+  outcome: string;
+  reasonCode: string | null;
+  message: string | null;
+  occurredAt: string;
+  clockInAt: string | null;
+  clockOutAt: string | null;
+  sourceLabel: string | null;
+};
+
+export type DesktopTodayAttendance = {
+  available: boolean;
+  selectedDate: string;
+  timezone: string;
+  lastHourCount: number;
+  items: DesktopTodayAttendanceItem[];
+  error: string | null;
+};
+
+export type DesktopTodayNotification = {
+  id: string;
+  title: string;
+  body: string | null;
+  type: string;
+  priority: string;
+  createdAt: string;
+  requiresAction: boolean;
+};
+
+export type DesktopTodayNotifications = {
+  available: boolean;
+  items: DesktopTodayNotification[];
+  error: string | null;
+};
+
+export type DesktopTodayData = {
+  context: DesktopTodayContext;
+  summary: DesktopTodaySummary;
+  queue: DesktopTodayQueueItem[];
+  readiness: DesktopTodayReadiness;
+  attendance: DesktopTodayAttendance;
+  notifications: DesktopTodayNotifications;
+};
+
+export type DesktopTodayResponse = {
+  ok: true;
+  data: DesktopTodayData;
+};
 ```
 
 ---
