@@ -115,13 +115,23 @@ function createMockSupabase(params?: {
         const queryBuilder = {
           eq: vi.fn().mockImplementation((col: string, val: unknown) => {
             recordedNotificationPredicates.eq.push([col, val]);
-            currentItems = currentItems.filter((item: any) => item && item[col] === val);
+            currentItems = currentItems.filter(
+              (item: unknown) =>
+                typeof item === "object" &&
+                item !== null &&
+                (item as Record<string, unknown>)[col] === val
+            );
             return queryBuilder;
           }),
           in: vi.fn().mockImplementation((col: string, val: unknown) => {
             recordedNotificationPredicates.in.push([col, val]);
             const allowed = Array.isArray(val) ? val : [];
-            currentItems = currentItems.filter((item: any) => item && allowed.includes(item[col]));
+            currentItems = currentItems.filter(
+              (item: unknown) =>
+                typeof item === "object" &&
+                item !== null &&
+                allowed.includes((item as Record<string, unknown>)[col])
+            );
             return queryBuilder;
           }),
           not: vi.fn().mockImplementation((col: string, op: unknown, val: unknown) => {
@@ -130,10 +140,18 @@ function createMockSupabase(params?: {
               const trimmed = val.replace(/^\(|\)$/g, "");
               const excluded = trimmed.split(",").map((s) => s.trim());
               currentItems = currentItems.filter(
-                (item: any) => item && !excluded.includes(item[col])
+                (item: unknown) =>
+                  typeof item === "object" &&
+                  item !== null &&
+                  !excluded.includes(String((item as Record<string, unknown>)[col]))
               );
             } else if (op === "in" && Array.isArray(val)) {
-              currentItems = currentItems.filter((item: any) => item && !val.includes(item[col]));
+              currentItems = currentItems.filter(
+                (item: unknown) =>
+                  typeof item === "object" &&
+                  item !== null &&
+                  !val.includes((item as Record<string, unknown>)[col])
+              );
             }
             return queryBuilder;
           }),
