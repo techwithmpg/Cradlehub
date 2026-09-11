@@ -1,10 +1,10 @@
 # CradleHub Staff PWA — PWA-C3 Final Scope Freeze
 
-**Program:** CradleHub Staff PWA  
-**Stage:** PWA-C3 — Final Scope Freeze  
-**Branch:** `stage/pwa-c3-final-scope-freeze`  
-**Accepted C2/main baseline:** `2b927303d2d6bc10b09a15f2542fdcfa6c066194`  
-**Status:** **PROJECT DECISION — PWA-C3 FREEZE**  
+**Program:** CradleHub Staff PWA
+**Stage:** PWA-C3 — Final Scope Freeze
+**Branch:** `stage/pwa-c3-final-scope-freeze`
+**Accepted C2/main baseline:** `2b927303d2d6bc10b09a15f2542fdcfa6c066194`
+**Status:** **PROJECT DECISION — PWA-C3 FREEZE**
 **Execution boundary:** Scope, source-of-truth, authorization, navigation, and verification contracts only. Runtime implementation, UI redesign, database work, migration work, deployment, merge, and PWA-C4+ execution are not authorized.
 
 ## A. Authority and evidence boundary
