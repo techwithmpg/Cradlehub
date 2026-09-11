@@ -50,11 +50,14 @@ PWA-C2 — Structured Diagnostics. This correction pass remains **READ-ONLY DIAG
 
 ### D — C2 correction head
 
-- Accepted main baseline: `ed8ae75d2d6fc9f3b8144dcabbe014f676e83a99`
-- Prior reviewed C2 head: `5f7ba977fbef3bb0ee93919e6c45631bb5bce3cb`
-- Correction Pass 1 head: `923da9f5d1c0285a73831f95e0ef2b2036bead12`
-- Current correction pass starting head: `923da9f5d1c0285a73831f95e0ef2b2036bead12`
-The final remote HEAD is reported in the return handoff after push.
+- **Accepted main baseline:** `ed8ae75d2d6fc9f3b8144dcabbe014f676e83a99`
+- **Prior reviewed C2 head:** `5f7ba977fbef3bb0ee93919e6c45631bb5bce3cb`
+- **Correction Pass 1 head:** `923da9f5d1c0285a73831f95e0ef2b2036bead12`
+- **REVIEWED_DOCUMENTATION_HEAD_SHA:** `c2052943b3e488f2b3f270f01f65ba63417d5271`
+- **Branch:** `stage/pwa-c2-structured-diagnostics`
+- **Review status:** READY FOR EXTERNAL RE-REVIEW — NOT ACCEPTED / NOT MERGED
+
+The final remote HEAD is reported in the external return handoff after push to avoid self-reference.
 
 ### E — Changed files
 
@@ -96,7 +99,7 @@ No manifest/install flow or camera layer was found. A root push worker and a sel
 - **Repository inspection:** source-only review of attendance, scanner, roles/workspaces, driver location/map, workers, mobile shells, notifications, data payloads and tests.
 - **Official research:** W3C Geolocation, Chrome service-worker/geolocation/background-sync, WebKit Home Screen/background behavior and Google Maps URL documentation are linked in the diagnostic report.
 - **Documentation check `git diff --check`:** Exit code 0; 0 formatting or whitespace errors.
-- **Local markdown link audit:** Executed link verification across all active documentation files; result: 0 broken local links out of 46 audited links.
+- **Local markdown link audit:** Executed link verification across all active documentation files; result: 0 broken local links out of 45 audited links.
 - **Scope check:** `git diff --name-status 923da9f5d1c0285a73831f95e0ef2b2036bead12...HEAD` confirms only documentation files changed (`docs/pwa/PWA-C2-STRUCTURED-DIAGNOSTICS.md`, `docs/pwa/PWA-C2-HANDOFF.md`, `docs/12-KNOWN-ISSUES-REGISTER.md`).
 - **Application tests:** NOT RERUN — no runtime source or tests changed. Existing PWA-C1 local test evidence remains historical/local evidence only.
 
@@ -111,6 +114,40 @@ Database target, deployed RPC/RLS state, browser behavior, Android/iPhone behavi
 ### O — C3 candidate recommendation
 
 Do not advance automatically. If the owner later authorizes PWA-C3, use the findings to freeze business-date, attendance, role/access, scanner, driver, foundation, data-minimization and online-first scope. Do not treat every P2 finding as a C3 candidate; route-specific security and device/provider acceptance belong to later security/reliability gates.
+
+## Review evidence and accountability block
+
+- **REVIEWED_DOCUMENTATION_HEAD_SHA:** `c2052943b3e488f2b3f270f01f65ba63417d5271`
+- **Accepted main baseline:** `ed8ae75d2d6fc9f3b8144dcabbe014f676e83a99`
+- **Branch:** `stage/pwa-c2-structured-diagnostics`
+- **Review status:** READY FOR EXTERNAL RE-REVIEW — NOT ACCEPTED / NOT MERGED
+
+**Checks:**
+
+- `git diff --check`: PASS (exit code 0; 0 formatting or whitespace errors)
+- Markdown local-link audit: 45 links audited, 0 broken
+- Severity consistency: PASS (001–005 = P1; 006–011 = P2; 012 = P3; 0 ambiguous strings)
+- Correction scope: Documentation only (`docs/pwa/PWA-C2-HANDOFF.md`, `docs/pwa/PWA-C2-STRUCTURED-DIAGNOSTICS.md`)
+- Application tests: NOT RERUN — docs-only correction
+- Runtime verification: NOT PERFORMED
+- Database verification: NOT PERFORMED
+
+**Security/data impact:**
+
+NONE — documentation only
+
+**Limitations:**
+
+Production/database/device/browser behavior remains UNKNOWN / NOT VERIFIED where already identified.
+
+**Rollback:**
+
+- Before merge: abandon/revert the `stage/pwa-c2-structured-diagnostics` branch.
+- After merge: revert the PWA-C2 documentation commits through normal Git history.
+
+**Next stage:**
+
+PWA-C3 remains **NOT AUTHORIZED**.
 
 ### P — Stop gate
 
