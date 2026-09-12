@@ -4,12 +4,13 @@
 
 - Program: **OWNER APPROVED**, by explicit owner instruction on 2026-09-11.
 - Repository: `techwithmpg/Cradlehub`; target: the existing Web application / Staff Portal.
-- Authorized stage: **PWA-C3 — Final Scope Freeze only**.
+- Authorized stage: **PWA-C4 — UI/UX Specification only**.
 - PWA-C1 was accepted and merged into `main` at `ed8ae75d2d6fc9f3b8144dcabbe014f676e83a99`.
 - PWA-C2 was accepted at the C2/main baseline `2b927303d2d6bc10b09a15f2542fdcfa6c066194`.
-- PWA-C3 deliverable: documentation-only final scope and contract freeze on `stage/pwa-c3-final-scope-freeze`.
-- Delivery status: see [PWA-C3 scope freeze](PWA-C3-FINAL-SCOPE-FREEZE.md) and [PWA-C3 handoff](PWA-C3-HANDOFF.md).
-- No runtime implementation, UI redesign, schema/database change, migration, production mutation, merge, or PWA-C4+ work is authorized.
+- PWA-C3 is closed / accepted / merged at `3c069f198db8a6341b6bf27758cdbec24d344089`; its product contracts remain binding.
+- PWA-C4 deliverable: design/specification only on `stage/pwa-c4-uiux-specification`, authorized by PWA-GOV-006.
+- Delivery status: [C4 specification](PWA-C4-UIUX-SPECIFICATION.md) and [C4 handoff](PWA-C4-HANDOFF.md); accepted input: [C3 scope freeze](PWA-C3-FINAL-SCOPE-FREEZE.md).
+- No runtime implementation/UI changes, schema/database change, migration, Auth/RLS/Storage changes, production access/mutation, merge or deployment is authorized. PWA-C5+ remains NOT AUTHORIZED.
 
 The owner-approved product direction is supplied and recorded below. PWA-C3 freezes the V1 boundary, source-of-truth rules, authorization rules, conceptual navigation, and later verification gates. UI layout and interaction detail remain for PWA-C4. Product approval and a C3 freeze are not evidence that the current implementation satisfies these constraints.
 
@@ -84,8 +85,8 @@ All constraints in this section are supplied product decisions, not claims of cu
 | --- | --- | --- |
 | PWA-C1 | Current-System Truth | Closed / accepted at `ed8ae75d2d6fc9f3b8144dcabbe014f676e83a99` |
 | PWA-C2 | Structured Diagnostics | Closed / accepted at `2b927303d2d6bc10b09a15f2542fdcfa6c066194` |
-| PWA-C3 | Final Scope Freeze | Active on `stage/pwa-c3-final-scope-freeze`; documentation only |
-| PWA-C4 | UI/UX Specification | Not authorized |
+| PWA-C3 | Final Scope Freeze | Closed / accepted / merged at `3c069f198db8a6341b6bf27758cdbec24d344089` |
+| PWA-C4 | UI/UX Specification | Active on `stage/pwa-c4-uiux-specification`; design/specification only; not accepted/merged |
 | PWA-C5 | Shared Foundation | Not authorized |
 | PWA-C6 | Intelligent Scanner | Not authorized |
 | PWA-C7 | Attendance | Not authorized |
@@ -136,3 +137,6 @@ Substantial handoffs follow [the active handoff protocol](../10-HANDOFF-PROTOCOL
 - [PWA-C2 status and handoff](PWA-C2-HANDOFF.md)
 - [PWA-C3 final scope freeze](PWA-C3-FINAL-SCOPE-FREEZE.md)
 - [PWA-C3 status and handoff](PWA-C3-HANDOFF.md)
+
+- [PWA-C4 UI/UX specification](PWA-C4-UIUX-SPECIFICATION.md)
+- [PWA-C4 handoff and status](PWA-C4-HANDOFF.md)

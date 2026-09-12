@@ -2,12 +2,11 @@
 
 ## Staff PWA workstream — 2026-09-12
 
-- Program: **OWNER APPROVED**. Authorized stage: **PWA-C3 — Final Scope Freeze ONLY**.
-- PWA-C1 accepted merge: `ed8ae75d2d6fc9f3b8144dcabbe014f676e83a99`; fresh C2 branch: `stage/pwa-c2-structured-diagnostics`.
-- PWA-C2 accepted baseline: `2b927303d2d6bc10b09a15f2542fdcfa6c066194`; active C3 branch: `stage/pwa-c3-final-scope-freeze`.
-- [C1 truth map](pwa/PWA-C1-TRUTH-MAP.md) and [C2 diagnostics](pwa/PWA-C2-STRUCTURED-DIAGNOSTICS.md) are accepted evidence; [C3 scope freeze](pwa/PWA-C3-FINAL-SCOPE-FREEZE.md) is the current documentation deliverable.
-- [Project governance/roadmap](pwa/PROJECT.md) and [C3 handoff/evidence](pwa/PWA-C3-HANDOFF.md) define the frozen scope and stop gate.
-- No runtime implementation, UI redesign, database, migration, production, merge or deployment changes were authorized or performed. PWA-C4+, implementation, and release certification remain unauthorized.
+- Program: **OWNER APPROVED**. Authorized stage: **PWA-C4 — UI/UX Specification ONLY**.
+- PWA-C3 closed / accepted / merged at accepted main `3c069f198db8a6341b6bf27758cdbec24d344089`; active branch `stage/pwa-c4-uiux-specification`.
+- [C1 truth map](pwa/PWA-C1-TRUTH-MAP.md), [C2 diagnostics](pwa/PWA-C2-STRUCTURED-DIAGNOSTICS.md) and [C3 scope freeze](pwa/PWA-C3-FINAL-SCOPE-FREEZE.md) are accepted inputs.
+- [C4 specification](pwa/PWA-C4-UIUX-SPECIFICATION.md) and [C4 handoff](pwa/PWA-C4-HANDOFF.md): **READY FOR EXTERNAL REVIEW — NOT ACCEPTED / NOT MERGED**.
+- PWA-GOV-006 records design/specification-only authority. No runtime/UI implementation, database/schema/migration/Auth/RLS/Storage changes, production access/mutation, merge or deployment is authorized. **PWA-C5+ remains NOT AUTHORIZED.**
 - The Marketing record below is retained. Its top-level Pass 4 state and final Pass 3 paragraph conflict; PWA-C1 does not resolve or advance that workstream. Older counts/tests describe their original baseline, not the current PWA baseline.
 
 ## Existing Web / Marketing status record

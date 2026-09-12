@@ -8,13 +8,14 @@
 
 ## CradleHub Staff PWA — current task authorization (2026-09-12)
 
-- Program: **OWNER APPROVED**; current task: **PWA-C3 — Final Scope Freeze**.
-- Accepted C2/main baseline: `2b927303d2d6bc10b09a15f2542fdcfa6c066194`.
-- Dedicated branch: `stage/pwa-c3-final-scope-freeze`.
-- PWA-C3 is scope-definition and contract-freeze work only. **Runtime implementation, UI redesign, database/migration changes, production mutation, merge, PWA-C4 and later stages are not authorized.**
-- [PWA project governance and roadmap](docs/pwa/PROJECT.md), [C1 truth map](docs/pwa/PWA-C1-TRUTH-MAP.md), [C2 diagnostics](docs/pwa/PWA-C2-STRUCTURED-DIAGNOSTICS.md), [C2 handoff/status](docs/pwa/PWA-C2-HANDOFF.md), and [C3 scope freeze/handoff](docs/pwa/PWA-C3-FINAL-SCOPE-FREEZE.md) are active PWA governance references.
-- This is a separate workstream from the historical Web/Marketing C1-C5 sequence below. The inherited Marketing status and authorization paragraphs conflict; they are not authorization to perform Marketing work in this task. No Marketing acceptance/closeout is inferred here.
-- All repository claims about production must be labelled **REPOSITORY-RECORDED PRODUCTION EVIDENCE**; PWA-C1, PWA-C2 and PWA-C3 perform no live production/device/database verification.
+- Program: **OWNER APPROVED**; current task: **PWA-C4 — UI/UX Specification**, design/specification only.
+- PWA-C3 is **CLOSED / ACCEPTED / MERGED** at accepted main `3c069f198db8a6341b6bf27758cdbec24d344089`, per owner authorization and verified starting refs.
+- Dedicated branch: `stage/pwa-c4-uiux-specification`.
+- C4 may specify mobile shells, navigation, screen flows, interaction states, accessibility and visual guidance. **No runtime UI/components/routes/actions, database/schema/migrations, Auth/RLS/Storage changes, production access/mutation, deployment or merge are authorized. PWA-C5+ remains NOT AUTHORIZED.**
+- [PWA-GOV-006](docs/11-DECISION-LOG.md#staff-pwa-decisions), [project governance](docs/pwa/PROJECT.md), [accepted C3 scope](docs/pwa/PWA-C3-FINAL-SCOPE-FREEZE.md), [C4 specification](docs/pwa/PWA-C4-UIUX-SPECIFICATION.md) and [C4 handoff](docs/pwa/PWA-C4-HANDOFF.md) define current authority and delivery.
+- C1/C2 evidence and accepted C3 artifacts remain inputs. Their former stage stop wording is historical and superseded only by PWA-GOV-006; C3 product decisions remain binding.
+- The separate historical Web/Marketing workstream below is not activated or reconciled by this task.
+- Repository production statements remain **REPOSITORY-RECORDED PRODUCTION EVIDENCE**. C4 performs no production/device/database verification.
 
 ## Accepted governance anchor
 
@@ -62,6 +63,9 @@ The recorded SHAs are stable closeout anchors, not declarations of the current `
 - [Staff PWA handoff and status](docs/pwa/PWA-C1-HANDOFF.md)
 - [Staff PWA structured diagnostics](docs/pwa/PWA-C2-STRUCTURED-DIAGNOSTICS.md)
 - [Staff PWA C2 handoff and status](docs/pwa/PWA-C2-HANDOFF.md)
+- [Staff PWA accepted C3 scope freeze](docs/pwa/PWA-C3-FINAL-SCOPE-FREEZE.md)
+- [Staff PWA C4 UI/UX specification](docs/pwa/PWA-C4-UIUX-SPECIFICATION.md)
+- [Staff PWA C4 handoff and status](docs/pwa/PWA-C4-HANDOFF.md)
 
 - [Stabilization scope](docs/01-STABILIZATION-SCOPE.md)
 - [Current system map](docs/02-CURRENT-SYSTEM-MAP.md)

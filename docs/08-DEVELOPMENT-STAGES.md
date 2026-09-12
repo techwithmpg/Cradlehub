@@ -2,7 +2,7 @@
 
 ## Staff PWA sub-roadmap
 
-The owner-approved CradleHub Staff PWA program has its own [PWA-C1 through FINAL roadmap](pwa/PROJECT.md). As of 2026-09-11, only **PWA-C1 — Current-System Truth** is authorized for this workstream. Its completion authorizes neither PWA-C2 nor feature implementation. The Web/Marketing stages below remain a separate sequence.
+The owner-approved CradleHub Staff PWA program has its own [PWA-C1 through FINAL roadmap](pwa/PROJECT.md). PWA-C3 is closed / accepted / merged at `3c069f198db8a6341b6bf27758cdbec24d344089`. PWA-GOV-006 authorizes **PWA-C4 — UI/UX Specification** only on `stage/pwa-c4-uiux-specification`. See the [C4 specification](pwa/PWA-C4-UIUX-SPECIFICATION.md) and [handoff](pwa/PWA-C4-HANDOFF.md). No runtime implementation, database/schema/migration/Auth/RLS/Storage changes, production access/mutation, merge or deployment is authorized. **PWA-C5+ remains NOT AUTHORIZED.** The Web/Marketing stages below remain a separate historical sequence.
 
 ## Web stabilization stages
 
