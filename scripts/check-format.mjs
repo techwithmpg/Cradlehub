@@ -4,7 +4,7 @@ import { fileURLToPath } from "node:url";
 import { spawnSync } from "node:child_process";
 
 const repoRoot = resolve(dirname(fileURLToPath(import.meta.url)), "..");
-const prettierBaseline = "b4192d811e95a4fef73624548df634aebfd77a3f";
+const prettierBaseline = "ed8ae75d2d6fc9f3b8144dcabbe014f676e83a99";
 const mode = process.argv[2] === "--write" ? "--write" : "--check";
 const supportedExtensions = new Set([
   ".cjs",

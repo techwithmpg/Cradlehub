@@ -82,8 +82,8 @@ async function compensateApprovalMutation(params: {
   let capabilitiesRestored = !restoreCapabilities;
   let errorMsg = "";
 
-  // 1. Restore staff row
-  const { error: staffErr } = await admin
+  // 1. Restore staff row with returned-row verification
+  const { data: restoredStaff, error: staffErr } = await admin
     .from("staff")
     .update({
       is_active: priorStaff.is_active,
@@ -93,11 +93,19 @@ async function compensateApprovalMutation(params: {
       tier: priorStaff.tier,
       nickname: priorStaff.nickname,
     })
-    .eq("id", staffId);
+    .eq("id", staffId)
+    .select("id")
+    .maybeSingle();
 
   if (staffErr) {
     errorMsg = `Staff rollback failed: ${staffErr.message}`;
     logError("staff.onboarding.compensation_staff_failed", { staffId, error: staffErr });
+  } else if (!restoredStaff) {
+    errorMsg = "Staff rollback failed: target staff row not found.";
+    logError("staff.onboarding.compensation_staff_failed", {
+      staffId,
+      error: "Zero rows updated during staff rollback",
+    });
   } else {
     staffRestored = true;
   }
@@ -278,8 +286,8 @@ export async function approveStaffOnboardingRequest(params: {
       ? requestMetadata.nickname.trim()
       : null;
 
-  // Step 1: Update staff record
-  const { error: staffErr } = await admin
+  // Step 1: Update staff record with returned-row verification
+  const { data: updatedStaff, error: staffErr } = await admin
     .from("staff")
     .update({
       is_active: true,
@@ -292,10 +300,15 @@ export async function approveStaffOnboardingRequest(params: {
       tier: input.tier,
       ...(nickname ? { nickname } : {}),
     })
-    .eq("id", staffId);
+    .eq("id", staffId)
+    .select("id")
+    .maybeSingle();
 
   if (staffErr) {
     return { ok: false, code: "SAVE_FAILED", error: staffErr.message };
+  }
+  if (!updatedStaff) {
+    return { ok: false, code: "SAVE_FAILED", error: "Target staff record could not be updated." };
   }
 
   // Step 2: Capability sync with compensating rollback if failed
@@ -391,13 +404,22 @@ export async function approveStaffOnboardingRequest(params: {
       staffId,
       actorStaffId: actor.staffId,
     });
-    await compensateApprovalMutation({
+    const compensation = await compensateApprovalMutation({
       admin,
       staffId,
       priorStaff,
       priorCapabilityIds,
       restoreCapabilities: capabilitiesAltered,
     });
+
+    if (!compensation.success) {
+      return {
+        ok: false,
+        code: "SAVE_FAILED",
+        error:
+          "The onboarding request changed concurrently and rollback could not be fully completed.",
+      };
+    }
 
     return {
       ok: false,
