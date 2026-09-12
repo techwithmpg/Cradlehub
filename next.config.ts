@@ -49,9 +49,9 @@ const nextConfig: NextConfig = {
         ],
       },
       {
-        // Staff uses client navigation into Scan, so the initial Staff document
-        // must permit its same-origin camera. Capture still requires user consent.
-        source: "/staff/:path*",
+        // Narrow Staff scanner route policy: only scanner routes permit same-origin camera.
+        // Central Staff SCAN navigation performs a document navigation so this policy is loaded.
+        source: "/staff/scan/:path*",
         headers: [
           {
             key: "Permissions-Policy",

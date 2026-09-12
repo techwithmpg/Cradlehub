@@ -52,7 +52,7 @@ function IdleOverlay({ state }: { state: ScannerState }) {
           <Camera size={36} className="text-[#163A2B]" aria-hidden="true" />
         </span>
         <span className="px-4 text-center text-xs font-semibold text-[#1E293B]">
-          Tap Start to begin scanning
+          Requesting camera access…
         </span>
       </div>
     );
@@ -152,6 +152,13 @@ function Viewfinder({
 }
 
 function StatusMessage({ state }: { state: ScannerState }) {
+  if (state === "permission_request") {
+    return (
+      <p className="text-center text-sm font-medium text-[#475569]">
+        Starting camera…
+      </p>
+    );
+  }
   if (state === "scanning") {
     return (
       <p className="text-center text-sm font-medium text-[#163A2B]">
@@ -228,57 +235,53 @@ function StatusMessage({ state }: { state: ScannerState }) {
 
 function Actions({
   state,
-  onStart,
   onScanAgain,
   returnHref,
 }: {
   state: ScannerState;
-  onStart: () => void;
   onScanAgain: () => void;
   returnHref: string;
 }) {
-  const processing =
-    state === "scanning" || state === "code_detected" || state === "processing";
+  const inProgress =
+    state === "permission_request" ||
+    state === "scanning" ||
+    state === "code_detected" ||
+    state === "processing";
 
-  if (processing) {
+  if (inProgress) {
     return (
-      <div className="flex justify-center">
-        <div className="inline-flex items-center gap-2 rounded-full bg-[#163A2B]/10 px-4 py-2 text-xs font-semibold text-[#163A2B]">
-          <Loader2 size={12} className="animate-spin" aria-hidden="true" />
-          Scanning in progress
+      <div className="flex flex-col gap-3">
+        <div className="flex justify-center">
+          <div className="inline-flex items-center gap-2 rounded-full bg-[#163A2B]/10 px-4 py-2 text-xs font-semibold text-[#163A2B]">
+            <Loader2 size={12} className="animate-spin" aria-hidden="true" />
+            {state === "permission_request"
+              ? "Starting camera…"
+              : state === "scanning"
+              ? "Scanning in progress"
+              : "Processing code…"}
+          </div>
         </div>
+        <a
+          id="staff-scanner-return"
+          href={returnHref}
+          className="flex h-11 w-full items-center justify-center gap-2 rounded-xl border border-[#EAE4DC] bg-white text-sm font-semibold text-[#163A2B] shadow-xs transition hover:bg-[#F7F3EB] active:scale-95"
+        >
+          Return to Workspace
+        </a>
       </div>
     );
   }
-
-  const isRetry =
-    state === "paused" ||
-    state === "permission_denied" ||
-    state === "camera_unavailable" ||
-    state === "invalid" ||
-    state === "rejected" ||
-    state === "network_unknown" ||
-    state === "duplicate";
 
   return (
     <div className="flex flex-col gap-3">
       <button
         id="staff-scanner-start"
         type="button"
-        onClick={isRetry ? onScanAgain : onStart}
+        onClick={onScanAgain}
         className="flex h-12 w-full items-center justify-center gap-2 rounded-xl bg-[#163A2B] text-sm font-semibold text-white shadow-xs transition hover:bg-[#10261D] active:scale-95"
       >
-        {isRetry ? (
-          <>
-            <RefreshCw size={16} aria-hidden="true" />
-            {state === "permission_denied" ? "Try again" : "Scan again"}
-          </>
-        ) : (
-          <>
-            <Camera size={16} aria-hidden="true" />
-            Start Scanning
-          </>
-        )}
+        <RefreshCw size={16} aria-hidden="true" />
+        {state === "permission_denied" ? "Try again" : "Scan again"}
       </button>
 
       <a
@@ -351,8 +354,8 @@ export function StaffQrScanner({ returnHref }: StaffQrScannerProps) {
     [router]
   );
 
-  const { state, videoRef, canvasRef, startScan, scanAgain, setState } =
-    useStaffScanner({ onDecode: handleDecode });
+  const { state, videoRef, canvasRef, scanAgain, setState } =
+    useStaffScanner({ onDecode: handleDecode, autoStart: true });
 
   // Keep the ref current after each render
   setStateRef.current = setState;
@@ -363,12 +366,11 @@ export function StaffQrScanner({ returnHref }: StaffQrScannerProps) {
       <StatusMessage state={state} />
       <Actions
         state={state}
-        onStart={startScan}
         onScanAgain={scanAgain}
         returnHref={returnHref}
       />
       <p className="mt-auto text-center text-[11px] text-[#64748B]">
-        🔒 Camera used only while scanning · No data stored on device
+        🔒 Camera active only while scanning · Camera images are not saved
       </p>
     </div>
   );

@@ -19,9 +19,9 @@ function deferred<T>() {
   const promise = new Promise<T>(r => { resolve = r; });
   return { promise, resolve };
 }
-function setup() {
+function setup(autoStart = false) {
   const onDecode = vi.fn();
-  const hook = renderHook(() => useStaffScanner({ onDecode }));
+  const hook = renderHook(() => useStaffScanner({ onDecode, autoStart }));
   const video = document.createElement("video");
   Object.defineProperties(video, {
     readyState: { value: 2 }, videoWidth: { value: 2 }, videoHeight: { value: 2 },
@@ -151,5 +151,57 @@ describe("Staff scanner capture lifecycle", () => {
     const hook = setup(); await start(hook);
     expect(getUserMedia).toHaveBeenNthCalledWith(2, { video: true, audio: false });
     expect(hook.result.current.state).toBe("permission_denied");
+  });
+  it("automatically attempts startScan on initial mount when autoStart is enabled without second tap", async () => {
+    const streamObj = media();
+    getUserMedia.mockResolvedValue(streamObj.stream);
+    const onDecode = vi.fn();
+    const hook = renderHook(() => useStaffScanner({ onDecode, autoStart: true }));
+    expect(getUserMedia).toHaveBeenCalledWith({
+      video: { facingMode: { ideal: "environment" } },
+      audio: false,
+    });
+    expect(hook.result.current.state).toBe("permission_request");
+    hook.unmount();
+  });
+  it("does not auto-loop on permission denial with autoStart", async () => {
+    getUserMedia.mockRejectedValue(new DOMException("Denied", "NotAllowedError"));
+    const onDecode = vi.fn();
+    const hook = renderHook(() => useStaffScanner({ onDecode, autoStart: true }));
+    await act(async () => {});
+    expect(hook.result.current.state).toBe("permission_denied");
+    // Primary attempt + fallback attempt only, no infinite loop
+    expect(getUserMedia).toHaveBeenCalledTimes(2);
+    hook.unmount();
+  });
+  it("does not auto-resume when returning from hidden state with autoStart", async () => {
+    const streamObj = media();
+    getUserMedia.mockResolvedValue(streamObj.stream);
+    const hook = setup(true);
+    await act(async () => {});
+    await act(async () => { hook.video.dispatchEvent(new Event("loadedmetadata")); });
+    expect(hook.result.current.state).toBe("scanning");
+
+    visibility(true);
+    expect(hook.result.current.state).toBe("paused");
+    visibility(false);
+    expect(getUserMedia).toHaveBeenCalledTimes(1);
+    expect(hook.result.current.state).toBe("paused");
+    hook.unmount();
+  });
+  it("explicitly reacquires camera on scanAgain after pause or denial", async () => {
+    const first = media(); const second = media();
+    getUserMedia.mockResolvedValueOnce(first.stream).mockResolvedValueOnce(second.stream);
+    const hook = setup(true);
+    await act(async () => {});
+    await act(async () => { hook.video.dispatchEvent(new Event("loadedmetadata")); });
+    visibility(true);
+    expect(hook.result.current.state).toBe("paused");
+    visibility(false);
+    expect(getUserMedia).toHaveBeenCalledTimes(1);
+
+    await act(async () => { hook.result.current.scanAgain(); });
+    expect(getUserMedia).toHaveBeenCalledTimes(2);
+    hook.unmount();
   });
 });

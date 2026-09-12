@@ -70,14 +70,15 @@ export function StaffBottomNav({
 
             return (
               <div key={item.key} className="flex justify-center">
-                <Link
+                {/* Force same-origin document navigation so /staff/scan loads its narrow Permissions-Policy (camera=(self)) */}
+                <a
                   href={item.href}
                   aria-label="Scan QR code"
                   aria-current={active ? "page" : undefined}
                   className="flex h-14 w-14 items-center justify-center focus:outline-none"
                 >
                   {scanContent}
-                </Link>
+                </a>
               </div>
             );
           }

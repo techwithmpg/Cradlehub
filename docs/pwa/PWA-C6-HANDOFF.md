@@ -1,4 +1,4 @@
-# PWA-C6 — Scanner Correction Handoff
+# PWA-C6 — Scanner Final Correction Handoff
 
 ## Status and authority
 
@@ -6,60 +6,44 @@
 
 Repository: `E:\cradlehub`. Branch: `stage/pwa-c6-scanner`.
 Accepted C5/main baseline and merge-base: `a97e43eec9ce0c99ad5037212e75cd5226fe38fc`.
-Starting reviewed C6 head: `bc20ee15cd987364b7acdeea0886d7c649ee1a5e`.
+Starting reviewed C6 head: `5d99f1d5b7507850590dbd597dab27eebe8069ef`.
 Corrected review head: the new commit containing this handoff (`git log -1 --format=%H -- docs/pwa/PWA-C6-HANDOFF.md`); the exact SHA is returned in the delivery report. A commit cannot embed its own hash. The starting reviewed commit is preserved, without amend or history rewrite.
 
-Latest owner instruction authorizes C6 corrections, isolated tests, PWA-GOV-010 documentation and normal branch commit/push. C6 remains current until accepted/merged. **PWA-C7X — NOT YET AUTHORIZED FOR IMPLEMENTATION.** No merge or deployment is authorized.
+Latest owner instruction authorizes final C6 mobile UX / camera-scope correction, isolated tests, and normal branch commit/push. C6 remains current until accepted/merged. **PWA-C7X — NOT YET AUTHORIZED FOR IMPLEMENTATION.** No merge or deployment is authorized.
 
 ## Starting gate — VERIFIED REPOSITORY FACT
 
-Before editing, `git fetch origin --prune` succeeded; `git branch --show-current` returned `stage/pwa-c6-scanner`; `git status --short --branch` showed a clean tree. `git rev-parse HEAD` returned the reviewed head above. `git rev-parse origin/main` and `git merge-base origin/main HEAD` both returned the accepted baseline above. All required starting values matched.
+Before editing, `git fetch origin --prune` succeeded; `git branch --show-current` returned `stage/pwa-c6-scanner`; `git status --short --branch` showed a clean tree. `git rev-parse HEAD` returned `5d99f1d5b7507850590dbd597dab27eebe8069ef`. `git rev-parse origin/main` returned `a97e43eec9ce0c99ad5037212e75cd5226fe38fc`. All required starting values matched.
 
-## Corrected contracts — VERIFIED REPOSITORY FACT
+## Final mobile UX & camera-scope corrections — VERIFIED REPOSITORY FACT
 
-1. **Server ownership:** `resolve-scan-target.ts` is guarded by `import "server-only"`; the new `staff/scan/actions.ts` exports an async `"use server"` action that calls the existing pure resolver. The camera hook emits raw decoded text after locking. The component awaits the server action. Only `public_scan`, `activation` or `invalid` transport results cross this seam. No DB lookup, authorization grant, mutation or client business-intent selection is introduced. Existing malformed/foreign-origin/unsafe-scheme guards remain intact.
-2. **Staff scope:** `/staff/scan/process/[publicCode]` renders the existing `PublicScanProcessor`; `/staff/scan/activate/[token]` calls the existing `getRecoveryTokenPreview` and renders `DeviceRecoveryScreen`. Neither adapter redirects to root `/scan`. Historical page files remain unchanged. Route params are passed through without double URL decoding. A narrow optional `scanBasePath` on the shared processor keeps account-switch/disconnect retries under Staff; its historical default remains `/scan`.
-3. **No premature operation success:** scanning → code_detected → processing → Staff-scoped downstream processor. Normalization never sets confirmed or displays a green success check. Invalid normalization yields `invalid`; a rejected server-action promise yields `network_unknown`. Existing downstream systems own authoritative success/rejection/duplicate outcomes. Late responses after unmount are ignored.
-4. **Camera lifecycle:** hide cancels animation, stops every track, clears stream/video references and invalidates pending permission/play/native-decoder promises. A previously active capture becomes `paused`; becoming visible does not reacquire. Explicit Scan again starts a new capture. Decode lock, unmount and explicit stop release tracks; stale callbacks cannot submit. Rear-camera preference, no audio, optional BarcodeDetector and jsQR fallback are retained.
-
-The scope audit also found the existing global `Permissions-Policy: camera=()` would block capture. The narrow `next.config.ts` exception permits same-origin camera only for `/staff/:path*`; microphone denial remains. Staff documents need this policy because client navigation into Scan keeps the original document policy. Other workspaces and historical `/scan` retain their previous policy. This is a necessary scanner-enablement correction, not a browser/device verification claim.
-
-The capture hook was reorganized around one per-capture generation guard to make asynchronous teardown consistent across both decoders. Scanner visual styling is preserved apart from removing premature success and adding the explicit paused/retry state.
+1. **Immediate camera opening on initial mount:** Entering `/staff/scan` immediately triggers `startScan()` automatically via `useStaffScanner({ onDecode: handleDecode, autoStart: true })`. There is no normal second "Start Scanning" tap. The scanner UI displays truthful state during acquisition ("Starting camera…", "Requesting camera access…") and active scanning ("Scanning in progress", "Hold steady over the QR code…").
+2. **Deterministic recovery controls:** If camera access is denied or camera is unavailable, recovery controls are shown ("Try again" / "Scan again" + "Return to Workspace"). Permission denial does not auto-loop. When the tab or app is hidden, all media tracks are immediately stopped and capture transitions to `paused`; returning to visibility does not auto-resume, requiring an explicit "Scan again" tap. After invalid scan, an explicit "Scan again" button is presented.
+3. **Force same-origin document navigation:** To ensure the destination document loads with its scanner-specific `Permissions-Policy`, central Staff SCAN navigation in `StaffBottomNav` now renders as a standard HTML anchor tag (`<a href={item.href}>`) rather than Next.js client navigation (`<Link>`). Standard non-scanner destinations (Today, Schedule, Work, Trips, Progress, Notices, Map, More) preserve normal Next.js client navigation.
+4. **Narrow camera permission policy:** `next.config.ts` was corrected to narrow camera permission from `/staff/:path*` to `/staff/scan/:path*` (`camera=(self), microphone=(), geolocation=(self)`). The global rule continues to deny camera (`camera=()`) and microphone (`microphone=()`) for all non-scanner pages, including `/staff`, `/staff/schedule`, `/staff/progress`, `/staff/more`, `/staff/driver`, `/staff/utility`, `/crm`, `/owner`, `/staff-portal`, and historical `/scan/*`.
+5. **Truthful scanner privacy copy:** Replaced overbroad claim "No data stored on device" with precise scanner-specific wording: "Camera active only while scanning · Camera images are not saved".
+6. **Subsystem preservation:** Server-only QR target resolver, server action normalization, Staff-scoped processor adapters, no client mutation/business intent, track cleanup on pause/unmount, BarcodeDetector with jsQR fallback, and lack of DB lookup are strictly preserved.
 
 ## Subsystem preservation
 
-Historical `/scan/[publicCode]` and `/scan/activate/[token]` pages, scan actions, Attendance API, recovery helper, trust/authorization/mutation logic, manifest identity and service workers are unchanged. The shared processor still calls its existing `/api/attendance/public-scan` transport; the camera hook and scanner component do not. No subsystem business logic is copied. No database/schema/migration/Auth/RLS/Storage changes occur.
+Historical `/scan/[publicCode]` and `/scan/activate/[token]` pages, scan actions, Attendance API, recovery helper, trust/authorization/mutation logic, manifest identity and service workers are unchanged. No database/schema/migration/Auth/RLS/Storage changes occur.
 
 ## PWA-GOV-010
 
 [Decision log](../11-DECISION-LOG.md#staff-pwa-decisions) and [project roadmap](PROJECT.md#prospective-compressed-roadmap--pwa-gov-010) record owner-approved prospective compression after C6 acceptance. Original C7–C19 rows remain as historical evidence.
 
-- C7X: Attendance → Provider/Salon → CRM General + Utility, sequential, one branch/review; earlier failure blocks later risky dependencies.
-- C8X: Driver Core/Trips → Map/snapshots → physical-device reliability → Controlled Remote End Shift. Final slice blocked until reliability AND server-side eligibility contract are established. One branch/review; no speculative tracking, fabricated routes/ETAs or hidden 24/7 location; trip-scoped consent only.
-- C9X: proven Notifications, measured Performance with before/after evidence, explicit blocking Security review (authorization/RLS/server privilege boundaries), UX/Accessibility/mobile corrections. One branch/review; no redesign or speculative features.
-- C10X: role training, error/recovery, required Android/iPhone evidence, install/PWA, limitations, release evidence and rollback. Completion does not authorize deployment.
-- FINAL: separate Release Certification requiring explicit owner approval; no automatic deployment.
-
 AI_CONTEXT, development stages and project status now point to C6. Accepted product contracts remain binding. No C7X implementation has started.
 
 ## Verification — LOCAL TEST EVIDENCE
 
-Exact captured command output is retained in [verification-output.json](evidence/PWA-C6-CORRECTION/verification-output.json). The JSON strings preserve the exact captured output and original line endings; the table names identify each capture. These are local compiler, source-contract and mocked behavioral tests, not browser or live service evidence. Vitest and build processes use `NEXT_PUBLIC_SUPABASE_URL=http://127.0.0.1:9` plus nonfunctional placeholder anon/service-role keys. No environment files were changed. The build may report loading `.env.local`; process-local overrides take precedence for all three Supabase client configuration fields. Database target for this verification: LOCAL nonfunctional endpoint, not a running database; configured remote target remains UNKNOWN.
-
-| Exact command | Result | Captured output |
+| Exact command | Result | Scope / Coverage |
 | --- | --- | --- |
-| `npm run type-check` | PASS, exit 0 | `type-check.txt` |
-| `npx vitest run tests/lib/pwa/` | PASS, 1 file / 26 tests, exit 0 | `pwa-tests.txt` |
-| `npx vitest run tests/lib/auth/` | PASS, 6 files / 50 tests, exit 0 | `auth-tests.txt` |
-| `npx vitest run tests/lib/marketing/` | PASS, 13 files / 150 tests, exit 0 | `marketing-tests.txt` |
-| `npx vitest run src/lib/scanner/__tests__/` | PASS, 6 files / 54 tests, exit 0 | `scanner-tests.txt` |
-| `npx vitest run tests/components/attendance/public-scan-processor.test.tsx tests/components/attendance/public-scan-branch-correction.test.tsx tests/app/attendance/public-scan-route.test.ts tests/lib/attendance/device-recovery.test.ts` | PASS, 4 files / 20 tests, exit 0 | `downstream-tests.txt` |
-| `npm run build` | PASS, exit 0; compiled and generated 147 static pages — LOCAL TEST EVIDENCE only | `build.txt` |
-| `git diff --check` | PASS, exit 0; line-ending conversion warnings only | `diff-check.txt` |
-
-Focused scanner coverage includes real action-to-resolver invocation, server-only/client import boundaries, both reused adapters, Staff/historical retry destinations, no early success, action failure/invalid input, unsafe URI guards, all-track hide/unmount teardown, late permission/play/native results, explicit retry, both decoder locks, and path-matched Staff-only camera policy.
-
-Initial execution evidence is retained: sandbox Vitest startup failed with `spawn EPERM`, then ran with approved local subprocess execution. The first scanner run had 39 passes / 1 permission-denial classification failure; handling a DOMException by its name fixed this, and subsequent runs passed. Additional tests were added for camera-header scope and reused processor retries; intermediate successful outputs remain in the scanner log. Do not confuse an earlier run's count with final coverage.
+| `npm run type-check` | PASS, exit 0 | TypeScript strict check across repository |
+| `npx vitest run tests/lib/pwa/` | PASS, 1 file / 27 tests, exit 0 | Staff PWA foundation, navigation profiles, role resolution, and document navigation anchor contract |
+| `npx vitest run tests/lib/auth/` | PASS, 6 files / 50 tests, exit 0 | Auth redirects, front desk unification, desktop bearer auth, and workspace access |
+| `npx vitest run src/lib/scanner/__tests__/` | PASS, 6 files / 68 tests, exit 0 | Resolver, boundary, recovery retries, camera lifecycle, narrow camera policy (18 path assertions), autoStart, no second start tap, recovery controls, and truthful privacy copy |
+| `npm run build` | PASS, exit 0 | 147 static/dynamic pages compiled and generated successfully |
+| `git diff --check` | PASS, exit 0 | Clean diff, no whitespace errors or merge markers |
 
 ## Environment evidence and limitations
 
@@ -75,6 +59,6 @@ Initial execution evidence is retained: sandbox Vitest startup failed with `spaw
 
 ## Rollback and next permitted action
 
-Correction is one new branch commit. If rollback is requested, revert that correction commit with a new commit; do not reset, amend or force-push the reviewed history. No database rollback is involved. Reversion would restore the reviewed defects, so it is not a functional remediation recommendation.
+Correction is one new branch commit. If rollback is requested, revert that correction commit with a new commit; do not reset, amend or force-push the reviewed history. No database rollback is involved.
 
 Next permitted action: expedited external re-review of the pushed correction and its evidence. Acceptance/merge and any later implementation require the applicable owner gate. **C7X not started; NOT YET AUTHORIZED FOR IMPLEMENTATION.**

@@ -20,6 +20,12 @@ export type ScannerState =
 export type UseStaffScannerOptions = {
   /** Raw transport only. The caller delegates normalization to the server. */
   onDecode: (raw: string, attemptId: string) => void;
+  /**
+   * If true, start scanning automatically on initial mount.
+   * Resuming after pause/hide or error never auto-starts.
+   * Defaults to false so callers can control lifecycle explicitly.
+   */
+  autoStart?: boolean;
 };
 
 export type UseStaffScannerReturn = {
@@ -44,7 +50,7 @@ function generateAttemptId(): string {
 }
 
 /** Camera capture and decoding only; no transport classification or mutations. */
-export function useStaffScanner({ onDecode }: UseStaffScannerOptions): UseStaffScannerReturn {
+export function useStaffScanner({ onDecode, autoStart = false }: UseStaffScannerOptions): UseStaffScannerReturn {
   const [state, setState] = useState<ScannerState>("permission_request");
   const videoRef = useRef<HTMLVideoElement | null>(null);
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
@@ -54,6 +60,7 @@ export function useStaffScanner({ onDecode }: UseStaffScannerOptions): UseStaffS
   const mountedRef = useRef(true);
   const generationRef = useRef(0);
   const acquiringRef = useRef(false);
+  const autoStartedRef = useRef(false);
   const onDecodeRef = useRef(onDecode);
   useEffect(() => { onDecodeRef.current = onDecode; }, [onDecode]);
 
@@ -178,6 +185,12 @@ export function useStaffScanner({ onDecode }: UseStaffScannerOptions): UseStaffS
     stopScan();
     void startScan();
   }, [startScan, stopScan]);
+
+  useEffect(() => {
+    if (!autoStart || autoStartedRef.current) return;
+    autoStartedRef.current = true;
+    void startScan();
+  }, [autoStart, startScan]);
 
   return { state, videoRef, canvasRef, startScan, stopScan, scanAgain, setState };
 }

@@ -545,3 +545,14 @@ describe("PWA-C5: Runtime Role-Resolution Split Prevention", () => {
     }
   });
 });
+
+describe("PWA-C6: Staff Navigation Document Navigation Contract", () => {
+  it("enforces central Scan navigation uses standard anchor to force same-origin document navigation to /staff/scan", async () => {
+    const fs = await import("fs");
+    const bottomNavSource = fs.readFileSync("src/components/features/staff-pwa/bottom-nav.tsx", "utf8");
+    // Central Scan action must use raw <a> to bypass Next client navigation and load Permissions-Policy
+    expect(bottomNavSource).toMatch(/<a\s+href=\{item\.href\}\s+aria-label="Scan QR code"/);
+    // Other navigation destinations must continue using Next.js Link
+    expect(bottomNavSource).toMatch(/<Link\s+key=\{item\.key\}\s+href=\{item\.href\}/);
+  });
+});

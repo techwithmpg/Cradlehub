@@ -12,13 +12,36 @@ async function policy(path: string) {
   }
   return result;
 }
-describe("Staff document camera permissions", () => {
-  it.each(["/staff", "/staff/", "/staff/scan", "/staff/scan/process/att_test", "/staff/driver"])(
-    "permits same-origin camera for %s so client navigation to Scan is possible, with no microphone",
-    async path => expect(await policy(path)).toBe("camera=(self), microphone=(), geolocation=(self)")
+describe("Staff scanner camera permissions policy", () => {
+  it.each([
+    "/staff/scan",
+    "/staff/scan/",
+    "/staff/scan/process/att_test",
+    "/staff/scan/activate/act_test",
+  ])(
+    "permits same-origin camera only for scanner route: %s",
+    async (path) =>
+      expect(await policy(path)).toBe("camera=(self), microphone=(), geolocation=(self)")
   );
-  it.each(["/", "/scan/att_test", "/crm", "/owner", "/staff-portal", "/staffing", "/sw.js"])(
-    "retains camera and microphone denial outside Staff: %s",
-    async path => expect(await policy(path)).toBe("camera=(), microphone=(), geolocation=(self)")
+
+  it.each([
+    "/",
+    "/staff",
+    "/staff/",
+    "/staff/schedule",
+    "/staff/progress",
+    "/staff/more",
+    "/staff/driver",
+    "/staff/utility",
+    "/crm",
+    "/owner",
+    "/staff-portal",
+    "/staffing",
+    "/scan/att_test",
+    "/sw.js",
+  ])(
+    "retains camera denial for non-scanner route: %s",
+    async (path) =>
+      expect(await policy(path)).toBe("camera=(), microphone=(), geolocation=(self)")
   );
 });
