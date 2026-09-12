@@ -212,36 +212,76 @@ describe("PWA-C5: Security Boundaries & Authorization Contracts", () => {
     expect(proxySource).toContain('"/scan"');
   });
 
-  it("verifies canAccessWorkspacePath authorizes canonical /staff routes for appropriate roles", async () => {
+  it("verifies canAccessWorkspacePath authorizes canonical /staff routes for appropriate roles and rejects Manager/Owner/Marketing", async () => {
     const { canAccessWorkspacePath, buildWorkspaceAccessFromStaffProfile } = await import("@/lib/auth/workspace-access");
 
-    // Provider / therapist
+    // 1. Provider / therapist (staff + therapist)
     const therapistWs = buildWorkspaceAccessFromStaffProfile({ id: "1", system_role: "staff", staff_type: "therapist" });
-    expect(canAccessWorkspacePath("/staff", "staff", therapistWs)).toBe(true);
-    expect(canAccessWorkspacePath("/staff/scan", "staff", therapistWs)).toBe(true);
-    expect(canAccessWorkspacePath("/scan", "staff", therapistWs)).toBe(true);
-    expect(canAccessWorkspacePath("/staff/driver", "staff", therapistWs)).toBe(false);
-    expect(canAccessWorkspacePath("/staff/utility", "staff", therapistWs)).toBe(false);
+    expect(canAccessWorkspacePath("/staff", "staff", therapistWs, "therapist")).toBe(true);
+    expect(canAccessWorkspacePath("/staff/scan", "staff", therapistWs, "therapist")).toBe(true);
+    expect(canAccessWorkspacePath("/scan", "staff", therapistWs, "therapist")).toBe(true);
+    expect(canAccessWorkspacePath("/staff/schedule", "staff", therapistWs, "therapist")).toBe(true);
+    expect(canAccessWorkspacePath("/staff/progress", "staff", therapistWs, "therapist")).toBe(true);
+    expect(canAccessWorkspacePath("/staff/driver", "staff", therapistWs, "therapist")).toBe(false);
+    expect(canAccessWorkspacePath("/staff/utility", "staff", therapistWs, "therapist")).toBe(false);
+    expect(canAccessWorkspacePath("/staff/work", "staff", therapistWs, "therapist")).toBe(false);
 
-    // Driver
+    // 2. Driver
     const driverWs = buildWorkspaceAccessFromStaffProfile({ id: "2", system_role: "driver", staff_type: null });
-    expect(canAccessWorkspacePath("/staff/driver", "driver", driverWs)).toBe(true);
-    expect(canAccessWorkspacePath("/driver", "driver", driverWs)).toBe(true);
-    expect(canAccessWorkspacePath("/staff/scan", "driver", driverWs)).toBe(true);
-    expect(canAccessWorkspacePath("/staff-portal", "driver", driverWs)).toBe(false);
+    expect(canAccessWorkspacePath("/staff", "driver", driverWs, null)).toBe(true);
+    expect(canAccessWorkspacePath("/staff/driver", "driver", driverWs, null)).toBe(true);
+    expect(canAccessWorkspacePath("/driver", "driver", driverWs, null)).toBe(true);
+    expect(canAccessWorkspacePath("/staff/scan", "driver", driverWs, null)).toBe(true);
+    expect(canAccessWorkspacePath("/scan", "driver", driverWs, null)).toBe(true);
+    expect(canAccessWorkspacePath("/staff/utility", "driver", driverWs, null)).toBe(false);
+    expect(canAccessWorkspacePath("/staff-portal", "driver", driverWs, null)).toBe(false);
 
-    // Utility
+    // 3. Utility
     const utilityWs = buildWorkspaceAccessFromStaffProfile({ id: "3", system_role: "utility", staff_type: "utility" });
-    expect(canAccessWorkspacePath("/staff/utility", "utility", utilityWs)).toBe(true);
-    expect(canAccessWorkspacePath("/utility", "utility", utilityWs)).toBe(true);
-    expect(canAccessWorkspacePath("/staff/scan", "utility", utilityWs)).toBe(true);
-    expect(canAccessWorkspacePath("/staff-portal", "utility", utilityWs)).toBe(false);
+    expect(canAccessWorkspacePath("/staff", "utility", utilityWs, "utility")).toBe(true);
+    expect(canAccessWorkspacePath("/staff/utility", "utility", utilityWs, "utility")).toBe(true);
+    expect(canAccessWorkspacePath("/utility", "utility", utilityWs, "utility")).toBe(true);
+    expect(canAccessWorkspacePath("/staff/scan", "utility", utilityWs, "utility")).toBe(true);
+    expect(canAccessWorkspacePath("/scan", "utility", utilityWs, "utility")).toBe(true);
+    expect(canAccessWorkspacePath("/staff/driver", "utility", utilityWs, "utility")).toBe(false);
+    expect(canAccessWorkspacePath("/staff-portal", "utility", utilityWs, "utility")).toBe(false);
 
-    // Front Desk / CRM
+    // 4. Front Desk / CRM
     const crmWs = buildWorkspaceAccessFromStaffProfile({ id: "4", system_role: "front_desk", staff_type: null });
-    expect(canAccessWorkspacePath("/staff", "front_desk", crmWs)).toBe(true);
-    expect(canAccessWorkspacePath("/staff/scan", "front_desk", crmWs)).toBe(true);
-    expect(canAccessWorkspacePath("/staff/driver", "front_desk", crmWs)).toBe(false);
+    expect(canAccessWorkspacePath("/staff", "front_desk", crmWs, null)).toBe(true);
+    expect(canAccessWorkspacePath("/staff/scan", "front_desk", crmWs, null)).toBe(true);
+    expect(canAccessWorkspacePath("/scan", "front_desk", crmWs, null)).toBe(true);
+    expect(canAccessWorkspacePath("/staff/work", "front_desk", crmWs, null)).toBe(true);
+    expect(canAccessWorkspacePath("/staff/driver", "front_desk", crmWs, null)).toBe(false);
+
+    // 5. REJECTION: Owner must NOT access Staff-PWA operational boundary
+    const ownerWs = buildWorkspaceAccessFromStaffProfile({ id: "5", system_role: "owner", staff_type: null });
+    expect(canAccessWorkspacePath("/staff", "owner", ownerWs, null)).toBe(false);
+    expect(canAccessWorkspacePath("/staff/scan", "owner", ownerWs, null)).toBe(false);
+    expect(canAccessWorkspacePath("/scan", "owner", ownerWs, null)).toBe(false);
+    expect(canAccessWorkspacePath("/staff/driver", "owner", ownerWs, null)).toBe(false);
+    expect(canAccessWorkspacePath("/staff/utility", "owner", ownerWs, null)).toBe(false);
+    expect(canAccessWorkspacePath("/owner", "owner", ownerWs, null)).toBe(true);
+
+    // 6. REJECTION: Manager must NOT access Staff-PWA operational boundary
+    const managerWs = buildWorkspaceAccessFromStaffProfile({ id: "6", system_role: "manager", staff_type: null });
+    expect(canAccessWorkspacePath("/staff", "manager", managerWs, null)).toBe(false);
+    expect(canAccessWorkspacePath("/staff/scan", "manager", managerWs, null)).toBe(false);
+    expect(canAccessWorkspacePath("/scan", "manager", managerWs, null)).toBe(false);
+    expect(canAccessWorkspacePath("/manager", "manager", managerWs, null)).toBe(true);
+
+    // 7. REJECTION: Digital Marketer must NOT access Staff-PWA operational boundary
+    const marketerWs = buildWorkspaceAccessFromStaffProfile({ id: "7", system_role: "digital_marketer", staff_type: null });
+    expect(canAccessWorkspacePath("/staff", "digital_marketer", marketerWs, null)).toBe(false);
+    expect(canAccessWorkspacePath("/staff/scan", "digital_marketer", marketerWs, null)).toBe(false);
+    expect(canAccessWorkspacePath("/scan", "digital_marketer", marketerWs, null)).toBe(false);
+    expect(canAccessWorkspacePath("/marketing", "digital_marketer", marketerWs, null)).toBe(true);
+  });
+
+  it("verifies proxy passes staff_type to canAccessWorkspacePath", async () => {
+    const fs = await import("fs");
+    const proxySource = fs.readFileSync("src/proxy.ts", "utf8");
+    expect(proxySource).toContain("canAccessWorkspacePath(pathname, systemRole, workspaces, staffRecord.staff_type)");
   });
 
   it("verifies StaffAppShell does not fall back to therapist silently", async () => {

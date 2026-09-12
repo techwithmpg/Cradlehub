@@ -35,8 +35,10 @@ Stage PWA-C5 has completed the shared mobile foundation implementation required 
      - `/staff/utility/more` (Utility More)
 
 2. **Security & Authorization Boundaries:**
-   - Updated `src/proxy.ts`: added `"/staff"` and `"/scan"` to `PROTECTED_PREFIXES` so unauthenticated requests fail closed and redirect to `/login`.
-   - Updated `src/lib/auth/workspace-access.ts`: extended `canAccessWorkspacePath` to authorize `/staff`, `/staff/driver`, `/staff/utility`, `/staff/scan`, and `/scan` based on verified session profile.
+   - Updated `src/proxy.ts`: added `"/staff"` and `"/scan"` to `PROTECTED_PREFIXES` so unauthenticated requests fail closed and redirect to `/login`. Passes trusted server-side `staffRecord.staff_type` to `canAccessWorkspacePath`.
+   - Updated `src/lib/auth/workspace-access.ts`: replaced generic `workspaces.length > 0` with `resolveStaffPwaOperationalGroup(role, staffType)`. Strictly limits `/staff/*` and `/scan` to the 4 approved Staff-PWA operational groups (Provider, CRM / General Staff, Utility, Driver) and rejects Owner, Manager, and Digital Marketer.
+   - Preserved historical legacy workspace authority on `/staff-portal`, `/driver`, `/utility`, `/owner`, `/manager`, and `/marketing`.
+   - Role-aware `/staff/page.tsx`: routes `driver` to `/staff/driver` and `utility` to `/staff/utility` within the `/staff/` scope when launched from `start_url: "/staff/"`.
    - Removed silent `"therapist"` fallback in `StaffAppShell` (`src/components/features/staff-pwa/app-shell.tsx`). Unresolved users render `StaffRoleResolutionSplash`.
 
 3. **Web App Manifest & Install Scoping:**
@@ -110,8 +112,8 @@ Stage PWA-C5 has completed the shared mobile foundation implementation required 
 - **VERIFIED REPOSITORY FACT:** No Web App Manifest existed in the repository prior to C5.
 - **VERIFIED REPOSITORY FACT:** `public/cradlehub-push-sw.js` is registered at root scope `/` strictly on user action in notification settings; `public/sw.js` is a legacy self-unregistering cleanup worker. Both were preserved completely untouched.
 - **VERIFIED REPOSITORY FACT:** Manifest scope is now strictly isolated to `/staff/`, cleanly separated from CRM (`/crm`), Owner (`/owner`), Marketing (`/marketing`), and public routes.
-- **LOCAL TEST EVIDENCE:** `tests/lib/pwa/staff-pwa-foundation.test.ts` passes 15/15 tests covering role mapping, navigation structures, center Scan button placement, selectable Utility Work pointing to read-only unavailable state, manifest output (`id: "/cradlehub-staff"`, `scope: "/staff/"`, `start_url: "/staff/"`), dedicated icon paths, role resolution splash wording, service worker preservation, connectivity contracts, proxy protection (`PROTECTED_PREFIXES` including `/staff` and `/scan`), workspace authorization, and fail-closed role resolution.
-- **LOCAL TEST EVIDENCE:** `npx vitest run tests/lib/pwa/ tests/lib/marketing/` passes 14/14 test files (165 tests) with zero failures.
+- **LOCAL TEST EVIDENCE:** `tests/lib/pwa/staff-pwa-foundation.test.ts` passes 16/16 tests covering role mapping, navigation structures, center Scan button placement, selectable Utility Work pointing to read-only unavailable state, manifest output (`id: "/cradlehub-staff"`, `scope: "/staff/"`, `start_url: "/staff/"`), dedicated icon paths, role resolution splash wording, service worker preservation, connectivity contracts, proxy protection (`PROTECTED_PREFIXES` including `/staff` and `/scan`), explicit Staff-PWA operational authorization (rejecting Manager/Owner/Marketing), proxy passing `staffRecord.staff_type`, and fail-closed role resolution.
+- **LOCAL TEST EVIDENCE:** `npx vitest run tests/lib/pwa/ tests/lib/marketing/` passes 14/14 test files (166 tests) with zero failures.
 - **LOCAL TEST EVIDENCE:** `npm run type-check` passes with zero TypeScript errors.
 - **LOCAL TEST EVIDENCE:** `git diff --check` passes with zero whitespace or formatting errors.
 - **UNKNOWN / NOT VERIFIED:** Android real-device installation, iPhone Safari home screen bookmarking/standalone launch, home screen icon rendering at OS scale, real-device safe area handling, and Web Push delivery on physical devices remain unverified until real device testing is authorized.

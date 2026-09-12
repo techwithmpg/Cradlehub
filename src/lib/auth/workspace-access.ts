@@ -1,4 +1,9 @@
-import { FRONT_DESK_ROLE_ALIASES, canonicalizeSystemRole } from "@/constants/staff-roles";
+import {
+  FRONT_DESK_ROLE_ALIASES,
+  canonicalizeSystemRole,
+  isFrontDeskRole,
+  isServiceStaffType,
+} from "@/constants/staff-roles";
 import { canCrmAccessPath } from "@/lib/permissions";
 
 export type WorkspaceKey =
@@ -157,10 +162,76 @@ export function getWorkspaceSwitchDestination(workspaces: readonly WorkspaceAcce
   return "/select-workspace";
 }
 
+export type StaffPwaOperationalGroup = "provider" | "crm_general" | "utility" | "driver";
+
+/**
+ * Resolves trusted staff identity to one of the 4 approved Staff-PWA operational groups
+ * (Provider, CRM / General Staff, Utility, Driver).
+ *
+ * Managerial, Owner, and Digital Marketer roles do NOT produce Staff-PWA operational groups
+ * (PWA-C4 Section 1 & External Review Directive).
+ */
+export function resolveStaffPwaOperationalGroup(
+  role: string | null | undefined,
+  staffType?: string | null | undefined
+): StaffPwaOperationalGroup | null {
+  if (!role) return null;
+  const canonicalRole = canonicalizeSystemRole(role);
+  const type = (staffType ?? "").toLowerCase();
+
+  // Exclude managerial/administrative and marketing roles unconditionally
+  if (
+    canonicalRole === "owner" ||
+    canonicalRole === "manager" ||
+    canonicalRole === "assistant_manager" ||
+    canonicalRole === "store_manager" ||
+    canonicalRole === "digital_marketer" ||
+    type === "managerial"
+  ) {
+    return null;
+  }
+
+  // 1. Driver
+  if (canonicalRole === "driver" || type === "driver") {
+    return "driver";
+  }
+
+  // 2. Utility
+  if (canonicalRole === "utility" || type === "utility") {
+    return "utility";
+  }
+
+  // 3. Provider (therapist, nail_tech, aesthetician/facialist, salon_head)
+  if (
+    isServiceStaffType(type) ||
+    type === "facialist" ||
+    canonicalRole === "service_head" ||
+    canonicalRole === "service_staff"
+  ) {
+    return "provider";
+  }
+
+  // 4. CRM / General Staff (front desk, csr)
+  if (canonicalRole === "crm" || isFrontDeskRole(role) || role === "front_desk" || type === "csr") {
+    return "crm_general";
+  }
+
+  // Generic staff role without managerial override
+  if (canonicalRole === "staff") {
+    if (isServiceStaffType(type) || type === "facialist") return "provider";
+    if (type === "driver") return "driver";
+    if (type === "utility") return "utility";
+    return "crm_general";
+  }
+
+  return null;
+}
+
 export function canAccessWorkspacePath(
   pathname: string,
   role: string,
-  workspaces: readonly WorkspaceAccess[]
+  workspaces: readonly WorkspaceAccess[],
+  staffType?: string | null
 ): boolean {
   if (pathname.startsWith("/select-workspace")) return workspaces.length > 0;
 
@@ -170,19 +241,39 @@ export function canAccessWorkspacePath(
     return true;
   }
 
+  // Staff-PWA operational boundary: /staff/* and /scan
+  // Strictly rejects Manager, Owner, and Digital Marketer
   if (pathname.startsWith("/staff/scan") || pathname.startsWith("/scan")) {
-    return workspaces.length > 0;
+    return resolveStaffPwaOperationalGroup(role, staffType) !== null;
   }
 
   if (pathname.startsWith("/staff/driver")) {
-    return hasWorkspaceAccess(workspaces, "driver");
+    return resolveStaffPwaOperationalGroup(role, staffType) === "driver";
   }
 
   if (pathname.startsWith("/staff/utility")) {
-    return hasWorkspaceAccess(workspaces, "utility");
+    return resolveStaffPwaOperationalGroup(role, staffType) === "utility";
   }
 
-  if (pathname.startsWith("/staff-portal") || pathname.startsWith("/staff")) {
+  if (pathname.startsWith("/staff/schedule") || pathname.startsWith("/staff/progress")) {
+    return resolveStaffPwaOperationalGroup(role, staffType) === "provider";
+  }
+
+  if (pathname.startsWith("/staff/work") || pathname.startsWith("/staff/notices")) {
+    return resolveStaffPwaOperationalGroup(role, staffType) === "crm_general";
+  }
+
+  if (pathname.startsWith("/staff/more")) {
+    const group = resolveStaffPwaOperationalGroup(role, staffType);
+    return group === "provider" || group === "crm_general";
+  }
+
+  if (pathname === "/staff" || pathname.startsWith("/staff/")) {
+    return resolveStaffPwaOperationalGroup(role, staffType) !== null;
+  }
+
+  // Historical legacy workspace authority is fully preserved
+  if (pathname.startsWith("/staff-portal")) {
     return hasWorkspaceAccess(workspaces, "staff_portal");
   }
 

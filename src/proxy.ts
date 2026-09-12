@@ -100,7 +100,7 @@ export async function proxy(request: NextRequest) {
     return NextResponse.redirect(new URL("/account/setup", request.url));
   }
 
-  if (!canAccessWorkspacePath(pathname, systemRole, workspaces)) {
+  if (!canAccessWorkspacePath(pathname, systemRole, workspaces, staffRecord.staff_type)) {
     return NextResponse.redirect(new URL(getWorkspaceSwitchDestination(workspaces), request.url));
   }
 
