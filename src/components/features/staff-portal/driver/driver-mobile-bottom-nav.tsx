@@ -1,36 +1,14 @@
 "use client";
 
 import { usePathname } from "next/navigation";
-import { Home, Map, Plus, Truck, User } from "lucide-react";
-import {
-  FloatingMobileBottomNav,
-  type FloatingMobileNavItem,
-} from "@/components/features/mobile-shell/floating-mobile-bottom-nav";
+import { Home, Map, MoreHorizontal, QrCode, Truck } from "lucide-react";
+import { StaffBottomNav } from "@/components/features/staff-pwa/bottom-nav";
+import type { StaffNavItem } from "@/components/features/staff-pwa/types";
 
 type DriverMobileBottomNavProps = {
   isProfileOpen?: boolean;
-  onProfileOpen: () => void;
+  onProfileOpen?: () => void;
 };
-
-function HomeIcon({ className }: { className?: string }) {
-  return <Home className={className} />;
-}
-
-function TripsIcon({ className }: { className?: string }) {
-  return <Truck className={className} />;
-}
-
-function MapIcon({ className }: { className?: string }) {
-  return <Map className={className} />;
-}
-
-function ProfileIcon({ className }: { className?: string }) {
-  return <User className={className} />;
-}
-
-function JobsActionIcon({ className }: { className?: string }) {
-  return <Plus className={className} />;
-}
 
 export function DriverMobileBottomNav({
   isProfileOpen = false,
@@ -41,46 +19,45 @@ export function DriverMobileBottomNav({
   const homeHref = isStandaloneDriver ? "/driver" : "/staff-portal";
   const tripsHref = isStandaloneDriver ? "/driver/dispatch" : "/staff-portal/dispatch";
   const mapHref = isStandaloneDriver ? "/driver/map" : "/staff-portal/map";
-  const jobsHref = isStandaloneDriver ? "/driver/jobs" : "/staff-portal/jobs";
-  const profileActive = isProfileOpen || pathname.startsWith("/staff-portal/profile") || pathname.startsWith("/staff-portal/attendance");
+  const moreHref = isStandaloneDriver ? "/driver/more" : "/staff-portal/more";
 
-  const items: FloatingMobileNavItem[] = [
+  const items: StaffNavItem[] = [
     {
-      label: "Home",
+      key: "today",
+      label: "Today",
       href: homeHref,
-      icon: HomeIcon,
-      active: pathname === homeHref,
+      icon: Home,
     },
     {
+      key: "trips",
       label: "Trips",
       href: tripsHref,
-      icon: TripsIcon,
-      active: pathname.startsWith(tripsHref),
+      icon: Truck,
     },
     {
+      key: "scan",
+      label: "Scan",
+      href: "/scan",
+      icon: QrCode,
+      isScan: true,
+    },
+    {
+      key: "map",
       label: "Map",
       href: mapHref,
-      icon: MapIcon,
-      active: pathname.startsWith(mapHref),
+      icon: Map,
     },
     {
-      label: "Profile",
-      ariaLabel: "Open profile",
-      icon: ProfileIcon,
-      active: profileActive,
-      onClick: onProfileOpen,
+      key: "more",
+      label: "More",
+      href: moreHref,
+      icon: MoreHorizontal,
     },
   ];
 
   return (
-    <FloatingMobileBottomNav
+    <StaffBottomNav
       items={items}
-      centerAction={{
-        label: "Jobs",
-        icon: JobsActionIcon,
-        href: jobsHref,
-        active: pathname.startsWith(jobsHref),
-      }}
       ariaLabel="Driver portal navigation"
     />
   );

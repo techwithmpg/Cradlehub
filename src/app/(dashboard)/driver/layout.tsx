@@ -5,11 +5,20 @@
  * Nested inside (dashboard)/layout.tsx which renders sidebar, header, and main scroll container.
  */
 
+import type { Metadata } from "next";
 import type { ReactNode } from "react";
 import { DriverMobileShell } from "@/components/features/staff-portal/driver/driver-mobile-shell";
 import { WorkspaceRoutePrefetcher } from "@/components/features/workspace/workspace-route-prefetcher";
 import { DRIVER_PREFETCH } from "@/components/features/workspace/workspace-prefetch-config";
 import { getMyProfileAction } from "../staff-portal/actions";
+
+export const metadata: Metadata = {
+  manifest: "/manifest-staff.webmanifest",
+  title: {
+    template: "%s | CradleHub Staff",
+    default: "Driver Workspace | CradleHub Staff",
+  },
+};
 
 export default async function DriverLayout({
   children,

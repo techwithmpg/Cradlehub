@@ -5,6 +5,7 @@
  * Nested inside (dashboard)/layout.tsx which renders sidebar, header, and main scroll container.
  */
 
+import type { Metadata } from "next";
 import type { ReactNode } from "react";
 import { WorkspaceRoutePrefetcher } from "@/components/features/workspace/workspace-route-prefetcher";
 import { STAFF_PORTAL_PREFETCH } from "@/components/features/workspace/workspace-prefetch-config";
@@ -13,6 +14,14 @@ import { StaffMobileShell } from "@/components/features/staff-portal/mobile/staf
 import { TherapistMobileShell } from "@/components/features/staff-portal/therapist/therapist-mobile-shell";
 import { getMyProfileAction } from "./actions";
 import { getStaffPortalMode } from "@/lib/staff/get-staff-portal-mode";
+
+export const metadata: Metadata = {
+  manifest: "/manifest-staff.webmanifest",
+  title: {
+    template: "%s | CradleHub Staff",
+    default: "CradleHub Staff",
+  },
+};
 
 export default async function StaffPortalLayout({
   children,
