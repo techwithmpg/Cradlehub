@@ -25,7 +25,7 @@ const mockWorkflowTasksSelect = vi.fn();
 const mockWorkflowTasksUpdate = vi.fn();
 const mockWorkflowTasksInsert = vi.fn();
 
-let updateCasRowsOverride: any[] | null = null;
+let updateCasRowsOverride: any[] | (() => any[]) | null = null;
 let insertErrorOverride: any | null = null;
 
 function createChain(resolver: () => Promise<any>, customActions?: Record<string, any>) {
@@ -108,15 +108,30 @@ const mockAdminClient = {
             in: () => updateChain,
             select: () => updateChain,
             maybeSingle: () => {
-              const rows = updateCasRowsOverride !== null ? updateCasRowsOverride : [{ id: taskId, ...payload }];
+              const rows =
+                typeof updateCasRowsOverride === "function"
+                  ? updateCasRowsOverride()
+                  : updateCasRowsOverride !== null
+                  ? updateCasRowsOverride
+                  : [{ id: taskId, ...payload }];
               return Promise.resolve({ data: rows[0] ?? null, error: null });
             },
             single: () => {
-              const rows = updateCasRowsOverride !== null ? updateCasRowsOverride : [{ id: taskId, ...payload }];
+              const rows =
+                typeof updateCasRowsOverride === "function"
+                  ? updateCasRowsOverride()
+                  : updateCasRowsOverride !== null
+                  ? updateCasRowsOverride
+                  : [{ id: taskId, ...payload }];
               return Promise.resolve({ data: rows[0] ?? null, error: null });
             },
             then: (resolve: any, reject: any) => {
-              const rows = updateCasRowsOverride !== null ? updateCasRowsOverride : [{ id: taskId, ...payload }];
+              const rows =
+                typeof updateCasRowsOverride === "function"
+                  ? updateCasRowsOverride()
+                  : updateCasRowsOverride !== null
+                  ? updateCasRowsOverride
+                  : [{ id: taskId, ...payload }];
               return Promise.resolve({ data: rows, error: null }).then(resolve, reject);
             },
           };
@@ -1454,5 +1469,340 @@ describe("W1B: Utility Room Turnover Integrity, Concurrency & Recovery", () => {
     expect(result.ok).toBe(false);
     expect(result.error).toContain("canonical turnover scope");
     expect(mockWorkflowTasksUpdate).not.toHaveBeenCalled();
+  });
+
+  // ───────────────────────────────────────────────────────────────────────────
+  // 25. IN_PROGRESS task completed before metadata UPDATE:
+  //     UPDATE affects 0 rows, canonical re-read finds no active turnover,
+  //     fresh OPEN turnover is created, completed task is never reopened
+  // ───────────────────────────────────────────────────────────────────────────
+  it("25. IN_PROGRESS task completed before metadata UPDATE: zero rows updated, canonical re-read finds no active turnover, fresh OPEN turnover created, completed task never reopened", async () => {
+    mockBookingsSelect.mockResolvedValue({
+      data: {
+        id: bookingId,
+        branch_id: branchId,
+        resource_id: resourceId,
+        service_id: serviceId,
+        type: "in_spa",
+        delivery_type: "in_spa",
+        status: "completed",
+        booking_progress_status: "completed",
+        session_completed_at: "2026-09-13T10:30:00Z",
+        completed_at: "2026-09-13T10:30:00Z",
+      },
+      error: null,
+    });
+
+    mockBranchResourcesSelect.mockResolvedValue({
+      data: {
+        id: resourceId,
+        name: "Treatment Room 1",
+        type: "room",
+        branch_id: branchId,
+        is_active: true,
+      },
+      error: null,
+    });
+
+    mockServicesSelect.mockResolvedValue({
+      data: { name: "Swedish Massage" },
+      error: null,
+    });
+
+    // Pass 1: SELECT finds existing active task as IN_PROGRESS
+    mockWorkflowTasksSelect.mockResolvedValueOnce({
+      data: {
+        id: taskId,
+        status: "in_progress",
+        branch_id: branchId,
+        dedupe_key: `room_turnover:${branchId}:${resourceId}`,
+        workspace_scope: "utility",
+        task_type: "room_turnover",
+        entity_type: "branch_resource",
+        entity_id: resourceId,
+        metadata: { room_name: "Treatment Room 1" },
+      },
+      error: null,
+    });
+
+    // Pass 1: UPDATE affects 0 rows (task was completed concurrently)
+    updateCasRowsOverride = [];
+
+    // Pass 2 (bounded retry): SELECT re-reads canonical active task -> none found (already completed)
+    mockWorkflowTasksSelect.mockResolvedValueOnce({
+      data: null,
+      error: null,
+    });
+
+    const result = await triggerUtilityRoomTurnoverOnServiceCompletion({
+      bookingId,
+      actorStaffId: staffId,
+    });
+
+    expect(result.ok).toBe(true);
+    // Fresh OPEN turnover created for the new service
+    expect(mockWorkflowTasksInsert).toHaveBeenCalledWith(
+      expect.objectContaining({
+        branch_id: branchId,
+        status: "open",
+        entity_id: resourceId,
+        dedupe_key: `room_turnover:${branchId}:${resourceId}`,
+        metadata: expect.objectContaining({
+          booking_id: bookingId,
+        }),
+      })
+    );
+    // Completed task was never reopened (never set status to 'open' on existing task)
+    expect(mockWorkflowTasksUpdate).not.toHaveBeenCalledWith(
+      expect.objectContaining({
+        status: "open",
+      })
+    );
+  });
+
+  // ───────────────────────────────────────────────────────────────────────────
+  // 26. OPEN task changes to IN_PROGRESS before enrichment UPDATE:
+  //     OPEN update affects 0 rows, canonical re-read finds IN_PROGRESS,
+  //     lifecycle preserved as IN_PROGRESS, no duplicate OPEN task created
+  // ───────────────────────────────────────────────────────────────────────────
+  it("26. OPEN task changes to IN_PROGRESS before enrichment UPDATE: zero rows updated, canonical re-read finds IN_PROGRESS, lifecycle preserved as IN_PROGRESS, no duplicate OPEN task created", async () => {
+    mockBookingsSelect.mockResolvedValue({
+      data: {
+        id: bookingId,
+        branch_id: branchId,
+        resource_id: resourceId,
+        service_id: serviceId,
+        type: "in_spa",
+        delivery_type: "in_spa",
+        status: "completed",
+        booking_progress_status: "completed",
+        session_completed_at: "2026-09-13T10:30:00Z",
+        completed_at: "2026-09-13T10:30:00Z",
+      },
+      error: null,
+    });
+
+    mockBranchResourcesSelect.mockResolvedValue({
+      data: {
+        id: resourceId,
+        name: "Treatment Room 1",
+        type: "room",
+        branch_id: branchId,
+        is_active: true,
+      },
+      error: null,
+    });
+
+    mockServicesSelect.mockResolvedValue({
+      data: { name: "Swedish Massage" },
+      error: null,
+    });
+
+    // Pass 1: SELECT finds existing active task as OPEN
+    mockWorkflowTasksSelect.mockResolvedValueOnce({
+      data: {
+        id: taskId,
+        status: "open",
+        branch_id: branchId,
+        dedupe_key: `room_turnover:${branchId}:${resourceId}`,
+        workspace_scope: "utility",
+        task_type: "room_turnover",
+        entity_type: "branch_resource",
+        entity_id: resourceId,
+        metadata: { room_name: "Treatment Room 1" },
+      },
+      error: null,
+    });
+
+    // First update (targeting status 'open') returns 0 rows; second update returns 1 row
+    let updateAttempt = 0;
+    updateCasRowsOverride = () => {
+      updateAttempt++;
+      return updateAttempt === 1 ? [] : [{ id: taskId, status: "in_progress" }];
+    };
+
+    // Pass 2 (bounded retry): SELECT re-reads canonical active task -> now IN_PROGRESS
+    mockWorkflowTasksSelect.mockResolvedValueOnce({
+      data: {
+        id: taskId,
+        status: "in_progress",
+        branch_id: branchId,
+        dedupe_key: `room_turnover:${branchId}:${resourceId}`,
+        workspace_scope: "utility",
+        task_type: "room_turnover",
+        entity_type: "branch_resource",
+        entity_id: resourceId,
+        assigned_to_staff_id: cleaner2StaffId,
+        metadata: { room_name: "Treatment Room 1", started_at: "2026-09-13T10:00:00Z" },
+      },
+      error: null,
+    });
+
+    const result = await triggerUtilityRoomTurnoverOnServiceCompletion({
+      bookingId,
+      actorStaffId: staffId,
+    });
+
+    expect(result.ok).toBe(true);
+    expect(result.taskId).toBe(taskId);
+    // Preserved IN_PROGRESS: did not insert a duplicate OPEN task
+    expect(mockWorkflowTasksInsert).not.toHaveBeenCalled();
+    // Re-attempted update preserved IN_PROGRESS metadata
+    expect(mockWorkflowTasksUpdate).toHaveBeenLastCalledWith(
+      expect.objectContaining({
+        metadata: expect.objectContaining({
+          latest_booking_id: bookingId,
+        }),
+      })
+    );
+  });
+
+  // ───────────────────────────────────────────────────────────────────────────
+  // 27. Existing task changes repeatedly during bounded retry:
+  //     no infinite retry, returns explicit sync failure
+  // ───────────────────────────────────────────────────────────────────────────
+  it("27. existing task changes repeatedly during bounded retry: no infinite retry, returns explicit sync failure", async () => {
+    mockBookingsSelect.mockResolvedValue({
+      data: {
+        id: bookingId,
+        branch_id: branchId,
+        resource_id: resourceId,
+        service_id: serviceId,
+        type: "in_spa",
+        delivery_type: "in_spa",
+        status: "completed",
+        booking_progress_status: "completed",
+        session_completed_at: "2026-09-13T10:30:00Z",
+      },
+      error: null,
+    });
+
+    mockBranchResourcesSelect.mockResolvedValue({
+      data: {
+        id: resourceId,
+        name: "Treatment Room 1",
+        type: "room",
+        branch_id: branchId,
+        is_active: true,
+      },
+      error: null,
+    });
+
+    mockServicesSelect.mockResolvedValue({
+      data: { name: "Swedish Massage" },
+      error: null,
+    });
+
+    // Pass 1: SELECT finds OPEN task
+    mockWorkflowTasksSelect.mockResolvedValueOnce({
+      data: {
+        id: taskId,
+        status: "open",
+        branch_id: branchId,
+        dedupe_key: `room_turnover:${branchId}:${resourceId}`,
+        workspace_scope: "utility",
+        task_type: "room_turnover",
+        entity_type: "branch_resource",
+        entity_id: resourceId,
+      },
+      error: null,
+    });
+
+    // Pass 2: SELECT finds IN_PROGRESS task
+    mockWorkflowTasksSelect.mockResolvedValueOnce({
+      data: {
+        id: taskId,
+        status: "in_progress",
+        branch_id: branchId,
+        dedupe_key: `room_turnover:${branchId}:${resourceId}`,
+        workspace_scope: "utility",
+        task_type: "room_turnover",
+        entity_type: "branch_resource",
+        entity_id: resourceId,
+      },
+      error: null,
+    });
+
+    // Both updates return 0 rows (concurrent state constantly shifting)
+    updateCasRowsOverride = [];
+
+    const result = await triggerUtilityRoomTurnoverOnServiceCompletion({
+      bookingId,
+      actorStaffId: staffId,
+    });
+
+    // Bounded retry terminates with explicit sync failure, no infinite loop
+    expect(result.ok).toBe(false);
+    expect(result.error).toContain("concurrently during reconciliation");
+    expect(mockWorkflowTasksUpdate).toHaveBeenCalledTimes(2);
+  });
+
+  // ───────────────────────────────────────────────────────────────────────────
+  // 28. Zero-row UPDATE must never be treated as success without authoritative reconciliation
+  // ───────────────────────────────────────────────────────────────────────────
+  it("28. zero-row UPDATE must never be treated as success without authoritative reconciliation", async () => {
+    mockBookingsSelect.mockResolvedValue({
+      data: {
+        id: bookingId,
+        branch_id: branchId,
+        resource_id: resourceId,
+        service_id: serviceId,
+        type: "in_spa",
+        delivery_type: "in_spa",
+        status: "completed",
+        booking_progress_status: "completed",
+        session_completed_at: "2026-09-13T10:30:00Z",
+      },
+      error: null,
+    });
+
+    mockBranchResourcesSelect.mockResolvedValue({
+      data: {
+        id: resourceId,
+        name: "Treatment Room 1",
+        type: "room",
+        branch_id: branchId,
+        is_active: true,
+      },
+      error: null,
+    });
+
+    mockServicesSelect.mockResolvedValue({
+      data: { name: "Swedish Massage" },
+      error: null,
+    });
+
+    // Initial SELECT finds active task
+    mockWorkflowTasksSelect.mockResolvedValueOnce({
+      data: {
+        id: taskId,
+        status: "open",
+        branch_id: branchId,
+        dedupe_key: `room_turnover:${branchId}:${resourceId}`,
+        workspace_scope: "utility",
+        task_type: "room_turnover",
+        entity_type: "branch_resource",
+        entity_id: resourceId,
+      },
+      error: null,
+    });
+
+    // UPDATE affects 0 rows
+    updateCasRowsOverride = [];
+
+    // Recheck SELECT encounters database error
+    mockWorkflowTasksSelect.mockResolvedValueOnce({
+      data: null,
+      error: { message: "database connection lost during reconciliation" },
+    });
+
+    const result = await triggerUtilityRoomTurnoverOnServiceCompletion({
+      bookingId,
+      actorStaffId: staffId,
+    });
+
+    // Proves zero-row UPDATE was not treated as success
+    expect(result.ok).toBe(false);
+    expect(result.error).toBe("database connection lost during reconciliation");
   });
 });

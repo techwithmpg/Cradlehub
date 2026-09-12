@@ -42,18 +42,21 @@ export type UtilityActionResult = {
  *   - If INSERT hits a concurrent race (unique index violation 23505), re-queries the ACTIVE task only.
  *   - Completed historical tasks sharing the same dedupe key are NEVER reopened or overwritten.
  */
-async function ensureRoomTurnoverTask(params: {
-  branchId: string;
-  resource: { id: string; name: string; type: string };
-  booking: {
-    id: string;
-    service_id: string;
-    session_completed_at: string | null;
-    completed_at: string | null;
-  };
-  serviceName: string;
-  actorStaffId?: string | null;
-}): Promise<{ ok: boolean; taskId?: string; error?: string }> {
+async function ensureRoomTurnoverTask(
+  params: {
+    branchId: string;
+    resource: { id: string; name: string; type: string };
+    booking: {
+      id: string;
+      service_id: string;
+      session_completed_at: string | null;
+      completed_at: string | null;
+    };
+    serviceName: string;
+    actorStaffId?: string | null;
+  },
+  isRetry = false
+): Promise<{ ok: boolean; taskId?: string; error?: string }> {
   const admin = createAdminClient();
   const dedupeKey = `room_turnover:${params.branchId}:${params.resource.id}`;
   const completedAt =
@@ -91,59 +94,72 @@ async function ensureRoomTurnoverTask(params: {
         ? (existingActive.metadata as Record<string, unknown>)
         : {};
 
-    if (existingActive.status === "in_progress") {
-      // PRESERVE IN_PROGRESS: Do not clear cleaner assignment, started_at, or return to open!
-      const { error: updateError } = await admin
-        .from("workflow_tasks")
-        .update({
-          metadata: {
-            ...existingMeta,
-            latest_booking_id: params.booking.id,
-            latest_service_name: params.serviceName,
-            latest_completed_at: completedAt,
-          } as Json,
-        })
-        .eq("id", existingActive.id)
-        .eq("branch_id", params.branchId)
-        .eq("status", "in_progress");
+    const expectedStatus = existingActive.status;
+    const updatePayload =
+      expectedStatus === "in_progress"
+        ? {
+            metadata: {
+              ...existingMeta,
+              latest_booking_id: params.booking.id,
+              latest_service_name: params.serviceName,
+              latest_completed_at: completedAt,
+            } as Json,
+          }
+        : {
+            metadata: {
+              ...existingMeta,
+              booking_id: params.booking.id,
+              service_id: params.booking.service_id,
+              service_name: params.serviceName,
+              completed_at: completedAt,
+              triggered_by_staff_id: params.actorStaffId ?? null,
+            } as Json,
+          };
 
-      if (updateError) {
-        logError("utility_turnover.preserve_in_progress_failed", {
-          taskId: existingActive.id,
-          error: updateError,
-        });
-        return { ok: false, error: updateError.message };
-      }
-
-      return { ok: true, taskId: existingActive.id };
-    }
-
-    // Task is open: enrich metadata, preserve open status
-    const { error: updateError } = await admin
+    // Compare-and-confirm: atomic update constrained by id, branch_id, dedupe_key, and expected status
+    const { data: updatedRows, error: updateError } = await admin
       .from("workflow_tasks")
-      .update({
-        metadata: {
-          ...existingMeta,
-          booking_id: params.booking.id,
-          service_id: params.booking.service_id,
-          service_name: params.serviceName,
-          completed_at: completedAt,
-          triggered_by_staff_id: params.actorStaffId ?? null,
-        } as Json,
-      })
+      .update(updatePayload)
       .eq("id", existingActive.id)
       .eq("branch_id", params.branchId)
-      .eq("status", "open");
+      .eq("dedupe_key", dedupeKey)
+      .eq("status", expectedStatus)
+      .select("id, status, assigned_to_staff_id, metadata");
 
     if (updateError) {
-      logError("utility_turnover.update_open_failed", {
+      logError("utility_turnover.update_active_failed", {
         taskId: existingActive.id,
+        expectedStatus,
         error: updateError,
       });
       return { ok: false, error: updateError.message };
     }
 
-    return { ok: true, taskId: existingActive.id };
+    // Inspect returned rows: if row was updated, compare-and-confirm succeeded
+    if (updatedRows && updatedRows.length > 0) {
+      return { ok: true, taskId: updatedRows[0]?.id ?? existingActive.id };
+    }
+
+    // Zero rows updated: task transitioned concurrently between SELECT and UPDATE
+    // (e.g. Utility completed the task, or started cleaning an open task).
+    if (isRetry) {
+      logError("utility_turnover.reconciliation_limit_exceeded", {
+        taskId: existingActive.id,
+        branchId: params.branchId,
+        resourceId: params.resource.id,
+      });
+      return {
+        ok: false,
+        error: "Active turnover state changed concurrently during reconciliation. Synchronization failed.",
+      };
+    }
+
+    // Bounded retry (maximum 1 additional reconciliation attempt):
+    // Re-reads canonical state:
+    // - CASE A/B: Active task exists -> enriches/preserves under latest status.
+    // - CASE C: Prior task completed between SELECT and UPDATE -> creates a NEW OPEN turnover for the newly completed service.
+    // - CASE D / State keeps changing -> returns explicit sync failure without infinite retry.
+    return ensureRoomTurnoverTask(params, true);
   }
 
   // 3. No active task: insert new OPEN task.
