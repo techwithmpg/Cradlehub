@@ -7,6 +7,7 @@ import { getNotificationTargetPath } from "@/lib/notifications/notification-targ
 import { isResourceAvailable } from "@/lib/engine/resource-availability";
 import { revalidateOperationalBookingSurfaces } from "@/lib/bookings/revalidate-booking-surfaces";
 import { revalidatePath } from "next/cache";
+import { triggerUtilityRoomTurnoverOnServiceCompletion } from "@/lib/staff-pwa/utility-turnover";
 import { logError } from "@/lib/logger";
 import { z } from "zod";
 import { canAccessCrmWorkspace } from "@/lib/auth/crm-permissions";
@@ -1329,6 +1330,8 @@ export function revalidateServiceSurfaces(branchId: string): void {
   for (const path of STAFF_PORTAL_PATHS) {
     revalidatePath(path);
   }
+  revalidatePath("/staff/utility");
+  revalidatePath("/staff/utility/work");
 }
 
 export async function confirmCrmBooking(
@@ -1581,6 +1584,16 @@ export async function completeCrmBookingService(
     });
     return { success: false, error: error.message };
   }
+
+  await triggerUtilityRoomTurnoverOnServiceCompletion({
+    bookingId: parsed.data.bookingId,
+    actorStaffId: ctx.me.id,
+  }).catch((err) => {
+    logError("crm.turnover_trigger_failed", {
+      bookingId: parsed.data.bookingId,
+      error: err,
+    });
+  });
 
   revalidateServiceSurfaces(booking.branch_id);
   return { success: true };

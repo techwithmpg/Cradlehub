@@ -116,3 +116,24 @@ export async function autoAssignBookingResource(params: {
 
   return null;
 }
+
+/**
+ * Checks if a physical resource currently has an active (open or in_progress) room turnover task.
+ * Note: Broad scheduling engine integration for dynamic calendar buffers is tracked as
+ * RESOURCE AVAILABILITY FOLLOW-UP REQUIRED.
+ */
+export async function isResourceInActiveTurnover(resourceId: string): Promise<boolean> {
+  const supabase = createAdminClient();
+  const { data, error } = await supabase
+    .from("workflow_tasks")
+    .select("id")
+    .eq("workspace_scope", "utility")
+    .eq("task_type", "room_turnover")
+    .eq("entity_type", "branch_resource")
+    .eq("entity_id", resourceId)
+    .in("status", ["open", "in_progress"])
+    .limit(1);
+
+  if (error || !data) return false;
+  return data.length > 0;
+}

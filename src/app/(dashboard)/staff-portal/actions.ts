@@ -33,6 +33,7 @@ import {
   portalAvailabilityCopy,
   type StaffPortalClockOutAvailability,
 } from "@/lib/staff-portal/attendance";
+import { triggerUtilityRoomTurnoverOnServiceCompletion } from "@/lib/staff-pwa/utility-turnover";
 
 const STAFF_PORTAL_PATHS = [
   "/staff-portal",
@@ -90,6 +91,8 @@ function revalidateStaffAndOperationalSurfaces(branchId?: string | null): void {
   revalidatePath("/crm/dispatch");
   revalidatePath("/crm/live-operations");
   revalidatePath("/crm/live-map");
+  revalidatePath("/staff/utility");
+  revalidatePath("/staff/utility/work");
 }
 
 export type PortalClockOutActionResult = {
@@ -987,6 +990,15 @@ export async function updateBookingProgressAction({
       .single();
 
     timestamp = (updated?.[timestampField as keyof typeof updated] as string | null) ?? timestamp;
+  }
+
+  if (nextStatus === "completed") {
+    await triggerUtilityRoomTurnoverOnServiceCompletion({
+      bookingId,
+      actorStaffId: me.id,
+    }).catch((err) => {
+      logError("staff_progress.turnover_trigger_failed", { bookingId, error: err });
+    });
   }
 
   logBusinessEvent("staff_progress.updated", {
