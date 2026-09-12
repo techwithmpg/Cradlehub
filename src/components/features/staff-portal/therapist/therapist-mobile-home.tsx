@@ -20,6 +20,13 @@ import type {
   TodayScheduleInfo,
 } from "@/app/(dashboard)/staff-portal/actions";
 import type { StaffAttendanceData } from "@/lib/staff-portal/attendance";
+import {
+  resolveProviderPrimaryWork,
+  resolveProviderShift,
+  type ProviderWorkspaceRuntime,
+  type ResolvedShift,
+} from "@/lib/staff-pwa/provider-model";
+import { BookingProgressActions } from "@/components/features/staff-portal/booking-progress-actions";
 import { TherapistHeader } from "./therapist-header";
 import {
   getTherapistShiftStatus,
@@ -27,26 +34,13 @@ import {
 } from "./therapist-greeting-card";
 
 type TherapistMobileHomeProps = {
-  staff: StaffPortalStaff;
-  bookings: StaffPortalBooking[];
-  todaySchedule: TodayScheduleInfo | null;
-  todayOverride: TodayOverrideInfo | null;
+  staff?: StaffPortalStaff;
+  bookings?: StaffPortalBooking[];
+  todaySchedule?: TodayScheduleInfo | null;
+  todayOverride?: TodayOverrideInfo | null;
   attendanceData?: StaffAttendanceData | null;
+  runtime?: ProviderWorkspaceRuntime | null;
 };
-
-type ResolvedShift =
-  | {
-      kind: "shift";
-      startTime: string;
-      endTime: string;
-      label: string;
-    }
-  | {
-      kind: "day_off";
-    }
-  | {
-      kind: "none";
-    };
 
 function firstRelation<T>(value: T | T[] | null): T | null {
   if (!value) return null;
@@ -409,39 +403,57 @@ function PrimaryServiceCard({
         ) : null}
       </div>
 
-      <Link
-        href="/staff/progress"
-        className="mt-4 flex min-h-12 w-full items-center justify-center gap-2 rounded-[14px] bg-[#0D6548] px-4 text-[14px] font-bold text-white shadow-[0_6px_18px_rgba(13,101,72,0.18)] transition active:scale-[0.99]"
-      >
-        {isHome ? "Open Job" : "View Service Details"}
-        <ChevronRight size={17} />
-      </Link>
+      {active ? (
+        <div className="mt-3 border-t border-[#EEE9E2] pt-3">
+          <BookingProgressActions booking={booking} />
+        </div>
+      ) : (
+        <Link
+          href="/staff/progress"
+          className="mt-4 flex min-h-12 w-full items-center justify-center gap-2 rounded-[14px] bg-[#0D6548] px-4 text-[14px] font-bold text-white shadow-[0_6px_18px_rgba(13,101,72,0.18)] transition active:scale-[0.99]"
+        >
+          {isHome ? "Open Job" : "View Service Details"}
+          <ChevronRight size={17} />
+        </Link>
+      )}
     </section>
   );
 }
 
 export function TherapistMobileHome({
   staff,
-  bookings,
-  todaySchedule,
-  todayOverride,
-  attendanceData,
+  bookings = [],
+  todaySchedule = null,
+  todayOverride = null,
+  attendanceData = null,
+  runtime = null,
 }: TherapistMobileHomeProps) {
-  const displayName = getStaffDisplayName(staff);
+  const currentStaff = runtime?.staff ?? staff;
+  if (!currentStaff) return null;
+
+  const currentBookings = runtime?.bookings ?? bookings;
+  const currentSchedule = runtime?.todaySchedule ?? todaySchedule;
+  const currentOverride = runtime?.todayOverride ?? todayOverride;
+  const currentAttendance = runtime?.attendance ?? attendanceData;
+  const shift =
+    runtime?.shift ?? resolveProviderShift(currentSchedule, currentOverride);
+  const primaryWork =
+    runtime?.primaryWork ?? resolveProviderPrimaryWork(currentBookings);
+  const primaryService = primaryWork.booking;
+
+  const displayName = getStaffDisplayName(currentStaff);
   const firstName = displayName.split(" ")[0] ?? displayName;
-  const primaryService = findPrimaryService(bookings);
-  const shift = resolveShift(todaySchedule, todayOverride);
 
   const status = getTherapistShiftStatus(
-    bookings,
-    todaySchedule,
-    todayOverride
+    currentBookings,
+    currentSchedule,
+    currentOverride
   );
 
 
   return (
     <div className="min-h-dvh bg-[#F7F3EB] text-[#142334]">
-      <TherapistHeader staff={staff} />
+      <TherapistHeader staff={currentStaff} />
 
       <main className="mx-auto flex w-full max-w-[480px] flex-col gap-3 px-3.5 pb-5 pt-3">
         <section className="flex items-center justify-between gap-3 px-1 py-1">
@@ -460,9 +472,9 @@ export function TherapistMobileHome({
           </div>
         </section>
 
-        {attendanceData ? (
+        {currentAttendance ? (
           <Link href="/staff/attendance" className="block">
-            <AttendanceCard attendanceData={attendanceData} shift={shift} />
+            <AttendanceCard attendanceData={currentAttendance} shift={shift} />
           </Link>
         ) : null}
 

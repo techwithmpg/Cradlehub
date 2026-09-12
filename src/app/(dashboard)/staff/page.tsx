@@ -6,6 +6,8 @@ import {
   resolveNavigationProfile,
 } from "@/components/features/staff-pwa/role-navigation";
 import { GeneralStaffMobileHome } from "@/components/features/staff-portal/basic/general-staff-mobile-home";
+import { TherapistMobileHome } from "@/components/features/staff-portal/therapist/therapist-mobile-home";
+import { getProviderWorkspaceRuntime } from "@/lib/staff-pwa/provider-runtime";
 import StaffTodayPage from "../staff-portal/page";
 
 export default async function StaffPage() {
@@ -31,6 +33,19 @@ export default async function StaffPage() {
 
     if (profile === "utility") {
       redirect("/staff/utility");
+    }
+
+    if (profile === "provider") {
+      const today = new Date().toISOString().split("T")[0]!;
+      const runtimeResult = await getProviderWorkspaceRuntime(today).catch(() => null);
+
+      if (runtimeResult && runtimeResult.ok) {
+        return <TherapistMobileHome runtime={runtimeResult.runtime} />;
+      }
+
+      if (runtimeResult && !runtimeResult.ok && runtimeResult.code === "UNAUTHORIZED") {
+        redirect("/login");
+      }
     }
 
     if (profile === "crm_general") {
