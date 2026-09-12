@@ -5,8 +5,8 @@
 **Accepted C4/main baseline:** `d11a8ca3623e0092829c683b7022dc302739b96b`
 **Starting C5 head for this review:** `6d3c6e088b232316df77c5a58b6136be4dfa7924`
 **Branch:** `stage/pwa-c5-shared-foundation`
-**Authority:** [PWA-GOV-007](../11-DECISION-LOG.md#staff-pwa-decisions), [PWA-GOV-008](../11-DECISION-LOG.md#pwa-gov-008); owner architecture decisions  
-**Next Stage:** PWA-C6 (Scanner) — **STRICTLY NOT AUTHORIZED**  
+**Authority:** [PWA-GOV-007](../11-DECISION-LOG.md#staff-pwa-decisions), [PWA-GOV-008](../11-DECISION-LOG.md#pwa-gov-008); owner architecture decisions
+**Next Stage:** PWA-C6 (Scanner) — **STRICTLY NOT AUTHORIZED**
 
 ---
 

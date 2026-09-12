@@ -12,7 +12,7 @@ type StaffRoleResolutionSplashProps = {
 /**
  * Neutral Staff launch & role-resolution splash screen.
  * Displays while secure session validation and operational-role resolution take place.
- * 
+ *
  * Strict rule: Does not guess, expose private operational data, or silently
  * default unresolved users to Therapist, Driver, CRM, Utility, or any role.
  */
