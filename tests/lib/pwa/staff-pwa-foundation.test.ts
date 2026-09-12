@@ -106,7 +106,7 @@ describe("PWA-C5: Staff Foundation Navigation & Role Mapping", () => {
     expect(CRM_GENERAL_NAV_ITEMS[4]?.href).toBe("/staff/more");
   });
 
-  it("verifies Utility profile keeps Work selectable pointing to read-only unavailable state", () => {
+  it("verifies Utility profile keeps canonical Work navigation available", () => {
     const labels = UTILITY_NAV_ITEMS.map((item) => item.label);
     expect(labels).toEqual(["Today", "Work", "Scan", "Notices", "More"]);
     expect(UTILITY_NAV_ITEMS[0]?.href).toBe("/staff/utility");
