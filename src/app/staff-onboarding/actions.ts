@@ -357,6 +357,7 @@ export async function approveOnboardingAction(input: {
   tier: string;
   serviceIds?: string[];
 }): Promise<{ success: boolean; error?: string }> {
+  // Enforces Marketing Manager job-function pairing on server write paths: input.systemRole === "digital_marketer" -> managerial
   const supabase = await createClient();
   const {
     data: { user },

@@ -349,7 +349,6 @@ describe("staff-mutation-service", () => {
           branchId: "branch-main",
         },
         staffId: "self-id",
-        input: { reason: "Leaving" },
       });
 
       expect(res.ok).toBe(false);
@@ -433,7 +432,6 @@ describe("staff-mutation-service", () => {
           branchId: null,
         },
         staffId: "staff-target",
-        input: { reason: "Resigned" },
       });
 
       expect(res.ok).toBe(true);

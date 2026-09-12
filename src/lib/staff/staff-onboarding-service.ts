@@ -1,3 +1,5 @@
+import "server-only";
+
 import { revalidatePath } from "next/cache";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { getAllBranches } from "@/lib/queries/branches";
@@ -7,7 +9,7 @@ import { mapPreferredRoleToStaffType } from "@/lib/staff/onboarding-roles";
 import { canApproveStaffOnboarding } from "@/lib/staff/approval-permissions";
 import { logError, logBusinessEvent } from "@/lib/logger";
 import { canonicalizeSystemRole } from "@/constants/staff";
-import { canReviewStaffOnboarding, isOwner, isManager } from "@/lib/permissions";
+import { canReviewStaffOnboarding, isOwner } from "@/lib/permissions";
 import { validateBranchServiceEligibility } from "@/lib/services/service-catalog";
 import type { Json } from "@/types/supabase";
 
@@ -52,6 +54,85 @@ export function invalidateOnboardingApprovalSurfaces(branchId: string) {
   revalidatePath("/crm/staff");
   revalidatePath("/crm/setup");
   revalidatePath("/staff-onboarding");
+}
+
+type CompensationResult = {
+  success: boolean;
+  staffRestored: boolean;
+  capabilitiesRestored: boolean;
+  error?: string;
+};
+
+async function compensateApprovalMutation(params: {
+  admin: ReturnType<typeof createAdminClient>;
+  staffId: string;
+  priorStaff: {
+    is_active: boolean;
+    branch_id: string;
+    system_role: string;
+    staff_type: string;
+    tier: string;
+    nickname: string | null;
+  };
+  priorCapabilityIds: string[] | null;
+  restoreCapabilities: boolean;
+}): Promise<CompensationResult> {
+  const { admin, staffId, priorStaff, priorCapabilityIds, restoreCapabilities } = params;
+  let staffRestored = false;
+  let capabilitiesRestored = !restoreCapabilities;
+  let errorMsg = "";
+
+  // 1. Restore staff row
+  const { error: staffErr } = await admin
+    .from("staff")
+    .update({
+      is_active: priorStaff.is_active,
+      branch_id: priorStaff.branch_id,
+      system_role: priorStaff.system_role,
+      staff_type: priorStaff.staff_type,
+      tier: priorStaff.tier,
+      nickname: priorStaff.nickname,
+    })
+    .eq("id", staffId);
+
+  if (staffErr) {
+    errorMsg = `Staff rollback failed: ${staffErr.message}`;
+    logError("staff.onboarding.compensation_staff_failed", { staffId, error: staffErr });
+  } else {
+    staffRestored = true;
+  }
+
+  // 2. Restore capabilities if they were altered
+  if (restoreCapabilities && priorCapabilityIds !== null) {
+    const { error: capErr } = await admin.rpc("replace_staff_service_capabilities", {
+      p_target_staff_id: staffId,
+      p_service_ids: priorCapabilityIds,
+    });
+    if (capErr) {
+      const capMsg = `Capabilities rollback failed: ${capErr.message}`;
+      errorMsg = errorMsg ? `${errorMsg}; ${capMsg}` : capMsg;
+      logError("staff.onboarding.compensation_capabilities_failed", { staffId, error: capErr });
+    } else {
+      capabilitiesRestored = true;
+    }
+  }
+
+  const overallSuccess = staffRestored && capabilitiesRestored;
+  if (!overallSuccess) {
+    logError("staff.onboarding.compensation_incomplete_critical", {
+      staffId,
+      staffRestored,
+      capabilitiesRestored,
+      errorMsg,
+    });
+  }
+
+  return {
+    success: overallSuccess,
+    staffRestored,
+    capabilitiesRestored,
+    error: errorMsg || undefined,
+  };
 }
 
 export async function approveStaffOnboardingRequest(params: {
@@ -131,14 +212,14 @@ export async function approveStaffOnboardingRequest(params: {
     return { ok: false, code: "INVALID_INPUT", error: "Selected branch is not active." };
   }
 
-  const branchChanged = input.branchId !== request.requested_branch_id;
-  const approverCanChangeBranch = isOwner(actorRole) || isManager(actorRole);
-  if (branchChanged && !approverCanChangeBranch) {
+  // Branch Authority:
+  // OWNER: may approve an applicant into another active branch where canonical owner authority permits it.
+  // NON-OWNER: final approved branch MUST equal actor.branchId.
+  if (!isOwner(actorRole) && input.branchId !== actor.branchId) {
     return {
       ok: false,
-      code: "FORBIDDEN",
-      error:
-        "You can only approve staff into the requested branch. Ask an owner or manager to change the branch.",
+      code: "BRANCH_MISMATCH",
+      error: "You can only approve staff into your own branch.",
     };
   }
 
@@ -161,7 +242,7 @@ export async function approveStaffOnboardingRequest(params: {
     }
   }
 
-  // Load prior staff record for compensating rollback
+  // Load prior staff record for compensating rollback BEFORE ANY MUTATION
   const { data: priorStaff, error: priorStaffError } = await admin
     .from("staff")
     .select("id, is_active, branch_id, system_role, staff_type, tier, nickname")
@@ -170,6 +251,25 @@ export async function approveStaffOnboardingRequest(params: {
 
   if (priorStaffError || !priorStaff) {
     return { ok: false, code: "NOT_FOUND", error: "Staff record not found." };
+  }
+
+  // Load prior capabilities BEFORE ANY MUTATION if capability replacement will occur
+  let priorCapabilityIds: string[] | null = null;
+  if (confirmedServiceIds !== undefined) {
+    const { data: capRows, error: capError } = await admin
+      .from("staff_services")
+      .select("service_id")
+      .eq("staff_id", staffId);
+
+    if (capError) {
+      logError("staff.onboarding.prior_capabilities_fetch_failed", { staffId, error: capError });
+      return {
+        ok: false,
+        code: "SAVE_FAILED",
+        error: "Unable to read existing staff capabilities for compensation.",
+      };
+    }
+    priorCapabilityIds = (capRows ?? []).map((r) => r.service_id);
   }
 
   const requestMetadata = request.metadata as { nickname?: string | null } | null;
@@ -199,7 +299,8 @@ export async function approveStaffOnboardingRequest(params: {
   }
 
   // Step 2: Capability sync with compensating rollback if failed
-  if (confirmedServiceIds) {
+  let capabilitiesAltered = false;
+  if (confirmedServiceIds !== undefined) {
     const { error: capabilityErr } = await admin.rpc("replace_staff_service_capabilities", {
       p_target_staff_id: staffId,
       p_service_ids: confirmedServiceIds,
@@ -209,28 +310,27 @@ export async function approveStaffOnboardingRequest(params: {
         staffId,
         error: capabilityErr,
       });
-      // Compensating rollback: restore prior staff state
-      await admin
-        .from("staff")
-        .update({
-          is_active: priorStaff.is_active,
-          branch_id: priorStaff.branch_id,
-          system_role: priorStaff.system_role,
-          staff_type: priorStaff.staff_type,
-          tier: priorStaff.tier,
-          nickname: priorStaff.nickname,
-        })
-        .eq("id", staffId);
-
+      const compensation = await compensateApprovalMutation({
+        admin,
+        staffId,
+        priorStaff,
+        priorCapabilityIds,
+        restoreCapabilities: false,
+      });
       return {
         ok: false,
         code: "SAVE_FAILED",
-        error: `Activated staff but failed to set services: ${capabilityErr.message}`,
+        error: `Activated staff but failed to set services: ${capabilityErr.message}${
+          !compensation.success
+            ? " (Rollback also encountered errors. Consistency event logged.)"
+            : ""
+        }`,
       };
     }
+    capabilitiesAltered = true;
   }
 
-  // Step 3: Update onboarding request status with compensating rollback if failed
+  // Step 3: Update onboarding request status with concurrency check and compensating rollback
   const now = new Date().toISOString();
   const existingMetadata =
     request.metadata && typeof request.metadata === "object" && !Array.isArray(request.metadata)
@@ -238,16 +338,15 @@ export async function approveStaffOnboardingRequest(params: {
       : {};
   const updatedMetadata: Record<string, unknown> = {
     ...existingMetadata,
+    approved_at: now,
+    approved_by_staff_id: actor.staffId,
+    assigned_branch_id: input.branchId,
+    assigned_system_role: input.systemRole,
+    assigned_tier: input.tier,
+    assigned_service_ids: confirmedServiceIds ?? [],
   };
-  if (branchChanged) {
-    updatedMetadata.approved_branch_differs_from_requested = true;
-    updatedMetadata.original_requested_branch_id = request.requested_branch_id;
-    updatedMetadata.approved_branch_id = input.branchId;
-    updatedMetadata.approved_branch_changed_at = now;
-    updatedMetadata.approved_branch_changed_by_staff_id = actor.staffId;
-  }
 
-  const { error: requestUpdateErr } = await admin
+  const { data: updatedRequest, error: requestUpdateErr } = await admin
     .from("staff_onboarding_requests")
     .update({
       status: "approved",
@@ -256,7 +355,10 @@ export async function approveStaffOnboardingRequest(params: {
       requested_branch_id: input.branchId,
       metadata: updatedMetadata as unknown as Json,
     })
-    .eq("id", requestId);
+    .eq("id", requestId)
+    .eq("status", "submitted")
+    .select("id")
+    .maybeSingle();
 
   if (requestUpdateErr) {
     logError("staff.onboarding.request_update_failed_compensating", {
@@ -264,23 +366,43 @@ export async function approveStaffOnboardingRequest(params: {
       staffId,
       error: requestUpdateErr,
     });
-    // Compensating rollback: revert staff row
-    await admin
-      .from("staff")
-      .update({
-        is_active: priorStaff.is_active,
-        branch_id: priorStaff.branch_id,
-        system_role: priorStaff.system_role,
-        staff_type: priorStaff.staff_type,
-        tier: priorStaff.tier,
-        nickname: priorStaff.nickname,
-      })
-      .eq("id", staffId);
+    const compensation = await compensateApprovalMutation({
+      admin,
+      staffId,
+      priorStaff,
+      priorCapabilityIds,
+      restoreCapabilities: capabilitiesAltered,
+    });
 
     return {
       ok: false,
       code: "SAVE_FAILED",
-      error: `Failed to update onboarding request: ${requestUpdateErr.message}`,
+      error: `Failed to update onboarding request: ${requestUpdateErr.message}${
+        !compensation.success
+          ? " (Rollback also encountered errors. Consistency event logged.)"
+          : ""
+      }`,
+    };
+  }
+
+  if (!updatedRequest) {
+    logError("staff.onboarding.request_update_race_conflict_compensating", {
+      requestId,
+      staffId,
+      actorStaffId: actor.staffId,
+    });
+    await compensateApprovalMutation({
+      admin,
+      staffId,
+      priorStaff,
+      priorCapabilityIds,
+      restoreCapabilities: capabilitiesAltered,
+    });
+
+    return {
+      ok: false,
+      code: "INVALID_STATE",
+      error: "This onboarding request has already been reviewed by another user.",
     };
   }
 
@@ -298,14 +420,11 @@ export async function approveStaffOnboardingRequest(params: {
     requestId,
     staffId,
     branchId: input.branchId,
+    role: input.systemRole,
     actorId: actor.staffId,
     workspace: actor.systemRole,
-    systemRole: input.systemRole,
-    tier: input.tier,
-    branchChanged,
   });
 
-  // Step 5: Surface invalidation
   invalidateOnboardingApprovalSurfaces(input.branchId);
 
   return {
@@ -375,7 +494,7 @@ export async function rejectStaffOnboardingRequest(params: {
     rejected_by_staff_id: actor.staffId,
   };
 
-  const { error: updateError } = await admin
+  const { data: updatedRequest, error: updateError } = await admin
     .from("staff_onboarding_requests")
     .update({
       status: "rejected",
@@ -384,10 +503,21 @@ export async function rejectStaffOnboardingRequest(params: {
       rejection_reason: input.rejectionReason ?? null,
       metadata: updatedMetadata as unknown as Json,
     })
-    .eq("id", requestId);
+    .eq("id", requestId)
+    .eq("status", "submitted")
+    .select("id")
+    .maybeSingle();
 
   if (updateError) {
     return { ok: false, code: "SAVE_FAILED", error: updateError.message };
+  }
+
+  if (!updatedRequest) {
+    return {
+      ok: false,
+      code: "INVALID_STATE",
+      error: "This onboarding request has already been reviewed by another user.",
+    };
   }
 
   await emitWorkflowEvent({

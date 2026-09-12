@@ -61,13 +61,14 @@ export async function withDesktopStaffContext(
     if (!auth.operator.staff) {
       return desktopStaffFailure("FORBIDDEN", "Active staff profile required.", 403);
     }
+    const canonicalRole = canonicalizeSystemRole(auth.operator.staff.system_role);
+    if (!isSystemRole(canonicalRole)) {
+      return desktopStaffFailure("FORBIDDEN", "Invalid or unrecognized staff system role.", 403);
+    }
     const actor: DesktopStaffActor = {
       staffId: auth.operator.staff.id,
       authUserId: auth.operator.authUserId,
-      systemRole: (() => {
-        const canonical = canonicalizeSystemRole(auth.operator.staff.system_role);
-        return isSystemRole(canonical) ? canonical : ("staff" as SystemRole);
-      })(),
+      systemRole: canonicalRole,
       branchId: auth.operator.staff.branch_id,
     };
     return await run({

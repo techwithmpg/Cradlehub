@@ -145,6 +145,10 @@ function buildRoomBookingSummary(booking: CrmBookingActionRow) {
 export async function markBookingConfirmedAction(
   rawInput: unknown
 ): Promise<{ success: boolean; error?: string }> {
+  const parsed = bookingIdSchema.safeParse(rawInput);
+  if (!parsed.success) {
+    return { success: false, error: parsed.error.issues[0]?.message ?? "Invalid input" };
+  }
   const ctx = await getCrmActionsContext();
   if (!ctx) return { success: false, error: "Unauthorized" };
   return confirmCrmBooking(ctx, rawInput);

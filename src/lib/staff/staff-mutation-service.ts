@@ -1,3 +1,5 @@
+import "server-only";
+
 import { createAdminClient } from "@/lib/supabase/admin";
 import {
   canonicalizeSystemRole,
@@ -261,7 +263,6 @@ export async function assignStaffRoleService(params: {
 export async function deactivateStaffService(params: {
   actor: StaffMutationActor;
   staffId: string;
-  input?: { reason?: string };
 }): Promise<StaffMutationServiceResult<{ staff: Record<string, unknown> }>> {
   const { actor, staffId } = params;
   const actorRole = canonicalizeSystemRole(actor.systemRole);

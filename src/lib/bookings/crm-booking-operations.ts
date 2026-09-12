@@ -750,13 +750,18 @@ export async function rescheduleBooking(
 
   if (staffChanged && targetStaffId) {
     const admin = createAdminClient();
-    const { data: staff, error: staffError } = await admin
+    const { data: staffData, error: staffError } = await admin
       .from("staff")
       .select("id, branch_id, full_name, is_active")
       .eq("id", targetStaffId)
       .maybeSingle();
 
-    if (staffError || !staff || !staff.is_active || staff.branch_id !== booking.branch_id) {
+    if (
+      staffError ||
+      !staffData ||
+      !staffData.is_active ||
+      staffData.branch_id !== booking.branch_id
+    ) {
       return { success: false, error: "Selected therapist is not available for this branch." };
     }
 
@@ -831,12 +836,22 @@ export async function rescheduleBooking(
   }
 
   const openScheduleException = getOpenStaffScheduleException(currentMetadata);
-  if (scheduleChanged && openScheduleException) {
-    updatedMetadata = resolveStaffScheduleExceptionMetadata(updatedMetadata, {
-      resolution: "rescheduled_booking",
-      resolvedAt: now,
-      resolvedByStaffId: actorId,
-    }) as Record<string, unknown>;
+  if (openScheduleException) {
+    if (staffChanged && targetStaffId) {
+      updatedMetadata = resolveStaffScheduleExceptionMetadata(updatedMetadata, {
+        resolution: "reassigned_staff",
+        resolvedAt: now,
+        resolvedByStaffId: actorId,
+        previousStaffId: booking.staff_id ?? null,
+        newStaffId: targetStaffId,
+      }) as Record<string, unknown>;
+    } else if (scheduleChanged) {
+      updatedMetadata = resolveStaffScheduleExceptionMetadata(updatedMetadata, {
+        resolution: "rescheduled_booking",
+        resolvedAt: now,
+        resolvedByStaffId: actorId,
+      }) as Record<string, unknown>;
+    }
   }
 
   const admin = createAdminClient();
@@ -868,11 +883,17 @@ export async function rescheduleBooking(
     };
   }
 
+  const previousStaffName = firstRelation(booking.staff)?.full_name ?? "Unassigned";
+  const isOnlyReassignment = staffChanged && !scheduleChanged && !addressChanged;
+  const auditResult = isOnlyReassignment ? "staff_reassigned" : "rescheduled";
+
   const auditNote = [
     scheduleChanged
       ? `Rescheduled from ${booking.booking_date} ${shortTime(currentStartTime)} to ${nextDate} ${shortTime(nextStartTime)}.`
       : null,
-    staffChanged ? `Therapist reassigned.` : null,
+    staffChanged
+      ? `Assigned therapist changed from ${previousStaffName}. Reason: ${parsed.data.overrideReason ?? "reschedule_reassignment"}.`
+      : null,
     addressChanged ? "Home-service address updated." : null,
     parsed.data.note?.trim() || null,
   ]
@@ -885,11 +906,14 @@ export async function rescheduleBooking(
     bookingId: booking.id,
     fromStatus: booking.status,
     note: auditNote,
-    result: "rescheduled",
+    result: auditResult,
     toStatus: booking.status,
   });
 
   if (staffChanged) {
+    await resolveNotificationsForEntity("booking", booking.id, "staff", "booking_assigned");
+    await resolveNotificationsForEntity("booking", booking.id, "staff", "home_service_assigned");
+
     if (booking.staff_id && booking.payment_status === "paid") {
       await createNotification({
         branchId: booking.branch_id,
@@ -897,7 +921,7 @@ export async function rescheduleBooking(
         recipientStaffId: booking.staff_id,
         type: "booking_reassigned",
         title: "Booking reassigned",
-        body: `A booking previously assigned to you has been reassigned to another staff member.`,
+        body: `The booking on ${nextDate} at ${shortTime(nextStartTime)} is no longer assigned to you.`,
         entityType: "booking",
         entityId: booking.id,
         actionHref: getNotificationTargetPath({
@@ -907,17 +931,19 @@ export async function rescheduleBooking(
         }),
         priority: "normal",
         requiresAction: false,
+        dedupeKey: `booking:${booking.id}:staff_reassigned_from:${booking.staff_id}`,
       });
     }
 
     if (targetStaffId && booking.payment_status === "paid") {
+      const isHS = isHomeServiceBooking(booking);
       await createNotification({
         branchId: booking.branch_id,
         targetWorkspace: "staff",
         recipientStaffId: targetStaffId,
-        type: "booking_rescheduled",
-        title: "Booking assigned and rescheduled",
-        body: `You have been assigned to a booking rescheduled to ${nextDate} at ${shortTime(nextStartTime)}.`,
+        type: isHS ? "home_service_assigned" : "booking_assigned",
+        title: isHS ? "Home Service booking assigned" : "Booking assigned to you",
+        body: `You have been assigned a booking on ${nextDate} at ${shortTime(nextStartTime)}.`,
         entityType: "booking",
         entityId: booking.id,
         actionHref: getNotificationTargetPath({
@@ -925,8 +951,8 @@ export async function rescheduleBooking(
           entityType: "booking",
           entityId: booking.id,
         }),
-        priority: "high",
-        requiresAction: true,
+        priority: isHS ? "high" : "normal",
+        requiresAction: isHS,
       });
     }
   } else if (booking.staff_id && booking.payment_status === "paid") {
@@ -966,7 +992,7 @@ export async function rescheduleBooking(
     });
   }
 
-  if (scheduleChanged && openScheduleException) {
+  if (openScheduleException && (staffChanged || scheduleChanged)) {
     await resolveStaffScheduleExceptionSignals({
       bookingId: booking.id,
       branchId: booking.branch_id,

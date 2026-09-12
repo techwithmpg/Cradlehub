@@ -194,7 +194,7 @@ describe("Desktop Staff Mutation Routes", () => {
         "http://localhost/api/desktop/v1/staff/550e8400-e29b-41d4-a716-446655440000/deactivate",
         {
           method: "POST",
-          body: JSON.stringify({ reason: "Testing" }),
+          body: JSON.stringify({}),
         }
       );
 
@@ -208,6 +208,38 @@ describe("Desktop Staff Mutation Routes", () => {
       expect(json.code).toBe("FORBIDDEN");
     });
 
+    it("fails closed with 403 FORBIDDEN when operator has unrecognized system role", async () => {
+      mockedAuth.mockResolvedValueOnce({
+        ok: true,
+        operator: {
+          authUserId: "user-1",
+          staff: {
+            id: "staff-actor",
+            branch_id: "branch-main",
+            system_role: "hacker_role",
+          },
+          staffRole: "hacker_role",
+          isDevBypass: false,
+        },
+        user: { id: "user-1", email: "hacker@test.local" },
+        client: {} as unknown as SupabaseClient<Database>,
+      });
+
+      const req = new NextRequest(
+        "http://localhost/api/desktop/v1/staff/550e8400-e29b-41d4-a716-446655440000/deactivate",
+        { method: "POST" }
+      );
+
+      const res = await deactivateRoute(req, {
+        params: Promise.resolve({ staffId: "550e8400-e29b-41d4-a716-446655440000" }),
+      });
+
+      expect(res.status).toBe(403);
+      const json = await res.json();
+      expect(json.ok).toBe(false);
+      expect(json.code).toBe("FORBIDDEN");
+      expect(json.message).toContain("Invalid or unrecognized staff system role");
+    });
     it("returns 200 on successful deactivation", async () => {
       mockedAuth.mockResolvedValueOnce(authSuccess());
       mockedDeactivate.mockResolvedValueOnce({
