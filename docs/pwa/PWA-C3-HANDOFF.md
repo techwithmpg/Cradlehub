@@ -6,9 +6,9 @@
 - Review status: **READY FOR EXTERNAL RE-REVIEW — NOT ACCEPTED / NOT MERGED**.
 - Branch: `stage/pwa-c3-final-scope-freeze`.
 - Accepted C2/main: `2b927303d2d6bc10b09a15f2542fdcfa6c066194`.
-- Previously reviewed C3 head: `1535f5e258190d0024ce50c87bb19f06f913a4e8`.
-- Corrected C3 content head: `01d143ac492123db1db0d4635bc06d04bf688b63` (`docs(pwa): address C3 external review corrections`).
-- Final re-review head: the immediate handoff-evidence successor of that content commit, containing this SHA record; resolve with `git rev-parse HEAD` at this review revision. The delivery response records its full SHA and remote push verification. This distinction avoids a self-referential commit hash and preserves history.
+- Previously reviewed C3 head / targeted-correction starting head: `8d77d39843c5c8d031e3c09427b1203399804a12`.
+- Earlier correction content head (historical): `01d143ac492123db1db0d4635bc06d04bf688b63` (`docs(pwa): address C3 external review corrections`).
+- Targeted corrected review head: the commit containing this targeted-correction handoff, resolved with `git rev-parse HEAD` at this review revision. The delivery response records its full SHA and remote push verification; the publication evidence update records the content SHA without rewriting history.
 - Next stage: **PWA-C4 — NOT AUTHORIZED**.
 
 The owner authorized correction commits and a normal push to this C3 branch for external re-review. Runtime/UI work, dependencies, database/schema/migrations, Auth/RLS/Storage changes, production access, deployment, merge, rebase, force-push, history rewriting, recovery-branch changes and PWA-C4+ execution are prohibited. PWA-C3 remains active and documentation-only.
@@ -44,7 +44,19 @@ Minimization, Remote End Shift eligibility considerations and worker ownership r
 
 All twelve original dispositions remain: PWA-C2-001/005/010 freeze V1 behavior; 002/003/004/007/008 need C4 design contracts; 006/009 are security/reliability gates; 011 is a device/provider gate; 012 is blocked/out of scope. No source-backed defect is claimed fixed in C3.
 
-## Verification and publication evidence
+## Final targeted correction
+
+The targeted starting gate passed after `git fetch origin --prune`: clean `stage/pwa-c3-final-scope-freeze`, HEAD `8d77d39843c5c8d031e3c09427b1203399804a12`, and `origin/main` and merge-base both `2b927303d2d6bc10b09a15f2542fdcfa6c066194`.
+
+The Service-provider contract and PWA-C3-D008 freeze the exact canonical existing V1 sequences: in-spa `not_started → checked_in → session_started → completed`; home service `not_started → travel_started → arrived → session_started → completed`. C4 may design presentation/interactions without inventing or reordering states; C8 must reuse server-authoritative transitions and multi-provider assignment validation. Completion does not automatically clock staff out; service-end QR remains OUT OF V1.
+
+The explicit V1 exclusions now also cover speculative reports/reporting surfaces not already approved, fabricated route geometry, fabricated ETA, and client-generated or guessed navigation/travel promises presented as authoritative. Real route/ETA functionality requires a later separately authorized stage, an approved provider/server source and required verification; approved Driver scope is unchanged.
+
+Remote End Shift and PWA-C3-D007 explicitly require an open attendance shift, no active service/work, no active Driver trip where applicable, no remaining assignment, final-assignment state, capability, timing/policy, and return-to-branch expectation where applicable. The exact timing/policy formula remains unresolved under PWA-C3-Q004.
+
+Only the C3 scope freeze and this handoff change in this targeted pass. No implementation, runtime/UI, database/schema/migration, Auth/RLS/Storage, production-data or deployment work occurred. **PWA-C4 was not started and remains NOT AUTHORIZED.** Review status remains **READY FOR EXTERNAL RE-REVIEW — NOT ACCEPTED / NOT MERGED**.
+
+## Earlier correction verification and publication evidence
 
 The correction starting gate passed after `git fetch origin --prune`: branch `stage/pwa-c3-final-scope-freeze`, clean working tree, HEAD `1535f5e258190d0024ce50c87bb19f06f913a4e8`, `origin/main` and merge-base `2b927303d2d6bc10b09a15f2542fdcfa6c066194`, `git rev-list --left-right --count origin/main...HEAD` = `0 2`. This supersedes the original handoff's starting-state description for this correction only; the original fetch limitation remains historical in the scope document/Git history.
 
@@ -63,7 +75,7 @@ Application tests, browser/device checks and database checks were not run for th
 
 ## Changed files and production impact
 
-Only four documentation/governance files change in this correction: `docs/11-DECISION-LOG.md`, `docs/12-KNOWN-ISSUES-REGISTER.md`, `docs/pwa/PWA-C3-FINAL-SCOPE-FREEZE.md` and this handoff. No runtime source, UI, tests, dependencies, assets, SQL, migrations, environment, deployment, Auth, RLS or Storage files change.
+The earlier correction from `1535f5e258190d0024ce50c87bb19f06f913a4e8` changed four documentation/governance files: `docs/11-DECISION-LOG.md`, `docs/12-KNOWN-ISSUES-REGISTER.md`, `docs/pwa/PWA-C3-FINAL-SCOPE-FREEZE.md` and this handoff. The final targeted correction from `8d77d39843c5c8d031e3c09427b1203399804a12` changes only the scope freeze and this handoff. No runtime source, UI, tests, dependencies, assets, SQL, migrations, environment, deployment, Auth, RLS or Storage files change.
 
 This correction has no runtime/database/deployment effect. No deployment command, production-data request, database access or production mutation is performed. Git ref verification does not verify the deployed application; repository production claims remain **REPOSITORY-RECORDED PRODUCTION EVIDENCE**.
 

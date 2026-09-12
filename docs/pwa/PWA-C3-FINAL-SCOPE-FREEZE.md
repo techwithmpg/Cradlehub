@@ -218,11 +218,36 @@ Attendance remains server-authoritative and separate from service progress. The 
 
 ### Remote End Shift contract
 
-Remote End Shift is V1 scope as a controlled exception and is implemented only in PWA-C14 after C4 contract work. Eligibility must consider open shift, active service/work, remaining assignments, final assignment, capability, timing and return-to-branch expectation where applicable. It must be separately audited, server-authorized and clearly distinct from a branch QR. C3 freezes these required considerations, not the exact policy/timing formula (PWA-C3-Q004); it invents no tables, columns, RPC names or eligibility SQL.
+Remote End Shift is V1 scope as a controlled exception and is implemented only in PWA-C14 after C4 contract work. Server-authoritative eligibility must explicitly include:
+
+- an open attendance shift;
+- no active service/work;
+- no active Driver trip where applicable;
+- no remaining assignment;
+- final-assignment state;
+- capability;
+- timing/policy; and
+- return-to-branch expectation where applicable.
+
+It must be separately audited, server-authorized and clearly distinct from a branch QR. C3 freezes these eligibility requirements, not the exact timing/policy formula; **PWA-C3-Q004** remains the owner of that unresolved detail. No tables, columns, RPC names or eligibility SQL are invented.
 
 ### Service-provider contract
 
-Therapist, Nail Tech, Aesthetician / Facialist and Salon Head share the existing booking/service-progress state machine, assignment validation and Service Start contract. Today, next service, own schedule, active timer/status, completion and home-service work reuse the master-matrix authorities. The server validates multi-provider assignments and confirms transitions. Service completion never automatically clocks out the provider; V1 requires no service-end QR. PWA-C4 specifies states and PWA-C8 adapts the existing contracts only after separate authorization.
+Therapist, Nail Tech, Aesthetician / Facialist and Salon Head share the existing booking/service-progress state machines, assignment validation and Service Start contract. Today, next service, own schedule, active timer/status, completion and home-service work reuse the master-matrix authorities. These are the canonical existing V1 service-progress sequences:
+
+**In-spa:**
+
+```text
+not_started → checked_in → session_started → completed
+```
+
+**Home service:**
+
+```text
+not_started → travel_started → arrived → session_started → completed
+```
+
+PWA-C4 may design presentation/interactions but may not invent or reorder states. PWA-C8 must reuse the existing server-authoritative transition contract. Multi-provider assignment validation remains server authoritative. Service completion does not automatically clock staff out. Service-end QR remains **OUT OF V1**. No new statuses are introduced, and both later stages remain subject to separate authorization.
 
 ## J. Driver and reliability freeze
 
@@ -272,11 +297,17 @@ Utility Attendance, schedule and Scan may proceed in later authorized stages onl
 - Broad offline mutation queue or fake queued success.
 - Full Owner, Finance, Payroll, Marketing, Staff or Customer administration.
 - Full CRM admin recreation inside the Staff PWA.
+- Speculative reports or reporting surfaces not already approved.
+- Fabricated route geometry.
+- Fabricated ETA.
+- Client-generated or guessed navigation/travel promises presented as authoritative.
 - Utility task-management backend.
 - Service-end QR requirement.
 - Client-selected QR intent or client-side authorization.
 - Unbounded customer-data replication, broad operational cache or unreviewed location retention.
 - Any migration, schema, Auth, RLS, Storage, production-data or deployment change during C3.
+
+Real route/ETA functionality may appear only in a later separately authorized stage when backed by an approved provider/server source and the required verification. This condition does not change the approved Driver scope or authorize route/ETA implementation in C3 or C4.
 
 ## C3 Decision Register
 
@@ -290,8 +321,8 @@ This is the **canonical C3 decision register**. `PWA-C3-Dxxx` identifies frozen 
 | PWA-C3-D004 | Universal Scan | One prominent Scan action captures a public identifier; the server resolves Attendance/room/resource/Service Start intent and confirms the result. | PROJECT scanner direction; PWA-C2-005; section H | No client-selected purpose, QR permission or premature success. | PWA-C4/C6 |
 | PWA-C3-D005 | Attendance authority | Preserve server timestamps, branch/policy checks, device trust and existing QR/widget/portal/correction/recovery consumers until safe command reconciliation is proven. | PWA-C2-002; section I | Specify read-side recalculation, idempotency and audit boundaries before replacement. | PWA-C4/C7; PWA-C17 |
 | PWA-C3-D006 | Attendance/service separation | Service progress and attendance remain separate; service completion never automatically clocks out staff. | PROJECT Attendance/service-provider direction; section I | Test completion and attendance as independent transitions. | PWA-C4/C7/C8 |
-| PWA-C3-D007 | Remote End Shift | Separate audited server-authorized off-site exception; consider open shift, active/remaining/final work, capability, timing and return expectations. | PROJECT Remote End Shift; C2 policy/portal evidence; section I | No fake branch scan; exact eligibility formula remains Q004. | PWA-C4/C14; PWA-C17 |
-| PWA-C3-D008 | Service-provider state machine | Reuse booking/service progress, assignments, Service Start, timer/status and completion for the approved provider groups; no service-end QR. | PROJECT service-provider direction; C1/C2 service evidence; master matrix | Preserve multi-provider checks and home-service minimum-data boundaries. | PWA-C4/C8 |
+| PWA-C3-D007 | Remote End Shift | Separate audited server-authorized off-site exception; require open attendance shift, no active service/work, no active Driver trip where applicable, no remaining assignment, final-assignment state, capability, timing/policy and return-to-branch expectation where applicable. | PROJECT Remote End Shift; C2 policy/portal evidence; section I; owner targeted correction | No fake branch scan; exact timing/policy formula remains PWA-C3-Q004. | PWA-C4/C14; PWA-C17 |
+| PWA-C3-D008 | Service-provider state machines | Reuse the exact canonical existing V1 sequences frozen in the Service-provider contract: in-spa `not_started → checked_in → session_started → completed`; home service `not_started → travel_started → arrived → session_started → completed`. | PROJECT service-provider direction; C1/C2 service evidence; section I; owner targeted correction | C4 may design presentation/interactions, not invent or reorder states; C8 must reuse server-authoritative transitions and multi-provider assignment validation. Preserve home-service minimum data; completion never automatically clocks staff out; service-end QR is OUT OF V1. | PWA-C4/C8 |
 | PWA-C3-D009 | Driver workspace/core | Dedicated `/driver` owns map-centered assigned-trip work and existing trip transitions/navigation handoff. | PROJECT Driver direction; PWA-C2-004; sections G/J | Repair conflicting links later without broadening Staff Portal access. | PWA-C4/C11/C12 |
 | PWA-C3-D010 | Trip-scoped location | Explicit active-trip lifecycle reuses server-authorized location snapshots; no hidden 24/7 tracking. | PROJECT Driver direction; PWA-C2-003; section J | Snapshot evidence is not continuous delivery; lifecycle/stop/cadence require later contracts. | PWA-C4/C11/C12/C13; PWA-C17 |
 | PWA-C3-D011 | Background reliability gate | Continuous/background reliability is UNPROVEN — REAL DEVICE TEST REQUIRED; insufficient pure-PWA reliability requires a later architecture decision. | C2 Driver/device findings; section J | Do not claim background success or select native/Capacitor architecture in C3. | PWA-C13; owner architecture gate; FINAL |
