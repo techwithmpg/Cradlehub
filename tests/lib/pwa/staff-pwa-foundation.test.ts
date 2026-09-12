@@ -428,3 +428,121 @@ describe("PWA-C5: Canonical Staff Runtime Scope Containment", () => {
   });
 });
 
+describe("PWA-C5: Canonical Utility Authorization Contract", () => {
+  it("verifies canAccessCanonicalUtility enforces trusted operational-group resolution", async () => {
+    const { canAccessCanonicalUtility } = await import("@/app/(dashboard)/staff/utility/page");
+
+    // 1. role=utility → allowed
+    expect(canAccessCanonicalUtility("utility", null)).toBe(true);
+    expect(canAccessCanonicalUtility("utility", "utility")).toBe(true);
+
+    // 2. role=staff + staff_type=utility → allowed
+    expect(canAccessCanonicalUtility("staff", "utility")).toBe(true);
+
+    // 3. role=owner → denied
+    expect(canAccessCanonicalUtility("owner", null)).toBe(false);
+    expect(canAccessCanonicalUtility("owner", "utility")).toBe(false);
+
+    // 4. role=manager → denied
+    expect(canAccessCanonicalUtility("manager", null)).toBe(false);
+    expect(canAccessCanonicalUtility("manager", "utility")).toBe(false);
+
+    // 5. role=crm → denied
+    expect(canAccessCanonicalUtility("crm", null)).toBe(false);
+
+    // 6. provider → denied
+    expect(canAccessCanonicalUtility("staff", "therapist")).toBe(false);
+    expect(canAccessCanonicalUtility("staff", "nail_tech")).toBe(false);
+    expect(canAccessCanonicalUtility("staff", "aesthetician")).toBe(false);
+    expect(canAccessCanonicalUtility("staff", "facialist")).toBe(false);
+    expect(canAccessCanonicalUtility("service_head", null)).toBe(false);
+    expect(canAccessCanonicalUtility("service_staff", null)).toBe(false);
+
+    // 7. driver → denied
+    expect(canAccessCanonicalUtility("driver", null)).toBe(false);
+    expect(canAccessCanonicalUtility("staff", "driver")).toBe(false);
+  });
+});
+
+describe("PWA-C5: Runtime Role-Resolution Split Prevention", () => {
+  it("verifies getStaffPortalMode aligns with canonical operational resolver for service_head, service_staff, and facialist", async () => {
+    const { getStaffPortalMode } = await import("@/lib/staff/get-staff-portal-mode");
+    const { resolveStaffPwaOperationalGroup } = await import("@/lib/auth/workspace-access");
+    const { resolveStaffOperationalRole, resolveNavigationProfile } = await import(
+      "@/components/features/staff-pwa/role-navigation"
+    );
+
+    const providerCases = [
+      { system_role: "service_head", staff_type: null },
+      { system_role: "service_staff", staff_type: null },
+      { system_role: "staff", staff_type: "facialist" },
+      { system_role: "staff", staff_type: "therapist" },
+      { system_role: "staff", staff_type: "nail_tech" },
+      { system_role: "staff", staff_type: "aesthetician" },
+      { system_role: "staff", staff_type: "salon_head" },
+    ];
+
+    for (const testCase of providerCases) {
+      const serverGroup = resolveStaffPwaOperationalGroup(testCase.system_role, testCase.staff_type);
+      const uiRole = resolveStaffOperationalRole(testCase);
+      const uiProfile = resolveNavigationProfile(uiRole);
+      const portalMode = getStaffPortalMode(testCase);
+
+      // Invariant: Server authorized as Provider MUST render as Provider ("therapist" mode in legacy component hierarchy)
+      expect(serverGroup).toBe("provider");
+      expect(uiProfile).toBe("provider");
+      expect(portalMode).toBe("therapist");
+    }
+  });
+
+  it("verifies canonical Today, Schedule, and More choose Provider runtime profile for service_head and service_staff", async () => {
+    const { getStaffPortalMode, isBasicStaffMode } = await import("@/lib/staff/get-staff-portal-mode");
+    const { resolveStaffOperationalRole, resolveNavigationProfile } = await import(
+      "@/components/features/staff-pwa/role-navigation"
+    );
+
+    const roles: Array<{ system_role: string; staff_type: string | null }> = [
+      { system_role: "service_head", staff_type: null },
+      { system_role: "service_staff", staff_type: null },
+    ];
+
+    for (const role of roles) {
+      // 1. Operational profile used in canonical wrappers (More, etc.)
+      const opRole = resolveStaffOperationalRole(role);
+      const profile = resolveNavigationProfile(opRole);
+      expect(profile).toBe("provider");
+
+      // 2. Portal mode used by Today & Schedule
+      const mode = getStaffPortalMode(role);
+      expect(mode).toBe("therapist");
+      expect(isBasicStaffMode(mode)).toBe(false);
+    }
+  });
+
+  it("verifies Manager, Owner, and Marketer roles are completely excluded from Staff PWA operational roles", async () => {
+    const { resolveStaffPwaOperationalGroup } = await import("@/lib/auth/workspace-access");
+    const { resolveStaffOperationalRole, resolveNavigationProfile } = await import(
+      "@/components/features/staff-pwa/role-navigation"
+    );
+
+    const nonStaffRoles = [
+      { system_role: "owner", staff_type: null },
+      { system_role: "manager", staff_type: null },
+      { system_role: "assistant_manager", staff_type: null },
+      { system_role: "store_manager", staff_type: null },
+      { system_role: "digital_marketer", staff_type: null },
+      { system_role: "staff", staff_type: "managerial" },
+    ];
+
+    for (const testCase of nonStaffRoles) {
+      const serverGroup = resolveStaffPwaOperationalGroup(testCase.system_role, testCase.staff_type);
+      const uiRole = resolveStaffOperationalRole(testCase);
+      const uiProfile = resolveNavigationProfile(uiRole);
+
+      expect(serverGroup).toBeNull();
+      expect(uiRole).toBeNull();
+      expect(uiProfile).toBeNull();
+    }
+  });
+});
+

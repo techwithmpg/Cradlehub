@@ -1,7 +1,15 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
+import { resolveStaffPwaOperationalGroup } from "@/lib/auth/workspace-access";
 import { Sun, ClipboardList, QrCode, Bell, MoreHorizontal } from "lucide-react";
+
+export function canAccessCanonicalUtility(
+  role: string | null | undefined,
+  staffType?: string | null | undefined
+): boolean {
+  return resolveStaffPwaOperationalGroup(role, staffType) === "utility";
+}
 
 async function requireCanonicalUtilityAccess() {
   const supabase = await createClient();
@@ -13,12 +21,12 @@ async function requireCanonicalUtilityAccess() {
 
   const { data: me } = await supabase
     .from("staff")
-    .select("system_role")
+    .select("system_role, staff_type")
     .eq("auth_user_id", user.id)
     .eq("is_active", true)
     .maybeSingle();
 
-  if (me?.system_role === "owner" || me?.system_role === "utility") return;
+  if (canAccessCanonicalUtility(me?.system_role, me?.staff_type)) return;
   redirect("/staff");
 }
 

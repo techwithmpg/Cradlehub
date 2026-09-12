@@ -1,10 +1,10 @@
 # CradleHub Staff PWA — PWA-C5 Handoff and Status
 
-**Stage:** PWA-C5 — Shared Foundation (Runtime-Scope Correction Pass)  
-**Status:** PASS — READY FOR EXTERNAL RE-REVIEW  
-**Accepted C4/main baseline:** `d11a8ca3623e0092829c683b7022dc302739b96b`  
-**Starting C5 head for this review:** `8c02db5650c9fb126b56f4c61b635e86c098dab0`  
-**Branch:** `stage/pwa-c5-shared-foundation`  
+**Stage:** PWA-C5 — Shared Foundation (Role/Authority Consistency Correction Pass)
+**Status:** PASS — READY FOR EXTERNAL RE-REVIEW
+**Accepted C4/main baseline:** `d11a8ca3623e0092829c683b7022dc302739b96b`
+**Starting C5 head for this review:** `6d3c6e088b232316df77c5a58b6136be4dfa7924`
+**Branch:** `stage/pwa-c5-shared-foundation`
 **Authority:** [PWA-GOV-007](../11-DECISION-LOG.md#staff-pwa-decisions), [PWA-GOV-008](../11-DECISION-LOG.md#pwa-gov-008); owner architecture decisions  
 **Next Stage:** PWA-C6 (Scanner) — **STRICTLY NOT AUTHORIZED**  
 
@@ -12,36 +12,34 @@
 
 ## 1. Executive Summary & Deliverables
 
-Stage PWA-C5 has completed the shared mobile foundation implementation and successfully resolved all canonical `/staff/*` runtime scope escapes identified during external review:
+Stage PWA-C5 has completed the shared mobile foundation implementation and successfully resolved the final role/authority consistency items identified during external review:
 
-1. **Scope-Escape Resolution & Route Containment:**
-   - **Driver Bottom Navigation:** `DriverMobileBottomNav` is now namespace-aware via `mode` prop or automatic `pathname.startsWith("/staff")` detection. Canonical dock outputs `/staff/driver`, `/staff/driver/trips`, `/staff/scan`, `/staff/driver/map`, and `/staff/driver/more`. Historical `/driver` and `/staff-portal` links are preserved for legacy consumers.
-   - **Driver Home & Actions:** Bell notification links to `/staff/notices`, Trips link to `/staff/driver/trips`, Map links to `/staff/driver/map`, and Profile links to `/staff/driver/more` when running under canonical `/staff/`.
-   - **Therapist Header, Cards & Schedule:** `TherapistHeader`, `TherapistNextServiceCard`, `TherapistQuickActions`, and `TherapistScheduleList` pagination links remain within `/staff/` (`/staff/progress`, `/staff/schedule`, `/staff/notices`, `/staff/more`) without throwing users into historical `/staff-portal/*`.
-   - **Basic Staff Header, Cards & Schedule:** `BasicStaffHeader`, `BasicStaffAssignmentCard`, `BasicStaffQuickActions`, and `BasicStaffMobileSchedule` pagination links route to canonical `/staff/work`, `/staff/notices`, and `/staff/profile` when canonical.
-   - **More Menus:** `DriverMoreMenu`, `TherapistMoreMenu`, and `BasicStaffMoreMenu` accept `isCanonical?: boolean`. When true, destinations strictly emit canonical `/staff/...` URLs (`/staff/profile`, `/staff/notices`, `/staff/attendance`, `/staff/driver/trips`, `/staff/driver/map`) or honest disabled states, completely eliminating `/staff-portal/*` leakage.
+1. **Canonical Utility Authorization Correction:**
+   - Corrected `requireCanonicalUtilityAccess` in `src/app/(dashboard)/staff/utility/page.tsx` to query both `system_role` and `staff_type`.
+   - Replaced the ad-hoc authorization check with `canAccessCanonicalUtility`, delegating directly to trusted server-side `resolveStaffPwaOperationalGroup(role, staffType) === "utility"`.
+   - Strictly denies Owner, Manager, CRM, and Provider roles from independently accessing the canonical Utility workspace. Unauthenticated requests redirect to `/login`; authenticated non-utility users redirect safely to `/staff`.
 
-2. **Canonical Utility Today Correction & Legacy Loop Prevention:**
-   - Replaced historical `/utility` re-export with a dedicated, truthful `CanonicalUtilityPage` (`src/app/(dashboard)/staff/utility/page.tsx`).
-   - Removed all speculative task promises: no "Room Preparation Checklist", no "Cleaning Schedule", no "Supply Restock Reminders", no "Maintenance Tasks", and no "Coming Soon" teasers.
-   - Removed the legacy loop redirecting to `/staff-portal`. Denial routes safely back to `/staff`.
-   - Provides safe foundation destinations only: Today (`/staff/utility`), Work (`/staff/utility/work` — preserved read-only unavailable state), Scan (`/staff/scan`), Notices (`/staff/utility/notices`), and More (`/staff/utility/more`).
+2. **Elimination of the Runtime Role-Resolution Split:**
+   - Aligned `getStaffPortalMode()` in `src/lib/staff/get-staff-portal-mode.ts` with the canonical `resolveStaffOperationalRole()` and `resolveNavigationProfile()` contracts.
+   - `service_head` and `service_staff` system roles (and `facialist` staff type) now resolve consistently to `"therapist"` (Provider mode), eliminating the split where the server authorized Provider but legacy UI components rendered Basic Staff.
+   - Updated `src/app/(dashboard)/staff/more/page.tsx` to explicitly resolve operational role and navigation profile, rendering `<TherapistMoreMenu isCanonical />` for Provider identities.
+   - Canonical Today (`/staff`), Schedule (`/staff/schedule`), and More (`/staff/more`) now render 100% consistent Provider interfaces for `service_head` and `service_staff`.
 
-3. **Server & UI Role Resolver Alignment:**
-   - Unified `resolveStaffOperationalRole` in `src/components/features/staff-pwa/role-navigation.ts` with server-side `resolveStaffPwaOperationalGroup` in `src/lib/auth/workspace-access.ts`.
-   - `service_head` and `service_staff` are consistently treated as Provider (`salon_head` / `therapist`).
-   - Managerial roles (`owner`, `manager`, `assistant_manager`, `store_manager`, `digital_marketer`, `managerial`) resolve strictly to `null`, ensuring server authorization and UI navigation profiles agree 1:1.
-   - Added cross-contract test proving strict agreement across all 22 role/type combinations.
+3. **Scope-Escape Resolution & Route Containment (Preserved from Previous Passes):**
+   - Driver bottom dock and More menu strictly output canonical `/staff/driver/...` destinations.
+   - Therapist headers, service cards, and schedule links strictly navigate within `/staff/...`.
+   - Basic Staff headers, assignment cards, and schedule links strictly navigate within `/staff/...`.
+   - Utility Today contains zero speculative checklists and zero `/staff-portal` redirects. Work route (`/staff/utility/work`) displays the exact read-only unavailable state.
 
-4. **Shared Runtime Shell Integration:**
-   - Root canonical layout `src/app/(dashboard)/staff/layout.tsx` decorates all `/staff/*` pages with `StaffConnectivityBanner` and `StaffInstallPrompt`.
-   - Passes `mode="canonical"` to `DriverMobileShell`.
-   - `src/app/(dashboard)/staff/scan/page.tsx` passes `hideNav={true}` to inner `StaffAppShell` to prevent duplicate navigation docks.
-
-5. **Manifest, Icons, and Service Worker Preservation:**
-   - Preserved `id: "/cradlehub-staff"`, `start_url: "/staff/"`, `scope: "/staff/"`, `name: "CradleHub Staff"`, and `short_name: "Staff"`.
-   - Dedicated Staff icons (`public/staff-manifest-icon-192.png`, `public/staff-manifest-icon-512.png`) preserved.
-   - `public/sw.js` and `public/cradlehub-push-sw.js` preserved completely untouched.
+4. **Manifest, Icons, and Service Worker Preservation:**
+   - Manifest ID: `/cradlehub-staff`
+   - Start URL: `/staff/`
+   - Scope: `/staff/`
+   - Display: `standalone`
+   - Application Name: `CradleHub Staff`
+   - Workspace Identity: `Team Workspace`
+   - Dedicated launcher icons (`/staff-manifest-icon-192.png`, `/staff-manifest-icon-512.png`) preserved.
+   - Service workers (`public/sw.js` and `public/cradlehub-push-sw.js`) preserved completely untouched.
 
 ---
 
@@ -73,7 +71,7 @@ Stage PWA-C5 has completed the shared mobile foundation implementation and succe
 ## 3. Evidence Ledger
 
 - **LOCAL TEST EVIDENCE — FOUNDATION SUITE:**
-  `npx vitest run tests/lib/pwa/staff-pwa-foundation.test.ts` passes **22/22 tests**:
+  `npx vitest run tests/lib/pwa/staff-pwa-foundation.test.ts` passes **26/26 tests**:
   - Role resolution across all 7 staff roles
   - Navigation profile mapping (Provider, CRM, Utility, Driver)
   - 5-item dock constraint with center Scan action
@@ -91,20 +89,26 @@ Stage PWA-C5 has completed the shared mobile foundation implementation and succe
   - Provider More emits strictly canonical destinations
   - CRM More emits strictly canonical destinations
   - Utility Today contains zero speculative checklists and zero `/staff-portal` links
+  - Canonical Utility authorization contract (`canAccessCanonicalUtility` allows utility/staff+utility, denies owner/manager/crm/provider/driver)
+  - Runtime role-resolution split prevention (`getStaffPortalMode` aligns with operational resolver for `service_head`, `service_staff`, `facialist`)
+  - Canonical Today, Schedule, and More choose Provider profile for `service_head` and `service_staff`
+  - Complete exclusion of Manager, Owner, and Marketer roles from Staff PWA operational roles
 - **LOCAL TEST EVIDENCE — AUTH SUITE:**
   `npx vitest run tests/lib/auth/` passes **6/6 test files (50 tests)**.
 - **LOCAL TEST EVIDENCE — REGRESSION SUITE:**
-  `npx vitest run tests/lib/pwa/ tests/lib/marketing/` passes **14/14 test files (172 tests)**.
+  `npx vitest run tests/lib/pwa/ tests/lib/marketing/` passes **14/14 test files (176 tests)**.
 - **LOCAL TEST EVIDENCE — TYPESCRIPT:**
   `npm run type-check` passes with 0 errors (`tsc --noEmit`).
 - **LOCAL TEST EVIDENCE — FORMATTING:**
   `git diff --check` passes with zero formatting or whitespace errors.
 - **LOCAL BROWSER RUNTIME:**
-  **NOT VERIFIED** (Playwright automation driver failed to download binary `1.57.0` from upstream CDN due to 404). Dev server build and run was verified (`next dev` compiled with Ready in 4.8s).
+  **LOCAL BROWSER RUNTIME — NOT VERIFIED** (Playwright automation driver failed to download binary `1.57.0` from upstream CDN due to 404). Dev server build and compilation verified (`next dev` compiled with Ready in 4.8s).
 - **PHYSICAL-DEVICE EVIDENCE:**
   **UNKNOWN / NOT VERIFIED** (No physical device testing is authorized or claimed).
 - **PRODUCTION OUTCOME:**
-  **NO PRODUCTION IMPACT** (Zero migrations, zero DB changes, zero deployment, zero production mutations).
+  NO PRODUCTION DEPLOYMENT / ACCESS / MUTATION PERFORMED.
+  PRODUCTION BEHAVIOR AND IMPACT: UNKNOWN / NOT VERIFIED.
+  *(Any historical production references in repository records constitute REPOSITORY-RECORDED PRODUCTION EVIDENCE).*
 
 ---
 
@@ -124,5 +128,8 @@ Stage PWA-C5 has completed the shared mobile foundation implementation and succe
 
 ## 5. Rollback Plan
 
-If rollback is required, revert the commit on `stage/pwa-c5-shared-foundation` or reset to accepted baseline `d11a8ca3623e0092829c683b7022dc302739b96b`.
-Because no database migrations or schema alterations occurred, rollback is completely non-destructive to persistent data.
+If rollback or revision is required:
+- Preserve current working evidence.
+- If unmerged, retain and revise the working stage branch (`stage/pwa-c5-shared-foundation`).
+- If later merged and rollback is required, use a targeted, reviewed revert against the then-current accepted state on `main`.
+- No database rollback is required because C5 contains no database or schema migrations.

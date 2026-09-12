@@ -2,13 +2,33 @@ import { BasicStaffMoreMenu } from "@/components/features/staff-portal/basic/bas
 import { TherapistMoreMenu } from "@/components/features/staff-portal/therapist/therapist-more-menu";
 import { DriverMoreMenu } from "@/components/features/staff-portal/driver/driver-more-menu";
 import { getMyProfileAction } from "../../staff-portal/actions";
+import {
+  resolveStaffOperationalRole,
+  resolveNavigationProfile,
+} from "@/components/features/staff-pwa/role-navigation";
 import { getStaffPortalMode, isBasicStaffMode } from "@/lib/staff/get-staff-portal-mode";
 import type { StaffPortalStaff } from "@/components/features/staff-portal/types";
 
 export default async function StaffMorePage() {
   const profileResult = await getMyProfileAction();
-  const staffForMode = "error" in profileResult ? null : (profileResult.staff as StaffPortalStaff);
-  const mode = staffForMode ? getStaffPortalMode(staffForMode) : "basic";
+  const staff =
+    profileResult && !("error" in profileResult)
+      ? (profileResult.staff as StaffPortalStaff)
+      : null;
+
+  if (staff) {
+    const opRole = resolveStaffOperationalRole({
+      system_role: staff.system_role,
+      staff_type: staff.staff_type,
+    });
+    const profile = resolveNavigationProfile(opRole);
+
+    if (profile === "driver") return <DriverMoreMenu isCanonical />;
+    if (profile === "provider") return <TherapistMoreMenu isCanonical />;
+    if (profile === "crm_general") return <BasicStaffMoreMenu isCanonical />;
+  }
+
+  const mode = staff ? getStaffPortalMode(staff) : "basic";
   const isBasic = isBasicStaffMode(mode);
   const isDriver = mode === "driver";
 
