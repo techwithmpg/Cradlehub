@@ -304,6 +304,69 @@ export async function getAttendanceSettings(branchId: string): Promise<Attendanc
   return normalizeAttendanceSettings(inserted ?? fallback, branchId);
 }
 
+/**
+ * Pure, side-effect-free reader for Attendance settings.
+ *
+ * SELECTs attendance_settings and applicable attendance_rule_versions.
+ * If attendance_settings does NOT exist for the branch, returns normalized
+ * DEFAULT_SETTINGS in memory.
+ *
+ * Performs ZERO inserts, updates, deletes, upserts, or RPC mutations.
+ */
+export async function getAttendanceSettingsReadOnly(
+  branchId: string
+): Promise<AttendanceSettings> {
+  const admin = asAttendanceDb(createAdminClient());
+  const { data, error } = await admin
+    .from("attendance_settings")
+    .select("*")
+    .eq("branch_id", branchId)
+    .maybeSingle();
+
+  if (error) {
+    throw createAttendanceDataError({
+      error,
+      fallback: "ATTENDANCE_TRANSACTION_FAILED",
+      stage: "get_attendance_settings_read_only",
+      details: { branchId },
+    });
+  }
+
+  const effectiveVersion = await admin
+    .from("attendance_rule_versions")
+    .select("rule_values")
+    .eq("branch_id", branchId)
+    .lte("effective_from", new Date().toISOString())
+    .order("effective_from", { ascending: false })
+    .limit(1)
+    .maybeSingle();
+
+  if (effectiveVersion.error) {
+    throw createAttendanceDataError({
+      error: effectiveVersion.error,
+      fallback: "ATTENDANCE_TRANSACTION_FAILED",
+      stage: "get_effective_attendance_rule_version_read_only",
+      details: { branchId },
+    });
+  }
+
+  const ruleValues = safeJsonRecord(effectiveVersion.data?.rule_values);
+
+  if (data) {
+    return normalizeAttendanceSettings(
+      { ...data, ...ruleValues },
+      branchId
+    );
+  }
+
+  // Missing row in database: return normalized default settings in memory with zero writes
+  const fallback = { branch_id: branchId, ...DEFAULT_SETTINGS, ...ruleValues };
+  return normalizeAttendanceSettings(fallback, branchId);
+}
+
+export const getAttendanceSettingsSnapshot = getAttendanceSettingsReadOnly;
+
+
 export async function ensureBranchAttendanceQrPoint(
   ctx: AttendanceActionContext
 ): Promise<AttendanceQrPoint> {

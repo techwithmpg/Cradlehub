@@ -4,7 +4,7 @@ import { cookies } from "next/headers";
 import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { addDaysToYmd } from "@/lib/attendance/time";
-import { getAttendanceSettings } from "@/lib/attendance/queries";
+import { getAttendanceSettingsReadOnly } from "@/lib/attendance/queries";
 import { getAttendanceBranchNow } from "@/lib/attendance/shift-instance";
 import {
   resolveAttendanceDayStaffStates,
@@ -220,7 +220,7 @@ export async function getPureAttendanceSnapshot(days = 90): Promise<StaffAttenda
   if (staffResult.error || !staffResult.data) return null;
   const staff = staffResult.data;
 
-  const settings = await getAttendanceSettings(staff.branch_id);
+  const settings = await getAttendanceSettingsReadOnly(staff.branch_id);
   const branchNow = getAttendanceBranchNow(settings);
   const today = branchNow.businessDate;
   const historyStart = addDaysToYmd(today, -Math.max(1, Math.min(days, 90)));
