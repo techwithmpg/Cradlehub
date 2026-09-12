@@ -1,7 +1,6 @@
 import "server-only";
 
 import { createAdminClient } from "@/lib/supabase/admin";
-import { createOrUpdateWorkflowTask } from "@/lib/notifications/workflow-task-store";
 import { resolveNotificationsForEntity } from "@/lib/notifications/create";
 import { resolveStaffPwaOperationalGroup } from "@/lib/auth/workspace-access";
 import { logBusinessEvent, logError } from "@/lib/logger";
@@ -10,6 +9,7 @@ import type { Json } from "@/types/supabase";
 export type TriggerTurnoverResult = {
   ok: boolean;
   taskId?: string;
+  skipped?: boolean;
   skippedReason?:
     | "BOOKING_NOT_FOUND"
     | "BOOKING_NOT_COMPLETED"
@@ -31,8 +31,183 @@ export type UtilityActionResult = {
 };
 
 /**
- * Authoritatively creates or updates an active room_turnover workflow task
- * upon successful completion of an onsite booking service.
+ * Race-safe, lifecycle-preserving creation and update of room turnover workflow tasks.
+ *
+ * Rules:
+ * - If an ACTIVE task (open or in_progress) already exists for this physical resource:
+ *   - If in_progress: MUST REMAIN in_progress. Cleaner assignment and started_at are preserved.
+ *   - If open: remains open, metadata is enriched with latest service details.
+ * - If NO active task exists:
+ *   - Inserts a new OPEN task.
+ *   - If INSERT hits a concurrent race (unique index violation 23505), re-queries the ACTIVE task only.
+ *   - Completed historical tasks sharing the same dedupe key are NEVER reopened or overwritten.
+ */
+async function ensureRoomTurnoverTask(params: {
+  branchId: string;
+  resource: { id: string; name: string; type: string };
+  booking: {
+    id: string;
+    service_id: string;
+    session_completed_at: string | null;
+    completed_at: string | null;
+  };
+  serviceName: string;
+  actorStaffId?: string | null;
+}): Promise<{ ok: boolean; taskId?: string; error?: string }> {
+  const admin = createAdminClient();
+  const dedupeKey = `room_turnover:${params.branchId}:${params.resource.id}`;
+  const completedAt =
+    params.booking.session_completed_at ??
+    params.booking.completed_at ??
+    new Date().toISOString();
+
+  // 1. Check for an ACTIVE task for this resource
+  const { data: existingActive, error: selectError } = await admin
+    .from("workflow_tasks")
+    .select("id, status, assigned_to_staff_id, metadata")
+    .eq("workspace_scope", "utility")
+    .eq("task_type", "room_turnover")
+    .eq("entity_type", "branch_resource")
+    .eq("entity_id", params.resource.id)
+    .in("status", ["open", "in_progress"])
+    .maybeSingle();
+
+  if (selectError) {
+    logError("utility_turnover.select_active_failed", {
+      resourceId: params.resource.id,
+      error: selectError,
+    });
+    return { ok: false, error: selectError.message };
+  }
+
+  // 2. Lifecycle preservation if active task already exists
+  if (existingActive) {
+    const existingMeta =
+      existingActive.metadata &&
+      typeof existingActive.metadata === "object" &&
+      !Array.isArray(existingActive.metadata)
+        ? (existingActive.metadata as Record<string, unknown>)
+        : {};
+
+    if (existingActive.status === "in_progress") {
+      // PRESERVE IN_PROGRESS: Do not clear cleaner assignment, started_at, or return to open!
+      const { error: updateError } = await admin
+        .from("workflow_tasks")
+        .update({
+          metadata: {
+            ...existingMeta,
+            latest_booking_id: params.booking.id,
+            latest_service_name: params.serviceName,
+            latest_completed_at: completedAt,
+          } as Json,
+        })
+        .eq("id", existingActive.id)
+        .eq("status", "in_progress");
+
+      if (updateError) {
+        logError("utility_turnover.preserve_in_progress_failed", {
+          taskId: existingActive.id,
+          error: updateError,
+        });
+        return { ok: false, error: updateError.message };
+      }
+
+      return { ok: true, taskId: existingActive.id };
+    }
+
+    // Task is open: enrich metadata, preserve open status
+    const { error: updateError } = await admin
+      .from("workflow_tasks")
+      .update({
+        metadata: {
+          ...existingMeta,
+          booking_id: params.booking.id,
+          service_id: params.booking.service_id,
+          service_name: params.serviceName,
+          completed_at: completedAt,
+          triggered_by_staff_id: params.actorStaffId ?? null,
+        } as Json,
+      })
+      .eq("id", existingActive.id)
+      .eq("status", "open");
+
+    if (updateError) {
+      logError("utility_turnover.update_open_failed", {
+        taskId: existingActive.id,
+        error: updateError,
+      });
+      return { ok: false, error: updateError.message };
+    }
+
+    return { ok: true, taskId: existingActive.id };
+  }
+
+  // 3. No active task: insert new OPEN task.
+  // action_href is set to null per W1B zero-migration constraint (action_href CHECK excludes /staff).
+  const insertPayload = {
+    branch_id: params.branchId,
+    workspace_scope: "utility",
+    assigned_to_role: "utility",
+    assigned_to_staff_id: null,
+    task_type: "room_turnover",
+    title: `Turnover: ${params.resource.name}`,
+    body: `${params.serviceName} completed. Room requires turnover cleaning.`,
+    entity_type: "branch_resource",
+    entity_id: params.resource.id,
+    action_href: null,
+    priority: "normal",
+    status: "open",
+    due_at: null,
+    completed_at: null,
+    completed_by_staff_id: null,
+    dedupe_key: dedupeKey,
+    metadata: {
+      booking_id: params.booking.id,
+      resource_id: params.resource.id,
+      room_name: params.resource.name,
+      resource_type: params.resource.type,
+      service_id: params.booking.service_id,
+      service_name: params.serviceName,
+      completed_at: completedAt,
+      triggered_by_staff_id: params.actorStaffId ?? null,
+    } as Json,
+  };
+
+  const { data: inserted, error: insertError } = await admin
+    .from("workflow_tasks")
+    .insert(insertPayload)
+    .select("id")
+    .maybeSingle();
+
+  if (!insertError) {
+    return { ok: true, taskId: inserted?.id };
+  }
+
+  // 4. Handle unique index violation race (23505 on workflow_tasks_open_dedupe_key_uidx)
+  if (insertError.code === "23505") {
+    // Re-query ONLY active tasks (do NOT touch historical completed rows sharing the key)
+    const { data: activeAfterRace, error: raceError } = await admin
+      .from("workflow_tasks")
+      .select("id, status")
+      .eq("dedupe_key", dedupeKey)
+      .in("status", ["open", "in_progress"])
+      .maybeSingle();
+
+    if (!raceError && activeAfterRace) {
+      return { ok: true, taskId: activeAfterRace.id };
+    }
+  }
+
+  logError("utility_turnover.insert_failed", {
+    resourceId: params.resource.id,
+    error: insertError,
+  });
+  return { ok: false, error: insertError.message };
+}
+
+/**
+ * Authoritatively ensures an active room_turnover workflow task
+ * upon completion of an onsite booking service.
  */
 export async function triggerUtilityRoomTurnoverOnServiceCompletion(params: {
   bookingId: string;
@@ -65,7 +240,7 @@ export async function triggerUtilityRoomTurnoverOnServiceCompletion(params: {
     Boolean(booking.completed_at);
 
   if (!isCompleted) {
-    return { ok: false, skippedReason: "BOOKING_NOT_COMPLETED" };
+    return { ok: false, skipped: true, skippedReason: "BOOKING_NOT_COMPLETED" };
   }
 
   // 3. Verify delivery type is onsite / in_spa (home_service excluded)
@@ -74,12 +249,12 @@ export async function triggerUtilityRoomTurnoverOnServiceCompletion(params: {
     booking.delivery_type !== "home_service";
 
   if (!isOnsite) {
-    return { ok: false, skippedReason: "HOME_SERVICE_EXCLUDED" };
+    return { ok: false, skipped: true, skippedReason: "HOME_SERVICE_EXCLUDED" };
   }
 
   // 4. Verify assigned resource exists
   if (!booking.resource_id) {
-    return { ok: false, skippedReason: "NO_ASSIGNED_RESOURCE" };
+    return { ok: false, skipped: true, skippedReason: "NO_ASSIGNED_RESOURCE" };
   }
 
   // 5. Authoritatively verify branch resource
@@ -95,7 +270,7 @@ export async function triggerUtilityRoomTurnoverOnServiceCompletion(params: {
       resourceId: booking.resource_id,
       error: resError,
     });
-    return { ok: false, skippedReason: "RESOURCE_NOT_FOUND" };
+    return { ok: false, skipped: true, skippedReason: "RESOURCE_NOT_FOUND" };
   }
 
   if (resource.branch_id !== booking.branch_id) {
@@ -104,11 +279,11 @@ export async function triggerUtilityRoomTurnoverOnServiceCompletion(params: {
       bookingBranchId: booking.branch_id,
       resourceBranchId: resource.branch_id,
     });
-    return { ok: false, skippedReason: "RESOURCE_BRANCH_MISMATCH" };
+    return { ok: false, skipped: true, skippedReason: "RESOURCE_BRANCH_MISMATCH" };
   }
 
   if (!resource.is_active) {
-    return { ok: false, skippedReason: "RESOURCE_INACTIVE" };
+    return { ok: false, skipped: true, skippedReason: "RESOURCE_INACTIVE" };
   }
 
   // 6. Fetch service display name if available
@@ -124,39 +299,17 @@ export async function triggerUtilityRoomTurnoverOnServiceCompletion(params: {
     }
   }
 
-  // 7. Dedupe key: one active turnover task per physical resource in branch
-  const dedupeKey = `room_turnover:${booking.branch_id}:${resource.id}`;
-  const completedAt =
-    booking.session_completed_at ??
-    booking.completed_at ??
-    new Date().toISOString();
-
-  const success = await createOrUpdateWorkflowTask({
+  // 7. Ensure turnover task with active preservation and race-safety
+  const result = await ensureRoomTurnoverTask({
     branchId: booking.branch_id,
-    workspaceScope: "utility",
-    assignedToRole: "utility",
-    taskType: "room_turnover",
-    title: `Turnover: ${resource.name}`,
-    body: `${serviceName} completed. Room requires turnover cleaning.`,
-    entityType: "branch_resource",
-    entityId: resource.id,
-    actionHref: "/staff/utility/work",
-    priority: "normal",
-    dedupeKey,
-    metadata: {
-      booking_id: booking.id,
-      resource_id: resource.id,
-      room_name: resource.name,
-      resource_type: resource.type,
-      service_id: booking.service_id,
-      service_name: serviceName,
-      completed_at: completedAt,
-      triggered_by_staff_id: params.actorStaffId ?? null,
-    },
+    resource,
+    booking,
+    serviceName,
+    actorStaffId: params.actorStaffId,
   });
 
-  if (!success) {
-    return { ok: false, error: "WORKFLOW_TASK_CREATION_FAILED" };
+  if (!result.ok) {
+    return { ok: false, error: result.error ?? "WORKFLOW_TASK_CREATION_FAILED" };
   }
 
   logBusinessEvent("utility_turnover.created", {
@@ -166,11 +319,12 @@ export async function triggerUtilityRoomTurnoverOnServiceCompletion(params: {
     roomName: resource.name,
   });
 
-  return { ok: true };
+  return { ok: true, taskId: result.taskId };
 }
 
 /**
  * Authoritatively transitions a room_turnover workflow task from open to in_progress.
+ * Uses atomic compare-and-set to prevent TOCTOU races.
  */
 export async function startRoomCleaning(params: {
   taskId: string;
@@ -217,36 +371,49 @@ export async function startRoomCleaning(params: {
     return { ok: false, code: "INVALID_TASK_TYPE", error: "Task is not a valid room turnover task." };
   }
 
-  // 5. Verify branch match
+  // 5. Verify branch match on task
   if (!staff.branch_id || task.branch_id !== staff.branch_id) {
     return { ok: false, code: "CROSS_BRANCH_FORBIDDEN", error: "Cannot access tasks from another branch." };
   }
 
-  // 6. Verify task status
+  // 6. Verify resource authoritatively (Blocker D)
+  const { data: resource, error: resError } = await admin
+    .from("branch_resources")
+    .select("id, branch_id, is_active")
+    .eq("id", task.entity_id)
+    .maybeSingle();
+
+  if (resError || !resource) {
+    return { ok: false, code: "RESOURCE_NOT_FOUND", error: "Associated room resource was not found." };
+  }
+
+  if (resource.branch_id !== task.branch_id || resource.branch_id !== staff.branch_id) {
+    return { ok: false, code: "RESOURCE_BRANCH_MISMATCH", error: "Resource branch mismatch." };
+  }
+
+  if (!resource.is_active) {
+    return { ok: false, code: "RESOURCE_INACTIVE", error: "Resource is inactive." };
+  }
+
+  // 7. Lifecycle check on read state
+  if (task.status === "completed" || task.status === "cancelled") {
+    return { ok: false, code: "ALREADY_COMPLETED", error: "This turnover task is already completed." };
+  }
   if (task.status === "in_progress") {
-    return { ok: true, status: "in_progress", alreadyStarted: true };
+    if (task.assigned_to_staff_id === staff.id) {
+      return { ok: true, status: "in_progress", alreadyStarted: true };
+    }
+    return { ok: false, code: "ALREADY_CLAIMED", error: "Task has already been claimed by another staff member." };
   }
 
-  if (task.status === "completed") {
-    return { ok: false, code: "ALREADY_COMPLETED", error: "This room turnover has already been marked ready." };
-  }
-
-  if (task.status === "cancelled") {
-    return { ok: false, code: "TASK_CANCELLED", error: "This turnover task was cancelled." };
-  }
-
-  if (task.status !== "open") {
-    return { ok: false, code: "INVALID_STATE", error: `Cannot start cleaning from state '${task.status}'.` };
-  }
-
-  // 7. Transition to in_progress
+  // 8. Atomic Compare-And-Set: UPDATE only if status is currently 'open'
   const now = new Date().toISOString();
   const existingMeta =
     task.metadata && typeof task.metadata === "object" && !Array.isArray(task.metadata)
       ? (task.metadata as Record<string, unknown>)
       : {};
 
-  const { error: updateError } = await admin
+  const { data: updatedRows, error: updateError } = await admin
     .from("workflow_tasks")
     .update({
       status: "in_progress",
@@ -258,25 +425,57 @@ export async function startRoomCleaning(params: {
         started_by_name: staff.full_name,
       } as Json,
     })
-    .eq("id", task.id);
+    .eq("id", task.id)
+    .eq("status", "open")
+    .eq("branch_id", staff.branch_id)
+    .select();
 
   if (updateError) {
     logError("utility_turnover.start_failed", { taskId: task.id, error: updateError });
     return { ok: false, code: "UPDATE_FAILED", error: updateError.message };
   }
 
-  logBusinessEvent("utility_turnover.started", {
-    taskId: task.id,
-    resourceId: task.entity_id,
-    branchId: task.branch_id,
-    staffId: staff.id,
-  });
+  // If row was updated, compare-and-set succeeded
+  if (updatedRows && updatedRows.length > 0) {
+    logBusinessEvent("utility_turnover.started", {
+      taskId: task.id,
+      resourceId: task.entity_id,
+      branchId: task.branch_id,
+      staffId: staff.id,
+    });
+    return { ok: true, status: "in_progress" };
+  }
 
-  return { ok: true, status: "in_progress" };
+  // 8. If 0 rows updated, inspect authoritative state to return truthful conflict/idempotent result
+  const { data: freshTask } = await admin
+    .from("workflow_tasks")
+    .select("status, assigned_to_staff_id")
+    .eq("id", task.id)
+    .maybeSingle();
+
+  if (freshTask?.status === "in_progress") {
+    if (freshTask.assigned_to_staff_id === staff.id) {
+      return { ok: true, status: "in_progress", alreadyStarted: true };
+    }
+    return { ok: false, code: "ALREADY_CLAIMED", error: "Another cleaner has already started cleaning this room." };
+  }
+
+  if (freshTask?.status === "completed") {
+    return { ok: false, code: "ALREADY_COMPLETED", error: "This room turnover has already been completed." };
+  }
+
+  if (freshTask?.status === "cancelled") {
+    return { ok: false, code: "TASK_CANCELLED", error: "This turnover task was cancelled." };
+  }
+
+  return { ok: false, code: "CONFLICT", error: "Turnover task state changed concurrently." };
 }
 
 /**
  * Authoritatively marks a room_turnover workflow task as completed (Ready).
+ * Enforces canonical lifecycle: OPEN -> IN_PROGRESS -> COMPLETED.
+ * Direct OPEN -> COMPLETED is strictly rejected.
+ * Uses atomic compare-and-set to prevent TOCTOU races.
  */
 export async function markRoomReady(params: {
   taskId: string;
@@ -323,12 +522,39 @@ export async function markRoomReady(params: {
     return { ok: false, code: "INVALID_TASK_TYPE", error: "Task is not a valid room turnover task." };
   }
 
-  // 5. Verify branch match
+  // 5. Verify branch match on task
   if (!staff.branch_id || task.branch_id !== staff.branch_id) {
     return { ok: false, code: "CROSS_BRANCH_FORBIDDEN", error: "Cannot access tasks from another branch." };
   }
 
-  // 6. Verify task status
+  // 6. Verify resource authoritatively (Blocker D)
+  const { data: resource, error: resError } = await admin
+    .from("branch_resources")
+    .select("id, branch_id, is_active")
+    .eq("id", task.entity_id)
+    .maybeSingle();
+
+  if (resError || !resource) {
+    return { ok: false, code: "RESOURCE_NOT_FOUND", error: "Associated room resource was not found." };
+  }
+
+  if (resource.branch_id !== task.branch_id || resource.branch_id !== staff.branch_id) {
+    return { ok: false, code: "RESOURCE_BRANCH_MISMATCH", error: "Resource branch mismatch." };
+  }
+
+  if (!resource.is_active) {
+    return { ok: false, code: "RESOURCE_INACTIVE", error: "Resource is inactive." };
+  }
+
+  // 7. Enforce Canonical Lifecycle: OPEN -> COMPLETED is prohibited (Blocker C)
+  if (task.status === "open") {
+    return {
+      ok: false,
+      code: "CLEANING_NOT_STARTED",
+      error: "Room cleaning must be started before it can be marked ready.",
+    };
+  }
+
   if (task.status === "completed") {
     return { ok: true, status: "completed", alreadyCompleted: true };
   }
@@ -337,18 +563,14 @@ export async function markRoomReady(params: {
     return { ok: false, code: "TASK_CANCELLED", error: "This turnover task was cancelled." };
   }
 
-  if (task.status !== "open" && task.status !== "in_progress") {
-    return { ok: false, code: "INVALID_STATE", error: `Cannot mark ready from state '${task.status}'.` };
-  }
-
-  // 7. Transition to completed
+  // 8. Atomic Compare-And-Set: UPDATE only if status is currently 'in_progress'
   const now = new Date().toISOString();
   const existingMeta =
     task.metadata && typeof task.metadata === "object" && !Array.isArray(task.metadata)
       ? (task.metadata as Record<string, unknown>)
       : {};
 
-  const { error: updateError } = await admin
+  const { data: updatedRows, error: updateError } = await admin
     .from("workflow_tasks")
     .update({
       status: "completed",
@@ -361,28 +583,60 @@ export async function markRoomReady(params: {
         completed_by_name: staff.full_name,
       } as Json,
     })
-    .eq("id", task.id);
+    .eq("id", task.id)
+    .eq("status", "in_progress")
+    .eq("branch_id", staff.branch_id)
+    .select();
 
   if (updateError) {
     logError("utility_turnover.complete_failed", { taskId: task.id, error: updateError });
     return { ok: false, code: "UPDATE_FAILED", error: updateError.message };
   }
 
-  // 8. Resolve any associated workspace notification
-  await resolveNotificationsForEntity("branch_resource", task.entity_id, "utility").catch(() => {});
+  // If row was updated, compare-and-set succeeded
+  if (updatedRows && updatedRows.length > 0) {
+    // Resolve any associated workspace notification
+    await resolveNotificationsForEntity("branch_resource", task.entity_id, "utility").catch(() => {});
 
-  logBusinessEvent("utility_turnover.completed", {
-    taskId: task.id,
-    resourceId: task.entity_id,
-    branchId: task.branch_id,
-    staffId: staff.id,
-  });
+    logBusinessEvent("utility_turnover.completed", {
+      taskId: task.id,
+      resourceId: task.entity_id,
+      branchId: task.branch_id,
+      staffId: staff.id,
+    });
 
-  return { ok: true, status: "completed" };
+    return { ok: true, status: "completed" };
+  }
+
+  // 9. If 0 rows updated, inspect authoritative state
+  const { data: freshTask } = await admin
+    .from("workflow_tasks")
+    .select("status")
+    .eq("id", task.id)
+    .maybeSingle();
+
+  if (freshTask?.status === "completed") {
+    return { ok: true, status: "completed", alreadyCompleted: true };
+  }
+
+  if (freshTask?.status === "open") {
+    return {
+      ok: false,
+      code: "CLEANING_NOT_STARTED",
+      error: "Room cleaning must be started before it can be marked ready.",
+    };
+  }
+
+  if (freshTask?.status === "cancelled") {
+    return { ok: false, code: "TASK_CANCELLED", error: "This turnover task was cancelled." };
+  }
+
+  return { ok: false, code: "CONFLICT", error: "Turnover task state changed concurrently." };
 }
 
 /**
  * Checks whether a branch_resource currently has an active (open or in_progress) room turnover task.
+ * Never fails open on database error: throws rather than silently assuming ready.
  */
 export async function isResourceInActiveTurnover(resourceId: string): Promise<boolean> {
   const admin = createAdminClient();
@@ -396,6 +650,10 @@ export async function isResourceInActiveTurnover(resourceId: string): Promise<bo
     .in("status", ["open", "in_progress"])
     .limit(1);
 
-  if (error || !data) return false;
-  return data.length > 0;
+  if (error) {
+    logError("resource_availability.turnover_check_failed", { resourceId, error });
+    throw new Error(`Failed to check resource turnover status: ${error.message}`);
+  }
+
+  return Boolean(data && data.length > 0);
 }

@@ -798,6 +798,8 @@ export type BookingProgressResult =
       bookingId: string;
       status: BookingProgressStatus;
       timestamp: string;
+      turnoverSyncStatus?: "synced" | "failed" | "skipped";
+      turnoverWarning?: string;
     }
   | {
       ok: false;
@@ -899,6 +901,39 @@ export async function updateBookingProgressAction({
   }
 
   if (booking.status === "completed" || booking.status === "no_show") {
+    if (booking.status === "completed" && nextStatus === "completed") {
+      // Idempotent retry / repair path for completed appointments
+      const turnoverRepairResult = await triggerUtilityRoomTurnoverOnServiceCompletion({
+        bookingId,
+        actorStaffId: me.id,
+      }).catch((err) => {
+        logError("staff_progress.turnover_repair_failed", { bookingId, error: err });
+        return { ok: false, error: err instanceof Error ? err.message : String(err) } as const;
+      });
+
+      const turnoverSyncStatus: "synced" | "failed" | "skipped" = !turnoverRepairResult.ok
+        ? "failed"
+        : turnoverRepairResult.skipped
+          ? "skipped"
+          : "synced";
+
+      revalidateStaffAndOperationalSurfaces(booking.branch_id);
+
+      return {
+        ok: true,
+        bookingId,
+        status: "completed",
+        timestamp: new Date().toISOString(),
+        turnoverSyncStatus,
+        ...(turnoverSyncStatus === "failed"
+          ? {
+              turnoverWarning:
+                "Appointment was already completed, but room turnover task could not be synchronized.",
+            }
+          : {}),
+      };
+    }
+
     return {
       ok: false,
       code: "ALREADY_COMPLETED",
@@ -992,13 +1027,32 @@ export async function updateBookingProgressAction({
     timestamp = (updated?.[timestampField as keyof typeof updated] as string | null) ?? timestamp;
   }
 
+  let turnoverSyncStatus: "synced" | "failed" | "skipped" | undefined;
+  let turnoverWarning: string | undefined;
+
   if (nextStatus === "completed") {
-    await triggerUtilityRoomTurnoverOnServiceCompletion({
+    const turnoverResult = await triggerUtilityRoomTurnoverOnServiceCompletion({
       bookingId,
       actorStaffId: me.id,
     }).catch((err) => {
       logError("staff_progress.turnover_trigger_failed", { bookingId, error: err });
+      return { ok: false, error: err instanceof Error ? err.message : String(err) } as const;
     });
+
+    if (!turnoverResult.ok) {
+      logError("staff_progress.turnover_sync_failed", {
+        bookingId,
+        branchId: booking.branch_id,
+        error: turnoverResult.error,
+      });
+      turnoverSyncStatus = "failed";
+      turnoverWarning =
+        "Service completed, but room turnover task synchronization failed. Manual turnover sync required.";
+    } else if (turnoverResult.skipped) {
+      turnoverSyncStatus = "skipped";
+    } else {
+      turnoverSyncStatus = "synced";
+    }
   }
 
   logBusinessEvent("staff_progress.updated", {
@@ -1018,6 +1072,8 @@ export async function updateBookingProgressAction({
     bookingId,
     status: nextStatus,
     timestamp,
+    ...(turnoverSyncStatus ? { turnoverSyncStatus } : {}),
+    ...(turnoverWarning ? { turnoverWarning } : {}),
   };
 }
 

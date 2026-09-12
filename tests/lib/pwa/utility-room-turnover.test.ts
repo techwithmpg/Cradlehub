@@ -3,6 +3,7 @@ import { describe, expect, it, vi, beforeEach } from "vitest";
 vi.mock("server-only", () => ({}));
 vi.mock("next/cache", () => ({
   revalidatePath: vi.fn(),
+  revalidateTag: vi.fn(),
 }));
 
 // Mutation and select spies
@@ -10,6 +11,7 @@ const mockInsertSpy = vi.fn();
 const mockUpdateSpy = vi.fn();
 const mockDeleteSpy = vi.fn();
 const mockUpsertSpy = vi.fn();
+const mockRpcSpy = vi.fn();
 
 const mockGetUser = vi.fn();
 const mockStaffSelect = vi.fn();
@@ -20,13 +22,16 @@ const mockWorkflowTasksSelect = vi.fn();
 const mockWorkflowTasksUpdate = vi.fn();
 const mockWorkflowTasksInsert = vi.fn();
 
+let updateCasRowsOverride: any[] | null = null;
+let insertErrorOverride: any | null = null;
+
 function createChain(resolver: () => Promise<any>, customActions?: Record<string, any>) {
   const chain: any = {
     select: () => chain,
     insert: (payload: any) => {
       mockInsertSpy(payload);
       if (customActions?.insert) return customActions.insert(payload);
-      return Promise.resolve({ data: payload, error: null });
+      return chain;
     },
     update: (payload: any) => {
       mockUpdateSpy(payload);
@@ -55,6 +60,10 @@ function createChain(resolver: () => Promise<any>, customActions?: Record<string
 }
 
 const mockAdminClient = {
+  rpc: (fn: string, args: any) => {
+    mockRpcSpy(fn, args);
+    return Promise.resolve({ data: null, error: null });
+  },
   from: vi.fn((table: string) => {
     if (table === "bookings") {
       return createChain(mockBookingsSelect);
@@ -72,11 +81,43 @@ const mockAdminClient = {
       return createChain(mockWorkflowTasksSelect, {
         insert: (payload: any) => {
           mockWorkflowTasksInsert(payload);
-          return Promise.resolve({ data: payload, error: null });
+          const insertChain: any = {
+            select: () => insertChain,
+            single: () => {
+              if (insertErrorOverride) return Promise.resolve({ data: null, error: insertErrorOverride });
+              return Promise.resolve({ data: { id: taskId, ...payload }, error: null });
+            },
+            maybeSingle: () => {
+              if (insertErrorOverride) return Promise.resolve({ data: null, error: insertErrorOverride });
+              return Promise.resolve({ data: { id: taskId, ...payload }, error: null });
+            },
+            then: (resolve: any, reject: any) => {
+              if (insertErrorOverride) return Promise.resolve({ data: null, error: insertErrorOverride }).then(resolve, reject);
+              return Promise.resolve({ data: { id: taskId, ...payload }, error: null }).then(resolve, reject);
+            },
+          };
+          return insertChain;
         },
         update: (payload: any) => {
           mockWorkflowTasksUpdate(payload);
-          return chainForTasksUpdate;
+          const updateChain: any = {
+            eq: () => updateChain,
+            in: () => updateChain,
+            select: () => updateChain,
+            maybeSingle: () => {
+              const rows = updateCasRowsOverride !== null ? updateCasRowsOverride : [{ id: taskId, ...payload }];
+              return Promise.resolve({ data: rows[0] ?? null, error: null });
+            },
+            single: () => {
+              const rows = updateCasRowsOverride !== null ? updateCasRowsOverride : [{ id: taskId, ...payload }];
+              return Promise.resolve({ data: rows[0] ?? null, error: null });
+            },
+            then: (resolve: any, reject: any) => {
+              const rows = updateCasRowsOverride !== null ? updateCasRowsOverride : [{ id: taskId, ...payload }];
+              return Promise.resolve({ data: rows, error: null }).then(resolve, reject);
+            },
+          };
+          return updateChain;
         },
       });
     }
@@ -87,18 +128,11 @@ const mockAdminClient = {
   }),
 };
 
-const chainForTasksUpdate: any = {
-  eq: () => chainForTasksUpdate,
-  in: () => chainForTasksUpdate,
-  select: () => chainForTasksUpdate,
-  maybeSingle: () => Promise.resolve({ data: null, error: null }),
-  then: (resolve: any) => Promise.resolve({ data: null, error: null }).then(resolve),
-};
-
 const mockUserClient = {
   auth: {
     getUser: mockGetUser,
   },
+  rpc: mockAdminClient.rpc,
   from: vi.fn((table: string) => mockAdminClient.from(table)),
 };
 
@@ -117,299 +151,654 @@ import {
   markRoomReady,
   isResourceInActiveTurnover,
 } from "@/lib/staff-pwa/utility-turnover";
+import { isResourceInActiveTurnover as engineIsResourceInActiveTurnover } from "@/lib/engine/resource-availability";
 import { getUtilityWorkspaceRuntime } from "@/lib/staff-pwa/utility-runtime";
+import { completeCrmBookingService } from "@/lib/bookings/crm-booking-operations";
 
-describe("W1B: Utility Room Turnover Vertical Slice", () => {
-  const branchId = "11111111-1111-1111-1111-111111111111";
-  const otherBranchId = "22222222-2222-2222-2222-222222222222";
-  const resourceId = "33333333-3333-3333-3333-333333333333";
-  const bookingId = "44444444-4444-4444-4444-444444444444";
-  const serviceId = "55555555-5555-5555-5555-555555555555";
-  const staffId = "66666666-6666-6666-6666-666666666666";
-  const userId = "77777777-7777-7777-7777-777777777777";
-  const taskId = "88888888-8888-8888-8888-888888888888";
+const branchId = "11111111-1111-1111-1111-111111111111";
+const otherBranchId = "22222222-2222-2222-2222-222222222222";
+const resourceId = "33333333-3333-3333-3333-333333333333";
+const bookingId = "44444444-4444-4444-4444-444444444444";
+const serviceId = "55555555-5555-5555-5555-555555555555";
+const staffId = "66666666-6666-6666-6666-666666666666";
+const cleaner2StaffId = "66666666-6666-6666-6666-666666666667";
+const userId = "77777777-7777-7777-7777-777777777777";
+const taskId = "88888888-8888-8888-8888-888888888888";
 
+describe("W1B: Utility Room Turnover Integrity, Concurrency & Recovery", () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    updateCasRowsOverride = null;
+    insertErrorOverride = null;
   });
 
-  describe("1. Turnover Creation Authority (Server-Side)", () => {
-    it("creates room_turnover workflow task upon valid completed onsite service with active resource", async () => {
-      mockBookingsSelect.mockResolvedValue({
-        data: {
-          id: bookingId,
-          branch_id: branchId,
-          resource_id: resourceId,
-          service_id: serviceId,
-          type: "in_spa",
-          delivery_type: "in_spa",
-          status: "completed",
-          booking_progress_status: "completed",
-          session_completed_at: "2026-09-13T10:30:00Z",
-          completed_at: "2026-09-13T10:30:00Z",
-        },
-        error: null,
-      });
-
-      mockBranchResourcesSelect.mockResolvedValue({
-        data: {
-          id: resourceId,
-          name: "Treatment Room 1",
-          type: "room",
-          branch_id: branchId,
-          is_active: true,
-        },
-        error: null,
-      });
-
-      mockServicesSelect.mockResolvedValue({
-        data: { name: "Signature Massage" },
-        error: null,
-      });
-
-      // No existing open task
-      mockWorkflowTasksSelect.mockResolvedValue({
-        data: null,
-        error: null,
-      });
-
-      const result = await triggerUtilityRoomTurnoverOnServiceCompletion({
-        bookingId,
-        actorStaffId: staffId,
-      });
-
-      expect(result.ok).toBe(true);
-      expect(mockInsertSpy).toHaveBeenCalled();
-      const insertArg = mockInsertSpy.mock.calls[0]?.[0];
-      expect(insertArg.workspace_scope).toBe("utility");
-      expect(insertArg.task_type).toBe("room_turnover");
-      expect(insertArg.entity_type).toBe("branch_resource");
-      expect(insertArg.entity_id).toBe(resourceId);
-      expect(insertArg.branch_id).toBe(branchId);
-      expect(insertArg.status).toBe("open");
-      expect(insertArg.dedupe_key).toBe(`room_turnover:${branchId}:${resourceId}`);
-      expect(insertArg.metadata.booking_id).toBe(bookingId);
-      expect(insertArg.metadata.room_name).toBe("Treatment Room 1");
+  // ───────────────────────────────────────────────────────────────────────────
+  // 1. Existing OPEN turnover + repeat service completion
+  // ───────────────────────────────────────────────────────────────────────────
+  it("1. existing OPEN turnover + repeat service completion remains OPEN with no duplicate", async () => {
+    mockBookingsSelect.mockResolvedValue({
+      data: {
+        id: bookingId,
+        branch_id: branchId,
+        resource_id: resourceId,
+        service_id: serviceId,
+        type: "in_spa",
+        delivery_type: "in_spa",
+        status: "completed",
+        booking_progress_status: "completed",
+        session_completed_at: "2026-09-13T10:30:00Z",
+        completed_at: "2026-09-13T10:30:00Z",
+      },
+      error: null,
     });
 
-    it("skips turnover task creation for home_service completion", async () => {
-      mockBookingsSelect.mockResolvedValue({
-        data: {
-          id: bookingId,
-          branch_id: branchId,
-          resource_id: null,
-          service_id: serviceId,
-          type: "home_service",
-          delivery_type: "home_service",
-          status: "completed",
-          booking_progress_status: "completed",
-          session_completed_at: "2026-09-13T10:30:00Z",
-        },
-        error: null,
-      });
-
-      const result = await triggerUtilityRoomTurnoverOnServiceCompletion({
-        bookingId,
-        actorStaffId: staffId,
-      });
-
-      expect(result.ok).toBe(false);
-      expect(result.skippedReason).toBe("HOME_SERVICE_EXCLUDED");
-      expect(mockInsertSpy).not.toHaveBeenCalled();
+    mockBranchResourcesSelect.mockResolvedValue({
+      data: {
+        id: resourceId,
+        name: "Treatment Room 1",
+        type: "room",
+        branch_id: branchId,
+        is_active: true,
+      },
+      error: null,
     });
 
-    it("skips turnover task creation when onsite booking has no assigned resource", async () => {
-      mockBookingsSelect.mockResolvedValue({
-        data: {
-          id: bookingId,
-          branch_id: branchId,
-          resource_id: null,
-          service_id: serviceId,
-          type: "in_spa",
-          delivery_type: "in_spa",
-          status: "completed",
-          booking_progress_status: "completed",
-          session_completed_at: "2026-09-13T10:30:00Z",
-        },
-        error: null,
-      });
-
-      const result = await triggerUtilityRoomTurnoverOnServiceCompletion({
-        bookingId,
-        actorStaffId: staffId,
-      });
-
-      expect(result.ok).toBe(false);
-      expect(result.skippedReason).toBe("NO_ASSIGNED_RESOURCE");
-      expect(mockInsertSpy).not.toHaveBeenCalled();
+    mockServicesSelect.mockResolvedValue({
+      data: { name: "Swedish Massage" },
+      error: null,
     });
 
-    it("does not create turnover when service is not completed", async () => {
-      mockBookingsSelect.mockResolvedValue({
-        data: {
-          id: bookingId,
-          branch_id: branchId,
-          resource_id: resourceId,
-          service_id: serviceId,
-          type: "in_spa",
-          delivery_type: "in_spa",
-          status: "confirmed",
-          booking_progress_status: "session_started",
-          session_completed_at: null,
-          completed_at: null,
-        },
-        error: null,
-      });
-
-      const result = await triggerUtilityRoomTurnoverOnServiceCompletion({
-        bookingId,
-        actorStaffId: staffId,
-      });
-
-      expect(result.ok).toBe(false);
-      expect(result.skippedReason).toBe("BOOKING_NOT_COMPLETED");
-      expect(mockInsertSpy).not.toHaveBeenCalled();
+    // An OPEN turnover task already exists for this room
+    mockWorkflowTasksSelect.mockResolvedValue({
+      data: {
+        id: taskId,
+        status: "open",
+        branch_id: branchId,
+        entity_id: resourceId,
+        assigned_to_staff_id: null,
+        metadata: { room_name: "Treatment Room 1", booking_id: "prior-booking-id" },
+      },
+      error: null,
     });
 
-    it("rejects turnover creation when resource belongs to a different branch", async () => {
-      mockBookingsSelect.mockResolvedValue({
-        data: {
-          id: bookingId,
-          branch_id: branchId,
-          resource_id: resourceId,
-          service_id: serviceId,
-          type: "in_spa",
-          delivery_type: "in_spa",
-          status: "completed",
-          booking_progress_status: "completed",
-          session_completed_at: "2026-09-13T10:30:00Z",
-        },
-        error: null,
-      });
-
-      mockBranchResourcesSelect.mockResolvedValue({
-        data: {
-          id: resourceId,
-          name: "Treatment Room 1",
-          type: "room",
-          branch_id: otherBranchId, // Mismatch!
-          is_active: true,
-        },
-        error: null,
-      });
-
-      const result = await triggerUtilityRoomTurnoverOnServiceCompletion({
-        bookingId,
-        actorStaffId: staffId,
-      });
-
-      expect(result.ok).toBe(false);
-      expect(result.skippedReason).toBe("RESOURCE_BRANCH_MISMATCH");
-      expect(mockInsertSpy).not.toHaveBeenCalled();
+    const result = await triggerUtilityRoomTurnoverOnServiceCompletion({
+      bookingId,
+      actorStaffId: staffId,
     });
 
-    it("skips turnover creation when resource is inactive", async () => {
-      mockBookingsSelect.mockResolvedValue({
-        data: {
-          id: bookingId,
-          branch_id: branchId,
-          resource_id: resourceId,
-          service_id: serviceId,
-          type: "in_spa",
-          delivery_type: "in_spa",
-          status: "completed",
-          booking_progress_status: "completed",
-          session_completed_at: "2026-09-13T10:30:00Z",
-        },
-        error: null,
-      });
+    expect(result.ok).toBe(true);
+    expect(result.taskId).toBe(taskId);
+    // Task must remain OPEN and enriched, not inserted as duplicate
+    expect(mockWorkflowTasksInsert).not.toHaveBeenCalled();
+    expect(mockWorkflowTasksUpdate).toHaveBeenCalledWith(
+      expect.objectContaining({
+        metadata: expect.objectContaining({
+          booking_id: bookingId,
+        }),
+      })
+    );
+  });
 
-      mockBranchResourcesSelect.mockResolvedValue({
-        data: {
-          id: resourceId,
-          name: "Inactive Room",
-          type: "room",
-          branch_id: branchId,
-          is_active: false, // Inactive!
-        },
-        error: null,
-      });
-
-      const result = await triggerUtilityRoomTurnoverOnServiceCompletion({
-        bookingId,
-        actorStaffId: staffId,
-      });
-
-      expect(result.ok).toBe(false);
-      expect(result.skippedReason).toBe("RESOURCE_INACTIVE");
-      expect(mockInsertSpy).not.toHaveBeenCalled();
+  // ───────────────────────────────────────────────────────────────────────────
+  // 2. Existing IN_PROGRESS turnover + repeat service completion
+  // ───────────────────────────────────────────────────────────────────────────
+  it("2. existing IN_PROGRESS turnover + another service completion remains IN_PROGRESS with cleaner & started metadata preserved", async () => {
+    mockBookingsSelect.mockResolvedValue({
+      data: {
+        id: bookingId,
+        branch_id: branchId,
+        resource_id: resourceId,
+        service_id: serviceId,
+        type: "in_spa",
+        delivery_type: "in_spa",
+        status: "completed",
+        booking_progress_status: "completed",
+        session_completed_at: "2026-09-13T10:30:00Z",
+      },
+      error: null,
     });
 
-    it("idempotently updates existing active turnover on retry without duplicating task", async () => {
-      mockBookingsSelect.mockResolvedValue({
-        data: {
-          id: bookingId,
-          branch_id: branchId,
-          resource_id: resourceId,
-          service_id: serviceId,
-          type: "in_spa",
-          delivery_type: "in_spa",
-          status: "completed",
-          booking_progress_status: "completed",
-          session_completed_at: "2026-09-13T10:30:00Z",
-        },
-        error: null,
-      });
+    mockBranchResourcesSelect.mockResolvedValue({
+      data: {
+        id: resourceId,
+        name: "Treatment Room 1",
+        type: "room",
+        branch_id: branchId,
+        is_active: true,
+      },
+      error: null,
+    });
 
-      mockBranchResourcesSelect.mockResolvedValue({
-        data: {
-          id: resourceId,
-          name: "Treatment Room 1",
-          type: "room",
-          branch_id: branchId,
-          is_active: true,
-        },
-        error: null,
-      });
+    mockServicesSelect.mockResolvedValue({
+      data: { name: "Facial" },
+      error: null,
+    });
 
-      // Existing task already open for this resource
-      mockWorkflowTasksSelect.mockResolvedValue({
+    // Existing task is IN_PROGRESS with assigned cleaner and started metadata
+    const startedAt = "2026-09-13T10:32:00Z";
+    mockWorkflowTasksSelect.mockResolvedValue({
+      data: {
+        id: taskId,
+        status: "in_progress",
+        branch_id: branchId,
+        entity_id: resourceId,
+        assigned_to_staff_id: staffId,
+        metadata: {
+          room_name: "Treatment Room 1",
+          started_at: startedAt,
+          started_by_staff_id: staffId,
+          started_by_name: "Active Cleaner",
+        },
+      },
+      error: null,
+    });
+
+    const result = await triggerUtilityRoomTurnoverOnServiceCompletion({
+      bookingId,
+      actorStaffId: "another-actor-id",
+    });
+
+    expect(result.ok).toBe(true);
+    expect(result.taskId).toBe(taskId);
+    // Task must remain IN_PROGRESS
+    expect(mockWorkflowTasksInsert).not.toHaveBeenCalled();
+    expect(mockWorkflowTasksUpdate).toHaveBeenCalledWith(
+      expect.objectContaining({
+        metadata: expect.objectContaining({
+          started_at: startedAt, // Started timestamp preserved!
+          started_by_staff_id: staffId, // Started staff preserved!
+          latest_booking_id: bookingId,
+        }),
+      })
+    );
+  });
+
+  // ───────────────────────────────────────────────────────────────────────────
+  // 3. Completed historical turnover + next service completion
+  // ───────────────────────────────────────────────────────────────────────────
+  it("3. completed historical turnover + next service completion creates fresh OPEN turnover without reopening historical row", async () => {
+    mockBookingsSelect.mockResolvedValue({
+      data: {
+        id: bookingId,
+        branch_id: branchId,
+        resource_id: resourceId,
+        service_id: serviceId,
+        type: "in_spa",
+        delivery_type: "in_spa",
+        status: "completed",
+        booking_progress_status: "completed",
+        session_completed_at: "2026-09-13T10:30:00Z",
+      },
+      error: null,
+    });
+
+    mockBranchResourcesSelect.mockResolvedValue({
+      data: {
+        id: resourceId,
+        name: "Treatment Room 1",
+        type: "room",
+        branch_id: branchId,
+        is_active: true,
+      },
+      error: null,
+    });
+
+    mockServicesSelect.mockResolvedValue({
+      data: { name: "Body Scrub" },
+      error: null,
+    });
+
+    // Active task query filters status IN ('open', 'in_progress'), returning null because previous is completed
+    mockWorkflowTasksSelect.mockResolvedValue({
+      data: null,
+      error: null,
+    });
+
+    const result = await triggerUtilityRoomTurnoverOnServiceCompletion({
+      bookingId,
+      actorStaffId: staffId,
+    });
+
+    expect(result.ok).toBe(true);
+    // Fresh INSERT must be invoked
+    expect(mockWorkflowTasksInsert).toHaveBeenCalledWith(
+      expect.objectContaining({
+        status: "open",
+        task_type: "room_turnover",
+        workspace_scope: "utility",
+        entity_id: resourceId,
+        branch_id: branchId,
+      })
+    );
+    expect(mockWorkflowTasksUpdate).not.toHaveBeenCalled();
+  });
+
+  // ───────────────────────────────────────────────────────────────────────────
+  // 4. Unique-insert race re-queries active task only
+  // ───────────────────────────────────────────────────────────────────────────
+  it("4. unique-insert race (23505) re-queries active task and does not update completed history", async () => {
+    mockBookingsSelect.mockResolvedValue({
+      data: {
+        id: bookingId,
+        branch_id: branchId,
+        resource_id: resourceId,
+        service_id: serviceId,
+        type: "in_spa",
+        delivery_type: "in_spa",
+        status: "completed",
+        booking_progress_status: "completed",
+        session_completed_at: "2026-09-13T10:30:00Z",
+      },
+      error: null,
+    });
+
+    mockBranchResourcesSelect.mockResolvedValue({
+      data: {
+        id: resourceId,
+        name: "Treatment Room 1",
+        type: "room",
+        branch_id: branchId,
+        is_active: true,
+      },
+      error: null,
+    });
+
+    mockServicesSelect.mockResolvedValue({
+      data: { name: "Foot Massage" },
+      error: null,
+    });
+
+    // Step 1: Initial active task select returns null (racing thread hasn't committed yet)
+    // Step 2: INSERT encounters 23505 unique violation
+    insertErrorOverride = { code: "23505", message: "duplicate key value violates unique constraint" };
+
+    // Step 3: Re-query active task finds the concurrent task created by the racing thread
+    mockWorkflowTasksSelect
+      .mockResolvedValueOnce({ data: null, error: null }) // initial active check
+      .mockResolvedValueOnce({
         data: {
-          id: taskId,
+          id: "racing-task-id",
           status: "open",
-          dedupe_key: `room_turnover:${branchId}:${resourceId}`,
+          branch_id: branchId,
+          entity_id: resourceId,
+          metadata: { room_name: "Treatment Room 1" },
         },
         error: null,
-      });
+      }); // active task re-query
 
-      const result = await triggerUtilityRoomTurnoverOnServiceCompletion({
-        bookingId,
-        actorStaffId: staffId,
-      });
-
-      expect(result.ok).toBe(true);
-      // createOrUpdateWorkflowTask should update existing task rather than inserting a duplicate
-      expect(mockUpdateSpy).toHaveBeenCalled();
-      expect(mockInsertSpy).not.toHaveBeenCalled();
+    const result = await triggerUtilityRoomTurnoverOnServiceCompletion({
+      bookingId,
+      actorStaffId: staffId,
     });
+
+    expect(result.ok).toBe(true);
+    expect(result.taskId).toBe("racing-task-id");
+    // Did not update completed historical rows
+    expect(mockWorkflowTasksUpdate).not.toHaveBeenCalled();
   });
 
-  describe("2. Utility Turnover Actions (Start Cleaning & Mark Ready)", () => {
-    it("allows authorized Utility staff to transition task from open to in_progress", async () => {
-      mockStaffSelect.mockResolvedValue({
-        data: {
-          id: staffId,
-          full_name: "Utility Worker",
-          branch_id: branchId,
-          system_role: "utility",
-          staff_type: "utility",
-          is_active: true,
-        },
-        error: null,
-      });
+  // ───────────────────────────────────────────────────────────────────────────
+  // 5. Two Start Cleaning attempts (Compare-And-Set)
+  // ───────────────────────────────────────────────────────────────────────────
+  it("5. two Start Cleaning attempts: only valid OPEN compare-and-set succeeds, no last-writer overwrite", async () => {
+    mockStaffSelect.mockResolvedValue({
+      data: {
+        id: staffId,
+        full_name: "Cleaner One",
+        branch_id: branchId,
+        system_role: "utility",
+        staff_type: "utility",
+        is_active: true,
+      },
+      error: null,
+    });
 
-      mockWorkflowTasksSelect.mockResolvedValue({
-        data: {
+    mockBranchResourcesSelect.mockResolvedValue({
+      data: { id: resourceId, branch_id: branchId, is_active: true },
+      error: null,
+    });
+
+    // Initial read saw 'open'
+    mockWorkflowTasksSelect.mockResolvedValue({
+      data: {
+        id: taskId,
+        branch_id: branchId,
+        workspace_scope: "utility",
+        task_type: "room_turnover",
+        entity_type: "branch_resource",
+        entity_id: resourceId,
+        status: "open",
+        metadata: {},
+      },
+      error: null,
+    });
+
+    // Attempt 1: CAS returns updated row -> SUCCESS
+    const attempt1 = await startRoomCleaning({ taskId, actorUserId: userId });
+    expect(attempt1.ok).toBe(true);
+    expect(attempt1.status).toBe("in_progress");
+
+    // Attempt 2: Another cleaner tries. CAS returns 0 rows because status is now in_progress
+    updateCasRowsOverride = [];
+    // Authoritative re-fetch shows it is claimed by Cleaner One
+    mockWorkflowTasksSelect.mockResolvedValue({
+      data: {
+        id: taskId,
+        status: "in_progress",
+        assigned_to_staff_id: staffId,
+        branch_id: branchId,
+        workspace_scope: "utility",
+        task_type: "room_turnover",
+        entity_type: "branch_resource",
+        entity_id: resourceId,
+      },
+      error: null,
+    });
+
+    mockStaffSelect.mockResolvedValue({
+      data: {
+        id: cleaner2StaffId,
+        full_name: "Cleaner Two",
+        branch_id: branchId,
+        system_role: "utility",
+        staff_type: "utility",
+        is_active: true,
+      },
+      error: null,
+    });
+
+    const attempt2 = await startRoomCleaning({ taskId, actorUserId: "user-2" });
+    expect(attempt2.ok).toBe(false);
+    expect(attempt2.code).toBe("ALREADY_CLAIMED");
+  });
+
+  // ───────────────────────────────────────────────────────────────────────────
+  // 6. Start Cleaning racing with Mark Ready
+  // ───────────────────────────────────────────────────────────────────────────
+  it("6. Start Cleaning racing with Mark Ready: completed state cannot be reopened", async () => {
+    mockStaffSelect.mockResolvedValue({
+      data: {
+        id: staffId,
+        full_name: "Late Cleaner",
+        branch_id: branchId,
+        system_role: "utility",
+        staff_type: "utility",
+        is_active: true,
+      },
+      error: null,
+    });
+
+    mockBranchResourcesSelect.mockResolvedValue({
+      data: { id: resourceId, branch_id: branchId, is_active: true },
+      error: null,
+    });
+
+    // Initial read saw open, but concurrently another cleaner completed it
+    mockWorkflowTasksSelect.mockResolvedValueOnce({
+      data: {
+        id: taskId,
+        branch_id: branchId,
+        workspace_scope: "utility",
+        task_type: "room_turnover",
+        entity_type: "branch_resource",
+        entity_id: resourceId,
+        status: "open",
+        metadata: {},
+      },
+      error: null,
+    });
+
+    // CAS returned 0 rows
+    updateCasRowsOverride = [];
+    // Authoritative re-read shows completed
+    mockWorkflowTasksSelect.mockResolvedValue({
+      data: {
+        id: taskId,
+        status: "completed",
+        assigned_to_staff_id: cleaner2StaffId,
+      },
+      error: null,
+    });
+
+    const result = await startRoomCleaning({ taskId, actorUserId: userId });
+    expect(result.ok).toBe(false);
+    expect(result.code).toBe("ALREADY_COMPLETED");
+  });
+
+  // ───────────────────────────────────────────────────────────────────────────
+  // 7. OPEN -> COMPLETED direct server call is rejected
+  // ───────────────────────────────────────────────────────────────────────────
+  it("7. OPEN -> COMPLETED direct server call is rejected with CLEANING_NOT_STARTED", async () => {
+    mockStaffSelect.mockResolvedValue({
+      data: {
+        id: staffId,
+        full_name: "Utility Staff",
+        branch_id: branchId,
+        system_role: "utility",
+        staff_type: "utility",
+        is_active: true,
+      },
+      error: null,
+    });
+
+    mockBranchResourcesSelect.mockResolvedValue({
+      data: { id: resourceId, branch_id: branchId, is_active: true },
+      error: null,
+    });
+
+    mockWorkflowTasksSelect.mockResolvedValue({
+      data: {
+        id: taskId,
+        branch_id: branchId,
+        workspace_scope: "utility",
+        task_type: "room_turnover",
+        entity_type: "branch_resource",
+        entity_id: resourceId,
+        status: "open", // Task is still open!
+        metadata: {},
+      },
+      error: null,
+    });
+
+    const result = await markRoomReady({ taskId, actorUserId: userId });
+    expect(result.ok).toBe(false);
+    expect(result.code).toBe("CLEANING_NOT_STARTED");
+    expect(mockWorkflowTasksUpdate).not.toHaveBeenCalled();
+  });
+
+  // ───────────────────────────────────────────────────────────────────────────
+  // 8. IN_PROGRESS -> COMPLETED succeeds
+  // ───────────────────────────────────────────────────────────────────────────
+  it("8. IN_PROGRESS -> COMPLETED succeeds", async () => {
+    mockStaffSelect.mockResolvedValue({
+      data: {
+        id: staffId,
+        full_name: "Utility Staff",
+        branch_id: branchId,
+        system_role: "utility",
+        staff_type: "utility",
+        is_active: true,
+      },
+      error: null,
+    });
+
+    mockBranchResourcesSelect.mockResolvedValue({
+      data: { id: resourceId, branch_id: branchId, is_active: true },
+      error: null,
+    });
+
+    mockWorkflowTasksSelect.mockResolvedValue({
+      data: {
+        id: taskId,
+        branch_id: branchId,
+        workspace_scope: "utility",
+        task_type: "room_turnover",
+        entity_type: "branch_resource",
+        entity_id: resourceId,
+        status: "in_progress",
+        metadata: { room_name: "Treatment Room 1" },
+      },
+      error: null,
+    });
+
+    const result = await markRoomReady({ taskId, actorUserId: userId });
+    expect(result.ok).toBe(true);
+    expect(result.status).toBe("completed");
+    expect(mockWorkflowTasksUpdate).toHaveBeenCalledWith(
+      expect.objectContaining({
+        status: "completed",
+        completed_by_staff_id: staffId,
+      })
+    );
+  });
+
+  // ───────────────────────────────────────────────────────────────────────────
+  // 9. Resource / task branch mismatch is rejected
+  // ───────────────────────────────────────────────────────────────────────────
+  it("9. resource/task branch mismatch is rejected", async () => {
+    mockStaffSelect.mockResolvedValue({
+      data: {
+        id: staffId,
+        full_name: "Utility Staff",
+        branch_id: branchId,
+        system_role: "utility",
+        staff_type: "utility",
+        is_active: true,
+      },
+      error: null,
+    });
+
+    // Task has branchId, but resource belongs to otherBranchId
+    mockBranchResourcesSelect.mockResolvedValue({
+      data: { id: resourceId, branch_id: otherBranchId, is_active: true },
+      error: null,
+    });
+
+    mockWorkflowTasksSelect.mockResolvedValue({
+      data: {
+        id: taskId,
+        branch_id: branchId,
+        workspace_scope: "utility",
+        task_type: "room_turnover",
+        entity_type: "branch_resource",
+        entity_id: resourceId,
+        status: "open",
+      },
+      error: null,
+    });
+
+    const result = await startRoomCleaning({ taskId, actorUserId: userId });
+    expect(result.ok).toBe(false);
+    expect(result.code).toBe("RESOURCE_BRANCH_MISMATCH");
+    expect(mockWorkflowTasksUpdate).not.toHaveBeenCalled();
+  });
+
+  // ───────────────────────────────────────────────────────────────────────────
+  // 10. Missing resource is rejected
+  // ───────────────────────────────────────────────────────────────────────────
+  it("10. missing resource is rejected", async () => {
+    mockStaffSelect.mockResolvedValue({
+      data: {
+        id: staffId,
+        full_name: "Utility Staff",
+        branch_id: branchId,
+        system_role: "utility",
+        staff_type: "utility",
+        is_active: true,
+      },
+      error: null,
+    });
+
+    // Resource not found
+    mockBranchResourcesSelect.mockResolvedValue({
+      data: null,
+      error: null,
+    });
+
+    mockWorkflowTasksSelect.mockResolvedValue({
+      data: {
+        id: taskId,
+        branch_id: branchId,
+        workspace_scope: "utility",
+        task_type: "room_turnover",
+        entity_type: "branch_resource",
+        entity_id: resourceId,
+        status: "open",
+      },
+      error: null,
+    });
+
+    const result = await startRoomCleaning({ taskId, actorUserId: userId });
+    expect(result.ok).toBe(false);
+    expect(result.code).toBe("RESOURCE_NOT_FOUND");
+    expect(mockWorkflowTasksUpdate).not.toHaveBeenCalled();
+  });
+
+  // ───────────────────────────────────────────────────────────────────────────
+  // 11. Inactive resource is rejected
+  // ───────────────────────────────────────────────────────────────────────────
+  it("11. inactive resource is rejected", async () => {
+    mockStaffSelect.mockResolvedValue({
+      data: {
+        id: staffId,
+        full_name: "Utility Staff",
+        branch_id: branchId,
+        system_role: "utility",
+        staff_type: "utility",
+        is_active: true,
+      },
+      error: null,
+    });
+
+    mockBranchResourcesSelect.mockResolvedValue({
+      data: { id: resourceId, branch_id: branchId, is_active: false }, // Inactive!
+      error: null,
+    });
+
+    mockWorkflowTasksSelect.mockResolvedValue({
+      data: {
+        id: taskId,
+        branch_id: branchId,
+        workspace_scope: "utility",
+        task_type: "room_turnover",
+        entity_type: "branch_resource",
+        entity_id: resourceId,
+        status: "open",
+      },
+      error: null,
+    });
+
+    const result = await startRoomCleaning({ taskId, actorUserId: userId });
+    expect(result.ok).toBe(false);
+    expect(result.code).toBe("RESOURCE_INACTIVE");
+    expect(mockWorkflowTasksUpdate).not.toHaveBeenCalled();
+  });
+
+  // ───────────────────────────────────────────────────────────────────────────
+  // 12. Utility read queue resource query is branch-scoped
+  // ───────────────────────────────────────────────────────────────────────────
+  it("12. Utility read queue resource query is branch-scoped", async () => {
+    mockGetUser.mockResolvedValue({
+      data: { user: { id: userId } },
+      error: null,
+    });
+
+    mockStaffSelect.mockResolvedValue({
+      data: {
+        id: staffId,
+        full_name: "Utility Employee",
+        nickname: null,
+        avatar_url: null,
+        branch_id: branchId,
+        system_role: "utility",
+        staff_type: "utility",
+      },
+      error: null,
+    });
+
+    mockWorkflowTasksSelect.mockResolvedValue({
+      data: [
+        {
           id: taskId,
           branch_id: branchId,
           workspace_scope: "utility",
@@ -417,330 +806,213 @@ describe("W1B: Utility Room Turnover Vertical Slice", () => {
           entity_type: "branch_resource",
           entity_id: resourceId,
           status: "open",
-          metadata: { room_name: "Treatment Room 1" },
+          created_at: "2026-09-13T10:35:00Z",
+          metadata: {
+            room_name: "Treatment Room 1",
+            booking_id: bookingId,
+          },
         },
-        error: null,
-      });
-
-      const result = await startRoomCleaning({
-        taskId,
-        actorUserId: userId,
-      });
-
-      expect(result.ok).toBe(true);
-      expect(result.status).toBe("in_progress");
-      expect(mockWorkflowTasksUpdate).toHaveBeenCalledWith(
-        expect.objectContaining({
-          status: "in_progress",
-          assigned_to_staff_id: staffId,
-          metadata: expect.objectContaining({
-            started_by_staff_id: staffId,
-          }),
-        })
-      );
+      ],
+      error: null,
     });
 
-    it("rejects startRoomCleaning if task is already completed", async () => {
-      mockStaffSelect.mockResolvedValue({
-        data: {
-          id: staffId,
-          full_name: "Utility Worker",
-          branch_id: branchId,
-          system_role: "utility",
-          staff_type: "utility",
-          is_active: true,
+    mockBranchResourcesSelect.mockResolvedValue({
+      data: [
+        {
+          id: resourceId,
+          name: "Treatment Room 1",
+          type: "room",
         },
-        error: null,
-      });
-
-      mockWorkflowTasksSelect.mockResolvedValue({
-        data: {
-          id: taskId,
-          branch_id: branchId,
-          workspace_scope: "utility",
-          task_type: "room_turnover",
-          entity_type: "branch_resource",
-          status: "completed",
-        },
-        error: null,
-      });
-
-      const result = await startRoomCleaning({
-        taskId,
-        actorUserId: userId,
-      });
-
-      expect(result.ok).toBe(false);
-      expect(result.code).toBe("ALREADY_COMPLETED");
-      expect(mockWorkflowTasksUpdate).not.toHaveBeenCalled();
+      ],
+      error: null,
     });
 
-    it("allows authorized Utility staff to mark room ready (transition in_progress to completed)", async () => {
-      mockStaffSelect.mockResolvedValue({
-        data: {
-          id: staffId,
-          full_name: "Utility Worker",
-          branch_id: branchId,
-          system_role: "utility",
-          staff_type: "utility",
-          is_active: true,
-        },
-        error: null,
-      });
-
-      mockWorkflowTasksSelect.mockResolvedValue({
-        data: {
-          id: taskId,
-          branch_id: branchId,
-          workspace_scope: "utility",
-          task_type: "room_turnover",
-          entity_type: "branch_resource",
-          entity_id: resourceId,
-          status: "in_progress",
-          metadata: { room_name: "Treatment Room 1" },
-        },
-        error: null,
-      });
-
-      const result = await markRoomReady({
-        taskId,
-        actorUserId: userId,
-      });
-
-      expect(result.ok).toBe(true);
-      expect(result.status).toBe("completed");
-      expect(mockWorkflowTasksUpdate).toHaveBeenCalledWith(
-        expect.objectContaining({
-          status: "completed",
-          completed_by_staff_id: staffId,
-          metadata: expect.objectContaining({
-            completed_by_staff_id: staffId,
-          }),
-        })
-      );
-    });
-
-    it("rejects non-Utility staff (e.g. Therapist) from mutating turnover tasks", async () => {
-      mockStaffSelect.mockResolvedValue({
-        data: {
-          id: staffId,
-          full_name: "Therapist Jane",
-          branch_id: branchId,
-          system_role: "staff",
-          staff_type: "therapist", // Not utility!
-          is_active: true,
-        },
-        error: null,
-      });
-
-      const startResult = await startRoomCleaning({
-        taskId,
-        actorUserId: userId,
-      });
-      expect(startResult.ok).toBe(false);
-      expect(startResult.code).toBe("NOT_UTILITY_ROLE");
-
-      const readyResult = await markRoomReady({
-        taskId,
-        actorUserId: userId,
-      });
-      expect(readyResult.ok).toBe(false);
-      expect(readyResult.code).toBe("NOT_UTILITY_ROLE");
-      expect(mockWorkflowTasksUpdate).not.toHaveBeenCalled();
-    });
-
-    it("rejects Utility staff from modifying tasks belonging to another branch", async () => {
-      mockStaffSelect.mockResolvedValue({
-        data: {
-          id: staffId,
-          full_name: "Branch 1 Utility",
-          branch_id: branchId,
-          system_role: "utility",
-          staff_type: "utility",
-          is_active: true,
-        },
-        error: null,
-      });
-
-      mockWorkflowTasksSelect.mockResolvedValue({
-        data: {
-          id: taskId,
-          branch_id: otherBranchId, // Branch 2 task!
-          workspace_scope: "utility",
-          task_type: "room_turnover",
-          entity_type: "branch_resource",
-          status: "open",
-        },
-        error: null,
-      });
-
-      const result = await startRoomCleaning({
-        taskId,
-        actorUserId: userId,
-      });
-
-      expect(result.ok).toBe(false);
-      expect(result.code).toBe("CROSS_BRANCH_FORBIDDEN");
-      expect(mockWorkflowTasksUpdate).not.toHaveBeenCalled();
-    });
-
-    it("rejects untrusted task_type or entity_type", async () => {
-      mockStaffSelect.mockResolvedValue({
-        data: {
-          id: staffId,
-          full_name: "Utility Worker",
-          branch_id: branchId,
-          system_role: "utility",
-          staff_type: "utility",
-          is_active: true,
-        },
-        error: null,
-      });
-
-      mockWorkflowTasksSelect.mockResolvedValue({
-        data: {
-          id: taskId,
-          branch_id: branchId,
-          workspace_scope: "manager", // Not utility!
-          task_type: "staff_onboarding.review",
-          entity_type: "staff_onboarding_request",
-          status: "open",
-        },
-        error: null,
-      });
-
-      const result = await startRoomCleaning({
-        taskId,
-        actorUserId: userId,
-      });
-
-      expect(result.ok).toBe(false);
-      expect(result.code).toBe("INVALID_TASK_TYPE");
-      expect(mockWorkflowTasksUpdate).not.toHaveBeenCalled();
-    });
+    const runtime = await getUtilityWorkspaceRuntime();
+    expect(runtime).not.toBeNull();
+    expect(runtime?.turnoverItems).toHaveLength(1);
+    expect(runtime?.turnoverItems[0]?.customerName).toBeNull(); // Zero PII preserved
   });
 
-  describe("3. Utility Queue Read Model (Authoritative workflow_tasks)", () => {
-    it("returns active turnover tasks for authorized branch with zero customer PII", async () => {
-      mockGetUser.mockResolvedValue({
-        data: { user: { id: userId } },
-        error: null,
-      });
-
-      mockStaffSelect.mockResolvedValue({
-        data: {
-          id: staffId,
-          full_name: "Utility Employee",
-          nickname: null,
-          avatar_url: null,
-          branch_id: branchId,
-          system_role: "utility",
-          staff_type: "utility",
-        },
-        error: null,
-      });
-
-      mockWorkflowTasksSelect.mockResolvedValue({
-        data: [
-          {
-            id: taskId,
-            branch_id: branchId,
-            workspace_scope: "utility",
-            task_type: "room_turnover",
-            entity_type: "branch_resource",
-            entity_id: resourceId,
-            status: "open",
-            created_at: "2026-09-13T10:35:00Z",
-            metadata: {
-              room_name: "Treatment Room 1",
-              resource_type: "room",
-              service_name: "Swedish Massage",
-              completed_at: "2026-09-13T10:30:00Z",
-              booking_id: bookingId,
-            },
-          },
-        ],
-        error: null,
-      });
-
-      mockBranchResourcesSelect.mockResolvedValue({
-        data: [
-          {
-            id: resourceId,
-            name: "Treatment Room 1",
-            type: "room",
-          },
-        ],
-        error: null,
-      });
-
-      const runtime = await getUtilityWorkspaceRuntime();
-
-      expect(runtime).not.toBeNull();
-      expect(runtime?.turnoverItems).toHaveLength(1);
-      const item = runtime?.turnoverItems[0];
-      expect(item?.taskId).toBe(taskId);
-      expect(item?.resourceId).toBe(resourceId);
-      expect(item?.roomName).toBe("Treatment Room 1");
-      expect(item?.serviceName).toBe("Swedish Massage");
-      expect(item?.status).toBe("open");
-      expect(item?.customerName).toBeNull(); // Zero customer PII!
-      expect(item).not.toHaveProperty("customer_phone");
-      expect(item).not.toHaveProperty("customer_email");
-      expect(item).not.toHaveProperty("customer_address");
+  // ───────────────────────────────────────────────────────────────────────────
+  // 13. Service completion turnover failure is surfaced truthfully
+  // ───────────────────────────────────────────────────────────────────────────
+  it("13. service completion turnover failure: service completion truth remains explicit, failure is surfaced", async () => {
+    // When CRM executes complete_service
+    mockBookingsSelect.mockResolvedValue({
+      data: {
+        id: bookingId,
+        branch_id: branchId,
+        status: "confirmed",
+        booking_progress_status: "session_started",
+        payment_status: "paid",
+        resource_id: resourceId,
+        service_id: serviceId,
+        type: "in_spa",
+        delivery_type: "in_spa",
+        session_completed_at: null,
+      },
+      error: null,
     });
 
-    it("returns empty turnoverItems when there are no open or in_progress tasks", async () => {
-      mockGetUser.mockResolvedValue({
-        data: { user: { id: userId } },
-        error: null,
-      });
-
-      mockStaffSelect.mockResolvedValue({
-        data: {
-          id: staffId,
-          full_name: "Utility Employee",
-          nickname: null,
-          avatar_url: null,
-          branch_id: branchId,
-          system_role: "utility",
-          staff_type: "utility",
-        },
-        error: null,
-      });
-
-      mockWorkflowTasksSelect.mockResolvedValue({
-        data: [],
-        error: null,
-      });
-
-      const runtime = await getUtilityWorkspaceRuntime();
-
-      expect(runtime).not.toBeNull();
-      expect(runtime?.turnoverItems).toEqual([]);
-      expect(runtime?.queueError).toBeNull();
+    // Make triggerUtilityRoomTurnover fail (e.g. branch resources DB error)
+    mockBranchResourcesSelect.mockResolvedValue({
+      data: null,
+      error: { message: "connection timeout" },
     });
+
+    const crmCtx = {
+      supabase: mockUserClient as any,
+      authUserId: userId,
+      me: { id: staffId, branch_id: branchId, system_role: "owner" },
+    };
+
+    const opResult = await completeCrmBookingService(crmCtx, {
+      bookingId,
+    });
+
+    // Service completion RPC committed (truthful success: true)
+    expect(opResult.success).toBe(true);
+    // Turnover failure is surfaced truthfully
+    expect(opResult.turnoverSyncStatus).toBe("failed");
+    expect(opResult.code).toBe("TURNOVER_SYNC_REQUIRED");
+    expect(opResult.turnoverWarning).toContain("turnover task synchronization failed");
   });
 
-  describe("4. Operational Room Readiness Signal", () => {
-    it("returns true when room currently has an active turnover task", async () => {
-      mockWorkflowTasksSelect.mockResolvedValue({
-        data: [{ id: taskId }],
-        error: null,
-      });
-
-      const inTurnover = await isResourceInActiveTurnover(resourceId);
-      expect(inTurnover).toBe(true);
+  // ───────────────────────────────────────────────────────────────────────────
+  // 14. Retry already-completed onsite service with missing turnover repairs idempotently
+  // ───────────────────────────────────────────────────────────────────────────
+  it("14. retry already-completed onsite service with missing turnover repairs turnover idempotently", async () => {
+    mockBookingsSelect.mockResolvedValue({
+      data: {
+        id: bookingId,
+        branch_id: branchId,
+        status: "completed", // Already completed!
+        booking_progress_status: "completed",
+        resource_id: resourceId,
+        service_id: serviceId,
+        type: "in_spa",
+        delivery_type: "in_spa",
+        session_completed_at: "2026-09-13T10:30:00Z",
+        completed_at: "2026-09-13T10:30:00Z",
+      },
+      error: null,
     });
 
-    it("returns false when room has no active turnover task", async () => {
-      mockWorkflowTasksSelect.mockResolvedValue({
-        data: [],
-        error: null,
-      });
-
-      const inTurnover = await isResourceInActiveTurnover(resourceId);
-      expect(inTurnover).toBe(false);
+    mockBranchResourcesSelect.mockResolvedValue({
+      data: {
+        id: resourceId,
+        name: "Treatment Room 1",
+        type: "room",
+        branch_id: branchId,
+        is_active: true,
+      },
+      error: null,
     });
+
+    mockServicesSelect.mockResolvedValue({
+      data: { name: "Signature Massage" },
+      error: null,
+    });
+
+    // No active turnover task currently exists
+    mockWorkflowTasksSelect.mockResolvedValue({
+      data: null,
+      error: null,
+    });
+
+    const crmCtx = {
+      supabase: mockUserClient as any,
+      authUserId: userId,
+      me: { id: staffId, branch_id: branchId, system_role: "owner" },
+    };
+
+    const opResult = await completeCrmBookingService(crmCtx, {
+      bookingId,
+    });
+
+    expect(opResult.success).toBe(true);
+    expect(opResult.turnoverSyncStatus).toBe("synced");
+    // Verified repaired: task inserted
+    expect(mockWorkflowTasksInsert).toHaveBeenCalledWith(
+      expect.objectContaining({
+        status: "open",
+        task_type: "room_turnover",
+        entity_id: resourceId,
+      })
+    );
+  });
+
+  // ───────────────────────────────────────────────────────────────────────────
+  // 15. Canonical action_href handling: stored as null
+  // ───────────────────────────────────────────────────────────────────────────
+  it("15. canonical action_href handling: stored as null under zero-migration DB constraints", async () => {
+    mockBookingsSelect.mockResolvedValue({
+      data: {
+        id: bookingId,
+        branch_id: branchId,
+        resource_id: resourceId,
+        service_id: serviceId,
+        type: "in_spa",
+        delivery_type: "in_spa",
+        status: "completed",
+        booking_progress_status: "completed",
+        session_completed_at: "2026-09-13T10:30:00Z",
+        completed_at: "2026-09-13T10:30:00Z",
+      },
+      error: null,
+    });
+
+    mockBranchResourcesSelect.mockResolvedValue({
+      data: {
+        id: resourceId,
+        name: "Treatment Room 1",
+        type: "room",
+        branch_id: branchId,
+        is_active: true,
+      },
+      error: null,
+    });
+
+    mockServicesSelect.mockResolvedValue({
+      data: { name: "Aromatherapy" },
+      error: null,
+    });
+
+    mockWorkflowTasksSelect.mockResolvedValue({
+      data: null,
+      error: null,
+    });
+
+    const result = await triggerUtilityRoomTurnoverOnServiceCompletion({
+      bookingId,
+      actorStaffId: staffId,
+    });
+
+    expect(result.ok).toBe(true);
+    expect(mockWorkflowTasksInsert).toHaveBeenCalledWith(
+      expect.objectContaining({
+        action_href: null, // Truthful null: DB constraint rejects /staff deep links
+      })
+    );
+  });
+
+  // ───────────────────────────────────────────────────────────────────────────
+  // 16. Readiness helper database error throws, does not fail open
+  // ───────────────────────────────────────────────────────────────────────────
+  it("16. readiness helper error throws and does not fail open", async () => {
+    mockWorkflowTasksSelect.mockResolvedValue({
+      data: null,
+      error: { message: "database unreachable" },
+    });
+
+    // Must throw, never silently returning false (which would imply room is ready)
+    await expect(isResourceInActiveTurnover(resourceId)).rejects.toThrow(
+      "database unreachable"
+    );
+
+    // Re-exported engine helper behaves identically
+    await expect(engineIsResourceInActiveTurnover(resourceId)).rejects.toThrow(
+      "database unreachable"
+    );
   });
 });

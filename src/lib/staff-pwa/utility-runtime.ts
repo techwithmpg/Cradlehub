@@ -118,6 +118,7 @@ export async function getUtilityWorkspaceRuntime(
   const { data: resources } = await admin
     .from("branch_resources")
     .select("id, name, type")
+    .eq("branch_id", staff.branch_id)
     .in("id", resourceIds);
 
   const resourceMap = new Map((resources ?? []).map((r) => [r.id, r]));
