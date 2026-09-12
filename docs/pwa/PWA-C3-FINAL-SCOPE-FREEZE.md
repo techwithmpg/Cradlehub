@@ -9,6 +9,12 @@
 
 ## A. Authority and evidence boundary
 
+### Authorization and baseline
+
+The owner reaffirmed accepted C2/main at `2b927303d2d6bc10b09a15f2542fdcfa6c066194` and superseded the later recovery status that restored main to `ed8ae75d2d6fc9f3b8144dcabbe014f676e83a99`. [PWA-GOV-005](../11-DECISION-LOG.md#staff-pwa-decisions) records the completed baseline reconciliation and preserved, unmerged C2 recovery history. C3 remains the active documentation-only stage; this correction is **READY FOR EXTERNAL RE-REVIEW — NOT ACCEPTED / NOT MERGED**. PWA-C4 remains **NOT AUTHORIZED**.
+
+### Evidence boundary
+
 PWA-C1 Current-System Truth and PWA-C2 Structured Diagnostics are accepted inputs. This freeze uses the evidence in [PWA-C1](PWA-C1-TRUTH-MAP.md), [PWA-C2](PWA-C2-STRUCTURED-DIAGNOSTICS.md), the two handoffs, [project governance](PROJECT.md), and the active repository governance files.
 
 Evidence labels retain their original meaning:
@@ -23,6 +29,12 @@ Evidence labels retain their original meaning:
 No database target was required or accessed. No migrations, schema, RLS, Auth, Storage policy, deployment, production data, browser session, or device environment was changed or queried.
 
 ## B. V1 product boundary
+
+### Product goal
+
+Provide one role-aware Staff PWA for the approved operational groups, with clear server-confirmed work, attendance and trip flows using the existing CradleHub authority.
+
+### V1 definition
 
 V1 is one CradleHub Staff PWA using the existing CradleHub backend as its operational authority. The PWA has role-aware shells for Therapist, Nail Tech, Aesthetician/Facialist, Salon Head, CRM/General Staff, Utility, and Driver. It does not create a second operational database, client-side authorization authority, hidden tracking system, or broad offline mutation queue.
 
@@ -154,20 +166,22 @@ The matrix freezes product scope without claiming that any `IN — NEW` or `IN �
 
 UI mode, workspace visibility, QR content, device registration, direct URL access and any local cache are not authorization. Server actions, RPCs, database policies and authenticated server state remain authoritative. A role change must invalidate or deny capabilities from server state; the PWA must not maintain a permission cache as authority.
 
-| Operational group | Required PWA surfaces | Allowed operational actions | Explicitly excluded admin actions | Server authority |
+| Operational group / existing authority context | Required PWA surfaces / context | Allowed operational actions | Explicitly excluded admin actions | Server authority |
 | --- | --- | --- | --- | --- |
 | Therapist | Today, Schedule, Scan, Progress, More | View own assigned work; start/complete permitted service work; attendance actions where server-authorized | User/role administration, pricing/catalog, payroll, broad CRM, branch administration | Existing staff/service actions, assignment checks, attendance RPCs/RLS |
 | Nail Tech | Therapist/service-provider surfaces | Same shared service-provider contract, subject to assignment/capability checks | Same admin exclusions | Server assignment and action checks |
 | Aesthetician / Facialist | Therapist/service-provider surfaces | Same shared service-provider contract, subject to assignment/capability checks | Same admin exclusions | Server assignment and action checks |
 | Salon Head | Therapist/service-provider surfaces plus any proven supervisory action | Assigned service and attendance actions; unresolved supervisory mapping stays for C4 | Owner/CRM/finance/payroll administration unless separately authorized | Existing action-specific server checks |
-| CRM / CSR aliases | Today, Work, Scan, Messages/Notices, More | Existing CRM/staff self-service actions within server capability | Full Owner/Finance/Payroll/Marketing administration unless separately authorized | CRM/staff action helpers, route checks, RPC/RLS |
-| General Staff | Today, Work, Scan where permitted, More | Own schedule, attendance and assigned operational actions already supported | CRM administration, catalog, payroll, branch and role administration | Staff portal actions and assignment checks |
-| Utility | Today, Work, Scan, Messages/Notices, More where supported | Only existing server-authorized attendance/schedule/scan surfaces | Invented task-management backend and unrelated administration | Existing workspace/page/action checks; unresolved mapping goes to C4 |
+| CRM / General Staff — CRM / CSR aliases | Today, Work, Scan, Messages/Notices, More | Existing CRM/staff self-service actions within server capability | Full Owner/Finance/Payroll/Marketing administration unless separately authorized | CRM/staff action helpers, route checks, RPC/RLS |
+| CRM / General Staff — General Staff context | Today, Work, Scan where permitted, More | Own schedule, attendance and assigned operational actions already supported | CRM administration, catalog, payroll, branch and role administration | Staff portal actions and assignment checks |
+| Utility | Today, Scan, Messages/Notices, More where supported; conceptual Work is BLOCKED pending existing-source proof | Only existing server-authorized attendance/schedule/scan surfaces | Invented task-management backend and unrelated administration | Existing workspace/page/action checks; unresolved mapping goes to C4 |
 | Driver | Today, Trips, Scan, Map, More | Assigned trip transitions, navigation handoff, explicit location snapshot and attendance where authorized | Hidden 24/7 tracking, arbitrary trip/customer access, CRM/owner administration | Driver workspace, assignment checks, location action, attendance policy |
-| Manager | Existing manager/staff/CRM surfaces where granted | Existing manager and staff actions only | Owner-only administration not granted by presentation mode | Existing manager/CRM action checks |
-| Owner | Existing owner and operational surfaces where granted | Owner-authorized operations subject to server checks | No client-side bypass; production/data actions remain separately governed | Owner routes/actions, Auth/RLS and server policy |
+| Manager — existing authorization context / correction authority only | Existing surfaces where granted; no new V1 PWA workspace | Existing authorized actions/corrections only; this row grants no PWA capability | Owner-only administration not granted by presentation mode | Existing manager/CRM action checks |
+| Owner — existing authorization context / correction authority only | Existing surfaces where granted; no new V1 PWA workspace | Existing authorized operations/corrections subject to server checks; this row grants no PWA capability | No client-side bypass; production/data actions remain separately governed | Owner routes/actions, Auth/RLS and server policy |
 
 Capability labels remain intentionally broad where C2 did not establish exact permission mapping. PWA-C4/PWA-C5 or the relevant implementation stage must resolve the exact action matrix without broadening authority.
+
+The seven approved operational groups are Therapist, Nail Tech, Aesthetician / Facialist, Salon Head, CRM / General Staff, Utility, and Driver. The two CRM/general rows describe contexts within one approved group. Manager and Owner are retained solely as existing authorization context / correction authority, not additional Staff-PWA V1 operational groups or workspaces.
 
 ## G. Conceptual navigation freeze
 
@@ -175,7 +189,7 @@ This is a destination contract, not a visual design. PWA-C4 may specify layout, 
 
 - **Therapist/service provider:** Today · Schedule · Scan · Progress · More
 - **CRM/general staff:** Today · Work · Scan · Messages/Notices · More
-- **Utility:** Today · Work · Scan · Messages/Notices · More, limited to proven capabilities
+- **Utility:** Today · Work · Scan · Messages/Notices · More, limited to proven capabilities; Work remains conceptual and **BLOCKED** until existing authoritative information is established (PWA-C3-Q009)
 - **Driver:** Today · Trips · Scan · Map · More
 
 The dedicated `/driver` workspace owns Driver V1. Existing `/staff-portal/...` links in Driver navigation must be safely redirected or refactored later after consumer inspection; Staff Portal access must not be broadened. Utility owns `/utility` as a role-aware shell; the existing “Back to Staff Portal” seam must not be turned into a permission grant or redirect loop. If a named destination lacks a proven backend, it remains a C4 contract question or is blocked rather than inventing a service.
@@ -198,23 +212,57 @@ The client never chooses Attendance versus Service Start, grants capability from
 
 ## I. Attendance and Remote End Shift freeze
 
+### Attendance contract
+
 Attendance remains server-authoritative and separate from service progress. The source-of-truth chain is the existing attendance record, server timestamp, schedule/branch policy, device trust, QR event/audit records and restricted RPC/action contracts. Direct widget, QR, portal, correction, exception, activation, recovery and recalculation consumers are preserved until a later safe canonical command contract is proven.
 
-Remote End Shift is V1 scope as a controlled exception and is implemented only in PWA-C14 after C4 contract work. Eligibility must consider open shift, active service/work, remaining assignments, final assignment, capability, timing and return-to-branch expectation where applicable. It must be separately audited, server-authorized and clearly distinct from a branch QR. C3 freezes this behavior; it invents no tables, columns, RPC names or eligibility SQL.
+### Remote End Shift contract
+
+Remote End Shift is V1 scope as a controlled exception and is implemented only in PWA-C14 after C4 contract work. Eligibility must consider open shift, active service/work, remaining assignments, final assignment, capability, timing and return-to-branch expectation where applicable. It must be separately audited, server-authorized and clearly distinct from a branch QR. C3 freezes these required considerations, not the exact policy/timing formula (PWA-C3-Q004); it invents no tables, columns, RPC names or eligibility SQL.
+
+### Service-provider contract
+
+Therapist, Nail Tech, Aesthetician / Facialist and Salon Head share the existing booking/service-progress state machine, assignment validation and Service Start contract. Today, next service, own schedule, active timer/status, completion and home-service work reuse the master-matrix authorities. The server validates multi-provider assignments and confirms transitions. Service completion never automatically clocks out the provider; V1 requires no service-end QR. PWA-C4 specifies states and PWA-C8 adapts the existing contracts only after separate authorization.
 
 ## J. Driver and reliability freeze
+
+### Driver core contract
+
+Dedicated `/driver` owns Today, assigned trips, active-trip Start Travel / Arrived / Return / Complete transitions, and permitted navigation handoff. Existing server trip/assignment authority remains in control; a map or external navigation launch cannot confirm a trip transition. Attendance and end-shift eligibility remain separate from trip progress.
+
+### Driver location/map contract
 
 Driver is a first-class, map-centered active-trip workspace. V1 reuses the existing assigned-trip actions and location snapshot foundation, adds a later explicit trip-scoped lifecycle, and communicates with the existing CRM Live Map contract. A snapshot is not continuous tracking. Background location remains **UNPROVEN — REAL DEVICE TEST REQUIRED**. If required reliability cannot be proven by a pure PWA, the work stops for **ARCHITECTURE DECISION REQUIRED LATER**; C3 does not select Capacitor or native code.
 
 Continuous tracking, background tracking, stale thresholds, reconnect behavior, provider readiness, device permissions and cross-client convergence are gates for PWA-C12/PWA-C13 and later security/reliability review. No hidden 24/7 tracking is in scope.
 
+### CRM Live Map contract
+
+Driver location communicates through the existing location-snapshot and CRM Live Operations query/map contracts, under server branch/trip authorization. The current 30-second CRM poll is repository evidence, not an approved Driver capture cadence or delivery guarantee. PWA-C4 must distinguish location age, stale, empty, error and offline states; PWA-C12/PWA-C13 must prove cross-client convergence, reconnect behavior and freshness against the agreed contract. Exact thresholds and capture cadence remain PWA-C3-Q001/Q002.
+
+### PWA/service-worker foundation
+
+The master matrix requires an install manifest, standalone launch, reused icons, session persistence and role-aware shared foundation in PWA-C5. Preserve `public/cradlehub-push-sw.js` and legacy `public/sw.js` until a compatible registration, scope, cache and update owner is defined and proven. The ownership requirement is frozen; the exact strategy remains PWA-C3-Q006. PWA-C5/PWA-C15 must verify installation, upgrades and push coexistence on known environments before release; no existing worker is changed in C3.
+
 ## K. Connectivity, privacy, and security freeze
+
+### Connectivity/offline contract
 
 V1 is online-first. Attendance, Service Start, service completion, trip transitions and Remote End Shift have no authoritative offline queue. Previously loaded read-only information may remain visible. A failed mutation must identify that it was not recorded; offline UI must not imply eventual success.
 
-The PWA sends only the minimum customer information needed by each role and surface. Therapist/service views generally need assigned service identity, timing and progress; drivers may need destination and navigation fields for an active assigned trip; CRM Live Map may need the minimum current-trip identity and coordinates. Full customer address/contact fields, broad cross-role payloads, durable operational caches and indefinite location retention are not assumed. PWA-C17 must verify field, retention, cache, access and logging boundaries against an authorized target.
+### Customer data/privacy
+
+The PWA sends only the minimum customer information needed by each role and surface. Therapist/service views generally need assigned service identity, timing and progress; drivers may need destination and navigation fields for an active assigned trip; CRM Live Map may need the minimum current-trip identity and coordinates. The minimization rule is frozen; exact field allowlists and retention/cache policy remain PWA-C3-Q008. Full customer address/contact fields, broad cross-role payloads, durable operational caches and indefinite location retention are not assumed. PWA-C17 must verify field, retention, cache, access and logging boundaries against an authorized target.
 
 Security is server-owned: no local capability grants, no service-role browser secrets, no QR authorization, no direct-URL bypass, no permission cache as authority, and no hidden tracking. Push subscription ownership, RLS and provider delivery remain security/reliability gates, not C3 fixes.
+
+### Notifications
+
+Reuse existing push infrastructure and permitted operational notices/messages only; recipient/role authority stays on the server. Subscription ownership hardening remains a PWA-C15/PWA-C17 gate because C2 recorded a route ownership seam without deployed-policy verification. Worker coexistence follows PWA-C3-Q006; provider/device delivery acceptance follows PWA-C3-Q007. No notification delivery, ownership fix or deployed policy correctness is claimed by C3.
+
+### Utility boundary
+
+Utility Attendance, schedule and Scan may proceed in later authorized stages only where existing authoritative capabilities are evidenced. Utility task-management backend is **OUT OF V1**. The conceptual Work destination is not evidence of a backend: if PWA-C4 retains it, C4 must establish what existing authoritative information can populate it and specify its labels/interactions; otherwise it remains **BLOCKED**. PWA-C3-Q009 owns that unresolved contract. Neither navigation visibility nor the `/utility` shell grants permission or authorizes new task services.
 
 ## L. Explicitly out of V1
 
@@ -224,11 +272,81 @@ Security is server-owned: no local capability grants, no service-role browser se
 - Broad offline mutation queue or fake queued success.
 - Full Owner, Finance, Payroll, Marketing, Staff or Customer administration.
 - Full CRM admin recreation inside the Staff PWA.
-- Utility task-management backend without an approved source of truth.
+- Utility task-management backend.
 - Service-end QR requirement.
 - Client-selected QR intent or client-side authorization.
 - Unbounded customer-data replication, broad operational cache or unreviewed location retention.
 - Any migration, schema, Auth, RLS, Storage, production-data or deployment change during C3.
+
+## C3 Decision Register
+
+This is the **canonical C3 decision register**. `PWA-C3-Dxxx` identifies frozen product/contract decisions; the master matrix and contracts above supply their detail. Evidence is the accepted [C1 truth map](PWA-C1-TRUTH-MAP.md), [C2 diagnostics](PWA-C2-STRUCTURED-DIAGNOSTICS.md) and [owner-approved project direction](PROJECT.md#approved-product-constraints), not new live verification. Later-stage references allocate responsibility only; every stage after C3 remains **NOT AUTHORIZED**.
+
+| Decision ID | Topic | Frozen decision | Evidence basis | Consequence | Later owner stage |
+| --- | --- | --- | --- | --- | --- |
+| PWA-C3-D001 | Single Staff PWA / backend | One Staff PWA uses the existing CradleHub operational backend; no second authority database. | PROJECT product model; C1 system truth; section B | Reuse existing operational contracts and consumers. | PWA-C4/C5; FINAL |
+| PWA-C3-D002 | Server authorization | Authenticated server actions, RPCs and database policy remain authoritative; UI mode, QR, URL, device registration and local caches grant no capability. | C2 role/access evidence; section F | Preserve action-specific checks, role-change denial and server-only credential boundaries. | PWA-C5 and every implementation stage; PWA-C17 |
+| PWA-C3-D003 | Business date | All branch-day operations share canonical CRM branch-business-date authority. | PWA-C2-001; section E | Cross-surface branch-midnight acceptance; no alternate UTC/client authority. | PWA-C4/C5/C7/C8/C9/C11/C12 |
+| PWA-C3-D004 | Universal Scan | One prominent Scan action captures a public identifier; the server resolves Attendance/room/resource/Service Start intent and confirms the result. | PROJECT scanner direction; PWA-C2-005; section H | No client-selected purpose, QR permission or premature success. | PWA-C4/C6 |
+| PWA-C3-D005 | Attendance authority | Preserve server timestamps, branch/policy checks, device trust and existing QR/widget/portal/correction/recovery consumers until safe command reconciliation is proven. | PWA-C2-002; section I | Specify read-side recalculation, idempotency and audit boundaries before replacement. | PWA-C4/C7; PWA-C17 |
+| PWA-C3-D006 | Attendance/service separation | Service progress and attendance remain separate; service completion never automatically clocks out staff. | PROJECT Attendance/service-provider direction; section I | Test completion and attendance as independent transitions. | PWA-C4/C7/C8 |
+| PWA-C3-D007 | Remote End Shift | Separate audited server-authorized off-site exception; consider open shift, active/remaining/final work, capability, timing and return expectations. | PROJECT Remote End Shift; C2 policy/portal evidence; section I | No fake branch scan; exact eligibility formula remains Q004. | PWA-C4/C14; PWA-C17 |
+| PWA-C3-D008 | Service-provider state machine | Reuse booking/service progress, assignments, Service Start, timer/status and completion for the approved provider groups; no service-end QR. | PROJECT service-provider direction; C1/C2 service evidence; master matrix | Preserve multi-provider checks and home-service minimum-data boundaries. | PWA-C4/C8 |
+| PWA-C3-D009 | Driver workspace/core | Dedicated `/driver` owns map-centered assigned-trip work and existing trip transitions/navigation handoff. | PROJECT Driver direction; PWA-C2-004; sections G/J | Repair conflicting links later without broadening Staff Portal access. | PWA-C4/C11/C12 |
+| PWA-C3-D010 | Trip-scoped location | Explicit active-trip lifecycle reuses server-authorized location snapshots; no hidden 24/7 tracking. | PROJECT Driver direction; PWA-C2-003; section J | Snapshot evidence is not continuous delivery; lifecycle/stop/cadence require later contracts. | PWA-C4/C11/C12/C13; PWA-C17 |
+| PWA-C3-D011 | Background reliability gate | Continuous/background reliability is UNPROVEN — REAL DEVICE TEST REQUIRED; insufficient pure-PWA reliability requires a later architecture decision. | C2 Driver/device findings; section J | Do not claim background success or select native/Capacitor architecture in C3. | PWA-C13; owner architecture gate; FINAL |
+| PWA-C3-D012 | Online-first mutations | Attendance, Service Start/completion, trip transitions and Remote End Shift require server confirmation; no authoritative offline queue. | PROJECT connectivity; PWA-C2-010; section K | Failed mutations are explicitly unrecorded; previously loaded read-only data cannot become authority. | PWA-C4/C5/C16; every operational stage |
+| PWA-C3-D013 | Utility boundary | Only proven attendance/schedule/Scan and role-aware surfaces; task-management backend is OUT OF V1 and Work stays blocked pending existing-source proof. | PWA-C2-012; sections F/G/K | C4 resolves Q009 if retaining Work; no fabricated backend or permission grant. | PWA-C4/C10 |
+| PWA-C3-D014 | Customer minimization | Minimum permitted fields per role/surface only; no unbounded customer replication, broad operational cache or indefinite location retention. | PWA-C2-009; section K | Exact allowlists, retention and cache policy require Q008 and target-aware review. | PWA-C4/C8/C11/C12; PWA-C17 |
+| PWA-C3-D015 | PWA/worker foundation ownership | Installability, manifest, standalone launch, reused icons and sessions require shared foundation; preserve both worker artifacts until compatible registration/cache/update ownership is proven. | PWA-C2-008; master matrix; section J | Q006 precedes worker changes; installed-mode/update and push regression gates remain. | PWA-C4/C5/C15 |
+| PWA-C3-D016 | Notification ownership/security | Reuse existing push and permitted operational notices under server recipient authority; subscription ownership and device/provider delivery remain gates. | PWA-C2-006; master matrix; section K | No delivery or deployed-policy assurance; Q007 and ownership review required. | PWA-C15/C17 |
+| PWA-C3-D017 | Explicit V1 exclusions | Section L's exclusions are binding, including native apps, second authority, GPS attendance, hidden tracking, offline queue, full admin recreation, Utility backend and service-end QR. | PROJECT V1 exclusions; section L | Later contract questions cannot silently expand product scope. | Every later owner stage; FINAL |
+| PWA-C3-D018 | Role/navigation scope | Seven approved operational groups and section G's conceptual destinations; Manager/Owner are existing authorization/correction contexts only. | PROJECT operational groups; C2 role/access evidence; sections F/G | No new Manager/Owner V1 workspaces; unresolved capability mappings cannot broaden access. | PWA-C4/C5; relevant role stages; PWA-C17 |
+| PWA-C3-D019 | CRM/general surfaces | Reuse personal Today, own schedule, attendance, shared Scan, existing notices and narrowly permitted CRM shortcuts. | Master matrix; C1/C2 staff/CRM evidence | No full CRM administration recreation. | PWA-C4/C9/C15 |
+| PWA-C3-D020 | CRM Live Map/freshness | Communicate through existing authorized snapshot/CRM map contracts; distinguish age, stale, empty, error and offline states. | PWA-C2-003/007/011; section J | Exact thresholds/cadence remain Q001/Q002; provider and cross-client convergence require evidence. | PWA-C4/C12/C13 |
+| PWA-C3-D021 | Scan retry and controlled recovery | Preserve operation IDs, server dedupe and existing correction/recovery authority; camera permission failures and retries need explicit recovery states. | C2 scanner/attendance evidence; section H; master matrix | Retry cannot duplicate committed work; fallback is never a client override or new Manager workspace. | PWA-C4/C6/C7/C8 |
+
+## Open Contract Questions
+
+These questions concern unresolved implementation, interaction or acceptance details within the frozen scope. They do not reopen product decisions or authorize execution. A target-stage entry means responsibility **if separately authorized**.
+
+| Question ID | Topic | Why not frozen in C3 | Required evidence/decision | Target stage |
+| --- | --- | --- | --- | --- |
+| PWA-C3-Q001 | Location stale/recent threshold | C2 exposes timestamps and polling, not an accepted freshness bound. | Define exact age thresholds and stale/recent/error/offline labels; verify server timestamp age and cross-client/reconnect cases. D010/D020 remain fixed. | PWA-C4 specification; PWA-C12/C13 proof |
+| PWA-C3-Q002 | Driver foreground snapshot cadence | One-shot capture and a 30-second CRM poll do not define Driver capture cadence. | Agree capture cadence and foreground/reconnect/stop behavior using device, battery/network and convergence evidence; retain explicit trip scope. | PWA-C4 contract; PWA-C11/C12; PWA-C13 measurement |
+| PWA-C3-Q003 | Pure-PWA background reliability | No real-device background or sustained delivery proof exists. | Define measurable required reliability and test supported Android/iPhone lifecycle cases; stop for owner architecture decision if pure PWA cannot meet it. | PWA-C13; owner architecture gate; FINAL |
+| PWA-C3-Q004 | Remote End Shift policy/timing formula | C3 freezes eligibility considerations, not exact windows, cutoffs or return-rule formula. | Reconcile existing policy/portal contracts with owner-approved timing/capability rules and active/remaining/final work, duplicate and audit cases. | PWA-C4 design; PWA-C14; PWA-C17 authorization review |
+| PWA-C3-Q005 | Exact capability mapping | C2 did not establish every action mapping, including Salon Head supervision and Utility access. | Produce source-backed role/action/direct-route matrix and denial cases for the seven groups; retain Manager/Owner correction context only. | PWA-C4/C5 and relevant role stages; PWA-C17 |
+| PWA-C3-Q006 | Worker registration/cache/update strategy | Legacy cache-clearing/self-unregistering worker and push worker coexist without a unified proven owner. | Inventory registrations, scope and caches in a known environment; define compatible lifecycle/update ownership and prove install/upgrade/push preservation. | PWA-C4 contract; PWA-C5/C15 implementation and verification |
+| PWA-C3-Q007 | Notification provider/device delivery acceptance | Existing subscription and push code is not delivery evidence. | Agree permitted notice/recipient and supported-device acceptance cases; prove ownership, permission/revocation, subscription lifecycle and actual provider delivery. | PWA-C15; PWA-C17 ownership/security gate |
+| PWA-C3-Q008 | Customer/location retention and cache policy | Minimization is fixed, but exact field allowlists, retention durations and safe read-only cache limits lack an approved contract. | Inventory fields by role/surface and approve access, retention/deletion, cache invalidation and logging boundaries; verify against an explicitly authorized target. | PWA-C4 contract; PWA-C8/C11/C12 consumers; PWA-C17 gate |
+| PWA-C3-Q009 | Blocked Utility Work labels/interactions | Utility is a Coming Soon surface without a task-management backend; a conceptual destination is not data authority. | If C4 retains Work, identify existing authoritative information and capability checks that can populate it and specify labels/blocked interactions; otherwise keep it blocked. Task-management backend remains OUT OF V1. | PWA-C4 resolution; PWA-C10 only within proven capabilities |
+| PWA-C3-Q010 | Google Maps/provider readiness | C2 has no device/provider/configuration acceptance evidence. | Establish permitted provider/key/readiness, loading/failure, geolocation-permission and navigation-handoff acceptance on supported devices without exposing credentials. | PWA-C4 states; PWA-C11/C12; PWA-C13 device gate |
+| PWA-C3-Q011 | Attendance command/read-side reconciliation | QR, widget, portal and correction paths coexist; page reads may recalculate policy. | Map consumers and side effects; specify canonical commands, timestamps, audit/source links, retry/dedupe and preserved-path reconciliation before replacement. | PWA-C4 contract; PWA-C7 proof |
+
+## Stage Ownership Map
+
+This map assigns the already-frozen work to the approved roadmap. **PWA-C4 through FINAL are NOT AUTHORIZED.** Design ownership is not implementation permission; implementation ownership is not proof of reliability, security, training readiness or release acceptance. Each stage needs its separate owner gate.
+
+| Frozen capability | Design stage | Implementation stage | Reliability/security gate |
+| --- | --- | --- | --- |
+| Frozen roles, navigation and contract states (D001–D021) | PWA-C4 UI/UX Specification | Relevant stages below, only after design acceptance | C4 must resolve or explicitly carry Q001–Q011; no scope expansion |
+| Install/manifest/icons/session, worker ownership, role shell and shared connectivity/date contracts (D001/D002/D003/D012/D015/D018) | PWA-C4 UI/UX Specification | PWA-C5 Shared Foundation | Install/update/session/role/date checks; PWA-C15 worker coexistence; PWA-C17 security |
+| Universal server-resolved Scan and retry/recovery (D004/D021) | PWA-C4 UI/UX Specification | PWA-C6 Intelligent Scanner | Camera/device, malformed/duplicate/denial cases; PWA-C17 authority review |
+| Attendance/device/recovery and command reconciliation (D003/D005/D006/D021) | PWA-C4 UI/UX Specification | PWA-C7 Attendance | Server clock, branch, device, audit, idempotency and cross-path checks |
+| Shared service-provider work and assigned progress (D003/D006/D008/D014) | PWA-C4 UI/UX Specification | PWA-C8 Therapist / Salon | Assignment/start/completion and attendance separation; PWA-C17 minimum-data review |
+| Personal Today/schedule, attendance/Scan and narrow CRM shortcuts (D003/D018/D019) | PWA-C4 UI/UX Specification | PWA-C9 General / CRM | Role/date/direct-route checks; no full CRM recreation |
+| Utility shell and proven attendance/schedule/Scan (D013/D018) | PWA-C4 UI/UX Specification; Q009 required for Work | PWA-C10 Utility | Existing-source/capability proof; Work otherwise blocked; no task backend |
+| Dedicated Driver trips, transitions, snapshot foundation and navigation handoff (D003/D009/D010) | PWA-C4 UI/UX Specification | PWA-C11 Driver Core | Assigned-trip/server-confirmed transitions; lifecycle/stop/permission cases |
+| Driver map, CRM Live Map communication and visible freshness (D010/D014/D020) | PWA-C4 UI/UX Specification | PWA-C12 Driver Live Map | Q001/Q002/Q010; provider, minimal fields and cross-client convergence |
+| Driver foreground/reconnect/background reliability assessment (D010/D011/D020) | PWA-C4 acceptance contract; owner architecture decision if needed | PWA-C13 Driver Reliability, within authorized architecture only | Real-device matrix, lifecycle/stop, latency and background proof; stop if pure PWA fails requirements |
+| Controlled Remote End Shift (D007) | PWA-C4 UI/UX Specification | PWA-C14 Remote Off-Site Checkout | Q004; eligibility/timing/return rules, active work, separate audit and server capability |
+| Existing push/notices and subscription ownership (D015/D016/D019) | PWA-C4 UI/UX Specification | PWA-C15 Notifications | Q006/Q007; provider/device delivery, update coexistence, recipient ownership; PWA-C17 |
+| Online-first responsiveness and recovery/freshness performance (D012/D020) | PWA-C4 states and acceptance criteria | PWA-C16 Performance | Measured workload/network/device evidence; failed mutations cannot imply success |
+| Server authority, minimum data, retention/cache and push ownership (D002/D010/D014/D016/D018) | PWA-C4 contract inputs; exact mappings/limits remain gated | PWA-C17 Security | Explicitly identified and authorized targets; access/denial, payload, logs, cache, retention and deployed-policy evidence |
+| Accessible navigation, camera permission, errors and retry states | PWA-C4 UI/UX Specification | PWA-C18 UX / Accessibility | Supported-device interaction/accessibility acceptance for the frozen flows |
+| Operational training readiness for frozen flows | PWA-C4 flow/error specifications inform training | PWA-C19 Training Readiness | Completed applicable operational, reliability, security and UX gates; no readiness inferred from C3 |
+| Certified release of frozen V1 only (D017) | Accepted C4 specifications plus resolved acceptance questions | FINAL Release Certification; release only with separate owner authorization | All applicable stage evidence, real-device/provider and target-specific checks; explicit accepted review/owner release gate |
 
 ## M. C4 design inputs and later decision dependencies
 
@@ -238,11 +356,19 @@ The following remain gates rather than silent assumptions: deployed RLS and RPC 
 
 ## N. Verification and stop gate
 
-Starting-state evidence for this stage was:
+### Verification limitations
+
+Production/device/database behavior remains **UNKNOWN / NOT VERIFIED**. No current deployed RPC/RLS, install, camera, Maps, push, background-location or cross-client behavior was tested. C3 makes documentation/governance corrections only. Repository production statements remain **REPOSITORY-RECORDED PRODUCTION EVIDENCE**.
+
+Historical starting-state evidence for the original C3 artifact was:
 
 - branch `stage/pwa-c3-final-scope-freeze`;
 - `HEAD` and `origin/main` at `2b927303d2d6bc10b09a15f2542fdcfa6c066194`;
 - clean working tree before C3 documentation;
 - `git fetch origin --prune` attempted, but the sandbox could not write `.git/FETCH_HEAD`; exact refs were still independently equal.
+
+The external-review correction pass separately verified a successful `git fetch origin --prune`, clean `stage/pwa-c3-final-scope-freeze` at previously reviewed head `1535f5e258190d0024ce50c87bb19f06f913a4e8`, `origin/main` and merge-base `2b927303d2d6bc10b09a15f2542fdcfa6c066194`, and relationship `0 2`. Remote main independently matches the accepted SHA. The original fetch limitation above is historical, not this correction pass's starting state. The [C3 handoff](PWA-C3-HANDOFF.md) records correction and publication evidence.
+
+### Stop gate
 
 This document is a scope freeze, not runtime verification. PWA-C3 stops after review artifacts are committed and pushed to the authorized branch. PWA-C4 and all implementation stages remain **NOT AUTHORIZED** until the owner explicitly advances them.

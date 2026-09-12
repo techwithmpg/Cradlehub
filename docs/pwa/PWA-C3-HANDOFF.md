@@ -1,78 +1,64 @@
 # PWA-C3 Final Scope Freeze — Handoff
 
-## Status
+## Status and authorization
 
-- Workstream: CradleHub Staff PWA
-- Stage: **PWA-C3 — Final Scope Freeze**
-- Status: **DOCUMENTATION-ONLY SCOPE FREEZE — OWNER REVIEW REQUIRED**
-- Branch: `stage/pwa-c3-final-scope-freeze`
-- Accepted C2/main baseline: `2b927303d2d6bc10b09a15f2542fdcfa6c066194`
-- Next stage: **PWA-C4 — NOT AUTHORIZED**
+- Workstream/stage: CradleHub Staff PWA — **PWA-C3 Final Scope Freeze**, documentation/governance correction only.
+- Review status: **READY FOR EXTERNAL RE-REVIEW — NOT ACCEPTED / NOT MERGED**.
+- Branch: `stage/pwa-c3-final-scope-freeze`.
+- Accepted C2/main: `2b927303d2d6bc10b09a15f2542fdcfa6c066194`.
+- Previously reviewed C3 head: `1535f5e258190d0024ce50c87bb19f06f913a4e8`.
+- Corrected C3 review head: the commit containing this handoff, resolved with `git rev-parse HEAD` when checked out at this review revision. Publication evidence below records the correction content SHA separately so no self-referential SHA or history rewrite is required.
+- Next stage: **PWA-C4 — NOT AUTHORIZED**.
 
-## A — Stage and authorization
+The owner authorized correction commits and a normal push to this C3 branch for external re-review. Runtime/UI work, dependencies, database/schema/migrations, Auth/RLS/Storage changes, production access, deployment, merge, rebase, force-push, history rewriting, recovery-branch changes and PWA-C4+ execution are prohibited. PWA-C3 remains active and documentation-only.
 
-PWA-C3 is limited to product scope, source-of-truth boundaries, authorization rules, conceptual navigation, and later verification gates. No runtime implementation, UI redesign, database/schema change, migration, Auth/RLS/Storage change, deployment, production mutation, merge, or PWA-C4+ work is included.
+## Baseline reconciliation and history
 
-## B — Accepted evidence
+[PWA-GOV-005](../11-DECISION-LOG.md#staff-pwa-decisions) records the owner's reaffirmation of C2 acceptance at the exact accepted main SHA above, superseding the later recovery status that restored main to `ed8ae75d2d6fc9f3b8144dcabbe014f676e83a99`. The owner reports the authorized clean fast-forward restoration complete. This correction independently verified local `main`, fetched `origin/main` and remote `refs/heads/main` at `2b927303d2d6bc10b09a15f2542fdcfa6c066194`.
 
-The freeze uses the accepted PWA-C1 truth map, PWA-C1 handoff, PWA-C2 diagnostic report, PWA-C2 handoff, `docs/pwa/PROJECT.md`, and active governance documents. Historical material remains evidence only.
+The five later C2 commits, including recovery commit `e84a0745`, remain historical and unmerged on local/remote `stage/pwa-c2-structured-diagnostics` at `1ea191f3ebedccda6a2249f3ee8f1b53d5e6791a`. This pass neither merges nor changes that branch or its evidence. Existing C3 history is preserved by appending corrections.
 
-## C — Frozen V1 result
+## Accepted inputs and corrected artifacts
 
-V1 is one online-first CradleHub Staff PWA using the existing backend. It includes role-aware Therapist/service-provider, CRM/general, Utility, and Driver workspaces; one server-resolved Scan action; server-authoritative Attendance; service progress reuse; controlled Remote End Shift; explicit trip-scoped Driver location/map work; existing push reuse; and minimum customer-data boundaries. It excludes a second authority database, broad offline mutation, hidden tracking, native architecture selection, full admin recreation, service-end QR, and an invented Utility backend.
+Inputs remain the accepted [C1 truth map](PWA-C1-TRUTH-MAP.md), [C1 handoff](PWA-C1-HANDOFF.md), [C2 diagnostics](PWA-C2-STRUCTURED-DIAGNOSTICS.md), [C2 handoff](PWA-C2-HANDOFF.md), [project governance](PROJECT.md) and active repository guidance. Historical stage wording in accepted inputs does not override PWA-GOV-005 or the latest owner instruction.
 
-## D — Required artifacts
+The [C3 scope freeze](PWA-C3-FINAL-SCOPE-FREEZE.md) now explicitly contains all 28 required concerns: authorization/baseline, evidence boundary, product goal, V1 definition, master scope matrix, role/capability freeze, navigation ownership, Scan, Attendance, Remote End Shift, service providers, Driver core, Driver location/map, CRM Live Map, PWA/worker foundation, connectivity/offline, notifications, customer privacy, Utility, business date, exclusions, C2 dispositions, decisions, open questions, stage ownership, verification limits, C4 inputs and stop gate.
 
-- [PWA-C3 Final Scope Freeze](PWA-C3-FINAL-SCOPE-FREEZE.md)
-- [PWA-C1 Truth Map](PWA-C1-TRUTH-MAP.md)
-- [PWA-C2 Structured Diagnostics](PWA-C2-STRUCTURED-DIAGNOSTICS.md)
+- The [canonical decision register](PWA-C3-FINAL-SCOPE-FREEZE.md#c3-decision-register) contains **PWA-C3-D001–D021**. It consolidates existing C3 product decisions without creating a new product scope.
+- [Open Contract Questions](PWA-C3-FINAL-SCOPE-FREEZE.md#open-contract-questions) contains **PWA-C3-Q001–Q011**: freshness threshold, foreground cadence, background reliability, Remote End Shift formula, capability mappings, worker strategy, notification acceptance, customer/location policy, blocked Utility Work, Maps/provider readiness and Attendance command reconciliation.
+- The [Stage Ownership Map](PWA-C3-FINAL-SCOPE-FREEZE.md#stage-ownership-map) assigns design to C4 and work/gates across C5 Shared Foundation, C6 Scanner, C7 Attendance, C8 Therapist/Salon, C9 General/CRM, C10 Utility, C11 Driver Core, C12 Live Map, C13 Driver Reliability, C14 Remote Off-Site Checkout, C15 Notifications, C16 Performance, C17 Security, C18 UX/Accessibility, C19 Training Readiness and FINAL Release Certification. It authorizes none of them.
+- [Known Issues](../12-KNOWN-ISSUES-REGISTER.md#staff-pwa-c3-unresolved-gates-and-canonical-references--2026-09-12) retains `PWA-C3-001` through `008` only as historical references or unresolved gates linked to the canonical decisions/questions. Prior wording remains in the previously reviewed commit; there is no competing frozen-decision namespace.
 
-The final scope document contains the required master matrix, all twelve C2 dispositions, business-date freeze, authorization/capability matrix, conceptual navigation freeze, scanner contract, attendance and Remote End Shift boundaries, driver/device gates, online-first rules, privacy/security limits, explicit exclusions, and C4 inputs.
+## Preserved product result and clarified boundaries
 
-## E — C2 dispositions
+V1 remains one online-first Staff PWA using the existing backend, server authorization and canonical branch business date; universal server-resolved Scan; server/device-authoritative Attendance separate from service progress; reused booking/service state machine; controlled audited Remote End Shift; dedicated Driver workspace and explicit trip-scoped snapshots/map communication; existing notification reuse; and customer-data minimization. Background reliability is **UNPROVEN — REAL DEVICE TEST REQUIRED**; pure-PWA failure requires a later owner architecture decision. No second database, authoritative offline queue, hidden tracking, native architecture selection, full admin recreation or service-end QR is added.
 
-PWA-C2-001 is frozen for V1; 002, 003, 004, 007 and 008 require a C4 design contract; 005 and 010 are frozen V1 behavior; 006 and 009 are security/reliability gates; 011 is a device-test gate; and 012 is blocked/out of scope. No finding was fixed during C3.
+Utility Attendance/schedule/Scan can proceed only in later authorized stages where existing authoritative capabilities are proven. Task-management backend is **OUT OF V1**. If C4 retains conceptual Work, it must identify existing authoritative information and resolve labels/interactions under Q009; otherwise Work remains **BLOCKED**.
 
-## F — Source-of-truth and authorization
+The seven operational groups remain Therapist, Nail Tech, Aesthetician / Facialist, Salon Head, CRM / General Staff, Utility and Driver. Manager and Owner rows mean **existing authorization context / correction authority only**, not new Staff-PWA V1 operational groups or workspaces.
 
-Existing attendance, booking/service-progress, trip, location-snapshot, notification, Auth, server action/RPC and deployed RLS boundaries remain authoritative. UI mode, workspace visibility, QR content, device registration, direct URL navigation and local state cannot grant capability.
+Minimization, Remote End Shift eligibility considerations and worker ownership requirements are frozen. Exact field allowlists/retention/cache policy, eligibility timing formula and registration/cache/update strategy remain open questions; they are not falsely presented as completed engineering contracts.
 
-## G — Navigation and workspace decisions
+## C2 finding dispositions
 
-The conceptual destinations are frozen as service provider `Today · Schedule · Scan · Progress · More`, CRM/general `Today · Work · Scan · Messages/Notices · More`, Utility `Today · Work · Scan · Messages/Notices · More`, and Driver `Today · Trips · Scan · Map · More`. Dedicated `/driver` owns Driver V1. Staff Portal access must not be broadened to preserve conflicting Driver links. Utility remains a role-aware shell with only proven existing capabilities; no task backend is invented.
+All twelve original dispositions remain: PWA-C2-001/005/010 freeze V1 behavior; 002/003/004/007/008 need C4 design contracts; 006/009 are security/reliability gates; 011 is a device/provider gate; 012 is blocked/out of scope. No source-backed defect is claimed fixed in C3.
 
-## H — Scanner and attendance decisions
+## Verification and publication evidence
 
-The scanner contract is camera decode → public identifier → existing server scan contract → server intent/auth/state validation → authoritative mutation → confirmed result. Attendance remains separate from service progress and server-time/device-trust backed. Remote End Shift is a separately audited, server-authorized exception with eligibility rules frozen for later C14 implementation; no schema details are invented.
+The correction starting gate passed after `git fetch origin --prune`: branch `stage/pwa-c3-final-scope-freeze`, clean working tree, HEAD `1535f5e258190d0024ce50c87bb19f06f913a4e8`, `origin/main` and merge-base `2b927303d2d6bc10b09a15f2542fdcfa6c066194`, `git rev-list --left-right --count origin/main...HEAD` = `0 2`. This supersedes the original handoff's starting-state description for this correction only; the original fetch limitation remains historical in the scope document/Git history.
 
-## I — Driver decision
+`git ls-remote origin refs/heads/main refs/heads/stage/pwa-c2-structured-diagnostics refs/heads/stage/pwa-c3-final-scope-freeze` independently confirmed the accepted main, historical recovery tip and prior reviewed C3 head. The first sandbox remote-read attempt could not connect; the approved retry succeeded. `git rev-parse main` and `git rev-parse stage/pwa-c2-structured-diagnostics` matched those refs; `git rev-list --count main..stage/pwa-c2-structured-diagnostics` returned `5`.
 
-Driver is first-class and map-centered. V1 reuses assigned-trip actions and location snapshots, with later explicit trip-scoped lifecycle and freshness. Continuous/background delivery is **UNPROVEN — REAL DEVICE TEST REQUIRED**. If pure PWA reliability is insufficient, **ARCHITECTURE DECISION REQUIRED LATER**; C3 selects no native architecture.
+Validation for this documentation pass covers `git diff --check`, changed-path scope, local Markdown links/anchors, table structure, canonical decision/question IDs, all required concerns and stage ownership, and secret/privacy inspection of the diff. Application tests, browser/device checks and database checks are not run for this documentation-only change. Commit-specific results are recorded in the publication evidence update after the correction content commit.
 
-## J — Connectivity and data decision
+## Changed files and production impact
 
-Operational mutations remain online-first. Failed mutations must state that they were not recorded. Minimum customer fields are frozen per role/surface; broad offline caches, hidden tracking and unbounded customer/location retention are out of scope pending security review.
+Only four documentation/governance files change in this correction: `docs/11-DECISION-LOG.md`, `docs/12-KNOWN-ISSUES-REGISTER.md`, `docs/pwa/PWA-C3-FINAL-SCOPE-FREEZE.md` and this handoff. No runtime source, UI, tests, dependencies, assets, SQL, migrations, environment, deployment, Auth, RLS or Storage files change.
 
-## K — Verification limits
+This correction has no runtime/database/deployment effect. No deployment command, production-data request, database access or production mutation is performed. Git ref verification does not verify the deployed application; repository production claims remain **REPOSITORY-RECORDED PRODUCTION EVIDENCE**.
 
-The repository evidence does not verify production, database state, deployed RLS/RPC behavior, browser install, Android/iPhone behavior, camera operation, Google Maps provider behavior, push delivery, background location, or live driver synchronization. These remain later release/security/device gates and must not be described as working.
+## Verification limitations and stop gate
 
-## L — Starting-state verification
+Production/device/database behavior, deployed RPC/RLS state, installed-mode sessions, Android/iPhone camera, Google Maps/provider behavior, push delivery, background location and cross-client synchronization remain **UNKNOWN / NOT VERIFIED**. No database target is accessed or substituted. No training or release readiness is certified.
 
-The requested branch, `HEAD`, and `origin/main` matched the accepted baseline `2b927303d2d6bc10b09a15f2542fdcfa6c066194`, and the working tree was clean before edits. `git fetch origin --prune` was attempted but could not write `.git/FETCH_HEAD` in the sandbox; no ref differed.
-
-## M — Changed scope
-
-Expected changes are documentation and active governance pointers only: the PWA-C3 scope freeze, C3 handoff, PWA project authorization/status, decision log, known-issues register, project status, and AI context manifest. Runtime source, tests, dependencies, assets, SQL, migrations, environment settings, Auth/RLS/Storage policy, deployment configuration and production data remain unchanged.
-
-## N — Review request
-
-Review the frozen V1 boundary, the matrix statuses, server authority, Driver/Utility ownership, scanner and Attendance contracts, online-first semantics, and later gates. Review does not authorize implementation by itself.
-
-## O — Owner gate
-
-PWA-C3 becomes closed only after owner review and accepted merge. PWA-C4 remains **NOT AUTHORIZED** until separately and explicitly approved.
-
-## P — Stop gate
-
-Stop after the documentation-only C3 artifacts are committed, pushed and presented for review. Do not implement, redesign, migrate, mutate data, access an unknown database, merge, deploy, or start PWA-C4.
+The next permitted action after publication is external re-review of the corrected C3 documentation. Acceptance/merge requires the applicable owner gate. Stop after the authorized normal branch push and review handoff. **PWA-C4 was not started and remains NOT AUTHORIZED**, as do all later stages. Do not merge or deploy.
