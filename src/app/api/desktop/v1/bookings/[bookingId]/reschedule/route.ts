@@ -6,10 +6,23 @@ import {
   desktopFailure,
   bookingOperationResponse,
 } from "@/lib/bookings/desktop-booking-contract";
+
 const bodySchema = rescheduleBookingSchema.omit({ bookingId: true }).extend({
   date: z.string().refine(isValidCalendarDate),
   startTime: z.string().regex(/^(?:[01]\d|2[0-3]):[0-5]\d(?::[0-5]\d)?$/),
+  therapistId: z.guid("Invalid therapist ID").optional(),
+  overrideReason: z
+    .enum([
+      "customer_requested",
+      "therapist_on_break",
+      "manager_decision",
+      "skill_or_service_mismatch",
+      "workload_balance",
+      "other",
+    ])
+    .optional(),
 });
+
 export async function POST(request: Request, route: { params: Promise<{ bookingId: string }> }) {
   return withDesktopBookingContext(request, async (ctx) => {
     const id = z.guid().safeParse((await route.params).bookingId);

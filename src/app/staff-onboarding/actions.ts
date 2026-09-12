@@ -1,13 +1,10 @@
 "use server";
 
-import { revalidatePath } from "next/cache";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { createClient } from "@/lib/supabase/server";
 import { getAllBranches } from "@/lib/queries/branches";
-import { invalidateCrmWorkspace, invalidateManagerWorkspace } from "@/lib/cache/cache-tags";
 import { emitWorkflowEvent } from "@/lib/notifications/workflow-signals";
 import { mapPreferredRoleToStaffType } from "@/lib/staff/onboarding-roles";
-import { canApproveStaffOnboarding } from "@/lib/staff/approval-permissions";
 import {
   validateOnboardingBranch,
   buildOnboardingMetadata,
@@ -16,10 +13,11 @@ import {
   type DuplicateCheckResult,
 } from "@/lib/staff/onboarding-validation";
 import { logError, logBusinessEvent } from "@/lib/logger";
-import { canonicalizeSystemRole } from "@/constants/staff";
-import { canReviewStaffOnboarding, isOwner, isManager } from "@/lib/permissions";
-import { validateBranchServiceEligibility } from "@/lib/services/service-catalog";
 import type { Json } from "@/types/supabase";
+import {
+  approveStaffOnboardingRequest,
+  rejectStaffOnboardingRequest,
+} from "@/lib/staff/staff-onboarding-service";
 
 export type OnboardingFormState = {
   success?: boolean;
@@ -35,16 +33,6 @@ function normalizeOptionalString(value: FormDataEntryValue | null): string | nul
 
 function isValidEmail(value: string): boolean {
   return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value);
-}
-
-function invalidateOnboardingApprovalSurfaces(branchId: string) {
-  invalidateCrmWorkspace(branchId);
-  invalidateManagerWorkspace(branchId);
-  revalidatePath("/owner/staff");
-  revalidatePath("/manager/staff");
-  revalidatePath("/crm/staff");
-  revalidatePath("/crm/setup");
-  revalidatePath("/staff-onboarding");
 }
 
 export async function submitStaffOnboardingAction(
@@ -66,7 +54,9 @@ export async function submitStaffOnboardingAction(
   // Collect fields
   const fullName = String(formData.get("fullName") ?? "").trim();
   const nickname = normalizeOptionalString(formData.get("nickname"));
-  const email = String(formData.get("email") ?? "").trim().toLowerCase();
+  const email = String(formData.get("email") ?? "")
+    .trim()
+    .toLowerCase();
   const phone = String(formData.get("phone") ?? "").trim();
   const preferredBranchId = String(formData.get("preferredBranchId") ?? "").trim();
   const branchConfirmed = formData.get("branchConfirmed") === "on";
@@ -206,12 +196,18 @@ export async function submitStaffOnboardingAction(
       .from("staff-pictures")
       .upload(filePath, profilePicture, { upsert: true, contentType: profilePicture.type });
     if (!uploadErr) {
-      const { data: { publicUrl } } = supabase.storage.from("staff-pictures").getPublicUrl(filePath);
+      const {
+        data: { publicUrl },
+      } = supabase.storage.from("staff-pictures").getPublicUrl(filePath);
       // Columns may not exist in all deployments — store in request metadata as fallback
-      const updateResult = await supabase.from("staff").update({ avatar_url: publicUrl, avatar_path: filePath }).eq("id", staffId);
+      const updateResult = await supabase
+        .from("staff")
+        .update({ avatar_url: publicUrl, avatar_path: filePath })
+        .eq("id", staffId);
       if (updateResult.error) {
         // avatar_url/avatar_path columns not yet migrated — store URL in request metadata instead
-        await supabase.from("staff_onboarding_requests")
+        await supabase
+          .from("staff_onboarding_requests")
           .update({ metadata: { profile_picture_url: publicUrl } })
           .eq("staff_id", staffId);
       }
@@ -219,26 +215,30 @@ export async function submitStaffOnboardingAction(
   }
 
   // Create onboarding request row
-  const requestInsert = await supabase.from("staff_onboarding_requests").insert({
-    full_name: fullName,
-    email,
-    phone,
-    address,
-    emergency_contact_name: emergencyContactName,
-    emergency_contact_phone: emergencyContactPhone,
-    experience_notes: experienceNotes,
-    preferred_role: preferredRole,
-    requested_branch_id: branchId,
-    auth_user_id: authUserId,
-    staff_id: staffId,
-    status: "submitted",
-    metadata: buildOnboardingMetadata({
-      serviceIds,
-      experienceNotes,
-      nickname,
-      branch: branchValidation.branch,
-    }) as unknown as Json,
-  }).select("id").single();
+  const requestInsert = await supabase
+    .from("staff_onboarding_requests")
+    .insert({
+      full_name: fullName,
+      email,
+      phone,
+      address,
+      emergency_contact_name: emergencyContactName,
+      emergency_contact_phone: emergencyContactPhone,
+      experience_notes: experienceNotes,
+      preferred_role: preferredRole,
+      requested_branch_id: branchId,
+      auth_user_id: authUserId,
+      staff_id: staffId,
+      status: "submitted",
+      metadata: buildOnboardingMetadata({
+        serviceIds,
+        experienceNotes,
+        nickname,
+        branch: branchValidation.branch,
+      }) as unknown as Json,
+    })
+    .select("id")
+    .single();
 
   if (requestInsert.error) {
     // Non-fatal: staff row and auth user exist; request row is supplementary
@@ -298,16 +298,28 @@ export async function checkOnboardingDuplicates(
     ]);
 
     if (authUsers.error) {
-      logError("staff.onboarding.email_duplicate_check_failed", { email: input.email, error: authUsers.error });
+      logError("staff.onboarding.email_duplicate_check_failed", {
+        email: input.email,
+        error: authUsers.error,
+      });
     }
     if (emailRequests.error) {
-      logError("staff.onboarding.request_email_duplicate_check_failed", { email: input.email, error: emailRequests.error });
+      logError("staff.onboarding.request_email_duplicate_check_failed", {
+        email: input.email,
+        error: emailRequests.error,
+      });
     }
     if (phoneStaff.error) {
-      logError("staff.onboarding.phone_staff_duplicate_check_failed", { phone: input.phone, error: phoneStaff.error });
+      logError("staff.onboarding.phone_staff_duplicate_check_failed", {
+        phone: input.phone,
+        error: phoneStaff.error,
+      });
     }
     if (phoneRequests.error) {
-      logError("staff.onboarding.request_phone_duplicate_check_failed", { phone: input.phone, error: phoneRequests.error });
+      logError("staff.onboarding.request_phone_duplicate_check_failed", {
+        phone: input.phone,
+        error: phoneRequests.error,
+      });
     }
 
     return evaluateDuplicateCheck(
@@ -346,7 +358,9 @@ export async function approveOnboardingAction(input: {
   serviceIds?: string[];
 }): Promise<{ success: boolean; error?: string }> {
   const supabase = await createClient();
-  const { data: { user } } = await supabase.auth.getUser();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
   if (!user) return { success: false, error: "Not logged in" };
 
   const { data: me } = await supabase
@@ -358,163 +372,25 @@ export async function approveOnboardingAction(input: {
 
   if (!me) return { success: false, error: "No active staff record found" };
 
-  const actorRole = canonicalizeSystemRole(me.system_role);
-
-  const { data: request } = await supabase
-    .from("staff_onboarding_requests")
-    .select("id, requested_branch_id, staff_id, status, preferred_role, full_name, metadata")
-    .eq("id", input.requestId)
-    .maybeSingle();
-
-  if (!request) return { success: false, error: "Onboarding request not found" };
-  if (request.status !== "submitted") {
-    return { success: false, error: "This onboarding request has already been reviewed." };
-  }
-  if (request.staff_id && request.staff_id !== input.staffId) {
-    return { success: false, error: "Staff record does not match this request." };
-  }
-
-  // Permission check using centralized helper
-  const approvalCheck = canApproveStaffOnboarding({
-    approverRole: me.system_role,
-    approverBranchId: me.branch_id,
-    targetBranchId: request.requested_branch_id,
-    requestedSystemRole: input.systemRole,
-  });
-
-  if (!approvalCheck.allowed) {
-    return { success: false, error: approvalCheck.reason ?? "You do not have permission to approve this request." };
-  }
-
-  if (!approvalCheck.assignableRoles.includes(input.systemRole)) {
-    return { success: false, error: "That role cannot be assigned with your permission level." };
-  }
-
-  // Validate the approval branch is active.
-  let activeBranches: { id: string; name: string }[] = [];
-  try {
-    activeBranches = await getAllBranches();
-  } catch (err) {
-    logError("staff.onboarding.approval_branch_lookup_failed", { error: err });
-    return { success: false, error: "Unable to verify branches. Please try again later." };
-  }
-  if (!activeBranches.some((b) => b.id === input.branchId)) {
-    return { success: false, error: "Selected branch is not active." };
-  }
-
-  // CRM/CSR must not approve applicants into another branch.
-  // Owners and managers may change the branch, but the change is recorded.
-  const branchChanged = input.branchId !== request.requested_branch_id;
-  const approverCanChangeBranch = isOwner(actorRole) || isManager(actorRole);
-  if (branchChanged && !approverCanChangeBranch) {
-    return {
-      success: false,
-      error: "You can only approve staff into the requested branch. Ask an owner or manager to change the branch.",
-    };
-  }
-
-  const confirmedServiceIds =
-    input.serviceIds === undefined ? undefined : Array.from(new Set(input.serviceIds));
-  if (confirmedServiceIds && confirmedServiceIds.length > 0) {
-    const eligibility = await validateBranchServiceEligibility({
+  const result = await approveStaffOnboardingRequest({
+    actor: {
+      staffId: me.id,
+      authUserId: user.id,
+      systemRole: me.system_role,
+      branchId: me.branch_id,
+    },
+    requestId: input.requestId,
+    input: {
       branchId: input.branchId,
-      serviceIds: confirmedServiceIds,
-      audience: "staff_assignment",
-      deliveryMode: "any",
-      useAdminClient: true,
-    });
-    if (!eligibility.ok) {
-      return {
-        success: false,
-        error: "One or more selected services are not assignable for this branch.",
-      };
-    }
-  }
-
-  const admin = createAdminClient();
-  const requestMetadata = request.metadata as { nickname?: string | null } | null;
-  const nickname =
-    typeof requestMetadata?.nickname === "string" && requestMetadata.nickname.trim().length > 0
-      ? requestMetadata.nickname.trim()
-      : null;
-
-  // Update staff record
-  const { error: staffErr } = await admin
-    .from("staff")
-    .update({
-      is_active: true,
-      branch_id: input.branchId,
-      system_role: input.systemRole,
-      staff_type:
-        input.systemRole === "digital_marketer"
-          ? "managerial"
-          : mapPreferredRoleToStaffType(request?.preferred_role ?? ""),
+      systemRole: input.systemRole,
       tier: input.tier,
-      ...(nickname ? { nickname } : {}),
-    })
-    .eq("id", input.staffId);
-
-  if (staffErr) return { success: false, error: staffErr.message };
-
-  // Sync service capabilities if provided, including an explicit empty list.
-  if (confirmedServiceIds) {
-    const { error: capabilityErr } = await admin.rpc("replace_staff_service_capabilities", {
-      p_target_staff_id: input.staffId,
-      p_service_ids: confirmedServiceIds,
-    });
-    if (capabilityErr) {
-      return {
-        success: false,
-        error: `Activated staff but failed to set services: ${capabilityErr.message}`,
-      };
-    }
-  }
-
-  const now = new Date().toISOString();
-  const existingMetadata =
-    request.metadata && typeof request.metadata === "object" && !Array.isArray(request.metadata)
-      ? (request.metadata as Record<string, unknown>)
-      : {};
-  const updatedMetadata: Record<string, unknown> = {
-    ...existingMetadata,
-  };
-  if (branchChanged) {
-    updatedMetadata.approved_branch_differs_from_requested = true;
-    updatedMetadata.original_requested_branch_id = request.requested_branch_id;
-    updatedMetadata.approved_branch_id = input.branchId;
-    updatedMetadata.approved_branch_changed_at = now;
-    updatedMetadata.approved_branch_changed_by_staff_id = me.id;
-  }
-
-  await admin.from("staff_onboarding_requests").update({
-    status: "approved",
-    reviewed_by_staff_id: me.id,
-    reviewed_at: now,
-    requested_branch_id: input.branchId,
-    metadata: updatedMetadata as unknown as Json,
-  }).eq("id", input.requestId);
-
-  await emitWorkflowEvent({
-    eventType: "staff_onboarding.approved",
-    requestId: input.requestId,
-    branchId: input.branchId,
-    applicantStaffId: input.staffId,
-    applicantName: request.full_name,
-    actorStaffId: me.id,
+      serviceIds: input.serviceIds,
+    },
   });
 
-  logBusinessEvent("staff.onboarding.approved", {
-    requestId: input.requestId,
-    staffId: input.staffId,
-    branchId: input.branchId,
-    actorId: me.id,
-    workspace: me.system_role,
-    systemRole: input.systemRole,
-    tier: input.tier,
-    branchChanged,
-  });
-
-  invalidateOnboardingApprovalSurfaces(input.branchId);
+  if (!result.ok) {
+    return { success: false, error: result.error };
+  }
 
   return { success: true };
 }
@@ -530,7 +406,9 @@ export async function approveOnboardingFromStaffManagementAction(input: {
   serviceIds?: string[];
 }): Promise<{ success: boolean; error?: string }> {
   const supabase = await createClient();
-  const { data: { user } } = await supabase.auth.getUser();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
 
   if (!user) {
     return { success: false, error: "Not logged in" };
@@ -567,8 +445,7 @@ export async function approveOnboardingFromStaffManagementAction(input: {
 
     return {
       success: false,
-      error:
-        "Multiple submitted onboarding requests were found. Approval was stopped for review.",
+      error: "Multiple submitted onboarding requests were found. Approval was stopped for review.",
     };
   }
 
@@ -589,7 +466,9 @@ export async function rejectOnboardingAction(input: {
   rejectionReason?: string;
 }): Promise<{ success: boolean; error?: string }> {
   const supabase = await createClient();
-  const { data: { user } } = await supabase.auth.getUser();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
   if (!user) return { success: false, error: "Not logged in" };
 
   const { data: me } = await supabase
@@ -601,68 +480,22 @@ export async function rejectOnboardingAction(input: {
 
   if (!me) return { success: false, error: "No active staff record found" };
 
-  const actorRole = canonicalizeSystemRole(me.system_role);
-  if (!canReviewStaffOnboarding(actorRole)) {
-    return { success: false, error: "You do not have permission to reject applications." };
-  }
-
-  const admin = createAdminClient();
-
-  const { data: request } = await supabase
-    .from("staff_onboarding_requests")
-    .select("id, requested_branch_id, status, staff_id, full_name, metadata")
-    .eq("id", input.requestId)
-    .maybeSingle();
-
-  if (!request) return { success: false, error: "Onboarding request not found" };
-  if (request.status !== "submitted") {
-    return { success: false, error: "This onboarding request has already been reviewed." };
-  }
-
-  // Branch scope check for non-owners
-  if (!isOwner(actorRole)) {
-    if (request.requested_branch_id && request.requested_branch_id !== me.branch_id) {
-      return { success: false, error: "You can only reject requests for your own branch" };
-    }
-  }
-
-  const now = new Date().toISOString();
-  const existingMetadata =
-    request.metadata && typeof request.metadata === "object" && !Array.isArray(request.metadata)
-      ? (request.metadata as Record<string, unknown>)
-      : {};
-  const updatedMetadata: Record<string, unknown> = {
-    ...existingMetadata,
-    rejected_at: now,
-    rejected_by_staff_id: me.id,
-  };
-
-  await admin.from("staff_onboarding_requests").update({
-    status: "rejected",
-    reviewed_by_staff_id: me.id,
-    reviewed_at: now,
-    rejection_reason: input.rejectionReason ?? null,
-    metadata: updatedMetadata as unknown as Json,
-  }).eq("id", input.requestId);
-
-  await emitWorkflowEvent({
-    eventType: "staff_onboarding.rejected",
+  const result = await rejectStaffOnboardingRequest({
+    actor: {
+      staffId: me.id,
+      authUserId: user.id,
+      systemRole: me.system_role,
+      branchId: me.branch_id,
+    },
     requestId: input.requestId,
-    branchId: request.requested_branch_id,
-    applicantStaffId: request.staff_id ?? input.staffId,
-    applicantName: request.full_name,
-    actorStaffId: me.id,
-    rejectionReason: input.rejectionReason ?? null,
+    input: {
+      rejectionReason: input.rejectionReason,
+    },
   });
 
-  logBusinessEvent("staff.onboarding.rejected", {
-    requestId: input.requestId,
-    staffId: input.staffId,
-    branchId: request.requested_branch_id,
-    actorId: me.id,
-    workspace: me.system_role,
-    rejectionReason: input.rejectionReason ?? null,
-  });
+  if (!result.ok) {
+    return { success: false, error: result.error };
+  }
 
   return { success: true };
 }

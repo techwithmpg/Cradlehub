@@ -61,6 +61,17 @@ export const rescheduleBookingSchema = bookingIdSchema.extend({
   note: z.string().max(500).optional(),
   homeServiceAddress: z.string().max(1000).optional(),
   homeServiceAccessNote: z.string().max(500).optional(),
+  therapistId: z.guid("Invalid therapist ID").optional(),
+  overrideReason: z
+    .enum([
+      "customer_requested",
+      "therapist_on_break",
+      "manager_decision",
+      "skill_or_service_mismatch",
+      "workload_balance",
+      "other",
+    ])
+    .optional(),
 });
 
 export const assignBookingTherapistSchema = bookingIdSchema.extend({
@@ -646,7 +657,8 @@ export async function rescheduleBooking(
   const bookingResult = await loadCrmBookingForAction(
     ctx,
     parsed.data.bookingId,
-    "booking.reschedule"
+    "booking.reschedule",
+    "staff_summary"
   );
   if (!bookingResult.success) return bookingResult;
   const booking = bookingResult.booking;
@@ -691,11 +703,19 @@ export async function rescheduleBooking(
     ((nextAddress !== undefined && nextAddress !== currentAddress) ||
       (nextAccessNote !== undefined && nextAccessNote !== currentAccessNote));
 
-  if (!scheduleChanged && !addressChanged) {
+  const targetStaffId = parsed.data.therapistId ?? booking.staff_id ?? null;
+  const staffChanged =
+    parsed.data.therapistId !== undefined && parsed.data.therapistId !== (booking.staff_id ?? null);
+
+  if (!scheduleChanged && !addressChanged && !staffChanged) {
     return {
       success: false,
-      error: "Choose a new date, time, or home-service address before saving.",
+      error: "Choose a new date, time, therapist, or home-service address before saving.",
     };
+  }
+
+  if (staffChanged && !canReassignBooking(ctx.me.system_role)) {
+    return { success: false, error: "You do not have permission to reassign therapists" };
   }
 
   let nextEndTime: string;
@@ -727,7 +747,30 @@ export async function rescheduleBooking(
   }
 
   const scoredCandidates = scoreTherapistCandidates(recommendationContext);
-  if (booking.staff_id) {
+
+  if (staffChanged && targetStaffId) {
+    const admin = createAdminClient();
+    const { data: staff, error: staffError } = await admin
+      .from("staff")
+      .select("id, branch_id, full_name, is_active")
+      .eq("id", targetStaffId)
+      .maybeSingle();
+
+    if (staffError || !staff || !staff.is_active || staff.branch_id !== booking.branch_id) {
+      return { success: false, error: "Selected therapist is not available for this branch." };
+    }
+
+    const candidate = scoredCandidates.find((c) => c.staffId === targetStaffId);
+    if (!candidate) {
+      return { success: false, error: "Selected therapist is not qualified for this service." };
+    }
+    if (candidate.status === "unavailable") {
+      return {
+        success: false,
+        error: candidate.warnings[0] ?? "Selected therapist is not available at this time.",
+      };
+    }
+  } else if (booking.staff_id) {
     const currentTherapist = scoredCandidates.find(
       (candidate) => candidate.staffId === booking.staff_id
     );
@@ -759,8 +802,8 @@ export async function rescheduleBooking(
   }
 
   const actorId = ctx.me.id === DEV_BYPASS_STAFF_ID ? null : ctx.me.id;
-  const openScheduleException = getOpenStaffScheduleException(currentMetadata);
-  const rescheduleMetadata = withRescheduleMetadata(booking.metadata, {
+  const now = new Date().toISOString();
+  let updatedMetadata = withRescheduleMetadata(booking.metadata, {
     actorId,
     fromDate: booking.booking_date,
     fromTime: currentStartTime,
@@ -769,24 +812,45 @@ export async function rescheduleBooking(
     toTime: nextStartTime,
     homeServiceAddress: isHomeServiceBooking(booking) ? nextAddress : undefined,
     homeServiceAccessNote: isHomeServiceBooking(booking) ? nextAccessNote : undefined,
-  });
-  const nextMetadata =
-    scheduleChanged && openScheduleException
-      ? resolveStaffScheduleExceptionMetadata(rescheduleMetadata as Record<string, unknown>, {
-          resolution: "rescheduled_booking",
-          resolvedAt: new Date().toISOString(),
-          resolvedByStaffId: actorId,
-        })
-      : rescheduleMetadata;
+  }) as Record<string, unknown>;
+
+  if (staffChanged && targetStaffId) {
+    const previousStaffId = booking.staff_id ?? null;
+    const assignmentAudit = Array.isArray(updatedMetadata.assignment_audit)
+      ? [...(updatedMetadata.assignment_audit as unknown[])]
+      : [];
+    assignmentAudit.push({
+      staff_id: targetStaffId,
+      previous_staff_id: previousStaffId,
+      reason: parsed.data.overrideReason ?? "reschedule_reassignment",
+      assigned_at: now,
+      assigned_by: actorId,
+      source: "crm_reschedule",
+    });
+    updatedMetadata.assignment_audit = assignmentAudit;
+  }
+
+  const openScheduleException = getOpenStaffScheduleException(currentMetadata);
+  if (scheduleChanged && openScheduleException) {
+    updatedMetadata = resolveStaffScheduleExceptionMetadata(updatedMetadata, {
+      resolution: "rescheduled_booking",
+      resolvedAt: now,
+      resolvedByStaffId: actorId,
+    }) as Record<string, unknown>;
+  }
+
   const admin = createAdminClient();
+  const updatePayload: Database["public"]["Tables"]["bookings"]["Update"] = {
+    booking_date: nextDate,
+    start_time: nextStartTime,
+    end_time: nextEndTime,
+    ...(staffChanged && targetStaffId ? { staff_id: targetStaffId } : {}),
+    metadata: updatedMetadata as Database["public"]["Tables"]["bookings"]["Update"]["metadata"],
+  };
+
   const { data: updatedRows, error } = await admin
     .from("bookings")
-    .update({
-      booking_date: nextDate,
-      start_time: nextStartTime,
-      end_time: nextEndTime,
-      metadata: nextMetadata as Database["public"]["Tables"]["bookings"]["Update"]["metadata"],
-    })
+    .update(updatePayload)
     .eq("id", booking.id)
     .eq("branch_id", booking.branch_id)
     .select("id");
@@ -808,11 +872,13 @@ export async function rescheduleBooking(
     scheduleChanged
       ? `Rescheduled from ${booking.booking_date} ${shortTime(currentStartTime)} to ${nextDate} ${shortTime(nextStartTime)}.`
       : null,
+    staffChanged ? `Therapist reassigned.` : null,
     addressChanged ? "Home-service address updated." : null,
     parsed.data.note?.trim() || null,
   ]
     .filter(Boolean)
     .join(" ");
+
   await insertBookingAuditEvent({
     actorId,
     admin,
@@ -823,7 +889,47 @@ export async function rescheduleBooking(
     toStatus: booking.status,
   });
 
-  if (booking.staff_id && booking.payment_status === "paid") {
+  if (staffChanged) {
+    if (booking.staff_id && booking.payment_status === "paid") {
+      await createNotification({
+        branchId: booking.branch_id,
+        targetWorkspace: "staff",
+        recipientStaffId: booking.staff_id,
+        type: "booking_reassigned",
+        title: "Booking reassigned",
+        body: `A booking previously assigned to you has been reassigned to another staff member.`,
+        entityType: "booking",
+        entityId: booking.id,
+        actionHref: getNotificationTargetPath({
+          workspace: "staff-portal",
+          entityType: "booking",
+          entityId: booking.id,
+        }),
+        priority: "normal",
+        requiresAction: false,
+      });
+    }
+
+    if (targetStaffId && booking.payment_status === "paid") {
+      await createNotification({
+        branchId: booking.branch_id,
+        targetWorkspace: "staff",
+        recipientStaffId: targetStaffId,
+        type: "booking_rescheduled",
+        title: "Booking assigned and rescheduled",
+        body: `You have been assigned to a booking rescheduled to ${nextDate} at ${shortTime(nextStartTime)}.`,
+        entityType: "booking",
+        entityId: booking.id,
+        actionHref: getNotificationTargetPath({
+          workspace: "staff-portal",
+          entityType: "booking",
+          entityId: booking.id,
+        }),
+        priority: "high",
+        requiresAction: true,
+      });
+    }
+  } else if (booking.staff_id && booking.payment_status === "paid") {
     await createNotification({
       branchId: booking.branch_id,
       targetWorkspace: "staff",
