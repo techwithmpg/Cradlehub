@@ -17,7 +17,7 @@ export function StaffInstallGuide({
   const content = (
     <div className="flex flex-col gap-4 text-left">
       <div className="rounded-lg bg-[#FAF8F5] border border-[#EAE4DC] p-2.5 text-xs text-[#1E293B]">
-        <div className="font-semibold text-[#163A2B]">CradleHub Staff — Team Workspace</div>
+        <div className="font-semibold text-[#163A2B]">Cradle Hub — Team Workspace</div>
         <p className="text-[11px] text-[#475569] mt-0.5">
           Dedicated operational app for staff, providers, drivers, and utility teams.
         </p>
@@ -52,7 +52,7 @@ export function StaffInstallGuide({
               3
             </span>
             <span>
-              Confirm <strong>CradleHub Staff</strong>, then tap <strong>Add</strong> in the top right corner.
+              Confirm <strong>Cradle Hub</strong>, then tap <strong>Add</strong> in the top right corner.
             </span>
           </li>
         </ol>
@@ -67,7 +67,7 @@ export function StaffInstallGuide({
           <div className="flex items-start gap-2.5">
             <Check size={18} className="text-[#163A2B] shrink-0 mt-0.5" aria-hidden="true" />
             <span>
-              Launch from your home screen as <strong>CradleHub Staff</strong>.
+              Launch from your home screen as <strong>Cradle Hub</strong>.
             </span>
           </div>
         </div>
@@ -87,7 +87,7 @@ export function StaffInstallGuide({
   return (
     <StaffConfirmDialog
       open={open}
-      title={isIOS ? "Add CradleHub Staff to Home Screen" : "Install CradleHub Staff"}
+      title={isIOS ? "Add Cradle Hub to Home Screen" : "Install Cradle Hub"}
       description={content}
       confirmLabel="Got it"
       onConfirm={onClose}

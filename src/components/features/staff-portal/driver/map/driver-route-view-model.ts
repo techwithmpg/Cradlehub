@@ -20,6 +20,7 @@ export type DriverRouteStopViewModel = {
   startTimeLabel: string;
   routeState: DriverRouteState;
   dispatchStatus: RealDispatchItem["dispatchStatus"];
+  bookingProgressStatus: string;
   isNextStop: boolean;
   isCompleted: boolean;
   isActive: boolean;
@@ -164,6 +165,7 @@ export function buildDriverRoutePageViewModel(
       startTimeLabel: formatTime12h(item.startTime),
       routeState: getRouteState(item.dispatchStatus),
       dispatchStatus: item.dispatchStatus,
+      bookingProgressStatus: item.bookingProgressStatus,
       isNextStop: item.id === nextItem?.id,
       isCompleted: isCompleted(item.dispatchStatus),
       isActive: ACTIVE_STATUSES.has(item.dispatchStatus),

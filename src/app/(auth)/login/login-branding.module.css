@@ -1,0 +1,210 @@
+.screen {
+  position: relative;
+  isolation: isolate;
+  min-height: 100svh;
+  background:
+    radial-gradient(
+      circle at 15% 8%,
+      rgba(200, 169, 107, 0.11),
+      transparent 22rem
+    ),
+    radial-gradient(
+      circle at 90% 92%,
+      rgba(22, 58, 43, 0.09),
+      transparent 24rem
+    ),
+    linear-gradient(
+      150deg,
+      #f8f5ef 0%,
+      #f5f2ee 54%,
+      #eef3ef 100%
+    );
+}
+
+.shell {
+  min-height: 100svh;
+}
+
+.mobileBrand {
+  animation:
+    mobileBrandIn
+    0.42s
+    cubic-bezier(0.22, 1, 0.36, 1)
+    both;
+}
+
+.card {
+  animation:
+    cardIn
+    0.46s
+    0.04s
+    cubic-bezier(0.22, 1, 0.36, 1)
+    both;
+}
+
+.logoTile {
+  position: relative;
+  display: grid;
+  place-items: center;
+  overflow: hidden;
+  background:
+    linear-gradient(
+      145deg,
+      #1a503b,
+      #0d2f23
+    );
+  border:
+    1px solid
+    rgba(200, 169, 107, 0.28);
+  box-shadow:
+    0 8px 22px
+    rgba(22, 58, 43, 0.16);
+}
+
+.desktopHero {
+  display: none;
+}
+
+@keyframes mobileBrandIn {
+  from {
+    opacity: 0;
+    transform: translateY(-7px);
+  }
+
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes cardIn {
+  from {
+    opacity: 0;
+    transform:
+      translateY(12px)
+      scale(0.99);
+  }
+
+  to {
+    opacity: 1;
+    transform:
+      translateY(0)
+      scale(1);
+  }
+}
+
+/*
+ * Standard phone:
+ * entire login fits inside one viewport.
+ */
+@media (max-width: 767px) {
+  .screen {
+    height: 100svh;
+    min-height: 100svh;
+    overflow: hidden;
+  }
+
+  .shell {
+    height: 100svh;
+    min-height: 100svh;
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    padding:
+      max(10px, env(safe-area-inset-top))
+      14px
+      max(10px, env(safe-area-inset-bottom));
+  }
+
+  .mobileBrand {
+    flex: none;
+  }
+
+  .card {
+    flex: none;
+    max-height:
+      calc(
+        100svh -
+        92px -
+        env(safe-area-inset-top) -
+        env(safe-area-inset-bottom)
+      );
+  }
+}
+
+/*
+ * Very short viewport or software keyboard:
+ * allow controlled scrolling rather than hiding inputs.
+ */
+@media (max-width: 767px) and (max-height: 620px) {
+  .screen {
+    height: auto;
+    min-height: 100svh;
+    overflow-y: auto;
+  }
+
+  .shell {
+    height: auto;
+    min-height: 100svh;
+    justify-content: flex-start;
+  }
+
+  .card {
+    max-height: none;
+  }
+}
+
+/*
+ * Desktop keeps the richer split-screen treatment.
+ */
+@media (min-width: 768px) {
+  .shell {
+    min-height: 100svh;
+    display: grid;
+    grid-template-columns:
+      minmax(0, 1fr)
+      minmax(380px, 460px);
+    align-items: center;
+    gap: 4rem;
+    max-width: 1100px;
+    margin: 0 auto;
+    padding: 2.5rem;
+  }
+
+  .desktopHero {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start;
+  }
+
+  .mobileBrand {
+    display: none;
+  }
+
+  .desktopLogo {
+    animation:
+      desktopFloat
+      6s
+      ease-in-out
+      infinite;
+  }
+
+  @keyframes desktopFloat {
+    0%,
+    100% {
+      transform: translateY(0);
+    }
+
+    50% {
+      transform: translateY(-5px);
+    }
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .mobileBrand,
+  .card,
+  .desktopLogo {
+    animation: none !important;
+  }
+}

@@ -11,25 +11,18 @@ type DriverRouteMapPlaceholderProps = {
 
 const STOP_POSITIONS = [
   {
-    marker: "left-[38%] top-[68%]",
-    label: "left-[43%] top-[59%]",
+    marker: "left-[35%] top-[66%]",
+    label: "left-[42%] top-[58%]",
   },
   {
-    marker: "left-[40%] top-[48%]",
-    label: "left-[47%] top-[42%]",
+    marker: "left-[49%] top-[45%]",
+    label: "left-[55%] top-[38%]",
   },
   {
-    marker: "left-[58%] top-[22%]",
-    label: "left-[26%] top-[19%]",
+    marker: "left-[66%] top-[24%]",
+    label: "left-[34%] top-[18%]",
   },
 ] as const;
-
-function ordinal(value: number): string {
-  if (value === 1) return "1st";
-  if (value === 2) return "2nd";
-  if (value === 3) return "3rd";
-  return `${value}th`;
-}
 
 function StopMarker({
   stop,
@@ -45,50 +38,58 @@ function StopMarker({
     <>
       <div
         className={cn(
-          "absolute z-20 grid h-10 w-10 -translate-x-1/2 -translate-y-1/2 place-items-center rounded-full border-[3px] border-white text-sm font-black text-white shadow-lg",
+          "absolute z-20 grid size-9 -translate-x-1/2 -translate-y-1/2 place-items-center rounded-full border-[3px] border-white text-[11px] font-black text-white shadow-lg",
           position.marker,
-          stop.isNextStop ? "bg-emerald-900" : "bg-emerald-800",
-          stop.isCompleted && "bg-teal-600"
+          stop.isNextStop
+            ? "bg-[#0D6548]"
+            : stop.isCompleted
+              ? "bg-[#68A78A]"
+              : "bg-[#527967]"
         )}
       >
         {stop.stopNumber}
       </div>
+
       <div
         className={cn(
-          "absolute z-20 max-w-[150px] rounded-2xl bg-white/95 px-3 py-2 text-stone-900 shadow-xl ring-1 ring-stone-200/70",
+          "absolute z-20 max-w-[126px] rounded-[11px] bg-white/95 px-2.5 py-1.5 text-[#26394B] shadow-md ring-1 ring-[#DFE5DE]",
           position.label,
-          stop.isNextStop && "bg-emerald-900 text-white ring-emerald-700"
+          stop.isNextStop &&
+            "bg-[#0D6548] text-white ring-[#0D6548]"
         )}
       >
-        <div className="flex items-center gap-1 text-sm font-black leading-tight">
-          {stop.isNextStop ? "Next Stop" : `${ordinal(stop.stopNumber)} Stop`}
-          {stop.isNextStop ? <ChevronRight className="h-4 w-4" /> : null}
+        <div className="flex items-center gap-1 truncate text-[9.5px] font-bold">
+          {stop.isNextStop ? "Next" : `Stop ${stop.stopNumber}`}
+          {stop.isNextStop ? <ChevronRight size={11} /> : null}
         </div>
-        <div className="mt-1 truncate text-xs font-bold opacity-80">{stop.customerName}</div>
-        <div className="text-xs opacity-70">{stop.startTimeLabel}</div>
+
+        <div className="mt-0.5 truncate text-[8.5px] opacity-80">
+          {stop.customerName}
+        </div>
       </div>
     </>
   );
 }
 
-export function DriverRouteMapPlaceholder({ viewModel }: DriverRouteMapPlaceholderProps) {
-  const visibleStops = viewModel.stops.slice(0, STOP_POSITIONS.length);
+export function DriverRouteMapPlaceholder({
+  viewModel,
+}: DriverRouteMapPlaceholderProps) {
+  const visibleStops = viewModel.stops.slice(
+    0,
+    STOP_POSITIONS.length
+  );
 
   return (
-    <div className="relative h-full min-h-[420px] overflow-hidden bg-[#e9efe7]">
-      <div className="absolute inset-0 bg-[linear-gradient(90deg,rgba(15,81,56,0.08)_1px,transparent_1px),linear-gradient(0deg,rgba(15,81,56,0.08)_1px,transparent_1px)] bg-[length:44px_44px]" />
-      <div className="absolute left-[-18%] top-[18%] h-3 w-[135%] rotate-[14deg] rounded-full bg-amber-200/55" />
-      <div className="absolute left-[-10%] top-[56%] h-2.5 w-[120%] -rotate-[18deg] rounded-full bg-stone-50/80" />
-      <div className="absolute left-[66%] top-[-10%] h-[120%] w-2 rotate-[18deg] rounded-full bg-sky-200/45" />
-      <div className="absolute left-[5%] top-[35%] rounded-lg bg-white/40 px-2 py-1 text-xl font-black text-stone-800/75">
-        Makati
+    <div className="relative h-full min-h-0 overflow-hidden bg-[#E9EFE8]">
+      <div className="absolute left-3 top-3 z-30 rounded-full bg-white/90 px-2.5 py-1 text-[8.5px] font-bold uppercase tracking-[0.06em] text-[#66766D] shadow-sm ring-1 ring-[#DCE4DD]">
+        Route preview
       </div>
-      <div className="absolute right-[7%] top-[16%] rounded-lg bg-white/40 px-2 py-1 text-lg font-black text-stone-800/75">
-        Mandaluyong
-      </div>
-      <div className="absolute right-[18%] top-[54%] rounded-lg bg-white/40 px-2 py-1 text-xl font-black text-stone-800/75">
-        Taguig
-      </div>
+
+      <div className="absolute inset-0 bg-[linear-gradient(90deg,rgba(15,81,56,0.07)_1px,transparent_1px),linear-gradient(0deg,rgba(15,81,56,0.07)_1px,transparent_1px)] bg-[length:42px_42px]" />
+
+      <div className="absolute left-[-15%] top-[19%] h-3 w-[135%] rotate-[14deg] rounded-full bg-white/75" />
+      <div className="absolute left-[-10%] top-[56%] h-3 w-[120%] -rotate-[18deg] rounded-full bg-white/85" />
+      <div className="absolute left-[72%] top-[-10%] h-[120%] w-5 rotate-[12deg] rounded-full bg-[#CBE5F6]/55" />
 
       {viewModel.totalStops > 0 ? (
         <svg
@@ -98,32 +99,35 @@ export function DriverRouteMapPlaceholder({ viewModel }: DriverRouteMapPlacehold
           preserveAspectRatio="none"
         >
           <path
-            d="M38 80 L37 64 L47 54 L41 44 L60 32 L58 22"
-            className="fill-none stroke-white/80 stroke-[5]"
+            d="M19 84 C25 75 30 69 35 66 C40 60 44 52 49 45 C56 35 61 29 66 24"
+            fill="none"
+            stroke="rgba(255,255,255,0.95)"
+            strokeWidth="5"
             strokeLinecap="round"
-            strokeLinejoin="round"
           />
+
           <path
-            d="M38 80 L37 64 L47 54 L41 44 L60 32 L58 22"
-            className="fill-none stroke-emerald-800 stroke-[2.4]"
-            strokeLinecap="round"
-            strokeLinejoin="round"
-          />
-          <path
-            d="M38 80 L37 64"
-            className="fill-none stroke-emerald-600 stroke-[3]"
-            strokeDasharray="1 3"
+            d="M19 84 C25 75 30 69 35 66 C40 60 44 52 49 45 C56 35 61 29 66 24"
+            fill="none"
+            stroke="#0D6548"
+            strokeWidth="2.2"
             strokeLinecap="round"
           />
         </svg>
       ) : null}
 
-      <div className="absolute left-[38%] top-[78%] z-20 grid h-12 w-12 -translate-x-1/2 -translate-y-1/2 place-items-center rounded-full bg-white shadow-xl ring-[12px] ring-sky-300/25">
-        <Navigation className="h-6 w-6 rotate-45 fill-emerald-800 text-emerald-800" />
+      <div className="absolute bottom-[11%] left-[18%] z-20">
+        <div className="grid size-10 place-items-center rounded-full bg-white text-[#0D6548] shadow-lg ring-[9px] ring-[#9FD6B4]/20">
+          <Navigation size={18} />
+        </div>
       </div>
 
       {visibleStops.map((stop, index) => (
-        <StopMarker key={stop.id} stop={stop} index={index} />
+        <StopMarker
+          key={stop.id}
+          stop={stop}
+          index={index}
+        />
       ))}
     </div>
   );

@@ -1,228 +1,300 @@
 "use client";
 
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { ChevronLeft, ChevronRight, Clock, MapPin } from "lucide-react";
-import { formatTime } from "@/lib/utils";
+import {
+  ChevronLeft,
+  ChevronRight,
+  Clock3,
+  Home,
+  MapPin,
+  Stethoscope,
+} from "lucide-react";
 import { formatWeekRange } from "@/lib/staff-portal/week";
-import type { StaffWeekDay, StaffWeekNavigation } from "@/lib/staff-portal/week";
-
-type FilterKey = "all" | "on_duty" | "day_off" | "booked" | "blocked";
-
-const FILTERS: { key: FilterKey; label: string }[] = [
-  { key: "all", label: "All" },
-  { key: "on_duty", label: "On Duty" },
-  { key: "day_off", label: "Day Off" },
-  { key: "booked", label: "Booked" },
-  { key: "blocked", label: "Blocked" },
-];
-
-type DayStatus = "on_duty" | "day_off" | "no_shift";
-
-function getDayStatus(day: StaffWeekDay): DayStatus {
-  if (day.isDayOff) return "day_off";
-  if (day.workHoursLabel !== null) return "on_duty";
-  return "no_shift";
-}
-
-const STATUS_DISPLAY: Record<DayStatus, { label: string; bg: string; color: string; border: string }> = {
-  on_duty: { label: "On Duty", bg: "var(--cs-success-bg)", color: "var(--cs-success)", border: "rgba(90,138,106,0.2)" },
-  day_off: { label: "Day Off", bg: "rgba(251,191,36,0.12)", color: "#92700A", border: "rgba(146,112,10,0.2)" },
-  no_shift: { label: "No Shift", bg: "var(--cs-surface-warm)", color: "var(--cs-text-muted)", border: "var(--cs-border-soft)" },
-};
-
-function parseWorkHours(label: string | null): { start: string; end: string } | null {
-  if (!label || label === "Day off") return null;
-  const parts = label.split(" — ");
-  if (parts.length !== 2) return null;
-  return { start: parts[0] ?? "", end: parts[1] ?? "" };
-}
-
-function AppointmentChip({ appt }: { appt: StaffWeekDay["appointments"][number] }) {
-  const statusColor =
-    appt.status === "completed"
-      ? "var(--cs-success)"
-      : appt.status === "in_progress" || appt.bookingType === "home_service"
-      ? "#7C3AED"
-      : "var(--cs-text-muted)";
-
-  return (
-    <div
-      style={{
-        display: "flex",
-        alignItems: "center",
-        gap: 6,
-        padding: "5px 8px",
-        borderRadius: 8,
-        backgroundColor: "var(--cs-surface-warm)",
-        border: "1px solid var(--cs-border-soft)",
-        fontSize: 11,
-      }}
-    >
-      <span style={{ fontWeight: 600, color: "var(--cs-text)", flex: 1, minWidth: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
-        {appt.serviceName}
-      </span>
-      <span style={{ color: "var(--cs-text-muted)", flexShrink: 0 }}>
-        <Clock size={10} style={{ display: "inline", verticalAlign: "middle" }} />
-        {" "}{appt.timeLabel}
-      </span>
-      {appt.roomName && (
-        <span style={{ color: "var(--cs-text-muted)", flexShrink: 0, display: "flex", alignItems: "center", gap: 2 }}>
-          <MapPin size={10} />
-          {appt.roomName}
-        </span>
-      )}
-      <span
-        style={{
-          fontSize: 9,
-          fontWeight: 700,
-          padding: "1px 6px",
-          borderRadius: 100,
-          backgroundColor: `${statusColor}18`,
-          color: statusColor,
-          flexShrink: 0,
-        }}
-      >
-        {appt.status === "completed" ? "Done" : appt.status === "in_progress" ? "Active" : "Soon"}
-      </span>
-    </div>
-  );
-}
-
-function DayCard({ day }: { day: StaffWeekDay }) {
-  const status = getDayStatus(day);
-  const { label, bg, color, border } = STATUS_DISPLAY[status];
-  const times = parseWorkHours(day.workHoursLabel);
-
-  return (
-    <div
-      style={{
-        backgroundColor: "#fff",
-        borderRadius: 14,
-        border: "1px solid var(--cs-border-soft)",
-        padding: "0.875rem 1rem",
-        boxShadow: "var(--cs-shadow-xs)",
-      }}
-    >
-      {/* Day header */}
-      <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", marginBottom: "0.5rem" }}>
-        <div>
-          <div style={{ fontSize: 10, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.08em", color: day.isToday ? "var(--cs-staff-accent)" : "var(--cs-text-muted)" }}>
-            {day.dayNameShort}
-          </div>
-          <div style={{ fontSize: 20, fontWeight: 700, color: day.isToday ? "var(--cs-staff-accent)" : "var(--cs-text)", lineHeight: 1.1 }}>
-            {day.dayOfMonth}
-          </div>
-          {day.isToday && (
-            <div style={{ fontSize: 9, fontWeight: 700, color: "var(--cs-staff-accent)", letterSpacing: "0.05em" }}>TODAY</div>
-          )}
-        </div>
-        <span style={{ display: "inline-flex", alignItems: "center", backgroundColor: bg, color, border: `1px solid ${border}`, borderRadius: 100, padding: "2px 9px", fontSize: 10, fontWeight: 700 }}>
-          {label}
-        </span>
-      </div>
-
-      {/* Shift time */}
-      {status === "on_duty" && times ? (
-        <div style={{ fontSize: 13, fontWeight: 600, color: "var(--cs-text)", fontVariantNumeric: "tabular-nums", marginBottom: "0.5rem" }}>
-          {formatTime(times.start)} – {formatTime(times.end)}
-        </div>
-      ) : status !== "on_duty" ? (
-        <div style={{ fontSize: 12, color: "var(--cs-text-muted)", marginBottom: "0.5rem" }}>
-          No scheduled shift
-        </div>
-      ) : null}
-
-      {/* Service appointments */}
-      {day.appointments.length > 0 && (
-        <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
-          {day.appointments.map((appt) => (
-            <AppointmentChip key={appt.id} appt={appt} />
-          ))}
-        </div>
-      )}
-    </div>
-  );
-}
-
-function matchesFilter(day: StaffWeekDay, filter: FilterKey): boolean {
-  const status = getDayStatus(day);
-  switch (filter) {
-    case "on_duty": return status === "on_duty";
-    case "day_off": return status === "day_off";
-    case "booked": return day.appointmentCount > 0;
-    case "blocked": return false;
-    default: return true;
-  }
-}
-
-const NAV_BTN: React.CSSProperties = {
-  width: 34, height: 34, borderRadius: 10,
-  border: "1px solid var(--cs-border)",
-  backgroundColor: "var(--cs-surface-warm)",
-  color: "var(--cs-text-muted)",
-  display: "flex", alignItems: "center", justifyContent: "center",
-  textDecoration: "none", flexShrink: 0,
-};
+import type {
+  StaffWeekDay,
+  StaffWeekNavigation,
+} from "@/lib/staff-portal/week";
 
 type TherapistScheduleListProps = {
   nav: StaffWeekNavigation;
   days: StaffWeekDay[];
 };
 
-export function TherapistScheduleList({ nav, days }: TherapistScheduleListProps) {
+function appointmentStatusLabel(status: string): string | null {
+  if (status === "completed") return "Done";
+  if (status === "in_progress") return "Active";
+  return null;
+}
+
+export function TherapistScheduleList({
+  nav,
+  days,
+}: TherapistScheduleListProps) {
   const pathname = usePathname();
-  const [filter, setFilter] = useState<FilterKey>("all");
+
+  const initialDate =
+    days.find((day) => day.isToday)?.date ??
+    days.find((day) => !day.isDayOff)?.date ??
+    days[0]?.date ??
+    "";
+
+  const [selectedDate, setSelectedDate] = useState(initialDate);
+
+  const selectedDay = useMemo(
+    () => days.find((day) => day.date === selectedDate) ?? days[0] ?? null,
+    [days, selectedDate]
+  );
+
   const rangeLabel = formatWeekRange(nav.fromDate, nav.toDate);
-  const basePath = pathname?.startsWith("/staff") ? "/staff/schedule" : "/staff-portal/schedule";
-  const prevHref = `${basePath}?weekStart=${nav.previousWeekStart}`;
+
+  const basePath = pathname?.startsWith("/staff")
+    ? "/staff/schedule"
+    : "/staff-portal/schedule";
+
+  const previousHref = `${basePath}?weekStart=${nav.previousWeekStart}`;
   const nextHref = `${basePath}?weekStart=${nav.nextWeekStart}`;
-  const filteredDays = days.filter((d) => matchesFilter(d, filter));
+
+  const selectedDateLabel = selectedDay
+    ? new Date(`${selectedDay.date}T00:00:00`).toLocaleDateString("en-PH", {
+        weekday: "long",
+        month: "long",
+        day: "numeric",
+      })
+    : "";
 
   return (
-    <div style={{ minHeight: "100dvh", backgroundColor: "var(--cs-bg)" }}>
-      {/* Sticky header */}
-      <div style={{ backgroundColor: "#fff", borderBottom: "1px solid var(--cs-border-soft)", padding: "0.875rem 1rem 0.625rem", position: "sticky", top: 0, zIndex: 30 }}>
-        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: "0.625rem" }}>
-          <div>
-            <h1 style={{ margin: 0, fontSize: 19, fontWeight: 700, color: "var(--cs-text)" }}>My Schedule</h1>
-            <p style={{ margin: "2px 0 0", fontSize: 12, color: "var(--cs-text-muted)" }}>{rangeLabel}</p>
-          </div>
-          <div style={{ display: "flex", gap: 6 }}>
-            <Link href={prevHref} style={NAV_BTN} aria-label="Previous week"><ChevronLeft size={16} /></Link>
-            <Link href={nextHref} style={NAV_BTN} aria-label="Next week"><ChevronRight size={16} /></Link>
-          </div>
-        </div>
+    <div className="min-h-dvh bg-[#F7F3EB]">
+      <div className="sticky top-0 z-30 border-b border-[#EAE4DC] bg-[#FBFAF6]/95 px-4 pb-3 pt-4 backdrop-blur-xl">
+        <div className="mx-auto max-w-[480px]">
+          <div className="flex items-center justify-between gap-3">
+            <div>
+              <h1 className="text-[26px] font-bold tracking-[-0.035em] text-[#14283A]">
+                Schedule
+              </h1>
+              <p className="mt-0.5 text-[12px] text-[#7A685F]">
+                {rangeLabel}
+              </p>
+            </div>
 
-        <div style={{ display: "flex", gap: 5, overflowX: "auto", paddingBottom: 2, scrollbarWidth: "none" }}>
-          {FILTERS.map(({ key, label }) => {
-            const isActive = filter === key;
-            return (
-              <button key={key} type="button" onClick={() => setFilter(key)} style={{
-                padding: "0.3rem 0.75rem", borderRadius: 100,
-                border: `1px solid ${isActive ? "var(--cs-staff-accent)" : "var(--cs-border)"}`,
-                backgroundColor: isActive ? "var(--cs-staff-accent)" : "var(--cs-surface-warm)",
-                color: isActive ? "#fff" : "var(--cs-text-muted)",
-                fontSize: 12, fontWeight: isActive ? 700 : 500,
-                cursor: "pointer", whiteSpace: "nowrap", flexShrink: 0,
-              }}>
-                {label}
-              </button>
-            );
-          })}
+            <div className="flex gap-2">
+              <Link
+                href={previousHref}
+                aria-label="Previous week"
+                className="grid size-10 place-items-center rounded-full border border-[#E5DED5] bg-white text-[#2B3D50] shadow-sm active:scale-95"
+              >
+                <ChevronLeft size={18} />
+              </Link>
+
+              <Link
+                href={nextHref}
+                aria-label="Next week"
+                className="grid size-10 place-items-center rounded-full border border-[#E5DED5] bg-white text-[#2B3D50] shadow-sm active:scale-95"
+              >
+                <ChevronRight size={18} />
+              </Link>
+            </div>
+          </div>
+
+          <div className="mt-4 grid grid-cols-7 gap-1">
+            {days.map((day) => {
+              const selected = day.date === selectedDay?.date;
+
+              return (
+                <button
+                  key={day.date}
+                  type="button"
+                  onClick={() => setSelectedDate(day.date)}
+                  className={
+                    selected
+                      ? "flex min-h-[58px] flex-col items-center justify-center rounded-[15px] bg-[#0D6548] text-white shadow-[0_7px_18px_rgba(13,101,72,0.18)]"
+                      : "flex min-h-[58px] flex-col items-center justify-center rounded-[15px] text-[#35485B] active:bg-white"
+                  }
+                >
+                  <span
+                    className={
+                      selected
+                        ? "text-[10px] font-semibold text-white/80"
+                        : day.isToday
+                          ? "text-[10px] font-bold text-[#0D6548]"
+                          : "text-[10px] font-medium text-[#7B8795]"
+                    }
+                  >
+                    {day.dayNameShort}
+                  </span>
+
+                  <span className="mt-1 text-[17px] font-bold">
+                    {day.dayOfMonth}
+                  </span>
+                </button>
+              );
+            })}
+          </div>
         </div>
       </div>
 
-      <div style={{ padding: "0.875rem 1rem", display: "flex", flexDirection: "column", gap: "0.625rem", maxWidth: 480, marginLeft: "auto", marginRight: "auto" }}>
-        {filteredDays.length === 0 ? (
-          <div style={{ textAlign: "center", padding: "2rem 1rem", color: "var(--cs-text-muted)", fontSize: 13 }}>
-            No days match the selected filter.
-          </div>
-        ) : (
-          filteredDays.map((day) => <DayCard key={day.date} day={day} />)
-        )}
-      </div>
+      <main className="mx-auto max-w-[480px] px-4 pb-5 pt-4">
+        {selectedDay ? (
+          <>
+            <div className="mb-3 flex items-end justify-between gap-3">
+              <div>
+                <div className="text-[16px] font-bold text-[#1D3043]">
+                  {selectedDateLabel}
+                </div>
+                <div className="mt-0.5 text-[11px] text-[#7B8795]">
+                  {selectedDay.appointmentCount} service
+                  {selectedDay.appointmentCount === 1 ? "" : "s"}
+                </div>
+              </div>
+
+              {selectedDay.isDayOff ? (
+                <span className="rounded-full bg-[#FBF0D8] px-3 py-1 text-[10px] font-bold text-[#8A622B]">
+                  Day Off
+                </span>
+              ) : selectedDay.workHoursLabel ? (
+                <span className="rounded-full bg-[#E4F5E8] px-3 py-1 text-[10px] font-bold text-[#156B49]">
+                  On Duty
+                </span>
+              ) : null}
+            </div>
+
+            {selectedDay.isDayOff ? (
+              <div className="rounded-[22px] border border-[#EAE5DD] bg-white px-5 py-6 text-center shadow-[0_5px_20px_rgba(30,41,59,0.04)]">
+                <div className="text-[15px] font-bold text-[#26394B]">
+                  Day off
+                </div>
+                <div className="mt-1 text-[12px] text-[#7B8795]">
+                  No scheduled shift for this day.
+                </div>
+              </div>
+            ) : (
+              <div className="relative">
+                <div className="absolute bottom-5 left-[95px] top-5 w-px bg-[#C7DCD1]" />
+
+                <div className="space-y-2">
+                  {selectedDay.workHoursLabel ? (
+                    <div className="relative grid grid-cols-[82px_1fr] gap-4">
+                      <div className="pt-4 text-right text-[11px] font-bold text-[#42556A]">
+                        Shift
+                      </div>
+
+                      <div className="relative rounded-[17px] bg-[#EDF7F0] px-4 py-3">
+                        <span className="absolute -left-[23px] top-[18px] size-3 rounded-full border-[3px] border-[#F7F3EB] bg-[#22B36B]" />
+
+                        <div className="flex items-center gap-2.5">
+                          <div className="grid size-9 place-items-center rounded-full bg-white text-[#0D6548]">
+                            <Clock3 size={17} />
+                          </div>
+
+                          <div>
+                            <div className="text-[13px] font-bold text-[#183729]">
+                              Regular Shift
+                            </div>
+                            <div className="mt-0.5 text-[11px] text-[#587063]">
+                              {selectedDay.workHoursLabel}
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  ) : null}
+
+                  {selectedDay.appointments.map((appointment) => {
+                    const homeService =
+                      appointment.bookingType === "home_service";
+
+                    const stateLabel = appointmentStatusLabel(
+                      appointment.status
+                    );
+
+                    return (
+                      <div
+                        key={appointment.id}
+                        className="relative grid grid-cols-[82px_1fr] gap-4"
+                      >
+                        <div className="pt-4 text-right text-[11px] font-bold text-[#42556A]">
+                          {appointment.timeLabel}
+                        </div>
+
+                        <div
+                          className={
+                            homeService
+                              ? "relative rounded-[17px] border border-[#F0DFC1] bg-[#FFF8EA] px-4 py-3"
+                              : "relative rounded-[17px] border border-[#ECE7DF] bg-white px-4 py-3"
+                          }
+                        >
+                          <span
+                            className={
+                              homeService
+                                ? "absolute -left-[23px] top-[18px] size-3 rounded-full border-[3px] border-[#F7F3EB] bg-[#B07A22]"
+                                : "absolute -left-[23px] top-[18px] size-3 rounded-full border-[3px] border-[#F7F3EB] bg-[#0D6548]"
+                            }
+                          />
+
+                          <div className="flex items-start gap-3">
+                            <div
+                              className={
+                                homeService
+                                  ? "grid size-9 shrink-0 place-items-center rounded-full bg-[#F7E7C8] text-[#94621D]"
+                                  : "grid size-9 shrink-0 place-items-center rounded-full bg-[#EDF5F0] text-[#0D6548]"
+                              }
+                            >
+                              {homeService ? (
+                                <Home size={17} />
+                              ) : (
+                                <Stethoscope size={17} />
+                              )}
+                            </div>
+
+                            <div className="min-w-0 flex-1">
+                              <div className="flex items-start justify-between gap-2">
+                                <div className="text-[13px] font-bold text-[#1B3043]">
+                                  {appointment.serviceName}
+                                </div>
+
+                                {stateLabel ? (
+                                  <span className="shrink-0 rounded-full bg-[#E5F5E9] px-2 py-0.5 text-[9.5px] font-bold text-[#16734C]">
+                                    {stateLabel}
+                                  </span>
+                                ) : null}
+                              </div>
+
+                              {homeService ? (
+                                <div className="mt-1 flex items-center gap-1.5 text-[11px] text-[#80673D]">
+                                  <Home size={12} />
+                                  Home Service
+                                </div>
+                              ) : appointment.roomName ? (
+                                <div className="mt-1 flex items-center gap-1.5 text-[11px] text-[#708092]">
+                                  <MapPin size={12} />
+                                  {appointment.roomName}
+                                </div>
+                              ) : null}
+                            </div>
+
+                            <ChevronRight
+                              size={16}
+                              className="mt-2 shrink-0 text-[#718096]"
+                            />
+                          </div>
+                        </div>
+                      </div>
+                    );
+                  })}
+
+                  {selectedDay.appointments.length === 0 &&
+                  !selectedDay.workHoursLabel ? (
+                    <div className="rounded-[20px] border border-[#EAE5DD] bg-white px-4 py-5 text-center text-[12px] text-[#7B8795]">
+                      Nothing scheduled for this day.
+                    </div>
+                  ) : null}
+                </div>
+              </div>
+            )}
+          </>
+        ) : null}
+      </main>
     </div>
   );
 }

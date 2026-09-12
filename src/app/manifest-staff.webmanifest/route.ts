@@ -3,9 +3,9 @@ export const dynamic = "force-static";
 export function GET() {
   const manifest = {
     id: "/cradlehub-staff",
-    name: "CradleHub Staff",
-    short_name: "Staff",
-    description: "CradleHub Staff — Team Workspace",
+    name: "Cradle Hub",
+    short_name: "Cradle Hub",
+    description: "Cradle Hub — Team Workspace",
     start_url: "/staff/",
     scope: "/staff/",
     display: "standalone",

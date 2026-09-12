@@ -1,43 +1,69 @@
 import Link from "next/link";
-import { ArrowLeft, ClipboardList } from "lucide-react";
-import { getMyProfileAction } from "../../staff-portal/actions";
+import {
+  ArrowLeft,
+  ClipboardList,
+  QrCode,
+} from "lucide-react";
 
 export const metadata = {
   title: "Work | CradleHub Staff",
 };
 
-export default async function StaffWorkPage() {
-  const profileResult = await getMyProfileAction().catch(() => null);
-  const staff = profileResult && "staff" in profileResult ? profileResult.staff : null;
-
+export default function StaffWorkPage() {
   return (
-    <div className="mx-auto max-w-lg p-4 sm:p-6">
-      <div className="mb-6 flex items-center gap-3">
-        <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-[#163A2B] text-[#C8A96B]">
-          <ClipboardList size={20} aria-hidden="true" />
-        </div>
-        <div>
-          <h1 className="text-lg font-bold text-[#1E293B]">Work</h1>
-          <p className="text-xs text-[#64748B]">CRM & Operational Tasks</p>
-        </div>
-      </div>
-
-      <div className="rounded-2xl border border-[#EAE4DC] bg-white p-6 shadow-xs text-center">
-        <p className="text-sm font-semibold text-[#1E293B] mb-2">
-          Daily Tasks & Shift Work
-        </p>
-        <p className="text-xs text-[#475569] leading-relaxed mb-6">
-          Your daily schedule and shift overview are active on the <strong>Today</strong> view. Operational task management pipelines and CRM queue operations are scheduled for <strong>Stage PWA-C9</strong>.
-        </p>
-
+    <div className="mx-auto max-w-[480px] px-4 pb-4 pt-4">
+      <div className="flex items-center gap-3">
         <Link
           href="/staff"
-          className="inline-flex h-11 items-center justify-center gap-2 rounded-xl bg-[#163A2B] px-5 text-xs font-semibold text-white shadow-xs transition hover:bg-[#10261D] active:scale-95"
+          aria-label="Back to Today"
+          className="grid size-9 place-items-center rounded-full border border-[#E4DED5] bg-white text-[#324759]"
         >
-          <ArrowLeft size={16} aria-hidden="true" />
-          <span>Back to Today</span>
+          <ArrowLeft size={16} />
         </Link>
+
+        <div>
+          <h1 className="text-[21px] font-bold tracking-[-0.03em] text-[#183044]">
+            Work
+          </h1>
+
+          <p className="text-[10.5px] text-[#758395]">
+            CRM / General Staff
+          </p>
+        </div>
       </div>
+
+      <section className="mt-5 rounded-[22px] border border-[#E9E4DC] bg-white p-5 shadow-[0_6px_22px_rgba(30,41,59,0.05)]">
+        <div className="grid size-12 place-items-center rounded-full bg-[#F7EFE0] text-[#8A6028]">
+          <ClipboardList size={21} />
+        </div>
+
+        <h2 className="mt-4 text-[16px] font-bold text-[#263B4D]">
+          Mobile work queue not connected
+        </h2>
+
+        <p className="mt-2 text-[11.5px] leading-5 text-[#718092]">
+          There is no authoritative CRM task queue connected to
+          this Staff PWA yet. Use Today for attendance, Scan for
+          authorized QR actions, and Notices for staff updates.
+        </p>
+
+        <div className="mt-4 grid grid-cols-2 gap-2">
+          <Link
+            href="/staff"
+            className="flex min-h-11 items-center justify-center rounded-[13px] border border-[#D9E4DC] bg-[#F8FAF8] text-[11.5px] font-bold text-[#315747]"
+          >
+            Back to Today
+          </Link>
+
+          <a
+            href="/staff/scan"
+            className="flex min-h-11 items-center justify-center gap-1.5 rounded-[13px] bg-[#0D6548] text-[11.5px] font-bold text-white"
+          >
+            <QrCode size={14} />
+            Scan
+          </a>
+        </div>
+      </section>
     </div>
   );
 }

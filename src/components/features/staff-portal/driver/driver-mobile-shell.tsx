@@ -20,7 +20,7 @@ export function DriverMobileShell({ staff, children, mode }: DriverMobileShellPr
   return (
     <MobileNavigationProgressProvider>
       <MobileRouteProgress />
-      <div className="min-h-dvh bg-[var(--cs-bg)] pb-[calc(112px+env(safe-area-inset-bottom))] md:contents md:bg-transparent md:pb-0">
+      <div className="min-h-dvh bg-[var(--cs-bg)] pb-[calc(84px+env(safe-area-inset-bottom))] md:contents md:bg-transparent md:pb-0">
         {children}
         <DriverMobileBottomNav
           isProfileOpen={profileOpen}

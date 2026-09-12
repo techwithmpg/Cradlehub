@@ -139,8 +139,8 @@ describe("PWA-C5: Staff Web App Manifest Contract", () => {
 
     // Identity and name checks
     expect(manifest.id).toBe("/cradlehub-staff");
-    expect(manifest.name).toBe("CradleHub Staff");
-    expect(manifest.short_name).toBe("Staff");
+    expect(manifest.name).toBe("Cradle Hub");
+    expect(manifest.short_name).toBe("Cradle Hub");
     expect(manifest.start_url).toBe("/staff/");
     expect(manifest.scope).toBe("/staff/");
     expect(manifest.display).toBe("standalone");
@@ -161,7 +161,7 @@ describe("PWA-C5: Role-Resolution Splash Contract", () => {
     const splashSource = await import("fs").then((fs) =>
       fs.readFileSync("src/components/features/staff-pwa/role-resolution-splash.tsx", "utf8")
     );
-    expect(splashSource).toContain("CradleHub Staff");
+    expect(splashSource).toContain("Cradle Hub");
     expect(splashSource).toContain("Team Workspace");
     expect(splashSource).toContain("Opening your workspace…");
   });

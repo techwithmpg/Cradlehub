@@ -80,7 +80,7 @@ export function StaffInstallPrompt() {
           </div>
           <div className="flex flex-col">
             <span className="text-xs font-bold text-[#1E293B]">
-              Install CradleHub Staff
+              Install Cradle Hub
             </span>
             <span className="text-[11px] text-[#64748B]">
               Team Workspace — Operational phone access

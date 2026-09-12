@@ -22,10 +22,25 @@ import { StaffConnectivityBanner } from "@/components/features/staff-pwa/connect
 import { StaffInstallPrompt } from "@/components/features/staff-pwa/install-prompt";
 
 export const metadata: Metadata = {
+  applicationName: "Cradle Hub",
   manifest: "/manifest-staff.webmanifest",
   title: {
-    template: "%s | CradleHub Staff",
-    default: "CradleHub Staff — Team Workspace",
+    template: "%s | Cradle Hub",
+    default: "Cradle Hub — Team Workspace",
+  },
+  appleWebApp: {
+    capable: true,
+    title: "Cradle Hub",
+    statusBarStyle: "black-translucent",
+  },
+  icons: {
+    apple: [
+      {
+        url: "/staff-manifest-icon-192.png",
+        sizes: "192x192",
+        type: "image/png",
+      },
+    ],
   },
 };
 
