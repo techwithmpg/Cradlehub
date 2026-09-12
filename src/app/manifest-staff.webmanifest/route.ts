@@ -5,7 +5,7 @@ export function GET() {
     id: "cradlehub-staff",
     name: "CradleHub Staff",
     short_name: "Staff",
-    description: "CradleHub Staff Operational Team Workspace",
+    description: "CradleHub Staff — Team Workspace",
     start_url: "/staff-portal",
     scope: "/",
     display: "standalone",
@@ -15,21 +15,16 @@ export function GET() {
     categories: ["business", "productivity", "utilities"],
     icons: [
       {
-        src: "/manifest-icon-192.png",
+        src: "/staff-manifest-icon-192.png",
         sizes: "192x192",
         type: "image/png",
         purpose: "any maskable",
       },
       {
-        src: "/manifest-icon-512.png",
+        src: "/staff-manifest-icon-512.png",
         sizes: "512x512",
         type: "image/png",
         purpose: "any maskable",
-      },
-      {
-        src: "/icon.png",
-        sizes: "512x512",
-        type: "image/png",
       },
     ],
   };

@@ -83,7 +83,7 @@ export function StaffInstallPrompt() {
               Install CradleHub Staff
             </span>
             <span className="text-[11px] text-[#64748B]">
-              Fast operational access on your phone
+              Team Workspace — Operational phone access
             </span>
           </div>
         </div>
@@ -94,7 +94,7 @@ export function StaffInstallPrompt() {
             onClick={handleInstallClick}
             className="rounded-xl bg-[#163A2B] px-3.5 py-2 text-xs font-semibold text-white shadow-xs transition active:scale-95 hover:bg-[#10261D] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#163A2B]"
           >
-            {isIOS ? "Add" : "Install"}
+            {isIOS ? "How to Add" : "Install"}
           </button>
           <button
             type="button"

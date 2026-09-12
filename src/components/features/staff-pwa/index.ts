@@ -14,4 +14,5 @@ export * from "./confirm-dialog";
 export * from "./action-sheet";
 export * from "./install-prompt";
 export * from "./install-guide";
+export * from "./role-resolution-splash";
 export * from "./app-shell";

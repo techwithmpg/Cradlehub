@@ -145,11 +145,39 @@ describe("PWA-C5: Staff Web App Manifest Contract", () => {
     expect(manifest.background_color).toBe("#F7F3EB");
     expect(manifest.theme_color).toBe("#163A2B");
 
-    // Icons check
+    // Icons check: must reference dedicated staff icons, preserving shared icons
     expect(Array.isArray(manifest.icons)).toBe(true);
     expect(manifest.icons.length).toBeGreaterThanOrEqual(2);
-    expect(manifest.icons.some((icon: { sizes: string }) => icon.sizes === "192x192")).toBe(true);
-    expect(manifest.icons.some((icon: { sizes: string }) => icon.sizes === "512x512")).toBe(true);
+    expect(manifest.icons.some((icon: { src: string; sizes: string }) => icon.src === "/staff-manifest-icon-192.png" && icon.sizes === "192x192")).toBe(true);
+    expect(manifest.icons.some((icon: { src: string; sizes: string }) => icon.src === "/staff-manifest-icon-512.png" && icon.sizes === "512x512")).toBe(true);
+    expect(manifest.description).toContain("Team Workspace");
+  });
+});
+
+describe("PWA-C5: Role-Resolution Splash Contract", () => {
+  it("verifies required primary wording in role-resolution splash source", async () => {
+    const splashSource = await import("fs").then((fs) =>
+      fs.readFileSync("src/components/features/staff-pwa/role-resolution-splash.tsx", "utf8")
+    );
+    expect(splashSource).toContain("CradleHub Staff");
+    expect(splashSource).toContain("Team Workspace");
+    expect(splashSource).toContain("Opening your workspace…");
+  });
+});
+
+describe("PWA-C5: Service Worker Preservation Contract", () => {
+  it("verifies existing service workers are preserved untouched", async () => {
+    const fs = await import("fs");
+    expect(fs.existsSync("public/cradlehub-push-sw.js")).toBe(true);
+    expect(fs.existsSync("public/sw.js")).toBe(true);
+
+    const pushSw = fs.readFileSync("public/cradlehub-push-sw.js", "utf8");
+    expect(pushSw).toContain("ALLOWED_ACTION_PREFIXES");
+    expect(pushSw).toContain("/crm");
+    expect(pushSw).toContain("/staff-portal");
+
+    const cleanupSw = fs.readFileSync("public/sw.js", "utf8");
+    expect(cleanupSw).toContain("CRADLEHUB_SERVICE_WORKER_UNREGISTERED");
   });
 });
 

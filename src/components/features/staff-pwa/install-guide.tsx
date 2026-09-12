@@ -16,8 +16,15 @@ export function StaffInstallGuide({
 }: StaffInstallGuideProps) {
   const content = (
     <div className="flex flex-col gap-4 text-left">
+      <div className="rounded-lg bg-[#FAF8F5] border border-[#EAE4DC] p-2.5 text-xs text-[#1E293B]">
+        <div className="font-semibold text-[#163A2B]">CradleHub Staff — Team Workspace</div>
+        <p className="text-[11px] text-[#475569] mt-0.5">
+          Dedicated operational app for staff, providers, drivers, and utility teams.
+        </p>
+      </div>
+
       <p className="text-xs text-[#475569]">
-        Install <strong>CradleHub Staff</strong> on your phone for full-screen operational work, fast attendance access, and trip notifications:
+        Install on your phone for full-screen operational access, attendance, and job schedules:
       </p>
 
       {isIOS ? (
@@ -66,8 +73,13 @@ export function StaffInstallGuide({
         </div>
       )}
 
-      <div className="mt-1 rounded-lg bg-[#FAF8F5] border border-[#EAE4DC] p-2.5 text-[11px] text-[#64748B]">
-        <strong>Note:</strong> Installing the app does not grant system permissions. Your server session determines your authorized workspace.
+      <div className="space-y-1.5 rounded-lg bg-[#FAF8F5] border border-[#EAE4DC] p-2.5 text-[11px] text-[#64748B]">
+        <div>
+          <strong className="text-[#1E293B]">Security & Sessions:</strong> Installing does not authenticate you or grant permissions.
+        </div>
+        <div>
+          <strong className="text-[#1E293B]">Launch Behavior:</strong> If opened while logged out, the app will request secure sign-in before resolving your operational role.
+        </div>
       </div>
     </div>
   );

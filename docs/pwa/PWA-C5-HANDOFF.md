@@ -30,19 +30,37 @@ Stage PWA-C5 has completed the shared mobile foundation implementation required 
 
 2. **Web App Manifest & Install Separation:**
    - Pre-inspection proved no pre-existing manifest existed for CRM or Staff.
-   - Implemented dedicated Staff PWA manifest endpoint: `src/app/manifest-staff.webmanifest/route.ts` (`id: "cradlehub-staff"`, `name: "CradleHub Staff"`, `short_name: "Staff"`, `start_url: "/staff-portal"`, `scope: "/"`).
+   - Dedicated Staff PWA manifest endpoint: `src/app/manifest-staff.webmanifest/route.ts` (`id: "cradlehub-staff"`, `name: "CradleHub Staff"`, `short_name: "Staff"`, `description: "CradleHub Staff — Team Workspace"`, `start_url: "/staff-portal"`, `scope: "/"`).
+   - Dedicated launcher icon assets: generated `public/staff-manifest-icon-192.png` and `public/staff-manifest-icon-512.png` featuring Deep Forest (`#163A2B`) background, Muted Gold (`#C8A96B`) monogram, and high-contrast "STAFF" team badge treatment. Pre-existing `public/manifest-icon-192.png` and `public/manifest-icon-512.png` remain completely untouched.
    - Preserved `public/sw.js` and `public/cradlehub-push-sw.js` completely untouched.
    - Staff surfaces promote `"Install CradleHub Staff"`; CRM surfaces do not advertise Staff PWA.
    - Linked manifest metadata in `src/app/(dashboard)/staff-portal/layout.tsx`, `src/app/(dashboard)/driver/layout.tsx`, and `src/app/scan/page.tsx`.
 
-3. **Role-Aware Navigation Foundation (`src/components/features/staff-pwa/role-navigation.ts`):**
+3. **Staff Launch & Role-Resolution Splash Screen:**
+   - Implemented `StaffRoleResolutionSplash` (`src/components/features/staff-pwa/role-resolution-splash.tsx`) with required primary wording:
+     - `CradleHub Staff`
+     - `Team Workspace`
+     - `Opening your workspace…`
+   - Covers secure session validation and operational role resolution.
+   - Fail-closed: does not guess, expose private operational data, or silently default unresolved users to any role.
+   - Integrated into `src/app/(dashboard)/staff-portal/loading.tsx` for mobile viewports.
+
+4. **iPhone Safari Install Guidance & Launch Boundaries:**
+   - Enhanced `StaffInstallPrompt` and `StaffInstallGuide` to clearly distinguish:
+     - Android / Chromium native install prompt (`beforeinstallprompt`)
+     - iPhone Safari manual Add to Home Screen guidance with step-by-step instructions
+     - Standalone / already installed mode detection (prompt suppressed)
+     - Security boundary: clearly states installation does not grant permissions
+     - Launch boundary: explains that opening while logged out routes to secure authentication before resolving workspace.
+
+5. **Role-Aware Navigation Foundation (`src/components/features/staff-pwa/role-navigation.ts`):**
    - 4 frozen profiles covering all 7 operational roles:
      - Provider (Therapist, Nail Tech, Aesthetician, Salon Head): `Today` · `Schedule` · `Scan` · `Progress` · `More`
      - CRM / General Staff: `Today` · `Work` · `Scan` · `Notices` · `More`
      - Utility: `Today` · `Work` (blocked/read-only) · `Scan` · `Notices` · `More`
      - Driver: `Today` · `Trips` · `Scan` · `Map` · `More`
 
-4. **Navigation Seams:**
+6. **Navigation Seams:**
    - Created `/scan` seam (`src/app/scan/page.tsx`) rendering the Staff PWA shell and displaying a clear placeholder explaining that camera QR scanning and decoding are scheduled for Stage PWA-C6.
    - Updated `therapist-mobile-bottom-nav.tsx`, `staff-mobile-bottom-nav.tsx`, and `driver-mobile-bottom-nav.tsx` to adopt the canonical 5-position `StaffBottomNav`.
 
@@ -52,10 +70,11 @@ Stage PWA-C5 has completed the shared mobile foundation implementation required 
 
 - **VERIFIED REPOSITORY FACT:** No Web App Manifest existed in the repository prior to C5.
 - **VERIFIED REPOSITORY FACT:** `public/cradlehub-push-sw.js` is registered at root scope `/` strictly on user action in notification settings; `public/sw.js` is a legacy self-unregistering cleanup worker. Both were preserved untouched.
-- **LOCAL TEST EVIDENCE:** `tests/lib/pwa/staff-pwa-foundation.test.ts` passes 10/10 tests covering role mapping, navigation structures, center Scan button placement, Utility Work blocking, manifest output, and connectivity contracts.
+- **VERIFIED REPOSITORY FACT:** CRM and Staff routes currently share the top-level route namespace (`/crm`, `/owner`, `/marketing` vs `/staff-portal`, `/driver`, `/utility`, `/scan`).
+- **LOCAL TEST EVIDENCE:** `tests/lib/pwa/staff-pwa-foundation.test.ts` passes 12/12 tests covering role mapping, navigation structures, center Scan button placement, Utility Work blocking, manifest output, dedicated icon paths, role resolution splash wording, service worker preservation, and connectivity contracts.
 - **LOCAL TEST EVIDENCE:** `npm run type-check` passes with zero TypeScript errors.
 - **LOCAL TEST EVIDENCE:** `git diff --check` passes with zero whitespace or formatting errors.
-- **PROJECT DECISION — OWNER APPROVED:** Manifest identity is separated from service-worker cache logic; Staff manifest serves operational staff (`cradlehub-staff`); C6+ remains strictly unauthorized.
+- **UNKNOWN / NOT VERIFIED:** Android real-device installation, iPhone Safari home screen bookmarking/standalone launch, home screen icon rendering at OS scale, real-device safe area handling, and Web Push delivery on physical devices remain unverified until real device testing is authorized.
 
 ---
 
