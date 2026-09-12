@@ -8,14 +8,13 @@
 
 ## CradleHub Staff PWA — current task authorization (2026-09-12)
 
-- Program: **OWNER APPROVED**; current task: **PWA-C5 — Shared Foundation**.
-- PWA-C4 is **CLOSED / ACCEPTED / MERGED** at accepted baseline `d11a8ca3623e0092829c683b7022dc302739b96b`, per owner authorization and verified starting refs.
-- Dedicated branch: `stage/pwa-c5-shared-foundation`.
-- C5 implements the shared mobile foundation only (AppShell, TopBar, BottomNav with 5-position dock and prominent center Scan seam, role-navigation mapping, connectivity states, shared status/loading/error states, confirm dialog, action sheet, Staff install guidance, manifest identity separation). **PWA-C6+ remains strictly NOT AUTHORIZED. No database/schema/migrations, Auth/RLS/Storage changes, production access/mutation, or deployment are authorized.**
-- [PWA-GOV-008](docs/11-DECISION-LOG.md#staff-pwa-decisions), [PWA-GOV-007](docs/11-DECISION-LOG.md#staff-pwa-decisions), [project governance](docs/pwa/PROJECT.md), [accepted C3 scope](docs/pwa/PWA-C3-FINAL-SCOPE-FREEZE.md), [C4 specification](docs/pwa/PWA-C4-UIUX-SPECIFICATION.md) and [C5 handoff](docs/pwa/PWA-C5-HANDOFF.md) define current authority and delivery.
-- C1/C2 evidence and accepted C3/C4 artifacts remain inputs. C3 product decisions and C4 UI/UX specifications remain binding.
-- The separate historical Web/Marketing workstream below is not activated or reconciled by this task.
-- Repository production statements remain **REPOSITORY-RECORDED PRODUCTION EVIDENCE**. C5 performs no production/device/database verification.
+- Program: **OWNER APPROVED**. Current stage: **PWA-C6 — Scanner correction / external re-review**, on `stage/pwa-c6-scanner`.
+- Accepted C5/main baseline: `a97e43eec9ce0c99ad5037212e75cd5226fe38fc`; reviewed C6 head: `bc20ee15cd987364b7acdeea0886d7c649ee1a5e`. C6 remains current until accepted/merged; correction work is a new commit, with no history rewrite.
+- Latest owner instruction authorizes only the four C6 scanner corrections, focused verification, governance updates, and normal branch commit/push. No deployment, merge, schema/migration/Auth/RLS/Storage changes, or production access/mutation is authorized. Configured remote Supabase target: **UNKNOWN**; no authenticated/mutating runtime verification against it.
+- **PWA-GOV-010 — OWNER APPROVED ROADMAP COMPRESSION** prospectively supersedes original remaining C7–C19 after C6 acceptance: C7X Staff Operations Core → C8X Driver & Off-Site Operations → C9X Stabilization & Release Hardening → C10X Training & Release Candidate → separate FINAL Release Certification. Historical stage records remain evidence.
+- **PWA-C7X — NOT YET AUTHORIZED FOR IMPLEMENTATION.** Roadmap approval and completion of C6 do not authorize later implementation or deployment.
+- Authority: [PWA-GOV-009/010](docs/11-DECISION-LOG.md#staff-pwa-decisions), [project roadmap](docs/pwa/PROJECT.md#prospective-compressed-roadmap--pwa-gov-010), and [C6 handoff](docs/pwa/PWA-C6-HANDOFF.md).
+- Accepted C3 product contracts, C4 design specifications and C5 foundation remain binding. The separate Web/Marketing workstream below is not activated or reconciled by this task. Older production statements remain REPOSITORY-RECORDED PRODUCTION EVIDENCE.
 
 ## Accepted governance anchor
 
@@ -57,6 +56,8 @@ The recorded SHAs are stable closeout anchors, not declarations of the current `
 8. Production state independently proven by authorized evidence
 
 ## Active governance manifest
+
+- [Staff PWA C6 current handoff](docs/pwa/PWA-C6-HANDOFF.md)
 
 - [Staff PWA project governance](docs/pwa/PROJECT.md)
 - [Staff PWA current-system truth map](docs/pwa/PWA-C1-TRUTH-MAP.md)

@@ -1,11 +1,10 @@
 "use client";
 
-import { useCallback, useRef } from "react";
+import { useCallback, useEffect, useRef } from "react";
 import { useRouter } from "next/navigation";
 import {
   Camera,
   CameraOff,
-  CheckCircle2,
   Loader2,
   QrCode,
   RefreshCw,
@@ -14,7 +13,7 @@ import {
 } from "lucide-react";
 import { useStaffScanner } from "./use-staff-scanner";
 import type { ScannerState } from "./use-staff-scanner";
-import type { ScanTargetResult } from "@/lib/scanner/resolve-scan-target";
+import { resolveStaffScanTargetAction } from "@/app/(dashboard)/staff/scan/actions";
 
 // ---------------------------------------------------------------------------
 // Types
@@ -72,9 +71,6 @@ function IdleOverlay({ state }: { state: ScannerState }) {
       </span>
     );
   }
-  if (state === "confirmed") {
-    return <CheckCircle2 size={52} className="text-emerald-600" aria-hidden="true" />;
-  }
   if (state === "invalid" || state === "rejected") {
     return <XCircle size={48} className="text-red-400" aria-hidden="true" />;
   }
@@ -98,9 +94,7 @@ function Viewfinder({
   const isLive = liveStates.includes(state);
 
   const borderColor =
-    state === "confirmed"
-      ? "border-emerald-500"
-      : state === "invalid" || state === "rejected"
+    state === "invalid" || state === "rejected"
         ? "border-red-400"
         : "border-[#C8A96B]";
 
@@ -172,12 +166,8 @@ function StatusMessage({ state }: { state: ScannerState }) {
       </p>
     );
   }
-  if (state === "confirmed") {
-    return (
-      <p className="text-center text-sm font-semibold text-emerald-700">
-        Redirecting…
-      </p>
-    );
+  if (state === "paused") {
+    return <p className="text-center text-sm text-[#475569]">Camera paused. Tap Scan again to resume.</p>;
   }
   if (state === "permission_denied") {
     return (
@@ -250,8 +240,6 @@ function Actions({
   const processing =
     state === "scanning" || state === "code_detected" || state === "processing";
 
-  if (state === "confirmed") return null;
-
   if (processing) {
     return (
       <div className="flex justify-center">
@@ -264,6 +252,7 @@ function Actions({
   }
 
   const isRetry =
+    state === "paused" ||
     state === "permission_denied" ||
     state === "camera_unavailable" ||
     state === "invalid" ||
@@ -315,7 +304,7 @@ function Actions({
  *
  * The `setState` setter from the hook is accessed via a stable ref to avoid
  * the circular dependency that would arise from passing it to the hook via
- * the handleTarget callback.
+ * the handleDecode callback.
  *
  * Architecture: PWA-GOV-009 / C6
  */
@@ -325,36 +314,45 @@ export function StaffQrScanner({ returnHref }: StaffQrScannerProps) {
   /**
    * Stable ref to the hook's setState function.
    * Populated synchronously after the hook call; safe to access in
-   * handleTarget which is only invoked asynchronously (after decode).
+   * handleDecode which is only invoked asynchronously (after decode).
    */
   const setStateRef = useRef<((s: ScannerState) => void) | null>(null);
 
-  const handleTarget = useCallback(
-    (result: ScanTargetResult, _attemptId: string) => {
+  const requestRef = useRef<string | null>(null);
+  const mountedRef = useRef(true);
+  useEffect(() => {
+    mountedRef.current = true;
+    return () => { mountedRef.current = false; requestRef.current = null; };
+  }, []);
+
+  const handleDecode = useCallback(
+    async (raw: string, attemptId: string) => {
       const setState = setStateRef.current;
       if (!setState) return;
-
-      if (!result.ok) {
-        setState("invalid");
-        return;
-      }
-
-      setState("confirmed");
-      if (result.target === "public_scan") {
-        router.push(
-          `/staff/scan/process/${encodeURIComponent(result.publicCode)}`
-        );
-      } else if (result.target === "activation") {
-        router.push(
-          `/staff/scan/activate/${encodeURIComponent(result.token)}`
-        );
+      requestRef.current = attemptId;
+      setState("processing");
+      try {
+        const result = await resolveStaffScanTargetAction(raw);
+        if (!mountedRef.current || requestRef.current !== attemptId) return;
+        if (!result.ok) {
+          setState("invalid");
+          return;
+        }
+        // A normalized transport is not an operation result. Remain processing.
+        if (result.target === "public_scan") {
+          router.push(`/staff/scan/process/${encodeURIComponent(result.publicCode)}`);
+        } else {
+          router.push(`/staff/scan/activate/${encodeURIComponent(result.token)}`);
+        }
+      } catch {
+        if (mountedRef.current && requestRef.current === attemptId) setState("network_unknown");
       }
     },
     [router]
   );
 
   const { state, videoRef, canvasRef, startScan, scanAgain, setState } =
-    useStaffScanner({ onTarget: handleTarget });
+    useStaffScanner({ onDecode: handleDecode });
 
   // Keep the ref current after each render
   setStateRef.current = setState;

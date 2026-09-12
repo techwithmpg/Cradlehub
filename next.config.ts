@@ -49,6 +49,17 @@ const nextConfig: NextConfig = {
         ],
       },
       {
+        // Staff uses client navigation into Scan, so the initial Staff document
+        // must permit its same-origin camera. Capture still requires user consent.
+        source: "/staff/:path*",
+        headers: [
+          {
+            key: "Permissions-Policy",
+            value: "camera=(self), microphone=(), geolocation=(self)",
+          },
+        ],
+      },
+      {
         source: "/:serviceWorker(sw|cradlehub-push-sw).js",
         headers: [
           {

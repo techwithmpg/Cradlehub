@@ -1,3 +1,5 @@
+import "server-only";
+
 /**
  * Server-owned scan routing seam — PWA-C6 / PWA-GOV-009
  *

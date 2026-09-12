@@ -2,7 +2,13 @@
 
 ## Staff PWA sub-roadmap
 
-The owner-approved CradleHub Staff PWA program has its own [PWA-C1 through FINAL roadmap](pwa/PROJECT.md). PWA-C3 is closed / accepted / merged at `3c069f198db8a6341b6bf27758cdbec24d344089`. PWA-GOV-006 authorizes **PWA-C4 — UI/UX Specification** only on `stage/pwa-c4-uiux-specification`. See the [C4 specification](pwa/PWA-C4-UIUX-SPECIFICATION.md) and [handoff](pwa/PWA-C4-HANDOFF.md). No runtime implementation, database/schema/migration/Auth/RLS/Storage changes, production access/mutation, merge or deployment is authorized. **PWA-C5+ remains NOT AUTHORIZED.** The Web/Marketing stages below remain a separate historical sequence.
+- Program: **OWNER APPROVED**. Current stage: **PWA-C6 — Scanner correction / external re-review**, on `stage/pwa-c6-scanner`.
+- Accepted C5/main baseline: `a97e43eec9ce0c99ad5037212e75cd5226fe38fc`; reviewed C6 head: `bc20ee15cd987364b7acdeea0886d7c649ee1a5e`. C6 remains current until accepted/merged; correction work is a new commit, with no history rewrite.
+- Latest owner instruction authorizes only the four C6 scanner corrections, focused verification, governance updates, and normal branch commit/push. No deployment, merge, schema/migration/Auth/RLS/Storage changes, or production access/mutation is authorized. Configured remote Supabase target: **UNKNOWN**; no authenticated/mutating runtime verification against it.
+- **PWA-GOV-010 — OWNER APPROVED ROADMAP COMPRESSION** prospectively supersedes original remaining C7–C19 after C6 acceptance: C7X Staff Operations Core → C8X Driver & Off-Site Operations → C9X Stabilization & Release Hardening → C10X Training & Release Candidate → separate FINAL Release Certification. Historical stage records remain evidence.
+- **PWA-C7X — NOT YET AUTHORIZED FOR IMPLEMENTATION.** Roadmap approval and completion of C6 do not authorize later implementation or deployment.
+
+See the [ordered macro-stage slices and blocking gates](pwa/PROJECT.md#prospective-compressed-roadmap--pwa-gov-010). C7X, C8X and C9X each use one branch/review cycle with internal gates preserved. C8X-D cannot begin until C8X-C proves required reliability and the server-side eligibility contract. Security remains an explicit blocking gate inside C9X. C10X completion does not authorize deployment; FINAL requires separate explicit owner approval. The Web/Marketing sequence below remains separate historical evidence.
 
 ## Web stabilization stages
 

@@ -10,6 +10,8 @@
 import { describe, expect, it, beforeAll, afterAll, vi } from "vitest";
 import { resolveStaffScanTarget } from "../resolve-scan-target";
 
+vi.mock("server-only", () => ({}));
+
 // ---------------------------------------------------------------------------
 // Helpers
 // ---------------------------------------------------------------------------
