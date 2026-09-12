@@ -5,6 +5,9 @@ vi.mock("next/cache", () => ({
   revalidatePath: vi.fn(),
   revalidateTag: vi.fn(),
 }));
+vi.mock("next/headers", () => ({
+  cookies: vi.fn(() => Promise.resolve({ get: vi.fn(), set: vi.fn() })),
+}));
 
 // Mutation and select spies
 const mockInsertSpy = vi.fn();
@@ -154,6 +157,7 @@ import {
 import { isResourceInActiveTurnover as engineIsResourceInActiveTurnover } from "@/lib/engine/resource-availability";
 import { getUtilityWorkspaceRuntime } from "@/lib/staff-pwa/utility-runtime";
 import { completeCrmBookingService } from "@/lib/bookings/crm-booking-operations";
+import { updateBookingProgressAction } from "@/app/(dashboard)/staff-portal/actions";
 
 const branchId = "11111111-1111-1111-1111-111111111111";
 const otherBranchId = "22222222-2222-2222-2222-222222222222";
@@ -170,6 +174,7 @@ describe("W1B: Utility Room Turnover Integrity, Concurrency & Recovery", () => {
     vi.clearAllMocks();
     updateCasRowsOverride = null;
     insertErrorOverride = null;
+    mockWorkflowTasksSelect.mockResolvedValue({ data: null, error: null });
   });
 
   // ───────────────────────────────────────────────────────────────────────────
@@ -849,7 +854,7 @@ describe("W1B: Utility Room Turnover Integrity, Concurrency & Recovery", () => {
         service_id: serviceId,
         type: "in_spa",
         delivery_type: "in_spa",
-        session_completed_at: null,
+        session_completed_at: "2026-09-13T10:30:00Z",
       },
       error: null,
     });
@@ -1014,5 +1019,440 @@ describe("W1B: Utility Room Turnover Integrity, Concurrency & Recovery", () => {
     await expect(engineIsResourceInActiveTurnover(resourceId)).rejects.toThrow(
       "database unreachable"
     );
+  });
+
+  // ───────────────────────────────────────────────────────────────────────────
+  // 17. Home Service completion via staff portal: legitimate skip
+  // ───────────────────────────────────────────────────────────────────────────
+  it("17. Home Service completion via staff portal: service completed, turnoverSyncStatus = 'skipped', no warning, no task created", async () => {
+    mockGetUser.mockResolvedValue({
+      data: { user: { id: userId } },
+      error: null,
+    });
+
+    mockStaffSelect.mockResolvedValue({
+      data: {
+        id: staffId,
+        branch_id: branchId,
+        system_role: "staff",
+        staff_type: "therapist",
+        is_active: true,
+      },
+      error: null,
+    });
+
+    mockBookingsSelect.mockResolvedValue({
+      data: {
+        id: bookingId,
+        branch_id: branchId,
+        staff_id: staffId,
+        type: "home_service",
+        delivery_type: "home_service",
+        status: "confirmed",
+        booking_progress_status: "session_started",
+        resource_id: null,
+        session_started_at: "2026-09-13T10:00:00Z",
+        session_completed_at: "2026-09-13T11:00:00Z",
+      },
+      error: null,
+    });
+
+    const result = await updateBookingProgressAction({
+      bookingId,
+      nextStatus: "completed",
+    });
+
+    expect(result.ok).toBe(true);
+    if (!result.ok) throw new Error("Expected updateBookingProgressAction to succeed");
+    expect(result.status).toBe("completed");
+    expect(result.turnoverSyncStatus).toBe("skipped");
+    expect(result.turnoverWarning).toBeUndefined();
+    expect(mockWorkflowTasksInsert).not.toHaveBeenCalled();
+  });
+
+  // ───────────────────────────────────────────────────────────────────────────
+  // 18. Already-completed Home Service retry via staff portal
+  // ───────────────────────────────────────────────────────────────────────────
+  it("18. already-completed Home Service retry via staff portal: returns completed truth, turnoverSyncStatus = 'skipped', no warning", async () => {
+    mockGetUser.mockResolvedValue({
+      data: { user: { id: userId } },
+      error: null,
+    });
+
+    mockStaffSelect.mockResolvedValue({
+      data: {
+        id: staffId,
+        branch_id: branchId,
+        system_role: "staff",
+        staff_type: "therapist",
+        is_active: true,
+      },
+      error: null,
+    });
+
+    mockBookingsSelect.mockResolvedValue({
+      data: {
+        id: bookingId,
+        branch_id: branchId,
+        staff_id: staffId,
+        type: "home_service",
+        delivery_type: "home_service",
+        status: "completed", // Already completed
+        booking_progress_status: "completed",
+        resource_id: null,
+        session_completed_at: "2026-09-13T11:00:00Z",
+      },
+      error: null,
+    });
+
+    const result = await updateBookingProgressAction({
+      bookingId,
+      nextStatus: "completed",
+    });
+
+    expect(result.ok).toBe(true);
+    if (!result.ok) throw new Error("Expected updateBookingProgressAction to succeed");
+    expect(result.status).toBe("completed");
+    expect(result.turnoverSyncStatus).toBe("skipped");
+    expect(result.turnoverWarning).toBeUndefined();
+    expect(mockWorkflowTasksInsert).not.toHaveBeenCalled();
+  });
+
+  // ───────────────────────────────────────────────────────────────────────────
+  // 19. CRM Home Service completion: legitimate skip
+  // ───────────────────────────────────────────────────────────────────────────
+  it("19. CRM Home Service completion: returns success = true, turnoverSyncStatus = 'skipped', no TURNOVER_SYNC_REQUIRED, no warning", async () => {
+    mockBookingsSelect.mockResolvedValue({
+      data: {
+        id: bookingId,
+        branch_id: branchId,
+        customer_id: "customer-1",
+        staff_id: staffId,
+        type: "home_service",
+        delivery_type: "home_service",
+        status: "confirmed",
+        booking_progress_status: "session_started",
+        payment_status: "paid",
+        resource_id: null,
+        session_completed_at: "2026-09-13T11:00:00Z",
+      },
+      error: null,
+    });
+
+    const crmCtx = {
+      supabase: mockUserClient as any,
+      authUserId: userId,
+      me: { id: staffId, branch_id: branchId, system_role: "owner" },
+    };
+
+    const opResult = await completeCrmBookingService(crmCtx, {
+      bookingId,
+    });
+
+    expect(opResult.success).toBe(true);
+    expect(opResult.turnoverSyncStatus).toBe("skipped");
+    expect(opResult.code).not.toBe("TURNOVER_SYNC_REQUIRED");
+    expect(opResult.turnoverWarning).toBeUndefined();
+    expect(mockWorkflowTasksInsert).not.toHaveBeenCalled();
+  });
+
+  // ───────────────────────────────────────────────────────────────────────────
+  // 20. Actual eligible onsite turnover creation failure: surfaces TURNOVER_SYNC_REQUIRED
+  // ───────────────────────────────────────────────────────────────────────────
+  it("20. actual eligible onsite turnover creation failure: turnoverSyncStatus = 'failed', TURNOVER_SYNC_REQUIRED surfaced, completion truth preserved", async () => {
+    mockBookingsSelect.mockResolvedValue({
+      data: {
+        id: bookingId,
+        branch_id: branchId,
+        customer_id: "customer-1",
+        status: "confirmed",
+        booking_progress_status: "session_started",
+        payment_status: "paid",
+        resource_id: resourceId,
+        service_id: serviceId,
+        type: "in_spa",
+        delivery_type: "in_spa",
+        session_completed_at: "2026-09-13T10:30:00Z",
+      },
+      error: null,
+    });
+
+    mockBranchResourcesSelect.mockResolvedValue({
+      data: {
+        id: resourceId,
+        name: "Treatment Room 1",
+        type: "room",
+        branch_id: branchId,
+        is_active: true,
+      },
+      error: null,
+    });
+
+    mockServicesSelect.mockResolvedValue({
+      data: { name: "Swedish Massage" },
+      error: null,
+    });
+
+    // Workflow tasks insert encounters actual fatal database error
+    insertErrorOverride = { code: "50000", message: "disk I/O failure" };
+
+    const crmCtx = {
+      supabase: mockUserClient as any,
+      authUserId: userId,
+      me: { id: staffId, branch_id: branchId, system_role: "owner" },
+    };
+
+    const opResult = await completeCrmBookingService(crmCtx, {
+      bookingId,
+    });
+
+    expect(opResult.success).toBe(true); // Service completion succeeded truthfully
+    expect(opResult.turnoverSyncStatus).toBe("failed");
+    expect(opResult.code).toBe("TURNOVER_SYNC_REQUIRED");
+    expect(opResult.turnoverWarning).toContain("turnover task synchronization failed");
+    expect(mockWorkflowTasksInsert).toHaveBeenCalled();
+  });
+
+  // ───────────────────────────────────────────────────────────────────────────
+  // 21. Active room turnover lookup: includes canonical branch_id constraint & dedupe_key
+  // ───────────────────────────────────────────────────────────────────────────
+  it("21. active room turnover lookup: includes canonical branch_id constraint and dedupe_key", async () => {
+    mockBookingsSelect.mockResolvedValue({
+      data: {
+        id: bookingId,
+        branch_id: branchId,
+        resource_id: resourceId,
+        service_id: serviceId,
+        type: "in_spa",
+        delivery_type: "in_spa",
+        status: "completed",
+        booking_progress_status: "completed",
+        session_completed_at: "2026-09-13T10:30:00Z",
+        completed_at: "2026-09-13T10:30:00Z",
+      },
+      error: null,
+    });
+
+    mockBranchResourcesSelect.mockResolvedValue({
+      data: {
+        id: resourceId,
+        name: "Treatment Room 1",
+        type: "room",
+        branch_id: branchId,
+        is_active: true,
+      },
+      error: null,
+    });
+
+    mockServicesSelect.mockResolvedValue({
+      data: { name: "Swedish Massage" },
+      error: null,
+    });
+
+    mockWorkflowTasksSelect.mockResolvedValue({
+      data: {
+        id: taskId,
+        status: "open",
+        branch_id: branchId,
+        dedupe_key: `room_turnover:${branchId}:${resourceId}`,
+        workspace_scope: "utility",
+        task_type: "room_turnover",
+        entity_type: "branch_resource",
+        entity_id: resourceId,
+        metadata: { room_name: "Treatment Room 1" },
+      },
+      error: null,
+    });
+
+    const result = await triggerUtilityRoomTurnoverOnServiceCompletion({
+      bookingId,
+      actorStaffId: staffId,
+    });
+
+    expect(result.ok).toBe(true);
+    expect(result.taskId).toBe(taskId);
+    expect(mockWorkflowTasksUpdate).toHaveBeenCalledWith(
+      expect.objectContaining({
+        metadata: expect.objectContaining({
+          booking_id: bookingId,
+        }),
+      })
+    );
+  });
+
+  // ───────────────────────────────────────────────────────────────────────────
+  // 22. Malformed active workflow task (wrong branch): must NOT be updated
+  // ───────────────────────────────────────────────────────────────────────────
+  it("22. malformed active workflow task (wrong branch): must NOT be updated", async () => {
+    mockBookingsSelect.mockResolvedValue({
+      data: {
+        id: bookingId,
+        branch_id: branchId,
+        resource_id: resourceId,
+        service_id: serviceId,
+        type: "in_spa",
+        delivery_type: "in_spa",
+        status: "completed",
+        booking_progress_status: "completed",
+        session_completed_at: "2026-09-13T10:30:00Z",
+      },
+      error: null,
+    });
+
+    mockBranchResourcesSelect.mockResolvedValue({
+      data: {
+        id: resourceId,
+        name: "Treatment Room 1",
+        type: "room",
+        branch_id: branchId,
+        is_active: true,
+      },
+      error: null,
+    });
+
+    mockServicesSelect.mockResolvedValue({
+      data: { name: "Swedish Massage" },
+      error: null,
+    });
+
+    // Active lookup filters by canonical branch_id and dedupe_key.
+    // Malformed task has wrong branch_id, so canonical query returns null.
+    mockWorkflowTasksSelect.mockResolvedValue({
+      data: null,
+      error: null,
+    });
+
+    const result = await triggerUtilityRoomTurnoverOnServiceCompletion({
+      bookingId,
+      actorStaffId: staffId,
+    });
+
+    expect(result.ok).toBe(true);
+    // Malformed task was NOT updated; a fresh canonical task was inserted
+    expect(mockWorkflowTasksUpdate).not.toHaveBeenCalled();
+    expect(mockWorkflowTasksInsert).toHaveBeenCalledWith(
+      expect.objectContaining({
+        branch_id: branchId,
+        dedupe_key: `room_turnover:${branchId}:${resourceId}`,
+        entity_id: resourceId,
+      })
+    );
+  });
+
+  // ───────────────────────────────────────────────────────────────────────────
+  // 23. Malformed active workflow task (inconsistent dedupe key): must NOT be adopted
+  // ───────────────────────────────────────────────────────────────────────────
+  it("23. malformed active workflow task (inconsistent dedupe key): must NOT be adopted as canonical turnover", async () => {
+    mockBookingsSelect.mockResolvedValue({
+      data: {
+        id: bookingId,
+        branch_id: branchId,
+        resource_id: resourceId,
+        service_id: serviceId,
+        type: "in_spa",
+        delivery_type: "in_spa",
+        status: "completed",
+        booking_progress_status: "completed",
+        session_completed_at: "2026-09-13T10:30:00Z",
+      },
+      error: null,
+    });
+
+    mockBranchResourcesSelect.mockResolvedValue({
+      data: {
+        id: resourceId,
+        name: "Treatment Room 1",
+        type: "room",
+        branch_id: branchId,
+        is_active: true,
+      },
+      error: null,
+    });
+
+    mockServicesSelect.mockResolvedValue({
+      data: { name: "Swedish Massage" },
+      error: null,
+    });
+
+    // Active task with arbitrary non-canonical dedupe_key is not found by canonical query
+    mockWorkflowTasksSelect.mockResolvedValue({
+      data: null,
+      error: null,
+    });
+
+    const result = await triggerUtilityRoomTurnoverOnServiceCompletion({
+      bookingId,
+      actorStaffId: staffId,
+    });
+
+    expect(result.ok).toBe(true);
+    // Did not mutate the non-canonical row
+    expect(mockWorkflowTasksUpdate).not.toHaveBeenCalled();
+    expect(mockWorkflowTasksInsert).toHaveBeenCalledWith(
+      expect.objectContaining({
+        dedupe_key: `room_turnover:${branchId}:${resourceId}`,
+      })
+    );
+  });
+
+  // ───────────────────────────────────────────────────────────────────────────
+  // 24. Unique-race recovery: only canonical active task is accepted
+  // ───────────────────────────────────────────────────────────────────────────
+  it("24. unique-race recovery: only canonical active task is accepted, malformed conflict rejected with failure", async () => {
+    mockBookingsSelect.mockResolvedValue({
+      data: {
+        id: bookingId,
+        branch_id: branchId,
+        resource_id: resourceId,
+        service_id: serviceId,
+        type: "in_spa",
+        delivery_type: "in_spa",
+        status: "completed",
+        booking_progress_status: "completed",
+        session_completed_at: "2026-09-13T10:30:00Z",
+      },
+      error: null,
+    });
+
+    mockBranchResourcesSelect.mockResolvedValue({
+      data: {
+        id: resourceId,
+        name: "Treatment Room 1",
+        type: "room",
+        branch_id: branchId,
+        is_active: true,
+      },
+      error: null,
+    });
+
+    mockServicesSelect.mockResolvedValue({
+      data: { name: "Swedish Massage" },
+      error: null,
+    });
+
+    // 1. Initial select finds no active task
+    mockWorkflowTasksSelect.mockResolvedValueOnce({
+      data: null,
+      error: null,
+    });
+
+    // 2. Insert hits 23505 collision
+    insertErrorOverride = { code: "23505", message: "unique violation" };
+
+    // 3. Race retry searches for canonical task (matching branchId and entity_id) but finds none (e.g. malformed row)
+    mockWorkflowTasksSelect.mockResolvedValueOnce({
+      data: null,
+      error: null,
+    });
+
+    const result = await triggerUtilityRoomTurnoverOnServiceCompletion({
+      bookingId,
+      actorStaffId: staffId,
+    });
+
+    // Must return explicit synchronization failure, never mutating the malformed row
+    expect(result.ok).toBe(false);
+    expect(result.error).toContain("canonical turnover scope");
+    expect(mockWorkflowTasksUpdate).not.toHaveBeenCalled();
   });
 });

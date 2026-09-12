@@ -61,10 +61,12 @@ async function ensureRoomTurnoverTask(params: {
     params.booking.completed_at ??
     new Date().toISOString();
 
-  // 1. Check for an ACTIVE task for this resource
+  // 1. Check for an ACTIVE task for this resource matching canonical scope
   const { data: existingActive, error: selectError } = await admin
     .from("workflow_tasks")
-    .select("id, status, assigned_to_staff_id, metadata")
+    .select("id, status, assigned_to_staff_id, metadata, dedupe_key, branch_id")
+    .eq("branch_id", params.branchId)
+    .eq("dedupe_key", dedupeKey)
     .eq("workspace_scope", "utility")
     .eq("task_type", "room_turnover")
     .eq("entity_type", "branch_resource")
@@ -102,6 +104,7 @@ async function ensureRoomTurnoverTask(params: {
           } as Json,
         })
         .eq("id", existingActive.id)
+        .eq("branch_id", params.branchId)
         .eq("status", "in_progress");
 
       if (updateError) {
@@ -129,6 +132,7 @@ async function ensureRoomTurnoverTask(params: {
         } as Json,
       })
       .eq("id", existingActive.id)
+      .eq("branch_id", params.branchId)
       .eq("status", "open");
 
     if (updateError) {
@@ -185,17 +189,33 @@ async function ensureRoomTurnoverTask(params: {
 
   // 4. Handle unique index violation race (23505 on workflow_tasks_open_dedupe_key_uidx)
   if (insertError.code === "23505") {
-    // Re-query ONLY active tasks (do NOT touch historical completed rows sharing the key)
+    // Re-query ONLY active tasks matching canonical scope (do NOT touch historical completed rows sharing the key)
     const { data: activeAfterRace, error: raceError } = await admin
       .from("workflow_tasks")
-      .select("id, status")
+      .select("id, status, branch_id, workspace_scope, task_type, entity_type, entity_id")
       .eq("dedupe_key", dedupeKey)
+      .eq("branch_id", params.branchId)
+      .eq("workspace_scope", "utility")
+      .eq("task_type", "room_turnover")
+      .eq("entity_type", "branch_resource")
+      .eq("entity_id", params.resource.id)
       .in("status", ["open", "in_progress"])
       .maybeSingle();
 
     if (!raceError && activeAfterRace) {
       return { ok: true, taskId: activeAfterRace.id };
     }
+
+    logError("utility_turnover.race_canonical_mismatch", {
+      dedupeKey,
+      branchId: params.branchId,
+      resourceId: params.resource.id,
+      error: raceError ?? "Conflicting task does not match canonical scope",
+    });
+    return {
+      ok: false,
+      error: "Conflicting active task does not match canonical turnover scope.",
+    };
   }
 
   logError("utility_turnover.insert_failed", {
@@ -229,7 +249,10 @@ export async function triggerUtilityRoomTurnoverOnServiceCompletion(params: {
       bookingId: params.bookingId,
       error: bookingError,
     });
-    return { ok: false, skippedReason: "BOOKING_NOT_FOUND" };
+    if (bookingError) {
+      return { ok: false, error: bookingError.message };
+    }
+    return { ok: true, skipped: true, skippedReason: "BOOKING_NOT_FOUND" };
   }
 
   // 2. Verify service is genuinely completed
@@ -240,7 +263,7 @@ export async function triggerUtilityRoomTurnoverOnServiceCompletion(params: {
     Boolean(booking.completed_at);
 
   if (!isCompleted) {
-    return { ok: false, skipped: true, skippedReason: "BOOKING_NOT_COMPLETED" };
+    return { ok: true, skipped: true, skippedReason: "BOOKING_NOT_COMPLETED" };
   }
 
   // 3. Verify delivery type is onsite / in_spa (home_service excluded)
@@ -249,12 +272,12 @@ export async function triggerUtilityRoomTurnoverOnServiceCompletion(params: {
     booking.delivery_type !== "home_service";
 
   if (!isOnsite) {
-    return { ok: false, skipped: true, skippedReason: "HOME_SERVICE_EXCLUDED" };
+    return { ok: true, skipped: true, skippedReason: "HOME_SERVICE_EXCLUDED" };
   }
 
   // 4. Verify assigned resource exists
   if (!booking.resource_id) {
-    return { ok: false, skipped: true, skippedReason: "NO_ASSIGNED_RESOURCE" };
+    return { ok: true, skipped: true, skippedReason: "NO_ASSIGNED_RESOURCE" };
   }
 
   // 5. Authoritatively verify branch resource
@@ -264,13 +287,21 @@ export async function triggerUtilityRoomTurnoverOnServiceCompletion(params: {
     .eq("id", booking.resource_id)
     .maybeSingle();
 
-  if (resError || !resource) {
-    logError("utility_turnover.resource_not_found", {
+  if (resError) {
+    logError("utility_turnover.resource_query_failed", {
       bookingId: booking.id,
       resourceId: booking.resource_id,
       error: resError,
     });
-    return { ok: false, skipped: true, skippedReason: "RESOURCE_NOT_FOUND" };
+    return { ok: false, error: resError.message };
+  }
+
+  if (!resource) {
+    logError("utility_turnover.resource_not_found", {
+      bookingId: booking.id,
+      resourceId: booking.resource_id,
+    });
+    return { ok: true, skipped: true, skippedReason: "RESOURCE_NOT_FOUND" };
   }
 
   if (resource.branch_id !== booking.branch_id) {
@@ -279,11 +310,11 @@ export async function triggerUtilityRoomTurnoverOnServiceCompletion(params: {
       bookingBranchId: booking.branch_id,
       resourceBranchId: resource.branch_id,
     });
-    return { ok: false, skipped: true, skippedReason: "RESOURCE_BRANCH_MISMATCH" };
+    return { ok: true, skipped: true, skippedReason: "RESOURCE_BRANCH_MISMATCH" };
   }
 
   if (!resource.is_active) {
-    return { ok: false, skipped: true, skippedReason: "RESOURCE_INACTIVE" };
+    return { ok: true, skipped: true, skippedReason: "RESOURCE_INACTIVE" };
   }
 
   // 6. Fetch service display name if available
