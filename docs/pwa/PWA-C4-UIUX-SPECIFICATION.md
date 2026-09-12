@@ -18,7 +18,7 @@ The accepted [C3 freeze](PWA-C3-FINAL-SCOPE-FREEZE.md) and its PWA-C3-D001–D02
 | Evidence | What this specification uses | Limit |
 | --- | --- | --- |
 | [C1 truth map](PWA-C1-TRUTH-MAP.md), [C2 diagnostics](PWA-C2-STRUCTURED-DIAGNOSTICS.md), accepted C3 | Operational authority, consumers, role/route gaps, snapshot/push/attendance seams | Repository evidence does not certify current production or devices |
-| Owner-provided visual references (General/CRM, Utility, Therapist, Driver) | Visual hierarchy, card anatomy, scanner viewfinder framing/corners, checkmark confirmation badges, header profile/bell layout | Visual design references only; do not override accepted C3 or authorize new features. Illustrative task checklists (Utility/CRM) and route lines/ETAs (Driver) do not unblock backends or authorize client-side route fabrication |
+| Owner-provided visual references (General/CRM, Utility, Therapist, Driver) | Visual layout hierarchy, card anatomy, scanner viewfinder framing/corners, checkmark confirmation badges, header profile/bell layout | Visual design references only; do not override accepted C3 or authorize new features. Illustrative task checklists (Utility/CRM), route lines, ETAs, distance metrics and live-sync claims (Driver) do not unblock backends, authorize client-side route fabrication, or justify continuous tracking claims |
 | `src/app/globals.css`: internal `--cs-*` and `.sp-public` `--sp-*` blocks | Existing DM Sans body family, forest `#163A2B`, gold `#C8A96B`, cream `#F7F3EB` inspiration | Public/internal token scopes remain separate; do not apply `.sp-public` to the PWA or change CRM tokens |
 | `src/app/(dashboard)/utility/page.tsx` | Role check, Coming Soon text and planned-module cards; no operational Work payload | Planned copy is not a task backend or authorization |
 | `src/lib/bookings/progress.ts` | Shared progress helper and labels | Broader helper transitions differ from frozen C3 presentation; see dependency C4-G01 in section 10 |
@@ -376,7 +376,7 @@ Blocked and rejected actions use a visible server reason, retained prior confirm
 
 This is a personal operational workspace, not another CRM. Work groups existing own schedule/assigned operational items first, then at most the narrow existing shortcuts that the current server capability grants. Each shortcut identifies the existing destination and uses current authorization; it does not reproduce an admin module in a mobile card.
 
-**Reconciliation with visual references:** The owner-provided visual reference for General Staff displays a “Tasks / Bookings” tabbed view with mockup checklist items (“Walk-in Guest”, “Confirm Booking”, etc.). Under accepted C3 scope freeze (PWA-C3-D009), General Staff is strictly a personal operational view, not a CRM task-management system or ticket board. The checklist items in the visual reference are illustrative only and do not authorize a client-side task creator, task mutation endpoints, or a generic task database in V1.
+**Reconciliation with visual references:** The owner-provided visual reference for General Staff displays a “Tasks / Bookings” tabbed view with mockup checklist items (“Walk-in Guest”, “Confirm Booking”, etc.). Under accepted C3 scope freeze (PWA-C3-D019 — CRM/general surfaces), General Staff is strictly a personal operational view, not a CRM task-management system or ticket board. The checklist items in the visual reference are illustrative only and do not authorize a client-side task creator, task mutation endpoints, or a generic task database in V1.
 
 Today shows current/next personal work, notices needing action and Attendance. Work has a plain list and specific empty/failed/unavailable states, with an optional own-day selector tied to branch business date. Detail remains within existing scope. No synthetic tickets, task assignment, work completion backend, messaging composer, metrics or reports is added. If no authoritative work payload exists for a context, show existing own schedule where permitted, otherwise “Work information is unavailable for this role.”
 
@@ -386,7 +386,7 @@ Bookings administration, Customers administration, Finance, Payroll, Marketing, 
 
 C4 re-inspected `src/app/(dashboard)/utility/page.tsx`: it contains a role-gated Coming Soon page, planned room/cleaning/restock/maintenance descriptions and a Staff Portal backlink; it does not provide authoritative Work records. Those descriptions are not promoted into scope. Existing source-backed evidence therefore does **not** unblock Work.
 
-**Reconciliation with visual references:** The owner-provided visual reference for Utility Staff depicts an illustrative “My Tasks” screen with room cleaning items (“Room 4 - Prepare room”, “Changing Room 2 - Restock towels”, “Lobby - General cleaning”). As established by source inspection of `src/app/(dashboard)/utility/page.tsx`, no authoritative Work or Task management backend exists in the repository. In strict adherence to C3 scope freeze (PWA-C3-D010) and Q009, Utility Work remains strictly **BLOCKED** (C4-S19). The task items depicted in the visual reference represent future roadmap concepts and do NOT authorize a task backend or client-side task management in V1.
+**Reconciliation with visual references:** The owner-provided visual reference for Utility Staff depicts an illustrative “My Tasks” screen with room cleaning items (“Room 4 - Prepare room”, “Changing Room 2 - Restock towels”, “Lobby - General cleaning”). As established by source inspection of `src/app/(dashboard)/utility/page.tsx`, no authoritative Work or Task management backend exists in the repository. In strict adherence to C3 scope freeze (PWA-C3-D013 — Utility boundary) and Q009, Utility Work remains strictly **BLOCKED** (C4-S19). The task items depicted in the visual reference represent future roadmap concepts and do NOT authorize a task backend or client-side task management in V1.
 
 **Q009 design resolution:** retain the conceptual Work destination in its frozen position. Selecting it opens S19, an explanatory read-only page, not a disabled dead-end tab:
 
@@ -421,10 +421,43 @@ Active trip hierarchy: current trip/state → permitted destination → server-a
 
 ### Map composition and capture disclosure
 
-Active Trip / Map layout (C4-S17/S18, aligned with Driver visual references):
-- Spatial overview: top half renders the map display with verified branch start pin, customer destination marker, and route display. Route polyline, vehicle icon, and ETA (“12 min ETA, 4.2 km Distance”) depicted in visual references represent target presentation for when an authorized routing provider is integrated; client-side route fabrication or continuous tracking claims remain strictly prohibited under C3.
-- Synchronization pill: “Live synced to CRM” (`#E8F5E9` / `#163A2B`) reflects server-confirmed persistence of the latest location snapshot, not an active background streaming websocket.
-- Trip action card / bottom sheet: En Route status chip, last updated timestamp (“Updated 10 sec ago”), destination address (“123 Lacson Street, Bacolod City”), assigned provider reference (“Therapist: Maria Santos”), and dual actions: `[OPEN NAVIGATION]` (external handoff) and `[MARK ARRIVED]` (authoritative server transition).
+Baseline C4 Driver map requirements:
+- Map/provider surface when available (minimum 240 px at ordinary text size, shrinks or moves below details on short viewports).
+- Verified destination marker (safe summary destination coordinates/marker).
+- Verified current/snapshot marker where permitted.
+- Accessible textual destination and trip summary outside map imagery.
+- Trip state (server-confirmed, e.g. “En Route”).
+- Snapshot age/time (“Updated [time] ago” or timestamp).
+- Location-sharing state (“Snapshot only — not sharing continuously”).
+- External navigation action (`[OPEN NAVIGATION]` to approved maps application sending only approved destination data).
+- Authoritative next trip transition (`[MARK ARRIVED]` or `[START TRAVEL]` via existing server contract).
+- Map failure / text alternative (retains all essential trip, destination and status information if map fails to load).
+
+The baseline C4 Active Trip composition does **NOT** require or imply:
+- Road route polyline
+- Estimated Time of Arrival (ETA)
+- Route travel distance
+- Animated vehicle progress
+- Continuous movement or background location streaming
+
+#### DEFERRED / CONDITIONAL LATER CAPABILITY — Route geometry and ETA
+Road route polylines, vehicle travel animations, real-time distance calculations, and estimated arrival times (ETAs) depicted in the owner-provided visual references are **DEFERRED / CONDITIONAL LATER CAPABILITIES**. They are NOT part of the baseline C4 specification. They may only be added in a separately authorized later stage (e.g. C12/C13) if an approved provider/server source supplies them and the required device, privacy, battery, network, and reliability checks pass.
+
+#### Snapshot synchronization copy and semantics
+Do **NOT** use “Live synced to CRM” for a snapshot-based foundation. A persisted snapshot is not evidence of live or continuous synchronization. Use truthful status copy corresponding to verified server results:
+- “Location shared”
+- “Snapshot sent”
+- “Location updated [time]”
+- “Latest location received”
+only when the corresponding server result actually confirms persistence.
+
+Status classifications remain strictly separated:
+- Recent: newly confirmed snapshot meeting approved threshold (Q001)
+- Stale: snapshot exceeding approved threshold
+- No location: confirmed absence of shared location
+- Offline / unknown: network or provider state unknown
+- Reconnecting: context revalidation in progress
+- Trip ended: sharing inactive
 
 Default phone map screen: header → connectivity → trip/state summary → map region (minimum 240 px at ordinary text size, shrinks or moves below details on short viewports) → persistent MapStatusOverlay → accessible textual location/destination summary and controls → dock. Map controls may not cover the state, attribution or OS safe areas. A list/text alternative carries all essential trip and snapshot information. No drawn line between points is presented as a road route; no animation pretends snapshots are continuous movement.
 
@@ -510,20 +543,73 @@ flowchart TD
 
 Install help is optional in More and as a dismissible post-launch suggestion after work context is loaded. It never covers a critical action, interrupts a scan or repeats immediately after dismissal. Installing does not grant capabilities, authenticate the account or guarantee offline operations. No install analytics or persistence subsystem is introduced by C4.
 
-| Environment/state | UX specification |
+### CRM PWA vs Staff PWA install identity
+
+Freeze the UI/UX requirement that the existing management PWA and the new Staff PWA are visibly distinct installations on supported devices:
+
+- **Management identity:**
+  - Visible app name: **CradleHub CRM**
+  - Context: **Management Workspace**
+- **Staff identity:**
+  - Visible app name: **CradleHub Staff**
+  - Context: **Team Workspace**
+
+The Staff PWA installation serves seven approved operational roles:
+- Therapist
+- Nail Tech
+- Aesthetician / Facialist
+- Salon Head
+- CRM / General Staff
+- Utility
+- Driver (including dedicated `/driver` routes)
+
+Require distinct:
+- Visible app name
+- Short-name treatment
+- Install messaging and prompts
+- Workspace context badges
+- Launch presentation
+- Icon/badge visual treatment sufficient to clearly distinguish launcher icons on a phone home screen
+- Install help documentation
+
+**Install messaging boundary:**
+- Staff surfaces must use: **“Install CradleHub Staff”**
+- CRM surfaces must use: **“Install CradleHub CRM”** (where existing CRM install implementation permits such messaging)
+- Staff surfaces must not intentionally advertise the CRM installation.
+- CRM surfaces must not intentionally advertise the Staff installation.
+- The two applications may share the Cradle brand family but must be unmistakable to a staff member inspecting their phone home screen.
+- Installing either application does not grant permissions or alter backend authority.
+
+### Staff PWA install copy and platform behavior
+
+| Environment / state | UX specification |
 | --- | --- |
-| Supported Android browser prompt available | Show “Install CradleHub” after platform eligibility is known; the user's tap opens the real browser prompt. A dismissed prompt leaves normal browser use available |
+| Supported Android browser prompt available | Show **“Install CradleHub Staff”** after platform eligibility is known; user tap opens real browser prompt. A dismissed prompt leaves normal browser use available |
 | Prompt unavailable / unsupported browser | “Install isn't available here. You can keep using CradleHub in your browser.” Offer appropriate manual help only if supported; do not simulate an OS prompt |
-| iPhone Safari manual install | “Open this site in Safari. Open Share (from More if needed), choose Add to Home Screen, enable Open as Web App where shown, then Add.” Use text instructions that tolerate Safari layout/version differences |
-| Already installed / standalone detected | Remove install promotion; show “Opened as an app” in help when known. Do not claim absence of a prompt proves installation |
-| Standalone launch authenticated | Same S01 gate, role/branch context and safe-area shell; no assumed cookie/session parity with browser mode |
-| Standalone unauthenticated / expired | Existing sign-in and guarded return destination; no background command replay |
+| iPhone Safari manual install | “Open this site in Safari. Open Share (from More if needed), choose Add to Home Screen, enable Open as Web App where shown, then Add.” Labeled: **“Add CradleHub Staff to your Home Screen”** |
+| Already installed / standalone detected | Remove install promotion; do not repeatedly advertise installation. Show “Opened as an app” in help when known |
+| Standalone launch authenticated | Server/session authority determines the correct Staff workspace; same S01 gate, role/branch context and safe-area shell; no assumed session parity with browser mode |
+| Standalone unauthenticated / expired | Normal secure authentication flow; preserve guarded internal return destination; no background command replay |
 | Update available | Non-blocking “Update available” only after actual foundation support; offer safe reload when no unresolved mutation/capture is active. Never reload automatically during work |
 | Update / worker error | Explain app could not refresh; preserve safe confirmed view, offer retry at a safe point; no “clear all caches” user command |
 
 Platform basis: browser install prompts require actual platform support and a real install event; a missing event needs fallback guidance, not a fabricated prompt. C4 does not assume iOS supports `beforeinstallprompt`. [web.dev installation prompt guidance](https://web.dev/learn/pwa/installation-prompt). Current Apple guidance uses Safari's Share/Add to Home Screen path and an Open as Web App choice where shown. [Apple iPhone guide](https://support.apple.com/guide/iphone/open-as-web-app-iphea86e5236/ios).
 
-Manifest, registration scope, cache/update ownership and worker/push coexistence are **C5/C15 implementation and verification work**, not selected here. Preserve both existing worker artifacts until Q006 is resolved. Exact supported-device/browser matrix and installed-mode Auth behavior must be verified later; a specification diagram does not prove installability.
+### Deferral of manifest and service-worker implementation to C5
+
+C4 specifies UI/UX presentation contracts and must **NOT** invent:
+- Final manifest ID
+- Final manifest scope
+- Final `start_url`
+- Service-worker scope
+- Registration architecture
+
+**PWA-C5 must inspect the existing CRM install/manifest/service-worker architecture and choose a safe Staff manifest identity/start URL/scope that includes all authorized Staff surfaces, including dedicated `/driver`, without absorbing or breaking the CRM PWA.**
+
+Manifest identity and service-worker ownership are separate concerns. Preserve both existing worker artifacts:
+- `public/sw.js`
+- `public/cradlehub-push-sw.js`
+until later ownership is proven. No worker or manifest implementation occurs in C4. Exact supported-device/browser matrix and installed-mode Auth behavior must be verified later; a specification diagram does not prove installability.
 
 ## 17. Notifications and notices UX — C4-S07/S08/S20
 
