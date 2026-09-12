@@ -31,6 +31,7 @@ export type WeekBooking = Pick<
   BookingRow,
   "id" | "booking_date" | "start_time" | "end_time" | "type" | "status" | "metadata"
 > & {
+  delivery_type?: "in_spa" | "home_service" | string | null;
   services: OneOrMany<Pick<ServiceRow, "id" | "name" | "duration_minutes">>;
   customers: OneOrMany<Pick<CustomerRow, "id" | "full_name">>;
 };
@@ -214,9 +215,12 @@ function getBookingDurationMinutes(booking: WeekBooking): number {
   return 60;
 }
 
-function getBookingType(type: string): StaffWeekAppointmentType {
-  const normalized = type.toLowerCase();
-  if (normalized === "home_service") return "home_service";
+function getBookingType(
+  type: string,
+  deliveryType?: "in_spa" | "home_service" | string | null
+): StaffWeekAppointmentType {
+  if (deliveryType === "home_service") return "home_service";
+  const normalized = (type ?? "").toLowerCase();
   if (normalized === "walkin" || normalized === "walk_in") return "walk_in";
   if (normalized === "online") return "online";
   return "in_spa";
@@ -322,7 +326,7 @@ export function buildStaffWeekPlanner({
       const service = firstRelation(booking.services);
       const customer = firstRelation(booking.customers);
       const durationMinutes = getBookingDurationMinutes(booking);
-      const bookingType = getBookingType(booking.type);
+      const bookingType = getBookingType(booking.type, booking.delivery_type);
 
       if (bookingType === "home_service") homeService += 1;
       if (bookingType === "walk_in") walkIn += 1;

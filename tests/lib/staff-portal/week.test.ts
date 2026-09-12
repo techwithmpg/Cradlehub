@@ -83,4 +83,88 @@ describe("buildStaffWeekPlanner", () => {
       isDayOff: false,
     });
   });
+
+  it("classifies appointment as home_service when type = online and delivery_type = home_service", () => {
+    const planner = buildStaffWeekPlanner({
+      days: ["2026-07-15"],
+      bookings: [
+        {
+          id: "b-online-home",
+          booking_date: "2026-07-15",
+          start_time: "10:00:00",
+          end_time: "11:00:00",
+          type: "online",
+          delivery_type: "home_service",
+          status: "confirmed",
+          metadata: {},
+          services: { id: "s-1", name: "Home Prenatal", duration_minutes: 60 },
+          customers: { id: "c-1", full_name: "Alice Smith" },
+        },
+      ] as WeekBooking[],
+      schedule: [],
+      overrides: [],
+      todayIso: "2026-07-15",
+    });
+
+    expect(planner.days[0]?.appointments[0]?.bookingType).toBe("home_service");
+    expect(planner.summary.homeService).toBe(1);
+    expect(planner.summary.inSpa).toBe(0);
+    expect(planner.summary.online).toBe(0);
+  });
+
+  it("classifies appointment as non-home-service when type = online and delivery_type = in_spa", () => {
+    const planner = buildStaffWeekPlanner({
+      days: ["2026-07-15"],
+      bookings: [
+        {
+          id: "b-online-spa",
+          booking_date: "2026-07-15",
+          start_time: "14:00:00",
+          end_time: "15:00:00",
+          type: "online",
+          delivery_type: "in_spa",
+          status: "confirmed",
+          metadata: {},
+          services: { id: "s-2", name: "In-Spa Massage", duration_minutes: 60 },
+          customers: { id: "c-2", full_name: "Bob Jones" },
+        },
+      ] as WeekBooking[],
+      schedule: [],
+      overrides: [],
+      todayIso: "2026-07-15",
+    });
+
+    expect(planner.days[0]?.appointments[0]?.bookingType).toBe("online");
+    expect(planner.summary.homeService).toBe(0);
+    expect(planner.summary.inSpa).toBe(1);
+    expect(planner.summary.online).toBe(1);
+  });
+
+  it("classifies appointment as walk_in when type = walkin and delivery_type = in_spa", () => {
+    const planner = buildStaffWeekPlanner({
+      days: ["2026-07-15"],
+      bookings: [
+        {
+          id: "b-walkin-spa",
+          booking_date: "2026-07-15",
+          start_time: "16:00:00",
+          end_time: "17:00:00",
+          type: "walkin",
+          delivery_type: "in_spa",
+          status: "confirmed",
+          metadata: {},
+          services: { id: "s-3", name: "Walk-in Foot Reflex", duration_minutes: 60 },
+          customers: { id: "c-3", full_name: "Charlie Brown" },
+        },
+      ] as WeekBooking[],
+      schedule: [],
+      overrides: [],
+      todayIso: "2026-07-15",
+    });
+
+    expect(planner.days[0]?.appointments[0]?.bookingType).toBe("walk_in");
+    expect(planner.summary.homeService).toBe(0);
+    expect(planner.summary.inSpa).toBe(1);
+    expect(planner.summary.walkIn).toBe(1);
+  });
 });

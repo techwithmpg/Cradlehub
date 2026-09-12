@@ -34,6 +34,7 @@ import {
   type StaffPortalClockOutAvailability,
 } from "@/lib/staff-portal/attendance";
 import { triggerUtilityRoomTurnoverOnServiceCompletion } from "@/lib/staff-pwa/utility-turnover";
+import { getProviderBusinessDate } from "@/lib/staff-pwa/provider-date";
 
 const STAFF_PORTAL_PATHS = [
   "/staff-portal",
@@ -525,13 +526,15 @@ export type ServiceProgressResult =
       staff: StaffPortalStaff;
     };
 
-export async function getMyServiceProgressAction(date: string): Promise<ServiceProgressResult> {
+export async function getMyServiceProgressAction(date?: string): Promise<ServiceProgressResult> {
   const supabase = await createClient();
   const me = await getMyStaffRecord();
   if (!me) return { error: "Unauthorized" };
 
+  const targetDate = date ?? (await getProviderBusinessDate(me.branch_id));
+
   const selectWithResource = `
-    id, booking_date, start_time, end_time, type, status,
+    id, booking_date, start_time, end_time, type, delivery_type, status,
     booking_progress_status, home_service_tracking_status,
     travel_buffer_mins, metadata,
     travel_started_at, arrived_at, session_started_at, session_due_at, session_duration_minutes_snapshot, completed_at,
@@ -541,7 +544,7 @@ export async function getMyServiceProgressAction(date: string): Promise<ServiceP
     customers ( id, full_name )
   `;
   const selectWithoutResource = `
-    id, booking_date, start_time, end_time, type, status,
+    id, booking_date, start_time, end_time, type, delivery_type, status,
     booking_progress_status, home_service_tracking_status,
     travel_buffer_mins, metadata,
     travel_started_at, arrived_at, session_started_at, session_due_at, session_duration_minutes_snapshot, completed_at,
@@ -555,7 +558,7 @@ export async function getMyServiceProgressAction(date: string): Promise<ServiceP
       .from("bookings")
       .select(select)
       .eq("staff_id", me.id)
-      .eq("booking_date", date)
+      .eq("booking_date", targetDate)
       .neq("status", "cancelled")
       .order("start_time");
 
@@ -606,11 +609,12 @@ export type TodayScheduleResult =
   | { error: string }
   | { todaySchedule: TodayScheduleInfo | null; todayOverride: TodayOverrideInfo | null };
 
-export async function getMyTodayScheduleAction(date: string): Promise<TodayScheduleResult> {
+export async function getMyTodayScheduleAction(date?: string): Promise<TodayScheduleResult> {
   const me = await getMyStaffRecord();
   if (!me) return { error: "Unauthorized" };
 
-  const parts = date.split("-").map(Number);
+  const targetDate = date ?? (await getProviderBusinessDate(me.branch_id));
+  const parts = targetDate.split("-").map(Number);
   const y = parts[0] ?? 0;
   const m = (parts[1] ?? 1) - 1;
   const d = parts[2] ?? 1;
@@ -618,11 +622,11 @@ export async function getMyTodayScheduleAction(date: string): Promise<TodaySched
 
   const [scheduleRows, overrideRows] = await Promise.all([
     getStaffSchedule(me.id).catch((): Awaited<ReturnType<typeof getStaffSchedule>> => []),
-    getStaffOverrides(me.id, date).catch((): Awaited<ReturnType<typeof getStaffOverrides>> => []),
+    getStaffOverrides(me.id, targetDate).catch((): Awaited<ReturnType<typeof getStaffOverrides>> => []),
   ]);
 
   const todayScheduleRow = scheduleRows.find((r) => r.day_of_week === todayDow);
-  const todayOverrideRow = overrideRows.find((o) => o.override_date === date);
+  const todayOverrideRow = overrideRows.find((o) => o.override_date === targetDate);
 
   return {
     todaySchedule: todayScheduleRow
@@ -734,13 +738,15 @@ export async function getMyMonthlyScheduleStatsAction(
 // ── Today's bookings for the portal home ──────────────────────────────────
 // IMPORTANT: customer select intentionally excludes phone and email (Rule 13).
 // Staff should never see customer contact details through this portal.
-export async function getMyTodayAction(date: string) {
+export async function getMyTodayAction(date?: string) {
   const supabase = await createClient();
   const me = await getMyStaffRecord();
   if (!me) return { error: "Unauthorized" };
 
+  const targetDate = date ?? (await getProviderBusinessDate(me.branch_id));
+
   const selectWithResource = `
-      id, booking_date, start_time, end_time, type, status,
+      id, booking_date, start_time, end_time, type, delivery_type, status,
       booking_progress_status, home_service_tracking_status,
       travel_buffer_mins, metadata,
       travel_started_at, arrived_at, session_started_at, session_due_at, session_duration_minutes_snapshot, completed_at,
@@ -750,7 +756,7 @@ export async function getMyTodayAction(date: string) {
       customers ( id, full_name )
     `;
   const selectWithoutResource = `
-      id, booking_date, start_time, end_time, type, status,
+      id, booking_date, start_time, end_time, type, delivery_type, status,
       booking_progress_status, home_service_tracking_status,
       travel_buffer_mins, metadata,
       travel_started_at, arrived_at, session_started_at, session_due_at, session_duration_minutes_snapshot, completed_at,
@@ -763,7 +769,7 @@ export async function getMyTodayAction(date: string) {
       .from("bookings")
       .select(select)
       .eq("staff_id", me.id)
-      .eq("booking_date", date)
+      .eq("booking_date", targetDate)
       .not("status", "in", '("cancelled","no_show")')
       .order("start_time");
 

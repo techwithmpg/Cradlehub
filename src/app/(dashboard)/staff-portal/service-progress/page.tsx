@@ -7,8 +7,7 @@ type ProgressResult =
   | { active: StaffPortalBooking[]; completed: StaffPortalBooking[] };
 
 export default async function ServiceProgressPage() {
-  const today = new Date().toISOString().split("T")[0]!;
-  const result = (await getMyServiceProgressAction(today)) as ProgressResult;
+  const result = (await getMyServiceProgressAction()) as ProgressResult;
 
   if ("error" in result) {
     return (

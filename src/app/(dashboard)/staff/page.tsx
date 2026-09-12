@@ -36,8 +36,7 @@ export default async function StaffPage() {
     }
 
     if (profile === "provider") {
-      const today = new Date().toISOString().split("T")[0]!;
-      const runtimeResult = await getProviderWorkspaceRuntime(today).catch(() => null);
+      const runtimeResult = await getProviderWorkspaceRuntime().catch(() => null);
 
       if (runtimeResult && runtimeResult.ok) {
         return <TherapistMobileHome runtime={runtimeResult.runtime} />;
