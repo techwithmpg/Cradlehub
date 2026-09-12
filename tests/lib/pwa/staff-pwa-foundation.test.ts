@@ -83,7 +83,7 @@ describe("PWA-C5: Staff Foundation Navigation & Role Mapping", () => {
       expect(centerItem).toBeDefined();
       expect(centerItem?.key).toBe("scan");
       expect(centerItem?.label).toBe("Scan");
-      expect(centerItem?.href).toBe("/scan");
+      expect(centerItem?.href).toBe("/staff/scan");
       expect(centerItem?.isScan).toBe(true);
     }
   });
@@ -91,39 +91,41 @@ describe("PWA-C5: Staff Foundation Navigation & Role Mapping", () => {
   it("verifies Provider profile destinations", () => {
     const labels = PROVIDER_NAV_ITEMS.map((item) => item.label);
     expect(labels).toEqual(["Today", "Schedule", "Scan", "Progress", "More"]);
-    expect(PROVIDER_NAV_ITEMS[0]?.href).toBe("/staff-portal");
-    expect(PROVIDER_NAV_ITEMS[1]?.href).toBe("/staff-portal/schedule");
-    expect(PROVIDER_NAV_ITEMS[3]?.href).toBe("/staff-portal/service-progress");
-    expect(PROVIDER_NAV_ITEMS[4]?.href).toBe("/staff-portal/more");
+    expect(PROVIDER_NAV_ITEMS[0]?.href).toBe("/staff");
+    expect(PROVIDER_NAV_ITEMS[1]?.href).toBe("/staff/schedule");
+    expect(PROVIDER_NAV_ITEMS[3]?.href).toBe("/staff/progress");
+    expect(PROVIDER_NAV_ITEMS[4]?.href).toBe("/staff/more");
   });
 
   it("verifies CRM / General profile destinations", () => {
     const labels = CRM_GENERAL_NAV_ITEMS.map((item) => item.label);
     expect(labels).toEqual(["Today", "Work", "Scan", "Notices", "More"]);
-    expect(CRM_GENERAL_NAV_ITEMS[0]?.href).toBe("/staff-portal");
-    expect(CRM_GENERAL_NAV_ITEMS[1]?.href).toBe("/staff-portal/work");
-    expect(CRM_GENERAL_NAV_ITEMS[3]?.href).toBe("/staff-portal/notices");
-    expect(CRM_GENERAL_NAV_ITEMS[4]?.href).toBe("/staff-portal/more");
+    expect(CRM_GENERAL_NAV_ITEMS[0]?.href).toBe("/staff");
+    expect(CRM_GENERAL_NAV_ITEMS[1]?.href).toBe("/staff/work");
+    expect(CRM_GENERAL_NAV_ITEMS[3]?.href).toBe("/staff/notices");
+    expect(CRM_GENERAL_NAV_ITEMS[4]?.href).toBe("/staff/more");
   });
 
-  it("verifies Utility profile keeps Work disabled per C3/C4 contract", () => {
+  it("verifies Utility profile keeps Work selectable pointing to read-only unavailable state", () => {
     const labels = UTILITY_NAV_ITEMS.map((item) => item.label);
     expect(labels).toEqual(["Today", "Work", "Scan", "Notices", "More"]);
-    expect(UTILITY_NAV_ITEMS[0]?.href).toBe("/utility");
+    expect(UTILITY_NAV_ITEMS[0]?.href).toBe("/staff/utility");
 
     const workItem = UTILITY_NAV_ITEMS[1];
     expect(workItem?.key).toBe("work");
-    expect(workItem?.disabled).toBe(true);
-    expect(workItem?.blockedNotice).toBe("Work information is unavailable for this role.");
+    expect(workItem?.disabled).toBe(false);
+    expect(workItem?.href).toBe("/staff/utility/work");
+    expect(UTILITY_NAV_ITEMS[3]?.href).toBe("/staff/utility/notices");
+    expect(UTILITY_NAV_ITEMS[4]?.href).toBe("/staff/utility/more");
   });
 
   it("verifies Driver profile destinations", () => {
     const labels = DRIVER_NAV_ITEMS.map((item) => item.label);
     expect(labels).toEqual(["Today", "Trips", "Scan", "Map", "More"]);
-    expect(DRIVER_NAV_ITEMS[0]?.href).toBe("/driver");
-    expect(DRIVER_NAV_ITEMS[1]?.href).toBe("/driver/trips");
-    expect(DRIVER_NAV_ITEMS[3]?.href).toBe("/driver/map");
-    expect(DRIVER_NAV_ITEMS[4]?.href).toBe("/driver/more");
+    expect(DRIVER_NAV_ITEMS[0]?.href).toBe("/staff/driver");
+    expect(DRIVER_NAV_ITEMS[1]?.href).toBe("/staff/driver/trips");
+    expect(DRIVER_NAV_ITEMS[3]?.href).toBe("/staff/driver/map");
+    expect(DRIVER_NAV_ITEMS[4]?.href).toBe("/staff/driver/more");
   });
 });
 
@@ -136,11 +138,11 @@ describe("PWA-C5: Staff Web App Manifest Contract", () => {
     const manifest = JSON.parse(text);
 
     // Identity and name checks
-    expect(manifest.id).toBe("cradlehub-staff");
+    expect(manifest.id).toBe("/cradlehub-staff");
     expect(manifest.name).toBe("CradleHub Staff");
     expect(manifest.short_name).toBe("Staff");
-    expect(manifest.start_url).toBe("/staff-portal");
-    expect(manifest.scope).toBe("/");
+    expect(manifest.start_url).toBe("/staff/");
+    expect(manifest.scope).toBe("/staff/");
     expect(manifest.display).toBe("standalone");
     expect(manifest.background_color).toBe("#F7F3EB");
     expect(manifest.theme_color).toBe("#163A2B");
@@ -199,6 +201,55 @@ describe("PWA-C5: Design Tokens & Connectivity Contracts", () => {
     expect(bannerSource).not.toContain("Saved offline");
     expect(bannerSource).not.toContain("Queued for sync");
     expect(bannerSource).toContain("actions that write data are disabled");
+  });
+});
+
+describe("PWA-C5: Security Boundaries & Authorization Contracts", () => {
+  it("verifies PROTECTED_PREFIXES includes /staff and /scan", async () => {
+    const fs = await import("fs");
+    const proxySource = fs.readFileSync("src/proxy.ts", "utf8");
+    expect(proxySource).toContain('"/staff"');
+    expect(proxySource).toContain('"/scan"');
+  });
+
+  it("verifies canAccessWorkspacePath authorizes canonical /staff routes for appropriate roles", async () => {
+    const { canAccessWorkspacePath, buildWorkspaceAccessFromStaffProfile } = await import("@/lib/auth/workspace-access");
+
+    // Provider / therapist
+    const therapistWs = buildWorkspaceAccessFromStaffProfile({ id: "1", system_role: "staff", staff_type: "therapist" });
+    expect(canAccessWorkspacePath("/staff", "staff", therapistWs)).toBe(true);
+    expect(canAccessWorkspacePath("/staff/scan", "staff", therapistWs)).toBe(true);
+    expect(canAccessWorkspacePath("/scan", "staff", therapistWs)).toBe(true);
+    expect(canAccessWorkspacePath("/staff/driver", "staff", therapistWs)).toBe(false);
+    expect(canAccessWorkspacePath("/staff/utility", "staff", therapistWs)).toBe(false);
+
+    // Driver
+    const driverWs = buildWorkspaceAccessFromStaffProfile({ id: "2", system_role: "driver", staff_type: null });
+    expect(canAccessWorkspacePath("/staff/driver", "driver", driverWs)).toBe(true);
+    expect(canAccessWorkspacePath("/driver", "driver", driverWs)).toBe(true);
+    expect(canAccessWorkspacePath("/staff/scan", "driver", driverWs)).toBe(true);
+    expect(canAccessWorkspacePath("/staff-portal", "driver", driverWs)).toBe(false);
+
+    // Utility
+    const utilityWs = buildWorkspaceAccessFromStaffProfile({ id: "3", system_role: "utility", staff_type: "utility" });
+    expect(canAccessWorkspacePath("/staff/utility", "utility", utilityWs)).toBe(true);
+    expect(canAccessWorkspacePath("/utility", "utility", utilityWs)).toBe(true);
+    expect(canAccessWorkspacePath("/staff/scan", "utility", utilityWs)).toBe(true);
+    expect(canAccessWorkspacePath("/staff-portal", "utility", utilityWs)).toBe(false);
+
+    // Front Desk / CRM
+    const crmWs = buildWorkspaceAccessFromStaffProfile({ id: "4", system_role: "front_desk", staff_type: null });
+    expect(canAccessWorkspacePath("/staff", "front_desk", crmWs)).toBe(true);
+    expect(canAccessWorkspacePath("/staff/scan", "front_desk", crmWs)).toBe(true);
+    expect(canAccessWorkspacePath("/staff/driver", "front_desk", crmWs)).toBe(false);
+  });
+
+  it("verifies StaffAppShell does not fall back to therapist silently", async () => {
+    const fs = await import("fs");
+    const shellSource = fs.readFileSync("src/components/features/staff-pwa/app-shell.tsx", "utf8");
+    // Ensure "therapist" is not used as a fallback string when role is unresolved
+    expect(shellSource).not.toMatch(/operationalRole\s*=\s*.*\|\|\s*["']therapist["']/);
+    expect(shellSource).toContain("StaffRoleResolutionSplash");
   });
 });
 

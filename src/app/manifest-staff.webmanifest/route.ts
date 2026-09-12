@@ -2,12 +2,12 @@ export const dynamic = "force-static";
 
 export function GET() {
   const manifest = {
-    id: "cradlehub-staff",
+    id: "/cradlehub-staff",
     name: "CradleHub Staff",
     short_name: "Staff",
     description: "CradleHub Staff — Team Workspace",
-    start_url: "/staff-portal",
-    scope: "/",
+    start_url: "/staff/",
+    scope: "/staff/",
     display: "standalone",
     orientation: "portrait",
     background_color: "#F7F3EB",

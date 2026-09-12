@@ -1,16 +1,15 @@
 import Link from "next/link";
 import { ArrowLeft, QrCode, ShieldAlert } from "lucide-react";
-import { getMyProfileAction } from "../(dashboard)/staff-portal/actions";
+import { StaffAppShell } from "@/components/features/staff-pwa/app-shell";
+import { getMyProfileAction } from "../../staff-portal/actions";
 import {
   resolveNavigationProfile,
   resolveStaffOperationalRole,
 } from "@/components/features/staff-pwa/role-navigation";
-import { StaffAppShell } from "@/components/features/staff-pwa/app-shell";
 import { StaffRoleResolutionSplash } from "@/components/features/staff-pwa/role-resolution-splash";
 
 export const metadata = {
   title: "Scan Code | CradleHub Staff",
-  manifest: "/manifest-staff.webmanifest",
 };
 
 export default async function StaffScanPage() {
@@ -63,7 +62,7 @@ export default async function StaffScanPage() {
         </div>
 
         {/* Stage Boundary Disclosure */}
-        <div className="mb-6 w-full rounded-2xl border border-[#EAE4DC] bg-white p-5 text-left shadow-xs">
+        <div className="mb-6 w-full max-w-md rounded-2xl border border-[#EAE4DC] bg-white p-5 text-left shadow-xs">
           <div className="flex items-center gap-2 mb-2 text-[#163A2B]">
             <ShieldAlert size={18} className="text-[#C8A96B]" aria-hidden="true" />
             <h2 className="text-sm font-bold text-[#1E293B]">

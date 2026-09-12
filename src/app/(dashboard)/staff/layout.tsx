@@ -1,8 +1,9 @@
 /**
- * Staff Portal Route Layout
+ * Canonical Staff PWA Layout (/staff/*)
  *
- * Wraps all /staff-portal/* routes with background route warm-up.
- * Nested inside (dashboard)/layout.tsx which renders sidebar, header, and main scroll container.
+ * Scoped root layout for all canonical Staff PWA surfaces.
+ * Links to /manifest-staff.webmanifest (scope: /staff/) and mounts
+ * the appropriate role-aware mobile navigation shell.
  */
 
 import type { Metadata } from "next";
@@ -12,7 +13,7 @@ import { STAFF_PORTAL_PREFETCH } from "@/components/features/workspace/workspace
 import { DriverMobileShell } from "@/components/features/staff-portal/driver/driver-mobile-shell";
 import { StaffMobileShell } from "@/components/features/staff-portal/mobile/staff-mobile-shell";
 import { TherapistMobileShell } from "@/components/features/staff-portal/therapist/therapist-mobile-shell";
-import { getMyProfileAction } from "./actions";
+import { getMyProfileAction } from "../staff-portal/actions";
 import {
   resolveStaffOperationalRole,
   resolveNavigationProfile,
@@ -22,11 +23,11 @@ export const metadata: Metadata = {
   manifest: "/manifest-staff.webmanifest",
   title: {
     template: "%s | CradleHub Staff",
-    default: "CradleHub Staff",
+    default: "CradleHub Staff — Team Workspace",
   },
 };
 
-export default async function StaffPortalLayout({
+export default async function StaffLayout({
   children,
 }: {
   children: ReactNode;
@@ -55,7 +56,6 @@ export default async function StaffPortalLayout({
 
   return (
     <>
-      {/* Background route warm-up for Staff Portal workspace */}
       <WorkspaceRoutePrefetcher config={STAFF_PORTAL_PREFETCH} />
       {content}
     </>

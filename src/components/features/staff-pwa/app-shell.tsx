@@ -12,6 +12,8 @@ import {
   resolveStaffOperationalRole,
 } from "./role-navigation";
 
+import { StaffRoleResolutionSplash } from "./role-resolution-splash";
+
 type StaffAppShellProps = {
   children: ReactNode;
   staff?: {
@@ -54,6 +56,13 @@ export function StaffAppShell({
   hideNav = false,
   hideTopBar = false,
 }: StaffAppShellProps) {
+  // Unresolved role check: never silently default to therapist
+  const isResolved = Boolean(roleOverride || staff || profileOverride);
+
+  if (!isResolved) {
+    return <StaffRoleResolutionSplash />;
+  }
+
   // Resolve role and profile
   const operationalRole =
     roleOverride ??
@@ -62,7 +71,7 @@ export function StaffAppShell({
           system_role: staff.system_role,
           staff_type: staff.staff_type,
         })
-      : "therapist");
+      : "crm_general");
 
   const navProfile = profileOverride ?? resolveNavigationProfile(operationalRole);
   const navItems = customNavItems ?? getNavigationItemsForProfile(navProfile);

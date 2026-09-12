@@ -16,8 +16,10 @@ const PROTECTED_PREFIXES = [
   "/manager",
   "/crm",
   "/staff-portal",
+  "/staff",
   "/driver",
   "/utility",
+  "/scan",
   "/dev",
   "/select-workspace",
 ];

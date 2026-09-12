@@ -15,8 +15,16 @@ export function StaffBottomNav({
 
   function isItemActive(item: StaffNavItem): boolean {
     if (activeKey) return activeKey === item.key;
-    if (item.href === "/staff-portal" || item.href === "/driver" || item.href === "/utility") {
-      return pathname === item.href;
+    const rootPaths = [
+      "/staff",
+      "/staff-portal",
+      "/staff/driver",
+      "/driver",
+      "/staff/utility",
+      "/utility",
+    ];
+    if (rootPaths.includes(item.href)) {
+      return pathname === item.href || pathname === `${item.href}/`;
     }
     return pathname.startsWith(item.href);
   }

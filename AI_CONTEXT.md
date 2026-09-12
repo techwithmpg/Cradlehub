@@ -12,7 +12,7 @@
 - PWA-C4 is **CLOSED / ACCEPTED / MERGED** at accepted baseline `d11a8ca3623e0092829c683b7022dc302739b96b`, per owner authorization and verified starting refs.
 - Dedicated branch: `stage/pwa-c5-shared-foundation`.
 - C5 implements the shared mobile foundation only (AppShell, TopBar, BottomNav with 5-position dock and prominent center Scan seam, role-navigation mapping, connectivity states, shared status/loading/error states, confirm dialog, action sheet, Staff install guidance, manifest identity separation). **PWA-C6+ remains strictly NOT AUTHORIZED. No database/schema/migrations, Auth/RLS/Storage changes, production access/mutation, or deployment are authorized.**
-- [PWA-GOV-007](docs/11-DECISION-LOG.md#staff-pwa-decisions), [project governance](docs/pwa/PROJECT.md), [accepted C3 scope](docs/pwa/PWA-C3-FINAL-SCOPE-FREEZE.md), [C4 specification](docs/pwa/PWA-C4-UIUX-SPECIFICATION.md) and [C5 handoff](docs/pwa/PWA-C5-HANDOFF.md) define current authority and delivery.
+- [PWA-GOV-008](docs/11-DECISION-LOG.md#staff-pwa-decisions), [PWA-GOV-007](docs/11-DECISION-LOG.md#staff-pwa-decisions), [project governance](docs/pwa/PROJECT.md), [accepted C3 scope](docs/pwa/PWA-C3-FINAL-SCOPE-FREEZE.md), [C4 specification](docs/pwa/PWA-C4-UIUX-SPECIFICATION.md) and [C5 handoff](docs/pwa/PWA-C5-HANDOFF.md) define current authority and delivery.
 - C1/C2 evidence and accepted C3/C4 artifacts remain inputs. C3 product decisions and C4 UI/UX specifications remain binding.
 - The separate historical Web/Marketing workstream below is not activated or reconciled by this task.
 - Repository production statements remain **REPOSITORY-RECORDED PRODUCTION EVIDENCE**. C5 performs no production/device/database verification.

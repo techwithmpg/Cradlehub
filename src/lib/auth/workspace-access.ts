@@ -170,7 +170,19 @@ export function canAccessWorkspacePath(
     return true;
   }
 
-  if (pathname.startsWith("/staff-portal")) {
+  if (pathname.startsWith("/staff/scan") || pathname.startsWith("/scan")) {
+    return workspaces.length > 0;
+  }
+
+  if (pathname.startsWith("/staff/driver")) {
+    return hasWorkspaceAccess(workspaces, "driver");
+  }
+
+  if (pathname.startsWith("/staff/utility")) {
+    return hasWorkspaceAccess(workspaces, "utility");
+  }
+
+  if (pathname.startsWith("/staff-portal") || pathname.startsWith("/staff")) {
     return hasWorkspaceAccess(workspaces, "staff_portal");
   }
 

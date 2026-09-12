@@ -7,15 +7,16 @@ import { StaffMobileBottomNav } from "./staff-mobile-bottom-nav";
 
 type StaffMobileShellProps = {
   children: ReactNode;
+  profile?: "crm_general" | "utility";
 };
 
-export function StaffMobileShell({ children }: StaffMobileShellProps) {
+export function StaffMobileShell({ children, profile = "crm_general" }: StaffMobileShellProps) {
   return (
     <MobileNavigationProgressProvider>
       <MobileRouteProgress />
       <div className="min-h-dvh bg-[var(--cs-bg)] pb-[calc(112px+env(safe-area-inset-bottom))] md:contents md:bg-transparent md:pb-0">
         {children}
-        <StaffMobileBottomNav />
+        <StaffMobileBottomNav profile={profile} />
       </div>
     </MobileNavigationProgressProvider>
   );
