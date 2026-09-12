@@ -8,7 +8,8 @@
 - Accepted C2/main: `2b927303d2d6bc10b09a15f2542fdcfa6c066194`.
 - Previously reviewed C3 head / targeted-correction starting head: `8d77d39843c5c8d031e3c09427b1203399804a12`.
 - Earlier correction content head (historical): `01d143ac492123db1db0d4635bc06d04bf688b63` (`docs(pwa): address C3 external review corrections`).
-- Targeted corrected review head: the commit containing this targeted-correction handoff, resolved with `git rev-parse HEAD` at this review revision. The delivery response records its full SHA and remote push verification; the publication evidence update records the content SHA without rewriting history.
+- Targeted corrected content head: `464e93dc89f5782162380703c813041702f12233` (`docs(pwa): finalize C3 contract freeze details`).
+- Final corrected review head: the immediate handoff-evidence successor of that content commit, containing this SHA record; resolve with `git rev-parse HEAD` at this review revision. The delivery response records its full SHA and remote push verification without rewriting history.
 - Next stage: **PWA-C4 — NOT AUTHORIZED**.
 
 The owner authorized correction commits and a normal push to this C3 branch for external re-review. Runtime/UI work, dependencies, database/schema/migrations, Auth/RLS/Storage changes, production access, deployment, merge, rebase, force-push, history rewriting, recovery-branch changes and PWA-C4+ execution are prohibited. PWA-C3 remains active and documentation-only.
@@ -55,6 +56,8 @@ The explicit V1 exclusions now also cover speculative reports/reporting surfaces
 Remote End Shift and PWA-C3-D007 explicitly require an open attendance shift, no active service/work, no active Driver trip where applicable, no remaining assignment, final-assignment state, capability, timing/policy, and return-to-branch expectation where applicable. The exact timing/policy formula remains unresolved under PWA-C3-Q004.
 
 Only the C3 scope freeze and this handoff change in this targeted pass. No implementation, runtime/UI, database/schema/migration, Auth/RLS/Storage, production-data or deployment work occurred. **PWA-C4 was not started and remains NOT AUTHORIZED.** Review status remains **READY FOR EXTERNAL RE-REVIEW — NOT ACCEPTED / NOT MERGED**.
+
+Validation at targeted content head `464e93dc89f5782162380703c813041702f12233`: `git diff --check`, `git diff --cached --check` before commit, and `git diff --check 8d77d39843c5c8d031e3c09427b1203399804a12...HEAD` passed. `git status --short --branch` was clean. `git diff --name-status 8d77d39843c5c8d031e3c09427b1203399804a12...HEAD` and `git diff --stat 8d77d39843c5c8d031e3c09427b1203399804a12...HEAD` confirmed only the two authorized Markdown files (52 insertions / 9 deletions at the content head, before this evidence-only successor). Local `python -` validation passed for exact provider sequences, canonical IDs, edited table columns and 19 local links/anchors; the master matrix, Driver contract and all open questions including Q004 were unchanged. Manual diff/privacy review found no runtime changes, secrets or private customer/staff data. No application, device or database tests were run. Final commit-range, clean-tree and remote-ref checks are reported with the published review head in the delivery response.
 
 ## Earlier correction verification and publication evidence
 
