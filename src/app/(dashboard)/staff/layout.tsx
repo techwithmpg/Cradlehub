@@ -18,6 +18,8 @@ import {
   resolveStaffOperationalRole,
   resolveNavigationProfile,
 } from "@/components/features/staff-pwa/role-navigation";
+import { StaffConnectivityBanner } from "@/components/features/staff-pwa/connectivity-banner";
+import { StaffInstallPrompt } from "@/components/features/staff-pwa/install-prompt";
 
 export const metadata: Metadata = {
   manifest: "/manifest-staff.webmanifest",
@@ -44,7 +46,7 @@ export default async function StaffLayout({
     const profile = resolveNavigationProfile(opRole);
 
     if (profile === "driver") {
-      content = <DriverMobileShell staff={staff}>{children}</DriverMobileShell>;
+      content = <DriverMobileShell staff={staff} mode="canonical">{children}</DriverMobileShell>;
     } else if (profile === "provider") {
       content = <TherapistMobileShell>{children}</TherapistMobileShell>;
     } else if (profile === "utility") {
@@ -57,6 +59,8 @@ export default async function StaffLayout({
   return (
     <>
       <WorkspaceRoutePrefetcher config={STAFF_PORTAL_PREFETCH} />
+      <StaffConnectivityBanner />
+      <StaffInstallPrompt />
       {content}
     </>
   );

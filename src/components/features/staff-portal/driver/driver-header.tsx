@@ -1,11 +1,19 @@
+"use client";
+
 import Link from "next/link";
+import { usePathname } from "next/navigation";
 import { Bell } from "lucide-react";
 import { UserAvatar } from "@/components/shared/user-avatar";
 import { getStaffDisplayName } from "@/lib/staff/display-name";
 import type { StaffPortalStaff } from "@/components/features/staff-portal/types";
 
 export function DriverHeader({ staff }: { staff: StaffPortalStaff }) {
+  const pathname = usePathname();
+  const isCanonical = pathname?.startsWith("/staff") ?? false;
   const displayName = getStaffDisplayName(staff);
+
+  const notificationsHref = isCanonical ? "/staff/notices" : "/staff-portal/notifications";
+  const profileHref = isCanonical ? "/staff/driver/more" : "/staff-portal/profile";
 
   return (
     <div
@@ -32,13 +40,13 @@ export function DriverHeader({ staff }: { staff: StaffPortalStaff }) {
 
       <div style={{ display: "flex", alignItems: "center", gap: "0.625rem" }}>
         <Link
-          href="/staff-portal/notifications"
+          href={notificationsHref}
           style={{ width: 36, height: 36, borderRadius: "50%", backgroundColor: "var(--cs-surface-warm)", border: "1px solid var(--cs-border-soft)", display: "flex", alignItems: "center", justifyContent: "center", color: "var(--cs-text-muted)", textDecoration: "none" }}
           aria-label="Notifications"
         >
           <Bell size={17} />
         </Link>
-        <Link href="/staff-portal/profile" style={{ textDecoration: "none" }} aria-label="Profile">
+        <Link href={profileHref} style={{ textDecoration: "none" }} aria-label="Profile">
           <UserAvatar
             name={displayName}
             imageUrl={staff.avatar_url}

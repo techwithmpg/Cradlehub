@@ -2,6 +2,7 @@
 
 import { useState, useTransition } from "react";
 import Link from "next/link";
+import { usePathname } from "next/navigation";
 import {
   Bell,
   Truck,
@@ -419,6 +420,8 @@ type DriverMobileHomeProps = {
 };
 
 export function DriverMobileHome({ driver, trips }: DriverMobileHomeProps) {
+  const pathname = usePathname();
+  const isCanonical = pathname?.startsWith("/staff") ?? false;
   const firstName = driver.full_name.split(" ")[0] ?? driver.full_name;
 
   const sorted = [...trips].sort((a, b) => a.start_time.localeCompare(b.start_time));
@@ -485,7 +488,7 @@ export function DriverMobileHome({ driver, trips }: DriverMobileHomeProps) {
         </div>
 
         <Link
-          href="/driver"
+          href={isCanonical ? "/staff/notices" : "/driver"}
           style={{
             width: 36,
             height: 36,
@@ -671,7 +674,7 @@ export function DriverMobileHome({ driver, trips }: DriverMobileHomeProps) {
 
         {/* Link to full dispatch */}
         <Link
-          href="/driver/dispatch"
+          href={isCanonical ? "/staff/driver/trips" : "/driver/dispatch"}
           style={{
             textDecoration: "none",
             backgroundColor: "#fff",

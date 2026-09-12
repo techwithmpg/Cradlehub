@@ -71,9 +71,9 @@ export function StaffAppShell({
           system_role: staff.system_role,
           staff_type: staff.staff_type,
         })
-      : "crm_general");
+      : null);
 
-  const navProfile = profileOverride ?? resolveNavigationProfile(operationalRole);
+  const navProfile = profileOverride ?? (resolveNavigationProfile(operationalRole) ?? "crm_general");
   const navItems = customNavItems ?? getNavigationItemsForProfile(navProfile);
 
   const displayName = staff?.nickname || staff?.full_name || "Staff";

@@ -36,11 +36,11 @@ export default async function StaffScanPage() {
   return (
     <StaffAppShell
       staff={staff}
-      profileOverride={profile}
+      profileOverride={profile ?? undefined}
       pageTitle="Scan Code"
       backHref={returnHref}
       activeNavKey="scan"
-      hideNav={false}
+      hideNav={true}
     >
       <div className="flex flex-col items-center justify-center py-6 text-center">
         {/* Viewfinder Frame Placeholder */}

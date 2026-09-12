@@ -37,7 +37,7 @@ export default async function StaffScanPage() {
   return (
     <StaffAppShell
       staff={staff}
-      profileOverride={profile}
+      profileOverride={profile ?? undefined}
       pageTitle="Scan Code"
       backHref={returnHref}
       activeNavKey="scan"

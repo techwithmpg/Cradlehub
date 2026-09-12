@@ -30,7 +30,20 @@ type DriverProfileActionListProps = {
 };
 
 function buildRows(pathname: string, onEdit: () => void): ActionRow[] {
+  const isCanonical = pathname.startsWith("/staff");
   const isStandaloneDriver = pathname.startsWith("/driver");
+
+  const notificationsHref = isCanonical
+    ? "/staff/notices"
+    : isStandaloneDriver
+    ? undefined
+    : "/staff-portal/notifications";
+
+  const scheduleHref = isCanonical
+    ? "/staff/driver/trips"
+    : isStandaloneDriver
+    ? undefined
+    : "/staff-portal/schedule";
 
   return [
     {
@@ -43,14 +56,14 @@ function buildRows(pathname: string, onEdit: () => void): ActionRow[] {
       label: "Notifications",
       description: isStandaloneDriver ? "Coming soon" : "Manage your alerts and preferences",
       icon: Bell,
-      href: isStandaloneDriver ? undefined : "/staff-portal/notifications",
+      href: notificationsHref,
       disabled: isStandaloneDriver,
     },
     {
       label: "Schedule",
       description: isStandaloneDriver ? "Coming soon" : "View your working schedule",
       icon: CalendarDays,
-      href: isStandaloneDriver ? undefined : "/staff-portal/schedule",
+      href: scheduleHref,
       disabled: isStandaloneDriver,
     },
     {

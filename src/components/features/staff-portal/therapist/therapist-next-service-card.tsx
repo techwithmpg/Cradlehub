@@ -1,4 +1,7 @@
+"use client";
+
 import Link from "next/link";
+import { usePathname } from "next/navigation";
 import { MapPin, Home as HomeIcon, Clock, Stethoscope } from "lucide-react";
 import { formatTime } from "@/lib/utils";
 import type { StaffPortalBooking } from "@/components/features/staff-portal/types";
@@ -42,6 +45,9 @@ function getProgressBadge(progressStatus: string): { label: string; bg: string; 
 }
 
 function EmptyState() {
+  const pathname = usePathname();
+  const progressHref = pathname?.startsWith("/staff") ? "/staff/progress" : "/staff-portal/service-progress";
+
   return (
     <div
       style={{
@@ -67,7 +73,7 @@ function EmptyState() {
         </p>
       </div>
       <Link
-        href="/staff-portal/service-progress"
+        href={progressHref}
         style={{
           padding: "0.5rem 0.875rem",
           borderRadius: 10,
@@ -87,8 +93,10 @@ function EmptyState() {
 }
 
 export function TherapistNextServiceCard({ booking }: TherapistNextServiceCardProps) {
+  const pathname = usePathname();
   if (!booking) return <EmptyState />;
 
+  const progressHref = pathname?.startsWith("/staff") ? "/staff/progress" : "/staff-portal/service-progress";
   const service = firstRelation(booking.services);
   const customer = firstRelation(booking.customers);
   const isHome = booking.delivery_type === "home_service";
@@ -192,7 +200,7 @@ export function TherapistNextServiceCard({ booking }: TherapistNextServiceCardPr
           {badge.label}
         </span>
         <Link
-          href="/staff-portal/service-progress"
+          href={progressHref}
           style={{
             fontSize: 12,
             fontWeight: 600,

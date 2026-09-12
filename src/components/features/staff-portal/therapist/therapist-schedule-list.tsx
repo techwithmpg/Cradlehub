@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import Link from "next/link";
+import { usePathname } from "next/navigation";
 import { ChevronLeft, ChevronRight, Clock, MapPin } from "lucide-react";
 import { formatTime } from "@/lib/utils";
 import { formatWeekRange } from "@/lib/staff-portal/week";
@@ -171,10 +172,12 @@ type TherapistScheduleListProps = {
 };
 
 export function TherapistScheduleList({ nav, days }: TherapistScheduleListProps) {
+  const pathname = usePathname();
   const [filter, setFilter] = useState<FilterKey>("all");
   const rangeLabel = formatWeekRange(nav.fromDate, nav.toDate);
-  const prevHref = `/staff-portal/schedule?weekStart=${nav.previousWeekStart}`;
-  const nextHref = `/staff-portal/schedule?weekStart=${nav.nextWeekStart}`;
+  const basePath = pathname?.startsWith("/staff") ? "/staff/schedule" : "/staff-portal/schedule";
+  const prevHref = `${basePath}?weekStart=${nav.previousWeekStart}`;
+  const nextHref = `${basePath}?weekStart=${nav.nextWeekStart}`;
   const filteredDays = days.filter((d) => matchesFilter(d, filter));
 
   return (

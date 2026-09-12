@@ -8,20 +8,46 @@ import type { StaffNavItem } from "@/components/features/staff-pwa/types";
 type DriverMobileBottomNavProps = {
   isProfileOpen?: boolean;
   onProfileOpen?: () => void;
+  mode?: "canonical" | "driver" | "staff_portal";
 };
 
-export function DriverMobileBottomNav({
-  isProfileOpen = false,
-  onProfileOpen,
-}: DriverMobileBottomNavProps) {
-  const pathname = usePathname();
-  const isStandaloneDriver = pathname.startsWith("/driver");
-  const homeHref = isStandaloneDriver ? "/driver" : "/staff-portal";
-  const tripsHref = isStandaloneDriver ? "/driver/dispatch" : "/staff-portal/dispatch";
-  const mapHref = isStandaloneDriver ? "/driver/map" : "/staff-portal/map";
-  const moreHref = isStandaloneDriver ? "/driver/more" : "/staff-portal/more";
+export function getDriverBottomNavItems(
+  effectiveMode: "canonical" | "driver" | "staff_portal"
+): StaffNavItem[] {
+  const homeHref =
+    effectiveMode === "canonical"
+      ? "/staff/driver"
+      : effectiveMode === "driver"
+      ? "/driver"
+      : "/staff-portal";
 
-  const items: StaffNavItem[] = [
+  const tripsHref =
+    effectiveMode === "canonical"
+      ? "/staff/driver/trips"
+      : effectiveMode === "driver"
+      ? "/driver/dispatch"
+      : "/staff-portal/dispatch";
+
+  const scanHref =
+    effectiveMode === "canonical"
+      ? "/staff/scan"
+      : "/scan";
+
+  const mapHref =
+    effectiveMode === "canonical"
+      ? "/staff/driver/map"
+      : effectiveMode === "driver"
+      ? "/driver/map"
+      : "/staff-portal/map";
+
+  const moreHref =
+    effectiveMode === "canonical"
+      ? "/staff/driver/more"
+      : effectiveMode === "driver"
+      ? "/driver/more"
+      : "/staff-portal/more";
+
+  return [
     {
       key: "today",
       label: "Today",
@@ -37,7 +63,7 @@ export function DriverMobileBottomNav({
     {
       key: "scan",
       label: "Scan",
-      href: "/scan",
+      href: scanHref,
       icon: QrCode,
       isScan: true,
     },
@@ -54,6 +80,23 @@ export function DriverMobileBottomNav({
       icon: MoreHorizontal,
     },
   ];
+}
+
+export function DriverMobileBottomNav({
+  isProfileOpen = false,
+  onProfileOpen,
+  mode,
+}: DriverMobileBottomNavProps) {
+  const pathname = usePathname();
+  const effectiveMode =
+    mode ??
+    (pathname?.startsWith("/staff")
+      ? "canonical"
+      : pathname?.startsWith("/driver")
+      ? "driver"
+      : "staff_portal");
+
+  const items = getDriverBottomNavItems(effectiveMode);
 
   return (
     <StaffBottomNav

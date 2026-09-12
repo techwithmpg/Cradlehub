@@ -1,1 +1,5 @@
-export { default } from "../../../staff-portal/more/page";
+import { BasicStaffMoreMenu } from "@/components/features/staff-portal/basic/basic-staff-more-menu";
+
+export default function StaffUtilityMorePage() {
+  return <BasicStaffMoreMenu isCanonical />;
+}

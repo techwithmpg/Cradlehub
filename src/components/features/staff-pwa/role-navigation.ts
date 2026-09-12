@@ -14,7 +14,11 @@ import type {
   StaffNavItem,
   StaffOperationalRole,
 } from "./types";
-import { isFrontDeskRole, isServiceStaffType } from "@/constants/staff";
+import {
+  canonicalizeSystemRole,
+  isFrontDeskRole,
+  isServiceStaffType,
+} from "@/constants/staff";
 
 /**
  * 4 Frozen Navigation Profiles across 7 Staff Roles (PWA-C4 Section 4 & 5):
@@ -173,27 +177,69 @@ export const DRIVER_NAV_ITEMS: StaffNavItem[] = [
 export function resolveStaffOperationalRole(staff: {
   system_role: string;
   staff_type?: string | null;
-}): StaffOperationalRole {
+}): StaffOperationalRole | null {
   const role = staff.system_role;
+  const canonicalRole = canonicalizeSystemRole(role);
   const type = (staff.staff_type ?? "").toLowerCase();
 
-  if (role === "driver" || type === "driver") return "driver";
-  if (role === "utility" || type === "utility") return "utility";
+  // Exclude managerial/administrative and marketing roles unconditionally
+  if (
+    canonicalRole === "owner" ||
+    canonicalRole === "manager" ||
+    canonicalRole === "assistant_manager" ||
+    canonicalRole === "store_manager" ||
+    canonicalRole === "digital_marketer" ||
+    type === "managerial"
+  ) {
+    return null;
+  }
 
+  // 1. Driver
+  if (canonicalRole === "driver" || type === "driver") return "driver";
+
+  // 2. Utility
+  if (canonicalRole === "utility" || type === "utility") return "utility";
+
+  // 3. Provider (therapist, nail_tech, aesthetician/facialist, salon_head)
   if (isServiceStaffType(type) || type === "facialist") {
     if (type === "nail_tech") return "nail_tech";
     if (type === "aesthetician" || type === "facialist") return "aesthetician";
     if (type === "salon_head") return "salon_head";
     return "therapist";
   }
+  if (canonicalRole === "service_head") return "salon_head";
+  if (canonicalRole === "service_staff") return "therapist";
 
-  if (isFrontDeskRole(role)) return "crm_general";
-  return "crm_general";
+  // 4. CRM / General Staff (front desk, csr)
+  if (
+    canonicalRole === "crm" ||
+    isFrontDeskRole(role) ||
+    role === "front_desk" ||
+    type === "csr"
+  ) {
+    return "crm_general";
+  }
+
+  // Generic staff role without managerial override
+  if (canonicalRole === "staff") {
+    if (isServiceStaffType(type) || type === "facialist") {
+      if (type === "nail_tech") return "nail_tech";
+      if (type === "aesthetician" || type === "facialist") return "aesthetician";
+      if (type === "salon_head") return "salon_head";
+      return "therapist";
+    }
+    if (type === "driver") return "driver";
+    if (type === "utility") return "utility";
+    return "crm_general";
+  }
+
+  return null;
 }
 
 export function resolveNavigationProfile(
-  role: StaffOperationalRole
-): NavigationProfile {
+  role: StaffOperationalRole | null
+): NavigationProfile | null {
+  if (!role) return null;
   switch (role) {
     case "therapist":
     case "nail_tech":

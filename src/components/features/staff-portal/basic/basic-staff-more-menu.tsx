@@ -48,69 +48,75 @@ type MenuSection = {
 
 // ── Menu config ───────────────────────────────────────────────────────────────
 
-const SECTIONS: MenuSection[] = [
-  {
-    title: "Account",
-    items: [
-      {
-        kind: "link",
-        label: "Profile",
-        description: "View and edit your profile",
-        href: "/staff-portal/profile",
-        icon: User,
-      },
-      {
-        kind: "link",
-        label: "My Attendance",
-        description: "View clock history and review status",
-        href: "/staff-portal/attendance",
-        icon: ClipboardCheck,
-      },
-      {
-        kind: "link",
-        label: "Notifications",
-        description: "Manage your notifications",
-        href: "/staff-portal/notifications",
-        icon: Bell,
-      },
-      {
-        kind: "link",
-        label: "Settings",
-        description: "App preferences",
-        href: "/staff-portal/notifications",
-        icon: Settings,
-        disabled: true,
-      },
-    ],
-  },
-  {
-    title: "Support",
-    items: [
-      {
-        kind: "link",
-        label: "Help & Support",
-        description: "Get help and contact support",
-        href: "/staff-portal/notifications",
-        icon: HelpCircle,
-        disabled: true,
-      },
-      {
-        kind: "link",
-        label: "Privacy Policy",
-        description: "Read our privacy policy",
-        href: "/staff-portal/notifications",
-        icon: Shield,
-        disabled: true,
-      },
-      {
-        kind: "logout",
-        label: "Logout",
-        description: "Sign out from your account",
-        icon: LogOut,
-      },
-    ],
-  },
-];
+type BasicStaffMoreMenuProps = {
+  isCanonical?: boolean;
+};
+
+export function getBasicStaffMoreSections(isCanonical: boolean): MenuSection[] {
+  return [
+    {
+      title: "Account",
+      items: [
+        {
+          kind: "link",
+          label: "Profile",
+          description: "View and edit your profile",
+          href: isCanonical ? "/staff/profile" : "/staff-portal/profile",
+          icon: User,
+        },
+        {
+          kind: "link",
+          label: "My Attendance",
+          description: "View clock history and review status",
+          href: isCanonical ? "/staff/attendance" : "/staff-portal/attendance",
+          icon: ClipboardCheck,
+        },
+        {
+          kind: "link",
+          label: "Notifications",
+          description: "Manage your notifications",
+          href: isCanonical ? "/staff/notices" : "/staff-portal/notifications",
+          icon: Bell,
+        },
+        {
+          kind: "link",
+          label: "Settings",
+          description: "App preferences",
+          href: isCanonical ? "/staff/notices" : "/staff-portal/notifications",
+          icon: Settings,
+          disabled: true,
+        },
+      ],
+    },
+    {
+      title: "Support",
+      items: [
+        {
+          kind: "link",
+          label: "Help & Support",
+          description: "Get help and contact support",
+          href: isCanonical ? "/staff/notices" : "/staff-portal/notifications",
+          icon: HelpCircle,
+          disabled: true,
+        },
+        {
+          kind: "link",
+          label: "Privacy Policy",
+          description: "Read our privacy policy",
+          href: isCanonical ? "/staff/notices" : "/staff-portal/notifications",
+          icon: Shield,
+          disabled: true,
+        },
+        {
+          kind: "logout",
+          label: "Logout",
+          description: "Sign out from your account",
+          icon: LogOut,
+        },
+      ],
+    },
+  ];
+}
 
 // ── Icon wrapper ──────────────────────────────────────────────────────────────
 
@@ -275,7 +281,9 @@ function MenuSectionCard({ section }: { section: MenuSection }) {
 
 // ── Main component ─────────────────────────────────────────────────────────────
 
-export function BasicStaffMoreMenu() {
+export function BasicStaffMoreMenu({ isCanonical = false }: BasicStaffMoreMenuProps) {
+  const sections = getBasicStaffMoreSections(isCanonical);
+
   return (
     <div
       style={{
@@ -318,7 +326,7 @@ export function BasicStaffMoreMenu() {
           marginRight: "auto",
         }}
       >
-        {SECTIONS.map((section) => (
+        {sections.map((section) => (
           <MenuSectionCard key={section.title} section={section} />
         ))}
       </div>

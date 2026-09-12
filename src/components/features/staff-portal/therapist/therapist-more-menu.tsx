@@ -30,33 +30,39 @@ type LogoutRow = {
 type MenuRowItem = LinkRow | LogoutRow;
 type MenuSection = { title: string; items: MenuRowItem[] };
 
-const SECTIONS: MenuSection[] = [
-  {
-    title: "Account",
-    items: [
-      { kind: "link", label: "Profile", description: "View and edit your profile", href: "/staff-portal/profile", icon: User },
-      { kind: "link", label: "Notifications", description: "Manage your notifications", href: "/staff-portal/notifications", icon: Bell },
-      { kind: "link", label: "Settings", description: "App preferences", href: "/staff-portal/notifications", icon: Settings, disabled: true },
-    ],
-  },
-  {
-    title: "Work",
-    items: [
-      { kind: "link", label: "My Attendance", description: "View clock history and review status", href: "/staff-portal/attendance", icon: ClipboardCheck },
-      { kind: "link", label: "My Week", description: "Weekly schedule overview", href: "/staff-portal/week", icon: Clock },
-      { kind: "link", label: "Dispatch & Home Service", description: "Home service assignments", href: "/staff-portal/dispatch", icon: MapPin },
-      { kind: "link", label: "Service History", description: "Past completed services", href: "/staff-portal/service-progress", icon: BookOpen },
-    ],
-  },
-  {
-    title: "Support",
-    items: [
-      { kind: "link", label: "Help & Support", description: "Get help and contact support", href: "/staff-portal/notifications", icon: HelpCircle, disabled: true },
-      { kind: "link", label: "Privacy Policy", description: "Read our privacy policy", href: "/staff-portal/notifications", icon: Shield, disabled: true },
-      { kind: "logout", label: "Logout", description: "Sign out from your account", icon: LogOut },
-    ],
-  },
-];
+type TherapistMoreMenuProps = {
+  isCanonical?: boolean;
+};
+
+export function getTherapistMoreSections(isCanonical: boolean): MenuSection[] {
+  return [
+    {
+      title: "Account",
+      items: [
+        { kind: "link", label: "Profile", description: "View and edit your profile", href: isCanonical ? "/staff/profile" : "/staff-portal/profile", icon: User },
+        { kind: "link", label: "Notifications", description: "Manage your notifications", href: isCanonical ? "/staff/notices" : "/staff-portal/notifications", icon: Bell },
+        { kind: "link", label: "Settings", description: "App preferences", href: isCanonical ? "/staff/notices" : "/staff-portal/notifications", icon: Settings, disabled: true },
+      ],
+    },
+    {
+      title: "Work",
+      items: [
+        { kind: "link", label: "My Attendance", description: "View clock history and review status", href: isCanonical ? "/staff/attendance" : "/staff-portal/attendance", icon: ClipboardCheck },
+        { kind: "link", label: "My Week", description: "Weekly schedule overview", href: isCanonical ? "/staff/schedule" : "/staff-portal/week", icon: Clock },
+        { kind: "link", label: "Dispatch & Home Service", description: "Home service assignments", href: isCanonical ? "/staff/schedule" : "/staff-portal/dispatch", icon: MapPin },
+        { kind: "link", label: "Service History", description: "Past completed services", href: isCanonical ? "/staff/progress" : "/staff-portal/service-progress", icon: BookOpen },
+      ],
+    },
+    {
+      title: "Support",
+      items: [
+        { kind: "link", label: "Help & Support", description: "Get help and contact support", href: isCanonical ? "/staff/notices" : "/staff-portal/notifications", icon: HelpCircle, disabled: true },
+        { kind: "link", label: "Privacy Policy", description: "Read our privacy policy", href: isCanonical ? "/staff/notices" : "/staff-portal/notifications", icon: Shield, disabled: true },
+        { kind: "logout", label: "Logout", description: "Sign out from your account", icon: LogOut },
+      ],
+    },
+  ];
+}
 
 function IconBox({ icon: Icon, danger = false }: { icon: React.ElementType; danger?: boolean }) {
   return (
@@ -124,14 +130,16 @@ function SectionCard({ section }: { section: MenuSection }) {
   );
 }
 
-export function TherapistMoreMenu() {
+export function TherapistMoreMenu({ isCanonical = false }: TherapistMoreMenuProps) {
+  const sections = getTherapistMoreSections(isCanonical);
+
   return (
     <div style={{ minHeight: "100dvh", backgroundColor: "var(--cs-bg)" }}>
       <div style={{ backgroundColor: "#fff", borderBottom: "1px solid var(--cs-border-soft)", padding: "0.875rem 1rem", position: "sticky", top: 0, zIndex: 30 }}>
         <h1 style={{ margin: 0, fontSize: 19, fontWeight: 700, color: "var(--cs-text)" }}>More</h1>
       </div>
       <div style={{ padding: "0.875rem 1rem", display: "flex", flexDirection: "column", gap: "1.25rem", maxWidth: 480, marginLeft: "auto", marginRight: "auto" }}>
-        {SECTIONS.map((section) => <SectionCard key={section.title} section={section} />)}
+        {sections.map((section) => <SectionCard key={section.title} section={section} />)}
       </div>
     </div>
   );

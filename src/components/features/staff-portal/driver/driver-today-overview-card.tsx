@@ -1,4 +1,7 @@
+"use client";
+
 import Link from "next/link";
+import { usePathname } from "next/navigation";
 import { Route } from "lucide-react";
 import type { RealDispatchItem, DispatchStats } from "@/lib/queries/dispatch-queries";
 
@@ -17,6 +20,9 @@ function getRouteStatus(items: RealDispatchItem[]): string {
 }
 
 export function DriverTodayOverviewCard({ items, stats }: DriverTodayOverviewCardProps) {
+  const pathname = usePathname();
+  const isCanonical = pathname?.startsWith("/staff") ?? false;
+  const mapHref = isCanonical ? "/staff/driver/map" : "/staff-portal/map";
   const routeStatus = getRouteStatus(items);
   const hasJobs = items.length > 0;
   const activeCount = stats.totalToday;
@@ -57,7 +63,7 @@ export function DriverTodayOverviewCard({ items, stats }: DriverTodayOverviewCar
       )}
 
       <Link
-        href="/staff-portal/map"
+        href={mapHref}
         style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 6, padding: "0.625rem", borderRadius: 12, backgroundColor: "var(--cs-staff-accent)", color: "#fff", textDecoration: "none", fontSize: 13, fontWeight: 700 }}
       >
         {hasJobs ? "View Route" : "Open Map"}

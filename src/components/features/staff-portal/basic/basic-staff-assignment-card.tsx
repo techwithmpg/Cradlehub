@@ -1,4 +1,7 @@
+"use client";
+
 import Link from "next/link";
+import { usePathname } from "next/navigation";
 import { Sparkles } from "lucide-react";
 import { formatTime } from "@/lib/utils";
 import type { StaffPortalBooking } from "@/components/features/staff-portal/types";
@@ -120,6 +123,9 @@ export function BasicStaffAssignmentCard({ bookings }: BasicStaffAssignmentCardP
     active[0] ??
     null;
 
+  const pathname = usePathname();
+  const workHref = pathname?.startsWith("/staff") ? "/staff/work" : "/staff-portal/schedule";
+
   return (
     <div
       style={{
@@ -149,7 +155,7 @@ export function BasicStaffAssignmentCard({ bookings }: BasicStaffAssignmentCardP
       {nextBooking ? <AssignmentRow booking={nextBooking} /> : <EmptyAssignment />}
 
       <Link
-        href="/staff-portal/schedule"
+        href={workHref}
         style={{
           display: "inline-flex",
           alignItems: "center",

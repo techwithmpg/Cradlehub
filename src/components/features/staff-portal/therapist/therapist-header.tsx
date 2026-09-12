@@ -1,4 +1,7 @@
+"use client";
+
 import Link from "next/link";
+import { usePathname } from "next/navigation";
 import { Bell } from "lucide-react";
 import { UserAvatar } from "@/components/shared/user-avatar";
 import { getStaffDisplayName } from "@/lib/staff/display-name";
@@ -10,6 +13,10 @@ type TherapistHeaderProps = {
 };
 
 export function TherapistHeader({ staff }: TherapistHeaderProps) {
+  const pathname = usePathname();
+  const isCanonical = pathname?.startsWith("/staff") ?? false;
+  const notificationsHref = isCanonical ? "/staff/notices" : "/staff-portal/notifications";
+  const profileHref = isCanonical ? "/staff/more" : "/staff-portal/profile";
   const typeLabel =
     STAFF_TYPE_LABELS[staff.staff_type as keyof typeof STAFF_TYPE_LABELS] ?? "Therapist";
   const displayName = getStaffDisplayName(staff);
@@ -58,7 +65,7 @@ export function TherapistHeader({ staff }: TherapistHeaderProps) {
       {/* Right: notification bell + avatar */}
       <div style={{ display: "flex", alignItems: "center", gap: "0.625rem" }}>
         <Link
-          href="/staff-portal/notifications"
+          href={notificationsHref}
           style={{
             width: 36,
             height: 36,
@@ -77,7 +84,7 @@ export function TherapistHeader({ staff }: TherapistHeaderProps) {
         </Link>
 
         <Link
-          href="/staff-portal/profile"
+          href={profileHref}
           style={{ textDecoration: "none" }}
           aria-label="Profile"
         >

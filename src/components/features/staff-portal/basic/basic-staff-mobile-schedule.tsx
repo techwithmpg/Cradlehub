@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import Link from "next/link";
+import { usePathname } from "next/navigation";
 import { ChevronLeft, ChevronRight } from "lucide-react";
 import { formatTime } from "@/lib/utils";
 import { formatWeekRange } from "@/lib/staff-portal/week";
@@ -223,10 +224,14 @@ export function BasicStaffMobileSchedule({
   nav,
   days,
 }: BasicStaffMobileScheduleProps) {
+  const pathname = usePathname();
   const [filter, setFilter] = useState<FilterKey>("all");
   const rangeLabel = formatWeekRange(nav.fromDate, nav.toDate);
-  const prevHref = `/staff-portal/schedule?weekStart=${nav.previousWeekStart}`;
-  const nextHref = `/staff-portal/schedule?weekStart=${nav.nextWeekStart}`;
+  const basePath = pathname?.startsWith("/staff")
+    ? (pathname.startsWith("/staff/work") ? "/staff/work" : "/staff/schedule")
+    : "/staff-portal/schedule";
+  const prevHref = `${basePath}?weekStart=${nav.previousWeekStart}`;
+  const nextHref = `${basePath}?weekStart=${nav.nextWeekStart}`;
 
   const filteredDays = days.filter((day) => matchesFilter(day, filter));
 

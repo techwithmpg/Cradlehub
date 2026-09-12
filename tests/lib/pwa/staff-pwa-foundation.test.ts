@@ -291,5 +291,140 @@ describe("PWA-C5: Security Boundaries & Authorization Contracts", () => {
     expect(shellSource).not.toMatch(/operationalRole\s*=\s*.*\|\|\s*["']therapist["']/);
     expect(shellSource).toContain("StaffRoleResolutionSplash");
   });
+
+  it("proves strict server-UI operational group alignment across all role/type combinations", async () => {
+    const { resolveStaffPwaOperationalGroup } = await import("@/lib/auth/workspace-access");
+
+    const testCases: Array<{ role: string; staff_type: string | null }> = [
+      // Providers
+      { role: "staff", staff_type: "therapist" },
+      { role: "staff", staff_type: "nail_tech" },
+      { role: "staff", staff_type: "aesthetician" },
+      { role: "staff", staff_type: "facialist" },
+      { role: "staff", staff_type: "salon_head" },
+      { role: "service_head", staff_type: null },
+      { role: "service_staff", staff_type: null },
+      // Drivers
+      { role: "driver", staff_type: null },
+      { role: "staff", staff_type: "driver" },
+      // Utility
+      { role: "utility", staff_type: null },
+      { role: "utility", staff_type: "utility" },
+      { role: "staff", staff_type: "utility" },
+      // CRM / General
+      { role: "crm", staff_type: null },
+      { role: "front_desk", staff_type: null },
+      { role: "csr", staff_type: null },
+      { role: "staff", staff_type: null },
+      { role: "staff", staff_type: "csr" },
+      // Excluded / Non-Staff-PWA roles
+      { role: "owner", staff_type: null },
+      { role: "manager", staff_type: null },
+      { role: "assistant_manager", staff_type: null },
+      { role: "store_manager", staff_type: null },
+      { role: "digital_marketer", staff_type: null },
+      { role: "staff", staff_type: "managerial" },
+    ];
+
+    for (const { role, staff_type } of testCases) {
+      const serverGroup = resolveStaffPwaOperationalGroup(role, staff_type);
+      const uiRole = resolveStaffOperationalRole({ system_role: role, staff_type });
+      const uiProfile = resolveNavigationProfile(uiRole);
+
+      expect(uiProfile).toBe(serverGroup);
+    }
+  });
+});
+
+describe("PWA-C5: Canonical Staff Runtime Scope Containment", () => {
+  it("verifies Driver canonical bottom nav never emits /driver, /staff-portal, or legacy /scan", async () => {
+    const { getDriverBottomNavItems } = await import(
+      "@/components/features/staff-portal/driver/driver-mobile-bottom-nav"
+    );
+    const canonicalItems = getDriverBottomNavItems("canonical");
+
+    expect(canonicalItems.length).toBe(5);
+    for (const item of canonicalItems) {
+      expect(item.href).toMatch(/^\/staff\//);
+      expect(item.href).not.toMatch(/^\/driver(\/|$)/);
+      expect(item.href).not.toContain("/staff-portal");
+      expect(item.href).not.toBe("/scan");
+    }
+
+    expect(canonicalItems.find((i) => i.key === "today")?.href).toBe("/staff/driver");
+    expect(canonicalItems.find((i) => i.key === "trips")?.href).toBe("/staff/driver/trips");
+    expect(canonicalItems.find((i) => i.key === "scan")?.href).toBe("/staff/scan");
+    expect(canonicalItems.find((i) => i.key === "map")?.href).toBe("/staff/driver/map");
+    expect(canonicalItems.find((i) => i.key === "more")?.href).toBe("/staff/driver/more");
+  });
+
+  it("verifies canonical Driver More does not emit legacy Staff Portal destinations", async () => {
+    const { getDriverMoreSections } = await import(
+      "@/components/features/staff-portal/driver/driver-more-menu"
+    );
+    const canonicalSections = getDriverMoreSections(true);
+
+    for (const section of canonicalSections) {
+      for (const item of section.items) {
+        if (item.kind === "link") {
+          expect(item.href).toMatch(/^\/staff\//);
+          expect(item.href).not.toContain("/staff-portal");
+        }
+      }
+    }
+  });
+
+  it("verifies canonical Provider More remains within approved /staff/ routes or honest seams", async () => {
+    const { getTherapistMoreSections } = await import(
+      "@/components/features/staff-portal/therapist/therapist-more-menu"
+    );
+    const canonicalSections = getTherapistMoreSections(true);
+
+    for (const section of canonicalSections) {
+      for (const item of section.items) {
+        if (item.kind === "link") {
+          expect(item.href).toMatch(/^\/staff\//);
+          expect(item.href).not.toContain("/staff-portal");
+        }
+      }
+    }
+  });
+
+  it("verifies canonical CRM/general More remains within approved /staff/ routes or honest seams", async () => {
+    const { getBasicStaffMoreSections } = await import(
+      "@/components/features/staff-portal/basic/basic-staff-more-menu"
+    );
+    const canonicalSections = getBasicStaffMoreSections(true);
+
+    for (const section of canonicalSections) {
+      for (const item of section.items) {
+        if (item.kind === "link") {
+          expect(item.href).toMatch(/^\/staff\//);
+          expect(item.href).not.toContain("/staff-portal");
+        }
+      }
+    }
+  });
+
+  it("verifies Utility Today contains no speculative task-module promises and never links to /staff-portal", async () => {
+    const fs = await import("fs");
+    const utilityTodaySource = fs.readFileSync("src/app/(dashboard)/staff/utility/page.tsx", "utf8");
+
+    // Must not contain speculative modules
+    expect(utilityTodaySource).not.toContain("Room Preparation Checklist");
+    expect(utilityTodaySource).not.toContain("Cleaning Schedule");
+    expect(utilityTodaySource).not.toContain("Supply Restock Reminders");
+    expect(utilityTodaySource).not.toContain("Maintenance Tasks");
+    expect(utilityTodaySource).not.toContain("Coming Soon");
+
+    // Must not contain legacy staff-portal redirect or links
+    expect(utilityTodaySource).not.toContain("/staff-portal");
+
+    // Must have truthful foundation destinations
+    expect(utilityTodaySource).toContain("/staff/utility/work");
+    expect(utilityTodaySource).toContain("/staff/scan");
+    expect(utilityTodaySource).toContain("/staff/utility/notices");
+    expect(utilityTodaySource).toContain("/staff/utility/more");
+  });
 });
 
