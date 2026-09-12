@@ -7,7 +7,8 @@
 - Branch: `stage/pwa-c3-final-scope-freeze`.
 - Accepted C2/main: `2b927303d2d6bc10b09a15f2542fdcfa6c066194`.
 - Previously reviewed C3 head: `1535f5e258190d0024ce50c87bb19f06f913a4e8`.
-- Corrected C3 review head: the commit containing this handoff, resolved with `git rev-parse HEAD` when checked out at this review revision. Publication evidence below records the correction content SHA separately so no self-referential SHA or history rewrite is required.
+- Corrected C3 content head: `01d143ac492123db1db0d4635bc06d04bf688b63` (`docs(pwa): address C3 external review corrections`).
+- Final re-review head: the immediate handoff-evidence successor of that content commit, containing this SHA record; resolve with `git rev-parse HEAD` at this review revision. The delivery response records its full SHA and remote push verification. This distinction avoids a self-referential commit hash and preserves history.
 - Next stage: **PWA-C4 — NOT AUTHORIZED**.
 
 The owner authorized correction commits and a normal push to this C3 branch for external re-review. Runtime/UI work, dependencies, database/schema/migrations, Auth/RLS/Storage changes, production access, deployment, merge, rebase, force-push, history rewriting, recovery-branch changes and PWA-C4+ execution are prohibited. PWA-C3 remains active and documentation-only.
@@ -49,7 +50,16 @@ The correction starting gate passed after `git fetch origin --prune`: branch `st
 
 `git ls-remote origin refs/heads/main refs/heads/stage/pwa-c2-structured-diagnostics refs/heads/stage/pwa-c3-final-scope-freeze` independently confirmed the accepted main, historical recovery tip and prior reviewed C3 head. The first sandbox remote-read attempt could not connect; the approved retry succeeded. `git rev-parse main` and `git rev-parse stage/pwa-c2-structured-diagnostics` matched those refs; `git rev-list --count main..stage/pwa-c2-structured-diagnostics` returned `5`.
 
-Validation for this documentation pass covers `git diff --check`, changed-path scope, local Markdown links/anchors, table structure, canonical decision/question IDs, all required concerns and stage ownership, and secret/privacy inspection of the diff. Application tests, browser/device checks and database checks are not run for this documentation-only change. Commit-specific results are recorded in the publication evidence update after the correction content commit.
+Validation at corrected content head `01d143ac492123db1db0d4635bc06d04bf688b63`:
+
+- `git diff --check`, `git diff --cached --check` before commit, and `git diff --check 1535f5e258190d0024ce50c87bb19f06f913a4e8...HEAD`: PASS.
+- `git status --short --branch`: clean on the authorized stage branch after the content commit.
+- `git diff --name-status 1535f5e258190d0024ce50c87bb19f06f913a4e8...HEAD` and `git diff --stat 1535f5e258190d0024ce50c87bb19f06f913a4e8...HEAD`: exactly the four documentation files below; 188 insertions / 72 deletions at the content head. This evidence-only handoff successor changes those line totals, not the four-file scope.
+- Local Python validation via `python -`: PASS — 26 local Markdown links/anchors resolve, 21 unique sequential decision rows, 11 unique sequential question rows, correct column counts in all three new tables, 17 ownership rows covering PWA-C4–C19 and FINAL, all 28 required concerns present. The original master scope matrix and all twelve C2 dispositions compare unchanged against the previously reviewed head.
+- Added-text credential-pattern check and manual diff/privacy/scope review: PASS; no secrets or private customer/staff data introduced. No unauthorized runtime files changed.
+- Ref reconciliation before commit: successful `git fetch origin --prune`; `origin/main` and merge-base still exactly the accepted C2 SHA. After the content commit, `git rev-list --left-right --count origin/main...HEAD` = `0 3`; no main reconciliation merge/rebase was needed.
+
+Application tests, browser/device checks and database checks were not run for this documentation-only change. The final evidence successor and normal branch push receive the same diff/scope and remote-ref checks in the delivery response; no application or production result is inferred from them.
 
 ## Changed files and production impact
 
