@@ -23,6 +23,7 @@ import type { StaffAttendanceData } from "@/lib/staff-portal/attendance";
 import {
   resolveProviderPrimaryWork,
   resolveProviderShift,
+  type ProviderPrimaryWork,
   type ProviderWorkspaceRuntime,
   type ResolvedShift,
 } from "@/lib/staff-pwa/provider-model";
@@ -185,12 +186,15 @@ function serviceStateLabel(booking: StaffPortalBooking): string {
   }
 }
 
-function dutyLabel(status: TherapistShiftStatus): string {
+function dutyLabel(
+  status: TherapistShiftStatus,
+  errors?: { schedule?: string; work?: string }
+): string {
+  if (status === "in_service") return "In Service";
+  if (status === "traveling") return "Home Service";
+  if (errors?.schedule) return "Shift unavailable";
+  if (errors?.work) return "Work unavailable";
   switch (status) {
-    case "in_service":
-      return "In Service";
-    case "traveling":
-      return "Home Service";
     case "on_duty":
       return "On Duty";
     case "day_off":
@@ -287,10 +291,45 @@ function AttendanceCard({
 }
 
 function PrimaryServiceCard({
-  booking,
+  work,
 }: {
-  booking: StaffPortalBooking | null;
+  work: ProviderPrimaryWork;
 }) {
+  if (work.kind === "load_error") {
+    return (
+      <section className="rounded-[22px] border border-[#F1D2CE] bg-[#FFF8F7] px-4 py-4 shadow-[0_6px_24px_rgba(180,35,24,0.06)]">
+        <div className="flex items-start justify-between gap-3">
+          <div className="flex min-w-0 items-center gap-3">
+            <div className="grid size-11 shrink-0 place-items-center rounded-full bg-[#FCE8E6] text-[#B42318]">
+              <Stethoscope size={20} />
+            </div>
+
+            <div className="min-w-0">
+              <div className="text-[12px] font-semibold uppercase tracking-[0.05em] text-[#A6372E]">
+                Work unavailable — retry
+              </div>
+              <div className="mt-0.5 text-[15px] font-bold text-[#142334]">
+                Could not load assigned service
+              </div>
+              <div className="mt-1 text-[12px] text-[#7A695C]">
+                {work.error || "Please check your network and refresh."}
+              </div>
+            </div>
+          </div>
+
+          <button
+            type="button"
+            onClick={() => window.location.reload()}
+            className="shrink-0 rounded-full border border-[#E9C4BF] bg-white px-3 py-1.5 text-[12px] font-semibold text-[#8A2218] transition hover:bg-[#FDF2F0] active:scale-95"
+          >
+            Retry
+          </button>
+        </div>
+      </section>
+    );
+  }
+
+  const booking = work.booking;
   if (!booking) {
     return (
       <section className="rounded-[22px] border border-[#EAE5DD] bg-white px-4 py-5 shadow-[0_6px_24px_rgba(30,41,59,0.05)]">
@@ -468,19 +507,57 @@ export function TherapistMobileHome({
 
           <div className="inline-flex shrink-0 items-center gap-1.5 rounded-full bg-[#E4F5E8] px-3 py-1.5 text-[11px] font-bold text-[#126A49]">
             <Activity size={13} />
-            {dutyLabel(status)}
+            {dutyLabel(status, runtime?.errors)}
           </div>
         </section>
 
-        {currentAttendance ? (
+        {runtime?.errors?.attendance ? (
+          <section className="rounded-[22px] border border-[#F1D2CE] bg-[#FFF8F7] px-4 py-3.5 shadow-[0_6px_24px_rgba(180,35,24,0.05)]">
+            <div className="flex items-center gap-3">
+              <div className="grid size-10 shrink-0 place-items-center rounded-full bg-[#FCE8E6] text-[#B42318]">
+                <Clock3 size={19} strokeWidth={2.2} />
+              </div>
+
+              <div className="min-w-0 flex-1">
+                <div className="text-[12px] font-medium text-[#7D241E]">
+                  Today&apos;s Attendance
+                </div>
+                <div className="mt-0.5 text-[15px] font-bold text-[#912018]">
+                  Attendance unavailable
+                </div>
+                <div className="mt-0.5 text-[11px] text-[#A6372E]">
+                  Could not verify clock-in status
+                </div>
+              </div>
+            </div>
+          </section>
+        ) : currentAttendance ? (
           <Link href="/staff/attendance" className="block">
             <AttendanceCard attendanceData={currentAttendance} shift={shift} />
           </Link>
         ) : null}
 
-        <PrimaryServiceCard booking={primaryService} />
+        <PrimaryServiceCard work={primaryWork} />
 
-        {shift.kind === "shift" ? (
+        {shift.kind === "load_error" || runtime?.errors?.schedule ? (
+          <section className="flex items-center gap-3 rounded-[18px] border border-[#F1D2CE] bg-[#FFF8F7] px-4 py-3 shadow-[0_4px_18px_rgba(180,35,24,0.04)]">
+            <div className="grid size-10 shrink-0 place-items-center rounded-full bg-[#FCE8E6] text-[#B42318]">
+              <Clock3 size={18} />
+            </div>
+
+            <div className="min-w-0 flex-1">
+              <div className="text-[11px] font-semibold text-[#7D241E]">
+                My Shift Today
+              </div>
+              <div className="mt-0.5 text-[15px] font-bold text-[#912018]">
+                Shift unavailable
+              </div>
+              <div className="mt-0.5 text-[11px] text-[#A6372E]">
+                Could not load shift schedule
+              </div>
+            </div>
+          </section>
+        ) : shift.kind === "shift" ? (
           <Link
             href="/staff/schedule"
             className="flex items-center gap-3 rounded-[18px] border border-[#EAE5DD] bg-white px-4 py-3 shadow-[0_4px_18px_rgba(30,41,59,0.04)]"

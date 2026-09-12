@@ -47,6 +47,18 @@ vi.mock("@/lib/staff-portal/attendance", () => ({
   getPureAttendanceSnapshot: (limit?: number) => mockGetPureAttendanceSnapshot(limit),
 }));
 
+const mockGetProviderBusinessDate = vi.fn().mockImplementation((_branchId?: string, now?: Date) => {
+  if (now) {
+    const pht = new Date(now.getTime() + 8 * 60 * 60 * 1000);
+    return pht.toISOString().split("T")[0];
+  }
+  return "2026-09-13";
+});
+
+vi.mock("@/lib/staff-pwa/provider-date", () => ({
+  getProviderBusinessDate: (branchId?: string, now?: Date) => mockGetProviderBusinessDate(branchId, now),
+}));
+
 const branchId = "11111111-1111-1111-1111-111111111111";
 const staffId = "22222222-2222-2222-2222-222222222222";
 
@@ -325,6 +337,92 @@ describe("W2: Provider / Salon Functional Wiring", () => {
       if (result.ok) {
         expect(result.runtime.staff.branches).toEqual({ name: "Alabang Town Center" });
       }
+    });
+
+    it("Section 7 / Blocker D: Work load failure preserves error and DOES NOT produce 'No assigned service'", async () => {
+      const mockStaff = makeMockStaff();
+      mockGetMyProfileAction.mockResolvedValueOnce({ staff: mockStaff });
+      mockGetPureAttendanceSnapshot.mockResolvedValueOnce(null);
+      mockGetMyTodayScheduleAction.mockResolvedValueOnce({ todaySchedule: null, todayOverride: null });
+      mockGetMyTodayAction.mockResolvedValueOnce({ error: "Failed to read bookings" });
+
+      const result = await getProviderWorkspaceRuntime("2026-09-13");
+      expect(result.ok).toBe(true);
+      if (result.ok) {
+        expect(result.runtime.errors?.work).toBe("Failed to read bookings");
+        expect(result.runtime.primaryWork.kind).toBe("load_error");
+        expect(result.runtime.primaryWork.badgeLabel).toBe("Work unavailable");
+        expect(result.runtime.primaryWork.badgeLabel).not.toBe("No assigned service");
+        expect(result.runtime.primaryWork.kind).not.toBe("clear");
+      }
+    });
+
+    it("Section 7 / Blocker D: Attendance read failure preserves error and DOES NOT produce 'Not clocked in'", async () => {
+      const mockStaff = makeMockStaff();
+      mockGetMyProfileAction.mockResolvedValueOnce({ staff: mockStaff });
+      mockGetPureAttendanceSnapshot.mockRejectedValueOnce(new Error("Attendance service unavailable"));
+      mockGetMyTodayScheduleAction.mockResolvedValueOnce({ todaySchedule: null, todayOverride: null });
+      mockGetMyTodayAction.mockResolvedValueOnce({ bookings: [], staff: mockStaff });
+
+      const result = await getProviderWorkspaceRuntime("2026-09-13");
+      expect(result.ok).toBe(true);
+      if (result.ok) {
+        expect(result.runtime.attendance).toBeNull();
+        expect(result.runtime.errors?.attendance).toBe("Attendance service unavailable");
+      }
+    });
+
+    it("Section 7 / Blocker D: Schedule read failure preserves error and DOES NOT produce 'No Shift'", async () => {
+      const mockStaff = makeMockStaff();
+      mockGetMyProfileAction.mockResolvedValueOnce({ staff: mockStaff });
+      mockGetPureAttendanceSnapshot.mockResolvedValueOnce(null);
+      mockGetMyTodayScheduleAction.mockResolvedValueOnce({ error: "Schedule service error" });
+      mockGetMyTodayAction.mockResolvedValueOnce({ bookings: [], staff: mockStaff });
+
+      const result = await getProviderWorkspaceRuntime("2026-09-13");
+      expect(result.ok).toBe(true);
+      if (result.ok) {
+        expect(result.runtime.shift.kind).toBe("load_error");
+        if (result.runtime.shift.kind === "load_error") {
+          expect(result.runtime.shift.error).toBe("Schedule service error");
+        }
+        expect(result.runtime.errors?.schedule).toBe("Schedule service error");
+        expect(result.runtime.shift.kind).not.toBe("none");
+        expect(result.runtime.shift.kind).not.toBe("day_off");
+      }
+    });
+
+    it("Section 7 / Blocker D: True empty assignment produces legitimate clear / 'No assigned service' state", async () => {
+      const mockStaff = makeMockStaff();
+      mockGetMyProfileAction.mockResolvedValueOnce({ staff: mockStaff });
+      mockGetPureAttendanceSnapshot.mockResolvedValueOnce(null);
+      mockGetMyTodayScheduleAction.mockResolvedValueOnce({ todaySchedule: null, todayOverride: null });
+      mockGetMyTodayAction.mockResolvedValueOnce({ bookings: [], staff: mockStaff });
+
+      const result = await getProviderWorkspaceRuntime("2026-09-13");
+      expect(result.ok).toBe(true);
+      if (result.ok) {
+        expect(result.runtime.errors?.work).toBeUndefined();
+        expect(result.runtime.primaryWork.kind).toBe("clear");
+        expect(result.runtime.primaryWork.badgeLabel).toBe("No assigned service");
+        expect(result.runtime.primaryWork.stateLabel).toBe("Clear");
+      }
+    });
+
+    it("Section 9 / Blocker E: Resolves branch business date across UTC timezone boundary", async () => {
+      const mockStaff = makeMockStaff();
+      mockGetMyProfileAction.mockResolvedValueOnce({ staff: mockStaff });
+      mockGetPureAttendanceSnapshot.mockResolvedValueOnce(null);
+      mockGetMyTodayScheduleAction.mockResolvedValueOnce({ todaySchedule: null, todayOverride: null });
+      mockGetMyTodayAction.mockResolvedValueOnce({ bookings: [], staff: mockStaff });
+
+      // UTC 2026-09-12 23:30:00Z is 2026-09-13 07:30:00 in Manila (+8)
+      const boundaryDate = new Date("2026-09-12T23:30:00.000Z");
+      const result = await getProviderWorkspaceRuntime(undefined, boundaryDate);
+
+      expect(result.ok).toBe(true);
+      expect(mockGetProviderBusinessDate).toHaveBeenCalledWith(branchId, boundaryDate);
+      expect(mockGetMyTodayAction).toHaveBeenCalledWith("2026-09-13");
     });
   });
 

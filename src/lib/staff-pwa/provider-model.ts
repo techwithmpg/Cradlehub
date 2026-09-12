@@ -20,6 +20,10 @@ export type ResolvedShift =
     }
   | {
       kind: "none";
+    }
+  | {
+      kind: "load_error";
+      error: string;
     };
 
 export type ProviderPrimaryWork =
@@ -54,6 +58,15 @@ export type ProviderPrimaryWork =
       stateLabel: string;
       isHome: false;
       active: false;
+    }
+  | {
+      kind: "load_error";
+      booking: null;
+      badgeLabel: string;
+      stateLabel: string;
+      isHome: false;
+      active: false;
+      error: string;
     };
 
 export type ProviderScheduleSummary = {
@@ -69,6 +82,12 @@ export type ProviderProgressSummary = {
   homeServicesToday: number;
 };
 
+export type ProviderRuntimeErrors = {
+  attendance?: string;
+  schedule?: string;
+  work?: string;
+};
+
 export type ProviderWorkspaceRuntime = {
   staff: StaffPortalStaff;
   attendance: StaffAttendanceData | null;
@@ -79,6 +98,7 @@ export type ProviderWorkspaceRuntime = {
   bookings: StaffPortalBooking[];
   scheduleSummary: ProviderScheduleSummary;
   progressSummary: ProviderProgressSummary;
+  errors?: ProviderRuntimeErrors;
 };
 
 export type ProviderRuntimeResult =
