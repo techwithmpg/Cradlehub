@@ -1,14 +1,14 @@
 import { redirect } from "next/navigation";
 import { DriverMobileHome } from "@/components/features/staff-portal/driver/driver-mobile-home";
 import { getMyDriverJobsAction } from "../../staff-portal/actions";
-import { getMyAttendanceData } from "@/lib/staff-portal/attendance";
+import { getPureAttendanceSnapshot } from "@/lib/staff-portal/attendance";
 
 export default async function StaffDriverTodayPage() {
   const today = new Date().toISOString().split("T")[0]!;
 
   const [driverResult, attendanceData] = await Promise.all([
     getMyDriverJobsAction(today),
-    getMyAttendanceData(30).catch(() => null),
+    getPureAttendanceSnapshot(30).catch(() => null),
   ]);
 
   if ("error" in driverResult) {

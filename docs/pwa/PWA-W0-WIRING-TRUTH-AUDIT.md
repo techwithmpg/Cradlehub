@@ -508,7 +508,7 @@ Every visible UI field and action across the four operational workspaces is clas
 | 27 | All Staff | Attendance | Portal remote clock-out button | **ADAPTER NEEDED** | Requires registered device cookie + eligible shift snapshot; UI needs adapter to handle state changes cleanly. |
 | 28 | Driver | Today Header | Driver greeting & attendance badge | **READ-SIDE SAFETY REVIEW** | Sourced from `getMyAttendanceData(30)` write-capable call path. |
 | 29 | Driver | Today Stats | Trip stats (awaiting dispatch, active, completed) | **READY** | Sourced from `getMyDriverJobsAction(today)`. |
-| 30 | Driver | Today Active Card| Active trip card with ETA & address | **READY** | Sourced from `getDispatchData`. |
+| 30 | Driver | Today Active Card| Active trip card with address (ETA not authoritative) | **CONTRACT ADJUSTMENT NEEDED** | Sourced from `getDispatchData`; destination address is present in metadata, but live ETA calculation is not yet backed by an authoritative routing engine. |
 | 31 | Driver | Today Active Card| "Start Travel & Navigate" button | **READY** | Wires to `updateBookingProgressAction` then `window.location.assign`. |
 | 32 | Driver | Today Active Card| "Mark Arrived" button | **READY** | Wires to `updateBookingProgressAction` &rarr; `arrived`. |
 | 33 | Driver | Trips | Tabbed trip lists (Today, Upcoming, History) | **READY** | Sourced from `getDispatchData`. |
@@ -526,9 +526,9 @@ Every visible UI field and action across the four operational workspaces is clas
 | 45 | All Staff | Shell | Persistent sticky bottom navigation | **ADAPTER NEEDED** | Bottom nav flickers on Scan departure (`<a>` tag) and double-mounts on `/staff/scan`. |
 
 ### 16.1 Classification Totals
-- **READY**: **27**
+- **READY**: **26**
 - **ADAPTER NEEDED**: **4**
-- **CONTRACT ADJUSTMENT NEEDED**: **1**
+- **CONTRACT ADJUSTMENT NEEDED**: **2**
 - **READ-SIDE SAFETY REVIEW**: **6**
 - **BACKEND GAP**: **4**
 - **BLOCKED**: **0**
@@ -542,13 +542,14 @@ Every visible UI field and action across the four operational workspaces is clas
 ### 17.1 Backend Gaps Identified
 1. **Utility Room Turnover Write Authority (Gap #1)**:
    - UI has dedicated Utility Today and Work list surfaces.
-   - Rooms needing cleaning are currently derived on the fly from completed onsite bookings with `resource_id`.
+   - Rooms needing cleaning are currently derived on the fly from completed onsite bookings with `resource_id`. Provider completion currently makes an onsite completed booking eligible for the derived Utility turnover queue, but it does **NOT** currently persist a room state such as `NEEDS_CLEANING`.
    - There is no database authority to record `needs_cleaning &rarr; cleaning &rarr; ready`. The "Mark Ready" button is disabled.
 2. **Read-Side Attendance Mutation Risk (Gap #2)**:
    - `getMyAttendanceData` is called on render across `/staff`, `/staff/driver`, and `/staff/utility`.
    - It calls `recalculateAttendanceClockOutPolicy` which executes an `UPDATE` on `staff_shift_checkins`. A pure read helper does not exist.
-3. **Driver Return Trip Entity (Gap #3)**:
+3. **Driver Return Trip Entity & ETA Authority (Gap #3)**:
    - Driver lifecycle currently terminates at `arrived`. Booking completion is owned by therapist session completion. Return-to-base trips have no database model.
+   - Driver ETA is not authoritative merely because address/metadata exists; real ETA authority is a contract gap.
 4. **Pre-Shift Attendance Reminders (Gap #4)**:
    - Closing shift reminders/auto-close exist in `pg_cron`. Pre-shift reminders ("shift starting soon", "unclocked shift") do not exist.
 5. **Mobile CRM Task Queue (Gap #5)**:
@@ -592,7 +593,7 @@ graph TD
 - **Server Actions / RPCs**: None mutated; strictly read-only.
 - **Authorization**: Supabase Auth session &rarr; active staff profile &rarr; own branch check.
 - **Database / Schema Work**: **NONE** (0 migrations).
-- **Rollback Considerations**: Trivial zero-risk rollback via Git revert; no remote database impact.
+- **Rollback Considerations**: Controlled rollback via standard Git revert workflow; changes are localized application code with no remote database or schema impact.
 
 ---
 *End of Audit Document — Awaiting Owner Review and Slice Authorization.*

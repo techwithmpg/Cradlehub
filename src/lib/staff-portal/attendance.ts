@@ -11,7 +11,6 @@ import {
   type AttendanceDayStaffState,
 } from "@/lib/attendance/day-model";
 import { getResolvedStaffSchedulesForDate } from "@/lib/queries/resolved-staff-schedules";
-import { recalculateAttendanceClockOutPolicy } from "@/lib/attendance/dynamic-clock-out";
 import { DEVICE_COOKIE_NAME, LEGACY_DEVICE_COOKIE_NAME, hashSecret } from "@/lib/attendance/tokens";
 import {
   buildStaffAttendanceIssueGuide,
@@ -90,7 +89,7 @@ type CheckinRow = {
   actual_clock_out_reconciled_at: string | null;
 };
 
-function portalAvailabilityCopy(input: {
+export function portalAvailabilityCopy(input: {
   code: string;
   eligible: boolean;
   expectedClockOutAt: string | null;
@@ -199,7 +198,12 @@ function mapCheckin(row: CheckinRow): StaffAttendanceHistoryRecord {
   };
 }
 
-export async function getMyAttendanceData(days = 90): Promise<StaffAttendanceData | null> {
+/**
+ * Pure Staff Attendance reader for PWA and portal display.
+ * Derives staff identity strictly from the authenticated server session.
+ * Performs ZERO writes, ZERO RPC mutations, and does not invoke dynamic recalculation.
+ */
+export async function getPureAttendanceSnapshot(days = 90): Promise<StaffAttendanceData | null> {
   const supabase = await createClient();
   const {
     data: { user },
@@ -381,8 +385,7 @@ export async function getMyAttendanceData(days = 90): Promise<StaffAttendanceDat
   });
   if (currentOpenRow) {
     try {
-      const admin = createAdminClient();
-      const policy = await recalculateAttendanceClockOutPolicy(admin, currentOpenRow.id);
+      const snapshot = (currentOpenRow.attendance_policy_snapshot ?? {}) as Record<string, unknown>;
       const cookieStore = await cookies();
       const rawCredential =
         cookieStore.get(DEVICE_COOKIE_NAME)?.value ??
@@ -390,6 +393,7 @@ export async function getMyAttendanceData(days = 90): Promise<StaffAttendanceDat
         null;
       let registeredDevice = false;
       if (rawCredential) {
+        const admin = createAdminClient();
         const device = await admin
           .from("staff_devices")
           .select("id")
@@ -402,12 +406,24 @@ export async function getMyAttendanceData(days = 90): Promise<StaffAttendanceDat
           .maybeSingle();
         registeredDevice = Boolean(device.data && !device.error);
       }
-      const code = !registeredDevice ? "unregistered_device" : policy.portalEligibilityReason;
+      const rawEligible = Boolean(snapshot.portalClockOutEligible);
+      const rawReason =
+        typeof snapshot.portalEligibilityReason === "string"
+          ? snapshot.portalEligibilityReason
+          : "use_branch_qr";
+      const code = !registeredDevice ? "unregistered_device" : rawReason;
+      const expectedClockOutAt =
+        typeof snapshot.expectedEndAt === "string"
+          ? snapshot.expectedEndAt
+          : currentOpenRow.attendance_expected_end_at;
+      const nextAssignmentAt =
+        typeof snapshot.nextAssignmentAt === "string" ? snapshot.nextAssignmentAt : null;
+
       portalClockOut = portalAvailabilityCopy({
         code,
-        eligible: registeredDevice && policy.portalClockOutEligible,
-        expectedClockOutAt: policy.expectedClockOutAt,
-        nextAssignmentAt: policy.nextAssignmentAt,
+        eligible: registeredDevice && rawEligible,
+        expectedClockOutAt,
+        nextAssignmentAt,
       });
     } catch {
       // A schema rollout mismatch must leave the safe default (branch QR), not
@@ -440,3 +456,9 @@ export async function getMyAttendanceData(days = 90): Promise<StaffAttendanceDat
     portalClockOut,
   };
 }
+
+/**
+ * Backward-compatible alias for existing callers.
+ * Canonical Staff PWA surfaces should call getPureAttendanceSnapshot directly.
+ */
+export const getMyAttendanceData = getPureAttendanceSnapshot;

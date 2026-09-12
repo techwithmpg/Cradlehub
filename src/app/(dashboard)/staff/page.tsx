@@ -1,6 +1,6 @@
 import { redirect } from "next/navigation";
 import { getMyProfileAction } from "../staff-portal/actions";
-import { getMyAttendanceData } from "@/lib/staff-portal/attendance";
+import { getPureAttendanceSnapshot } from "@/lib/staff-portal/attendance";
 import {
   resolveStaffOperationalRole,
   resolveNavigationProfile,
@@ -35,7 +35,7 @@ export default async function StaffPage() {
 
     if (profile === "crm_general") {
       const attendanceData =
-        await getMyAttendanceData(30).catch(() => null);
+        await getPureAttendanceSnapshot(30).catch(() => null);
 
       return (
         <GeneralStaffMobileHome

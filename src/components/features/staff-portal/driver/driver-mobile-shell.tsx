@@ -2,6 +2,7 @@
 
 import type { ReactNode } from "react";
 import { useState } from "react";
+import { usePathname } from "next/navigation";
 import { MobileNavigationProgressProvider } from "@/components/features/mobile-shell/mobile-navigation-progress-provider";
 import { MobileRouteProgress } from "@/components/features/mobile-shell/mobile-route-progress";
 import { DriverMobileBottomNav } from "./driver-mobile-bottom-nav";
@@ -16,6 +17,19 @@ type DriverMobileShellProps = {
 
 export function DriverMobileShell({ staff, children, mode }: DriverMobileShellProps) {
   const [profileOpen, setProfileOpen] = useState(false);
+  const pathname = usePathname();
+  const isScan = Boolean(pathname?.startsWith("/staff/scan"));
+
+  if (isScan) {
+    return (
+      <MobileNavigationProgressProvider>
+        <MobileRouteProgress />
+        <div className="min-h-dvh bg-[var(--cs-bg)] md:contents md:bg-transparent">
+          {children}
+        </div>
+      </MobileNavigationProgressProvider>
+    );
+  }
 
   return (
     <MobileNavigationProgressProvider>

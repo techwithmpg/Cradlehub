@@ -7,10 +7,10 @@ import { StaffAttendanceRealtime } from "@/components/features/staff-portal/staf
 import { getOwnAttendancePhoneState } from "@/lib/attendance/device-registration";
 import { ATTENDANCE_REGISTRATION_COOKIE_NAME } from "@/lib/attendance/scan-continuation";
 import { DEVICE_COOKIE_NAME } from "@/lib/attendance/tokens";
-import { getMyAttendanceData } from "@/lib/staff-portal/attendance";
+import { getPureAttendanceSnapshot } from "@/lib/staff-portal/attendance";
 
 export default async function StaffAttendancePage() {
-  const data = await getMyAttendanceData(90);
+  const data = await getPureAttendanceSnapshot(90);
   if (!data) redirect("/login");
   const cookieStore = await cookies();
   let phoneState: Awaited<ReturnType<typeof getOwnAttendancePhoneState>> = null;

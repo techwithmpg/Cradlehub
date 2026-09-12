@@ -23,7 +23,7 @@ import type {
   RealDispatchItem,
   DispatchStats,
 } from "@/lib/queries/dispatch-queries";
-import { getMyAttendanceData } from "@/lib/staff-portal/attendance";
+import { getPureAttendanceSnapshot } from "@/lib/staff-portal/attendance";
 import { StaffAttendanceSummary } from "@/components/features/staff-portal/staff-attendance-summary";
 import { StaffAttendanceRealtime } from "@/components/features/staff-portal/staff-attendance-realtime";
 
@@ -70,7 +70,7 @@ export default async function StaffTodayPage() {
   const isBasic = isBasicStaffMode(mode);
   const isTherapist = mode === "therapist";
   const isDriver = mode === "driver";
-  const attendanceData = await getMyAttendanceData(30);
+  const attendanceData = await getPureAttendanceSnapshot(30);
 
   const scheduleResult = !isDriver
     ? await getMyTodayScheduleAction(today)

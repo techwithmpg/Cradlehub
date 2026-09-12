@@ -2,7 +2,7 @@ import "server-only";
 
 import { createClient } from "@/lib/supabase/server";
 import { attachBranchResources } from "@/lib/queries/booking-resources";
-import { getMyAttendanceData } from "@/lib/staff-portal/attendance";
+import { getPureAttendanceSnapshot, type StaffAttendanceData } from "@/lib/staff-portal/attendance";
 import { resolveStaffPwaOperationalGroup } from "@/lib/auth/workspace-access";
 
 export type UtilityRoomTurnoverItem = {
@@ -26,7 +26,7 @@ export type UtilityWorkspaceRuntime = {
     system_role: string | null;
     staff_type: string | null;
   };
-  attendanceData: Awaited<ReturnType<typeof getMyAttendanceData>> | null;
+  attendanceData: StaffAttendanceData | null;
   turnoverItems: UtilityRoomTurnoverItem[];
   queueError: string | null;
 };
@@ -72,7 +72,7 @@ export async function getUtilityWorkspaceRuntime(
   }
 
   const attendanceData =
-    await getMyAttendanceData(30).catch(() => null);
+    await getPureAttendanceSnapshot(30).catch(() => null);
 
   const queue = await supabase
     .from("bookings")

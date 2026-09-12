@@ -28,6 +28,11 @@ import type { Database } from "@/types/supabase";
 import type { Json } from "@/types/supabase";
 import { DEVICE_COOKIE_NAME, LEGACY_DEVICE_COOKIE_NAME, hashSecret } from "@/lib/attendance/tokens";
 import { resolveClosingInterventionSignals } from "@/lib/attendance/scan-engine";
+import { recalculateAttendanceClockOutPolicy } from "@/lib/attendance/dynamic-clock-out";
+import {
+  portalAvailabilityCopy,
+  type StaffPortalClockOutAvailability,
+} from "@/lib/staff-portal/attendance";
 
 const STAFF_PORTAL_PATHS = [
   "/staff-portal",
@@ -101,6 +106,112 @@ function jsonRecord(value: Json | null): Record<string, unknown> {
   return value && typeof value === "object" && !Array.isArray(value)
     ? (value as Record<string, unknown>)
     : {};
+}
+
+/**
+ * Authoritative, explicit resolution of portal clock-out eligibility.
+ * Unlike display reads, this intentionally recalculates policy via the
+ * dynamic policy RPC when the staff member explicitly requests it.
+ */
+export async function resolvePortalClockOutEligibilityAction(): Promise<StaffPortalClockOutAvailability> {
+  const supabase = await createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  if (!user) {
+    return portalAvailabilityCopy({
+      code: "unauthorized",
+      eligible: false,
+      expectedClockOutAt: null,
+      nextAssignmentAt: null,
+    });
+  }
+
+  const staffResult = await supabase
+    .from("staff")
+    .select("id, branch_id")
+    .eq("auth_user_id", user.id)
+    .eq("is_active", true)
+    .is("archived_at", null)
+    .is("merged_into_staff_id", null)
+    .maybeSingle();
+
+  if (staffResult.error || !staffResult.data) {
+    return portalAvailabilityCopy({
+      code: "unauthorized",
+      eligible: false,
+      expectedClockOutAt: null,
+      nextAssignmentAt: null,
+    });
+  }
+
+  const staff = staffResult.data;
+  const admin = createAdminClient();
+
+  const openCheckinResult = await admin
+    .from("staff_shift_checkins")
+    .select("id, branch_id, attendance_expected_end_at")
+    .eq("staff_id", staff.id)
+    .eq("status", "checked_in")
+    .is("checked_out_at", null)
+    .order("checked_in_at", { ascending: false })
+    .limit(1)
+    .maybeSingle();
+
+  if (openCheckinResult.error || !openCheckinResult.data) {
+    return portalAvailabilityCopy({
+      code: "no_open_attendance",
+      eligible: false,
+      expectedClockOutAt: null,
+      nextAssignmentAt: null,
+    });
+  }
+
+  const cookieStore = await cookies();
+  const rawCredential =
+    cookieStore.get(DEVICE_COOKIE_NAME)?.value ??
+    cookieStore.get(LEGACY_DEVICE_COOKIE_NAME)?.value ??
+    null;
+
+  let registeredDevice = false;
+  if (rawCredential) {
+    const device = await admin
+      .from("staff_devices")
+      .select("id")
+      .eq("staff_id", staff.id)
+      .eq("branch_id", openCheckinResult.data.branch_id)
+      .eq("device_fingerprint_hash", hashSecret(rawCredential))
+      .eq("status", "active")
+      .lte("trusted_after", new Date().toISOString())
+      .is("revoked_at", null)
+      .maybeSingle();
+    registeredDevice = Boolean(device.data && !device.error);
+  }
+
+  try {
+    const policy = await recalculateAttendanceClockOutPolicy(
+      admin,
+      openCheckinResult.data.id
+    );
+
+    const code = !registeredDevice
+      ? "unregistered_device"
+      : policy.portalEligibilityReason;
+
+    return portalAvailabilityCopy({
+      code,
+      eligible: registeredDevice && policy.portalClockOutEligible,
+      expectedClockOutAt: policy.expectedClockOutAt,
+      nextAssignmentAt: policy.nextAssignmentAt,
+    });
+  } catch {
+    return portalAvailabilityCopy({
+      code: "use_branch_qr",
+      eligible: false,
+      expectedClockOutAt: openCheckinResult.data.attendance_expected_end_at,
+      nextAssignmentAt: null,
+    });
+  }
 }
 
 /**

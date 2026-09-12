@@ -1,6 +1,7 @@
 "use client";
 
 import type { ReactNode } from "react";
+import { usePathname } from "next/navigation";
 import { MobileNavigationProgressProvider } from "@/components/features/mobile-shell/mobile-navigation-progress-provider";
 import { MobileRouteProgress } from "@/components/features/mobile-shell/mobile-route-progress";
 import { StaffMobileBottomNav } from "./staff-mobile-bottom-nav";
@@ -11,6 +12,20 @@ type StaffMobileShellProps = {
 };
 
 export function StaffMobileShell({ children, profile = "crm_general" }: StaffMobileShellProps) {
+  const pathname = usePathname();
+  const isScan = Boolean(pathname?.startsWith("/staff/scan"));
+
+  if (isScan) {
+    return (
+      <MobileNavigationProgressProvider>
+        <MobileRouteProgress />
+        <div className="min-h-dvh bg-[var(--cs-bg)] md:contents md:bg-transparent">
+          {children}
+        </div>
+      </MobileNavigationProgressProvider>
+    );
+  }
+
   return (
     <MobileNavigationProgressProvider>
       <MobileRouteProgress />
