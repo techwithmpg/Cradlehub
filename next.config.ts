@@ -60,7 +60,7 @@ const nextConfig: NextConfig = {
         ],
       },
       {
-        source: "/:serviceWorker(sw|cradlehub-push-sw).js",
+        source: "/:serviceWorker(sw|staff-sw|cradlehub-push-sw).js",
         headers: [
           {
             key: "Content-Type",

@@ -20,6 +20,7 @@ import {
 } from "@/components/features/staff-pwa/role-navigation";
 import { StaffConnectivityBanner } from "@/components/features/staff-pwa/connectivity-banner";
 import { StaffInstallPrompt } from "@/components/features/staff-pwa/install-prompt";
+import { StaffServiceWorkerRegistration } from "@/components/features/staff-pwa/staff-service-worker-registration";
 
 export const metadata: Metadata = {
   applicationName: "Cradle Hub",
@@ -75,6 +76,7 @@ export default async function StaffLayout({
     <>
       <WorkspaceRoutePrefetcher config={STAFF_PORTAL_PREFETCH} />
       <StaffConnectivityBanner />
+      <StaffServiceWorkerRegistration />
       <StaffInstallPrompt />
       {content}
     </>

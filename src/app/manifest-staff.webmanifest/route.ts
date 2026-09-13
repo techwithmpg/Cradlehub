@@ -9,6 +9,8 @@ export function GET() {
     start_url: "/staff/",
     scope: "/staff/",
     display: "standalone",
+    display_override: ["standalone"],
+    prefer_related_applications: false,
     orientation: "portrait",
     background_color: "#F7F3EB",
     theme_color: "#163A2B",
