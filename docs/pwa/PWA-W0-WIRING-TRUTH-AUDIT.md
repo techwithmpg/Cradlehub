@@ -1,10 +1,10 @@
 # CRADLEHUB STAFF PWA — W0 CURRENT WIRING TRUTH AUDIT
-**Document Reference**: `docs/pwa/PWA-W0-WIRING-TRUTH-AUDIT.md`  
-**Phase**: W0 — Wiring Truth Audit & Authority Mapping  
-**Working Branch**: `stage/staff-pwa-wiring`  
-**Accepted Base SHA**: `09d69fab267ae95422b26639cde43123810d33be`  
-**Canonical Repository**: `techwithmpg/Cradlehub`  
-**Inspection Date**: 2026-09-13  
+**Document Reference**: `docs/pwa/PWA-W0-WIRING-TRUTH-AUDIT.md`
+**Phase**: W0 — Wiring Truth Audit & Authority Mapping
+**Working Branch**: `stage/staff-pwa-wiring`
+**Accepted Base SHA**: `09d69fab267ae95422b26639cde43123810d33be`
+**Canonical Repository**: `techwithmpg/Cradlehub`
+**Inspection Date**: 2026-09-13
 **Status**: COMPLETE — REPOSITORY-PROVEN CURRENT BEHAVIOR
 
 ---
@@ -67,12 +67,12 @@ graph TD
     User([Authenticated User]) --> AuthSession[Supabase Auth Session]
     AuthSession --> StaffRecord[public.staff Query]
     StaffRecord --> RoleResolution{resolveStaffOperationalRole}
-    
+
     RoleResolution -->|therapist, nail_tech, aesthetician, salon_head| ProviderShell[Provider Shell<br/>Today · Schedule · SCAN · Progress · More]
     RoleResolution -->|driver| DriverShell[Driver Shell<br/>Today · Trips · SCAN · Map · More]
     RoleResolution -->|utility| UtilityShell[Utility Shell<br/>Today · Work · SCAN · Notices · More]
     RoleResolution -->|front_desk, crm, staff| CrmShell[CRM / General Shell<br/>Today · Work · SCAN · Notices · More]
-    
+
     RoleResolution -->|owner, manager, store_manager| DesktopNotice[Management Desktop Boundaries<br/>Not Staff PWA Operational Roles]
 ```
 
@@ -108,7 +108,7 @@ graph TD
 ```mermaid
 stateDiagram-v2
     direction TB
-    
+
     state "ONSITE (IN-SPA) BOOKING" as Onsite {
         [*] --> not_started_onsite: not_started
         not_started_onsite --> checked_in: CSR / Front-desk check-in
@@ -120,7 +120,7 @@ stateDiagram-v2
         completed_onsite --> [*]
         no_show_onsite --> [*]
     }
-    
+
     state "HOME SERVICE BOOKING" as HomeService {
         [*] --> not_started_home: not_started
         not_started_home --> travel_started: Driver / Therapist Start Travel
@@ -203,9 +203,9 @@ stateDiagram-v2
 | `getMyAttendanceData(90)` | `src/app/(dashboard)/staff/attendance/page.tsx:13` | On render of `/staff/attendance` | **WRITE-CAPABLE** | Same mutation path via open check-in evaluation. |
 
 > [!CAUTION]
-> **READ-SIDE AUTHORITY DECISION REQUIRED**:  
-> Opening `/staff`, `/staff/driver`, or `/staff/utility` must **not** trigger database writes merely because the screen rendered.  
-> The snapshot columns (`attendance_expected_end_at`, `earliest_normal_clock_out_at`, `latest_normal_clock_out_at`, `attendance_policy_snapshot`) already persist in `staff_shift_checkins`.  
+> **READ-SIDE AUTHORITY DECISION REQUIRED**:
+> Opening `/staff`, `/staff/driver`, or `/staff/utility` must **not** trigger database writes merely because the screen rendered.
+> The snapshot columns (`attendance_expected_end_at`, `earliest_normal_clock_out_at`, `latest_normal_clock_out_at`, `attendance_policy_snapshot`) already persist in `staff_shift_checkins`.
 > A pure read-only Attendance reader (`getPureAttendanceSnapshot()`) is required to read existing persisted columns without executing `recalculate_attendance_clock_out_policy`. Policy recalculation should be strictly triggered by authoritative domain mutations (service session started/completed, dispatch assigned, clock-in/out scan, scheduled cron).
 
 ---
@@ -260,7 +260,7 @@ graph TD
     ProviderCompletes[Provider Completes Onsite Service] --> ServerValidation{Server Verifies Completion}
     ServerValidation --> HasResource{Booking has resource_id?}
     HasResource -->|Yes| EvaluateOptions[Evaluate Turnover Storage Options]
-    
+
     EvaluateOptions --> OptionA[Option A: Columns on branch_resources<br/>clean_status: needs_cleaning, cleaning, ready]
     EvaluateOptions --> OptionB[Option B: General workflow_tasks Table<br/>task_type = 'room_turnover']
     EvaluateOptions --> OptionC[Option C: Dedicated room_turnovers Table<br/>booking_id, resource_id, status, timestamps]
@@ -273,8 +273,8 @@ graph TD
 | **Option C: Dedicated `room_turnovers` authority table** | Create `room_turnovers` (`id`, `branch_id`, `resource_id`, `booking_id`, `status: needs_cleaning | cleaning | ready`, `started_at`, `completed_at`, `cleaned_by_staff_id`). | Strict relational integrity; exact audit history; server-owned trigger upon `complete_booking_service_session`; clean RLS; explicit room release lock. | Requires a new migration and database project decision. | **RECOMMENDED ARCHITECTURAL TARGET** |
 
 > [!IMPORTANT]
-> **PROJECT DECISION NEEDED (Owner Gate)**:  
-> Owner must decide between **Option B** (utilizing existing `workflow_tasks` without DB migration) or **Option C** (introducing dedicated `room_turnovers` schema table).  
+> **PROJECT DECISION NEEDED (Owner Gate)**:
+> Owner must decide between **Option B** (utilizing existing `workflow_tasks` without DB migration) or **Option C** (introducing dedicated `room_turnovers` schema table).
 > In all options: Provider completion marks room `needs_cleaning`. Only authoritative Utility completion releases the room to `ready`.
 
 ---
@@ -406,7 +406,7 @@ graph LR
         IDB[(IndexedDB Local Read Cache)]
         UI[Staff PWA UI]
     end
-    
+
     DB -->|Server RSC Payload| UI
     Realtime -->|Targeted Event| IDB
     Actions -->|Mutation Result| IDB
