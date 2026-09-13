@@ -7,7 +7,7 @@ describe("service-session repair migration contract", () => {
     process.cwd(),
     "supabase/migrations/20260913100000_repair_service_session_overload_and_actor_authority.sql"
   );
-  const sql = readFileSync(migrationPath, "utf8");
+  const sql = readFileSync(migrationPath, "utf8").replace(/\r\n/g, "\n");
 
   it("drops the obsolete 3-argument start_booking_service_session overload", () => {
     expect(sql).toContain(
