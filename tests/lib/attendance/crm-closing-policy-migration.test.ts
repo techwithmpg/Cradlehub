@@ -136,8 +136,15 @@ describe("late real QR scan routing contract", () => {
 
   it("captures multiple or out-of-business-day provisional candidates without guessing", () => {
     expect(scanEngine).toContain("conflicting_provisional_clock_outs");
-    expect(scanEngine).toContain("provisional_clock_out_outside_business_day");
-    expect(scanEngine).toContain("No Attendance row was changed and no new clock-in was created.");
+    expect(scanEngine).toContain(
+      "outsideBusinessDateProvisionalClockOuts.length > 1"
+    );
+    expect(scanEngine).not.toContain(
+      "outsideBusinessDateProvisionalClockOuts.length > 0"
+    );
+    expect(scanEngine).toContain(
+      "No provisional Attendance row was changed and no new clock-in was created."
+    );
   });
 });
 
