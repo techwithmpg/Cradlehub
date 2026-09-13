@@ -6,17 +6,20 @@ import type { RealDispatchItem } from "@/lib/queries/dispatch-queries";
 
 export const metadata: Metadata = { title: "Route Map - CradleHub Staff" };
 
-type JobsResult = { error: string } | { items: RealDispatchItem[] };
+type JobsResult = { error: string } | { items: RealDispatchItem[]; businessDate?: string };
 
 export default async function StaffDriverMapPage() {
-  const today = new Date().toISOString().split("T")[0]!;
-  const result = (await getMyDriverJobsAction(today)) as JobsResult;
+  const result = (await getMyDriverJobsAction()) as JobsResult;
 
-  if ("error" in result) redirect("/login");
+  if ("error" in result) {
+    if (result.error === "Unauthorized") redirect("/login");
+    return <p role="alert" className="p-6">Route unavailable. {result.error}</p>;
+  }
 
   return (
     <DriverRouteMapPage
       items={result.items}
+      businessDate={result.businessDate}
       homeHref="/staff/driver"
       tripsHref="/staff/driver/trips"
       profileHref="/staff/driver/more"

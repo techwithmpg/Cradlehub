@@ -1,1 +1,1 @@
-export { default } from "../../../staff-portal/notifications/page";
+export { default } from "../../notices/page";

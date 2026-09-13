@@ -10,6 +10,7 @@ import { GeneralStaffMobileHome } from "@/components/features/staff-portal/basic
 import { TherapistMobileHome } from "@/components/features/staff-portal/therapist/therapist-mobile-home";
 import { TherapistHeader } from "@/components/features/staff-portal/therapist/therapist-header";
 import { getProviderWorkspaceRuntime } from "@/lib/staff-pwa/provider-runtime";
+import { getStaffWork } from "@/lib/staff-pwa/work-runtime";
 import StaffTodayPage from "../staff-portal/page";
 
 export default async function StaffPage() {
@@ -78,13 +79,15 @@ export default async function StaffPage() {
     }
 
     if (profile === "crm_general") {
-      const attendanceData =
-        await getPureAttendanceSnapshot(30).catch(() => null);
+      const [attendanceData, work] = await Promise.all([
+        getPureAttendanceSnapshot(30).catch(() => null), getStaffWork(),
+      ]);
 
       return (
         <GeneralStaffMobileHome
           staff={staff}
           profile="crm_general"
+          work={work}
           attendanceData={attendanceData}
         />
       );

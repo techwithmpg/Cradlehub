@@ -31,6 +31,7 @@ export type DriverRouteStopViewModel = {
   navigationUrl: string | null;
   mapSearchUrl: string | null;
   detailsHref: string;
+  recordedLocation: RealDispatchItem["currentLocation"];
 };
 
 export type DriverRoutePageViewModel = {
@@ -81,14 +82,14 @@ function sortByStartTime(a: RealDispatchItem, b: RealDispatchItem): number {
 }
 
 function buildMapUrl(item: RealDispatchItem, mode: "search" | "directions"): string | null {
-  if (item.lat !== null && item.lng !== null) {
+  if (item.lat !== null && item.lng !== null && Number.isFinite(item.lat) && Number.isFinite(item.lng) && Math.abs(item.lat) <= 90 && Math.abs(item.lng) <= 180) {
     const destination = `${item.lat},${item.lng}`;
     return mode === "directions"
       ? `https://www.google.com/maps/dir/?api=1&destination=${destination}&travelmode=driving`
       : `https://www.google.com/maps/search/?api=1&query=${destination}`;
   }
 
-  const query = item.formattedAddress ?? item.area;
+  const query = item.formattedAddress;
   if (!query) return null;
   const encoded = encodeURIComponent(query);
   return mode === "directions"
@@ -104,27 +105,6 @@ function initialsFor(name: string): string {
   const first = parts[0]?.[0] ?? "C";
   const second = parts[1]?.[0] ?? "";
   return `${first}${second}`.toUpperCase();
-}
-
-function distanceKm(item: RealDispatchItem): number | null {
-  if (!item.currentLocation || item.lat === null || item.lng === null) return null;
-
-  const earthKm = 6371;
-  const toRad = (degrees: number) => (degrees * Math.PI) / 180;
-  const dLat = toRad(item.lat - item.currentLocation.lat);
-  const dLng = toRad(item.lng - item.currentLocation.lng);
-  const startLat = toRad(item.currentLocation.lat);
-  const endLat = toRad(item.lat);
-  const a =
-    Math.sin(dLat / 2) ** 2 +
-    Math.cos(startLat) * Math.cos(endLat) * Math.sin(dLng / 2) ** 2;
-  return earthKm * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
-}
-
-function formatDistance(item: RealDispatchItem): string {
-  const km = distanceKm(item);
-  if (km === null) return "Distance pending";
-  return `${km < 10 ? km.toFixed(1) : Math.round(km)} km`;
 }
 
 function formatDateLabel(today: Date): string {
@@ -170,9 +150,10 @@ export function buildDriverRoutePageViewModel(
       isCompleted: isCompleted(item.dispatchStatus),
       isActive: ACTIVE_STATUSES.has(item.dispatchStatus),
       needsLocationReview: item.needsLocationReview || (!item.formattedAddress && !item.area),
-      etaMinutes: item.etaMinutes,
-      etaLabel: item.etaMinutes !== null ? `${item.etaMinutes} min` : "ETA pending",
-      distanceLabel: formatDistance(item),
+      etaMinutes: item.eta?.source === "stored_routes_api" ? item.eta.minutes : null,
+      etaLabel: item.eta?.source === "stored_routes_api" ? `Recorded ETA ${item.eta.minutes} min (${item.eta.calculatedAt ?? "time unavailable"})` : "ETA unavailable",
+      distanceLabel: "Road distance unavailable",
+      recordedLocation: item.currentLocation,
       navigationUrl,
       mapSearchUrl: buildMapUrl(item, "search"),
       detailsHref: `${options.detailsBasePath}/${item.id}`,
@@ -190,10 +171,10 @@ export function buildDriverRoutePageViewModel(
     completedStops: stops.filter((stop) => stop.isCompleted).length,
     activeStops: stops.filter((stop) => stop.isActive).length,
     attentionCount: stops.filter((stop) => stop.needsLocationReview).length,
-    etaLabel: nextStop?.etaLabel ?? "ETA pending",
-    distanceLabel: nextStop?.distanceLabel ?? "Distance pending",
-    trafficLabel: "Traffic pending",
-    liveLocationLabel: nextItem?.currentLocation ? "Live location updated" : "Live location pending",
+    etaLabel: nextStop?.etaLabel ?? "ETA unavailable",
+    distanceLabel: nextStop?.distanceLabel ?? "Road distance unavailable",
+    trafficLabel: "Traffic unavailable",
+    liveLocationLabel: nextItem?.currentLocation ? `Location recorded ${nextItem.currentLocation.recorded_at}` : "Location unavailable",
     openRouteUrl: nextStop?.navigationUrl ?? nextStop?.mapSearchUrl ?? null,
   };
 }

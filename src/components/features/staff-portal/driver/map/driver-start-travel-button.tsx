@@ -24,6 +24,7 @@ export function DriverStartTravelButton({
     startTransition(async () => {
       setError(null);
 
+      try {
       const result = await updateBookingProgressAction({
         bookingId,
         nextStatus: "travel_started",
@@ -47,6 +48,9 @@ export function DriverStartTravelButton({
       }
 
       router.refresh();
+      } catch {
+        setError("Travel could not be confirmed. Refresh before retrying.");
+      }
     });
   }
 
@@ -63,7 +67,7 @@ export function DriverStartTravelButton({
         }
       >
         <Navigation size={17} />
-        {pending ? "Starting travel…" : "Start Travel & Navigate"}
+        {pending ? "Starting travel…" : navigationUrl ? "Start Travel & Navigate" : "Start Travel"}
       </button>
 
       {error ? (

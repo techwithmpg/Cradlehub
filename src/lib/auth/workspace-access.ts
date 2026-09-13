@@ -259,7 +259,11 @@ export function canAccessWorkspacePath(
     return resolveStaffPwaOperationalGroup(role, staffType) === "provider";
   }
 
-  if (pathname.startsWith("/staff/work") || pathname.startsWith("/staff/notices")) {
+  if (pathname.startsWith("/staff/notices")) {
+    return resolveStaffPwaOperationalGroup(role, staffType) !== null;
+  }
+
+  if (pathname.startsWith("/staff/work")) {
     return resolveStaffPwaOperationalGroup(role, staffType) === "crm_general";
   }
 

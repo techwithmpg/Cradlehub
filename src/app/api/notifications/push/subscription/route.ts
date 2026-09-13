@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 
+import { staffNotificationWorkspace } from "@/lib/staff-pwa/notice-policy";
 import { canonicalizeSystemRole } from "@/constants/staff";
 import { getApiContext } from "@/lib/api/get-api-context";
 import { isWebPushConfigured } from "@/lib/notifications/push/config";
@@ -15,18 +16,15 @@ import { createClient } from "@/lib/supabase/server";
 
 export const runtime = "nodejs";
 
-function workspaceForRole(role: string) {
-  const canonicalRole = canonicalizeSystemRole(role);
-  if (
-    canonicalRole === "owner" ||
-    canonicalRole === "crm" ||
-    canonicalRole === "staff" ||
-    canonicalRole === "driver" ||
-    canonicalRole === "utility"
-  ) {
-    return canonicalRole;
-  }
-  return null;
+async function workspaceForContext(context: { role: string; staffId: string | null; userId: string; branchId: string }) {
+  if (canonicalizeSystemRole(context.role) === "owner") return "owner";
+  if (!context.staffId) return null;
+  const db = await createClient();
+  const { data: staff, error } = await db.from("staff")
+    .select("id, branch_id, system_role, staff_type").eq("id", context.staffId)
+    .eq("auth_user_id", context.userId).eq("is_active", true).maybeSingle();
+  if (error || !staff || staff.branch_id !== context.branchId) return null;
+  return staffNotificationWorkspace(staff);
 }
 
 function noStoreJson(body: unknown, status = 200) {
@@ -39,7 +37,7 @@ function noStoreJson(body: unknown, status = 200) {
 export async function GET() {
   const context = await getApiContext();
   if (!context) return noStoreJson({ error: "Unauthorized" }, 401);
-  const workspace = workspaceForRole(context.role);
+  const workspace = await workspaceForContext(context);
   if (!workspace) return noStoreJson({ error: "Unsupported workspace" }, 403);
 
   const supabase = await createClient();
@@ -62,7 +60,7 @@ export async function POST(request: NextRequest) {
   }
   const context = await getApiContext();
   if (!context) return noStoreJson({ error: "Unauthorized" }, 401);
-  const workspace = workspaceForRole(context.role);
+  const workspace = await workspaceForContext(context);
   if (!workspace) return noStoreJson({ error: "Unsupported workspace" }, 403);
   if (!isWebPushConfigured()) {
     return noStoreJson({ error: "Browser notifications are not configured" }, 503);

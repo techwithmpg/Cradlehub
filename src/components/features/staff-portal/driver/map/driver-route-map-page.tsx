@@ -12,6 +12,7 @@ import type { RealDispatchItem } from "@/lib/queries/dispatch-queries";
 
 type DriverRouteMapPageProps = {
   items: RealDispatchItem[];
+  businessDate?: string;
   homeHref?: string;
   tripsHref?: string;
   profileHref?: string;
@@ -104,6 +105,7 @@ function DesktopFallback({
 
 export function DriverRouteMapPage({
   items,
+  businessDate,
   homeHref = "/staff-portal",
   tripsHref = "/staff-portal/dispatch",
   profileHref = "/staff-portal/profile",
@@ -113,6 +115,7 @@ export function DriverRouteMapPage({
     items,
     {
       detailsBasePath,
+      today: businessDate ? new Date(businessDate + "T12:00:00Z") : undefined,
     }
   );
 

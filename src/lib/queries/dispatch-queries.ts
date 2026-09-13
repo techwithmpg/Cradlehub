@@ -266,6 +266,9 @@ export interface GetDispatchDataArgs {
   staffId?: string;
   supabase?: SupabaseClient<Database>;
   throwOnError?: boolean;
+  dateFrom?: string;
+  dateTo?: string;
+  bookingId?: string;
 }
 
 export async function getDispatchData(args: GetDispatchDataArgs): Promise<DispatchData> {
@@ -277,9 +280,12 @@ export async function getDispatchData(args: GetDispatchDataArgs): Promise<Dispat
   };
 
   try {
+    if ((args.role === "driver" || args.role === "therapist") && !args.staffId) {
+      throw new Error("Staff assignment is required.");
+    }
     const supabase = args.supabase ?? (await createClient());
     const branchRouteOrigin = await getHomeServiceBranchRouteOrigin(args.branchId, {
-      client: args.supabase,
+      client: supabase,
       throwOnError: args.throwOnError,
     });
     let query = supabase
@@ -297,9 +303,12 @@ export async function getDispatchData(args: GetDispatchDataArgs): Promise<Dispat
          branches ( name, latitude, longitude, maps_embed_url )`
       )
       .eq("branch_id", args.branchId)
-      .eq("booking_date", args.date)
-      .or("type.eq.home_service,delivery_type.eq.home_service")
+      .eq("delivery_type", "home_service")
       .order("start_time", { ascending: true });
+
+    if (args.bookingId) query = query.eq("id", args.bookingId);
+    else if (args.dateFrom && args.dateTo) query = query.gte("booking_date", args.dateFrom).lte("booking_date", args.dateTo).neq("booking_date", args.date);
+    else query = query.eq("booking_date", args.date);
 
     if (args.role === "driver" && args.staffId) {
       query = query.eq("driver_id", args.staffId);
@@ -307,11 +316,11 @@ export async function getDispatchData(args: GetDispatchDataArgs): Promise<Dispat
       query = query.eq("staff_id", args.staffId);
     }
 
-    const { data: firstPage, error: bookingsError } = await (args.throwOnError
+    const { data: firstPage, error: bookingsError } = await (args.throwOnError && args.role !== "driver"
       ? query.order("id").range(0, 499)
-      : query.limit(50));
+      : query.order("booking_date").limit(args.role === "driver" ? 100 : 50));
     const rawBookings = [...(firstPage ?? [])];
-    if (args.throwOnError && !bookingsError && firstPage?.length === 500) {
+    if (args.throwOnError && args.role !== "driver" && !bookingsError && firstPage?.length === 500) {
       for (let offset = 500; ; offset += 500) {
         const { data: page, error } = await query.range(offset, offset + 499);
         if (error) throw error;
@@ -346,7 +355,12 @@ export async function getDispatchData(args: GetDispatchDataArgs): Promise<Dispat
             error: null,
           });
 
-    const snapshotsPromise = args.throwOnError
+    const snapshotsPromise = args.role === "driver"
+      ? supabase.from("staff_location_snapshots")
+          .select("booking_id, lat, lng, recorded_at")
+          .eq("branch_id", args.branchId).eq("staff_id", args.staffId!)
+          .in("booking_id", bookingIds).order("recorded_at", { ascending: false }).limit(500)
+      : args.throwOnError
       ? Promise.all(
           rawBookings
             .filter((booking) => booking.driver_id)
@@ -414,8 +428,10 @@ export async function getDispatchData(args: GetDispatchDataArgs): Promise<Dispat
       const homeServiceAddress = asRecord(metadata?.home_service_address);
       const dispatch = asRecord(metadata?.dispatch);
 
-      const lat = readNumber(homeServiceAddress?.lat);
-      const lng = readNumber(homeServiceAddress?.lng);
+      const rawLat = readNumber(homeServiceAddress?.lat);
+      const rawLng = readNumber(homeServiceAddress?.lng);
+      const lat = rawLat !== null && Math.abs(rawLat) <= 90 ? rawLat : null;
+      const lng = rawLng !== null && Math.abs(rawLng) <= 180 ? rawLng : null;
       const liveEta = parseLiveEta(dispatch?.live_eta);
 
       const dispatchMetaStatus = readString(dispatch?.status);
@@ -474,8 +490,8 @@ export async function getDispatchData(args: GetDispatchDataArgs): Promise<Dispat
         dispatchStatus,
         bookingStatus,
         bookingProgressStatus: progressStatus ?? "not_started",
-        paymentStatus: booking.payment_status ?? "pending",
-        etaMinutes: liveEta?.eta_minutes ?? readNumber(dispatch?.eta_minutes),
+        paymentStatus: booking.payment_status ?? "unknown",
+        etaMinutes: args.role === "driver" ? (liveEta?.eta_minutes ?? null) : (liveEta?.eta_minutes ?? readNumber(dispatch?.eta_minutes)),
         ...(args.throwOnError
           ? {
               eta: liveEta

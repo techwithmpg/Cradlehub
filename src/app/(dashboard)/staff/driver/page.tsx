@@ -4,10 +4,9 @@ import { getMyDriverJobsAction } from "../../staff-portal/actions";
 import { getPureAttendanceSnapshot } from "@/lib/staff-portal/attendance";
 
 export default async function StaffDriverTodayPage() {
-  const today = new Date().toISOString().split("T")[0]!;
 
   const [driverResult, attendanceData] = await Promise.all([
-    getMyDriverJobsAction(today),
+    getMyDriverJobsAction(),
     getPureAttendanceSnapshot(30).catch(() => null),
   ]);
 

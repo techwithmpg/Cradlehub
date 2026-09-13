@@ -244,7 +244,7 @@ function PrimaryTripCard({
 
       <div className="mt-3 grid grid-cols-2 gap-2">
         <Link
-          href="/staff/driver/trips"
+          href={`/staff/driver/trips/${trip.id}`}
           className="flex min-h-11 items-center justify-center gap-1.5 rounded-[13px] bg-[#0D6548] px-3 text-[12px] font-bold text-white active:scale-[0.99]"
         >
           <Navigation size={15} />
@@ -281,7 +281,7 @@ export function DriverMobileHome({
       ? "On Duty"
       : attendanceData?.currentClockState === "clocked_out"
         ? "Shift Complete"
-        : "Off Duty";
+        : attendanceData ? "Off Duty" : "Attendance unavailable";
 
   return (
     <div className="bg-[#F7F3EB] text-[#142334]">

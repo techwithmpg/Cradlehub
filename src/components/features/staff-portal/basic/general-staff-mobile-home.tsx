@@ -1,4 +1,6 @@
 import Link from "next/link";
+import { StaffWorkList } from "@/components/features/staff-pwa/staff-work-list";
+import type { StaffWorkResult } from "@/lib/staff-pwa/work-model";
 import {
   Activity,
   Bell,
@@ -29,6 +31,7 @@ type GeneralStaffMobileHomeProps = {
   profile: GeneralStaffProfile;
   attendanceData?: StaffAttendanceData | null;
   destinations?: GeneralStaffDestinations;
+  work?: StaffWorkResult;
 };
 
 function attendanceStateLabel(
@@ -36,7 +39,7 @@ function attendanceStateLabel(
 ): string {
   if (state === "clocked_in") return "On Duty";
   if (state === "clocked_out") return "Shift Complete";
-  return "Off Duty";
+  return state ? "Off Duty" : "Attendance unavailable";
 }
 
 function attendanceStatusLabel(
@@ -44,7 +47,7 @@ function attendanceStatusLabel(
 ): string {
   if (state === "clocked_in") return "Clocked in";
   if (state === "clocked_out") return "Clocked out";
-  return "Not clocked in";
+  return state ? "Not clocked in" : "Unavailable";
 }
 
 function roleCopy(profile: GeneralStaffProfile) {
@@ -67,7 +70,7 @@ function roleCopy(profile: GeneralStaffProfile) {
     greetingLine: "Ready for a focused front-desk workday.",
     workTitle: "Operational Work",
     workDescription:
-      "The mobile CRM task queue is not connected yet. Attendance, Scan and Notices remain available.",
+      "Review booking attention and open workflow items.",
     workHref: "/staff/work",
     scanHref: "/staff/scan",
     noticesHref: "/staff/notices",
@@ -139,6 +142,7 @@ export function GeneralStaffMobileHome({
   profile,
   attendanceData,
   destinations,
+  work,
 }: GeneralStaffMobileHomeProps) {
   const copy = roleCopy(profile);
 
@@ -218,6 +222,7 @@ export function GeneralStaffMobileHome({
         </section>
 
         <AttendanceCard attendance={attendanceData} />
+        {work ? <StaffWorkList result={work} limit={4} /> : null}
 
         <Link
           href={routes.workHref}
