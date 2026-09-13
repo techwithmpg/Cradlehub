@@ -531,7 +531,17 @@ export async function getMyServiceProgressAction(date?: string): Promise<Service
   const me = await getMyStaffRecord();
   if (!me) return { error: "Unauthorized" };
 
-  const targetDate = date ?? (await getProviderBusinessDate(me.branch_id));
+  let targetDate: string;
+  try {
+    targetDate = date ?? (await getProviderBusinessDate(me.branch_id));
+  } catch (err) {
+    return {
+      error:
+        err instanceof Error
+          ? err.message
+          : "Failed to resolve operational business date",
+    };
+  }
 
   const selectWithResource = `
     id, booking_date, start_time, end_time, type, delivery_type, status,
@@ -613,39 +623,45 @@ export async function getMyTodayScheduleAction(date?: string): Promise<TodaySche
   const me = await getMyStaffRecord();
   if (!me) return { error: "Unauthorized" };
 
-  const targetDate = date ?? (await getProviderBusinessDate(me.branch_id));
-  const parts = targetDate.split("-").map(Number);
-  const y = parts[0] ?? 0;
-  const m = (parts[1] ?? 1) - 1;
-  const d = parts[2] ?? 1;
-  const todayDow = new Date(y, m, d).getDay();
+  try {
+    const targetDate = date ?? (await getProviderBusinessDate(me.branch_id));
+    const parts = targetDate.split("-").map(Number);
+    const y = parts[0] ?? 0;
+    const m = (parts[1] ?? 1) - 1;
+    const d = parts[2] ?? 1;
+    const todayDow = new Date(y, m, d).getDay();
 
-  const [scheduleRows, overrideRows] = await Promise.all([
-    getStaffSchedule(me.id).catch((): Awaited<ReturnType<typeof getStaffSchedule>> => []),
-    getStaffOverrides(me.id, targetDate).catch((): Awaited<ReturnType<typeof getStaffOverrides>> => []),
-  ]);
+    const [scheduleRows, overrideRows] = await Promise.all([
+      getStaffSchedule(me.id),
+      getStaffOverrides(me.id, targetDate),
+    ]);
 
-  const todayScheduleRow = scheduleRows.find((r) => r.day_of_week === todayDow);
-  const todayOverrideRow = overrideRows.find((o) => o.override_date === targetDate);
+    const todayScheduleRow = scheduleRows.find((r) => r.day_of_week === todayDow);
+    const todayOverrideRow = overrideRows.find((o) => o.override_date === targetDate);
 
-  return {
-    todaySchedule: todayScheduleRow
-      ? {
-          day_of_week: todayScheduleRow.day_of_week,
-          start_time: todayScheduleRow.start_time,
-          end_time: todayScheduleRow.end_time,
-          shift_type: todayScheduleRow.shift_type ?? "single",
-        }
-      : null,
-    todayOverride: todayOverrideRow
-      ? {
-          override_date: todayOverrideRow.override_date,
-          is_day_off: todayOverrideRow.is_day_off,
-          start_time: todayOverrideRow.start_time ?? null,
-          end_time: todayOverrideRow.end_time ?? null,
-        }
-      : null,
-  };
+    return {
+      todaySchedule: todayScheduleRow
+        ? {
+            day_of_week: todayScheduleRow.day_of_week,
+            start_time: todayScheduleRow.start_time,
+            end_time: todayScheduleRow.end_time,
+            shift_type: todayScheduleRow.shift_type ?? "single",
+          }
+        : null,
+      todayOverride: todayOverrideRow
+        ? {
+            override_date: todayOverrideRow.override_date,
+            is_day_off: todayOverrideRow.is_day_off,
+            start_time: todayOverrideRow.start_time ?? null,
+            end_time: todayOverrideRow.end_time ?? null,
+          }
+        : null,
+    };
+  } catch (error) {
+    return {
+      error: error instanceof Error ? error.message : "Failed to load schedule",
+    };
+  }
 }
 
 // ── Monthly schedule stats for basic (non-therapist) staff ─────────────────
@@ -743,7 +759,17 @@ export async function getMyTodayAction(date?: string) {
   const me = await getMyStaffRecord();
   if (!me) return { error: "Unauthorized" };
 
-  const targetDate = date ?? (await getProviderBusinessDate(me.branch_id));
+  let targetDate: string;
+  try {
+    targetDate = date ?? (await getProviderBusinessDate(me.branch_id));
+  } catch (err) {
+    return {
+      error:
+        err instanceof Error
+          ? err.message
+          : "Failed to resolve operational business date",
+    };
+  }
 
   const selectWithResource = `
       id, booking_date, start_time, end_time, type, delivery_type, status,

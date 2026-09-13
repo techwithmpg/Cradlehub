@@ -424,6 +424,21 @@ describe("W2: Provider / Salon Functional Wiring", () => {
       expect(mockGetProviderBusinessDate).toHaveBeenCalledWith(branchId, boundaryDate);
       expect(mockGetMyTodayAction).toHaveBeenCalledWith("2026-09-13");
     });
+
+    it("catches business-date resolution failure and returns LOAD_ERROR without guessing date", async () => {
+      const mockStaff = makeMockStaff();
+      mockGetMyProfileAction.mockResolvedValueOnce({ staff: mockStaff });
+      mockGetProviderBusinessDate.mockRejectedValueOnce(
+        new Error("Database failure reading business date")
+      );
+
+      const result = await getProviderWorkspaceRuntime();
+      expect(result.ok).toBe(false);
+      if (!result.ok) {
+        expect(result.code).toBe("LOAD_ERROR");
+        expect(result.error).toBe("Database failure reading business date");
+      }
+    });
   });
 
   // ===========================================================================

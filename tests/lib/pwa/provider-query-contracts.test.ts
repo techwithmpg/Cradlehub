@@ -14,6 +14,18 @@ const mockQuerySpy = vi.fn();
 let mockBookingsData: any[] = [];
 let mockBookingsError: any = null;
 let mockStaffRecord: any = null;
+let mockStaffSchedulesData: any[] = [];
+let mockStaffSchedulesError: any = null;
+let mockScheduleOverridesData: any[] = [];
+let mockScheduleOverridesError: any = null;
+let mockAttendanceSettingsData: any = {
+  branch_id: "11111111-1111-1111-1111-111111111111",
+  timezone: "Asia/Manila",
+  attendance_day_boundary: "06:00:00",
+};
+let mockAttendanceSettingsError: any = null;
+let mockAttendanceRuleVersionsData: any = null;
+let mockAttendanceRuleVersionsError: any = null;
 
 const mockSupabase = {
   from: vi.fn((table: string) => {
@@ -65,7 +77,45 @@ const mockSupabase = {
       };
     }
 
-    if (table === "attendance_settings" || table === "attendance_rule_versions") {
+    if (table === "staff_schedules") {
+      return {
+        select: vi.fn().mockReturnThis(),
+        eq: vi.fn().mockReturnThis(),
+        order: vi.fn().mockReturnThis(),
+        then: (resolve: any) =>
+          Promise.resolve({
+            data: mockStaffSchedulesData,
+            error: mockStaffSchedulesError,
+          }).then(resolve),
+      };
+    }
+
+    if (table === "schedule_overrides") {
+      return {
+        select: vi.fn().mockReturnThis(),
+        eq: vi.fn().mockReturnThis(),
+        gte: vi.fn().mockReturnThis(),
+        order: vi.fn().mockReturnThis(),
+        then: (resolve: any) =>
+          Promise.resolve({
+            data: mockScheduleOverridesData,
+            error: mockScheduleOverridesError,
+          }).then(resolve),
+      };
+    }
+
+    if (table === "attendance_settings") {
+      return {
+        select: vi.fn().mockReturnThis(),
+        eq: vi.fn().mockReturnThis(),
+        maybeSingle: vi.fn().mockImplementation(async () => ({
+          data: mockAttendanceSettingsData,
+          error: mockAttendanceSettingsError,
+        })),
+      };
+    }
+
+    if (table === "attendance_rule_versions") {
       return {
         select: vi.fn().mockReturnThis(),
         eq: vi.fn().mockReturnThis(),
@@ -73,12 +123,8 @@ const mockSupabase = {
         order: vi.fn().mockReturnThis(),
         limit: vi.fn().mockReturnThis(),
         maybeSingle: vi.fn().mockImplementation(async () => ({
-          data: {
-            branch_id: "branch-1",
-            timezone: "Asia/Manila",
-            attendance_day_boundary: "06:00:00",
-          },
-          error: null,
+          data: mockAttendanceRuleVersionsData,
+          error: mockAttendanceRuleVersionsError,
         })),
       };
     }
@@ -108,6 +154,7 @@ vi.mock("@/lib/supabase/admin", () => ({
 import {
   getMyTodayAction,
   getMyServiceProgressAction,
+  getMyTodayScheduleAction,
 } from "@/app/(dashboard)/staff-portal/actions";
 import { getMyUpcomingBookings } from "@/lib/queries/bookings";
 import { buildStaffWeekPlanner } from "@/lib/staff-portal/week";
@@ -140,6 +187,18 @@ describe("W2 CORRECTION: Provider Delivery Authority & Query Data Contracts", ()
     };
     mockBookingsData = [];
     mockBookingsError = null;
+    mockStaffSchedulesData = [];
+    mockStaffSchedulesError = null;
+    mockScheduleOverridesData = [];
+    mockScheduleOverridesError = null;
+    mockAttendanceSettingsData = {
+      branch_id: branchId,
+      timezone: "Asia/Manila",
+      attendance_day_boundary: "06:00:00",
+    };
+    mockAttendanceSettingsError = null;
+    mockAttendanceRuleVersionsData = null;
+    mockAttendanceRuleVersionsError = null;
   });
 
   // ===========================================================================
@@ -435,6 +494,195 @@ describe("W2 CORRECTION: Provider Delivery Authority & Query Data Contracts", ()
       const result = await getProviderWorkspaceRuntime(undefined, boundaryDate);
       expect(result.ok).toBe(true);
       expect(mockQuerySpy).toHaveBeenCalled();
+    });
+  });
+
+  // ===========================================================================
+  // SECTION 5: Transitive Schedule Failure & Distinct Shift States
+  // ===========================================================================
+  describe("Section 5: Transitive Schedule Failure at Query Boundary", () => {
+    it("A. getStaffSchedule throws -> getMyTodayScheduleAction returns { error } -> Provider runtime produces shift.kind = load_error", async () => {
+      mockStaffSchedulesError = { message: "database schedule read failure" };
+
+      const actionRes = await getMyTodayScheduleAction("2026-09-13");
+      expect(actionRes).toEqual({ error: "database schedule read failure" });
+
+      const runtimeRes = await getProviderWorkspaceRuntime("2026-09-13");
+      expect(runtimeRes.ok).toBe(true);
+      if (runtimeRes.ok) {
+        expect(runtimeRes.runtime.shift.kind).toBe("load_error");
+        if (runtimeRes.runtime.shift.kind === "load_error") {
+          expect(runtimeRes.runtime.shift.error).toBe("database schedule read failure");
+        }
+        expect(runtimeRes.runtime.errors?.schedule).toBe("database schedule read failure");
+        expect(runtimeRes.runtime.shift.kind).not.toBe("none");
+        expect(runtimeRes.runtime.shift.kind).not.toBe("day_off");
+      }
+    });
+
+    it("B. getStaffOverrides throws -> getMyTodayScheduleAction returns { error } -> Provider runtime produces shift.kind = load_error", async () => {
+      mockScheduleOverridesError = { message: "database overrides read failure" };
+
+      const actionRes = await getMyTodayScheduleAction("2026-09-13");
+      expect(actionRes).toEqual({ error: "database overrides read failure" });
+
+      const runtimeRes = await getProviderWorkspaceRuntime("2026-09-13");
+      expect(runtimeRes.ok).toBe(true);
+      if (runtimeRes.ok) {
+        expect(runtimeRes.runtime.shift.kind).toBe("load_error");
+        if (runtimeRes.runtime.shift.kind === "load_error") {
+          expect(runtimeRes.runtime.shift.error).toBe("database overrides read failure");
+        }
+        expect(runtimeRes.runtime.errors?.schedule).toBe("database overrides read failure");
+        expect(runtimeRes.runtime.shift.kind).not.toBe("none");
+        expect(runtimeRes.runtime.shift.kind).not.toBe("day_off");
+      }
+    });
+
+    it("C. both queries succeed with [] -> getMyTodayScheduleAction returns null schedule/override -> Provider runtime produces shift.kind = none (legitimate No Shift)", async () => {
+      mockStaffSchedulesData = [];
+      mockScheduleOverridesData = [];
+
+      const actionRes = await getMyTodayScheduleAction("2026-09-13");
+      expect(actionRes).toEqual({ todaySchedule: null, todayOverride: null });
+
+      const runtimeRes = await getProviderWorkspaceRuntime("2026-09-13");
+      expect(runtimeRes.ok).toBe(true);
+      if (runtimeRes.ok) {
+        expect(runtimeRes.runtime.shift.kind).toBe("none");
+        expect(runtimeRes.runtime.errors?.schedule).toBeUndefined();
+      }
+    });
+
+    it("D. day-off override still resolves day_off", async () => {
+      mockStaffSchedulesData = [
+        {
+          id: "sch-1",
+          staff_id: staffId,
+          day_of_week: 0, // 2026-09-13 is Sunday = 0
+          start_time: "09:00:00",
+          end_time: "18:00:00",
+          is_active: true,
+          shift_type: "opening",
+        },
+      ];
+      mockScheduleOverridesData = [
+        {
+          id: "ov-1",
+          staff_id: staffId,
+          override_date: "2026-09-13",
+          is_day_off: true,
+          start_time: null,
+          end_time: null,
+        },
+      ];
+
+      const actionRes = await getMyTodayScheduleAction("2026-09-13");
+      expect("todayOverride" in actionRes).toBe(true);
+      if ("todayOverride" in actionRes && actionRes.todayOverride) {
+        expect(actionRes.todayOverride.is_day_off).toBe(true);
+      }
+
+      const runtimeRes = await getProviderWorkspaceRuntime("2026-09-13");
+      expect(runtimeRes.ok).toBe(true);
+      if (runtimeRes.ok) {
+        expect(runtimeRes.runtime.shift.kind).toBe("day_off");
+      }
+    });
+  });
+
+  // ===========================================================================
+  // SECTION 11: Business Date Failure & Error Truth
+  // ===========================================================================
+  describe("Section 11: Provider Business-Date Authority & Read Failure Protection", () => {
+    it("1. attendance_settings row missing with successful DB query -> default read-only settings work -> valid business date returned", async () => {
+      mockAttendanceSettingsData = null;
+      mockAttendanceSettingsError = null;
+      mockAttendanceRuleVersionsData = null;
+      mockAttendanceRuleVersionsError = null;
+
+      const testNow = new Date("2026-09-13T10:00:00+08:00");
+      const date = await getProviderBusinessDate(branchId, testNow);
+      expect(date).toBe("2026-09-13");
+    });
+
+    it("2. attendance_settings SELECT error -> no Asia/Manila silent fallback -> explicit error", async () => {
+      mockAttendanceSettingsData = null;
+      mockAttendanceSettingsError = { message: "permission denied for table attendance_settings" };
+
+      await expect(getProviderBusinessDate(branchId)).rejects.toThrow(
+        "permission denied for table attendance_settings"
+      );
+    });
+
+    it("3. attendance_rule_versions SELECT error -> explicit error", async () => {
+      mockAttendanceSettingsData = {
+        branch_id: branchId,
+        timezone: "Asia/Manila",
+        attendance_day_boundary: "06:00:00",
+      };
+      mockAttendanceRuleVersionsError = {
+        message: "query timeout on attendance_rule_versions",
+      };
+
+      await expect(getProviderBusinessDate(branchId)).rejects.toThrow(
+        "query timeout on attendance_rule_versions"
+      );
+    });
+
+    it("4. Provider runtime business-date failure -> does not load arbitrary date -> does not produce No assigned service / No Shift", async () => {
+      mockAttendanceSettingsError = { message: "connection timeout reading settings" };
+
+      const runtimeRes = await getProviderWorkspaceRuntime();
+      expect(runtimeRes.ok).toBe(false);
+      if (!runtimeRes.ok) {
+        expect(runtimeRes.code).toBe("LOAD_ERROR");
+        expect(runtimeRes.error).toBe("connection timeout reading settings");
+      }
+    });
+
+    it("5. Provider Progress business-date failure -> returns truthful error state", async () => {
+      mockAttendanceSettingsError = { message: "settings DB failure for progress" };
+
+      const progressRes = await getMyServiceProgressAction();
+      expect(progressRes).toEqual({ error: "settings DB failure for progress" });
+    });
+
+    it("6. Provider Today business-date failure -> returns truthful error state", async () => {
+      mockAttendanceSettingsError = { message: "settings DB failure for today" };
+
+      const todayRes = await getMyTodayAction();
+      expect(todayRes).toEqual({ error: "settings DB failure for today" });
+    });
+
+    it("7. Missing branchId for authenticated provider -> returns/throws explicit error without guessing", async () => {
+      await expect(getProviderBusinessDate(null)).rejects.toThrow(
+        "Provider has no assigned branch for operational date resolution"
+      );
+      await expect(getProviderBusinessDate("   ")).rejects.toThrow(
+        "Provider has no assigned branch for operational date resolution"
+      );
+
+      mockStaffRecord.branch_id = null;
+
+      const todayRes = await getMyTodayAction();
+      expect(todayRes).toEqual({
+        error: "Provider has no assigned branch for operational date resolution",
+      });
+
+      const progressRes = await getMyServiceProgressAction();
+      expect(progressRes).toEqual({
+        error: "Provider has no assigned branch for operational date resolution",
+      });
+
+      const runtimeRes = await getProviderWorkspaceRuntime();
+      expect(runtimeRes.ok).toBe(false);
+      if (!runtimeRes.ok) {
+        expect(runtimeRes.code).toBe("LOAD_ERROR");
+        expect(runtimeRes.error).toBe(
+          "Provider has no assigned branch for operational date resolution"
+        );
+      }
     });
   });
 });

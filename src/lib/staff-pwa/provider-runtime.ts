@@ -62,7 +62,20 @@ export async function getProviderWorkspaceRuntime(
     };
   }
 
-  const targetDate = date ?? (await getProviderBusinessDate(me.branch_id, now));
+  let targetDate: string;
+  try {
+    targetDate = date ?? (await getProviderBusinessDate(me.branch_id, now));
+  } catch (err) {
+    const errorMsg =
+      err instanceof Error
+        ? err.message
+        : "Failed to resolve operational business date";
+    return {
+      ok: false,
+      error: errorMsg,
+      code: "LOAD_ERROR",
+    };
+  }
   const errors: ProviderRuntimeErrors = {};
 
   const [attendanceOutcome, scheduleOutcome, todayOutcome] = await Promise.allSettled([
