@@ -77,11 +77,27 @@ function logBookingError(context: Record<string, unknown>, error: unknown) {
   logError("booking.crm.failed", { action: "booking.crm.create", ...context, error });
 }
 
+export function normalizeCrmBookingInput(rawInput: unknown): unknown {
+  if (!rawInput || typeof rawInput !== "object") return rawInput;
+  const obj = rawInput as Record<string, unknown>;
+  if (typeof obj.startTime === "string") {
+    const parsed = parseBookingTime(obj.startTime);
+    if (parsed.ok) {
+      return {
+        ...obj,
+        startTime: parsed.value.canonicalTime,
+      };
+    }
+  }
+  return rawInput;
+}
+
 export async function executeInhouseBookingCreation(
   rawInput: unknown,
   operator: InhouseBookingOperator
 ): Promise<CreateInhouseBookingResult> {
-  const parsed = createInhouseBookingMultiSchema.safeParse(rawInput);
+  const normalizedInput = normalizeCrmBookingInput(rawInput);
+  const parsed = createInhouseBookingMultiSchema.safeParse(normalizedInput);
   if (!parsed.success) {
     const firstIssue = parsed.error.issues[0];
     console.error("[CRM_BOOKING] validation failed", parsed.error.flatten());

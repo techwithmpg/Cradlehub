@@ -9,13 +9,21 @@ describe("parseBookingTime", () => {
     ["04:15 pm", "16:15:00"],
     ["12:00 AM", "00:00:00"],
     ["12:00 PM", "12:00:00"],
+    ["4 PM", "16:00:00"],
+    ["7 PM", "19:00:00"],
+    ["7PM", "19:00:00"],
+    ["7:30 PM", "19:30:00"],
+    ["7:30PM", "19:30:00"],
+    ["07:30 PM", "19:30:00"],
+    ["19:30", "19:30:00"],
+    ["19:30:00", "19:30:00"],
   ])("parses %s", (input, canonicalTime) => {
     const result = parseBookingTime(input);
     expect(result.ok).toBe(true);
     if (result.ok) expect(result.value.canonicalTime).toBe(canonicalTime);
   });
 
-  it.each(["", "25:00", "12:60", "4 PM", "noon"])("rejects %s", (input) => {
+  it.each(["", "25:00", "12:60", "25:90", "99 PM", "noon", "garbage"])("rejects %s", (input) => {
     expect(parseBookingTime(input).ok).toBe(false);
   });
 });

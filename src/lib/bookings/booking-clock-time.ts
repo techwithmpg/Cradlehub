@@ -22,7 +22,7 @@ export function parseBookingTime(input: string): BookingTimeParseResult {
   const value = input.trim();
   if (!value) return { ok: false, error: TIME_ERROR };
 
-  const twelveHour = /^(\d{1,2}):(\d{2})\s*([ap]m)$/i.exec(value);
+  const twelveHour = /^(\d{1,2})(?::(\d{2}))?\s*([ap]m)$/i.exec(value);
   const twentyFourHour = /^(\d{1,2}):(\d{2})(?::(\d{2}))?$/.exec(value);
 
   let hours: number;
@@ -31,7 +31,7 @@ export function parseBookingTime(input: string): BookingTimeParseResult {
 
   if (twelveHour) {
     const rawHours = Number(twelveHour[1]);
-    minutes = Number(twelveHour[2]);
+    minutes = twelveHour[2] !== undefined ? Number(twelveHour[2]) : 0;
     const period = twelveHour[3]!.toLowerCase();
 
     if (!Number.isInteger(rawHours) || rawHours < 1 || rawHours > 12) {

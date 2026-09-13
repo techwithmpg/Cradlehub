@@ -1528,6 +1528,7 @@ export async function startCrmBookingService(
     p_booking_id: parsed.data.bookingId,
     p_source: "crm",
     p_actor_staff_id: ctx.me.id,
+    p_resource_id: booking.resource_id ?? null,
   });
 
   if (error) {
