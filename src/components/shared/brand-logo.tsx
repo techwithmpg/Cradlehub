@@ -1,11 +1,9 @@
 import Image from "next/image";
 import { cn } from "@/lib/utils";
-import CradleLogoHorizontal from "@/assets/brand/cradle-logo-horizontal.svg";
-import CradleLogoMark from "@/assets/brand/cradle-logo-mark.svg";
 
 type BrandLogoProps = {
   mode?: "horizontal" | "mark";
-  /** "light" = natural colours on light backgrounds; "dark" = white version on dark backgrounds */
+  /** "light" provides a forest brand surface; "dark" uses the existing dark surface. */
   variant?: "light" | "dark";
   size?: "sm" | "md" | "lg";
   className?: string;
@@ -17,6 +15,12 @@ const sizeClasses: Record<NonNullable<BrandLogoProps["size"]>, string> = {
   sm: "w-28 md:w-32",
   md: "w-40 md:w-52",
   lg: "w-52 md:w-64 lg:w-72",
+};
+
+const markSizeClasses: Record<NonNullable<BrandLogoProps["size"]>, string> = {
+  sm: "w-12",
+  md: "w-20",
+  lg: "w-24",
 };
 
 export function BrandLogo({
@@ -44,16 +48,20 @@ export function BrandLogo({
     );
   }
 
-  const LogoComponent = mode === "mark" ? CradleLogoMark : CradleLogoHorizontal;
-
   return (
-    <LogoComponent
-      role="img"
-      aria-label="Cradle Wellness Living"
+    <Image
+      src={mode === "mark"
+        ? "/images/brand/cradle-wellness-living-mark.png"
+        : "/images/brand/cradle-wellness-living-logo.png"}
+      alt={customAlt ?? "Cradle Wellness Living"}
+      width={mode === "mark" ? 860 : 1536}
+      height={mode === "mark" ? 736 : 1024}
+      sizes={mode === "mark" ? "128px" : "(min-width: 768px) 288px, 256px"}
+      loading="eager"
       className={cn(
-        "h-auto shrink-0 object-contain transition-all duration-500",
-        sizeClasses[size],
-        variant === "dark" && "brightness-0 invert opacity-90",
+        "h-auto shrink-0 object-contain",
+        mode === "mark" ? markSizeClasses[size] : sizeClasses[size],
+        variant === "light" && "bg-[#163A2B]",
         className
       )}
     />

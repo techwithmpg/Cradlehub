@@ -36,8 +36,8 @@ export function StaffRoleResolutionSplash({
 
         <div className="relative grid h-20 w-20 place-items-center overflow-hidden rounded-[24px] border border-[#C8A96B]/25 bg-[#0D241B] shadow-[0_18px_42px_rgba(0,0,0,0.24)]">
           <Image
-            src="/images/brand/cradle-logo-mark.png"
-            alt="Cradle"
+            src="/images/brand/cradle-wellness-living-mark.png"
+            alt=""
             width={64}
             height={64}
             priority

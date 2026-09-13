@@ -384,7 +384,7 @@ function SidebarContent({
             aria-label="Cradle Wellness Living"
             style={{ display: "inline-flex", textDecoration: "none", alignSelf: "flex-start" }}
           >
-            <BrandLogo size="sm" className="w-28 md:w-32" />
+            <BrandLogo mode="mark" size="sm" variant="dark" className="h-12 w-14" />
           </Link>
           <div>
             <div

@@ -827,7 +827,7 @@ export function BrandStudioView({
                             className="h-9 w-auto max-w-[180px] object-contain"
                           />
                         ) : (
-                          <BrandLogo size="sm" variant="dark" className="w-32" />
+                          <BrandLogo mode="mark" size="sm" variant="dark" className="h-10 w-12" />
                         )}
                       </div>
                       <div className="hidden gap-4 text-xs text-[#9AA89A] sm:flex">
@@ -862,7 +862,7 @@ export function BrandStudioView({
                             className="h-9 w-auto max-w-[160px] object-contain"
                           />
                         ) : (
-                          <BrandLogo size="md" variant="dark" className="w-36" />
+                          <BrandLogo size="md" variant="dark" className="w-60" />
                         )}
                         <p className="text-xs text-[#FCFAF5]">
                           {previewMode === "draft"

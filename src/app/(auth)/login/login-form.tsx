@@ -88,8 +88,8 @@ export function LoginForm({
             className={`${styles.logoTile} size-[52px] rounded-[16px]`}
           >
             <Image
-              src="/images/brand/cradle-logo-mark.png"
-              alt="Cradle"
+              src="/images/brand/cradle-wellness-living-mark.png"
+              alt=""
               width={44}
               height={44}
               priority
@@ -119,8 +119,8 @@ export function LoginForm({
             className={`${styles.desktopLogo} ${styles.logoTile} grid size-[112px] rounded-[32px]`}
           >
             <Image
-              src="/images/brand/cradle-logo-mark.png"
-              alt="Cradle"
+              src="/images/brand/cradle-wellness-living-mark.png"
+              alt=""
               width={88}
               height={88}
               priority
