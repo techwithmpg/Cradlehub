@@ -182,6 +182,138 @@ describe("Desktop Staff Mutation Routes", () => {
   });
 
   describe("POST /api/desktop/v1/staff/[staffId]/deactivate", () => {
+    it("returns 401 when unauthenticated", async () => {
+      mockedAuth.mockResolvedValueOnce({
+        ok: false,
+        status: 401,
+        code: "UNAUTHORIZED",
+        message: "Missing token",
+      });
+
+      const req = new NextRequest(
+        "http://localhost/api/desktop/v1/staff/550e8400-e29b-41d4-a716-446655440000/deactivate",
+        { method: "POST" }
+      );
+
+      const res = await deactivateRoute(req, {
+        params: Promise.resolve({ staffId: "550e8400-e29b-41d4-a716-446655440000" }),
+      });
+
+      expect(res.status).toBe(401);
+      const json = await res.json();
+      expect(json.ok).toBe(false);
+      expect(json.code).toBe("UNAUTHORIZED");
+    });
+
+    it("returns 400 for invalid staffId UUID", async () => {
+      mockedAuth.mockResolvedValueOnce(authSuccess());
+
+      const req = new NextRequest("http://localhost/api/desktop/v1/staff/bad-uuid/deactivate", {
+        method: "POST",
+      });
+
+      const res = await deactivateRoute(req, {
+        params: Promise.resolve({ staffId: "bad-uuid" }),
+      });
+
+      expect(res.status).toBe(400);
+      const json = await res.json();
+      expect(json.ok).toBe(false);
+      expect(json.code).toBe("INVALID_INPUT");
+    });
+
+    it("returns 400 INVALID_INPUT on malformed JSON body", async () => {
+      mockedAuth.mockResolvedValueOnce(authSuccess());
+
+      const req = new NextRequest(
+        "http://localhost/api/desktop/v1/staff/550e8400-e29b-41d4-a716-446655440000/deactivate",
+        {
+          method: "POST",
+          body: "{ invalid json",
+          headers: { "Content-Type": "application/json" },
+        }
+      );
+
+      const res = await deactivateRoute(req, {
+        params: Promise.resolve({ staffId: "550e8400-e29b-41d4-a716-446655440000" }),
+      });
+
+      expect(res.status).toBe(400);
+      const json = await res.json();
+      expect(json.ok).toBe(false);
+      expect(json.code).toBe("INVALID_INPUT");
+      expect(json.message).toContain("Malformed JSON");
+    });
+
+    it("returns 400 INVALID_INPUT when unknown field reason is supplied", async () => {
+      mockedAuth.mockResolvedValueOnce(authSuccess());
+
+      const req = new NextRequest(
+        "http://localhost/api/desktop/v1/staff/550e8400-e29b-41d4-a716-446655440000/deactivate",
+        {
+          method: "POST",
+          body: JSON.stringify({ reason: "test" }),
+          headers: { "Content-Type": "application/json" },
+        }
+      );
+
+      const res = await deactivateRoute(req, {
+        params: Promise.resolve({ staffId: "550e8400-e29b-41d4-a716-446655440000" }),
+      });
+
+      expect(res.status).toBe(400);
+      const json = await res.json();
+      expect(json.ok).toBe(false);
+      expect(json.code).toBe("INVALID_INPUT");
+      expect(json.message).toContain("Unrecognized key");
+    });
+
+    it("returns 400 INVALID_INPUT when unknown field staffId is supplied", async () => {
+      mockedAuth.mockResolvedValueOnce(authSuccess());
+
+      const req = new NextRequest(
+        "http://localhost/api/desktop/v1/staff/550e8400-e29b-41d4-a716-446655440000/deactivate",
+        {
+          method: "POST",
+          body: JSON.stringify({ staffId: "550e8400-e29b-41d4-a716-446655440000" }),
+          headers: { "Content-Type": "application/json" },
+        }
+      );
+
+      const res = await deactivateRoute(req, {
+        params: Promise.resolve({ staffId: "550e8400-e29b-41d4-a716-446655440000" }),
+      });
+
+      expect(res.status).toBe(400);
+      const json = await res.json();
+      expect(json.ok).toBe(false);
+      expect(json.code).toBe("INVALID_INPUT");
+      expect(json.message).toContain("Unrecognized key");
+    });
+
+    it("returns 400 INVALID_INPUT when unknown field foo is supplied", async () => {
+      mockedAuth.mockResolvedValueOnce(authSuccess());
+
+      const req = new NextRequest(
+        "http://localhost/api/desktop/v1/staff/550e8400-e29b-41d4-a716-446655440000/deactivate",
+        {
+          method: "POST",
+          body: JSON.stringify({ foo: "bar" }),
+          headers: { "Content-Type": "application/json" },
+        }
+      );
+
+      const res = await deactivateRoute(req, {
+        params: Promise.resolve({ staffId: "550e8400-e29b-41d4-a716-446655440000" }),
+      });
+
+      expect(res.status).toBe(400);
+      const json = await res.json();
+      expect(json.ok).toBe(false);
+      expect(json.code).toBe("INVALID_INPUT");
+      expect(json.message).toContain("Unrecognized key");
+    });
+
     it("returns 403 when service returns FORBIDDEN (e.g. self deactivation)", async () => {
       mockedAuth.mockResolvedValueOnce(authSuccess());
       mockedDeactivate.mockResolvedValueOnce({
@@ -240,7 +372,8 @@ describe("Desktop Staff Mutation Routes", () => {
       expect(json.code).toBe("FORBIDDEN");
       expect(json.message).toContain("Invalid or unrecognized staff system role");
     });
-    it("returns 200 on successful deactivation", async () => {
+
+    it("returns 200 on successful deactivation with no request body", async () => {
       mockedAuth.mockResolvedValueOnce(authSuccess());
       mockedDeactivate.mockResolvedValueOnce({
         ok: true,
@@ -256,6 +389,37 @@ describe("Desktop Staff Mutation Routes", () => {
         "http://localhost/api/desktop/v1/staff/550e8400-e29b-41d4-a716-446655440000/deactivate",
         {
           method: "POST",
+        }
+      );
+
+      const res = await deactivateRoute(req, {
+        params: Promise.resolve({ staffId: "550e8400-e29b-41d4-a716-446655440000" }),
+      });
+
+      expect(res.status).toBe(200);
+      const json = await res.json();
+      expect(json.ok).toBe(true);
+      expect(json.data.staff.is_active).toBe(false);
+    });
+
+    it("returns 200 on successful deactivation with exactly {} request body", async () => {
+      mockedAuth.mockResolvedValueOnce(authSuccess());
+      mockedDeactivate.mockResolvedValueOnce({
+        ok: true,
+        data: {
+          staff: {
+            id: "550e8400-e29b-41d4-a716-446655440000",
+            is_active: false,
+          },
+        },
+      });
+
+      const req = new NextRequest(
+        "http://localhost/api/desktop/v1/staff/550e8400-e29b-41d4-a716-446655440000/deactivate",
+        {
+          method: "POST",
+          body: JSON.stringify({}),
+          headers: { "Content-Type": "application/json" },
         }
       );
 

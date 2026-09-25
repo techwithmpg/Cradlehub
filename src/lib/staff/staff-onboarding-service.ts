@@ -58,15 +58,26 @@ export function invalidateOnboardingApprovalSurfaces(branchId: string) {
 
 type CompensationResult = {
   success: boolean;
+  requestRestored: boolean;
   staffRestored: boolean;
   capabilitiesRestored: boolean;
+  requestSkippedDueToMismatch?: boolean;
+  staffSkippedDueToMismatch?: boolean;
+  capabilitiesSkippedDueToMismatch?: boolean;
   error?: string;
 };
 
 async function compensateApprovalMutation(params: {
   admin: ReturnType<typeof createAdminClient>;
-  staffId: string;
-  priorStaff: {
+  requestId: string;
+  actorStaffId: string;
+  priorRequest: {
+    requested_branch_id: string | null;
+    metadata: Json;
+  };
+  revertRequest: boolean;
+  staffId?: string;
+  priorStaff?: {
     is_active: boolean;
     branch_id: string;
     system_role: string;
@@ -74,72 +85,250 @@ async function compensateApprovalMutation(params: {
     tier: string;
     nickname: string | null;
   };
-  priorCapabilityIds: string[] | null;
-  restoreCapabilities: boolean;
+  appliedStaffState?: {
+    is_active: boolean;
+    branch_id: string;
+    system_role: string;
+    staff_type: string;
+    tier: string;
+    nickname?: string | null;
+  };
+  revertStaff: boolean;
+  priorCapabilityIds?: string[] | null;
+  appliedServiceIds?: string[] | null;
+  revertCapabilities: boolean;
 }): Promise<CompensationResult> {
-  const { admin, staffId, priorStaff, priorCapabilityIds, restoreCapabilities } = params;
-  let staffRestored = false;
-  let capabilitiesRestored = !restoreCapabilities;
-  let errorMsg = "";
+  const {
+    admin,
+    requestId,
+    actorStaffId,
+    priorRequest,
+    revertRequest,
+    staffId,
+    priorStaff,
+    appliedStaffState,
+    revertStaff,
+    priorCapabilityIds,
+    appliedServiceIds,
+    revertCapabilities,
+  } = params;
 
-  // 1. Restore staff row with returned-row verification
-  const { data: restoredStaff, error: staffErr } = await admin
-    .from("staff")
-    .update({
-      is_active: priorStaff.is_active,
-      branch_id: priorStaff.branch_id,
-      system_role: priorStaff.system_role,
-      staff_type: priorStaff.staff_type,
-      tier: priorStaff.tier,
-      nickname: priorStaff.nickname,
-    })
-    .eq("id", staffId)
-    .select("id")
-    .maybeSingle();
+  let requestRestored = !revertRequest;
+  let staffRestored = !revertStaff;
+  let capabilitiesRestored = !revertCapabilities;
+  let requestSkippedDueToMismatch = false;
+  let staffSkippedDueToMismatch = false;
+  let capabilitiesSkippedDueToMismatch = false;
+  const errorMsgs: string[] = [];
 
-  if (staffErr) {
-    errorMsg = `Staff rollback failed: ${staffErr.message}`;
-    logError("staff.onboarding.compensation_staff_failed", { staffId, error: staffErr });
-  } else if (!restoredStaff) {
-    errorMsg = "Staff rollback failed: target staff row not found.";
-    logError("staff.onboarding.compensation_staff_failed", {
-      staffId,
-      error: "Zero rows updated during staff rollback",
-    });
-  } else {
-    staffRestored = true;
-  }
+  // 1. Conditional rollback of capabilities if requested
+  if (
+    revertCapabilities &&
+    staffId &&
+    priorCapabilityIds !== null &&
+    priorCapabilityIds !== undefined &&
+    appliedServiceIds
+  ) {
+    const { data: currentCaps, error: capFetchErr } = await admin
+      .from("staff_services")
+      .select("service_id")
+      .eq("staff_id", staffId);
 
-  // 2. Restore capabilities if they were altered
-  if (restoreCapabilities && priorCapabilityIds !== null) {
-    const { error: capErr } = await admin.rpc("replace_staff_service_capabilities", {
-      p_target_staff_id: staffId,
-      p_service_ids: priorCapabilityIds,
-    });
-    if (capErr) {
-      const capMsg = `Capabilities rollback failed: ${capErr.message}`;
-      errorMsg = errorMsg ? `${errorMsg}; ${capMsg}` : capMsg;
-      logError("staff.onboarding.compensation_capabilities_failed", { staffId, error: capErr });
+    if (capFetchErr) {
+      errorMsgs.push(`Capabilities rollback fetch failed: ${capFetchErr.message}`);
+      logError("staff.onboarding.compensation_capabilities_fetch_failed", {
+        staffId,
+        error: capFetchErr,
+      });
     } else {
-      capabilitiesRestored = true;
+      const currentCapIds = (currentCaps ?? [])
+        .map((r: { service_id: string }) => r.service_id)
+        .sort();
+      const expectedCapIds = appliedServiceIds.slice().sort();
+      const matchesAppliedCaps =
+        currentCapIds.length === expectedCapIds.length &&
+        currentCapIds.every((id: string, idx: number) => id === expectedCapIds[idx]);
+
+      if (!matchesAppliedCaps) {
+        capabilitiesSkippedDueToMismatch = true;
+        logError("staff.onboarding.compensation_capabilities_skipped_state_mismatch", {
+          staffId,
+          currentCapIds,
+          expectedCapIds,
+        });
+      } else {
+        const { error: capErr } = await admin.rpc("replace_staff_service_capabilities", {
+          p_target_staff_id: staffId,
+          p_service_ids: priorCapabilityIds,
+        });
+        if (capErr) {
+          const capMsg = `Capabilities rollback failed: ${capErr.message}`;
+          errorMsgs.push(capMsg);
+          logError("staff.onboarding.compensation_capabilities_failed", {
+            staffId,
+            error: capErr,
+          });
+        } else {
+          capabilitiesRestored = true;
+        }
+      }
     }
   }
 
-  const overallSuccess = staffRestored && capabilitiesRestored;
+  // 2. Conditional rollback of staff record
+  if (revertStaff && staffId && priorStaff && appliedStaffState) {
+    const { data: currentStaff, error: fetchStaffErr } = await admin
+      .from("staff")
+      .select("id, is_active, branch_id, system_role, staff_type, tier, nickname")
+      .eq("id", staffId)
+      .maybeSingle();
+
+    if (fetchStaffErr) {
+      errorMsgs.push(`Staff rollback verification failed: ${fetchStaffErr.message}`);
+      logError("staff.onboarding.compensation_staff_fetch_failed", {
+        staffId,
+        error: fetchStaffErr,
+      });
+    } else if (!currentStaff) {
+      errorMsgs.push("Staff rollback failed: target staff row not found.");
+      logError("staff.onboarding.compensation_staff_not_found", { staffId });
+    } else {
+      const matchesApplied =
+        currentStaff.is_active === appliedStaffState.is_active &&
+        currentStaff.branch_id === appliedStaffState.branch_id &&
+        currentStaff.system_role === appliedStaffState.system_role &&
+        currentStaff.staff_type === appliedStaffState.staff_type &&
+        currentStaff.tier === appliedStaffState.tier &&
+        (appliedStaffState.nickname === undefined ||
+          currentStaff.nickname === appliedStaffState.nickname);
+
+      if (!matchesApplied) {
+        staffSkippedDueToMismatch = true;
+        logError("staff.onboarding.compensation_staff_skipped_state_mismatch", {
+          staffId,
+          currentStaff,
+          expectedApplied: appliedStaffState,
+        });
+      } else {
+        const { data: restoredStaff, error: staffErr } = await admin
+          .from("staff")
+          .update({
+            is_active: priorStaff.is_active,
+            branch_id: priorStaff.branch_id,
+            system_role: priorStaff.system_role,
+            staff_type: priorStaff.staff_type,
+            tier: priorStaff.tier,
+            nickname: priorStaff.nickname,
+          })
+          .eq("id", staffId)
+          .eq("is_active", appliedStaffState.is_active)
+          .eq("branch_id", appliedStaffState.branch_id)
+          .eq("system_role", appliedStaffState.system_role)
+          .eq("tier", appliedStaffState.tier)
+          .select("id")
+          .maybeSingle();
+
+        if (staffErr) {
+          errorMsgs.push(`Staff rollback failed: ${staffErr.message}`);
+          logError("staff.onboarding.compensation_staff_failed", { staffId, error: staffErr });
+        } else if (!restoredStaff) {
+          staffSkippedDueToMismatch = true;
+          errorMsgs.push("Staff rollback skipped: state changed concurrently.");
+          logError("staff.onboarding.compensation_staff_concurrent_conflict", { staffId });
+        } else {
+          staffRestored = true;
+        }
+      }
+    }
+  }
+
+  // 3. Conditional rollback of onboarding request back to submitted
+  if (revertRequest) {
+    const { data: currentReq, error: reqFetchErr } = await admin
+      .from("staff_onboarding_requests")
+      .select("id, status, reviewed_by_staff_id")
+      .eq("id", requestId)
+      .maybeSingle();
+
+    if (reqFetchErr) {
+      errorMsgs.push(`Request rollback fetch failed: ${reqFetchErr.message}`);
+      logError("staff.onboarding.compensation_request_fetch_failed", {
+        requestId,
+        error: reqFetchErr,
+      });
+    } else if (!currentReq) {
+      errorMsgs.push("Request rollback failed: request row not found.");
+      logError("staff.onboarding.compensation_request_not_found", { requestId });
+    } else if (
+      currentReq.status !== "approved" ||
+      currentReq.reviewed_by_staff_id !== actorStaffId
+    ) {
+      requestSkippedDueToMismatch = true;
+      logError("staff.onboarding.compensation_request_skipped_state_mismatch", {
+        requestId,
+        currentReq,
+        expectedActor: actorStaffId,
+      });
+    } else {
+      const { data: revertedReq, error: reqErr } = await admin
+        .from("staff_onboarding_requests")
+        .update({
+          status: "submitted",
+          reviewed_by_staff_id: null,
+          reviewed_at: null,
+          requested_branch_id: priorRequest.requested_branch_id,
+          metadata: priorRequest.metadata as unknown as Json,
+        })
+        .eq("id", requestId)
+        .eq("status", "approved")
+        .eq("reviewed_by_staff_id", actorStaffId)
+        .select("id")
+        .maybeSingle();
+
+      if (reqErr) {
+        errorMsgs.push(`Request rollback failed: ${reqErr.message}`);
+        logError("staff.onboarding.compensation_request_failed", {
+          requestId,
+          error: reqErr,
+        });
+      } else if (!revertedReq) {
+        requestSkippedDueToMismatch = true;
+        errorMsgs.push("Request rollback skipped: state changed concurrently.");
+        logError("staff.onboarding.compensation_request_concurrent_conflict", { requestId });
+      } else {
+        requestRestored = true;
+      }
+    }
+  }
+
+  const overallSuccess =
+    (revertStaff ? staffRestored : true) &&
+    (revertCapabilities ? capabilitiesRestored : true) &&
+    (revertRequest ? requestRestored : true);
+
   if (!overallSuccess) {
     logError("staff.onboarding.compensation_incomplete_critical", {
+      requestId,
       staffId,
       staffRestored,
       capabilitiesRestored,
-      errorMsg,
+      requestRestored,
+      staffSkippedDueToMismatch,
+      capabilitiesSkippedDueToMismatch,
+      requestSkippedDueToMismatch,
+      errors: errorMsgs,
     });
   }
 
   return {
     success: overallSuccess,
+    requestRestored,
     staffRestored,
     capabilitiesRestored,
-    error: errorMsg || undefined,
+    requestSkippedDueToMismatch,
+    staffSkippedDueToMismatch,
+    capabilitiesSkippedDueToMismatch,
+    error: errorMsgs.join("; ") || undefined,
   };
 }
 
@@ -277,7 +466,7 @@ export async function approveStaffOnboardingRequest(params: {
         error: "Unable to read existing staff capabilities for compensation.",
       };
     }
-    priorCapabilityIds = (capRows ?? []).map((r) => r.service_id);
+    priorCapabilityIds = (capRows ?? []).map((r: { service_id: string }) => r.service_id);
   }
 
   const requestMetadata = request.metadata as { nickname?: string | null } | null;
@@ -286,69 +475,13 @@ export async function approveStaffOnboardingRequest(params: {
       ? requestMetadata.nickname.trim()
       : null;
 
-  // Step 1: Update staff record with returned-row verification
-  const { data: updatedStaff, error: staffErr } = await admin
-    .from("staff")
-    .update({
-      is_active: true,
-      branch_id: input.branchId,
-      system_role: input.systemRole,
-      staff_type:
-        input.systemRole === "digital_marketer"
-          ? "managerial"
-          : mapPreferredRoleToStaffType(request.preferred_role ?? ""),
-      tier: input.tier,
-      ...(nickname ? { nickname } : {}),
-    })
-    .eq("id", staffId)
-    .select("id")
-    .maybeSingle();
-
-  if (staffErr) {
-    return { ok: false, code: "SAVE_FAILED", error: staffErr.message };
-  }
-  if (!updatedStaff) {
-    return { ok: false, code: "SAVE_FAILED", error: "Target staff record could not be updated." };
-  }
-
-  // Step 2: Capability sync with compensating rollback if failed
-  let capabilitiesAltered = false;
-  if (confirmedServiceIds !== undefined) {
-    const { error: capabilityErr } = await admin.rpc("replace_staff_service_capabilities", {
-      p_target_staff_id: staffId,
-      p_service_ids: confirmedServiceIds,
-    });
-    if (capabilityErr) {
-      logError("staff.onboarding.capability_sync_failed_compensating", {
-        staffId,
-        error: capabilityErr,
-      });
-      const compensation = await compensateApprovalMutation({
-        admin,
-        staffId,
-        priorStaff,
-        priorCapabilityIds,
-        restoreCapabilities: false,
-      });
-      return {
-        ok: false,
-        code: "SAVE_FAILED",
-        error: `Activated staff but failed to set services: ${capabilityErr.message}${
-          !compensation.success
-            ? " (Rollback also encountered errors. Consistency event logged.)"
-            : ""
-        }`,
-      };
-    }
-    capabilitiesAltered = true;
-  }
-
-  // Step 3: Update onboarding request status with concurrency check and compensating rollback
+  // Step: CONDITIONALLY CLAIM the onboarding request while status = 'submitted'
   const now = new Date().toISOString();
   const existingMetadata =
     request.metadata && typeof request.metadata === "object" && !Array.isArray(request.metadata)
       ? (request.metadata as Record<string, unknown>)
       : {};
+  const branchChanged = request.requested_branch_id !== input.branchId;
   const updatedMetadata: Record<string, unknown> = {
     ...existingMetadata,
     approved_at: now,
@@ -358,8 +491,15 @@ export async function approveStaffOnboardingRequest(params: {
     assigned_tier: input.tier,
     assigned_service_ids: confirmedServiceIds ?? [],
   };
+  if (branchChanged) {
+    updatedMetadata.approved_branch_differs_from_requested = true;
+    updatedMetadata.original_requested_branch_id = request.requested_branch_id;
+    updatedMetadata.approved_branch_id = input.branchId;
+    updatedMetadata.approved_branch_changed_at = now;
+    updatedMetadata.approved_branch_changed_by_staff_id = actor.staffId;
+  }
 
-  const { data: updatedRequest, error: requestUpdateErr } = await admin
+  const { data: claimedRequest, error: claimErr } = await admin
     .from("staff_onboarding_requests")
     .update({
       status: "approved",
@@ -373,59 +513,129 @@ export async function approveStaffOnboardingRequest(params: {
     .select("id")
     .maybeSingle();
 
-  if (requestUpdateErr) {
-    logError("staff.onboarding.request_update_failed_compensating", {
+  if (claimErr) {
+    logError("staff.onboarding.claim_request_failed", {
       requestId,
-      staffId,
-      error: requestUpdateErr,
+      error: claimErr,
     });
-    const compensation = await compensateApprovalMutation({
-      admin,
-      staffId,
-      priorStaff,
-      priorCapabilityIds,
-      restoreCapabilities: capabilitiesAltered,
-    });
-
     return {
       ok: false,
       code: "SAVE_FAILED",
-      error: `Failed to update onboarding request: ${requestUpdateErr.message}${
-        !compensation.success
-          ? " (Rollback also encountered errors. Consistency event logged.)"
-          : ""
-      }`,
+      error: `Failed to claim onboarding request: ${claimErr.message}`,
     };
   }
 
-  if (!updatedRequest) {
-    logError("staff.onboarding.request_update_race_conflict_compensating", {
-      requestId,
-      staffId,
-      actorStaffId: actor.staffId,
-    });
-    const compensation = await compensateApprovalMutation({
-      admin,
-      staffId,
-      priorStaff,
-      priorCapabilityIds,
-      restoreCapabilities: capabilitiesAltered,
-    });
-
-    if (!compensation.success) {
-      return {
-        ok: false,
-        code: "SAVE_FAILED",
-        error:
-          "The onboarding request changed concurrently and rollback could not be fully completed.",
-      };
-    }
-
+  if (!claimedRequest) {
     return {
       ok: false,
       code: "INVALID_STATE",
       error: "This onboarding request has already been reviewed by another user.",
     };
+  }
+
+  // Step: Mutate staff record (ONLY reviewer who claimed request reaches here)
+  const appliedStaffType =
+    input.systemRole === "digital_marketer"
+      ? "managerial"
+      : mapPreferredRoleToStaffType(request.preferred_role ?? "");
+
+  const appliedStaffState = {
+    is_active: true,
+    branch_id: input.branchId,
+    system_role: input.systemRole,
+    staff_type: appliedStaffType,
+    tier: input.tier,
+    ...(nickname ? { nickname } : {}),
+  };
+
+  const { data: updatedStaff, error: staffErr } = await admin
+    .from("staff")
+    .update({
+      is_active: true,
+      branch_id: input.branchId,
+      system_role: input.systemRole,
+      staff_type: appliedStaffType,
+      tier: input.tier,
+      ...(nickname ? { nickname } : {}),
+    })
+    .eq("id", staffId)
+    .select("id")
+    .maybeSingle();
+
+  if (staffErr || !updatedStaff) {
+    const errorDetail = staffErr?.message ?? "Target staff record could not be updated.";
+    logError("staff.onboarding.staff_mutation_failed_compensating", {
+      requestId,
+      staffId,
+      error: errorDetail,
+    });
+
+    const compensation = await compensateApprovalMutation({
+      admin,
+      requestId,
+      actorStaffId: actor.staffId,
+      priorRequest: {
+        requested_branch_id: request.requested_branch_id,
+        metadata: existingMetadata as unknown as Json,
+      },
+      revertRequest: true,
+      staffId,
+      priorStaff,
+      appliedStaffState,
+      revertStaff: false,
+      priorCapabilityIds,
+      appliedServiceIds: confirmedServiceIds ?? null,
+      revertCapabilities: false,
+    });
+
+    return {
+      ok: false,
+      code: "SAVE_FAILED",
+      error: `Failed to update staff record: ${errorDetail}${
+        !compensation.success ? " (Rollback encountered errors. Consistency event logged.)" : ""
+      }`,
+    };
+  }
+
+  // Step: Capability sync with compensating rollback if failed
+  if (confirmedServiceIds !== undefined) {
+    const { error: capabilityErr } = await admin.rpc("replace_staff_service_capabilities", {
+      p_target_staff_id: staffId,
+      p_service_ids: confirmedServiceIds,
+    });
+    if (capabilityErr) {
+      logError("staff.onboarding.capability_sync_failed_compensating", {
+        staffId,
+        requestId,
+        error: capabilityErr,
+      });
+      const compensation = await compensateApprovalMutation({
+        admin,
+        requestId,
+        actorStaffId: actor.staffId,
+        priorRequest: {
+          requested_branch_id: request.requested_branch_id,
+          metadata: existingMetadata as unknown as Json,
+        },
+        revertRequest: true,
+        staffId,
+        priorStaff,
+        appliedStaffState,
+        revertStaff: true,
+        priorCapabilityIds,
+        appliedServiceIds: confirmedServiceIds,
+        revertCapabilities: false,
+      });
+      return {
+        ok: false,
+        code: "SAVE_FAILED",
+        error: `Activated staff but failed to set services: ${capabilityErr.message}${
+          !compensation.success
+            ? " (Rollback also encountered errors. Consistency event logged.)"
+            : ""
+        }`,
+      };
+    }
   }
 
   // Step 4: Emit workflow event & business event
