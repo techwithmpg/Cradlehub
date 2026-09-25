@@ -24,7 +24,7 @@ const approveBodySchema = z.object({
 });
 
 export async function POST(request: Request, route: { params: Promise<{ requestId: string }> }) {
-  return withDesktopStaffContext(request, async ({ actor }) => {
+  return withDesktopStaffContext(request, async ({ actor, client }) => {
     const params = await route.params;
     const parsedRequestId = z.guid("Invalid request ID").safeParse(params.requestId);
     if (!parsedRequestId.success) {
@@ -43,6 +43,7 @@ export async function POST(request: Request, route: { params: Promise<{ requestI
 
     const result = await approveStaffOnboardingRequest({
       actor,
+      authenticatedClient: client,
       requestId: parsedRequestId.data,
       input: parsedBody.data,
     });

@@ -380,6 +380,7 @@ export async function approveOnboardingAction(input: {
       systemRole: me.system_role,
       branchId: me.branch_id,
     },
+    authenticatedClient: supabase,
     requestId: input.requestId,
     input: {
       branchId: input.branchId,

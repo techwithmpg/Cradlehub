@@ -183,6 +183,52 @@ describe("Desktop Onboarding Routes", () => {
       const json = await res.json();
       expect(json.ok).toBe(true);
       expect(json.data.staffId).toBe("550e8400-e29b-41d4-a716-446655440002");
+      expect(mockedApprove).toHaveBeenCalledWith(
+        expect.objectContaining({
+          authenticatedClient: expect.anything(),
+        })
+      );
+    });
+
+    it("passes the verified bearer client to approveStaffOnboardingRequest", async () => {
+      const auth = authSuccess();
+      const testBearerClient = {
+        from: vi.fn(),
+        rpc: vi.fn(),
+      } as unknown as SupabaseClient<Database>;
+      auth.client = testBearerClient;
+      mockedAuth.mockResolvedValueOnce(auth);
+      mockedApprove.mockResolvedValueOnce({
+        ok: true,
+        data: {
+          staffId: "550e8400-e29b-41d4-a716-446655440002",
+          branchId: "550e8400-e29b-41d4-a716-446655440001",
+          systemRole: "staff",
+        },
+      });
+
+      const req = new NextRequest(
+        "http://localhost/api/desktop/v1/staff/onboarding/550e8400-e29b-41d4-a716-446655440000/approve",
+        {
+          method: "POST",
+          body: JSON.stringify({
+            branchId: "550e8400-e29b-41d4-a716-446655440001",
+            systemRole: "staff",
+            tier: "junior",
+          }),
+        }
+      );
+
+      const res = await approveRoute(req, {
+        params: Promise.resolve({ requestId: "550e8400-e29b-41d4-a716-446655440000" }),
+      });
+
+      expect(res.status).toBe(200);
+      expect(mockedApprove).toHaveBeenCalledWith(
+        expect.objectContaining({
+          authenticatedClient: testBearerClient,
+        })
+      );
     });
   });
 
