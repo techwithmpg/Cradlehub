@@ -17,6 +17,10 @@ vi.mock("@/lib/logger", () => ({
   logError: vi.fn(),
 }));
 
+vi.mock("@/lib/supabase/server", () => ({
+  createClient: vi.fn(),
+}));
+
 import { verifyDesktopBearerAuth } from "@/lib/auth/desktop-bearer-auth";
 import {
   approveStaffOnboardingRequest,
@@ -24,6 +28,8 @@ import {
 } from "@/lib/staff/staff-onboarding-service";
 import { POST as approveRoute } from "./[requestId]/approve/route";
 import { POST as rejectRoute } from "./[requestId]/reject/route";
+import { createClient } from "@/lib/supabase/server";
+import { approveOnboardingAction } from "@/app/staff-onboarding/actions";
 
 const mockedAuth = vi.mocked(verifyDesktopBearerAuth);
 const mockedApprove = vi.mocked(approveStaffOnboardingRequest);
@@ -281,6 +287,59 @@ describe("Desktop Onboarding Routes", () => {
       const json = await res.json();
       expect(json.ok).toBe(true);
       expect(json.data.requestId).toBe("550e8400-e29b-41d4-a716-446655440000");
+    });
+  });
+
+  describe("Hosted approveOnboardingAction", () => {
+    it("passes the authenticated session client to approveStaffOnboardingRequest", async () => {
+      const mockSessionClient = {
+        auth: {
+          getUser: vi.fn().mockResolvedValue({
+            data: { user: { id: "user-hosted-1" } },
+          }),
+        },
+        from: vi.fn().mockReturnValue({
+          select: vi.fn().mockReturnValue({
+            eq: vi.fn().mockReturnValue({
+              eq: vi.fn().mockReturnValue({
+                maybeSingle: vi.fn().mockResolvedValue({
+                  data: {
+                    id: "staff-hosted-1",
+                    system_role: "manager",
+                    branch_id: "branch-main",
+                  },
+                }),
+              }),
+            }),
+          }),
+        }),
+      } as unknown as SupabaseClient<Database>;
+
+      vi.mocked(createClient).mockResolvedValueOnce(mockSessionClient);
+      mockedApprove.mockResolvedValueOnce({
+        ok: true,
+        data: {
+          staffId: "staff-applicant-1",
+          branchId: "branch-main",
+          systemRole: "staff",
+        },
+      });
+
+      const res = await approveOnboardingAction({
+        requestId: "550e8400-e29b-41d4-a716-446655440000",
+        staffId: "staff-applicant-1",
+        branchId: "branch-main",
+        systemRole: "staff",
+        tier: "junior",
+      });
+
+      expect(res.success).toBe(true);
+      expect(mockedApprove).toHaveBeenCalledWith(
+        expect.objectContaining({
+          authenticatedClient: mockSessionClient,
+          requestId: "550e8400-e29b-41d4-a716-446655440000",
+        })
+      );
     });
   });
 });

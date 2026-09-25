@@ -26,7 +26,7 @@
 7. `src/app/api/desktop/v1/staff/[staffId]/route.ts` — Authoritative Desktop staff profile mutation endpoint (`PATCH`).
 8. `src/app/api/desktop/v1/staff/onboarding/[requestId]/approve/route.ts` — Authoritative Desktop onboarding approval endpoint (`POST`), passes verified bearer `client` as `authenticatedClient`.
 9. `src/app/api/desktop/v1/staff/onboarding/[requestId]/reject/route.ts` — Authoritative Desktop onboarding rejection endpoint (`POST`).
-10. `src/app/api/desktop/v1/staff/onboarding/route.test.ts` — Route tests for onboarding approval and rejection, including bearer client verification (8 tests).
+10. `src/app/api/desktop/v1/staff/onboarding/route.test.ts` — Route tests for onboarding approval, rejection, bearer client verification, and hosted server action client delegation (9 tests).
 11. `src/app/api/desktop/v1/staff/staff-routes.test.ts` — Route tests for profile update, role mutation, and deactivation (15 tests).
 12. `src/app/staff-onboarding/actions.ts` — Shared onboarding server action passing authenticated server session client.
 13. `src/lib/bookings/crm-booking-operations.ts` — Server-side combined reschedule and reassignment service with audit and notification resolution.
@@ -37,13 +37,14 @@
 18. `tests/lib/staff/staff-mutation-service.test.ts` — Service tests for profile, role, and deactivation authorization rules (11 tests).
 19. `tests/lib/staff/staff-onboarding-service.test.ts` — Service tests for onboarding approval concurrency, zero-mutation loser guard, realistic PostgREST query chaining mock, and strict conditional compensation write guards (18 tests).
 
-*Note on `scripts/check-format.mjs`*: Fully restored to accepted repository baseline (`b4192d811e95a4fef73624548df634aebfd77a3f`). It has zero diff against base `ed8ae75d2d6fc9f3b8144dcabbe014f676e83a99` and is not in the net diff.
+_Note on `scripts/check-format.mjs`_: Fully restored to accepted repository baseline (`b4192d811e95a4fef73624548df634aebfd77a3f`). It has zero diff against base `ed8ae75d2d6fc9f3b8144dcabbe014f676e83a99` and is not in the net diff.
 
 ---
 
 ### The Six Workflow Authority Contracts
 
 #### 1. Staff Onboarding Approval
+
 - **Exact Route**: `/api/desktop/v1/staff/onboarding/[requestId]/approve`
 - **HTTP Method**: `POST`
 - **Request Body Required**: Yes (JSON)
@@ -108,6 +109,7 @@
 - **Failure Contract**: Flat JSON `{ ok: false, code: string, message: string }`.
 
 #### 2. Staff Onboarding Rejection
+
 - **Exact Route**: `/api/desktop/v1/staff/onboarding/[requestId]/reject`
 - **HTTP Method**: `POST`
 - **Request Body Required**: Yes (JSON)
@@ -122,6 +124,7 @@
 - **Failure Contract**: Flat JSON `{ ok: false, code: string, message: string }`.
 
 #### 3. Staff Profile Mutation
+
 - **Exact Route**: `/api/desktop/v1/staff/[staffId]`
 - **HTTP Method**: `PATCH`
 - **Request Body Required**: Yes (JSON)
@@ -140,6 +143,7 @@
 - **Failure Contract**: Flat JSON `{ ok: false, code: string, message: string }`.
 
 #### 4. Staff Role Mutation
+
 - **Exact Route**: `/api/desktop/v1/staff/[staffId]/role`
 - **HTTP Method**: `PATCH`
 - **Request Body Required**: Yes (JSON)
@@ -155,6 +159,7 @@
 - **Failure Contract**: Flat JSON `{ ok: false, code: string, message: string }`.
 
 #### 5. Staff Deactivation
+
 - **Exact Route**: `/api/desktop/v1/staff/[staffId]/deactivate`
 - **HTTP Method**: `POST`
 - **Request Body Required**: No (Empty body or `{}` accepted)
@@ -170,6 +175,7 @@
 - **Failure Contract**: Flat JSON `{ ok: false, code: string, message: string }`.
 
 #### 6. Booking Combined Reschedule
+
 - **Exact Route**: `/api/desktop/v1/bookings/[bookingId]/reschedule`
 - **HTTP Method**: `POST`
 - **Request Body Required**: Yes (JSON)
@@ -200,11 +206,11 @@
 
 ### Truthful RLS & Privilege Contract (Blocker 8 Correction)
 
-1. **Server-Only Privileged Client**: Service-role operations use `src/lib/supabase/admin.ts`, which explicitly contains `import "server-only";`.
-2. **Zero Client-Side Exposure**: `SUPABASE_SERVICE_ROLE_KEY` is NEVER bundled, passed, or exposed to the Desktop renderer or web browser client bundles.
-3. **Server-Side Authorization**: Stage 12 endpoints perform strict server-side actor resolution, role verification, and branch boundary checks before invoking any privileged mutation.
+1. **Server-Only Service-Role Client & RLS Bypass**: Service-role operations use `src/lib/supabase/admin.ts`, which explicitly creates a client with `SUPABASE_SERVICE_ROLE_KEY` and `import "server-only";`. By design in Supabase, the service-role client bypasses Row Level Security server-side.
+2. **Zero Client-Side / Renderer Exposure**: The service-role credential is strictly server-only and is NEVER bundled, passed, or exposed to Desktop renderer code, client browsers, or public bundles.
+3. **Application-Level Server-Side Authorization**: Stage 12 endpoints and services perform rigorous server-side actor resolution, active staff status validation, canonical role validation, and branch boundary checks before initiating any privileged mutation.
 4. **Actor-Aware User-Scoped RPCs**: Operations whose database contracts depend on caller identity via `auth.uid()` (specifically `replace_staff_service_capabilities`) MUST and DO execute through the authenticated Supabase client (`authenticatedClient`), preserving database-level caller verification.
-5. **RLS Integrity**: Row Level Security (RLS) remains enabled across all public tables. Stage 12 does not disable RLS, bypass RLS on actor-aware RPCs, or add permissive bypass policies.
+5. **RLS Policy Integrity**: Row Level Security (RLS) remains enabled across all public database tables. Stage 12 does not disable RLS or add permissive policies.
 6. **No Migrations Added**: Zero database migrations were added or modified in Stage 12A.
 
 ---
@@ -213,14 +219,14 @@
 
 - **TypeScript**: `npm run type-check` (`tsc --noEmit`) -> **PASSED (0 errors)**.
 - **ESLint**: `npm run lint` (`eslint`) -> **PASSED (0 errors, 9 pre-existing studio warnings, 0 warnings/errors in Stage 12 files)**.
-- **Focused Vitest Stage 12 Test Suites**: 6 test files, 65 tests -> **PASSED (65/65 passed, 100%)**:
+- **Focused Vitest Stage 12 Test Suites**: 6 test files, 66 tests -> **PASSED (66/66 passed, 100%)**:
   - `tests/lib/staff/staff-mutation-service.test.ts` (11/11 passed)
   - `tests/lib/staff/staff-onboarding-service.test.ts` (18/18 passed)
-  - `src/app/api/desktop/v1/staff/onboarding/route.test.ts` (8/8 passed)
+  - `src/app/api/desktop/v1/staff/onboarding/route.test.ts` (9/9 passed)
   - `src/app/api/desktop/v1/staff/staff-routes.test.ts` (15/15 passed)
   - `tests/lib/bookings/reschedule-booking-service.test.ts` (8/8 passed)
   - `src/app/api/desktop/v1/bookings/[bookingId]/reschedule/route.test.ts` (5/5 passed)
-- **Full Vitest Suite Run**: 31 test files, 211 tests -> **PASSED (211/211 passed, 100%)**.
+- **Full Vitest Suite Run**: 31 test files, 212 tests -> **PASSED (212/212 passed, 100%)**.
 - **Prettier Format Check**: `npx prettier --check` on all Stage 12 files -> **PASSED (All matched files use Prettier code style)**.
 - **Build**: `npm run build` (`next build`, Turbopack) -> **PASSED (Compiled successfully in 42s, 128/128 routes generated)**.
 - **Diff Check**: `git diff --check` -> **PASSED (0 whitespace or merge-marker errors)**.
