@@ -13,17 +13,17 @@ export type GoogleSheetRangeResult = {
   values: GoogleSheetCell[][];
 };
 
+const SHEETS_READONLY_SCOPE = "https://www.googleapis.com/auth/spreadsheets.readonly";
+
 function escapeSheetName(sheetName: string): string {
   return sheetName.replaceAll("'", "''");
 }
 
-function createReadOnlySheetsClient() {
+async function createReadOnlySheetsClient() {
   const config = getGoogleSheetsReadConfig();
 
-  const auth = new google.auth.JWT({
-    email: config.serviceAccountEmail,
-    key: config.privateKey,
-    scopes: ["https://www.googleapis.com/auth/spreadsheets.readonly"],
+  const auth = new google.auth.GoogleAuth({
+    scopes: [SHEETS_READONLY_SCOPE],
   });
 
   return {
@@ -36,10 +36,13 @@ function createReadOnlySheetsClient() {
 }
 
 /**
- * Reads values from one explicit worksheet/range.
+ * Reads one explicit worksheet/range.
  *
- * This module is intentionally READ ONLY.
- * It exposes no append, update, clear, batchUpdate, or write operation.
+ * Authentication comes from Google Application Default Credentials.
+ * Local development uses keyless service-account impersonation.
+ *
+ * READ ONLY:
+ * this module exposes no append/update/clear/batchUpdate operation.
  */
 export async function readGoogleSheetRange(input: {
   sheetName: string;
@@ -52,7 +55,7 @@ export async function readGoogleSheetRange(input: {
   }
 
   const a1Range = input.a1Range?.trim() || "A1:M1200";
-  const { spreadsheetId, sheets } = createReadOnlySheetsClient();
+  const { spreadsheetId, sheets } = await createReadOnlySheetsClient();
 
   const requestedRange = `'${escapeSheetName(sheetName)}'!${a1Range}`;
 
@@ -83,13 +86,12 @@ export async function readGoogleSheetRange(input: {
 }
 
 /**
- * Metadata-only worksheet discovery.
+ * Returns visible worksheet titles.
  *
- * Used later to safely determine which weekly worksheet should be read.
- * No worksheet is selected automatically at this stage.
+ * Metadata read only. This does not select or modify a worksheet.
  */
 export async function listGoogleSheetTitles(): Promise<string[]> {
-  const { spreadsheetId, sheets } = createReadOnlySheetsClient();
+  const { spreadsheetId, sheets } = await createReadOnlySheetsClient();
 
   const response = await sheets.spreadsheets.get({
     spreadsheetId,
@@ -99,8 +101,11 @@ export async function listGoogleSheetTitles(): Promise<string[]> {
   return (response.data.sheets ?? [])
     .map((sheet) => sheet.properties)
     .filter(
-      (properties): properties is NonNullable<typeof properties> & { title: string } =>
-        Boolean(properties?.title) && properties?.hidden !== true
+      (
+        properties
+      ): properties is NonNullable<typeof properties> & {
+        title: string;
+      } => Boolean(properties?.title) && properties?.hidden !== true
     )
     .sort((a, b) => (a.index ?? 0) - (b.index ?? 0))
     .map((properties) => properties.title);

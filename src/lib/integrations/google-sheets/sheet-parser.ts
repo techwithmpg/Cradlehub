@@ -2,6 +2,7 @@ export type SheetCell = string | number | boolean | null | undefined;
 
 export type SheetRowType =
   | "header"
+  | "aggregate_summary"
   | "staff_duty"
   | "service_candidate"
   | "financial_or_note"
@@ -80,6 +81,8 @@ const DUTY_PATTERN =
   /^(OPENING CSR|CLOSING CSR|OPENING-CLOSING CSR|OPENING CLOSING CSR|MID SHIFT|BOOK-KEEPER|BOOK KEEPER)$/i;
 
 const DASH_ONLY_PATTERN = /^-+$/;
+
+const AGGREGATE_SUMMARY_PATTERN = /^(TOTAL NO\.?\s*OF HOURS|NET PROFIT\s*:?)$/i;
 
 function text(value: SheetCell): string {
   if (value === null || value === undefined) {
@@ -208,6 +211,12 @@ function parsePaymentComponent(method: PaymentMethod, value: SheetCell): ParsedP
 function classifyRow(row: SheetCell[]): SheetRowType {
   if (isHeaderRow(row)) {
     return "header";
+  }
+
+  const firstColumn = text(row[0]);
+
+  if (firstColumn && AGGREGATE_SUMMARY_PATTERN.test(firstColumn)) {
+    return "aggregate_summary";
   }
 
   const service = text(row[5]);
@@ -397,6 +406,7 @@ export function parseWeeklySheet(inputValues: SheetCell[][]): ParsedWeeklySheet 
 
   const countsByType: Record<SheetRowType, number> = {
     header: 0,
+    aggregate_summary: 0,
     staff_duty: 0,
     service_candidate: 0,
     financial_or_note: 0,
