@@ -1493,6 +1493,143 @@ describe("staff-onboarding-service", () => {
       );
     });
 
+    it("11c. TOCTOU write-time race: pre-check matches metadata but concurrent writer modifies metadata before rollback UPDATE -> UPDATE returns zero rows, request not restored, conflict logged", async () => {
+      let requestFetchCount = 0;
+      let requestUpdateCount = 0;
+      const requestChains: QueryChainInstance[] = [];
+
+      mockAuthenticatedClient.rpc.mockResolvedValueOnce({
+        data: null,
+        error: { message: "Capability RPC failed" },
+      });
+
+      mockAdminClient.from.mockImplementation((table: string) => {
+        if (table === "staff_onboarding_requests") {
+          return createQueryChain({
+            onMaybeSingle: async (chain) => {
+              requestFetchCount++;
+              if (requestFetchCount === 1) {
+                return {
+                  data: {
+                    id: "req-1",
+                    requested_branch_id: "branch-main",
+                    staff_id: "staff-1",
+                    status: "submitted",
+                    preferred_role: "therapist",
+                    full_name: "Test Staff",
+                    metadata: { initial: true },
+                  },
+                  error: null,
+                };
+              }
+              if (chain.updatePayload && requestUpdateCount === 0) {
+                requestUpdateCount++;
+                requestChains.push(chain);
+                return { data: { id: "req-1" }, error: null };
+              }
+              if (requestFetchCount === 3) {
+                // Step 3 & 4: Pre-rollback read returns metadata EXACTLY matching appliedClaimState.metadata!
+                const claimedMeta = (requestChains[0]?.updatePayload?.metadata ?? {}) as Record<
+                  string,
+                  unknown
+                >;
+                return {
+                  data: {
+                    id: "req-1",
+                    status: "approved",
+                    reviewed_by_staff_id: "owner-1",
+                    reviewed_at: requestChains[0]?.updatePayload?.reviewed_at,
+                    requested_branch_id: "branch-main",
+                    metadata: claimedMeta,
+                  },
+                  error: null,
+                };
+              }
+              if (chain.updatePayload && requestUpdateCount === 1) {
+                // Step 5 & 6: Another writer changed metadata after pre-check but before UPDATE executes.
+                // The exact metadata equality filter (.eq("metadata", ...)) matches 0 rows in DB.
+                requestUpdateCount++;
+                requestChains.push(chain);
+                return { data: null, error: null };
+              }
+              return { data: null, error: null };
+            },
+          });
+        }
+        if (table === "staff") {
+          return createQueryChain({
+            onMaybeSingle: async (chain) => {
+              if (chain.updatePayload) {
+                return { data: { id: "staff-1" }, error: null };
+              }
+              return { data: priorStaffRecord, error: null };
+            },
+          });
+        }
+        return createQueryChain({});
+      });
+
+      const res = await approveStaffOnboardingRequest({
+        actor: {
+          staffId: "owner-1",
+          authUserId: "user-owner",
+          systemRole: "owner",
+          branchId: null,
+        },
+        authenticatedClient: mockAuthenticatedClient as unknown as SupabaseClient<Database>,
+        requestId: "req-1",
+        input: {
+          branchId: "branch-main",
+          systemRole: "staff",
+          tier: "junior",
+          serviceIds: ["svc-1"],
+        },
+      });
+
+      expect(res.ok).toBe(false);
+
+      // 1. Rollback request UPDATE was attempted
+      expect(requestChains.length).toBe(2);
+      const rollbackChain = requestChains[1];
+      expect(rollbackChain?.updatePayload).toMatchObject({
+        status: "submitted",
+        reviewed_by_staff_id: null,
+        reviewed_at: null,
+        requested_branch_id: "branch-main",
+      });
+
+      // 2. Rollback query contains: id, status, reviewed_by_staff_id, reviewed_at, requested_branch_id, exact metadata equality
+      const claimedMeta = requestChains[0]?.updatePayload?.metadata;
+      expect(rollbackChain?.filters).toEqual(
+        expect.arrayContaining([
+          { type: "eq", column: "id", value: "req-1" },
+          { type: "eq", column: "status", value: "approved" },
+          { type: "eq", column: "reviewed_by_staff_id", value: "owner-1" },
+          {
+            type: "eq",
+            column: "reviewed_at",
+            value: requestChains[0]?.updatePayload?.reviewed_at,
+          },
+          { type: "eq", column: "requested_branch_id", value: "branch-main" },
+          { type: "eq", column: "metadata", value: JSON.stringify(claimedMeta) },
+        ])
+      );
+
+      // 3. Request is NOT considered restored; concurrent conflict and critical failure logged
+      expect(logError).toHaveBeenCalledWith(
+        "staff.onboarding.compensation_request_concurrent_conflict",
+        expect.objectContaining({
+          requestId: "req-1",
+        })
+      );
+      expect(logError).toHaveBeenCalledWith(
+        "staff.onboarding.compensation_incomplete_critical",
+        expect.objectContaining({
+          requestId: "req-1",
+        })
+      );
+    });
+
     it("12. Compensation error: DB deadlock during conditional staff rollback -> logs consistency failure truthfully", async () => {
       let staffFetchCount = 0;
       let staffUpdateCount = 0;
