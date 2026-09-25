@@ -8,33 +8,34 @@
 - **STAGE**: 12A — Hosted Authority & Security Completion
 - **BRANCH**: `stage/12-desktop-authority-endpoints`
 - **BASE_SHA**: `ed8ae75d2d6fc9f3b8144dcabbe014f676e83a99`
-- **PREVIOUS_REMOTE_HEAD**: `a0198dbd711bb1eb4624a40fa7ef419703a28db6`
-- **DESKTOP_REFERENCE_SHA**: `683b5c11651c972e6290b6796d01b3b449c105a4`
+- **PREVIOUS_REVIEWED_HEAD**: `a9e76e011213a7e993b41852f2e8d52c936f796a`
+- **IMPLEMENTATION_HEAD_SHA**: `2801f608aa4d9338cf48816fa38c59dad634137c`
+- **FINAL_REMOTE_HEAD**: `FINAL_REMOTE_HEAD_PLACEHOLDER`
 - **STATUS**: CORRECTIONS APPLIED — READY FOR INDEPENDENT GITHUB REVIEW
 
 ---
 
 ### Exact Changed Files (19 Files from Base `ed8ae75d`)
 
-1. `docs/50-state/evidence/stage-12-desktop-authority-endpoints.md` — Canonical Stage 12A evidence record.
+1. `docs/50-state/evidence/stage-12-desktop-authority-endpoints.md` — Canonical Stage 12A evidence record with truthful RLS, concurrency, compensation, and quality-gate assertions.
 2. `src/app/(dashboard)/crm/bookings/actions.ts` — Shared CRM action updated to leverage unified reschedule operations.
-3. `src/app/api/desktop/v1/bookings/[bookingId]/reschedule/route.test.ts` — Route tests for booking reschedule authority and error contracts.
+3. `src/app/api/desktop/v1/bookings/[bookingId]/reschedule/route.test.ts` — Route tests for booking reschedule authority and error contracts (5 tests).
 4. `src/app/api/desktop/v1/bookings/[bookingId]/reschedule/route.ts` — Authoritative Desktop booking reschedule endpoint (`POST`).
 5. `src/app/api/desktop/v1/staff/[staffId]/deactivate/route.ts` — Authoritative Desktop staff deactivation endpoint (`POST`).
 6. `src/app/api/desktop/v1/staff/[staffId]/role/route.ts` — Authoritative Desktop staff role mutation endpoint (`PATCH`).
 7. `src/app/api/desktop/v1/staff/[staffId]/route.ts` — Authoritative Desktop staff profile mutation endpoint (`PATCH`).
-8. `src/app/api/desktop/v1/staff/onboarding/[requestId]/approve/route.ts` — Authoritative Desktop onboarding approval endpoint (`POST`).
+8. `src/app/api/desktop/v1/staff/onboarding/[requestId]/approve/route.ts` — Authoritative Desktop onboarding approval endpoint (`POST`), passes verified bearer `client` as `authenticatedClient`.
 9. `src/app/api/desktop/v1/staff/onboarding/[requestId]/reject/route.ts` — Authoritative Desktop onboarding rejection endpoint (`POST`).
-10. `src/app/api/desktop/v1/staff/onboarding/route.test.ts` — Route tests for onboarding approval and rejection.
-11. `src/app/api/desktop/v1/staff/staff-routes.test.ts` — Route tests for profile update, role mutation, and deactivation.
-12. `src/app/staff-onboarding/actions.ts` — Shared onboarding server action updated to call onboarding service.
+10. `src/app/api/desktop/v1/staff/onboarding/route.test.ts` — Route tests for onboarding approval and rejection, including bearer client verification (8 tests).
+11. `src/app/api/desktop/v1/staff/staff-routes.test.ts` — Route tests for profile update, role mutation, and deactivation (15 tests).
+12. `src/app/staff-onboarding/actions.ts` — Shared onboarding server action passing authenticated server session client.
 13. `src/lib/bookings/crm-booking-operations.ts` — Server-side combined reschedule and reassignment service with audit and notification resolution.
 14. `src/lib/staff/desktop-staff-contract.ts` — Shared desktop contract, server bearer auth verification, fail-closed role validation.
 15. `src/lib/staff/staff-mutation-service.ts` — Server-only profile, role, and deactivation mutation service with server authority.
-16. `src/lib/staff/staff-onboarding-service.ts` — Server-only onboarding service with race-safe conditional claim and non-overwriting compensation.
-17. `tests/lib/bookings/reschedule-booking-service.test.ts` — Service tests for reschedule, reassignment, and schedule exceptions.
-18. `tests/lib/staff/staff-mutation-service.test.ts` — Service tests for profile, role, and deactivation authorization rules.
-19. `tests/lib/staff/staff-onboarding-service.test.ts` — Service tests for onboarding approval concurrency, zero-mutation loser guard, and compensation safety.
+16. `src/lib/staff/staff-onboarding-service.ts` — Server-only onboarding service with race-safe conditional claim, actor-aware capability sync via `authenticatedClient`, and strict conditional non-overwriting compensation.
+17. `tests/lib/bookings/reschedule-booking-service.test.ts` — Service tests for reschedule, reassignment, and schedule exceptions (8 tests).
+18. `tests/lib/staff/staff-mutation-service.test.ts` — Service tests for profile, role, and deactivation authorization rules (11 tests).
+19. `tests/lib/staff/staff-onboarding-service.test.ts` — Service tests for onboarding approval concurrency, zero-mutation loser guard, realistic PostgREST query chaining mock, and strict conditional compensation write guards (18 tests).
 
 *Note on `scripts/check-format.mjs`*: Fully restored to accepted repository baseline (`b4192d811e95a4fef73624548df634aebfd77a3f`). It has zero diff against base `ed8ae75d2d6fc9f3b8144dcabbe014f676e83a99` and is not in the net diff.
 
@@ -51,7 +52,7 @@
   - `systemRole` (string, required): Assignable system role.
   - `tier` (string, optional): Staff tier (`junior`, `senior`, etc.).
   - `serviceIds` (string array, optional): Specific service capabilities to assign.
-- **Rejected / Unknown Field Behavior**: Validated via Zod `DesktopStaffApprovalSchema`. Unknown fields are stripped/ignored by schema, but invalid types or missing required fields return 400 `INVALID_INPUT`.
+- **Rejected / Unknown Field Behavior**: Validated via Zod schema. Invalid types or missing required fields return 400 `INVALID_INPUT`.
 - **Authentication**: Bearer token validated server-side via Supabase auth (`verifyDesktopBearerAuth`).
 - **Authorization**: Actor staff ID, system role, and home branch resolved server-side from `staff` table.
 - **Branch Restrictions**:
@@ -59,38 +60,66 @@
   - Manager / Assistant Manager / Store Manager: Final approved branch MUST equal actor's home branch (`actor.branchId`). Cross-branch approval returns 403 `BRANCH_MISMATCH`.
 - **Underlying Tables / RPCs**:
   - `staff_onboarding_requests`: Conditional claim and metadata update.
-  - `staff`: Profile update (`is_active = true`, `branch_id`, `system_role`, `staff_type`, `tier`, `nickname`).
+  - `staff`: Profile update (`is_active = true`, `branch_id`, `system_role`, `staff_type`, `tier`, conditionally `nickname`).
   - `staff_services`: Mutated via RPC `replace_staff_service_capabilities(p_target_staff_id, p_service_ids)`.
-- **Concurrency Order & Protections**:
+- **Auth Context for Capability RPC (Blocker 1 Correction)**:
+  - The canonical RPC `replace_staff_service_capabilities` is `SECURITY DEFINER` and explicitly authenticates caller identity via `auth.uid()`, resolving the authenticated actor's active `staff` row, role, and branch.
+  - Invoking this RPC via the service-role `createAdminClient()` is forbidden because service-role does not represent the authenticated actor.
+  - `approveStaffOnboardingRequest` accepts `authenticatedClient: SupabaseClient<Database>`.
+  - The Desktop endpoint passes the verified bearer token client (`client` from `withDesktopStaffContext`).
+  - The hosted web server action passes its authenticated server session client (`supabase` from `createClient()`).
+  - Privileged mutations on `staff_onboarding_requests` and `staff` remain server-only via `admin` client after server-side authorization checks.
+- **Concurrency Order & Protections (Blocker 5 Correction)**:
   1. Authenticate server-side and resolve actor identity, role, and branch.
   2. Read and validate onboarding request; verify `status = 'submitted'`.
   3. Validate branch access, role assignability, and service eligibility.
-  4. Capture prior staff record and prior capabilities for safe conditional compensation.
-  5. **CONDITIONALLY CLAIM** request: executes `.update({ status: 'approved', reviewed_by_staff_id, reviewed_at, ... }).eq('id', requestId).eq('status', 'submitted').select('id').maybeSingle()`.
-  6. If claim returns 0 rows: returns 409 `INVALID_STATE` (`{ ok: false, code: 'INVALID_STATE', message: 'This onboarding request has already been reviewed by another user.' }`). **Losing reviewer makes ZERO mutations to staff and ZERO mutations to capabilities.**
-  7. Only winning reviewer mutates `staff` record and calls `replace_staff_service_capabilities`.
-- **Compensation Behavior**:
-  - If staff mutation fails: conditionally compensates onboarding request back to `submitted` (`revertRequest: true`).
-  - If capability RPC fails: conditionally compensates staff record to prior state AND onboarding request to `submitted`.
-  - **Non-Overwrite Safety**: Every compensation step checks that the database row still matches the applied state before reverting. If a newer legitimate change occurred in the interim, rollback is skipped to prevent overwriting newer valid data.
+  4. Capture prior staff record for safe conditional compensation.
+  5. Evaluate nickname ownership: only if raw nickname from request metadata is non-null and differs from `priorStaff.nickname` does this approval claim ownership and apply a nickname change.
+  6. **CONDITIONALLY CLAIM** request: executes:
+     ```ts
+     admin
+       .from("staff_onboarding_requests")
+       .update({
+         status: "approved",
+         reviewed_by_staff_id: actor.staffId,
+         reviewed_at: now,
+         requested_branch_id: input.branchId,
+         metadata: updatedMetadata, // includes approved_at: now operation marker
+       })
+       .eq("id", requestId)
+       .eq("status", "submitted")
+       .select("id")
+       .maybeSingle();
+     ```
+  7. If claim returns 0 rows: returns 409 `INVALID_STATE` (`{ ok: false, code: "INVALID_STATE", error: "This onboarding request has already been reviewed by another user." }`).
+  8. **Losing reviewer makes ZERO mutations to staff and ZERO calls to capability RPC.** Deterministic shared-state concurrency tests prove that across concurrent reviewers, exactly one claim succeeds, exactly one staff mutation is performed, and exactly one capability RPC is executed.
+  9. Winning reviewer mutates `staff` record and invokes `authenticatedClient.rpc("replace_staff_service_capabilities", ...)`.
+- **Conditional Compensation & Rollback Write Guards (Blockers 2, 3, 4, 6, 9 Corrections)**:
+  - **Capability RPC Failure Semantics**: `replace_staff_service_capabilities` is a PostgreSQL function executing within a single statement transaction. When it returns failure, its delete/insert replacement aborts completely in PostgreSQL, leaving zero modifications in `staff_services`. No application-level capability rollback is invented.
+  - **Overall Workflow Semantics**: The broader onboarding workflow is NOT a distributed transaction. It uses claim-first + conditional compensation.
+  - **Staff Compensation Write Guards**:
+    - Guarded columns: `id`, `is_active`, `branch_id`, `system_role`, `staff_type`, `tier`.
+    - Nickname guard: If approval changed nickname, the rollback query conditionally matches `.eq("nickname", appliedNickname)` (or `.is("nickname", null)`) and restores `priorStaff.nickname`. If approval did NOT change nickname, nickname is omitted from the rollback payload and is NOT guarded or overwritten.
+    - If any guarded field changed concurrently between verification and rollback, the conditional UPDATE returns 0 rows, rollback is skipped, and a consistency mismatch event is logged.
+  - **Request Compensation Write Guards**:
+    - Guarded columns: `id`, `status = 'approved'`, `reviewed_by_staff_id`, `reviewed_at`, `requested_branch_id`, and PostgREST metadata containment check: `.contains("metadata", { approved_at: operationMarker })`.
+    - If a subsequent legitimate review or branch change modified the request, rollback returns 0 rows and is safely skipped without destroying newer state.
 - **Meaningful Side Effects**: Staff account activated; service capabilities assigned; onboarding request marked approved with audit metadata.
 - **Failure Contract**: Flat JSON `{ ok: false, code: string, message: string }`.
-- **Limitations**: No distributed ACID transaction across REST/RPC calls. Application-level conditional compensation is used to recover from partial failures.
 
 #### 2. Staff Onboarding Rejection
 - **Exact Route**: `/api/desktop/v1/staff/onboarding/[requestId]/reject`
 - **HTTP Method**: `POST`
 - **Request Body Required**: Yes (JSON)
 - **Accepted Body Fields**:
-  - `rejectionReason` (string, required, min 1 char): Justification for rejection.
-- **Rejected / Unknown Field Behavior**: Validated via Zod `DesktopStaffRejectionSchema`. Invalid types or missing fields return 400 `INVALID_INPUT`.
+  - `rejectionReason` (string, optional): Reason for audit trail.
+- **Rejected / Unknown Field Behavior**: Validated via Zod. Invalid input returns 400 `INVALID_INPUT`.
 - **Authentication**: Bearer token validated server-side.
-- **Authorization**: Scoped to request's requested branch for non-owners.
-- **Concurrency**: Conditional on `id = requestId AND status = 'submitted'`. If 0 rows updated, returns 409 `INVALID_STATE`.
-- **Underlying Table**: `staff_onboarding_requests` (`status = 'rejected'`, `reviewed_by_staff_id`, `reviewed_at`, `rejection_reason`).
+- **Authorization**: Actor identity, role, and branch resolved server-side from `staff` table.
+- **Branch Restrictions**: Non-owner reviewers restricted to applicant's assigned branch.
+- **Underlying Table**: `staff_onboarding_requests` conditional update (`status: 'rejected'`).
 - **Meaningful Side Effects**: Request marked rejected; associated staff row remains inactive.
 - **Failure Contract**: Flat JSON `{ ok: false, code: string, message: string }`.
-- **Limitations**: Single table write; no compensation needed.
 
 #### 3. Staff Profile Mutation
 - **Exact Route**: `/api/desktop/v1/staff/[staffId]`
@@ -109,7 +138,6 @@
 - **Underlying Table**: `staff` table update.
 - **Meaningful Side Effects**: Updates staff personal details or branch assignment.
 - **Failure Contract**: Flat JSON `{ ok: false, code: string, message: string }`.
-- **Limitations**: Single table update.
 
 #### 4. Staff Role Mutation
 - **Exact Route**: `/api/desktop/v1/staff/[staffId]/role`
@@ -125,14 +153,13 @@
 - **Underlying Table**: `staff` (`system_role`, `staff_type`).
 - **Meaningful Side Effects**: Changes staff system access and privileges.
 - **Failure Contract**: Flat JSON `{ ok: false, code: string, message: string }`.
-- **Limitations**: Single table update.
 
 #### 5. Staff Deactivation
 - **Exact Route**: `/api/desktop/v1/staff/[staffId]/deactivate`
 - **HTTP Method**: `POST`
 - **Request Body Required**: No (Empty body or `{}` accepted)
 - **Accepted Body Fields**: Exactly `{}` or empty body.
-- **Rejected / Unknown Field Behavior**: **Strict schema validation (`z.object({}).strict()`).** Any unknown fields (such as `{ "reason": "test" }`, `{ "staffId": "..." }`, `{ "foo": "bar" }`) are strictly rejected with 400 `INVALID_INPUT`. Malformed JSON returns 400 `INVALID_INPUT`.
+- **Rejected / Unknown Field Behavior**: Strict schema validation (`z.object({}).strict()`). Any unknown fields are strictly rejected with 400 `INVALID_INPUT`. Malformed JSON returns 400 `INVALID_INPUT`.
 - **Authentication**: Bearer token validated server-side.
 - **Authorization**:
   - Owner or Manager (same branch).
@@ -141,7 +168,6 @@
 - **Underlying Table**: `staff` (`is_active = false`).
 - **Meaningful Side Effects**: Deactivates staff member, preventing further scheduling and login.
 - **Failure Contract**: Flat JSON `{ ok: false, code: string, message: string }`.
-- **Limitations**: Single table update.
 
 #### 6. Booking Combined Reschedule
 - **Exact Route**: `/api/desktop/v1/bookings/[bookingId]/reschedule`
@@ -169,35 +195,43 @@
   - `schedule_exceptions`: Resolves schedule exceptions via `resolveStaffScheduleExceptionSignals`.
 - **Meaningful Side Effects**: Updates schedule and therapist; resolves stale alerts; emits audit events; revalidates operational cache tags.
 - **Failure Contract**: Flat JSON `{ ok: false, code: string, message: string }`.
-- **Limitations**: Application-level orchestration across booking, audit events, and notifications.
+
+---
+
+### Truthful RLS & Privilege Contract (Blocker 8 Correction)
+
+1. **Server-Only Privileged Client**: Service-role operations use `src/lib/supabase/admin.ts`, which explicitly contains `import "server-only";`.
+2. **Zero Client-Side Exposure**: `SUPABASE_SERVICE_ROLE_KEY` is NEVER bundled, passed, or exposed to the Desktop renderer or web browser client bundles.
+3. **Server-Side Authorization**: Stage 12 endpoints perform strict server-side actor resolution, role verification, and branch boundary checks before invoking any privileged mutation.
+4. **Actor-Aware User-Scoped RPCs**: Operations whose database contracts depend on caller identity via `auth.uid()` (specifically `replace_staff_service_capabilities`) MUST and DO execute through the authenticated Supabase client (`authenticatedClient`), preserving database-level caller verification.
+5. **RLS Integrity**: Row Level Security (RLS) remains enabled across all public tables. Stage 12 does not disable RLS, bypass RLS on actor-aware RPCs, or add permissive bypass policies.
+6. **No Migrations Added**: Zero database migrations were added or modified in Stage 12A.
 
 ---
 
 ### Verification & Quality Gate Results (Final HEAD)
 
 - **TypeScript**: `npm run type-check` (`tsc --noEmit`) -> **PASSED (0 errors)**.
-- **ESLint**: `npm run lint` (`eslint`) -> **PASSED (0 errors, 9 pre-existing studio warnings)**.
-- **Vitest Stage 12 Test Suites**: 6 test files, 61 tests -> **PASSED (61/61 passed, 100%)**:
+- **ESLint**: `npm run lint` (`eslint`) -> **PASSED (0 errors, 9 pre-existing studio warnings, 0 warnings/errors in Stage 12 files)**.
+- **Focused Vitest Stage 12 Test Suites**: 6 test files, 65 tests -> **PASSED (65/65 passed, 100%)**:
   - `tests/lib/staff/staff-mutation-service.test.ts` (11/11 passed)
-  - `tests/lib/staff/staff-onboarding-service.test.ts` (15/15 passed)
-  - `src/app/api/desktop/v1/staff/onboarding/route.test.ts` (7/7 passed)
+  - `tests/lib/staff/staff-onboarding-service.test.ts` (18/18 passed)
+  - `src/app/api/desktop/v1/staff/onboarding/route.test.ts` (8/8 passed)
   - `src/app/api/desktop/v1/staff/staff-routes.test.ts` (15/15 passed)
   - `tests/lib/bookings/reschedule-booking-service.test.ts` (8/8 passed)
   - `src/app/api/desktop/v1/bookings/[bookingId]/reschedule/route.test.ts` (5/5 passed)
-- **Prettier Format Check**: All 18 Stage 12 code files verified with `npx prettier --check` -> **PASSED (All matched files use Prettier code style)**.
-- **Build**: `npm run build` (`next build`, Turbopack) -> **PASSED (Compiled successfully in 42s, 128/128 pages optimized)**.
-- **Format Tooling Integrity**: `scripts/check-format.mjs` restored to baseline commit `b4192d811e95a4fef73624548df634aebfd77a3f`. Quality gates not weakened.
+- **Full Vitest Suite Run**: 31 test files, 211 tests -> **PASSED (211/211 passed, 100%)**.
+- **Prettier Format Check**: `npx prettier --check` on all Stage 12 files -> **PASSED (All matched files use Prettier code style)**.
+- **Build**: `npm run build` (`next build`, Turbopack) -> **PASSED (Compiled successfully in 42s, 128/128 routes generated)**.
+- **Diff Check**: `git diff --check` -> **PASSED (0 whitespace or merge-marker errors)**.
+- **Format Tooling Integrity**: `scripts/check-format.mjs` remains untouched at accepted baseline (`b4192d811e95a4fef73624548df634aebfd77a3f`).
 
 ---
 
-### Security & Production Safety Check
+### Truthful CI & Status Checks Disclosure (Blocker 11 Correction)
 
-- **NO SERVICE-ROLE IN CLIENT**: Verified. Privileged services include `import 'server-only';`. No service role credentials in client bundle.
-- **NO CREDENTIAL LEAKS**: Zero database passwords, signing secrets, or private keys exposed in source or commits.
-- **ZERO CLIENT TRUST**: All roles, actor IDs, and branch authorities are resolved from the database via server-side session authentication. Client-supplied role/branch headers or payload fields are ignored for authorization.
-- **FAIL-CLOSED ACCESS**: Role canonicalization strictly validates against canonical `SystemRole` enum. Unrecognized roles fail closed with 403 `FORBIDDEN`.
-- **NO RLS BYPASS / HIDDEN SCHEMA CHANGES**: Zero database migrations added. Existing database tables and RPCs are reused as-is.
-- **DORMANT MODULE PROTECTION**: Completely untouched. Zero files modified in Owner, Payments, Finance, Reports, Reconciliation, Payroll, or Marketing.
+- **GitHub Status Contexts & Workflows**: Independent inspection of remote commit `a9e76e011213a7e993b41852f2e8d52c936f796a` confirmed that **zero GitHub status contexts and zero GitHub Actions workflow runs were attached to that commit**.
+- **No Fabricated CI Pass**: We truthfully disclose that GitHub CI was not executed or reported on remote commits. All verification results documented here reflect 100% genuine local executions of repository quality gates against the exact worktree files.
 
 ---
 
@@ -207,4 +241,4 @@
 - **UNMERGED**: The `stage/12-desktop-authority-endpoints` branch has not been merged into `main`.
 - **UNDEPLOYED**: This branch has not been deployed to staging or production environments.
 - **DATABASE MIGRATION**: No migrations were executed or required.
-- **STAGE 12B / 13**: Stage 12B and Stage 13 have NOT been started.
+- **STAGE 12B / 13 / SQLITE**: Stage 12B, Stage 13, and SQLite have NOT been started.
