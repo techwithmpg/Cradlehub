@@ -6,26 +6,23 @@
 - **Branch**: `stage/12-desktop-authority-endpoints`
 - **Repository**: `https://github.com/techwithmpg/Cradlehub`
 - **BASE_SHA**: `ed8ae75d2d6fc9f3b8144dcabbe014f676e83a99`
-- **HEAD_SHA**: `0a8d0654b4f610c14bda284535f941da2430cc71`
-- **HEAD_SHA Meaning**: Stage 12A implementation/test head reviewed by this evidence-only correction.
-- **Verification Environment**: Windows local execution environment, Node.js v20.x, Turbopack, Vitest.
+- **IMPLEMENTATION_HEAD_SHA**: `0a8d0654b4f610c14bda284535f941da2430cc71`
+- **PRE_EVIDENCE_REVIEW_HEAD**: `98697b165853b649132a2dc25c0b5256b00689ce`
+- **Metadata Note**: `PRE_EVIDENCE_REVIEW_HEAD` represents the complete Stage 12A implementation and test suite state immediately prior to this evidence-only reconciliation. The final remote commit SHA for this evidence update is documented externally in the agent completion report.
+- **Verification Environment**: Windows execution environment, Node.js v20+, Turbopack, Vitest.
 
 ---
 
 ## 2. CI, Status Contexts & Build Disclosures
 
 - **GitHub Actions Workflows**: **NONE**
-  - Query (`gh run list --commit 0a8d0654b4f610c14bda284535f941da2430cc71`) returned 0 workflow runs.
-- **External Vercel Preview Status**: **FAILURE**
-  - Deployment ID: `dpl_B5bsjnS8nu3UvWDbv9bP58MKsjGP`
-  - State: `ERROR`
-  - Failure Location: Pre-existing / shared `next/font` Google font build path in `src/app/layout.tsx`.
-  - Font: `Cormorant Garamond`
-  - Representative Error: `Can't resolve '@vercel/turbopack-next/internal/font/google/font'`.
-  - Stage 12A Relation: No Stage 12 diff touches layout, font configuration, `package.json`, lockfile, or Next.js configuration (proven by `git diff ed8ae75d2d6fc9f3b8144dcabbe014f676e83a99 --name-only`).
-  - Status Assessment: Recorded as an external/unrelated preview-build limitation; not treated as Stage 12A runtime verification.
+  - Query (`gh run list --commit 98697b165853b649132a2dc25c0b5256b00689ce`) confirmed 0 workflow runs configured or triggered.
+- **External Vercel Preview Status**:
+  - Current Remote Head (`98697b165853b649132a2dc25c0b5256b00689ce`): **SUCCESS** (Vercel deployment completed successfully).
+  - Historical Implementation Head Note (`0a8d0654...`): Deployment `dpl_B5bsjnS8nu3UvWDbv9bP58MKsjGP` failed transiently on shared Google font loading for Cormorant Garamond in `src/app/layout.tsx`. Stage 12 diff verified not touching layout, font configs, or build configurations (`git diff ed8ae75d2d6fc9f3b8144dcabbe014f676e83a99 --name-only`).
+  - Runtime Caveat: External Vercel status is recorded for tracking and is not substituted for owner runtime validation.
 - **Local Production Build**: **PASSED**
-  - `npm run build` (`next build` with Turbopack) completed successfully with exit code 0, compiling all routes and generating 128 static and dynamic routes.
+  - `npm run build` (`next build` with Turbopack) completed successfully with exit code 0, generating all 128 dynamic and static routes.
 
 ---
 
@@ -35,59 +32,78 @@
 
 - **Command**: `node scripts/check-format.mjs --check`
 - **Result**: **FAILED / exit code 1**
-- **Stage 12 Modified Files**: **PASS** (0 warnings in `src/lib/staff/staff-onboarding-service.ts`, `tests/lib/staff/staff-onboarding-service.test.ts`, and `docs/50-state/evidence/stage-12-desktop-authority-endpoints.md`).
-- **Remaining Failures**: 157 pre-existing / unrelated files outside Stage 12 scope fail formatting across older directories (e.g. `package.json`, `pnpm-workspace.yaml`, `scripts/check-format.mjs`, marketing studio panels, attendance components, customer engines, etc.).
-- **Policy Compliance**: Per governance rules, format tooling script was not weakened and unrelated repository files were not reformatted.
+- **Repository-Wide Debt**: 169 warning files reported across legacy and unrelated directories outside Stage 12 scope (e.g. `src/app/(public)/*`, marketing studio panels, attendance components, customer engines, etc.).
+- **Stage 12A Changed Files Intersecting Warnings**: **0 files** (`A ∩ B = 0`).
+  - Stage 12A files changed against `BASE_SHA`: 19 files.
+  - Intersection with format warnings: 0 files.
+  - Therefore Stage 12A introduces no formatting failures.
+- **Policy Compliance**: Format script was not modified or weakened.
 
 ### Static Analysis & Type Checking
 
-- **Lint Gate (`npm run lint`)**: **PASSED**
-  - 0 errors. 9 pre-existing warnings in unrelated marketing studio views (`src/components/features/marketing/*`).
+- **Lint Gate (`npm run lint`)**: **PASSED (exit code 0)**
+  - 0 errors. 9 pre-existing warnings in unrelated marketing studio components (`src/components/features/marketing/*`).
   - 0 lint errors or warnings in Stage 12 files.
-- **Type Check Gate (`npm run type-check`)**: **PASSED**
-  - `tsc --noEmit` passed with 0 errors.
-- **Diff Check Gate (`git diff --check`)**: **PASSED**
-  - 0 whitespace errors, conflict markers, or carriage-return issues.
+- **Type Check Gate (`npm run type-check`)**: **PASSED (exit code 0)**
+  - Clean TypeScript compilation (`tsc --noEmit`).
+- **Diff Whitespace Check (`git diff --check`)**: **PASSED (exit code 0)**
+  - 0 whitespace errors or conflict markers.
 
-### Test Execution Gate
+### Focused Test Execution Gate
 
-- **Focused Stage 12 Vitest Suites**:
-  - Command: `npx vitest run tests/lib/staff/staff-onboarding-service.test.ts tests/lib/staff/staff-mutation-service.test.ts src/app/api/desktop/v1/staff/onboarding/route.test.ts src/app/api/desktop/v1/staff/staff-routes.test.ts tests/lib/bookings/reschedule-booking-service.test.ts src/app/api/desktop/v1/bookings/[bookingId]/reschedule/route.test.ts`
-  - Results: **6 test files passed, 68 tests passed, 0 failed (68/68 PASSED)**:
-    1. `tests/lib/staff/staff-onboarding-service.test.ts`: 20 passed (includes concurrency winner/loser, compensation guards, read-time metadata race 11b, and write-time TOCTOU race 11c)
-    2. `tests/lib/staff/staff-mutation-service.test.ts`: 11 passed (profile, role, deactivation, nickname uniqueness)
-    3. `src/app/api/desktop/v1/staff/onboarding/route.test.ts`: 9 passed (desktop onboarding approve/reject routes)
-    4. `src/app/api/desktop/v1/staff/staff-routes.test.ts`: 15 passed (staff profile, role, deactivation routes)
-    5. `tests/lib/bookings/reschedule-booking-service.test.ts`: 8 passed (CRM reschedule domain engine)
-    6. `src/app/api/desktop/v1/bookings/[bookingId]/reschedule/route.test.ts`: 5 passed (desktop booking reschedule route)
+- **Execution Command**:
+  ```bash
+  npx vitest run tests/lib/staff/staff-onboarding-service.test.ts tests/lib/staff/staff-mutation-service.test.ts src/app/api/desktop/v1/staff/onboarding/route.test.ts src/app/api/desktop/v1/staff/staff-routes.test.ts tests/lib/bookings/reschedule-booking-service.test.ts src/app/api/desktop/v1/bookings/[bookingId]/reschedule/route.test.ts
+  ```
+- **Results**: **6 test files passed, 68 tests passed, 0 failed (68/68 PASSED)**:
+  1. `tests/lib/staff/staff-onboarding-service.test.ts`: 20 passed (includes concurrency claim-first locking, caller-authenticated client for capability RPC, conditional rollback guards, read-time metadata race 11b, and write-time TOCTOU race 11c).
+  2. `tests/lib/staff/staff-mutation-service.test.ts`: 11 passed (operational role permissions, branch mismatch gating, sensitive role protection, profile updates, role assignment hierarchy, self-escalation protection, digital_marketer managerial adaptation, self-deactivation protection, subordinate soft-deactivation).
+  3. `src/app/api/desktop/v1/staff/onboarding/route.test.ts`: 9 passed (desktop onboarding approve and reject route endpoints).
+  4. `src/app/api/desktop/v1/staff/staff-routes.test.ts`: 15 passed (desktop staff profile PATCH, role POST, and deactivation POST route endpoints).
+  5. `tests/lib/bookings/reschedule-booking-service.test.ts`: 8 passed (CRM reschedule domain engine, timing validation, conflict resolution, exception handling).
+  6. `src/app/api/desktop/v1/bookings/[bookingId]/reschedule/route.test.ts`: 5 passed (desktop booking reschedule route endpoint, validation handling, branch boundary enforcement, execution).
 
 ---
 
-## 4. Endpoints & Workflows Source Truth Audit
+## 4. Workflows & Endpoints Source Truth Audit
 
 ### Workflow 1: Onboarding Approval
 
 - **Route Path**: `/api/desktop/v1/staff/onboarding/[requestId]/approve`
 - **HTTP Method**: `POST`
+- **Authentication & Context**:
+  - Managed by `withDesktopStaffContext`, which validates bearer authentication via `verifyDesktopBearerAuth`.
+  - Caller role is canonicalized server-side via `canonicalizeSystemRole`.
 - **Request Body Required**: Yes
 - **Schema & Exact Fields**:
-  - `branchId`: UUID (Required)
-  - `systemRole`: `OnboardingSystemRole` (`"admin" | "manager" | "staff"`) (Required)
-  - `tier`: `StaffTier` (`"junior" | "senior" | "master"`) (**Required**)
-  - `serviceIds`: UUID[] (Optional)
-  - Note: Uses standard `z.object({...})` without `.strict()`; unknown properties are not rejected by schema validation.
-- **Authorization**:
-  - Bearer token authenticated via `authenticateDesktopUser`.
-  - Roles allowed: `owner` or `manager`.
-  - Branch restriction: Managers must belong to the target `branchId`.
-- **Underlying Operation & Execution Order**:
-  1. Authenticates caller; establishes actor context (`staffId`, `systemRole`, `branchId`).
-  2. Fetches target `staff_onboarding_requests` record to capture prior state and ensure status is `submitted`.
-  3. **Claim Step (First Mutation)**: Atomically updates request row to `status = 'approved'`, `reviewed_by_staff_id`, `reviewed_at`, `requested_branch_id`, and writes `approved_at` timestamp into `metadata`. Guarded by conditional `.eq("status", "submitted")`.
-  4. **Staff Record Mutation**: Uses admin client to update staff row (`system_role`, `branch_id`, `tier`, `is_active = true`).
-  5. **Capability RPC**: Invokes database function `replace_staff_service_capabilities` using the **caller-authenticated Supabase client** (`authenticatedClient`) ensuring RLS enforcement at database level.
-  6. **Compensation on Failure**: If staff mutation or capability RPC fails, `compensateApprovalMutation` is triggered.
-- **Failure Shape**: `{ ok: false, error: string, code?: string }` (Status 400, 401, 403, 404, or 500).
+  - `branchId`: required UUID (`z.guid("Invalid branch ID")`)
+  - `systemRole`: required string validated against `SYSTEM_ROLES` and canonicalized
+    - Real `SYSTEM_ROLES`: `owner`, `manager`, `assistant_manager`, `store_manager`, `crm`, `csr`, `csr_head`, `csr_staff`, `staff`, `service_head`, `service_staff`, `digital_marketer`, `driver`, `utility`.
+    - Legacy CSR aliases canonicalize to `crm`.
+  - `tier`: **required** enum: `senior | mid | junior | head | n/a` (`z.enum(["senior", "mid", "junior", "head", "n/a"])`)
+  - `serviceIds`: optional UUID[] (`z.array(z.guid("Invalid service ID")).optional()`)
+  - Defined with standard `z.object({...})` without `.strict()`.
+- **Approval Authorization**:
+  - Enforced by `canApproveStaffOnboarding`:
+    - **Owner**: Full authority to assign any active system role (`OWNER_ASSIGNABLE_SYSTEM_ROLES`).
+    - **Manager-Class Roles** (`manager`, `assistant_manager`, `store_manager`): Branch-scoped (target request must match approver's branch); cannot assign sensitive/management roles; restricted to `MANAGER_ASSIGNABLE_SYSTEM_ROLES` (`crm`, `digital_marketer`, `staff`, `service_head`, `service_staff`, `driver`, `utility`).
+    - **CRM / Front-Desk Roles** (`crm` and aliases): Branch-scoped (target request must match approver's branch); cannot assign sensitive/management roles; restricted to `CRM_ASSIGNABLE_SYSTEM_ROLES` (`crm`, `staff`, `service_head`, `service_staff`, `driver`, `utility`).
+    - **Other Roles**: Forbidden.
+- **Execution Order & Operations**:
+  1. Authenticates caller; establishes actor context (`withDesktopStaffContext`).
+  2. Resolves target request from `staff_onboarding_requests` to verify status is `submitted`.
+  3. **Claim First**: Atomically transitions request to `status = 'approved'`, sets `reviewed_by_staff_id`, `reviewed_at`, `requested_branch_id`, and appends `approved_at` into `metadata`. Guarded by conditional `.eq("status", "submitted")`.
+  4. Updates `staff` table row with assigned `system_role`, `branch_id`, `tier`, and `is_active = true`.
+  5. Invokes `replace_staff_service_capabilities` using the **caller-authenticated Supabase client** (`authenticatedClient`), ensuring PostgreSQL RLS evaluates the caller session.
+  6. **Conditional Compensation on Failure**: If staff update or capability RPC fails, `compensateApprovalMutation` restores state only if concurrent writers have not modified the records.
+- **HTTP Failure Response Shape**: Produced by `desktopStaffFailure`:
+  ```json
+  {
+    "ok": false,
+    "code": "...",
+    "message": "..."
+  }
+  ```
 
 ### Workflow 2: Onboarding Rejection
 
@@ -95,15 +111,27 @@
 - **HTTP Method**: `POST`
 - **Request Body Required**: **No** (`request.json().catch(() => ({}))` accepts empty body or `{}`).
 - **Schema & Exact Fields**:
-  - `rejectionReason`: `z.string().max(500).optional()`
+  - `rejectionReason`: `z.string().max(500, "Rejection reason must be 500 characters or fewer").optional()`
 - **Authorization**:
-  - Bearer token authenticated.
-  - Roles allowed: `owner` or `manager`.
-  - Branch restriction: Managers may only reject requests for their branch.
-- **Underlying Operation**:
-  - Atomically claims and updates request row to `status = 'rejected'`, `reviewed_by_staff_id`, `reviewed_at`, and appends `rejection_reason` to metadata.
+  - Governed by `canReviewStaffOnboarding(actorRole)`:
+    - Allows `owner`, `manager`, `assistant_manager`, `store_manager`, and `crm` (including front-desk aliases).
+    - Non-owner reviewers are branch-scoped (`request.requested_branch_id === actor.branchId`).
+- **Data Writes & Operations**:
+  - Writes to `staff_onboarding_requests`:
+    - `status = "rejected"`
+    - `reviewed_by_staff_id = actor.staffId`
+    - `reviewed_at = now`
+    - `rejection_reason = input.rejectionReason ?? null` (database column)
+    - `metadata` updated with audit timestamps (`rejected_at`, `rejected_by_staff_id`)
   - Guarded by conditional `.eq("status", "submitted")`.
-- **Failure Shape**: `{ ok: false, error: string, code?: string }`.
+- **HTTP Failure Response Shape**: Produced by `desktopStaffFailure`:
+  ```json
+  {
+    "ok": false,
+    "code": "...",
+    "message": "..."
+  }
+  ```
 
 ### Workflow 3: Staff Profile Update
 
@@ -111,22 +139,27 @@
 - **HTTP Method**: `PATCH`
 - **Request Body Required**: Yes
 - **Schema & Exact Fields**:
-  - `fullName`: `z.string().min(1).optional()`
-  - `nickname`: `z.string().optional()`
-  - `phone`: `z.string().optional()`
-  - `tier`: `z.enum(["junior", "senior", "master"]).optional()`
-  - `staffType`: `z.enum(["regular", "probationary", "contractor"]).optional()`
+  - `fullName`: `z.string().min(2, "Name required").max(100).optional()`
+  - `nickname`: optional trimmed string, empty converted to null, nullable, max 80 characters
+  - `phone`: `z.string().min(7, "Phone too short").max(20, "Phone too long").optional()`
+  - `tier`: `z.enum(["senior", "mid", "junior", "head", "n/a"]).optional()`
+  - `staffType`: `z.enum(STAFF_TYPES).optional()`
+    - Valid `STAFF_TYPES`: `therapist`, `nail_tech`, `aesthetician`, `csr`, `driver`, `utility`, `salon_head`, `managerial`.
   - `isHead`: `z.boolean().optional()`
-  - Note: Does **not** accept `email` or `branchId`. This endpoint does **not** perform branch reassignment.
+  - Explicit Non-Capabilities: Does **not** accept `email` or `branchId`. Does **not** reassign branches.
 - **Authorization**:
-  - Bearer token authenticated.
-  - Roles allowed: `owner` or `manager`.
-  - Branch restriction: Managers may only update staff in their branch.
-- **Underlying Operation**:
-  - Validates caller permissions; verifies staff exists in branch.
-  - If `nickname` is changed, checks uniqueness across active staff within the branch (excluding current staff ID).
-  - Updates profile fields in `staff` table.
-- **Failure Shape**: `{ ok: false, error: string, code?: string }`.
+  - Operational actors allowed in `updateStaffProfileService`: `owner`, `manager`, `assistant_manager`, `store_manager`, `crm`.
+  - Non-owner actors:
+    - Must belong to the same branch as target staff (`target.branch_id === actor.branchId`).
+    - Cannot modify staff with sensitive/management roles (`SENSITIVE_SYSTEM_ROLES` require owner approval).
+- **HTTP Failure Response Shape**: Produced by `desktopStaffFailure`:
+  ```json
+  {
+    "ok": false,
+    "code": "...",
+    "message": "..."
+  }
+  ```
 
 ### Workflow 4: Staff Role Mutation
 
@@ -134,51 +167,96 @@
 - **HTTP Method**: **`POST`** (not `PATCH`)
 - **Request Body Required**: Yes
 - **Schema & Exact Fields**:
-  - `systemRole`: `z.enum(["owner", "manager", "staff"])` (Field name is **`systemRole`**, not `role`).
-- **Authorization**:
-  - Strictly restricted to **`owner`** only.
-  - Managers and staff are rejected with status 403 / `FORBIDDEN`.
-- **Underlying Operation**:
-  - Prevents owner self-demotion if caller is the targeted staff member.
+  - `systemRole`: required string validated against `SYSTEM_ROLES` and canonicalized.
+- **Authorization & Hierarchy**:
+  - Handled by `assignStaffRoleService`.
+  - Accepted operational actors: `owner`, `manager`, `assistant_manager`, `store_manager`, `crm`.
+  - Hierarchy enforced by `getAssignableSystemRoles(actorRole)`:
+    - `owner` -> `OWNER_ASSIGNABLE_SYSTEM_ROLES`
+    - Manager-class roles (`manager`, `assistant_manager`, `store_manager`) -> `MANAGER_ASSIGNABLE_SYSTEM_ROLES`
+    - `crm` -> `CRM_ASSIGNABLE_SYSTEM_ROLES`
+  - Restrictions:
+    - Self-escalation / self-role change forbidden if changing own role (`target.id === actor.staffId && nextSystemRole !== canonicalizeSystemRole(actor.systemRole)`).
+    - Non-owner actors are branch-scoped (`target.branch_id === actor.branchId`).
+    - Non-owner actors cannot modify staff holding sensitive roles (`SENSITIVE_SYSTEM_ROLES`).
+- **Side Effects**:
   - Updates `system_role` in `staff` table.
-- **Failure Shape**: `{ ok: false, error: string, code?: string }`.
+  - If `systemRole === "digital_marketer"`, automatically updates `staff_type = "managerial"`.
+- **HTTP Failure Response Shape**: Produced by `desktopStaffFailure`:
+  ```json
+  {
+    "ok": false,
+    "code": "...",
+    "message": "..."
+  }
+  ```
 
 ### Workflow 5: Staff Deactivation
 
 - **Route Path**: `/api/desktop/v1/staff/[staffId]/deactivate`
 - **HTTP Method**: `POST`
-- **Request Body Required**: No (accepts empty body or `{}`).
+- **Request Body Required**: **No** (accepts empty body or `{}`; validated with `z.object({}).strict()`; unknown fields or malformed JSON return 400).
 - **Authorization**:
-  - Roles allowed: `owner` or `manager`.
-  - Branch restriction: Managers may only deactivate staff within their assigned branch.
-  - Prevents deactivating self.
-- **Underlying Operation**:
-  - Sets `is_active = false` in `staff` table.
-- **Failure Shape**: `{ ok: false, error: string, code?: string }`.
+  - Operational actors allowed in `deactivateStaffService`: `owner`, `manager`, `assistant_manager`, `store_manager`, `crm`.
+  - Self-deactivation forbidden for all actors (`target.id === actor.staffId`).
+  - Non-owner actors: Same branch only (`target.branch_id === actor.branchId`); cannot deactivate staff with sensitive roles.
+- **Side Effects**:
+  - Sets `is_active = false` in `staff` table without deleting the row.
+  - Revalidates paths and invalidates workspace cache tags.
+- **HTTP Failure Response Shape**: Produced by `desktopStaffFailure`:
+  ```json
+  {
+    "ok": false,
+    "code": "...",
+    "message": "..."
+  }
+  ```
 
 ### Workflow 6: Booking Reschedule
 
 - **Route Path**: `/api/desktop/v1/bookings/[bookingId]/reschedule`
 - **HTTP Method**: `POST`
+- **Authentication & Context**:
+  - Managed by `withDesktopBookingContext`, verifying bearer auth via `verifyDesktopBearerAuth`.
+  - Requires active staff profile with a branch assignment.
+  - Enforces `allowOwnerCrossBranch: false` (no unrestricted cross-branch authority in Desktop client context).
 - **Request Body Required**: Yes
-- **Schema & Exact Fields** (`rescheduleBookingSchema`):
-  - `date`: `z.string().regex(/^\d{4}-\d{2}-\d{2}$/)` (Required)
-  - `startTime`: `z.string().regex(/^([01]\d|2[0-3]):[0-5]\d$/)` (Required)
-  - `note`: `z.string().max(1000).optional()`
-  - `homeServiceAddress`: `z.string().max(500).optional()`
-  - `homeServiceAccessNote`: `z.string().max(500).optional()`
-  - `therapistId`: `z.string().uuid().optional()`
-  - `overrideReason`: `z.enum(["customer_request", "staff_unavailable", "operational_conflict"]).optional()`
-  - Note: Does **not** use `bookingDate`, `endTime`, or `rescheduleReason`.
-- **Validation Failure Code**: Flat code **`VALIDATION_ERROR`** returned with HTTP status 400.
+- **Schema & Exact Fields** (`rescheduleBookingSchema.omit({ bookingId: true })`):
+  - `date`: required calendar date string (`YYYY-MM-DD`, validated via `isValidCalendarDate`)
+  - `startTime`: required time string (`HH:mm` or `HH:mm:ss`, validated via regex `/^(?:[01]\d|2[0-3]):[0-5]\d(?::[0-5]\d)?$/`)
+  - `note`: optional string, maximum 500 characters
+  - `homeServiceAddress`: optional string, maximum 1000 characters
+  - `homeServiceAccessNote`: optional string, maximum 500 characters
+  - `therapistId`: optional UUID (`z.guid("Invalid therapist ID").optional()`)
+  - `overrideReason`: optional enum with exact values:
+    - `customer_requested`
+    - `therapist_on_break`
+    - `manager_decision`
+    - `skill_or_service_mismatch`
+    - `workload_balance`
+    - `other`
+- **Validation Failure Code**: Route returns flat code **`VALIDATION_ERROR`** with HTTP status 400 and message `"A valid booking, date and time are required."` if route parameters or body fail schema validation.
 - **Authorization**:
-  - Bearer token authenticated.
-  - Roles allowed: `owner`, `manager`, or `staff` (front desk / therapist).
-  - Branch restriction: If caller is branch-bound (manager/staff), booking's current branch and new target must match caller's branch.
-- **Underlying Operation**:
-  - Calls `rescheduleBookingOperation` in `src/lib/bookings/crm-booking-operations.ts`.
-  - Performs slot availability verification, scheduling conflict checks, and updates booking timestamps.
-- **Failure Shape**: `{ ok: false, error: string, code: string, details?: unknown }`.
+  - Enforced by `canAccessCrmWorkspace(ctx.me.system_role)` (`owner`, `manager`, `assistant_manager`, `store_manager`, `crm`, and front-desk aliases).
+  - Target booking branch must match caller branch (`checkDesktopBooking` / `loadCrmBookingForAction`).
+  - Therapist reassignment requires `canReassignBooking(ctx.me.system_role)`.
+- **Underlying Service Function**:
+  - `rescheduleBooking(ctx, { ...body.data, bookingId })` in `src/lib/bookings/crm-booking-operations.ts`.
+- **Side Effects**:
+  - Rejects rescheduling for closed (`completed`, `cancelled`, `no_show`) or in-progress bookings.
+  - Calculates new `end_time` server-side via `computeEndTime`.
+  - Verifies candidate therapist qualifications and availability.
+  - Verifies room/resource availability for in-branch bookings.
+  - Updates `booking_date`, `start_time`, `end_time`, and optional `staff_id` in `bookings` table.
+  - Updates `metadata` with reschedule history (`withRescheduleMetadata`), assignment audit if therapist changed, and resolves open schedule exceptions (`resolveStaffScheduleExceptionMetadata`).
+- **HTTP Failure Response Shape**: Produced by `desktopFailure` via `bookingOperationResponse`:
+  ```json
+  {
+    "ok": false,
+    "code": "...",
+    "message": "..."
+  }
+  ```
 
 ---
 
