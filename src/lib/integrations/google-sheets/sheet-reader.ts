@@ -110,3 +110,84 @@ export async function listGoogleSheetTitles(): Promise<string[]> {
     .sort((a, b) => (a.index ?? 0) - (b.index ?? 0))
     .map((properties) => properties.title);
 }
+export type GoogleSheetMergeRange = {
+  startRow: number;
+  endRow: number;
+  startColumn: number;
+  endColumn: number;
+};
+
+export type GoogleSheetMergeRangeResult = {
+  spreadsheetId: string;
+  sheetName: string;
+  sheetId: number | null;
+  sheetIndex: number | null;
+  merges: GoogleSheetMergeRange[];
+};
+
+/**
+ * Reads worksheet merge metadata.
+ *
+ * Google returns zero-based, end-exclusive GridRange indexes.
+ * This adapter converts them to one-based, end-inclusive coordinates.
+ *
+ * READ ONLY:
+ * no spreadsheet mutation is performed.
+ */
+export async function readGoogleSheetMergeRanges(input: {
+  sheetName: string;
+}): Promise<GoogleSheetMergeRangeResult> {
+  const sheetName = input.sheetName.trim();
+
+  if (!sheetName) {
+    throw new Error("sheetName is required");
+  }
+
+  const { spreadsheetId, sheets } = await createReadOnlySheetsClient();
+
+  const response = await sheets.spreadsheets.get({
+    spreadsheetId,
+    includeGridData: false,
+    fields: "sheets(properties(sheetId,title,index),merges)",
+  });
+
+  const targetSheet = response.data.sheets?.find((sheet) => sheet.properties?.title === sheetName);
+
+  if (!targetSheet) {
+    throw new Error(`Worksheet not found: ${sheetName}`);
+  }
+
+  const merges: GoogleSheetMergeRange[] = (targetSheet.merges ?? [])
+    .map((range) => {
+      const { startRowIndex, endRowIndex, startColumnIndex, endColumnIndex } = range;
+
+      if (
+        startRowIndex === null ||
+        startRowIndex === undefined ||
+        endRowIndex === null ||
+        endRowIndex === undefined ||
+        startColumnIndex === null ||
+        startColumnIndex === undefined ||
+        endColumnIndex === null ||
+        endColumnIndex === undefined
+      ) {
+        return null;
+      }
+
+      return {
+        startRow: startRowIndex + 1,
+        endRow: endRowIndex,
+        startColumn: startColumnIndex + 1,
+        endColumn: endColumnIndex,
+      };
+    })
+    .filter((range): range is GoogleSheetMergeRange => range !== null);
+
+  return {
+    spreadsheetId,
+    sheetName,
+    sheetId: targetSheet.properties?.sheetId ?? null,
+    sheetIndex: targetSheet.properties?.index ?? null,
+    merges,
+  };
+}
