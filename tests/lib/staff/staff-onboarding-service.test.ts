@@ -742,7 +742,7 @@ describe("staff-onboarding-service", () => {
           { type: "eq", column: "status", value: "approved" },
           { type: "eq", column: "reviewed_by_staff_id", value: "owner-1" },
           { type: "eq", column: "requested_branch_id", value: "branch-main" },
-          expect.objectContaining({ type: "contains", column: "metadata" }),
+          expect.objectContaining({ type: "eq", column: "metadata", value: expect.any(String) }),
         ])
       );
       expect(mockAuthenticatedClient.rpc).not.toHaveBeenCalled();
@@ -1388,6 +1388,108 @@ describe("staff-onboarding-service", () => {
       expect(logError).toHaveBeenCalledWith(
         "staff.onboarding.compensation_request_skipped_state_mismatch",
         expect.anything()
+      );
+    });
+
+    it("11b. Request compensation guard: non-marker metadata property (assigned_tier) changed while approved_at unchanged -> compensation SKIPS request rollback", async () => {
+      let requestFetchCount = 0;
+      let requestUpdateCount = 0;
+      const requestChains: QueryChainInstance[] = [];
+
+      mockAuthenticatedClient.rpc.mockResolvedValueOnce({
+        data: null,
+        error: { message: "Capability RPC failed" },
+      });
+
+      mockAdminClient.from.mockImplementation((table: string) => {
+        if (table === "staff_onboarding_requests") {
+          return createQueryChain({
+            onMaybeSingle: async (chain) => {
+              requestFetchCount++;
+              if (requestFetchCount === 1) {
+                return {
+                  data: {
+                    id: "req-1",
+                    requested_branch_id: "branch-main",
+                    staff_id: "staff-1",
+                    status: "submitted",
+                    preferred_role: "therapist",
+                    full_name: "Test Staff",
+                    metadata: null,
+                  },
+                  error: null,
+                };
+              }
+              if (chain.updatePayload && requestUpdateCount === 0) {
+                requestUpdateCount++;
+                requestChains.push(chain);
+                return { data: { id: "req-1" }, error: null };
+              }
+              if (requestFetchCount === 3) {
+                // Later legitimate update changed assigned_tier while approved_at remains identical!
+                const claimedMeta = (requestChains[0]?.updatePayload?.metadata ?? {}) as Record<
+                  string,
+                  unknown
+                >;
+                return {
+                  data: {
+                    id: "req-1",
+                    status: "approved",
+                    reviewed_by_staff_id: "owner-1",
+                    reviewed_at: requestChains[0]?.updatePayload?.reviewed_at,
+                    requested_branch_id: "branch-main",
+                    metadata: {
+                      ...claimedMeta,
+                      assigned_tier: "senior", // Legitimate change after approval!
+                    },
+                  },
+                  error: null,
+                };
+              }
+              // If compensation incorrectly attempted update
+              requestChains.push(chain);
+              return { data: { id: "req-1" }, error: null };
+            },
+          });
+        }
+        if (table === "staff") {
+          return createQueryChain({
+            onMaybeSingle: async (chain) => {
+              if (chain.updatePayload) {
+                return { data: { id: "staff-1" }, error: null };
+              }
+              return { data: priorStaffRecord, error: null };
+            },
+          });
+        }
+        return createQueryChain({});
+      });
+
+      const res = await approveStaffOnboardingRequest({
+        actor: {
+          staffId: "owner-1",
+          authUserId: "user-owner",
+          systemRole: "owner",
+          branchId: null,
+        },
+        authenticatedClient: mockAuthenticatedClient as unknown as SupabaseClient<Database>,
+        requestId: "req-1",
+        input: {
+          branchId: "branch-main",
+          systemRole: "staff",
+          tier: "junior",
+          serviceIds: ["svc-1"],
+        },
+      });
+
+      expect(res.ok).toBe(false);
+      // Rollback was skipped: only initial claim update was executed on requests, no rollback update
+      expect(requestChains.length).toBe(1);
+      expect(logError).toHaveBeenCalledWith(
+        "staff.onboarding.compensation_request_skipped_state_mismatch",
+        expect.objectContaining({
+          requestId: "req-1",
+        })
       );
     });
 

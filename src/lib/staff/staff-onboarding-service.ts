@@ -67,6 +67,33 @@ type CompensationResult = {
   error?: string;
 };
 
+function isPlainObject(obj: unknown): obj is Record<string, unknown> {
+  return typeof obj === "object" && obj !== null && !Array.isArray(obj);
+}
+
+function areMetadataEqual(a: unknown, b: unknown): boolean {
+  if (a === b) return true;
+  if (!isPlainObject(a) || !isPlainObject(b)) return false;
+  const aKeys = Object.keys(a);
+  const bKeys = Object.keys(b);
+  if (aKeys.length !== bKeys.length) return false;
+  for (const key of aKeys) {
+    if (!Object.prototype.hasOwnProperty.call(b, key)) return false;
+    const aVal = a[key];
+    const bVal = b[key];
+    if (isPlainObject(aVal) || isPlainObject(bVal)) {
+      if (!areMetadataEqual(aVal, bVal)) return false;
+    } else if (Array.isArray(aVal) || Array.isArray(bVal)) {
+      if (!Array.isArray(aVal) || !Array.isArray(bVal)) return false;
+      if (aVal.length !== bVal.length) return false;
+      if (JSON.stringify(aVal) !== JSON.stringify(bVal)) return false;
+    } else if (aVal !== bVal) {
+      return false;
+    }
+  }
+  return true;
+}
+
 async function compensateApprovalMutation(params: {
   admin: ReturnType<typeof createAdminClient>;
   requestId: string;
@@ -80,6 +107,7 @@ async function compensateApprovalMutation(params: {
     reviewed_at: string;
     requested_branch_id: string;
     operationMarker: string;
+    metadata: Record<string, unknown>;
   };
   revertRequest: boolean;
   staffId?: string;
@@ -218,18 +246,12 @@ async function compensateApprovalMutation(params: {
       errorMsgs.push("Request rollback failed: request row not found.");
       logError("staff.onboarding.compensation_request_not_found", { requestId });
     } else {
-      const meta =
-        currentReq.metadata &&
-        typeof currentReq.metadata === "object" &&
-        !Array.isArray(currentReq.metadata)
-          ? (currentReq.metadata as Record<string, unknown>)
-          : {};
       const matchesClaim =
         currentReq.status === appliedClaimState.status &&
         currentReq.reviewed_by_staff_id === appliedClaimState.reviewed_by_staff_id &&
         currentReq.reviewed_at === appliedClaimState.reviewed_at &&
         currentReq.requested_branch_id === appliedClaimState.requested_branch_id &&
-        meta.approved_at === appliedClaimState.operationMarker;
+        areMetadataEqual(currentReq.metadata, appliedClaimState.metadata);
 
       if (!matchesClaim) {
         requestSkippedDueToMismatch = true;
@@ -253,7 +275,7 @@ async function compensateApprovalMutation(params: {
           .eq("reviewed_by_staff_id", appliedClaimState.reviewed_by_staff_id)
           .eq("reviewed_at", appliedClaimState.reviewed_at)
           .eq("requested_branch_id", appliedClaimState.requested_branch_id)
-          .contains("metadata", { approved_at: appliedClaimState.operationMarker })
+          .eq("metadata", JSON.stringify(appliedClaimState.metadata))
           .select("id")
           .maybeSingle();
 
@@ -459,6 +481,7 @@ export async function approveStaffOnboardingRequest(params: {
     reviewed_at: now,
     requested_branch_id: input.branchId,
     operationMarker: now,
+    metadata: updatedMetadata,
   };
 
   const { data: claimedRequest, error: claimErr } = await admin
