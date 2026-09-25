@@ -1,0 +1,149 @@
+{
+  "sheetName": "SEP 18-24,2026",
+  "rowsRead": 1010,
+  "parsing": {
+    "meaningful": 702,
+    "normalizedMeaningful": 702,
+    "silentDrops": 0
+  },
+  "schemaValid": true,
+  "schemaFingerprint": "63a98e7dcec45256dbaa4b2d12f422a6a6b6f391d943e4a5b0403ecaec672e09",
+  "rowTypes": {
+    "header": 7,
+    "aggregate_summary": 14,
+    "staff_duty": 38,
+    "service_candidate": 414,
+    "financial_or_note": 138,
+    "informational": 91,
+    "unknown": 0
+  },
+  "decisions": {
+    "ready": 0,
+    "warning": 0,
+    "needs_attention": 590,
+    "informational": 112
+  },
+  "restorations": {
+    "attendant": 217,
+    "client": 20,
+    "time": 2,
+    "total": 239
+  },
+  "businessDates": [
+    "2026-09-18",
+    "2026-09-19",
+    "2026-09-20",
+    "2026-09-21",
+    "2026-09-22",
+    "2026-09-23",
+    "2026-09-24"
+  ],
+  "moduleRouting": {
+    "bookings": 414,
+    "cash_flow": 565,
+    "schedule": 452,
+    "home_service": 222
+  },
+  "context": {
+    "status": "unavailable",
+    "target": null
+  },
+  "resolution": {
+    "staff": {
+      "unavailable": 414
+    },
+    "staffServiceIncompatibleCandidates": null,
+    "services": {
+      "unavailable": 414
+    },
+    "customers": {
+      "insufficient_identity": 414
+    }
+  },
+  "homeService": {
+    "evidenceStates": {
+      "none": 192,
+      "location_only": 56,
+      "location_and_fuel": 146,
+      "ambiguous": 18,
+      "fuel_only": 2
+    },
+    "locationOnly": 56,
+    "numericFuelOnly": 2,
+    "both": 146,
+    "neither": 210,
+    "nonNumericTravelMarker": 18,
+    "explicitMarker": 0
+  },
+  "financial": {
+    "serviceRowsWithNumericPayment": 343,
+    "splitPaymentRows": 3,
+    "paymentMarkerRows": 48,
+    "financialOnlyRows": 138,
+    "aggregateRows": 14,
+    "unexplainedPaymentDifferences": 244,
+    "fuelTravelEvidenceRows": 166,
+    "commissionEvidenceRows": 14
+  },
+  "schedule": {
+    "dutyRows": 38,
+    "derivedBookingWorkload": 414
+  },
+  "conflicts": {
+    "sameSheetCandidates": {
+      "possible_duplicate_booking": 69,
+      "provider_overlap": 7
+    },
+    "scheduleConflicts": null,
+    "canonicalBookingOverlaps": null,
+    "homeServiceAmbiguity": 222
+  },
+  "attention": {
+    "items": 1443,
+    "rows": 590,
+    "byReason": {
+      "DATE_MISSING": 9,
+      "PAYMENT_MARKER_UNKNOWN": 50,
+      "MONETARY_MARKER_REVIEW": 33,
+      "MISSING_BLOCK_DATE": 9,
+      "PAYMENT_MARKER_REQUIRES_REVIEW": 48,
+      "CANONICAL_CONTEXT_UNAVAILABLE": 590,
+      "TIME_INVALID": 7,
+      "PAYMENT_MISMATCH": 244,
+      "HOME_SERVICE_UNCERTAIN": 222,
+      "TIME_MISSING": 30,
+      "MISSING_OR_CONTINUATION_TIME": 30,
+      "POSSIBLE_DUPLICATE_BOOKING": 125,
+      "SAME_SHEET_PROVIDER_OVERLAP": 14,
+      "NON_NUMERIC_FUEL_OR_TRAVEL_NOTE": 32
+    }
+  },
+  "performanceMs": {
+    "rawParse": 3.637499999999818,
+    "mergeNormalization": 1.329000000000633,
+    "normalizedParse": 1.354099999999562,
+    "sourceCapture": 12.564400000000205,
+    "projectionPlanning": 4.184299999999894,
+    "sameSheetConflicts": 4.2577000000001135,
+    "preflight": 6.494099999999889,
+    "contextLoad": 0.3654999999998836,
+    "resolution": 2.5634000000000015,
+    "resolvedSheetConflicts": 2.801499999999578,
+    "deepValidation": 0.9056000000000495,
+    "decisionAndAttention": 17.04619999999977,
+    "total": 6049.1902,
+    "sheetRead": 4276.631300000001,
+    "mergeMetadataRead": 5984.7954,
+    "reportGeneration": 4.505900000000111
+  },
+  "writes": {
+    "bookings": 0,
+    "cash_flow": 0,
+    "schedule": 0,
+    "home_service": 0,
+    "googleSheet": 0,
+    "supabase": 0,
+    "notifications": 0,
+    "migrations": 0
+  }
+}

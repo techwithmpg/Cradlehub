@@ -1,3 +1,5 @@
+import Link from "next/link";
+
 import { getCrmBookingsCommandCenterRows, getDailyPaymentSummary } from "@/lib/queries/bookings";
 import { getFrontDeskContext } from "@/lib/queries/crm-context";
 import { CrmBookingsView } from "@/components/features/bookings/crm-bookings-view";
@@ -31,7 +33,7 @@ export default async function CrmBookingsPage({
 }) {
   const { branchId, branchName, role } = await getFrontDeskContext();
   const params = await searchParams;
-  const today  = getBranchBusinessDate();
+  const today = getBranchBusinessDate();
 
   // When navigating from a notification link, resolve the booking's date
   const bookingId = params.bookingId ?? params.highlight;
@@ -67,11 +69,21 @@ export default async function CrmBookingsPage({
 
   return (
     <RetainedWorkspaceModule moduleId="crm-bookings">
-      <CrmBookingsView
-        initialData={initialData}
-        paymentAction={updateBookingPaymentAction}
-        confirmPaymentAction={confirmBookingPaymentAction}
-      />
+      <div className="grid gap-3">
+        <div className="flex justify-end">
+          <Link
+            href="/crm/bookings/sheet"
+            className="inline-flex h-10 items-center rounded-lg border border-border bg-background px-4 text-sm font-semibold shadow-sm hover:bg-muted"
+          >
+            Live Sheet · read only
+          </Link>
+        </div>
+        <CrmBookingsView
+          initialData={initialData}
+          paymentAction={updateBookingPaymentAction}
+          confirmPaymentAction={confirmBookingPaymentAction}
+        />
+      </div>
     </RetainedWorkspaceModule>
   );
 }

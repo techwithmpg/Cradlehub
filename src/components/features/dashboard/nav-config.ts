@@ -62,6 +62,7 @@ const CRM_NAV_ITEMS: NavItem[] = [
   { label: "Attendance", href: "/crm/attendance", icon: "ClipboardCheck" },
   { label: "Customers", href: "/crm/customers", icon: "Users" },
   { label: "Home Service", href: "/crm/dispatch", icon: "Truck" },
+  { label: "Cash Flow", href: "/crm/cash-flow", icon: "DollarSign" },
 ];
 
 const CRM_SYSTEM_NAV_ITEMS: NavItem[] = [

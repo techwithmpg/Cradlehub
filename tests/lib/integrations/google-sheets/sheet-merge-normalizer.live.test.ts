@@ -163,9 +163,11 @@ describeLive("CradleHub live narrow merge normalization", () => {
       accountingAfter: normalizedAccounting.countsByDisposition,
     });
 
-    expect(rawParsed.meaningfulRowCount).toBe(701);
+    // 2026-09-25 read-only inspection: one additional financial/note row, same seven headers.
+    // Evidence: docs/audits/C5-SMART-SHEET-DRY-RUN.md. No production count is hardcoded.
+    expect(rawParsed.meaningfulRowCount).toBe(702);
 
-    expect(normalizedParsed.meaningfulRowCount).toBe(701);
+    expect(normalizedParsed.meaningfulRowCount).toBe(702);
 
     expect(restorationCounts.attendant).toBe(217);
 
@@ -189,13 +191,13 @@ describeLive("CradleHub live narrow merge normalization", () => {
 
     expect(after.missingBlockDate).toEqual(before.missingBlockDate);
 
-    expect(normalizedAccounting.totalMeaningfulRows).toBe(701);
+    expect(normalizedAccounting.totalMeaningfulRows).toBe(702);
 
     expect(
       normalizedAccounting.countsByDisposition.match_candidate +
         normalizedAccounting.countsByDisposition.needs_review +
         normalizedAccounting.countsByDisposition.derived_informational
-    ).toBe(701);
+    ).toBe(702);
 
     expect(normalizedAccounting.countsByDisposition.needs_review).toBeLessThan(
       rawAccounting.countsByDisposition.needs_review
