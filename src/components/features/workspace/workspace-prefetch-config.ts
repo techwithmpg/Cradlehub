@@ -47,6 +47,7 @@ export const CRM_PREFETCH: WorkspacePrefetchConfig = {
     "/crm/waitlist",
     "/crm/notifications",
     "/crm/reconciliation",
+    "/crm/cash-flow",
   ],
 };
 

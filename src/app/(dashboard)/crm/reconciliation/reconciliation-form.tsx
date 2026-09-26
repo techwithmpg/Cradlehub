@@ -48,11 +48,13 @@ export function ReconciliationForm({
   date,
   summary,
   existing,
+  onSaved,
 }: {
   branchId: string;
   date: string;
   summary: PaymentSummary | null;
   existing: ExistingRecord | null;
+  onSaved?: () => void;
 }) {
   const isApproved = existing?.status === "approved";
   const [isPending, startTransition] = useTransition();
@@ -100,6 +102,7 @@ export function ReconciliationForm({
       });
       if (result.ok) {
         setSaved(status);
+        onSaved?.();
         toast.success(
           status === "submitted"
             ? "Reconciliation submitted."

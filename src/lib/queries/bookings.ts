@@ -1,10 +1,10 @@
 import type { SupabaseClient as SupabaseJsClient } from "@supabase/supabase-js";
 import { createClient } from "@/lib/supabase/server";
+import { buildDailyPaymentSummary } from "@/lib/bookings/payment-summary";
 import type { Database } from "@/types/supabase";
 import { attachBranchResources } from "@/lib/queries/booking-resources";
 import {
   CRM_PENDING_BOOKING_STATUSES,
-  isBookingClosedForCrm,
   isCrmPendingBookingStatus,
 } from "@/lib/bookings/crm-booking-status";
 
@@ -383,13 +383,6 @@ async function loadDailyPaymentFallbackRows(
   return (fallback.data ?? []) as DailyPaymentRow[];
 }
 
-function readPricePaid(metadata: unknown): number {
-  if (!metadata || typeof metadata !== "object") return 0;
-  const val = (metadata as Record<string, unknown>)["price_paid"];
-  const n = Number(val ?? 0);
-  return Number.isFinite(n) ? n : 0;
-}
-
 export async function getBookingsByBranch(branchId: string, date: string) {
   const supabase = await createClient();
   return loadBookingRows(supabase, BOOKING_SELECT_VARIANTS, async (select) => {
@@ -544,47 +537,7 @@ export async function getDailyPaymentSummary(branchId: string, date: string) {
     ? withPaymentDefaults(await loadDailyPaymentFallbackRows(supabase, branchId, date))
     : withPaymentDefaults((result.data ?? []) as DailyPaymentRow[]);
 
-  const activeRows = rows.filter((r) => !isBookingClosedForCrm(r.status));
-  const paidRows = activeRows.filter((r) => r.payment_status === "paid");
-  const unpaidRows = activeRows.filter((r) => ["unpaid", "pending"].includes(r.payment_status));
-
-  const totalExpected = activeRows.reduce((s, r) => s + readPricePaid(r.metadata), 0);
-  const totalCollected = activeRows.reduce((sum, row) => sum + Number(row.amount_paid ?? 0), 0);
-  const totalUnpaid = unpaidRows.reduce(
-    (sum, row) => sum + Math.max(0, readPricePaid(row.metadata) - Number(row.amount_paid ?? 0)),
-    0
-  );
-
-  const byMethod: Record<string, number> = {
-    cash: 0,
-    gcash: 0,
-    maya: 0,
-    card: 0,
-    pay_on_site: 0,
-    other: 0,
-  };
-  for (const r of activeRows.filter((row) => Number(row.amount_paid ?? 0) > 0)) {
-    const m = r.payment_method ?? "other";
-    byMethod[m] = (byMethod[m] ?? 0) + Number(r.amount_paid ?? 0);
-  }
-
-  return {
-    date,
-    total_expected: totalExpected,
-    total_collected: totalCollected,
-    total_unpaid: totalUnpaid,
-    paid_count: paidRows.length,
-    unpaid_count: unpaidRows.length,
-    total_count: activeRows.length,
-    by_method: byMethod as {
-      cash: number;
-      gcash: number;
-      maya: number;
-      card: number;
-      pay_on_site: number;
-      other: number;
-    },
-  };
+  return buildDailyPaymentSummary(rows, date);
 }
 
 // ── 7-day schedule for manager planning view ──────────────────────────────
