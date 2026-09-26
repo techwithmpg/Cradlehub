@@ -1,7 +1,6 @@
 "use client";
 
-import { useMemo, useState, useTransition } from "react";
-import { useRouter } from "next/navigation";
+import { useState, useTransition } from "react";
 import { toast } from "sonner";
 import {
   crmStartServiceAction,
@@ -10,7 +9,6 @@ import {
 import { useAttendanceScanFeed } from "@/components/features/attendance/use-attendance-scan-feed";
 import { notifyBookingsChanged } from "@/lib/bookings/bookings-client-events";
 import {
-  getCradleFlowCounts,
   getCradleFlowStage,
   type CradleFlowBooking,
 } from "@/lib/crm/cradle-flow";
@@ -22,15 +20,15 @@ import { CradleFlowBookingDialog } from "./cradle-flow-booking-dialog";
 import { CradleFlowCheckoutDialog } from "./cradle-flow-checkout-dialog";
 import { CradleFlowCompleteDialog } from "./cradle-flow-complete-dialog";
 import { CradleFlowHeader } from "./cradle-flow-header";
-import { CradleFlowMoneySummary, CradleFlowRecentActivity } from "./cradle-flow-lower-panels";
 import { CradleFlowSideRail } from "./cradle-flow-side-rail";
-import { CradleFlowSummary } from "./cradle-flow-summary";
 import {
   CradleFlowAttendanceDialog,
   CradleFlowDayTotalsDialog,
   CradleFlowReadinessDialog,
 } from "./cradle-flow-support-dialogs";
 import { CradleFlowWorkflow } from "./cradle-flow-workflow";
+import { CashFlowEntryDialog } from "@/components/features/cash-flow/cash-flow-entry-dialog";
+import { cn } from "@/lib/utils";
 
 type MutationAction = (input: unknown) => Promise<{ success: boolean; error?: string }>;
 type ActiveDialog = "details" | "complete" | "checkout" | null;
@@ -50,15 +48,16 @@ type CradleFlowDashboardProps = {
 };
 
 export function CradleFlowDashboard(props: CradleFlowDashboardProps) {
-  const router = useRouter();
   const [bookings, setBookings] = useState(props.queueData);
   const [selected, setSelected] = useState<CradleFlowBooking | null>(null);
   const [dialog, setDialog] = useState<ActiveDialog>(null);
   const [attendance, setAttendance] = useState<RecentAttendanceScan | null>(null);
   const [readinessOpen, setReadinessOpen] = useState(false);
   const [totalsOpen, setTotalsOpen] = useState(false);
-  const [collected, setCollected] = useState(props.snapshot.payment?.total_collected ?? 0);
+  const [cashFlowModalOpen, setCashFlowModalOpen] = useState(false);
+  const [, setCollected] = useState(props.snapshot.payment?.total_collected ?? 0);
   const [isActing, startAction] = useTransition();
+
   const attendanceState = useAttendanceScanFeed({
     workspace: "crm",
     selectedDate: props.attendanceScanDate,
@@ -67,11 +66,9 @@ export function CradleFlowDashboard(props: CradleFlowDashboardProps) {
     maxItems: 6,
   });
 
-  const counts = useMemo(() => getCradleFlowCounts(bookings), [bookings]);
   const pendingBooking =
     bookings.find((booking) => ["pending", "pending_crm_confirmation"].includes(booking.status)) ??
     null;
-  const warnings = props.readinessIssues.filter((issue) => issue.severity !== "info").length;
 
   function updateBooking(id: string, change: Partial<CradleFlowBooking>) {
     setBookings((current) =>
@@ -127,18 +124,17 @@ export function CradleFlowDashboard(props: CradleFlowDashboardProps) {
   }
 
   return (
-    <div className="mx-auto grid w-full max-w-[1600px] gap-4 p-3 sm:p-5 lg:p-6">
-      <CradleFlowHeader
-        branchName={props.branchName}
-        fallbackDateLabel={props.dateLabel}
-        warningCount={warnings}
-        onRefresh={() => router.refresh()}
-        onReviewWarnings={() => setReadinessOpen(true)}
-      />
+    <div className="mx-auto flex w-full max-w-[1600px] flex-col gap-3.5 p-3 sm:p-4 lg:p-5">
+      {/* 1. Page Header (Today) */}
+      <CradleFlowHeader />
+
+      {/* 2. Quick Action Row (4 Cards) */}
       <CradleFlowActions pendingBooking={pendingBooking} onResumePending={openBooking} />
-      <CradleFlowSummary counts={counts} collectedRevenue={collected} />
-      <div className="grid items-start gap-4 xl:grid-cols-[minmax(0,1fr)_320px]">
-        <main className={isActing ? "min-w-0 opacity-80" : "min-w-0"}>
+
+      {/* 3. Main Workspace: Left (Active Service Workflow) vs Right Operations Rail */}
+      <div className="grid items-start gap-4 xl:grid-cols-[1fr_310px] 2xl:grid-cols-[1fr_340px] xl:h-[calc(100vh-235px)] xl:min-h-[560px]">
+        {/* Left Column: Active Service Workflow (Full workstation height with internal scroll) */}
+        <main className={cn("min-w-0 xl:h-full xl:min-h-0", isActing && "opacity-80")}>
           <CradleFlowWorkflow
             bookings={bookings}
             staffAvailable={props.snapshot.staffReadiness.availableNow}
@@ -147,6 +143,8 @@ export function CradleFlowDashboard(props: CradleFlowDashboardProps) {
             onPrimary={runPrimary}
           />
         </main>
+
+        {/* Right Operations Rail */}
         <CradleFlowSideRail
           branchName={props.branchName}
           attendanceDate={props.attendanceScanDate}
@@ -157,22 +155,16 @@ export function CradleFlowDashboard(props: CradleFlowDashboardProps) {
           onAttendanceRefresh={attendanceState.refreshFeed}
           readinessStatus={props.readinessStatus}
           readinessIssues={props.readinessIssues}
+          payment={props.snapshot.payment}
           onAttendanceSelect={setAttendance}
           onReviewReadiness={() => setReadinessOpen(true)}
+          onOpenCashFlowModal={() => setCashFlowModalOpen(true)}
         />
       </div>
-      <div className="grid gap-4 xl:grid-cols-[minmax(0,1fr)_minmax(340px,0.55fr)]">
-        <CradleFlowRecentActivity
-          attendance={attendanceState.feed}
-          notifications={props.actionNotifications}
-        />
-        <CradleFlowMoneySummary
-          payment={props.snapshot.payment}
-          collectedOverride={collected}
-          onViewTotals={() => setTotalsOpen(true)}
-        />
-      </div>
+
+      {/* Supporting Dialogs & Modals */}
       <CradleFlowDialogs
+        branchName={props.branchName}
         selected={selected}
         dialog={dialog}
         setDialog={setDialog}
@@ -184,6 +176,8 @@ export function CradleFlowDashboard(props: CradleFlowDashboardProps) {
         setReadinessOpen={setReadinessOpen}
         totalsOpen={totalsOpen}
         setTotalsOpen={setTotalsOpen}
+        cashFlowModalOpen={cashFlowModalOpen}
+        setCashFlowModalOpen={setCashFlowModalOpen}
         readinessIssues={props.readinessIssues}
         payment={props.snapshot.payment}
         setCollected={setCollected}
@@ -194,6 +188,7 @@ export function CradleFlowDashboard(props: CradleFlowDashboardProps) {
 }
 
 type DialogProps = {
+  branchName: string;
   selected: CradleFlowBooking | null;
   dialog: ActiveDialog;
   setDialog: (dialog: ActiveDialog) => void;
@@ -205,6 +200,8 @@ type DialogProps = {
   setReadinessOpen: (open: boolean) => void;
   totalsOpen: boolean;
   setTotalsOpen: (open: boolean) => void;
+  cashFlowModalOpen: boolean;
+  setCashFlowModalOpen: (open: boolean) => void;
   readinessIssues: ReadinessIssue[];
   payment: CrmTodaySnapshot["payment"];
   setCollected: React.Dispatch<React.SetStateAction<number>>;
@@ -267,6 +264,13 @@ function CradleFlowDialogs(props: DialogProps) {
         onOpenChange={(open) => {
           if (!open) props.setAttendance(null);
         }}
+      />
+      {/* Centralized Cash Flow Modal (UI Only) */}
+      <CashFlowEntryDialog
+        open={props.cashFlowModalOpen}
+        onOpenChange={props.setCashFlowModalOpen}
+        mode="create"
+        branchName={props.branchName}
       />
     </>
   );

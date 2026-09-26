@@ -1,9 +1,10 @@
 import Link from "next/link";
+import { ExternalLink } from "lucide-react";
 import { Dialog, DialogContent, DialogTitle, DialogDescription } from "@/components/ui/dialog";
 import { PAYMENT_METHOD_LABELS } from "@/lib/validations/booking";
 import { formatTime12h } from "@/lib/utils/time-format";
 import type { CashFlowEntry } from "@/lib/cash-flow/read-model";
-import { peso } from "./cash-flow-ui";
+import { CashFlowStatus, peso } from "./cash-flow-ui";
 
 export function CashFlowTransactionDetail({
   entry,
@@ -19,12 +20,37 @@ export function CashFlowTransactionDetail({
         if (!open) onClose();
       }}
     >
-      <DialogContent className="max-h-[85dvh] overflow-y-auto sm:max-w-lg">
-        <DialogTitle>Booking payment details</DialogTitle>
-        <DialogDescription>Current canonical booking payment record.</DialogDescription>
+      <DialogContent className="max-h-[88dvh] overflow-y-auto sm:max-w-lg rounded-2xl border-[var(--cs-border-soft)] p-6">
+        <DialogTitle className="text-lg font-bold text-[var(--cs-text)]">
+          Booking payment details
+        </DialogTitle>
+        <DialogDescription className="text-xs text-[var(--cs-text-secondary)]">
+          Current canonical booking payment record.
+        </DialogDescription>
+
         {entry && (
-          <>
-            <dl className="grid gap-3">
+          <div className="mt-4 space-y-4">
+            <div className="rounded-xl border border-[var(--cs-border-soft)] bg-[var(--cs-surface-warm)]/60 p-4">
+              <div className="flex items-center justify-between">
+                <div>
+                  <p className="text-xs font-semibold text-[var(--cs-text-muted)]">Recorded amount</p>
+                  <p className="text-2xl font-bold tabular-nums text-emerald-800">
+                    {peso(entry.amount)}
+                  </p>
+                </div>
+                <CashFlowStatus tone={entry.paymentStatus}>
+                  {entry.paymentStatus}
+                </CashFlowStatus>
+              </div>
+
+              {entry.outstanding > 0 ? (
+                <p className="mt-2 text-xs font-semibold text-amber-800">
+                  Outstanding balance: {peso(entry.outstanding)}
+                </p>
+              ) : null}
+            </div>
+
+            <dl className="divide-y divide-[var(--cs-border-soft)] text-xs">
               {[
                 ["Customer", entry.customer],
                 ["Service", entry.service],
@@ -36,10 +62,7 @@ export function CashFlowTransactionDetail({
                   PAYMENT_METHOD_LABELS[entry.method as keyof typeof PAYMENT_METHOD_LABELS] ??
                     entry.method,
                 ],
-                ["Payment status", entry.paymentStatus],
-                ["Recorded amount", peso(entry.amount)],
                 ["Booking payable", peso(entry.payable)],
-                ["Outstanding", peso(entry.outstanding)],
                 [
                   "Service line price",
                   entry.servicePrice === null ? "Not recorded" : peso(entry.servicePrice),
@@ -48,23 +71,27 @@ export function CashFlowTransactionDetail({
                   "Assigned travel fee",
                   entry.travelFee === null ? "Not recorded" : peso(entry.travelFee),
                 ],
-                ["Reference", entry.reference || "Not recorded"],
+                ["Reference", entry.reference || `#BK-${entry.id.slice(0, 8)}`],
                 ["Booking ID", entry.id],
               ].map(([label, value]) => (
-                <div key={label} className="grid grid-cols-2 gap-3">
-                  <dt className="text-[var(--cs-text-muted)]">{label}</dt>
-                  <dd className="break-words font-medium">{value}</dd>
+                <div key={label} className="grid grid-cols-[140px_1fr] py-2.5">
+                  <dt className="text-[var(--cs-text-muted)] font-medium">{label}</dt>
+                  <dd className="break-words font-semibold text-[var(--cs-text)]">{value}</dd>
                 </div>
               ))}
             </dl>
-            <Link
-              prefetch={false}
-              className="inline-flex min-h-11 items-center justify-center rounded-lg border border-[var(--cs-border)] px-4 font-semibold"
-              href={`/crm/bookings?date=${encodeURIComponent(entry.date)}&bookingId=${encodeURIComponent(entry.id)}`}
-            >
-              Open Booking
-            </Link>
-          </>
+
+            <div className="pt-2">
+              <Link
+                prefetch={false}
+                className="inline-flex h-10 w-full items-center justify-center gap-2 rounded-xl border border-[var(--cs-border)] bg-white font-semibold text-xs text-[var(--cs-text)] shadow-xs transition hover:bg-[var(--cs-surface-warm)]"
+                href={`/crm/bookings?date=${encodeURIComponent(entry.date)}&bookingId=${encodeURIComponent(entry.id)}`}
+              >
+                Open Booking in CRM
+                <ExternalLink className="size-3.5" />
+              </Link>
+            </div>
+          </div>
         )}
       </DialogContent>
     </Dialog>

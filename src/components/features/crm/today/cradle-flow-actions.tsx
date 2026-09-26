@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect } from "react";
-import { CalendarDays, Home, Plus, RotateCcw, UserRoundPlus } from "lucide-react";
+import { CalendarDays, ChevronRight, Home, Plus, RotateCcw, UserRoundPlus } from "lucide-react";
 import { useAdministrativeBookingModal } from "@/components/features/bookings/administrative-booking-modal-provider";
 import type { CradleFlowBooking } from "@/lib/crm/cradle-flow";
 
@@ -28,15 +28,15 @@ function ActionCard({
       onClick={onClick}
       className={
         primary
-          ? "group flex min-h-24 items-center gap-3 rounded-xl border border-emerald-800/20 bg-[linear-gradient(135deg,#0f4c35,#1f6649)] px-4 text-left text-white shadow-[var(--cs-shadow-sm)] transition hover:-translate-y-0.5 hover:shadow-[var(--cs-shadow-md)]"
-          : "group flex min-h-24 items-center gap-3 rounded-xl border border-[var(--cs-border)] bg-[var(--cs-surface)] px-4 text-left shadow-[var(--cs-shadow-xs)] transition hover:-translate-y-0.5 hover:border-[var(--cs-border-strong)] hover:shadow-[var(--cs-shadow-sm)]"
+          ? "group flex min-h-[72px] items-center gap-3.5 rounded-2xl bg-[#0B472C] px-4 py-3 text-left text-white shadow-xs transition hover:bg-[#083823] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-700"
+          : "group flex min-h-[72px] items-center gap-3.5 rounded-2xl border border-[var(--cs-border-soft)] bg-white px-4 py-3 text-left shadow-xs transition hover:border-stone-300 hover:shadow-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-stone-400"
       }
     >
       <span
         className={
           primary
-            ? "grid size-11 shrink-0 place-items-center rounded-full bg-white/15 text-white"
-            : "grid size-11 shrink-0 place-items-center rounded-full bg-[var(--cs-sand-mist)] text-[var(--cs-sand-dark)]"
+            ? "flex size-10 shrink-0 items-center justify-center rounded-full bg-white/10 text-white"
+            : "flex size-10 shrink-0 items-center justify-center rounded-full bg-[#FBF3ED] text-[#C27848]"
         }
       >
         {icon}
@@ -45,8 +45,8 @@ function ActionCard({
         <span
           className={
             primary
-              ? "block text-sm font-extrabold tracking-wide text-white"
-              : "block text-sm font-extrabold tracking-wide text-[var(--cs-text)]"
+              ? "block text-sm font-bold text-white"
+              : "block text-sm font-bold text-[var(--cs-text)]"
           }
         >
           {title}
@@ -54,20 +54,31 @@ function ActionCard({
         <span
           className={
             primary
-              ? "mt-1 block text-xs text-white/75"
-              : "mt-1 block text-xs text-[var(--cs-text-muted)]"
+              ? "mt-0.5 block text-xs text-white/70"
+              : "mt-0.5 block text-xs text-[var(--cs-text-muted)]"
           }
         >
           {description}
         </span>
       </span>
-      <kbd
-        className={
-          primary ? "text-[10px] text-white/65" : "text-[10px] text-[var(--cs-text-muted)]"
-        }
-      >
-        {shortcut}
-      </kbd>
+      <span className="flex items-center gap-1">
+        <kbd
+          className={
+            primary
+              ? "rounded px-1.5 py-0.5 text-[11px] font-semibold text-white/70"
+              : "rounded px-1.5 py-0.5 text-[11px] font-semibold text-[var(--cs-text-muted)]"
+          }
+        >
+          {shortcut}
+        </kbd>
+        <ChevronRight
+          className={
+            primary
+              ? "size-3.5 text-white/50 group-hover:text-white transition-colors"
+              : "size-3.5 text-stone-400 group-hover:text-stone-600 transition-colors"
+          }
+        />
+      </span>
     </button>
   );
 }
@@ -99,7 +110,7 @@ export function CradleFlowActions({
   return (
     <section className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4" aria-label="Booking shortcuts">
       <ActionCard
-        title="NEW BOOKING"
+        title="New Booking"
         description="Create any booking"
         shortcut="F1"
         icon={<Plus className="size-5" />}
@@ -107,21 +118,21 @@ export function CradleFlowActions({
         onClick={() => openBookingModal({ mode: "walkin" })}
       />
       <ActionCard
-        title="WALK-IN"
+        title="Walk-In"
         description="Start an in-spa visit"
         shortcut="F2"
         icon={<UserRoundPlus className="size-5" />}
         onClick={() => openBookingModal({ mode: "walkin" })}
       />
       <ActionCard
-        title="BOOK FOR LATER"
+        title="Book for Later"
         description="Phone or future booking"
         shortcut="F3"
         icon={<CalendarDays className="size-5" />}
         onClick={() => openBookingModal({ mode: "standard_future" })}
       />
       <ActionCard
-        title="HOME SERVICE"
+        title="Home Service"
         description="Create and prepare dispatch"
         shortcut="F4"
         icon={<Home className="size-5" />}
@@ -131,7 +142,7 @@ export function CradleFlowActions({
         <button
           type="button"
           onClick={() => onResumePending(pendingBooking)}
-          className="flex items-center gap-2 rounded-lg border border-dashed border-[var(--cs-sand)] bg-[var(--cs-sand-tint)] px-3 py-2 text-left text-xs font-bold text-[var(--cs-sand-dark)] sm:col-span-2 xl:col-span-4"
+          className="flex items-center gap-2 rounded-xl border border-dashed border-[var(--cs-sand)] bg-[var(--cs-sand-tint)] px-3 py-2 text-left text-xs font-bold text-[var(--cs-sand-dark)] sm:col-span-2 xl:col-span-4"
         >
           <RotateCcw className="size-4" />
           Resume pending · {pendingBooking.customer_name ?? "Unfinished booking"}

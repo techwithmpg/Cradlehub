@@ -1,23 +1,44 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { RotateCw, Download } from "lucide-react";
 import { refreshCashFlow } from "@/app/(dashboard)/crm/cash-flow/actions";
 import { CrmOperationalPageShell } from "@/components/features/crm/operational/crm-operational-page-shell";
 import { WorkspaceNotice } from "@/components/features/attendance/attendance-ui";
 import { Button } from "@/components/ui/button";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { BOOKINGS_CHANGED_EVENT } from "@/lib/bookings/bookings-client-events";
+import { cn } from "@/lib/utils";
 import {
   validateCashFlowRange,
+  type CashFlowEntry,
   type CashFlowRange,
   type CashFlowWorkspaceData,
 } from "@/lib/cash-flow/read-model";
 import { CashFlowToday } from "./cash-flow-today";
 import { CashFlowLedger } from "./cash-flow-ledger";
 import { CashFlowDayClose, CashFlowCloseRecord } from "./cash-flow-day-close";
-import { CashFlowHistory } from "./cash-flow-history";
+import { CashFlowHistory, exportDailyHistoryToCsv } from "./cash-flow-history";
 import { CashFlowTransactionDetail } from "./cash-flow-transaction-detail";
-import { CashFlowStatus, fieldClass } from "./cash-flow-ui";
+import {
+  CashFlowEntryDialog,
+  type CashFlowModalMode,
+} from "./cash-flow-entry-dialog";
+import type { CashFlowEntryType } from "./cash-flow-entry-type-selector";
+
+export type CashFlowModalState =
+  | { open: false }
+  | {
+      open: true;
+      mode: "create";
+      defaultEntryType?: CashFlowEntryType;
+      relatedTransaction?: CashFlowEntry;
+    }
+  | {
+      open: true;
+      mode: "correct";
+      transaction: CashFlowEntry;
+    };
 
 export function CashFlowWorkspace({ initialData }: { initialData: CashFlowWorkspaceData }) {
   const [data, setData] = useState(initialData);
@@ -25,12 +46,14 @@ export function CashFlowWorkspace({ initialData }: { initialData: CashFlowWorksp
   const [range, setRange] = useState(initialData.range);
   const [selectedDate, setSelectedDate] = useState<string | null>(null);
   const [selectedId, setSelectedId] = useState<string | null>(null);
+  const [modalState, setModalState] = useState<CashFlowModalState>({ open: false });
   const [error, setError] = useState<string | null>(null);
   const [pending, setPending] = useState(false);
   const requestId = useRef(0);
   const visibleRequestId = useRef(0);
   const eventRefreshTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const active = useRef(true);
+
   useEffect(() => {
     const requests = requestId;
     active.current = true;
@@ -39,6 +62,7 @@ export function CashFlowWorkspace({ initialData }: { initialData: CashFlowWorksp
       requests.current++;
     };
   }, []);
+
   const refresh = useCallback(
     async (nextRange?: CashFlowRange, options?: { silent?: boolean }) => {
       const id = ++requestId.current;
@@ -74,6 +98,7 @@ export function CashFlowWorkspace({ initialData }: { initialData: CashFlowWorksp
     },
     [data.range]
   );
+
   useEffect(() => {
     const update = () => {
       if (eventRefreshTimer.current) clearTimeout(eventRefreshTimer.current);
@@ -95,35 +120,90 @@ export function CashFlowWorkspace({ initialData }: { initialData: CashFlowWorksp
       }
     };
   }, [refresh]);
+
   const entries = useMemo(() => data.days.flatMap((day) => day.entries), [data.days]);
   const selectedEntry =
     [...data.today.entries, ...entries].find((entry) => entry.id === selectedId) ?? null;
   const selectedDay = data.days.find((day) => day.date === selectedDate);
+
+  const handleCreateEntry = useCallback(
+    (defaultEntryType?: CashFlowEntryType, relatedTransaction?: CashFlowEntry) => {
+      setModalState({
+        open: true,
+        mode: "create",
+        defaultEntryType: defaultEntryType ?? "expense",
+        relatedTransaction,
+      });
+    },
+    []
+  );
+
+  const handleCorrectEntry = useCallback((transaction: CashFlowEntry) => {
+    setModalState({
+      open: true,
+      mode: "correct",
+      transaction,
+    });
+  }, []);
+
+  const handleCloseModal = useCallback(() => {
+    setModalState({ open: false });
+  }, []);
+
   return (
     <CrmOperationalPageShell
       title="Cash Flow"
-      context={`${data.branchName} · ${data.today.date}`}
+      context={`CRADLE WELLNESS LIVING MAIN SPA · ${data.today.date}`}
       description="Financial activity and daily reconciliation"
+      headerClassName="border-0 bg-transparent px-0 py-0 shadow-none"
       actions={
-        <>
-          <CashFlowStatus>{data.today.reconciliation?.status ?? "Open"}</CashFlowStatus>
-          <Button variant="outline" className="h-9" disabled={pending} onClick={() => void refresh()}>
+        <div className="flex items-center gap-2">
+          <span className="inline-flex h-8.5 items-center rounded-lg border border-[var(--cs-border)] bg-white px-3 text-xs font-semibold text-[var(--cs-text)] shadow-xs">
+            Open
+          </span>
+          {tab === "day-close" && (
+            <Button
+              variant="outline"
+              size="sm"
+              className="h-8.5 rounded-lg border-[var(--cs-border)] bg-white px-3 text-xs font-semibold text-[var(--cs-text)] shadow-xs"
+              onClick={() => window.print()}
+            >
+              <Download className="mr-1.5 size-3.5" />
+              Export Summary
+            </Button>
+          )}
+          {tab === "history" && (
+            <Button
+              variant="outline"
+              size="sm"
+              className="h-8.5 rounded-lg border-[var(--cs-border)] bg-white px-3 text-xs font-semibold text-[var(--cs-text)] shadow-xs"
+              onClick={() => exportDailyHistoryToCsv(data.days)}
+            >
+              <Download className="mr-1.5 size-3.5" />
+              Export History
+            </Button>
+          )}
+          <Button
+            className="h-8.5 rounded-lg bg-[#1b4332] px-3.5 text-xs font-semibold text-white shadow-xs transition hover:bg-[#16382a] disabled:opacity-60"
+            disabled={pending}
+            onClick={() => void refresh()}
+          >
+            <RotateCw className={cn("mr-1.5 size-3.5", pending && "animate-spin")} />
             {pending ? "Refreshing…" : "Refresh"}
           </Button>
-
-        </>
+        </div>
       }
     >
-
       {error && (
         <WorkspaceNotice tone="error" title="Refresh unavailable">
           {error}
         </WorkspaceNotice>
       )}
+
       <Tabs value={tab} onValueChange={(value) => setTab(String(value))} className="min-w-0 gap-4">
         <TabsList
           aria-label="Cash Flow views"
-          className="grid h-auto! min-h-11 w-full grid-cols-4 rounded-xl border border-[var(--cs-border-soft)] bg-[var(--cs-surface-warm)] p-1 shadow-[var(--cs-shadow-xs)] sm:w-fit"
+          className="grid h-auto! min-h-10 w-full grid-cols-4 rounded-xl border border-[var(--cs-border-soft)] bg-[#ECE7DF] p-1 shadow-xs sm:w-fit"
         >
           {[
             ["today", "Today"],
@@ -131,73 +211,60 @@ export function CashFlowWorkspace({ initialData }: { initialData: CashFlowWorksp
             ["day-close", "Day Close"],
             ["history", "History"],
           ].map(([value, label]) => (
-            <TabsTrigger key={value} value={value} className="min-h-10 rounded-lg px-3 font-semibold data-active:bg-[var(--cs-surface)] data-active:text-[var(--cs-text)] data-active:shadow-[var(--cs-shadow-xs)] sm:px-4">
+            <TabsTrigger
+              key={value}
+              value={value}
+              className="min-h-8.5 rounded-lg px-4 text-xs font-bold text-[var(--cs-text-secondary)] data-active:bg-white data-active:text-[var(--cs-text)] data-active:shadow-xs transition-all"
+            >
               {label}
             </TabsTrigger>
           ))}
         </TabsList>
-        {(tab === "ledger" || tab === "history") && (
-          <form
-            className="flex flex-wrap items-end gap-3 rounded-xl border border-[var(--cs-border-soft)] bg-[var(--cs-surface-warm)] p-3"
-            onSubmit={(event) => {
-              event.preventDefault();
-              try {
-                validateCashFlowRange(range);
-                void refresh(range);
-              } catch {
-                setError("Choose a valid date range of up to 31 days.");
-              }
-            }}
-          >
-            <label className="grid flex-1 gap-1 text-sm sm:flex-none">
-              From
-              <input
-                type="date"
-                required
-                className={fieldClass}
-                value={range.from}
-                onChange={(event) => setRange((value) => ({ ...value, from: event.target.value }))}
-              />
-            </label>
-            <label className="grid flex-1 gap-1 text-sm sm:flex-none">
-              Through
-              <input
-                type="date"
-                required
-                className={fieldClass}
-                value={range.to}
-                onChange={(event) => setRange((value) => ({ ...value, to: event.target.value }))}
-              />
-            </label>
-            <Button type="submit" variant="outline" disabled={pending}>
-              Load dates
-            </Button>
-            <p className="w-full border-t border-[var(--cs-border-soft)] pt-2 text-xs text-[var(--cs-text-muted)]">
-              Loaded {data.range.from} – {data.range.to} · up to 31 days at a time.
-            </p>
-          </form>
-        )}
+
         <TabsContent value="today" keepMounted hidden={tab !== "today"}>
           <CashFlowToday
             day={data.today}
+            days={data.days}
             onSelect={(entry) => setSelectedId(entry.id)}
-            onDayClose={() => setTab("day-close")}
+            onViewAll={() => setTab("ledger")}
+            onNewEntry={() => handleCreateEntry()}
+            onSelectCoverage={(type) => handleCreateEntry(type)}
           />
         </TabsContent>
+
         <TabsContent value="ledger" keepMounted hidden={tab !== "ledger"}>
-          <CashFlowLedger entries={entries} onSelect={(entry) => setSelectedId(entry.id)} />
+          <CashFlowLedger
+            entries={entries}
+            range={range}
+            onRangeChange={(newRange) => void refresh(newRange)}
+            onSelect={(entry) => setSelectedId(entry.id)}
+            onNewEntry={() => handleCreateEntry()}
+            onCorrectEntry={handleCorrectEntry}
+            onAddRelatedEntry={(entry) =>
+              handleCreateEntry(entry.source as CashFlowEntryType, entry)
+            }
+          />
         </TabsContent>
+
         <TabsContent value="day-close" keepMounted hidden={tab !== "day-close"}>
           <CashFlowDayClose
             branchId={data.branchId}
             day={data.today}
             onSaved={() => void refresh()}
+            onOpenLedger={() => setTab("ledger")}
+            onNewEntry={(type) => handleCreateEntry(type)}
+            onCorrectEntry={handleCorrectEntry}
           />
         </TabsContent>
+
         <TabsContent value="history" keepMounted hidden={tab !== "history"}>
-          {selectedDay ? (
+          {selectedDate && selectedDay ? (
             <div className="space-y-5">
-              <Button variant="outline" className="h-9" onClick={() => setSelectedDate(null)}>
+              <Button
+                variant="outline"
+                className="h-8.5 rounded-lg border-[var(--cs-border)] px-3 text-xs font-semibold"
+                onClick={() => setSelectedDate(null)}
+              >
                 Back to daily history
               </Button>
               <CashFlowCloseRecord day={selectedDay} />
@@ -206,14 +273,48 @@ export function CashFlowWorkspace({ initialData }: { initialData: CashFlowWorksp
                 entries={selectedDay.entries}
                 date={selectedDay.date}
                 onSelect={(entry) => setSelectedId(entry.id)}
+                onNewEntry={() => handleCreateEntry()}
+                onCorrectEntry={handleCorrectEntry}
+                onAddRelatedEntry={(entry) =>
+                  handleCreateEntry(entry.source as CashFlowEntryType, entry)
+                }
               />
             </div>
           ) : (
-            <CashFlowHistory days={data.days} onSelect={setSelectedDate} />
+            <CashFlowHistory
+              days={data.days}
+              range={range}
+              onRangeChange={(newRange) => void refresh(newRange)}
+              onSelect={setSelectedDate}
+              onCorrectEntry={handleCorrectEntry}
+            />
           )}
         </TabsContent>
       </Tabs>
+
       <CashFlowTransactionDetail entry={selectedEntry} onClose={() => setSelectedId(null)} />
+
+      {/* Singleton Centralized Cash Flow Modal Dialog */}
+      <CashFlowEntryDialog
+        open={modalState.open}
+        onOpenChange={(open) => {
+          if (!open) handleCloseModal();
+        }}
+        mode={modalState.open ? modalState.mode : "create"}
+        defaultEntryType={
+          modalState.open && modalState.mode === "create"
+            ? modalState.defaultEntryType
+            : "expense"
+        }
+        transaction={
+          modalState.open && modalState.mode === "correct"
+            ? modalState.transaction
+            : modalState.open && modalState.mode === "create"
+              ? modalState.relatedTransaction
+              : null
+        }
+        branchName="Cradle Wellness Living Main Spa"
+      />
     </CrmOperationalPageShell>
   );
 }

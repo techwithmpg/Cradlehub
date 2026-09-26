@@ -1,4 +1,5 @@
 import type { ReactNode } from "react";
+import { cn } from "@/lib/utils";
 
 type CrmOperationalPageShellProps = {
   title: string;
@@ -8,6 +9,8 @@ type CrmOperationalPageShellProps = {
   tabs?: ReactNode;
   support?: ReactNode;
   children: ReactNode;
+  headerClassName?: string;
+  className?: string;
 };
 
 export function CrmOperationalPageShell({
@@ -18,10 +21,17 @@ export function CrmOperationalPageShell({
   tabs,
   support,
   children,
+  headerClassName,
+  className,
 }: CrmOperationalPageShellProps) {
   return (
-    <section className="space-y-5">
-      <header className="rounded-lg border border-[var(--cs-border)] bg-[var(--cs-surface)] px-5 py-4 shadow-sm">
+    <section className={cn("space-y-5", className)}>
+      <header
+        className={cn(
+          "rounded-lg border border-[var(--cs-border)] bg-[var(--cs-surface)] px-5 py-4 shadow-sm",
+          headerClassName
+        )}
+      >
         <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
           <div className="min-w-0">
             {context ? (

@@ -1,74 +1,10 @@
 "use client";
 
-import { ArrowRight, Banknote, Bell, Clock3 } from "lucide-react";
-import type { AttendanceScanFeedData } from "@/lib/attendance/types";
+import { ArrowRight, Banknote } from "lucide-react";
 import type { CrmTodayPayment } from "@/lib/queries/crm-today";
 import { formatCradleFlowMoney } from "@/lib/crm/cradle-flow";
-import { formatAttendanceScanTime, getAttendanceScanEventLabel } from "@/lib/attendance/scan-feed";
 
-export function CradleFlowRecentActivity({
-  attendance,
-  notifications,
-}: {
-  attendance: AttendanceScanFeedData;
-  notifications: { id: string; title: string; message?: string }[];
-}) {
-  const items = [
-    ...attendance.items.slice(0, 4).map((scan) => ({
-      id: scan.rootOperationId ?? scan.eventId,
-      time: formatAttendanceScanTime(scan.occurredAt, scan.timezone),
-      title: `${scan.staffNickname || scan.staffName} ${getAttendanceScanEventLabel(scan).toLowerCase()}`,
-      detail: scan.branchName ?? "Attendance",
-      kind: "Attendance",
-    })),
-    ...notifications.slice(0, 2).map((notification) => ({
-      id: notification.id,
-      time: "Action",
-      title: notification.title,
-      detail: notification.message ?? "Needs front-desk review",
-      kind: "System",
-    })),
-  ];
-  return (
-    <section className="rounded-xl border border-[var(--cs-border-soft)] bg-[var(--cs-surface)] p-4 shadow-[var(--cs-shadow-xs)] sm:p-5">
-      <div className="flex items-center justify-between">
-        <div>
-          <h2 className="text-sm font-extrabold">Recent Activity</h2>
-          <p className="mt-0.5 text-xs text-[var(--cs-text-muted)]">
-            Operational events from today.
-          </p>
-        </div>
-        <Bell className="size-4 text-[var(--cs-sand-dark)]" />
-      </div>
-      {items.length ? (
-        <div className="mt-3 grid gap-1">
-          {items.map((item) => (
-            <div
-              key={`${item.kind}-${item.id}`}
-              className="grid grid-cols-[4.5rem_minmax(0,1fr)_auto] items-center gap-3 rounded-lg px-2 py-2 text-xs hover:bg-[var(--cs-surface-warm)]"
-            >
-              <span className="flex items-center gap-1 text-[var(--cs-text-muted)]">
-                <Clock3 className="size-3" />
-                {item.time}
-              </span>
-              <span className="min-w-0">
-                <strong className="block truncate text-[var(--cs-text)]">{item.title}</strong>
-                <span className="block truncate text-[var(--cs-text-muted)]">{item.detail}</span>
-              </span>
-              <span className="rounded-full bg-emerald-50 px-2 py-1 text-[10px] font-bold text-emerald-700">
-                {item.kind}
-              </span>
-            </div>
-          ))}
-        </div>
-      ) : (
-        <p className="mt-4 text-sm text-[var(--cs-text-muted)]">
-          Activity will appear as the day gets moving.
-        </p>
-      )}
-    </section>
-  );
-}
+export { CradleFlowRecentActivity } from "./today-recent-activity";
 
 export function CradleFlowMoneySummary({
   payment,
