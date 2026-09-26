@@ -23,6 +23,10 @@ import {
 import { canonicalizeSystemRole } from "@/constants/staff";
 import { canAccessCrmWorkspace } from "@/lib/auth/crm-permissions";
 import { bookingBlocksAvailability } from "@/lib/bookings/hold-status";
+import {
+  isBookingPaymentSufficientForPaid,
+  readBookingPayableFromMetadata,
+} from "@/lib/bookings/payment-gate";
 import { recordBookingPaymentChange } from "@/lib/bookings/payment-transaction";
 import { revalidateOperationalBookingSurfaces } from "@/lib/bookings/revalidate-booking-surfaces";
 import {
@@ -422,6 +426,8 @@ export async function confirmBookingPaymentAction(
   type BookingRow = {
     id: string;
     branch_id: string;
+    service_id: string | null;
+    metadata: Record<string, unknown> | null;
     status: string;
     hold_expires_at: string | null;
     staff_id: string | null;
@@ -443,7 +449,7 @@ export async function confirmBookingPaymentAction(
   const { data: fullBooking, error: fetchErr } = await supabase
     .from("bookings")
     .select(
-      "id, branch_id, status, hold_expires_at, staff_id, driver_id, customer_id, booking_date, start_time, end_time, delivery_type, type, payment_method, payment_status, amount_paid, payment_reference"
+      "id, branch_id, service_id, metadata, status, hold_expires_at, staff_id, driver_id, customer_id, booking_date, start_time, end_time, delivery_type, type, payment_method, payment_status, amount_paid, payment_reference"
     )
     .eq("id", bookingId)
     .maybeSingle();
@@ -455,7 +461,7 @@ export async function confirmBookingPaymentAction(
     const { data: fallback } = await supabase
       .from("bookings")
       .select(
-        "id, branch_id, status, staff_id, driver_id, customer_id, booking_date, start_time, end_time, delivery_type, type, payment_method, payment_status, amount_paid, payment_reference"
+        "id, branch_id, service_id, metadata, status, staff_id, driver_id, customer_id, booking_date, start_time, end_time, delivery_type, type, payment_method, payment_status, amount_paid, payment_reference"
       )
       .eq("id", bookingId)
       .maybeSingle();
@@ -542,12 +548,47 @@ export async function confirmBookingPaymentAction(
     }
   }
 
+  // Resolve payable amount from immutable historical booking snapshot
+  const payableAmount = readBookingPayableFromMetadata(booking.metadata);
+
+  // If no trustworthy historical payable snapshot is found, fail closed
+  if (payableAmount === null) {
+    return {
+      success: false,
+      error:
+        "Cannot mark booking as paid: historical payable price snapshot is missing from booking records. Authorized review required.",
+    };
+  }
+
+  const cumulativeAmountPaid =
+    amountPaid !== undefined && amountPaid !== null ? amountPaid : Number(booking.amount_paid ?? 0);
+
+  const isFullyPaid = isBookingPaymentSufficientForPaid(payableAmount, cumulativeAmountPaid);
+
+  // A positive-payable booking must not be marked final 'paid' with zero amount or omitted amount without sufficient existing paid value
+  if (!isFullyPaid && cumulativeAmountPaid === 0 && payableAmount > 0) {
+    return {
+      success: false,
+      error: `Cannot mark booking as paid: cumulative amount paid (₱0) is less than payable amount (₱${payableAmount}).`,
+    };
+  }
+
+  // Determine final payment status:
+  // Must NOT become 'paid' unless cumulative amount paid satisfies the payable value.
+  // If partial/deposit payment (cumulativeAmountPaid > 0 and cumulativeAmountPaid < payableAmount),
+  // preserve existing pending/unpaid semantics (schema check constraint allows 'pending' or 'unpaid').
+  const nextPaymentStatus = isFullyPaid
+    ? "paid"
+    : booking.payment_status === "unpaid"
+      ? "unpaid"
+      : "pending";
+
   const paymentResult = await recordBookingPaymentChange(supabase, {
     bookingId,
     branchId: me.system_role === "owner" ? null : booking.branch_id,
     paymentMethod,
-    paymentStatus: "paid",
-    amountPaid: amountPaid ?? booking.amount_paid ?? 0,
+    paymentStatus: nextPaymentStatus,
+    amountPaid: cumulativeAmountPaid,
     paymentReference,
     reason: note?.trim() || "CRM payment confirmation",
     changedByStaffId: me.id === DEV_BYPASS_STAFF_ID ? null : me.id,
@@ -607,8 +648,10 @@ export async function confirmBookingPaymentAction(
     });
   }
 
-  // Resolve CRM payment_pending notification
-  await resolveNotificationsForEntity("booking", bookingId, "crm", "payment_pending");
+  // Resolve CRM payment_pending notification only when fully paid
+  if (isFullyPaid) {
+    await resolveNotificationsForEntity("booking", bookingId, "crm", "payment_pending");
+  }
 
   revalidateOperationalBookingSurfaces(booking.branch_id);
   return { success: true };

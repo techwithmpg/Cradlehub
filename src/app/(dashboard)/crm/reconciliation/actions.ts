@@ -12,7 +12,9 @@ import { canAccessCrmWorkspace } from "@/lib/auth/crm-permissions";
 
 async function requireCrmStaff() {
   const supabase = await createClient();
-  const { data: { user } } = await supabase.auth.getUser();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
   if (!user) return null;
 
   if (isDevAuthBypassEnabled()) {
@@ -33,15 +35,15 @@ async function requireCrmStaff() {
 }
 
 const upsertSchema = z.object({
-  branchId:           z.string().uuid(),
-  date:               z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
-  actualCash:         z.coerce.number().min(0).default(0),
-  actualGcash:        z.coerce.number().min(0).default(0),
-  actualMaya:         z.coerce.number().min(0).default(0),
-  actualCard:         z.coerce.number().min(0).default(0),
-  actualOther:        z.coerce.number().min(0).default(0),
-  notes:              z.string().max(1000).optional(),
-  status:             z.enum(["draft", "submitted"]).default("draft"),
+  branchId: z.string().uuid(),
+  date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
+  actualCash: z.coerce.number().min(0).default(0),
+  actualGcash: z.coerce.number().min(0).default(0),
+  actualMaya: z.coerce.number().min(0).default(0),
+  actualCard: z.coerce.number().min(0).default(0),
+  actualOther: z.coerce.number().min(0).default(0),
+  notes: z.string().max(1000).optional(),
+  status: z.enum(["draft", "submitted"]).default("draft"),
 });
 
 export async function upsertReconciliationAction(rawInput: unknown) {
@@ -54,30 +56,46 @@ export async function upsertReconciliationAction(rawInput: unknown) {
   }
   const d = parsed.data;
 
-  // Load expected totals from payment summary
-  const summary = await getDailyPaymentSummary(d.branchId, d.date).catch(() => null);
-  const expected = summary?.by_method ?? { cash: 0, gcash: 0, maya: 0, card: 0, pay_on_site: 0, other: 0 };
+  // Load expected totals from payment summary - MUST fail closed on summary failure
+  let summary;
+  try {
+    summary = await getDailyPaymentSummary(d.branchId, d.date);
+  } catch (err) {
+    return {
+      ok: false as const,
+      error: `Failed to calculate expected payment summary: ${err instanceof Error ? err.message : "Unknown error"}`,
+    };
+  }
+
+  if (!summary || !summary.by_method) {
+    return {
+      ok: false as const,
+      error: "Expected payment summary is unavailable. Day close aborted.",
+    };
+  }
+
+  const expected = summary.by_method;
 
   const { data: reconciliation, error } = await ctx.supabase
     .from("daily_cash_reconciliations")
     .upsert(
       {
-        branch_id:            d.branchId,
-        reconciliation_date:  d.date,
-        recorded_by:          ctx.staffId,
-        expected_cash:        expected.cash,
-        expected_gcash:       expected.gcash,
-        expected_maya:        expected.maya,
-        expected_card:        expected.card,
-        expected_other:       expected.other + expected.pay_on_site,
-        actual_cash:          d.actualCash,
-        actual_gcash:         d.actualGcash,
-        actual_maya:          d.actualMaya,
-        actual_card:          d.actualCard,
-        actual_other:         d.actualOther,
-        notes:                d.notes ?? null,
-        status:               d.status,
-        updated_at:           new Date().toISOString(),
+        branch_id: d.branchId,
+        reconciliation_date: d.date,
+        recorded_by: ctx.staffId,
+        expected_cash: expected.cash,
+        expected_gcash: expected.gcash,
+        expected_maya: expected.maya,
+        expected_card: expected.card,
+        expected_other: expected.other + expected.pay_on_site,
+        actual_cash: d.actualCash,
+        actual_gcash: d.actualGcash,
+        actual_maya: d.actualMaya,
+        actual_card: d.actualCard,
+        actual_other: d.actualOther,
+        notes: d.notes ?? null,
+        status: d.status,
+        updated_at: new Date().toISOString(),
       },
       { onConflict: "branch_id,reconciliation_date" }
     )
@@ -98,7 +116,11 @@ export async function upsertReconciliationAction(rawInput: unknown) {
       body: `Cash reconciliation for ${dateLabel} has been submitted for review.`,
       entityType: "reconciliation",
       entityId: reconciliation.id,
-      actionHref: getNotificationTargetPath({ workspace: "manager", entityType: "reconciliation", entityId: reconciliation.id }),
+      actionHref: getNotificationTargetPath({
+        workspace: "manager",
+        entityType: "reconciliation",
+        entityId: reconciliation.id,
+      }),
       priority: "normal",
       requiresAction: true,
     });
@@ -109,7 +131,11 @@ export async function upsertReconciliationAction(rawInput: unknown) {
       body: `Cash reconciliation for ${dateLabel} (branch ${d.branchId.slice(0, 8)}…) has been submitted.`,
       entityType: "reconciliation",
       entityId: reconciliation.id,
-      actionHref: getNotificationTargetPath({ workspace: "owner", entityType: "reconciliation", entityId: reconciliation.id }),
+      actionHref: getNotificationTargetPath({
+        workspace: "owner",
+        entityType: "reconciliation",
+        entityId: reconciliation.id,
+      }),
       priority: "low",
       requiresAction: false,
     });
@@ -134,7 +160,8 @@ export async function approveReconciliationAction(reconciliationId: string) {
   if (!updatedRows || updatedRows.length === 0) {
     return {
       ok: false as const,
-      error: "Reconciliation record could not be approved. It may belong to a different branch or no longer exist.",
+      error:
+        "Reconciliation record could not be approved. It may belong to a different branch or no longer exist.",
     };
   }
 

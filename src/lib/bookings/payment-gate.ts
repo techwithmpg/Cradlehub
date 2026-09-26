@@ -51,3 +51,73 @@ export function getBookingPaymentGate(input: PaymentGateInput): PaymentGateResul
   }
   return { allowed: true };
 }
+
+export function readBookingPayableFromMetadata(
+  metadata: Record<string, unknown> | null | undefined
+): number | null {
+  if (metadata && typeof metadata === "object") {
+    // 1. Primary canonical snapshot: metadata.price_paid
+    const primary = metadata.price_paid;
+    if (primary !== undefined && primary !== null) {
+      const n = Number(primary);
+      if (Number.isFinite(n)) return Math.max(0, n);
+    }
+
+    // 2. Historical pricing breakdown if recorded at booking creation
+    const breakdown = metadata.pricing_breakdown;
+    if (breakdown && typeof breakdown === "object") {
+      const bTotal = (breakdown as Record<string, unknown>).total;
+      if (bTotal !== undefined && bTotal !== null) {
+        const n = Number(bTotal);
+        if (Number.isFinite(n)) return Math.max(0, n);
+      }
+      const bLine = (breakdown as Record<string, unknown>).service_line_price;
+      if (bLine !== undefined && bLine !== null) {
+        const n = Number(bLine);
+        if (Number.isFinite(n)) return Math.max(0, n);
+      }
+    }
+
+    // 3. Alternate historical snapshot key: metadata.price
+    const altPrice = metadata.price;
+    if (altPrice !== undefined && altPrice !== null) {
+      const n = Number(altPrice);
+      if (Number.isFinite(n)) return Math.max(0, n);
+    }
+  }
+
+  // No trustworthy frozen payable snapshot found — do NOT infer or fall back to catalog price
+  return null;
+}
+
+export function isBookingPaymentSufficientForPaid(
+  payableAmount: number | null | undefined,
+  cumulativeAmountPaid: number
+): boolean {
+  if (payableAmount === null || payableAmount === undefined) return false;
+  if (payableAmount <= 0) return true;
+  return cumulativeAmountPaid >= payableAmount;
+}
+
+export function validateBookingPaymentStatusTransition(params: {
+  payableAmount: number | null | undefined;
+  amountPaid: number;
+  targetPaymentStatus: string;
+}): { allowed: true } | { allowed: false; error: string } {
+  if (params.targetPaymentStatus === "paid") {
+    if (params.payableAmount === null || params.payableAmount === undefined) {
+      return {
+        allowed: false,
+        error:
+          "Cannot mark booking as paid: historical payable price snapshot is missing from booking records. Authorized review required.",
+      };
+    }
+    if (params.payableAmount > 0 && params.amountPaid < params.payableAmount) {
+      return {
+        allowed: false,
+        error: `Cannot mark booking as paid: cumulative amount paid (₱${params.amountPaid}) is less than payable amount (₱${params.payableAmount}).`,
+      };
+    }
+  }
+  return { allowed: true };
+}
