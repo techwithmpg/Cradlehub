@@ -9,6 +9,7 @@ vi.mock("@/lib/engine/slot-time", async (original) => ({
   getBranchBusinessDate: () => "2026-09-26",
 }));
 import { getCashFlowWorkspace } from "@/lib/queries/cash-flow";
+import { getDailyPaymentSummary } from "@/lib/queries/bookings";
 import { refreshCashFlow } from "@/app/(dashboard)/crm/cash-flow/actions";
 import Page from "@/app/(dashboard)/crm/cash-flow/page";
 // Keep the route test server-only: no browser or reconciliation mutations.
@@ -44,8 +45,14 @@ function adapter(fail = false, count = 1) {
               ? Array.from({ length: count }, (_, i) => booking({ id: `row-${i}` }))
               : [reconciliation()];
           const date = DATE;
+          const exactDate = filters[dateKey];
+
           const matches =
-            date >= String(filters[`from:${dateKey}`]) && date <= String(filters[`to:${dateKey}`]);
+            exactDate !== undefined
+              ? date === String(exactDate)
+              : date >= String(filters[`from:${dateKey}`]) &&
+                date <= String(filters[`to:${dateKey}`]);
+
           return {
             data: fail ? null : matches ? rows.slice(from, to + 1) : [],
             error: fail ? new Error("private database detail") : null,
@@ -75,11 +82,32 @@ describe("Cash Flow authenticated TEST query boundary", () => {
   it("paginates beyond the API default page without losing or duplicating totals", async () => {
     const calls = adapter(false, 501);
     const data = await getCashFlowWorkspace({ from: DATE, to: DATE });
+
     expect(data.today.entries).toHaveLength(501);
     expect(data.today.summary.total_collected).toBe(501000);
+
     expect(calls.filter((call) => call.table === "bookings").map((call) => call.offset)).toEqual([
       0, 500,
     ]);
+  });
+
+  it("keeps Cash Flow and Day Close payment totals aligned beyond 1,000 bookings", async () => {
+    const calls = adapter(false, 1001);
+
+    const cashFlow = await getCashFlowWorkspace({ from: DATE, to: DATE });
+    const dayClose = await getDailyPaymentSummary("branch-a", DATE);
+
+    expect(cashFlow.today.entries).toHaveLength(1001);
+
+    expect(dayClose.total_collected).toBe(cashFlow.today.summary.total_collected);
+    expect(dayClose.total_unpaid).toBe(cashFlow.today.summary.total_unpaid);
+    expect(dayClose.by_method).toEqual(cashFlow.today.summary.by_method);
+
+    expect(
+      calls
+        .filter((call) => call.table === "bookings")
+        .map((call) => call.offset)
+    ).toEqual([0, 500, 1000, 0, 500, 1000]);
   });
   it("loads Today separately when browsing history and fills empty historical days", async () => {
     const calls = adapter();

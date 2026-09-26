@@ -523,23 +523,37 @@ export async function getCrmBookingsCommandCenterRows(branchId: string, date: st
 // ── Daily payment summary for a branch ───────────────────────────────────
 export async function getDailyPaymentSummary(branchId: string, date: string) {
   const supabase = await createClient();
-  const result = await supabase
-    .from("bookings")
-    .select("status, metadata, payment_method, payment_status, amount_paid")
-    .eq("branch_id", branchId)
-    .eq("booking_date", date);
+  const rows: DailyPaymentRow[] = [];
 
-  if (result.error && !isMissingPaymentColumns(result.error)) {
-    throw new Error(result.error.message);
+  for (let from = 0; ; from += 500) {
+    const result = await supabase
+      .from("bookings")
+      .select("status, metadata, payment_method, payment_status, amount_paid")
+      .eq("branch_id", branchId)
+      .eq("booking_date", date)
+      .order("id")
+      .range(from, from + 499);
+
+    if (result.error) {
+      if (!isMissingPaymentColumns(result.error)) {
+        throw new Error(result.error.message);
+      }
+
+      const fallback = withPaymentDefaults(
+        await loadDailyPaymentFallbackRows(supabase, branchId, date)
+      );
+
+      return buildDailyPaymentSummary(fallback, date);
+    }
+
+    const page = (result.data ?? []) as DailyPaymentRow[];
+    rows.push(...page);
+
+    if (page.length < 500) break;
   }
 
-  const rows = result.error
-    ? withPaymentDefaults(await loadDailyPaymentFallbackRows(supabase, branchId, date))
-    : withPaymentDefaults((result.data ?? []) as DailyPaymentRow[]);
-
-  return buildDailyPaymentSummary(rows, date);
+  return buildDailyPaymentSummary(withPaymentDefaults(rows), date);
 }
-
 // ── 7-day schedule for manager planning view ──────────────────────────────
 export async function getWeekSchedule(branchId: string, startDate: string, endDate: string) {
   const supabase = await createClient();

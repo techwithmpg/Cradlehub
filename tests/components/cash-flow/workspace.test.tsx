@@ -20,25 +20,62 @@ const selectTab = (name: string) => fireEvent.click(screen.getByRole("tab", { na
 const panel = () => within(screen.getByRole("tabpanel"));
 
 describe("Cash Flow internal workspace", () => {
-  it("defaults to Today with four local tabs, truthful totals and disabled manual entries", () => {
+  it("defaults to Today with four local tabs and truthful CF1 metrics", () => {
     render(<CashFlowWorkspace initialData={workspace()} />);
+
     expect(screen.getAllByRole("tab").map((tab) => tab.textContent)).toEqual([
       "Today",
       "Ledger",
       "Day Close",
       "History",
     ]);
+
     expect(screen.getByRole("tab", { name: "Today" }).getAttribute("aria-selected")).toBe("true");
+
+    expect(panel().getByText("Recorded Payments")).toBeTruthy();
     expect(panel().getByText("₱1,300.00")).toBeTruthy();
     expect(panel().getAllByText("₱700.00").length).toBeGreaterThan(0);
-    expect(panel().getByText("Not tracked yet")).toBeTruthy();
-    expect(
-      (screen.getByRole("button", { name: "+ New Entry" }) as HTMLButtonElement).disabled
-    ).toBe(true);
+
+    expect(panel().queryByText("Expenses")).toBeNull();
+    expect(panel().queryByText("Net Flow")).toBeNull();
+    expect(screen.queryByRole("button", { name: "+ New Entry" })).toBeNull();
+
     const url = window.location.href;
-    for (const tab of ["Ledger", "Day Close", "History", "Today"]) selectTab(tab);
+
+    for (const tab of ["Ledger", "Day Close", "History", "Today"]) {
+      selectTab(tab);
+    }
+
     expect(window.location.href).toBe(url);
     expect(mocks.refresh).not.toHaveBeenCalled();
+  });
+
+  it("renders refunded booking snapshots neutrally in Today and Ledger", () => {
+    const data = workspace();
+
+    for (const entry of data.today.entries) {
+      if (entry.amount > 0) entry.paymentStatus = "refunded";
+    }
+
+    for (const day of data.days) {
+      for (const entry of day.entries) {
+        if (entry.amount > 0) entry.paymentStatus = "refunded";
+      }
+    }
+
+    render(<CashFlowWorkspace initialData={data} />);
+
+    const todayRefund = panel().getAllByText("Refunded snapshot")[0]?.closest("button");
+
+    expect(todayRefund).toBeTruthy();
+    expect(todayRefund?.textContent).not.toContain("+₱");
+
+    selectTab("Ledger");
+
+    const ledgerRefund = panel().getAllByText("Refunded snapshot")[0]?.closest("button");
+
+    expect(ledgerRefund).toBeTruthy();
+    expect(ledgerRefund?.textContent).not.toContain("+₱");
   });
   it("retains ledger filters and the real Day Close draft across tab switches", () => {
     render(<CashFlowWorkspace initialData={workspace()} />);
@@ -101,17 +138,40 @@ describe("Cash Flow internal workspace", () => {
   });
   it("refreshes on a booking event, keeps records on failure and cleans up listeners", async () => {
     mocks.refresh.mockRejectedValue(new Error("offline"));
+
     const view = render(<CashFlowWorkspace initialData={workspace()} />);
-    await act(async () => {
+
+    act(() => {
       window.dispatchEvent(new Event(BOOKINGS_CHANGED_EVENT));
     });
-    expect(screen.getByText("Refresh unavailable")).toBeTruthy();
+
+    await waitFor(() => expect(mocks.refresh).toHaveBeenCalledTimes(1));
+    await waitFor(() => expect(screen.getByText("Refresh unavailable")).toBeTruthy());
+
     expect(panel().getByText("₱1,300.00")).toBeTruthy();
+
     view.unmount();
+
     window.dispatchEvent(new Event(BOOKINGS_CHANGED_EVENT));
+
+    await act(async () => {
+      await new Promise((resolve) => setTimeout(resolve, 250));
+    });
+
     expect(mocks.refresh).toHaveBeenCalledTimes(1);
   });
 
+  it("does not refresh merely because the browser window regains focus", async () => {
+    render(<CashFlowWorkspace initialData={workspace()} />);
+
+    window.dispatchEvent(new Event("focus"));
+
+    await act(async () => {
+      await new Promise((resolve) => setTimeout(resolve, 250));
+    });
+
+    expect(mocks.refresh).not.toHaveBeenCalled();
+  });
   it("loads dates only on explicit submit and validates the 31-day bound", async () => {
     render(<CashFlowWorkspace initialData={workspace()} />);
     selectTab("History");
@@ -126,9 +186,10 @@ describe("Cash Flow internal workspace", () => {
     );
   });
 
-  it("does not let an older refresh replace a newer result", async () => {
+  it("does not let an older event refresh replace a newer manual refresh", async () => {
     let resolveFirst!: (value: ReturnType<typeof workspace>) => void;
     let resolveSecond!: (value: ReturnType<typeof workspace>) => void;
+
     mocks.refresh
       .mockImplementationOnce(
         () =>
@@ -142,24 +203,32 @@ describe("Cash Flow internal workspace", () => {
             resolveSecond = resolve;
           })
       );
+
     render(<CashFlowWorkspace initialData={workspace()} />);
-    await act(async () => {
+
+    act(() => {
       window.dispatchEvent(new Event(BOOKINGS_CHANGED_EVENT));
     });
-    await act(async () => {
-      window.dispatchEvent(new Event("focus"));
-    });
+
+    await waitFor(() => expect(mocks.refresh).toHaveBeenCalledTimes(1));
+
+    fireEvent.click(screen.getByRole("button", { name: "Refresh" }));
+
+    await waitFor(() => expect(mocks.refresh).toHaveBeenCalledTimes(2));
+
     const newer = workspace();
     newer.today.summary.total_collected = 1800;
+
     await act(async () => {
       resolveSecond(newer);
     });
+
     await act(async () => {
       resolveFirst(workspace());
     });
+
     expect(panel().getByText("₱1,800.00")).toBeTruthy();
   });
-
   it("surfaces canonical save errors and keeps entered actual counts", async () => {
     mocks.save.mockResolvedValue({ ok: false, error: "TEST rejected save" });
     render(<CashFlowWorkspace initialData={workspace()} />);

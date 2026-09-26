@@ -28,6 +28,8 @@ export function CashFlowWorkspace({ initialData }: { initialData: CashFlowWorksp
   const [error, setError] = useState<string | null>(null);
   const [pending, setPending] = useState(false);
   const requestId = useRef(0);
+  const visibleRequestId = useRef(0);
+  const eventRefreshTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const active = useRef(true);
   useEffect(() => {
     const requests = requestId;
@@ -38,14 +40,23 @@ export function CashFlowWorkspace({ initialData }: { initialData: CashFlowWorksp
     };
   }, []);
   const refresh = useCallback(
-    async (nextRange?: CashFlowRange) => {
+    async (nextRange?: CashFlowRange, options?: { silent?: boolean }) => {
       const id = ++requestId.current;
-      setPending(true);
+      const silent = options?.silent ?? false;
+
+      if (!silent) {
+        visibleRequestId.current = id;
+        setPending(true);
+      }
+
       setError(null);
+
       try {
         const result = await refreshCashFlow(validateCashFlowRange(nextRange ?? data.range));
         if (!active.current || id !== requestId.current) return;
+
         setData(result);
+
         if (nextRange) {
           setRange(result.range);
           setSelectedDate(null);
@@ -56,20 +67,32 @@ export function CashFlowWorkspace({ initialData }: { initialData: CashFlowWorksp
             "Cash Flow could not refresh. Showing the last loaded records. Check your connection and access, then try again."
           );
       } finally {
-        if (active.current && id === requestId.current) setPending(false);
+        if (!silent && active.current && visibleRequestId.current === id) {
+          setPending(false);
+        }
       }
     },
     [data.range]
   );
   useEffect(() => {
     const update = () => {
-      if (document.visibilityState === "visible") void refresh();
+      if (eventRefreshTimer.current) clearTimeout(eventRefreshTimer.current);
+
+      eventRefreshTimer.current = setTimeout(() => {
+        eventRefreshTimer.current = null;
+        void refresh(undefined, { silent: true });
+      }, 200);
     };
+
     window.addEventListener(BOOKINGS_CHANGED_EVENT, update);
-    window.addEventListener("focus", update);
+
     return () => {
       window.removeEventListener(BOOKINGS_CHANGED_EVENT, update);
-      window.removeEventListener("focus", update);
+
+      if (eventRefreshTimer.current) {
+        clearTimeout(eventRefreshTimer.current);
+        eventRefreshTimer.current = null;
+      }
     };
   }, [refresh]);
   const entries = useMemo(() => data.days.flatMap((day) => day.entries), [data.days]);
@@ -80,33 +103,27 @@ export function CashFlowWorkspace({ initialData }: { initialData: CashFlowWorksp
     <CrmOperationalPageShell
       title="Cash Flow"
       context={`${data.branchName} · ${data.today.date}`}
-      description="Booking payments and Day Close"
+      description="Financial activity and daily reconciliation"
       actions={
         <>
           <CashFlowStatus>{data.today.reconciliation?.status ?? "Open"}</CashFlowStatus>
-          <Button variant="outline" disabled={pending} onClick={() => void refresh()}>
+          <Button variant="outline" className="h-9" disabled={pending} onClick={() => void refresh()}>
             {pending ? "Refreshing…" : "Refresh"}
           </Button>
-          <Button disabled title="Manual entries are planned for a later authorized stage">
-            + New Entry
-          </Button>
+
         </>
       }
     >
-      <p className="text-xs text-[var(--cs-text-muted)]">
-        Manual entries are not available yet. Loaded{" "}
-        {new Date(data.loadedAt).toLocaleString("en-PH", { timeZone: "Asia/Manila" })} (Philippine
-        time).
-      </p>
+
       {error && (
         <WorkspaceNotice tone="error" title="Refresh unavailable">
           {error}
         </WorkspaceNotice>
       )}
-      <Tabs value={tab} onValueChange={(value) => setTab(String(value))} className="min-w-0 gap-5">
+      <Tabs value={tab} onValueChange={(value) => setTab(String(value))} className="min-w-0 gap-4">
         <TabsList
           aria-label="Cash Flow views"
-          className="grid h-auto! min-h-11 w-full grid-cols-4 sm:w-fit"
+          className="grid h-auto! min-h-11 w-full grid-cols-4 rounded-xl border border-[var(--cs-border-soft)] bg-[var(--cs-surface-warm)] p-1 shadow-[var(--cs-shadow-xs)] sm:w-fit"
         >
           {[
             ["today", "Today"],
@@ -114,14 +131,14 @@ export function CashFlowWorkspace({ initialData }: { initialData: CashFlowWorksp
             ["day-close", "Day Close"],
             ["history", "History"],
           ].map(([value, label]) => (
-            <TabsTrigger key={value} value={value} className="min-h-11 px-3">
+            <TabsTrigger key={value} value={value} className="min-h-10 rounded-lg px-3 font-semibold data-active:bg-[var(--cs-surface)] data-active:text-[var(--cs-text)] data-active:shadow-[var(--cs-shadow-xs)] sm:px-4">
               {label}
             </TabsTrigger>
           ))}
         </TabsList>
         {(tab === "ledger" || tab === "history") && (
           <form
-            className="flex flex-wrap items-end gap-3"
+            className="flex flex-wrap items-end gap-3 rounded-xl border border-[var(--cs-border-soft)] bg-[var(--cs-surface-warm)] p-3"
             onSubmit={(event) => {
               event.preventDefault();
               try {
@@ -155,7 +172,7 @@ export function CashFlowWorkspace({ initialData }: { initialData: CashFlowWorksp
             <Button type="submit" variant="outline" disabled={pending}>
               Load dates
             </Button>
-            <p className="w-full text-xs text-[var(--cs-text-muted)]">
+            <p className="w-full border-t border-[var(--cs-border-soft)] pt-2 text-xs text-[var(--cs-text-muted)]">
               Loaded {data.range.from} – {data.range.to} · up to 31 days at a time.
             </p>
           </form>
@@ -180,7 +197,7 @@ export function CashFlowWorkspace({ initialData }: { initialData: CashFlowWorksp
         <TabsContent value="history" keepMounted hidden={tab !== "history"}>
           {selectedDay ? (
             <div className="space-y-5">
-              <Button variant="outline" onClick={() => setSelectedDate(null)}>
+              <Button variant="outline" className="h-9" onClick={() => setSelectedDate(null)}>
                 Back to daily history
               </Button>
               <CashFlowCloseRecord day={selectedDay} />
