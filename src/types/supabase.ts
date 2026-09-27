@@ -7084,6 +7084,18 @@ export type Database = {
       }
     }
     Functions: {
+      post_order_payment_atomic: {
+        Args: {
+          p_order_id: string
+          p_idempotency_key: string
+          p_payments: Json
+          p_allocations?: Json | null
+          p_business_date?: string | null
+          p_external_reference?: string | null
+          p_notes?: string | null
+        }
+        Returns: Json
+      }
       derive_order_payment_state: {
         Args: {
           p_total_payable: number

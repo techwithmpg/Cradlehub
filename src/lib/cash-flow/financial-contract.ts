@@ -1,3 +1,5 @@
+import { z } from 'zod';
+
 /**
  * CF2: Financial Accounts + Canonical Transaction & Movement Foundation
  * Authoritative Domain Contract & Invariants
@@ -42,6 +44,10 @@ export const FINANCIAL_PAYMENT_RAILS = [
 ] as const;
 
 export type FinancialPaymentRail = (typeof FINANCIAL_PAYMENT_RAILS)[number];
+
+export const FinancialPaymentRailSchema = z.enum(FINANCIAL_PAYMENT_RAILS);
+export type FinancialPaymentMethod = FinancialPaymentRail;
+export const FinancialPaymentMethodSchema = FinancialPaymentRailSchema;
 
 export const FINANCIAL_TRANSACTION_STATUSES = ['posted', 'reversed', 'voided'] as const;
 export type FinancialTransactionStatus = (typeof FINANCIAL_TRANSACTION_STATUSES)[number];
@@ -422,4 +428,116 @@ export function deriveOrderPaymentState(
     return 'partial';
   }
   return 'unpaid';
+}
+
+// ─── CF4: Canonical Payment Posting Command Contract ──────────────────────────
+
+export const PaymentPartPayloadSchema = z.object({
+  amount: z
+    .number({ message: 'Payment amount is required' })
+    .positive('Payment amount must be greater than zero')
+    .refine((v) => Number.isFinite(v) && Math.round(v * 100) === v * 100, {
+      message: 'Payment amount cannot have more than 2 decimal places',
+    }),
+  paymentMethod: FinancialPaymentMethodSchema,
+  financialAccountId: z.guid('Financial account ID must be a valid UUID'),
+  externalReference: z.string().trim().max(255).nullish(),
+});
+
+export type PaymentPartPayload = z.infer<typeof PaymentPartPayloadSchema>;
+
+export const PaymentAllocationPayloadSchema = z.object({
+  payableItemId: z.guid('Payable item ID must be a valid UUID'),
+  amount: z
+    .number({ message: 'Allocation amount is required' })
+    .positive('Allocation amount must be greater than zero')
+    .refine((v) => Number.isFinite(v) && Math.round(v * 100) === v * 100, {
+      message: 'Allocation amount cannot have more than 2 decimal places',
+    }),
+});
+
+export type PaymentAllocationPayload = z.infer<typeof PaymentAllocationPayloadSchema>;
+
+export const PostOrderPaymentPayloadSchema = z
+  .object({
+    orderId: z.guid('Booking order ID must be a valid UUID'),
+    idempotencyKey: z
+      .string({ message: 'Idempotency key is required' })
+      .trim()
+      .min(1, 'Idempotency key cannot be empty')
+      .max(255, 'Idempotency key exceeds maximum length'),
+    payments: z
+      .array(PaymentPartPayloadSchema)
+      .min(1, 'At least one payment tender/part is required'),
+    allocations: z.array(PaymentAllocationPayloadSchema).optional(),
+    businessDate: z
+      .string()
+      .regex(/^\d{4}-\d{2}-\d{2}$/, 'Business date must be YYYY-MM-DD')
+      .optional(),
+    externalReference: z.string().trim().max(255).nullish(),
+    notes: z.string().trim().max(1000).nullish(),
+  })
+  .refine(
+    (data) => {
+      if (!data.allocations || data.allocations.length === 0) return true;
+      const totalPaid = Math.round(data.payments.reduce((s, p) => s + p.amount, 0) * 100);
+      const totalAlloc = Math.round(data.allocations.reduce((s, a) => s + a.amount, 0) * 100);
+      return totalPaid === totalAlloc;
+    },
+    {
+      message: 'Sum of explicit item allocations must exactly equal total payment amount',
+      path: ['allocations'],
+    }
+  );
+
+export type PostOrderPaymentPayload = z.infer<typeof PostOrderPaymentPayloadSchema>;
+
+export interface PostOrderPaymentResult {
+  success: boolean;
+  isIdempotentReplay: boolean;
+  transactionId: string;
+  orderId: string;
+  branchId: string;
+  businessDate: string;
+  totalPaid: number;
+  totalPayable: number;
+  netAllocated: number;
+  remainingBalance: number;
+  paymentState: DerivedOrderPaymentState;
+  movements: Array<{
+    id: string;
+    financialAccountId: string;
+    amount: number;
+    paymentMethod: FinancialPaymentMethod;
+    externalReference: string | null;
+  }>;
+  allocations: Array<{
+    id: string;
+    financialAccountMovementId: string;
+    payableItemId: string | null;
+    amount: number;
+  }>;
+}
+
+/**
+ * Validates strict payment method to account type compatibility.
+ */
+export function isPaymentMethodCompatibleWithAccount(
+  method: FinancialPaymentMethod,
+  accountType: FinancialAccountType
+): boolean {
+  switch (method) {
+    case 'cash':
+      return accountType === 'cash_drawer';
+    case 'gcash':
+      return accountType === 'gcash';
+    case 'maya':
+      return accountType === 'maya';
+    case 'bank_transfer':
+      return accountType === 'bank_transfer';
+    case 'card':
+      return accountType === 'card_terminal';
+    default:
+      return false;
+  }
 }
