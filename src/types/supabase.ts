@@ -2375,6 +2375,65 @@ export type Database = {
           },
         ]
       }
+      financial_order_allocations: {
+        Row: {
+          amount: number
+          created_at: string
+          created_by: string | null
+          financial_account_movement_id: string
+          id: string
+          order_id: string
+          payable_item_id: string | null
+        }
+        Insert: {
+          amount: number
+          created_at?: string
+          created_by?: string | null
+          financial_account_movement_id: string
+          id?: string
+          order_id: string
+          payable_item_id?: string | null
+        }
+        Update: {
+          amount?: number
+          created_at?: string
+          created_by?: string | null
+          financial_account_movement_id?: string
+          id?: string
+          order_id?: string
+          payable_item_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "financial_order_allocations_financial_account_movement_id_fkey"
+            columns: ["financial_account_movement_id"]
+            isOneToOne: false
+            referencedRelation: "financial_account_movements"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "financial_order_allocations_order_id_fkey"
+            columns: ["order_id"]
+            isOneToOne: false
+            referencedRelation: "booking_orders"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "financial_order_allocations_payable_item_id_fkey"
+            columns: ["payable_item_id"]
+            isOneToOne: false
+            referencedRelation: "order_payable_items"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "financial_order_allocations_created_by_fkey"
+            columns: ["created_by"]
+            isOneToOne: false
+            referencedRelation: "staff"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       financial_transactions: {
         Row: {
           branch_id: string
@@ -2955,6 +3014,73 @@ export type Database = {
           updated_at?: string
         }
         Relationships: []
+      }
+      order_payable_items: {
+        Row: {
+          amount: number
+          booking_id: string | null
+          charge_type: "service" | "home_service_fee" | "retail_product" | "surcharge" | "discount" | "manual_adjustment" | "other_charge"
+          created_at: string
+          created_by: string | null
+          currency: string
+          description: string
+          id: string
+          order_id: string
+          sequence: number
+          source_id: string | null
+          source_type: string | null
+        }
+        Insert: {
+          amount: number
+          booking_id?: string | null
+          charge_type: "service" | "home_service_fee" | "retail_product" | "surcharge" | "discount" | "manual_adjustment" | "other_charge"
+          created_at?: string
+          created_by?: string | null
+          currency?: string
+          description: string
+          id?: string
+          order_id: string
+          sequence?: number
+          source_id?: string | null
+          source_type?: string | null
+        }
+        Update: {
+          amount?: number
+          booking_id?: string | null
+          charge_type?: "service" | "home_service_fee" | "retail_product" | "surcharge" | "discount" | "manual_adjustment" | "other_charge"
+          created_at?: string
+          created_by?: string | null
+          currency?: string
+          description?: string
+          id?: string
+          order_id?: string
+          sequence?: number
+          source_id?: string | null
+          source_type?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "order_payable_items_booking_id_fkey"
+            columns: ["booking_id"]
+            isOneToOne: false
+            referencedRelation: "bookings"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "order_payable_items_created_by_fkey"
+            columns: ["created_by"]
+            isOneToOne: false
+            referencedRelation: "staff"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "order_payable_items_order_id_fkey"
+            columns: ["order_id"]
+            isOneToOne: false
+            referencedRelation: "booking_orders"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       payroll_adjustments: {
         Row: {
@@ -6879,6 +7005,28 @@ export type Database = {
           },
         ]
       }
+      v_booking_order_financial_summaries: {
+        Row: {
+          allocation_count: number | null
+          branch_id: string | null
+          currency: string | null
+          net_allocated: number | null
+          order_id: string | null
+          payable_item_count: number | null
+          payment_state: string | null
+          remaining_balance: number | null
+          total_payable: number | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "booking_orders_branch_id_fkey"
+            columns: ["branch_id"]
+            isOneToOne: false
+            referencedRelation: "branches"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       v_booking_orders: {
         Row: {
           booking_date: string | null
@@ -6936,6 +7084,13 @@ export type Database = {
       }
     }
     Functions: {
+      derive_order_payment_state: {
+        Args: {
+          p_total_payable: number
+          p_net_allocated: number
+        }
+        Returns: string
+      }
       create_booking_order_atomic: {
         Args: {
           p_idempotency_key: string

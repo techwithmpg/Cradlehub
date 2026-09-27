@@ -254,4 +254,172 @@ export function assertValidReversal(originalId: string, candidateReversalId: str
   }
 }
 
+// ─── CF3: ORDER PAYABLE ITEMS & FINANCIAL ALLOCATIONS ─────────────────────────
 
+export const ORDER_PAYABLE_CHARGE_TYPES = [
+  'service',
+  'home_service_fee',
+  'retail_product',
+  'surcharge',
+  'discount',
+  'manual_adjustment',
+  'other_charge',
+] as const;
+
+export type OrderPayableChargeType = (typeof ORDER_PAYABLE_CHARGE_TYPES)[number];
+
+export const ORDER_PAYMENT_STATES = [
+  'unpaid',
+  'partial',
+  'paid',
+  'overpaid',
+  'partially_refunded',
+  'refunded',
+  'invalid_negative_payable',
+] as const;
+
+export type DerivedOrderPaymentState = (typeof ORDER_PAYMENT_STATES)[number];
+
+export function isValidOrderPayableChargeType(type: string): type is OrderPayableChargeType {
+  return (ORDER_PAYABLE_CHARGE_TYPES as readonly string[]).includes(type);
+}
+
+export interface OrderPayableItem {
+  id: string; // UUID primary key
+  orderId: string; // UUID references booking_orders(id)
+  bookingId: string | null; // UUID references bookings(id) for service lines
+  chargeType: OrderPayableChargeType;
+  description: string;
+  amount: number; // Signed NUMERIC(12,2)
+  currency: 'PHP';
+  sequence: number;
+  sourceType: string | null;
+  sourceId: string | null;
+  createdAt: string;
+  createdBy: string | null;
+}
+
+export interface OrderPayableItemPayload {
+  orderId: string;
+  bookingId?: string | null;
+  chargeType: OrderPayableChargeType;
+  description: string;
+  amount: number;
+  currency?: string;
+  sequence?: number;
+  sourceType?: string | null;
+  sourceId?: string | null;
+  createdBy?: string | null;
+}
+
+export function validateOrderPayableItemPayload(payload: OrderPayableItemPayload): void {
+  if (!payload.orderId || payload.orderId.trim() === '') {
+    throw new Error('PAYABLE_INVALID_PAYLOAD: orderId is required.');
+  }
+  if (!payload.description || payload.description.trim() === '') {
+    throw new Error('PAYABLE_INVALID_PAYLOAD: description is required.');
+  }
+  if (typeof payload.amount !== 'number' || !Number.isFinite(payload.amount)) {
+    throw new Error('PAYABLE_INVALID_PAYLOAD: amount must be a finite number.');
+  }
+  if (payload.amount === 0) {
+    throw new Error('PAYABLE_ZERO_AMOUNT: Payable item amount cannot be zero.');
+  }
+  if (!isValidOrderPayableChargeType(payload.chargeType)) {
+    throw new Error(`PAYABLE_INVALID_CHARGE_TYPE: Invalid charge type: ${payload.chargeType}`);
+  }
+
+  // Enforce sign semantics per charge type
+  if (
+    ['service', 'home_service_fee', 'retail_product', 'surcharge', 'other_charge'].includes(
+      payload.chargeType
+    )
+  ) {
+    if (payload.amount <= 0) {
+      throw new Error(
+        `PAYABLE_INVALID_SIGN: Charge type "${payload.chargeType}" must have a positive amount.`
+      );
+    }
+  } else if (payload.chargeType === 'discount') {
+    if (payload.amount >= 0) {
+      throw new Error('PAYABLE_INVALID_SIGN: Charge type "discount" must have a negative amount.');
+    }
+  }
+
+  // Service line requires bookingId
+  if (payload.chargeType === 'service' && (!payload.bookingId || payload.bookingId.trim() === '')) {
+    throw new Error('SERVICE_PAYABLE_REQUIRES_BOOKING: charge_type service requires bookingId.');
+  }
+}
+
+export interface FinancialOrderAllocation {
+  id: string; // UUID primary key
+  financialAccountMovementId: string; // UUID references financial_account_movements(id)
+  orderId: string; // UUID references booking_orders(id)
+  payableItemId: string | null; // Nullable; null = order-level allocation
+  amount: number; // Positive NUMERIC(12,2)
+  createdAt: string;
+  createdBy: string | null;
+}
+
+export interface FinancialOrderAllocationPayload {
+  financialAccountMovementId: string;
+  orderId: string;
+  payableItemId?: string | null;
+  amount: number;
+  createdBy?: string | null;
+}
+
+export function validateFinancialOrderAllocationPayload(
+  payload: FinancialOrderAllocationPayload
+): void {
+  if (
+    !payload.financialAccountMovementId ||
+    payload.financialAccountMovementId.trim() === ''
+  ) {
+    throw new Error('ALLOCATION_INVALID_PAYLOAD: financialAccountMovementId is required.');
+  }
+  if (!payload.orderId || payload.orderId.trim() === '') {
+    throw new Error('ALLOCATION_INVALID_PAYLOAD: orderId is required.');
+  }
+  if (typeof payload.amount !== 'number' || !Number.isFinite(payload.amount)) {
+    throw new Error('ALLOCATION_INVALID_PAYLOAD: amount must be a finite number.');
+  }
+  if (payload.amount <= 0) {
+    throw new Error('ALLOCATION_NON_POSITIVE: Allocation amount must be strictly greater than zero.');
+  }
+}
+
+export interface BookingOrderFinancialSummary {
+  orderId: string;
+  branchId: string;
+  currency: string;
+  totalPayable: number;
+  netAllocated: number;
+  remainingBalance: number;
+  paymentState: DerivedOrderPaymentState;
+  payableItemCount: number;
+  allocationCount: number;
+}
+
+/**
+ * CF1-D07 Pure Derived Order Payment State
+ */
+export function deriveOrderPaymentState(
+  totalPayable: number,
+  netAllocated: number
+): DerivedOrderPaymentState {
+  if (totalPayable < 0) {
+    return 'invalid_negative_payable';
+  }
+  if (netAllocated > totalPayable) {
+    return 'overpaid';
+  }
+  if (netAllocated === totalPayable) {
+    return 'paid';
+  }
+  if (netAllocated > 0 && netAllocated < totalPayable) {
+    return 'partial';
+  }
+  return 'unpaid';
+}
