@@ -1178,10 +1178,122 @@ export type Database = {
           },
         ]
       }
+      booking_attendees: {
+        Row: {
+          booking_order_id: string
+          created_at: string
+          customer_id: string | null
+          display_name: string
+          id: string
+          metadata: Json
+          notes: string | null
+          sequence: number
+        }
+        Insert: {
+          booking_order_id: string
+          created_at?: string
+          customer_id?: string | null
+          display_name: string
+          id?: string
+          metadata?: Json
+          notes?: string | null
+          sequence?: number
+        }
+        Update: {
+          booking_order_id?: string
+          created_at?: string
+          customer_id?: string | null
+          display_name?: string
+          id?: string
+          metadata?: Json
+          notes?: string | null
+          sequence?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "booking_attendees_booking_order_id_fkey"
+            columns: ["booking_order_id"]
+            isOneToOne: false
+            referencedRelation: "booking_orders"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "booking_attendees_customer_id_fkey"
+            columns: ["customer_id"]
+            isOneToOne: false
+            referencedRelation: "customers"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      booking_orders: {
+        Row: {
+          booking_date: string
+          branch_id: string
+          created_at: string
+          currency: string
+          delivery_type: string
+          id: string
+          idempotency_key: string
+          metadata: Json
+          order_number: string
+          organizer_customer_id: string
+          payload_hash: string
+          payment_preference: string
+          updated_at: string
+        }
+        Insert: {
+          booking_date: string
+          branch_id: string
+          created_at?: string
+          currency?: string
+          delivery_type?: string
+          id?: string
+          idempotency_key: string
+          metadata?: Json
+          order_number: string
+          organizer_customer_id: string
+          payload_hash: string
+          payment_preference?: string
+          updated_at?: string
+        }
+        Update: {
+          booking_date?: string
+          branch_id?: string
+          created_at?: string
+          currency?: string
+          delivery_type?: string
+          id?: string
+          idempotency_key?: string
+          metadata?: Json
+          order_number?: string
+          organizer_customer_id?: string
+          payload_hash?: string
+          payment_preference?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "booking_orders_branch_id_fkey"
+            columns: ["branch_id"]
+            isOneToOne: false
+            referencedRelation: "branches"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "booking_orders_organizer_customer_id_fkey"
+            columns: ["organizer_customer_id"]
+            isOneToOne: false
+            referencedRelation: "customers"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       bookings: {
         Row: {
           amount_paid: number
           arrived_at: string | null
+          attendee_id: string | null
           booking_buffer_after_minutes_snapshot: number | null
           booking_buffer_before_minutes_snapshot: number | null
           booking_date: string
@@ -1197,8 +1309,10 @@ export type Database = {
           hold_expires_at: string | null
           home_service_tracking_status: string
           id: string
+          line_sequence: number | null
           metadata: Json
           no_show_at: string | null
+          order_id: string | null
           payment_method: string
           payment_reference: string | null
           payment_status: string
@@ -1230,6 +1344,7 @@ export type Database = {
         Insert: {
           amount_paid?: number
           arrived_at?: string | null
+          attendee_id?: string | null
           booking_buffer_after_minutes_snapshot?: number | null
           booking_buffer_before_minutes_snapshot?: number | null
           booking_date: string
@@ -1245,8 +1360,10 @@ export type Database = {
           hold_expires_at?: string | null
           home_service_tracking_status?: string
           id?: string
+          line_sequence?: number | null
           metadata?: Json
           no_show_at?: string | null
+          order_id?: string | null
           payment_method?: string
           payment_reference?: string | null
           payment_status?: string
@@ -1278,6 +1395,7 @@ export type Database = {
         Update: {
           amount_paid?: number
           arrived_at?: string | null
+          attendee_id?: string | null
           booking_buffer_after_minutes_snapshot?: number | null
           booking_buffer_before_minutes_snapshot?: number | null
           booking_date?: string
@@ -1293,8 +1411,10 @@ export type Database = {
           hold_expires_at?: string | null
           home_service_tracking_status?: string
           id?: string
+          line_sequence?: number | null
           metadata?: Json
           no_show_at?: string | null
+          order_id?: string | null
           payment_method?: string
           payment_reference?: string | null
           payment_status?: string
@@ -1324,6 +1444,20 @@ export type Database = {
           updated_at?: string
         }
         Relationships: [
+          {
+            foreignKeyName: "bookings_attendee_id_fkey"
+            columns: ["attendee_id"]
+            isOneToOne: false
+            referencedRelation: "booking_attendees"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "bookings_order_id_fkey"
+            columns: ["order_id"]
+            isOneToOne: false
+            referencedRelation: "booking_orders"
+            referencedColumns: ["id"]
+          },
           {
             foreignKeyName: "bookings_branch_id_fkey"
             columns: ["branch_id"]
@@ -6577,8 +6711,57 @@ export type Database = {
           },
         ]
       }
+      v_booking_orders: {
+        Row: {
+          booking_date: string | null
+          branch_id: string | null
+          created_at: string | null
+          currency: string | null
+          delivery_type: string | null
+          derived_status: string | null
+          id: string | null
+          idempotency_key: string | null
+          metadata: Json | null
+          order_number: string | null
+          organizer_customer_id: string | null
+          payload_hash: string | null
+          payment_preference: string | null
+          updated_at: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "booking_orders_branch_id_fkey"
+            columns: ["branch_id"]
+            isOneToOne: false
+            referencedRelation: "branches"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "booking_orders_organizer_customer_id_fkey"
+            columns: ["organizer_customer_id"]
+            isOneToOne: false
+            referencedRelation: "customers"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
     }
     Functions: {
+      create_booking_order_atomic: {
+        Args: {
+          p_idempotency_key: string
+          p_order: Json
+          p_attendees: Json
+          p_service_lines: Json
+        }
+        Returns: Json
+      }
+      derive_booking_order_status: {
+        Args: {
+          p_order_id: string
+        }
+        Returns: string
+      }
       apply_attendance_review_correction: {
         Args: {
           p_action: string

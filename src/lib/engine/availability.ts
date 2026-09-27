@@ -1,5 +1,5 @@
 import { createAdminClient } from "@/lib/supabase/admin";
-import type { AvailabilitySlot } from "@/types";
+import type { AvailabilitySlot, StaffTier } from "@/types";
 import { SlotUnavailableError } from "@/types/errors";
 import {
   canActAsBookingServiceProvider,
@@ -911,4 +911,193 @@ export async function assertMultiServiceSlotAvailable(params: {
   );
 
   if (!slot) throw new SlotUnavailableError();
+}
+
+export type OrderAttendeeRequirement = {
+  id?: string;
+  serviceIds: string[];
+};
+
+export function findDistinctStaffAssignment(
+  candidateStaffPerAttendee: string[][],
+  assignedStaff: string[] = []
+): string[] | null {
+  const attendeeIdx = assignedStaff.length;
+  if (attendeeIdx === candidateStaffPerAttendee.length) {
+    return assignedStaff;
+  }
+
+  const candidates = candidateStaffPerAttendee[attendeeIdx]!;
+  for (const staffId of candidates) {
+    if (!assignedStaff.includes(staffId)) {
+      const result = findDistinctStaffAssignment(candidateStaffPerAttendee, [
+        ...assignedStaff,
+        staffId,
+      ]);
+      if (result) return result;
+    }
+  }
+  return null;
+}
+
+/**
+ * Calculates availability for a multi-attendee booking order.
+ * - Same attendee's services run sequentially (handled by getAvailableSlotsMulti)
+ * - Different attendees run concurrently at the same startTime
+ * - Requires enough distinct, qualified therapists free simultaneously for all attendees.
+ */
+export async function getAvailableSlotsForOrder(params: {
+  branchId: string;
+  attendees: OrderAttendeeRequirement[];
+  date: string;
+  deliveryMode?: ServiceDeliveryMode;
+  requireStaffServiceAssignment?: boolean;
+  allowStaffTypeFallbackAlongsideAssignments?: boolean;
+}): Promise<AvailabilitySlot[]> {
+  const { branchId, attendees, date, deliveryMode } = params;
+
+  if (attendees.length === 0) return [];
+  if (attendees.length === 1) {
+    return getAvailableSlotsMulti({
+      branchId,
+      serviceIds: attendees[0]!.serviceIds,
+      date,
+      deliveryMode,
+      requireStaffServiceAssignment: params.requireStaffServiceAssignment,
+      allowStaffTypeFallbackAlongsideAssignments:
+        params.allowStaffTypeFallbackAlongsideAssignments,
+    });
+  }
+
+  // Multi-attendee order: get candidate slots for each attendee concurrently
+  const attendeeSlots = await Promise.all(
+    attendees.map((attendee) =>
+      getAvailableSlotsMulti({
+        branchId,
+        serviceIds: attendee.serviceIds,
+        date,
+        deliveryMode,
+        requireStaffServiceAssignment: params.requireStaffServiceAssignment,
+        allowStaffTypeFallbackAlongsideAssignments:
+          params.allowStaffTypeFallbackAlongsideAssignments,
+      })
+    )
+  );
+
+  // Collect all unique slot times across all attendees
+  const allSlotTimes = new Set<string>();
+  for (const slots of attendeeSlots) {
+    for (const slot of slots) {
+      allSlotTimes.add(slot.slot_time);
+    }
+  }
+
+  const sortedSlotTimes = Array.from(allSlotTimes).sort();
+  const orderSlots: AvailabilitySlot[] = [];
+
+  for (const slotTime of sortedSlotTimes) {
+    const candidatesPerAttendee: string[][] = [];
+    let allAttendeesHaveCandidates = true;
+
+    for (let i = 0; i < attendees.length; i++) {
+      const attendeeSlotList = attendeeSlots[i]!;
+      const availableStaff = attendeeSlotList
+        .filter((s) => s.slot_time === slotTime && s.available)
+        .map((s) => s.staff_id);
+
+      if (availableStaff.length === 0) {
+        allAttendeesHaveCandidates = false;
+        break;
+      }
+      candidatesPerAttendee.push(availableStaff);
+    }
+
+    const isAvailable =
+      allAttendeesHaveCandidates &&
+      findDistinctStaffAssignment(candidatesPerAttendee) !== null;
+
+    // Pick first candidate's slot metadata for display
+    const firstAttendeeSlots = attendeeSlots[0]!;
+    const matchingFirst = firstAttendeeSlots.find((s) => s.slot_time === slotTime);
+
+    orderSlots.push({
+      staff_id: matchingFirst?.staff_id ?? "auto",
+      staff_name: isAvailable ? "Available Therapists" : "Unavailable",
+      staff_tier: (matchingFirst?.staff_tier ?? "senior") as StaffTier,
+      slot_time: slotTime,
+      available: isAvailable,
+    });
+  }
+
+  return filterPastSlotsForDate({
+    selectedDate: date,
+    slots: orderSlots,
+    timezone: BRANCH_TIMEZONE,
+  });
+}
+
+/**
+ * Assigns distinct therapists to each attendee concurrently at startTime.
+ * Prioritizes seniority and ensures no therapist is double-booked across attendees.
+ */
+export async function assignTherapistsForOrder(params: {
+  branchId: string;
+  attendees: Array<{ id?: string; serviceIds: string[] }>;
+  date: string;
+  startTime: string;
+  deliveryMode?: ServiceDeliveryMode;
+  preferredStaffId?: string;
+  requireStaffServiceAssignment?: boolean;
+}): Promise<Array<{ attendeeId?: string; staffId: string }>> {
+  const { branchId, attendees, date, startTime, deliveryMode, preferredStaffId } = params;
+
+  if (attendees.length === 0) throw new SlotUnavailableError();
+
+  const TIER_ORDER: Record<string, number> = { senior: 0, mid: 1, junior: 2 };
+
+  // For each attendee, get qualified available staff at startTime
+  const candidateLists = await Promise.all(
+    attendees.map(async (attendee) => {
+      const slots = await getAvailableSlotsMulti({
+        branchId,
+        serviceIds: attendee.serviceIds,
+        date,
+        deliveryMode,
+        requireStaffServiceAssignment: params.requireStaffServiceAssignment ?? true,
+      });
+
+      const candidates = slots.filter(
+        (s) => s.available && s.slot_time.startsWith(startTime.substring(0, 5))
+      );
+
+      // Sort by seniority
+      candidates.sort((a, b) => {
+        const tierDiff = (TIER_ORDER[a.staff_tier] ?? 9) - (TIER_ORDER[b.staff_tier] ?? 9);
+        if (tierDiff !== 0) return tierDiff;
+        return a.staff_name.localeCompare(b.staff_name);
+      });
+
+      let staffIds = candidates.map((c) => c.staff_id);
+
+      // If preferred staff is specified and capable for attendee 0, prioritize them
+      if (preferredStaffId && staffIds.includes(preferredStaffId)) {
+        staffIds = [
+          preferredStaffId,
+          ...staffIds.filter((id) => id !== preferredStaffId),
+        ];
+      }
+
+      return staffIds;
+    })
+  );
+
+  const assignment = findDistinctStaffAssignment(candidateLists);
+  if (!assignment || assignment.length !== attendees.length) {
+    throw new SlotUnavailableError();
+  }
+
+  return attendees.map((attendee, idx) => ({
+    attendeeId: attendee.id,
+    staffId: assignment[idx]!,
+  }));
 }

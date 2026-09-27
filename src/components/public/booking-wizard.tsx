@@ -39,10 +39,16 @@ import {
   LockKeyhole,
   BadgeCheck,
   X,
+  Users,
+  Gift,
+  Plus,
+  AlertCircle,
 } from "lucide-react";
 import { toast } from "sonner";
 import { createOnlineBookingMultiAction } from "@/lib/actions/online-booking";
 import { createInhouseBookingMultiAction } from "@/lib/actions/inhouse-booking";
+import { validateBookingDraft } from "@/lib/bookings/booking-wizard-validation";
+import type { BookingForChoice, BookingPaymentChoice } from "@/lib/bookings/booking-order-contract";
 import {
   PlacesAutocomplete,
   type GoogleAddressComponent,
@@ -59,7 +65,6 @@ import {
   type ExistingHsBooking,
   type SlotDispatchStatus,
 } from "@/lib/bookings/dispatch-slot-filter";
-import { isPastSlot, BRANCH_TIMEZONE } from "@/lib/engine/slot-time";
 import {
   VISIT_TYPE_OPTIONS,
   VISIT_TYPE_ORDER,
@@ -68,12 +73,15 @@ import {
   getVisitTypeForBookingType,
   getVisitTypeAvailability,
   isVisitTypeEnabled,
-  isTimeAllowedForVisitType,
   type BookingType,
   type BookingWizardMode,
   type VisitType,
 } from "@/lib/bookings/visit-type-availability";
 import type { BranchBookingRules } from "@/lib/bookings/booking-rules-config";
+import {
+  getOrCreateCheckoutAttemptId,
+  resetCheckoutAttemptId,
+} from "@/lib/bookings/bkg3-atomic-contract";
 
 type Branch = {
   id: string;
@@ -82,6 +90,13 @@ type Branch = {
 };
 
 type Service = BookingWizardService;
+
+type WizardAttendee = {
+  id: string;
+  name: string;
+  isOrganizer: boolean;
+  serviceIds: string[];
+};
 
 type Slot = {
   staff_id: string;
@@ -149,22 +164,22 @@ type InitialCustomer = {
 };
 
 const STEPS_BASE = [
-  { id: 1, name: "branch",    label: "Branch" },
-  { id: 2, name: "visit",     label: "Visit Type" },
-  { id: 3, name: "services",  label: "Services" },
+  { id: 1, name: "branch", label: "Branch" },
+  { id: 2, name: "visit", label: "Visit Type" },
+  { id: 3, name: "services", label: "Services" },
   { id: 4, name: "date_time", label: "Date & Time" },
   { id: 5, name: "therapist", label: "Therapist" },
-  { id: 6, name: "details",   label: "Details" },
+  { id: 6, name: "details", label: "Details" },
 ];
 
 const STEPS_HS = [
-  { id: 1, name: "branch",    label: "Branch" },
-  { id: 2, name: "visit",     label: "Visit Type" },
-  { id: 3, name: "services",  label: "Services" },
-  { id: 4, name: "location",  label: "Location" },
+  { id: 1, name: "branch", label: "Branch" },
+  { id: 2, name: "visit", label: "Visit Type" },
+  { id: 3, name: "services", label: "Services" },
+  { id: 4, name: "location", label: "Location" },
   { id: 5, name: "date_time", label: "Date & Time" },
   { id: 6, name: "therapist", label: "Therapist" },
-  { id: 7, name: "details",   label: "Details" },
+  { id: 7, name: "details", label: "Details" },
 ];
 
 const MOBILE_PROGRESS_STEPS = ["Branch", "Service", "Date & Time", "Details", "Confirm"] as const;
@@ -190,10 +205,8 @@ const WARM_IDLE_CARD_CLS =
   "border-[#D4B57A]/25 bg-[#0D2B20]/58 hover:border-[#D4B57A]/55 hover:bg-[#0D2B20]/72";
 const WARM_PRIMARY_BUTTON_CLS =
   "bg-gradient-to-r from-[#D4B57A] via-[#C8A96A] to-[#B88945] text-[#031B16] shadow-[0_18px_42px_rgba(200,169,106,0.25)]";
-const WARM_DISABLED_BUTTON_CLS =
-  "border border-[#D4B57A]/18 bg-[#0A261E]/62 text-[#F6EBD6]/38";
-const WARM_SKELETON_CLS =
-  "bg-[#05241D]/65 after:via-[#D4B57A]/18";
+const WARM_DISABLED_BUTTON_CLS = "border border-[#D4B57A]/18 bg-[#0A261E]/62 text-[#F6EBD6]/38";
+const WARM_SKELETON_CLS = "bg-[#05241D]/65 after:via-[#D4B57A]/18";
 const BOOKING_CALENDAR_CLASSNAMES = {
   root: "w-fit text-[#F6EBD6]",
   months: "relative flex flex-col gap-4 md:flex-row",
@@ -206,15 +219,13 @@ const BOOKING_CALENDAR_CLASSNAMES = {
   button_next:
     "size-(--cell-size) select-none rounded-lg border border-[#D4B57A]/25 bg-[#05241D]/55 p-0 text-[#D4B57A] transition-colors hover:border-[#D4B57A]/55 hover:bg-[#0D2B20]/80 aria-disabled:opacity-35",
   weekdays: "flex",
-  weekday:
-    "flex-1 rounded-lg text-[0.8rem] font-medium text-[#F6EBD6]/58 select-none",
+  weekday: "flex-1 rounded-lg text-[0.8rem] font-medium text-[#F6EBD6]/58 select-none",
   week: "mt-2 flex w-full",
   month_grid: "w-full border-collapse",
   day: "group/day relative aspect-square h-full w-full rounded-lg p-0 text-center select-none",
   day_button:
     "relative isolate z-10 flex aspect-square size-auto w-full min-w-(--cell-size) flex-col gap-1 rounded-lg border border-transparent bg-transparent text-[#F6EBD6] leading-none font-medium transition-colors hover:border-[#D4B57A]/55 hover:bg-[#05241D]/80 focus-visible:border-[#D4B57A]/75 focus-visible:ring-2 focus-visible:ring-[#D4B57A]/20 disabled:text-[#F6EBD6]/24 disabled:hover:border-transparent disabled:hover:bg-transparent data-[selected-single=true]:border-[#D4B57A] data-[selected-single=true]:bg-[#D4B57A] data-[selected-single=true]:text-[#031B16] data-[selected-single=true]:shadow-[0_0_22px_rgba(212,181,122,0.22)] data-[selected-single=true]:hover:bg-[#D4B57A]",
-  today:
-    "rounded-lg border border-[#D4B57A]/45 bg-[#05241D]/72 text-[#F6EBD6]",
+  today: "rounded-lg border border-[#D4B57A]/45 bg-[#05241D]/72 text-[#F6EBD6]",
   outside: "text-[#F6EBD6]/24 aria-selected:text-[#031B16]",
   disabled: "text-[#F6EBD6]/22 opacity-45",
   selected: "rounded-lg",
@@ -226,7 +237,7 @@ function getSteps(isHomeService: boolean) {
 }
 
 function getStepName(stepNum: number, isHomeService: boolean): string {
-  return (getSteps(isHomeService).find((s) => s.id === stepNum)?.name) ?? "branch";
+  return getSteps(isHomeService).find((s) => s.id === stepNum)?.name ?? "branch";
 }
 
 function getMobileProgressIndex(stepName: string) {
@@ -310,9 +321,7 @@ function normalizePublicSlots(rawSlots: Slot[]): Slot[] {
       byTime.set(slot.slot_time, slot);
     }
   }
-  return Array.from(byTime.values()).sort((a, b) =>
-    a.slot_time.localeCompare(b.slot_time)
-  );
+  return Array.from(byTime.values()).sort((a, b) => a.slot_time.localeCompare(b.slot_time));
 }
 
 // Unique available therapists at a specific slot_time, sorted by tier then name.
@@ -368,14 +377,10 @@ function qualifiedStaffPreferenceOptions(
   availableStaff: StaffOption[],
   selectedServiceIds: string[]
 ): StaffOption[] {
-  const availableById = new Map(
-    availableStaff.map((member) => [member.staff_id, member])
-  );
+  const availableById = new Map(availableStaff.map((member) => [member.staff_id, member]));
 
   return Array.from(staffLookup.entries())
-    .filter(([, lookup]) =>
-      staffQualifiedForSelectedServices(lookup, selectedServiceIds)
-    )
+    .filter(([, lookup]) => staffQualifiedForSelectedServices(lookup, selectedServiceIds))
     .map(([staffId, lookup]) => {
       const available = availableById.get(staffId);
       const fullName = lookup.fullName ?? lookup.name ?? "Staff member";
@@ -394,11 +399,8 @@ function qualifiedStaffPreferenceOptions(
       const availabilityDifference =
         Number(b.staff_schedule_available) - Number(a.staff_schedule_available);
       if (availabilityDifference !== 0) return availabilityDifference;
-      const tierDifference =
-        (TIER_ORDER[a.staff_tier] ?? 9) - (TIER_ORDER[b.staff_tier] ?? 9);
-      return tierDifference !== 0
-        ? tierDifference
-        : a.staff_name.localeCompare(b.staff_name);
+      const tierDifference = (TIER_ORDER[a.staff_tier] ?? 9) - (TIER_ORDER[b.staff_tier] ?? 9);
+      return tierDifference !== 0 ? tierDifference : a.staff_name.localeCompare(b.staff_name);
     });
 }
 
@@ -421,15 +423,20 @@ export function BookingWizard({
   const [step, setStep] = useState(1);
   const { isOffline } = useNetworkStatus();
   const stepScrollRef = useRef<HTMLDivElement>(null);
+  const isSubmittingRef = useRef(false);
+  const checkoutAttemptIdRef = useRef<string>(getOrCreateCheckoutAttemptId());
+
+  useEffect(() => {
+    // Sync with persistent sessionStorage attempt ID upon client hydration
+    checkoutAttemptIdRef.current = getOrCreateCheckoutAttemptId();
+  }, []);
 
   // Data
   const [branches, setBranches] = useState<Branch[]>([]);
   const [services, setServices] = useState<Service[]>([]);
   const [rawSlots, setRawSlots] = useState<Slot[]>([]);
   const [slots, setSlots] = useState<Slot[]>([]);
-  const [bookingRules, setBookingRules] = useState<BranchBookingRules | null>(
-    null
-  );
+  const [bookingRules, setBookingRules] = useState<BranchBookingRules | null>(null);
   const [staffLookup, setStaffLookup] = useState<Map<string, StaffLookup>>(new Map());
   const [existingHsBookings, setExistingHsBookings] = useState<ExistingHsBooking[]>([]);
   const [hsDriverCapacity, setHsDriverCapacity] = useState(1);
@@ -441,6 +448,8 @@ export function BookingWizard({
   const [submitting, setSubmitting] = useState(false);
   const [success, setSuccess] = useState<{
     bookingId: string;
+    orderId?: string;
+    orderNumber?: string;
     staffPreferenceNeedsConfirmation: boolean;
   } | null>(null);
   const [availabilityMessage, setAvailabilityMessage] = useState("");
@@ -450,14 +459,26 @@ export function BookingWizard({
   const [selectedServices, setSelectedServices] = useState<Service[]>([]);
   const [selectedDate, setSelectedDate] = useState<Date | undefined>(undefined);
   const [selectedSlot, setSelectedSlot] = useState<Slot | null>(null);
-  const [selectedStaff, setSelectedStaff] = useState<"auto" | string>(
-    DEFAULT_STAFF_PREFERENCE
-  );
+  const [selectedStaff, setSelectedStaff] = useState<"auto" | string>(DEFAULT_STAFF_PREFERENCE);
   const [bookingType, setBookingType] = useState<BookingType>(
     // Seed from initialVisitType when provided (CRM walk-in / home-service routing).
     // Falls back to "in_spa" default — preserves existing public booking behavior.
     getBookingTypeForVisitType(initialVisitType ?? "in_spa", mode)
   );
+
+  // Progressive Disclosure: Booking for & Attendees
+  const [bookingFor, setBookingFor] = useState<BookingForChoice>("me");
+  const [recipientName, setRecipientName] = useState("");
+  const [paymentChoice, setPaymentChoice] = useState<BookingPaymentChoice>("pay_later");
+  const [attendees, setAttendees] = useState<WizardAttendee[]>([
+    {
+      id: "att-1",
+      name: "Guest 1 (You)",
+      isOrganizer: true,
+      serviceIds: [],
+    },
+  ]);
+  const [activeAttendeeId, setActiveAttendeeId] = useState<string>("att-1");
 
   // Form
   const [form, setForm] = useState({
@@ -489,27 +510,66 @@ export function BookingWizard({
   const [placesStatus, setPlacesStatus] = useState<PlacesAutocompleteStatus>("idle");
 
   // Computed
-  const totalDuration = useMemo(
-    () => selectedServices.reduce((s, svc) => s + svc.durationMinutes, 0),
-    [selectedServices]
+  const activeAttendee = useMemo(
+    () => attendees.find((a) => a.id === activeAttendeeId) ?? attendees[0],
+    [attendees, activeAttendeeId]
   );
-  const totalPrice = useMemo(
-    () => selectedServices.reduce((s, svc) => s + svc.price, 0),
-    [selectedServices]
-  );
-  const selectedServiceIds = useMemo(
-    () => selectedServices.map((service) => service.id),
-    [selectedServices]
-  );
+
+  const activeServicesForPicker = useMemo(() => {
+    if (bookingFor === "me_and_others" && activeAttendee) {
+      return services.filter((s) => activeAttendee.serviceIds.includes(s.id));
+    }
+    return selectedServices;
+  }, [bookingFor, activeAttendee, services, selectedServices]);
+
+  const allSelectedServiceIds = useMemo(() => {
+    if (bookingFor === "me_and_others") {
+      return Array.from(new Set(attendees.flatMap((a) => a.serviceIds)));
+    }
+    return selectedServices.map((service) => service.id);
+  }, [bookingFor, attendees, selectedServices]);
+
+  const allSelectedServices = useMemo(() => {
+    return services.filter((s) => allSelectedServiceIds.includes(s.id));
+  }, [services, allSelectedServiceIds]);
+
+  const totalDuration = useMemo(() => {
+    if (bookingFor === "me_and_others") {
+      return Math.max(
+        ...attendees.map((att) =>
+          att.serviceIds.reduce((sum, sId) => {
+            const svc = services.find((s) => s.id === sId);
+            return sum + (svc?.durationMinutes ?? 0);
+          }, 0)
+        ),
+        0
+      );
+    }
+    return selectedServices.reduce((s, svc) => s + svc.durationMinutes, 0);
+  }, [bookingFor, attendees, services, selectedServices]);
+
+  const totalPrice = useMemo(() => {
+    if (bookingFor === "me_and_others") {
+      return attendees.reduce((total, att) => {
+        return (
+          total +
+          att.serviceIds.reduce((sum, sId) => {
+            const svc = services.find((s) => s.id === sId);
+            return sum + (svc?.price ?? 0);
+          }, 0)
+        );
+      }, 0);
+    }
+    return selectedServices.reduce((s, svc) => s + svc.price, 0);
+  }, [bookingFor, attendees, services, selectedServices]);
+
+  const selectedServiceIds = allSelectedServiceIds;
   const selectedVisitType = useMemo(
     () => getVisitTypeForBookingType(bookingType, mode),
     [bookingType, mode]
   );
   const visitType = useMemo(
-    () =>
-      isVisitTypeEnabled(selectedVisitType, bookingRules)
-        ? selectedVisitType
-        : "in_spa",
+    () => (isVisitTypeEnabled(selectedVisitType, bookingRules) ? selectedVisitType : "in_spa"),
     [bookingRules, selectedVisitType]
   );
   const isHomeService = visitType === "home_service";
@@ -522,48 +582,34 @@ export function BookingWizard({
   const eligibleServices = useMemo(
     () =>
       services.filter((svc) =>
-        isHomeService
-          ? (svc.availableHomeService ?? false)
-          : (svc.availableInSpa ?? true)
+        isHomeService ? (svc.availableHomeService ?? false) : (svc.availableInSpa ?? true)
       ),
     [services, isHomeService]
   );
   const availableStaffAtSlot = useMemo(
     () =>
       selectedSlot
-        ? staffAtSlot(
-            rawSlots,
-            selectedSlot.slot_time,
-            staffLookup,
-            selectedServiceIds
-          )
+        ? staffAtSlot(rawSlots, selectedSlot.slot_time, staffLookup, selectedServiceIds)
         : [],
     [rawSlots, selectedSlot, selectedServiceIds, staffLookup]
   );
   const staffPreferenceOptions = useMemo(
     () =>
       mode === "public"
-        ? qualifiedStaffPreferenceOptions(
-            staffLookup,
-            availableStaffAtSlot,
-            selectedServiceIds
-          )
+        ? qualifiedStaffPreferenceOptions(staffLookup, availableStaffAtSlot, selectedServiceIds)
         : availableStaffAtSlot,
     [availableStaffAtSlot, mode, selectedServiceIds, staffLookup]
   );
-  const selectedStaffForBooking = useMemo(
-    () => {
-      // Public manual choices are preferences: qualification is required, but
-      // schedule conflicts are reviewed by CRM after the booking is received.
-      if (selectedStaff !== "auto") {
-        return staffPreferenceOptions.some((s) => s.staff_id === selectedStaff)
-          ? selectedStaff
-          : DEFAULT_STAFF_PREFERENCE;
-      }
-      return DEFAULT_STAFF_PREFERENCE;
-    },
-    [selectedStaff, staffPreferenceOptions]
-  );
+  const selectedStaffForBooking = useMemo(() => {
+    // Public manual choices are preferences: qualification is required, but
+    // schedule conflicts are reviewed by CRM after the booking is received.
+    if (selectedStaff !== "auto") {
+      return staffPreferenceOptions.some((s) => s.staff_id === selectedStaff)
+        ? selectedStaff
+        : DEFAULT_STAFF_PREFERENCE;
+    }
+    return DEFAULT_STAFF_PREFERENCE;
+  }, [selectedStaff, staffPreferenceOptions]);
 
   // Dispatch status per slot_time (home_service only)
   const dispatchStatuses = useMemo<Map<string, SlotDispatchStatus>>(() => {
@@ -576,7 +622,7 @@ export function BookingWizard({
           totalDuration,
           existingHsBookings,
           form.hsZone,
-          hsDriverCapacity,
+          hsDriverCapacity
         ),
       ])
     );
@@ -599,7 +645,9 @@ export function BookingWizard({
           const preferredBranch =
             (initialBranchId
               ? nextBranches.find((branch) => branch.id === initialBranchId)
-              : null) ?? nextBranches[0] ?? null;
+              : null) ??
+            nextBranches[0] ??
+            null;
           setSelectedBranch(preferredBranch);
         }
         setLoadingBranches(false);
@@ -672,26 +720,45 @@ export function BookingWizard({
           setHsDriverCapacity(data.driverCapacity);
         }
       })
-      .catch(() => { /* non-fatal — dispatch filter degrades to "ok" */ });
+      .catch(() => {
+        /* non-fatal — dispatch filter degrades to "ok" */
+      });
   }, [isHomeService, selectedBranch, selectedDate]);
 
   // Fetch slots when branch + services + date are all selected
   useEffect(() => {
-    if (!selectedBranch || selectedServices.length === 0 || !selectedDate) {
+    const hasServicesSelected =
+      bookingFor === "me_and_others"
+        ? attendees.some((a) => a.serviceIds.length > 0)
+        : selectedServices.length > 0;
+
+    if (!selectedBranch || !hasServicesSelected || !selectedDate) {
       return;
     }
     const id = setTimeout(() => setLoadingSlots(true), 0);
     const dateStr = toLocalYmd(selectedDate);
-    const serviceIds = selectedServices.map((s) => s.id).join(",");
     const params = new URLSearchParams({
       branchId: selectedBranch.id,
-      serviceIds,
       date: dateStr,
       deliveryType: visitType,
     });
-    fetch(
-      `/api/booking/available-slots?${params.toString()}`
-    )
+
+    if (bookingFor === "me_and_others") {
+      const attendeePayload = attendees
+        .filter((a) => a.serviceIds.length > 0)
+        .map((a) => ({
+          id: a.id,
+          name: a.name,
+          isOrganizer: a.isOrganizer,
+          serviceIds: a.serviceIds,
+        }));
+      params.set("attendees", JSON.stringify(attendeePayload));
+      params.set("serviceIds", allSelectedServiceIds.join(","));
+    } else {
+      params.set("serviceIds", selectedServices.map((s) => s.id).join(","));
+    }
+
+    fetch(`/api/booking/available-slots?${params.toString()}`)
       .then(async (r) => {
         const data = await r.json();
         if (!r.ok) {
@@ -701,11 +768,7 @@ export function BookingWizard({
       })
       .then((data) => {
         const all = (data.slots ?? []) as Slot[];
-        const visitTypeSlots = filterSlotsByVisitType(
-          all,
-          visitType,
-          bookingRules
-        );
+        const visitTypeSlots = filterSlotsByVisitType(all, visitType, bookingRules);
         setRawSlots(visitTypeSlots);
         setSlots(normalizePublicSlots(visitTypeSlots));
         setAvailabilityMessage(data.reason?.message ?? "");
@@ -718,42 +781,189 @@ export function BookingWizard({
         setLoadingSlots(false);
       });
     return () => clearTimeout(id);
-  }, [selectedBranch, selectedServices, selectedDate, visitType, bookingRules]);
+  }, [
+    selectedBranch,
+    selectedServices,
+    selectedDate,
+    visitType,
+    bookingRules,
+    bookingFor,
+    attendees,
+    allSelectedServiceIds,
+  ]);
 
-  const toggleService = useCallback((svc: Service) => {
-    setSelectedServices((prev) => {
-      const idx = prev.findIndex((s) => s.id === svc.id);
-      return idx >= 0
-        ? [...prev.slice(0, idx), ...prev.slice(idx + 1)]
-        : [...prev, svc];
+  const toggleService = useCallback(
+    (svc: Service) => {
+      if (bookingFor === "me_and_others") {
+        setAttendees((prev) =>
+          prev.map((att) => {
+            if (att.id !== activeAttendeeId) return att;
+            const exists = att.serviceIds.includes(svc.id);
+            const nextServiceIds = exists
+              ? att.serviceIds.filter((id) => id !== svc.id)
+              : [...att.serviceIds, svc.id];
+            return { ...att, serviceIds: nextServiceIds };
+          })
+        );
+      } else {
+        setSelectedServices((prev) => {
+          const idx = prev.findIndex((s) => s.id === svc.id);
+          const next = idx >= 0 ? [...prev.slice(0, idx), ...prev.slice(idx + 1)] : [...prev, svc];
+          setAttendees([
+            {
+              id: "att-1",
+              name:
+                bookingFor === "someone_else" ? recipientName || "Guest" : form.fullName || "Me",
+              isOrganizer: bookingFor !== "someone_else",
+              serviceIds: next.map((s) => s.id),
+            },
+          ]);
+          return next;
+        });
+      }
+
+      // Downstream state depends on service selection
+      setRawSlots([]);
+      setSlots([]);
+      setSelectedSlot(null);
+      setSelectedStaff(DEFAULT_STAFF_PREFERENCE);
+      setAvailabilityMessage("");
+    },
+    [bookingFor, activeAttendeeId, form.fullName, recipientName]
+  );
+
+  const handleBookingForChange = useCallback(
+    (choice: BookingForChoice) => {
+      setBookingFor(choice);
+      if (choice === "me") {
+        setAttendees([
+          {
+            id: "att-1",
+            name: form.fullName || "Me",
+            isOrganizer: true,
+            serviceIds: selectedServices.map((s) => s.id),
+          },
+        ]);
+        setActiveAttendeeId("att-1");
+      } else if (choice === "someone_else") {
+        setAttendees([
+          {
+            id: "att-1",
+            name: recipientName || "Guest",
+            isOrganizer: false,
+            serviceIds: selectedServices.map((s) => s.id),
+          },
+        ]);
+        setActiveAttendeeId("att-1");
+      } else if (choice === "me_and_others") {
+        setAttendees((prev) => {
+          const firstServices = selectedServices.map((s) => s.id);
+          const next: WizardAttendee[] = [
+            {
+              id: "att-1",
+              name: form.fullName || "Guest 1 (You)",
+              isOrganizer: true,
+              serviceIds: prev[0]?.serviceIds?.length ? prev[0].serviceIds : firstServices,
+            },
+          ];
+          if (prev.length > 1) {
+            next.push(...prev.slice(1));
+          } else {
+            next.push({
+              id: "att-2",
+              name: "Guest 2",
+              isOrganizer: false,
+              serviceIds: [],
+            });
+          }
+          return next;
+        });
+        setActiveAttendeeId("att-1");
+      }
+      setRawSlots([]);
+      setSlots([]);
+      setSelectedSlot(null);
+      setSelectedStaff(DEFAULT_STAFF_PREFERENCE);
+    },
+    [form.fullName, recipientName, selectedServices]
+  );
+
+  const handleAddAttendee = useCallback(() => {
+    setAttendees((prev) => {
+      if (prev.length >= 10) return prev;
+      const nextNum = prev.length + 1;
+      const nextId = `att-${Date.now()}-${nextNum}`;
+      const next = [
+        ...prev,
+        {
+          id: nextId,
+          name: `Guest ${nextNum}`,
+          isOrganizer: false,
+          serviceIds: [],
+        },
+      ];
+      setActiveAttendeeId(nextId);
+      return next;
     });
-    // Downstream state depends on service selection
     setRawSlots([]);
     setSlots([]);
     setSelectedSlot(null);
-    setSelectedStaff(DEFAULT_STAFF_PREFERENCE);
-    setAvailabilityMessage("");
   }, []);
 
-  const handleVisitTypeSelect = useCallback((nextVisitType: VisitType) => {
-    if (!isVisitTypeEnabled(nextVisitType, bookingRules)) return;
-    setBookingType(getBookingTypeForVisitType(nextVisitType, mode));
-    // Clear services that aren't eligible for the new visit type
-    setSelectedServices((prev) =>
-      prev.filter((svc) =>
-        nextVisitType === "home_service"
-          ? (svc.availableHomeService ?? false)
-          : (svc.availableInSpa ?? true)
-      )
-    );
-    setRawSlots([]);
-    setSlots([]);
-    setSelectedSlot(null);
-    setSelectedStaff(DEFAULT_STAFF_PREFERENCE);
-    setAvailabilityMessage("");
-    setExistingHsBookings([]);
-    setHsDriverCapacity(1);
-  }, [bookingRules, mode]);
+  const handleRemoveAttendee = useCallback(
+    (idToRemove: string) => {
+      setAttendees((prev) => {
+        if (prev.length <= 1) return prev;
+        const filtered = prev.filter((a) => a.id !== idToRemove);
+        if (activeAttendeeId === idToRemove) {
+          setActiveAttendeeId(filtered[0]?.id ?? "att-1");
+        }
+        return filtered;
+      });
+      setRawSlots([]);
+      setSlots([]);
+      setSelectedSlot(null);
+    },
+    [activeAttendeeId]
+  );
+
+  const handleRenameAttendee = useCallback((idToRename: string, nextName: string) => {
+    setAttendees((prev) => prev.map((a) => (a.id === idToRename ? { ...a, name: nextName } : a)));
+  }, []);
+
+  const handleVisitTypeSelect = useCallback(
+    (nextVisitType: VisitType) => {
+      if (!isVisitTypeEnabled(nextVisitType, bookingRules)) return;
+      setBookingType(getBookingTypeForVisitType(nextVisitType, mode));
+      // Clear services that aren't eligible for the new visit type
+      setSelectedServices((prev) =>
+        prev.filter((svc) =>
+          nextVisitType === "home_service"
+            ? (svc.availableHomeService ?? false)
+            : (svc.availableInSpa ?? true)
+        )
+      );
+      setAttendees((prev) =>
+        prev.map((att) => ({
+          ...att,
+          serviceIds: att.serviceIds.filter((sId) => {
+            const svc = services.find((s) => s.id === sId);
+            return nextVisitType === "home_service"
+              ? (svc?.availableHomeService ?? false)
+              : (svc?.availableInSpa ?? true);
+          }),
+        }))
+      );
+      setRawSlots([]);
+      setSlots([]);
+      setSelectedSlot(null);
+      setSelectedStaff(DEFAULT_STAFF_PREFERENCE);
+      setAvailabilityMessage("");
+      setExistingHsBookings([]);
+      setHsDriverCapacity(1);
+    },
+    [bookingRules, mode, services]
+  );
 
   useEffect(() => {
     if (mode === "public" && isMobileBookingViewport()) {
@@ -774,139 +984,208 @@ export function BookingWizard({
     setStep((s) => Math.max(1, s - 1));
   }, [currentStepName]);
 
-  const handleSubmit = useCallback(async () => {
-    if (!selectedBranch || selectedServices.length === 0 || !selectedDate || !selectedSlot) return;
-    if (isOffline) {
-      setFormError("You're offline. Check your connection and try again.");
-      return;
-    }
-    if (!isVisitTypeEnabled(visitType, bookingRules)) {
-      const option = VISIT_TYPE_OPTIONS[visitType];
-      const message = `${option.label} is not available for this branch. Please choose another visit type.`;
-      toast.error("Visit type unavailable", { description: message });
+  const handleConfirmBooking = useCallback(async () => {
+    if (isSubmittingRef.current || submitting) return;
+
+    const validation = validateBookingDraft({
+      selectedBranch,
+      visitType,
+      bookingRules,
+      bookingFor,
+      recipientName,
+      attendees,
+      allSelectedServiceIds,
+      selectedDate: selectedDate ?? null,
+      selectedSlot,
+      form,
+      mode,
+      isHomeService,
+      isOffline,
+    });
+
+    if (!validation.ok) {
+      const message = validation.message || "Please check your booking details.";
       setFormError(message);
-      setStep(2);
-      return;
-    }
-    if (!isTimeAllowedForVisitType(selectedSlot.slot_time, visitType, bookingRules)) {
-      const option = VISIT_TYPE_OPTIONS[visitType];
-      const availability = getVisitTypeAvailability(visitType, bookingRules);
-      const message = `${option.label} appointments are available from ${formatTime(availability.startTime)} to ${formatTime(availability.endTime)}. Please select another time.`;
-      toast.error("Time unavailable", { description: message });
-      setFormError(message);
-      setStep(isHomeService ? 5 : 4);
-      return;
-    }
-    // Guard: reject if the selected slot has already passed in the branch
-    // timezone. This catches stale selections where the customer loaded the
-    // page, waited, and the chosen slot expired before they submitted.
-    if (
-      isPastSlot({
-        selectedDate: toLocalYmd(selectedDate),
-        slotStartTime: selectedSlot.slot_time,
-        timezone: BRANCH_TIMEZONE,
-      })
-    ) {
-      setSelectedSlot(null);
-      setFormError(
-        "That time has already passed. Please select a later time."
-      );
-      setStep(isHomeService ? 5 : 4);
+      toast.error("Please check your details", { description: message });
+
+      if (validation.targetStep && validation.targetStep !== step) {
+        setStep(validation.targetStep);
+      } else {
+        if (mode === "public" && isMobileBookingViewport()) {
+          stepScrollRef.current?.scrollTo({ top: 0, behavior: "smooth" });
+        } else {
+          window.scrollTo({ top: 0, behavior: "smooth" });
+        }
+      }
+      if (validation.focusField) {
+        setTimeout(() => {
+          const el = document.getElementById(`wizard-${validation.focusField}`);
+          el?.focus();
+        }, 50);
+      }
       return;
     }
 
-    if (!form.fullName.trim() || !form.phone.trim()) {
-      setFormError("Please enter your full name and phone number.");
-      return;
-    }
-    if (mode === "public" && isHomeService && !isPreciseHomeServiceLocation(form)) {
-      setFormError(PRECISE_LOCATION_ERROR);
-      setStep(4);
-      return;
-    }
-    setFormError("");
+    isSubmittingRef.current = true;
     setSubmitting(true);
+    setFormError("");
 
-    const hsPayload =
-      visitType === "home_service"
-        ? {
-            homeServiceAddress:          form.hsAddress || undefined,
-            homeServiceAddressDetails:   form.hsAddressDetails || undefined,
-            homeServiceBarangay:         form.hsBarangay || undefined,
-            homeServiceCity:             form.hsCity || undefined,
-            homeServiceLandmark:         form.hsLandmark || undefined,
-            homeServiceParkingNotes:     form.hsParkingNotes || undefined,
-            homeServiceCustomerNotes:    form.hsParkingNotes || undefined,
-            homeServiceZone:             form.hsZone || "unknown",
-            homeServiceLat:              form.hsLat ?? undefined,
-            homeServiceLng:              form.hsLng ?? undefined,
-            homeServicePlaceId:          form.hsPlaceId || undefined,
-            homeServiceFormattedAddress: form.hsFormattedAddress || undefined,
-            homeServiceAddressComponents: form.hsAddressComponents.length > 0
-              ? form.hsAddressComponents
-              : undefined,
-            homeServiceMapUrl:           form.hsMapUrl || undefined,
-          }
-        : {};
+    try {
+      const hsPayload =
+        visitType === "home_service"
+          ? {
+              homeServiceAddress: form.hsAddress || undefined,
+              homeServiceAddressDetails: form.hsAddressDetails || undefined,
+              homeServiceBarangay: form.hsBarangay || undefined,
+              homeServiceCity: form.hsCity || undefined,
+              homeServiceLandmark: form.hsLandmark || undefined,
+              homeServiceParkingNotes: form.hsParkingNotes || undefined,
+              homeServiceCustomerNotes: form.hsParkingNotes || undefined,
+              homeServiceZone: form.hsZone || "unknown",
+              homeServiceLat: form.hsLat ?? undefined,
+              homeServiceLng: form.hsLng ?? undefined,
+              homeServicePlaceId: form.hsPlaceId || undefined,
+              homeServiceFormattedAddress: form.hsFormattedAddress || undefined,
+              homeServiceAddressComponents:
+                form.hsAddressComponents.length > 0 ? form.hsAddressComponents : undefined,
+              homeServiceMapUrl: form.hsMapUrl || undefined,
+            }
+          : {};
 
-    const payload = {
-      website: "",
-      branchId: selectedBranch.id,
-      serviceIds: selectedServices.map((s) => s.id),
-      staffId: selectedStaffForBooking !== "auto" ? selectedStaffForBooking : undefined,
-      date: toLocalYmd(selectedDate),
-      startTime: selectedSlot.slot_time,
-      fullName: form.fullName,
-      phone: form.phone,
-      email: form.email || undefined,
-      notes: form.notes || undefined,
-      ...hsPayload,
-    };
+      const attendeePayload =
+        bookingFor === "me_and_others"
+          ? attendees.map((a) => ({
+              id: a.id,
+              name: a.name.trim() || (a.isOrganizer ? form.fullName || "Organizer" : "Guest"),
+              isOrganizer: a.isOrganizer,
+              serviceIds: a.serviceIds,
+            }))
+          : bookingFor === "someone_else"
+            ? [
+                {
+                  id: "att-1",
+                  name: recipientName.trim() || "Guest",
+                  isOrganizer: false,
+                  serviceIds: selectedServices.map((s) => s.id),
+                },
+              ]
+            : [
+                {
+                  id: "att-1",
+                  name: form.fullName.trim() || "Guest",
+                  isOrganizer: true,
+                  serviceIds: selectedServices.map((s) => s.id),
+                },
+              ];
 
-    const result =
-      mode === "inhouse"
-        ? await createInhouseBookingMultiAction({
-            ...payload,
-            type:             getBookingTypeForVisitType(visitType, "inhouse"),
-            paymentMethod:    form.paymentMethod as "cash" | "gcash" | "maya" | "card" | "other",
-            paymentReference: form.paymentReference.trim() || undefined,
-            paymentNote:      form.paymentNote.trim() || undefined,
-          })
-        : await createOnlineBookingMultiAction({
-            ...payload,
-            type: getBookingTypeForVisitType(visitType, "public"),
-          });
+      // Ensure we read/persist the persistent session attempt ID for this confirmation
+      const attemptId = getOrCreateCheckoutAttemptId();
+      checkoutAttemptIdRef.current = attemptId;
 
-    setSubmitting(false);
-    if (result.ok) {
-      const staffPreferenceNeedsConfirmation =
-        mode === "public" &&
-        "staffPreferenceNeedsConfirmation" in result &&
-        result.staffPreferenceNeedsConfirmation === true;
-      toast.success(mode === "inhouse" ? "Booking saved" : "Booking request received", {
-        description: mode === "inhouse"
-          ? "Appointment saved to the CRM workspace."
-          : staffPreferenceNeedsConfirmation
-            ? "Your booking has been received. Our team will confirm your selected staff preference."
-            : "Our CRM team will contact you shortly to confirm payment and finalize your appointment.",
-      });
-      setSuccess({
-        bookingId: result.bookingId,
-        staffPreferenceNeedsConfirmation,
-      });
-      setStep(successStep);
-    } else {
-      const isNetworkError =
-        result.message.toLowerCase().includes("fetch") ||
-        result.message.toLowerCase().includes("network") ||
-        result.message.toLowerCase().includes("failed to");
-      const description = isNetworkError
-        ? "Check your connection and try again."
-        : result.message;
-      toast.error("Booking failed", { description });
-      setFormError(description);
+      const payload = {
+        website: "",
+        branchId: selectedBranch!.id,
+        serviceIds: allSelectedServiceIds,
+        bookingFor,
+        recipientName: bookingFor === "someone_else" ? recipientName.trim() : undefined,
+        attendees: attendeePayload,
+        paymentChoice,
+        staffId: selectedStaffForBooking !== "auto" ? selectedStaffForBooking : undefined,
+        date: toLocalYmd(selectedDate!),
+        startTime: selectedSlot!.slot_time,
+        fullName: form.fullName,
+        phone: form.phone,
+        email: form.email || undefined,
+        notes: form.notes || undefined,
+        idempotencyKey: attemptId,
+        ...hsPayload,
+      };
+
+      const result =
+        mode === "inhouse"
+          ? await createInhouseBookingMultiAction({
+              ...payload,
+              serviceIds: selectedServices.map((s) => s.id),
+              type: getBookingTypeForVisitType(visitType, "inhouse"),
+              paymentMethod: form.paymentMethod as "cash" | "gcash" | "maya" | "card" | "other",
+              paymentReference: form.paymentReference.trim() || undefined,
+              paymentNote: form.paymentNote.trim() || undefined,
+            })
+          : await createOnlineBookingMultiAction({
+              ...payload,
+              type: getBookingTypeForVisitType(visitType, "public"),
+            });
+
+      if (result.ok) {
+        const staffPreferenceNeedsConfirmation =
+          mode === "public" &&
+          "staffPreferenceNeedsConfirmation" in result &&
+          result.staffPreferenceNeedsConfirmation === true;
+        toast.success(mode === "inhouse" ? "Booking saved" : "Your booking is confirmed 🌿", {
+          description:
+            mode === "inhouse"
+              ? "Appointment saved to the CRM workspace."
+              : "Thank you for choosing Cradle Wellness Living. We look forward to taking care of you.",
+        });
+        setSuccess({
+          bookingId: result.bookingId,
+          orderId: "orderId" in result ? (result.orderId as string) : undefined,
+          orderNumber: "orderNumber" in result ? (result.orderNumber as string) : undefined,
+          staffPreferenceNeedsConfirmation,
+        });
+        setStep(successStep);
+        // Refresh session attempt ID for any subsequent new booking flow while keeping success state stable
+        checkoutAttemptIdRef.current = resetCheckoutAttemptId();
+      } else {
+        const isNetworkError =
+          result.message.toLowerCase().includes("fetch") ||
+          result.message.toLowerCase().includes("network") ||
+          result.message.toLowerCase().includes("failed to");
+        const description = isNetworkError
+          ? "Check your connection and try again."
+          : result.message || "We couldn't confirm your booking. Please try again.";
+        toast.error("Booking failed", { description });
+        setFormError(description);
+        if (mode === "public" && isMobileBookingViewport()) {
+          stepScrollRef.current?.scrollTo({ top: 0, behavior: "smooth" });
+        }
+      }
+    } catch (err: unknown) {
+      console.error("[BookingWizard] Booking submission error:", err);
+      const message =
+        err instanceof Error && err.message
+          ? err.message
+          : "We couldn't confirm your booking. Please try again.";
+      toast.error("Booking error", { description: message });
+      setFormError(message);
+      if (mode === "public" && isMobileBookingViewport()) {
+        stepScrollRef.current?.scrollTo({ top: 0, behavior: "smooth" });
+      }
+    } finally {
+      isSubmittingRef.current = false;
+      setSubmitting(false);
     }
-  }, [selectedBranch, selectedServices, selectedDate, selectedSlot, visitType, bookingRules, selectedStaffForBooking, form, mode, isHomeService, successStep, isOffline]);
+  }, [
+    selectedBranch,
+    selectedServices,
+    allSelectedServiceIds,
+    bookingFor,
+    recipientName,
+    attendees,
+    paymentChoice,
+    selectedDate,
+    selectedSlot,
+    visitType,
+    bookingRules,
+    selectedStaffForBooking,
+    form,
+    mode,
+    isHomeService,
+    successStep,
+    isOffline,
+    submitting,
+    step,
+  ]);
 
   const preciseHomeServiceLocationSelected = isPreciseHomeServiceLocation(form);
   const preciseLocationRequired = mode === "public" && isHomeService;
@@ -919,27 +1198,35 @@ export function BookingWizard({
 
   // Public home-service location is Google place-first; zone stays unknown for
   // backward-compatible dispatch metadata and can be refined by operations later.
-  const locationValid =
-    !isHomeService
-      ? true
-      : preciseLocationRequired
-        ? preciseHomeServiceLocationSelected
-        : form.hsZone !== "unknown" && form.hsZone !== "";
+  const locationValid = !isHomeService
+    ? true
+    : preciseLocationRequired
+      ? preciseHomeServiceLocationSelected
+      : form.hsZone !== "unknown" && form.hsZone !== "";
 
   const canProceed =
-    currentStepName === "branch"    ? !!selectedBranch
-    : currentStepName === "visit"   ? !!bookingType && isVisitTypeEnabled(visitType, bookingRules)
-    : currentStepName === "services" ? selectedServices.length > 0
-    : currentStepName === "location" ? locationValid
-    : currentStepName === "date_time" ? !!selectedSlot
-    : currentStepName === "therapist" ? true
-    : currentStepName === "details"  ? (
-        form.fullName.trim().length >= 2 &&
-        form.phone.trim().length >= 7 &&
-        hsAddressFilled &&
-        (mode !== "inhouse" || form.paymentMethod.trim().length > 0)
-      )
-    : false;
+    currentStepName === "branch"
+      ? !!selectedBranch
+      : currentStepName === "visit"
+        ? !!bookingType && isVisitTypeEnabled(visitType, bookingRules)
+        : currentStepName === "services"
+          ? bookingFor === "me"
+            ? selectedServices.length > 0
+            : bookingFor === "someone_else"
+              ? selectedServices.length > 0 && recipientName.trim().length >= 2
+              : attendees.length >= 2 && attendees.every((a) => a.serviceIds.length > 0)
+          : currentStepName === "location"
+            ? locationValid
+            : currentStepName === "date_time"
+              ? !!selectedSlot
+              : currentStepName === "therapist"
+                ? true
+                : currentStepName === "details"
+                  ? form.fullName.trim().length >= 2 &&
+                    form.phone.trim().length >= 7 &&
+                    hsAddressFilled &&
+                    (mode !== "inhouse" || form.paymentMethod.trim().length > 0)
+                  : false;
   const canClickContinue = currentStepName === "location" || canProceed;
   const mobileProgressIndex = getMobileProgressIndex(currentStepName);
 
@@ -990,10 +1277,7 @@ export function BookingWizard({
             >
               Book Your Pause
             </p>
-            <h1
-              className="text-3xl sm:text-4xl font-medium"
-              style={WARM_HEADING_STYLE}
-            >
+            <h1 className="text-3xl sm:text-4xl font-medium" style={WARM_HEADING_STYLE}>
               Choose your care
             </h1>
             <p className="mx-auto mt-3 max-w-xl text-[14px] leading-6" style={WARM_BODY_STYLE}>
@@ -1072,8 +1356,8 @@ export function BookingWizard({
                         step > s.id
                           ? "border border-[#D4B57A]/45 bg-[#05241D] text-[#D4B57A]"
                           : step === s.id
-                          ? "bg-gradient-to-r from-[#D4B57A] via-[#C8A96A] to-[#B88945] text-[#031B16]"
-                          : "border border-[#D4B57A]/22 bg-[#05241D]/70 text-[#F6EBD6]/42"
+                            ? "bg-gradient-to-r from-[#D4B57A] via-[#C8A96A] to-[#B88945] text-[#031B16]"
+                            : "border border-[#D4B57A]/22 bg-[#05241D]/70 text-[#F6EBD6]/42"
                       }`}
                     >
                       {step > s.id ? <Check className="h-3.5 w-3.5" /> : s.id}
@@ -1154,16 +1438,33 @@ export function BookingWizard({
                 />
               )}
               {currentStepName === "services" && (
-                <BookingServicePicker
-                  services={eligibleServices}
-                  loading={loadingServices}
-                  selected={selectedServices}
-                  onToggle={toggleService}
-                  totalDuration={totalDuration}
-                  totalPrice={totalPrice}
-                  visitType={visitType}
-                  theme={mode === "public" ? "warm" : "default"}
-                />
+                <div>
+                  {mode === "public" && (
+                    <BookingForSection
+                      bookingFor={bookingFor}
+                      onBookingForChange={handleBookingForChange}
+                      recipientName={recipientName}
+                      onRecipientNameChange={setRecipientName}
+                      attendees={attendees}
+                      activeAttendeeId={activeAttendeeId}
+                      onSelectAttendee={setActiveAttendeeId}
+                      onAddAttendee={handleAddAttendee}
+                      onRemoveAttendee={handleRemoveAttendee}
+                      onRenameAttendee={handleRenameAttendee}
+                      mode={mode}
+                    />
+                  )}
+                  <BookingServicePicker
+                    services={eligibleServices}
+                    loading={loadingServices}
+                    selected={activeServicesForPicker}
+                    onToggle={toggleService}
+                    totalDuration={totalDuration}
+                    totalPrice={totalPrice}
+                    visitType={visitType}
+                    theme={mode === "public" ? "warm" : "default"}
+                  />
+                </div>
               )}
               {currentStepName === "location" && (
                 <StepLocation
@@ -1188,7 +1489,11 @@ export function BookingWizard({
                   selectedDate={selectedDate}
                   onSelectDate={(d) => {
                     setSelectedDate(d);
-                    setLoadingSlots(Boolean(d && selectedBranch && selectedServices.length > 0));
+                    const hasSelected =
+                      bookingFor === "me_and_others"
+                        ? attendees.some((a) => a.serviceIds.length > 0)
+                        : selectedServices.length > 0;
+                    setLoadingSlots(Boolean(d && selectedBranch && hasSelected));
                     setRawSlots([]);
                     setSlots([]);
                     setSelectedSlot(null);
@@ -1197,7 +1502,7 @@ export function BookingWizard({
                   }}
                   slots={displaySlots}
                   loading={loadingSlots}
-                  serviceCount={selectedServices.length}
+                  serviceCount={allSelectedServices.length}
                   availabilityMessage={availabilityMessage}
                   selectedSlot={selectedSlot}
                   onSelectSlot={(s) => {
@@ -1214,10 +1519,12 @@ export function BookingWizard({
                   selectedSlot={selectedSlot}
                   selected={selectedStaffForBooking}
                   onSelect={setSelectedStaff}
-                  selectedServices={selectedServices}
+                  selectedServices={allSelectedServices}
                   totalDuration={totalDuration}
                   totalPrice={totalPrice}
                   preferenceConfirmationRequired={mode === "public"}
+                  bookingFor={bookingFor}
+                  attendeesCount={attendees.length}
                 />
               )}
               {currentStepName === "details" && (
@@ -1227,16 +1534,30 @@ export function BookingWizard({
                   error={formError}
                   visitType={visitType}
                   mode={mode}
+                  bookingFor={bookingFor}
+                  recipientName={recipientName}
+                  attendees={attendees}
+                  paymentChoice={paymentChoice}
+                  onPaymentChoiceChange={setPaymentChoice}
                 />
               )}
               {currentStepName === "success" && success && (
                 <StepSuccess
                   bookingId={success.bookingId}
-                  services={selectedServices}
+                  orderNumber={success.orderNumber}
+                  bookingFor={bookingFor}
+                  recipientName={recipientName}
+                  attendees={attendees}
+                  services={allSelectedServices}
+                  selectedBranch={selectedBranch}
+                  selectedDate={selectedDate}
+                  selectedSlot={selectedSlot}
+                  visitType={visitType}
+                  hsAddress={form.hsFormattedAddress || form.hsAddress}
+                  paymentChoice={paymentChoice}
+                  totalPrice={totalPrice}
                   mode={mode}
-                  staffPreferenceNeedsConfirmation={
-                    success.staffPreferenceNeedsConfirmation
-                  }
+                  staffPreferenceNeedsConfirmation={success.staffPreferenceNeedsConfirmation}
                 />
               )}
             </div>
@@ -1251,7 +1572,10 @@ export function BookingWizard({
                       : "fixed inset-x-0 bottom-0 z-40 flex items-center justify-between gap-3 border-t border-[#D4B57A]/25 bg-[#031B16]/82 px-4 py-3 shadow-[0_-18px_50px_rgba(0,0,0,0.35)] backdrop-blur-xl md:static md:mt-10 md:border-t md:bg-transparent md:px-0 md:pt-8 md:shadow-none md:backdrop-blur-0"
                     : "flex items-center justify-between mt-10 pt-8 border-t border-[#EDE4D3]"
                 }
-                style={{ paddingBottom: mode === "public" ? "max(0.75rem, env(safe-area-inset-bottom))" : undefined }}
+                style={{
+                  paddingBottom:
+                    mode === "public" ? "max(0.75rem, env(safe-area-inset-bottom))" : undefined,
+                }}
               >
                 <button
                   onClick={handleBack}
@@ -1281,19 +1605,19 @@ export function BookingWizard({
                   </button>
                 ) : (
                   <button
-                    onClick={handleSubmit}
-                    disabled={!canProceed || submitting || isOffline}
+                    type="button"
+                    onClick={handleConfirmBooking}
+                    disabled={submitting}
+                    aria-busy={submitting}
                     className={[
-                      "inline-flex min-h-12 flex-1 items-center justify-center gap-2 rounded-[7px] px-8 py-3 text-[12px] font-semibold tracking-widest uppercase transition-all duration-300 disabled:cursor-not-allowed disabled:opacity-40 hover:shadow-lg md:flex-none md:rounded-full",
-                      canProceed && !isOffline
-                        ? WARM_PRIMARY_BUTTON_CLS
-                        : WARM_DISABLED_BUTTON_CLS,
+                      "inline-flex min-h-12 flex-1 items-center justify-center gap-2 rounded-[7px] px-8 py-3 text-[12px] font-semibold tracking-widest uppercase transition-all duration-300 disabled:cursor-not-allowed disabled:opacity-50 hover:shadow-lg md:flex-none md:rounded-full",
+                      submitting ? WARM_DISABLED_BUTTON_CLS : WARM_PRIMARY_BUTTON_CLS,
                     ].join(" ")}
                   >
                     {submitting ? (
                       <>
                         <Loader2 className="h-4 w-4 animate-spin" />
-                        {mode === "inhouse" ? "Saving..." : "Confirming..."}
+                        {mode === "inhouse" ? "Saving..." : "Confirming booking…"}
                       </>
                     ) : (
                       <>
@@ -1312,7 +1636,7 @@ export function BookingWizard({
             <div className="hidden lg:block">
               <BookingSummary
                 branch={selectedBranch}
-                services={selectedServices}
+                services={allSelectedServices}
                 totalDuration={totalDuration}
                 totalPrice={totalPrice}
                 selectedDate={selectedDate}
@@ -1322,6 +1646,9 @@ export function BookingWizard({
                 visitType={visitType}
                 bookingRules={bookingRules}
                 variant={isTherapistStep ? "therapist" : "default"}
+                bookingFor={bookingFor}
+                recipientName={recipientName}
+                attendees={attendees}
               />
             </div>
           )}
@@ -1355,10 +1682,17 @@ function SummaryRow({
         <p className="text-[11px] font-medium uppercase tracking-wide" style={WARM_LABEL_STYLE}>
           {label}
         </p>
-        <p className="text-[13px] font-medium mt-0.5" style={value ? WARM_BODY_STYLE : WARM_MUTED_STYLE}>
+        <p
+          className="text-[13px] font-medium mt-0.5"
+          style={value ? WARM_BODY_STYLE : WARM_MUTED_STYLE}
+        >
           {value || placeholder}
         </p>
-        {sub && <p className="text-[11px] mt-0.5" style={WARM_MUTED_STYLE}>{sub}</p>}
+        {sub && (
+          <p className="text-[11px] mt-0.5" style={WARM_MUTED_STYLE}>
+            {sub}
+          </p>
+        )}
       </div>
     </div>
   );
@@ -1404,6 +1738,9 @@ function BookingSummary({
   visitType,
   bookingRules,
   variant = "default",
+  bookingFor,
+  recipientName,
+  attendees,
 }: {
   branch: Branch | null;
   services: Service[];
@@ -1416,15 +1753,18 @@ function BookingSummary({
   visitType: VisitType;
   bookingRules: BranchBookingRules | null;
   variant?: "default" | "therapist";
+  bookingFor?: BookingForChoice;
+  recipientName?: string;
+  attendees?: WizardAttendee[];
 }) {
   const selectedStaffOption =
     selectedStaff === "auto"
       ? null
-      : availableStaff.find((s) => s.staff_id === selectedStaff) ?? null;
+      : (availableStaff.find((s) => s.staff_id === selectedStaff) ?? null);
   const staffLabel =
     selectedStaff === "auto"
       ? "Any available provider"
-      : selectedStaffOption?.staff_full_name ?? selectedStaffOption?.staff_name;
+      : (selectedStaffOption?.staff_full_name ?? selectedStaffOption?.staff_name);
   const staffSubLabel =
     selectedStaffOption && staffLabel
       ? `${selectedStaffOption.staff_nickname?.trim() || getTherapistInitials(staffLabel)} · ${
@@ -1448,10 +1788,7 @@ function BookingSummary({
     return (
       <div className="sticky top-24">
         <div className={`rounded-[20px] p-6 ${WARM_GLASS_PANEL_CLS}`}>
-          <h3
-            className="text-[21px] font-medium"
-            style={WARM_HEADING_STYLE}
-          >
+          <h3 className="text-[21px] font-medium" style={WARM_HEADING_STYLE}>
             Booking Summary
           </h3>
 
@@ -1459,13 +1796,29 @@ function BookingSummary({
             <TherapistSummaryItem icon={Building} label="Branch">
               {branch?.name ?? <span className="font-medium text-[#F6EBD6]/45">Not selected</span>}
             </TherapistSummaryItem>
-            <TherapistSummaryItem icon={visitType === "home_service" ? Home : User} label="Visit Type">
+            {bookingFor === "someone_else" && (
+              <TherapistSummaryItem icon={Gift} label="For Recipient">
+                {recipientName || "Guest"}
+              </TherapistSummaryItem>
+            )}
+            {bookingFor === "me_and_others" && attendees && (
+              <TherapistSummaryItem icon={Users} label="Guests">
+                {attendees.length} Guests
+              </TherapistSummaryItem>
+            )}
+            <TherapistSummaryItem
+              icon={visitType === "home_service" ? Home : User}
+              label="Visit Type"
+            >
               <p>{visitOption.label}</p>
               <p className="mt-1 text-[12px] font-medium" style={WARM_MUTED_STYLE}>
                 {formatTime(availability.startTime)} - {formatTime(availability.endTime)}
               </p>
             </TherapistSummaryItem>
-            <TherapistSummaryItem icon={Sparkles} label={services.length === 1 ? "Service" : "Services"}>
+            <TherapistSummaryItem
+              icon={Sparkles}
+              label={services.length === 1 ? "Service" : "Services"}
+            >
               {services.length === 0 ? (
                 <span className="font-medium text-[#F6EBD6]/45">Not selected</span>
               ) : (
@@ -1485,9 +1838,7 @@ function BookingSummary({
             <TherapistSummaryItem icon={User} label="Therapist">
               {staffLabel ?? <span className="font-medium text-[#F6EBD6]/45">Not selected</span>}
               {staffSubLabel ? (
-                <p className="mt-1 text-[12px] font-medium text-[#F6EBD6]/60">
-                  {staffSubLabel}
-                </p>
+                <p className="mt-1 text-[12px] font-medium text-[#F6EBD6]/60">{staffSubLabel}</p>
               ) : null}
             </TherapistSummaryItem>
           </div>
@@ -1497,10 +1848,7 @@ function BookingSummary({
               <ShieldCheck className="h-5 w-5" />
             </div>
             <div>
-              <p
-                className="text-[14px] font-semibold"
-                style={WARM_HEADING_STYLE}
-              >
+              <p className="text-[14px] font-semibold" style={WARM_HEADING_STYLE}>
                 Your booking is safe with us
               </p>
               <p className="mt-2 text-[13px] leading-6" style={WARM_BODY_STYLE}>
@@ -1510,7 +1858,10 @@ function BookingSummary({
           </div>
         </div>
 
-        <div className="mt-5 flex flex-wrap items-center justify-center gap-x-3 gap-y-2 text-[12px]" style={WARM_MUTED_STYLE}>
+        <div
+          className="mt-5 flex flex-wrap items-center justify-center gap-x-3 gap-y-2 text-[12px]"
+          style={WARM_MUTED_STYLE}
+        >
           <span className="inline-flex items-center gap-1.5">
             <ShieldCheck className="h-3.5 w-3.5 text-[#B68A3C]" />
             Secure booking
@@ -1531,13 +1882,8 @@ function BookingSummary({
   }
 
   return (
-    <div
-      className={`sticky top-28 rounded-2xl p-6 ${WARM_GLASS_PANEL_CLS}`}
-    >
-      <h3
-        className="text-[14px] font-semibold mb-5"
-        style={WARM_HEADING_STYLE}
-      >
+    <div className={`sticky top-28 rounded-2xl p-6 ${WARM_GLASS_PANEL_CLS}`}>
+      <h3 className="text-[14px] font-semibold mb-5" style={WARM_HEADING_STYLE}>
         Booking Summary
       </h3>
       <div className="flex flex-col gap-5">
@@ -1547,6 +1893,12 @@ function BookingSummary({
           value={branch?.name}
           placeholder="Not selected"
         />
+        {bookingFor === "someone_else" && (
+          <SummaryRow icon={Gift} label="For Recipient" value={recipientName || "Guest"} />
+        )}
+        {bookingFor === "me_and_others" && attendees && (
+          <SummaryRow icon={Users} label="Guests" value={`${attendees.length} Guests`} />
+        )}
         <SummaryRow
           icon={visitType === "home_service" ? Home : Building}
           label="Visit Type"
@@ -1600,6 +1952,196 @@ function BookingSummary({
   );
 }
 
+// ── Booking for progressive disclosure selector ───────────────────────────────
+
+function BookingForSection({
+  bookingFor,
+  onBookingForChange,
+  recipientName,
+  onRecipientNameChange,
+  attendees,
+  activeAttendeeId,
+  onSelectAttendee,
+  onAddAttendee,
+  onRemoveAttendee,
+  onRenameAttendee,
+  mode,
+}: {
+  bookingFor: BookingForChoice;
+  onBookingForChange: (choice: BookingForChoice) => void;
+  recipientName: string;
+  onRecipientNameChange: (name: string) => void;
+  attendees: WizardAttendee[];
+  activeAttendeeId: string;
+  onSelectAttendee: (id: string) => void;
+  onAddAttendee: () => void;
+  onRemoveAttendee: (id: string) => void;
+  onRenameAttendee: (id: string, name: string) => void;
+  mode: BookingWizardMode;
+}) {
+  const activeAttendee = attendees.find((a) => a.id === activeAttendeeId) ?? attendees[0];
+  const inputClass = mode === "public" ? PUBLIC_INPUT_CLS : INPUT_CLS;
+
+  return (
+    <div className={`mb-6 rounded-2xl p-5 ${WARM_GLASS_PANEL_CLS}`}>
+      <p
+        className="text-[11px] font-semibold uppercase tracking-wider mb-3"
+        style={WARM_LABEL_STYLE}
+      >
+        Who is this booking for?
+      </p>
+
+      {/* 3 options */}
+      <div className="grid grid-cols-1 sm:grid-cols-3 gap-2.5">
+        <button
+          type="button"
+          onClick={() => onBookingForChange("me")}
+          className={`flex items-center justify-center gap-2.5 rounded-xl px-4 py-3 text-[13px] font-medium transition-all ${
+            bookingFor === "me"
+              ? `${WARM_SELECTED_CARD_CLS} text-[#F6EBD6]`
+              : `${WARM_IDLE_CARD_CLS} text-[#F6EBD6]/75`
+          }`}
+        >
+          <User className="h-4 w-4 text-[#D4B57A]" />
+          <span>Just me</span>
+        </button>
+
+        <button
+          type="button"
+          onClick={() => onBookingForChange("me_and_others")}
+          className={`flex items-center justify-center gap-2.5 rounded-xl px-4 py-3 text-[13px] font-medium transition-all ${
+            bookingFor === "me_and_others"
+              ? `${WARM_SELECTED_CARD_CLS} text-[#F6EBD6]`
+              : `${WARM_IDLE_CARD_CLS} text-[#F6EBD6]/75`
+          }`}
+        >
+          <Users className="h-4 w-4 text-[#D4B57A]" />
+          <span>Me and others</span>
+        </button>
+
+        <button
+          type="button"
+          onClick={() => onBookingForChange("someone_else")}
+          className={`flex items-center justify-center gap-2.5 rounded-xl px-4 py-3 text-[13px] font-medium transition-all ${
+            bookingFor === "someone_else"
+              ? `${WARM_SELECTED_CARD_CLS} text-[#F6EBD6]`
+              : `${WARM_IDLE_CARD_CLS} text-[#F6EBD6]/75`
+          }`}
+        >
+          <Gift className="h-4 w-4 text-[#D4B57A]" />
+          <span>Someone else</span>
+        </button>
+      </div>
+
+      {/* Progressive disclosure: Someone else */}
+      {bookingFor === "someone_else" && (
+        <div className="mt-4 pt-4 border-t border-[#D4B57A]/15">
+          <label className={LABEL_CLS}>
+            <User className="h-3.5 w-3.5" />
+            Recipient Full Name *
+          </label>
+          <input
+            type="text"
+            value={recipientName}
+            onChange={(e) => onRecipientNameChange(e.target.value)}
+            placeholder="e.g. Maria Santos (Person receiving the care session)"
+            className={inputClass}
+          />
+          <p className="mt-1.5 text-[11px]" style={WARM_MUTED_STYLE}>
+            We&apos;ll prepare the appointment under their name. You can provide your own details at
+            checkout for confirmation & updates.
+          </p>
+        </div>
+      )}
+
+      {/* Progressive disclosure: Me and others */}
+      {bookingFor === "me_and_others" && (
+        <div className="mt-4 pt-4 border-t border-[#D4B57A]/15">
+          <div className="flex flex-wrap items-center justify-between gap-2 mb-3">
+            <div>
+              <p className="text-[12px] font-semibold text-[#F6EBD6]">
+                Guest Sessions ({attendees.length} Guests)
+              </p>
+              <p className="text-[11px]" style={WARM_MUTED_STYLE}>
+                Select each guest tab below to assign their treatments.
+              </p>
+            </div>
+            {attendees.length < 10 && (
+              <button
+                type="button"
+                onClick={onAddAttendee}
+                className="inline-flex items-center gap-1.5 rounded-full border border-[#D4B57A]/35 bg-[#031B16]/50 px-3 py-1 text-[11px] font-semibold text-[#D4B57A] transition-colors hover:border-[#D4B57A]/70"
+              >
+                <Plus className="h-3 w-3" />
+                Add Guest
+              </button>
+            )}
+          </div>
+
+          {/* Guest Tabs */}
+          <div className="flex flex-wrap gap-2">
+            {attendees.map((att, idx) => {
+              const isSelected = att.id === activeAttendeeId;
+              const svcCount = att.serviceIds.length;
+              return (
+                <div
+                  key={att.id}
+                  className={`flex items-center gap-1.5 rounded-xl px-3 py-2 text-[12px] transition-all ${
+                    isSelected
+                      ? "border border-[#D4B57A] bg-[#D4B57A]/22 text-[#F6EBD6] shadow-[0_0_16px_rgba(212,181,122,0.18)]"
+                      : "border border-[#D4B57A]/20 bg-[#05241D]/60 text-[#F6EBD6]/70 hover:border-[#D4B57A]/45 hover:text-[#F6EBD6]"
+                  }`}
+                >
+                  <button
+                    type="button"
+                    onClick={() => onSelectAttendee(att.id)}
+                    className="flex items-center gap-2 font-medium"
+                  >
+                    <span>{att.name}</span>
+                    <span
+                      className={`rounded-full px-1.5 py-0.5 text-[10px] font-semibold ${
+                        svcCount > 0 ? "bg-[#D4B57A] text-[#031B16]" : "bg-white/10 text-white/50"
+                      }`}
+                    >
+                      {svcCount} {svcCount === 1 ? "svc" : "svcs"}
+                    </span>
+                  </button>
+                  {idx > 0 && (
+                    <button
+                      type="button"
+                      onClick={() => onRemoveAttendee(att.id)}
+                      className="ml-1 text-[#F6EBD6]/40 hover:text-rose-400"
+                      title="Remove guest"
+                    >
+                      <X className="h-3 w-3" />
+                    </button>
+                  )}
+                </div>
+              );
+            })}
+          </div>
+
+          {/* Active Guest Custom Name */}
+          {activeAttendee && (
+            <div className="mt-3.5 flex flex-wrap items-center gap-2 rounded-lg bg-[#05241D]/45 px-3 py-2 border border-[#D4B57A]/15">
+              <span className="text-[11px] font-medium" style={WARM_LABEL_STYLE}>
+                Custom name for {activeAttendee.name}:
+              </span>
+              <input
+                type="text"
+                value={activeAttendee.name}
+                onChange={(e) => onRenameAttendee(activeAttendee.id, e.target.value)}
+                placeholder="e.g. Sarah"
+                className="rounded-md border border-[#D4B57A]/25 bg-[#031B16]/60 px-2 py-0.5 text-[11px] text-[#F6EBD6] focus:border-[#D4B57A] focus:outline-none"
+              />
+            </div>
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
+
 // ── Step 1: Branch ─────────────────────────────────────────────────────────────
 
 function StepBranches({
@@ -1622,9 +2164,7 @@ function StepBranches({
           <Skeleton
             key={i}
             className={
-              mode === "public"
-                ? `h-24 rounded-xl md:h-28 ${WARM_SKELETON_CLS}`
-                : "h-28 rounded-xl"
+              mode === "public" ? `h-24 rounded-xl md:h-28 ${WARM_SKELETON_CLS}` : "h-28 rounded-xl"
             }
           />
         ))}
@@ -1653,7 +2193,10 @@ function StepBranches({
       >
         Select Branch
       </h2>
-      <p className="mb-3 text-[12px] leading-5 md:mb-8 md:text-[14px] md:leading-6" style={WARM_BODY_STYLE}>
+      <p
+        className="mb-3 text-[12px] leading-5 md:mb-8 md:text-[14px] md:leading-6"
+        style={WARM_BODY_STYLE}
+      >
         Please choose the branch where you would like to book.
       </p>
       <div className="grid gap-3 sm:grid-cols-2 md:gap-4">
@@ -1662,9 +2205,7 @@ function StepBranches({
             key={branch.id}
             onClick={() => onSelect(branch)}
             className={`grid min-h-[96px] grid-cols-[72px_1fr_auto] gap-2.5 rounded-[10px] border p-2.5 text-left transition-all duration-300 md:flex md:min-h-0 md:items-start md:gap-4 md:rounded-xl md:p-5 ${
-              selected?.id === branch.id
-                ? WARM_SELECTED_CARD_CLS
-                : WARM_IDLE_CARD_CLS
+              selected?.id === branch.id ? WARM_SELECTED_CARD_CLS : WARM_IDLE_CARD_CLS
             }`}
           >
             <div className="relative h-[76px] overflow-hidden rounded-[7px] bg-[#05241D] md:hidden">
@@ -1694,7 +2235,10 @@ function StepBranches({
                 {branch.name}
               </p>
               {branch.address && (
-                <p className="mt-1 line-clamp-2 text-[11px] leading-4 md:text-[12px]" style={WARM_MUTED_STYLE}>
+                <p
+                  className="mt-1 line-clamp-2 text-[11px] leading-4 md:text-[12px]"
+                  style={WARM_MUTED_STYLE}
+                >
                   {branch.address}
                 </p>
               )}
@@ -1838,13 +2382,10 @@ function StepDateTime({
   const today = new Date();
   today.setHours(0, 0, 0, 0);
   const maxDate = new Date(today);
-  maxDate.setDate(
-    maxDate.getDate() + (bookingRules?.maxAdvanceBookingDays ?? 30)
-  );
+  maxDate.setDate(maxDate.getDate() + (bookingRules?.maxAdvanceBookingDays ?? 30));
 
   const availableSlots = slots.filter((s) => s.available);
-  const isTodaySelected =
-    !!selectedDate && toLocalYmd(selectedDate) === toLocalYmd(new Date());
+  const isTodaySelected = !!selectedDate && toLocalYmd(selectedDate) === toLocalYmd(new Date());
   const visitOption = VISIT_TYPE_OPTIONS[visitType];
   const availability = getVisitTypeAvailability(visitType, bookingRules);
   const emptyMessage =
@@ -1852,10 +2393,9 @@ function StepDateTime({
     (slots.length > 0
       ? "No available times for this date. Try another day."
       : "No available staff for this service at this branch.");
-  const displayEmptyMessage =
-    isTodaySelected
-      ? "No more available slots today. Please choose another date."
-      : emptyMessage;
+  const displayEmptyMessage = isTodaySelected
+    ? "No more available slots today. Please choose another date."
+    : emptyMessage;
 
   const closeTimeSheet = useCallback(() => {
     setIsTimeSheetOpen(false);
@@ -1916,7 +2456,10 @@ function StepDateTime({
 
       <div className="grid gap-4 md:grid-cols-2 md:gap-8">
         <div>
-          <p className="mb-2 text-[11px] font-semibold uppercase tracking-wide md:mb-3 md:text-[12px]" style={WARM_LABEL_STYLE}>
+          <p
+            className="mb-2 text-[11px] font-semibold uppercase tracking-wide md:mb-3 md:text-[12px]"
+            style={WARM_LABEL_STYLE}
+          >
             Date
           </p>
           <div
@@ -1942,9 +2485,7 @@ function StepDateTime({
                   ? "rounded-md bg-transparent p-0 text-[#F6EBD6] [--cell-radius:0.65rem] [--cell-size:2rem] min-[390px]:[--cell-size:2.15rem] sm:[--cell-size:2.5rem] [&_.rdp-chevron]:text-[#D4B57A]"
                   : "rounded-md"
               }
-              classNames={
-                mode === "public" ? BOOKING_CALENDAR_CLASSNAMES : undefined
-              }
+              classNames={mode === "public" ? BOOKING_CALENDAR_CLASSNAMES : undefined}
             />
           </div>
 
@@ -1961,24 +2502,24 @@ function StepDateTime({
         </div>
 
         <div className="hidden md:block">
-          <p className="mb-3 text-[12px] font-semibold uppercase tracking-wide" style={WARM_LABEL_STYLE}>
+          <p
+            className="mb-3 text-[12px] font-semibold uppercase tracking-wide"
+            style={WARM_LABEL_STYLE}
+          >
             Available Times
           </p>
           <p className="text-[12px] mb-3" style={WARM_MUTED_STYLE}>
-            {visitOption.label}: {formatTime(availability.startTime)} - {formatTime(availability.endTime)}
+            {visitOption.label}: {formatTime(availability.startTime)} -{" "}
+            {formatTime(availability.endTime)}
           </p>
           {serviceCount === 0 ? (
-            <div
-              className="flex items-center justify-center h-48 rounded-xl border border-dashed border-[#D4B57A]/25 bg-[#05241D]/50"
-            >
+            <div className="flex items-center justify-center h-48 rounded-xl border border-dashed border-[#D4B57A]/25 bg-[#05241D]/50">
               <p className="text-[13px]" style={WARM_MUTED_STYLE}>
                 Choose a service to see available times.
               </p>
             </div>
           ) : !selectedDate ? (
-            <div
-              className="flex items-center justify-center h-48 rounded-xl border border-dashed border-[#D4B57A]/25 bg-[#05241D]/50"
-            >
+            <div className="flex items-center justify-center h-48 rounded-xl border border-dashed border-[#D4B57A]/25 bg-[#05241D]/50">
               <p className="text-[13px]" style={WARM_MUTED_STYLE}>
                 Choose a date to see available times.
               </p>
@@ -1993,18 +2534,14 @@ function StepDateTime({
                   <Skeleton
                     key={i}
                     className={
-                      mode === "public"
-                        ? `h-10 rounded-lg ${WARM_SKELETON_CLS}`
-                        : "h-10 rounded-lg"
+                      mode === "public" ? `h-10 rounded-lg ${WARM_SKELETON_CLS}` : "h-10 rounded-lg"
                     }
                   />
                 ))}
               </div>
             </div>
           ) : availableSlots.length === 0 ? (
-            <div
-              className="flex items-center justify-center h-48 rounded-xl border border-dashed border-[#D4B57A]/25 bg-[#05241D]/50 px-5 text-center"
-            >
+            <div className="flex items-center justify-center h-48 rounded-xl border border-dashed border-[#D4B57A]/25 bg-[#05241D]/50 px-5 text-center">
               <p className="text-[13px]" style={WARM_MUTED_STYLE}>
                 {displayEmptyMessage}
               </p>
@@ -2119,14 +2656,10 @@ function TimeSlotButton({
         {isSelected && <Check className="h-3 w-3" aria-hidden="true" />}
       </span>
       {isWarning && !isSelected && (
-        <span className="mt-0.5 text-[9px] font-semibold leading-none text-amber-300">
-          Review
-        </span>
+        <span className="mt-0.5 text-[9px] font-semibold leading-none text-amber-300">Review</span>
       )}
       {isHard && mode === "inhouse" && (
-        <span className="mt-0.5 text-[9px] font-semibold leading-none text-red-300">
-          Conflict
-        </span>
+        <span className="mt-0.5 text-[9px] font-semibold leading-none text-red-300">Conflict</span>
       )}
     </button>
   );
@@ -2238,20 +2771,13 @@ function MobileTimeBottomSheet({
               Choose a service first to see available times.
             </MobileTimeSheetMessage>
           ) : !selectedDate ? (
-            <MobileTimeSheetMessage>
-              Choose a date to see available times.
-            </MobileTimeSheetMessage>
+            <MobileTimeSheetMessage>Choose a date to see available times.</MobileTimeSheetMessage>
           ) : loading ? (
             <div className="rounded-xl border border-[#D4B57A]/20 bg-[#05241D]/55 px-4 py-5">
-              <p className="mb-3 text-[13px] text-[#F6EBD6]/68">
-                Checking available times...
-              </p>
+              <p className="mb-3 text-[13px] text-[#F6EBD6]/68">Checking available times...</p>
               <div className="grid grid-cols-2 gap-2">
                 {Array.from({ length: 6 }).map((_, index) => (
-                  <Skeleton
-                    key={index}
-                    className={`h-11 rounded-lg ${WARM_SKELETON_CLS}`}
-                  />
+                  <Skeleton key={index} className={`h-11 rounded-lg ${WARM_SKELETON_CLS}`} />
                 ))}
               </div>
             </div>
@@ -2312,6 +2838,8 @@ function StepTherapist({
   totalDuration,
   totalPrice,
   preferenceConfirmationRequired,
+  bookingFor,
+  attendeesCount,
 }: {
   availableStaff: StaffOption[];
   selectedSlot: Slot | null;
@@ -2321,27 +2849,49 @@ function StepTherapist({
   totalDuration: number;
   totalPrice: number;
   preferenceConfirmationRequired: boolean;
+  bookingFor?: BookingForChoice;
+  attendeesCount?: number;
 }) {
   const slotLabel = selectedSlot ? formatTime(selectedSlot.slot_time) : "selected time";
   const pickerOptions = buildTherapistPickerOptions(availableStaff, slotLabel);
 
   return (
-    <TherapistSelectionStep
-      options={pickerOptions}
-      value={selected}
-      onValueChange={onSelect}
-      serviceCount={selectedServices.length}
-      totalDuration={totalDuration}
-      totalPriceLabel={formatCurrency(totalPrice)}
-      preferenceConfirmationRequired={preferenceConfirmationRequired}
-    />
+    <div>
+      {bookingFor === "me_and_others" && attendeesCount && attendeesCount > 1 && (
+        <div className="mb-6 rounded-2xl border border-[#D4B57A]/28 bg-[#0D2B20]/65 p-4 text-left backdrop-blur-xl">
+          <div className="flex items-center gap-2 mb-1">
+            <Users className="h-4 w-4" style={WARM_LABEL_STYLE} />
+            <p className="text-[13px] font-semibold" style={WARM_HEADING_STYLE}>
+              Dedicated Therapists for Your Group ({attendeesCount} Guests)
+            </p>
+          </div>
+          <p className="text-[12px] leading-5" style={WARM_BODY_STYLE}>
+            Our scheduling system assigns qualified dedicated therapists to each guest so treatments
+            can proceed concurrently without delay. You can indicate a preference below or let us
+            assign our top-rated specialists.
+          </p>
+        </div>
+      )}
+      <TherapistSelectionStep
+        options={pickerOptions}
+        value={selected}
+        onValueChange={onSelect}
+        serviceCount={selectedServices.length}
+        totalDuration={totalDuration}
+        totalPriceLabel={formatCurrency(totalPrice)}
+        preferenceConfirmationRequired={preferenceConfirmationRequired}
+      />
+    </div>
   );
 }
 
 // ── Shared input style ─────────────────────────────────────────────────────────
-const INPUT_CLS = "w-full rounded-xl border border-[#D4B57A]/25 bg-[#05241D]/70 px-4 py-3 text-[14px] text-[#F6EBD6] placeholder:text-[#F6EBD6]/45 outline-none transition-all focus:border-[#D4B57A]/75 focus:ring-2 focus:ring-[#D4B57A]/25";
-const PUBLIC_INPUT_CLS = "w-full rounded-xl border border-[#D4B57A]/25 bg-[#05241D]/75 px-4 py-3 text-[14px] text-[#F6EBD6] placeholder:text-[#F6EBD6]/45 outline-none transition-all selection:bg-[#D4B57A]/30 focus:border-[#D4B57A]/75 focus:ring-2 focus:ring-[#D4B57A]/20";
-const LABEL_CLS = "flex items-center gap-2 text-[12px] font-semibold uppercase tracking-wide mb-2 text-[#D4B57A]";
+const INPUT_CLS =
+  "w-full rounded-xl border border-[#D4B57A]/25 bg-[#05241D]/70 px-4 py-3 text-[14px] text-[#F6EBD6] placeholder:text-[#F6EBD6]/45 outline-none transition-all focus:border-[#D4B57A]/75 focus:ring-2 focus:ring-[#D4B57A]/25";
+const PUBLIC_INPUT_CLS =
+  "w-full rounded-xl border border-[#D4B57A]/25 bg-[#05241D]/75 px-4 py-3 text-[14px] text-[#F6EBD6] placeholder:text-[#F6EBD6]/45 outline-none transition-all selection:bg-[#D4B57A]/30 focus:border-[#D4B57A]/75 focus:ring-2 focus:ring-[#D4B57A]/20";
+const LABEL_CLS =
+  "flex items-center gap-2 text-[12px] font-semibold uppercase tracking-wide mb-2 text-[#D4B57A]";
 
 // ── Step 4 (HS only): Location ────────────────────────────────────────────────
 
@@ -2356,14 +2906,10 @@ function isPreciseHomeServiceLocation(form: DetailsForm): boolean {
   );
 }
 
-function getAddressComponent(
-  components: GoogleAddressComponent[],
-  types: string[]
-): string {
+function getAddressComponent(components: GoogleAddressComponent[], types: string[]): string {
   return (
-    components.find((component) =>
-      types.some((type) => component.types.includes(type))
-    )?.long_name ?? ""
+    components.find((component) => types.some((type) => component.types.includes(type)))
+      ?.long_name ?? ""
   );
 }
 
@@ -2475,7 +3021,9 @@ function StepLocation({
               onChange={(event) => onChange({ ...form, hsZone: event.target.value })}
               className={fieldClassName}
             >
-              <option value="" disabled>Select your zone...</option>
+              <option value="" disabled>
+                Select your zone...
+              </option>
               {HS_ZONE_OPTIONS.filter((option) => option.value !== "unknown").map((option) => (
                 <option key={option.value} value={option.value}>
                   {option.label}
@@ -2515,9 +3063,7 @@ function StepLocation({
               </p>
             </>
           ) : (
-            <div
-              className="flex items-start gap-3 rounded-xl border border-[#D4B57A]/28 bg-[#0D2B20]/65 px-4 py-3 backdrop-blur-xl"
-            >
+            <div className="flex items-start gap-3 rounded-xl border border-[#D4B57A]/28 bg-[#0D2B20]/65 px-4 py-3 backdrop-blur-xl">
               <Check className="mt-0.5 h-4 w-4 shrink-0 text-[#D4B57A]" />
               <div className="min-w-0 flex-1">
                 <p className="text-[11px] font-semibold uppercase tracking-wide text-[#D4B57A]">
@@ -2558,8 +3104,7 @@ function StepLocation({
 
         <div>
           <label htmlFor="hs-delivery-notes" className={LABEL_CLS}>
-            Delivery notes{" "}
-            <span className="normal-case font-normal">(optional)</span>
+            Delivery notes <span className="normal-case font-normal">(optional)</span>
           </label>
           <textarea
             id="hs-delivery-notes"
@@ -2602,12 +3147,12 @@ type DetailsForm = {
 };
 
 const HS_ZONE_OPTIONS: { value: string; label: string }[] = [
-  { value: "unknown",               label: "Not sure / Let CSR confirm" },
-  { value: "central_bacolod",       label: "Central Bacolod" },
+  { value: "unknown", label: "Not sure / Let CSR confirm" },
+  { value: "central_bacolod", label: "Central Bacolod" },
   { value: "north_bacolod_talisay", label: "North Bacolod / Talisay" },
-  { value: "south_bacolod_alijis",  label: "South Bacolod / Alijis" },
-  { value: "east_bacolod",          label: "East Bacolod" },
-  { value: "outside_bacolod",       label: "Outside Bacolod" },
+  { value: "south_bacolod_alijis", label: "South Bacolod / Alijis" },
+  { value: "east_bacolod", label: "East Bacolod" },
+  { value: "outside_bacolod", label: "Outside Bacolod" },
 ];
 
 function StepDetails({
@@ -2616,12 +3161,20 @@ function StepDetails({
   error,
   visitType,
   mode,
+  bookingFor,
+  recipientName,
+  attendees,
 }: {
   form: DetailsForm;
   onChange: (f: DetailsForm) => void;
   error: string;
   visitType: VisitType;
   mode: BookingWizardMode;
+  bookingFor?: BookingForChoice;
+  recipientName?: string;
+  attendees?: WizardAttendee[];
+  paymentChoice?: BookingPaymentChoice;
+  onPaymentChoiceChange?: (choice: BookingPaymentChoice) => void;
 }) {
   const isHomeService = visitType === "home_service";
   const fieldClassName = mode === "public" ? PUBLIC_INPUT_CLS : INPUT_CLS;
@@ -2638,6 +3191,50 @@ function StepDetails({
         Please provide your contact information to complete the booking.
       </p>
 
+      {error && (
+        <div
+          role="alert"
+          aria-live="assertive"
+          className="mb-6 flex items-start gap-3 rounded-2xl border border-red-400/40 bg-red-950/70 p-4 text-[13px] font-medium text-red-200 shadow-lg backdrop-blur-md"
+        >
+          <AlertCircle className="mt-0.5 h-5 w-5 shrink-0 text-red-400" />
+          <div className="flex-1">
+            <p className="font-semibold text-red-100">Unable to confirm booking</p>
+            <p className="mt-0.5 leading-relaxed">{error}</p>
+          </div>
+        </div>
+      )}
+
+      {bookingFor === "someone_else" && (
+        <div className="mb-6 rounded-2xl border border-[#D4B57A]/28 bg-[#0D2B20]/65 p-4 text-left backdrop-blur-xl">
+          <div className="flex items-center gap-2 mb-1">
+            <Gift className="h-4 w-4" style={WARM_LABEL_STYLE} />
+            <p className="text-[13px] font-semibold" style={WARM_HEADING_STYLE}>
+              Booking for {recipientName?.trim() || "Someone Else"}
+            </p>
+          </div>
+          <p className="text-[12px] leading-5" style={WARM_BODY_STYLE}>
+            You are completing this reservation as the organizer. Enter your personal contact
+            details below so we can confirm the appointment and send the booking receipt.
+          </p>
+        </div>
+      )}
+
+      {bookingFor === "me_and_others" && (
+        <div className="mb-6 rounded-2xl border border-[#D4B57A]/28 bg-[#0D2B20]/65 p-4 text-left backdrop-blur-xl">
+          <div className="flex items-center gap-2 mb-1">
+            <Users className="h-4 w-4" style={WARM_LABEL_STYLE} />
+            <p className="text-[13px] font-semibold" style={WARM_HEADING_STYLE}>
+              Group Booking Organizer ({attendees?.length || 2} Guests)
+            </p>
+          </div>
+          <p className="text-[12px] leading-5" style={WARM_BODY_STYLE}>
+            As the booking organizer, your contact details will be used for appointment updates and
+            notifications for your entire party.
+          </p>
+        </div>
+      )}
+
       <div className="flex flex-col gap-4 md:gap-5">
         {/* Contact info */}
         <div>
@@ -2647,6 +3244,8 @@ function StepDetails({
           </label>
           <input
             type="text"
+            id="wizard-fullName"
+            name="fullName"
             value={form.fullName}
             onChange={(e) => onChange({ ...form, fullName: e.target.value })}
             placeholder="Enter your full name"
@@ -2661,6 +3260,8 @@ function StepDetails({
           </label>
           <input
             type="tel"
+            id="wizard-phone"
+            name="phone"
             value={form.phone}
             onChange={(e) => onChange({ ...form, phone: e.target.value })}
             placeholder="e.g. 0917 123 4567"
@@ -2671,11 +3272,12 @@ function StepDetails({
         <div>
           <label className={LABEL_CLS}>
             <Mail className="h-3.5 w-3.5" />
-            Email{" "}
-            <span className="normal-case font-normal">(optional)</span>
+            Email <span className="normal-case font-normal">(optional)</span>
           </label>
           <input
             type="email"
+            id="wizard-email"
+            name="email"
             value={form.email}
             onChange={(e) => onChange({ ...form, email: e.target.value })}
             placeholder="your@email.com"
@@ -2686,8 +3288,7 @@ function StepDetails({
         <div>
           <label className={LABEL_CLS}>
             <FileText className="h-3.5 w-3.5" />
-            Notes{" "}
-            <span className="normal-case font-normal">(optional)</span>
+            Notes <span className="normal-case font-normal">(optional)</span>
           </label>
           <textarea
             value={form.notes}
@@ -2700,9 +3301,7 @@ function StepDetails({
 
         {/* CRM In-House Payment Capture */}
         {mode === "inhouse" && (
-          <div
-            className="flex flex-col gap-4 rounded-2xl border border-[#D4B57A]/25 bg-[#0D2B20]/65 p-5 backdrop-blur-xl"
-          >
+          <div className="flex flex-col gap-4 rounded-2xl border border-[#D4B57A]/25 bg-[#0D2B20]/65 p-5 backdrop-blur-xl">
             <div className="flex items-center gap-2 mb-1">
               <Sparkles className="h-4 w-4" style={WARM_LABEL_STYLE} />
               <p className="text-[13px] font-semibold" style={WARM_HEADING_STYLE}>
@@ -2720,15 +3319,15 @@ function StepDetails({
             </p>
 
             <div>
-              <label className={LABEL_CLS}>
-                Payment method *
-              </label>
+              <label className={LABEL_CLS}>Payment method *</label>
               <select
                 value={form.paymentMethod}
                 onChange={(e) => onChange({ ...form, paymentMethod: e.target.value })}
                 className={fieldClassName}
               >
-                <option value="" disabled>Select payment method…</option>
+                <option value="" disabled>
+                  Select payment method…
+                </option>
                 <option value="cash">Cash</option>
                 <option value="gcash">GCash</option>
                 <option value="maya">Maya</option>
@@ -2739,8 +3338,7 @@ function StepDetails({
 
             <div>
               <label className={LABEL_CLS}>
-                Reference / receipt no.{" "}
-                <span className="normal-case font-normal">(optional)</span>
+                Reference / receipt no. <span className="normal-case font-normal">(optional)</span>
               </label>
               <input
                 type="text"
@@ -2753,8 +3351,7 @@ function StepDetails({
 
             <div>
               <label className={LABEL_CLS}>
-                Payment note{" "}
-                <span className="normal-case font-normal">(optional)</span>
+                Payment note <span className="normal-case font-normal">(optional)</span>
               </label>
               <textarea
                 value={form.paymentNote}
@@ -2767,11 +3364,39 @@ function StepDetails({
           </div>
         )}
 
+        {/* Public Booking Payment Preference */}
+        {mode === "public" && (
+          <div className="flex flex-col gap-3 rounded-2xl border border-[#D4B57A]/25 bg-[#0D2B20]/65 p-5 backdrop-blur-xl">
+            <div className="flex items-center gap-2 mb-1">
+              <Sparkles className="h-4 w-4" style={WARM_LABEL_STYLE} />
+              <p className="text-[13px] font-semibold" style={WARM_HEADING_STYLE}>
+                Payment: Pay at Spa / After Service
+              </p>
+              <span className="ml-auto text-[10px] font-semibold uppercase tracking-wide px-2 py-0.5 rounded-full border border-emerald-400/30 bg-emerald-950/50 text-emerald-200">
+                No Upfront Fee
+              </span>
+            </div>
+            <p className="text-[12px] -mt-1 leading-5" style={WARM_BODY_STYLE}>
+              Your appointment is confirmed immediately. No advance deposit or card entry is needed
+              online. You may settle conveniently upon arrival or after your treatment via Cash,
+              Card, Maya QR, or GCash at our front desk.
+            </p>
+
+            <div className="mt-2 flex items-center gap-3 rounded-xl border border-[#D4B57A]/28 bg-[#05241D]/75 p-3.5">
+              <BadgeCheck className="h-5 w-5 shrink-0 text-[#D4B57A]" />
+              <div className="text-left">
+                <p className="text-[13px] font-medium text-[#F6EBD6]">Pay Later Accepted</p>
+                <p className="text-[11px] text-[#F6EBD6]/65">
+                  Payment tracked separately. Zero payment provider details required online.
+                </p>
+              </div>
+            </div>
+          </div>
+        )}
+
         {/* Home Service Address */}
         {isHomeService && (
-          <div
-            className="flex flex-col gap-4 rounded-2xl border border-[#D4B57A]/25 bg-[#0D2B20]/65 p-5 backdrop-blur-xl"
-          >
+          <div className="flex flex-col gap-4 rounded-2xl border border-[#D4B57A]/25 bg-[#0D2B20]/65 p-5 backdrop-blur-xl">
             <div className="flex items-center gap-2 mb-1">
               <Home className="h-4 w-4" style={WARM_LABEL_STYLE} />
               <p className="text-[13px] font-semibold" style={WARM_HEADING_STYLE}>
@@ -2785,14 +3410,20 @@ function StepDetails({
               </span>
             </div>
             <p className="text-[12px] -mt-2" style={WARM_BODY_STYLE}>
-              We will use the selected Google location from the Location step for dispatch and routing.
+              We will use the selected Google location from the Location step for dispatch and
+              routing.
             </p>
 
             {mode === "inhouse" && (
               <div className="flex items-center gap-2 rounded-xl border border-[#D4B57A]/22 bg-[#05241D]/58 px-4 py-3">
                 <MapPin className="h-4 w-4 shrink-0" style={WARM_LABEL_STYLE} />
                 <div className="flex-1 min-w-0">
-                  <p className="text-[11px] font-semibold uppercase tracking-wide" style={WARM_LABEL_STYLE}>Zone</p>
+                  <p
+                    className="text-[11px] font-semibold uppercase tracking-wide"
+                    style={WARM_LABEL_STYLE}
+                  >
+                    Zone
+                  </p>
                   <p className="text-[13px] font-medium" style={WARM_BODY_STYLE}>
                     {HS_ZONE_OPTIONS.find((o) => o.value === form.hsZone)?.label ?? form.hsZone}
                   </p>
@@ -2801,9 +3432,7 @@ function StepDetails({
             )}
 
             {isPreciseHomeServiceLocation(form) ? (
-              <div
-                className="flex items-start gap-3 rounded-xl border border-[#D4B57A]/22 bg-[#05241D]/58 px-4 py-3"
-              >
+              <div className="flex items-start gap-3 rounded-xl border border-[#D4B57A]/22 bg-[#05241D]/58 px-4 py-3">
                 <Check className="mt-0.5 h-4 w-4 shrink-0 text-[#D4B57A]" />
                 <div className="min-w-0">
                   <p className="text-[11px] font-semibold uppercase tracking-wide text-[#D4B57A]">
@@ -2825,7 +3454,10 @@ function StepDetails({
 
             {form.hsAddressDetails && (
               <div className="rounded-xl border border-[#D4B57A]/22 bg-[#05241D]/58 px-4 py-3">
-                <p className="text-[11px] font-semibold uppercase tracking-wide" style={WARM_LABEL_STYLE}>
+                <p
+                  className="text-[11px] font-semibold uppercase tracking-wide"
+                  style={WARM_LABEL_STYLE}
+                >
                   House / Unit Details
                 </p>
                 <p className="mt-0.5 text-[13px]" style={WARM_BODY_STYLE}>
@@ -2837,9 +3469,7 @@ function StepDetails({
             {mode === "inhouse" && (
               <div className="grid sm:grid-cols-2 gap-4">
                 <div>
-                  <label className={LABEL_CLS}>
-                    Barangay *
-                  </label>
+                  <label className={LABEL_CLS}>Barangay *</label>
                   <input
                     type="text"
                     value={form.hsBarangay}
@@ -2849,9 +3479,7 @@ function StepDetails({
                   />
                 </div>
                 <div>
-                  <label className={LABEL_CLS}>
-                    City / Municipality *
-                  </label>
+                  <label className={LABEL_CLS}>City / Municipality *</label>
                   <input
                     type="text"
                     value={form.hsCity}
@@ -2879,84 +3507,217 @@ function StepDetails({
 
 function StepSuccess({
   bookingId,
+  orderNumber,
+  bookingFor,
+  recipientName,
+  attendees,
   services,
+  selectedBranch,
+  selectedDate,
+  selectedSlot,
+  visitType,
+  hsAddress,
+  paymentChoice,
+  totalPrice,
   mode,
   staffPreferenceNeedsConfirmation,
 }: {
   bookingId: string;
+  orderNumber?: string;
+  bookingFor?: BookingForChoice;
+  recipientName?: string;
+  attendees?: WizardAttendee[];
   services: Service[];
+  selectedBranch: Branch | null;
+  selectedDate?: Date | null;
+  selectedSlot: Slot | null;
+  visitType: VisitType;
+  hsAddress?: string;
+  paymentChoice?: BookingPaymentChoice;
+  totalPrice?: number;
   mode: BookingWizardMode;
   staffPreferenceNeedsConfirmation: boolean;
 }) {
+  const displayOrderNum = orderNumber || `CRD-${bookingId.slice(0, 8).toUpperCase()}`;
+  const formattedDate = selectedDate
+    ? selectedDate.toLocaleDateString("en-US", {
+        weekday: "short",
+        month: "short",
+        day: "numeric",
+        year: "numeric",
+      })
+    : "";
+  const formattedTime = selectedSlot ? formatTime(selectedSlot.slot_time) : "";
+
   return (
-    <div className="text-center py-12">
-      <div className="mx-auto mb-6 flex h-20 w-20 items-center justify-center rounded-full border border-[#D4B57A]/40 bg-[#0D2B20]/72 text-[#D4B57A] shadow-[0_20px_54px_rgba(0,0,0,0.32)]">
-        <Check className="h-10 w-10" />
+    <div className="text-center py-8 md:py-12">
+      <div className="mx-auto mb-5 flex h-16 w-16 md:h-20 md:w-20 items-center justify-center rounded-full border border-[#D4B57A]/40 bg-[#0D2B20]/72 text-[#D4B57A] shadow-[0_20px_54px_rgba(0,0,0,0.32)]">
+        <Check className="h-8 w-8 md:h-10 md:w-10" />
       </div>
-      <h2
-        className="text-2xl sm:text-3xl font-medium mb-3"
-        style={WARM_HEADING_STYLE}
-      >
-        {mode === "inhouse" ? "Booking Saved" : "Your calm is booked"}
+
+      <h2 className="text-2xl sm:text-3xl font-medium mb-2.5" style={WARM_HEADING_STYLE}>
+        {mode === "inhouse" ? "Booking Saved" : "Your booking is confirmed 🌿"}
       </h2>
-      <p className="text-[15px] max-w-md mx-auto mb-6" style={WARM_BODY_STYLE}>
+      <p
+        className="text-[14px] md:text-[15px] max-w-md mx-auto mb-6 leading-relaxed"
+        style={WARM_BODY_STYLE}
+      >
         {mode === "inhouse"
           ? "The appointment has been saved and confirmed in the CRM workspace."
-          : "We can't wait to care for you. Our CRM team will contact you shortly to confirm your payment and finalize your appointment."}
+          : "Thank you for choosing Cradle Wellness Living. We look forward to taking care of you."}
       </p>
 
-      {mode === "public" && staffPreferenceNeedsConfirmation ? (
-        <div className="mx-auto mb-6 max-w-md rounded-xl border border-amber-300/35 bg-amber-300/10 px-5 py-4 text-left">
-          <p className="text-[13px] leading-6 text-[#F6EBD6]">
-            Your booking has been received. Our team will confirm your selected staff preference.
-          </p>
+      {/* Confirmed Order Card */}
+      <div className="mx-auto mb-6 max-w-lg rounded-2xl border border-[#D4B57A]/28 bg-[#0D2B20]/65 p-5 sm:p-6 text-left backdrop-blur-xl shadow-[0_20px_48px_rgba(0,0,0,0.35)]">
+        <div className="flex items-center justify-between border-b border-[#D4B57A]/15 pb-4 mb-4">
+          <div>
+            <span className="text-[11px] font-semibold uppercase tracking-wider text-[#D4B57A]">
+              Order Number
+            </span>
+            <p className="text-[16px] font-mono font-bold text-[#F6EBD6]">{displayOrderNum}</p>
+          </div>
+          <span className="inline-flex items-center gap-1.5 rounded-full border border-emerald-400/35 bg-emerald-950/60 px-3 py-1 text-[11px] font-semibold tracking-wide text-emerald-200">
+            <span className="h-1.5 w-1.5 rounded-full bg-emerald-400 animate-pulse" />
+            Confirmed
+          </span>
         </div>
-      ) : null}
 
-      {mode === "public" && (
-        <div
-          className="mx-auto mb-6 max-w-md rounded-xl border border-[#D4B57A]/25 bg-[#0D2B20]/65 px-5 py-4 text-left backdrop-blur-xl"
-        >
-          <p className="text-[12px] font-semibold uppercase tracking-wide" style={WARM_LABEL_STYLE}>
-            Next step
-          </p>
-          <p className="mt-1 text-[13px] leading-6" style={WARM_BODY_STYLE}>
-            Wait for our CRM confirmation. We are temporarily holding your selected time while we process your request, so please keep your phone nearby.
-          </p>
+        {/* Overview details grid */}
+        <div className="grid grid-cols-2 gap-4 text-left mb-5">
+          <div>
+            <span className="text-[11px] uppercase tracking-wide text-[#D4B57A]/75 flex items-center gap-1.5">
+              <CalendarDays className="h-3.5 w-3.5" /> Date & Time
+            </span>
+            <p className="text-[13px] font-medium text-[#F6EBD6] mt-0.5">{formattedDate}</p>
+            <p className="text-[12px] text-[#F6EBD6]/75">{formattedTime}</p>
+          </div>
+
+          <div>
+            <span className="text-[11px] uppercase tracking-wide text-[#D4B57A]/75 flex items-center gap-1.5">
+              {visitType === "home_service" ? (
+                <Home className="h-3.5 w-3.5" />
+              ) : (
+                <Building className="h-3.5 w-3.5" />
+              )}
+              {visitType === "home_service" ? "Home Service" : "Branch"}
+            </span>
+            <p className="text-[13px] font-medium text-[#F6EBD6] mt-0.5 truncate">
+              {visitType === "home_service"
+                ? hsAddress || "Home Service Location"
+                : selectedBranch?.name || "In-Spa Branch"}
+            </p>
+            {visitType === "home_service" && (
+              <p className="text-[11px] text-[#D4B57A]/90">Door-to-door care</p>
+            )}
+          </div>
+
+          <div>
+            <span className="text-[11px] uppercase tracking-wide text-[#D4B57A]/75 flex items-center gap-1.5">
+              <Users className="h-3.5 w-3.5" /> Guests
+            </span>
+            <p className="text-[13px] font-medium text-[#F6EBD6] mt-0.5">
+              {bookingFor === "me_and_others"
+                ? `${attendees?.length ?? 1} Guests`
+                : bookingFor === "someone_else"
+                  ? `1 Guest (for ${recipientName || "Recipient"})`
+                  : "1 Guest (Just you)"}
+            </p>
+          </div>
+
+          <div>
+            <span className="text-[11px] uppercase tracking-wide text-[#D4B57A]/75 flex items-center gap-1.5">
+              <Sparkles className="h-3.5 w-3.5" /> Total
+            </span>
+            <p className="text-[14px] font-bold text-[#D4B57A] mt-0.5">
+              {formatCurrency(totalPrice ?? 0)}
+            </p>
+          </div>
         </div>
-      )}
 
-      {/* Service list recap */}
-      {services.length > 0 && (
-        <div
-          className="mb-6 inline-flex flex-col items-start gap-1.5 rounded-xl border border-[#D4B57A]/25 bg-[#0D2B20]/65 px-6 py-4 text-left backdrop-blur-xl"
-        >
-          {services.map((s) => (
-            <div key={s.id} className="flex items-center gap-2">
-              <Check className="h-3.5 w-3.5 shrink-0" style={WARM_LABEL_STYLE} />
-              <span className="text-[13px] font-medium" style={WARM_BODY_STYLE}>
-                {s.name}
-              </span>
+        {/* Attendees & Treatments breakdown */}
+        <div className="border-t border-[#D4B57A]/15 pt-4">
+          <p className="text-[11px] font-semibold uppercase tracking-wider text-[#D4B57A] mb-2.5">
+            Treatments & Services
+          </p>
+
+          {bookingFor === "me_and_others" && attendees && attendees.length > 0 ? (
+            <div className="flex flex-col gap-3">
+              {attendees.map((att, idx) => {
+                const attServices = services.filter((s) => att.serviceIds.includes(s.id));
+                return (
+                  <div
+                    key={att.id}
+                    className="rounded-xl border border-[#D4B57A]/18 bg-[#05241D]/60 p-3"
+                  >
+                    <div className="flex items-center justify-between mb-1.5">
+                      <span className="text-[12px] font-semibold text-[#F6EBD6]">
+                        {att.name || `Guest ${idx + 1}`}
+                      </span>
+                      <span className="text-[11px] text-[#D4B57A]">
+                        {attServices.length} {attServices.length === 1 ? "treatment" : "treatments"}
+                      </span>
+                    </div>
+                    <div className="flex flex-wrap gap-1.5">
+                      {attServices.map((s) => (
+                        <span
+                          key={s.id}
+                          className="inline-flex items-center gap-1 text-[11px] bg-[#0D2B20] text-[#F6EBD6]/85 px-2 py-0.5 rounded-md border border-[#D4B57A]/15"
+                        >
+                          <Check className="h-3 w-3 text-[#D4B57A]" />
+                          {s.name}
+                        </span>
+                      ))}
+                    </div>
+                  </div>
+                );
+              })}
             </div>
-          ))}
+          ) : (
+            <div className="flex flex-col gap-1.5">
+              {services.map((s) => (
+                <div key={s.id} className="flex items-center justify-between text-[12px]">
+                  <div className="flex items-center gap-2">
+                    <Check className="h-3.5 w-3.5 text-[#D4B57A]" />
+                    <span className="text-[#F6EBD6] font-medium">{s.name}</span>
+                  </div>
+                  <span className="text-[#D4B57A]/85">{formatCurrency(s.price)}</span>
+                </div>
+              ))}
+            </div>
+          )}
         </div>
-      )}
 
-      <div
-        className="mb-8 inline-flex items-center gap-3 rounded-xl border border-[#D4B57A]/25 bg-[#0D2B20]/65 px-6 py-4 backdrop-blur-xl"
-      >
-        <span className="text-[12px] font-medium uppercase tracking-wide" style={WARM_LABEL_STYLE}>
-          Booking ID
-        </span>
-        <span className="text-[14px] font-semibold font-mono" style={WARM_BODY_STYLE}>
-          {bookingId.slice(0, 8).toUpperCase()}
-        </span>
+        {/* Payment details notice */}
+        <div className="mt-4 rounded-xl border border-[#D4B57A]/22 bg-[#05241D]/75 p-3.5">
+          <div className="flex items-center justify-between mb-1">
+            <span className="text-[11px] font-semibold uppercase tracking-wider text-[#D4B57A]">
+              Payment Status
+            </span>
+            <span className="text-[11px] font-medium text-[#F6EBD6]/80">
+              {paymentChoice === "pay_now" ? "Online checkout" : "Pay at spa / after service"}
+            </span>
+          </div>
+          <p className="text-[12px] leading-relaxed text-[#F6EBD6]/75">
+            {paymentChoice === "pay_now"
+              ? "Your reservation is confirmed. We will provide payment guidance and receipt confirmation."
+              : `Your reservation is fully confirmed. You may settle the total of ${formatCurrency(totalPrice ?? 0)} upon arrival or after your service via cash, card, Maya, or GCash.`}
+          </p>
+        </div>
       </div>
 
-      <p className="text-[12px]" style={WARM_MUTED_STYLE}>
+      {staffPreferenceNeedsConfirmation && (
+        <div className="mx-auto mb-6 max-w-lg rounded-xl border border-amber-300/35 bg-amber-300/10 px-5 py-3.5 text-left">
+          <p className="text-[12px] leading-relaxed text-[#F6EBD6]">
+            Our scheduling system has confirmed your appointment. We have noted your therapist
+            preference and will ensure optimal specialist matching.
+          </p>
+        </div>
+      )}
+
+      <p className="text-[12px] max-w-md mx-auto" style={WARM_MUTED_STYLE}>
         {mode === "inhouse"
           ? "You can view or adjust this booking anytime from the bookings workspace."
-          : "Your request is with our CRM team. If you need to make any changes, please call us directly."}
+          : "Need to make any adjustments? Please call our concierge desk directly and mention your order number."}
       </p>
 
       {mode === "public" && (
@@ -2969,6 +3730,9 @@ function StepSuccess({
           </Link>
           <Link
             href="/book"
+            onClick={() => {
+              resetCheckoutAttemptId();
+            }}
             className={`inline-flex min-h-11 items-center justify-center rounded-full px-5 text-[13px] font-semibold transition-opacity hover:opacity-90 ${WARM_PRIMARY_BUTTON_CLS}`}
           >
             Book another service

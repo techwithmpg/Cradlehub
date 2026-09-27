@@ -208,6 +208,19 @@ export const homeServiceAddressSchema = z.object({
 });
 export type HomeServiceAddressInput = z.infer<typeof homeServiceAddressSchema>;
 
+// ── Attendee input for multi-guest booking orders ───────────────────────────
+export const bookingAttendeeInputSchema = z.object({
+  id: z.string().max(100),
+  name: z.string().max(100).optional(),
+  isOrganizer: z.boolean().optional(),
+  serviceIds: z
+    .array(uuid)
+    .min(1, "Select at least one service")
+    .max(5, "Maximum 5 services per guest"),
+  notes: z.string().max(500).optional(),
+});
+export type BookingAttendeeInput = z.infer<typeof bookingAttendeeInputSchema>;
+
 // ── Multi-service public online booking ───────────────────────────────────────
 export const createOnlineBookingMultiSchema = z
   .object({
@@ -216,13 +229,18 @@ export const createOnlineBookingMultiSchema = z
     serviceIds: z
       .array(uuid)
       .min(1, "Select at least one service")
-      .max(5, "Maximum 5 services per booking"),
+      .max(25, "Maximum 25 services per booking order"),
     staffId: uuid.optional(),
+    idempotencyKey: z.string().uuid("Invalid idempotency key").optional(),
     date: onlineBookingDate,
     startTime: timeStr,
     type: z.enum(["online", "home_service"]).default("online"),
     deliveryType: z.enum(["in_spa", "home_service"]).optional(),
     travelBufferMins: z.number().int().min(0).max(240).optional(),
+    bookingFor: z.enum(["me", "me_and_others", "someone_else"]).optional(),
+    recipientName: z.string().max(100).optional(),
+    attendees: z.array(bookingAttendeeInputSchema).max(10).optional(),
+    paymentChoice: z.enum(["pay_later", "pay_now"]).optional(),
     fullName: z.string().min(2, "Name must be at least 2 characters").max(100),
     phone,
     email: z.string().email("Invalid email").optional().or(z.literal("")),
@@ -243,6 +261,7 @@ export const createOnlineBookingMultiSchema = z
     homeServiceFormattedAddress: z.string().max(500).optional(),
     homeServiceAddressComponents: z.array(googleAddressComponentSchema).max(24).optional(),
     homeServiceMapUrl: z.string().url().max(1000).optional(),
+    dryRun: z.boolean().optional(),
   })
   .strict()
   .superRefine((data, ctx) => {
