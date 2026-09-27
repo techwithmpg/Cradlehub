@@ -39,8 +39,6 @@ export const FINANCIAL_PAYMENT_RAILS = [
   'maya',
   'bank_transfer',
   'card',
-  'voucher',
-  'customer_credit',
 ] as const;
 
 export type FinancialPaymentRail = (typeof FINANCIAL_PAYMENT_RAILS)[number];
@@ -209,6 +207,11 @@ export function validateFinancialMovementPayload(payload: FinancialMovementPaylo
     throw new Error('FINANCIAL_INVALID_PAYLOAD: accountId is required.');
   }
   assertNonZeroMovement(payload.amount);
+  if (payload.paymentMethod && !isValidPaymentMethod(payload.paymentMethod)) {
+    throw new Error(
+      `FINANCIAL_INVALID_PAYLOAD: Invalid payment method rail: ${payload.paymentMethod}. Vouchers and customer credits do not move financial accounts.`
+    );
+  }
   if (
     payload.movementIndex !== undefined &&
     (!Number.isInteger(payload.movementIndex) || payload.movementIndex < 0)

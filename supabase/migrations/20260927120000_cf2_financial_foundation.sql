@@ -148,9 +148,7 @@ CREATE TABLE IF NOT EXISTS public.financial_account_movements (
                                           'gcash',
                                           'maya',
                                           'bank_transfer',
-                                          'card',
-                                          'voucher',
-                                          'customer_credit'
+                                          'card'
                                         )),
   external_reference    TEXT            NULL,
   created_at            TIMESTAMPTZ     NOT NULL DEFAULT now(),

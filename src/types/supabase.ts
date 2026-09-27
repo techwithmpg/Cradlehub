@@ -2293,7 +2293,7 @@ export type Database = {
           external_reference: string | null
           financial_account_id: string
           id: string
-          payment_method: string
+          payment_method: "cash" | "gcash" | "maya" | "bank_transfer" | "card"
           transaction_id: string
         }
         Insert: {
@@ -2302,7 +2302,7 @@ export type Database = {
           external_reference?: string | null
           financial_account_id: string
           id?: string
-          payment_method: string
+          payment_method: "cash" | "gcash" | "maya" | "bank_transfer" | "card"
           transaction_id: string
         }
         Update: {
@@ -2311,7 +2311,7 @@ export type Database = {
           external_reference?: string | null
           financial_account_id?: string
           id?: string
-          payment_method?: string
+          payment_method?: "cash" | "gcash" | "maya" | "bank_transfer" | "card"
           transaction_id?: string
         }
         Relationships: [

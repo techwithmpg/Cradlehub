@@ -5,7 +5,9 @@ vi.mock("server-only", () => ({}));
 import {
   FINANCIAL_ACCOUNT_TYPES,
   FINANCIAL_TRANSACTION_TYPES,
+  FINANCIAL_PAYMENT_RAILS,
   CF2_SUPPORTED_CURRENCIES,
+  isValidPaymentMethod,
   assertValidMovementAmount,
   calculateNetMovement,
   assertValidReversal,
@@ -14,6 +16,7 @@ import {
   validateFinancialTransactionPayload,
   type FinancialAccountType,
   type FinancialTransactionType,
+  type FinancialPaymentRail,
   type FinancialMovementPayload,
   type FinancialTransactionPayload,
 } from "@/lib/cash-flow/financial-contract";
@@ -42,6 +45,54 @@ describe("CF2 — Financial Foundation Contract & Invariants", () => {
       expect(maskAccountIdentifier("123")).toBe("•••• 123");
       expect(maskAccountIdentifier("09171234567")).toBe("•••• 4567");
       expect(maskAccountIdentifier("1234-5678-9012")).toBe("•••• 9012");
+    });
+  });
+
+  describe("Movement Payment Rail Taxonomy (Money Rails Only)", () => {
+    it("defines the frozen canonical account-moving payment rails", () => {
+      const expectedRails: FinancialPaymentRail[] = [
+        "cash",
+        "gcash",
+        "maya",
+        "bank_transfer",
+        "card",
+      ];
+      expect(FINANCIAL_PAYMENT_RAILS).toEqual(expectedRails);
+    });
+
+    it("accepts valid money rails as payment methods", () => {
+      expect(isValidPaymentMethod("cash")).toBe(true);
+      expect(isValidPaymentMethod("gcash")).toBe(true);
+      expect(isValidPaymentMethod("maya")).toBe(true);
+      expect(isValidPaymentMethod("bank_transfer")).toBe(true);
+      expect(isValidPaymentMethod("card")).toBe(true);
+    });
+
+    it("strictly rejects voucher and customer_credit from account movements", () => {
+      expect(isValidPaymentMethod("voucher")).toBe(false);
+      expect(isValidPaymentMethod("customer_credit")).toBe(false);
+      expect((FINANCIAL_PAYMENT_RAILS as readonly string[]).includes("voucher")).toBe(false);
+      expect((FINANCIAL_PAYMENT_RAILS as readonly string[]).includes("customer_credit")).toBe(false);
+    });
+
+    it("rejects non-money rail paymentMethod in movement payload validation", () => {
+      expect(() =>
+        validateFinancialMovementPayload({
+          transactionId: "10000000-0000-0000-0000-000000000001",
+          accountId: "20000000-0000-0000-0000-000000000001",
+          amount: 500,
+          paymentMethod: "voucher" as unknown as FinancialPaymentRail,
+        })
+      ).toThrow(/Invalid payment method rail: voucher/);
+
+      expect(() =>
+        validateFinancialMovementPayload({
+          transactionId: "10000000-0000-0000-0000-000000000001",
+          accountId: "20000000-0000-0000-0000-000000000001",
+          amount: 500,
+          paymentMethod: "customer_credit" as unknown as FinancialPaymentRail,
+        })
+      ).toThrow(/Invalid payment method rail: customer_credit/);
     });
   });
 
