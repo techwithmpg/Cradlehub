@@ -8,17 +8,17 @@
 - **BASE_SHA**: `ed8ae75d2d6fc9f3b8144dcabbe014f676e83a99`
 - **IMPLEMENTATION_HEAD_SHA**: `0a8d0654b4f610c14bda284535f941da2430cc71`
 - **PRE_EVIDENCE_REVIEW_HEAD**: `98697b165853b649132a2dc25c0b5256b00689ce`
-- **Metadata Note**: `PRE_EVIDENCE_REVIEW_HEAD` represents the complete Stage 12A implementation and test suite state immediately prior to this evidence-only reconciliation. The final remote commit SHA for this evidence update is documented externally in the agent completion report.
+- **Metadata Note**: `BASE_SHA`, `IMPLEMENTATION_HEAD_SHA`, and `PRE_EVIDENCE_REVIEW_HEAD` are stable revision anchors. `PRE_EVIDENCE_REVIEW_HEAD` identifies the implementation and test suite state reviewed before evidence corrections. The final evidence-only commit SHA and its external GitHub Actions/Vercel statuses are queried and reported in the completion report after push; they are not self-encoded as a current revision or status in this canonical evidence file.
 - **Verification Environment**: Windows execution environment, Node.js v20+, Turbopack, Vitest.
 
 ---
 
 ## 2. CI, Status Contexts & Build Disclosures
 
-- **GitHub Actions Workflows**: **NONE**
-  - Query (`gh run list --commit 98697b165853b649132a2dc25c0b5256b00689ce`) confirmed 0 workflow runs configured or triggered.
-- **External Vercel Preview Status**:
-  - Current Remote Head (`98697b165853b649132a2dc25c0b5256b00689ce`): **SUCCESS** (Vercel deployment completed successfully).
+- **GitHub Actions at PRE_EVIDENCE_REVIEW_HEAD**: **NO WORKFLOW RUNS OBSERVED**
+  - Query (`gh run list --commit 98697b165853b649132a2dc25c0b5256b00689ce`) returned 0 workflow runs for that revision.
+- **Historical External Vercel Preview Observations**:
+  - `PRE_EVIDENCE_REVIEW_HEAD` (`98697b165853b649132a2dc25c0b5256b00689ce`): **SUCCESS** was recorded for that revision (Vercel deployment completed successfully).
   - Historical Implementation Head Note (`0a8d0654...`): Deployment `dpl_B5bsjnS8nu3UvWDbv9bP58MKsjGP` failed transiently on shared Google font loading for Cormorant Garamond in `src/app/layout.tsx`. Stage 12 diff verified not touching layout, font configs, or build configurations (`git diff ed8ae75d2d6fc9f3b8144dcabbe014f676e83a99 --name-only`).
   - Runtime Caveat: External Vercel status is recorded for tracking and is not substituted for owner runtime validation.
 - **Local Production Build**: **PASSED**
@@ -61,7 +61,9 @@
   3. `src/app/api/desktop/v1/staff/onboarding/route.test.ts`: 9 passed (desktop onboarding approve and reject route endpoints).
   4. `src/app/api/desktop/v1/staff/staff-routes.test.ts`: 15 passed (desktop staff profile PATCH, role POST, and deactivation POST route endpoints).
   5. `tests/lib/bookings/reschedule-booking-service.test.ts`: 8 passed (CRM reschedule domain engine, timing validation, conflict resolution, exception handling).
-  6. `src/app/api/desktop/v1/bookings/[bookingId]/reschedule/route.test.ts`: 5 passed (desktop booking reschedule route endpoint, validation handling, branch boundary enforcement, execution).
+  6. `src/app/api/desktop/v1/bookings/[bookingId]/reschedule/route.test.ts`: 5 passed (unauthenticated request -> 401; invalid booking UUID -> 400; missing date/startTime -> 400; successful delegation including optional therapist reassignment; conflict mapping -> 409).
+
+- **Booking Route Test Coverage Limit**: This specific route test file mocks `rescheduleBooking` and does not explicitly test branch authority. Branch restrictions described in Workflow 6 are production source behavior, not coverage proved by these five route tests. The results above are previously recorded Stage 12A results; implementation/tests were not rerun for this evidence-only correction.
 
 ---
 
@@ -94,7 +96,7 @@
   2. Resolves target request from `staff_onboarding_requests` to verify status is `submitted`.
   3. **Claim First**: Atomically transitions request to `status = 'approved'`, sets `reviewed_by_staff_id`, `reviewed_at`, `requested_branch_id`, and appends `approved_at` into `metadata`. Guarded by conditional `.eq("status", "submitted")`.
   4. Updates `staff` table row with assigned `system_role`, `branch_id`, `tier`, and `is_active = true`.
-  5. Invokes `replace_staff_service_capabilities` using the **caller-authenticated Supabase client** (`authenticatedClient`), ensuring PostgreSQL RLS evaluates the caller session.
+  5. Invokes `replace_staff_service_capabilities` using the **caller-authenticated Supabase client** (`authenticatedClient`) so `auth.uid()` represents the real authenticated reviewer. This `SECURITY DEFINER` RPC performs its own internal authorization using `auth.uid()` and server-resolved actor, role, branch, target staff, target role, target active state, and requested services. This is internal RPC authorization rather than ordinary table RLS evaluation of the replacement operation. Service-role remains server-only and is not used for this actor-aware approval capability call. Source: `src/lib/staff/staff-onboarding-service.ts` and `supabase/migrations/20260806132402_service_catalog_unification_repair.sql`.
   6. **Conditional Compensation on Failure**: If staff update or capability RPC fails, `compensateApprovalMutation` restores state only if concurrent writers have not modified the records.
 - **HTTP Failure Response Shape**: Produced by `desktopStaffFailure`:
   ```json
