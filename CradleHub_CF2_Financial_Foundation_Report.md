@@ -1,5 +1,7 @@
 # CradleHub CF2 — Financial Foundation Evidence Report
 
+> **SUPERSEDED FOR FINAL CF2 ACCEPTANCE BY [CradleHub_CF2_Correction_1_Report.md](CradleHub_CF2_Correction_1_Report.md)**
+
 ## A. TARGET / STAGE
 - **Target Repository:** `E:\cradlehub-booking-simplification`
 - **Program:** CradleHub Web — CONTROLLED STABILIZATION
