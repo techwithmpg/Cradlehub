@@ -2286,6 +2286,174 @@ export type Database = {
           },
         ]
       }
+      financial_account_movements: {
+        Row: {
+          amount: number
+          created_at: string
+          external_reference: string | null
+          financial_account_id: string
+          id: string
+          payment_method: string
+          transaction_id: string
+        }
+        Insert: {
+          amount: number
+          created_at?: string
+          external_reference?: string | null
+          financial_account_id: string
+          id?: string
+          payment_method: string
+          transaction_id: string
+        }
+        Update: {
+          amount?: number
+          created_at?: string
+          external_reference?: string | null
+          financial_account_id?: string
+          id?: string
+          payment_method?: string
+          transaction_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "financial_account_movements_financial_account_id_fkey"
+            columns: ["financial_account_id"]
+            isOneToOne: false
+            referencedRelation: "financial_accounts"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "financial_account_movements_transaction_id_fkey"
+            columns: ["transaction_id"]
+            isOneToOne: false
+            referencedRelation: "financial_transactions"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      financial_accounts: {
+        Row: {
+          account_type: string
+          branch_id: string | null
+          created_at: string
+          currency: string
+          id: string
+          identifier_mask: string
+          is_active: boolean
+          name: string
+          updated_at: string
+        }
+        Insert: {
+          account_type: string
+          branch_id?: string | null
+          created_at?: string
+          currency?: string
+          id?: string
+          identifier_mask: string
+          is_active?: boolean
+          name: string
+          updated_at?: string
+        }
+        Update: {
+          account_type?: string
+          branch_id?: string | null
+          created_at?: string
+          currency?: string
+          id?: string
+          identifier_mask?: string
+          is_active?: boolean
+          name?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "financial_accounts_branch_id_fkey"
+            columns: ["branch_id"]
+            isOneToOne: false
+            referencedRelation: "branches"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      financial_transactions: {
+        Row: {
+          branch_id: string
+          business_date: string
+          created_at: string
+          currency: string
+          external_reference: string | null
+          id: string
+          idempotency_key: string
+          notes: string | null
+          occurred_at: string
+          recorded_at: string
+          recorded_by: string
+          reversal_of_transaction_id: string | null
+          source_id: string | null
+          source_type: string | null
+          status: string
+          transaction_type: string
+        }
+        Insert: {
+          branch_id: string
+          business_date: string
+          created_at?: string
+          currency?: string
+          external_reference?: string | null
+          id?: string
+          idempotency_key: string
+          notes?: string | null
+          occurred_at: string
+          recorded_at?: string
+          recorded_by: string
+          reversal_of_transaction_id?: string | null
+          source_id?: string | null
+          source_type?: string | null
+          status?: string
+          transaction_type: string
+        }
+        Update: {
+          branch_id?: string
+          business_date?: string
+          created_at?: string
+          currency?: string
+          external_reference?: string | null
+          id?: string
+          idempotency_key?: string
+          notes?: string | null
+          occurred_at?: string
+          recorded_at?: string
+          recorded_by?: string
+          reversal_of_transaction_id?: string | null
+          source_id?: string | null
+          source_type?: string | null
+          status?: string
+          transaction_type?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "financial_transactions_branch_id_fkey"
+            columns: ["branch_id"]
+            isOneToOne: false
+            referencedRelation: "branches"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "financial_transactions_recorded_by_fkey"
+            columns: ["recorded_by"]
+            isOneToOne: false
+            referencedRelation: "staff"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "financial_transactions_reversal_of_transaction_id_fkey"
+            columns: ["reversal_of_transaction_id"]
+            isOneToOne: false
+            referencedRelation: "financial_transactions"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       marketing_brand_settings: {
         Row: {
           created_at: string
@@ -6743,6 +6911,27 @@ export type Database = {
             referencedRelation: "customers"
             referencedColumns: ["id"]
           },
+        ]
+      }
+      v_financial_accounts: {
+        Row: {
+          account_type: string
+          branch_id: string | null
+          created_at: string
+          currency: string
+          id: string
+          identifier_mask: string
+          is_active: boolean
+          name: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "financial_accounts_branch_id_fkey"
+            columns: ["branch_id"]
+            isOneToOne: false
+            referencedRelation: "branches"
+            referencedColumns: ["id"]
+          }
         ]
       }
     }
