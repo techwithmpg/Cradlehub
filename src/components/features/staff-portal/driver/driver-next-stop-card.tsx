@@ -1,4 +1,7 @@
+"use client";
+
 import Link from "next/link";
+import { usePathname } from "next/navigation";
 import { MapPin, Clock, ChevronRight } from "lucide-react";
 import { formatTime12h } from "@/lib/utils/time-format";
 import type { RealDispatchItem } from "@/lib/queries/dispatch-queries";
@@ -22,6 +25,8 @@ function getNextStop(items: RealDispatchItem[]): RealDispatchItem | null {
 }
 
 export function DriverNextStopCard({ items }: { items: RealDispatchItem[] }) {
+  const pathname = usePathname();
+  const isCanonical = pathname?.startsWith("/staff") ?? false;
   const next = getNextStop(items);
 
   if (!next) {
@@ -35,10 +40,11 @@ export function DriverNextStopCard({ items }: { items: RealDispatchItem[] }) {
 
   const address = next.formattedAddress ?? next.area;
   const countdown = getCountdown(next.startTime);
+  const detailsHref = isCanonical ? "/staff/driver/trips" : `/staff-portal/jobs/${next.id}`;
 
   return (
     <Link
-      href={`/staff-portal/jobs/${next.id}`}
+      href={detailsHref}
       style={{ textDecoration: "none", display: "block" }}
     >
       <div style={{ backgroundColor: "#fff", borderRadius: 16, border: "1px solid var(--cs-border-soft)", borderLeft: "3px solid var(--cs-staff-accent)", padding: "1rem 1.125rem", boxShadow: "var(--cs-shadow-xs)", display: "flex", flexDirection: "column", gap: "0.5rem" }}>

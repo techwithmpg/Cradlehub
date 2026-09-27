@@ -1,13 +1,14 @@
 # Project Status
 
-## Staff PWA workstream — 2026-09-11
+## Staff PWA workstream — 2026-09-12
 
-- Program: **OWNER APPROVED**. Authorized stage: **PWA-C1 — Current-System Truth ONLY**.
-- Baseline: `b2b9b6ec7579bbd9b519841cadf612ed133cbfcc`; branch: `stage/pwa-c1-current-system-truth`.
-- [Truth map](pwa/PWA-C1-TRUTH-MAP.md): delivered for review; owner acceptance and merge have not occurred.
-- [Project governance/roadmap](pwa/PROJECT.md) and [handoff/evidence](pwa/PWA-C1-HANDOFF.md) define current scope and results.
-- Owner follow-up authorizes committing and pushing the completed eight-file documentation artifact to the PWA-C1 review branch only (PWA-GOV-002). No feature, database, migration or production changes. PWA-C2+, implementation, merge and release certification remain unauthorized.
-- The Marketing record below is retained. Its top-level Pass 4 state and final Pass 3 paragraph conflict; PWA-C1 does not resolve or advance that workstream. Older counts/tests describe their original baseline, not the current PWA baseline.
+- Program: **OWNER APPROVED**. Current stage: **PWA-C6 — Scanner correction / external re-review**, on `stage/pwa-c6-scanner`.
+- Accepted C5/main baseline: `a97e43eec9ce0c99ad5037212e75cd5226fe38fc`; reviewed C6 head: `bc20ee15cd987364b7acdeea0886d7c649ee1a5e`. C6 remains current until accepted/merged; correction work is a new commit, with no history rewrite.
+- Latest owner instruction authorizes only the four C6 scanner corrections, focused verification, governance updates, and normal branch commit/push. No deployment, merge, schema/migration/Auth/RLS/Storage changes, or production access/mutation is authorized. Configured remote Supabase target: **UNKNOWN**; no authenticated/mutating runtime verification against it.
+- **PWA-GOV-010 — OWNER APPROVED ROADMAP COMPRESSION** prospectively supersedes original remaining C7–C19 after C6 acceptance: C7X Staff Operations Core → C8X Driver & Off-Site Operations → C9X Stabilization & Release Hardening → C10X Training & Release Candidate → separate FINAL Release Certification. Historical stage records remain evidence.
+- **PWA-C7X — NOT YET AUTHORIZED FOR IMPLEMENTATION.** Roadmap approval and completion of C6 do not authorize later implementation or deployment.
+- Delivery: [C6 correction handoff](pwa/PWA-C6-HANDOFF.md), **READY FOR EXPEDITED EXTERNAL RE-REVIEW — NOT ACCEPTED / NOT MERGED**, subject to the recorded checks and limitations. Browser and physical-device behavior are not certified.
+- The Marketing record below remains historical to this task; its old counts and conflicting status pointers are not current PWA evidence.
 
 ## Existing Web / Marketing status record
 

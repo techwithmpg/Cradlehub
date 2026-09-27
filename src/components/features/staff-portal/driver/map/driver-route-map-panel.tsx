@@ -6,12 +6,16 @@ type DriverRouteMapPanelProps = {
   viewModel: DriverRoutePageViewModel;
 };
 
-export function DriverRouteMapPanel({ viewModel }: DriverRouteMapPanelProps) {
+export function DriverRouteMapPanel({
+  viewModel,
+}: DriverRouteMapPanelProps) {
   return (
-    <section className="relative min-h-[440px] overflow-hidden border-b border-stone-200 bg-stone-100">
+    <section className="absolute inset-0 overflow-hidden bg-[#EEF2ED]">
       <DriverRouteMapPlaceholder viewModel={viewModel} />
+
       <DriverMapFloatingControls viewModel={viewModel} />
-      <div className="pointer-events-none absolute inset-x-0 bottom-0 z-20 h-24 bg-gradient-to-t from-[#fbf8f2] to-transparent" />
+
+      <div className="pointer-events-none absolute inset-x-0 bottom-0 z-20 h-40 bg-gradient-to-t from-[#F7F3EB]/95 via-[#F7F3EB]/30 to-transparent" />
     </section>
   );
 }

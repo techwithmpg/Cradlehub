@@ -2,6 +2,7 @@
 
 import type { CSSProperties } from "react";
 import Link from "next/link";
+import { usePathname } from "next/navigation";
 import { useState } from "react";
 import { ChevronLeft, ChevronRight, MapPin, Route } from "lucide-react";
 import { formatTime } from "@/lib/utils";
@@ -97,10 +98,12 @@ function DayCard({ day, jobs }: { day: StaffWeekDay; jobs: RealDispatchItem[] })
 }
 
 export function DriverSchedulePage({ nav, days, jobs }: DriverSchedulePageProps) {
+  const pathname = usePathname();
   const [filter, setFilter] = useState<FilterKey>("all");
   const rangeLabel = formatWeekRange(nav.fromDate, nav.toDate);
-  const prevHref = `/staff-portal/schedule?weekStart=${nav.previousWeekStart}`;
-  const nextHref = `/staff-portal/schedule?weekStart=${nav.nextWeekStart}`;
+  const basePath = pathname?.startsWith("/staff") ? "/staff/driver/trips" : "/staff-portal/schedule";
+  const prevHref = `${basePath}?weekStart=${nav.previousWeekStart}`;
+  const nextHref = `${basePath}?weekStart=${nav.nextWeekStart}`;
   const filteredDays = days.filter((day) => matchesFilter(day, jobs, filter));
 
   return (

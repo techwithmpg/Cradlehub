@@ -76,7 +76,7 @@ export function DriverTripCard({ item, detailsHref, compactDate = false }: Drive
           {item.etaMinutes !== null ? (
             <span style={{ alignItems: "center", color: "var(--cs-text-muted)", display: "flex", flexShrink: 0, gap: 4, fontSize: 11.5, fontWeight: 700 }}>
               <Navigation size={12} />
-              {item.etaMinutes} min
+              Recorded ETA {item.etaMinutes} min
             </span>
           ) : null}
         </div>

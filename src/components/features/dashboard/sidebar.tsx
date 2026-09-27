@@ -384,7 +384,7 @@ function SidebarContent({
             aria-label="Cradle Wellness Living"
             style={{ display: "inline-flex", textDecoration: "none", alignSelf: "flex-start" }}
           >
-            <BrandLogo size="sm" className="w-28 md:w-32" />
+            <BrandLogo mode="mark" size="sm" variant="dark" className="h-12 w-14" />
           </Link>
           <div>
             <div
@@ -629,6 +629,14 @@ function SidebarContent({
 
 export function Sidebar({ role, fullName, nickname, avatarUrl, branchName }: SidebarProps) {
   const pathname = usePathname();
+  // Canonical Staff PWA owns its own mobile/desktop navigation.
+  // Do not overlay the legacy dashboard sidebar or hamburger on /staff/*.
+  const isCanonicalStaffPwa =
+    pathname === "/staff" || pathname.startsWith("/staff/");
+
+  if (isCanonicalStaffPwa) {
+    return null;
+  }
   const searchParams = useSearchParams();
   const search = searchParams.toString();
   const [open, setOpen] = useState(false);

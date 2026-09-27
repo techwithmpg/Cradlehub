@@ -184,6 +184,7 @@ type StaffUpcomingRow = {
   start_time: string;
   end_time: string;
   type: string;
+  delivery_type: "in_spa" | "home_service" | null;
   status: string;
   metadata: unknown;
   resource_id: string | null;
@@ -216,7 +217,7 @@ const TODAY_SCHEDULE_SELECT_VARIANTS: SelectVariant[] = [
 const STAFF_UPCOMING_SELECT_VARIANTS: SelectVariant[] = [
   {
     select: `
-      id, booking_date, start_time, end_time, type, status, metadata,
+      id, booking_date, start_time, end_time, type, delivery_type, status, metadata,
       payment_method, payment_status, payment_reference, amount_paid,
       resource_id,
       services  ( id, name, duration_minutes ),
@@ -226,7 +227,7 @@ const STAFF_UPCOMING_SELECT_VARIANTS: SelectVariant[] = [
   },
   {
     select: `
-      id, booking_date, start_time, end_time, type, status, metadata,
+      id, booking_date, start_time, end_time, type, delivery_type, status, metadata,
       resource_id,
       services  ( id, name, duration_minutes ),
       customers ( id, full_name )
@@ -235,7 +236,7 @@ const STAFF_UPCOMING_SELECT_VARIANTS: SelectVariant[] = [
   },
   {
     select: `
-      id, booking_date, start_time, end_time, type, status, metadata,
+      id, booking_date, start_time, end_time, type, delivery_type, status, metadata,
       payment_method, payment_status, payment_reference, amount_paid,
       services  ( id, name, duration_minutes ),
       customers ( id, full_name )
@@ -244,7 +245,7 @@ const STAFF_UPCOMING_SELECT_VARIANTS: SelectVariant[] = [
   },
   {
     select: `
-      id, booking_date, start_time, end_time, type, status, metadata,
+      id, booking_date, start_time, end_time, type, delivery_type, status, metadata,
       services  ( id, name, duration_minutes ),
       customers ( id, full_name )
     `,

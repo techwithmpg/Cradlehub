@@ -1,54 +1,46 @@
 import Link from "next/link";
-import { ClipboardList, Map, Navigation } from "lucide-react";
+import { ClipboardList, Navigation } from "lucide-react";
+import { DriverStartTravelButton } from "./driver-start-travel-button";
 import type { DriverRouteStopViewModel } from "./driver-route-view-model";
 
 type DriverRouteActionButtonsProps = {
   stop: DriverRouteStopViewModel;
 };
 
-export function DriverRouteActionButtons({ stop }: DriverRouteActionButtonsProps) {
+export function DriverRouteActionButtons({
+  stop,
+}: DriverRouteActionButtonsProps) {
+  const canStartTravel =
+    stop.bookingProgressStatus === "not_started";
+
   return (
-    <div className="space-y-3">
-      {stop.navigationUrl ? (
+    <div className="grid gap-2">
+      {canStartTravel ? (
+        <DriverStartTravelButton
+          bookingId={stop.id}
+          navigationUrl={stop.navigationUrl}
+        />
+      ) : stop.navigationUrl ? (
         <a
           href={stop.navigationUrl}
-          target="_blank"
-          rel="noreferrer"
-          className="flex min-h-14 w-full items-center justify-center gap-3 rounded-2xl bg-emerald-900 px-4 text-sm font-black text-white shadow-xl shadow-emerald-950/20 active:scale-[0.99]"
+          className="flex min-h-12 w-full items-center justify-center gap-2 rounded-[14px] bg-[#0D6548] px-4 text-[13px] font-bold text-white shadow-[0_6px_18px_rgba(13,101,72,0.20)] active:scale-[0.99]"
         >
-          <Navigation className="h-5 w-5 fill-white" />
-          Start Navigation
+          <Navigation size={17} />
+          Open Navigation
         </a>
       ) : (
-        <div className="flex min-h-14 w-full items-center justify-center rounded-2xl border border-stone-200 bg-stone-50 px-4 text-sm font-black text-stone-500">
-          Navigation pending location
+        <div className="flex min-h-12 w-full items-center justify-center rounded-[14px] bg-[#ECEAE5] px-4 text-[11px] font-semibold text-[#7B8388]">
+          Destination location pending
         </div>
       )}
 
-      <div className="grid grid-cols-2 gap-3">
-        <Link
-          href={stop.detailsHref}
-          className="flex min-h-12 items-center justify-center gap-2 rounded-2xl border border-stone-200 bg-white px-3 text-sm font-black text-stone-900 shadow-sm active:scale-[0.98]"
-        >
-          <ClipboardList className="h-4 w-4 text-emerald-800" />
-          Details
-        </Link>
-        {stop.mapSearchUrl ? (
-          <a
-            href={stop.mapSearchUrl}
-            target="_blank"
-            rel="noreferrer"
-            className="flex min-h-12 items-center justify-center gap-2 rounded-2xl border border-stone-200 bg-white px-3 text-sm font-black text-stone-900 shadow-sm active:scale-[0.98]"
-          >
-            <Map className="h-4 w-4 text-emerald-800" />
-            Open in Maps
-          </a>
-        ) : (
-          <div className="flex min-h-12 items-center justify-center rounded-2xl border border-stone-200 bg-stone-50 px-3 text-sm font-black text-stone-500">
-            Map pending
-          </div>
-        )}
-      </div>
+      <Link
+        href={stop.detailsHref}
+        className="flex min-h-10 items-center justify-center gap-2 rounded-[12px] border border-[#C8DCD0] bg-white/90 px-3 text-[11.5px] font-bold text-[#285B46] active:scale-[0.99]"
+      >
+        <ClipboardList size={14} />
+        Trip Details
+      </Link>
     </div>
   );
 }

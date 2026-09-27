@@ -1,34 +1,40 @@
+"use client";
+
 import Link from "next/link";
+import { usePathname } from "next/navigation";
 import { CalendarDays, Stethoscope, MapPin, TrendingUp } from "lucide-react";
 
-const ACTIONS = [
-  {
-    label: "My Schedule",
-    href: "/staff-portal/schedule",
-    icon: CalendarDays,
-    desc: "View your shifts",
-  },
-  {
-    label: "Service Progress",
-    href: "/staff-portal/service-progress",
-    icon: Stethoscope,
-    desc: "Track your services",
-  },
-  {
-    label: "Dispatch",
-    href: "/staff-portal/dispatch",
-    icon: MapPin,
-    desc: "Home service jobs",
-  },
-  {
-    label: "My Stats",
-    href: "/staff-portal/stats",
-    icon: TrendingUp,
-    desc: "Performance & earnings",
-  },
-] as const;
-
 export function TherapistQuickActions() {
+  const pathname = usePathname();
+  const isCanonical = pathname?.startsWith("/staff");
+
+  const actions = [
+    {
+      label: "My Schedule",
+      href: isCanonical ? "/staff/schedule" : "/staff-portal/schedule",
+      icon: CalendarDays,
+      desc: "View your shifts",
+    },
+    {
+      label: "Service Progress",
+      href: isCanonical ? "/staff/progress" : "/staff-portal/service-progress",
+      icon: Stethoscope,
+      desc: "Track your services",
+    },
+    {
+      label: "Dispatch",
+      href: isCanonical ? "/staff/schedule" : "/staff-portal/dispatch",
+      icon: MapPin,
+      desc: "Home service jobs",
+    },
+    {
+      label: "My Stats",
+      href: isCanonical ? "/staff/more" : "/staff-portal/stats",
+      icon: TrendingUp,
+      desc: "Performance & earnings",
+    },
+  ];
+
   return (
     <div>
       <div
@@ -51,7 +57,7 @@ export function TherapistQuickActions() {
           gap: "0.5rem",
         }}
       >
-        {ACTIONS.map(({ label, href, icon: Icon, desc }) => (
+        {actions.map(({ label, href, icon: Icon, desc }) => (
           <Link
             key={href}
             href={href}

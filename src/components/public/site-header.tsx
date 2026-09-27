@@ -81,9 +81,10 @@ export function SiteHeader({ primaryPhone, logoUrl, logoAlt }: SiteHeaderProps) 
             className="absolute left-1/2 -translate-x-1/2"
           >
             <BrandLogo
+              mode={logoUrl ? "horizontal" : "mark"}
               size="sm"
               variant="dark"
-              className="w-28"
+              className={logoUrl ? "w-28" : "h-10 w-12"}
               customUrl={logoUrl}
               customAlt={logoAlt}
             />
@@ -106,9 +107,12 @@ export function SiteHeader({ primaryPhone, logoUrl, logoAlt }: SiteHeaderProps) 
           {/* Logo */}
           <Link href="/" aria-label="Cradle Wellness Living" className="group flex items-center">
             <BrandLogo
+              mode={logoUrl ? "horizontal" : "mark"}
               size="md"
               variant="dark"
-              className="w-32 sm:w-36 md:w-44 lg:w-52 group-hover:opacity-85"
+              className={logoUrl
+                ? "w-32 sm:w-36 md:w-44 lg:w-52 group-hover:opacity-85"
+                : "h-12 w-14 group-hover:opacity-85"}
               customUrl={logoUrl}
               customAlt={logoAlt}
             />
@@ -183,7 +187,7 @@ export function SiteHeader({ primaryPhone, logoUrl, logoAlt }: SiteHeaderProps) 
           <div className="flex h-full flex-col px-6 pt-16 pb-8">
             {/* Close button + Logo */}
             <div className="flex items-center justify-between mb-8">
-              <BrandLogo size="sm" variant="dark" className="w-28" />
+              <BrandLogo mode="mark" size="sm" variant="dark" className="h-10 w-12" />
               <button
                 type="button"
                 onClick={() => setMobileOpen(false)}

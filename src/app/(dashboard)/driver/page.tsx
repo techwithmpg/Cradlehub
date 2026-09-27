@@ -6,7 +6,7 @@ import { PageHeader } from "@/components/features/dashboard/page-header";
 import { DriverTripList } from "@/components/features/driver/driver-trip-list";
 import { DriverMobileHome } from "@/components/features/driver/driver-mobile-home";
 import { getStaffAdminName } from "@/lib/staff/display-name";
-import { getMyAttendanceData } from "@/lib/staff-portal/attendance";
+import { getPureAttendanceSnapshot } from "@/lib/staff-portal/attendance";
 import { StaffAttendanceSummary } from "@/components/features/staff-portal/staff-attendance-summary";
 
 async function requireDriverRecord() {
@@ -61,7 +61,7 @@ function formatDate(d: Date): string {
 export default async function DriverPanelPage() {
   const me = await requireDriverRecord();
   const today = new Date().toISOString().split("T")[0]!;
-  const attendance = await getMyAttendanceData(30).catch(() => null);
+  const attendance = await getPureAttendanceSnapshot(30).catch(() => null);
 
   let trips: Awaited<ReturnType<typeof getDriverTodayTrips>> = [];
   let fetchError: string | null = null;

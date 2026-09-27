@@ -11,6 +11,7 @@ import type { RealDispatchItem } from "@/lib/queries/dispatch-queries";
 
 type DriverTripsPageProps = {
   todayItems: RealDispatchItem[];
+  businessDate?: string;
   historyItems: RealDispatchItem[];
   detailsBasePath?: string;
 };
@@ -68,23 +69,25 @@ function SectionTitle({ title, count }: { title: string; count: number }) {
 
 export function DriverTripsPage({
   todayItems,
+  businessDate,
   historyItems,
   detailsBasePath = "/staff-portal/jobs",
 }: DriverTripsPageProps) {
   const [tab, setTab] = useState<DriverTripsTab>("today");
-  const todayLabel = useMemo(() => formatTodayLabel(), []);
+  const todayLabel = businessDate ?? formatTodayLabel();
 
   const sortedToday = useMemo(() => [...todayItems].sort(sortTripAscending), [todayItems]);
-  const activeTrip = sortedToday.find(isActiveTrip) ?? null;
-  const upcomingTrips = sortedToday.filter((item) => !isTerminalTrip(item) && item.id !== activeTrip?.id);
+  const activeTrips = uniqueTrips([...sortedToday, ...historyItems]).filter(isActiveTrip).sort(sortTripAscending);
+  const openTrips = uniqueTrips([...sortedToday, ...historyItems]).filter(item => !isTerminalTrip(item)).sort(sortTripAscending);
+  const upcomingTrips = openTrips.filter((item) => !isActiveTrip(item));
   const completedToday = sortedToday.filter(isTerminalTrip);
-  const historyTrips = uniqueTrips([...completedToday, ...historyItems]).sort(sortTripDescending);
+  const historyTrips = uniqueTrips([...completedToday, ...historyItems]).filter(isTerminalTrip).sort(sortTripDescending);
   const counts: Record<DriverTripsTab, number> = {
     today: sortedToday.length,
-    upcoming: upcomingTrips.length + (activeTrip ? 1 : 0),
+    upcoming: upcomingTrips.length + activeTrips.length,
     history: historyTrips.length,
   };
-  const activeCount = activeTrip ? 1 : 0;
+  const activeCount = activeTrips.length;
 
   function detailsHref(item: RealDispatchItem): string {
     return `${detailsBasePath}/${item.id}`;
@@ -108,7 +111,7 @@ export function DriverTripsPage({
       >
         {tab === "today" ? (
           <>
-            {activeTrip ? <DriverActiveTripCard item={activeTrip} detailsHref={detailsHref(activeTrip)} /> : null}
+            {activeTrips.map(item => <DriverActiveTripCard key={item.id} item={item} detailsHref={detailsHref(item)} />)}
 
             {upcomingTrips.length > 0 ? (
               <section style={{ display: "flex", flexDirection: "column", gap: "0.625rem" }}>
@@ -121,7 +124,7 @@ export function DriverTripsPage({
 
             {completedToday.length > 0 ? (
               <section style={{ display: "flex", flexDirection: "column", gap: "0.625rem" }}>
-                <SectionTitle title="Completed Today" count={completedToday.length} />
+                <SectionTitle title="Concluded Today" count={completedToday.length} />
                 {completedToday.map((item) => (
                   <DriverTripCard key={item.id} item={item} detailsHref={detailsHref(item)} />
                 ))}
@@ -139,9 +142,9 @@ export function DriverTripsPage({
         ) : null}
 
         {tab === "upcoming" ? (
-          upcomingTrips.length > 0 || activeTrip ? (
+          upcomingTrips.length > 0 || activeTrips.length > 0 ? (
             <section style={{ display: "flex", flexDirection: "column", gap: "0.625rem" }}>
-              {activeTrip ? <DriverActiveTripCard item={activeTrip} detailsHref={detailsHref(activeTrip)} /> : null}
+              {activeTrips.map(item => <DriverActiveTripCard key={item.id} item={item} detailsHref={detailsHref(item)} />)}
               {upcomingTrips.map((item) => (
                 <DriverTripCard key={item.id} item={item} detailsHref={detailsHref(item)} />
               ))}
@@ -171,7 +174,7 @@ export function DriverTripsPage({
           )
         ) : null}
 
-        {sortedToday.length > 0 && tab === "today" && !activeTrip && upcomingTrips.length === 0 && completedToday.length === 0 ? (
+        {sortedToday.length > 0 && tab === "today" && activeTrips.length === 0 && upcomingTrips.length === 0 && completedToday.length === 0 ? (
           <DriverTripEmptyState
             icon={Route}
             title="No active trips"

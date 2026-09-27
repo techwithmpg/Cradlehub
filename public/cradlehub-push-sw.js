@@ -2,6 +2,7 @@ const ALLOWED_ACTION_PREFIXES = [
   "/crm",
   "/owner",
   "/staff-portal",
+  "/staff",
   "/driver",
   "/utility",
 ];

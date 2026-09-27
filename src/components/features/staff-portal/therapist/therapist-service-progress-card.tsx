@@ -1,40 +1,45 @@
 "use client";
 
-import { MapPin, Home as HomeIcon, Clock } from "lucide-react";
+import {
+  Clock3,
+  Home,
+  MapPin,
+  Stethoscope,
+  UserRound,
+} from "lucide-react";
 import { formatTime } from "@/lib/utils";
 import { BookingProgressActions } from "@/components/features/staff-portal/booking-progress-actions";
 import type { StaffPortalBooking } from "@/components/features/staff-portal/types";
 
-function firstRelation<T>(v: T | T[] | null): T | null {
-  if (!v) return null;
-  return Array.isArray(v) ? (v[0] ?? null) : v;
+function firstRelation<T>(value: T | T[] | null): T | null {
+  if (!value) return null;
+  return Array.isArray(value) ? (value[0] ?? null) : value;
 }
 
-type ProgressBadge = { label: string; bg: string; color: string };
+function progressLabel(
+  progressStatus: string,
+  bookingStatus: string
+): string {
+  if (bookingStatus === "no_show") return "No Show";
 
-function getProgressBadge(progressStatus: string, bookingStatus: string): ProgressBadge {
-  if (bookingStatus === "no_show") {
-    return { label: "No Show", bg: "rgba(239,68,68,0.08)", color: "#DC2626" };
-  }
   switch (progressStatus) {
     case "session_started":
-      return { label: "In Progress", bg: "rgba(139,92,246,0.1)", color: "#7C3AED" };
+      return "In Progress";
     case "checked_in":
-      return { label: "Checked In", bg: "rgba(59,130,246,0.1)", color: "#2563EB" };
+      return "Checked In";
     case "travel_started":
-      return { label: "Traveling", bg: "rgba(251,191,36,0.12)", color: "#92700A" };
+      return "Traveling";
     case "arrived":
-      return { label: "Arrived", bg: "rgba(34,197,94,0.1)", color: "#15803D" };
+      return "Arrived";
     case "completed":
-      return { label: "Completed", bg: "var(--cs-success-bg)", color: "var(--cs-success)" };
+      return "Completed";
     default:
-      return { label: "Ready", bg: "var(--cs-surface-warm)", color: "var(--cs-text-muted)" };
+      return "Ready";
   }
 }
 
 type TherapistServiceProgressCardProps = {
   booking: StaffPortalBooking;
-  /** Whether to show the full progress controls (only for active bookings) */
   showControls?: boolean;
 };
 
@@ -45,108 +50,92 @@ export function TherapistServiceProgressCard({
   const service = firstRelation(booking.services);
   const customer = firstRelation(booking.customers);
   const isHome = booking.delivery_type === "home_service";
-  const address = (booking.metadata?.address as string | undefined) ?? (booking.metadata?.home_address as string | undefined);
-  const badge = getProgressBadge(booking.booking_progress_status, booking.status);
+
+  const address =
+    (booking.metadata?.address as string | undefined) ??
+    (booking.metadata?.home_address as string | undefined) ??
+    null;
+
+  const label = progressLabel(
+    booking.booking_progress_status,
+    booking.status
+  );
 
   return (
-    <div
-      style={{
-        backgroundColor: "#fff",
-        borderRadius: 16,
-        border: "1px solid var(--cs-border-soft)",
-        overflow: "hidden",
-        boxShadow: "var(--cs-shadow-xs)",
-      }}
-    >
-      {/* Card header */}
-      <div
-        style={{
-          padding: "0.875rem 1rem 0.75rem",
-          borderBottom: showControls ? "1px solid var(--cs-border-soft)" : "none",
-        }}
-      >
-        {/* Status badge row */}
-        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: "0.5rem" }}>
-          <span
-            style={{
-              fontSize: 10,
-              fontWeight: 700,
-              textTransform: "uppercase",
-              letterSpacing: "0.08em",
-              color: "var(--cs-text-muted)",
-            }}
+    <article className="overflow-hidden rounded-[22px] border border-[#EAE5DD] bg-white shadow-[0_7px_24px_rgba(30,41,59,0.055)]">
+      <div className="p-4">
+        <div className="flex items-start gap-3">
+          <div
+            className={
+              isHome
+                ? "grid size-11 shrink-0 place-items-center rounded-full bg-[#F8EDD9] text-[#8E6122]"
+                : "grid size-11 shrink-0 place-items-center rounded-full bg-[#ECF6EF] text-[#0D6548]"
+            }
           >
-            {isHome ? "Home Service" : "In-Spa Service"}
-          </span>
-          <span
-            style={{
-              fontSize: 10,
-              fontWeight: 700,
-              padding: "3px 9px",
-              borderRadius: 100,
-              backgroundColor: badge.bg,
-              color: badge.color,
-            }}
-          >
-            {badge.label}
-          </span>
-        </div>
+            {isHome ? <Home size={20} /> : <Stethoscope size={20} />}
+          </div>
 
-        {/* Service name + time */}
-        <div
-          style={{ fontSize: 17, fontWeight: 700, color: "var(--cs-text)", lineHeight: 1.25, marginBottom: 4 }}
-        >
-          {service?.name ?? "Service"}
-        </div>
+          <div className="min-w-0 flex-1">
+            <div className="flex flex-wrap items-start justify-between gap-2">
+              <div>
+                <div className="text-[17px] font-bold leading-tight tracking-[-0.02em] text-[#1A3042]">
+                  {service?.name ?? "Service"}
+                </div>
+                {service?.duration_minutes ? (
+                  <div className="mt-0.5 text-[11px] text-[#7A8796]">
+                    {service.duration_minutes} min
+                  </div>
+                ) : null}
+              </div>
 
-        <div
-          style={{
-            display: "flex",
-            alignItems: "center",
-            gap: 6,
-            fontSize: 12,
-            color: "var(--cs-text-muted)",
-            marginBottom: 6,
-          }}
-        >
-          <Clock size={12} />
-          <span style={{ fontVariantNumeric: "tabular-nums" }}>
-            {formatTime(booking.start_time)} – {formatTime(booking.end_time)}
-          </span>
-          {service?.duration_minutes && (
-            <span style={{ opacity: 0.6 }}>· {service.duration_minutes} min</span>
-          )}
-        </div>
-
-        {/* Location */}
-        {isHome ? (
-          address && (
-            <div style={{ display: "flex", alignItems: "flex-start", gap: 4, fontSize: 12, color: "var(--cs-text-muted)" }}>
-              <HomeIcon size={12} style={{ flexShrink: 0, marginTop: 1 }} />
-              <span style={{ lineHeight: 1.4 }}>{address}</span>
+              <span className="rounded-full bg-[#E3F5E8] px-2.5 py-1 text-[10px] font-bold text-[#16734C]">
+                {label}
+              </span>
             </div>
-          )
-        ) : booking.branch_resources ? (
-          <div style={{ display: "flex", alignItems: "center", gap: 4, fontSize: 12, color: "var(--cs-text-muted)" }}>
-            <MapPin size={12} />
-            {booking.branch_resources.name}
-          </div>
-        ) : null}
 
-        {/* Customer */}
-        {customer && (
-          <div style={{ fontSize: 12, color: "var(--cs-text-secondary)", marginTop: 4 }}>
-            {customer.full_name}
+            <div className="mt-3 space-y-1.5 text-[12px] text-[#536477]">
+              {customer ? (
+                <div className="flex items-center gap-2">
+                  <UserRound size={14} />
+                  {customer.full_name}
+                </div>
+              ) : null}
+
+              <div className="flex items-center gap-2">
+                <Clock3 size={14} />
+                <span className="tabular-nums">
+                  {formatTime(booking.start_time)} – {formatTime(booking.end_time)}
+                </span>
+              </div>
+
+              {isHome ? (
+                address ? (
+                  <div className="flex items-start gap-2">
+                    <Home size={14} className="mt-0.5 shrink-0" />
+                    <span className="line-clamp-2">{address}</span>
+                  </div>
+                ) : (
+                  <div className="flex items-center gap-2">
+                    <Home size={14} />
+                    Home Service
+                  </div>
+                )
+              ) : booking.branch_resources ? (
+                <div className="flex items-center gap-2">
+                  <MapPin size={14} />
+                  {booking.branch_resources.name}
+                </div>
+              ) : null}
+            </div>
           </div>
-        )}
+        </div>
       </div>
 
-      {/* Progress controls (active bookings only) */}
-      {showControls && (
-        <div style={{ padding: "0.75rem 1rem" }}>
+      {showControls ? (
+        <div className="border-t border-[#EEE9E2] bg-[#FCFBF8] px-4 py-3">
           <BookingProgressActions booking={booking} />
         </div>
-      )}
-    </div>
+      ) : null}
+    </article>
   );
 }

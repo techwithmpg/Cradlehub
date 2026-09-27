@@ -16,7 +16,7 @@ export function OrganizationJsonLd() {
     name: BUSINESS_NAME,
     alternateName: BUSINESS_FULL_NAME,
     url: SITE_DOMAIN,
-    logo: `${SITE_DOMAIN}/images/brand/cradle-logo-gold.png`,
+    logo: `${SITE_DOMAIN}/images/brand/cradle-wellness-living-logo.png`,
     sameAs: [
       "https://www.facebook.com/518084738045813?ref=NONE_xav_ig_profile_page_web",
       "https://www.instagram.com/cradlewellnessliving",

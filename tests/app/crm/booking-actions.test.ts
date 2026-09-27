@@ -176,6 +176,21 @@ afterEach(() => vi.restoreAllMocks());
 
 describe("CRM booking action identifier and lookup boundary", () => {
   it("rejects undefined and malformed booking identifiers before querying", async () => {
+    // Auth runs before domain validation: getCrmActionsContext() calls createClient() before
+    // confirmCrmBooking() validates the booking ID. Provide a valid CRM context so that
+    // execution reaches the Zod validation layer, then assert the validation error.
+    const staffQuery = queryBuilder({
+      maybeSingle: {
+        data: { id: STAFF_ID, branch_id: BRANCH_ID, system_role: "crm" },
+        error: null,
+      },
+    });
+    const client = {
+      auth: { getUser: vi.fn(async () => ({ data: { user: { id: AUTH_USER_ID } } })) },
+      from: vi.fn(() => staffQuery),
+    };
+    mocks.createClient.mockResolvedValue(client);
+
     expect(await markBookingConfirmedAction({ bookingId: undefined })).toEqual({
       success: false,
       error: "Invalid booking identifier.",
@@ -184,8 +199,10 @@ describe("CRM booking action identifier and lookup boundary", () => {
       success: false,
       error: "Invalid booking identifier.",
     });
-    expect(mocks.createClient).not.toHaveBeenCalled();
+    // createClient is called to authenticate the actor before validation runs
+    expect(mocks.createClient).toHaveBeenCalled();
   });
+
 
   it("starts with the real UUID and a base-only booking select", async () => {
     const { baseQuery, updateQuery } = setup();

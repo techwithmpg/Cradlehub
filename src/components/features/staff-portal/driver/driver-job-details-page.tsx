@@ -1,6 +1,6 @@
 "use client";
 
-import { useTransition } from "react";
+import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { MapPin, Clock, Navigation, ChevronLeft } from "lucide-react";
@@ -18,7 +18,7 @@ type ActionBtn = { label: string; nextStatus: "travel_started" | "arrived" };
 function getDriverAction(status: DispatchStatus): ActionBtn | null {
   switch (status) {
     case "ready":
-    case "awaiting_driver":
+    case "released_to_driver":
       return { label: "Start Travel", nextStatus: "travel_started" };
     case "in_route":
       return { label: "Mark Arrived", nextStatus: "arrived" };
@@ -46,19 +46,28 @@ export function DriverJobDetailsPage({
 }) {
   const router = useRouter();
   const [isPending, startTransition] = useTransition();
+  const [error, setError] = useState<string | null>(null);
   const action = getDriverAction(job.dispatchStatus);
   const navUrl = getNavUrl(job);
   const address = job.formattedAddress ?? job.area;
 
   function handleAction(nextStatus: "travel_started" | "arrived") {
     startTransition(async () => {
-      await updateBookingProgressAction({ bookingId: job.id, nextStatus });
-      router.refresh();
+      setError(null);
+      try {
+        const result = await updateBookingProgressAction({ bookingId: job.id, nextStatus });
+        if (!result.ok) { setError(result.message); return; }
+        router.refresh();
+        if (nextStatus === "travel_started" && navUrl) window.location.assign(navUrl);
+      } catch {
+        setError("Trip update could not be confirmed. Refresh before retrying.");
+      }
     });
   }
 
   return (
     <div style={{ minHeight: "100dvh", backgroundColor: "var(--cs-bg)" }}>
+      {error && <p role="alert" className="p-4 text-red-700">{error}</p>}
       {/* Header */}
       <div style={{ backgroundColor: "#fff", borderBottom: "1px solid var(--cs-border-soft)", padding: "0.875rem 1rem", position: "sticky", top: 0, zIndex: 30, display: "flex", alignItems: "center", gap: "0.75rem" }}>
         <Link href={backHref} style={{ width: 32, height: 32, borderRadius: 8, border: "1px solid var(--cs-border-soft)", backgroundColor: "var(--cs-surface-warm)", display: "flex", alignItems: "center", justifyContent: "center", color: "var(--cs-text-muted)", textDecoration: "none" }}>

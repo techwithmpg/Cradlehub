@@ -16,7 +16,7 @@
 
 ## Staff PWA current-system unknowns — 2026-09-11
 
-These are source-backed investigation seams from [PWA-C1](pwa/PWA-C1-TRUTH-MAP.md), not severity-ranked defects or authorized fixes. PWA-C2 requires separate authorization.
+These are source-backed investigation seams from [PWA-C1](pwa/PWA-C1-TRUTH-MAP.md), not severity-ranked defects or authorized fixes. The separate PWA-C2 diagnostic register follows below.
 
 | ID | Status | Evidence and implication |
 | --- | --- | --- |
@@ -26,5 +26,37 @@ These are source-backed investigation seams from [PWA-C1](pwa/PWA-C1-TRUTH-MAP.m
 | PWA-C1-004 | OPEN / DRIVER SEAM | Driver Route Map renders a placeholder; separate one-shot GPS and operations/customer map components exist. Mobile capture parity, background tracking and live convergence are unverified. |
 | PWA-C1-005 | OPEN / ACCESS SEAM | Driver/utility page checks, workspace grants and links differ; Utility is a Coming Soon surface. No new role permissions or utility functionality are inferred. |
 | PWA-C1-006 | OPEN / GOVERNANCE CONTEXT | Inherited Marketing authorization paragraphs conflict; PWA-C1 registers scoped authority without changing Marketing acceptance history. Supplied owner-approved PWA product direction is recorded in PROJECT.md; exact engineering contracts remain deferred to PWA-C3/C4. |
+
+PWA-C2 structured diagnostics — 2026-09-12. These entries record source-backed seams and evidence limits; they do not authorize fixes.
+
+| ID | Status | Evidence and implication |
+| --- | --- | --- |
+| PWA-C2-001 | OPEN / P1 | Business-date consumers mix UTC date derivation with `getBranchBusinessDate()` across Staff/Driver and CRM surfaces. Runtime branch-midnight impact is unknown. |
+| PWA-C2-002 | OPEN / P1 | Attendance has multiple mutation paths and a page-load read that can invoke policy recalculation. Canonical command and side-effect boundaries require a later contract. |
+| PWA-C2-003 | OPEN / P1 | Driver Route Map is a placeholder; one-shot GPS capture and 30-second Live Operations polling are separate. Continuous/background reliability and convergence are unverified. |
+| PWA-C2-004 | OPEN / P1 | Dedicated driver workspace exclusion conflicts with hardcoded `/staff-portal/...` links in the driver More menu. Route ownership requires a later navigation contract. |
+| PWA-C2-005 | OPEN / P1 | Existing role navigation has Today/Start/Jobs actions; no universal Scan action or camera decoder was found. |
+| PWA-C2-006 | OPEN / P1-P2 | Push subscription DELETE is not explicitly scoped to the current user in the route, while deployed RLS/policy behavior was not verified. |
+| PWA-C2-007 | OPEN / P2 | Live Operations catches errors as an empty list and polls without explicit visibility/offline freshness state. |
+| PWA-C2-008 | OPEN / P2 | No manifest/install flow was found; legacy self-unregistering `sw.js` and push worker ownership require a foundation contract. |
+| PWA-C2-009 | OPEN / P2 | Customer identity/address and destination coordinates cross live-trip/map consumers without a documented minimization or caching contract. |
+| PWA-C2-010 | OPEN / P2 | No durable offline authoritative queue was found; this matches online-first direction but needs centralized acceptance behavior. |
+| PWA-C2-011 | OPEN / P2 | Google Maps script/key/readiness and geolocation dependencies have no real-device/provider evidence. |
+| PWA-C2-012 | BLOCKED BY APPROVED SCOPE | Utility remains a role-gated Coming Soon surface; no speculative Utility backend is authorized. |
+
+## Staff PWA C3 unresolved gates and canonical references — 2026-09-12
+
+The [C3 Decision Register](pwa/PWA-C3-FINAL-SCOPE-FREEZE.md#c3-decision-register) is the sole canonical C3 decision namespace (`PWA-C3-Dxxx`). Unresolved details are owned by its [Open Contract Questions](pwa/PWA-C3-FINAL-SCOPE-FREEZE.md#open-contract-questions). The table below retains the original issue references for historical traceability; they are not a second decision register, and their prior frozen wording remains in reviewed commit `1535f5e258190d0024ce50c87bb19f06f913a4e8`. No fixes or later stages are authorized by these references.
+
+| Historical issue reference | Current risk/reference status | Canonical owner and unresolved implication |
+| --- | --- | --- |
+| PWA-C3-001 | REFERENCE ONLY | PWA-C3-D003 owns the freeze; the unresolved source-backed business-date risk remains PWA-C2-001. No duplicate decision here. |
+| PWA-C3-002 | OPEN / CONTRACT GATE | PWA-C3-D005/D006 and PWA-C3-Q011 own authority/separation and unresolved command/read-side/audit/reconciliation details; no runtime fix evidenced. |
+| PWA-C3-003 | OPEN / DEVICE GATE | PWA-C3-D009/D010/D011/D020 and PWA-C3-Q001/Q002/Q003/Q010 own Driver scope and unresolved freshness, cadence, provider and real-device reliability. |
+| PWA-C3-004 | REFERENCE ONLY | PWA-C3-D009 owns workspace scope; conflicting links remain the unresolved PWA-C2-004 finding until a later authorized implementation. |
+| PWA-C3-005 | REFERENCE ONLY | PWA-C3-D004/D021 own Scan and recovery decisions; the missing camera/entry seam remains PWA-C2-005. |
+| PWA-C3-006 | OPEN / SECURITY GATE | PWA-C3-D016 and PWA-C3-Q007 own notification boundaries and delivery acceptance; subscription ownership and deployed-policy proof remain open under PWA-C2-006. |
+| PWA-C3-007 | REFERENCE ONLY | PWA-C3-D012 owns online-first semantics; PWA-C2-010 retains the acceptance/centralization gap. |
+| PWA-C3-008 | BLOCKED / CONTRACT GATE | PWA-C3-D013 and PWA-C3-Q009 own Utility scope and the unresolved existing-source/interaction contract for Work. Task-management backend is OUT OF V1. |
 
 This register contains governance, repository, and stage-evidenced environment risks. Historical reports still require current evidence before promotion.

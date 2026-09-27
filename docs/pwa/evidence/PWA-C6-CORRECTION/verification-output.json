@@ -1,0 +1,90 @@
+{
+  "evidenceClass": "LOCAL TEST EVIDENCE",
+  "description": "Exact captured UTF-8 command output, including original line endings, encoded as JSON strings. Multiple executions in a capture are concatenated in execution order. Database overrides: nonfunctional loopback URL and placeholder credentials; no environment file changes.",
+  "captures": [
+    {
+      "capture": "type-check.txt",
+      "command": "npm run type-check",
+      "exitCodes": [
+        0,
+        0,
+        0
+      ],
+      "output": "\r\n> cradlehub@0.1.0 type-check\r\n> tsc --noEmit\r\n\r\n\r\n> cradlehub@0.1.0 type-check\r\n> tsc --noEmit\r\n\r\n\r\n> cradlehub@0.1.0 type-check\r\n> tsc --noEmit\r\n\r\n"
+    },
+    {
+      "capture": "pwa-tests.txt",
+      "command": "npx vitest run tests/lib/pwa/",
+      "exitCodes": [
+        0
+      ],
+      "output": "\r\n RUN  v4.1.5 E:/cradlehub\r\n\r\n\r\n Test Files  1 passed (1)\r\n      Tests  26 passed (26)\r\n   Start at  23:54:56\r\n   Duration  3.09s (transform 361ms, setup 0ms, import 450ms, tests 2.34s, environment 0ms)\r\n\r\n"
+    },
+    {
+      "capture": "auth-tests.txt",
+      "command": "npx vitest run tests/lib/auth/",
+      "exitCodes": [
+        0
+      ],
+      "output": "\r\n RUN  v4.1.5 E:/cradlehub\r\n\r\n\r\n Test Files  6 passed (6)\r\n      Tests  50 passed (50)\r\n   Start at  23:54:54\r\n   Duration  597ms (transform 489ms, setup 0ms, import 1.04s, tests 112ms, environment 1ms)\r\n\r\n"
+    },
+    {
+      "capture": "marketing-tests.txt",
+      "command": "npx vitest run tests/lib/marketing/",
+      "exitCodes": [
+        0
+      ],
+      "output": "\r\n RUN  v4.1.5 E:/cradlehub\r\n\r\n\r\n Test Files  13 passed (13)\r\n      Tests  150 passed (150)\r\n   Start at  23:54:56\r\n   Duration  12.96s (transform 2.99s, setup 0ms, import 15.79s, tests 12.99s, environment 12.03s)\r\n\r\n"
+    },
+    {
+      "capture": "scanner-tests-sandbox-attempt.txt",
+      "command": "npx vitest run src/lib/scanner/__tests__/",
+      "exitCodes": [
+        1
+      ],
+      "output": "failed to load config from E:\\cradlehub\\vitest.config.ts\r\n\r\n⎯⎯⎯⎯⎯⎯⎯ Startup Error ⎯⎯⎯⎯⎯⎯⎯⎯\r\nError: Build failed with 1 error:\r\n\r\n[plugin externalize-deps]\r\nError: spawn EPERM\r\n    at ChildProcess.spawn (node:internal/child_process:420:11)\r\n    at spawn (node:child_process:796:9)\r\n    at Object.execFile (node:child_process:349:17)\r\n    at exec (node:child_process:236:25)\r\n    at optimizeSafeRealPathSync (file:///E:/cradlehub/node_modules/.pnpm/vite@8.0.10_@types+node@20.19.39_jiti@2.6.1/node_modules/vite/dist/node/chunks/node.js:1951:2)\r\n    at windowsSafeRealPathSync (file:///E:/cradlehub/node_modules/.pnpm/vite@8.0.10_@types+node@20.19.39_jiti@2.6.1/node_modules/vite/dist/node/chunks/node.js:1937:3)\r\n    at getRealPath (file:///E:/cradlehub/node_modules/.pnpm/vite@8.0.10_@types+node@20.19.39_jiti@2.6.1/node_modules/vite/dist/node/chunks/node.js:32452:36)\r\n    at tryResolveRealFileOrType (file:///E:/cradlehub/node_modules/.pnpm/vite@8.0.10_@types+node@20.19.39_jiti@2.6.1/node_modules/vite/dist/node/chunks/node.js:32446:9)\r\n    at tryCleanFsResolve (file:///E:/cradlehub/node_modules/.pnpm/vite@8.0.10_@types+node@20.19.39_jiti@2.6.1/node_modules/vite/dist/node/chunks/node.js:32195:21)\r\n    at tryFsResolve (file:///E:/cradlehub/node_modules/.pnpm/vite@8.0.10_@types+node@20.19.39_jiti@2.6.1/node_modules/vite/dist/node/chunks/node.js:32188:14)\r\n    at aggregateBindingErrorsIntoJsError (file:///E:/cradlehub/node_modules/.pnpm/rolldown@1.0.0-rc.17/node_modules/rolldown/dist/shared/error-DL-e8-oE.mjs:48:18)\r\n    at unwrapBindingResult (file:///E:/cradlehub/node_modules/.pnpm/rolldown@1.0.0-rc.17/node_modules/rolldown/dist/shared/error-DL-e8-oE.mjs:18:128)\r\n    at #build (file:///E:/cradlehub/node_modules/.pnpm/rolldown@1.0.0-rc.17/node_modules/rolldown/dist/shared/rolldown-build-DSxL8qiP.mjs:3317:34)\r\n    at async bundleConfigFile (file:///E:/cradlehub/node_modules/.pnpm/vite@8.0.10_@types+node@20.19.39_jiti@2.6.1/node_modules/vite/dist/node/chunks/node.js:34722:17)\r\n    at async bundleAndLoadConfigFile (file:///E:/cradlehub/node_modules/.pnpm/vite@8.0.10_@types+node@20.19.39_jiti@2.6.1/node_modules/vite/dist/node/chunks/node.js:34630:18)\r\n    at async loadConfigFromFile (file:///E:/cradlehub/node_modules/.pnpm/vite@8.0.10_@types+node@20.19.39_jiti@2.6.1/node_modules/vite/dist/node/chunks/node.js:34599:42)\r\n    at async resolveConfig (file:///E:/cradlehub/node_modules/.pnpm/vite@8.0.10_@types+node@20.19.39_jiti@2.6.1/node_modules/vite/dist/node/chunks/node.js:34223:22)\r\n    at async _createServer (file:///E:/cradlehub/node_modules/.pnpm/vite@8.0.10_@types+node@20.19.39_jiti@2.6.1/node_modules/vite/dist/node/chunks/node.js:26029:65)\r\n    at async createViteServer (file:///E:/cradlehub/node_modules/.pnpm/vitest@4.1.5_@opentelemetry_b055fbd7d156792b987bbcbc9d1e18a4/node_modules/vitest/dist/chunks/cli-api.Cjt90eJu.js:8818:17)\r\n    at async createVitest (file:///E:/cradlehub/node_modules/.pnpm/vitest@4.1.5_@opentelemetry_b055fbd7d156792b987bbcbc9d1e18a4/node_modules/vitest/dist/chunks/cli-api.Cjt90eJu.js:14205:18) {\r\n  errors: [Getter/Setter]\r\n}\r\n\r\n\r\n\r\n"
+    },
+    {
+      "capture": "scanner-tests-first-run.txt",
+      "command": "npx vitest run src/lib/scanner/__tests__/",
+      "exitCodes": [
+        1
+      ],
+      "output": "\r\n RUN  v4.1.5 E:/cradlehub\r\n\r\n ❯ src/lib/scanner/__tests__/use-staff-scanner.test.ts (7 tests | 1 failed) 58ms\r\n     × falls back to another camera without audio and reports permission denial 8ms\r\n\r\n⎯⎯⎯⎯⎯⎯⎯ Failed Tests 1 ⎯⎯⎯⎯⎯⎯⎯\r\n\r\n FAIL  src/lib/scanner/__tests__/use-staff-scanner.test.ts > Staff scanner capture lifecycle > falls back to another camera without audio and reports permission denial\r\nAssertionError: expected 'camera_unavailable' to be 'permission_denied' // Object.is equality\r\n\r\nExpected: \"permission_denied\"\r\nReceived: \"camera_unavailable\"\r\n\r\n ❯ src/lib/scanner/__tests__/use-staff-scanner.test.ts:153:39\r\n    151|     const hook = setup(); await start(hook);\r\n    152|     expect(getUserMedia).toHaveBeenNthCalledWith(2, { video: true, aud…\r\n    153|     expect(hook.result.current.state).toBe(\"permission_denied\");\r\n       |                                       ^\r\n    154|   });\r\n    155| });\r\n\r\n⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/1]⎯\r\n\r\n\r\n Test Files  1 failed | 3 passed (4)\r\n      Tests  1 failed | 39 passed (40)\r\n   Start at  23:52:54\r\n   Duration  23.58s (transform 604ms, setup 0ms, import 8.15s, tests 181ms, environment 37.60s)\r\n\r\n"
+    },
+    {
+      "capture": "scanner-tests.txt",
+      "command": "npx vitest run src/lib/scanner/__tests__/",
+      "exitCodes": [
+        0,
+        0,
+        0
+      ],
+      "output": "\r\n RUN  v4.1.5 E:/cradlehub\r\n\r\n\r\n Test Files  4 passed (4)\r\n      Tests  40 passed (40)\r\n   Start at  23:54:58\r\n   Duration  2.48s (transform 343ms, setup 0ms, import 1.25s, tests 164ms, environment 3.12s)\r\n\r\n\r\n RUN  v4.1.5 E:/cradlehub\r\n\r\n\r\n Test Files  5 passed (5)\r\n      Tests  52 passed (52)\r\n   Start at  23:56:38\r\n   Duration  1.85s (transform 295ms, setup 0ms, import 1.04s, tests 139ms, environment 2.24s)\r\n\r\n\r\n RUN  v4.1.5 E:/cradlehub\r\n\r\n\r\n Test Files  6 passed (6)\r\n      Tests  54 passed (54)\r\n   Start at  23:58:16\r\n   Duration  7.08s (transform 1.20s, setup 0ms, import 10.92s, tests 249ms, environment 8.94s)\r\n\r\n"
+    },
+    {
+      "capture": "downstream-tests.txt",
+      "command": "npx vitest run tests/components/attendance/public-scan-processor.test.tsx tests/components/attendance/public-scan-branch-correction.test.tsx tests/app/attendance/public-scan-route.test.ts tests/lib/attendance/device-recovery.test.ts",
+      "exitCodes": [
+        0
+      ],
+      "output": "\r\n RUN  v4.1.5 E:/cradlehub\r\n\r\n\r\n Test Files  4 passed (4)\r\n      Tests  20 passed (20)\r\n   Start at  23:56:43\r\n   Duration  2.63s (transform 742ms, setup 0ms, import 2.24s, tests 503ms, environment 2.19s)\r\n\r\n"
+    },
+    {
+      "capture": "build.txt",
+      "command": "npm run build",
+      "exitCodes": [
+        0
+      ],
+      "output": "\r\n> cradlehub@0.1.0 build\r\n> next build\r\n\r\n▲ Next.js 16.2.4 (Turbopack)\r\n- Environments: .env.local\r\n- Experiments (use with caution):\r\n  · serverActions\r\n  · staleTimes\r\n\r\n  Creating an optimized production build ...\r\n✓ Compiled successfully in 33.0s\r\n  Running TypeScript ...\r\n  Finished TypeScript in 70s ...\r\n  Collecting page data using 15 workers ...\r\n  Generating static pages using 15 workers (0/147) ...\r\n  Generating static pages using 15 workers (36/147) \r\n  Generating static pages using 15 workers (73/147) \r\n  Generating static pages using 15 workers (110/147) \r\n✓ Generating static pages using 15 workers (147/147) in 1106ms\r\n  Finalizing page optimization ...\r\n\r\nRoute (app)                                          Revalidate  Expire\r\n┌ ƒ /\r\n├ ○ /_not-found                                              1h      1y\r\n├ ƒ /about\r\n├ ƒ /account/setup\r\n├ ƒ /api/agent/act\r\n├ ƒ /api/agent/coach\r\n├ ƒ /api/agent/follow-up\r\n├ ƒ /api/attendance/closing-interventions\r\n├ ƒ /api/attendance/public-scan\r\n├ ƒ /api/attendance/recent-scans\r\n├ ƒ /api/booking/available-slots\r\n├ ƒ /api/booking/crm-availability\r\n├ ƒ /api/branches\r\n├ ƒ /api/crm/availability\r\n├ ƒ /api/crm/bookings\r\n├ ƒ /api/crm/schedule\r\n├ ƒ /api/crm/staff-schedule/overview\r\n├ ƒ /api/customers/lookup\r\n├ ƒ /api/customers/search\r\n├ ƒ /api/desktop/v1/attendance\r\n├ ƒ /api/desktop/v1/attendance/history\r\n├ ƒ /api/desktop/v1/attendance/mutations\r\n├ ƒ /api/desktop/v1/bookings\r\n├ ƒ /api/desktop/v1/bookings/[bookingId]\r\n├ ƒ /api/desktop/v1/bookings/[bookingId]/cancel\r\n├ ƒ /api/desktop/v1/bookings/[bookingId]/reschedule\r\n├ ƒ /api/desktop/v1/customers\r\n├ ƒ /api/desktop/v1/customers/[customerId]\r\n├ ƒ /api/desktop/v1/home-service\r\n├ ƒ /api/desktop/v1/home-service/drivers\r\n├ ƒ /api/desktop/v1/home-service/mutations\r\n├ ƒ /api/desktop/v1/home-service/recommendations\r\n├ ƒ /api/desktop/v1/schedule\r\n├ ƒ /api/desktop/v1/schedule/mutations\r\n├ ƒ /api/desktop/v1/schedule/staff-availability\r\n├ ƒ /api/desktop/v1/schedule/staff/[staffId]\r\n├ ƒ /api/desktop/v1/today\r\n├ ƒ /api/desktop/v1/today/mutations\r\n├ ƒ /api/home-service/distance\r\n├ ƒ /api/manager/context\r\n├ ƒ /api/manager/resource-check\r\n├ ƒ /api/notifications/preferences\r\n├ ƒ /api/notifications/push/subscription\r\n├ ƒ /api/notifications/push/test\r\n├ ƒ /api/public/booking-context\r\n├ ƒ /api/public/dispatch-slots\r\n├ ƒ /api/public/waitlist\r\n├ ƒ /auth/callback\r\n├ ƒ /book\r\n├ ƒ /book/[branchId]\r\n├ ƒ /book/[branchId]/[serviceId]\r\n├ ƒ /book/confirm\r\n├ ƒ /book/success\r\n├ ƒ /branches\r\n├ ƒ /contact\r\n├ ƒ /crm\r\n├ ƒ /crm/[customerId]\r\n├ ƒ /crm/attendance\r\n├ ƒ /crm/availability\r\n├ ƒ /crm/bookings\r\n├ ƒ /crm/bookings/new\r\n├ ƒ /crm/control\r\n├ ƒ /crm/customers\r\n├ ƒ /crm/dispatch\r\n├ ƒ /crm/lapsed\r\n├ ƒ /crm/live-operations\r\n├ ƒ /crm/notifications\r\n├ ƒ /crm/reconciliation\r\n├ ƒ /crm/repeats\r\n├ ƒ /crm/schedule\r\n├ ƒ /crm/services\r\n├ ƒ /crm/setup\r\n├ ƒ /crm/spaces-rules\r\n├ ƒ /crm/staff\r\n├ ƒ /crm/staff-applications\r\n├ ƒ /crm/staff-availability\r\n├ ƒ /crm/today\r\n├ ƒ /crm/waitlist\r\n├ ƒ /dev\r\n├ ƒ /driver\r\n├ ƒ /driver/dispatch\r\n├ ƒ /driver/jobs\r\n├ ƒ /driver/jobs/[bookingId]\r\n├ ƒ /driver/map\r\n├ ○ /forgot-password                                         1h      1y\r\n├ ƒ /home-service-massage-bacolod\r\n├ ƒ /login\r\n├ ƒ /manager\r\n├ ƒ /manager/bookings\r\n├ ƒ /manager/control\r\n├ ƒ /manager/dispatch\r\n├ ƒ /manager/live-operations\r\n├ ƒ /manager/notifications\r\n├ ƒ /manager/operations\r\n├ ƒ /manager/reports\r\n├ ƒ /manager/resources\r\n├ ƒ /manager/schedule\r\n├ ƒ /manager/services\r\n├ ƒ /manager/settings\r\n├ ƒ /manager/spaces-rules\r\n├ ƒ /manager/staff\r\n├ ƒ /manager/staff-availability\r\n├ ƒ /manager/staff/[staffId]\r\n├ ƒ /manager/staff/onboarding\r\n├ ƒ /manager/today\r\n├ ○ /manifest-staff.webmanifest\r\n├ ƒ /marketing\r\n├ ƒ /marketing/media\r\n├ ƒ /massage-spa-bacolod\r\n├ ○ /onboard                                                 1h      1y\r\n├ ƒ /onboard/[staffId]\r\n├ ƒ /owner\r\n├ ƒ /owner/attendance\r\n├ ƒ /owner/bookings\r\n├ ƒ /owner/branches\r\n├ ƒ /owner/branches/[branchId]\r\n├ ƒ /owner/branches/new\r\n├ ƒ /owner/dispatch\r\n├ ƒ /owner/marketing\r\n├ ƒ /owner/notifications\r\n├ ƒ /owner/payroll\r\n├ ƒ /owner/reports\r\n├ ƒ /owner/schedule\r\n├ ƒ /owner/services\r\n├ ƒ /owner/services/[serviceId]\r\n├ ƒ /owner/services/new\r\n├ ƒ /owner/spaces-rules\r\n├ ƒ /owner/staff\r\n├ ƒ /owner/staff/[staffId]\r\n├ ƒ /owner/staff/invite\r\n├ ƒ /owner/staff/new\r\n├ ƒ /owner/staff/onboarding\r\n├ ƒ /products\r\n├ ƒ /reset-password\r\n├ ○ /robots.txt\r\n├ ƒ /scan\r\n├ ƒ /scan/[publicCode]\r\n├ ƒ /scan/activate/[token]\r\n├ ƒ /select-workspace\r\n├ ƒ /services\r\n├ ○ /sitemap.xml\r\n├ ƒ /staff\r\n├ ƒ /staff-onboarding\r\n├ ƒ /staff-portal\r\n├ ƒ /staff-portal/attendance\r\n├ ƒ /staff-portal/dispatch\r\n├ ƒ /staff-portal/jobs\r\n├ ƒ /staff-portal/jobs/[bookingId]\r\n├ ƒ /staff-portal/jobs/active\r\n├ ƒ /staff-portal/map\r\n├ ƒ /staff-portal/more\r\n├ ƒ /staff-portal/notifications\r\n├ ƒ /staff-portal/profile\r\n├ ƒ /staff-portal/schedule\r\n├ ƒ /staff-portal/service-progress\r\n├ ƒ /staff-portal/stats\r\n├ ƒ /staff-portal/today\r\n├ ƒ /staff-portal/week\r\n├ ƒ /staff/attendance\r\n├ ƒ /staff/driver\r\n├ ƒ /staff/driver/map\r\n├ ƒ /staff/driver/more\r\n├ ƒ /staff/driver/profile\r\n├ ƒ /staff/driver/trips\r\n├ ƒ /staff/more\r\n├ ƒ /staff/notices\r\n├ ƒ /staff/profile\r\n├ ƒ /staff/progress\r\n├ ƒ /staff/scan\r\n├ ƒ /staff/scan/activate/[token]\r\n├ ƒ /staff/scan/process/[publicCode]\r\n├ ƒ /staff/schedule\r\n├ ƒ /staff/utility\r\n├ ƒ /staff/utility/more\r\n├ ƒ /staff/utility/notices\r\n├ ƒ /staff/utility/work\r\n├ ƒ /staff/work\r\n├ ƒ /track/[token]\r\n└ ƒ /utility\r\n\r\n\r\nƒ Proxy (Middleware)\r\n\r\n○  (Static)   prerendered as static content\r\nƒ  (Dynamic)  server-rendered on demand\r\n\r\n"
+    },
+    {
+      "capture": "diff-check.txt",
+      "command": "git diff --check",
+      "exitCodes": [
+        0
+      ],
+      "output": "warning: in the working copy of 'docs/pwa/PWA-C6-HANDOFF.md', LF will be replaced by CRLF the next time Git touches it\r\nwarning: in the working copy of 'next.config.ts', LF will be replaced by CRLF the next time Git touches it\r\nwarning: in the working copy of 'src/app/(dashboard)/staff/scan/activate/[token]/page.tsx', LF will be replaced by CRLF the next time Git touches it\r\nwarning: in the working copy of 'src/app/(dashboard)/staff/scan/process/[publicCode]/page.tsx', LF will be replaced by CRLF the next time Git touches it\r\nwarning: in the working copy of 'src/components/features/attendance/public-scan-processor.tsx', LF will be replaced by CRLF the next time Git touches it\r\nwarning: in the working copy of 'src/components/features/scanner/use-staff-scanner.ts', LF will be replaced by CRLF the next time Git touches it\r\nwarning: in the working copy of 'src/lib/scanner/__tests__/resolve-scan-target.test.ts', LF will be replaced by CRLF the next time Git touches it\r\n"
+    }
+  ]
+}

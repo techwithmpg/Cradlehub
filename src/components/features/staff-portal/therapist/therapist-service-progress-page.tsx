@@ -1,7 +1,11 @@
 "use client";
 
 import { useState } from "react";
-import { CheckCircle2, Stethoscope } from "lucide-react";
+import {
+  CheckCircle2,
+  Home,
+  Stethoscope,
+} from "lucide-react";
 import { TherapistServiceProgressCard } from "./therapist-service-progress-card";
 import type { StaffPortalBooking } from "@/components/features/staff-portal/types";
 
@@ -12,200 +16,140 @@ type TherapistServiceProgressPageProps = {
   completed: StaffPortalBooking[];
 };
 
-function EmptyActive() {
-  return (
-    <div
-      style={{
-        backgroundColor: "#fff",
-        borderRadius: 16,
-        border: "1px solid var(--cs-border-soft)",
-        padding: "2.5rem 1.5rem",
-        textAlign: "center",
-        boxShadow: "var(--cs-shadow-xs)",
-        display: "flex",
-        flexDirection: "column",
-        alignItems: "center",
-        gap: "0.625rem",
-      }}
-    >
-      <Stethoscope size={30} color="var(--cs-text-muted)" style={{ opacity: 0.35 }} />
-      <div style={{ fontSize: 14, fontWeight: 600, color: "var(--cs-text)" }}>
-        No active service
-      </div>
-      <div style={{ fontSize: 12.5, color: "var(--cs-text-muted)", lineHeight: 1.5 }}>
-        Your active service will appear here when CRM assigns or starts one.
-      </div>
-    </div>
-  );
-}
-
-function EmptyCompleted() {
-  return (
-    <div
-      style={{
-        backgroundColor: "#fff",
-        borderRadius: 16,
-        border: "1px solid var(--cs-border-soft)",
-        padding: "2rem 1.5rem",
-        textAlign: "center",
-        boxShadow: "var(--cs-shadow-xs)",
-      }}
-    >
-      <div style={{ fontSize: 13, color: "var(--cs-text-muted)" }}>
-        No completed services yet today.
-      </div>
-    </div>
-  );
-}
-
-function CompletedCard({ booking }: { booking: StaffPortalBooking }) {
-  return (
-    <TherapistServiceProgressCard booking={booking} showControls={false} />
-  );
-}
-
 export function TherapistServiceProgressPage({
   active,
   completed,
 }: TherapistServiceProgressPageProps) {
   const [tab, setTab] = useState<Tab>("active");
 
-  const activeCount = active.length;
+  const homeServiceCount = [...active, ...completed].filter(
+    (booking) => booking.delivery_type === "home_service"
+  ).length;
+
+  const dateLabel = new Date().toLocaleDateString("en-PH", {
+    month: "short",
+    day: "numeric",
+    year: "numeric",
+  });
 
   return (
-    <div
-      style={{
-        minHeight: "100dvh",
-        backgroundColor: "var(--cs-bg)",
-      }}
-    >
-      {/* Sticky header */}
-      <div
-        style={{
-          backgroundColor: "#fff",
-          borderBottom: "1px solid var(--cs-border-soft)",
-          position: "sticky",
-          top: 0,
-          zIndex: 30,
-        }}
-      >
-        <div style={{ padding: "0.875rem 1rem 0" }}>
-          <h1
-            style={{ margin: 0, fontSize: 19, fontWeight: 700, color: "var(--cs-text)" }}
-          >
+    <div className="min-h-dvh bg-[#F7F3EB]">
+      <div className="sticky top-0 z-30 border-b border-[#EAE4DC] bg-[#FBFAF6]/95 backdrop-blur-xl">
+        <div className="mx-auto max-w-[480px] px-4 pb-0 pt-4">
+          <h1 className="text-[26px] font-bold tracking-[-0.035em] text-[#14283A]">
             Service Progress
           </h1>
-        </div>
 
-        {/* Tabs */}
-        <div style={{ display: "flex", padding: "0.5rem 1rem 0", gap: 0 }}>
-          {(["active", "completed"] as Tab[]).map((t) => {
-            const isActive = tab === t;
-            const label = t === "active" ? `Active${activeCount > 0 ? ` (${activeCount})` : ""}` : "Completed";
-            return (
-              <button
-                key={t}
-                type="button"
-                onClick={() => setTab(t)}
-                style={{
-                  flex: 1,
-                  padding: "0.5rem 0 0.625rem",
-                  background: "none",
-                  border: "none",
-                  borderBottom: isActive
-                    ? "2px solid var(--cs-staff-accent)"
-                    : "2px solid transparent",
-                  fontSize: 13,
-                  fontWeight: isActive ? 700 : 500,
-                  color: isActive ? "var(--cs-staff-accent)" : "var(--cs-text-muted)",
-                  cursor: "pointer",
-                  transition: "color 120ms ease, border-color 120ms ease",
-                }}
-              >
-                {label}
-              </button>
-            );
-          })}
+          <p className="mt-1 max-w-[280px] text-[12px] leading-5 text-[#6F7D8D]">
+            Track active work and review completed services.
+          </p>
+
+          <div className="mt-4 grid grid-cols-2">
+            {(["active", "completed"] as const).map((item) => {
+              const selected = item === tab;
+
+              return (
+                <button
+                  key={item}
+                  type="button"
+                  onClick={() => setTab(item)}
+                  className={
+                    selected
+                      ? "relative min-h-11 border-b-2 border-[#0D6548] text-[13px] font-bold text-[#0D6548]"
+                      : "relative min-h-11 border-b-2 border-transparent text-[13px] font-medium text-[#756D69]"
+                  }
+                >
+                  {item === "active"
+                    ? `Active${active.length ? ` (${active.length})` : ""}`
+                    : `Completed${completed.length ? ` (${completed.length})` : ""}`}
+                </button>
+              );
+            })}
+          </div>
         </div>
       </div>
 
-      {/* Content */}
-      <div
-        style={{
-          padding: "0.875rem 1rem",
-          display: "flex",
-          flexDirection: "column",
-          gap: "0.75rem",
-          maxWidth: 480,
-          marginLeft: "auto",
-          marginRight: "auto",
-        }}
-      >
-        {tab === "active" ? (
-          active.length === 0 ? (
-            <EmptyActive />
-          ) : (
-            <>
-              {/* Highlight first active as "current service" */}
-              {active.map((booking, idx) => (
-                <div key={booking.id}>
-                  {idx === 0 && (
-                    <div
-                      style={{
-                        fontSize: 10,
-                        fontWeight: 700,
-                        textTransform: "uppercase",
-                        letterSpacing: "0.08em",
-                        color: "var(--cs-text-muted)",
-                        marginBottom: "0.375rem",
-                      }}
-                    >
-                      {active.length > 1 ? "Current Service" : "Today's Service"}
-                    </div>
-                  )}
-                  {idx === 1 && (
-                    <div
-                      style={{
-                        fontSize: 10,
-                        fontWeight: 700,
-                        textTransform: "uppercase",
-                        letterSpacing: "0.08em",
-                        color: "var(--cs-text-muted)",
-                        marginBottom: "0.375rem",
-                        marginTop: "0.25rem",
-                      }}
-                    >
-                      {"Today's Services"}
-                    </div>
-                  )}
-                  <TherapistServiceProgressCard booking={booking} showControls />
-                </div>
-              ))}
-            </>
-          )
-        ) : completed.length === 0 ? (
-          <EmptyCompleted />
-        ) : (
-          <>
-            <div
-              style={{
-                display: "flex",
-                alignItems: "center",
-                gap: 6,
-                fontSize: 12,
-                color: "var(--cs-success)",
-                fontWeight: 600,
-              }}
-            >
-              <CheckCircle2 size={14} />
-              {completed.length} service{completed.length !== 1 ? "s" : ""} completed today
+      <main className="mx-auto max-w-[480px] space-y-3 px-4 pb-5 pt-4">
+        <section className="rounded-[20px] border border-[#EAE5DD] bg-white p-3.5 shadow-[0_4px_18px_rgba(30,41,59,0.04)]">
+          <div className="mb-3">
+            <div className="text-[14px] font-bold text-[#203446]">
+              Today&apos;s Summary
             </div>
+            <div className="text-[10.5px] text-[#7B8795]">{dateLabel}</div>
+          </div>
+
+          <div className="grid grid-cols-3 gap-2">
+            <div className="rounded-[14px] bg-[#ECF8EF] px-2.5 py-3">
+              <CheckCircle2 size={17} className="text-[#1CA862]" />
+              <div className="mt-2 text-[18px] font-bold text-[#173D2F]">
+                {completed.length}
+              </div>
+              <div className="text-[9.5px] text-[#577064]">Completed</div>
+            </div>
+
+            <div className="rounded-[14px] bg-[#EDF3F8] px-2.5 py-3">
+              <Stethoscope size={17} className="text-[#376E93]" />
+              <div className="mt-2 text-[18px] font-bold text-[#24445B]">
+                {active.length}
+              </div>
+              <div className="text-[9.5px] text-[#5F7585]">Active</div>
+            </div>
+
+            <div className="rounded-[14px] bg-[#FBF5E9] px-2.5 py-3">
+              <Home size={17} className="text-[#9A6A24]" />
+              <div className="mt-2 text-[18px] font-bold text-[#5A4527]">
+                {homeServiceCount}
+              </div>
+              <div className="text-[9.5px] text-[#78664E]">
+                Home Service
+              </div>
+            </div>
+          </div>
+        </section>
+
+        {tab === "active" ? (
+          active.length > 0 ? (
+            <div className="space-y-3">
+              {active.map((booking) => (
+                <TherapistServiceProgressCard
+                  key={booking.id}
+                  booking={booking}
+                  showControls
+                />
+              ))}
+            </div>
+          ) : (
+            <section className="flex items-center gap-3 rounded-[20px] border border-[#EAE5DD] bg-white px-4 py-5 shadow-[0_4px_18px_rgba(30,41,59,0.04)]">
+              <div className="grid size-11 shrink-0 place-items-center rounded-full bg-[#F0F4F0] text-[#688074]">
+                <Stethoscope size={20} />
+              </div>
+
+              <div>
+                <div className="text-[14px] font-bold text-[#26394B]">
+                  No active service
+                </div>
+                <div className="mt-1 text-[11.5px] leading-5 text-[#7B8795]">
+                  Your active assignment will appear here when it starts.
+                </div>
+              </div>
+            </section>
+          )
+        ) : completed.length > 0 ? (
+          <div className="space-y-3">
             {completed.map((booking) => (
-              <CompletedCard key={booking.id} booking={booking} />
+              <TherapistServiceProgressCard
+                key={booking.id}
+                booking={booking}
+                showControls={false}
+              />
             ))}
-          </>
+          </div>
+        ) : (
+          <section className="rounded-[20px] border border-[#EAE5DD] bg-white px-4 py-5 text-center text-[12px] text-[#7B8795] shadow-[0_4px_18px_rgba(30,41,59,0.04)]">
+            No completed services yet today.
+          </section>
         )}
-      </div>
+      </main>
     </div>
   );
 }

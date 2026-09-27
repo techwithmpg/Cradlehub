@@ -90,7 +90,7 @@ export function DriverActiveTripCard({ item, detailsHref }: DriverActiveTripCard
         {item.etaMinutes !== null ? (
           <div style={{ alignItems: "center", display: "flex", gap: 5, fontSize: 12, fontWeight: 800 }}>
             <Clock size={13} />
-            {item.etaMinutes} min
+            Recorded ETA {item.etaMinutes} min
           </div>
         ) : null}
       </div>

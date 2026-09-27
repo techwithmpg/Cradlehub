@@ -1,6 +1,6 @@
 # PWA-C1 — Status and Handoff
 
-Inspection date: 2026-09-11. Correction date: 2026-09-12. **EXTERNAL REVIEW — CORRECTION REQUIRED; CORRECTED ARTIFACT RETURNING FOR REVIEW.** The original documentation commit has been pushed. External review requested corrections; no external PASS, owner acceptance or merge has occurred. PWA-C2 remains unauthorized.
+Inspection date: 2026-09-11. Correction date: 2026-09-12. **C1 EXTERNAL REVIEW — PASS; ACCEPTED AND MERGED.** This file preserves the historical correction record. Owner acceptance merged the corrected C1 artifact into `main` at `ed8ae75d2d6fc9f3b8144dcabbe014f676e83a99`; PWA-C2 is now separately authorized under PWA-GOV-003. The current C2 handoff is [PWA-C2-HANDOFF.md](PWA-C2-HANDOFF.md).
 
 ## Authorization and baseline
 
@@ -9,6 +9,7 @@ Inspection date: 2026-09-11. Correction date: 2026-09-12. **EXTERNAL REVIEW — 
 - Working branch: `stage/pwa-c1-current-system-truth`.
 - Accepted source baseline and HEAD before artifact commit: `b2b9b6ec7579bbd9b519841cadf612ed133cbfcc`.
 - Published and externally reviewed documentation head: `590f2db526588c998a7a147eb126d379f2311877`, containing the original eight-file artifact. Its push and matching remote SHA were verified in the prior delivery.
+- Accepted C1 merge: `ed8ae75d2d6fc9f3b8144dcabbe014f676e83a99`.
 - The owner requests a documentation-only external-review correction pass. This corrected artifact is identified by the containing correction commit, whose exact SHA and remote publication are reported in the delivery response. No PR creation, merge, deployment or new stage is part of this delivery.
 - Branch was created from fetched `origin/main`; initial working tree was clean. Final ref reconciliation is part of the documentation verification below.
 
@@ -87,6 +88,6 @@ Production impact from this task: no deployment or production access/mutation; r
 
 ## Next permitted action
 
-Return the corrected branch for external review, then stop. External review is in progress following CORRECTION REQUIRED; no PASS is claimed. Owner acceptance and merge authorization remain separate gates after the correction review. No merge has occurred, and PWA-C2 remains unauthorized.
+PWA-C1 is closed and accepted at the merge above. The fresh `stage/pwa-c2-structured-diagnostics` branch carries the separately authorized read-only C2 diagnostic. See [PWA-C2-STRUCTURED-DIAGNOSTICS.md](PWA-C2-STRUCTURED-DIAGNOSTICS.md) for the current stage boundary and findings.
 
-**STOP:** PWA-C2 and every later PWA stage, new C1 research except correction of obvious evidence inconsistencies, feature implementation, opportunistic cleanup, database/migration actions, production access/mutation, merge and release certification remain outside this authorization. Only the completed documentation artifact commit and branch push are authorized by the follow-up.
+**STOP:** PWA-C3 and every later PWA stage, feature implementation, opportunistic cleanup, database/migration actions, production access/mutation, merge and release certification remain outside this C2 authorization. C2 is read-only diagnostics and stops after documentation.

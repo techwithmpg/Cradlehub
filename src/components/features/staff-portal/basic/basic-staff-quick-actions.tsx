@@ -1,34 +1,40 @@
+"use client";
+
 import Link from "next/link";
+import { usePathname } from "next/navigation";
 import { CalendarDays, ClipboardList, TrendingUp, User } from "lucide-react";
 
-const ACTIONS = [
-  {
-    label: "My Schedule",
-    href: "/staff-portal/schedule",
-    icon: CalendarDays,
-    desc: "View your shifts",
-  },
-  {
-    label: "My Week",
-    href: "/staff-portal/week",
-    icon: ClipboardList,
-    desc: "This week at a glance",
-  },
-  {
-    label: "My Stats",
-    href: "/staff-portal/stats",
-    icon: TrendingUp,
-    desc: "Work hours & shifts",
-  },
-  {
-    label: "Profile",
-    href: "/staff-portal/profile",
-    icon: User,
-    desc: "Edit your info",
-  },
-] as const;
-
 export function BasicStaffQuickActions() {
+  const pathname = usePathname();
+  const isCanonical = pathname?.startsWith("/staff");
+
+  const actions = [
+    {
+      label: "My Schedule",
+      href: isCanonical ? "/staff/work" : "/staff-portal/schedule",
+      icon: CalendarDays,
+      desc: "View your shifts",
+    },
+    {
+      label: "My Week",
+      href: isCanonical ? "/staff/work" : "/staff-portal/week",
+      icon: ClipboardList,
+      desc: "This week at a glance",
+    },
+    {
+      label: "My Stats",
+      href: isCanonical ? "/staff/more" : "/staff-portal/stats",
+      icon: TrendingUp,
+      desc: "Work hours & shifts",
+    },
+    {
+      label: "Profile",
+      href: isCanonical ? "/staff/profile" : "/staff-portal/profile",
+      icon: User,
+      desc: "Edit your info",
+    },
+  ];
+
   return (
     <div>
       <div
@@ -51,7 +57,7 @@ export function BasicStaffQuickActions() {
           gap: "0.5rem",
         }}
       >
-        {ACTIONS.map(({ label, href, icon: Icon, desc }) => (
+        {actions.map(({ label, href, icon: Icon, desc }) => (
           <Link
             key={href}
             href={href}

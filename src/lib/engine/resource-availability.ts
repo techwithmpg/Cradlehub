@@ -116,3 +116,11 @@ export async function autoAssignBookingResource(params: {
 
   return null;
 }
+
+/**
+ * Checks if a physical resource currently has an active (open or in_progress) room turnover task.
+ * Never fails open on database error: throws rather than silently assuming ready.
+ * Note: Broad scheduling engine integration for dynamic calendar buffers is tracked as
+ * RESOURCE AVAILABILITY FOLLOW-UP REQUIRED.
+ */
+export { isResourceInActiveTurnover } from "@/lib/staff-pwa/utility-turnover";

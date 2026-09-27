@@ -20,7 +20,7 @@ import { PublicScanStage, type PublicScanStageName } from "./public-scan-stage";
 import styles from "./public-scan-processor.module.css";
 
 type PublicScanProcessorProps =
-  | { mode: "scan"; publicCode: string }
+  | { mode: "scan"; publicCode: string; scanBasePath?: "/scan" | "/staff/scan/process" }
   | { mode: "activation"; token: string };
 
 const RECOGNITION_DURATION_MS = 250;
@@ -276,7 +276,7 @@ export function PublicScanProcessor(props: PublicScanProcessorProps) {
   function restartScan() {
     if (scanPublicCode) {
       window.location.replace(
-        `/scan/${encodeURIComponent(scanPublicCode)}?scan=${createRequestId()}`
+        `${props.mode === "scan" ? props.scanBasePath ?? "/scan" : "/scan"}/${encodeURIComponent(scanPublicCode)}?scan=${createRequestId()}`
       );
       return;
     }

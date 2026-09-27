@@ -1,4 +1,5 @@
 import "server-only";
+import { staffNotificationWorkspace, staffNoticeHref, isCurrentNotice, safeAttendanceNoticeCopy } from "@/lib/staff-pwa/notice-policy";
 
 import webpush from "web-push";
 
@@ -25,6 +26,7 @@ type StaffScope = {
   id: string;
   is_active: boolean;
   system_role: string;
+  staff_type?: string | null;
 };
 
 export type PushDeliveryResult = {
@@ -96,7 +98,9 @@ function workspaceMatchesStaff(
     return false;
   }
   const role = canonicalizeSystemRole(staff.system_role);
-  if (subscription.workspace === "crm") return role === "crm";
+  if (subscription.workspace !== "owner" && subscription.workspace !== "manager") {
+    return staffNotificationWorkspace(staff) === subscription.workspace;
+  }
   return role === subscription.workspace;
 }
 
@@ -106,7 +110,7 @@ export function subscriptionMatchesNotification(
   staff: StaffScope | undefined,
   ownerPreference: OwnerBookingPreference
 ) {
-  if (!workspaceMatchesStaff(subscription, staff)) return false;
+  if (!isCurrentNotice(notification) || !workspaceMatchesStaff(subscription, staff)) return false;
 
   if (subscription.workspace === "owner") {
     const ownerRelevant =
@@ -145,6 +149,7 @@ function safeActionHref(
   notification: WorkspaceNotification,
   workspace: PushSubscriptionRow["workspace"]
 ) {
+  if (["staff", "driver", "utility", "crm"].includes(workspace)) return staffNoticeHref(notification, workspace);
   const context = workspace as NotificationWorkspaceContext;
   return (
     resolveNotificationHref({
@@ -165,8 +170,8 @@ function pushPayload(
 ) {
   return JSON.stringify({
     notificationId: notification.id,
-    title: notification.title.slice(0, 120),
-    body: (notification.body ?? "Open CradleHub to view this update.").slice(0, 280),
+    title: safeAttendanceNoticeCopy(notification).title.slice(0, 120),
+    body: (safeAttendanceNoticeCopy(notification).body ?? "Open CradleHub to view this update.").slice(0, 280),
     actionHref: safeActionHref(notification, subscription.workspace),
     tag: `cradlehub-notification:${notification.id}`,
     priority: notification.priority,
@@ -296,7 +301,7 @@ export async function deliverWorkspaceNotificationPush(
     const staffResult = staffIds.length
       ? await admin
           .from("staff")
-          .select("id, auth_user_id, branch_id, system_role, is_active")
+          .select("id, auth_user_id, branch_id, system_role, staff_type, is_active")
           .in("id", staffIds)
       : { data: [] as StaffScope[], error: null };
     if (staffResult.error) throw staffResult.error;

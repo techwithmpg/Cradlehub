@@ -6,16 +6,15 @@
 - Canonical repository: `https://github.com/techwithmpg/Cradlehub.git`
 - Accepted branch: `main`
 
-## CradleHub Staff PWA — current task authorization (2026-09-11)
+## CradleHub Staff PWA — current task authorization (2026-09-12)
 
-- Program: **OWNER APPROVED**; current task: **PWA-C1 — Current-System Truth ONLY**.
-- Fetched accepted repository baseline: `b2b9b6ec7579bbd9b519841cadf612ed133cbfcc`.
-- Dedicated branch: `stage/pwa-c1-current-system-truth`.
-- Follow-up owner authorization: commit and push the eight completed PWA-C1 documentation files to this review branch only (PWA-GOV-002). No merge, deployment or PWA-C2 authorization.
-- [PWA project governance and roadmap](docs/pwa/PROJECT.md), [truth map](docs/pwa/PWA-C1-TRUTH-MAP.md), and [handoff/status](docs/pwa/PWA-C1-HANDOFF.md) are active PWA governance references.
-- PWA-C1 is documentation/source inspection only. **PWA-C2 and later stages, feature implementation, database/migration changes and production mutation are not authorized.** Completion does not authorize advancement or merge.
-- This is a separate workstream from the historical Web/Marketing C1-C5 sequence below. The inherited Marketing status and authorization paragraphs conflict; they are not authorization to perform Marketing work in this task. No Marketing acceptance/closeout is inferred here.
-- All repository claims about production must be labelled **REPOSITORY-RECORDED PRODUCTION EVIDENCE**; PWA-C1 performed no live production/device/database verification.
+- Program: **OWNER APPROVED**. Current stage: **PWA-C6 — Scanner correction / external re-review**, on `stage/pwa-c6-scanner`.
+- Accepted C5/main baseline: `a97e43eec9ce0c99ad5037212e75cd5226fe38fc`; reviewed C6 head: `bc20ee15cd987364b7acdeea0886d7c649ee1a5e`. C6 remains current until accepted/merged; correction work is a new commit, with no history rewrite.
+- Latest owner instruction authorizes only the four C6 scanner corrections, focused verification, governance updates, and normal branch commit/push. No deployment, merge, schema/migration/Auth/RLS/Storage changes, or production access/mutation is authorized. Configured remote Supabase target: **UNKNOWN**; no authenticated/mutating runtime verification against it.
+- **PWA-GOV-010 — OWNER APPROVED ROADMAP COMPRESSION** prospectively supersedes original remaining C7–C19 after C6 acceptance: C7X Staff Operations Core → C8X Driver & Off-Site Operations → C9X Stabilization & Release Hardening → C10X Training & Release Candidate → separate FINAL Release Certification. Historical stage records remain evidence.
+- **PWA-C7X — NOT YET AUTHORIZED FOR IMPLEMENTATION.** Roadmap approval and completion of C6 do not authorize later implementation or deployment.
+- Authority: [PWA-GOV-009/010](docs/11-DECISION-LOG.md#staff-pwa-decisions), [project roadmap](docs/pwa/PROJECT.md#prospective-compressed-roadmap--pwa-gov-010), and [C6 handoff](docs/pwa/PWA-C6-HANDOFF.md).
+- Accepted C3 product contracts, C4 design specifications and C5 foundation remain binding. The separate Web/Marketing workstream below is not activated or reconciled by this task. Older production statements remain REPOSITORY-RECORDED PRODUCTION EVIDENCE.
 
 ## Accepted governance anchor
 
@@ -58,9 +57,16 @@ The recorded SHAs are stable closeout anchors, not declarations of the current `
 
 ## Active governance manifest
 
+- [Staff PWA C6 current handoff](docs/pwa/PWA-C6-HANDOFF.md)
+
 - [Staff PWA project governance](docs/pwa/PROJECT.md)
 - [Staff PWA current-system truth map](docs/pwa/PWA-C1-TRUTH-MAP.md)
 - [Staff PWA handoff and status](docs/pwa/PWA-C1-HANDOFF.md)
+- [Staff PWA structured diagnostics](docs/pwa/PWA-C2-STRUCTURED-DIAGNOSTICS.md)
+- [Staff PWA C2 handoff and status](docs/pwa/PWA-C2-HANDOFF.md)
+- [Staff PWA accepted C3 scope freeze](docs/pwa/PWA-C3-FINAL-SCOPE-FREEZE.md)
+- [Staff PWA C4 UI/UX specification](docs/pwa/PWA-C4-UIUX-SPECIFICATION.md)
+- [Staff PWA C4 handoff and status](docs/pwa/PWA-C4-HANDOFF.md)
 
 - [Stabilization scope](docs/01-STABILIZATION-SCOPE.md)
 - [Current system map](docs/02-CURRENT-SYSTEM-MAP.md)

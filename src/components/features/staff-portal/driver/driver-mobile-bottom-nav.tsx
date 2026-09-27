@@ -1,86 +1,106 @@
 "use client";
 
 import { usePathname } from "next/navigation";
-import { Home, Map, Plus, Truck, User } from "lucide-react";
-import {
-  FloatingMobileBottomNav,
-  type FloatingMobileNavItem,
-} from "@/components/features/mobile-shell/floating-mobile-bottom-nav";
+import { Home, Map, MoreHorizontal, QrCode, Truck } from "lucide-react";
+import { StaffBottomNav } from "@/components/features/staff-pwa/bottom-nav";
+import type { StaffNavItem } from "@/components/features/staff-pwa/types";
 
 type DriverMobileBottomNavProps = {
   isProfileOpen?: boolean;
-  onProfileOpen: () => void;
+  onProfileOpen?: () => void;
+  mode?: "canonical" | "driver" | "staff_portal";
 };
 
-function HomeIcon({ className }: { className?: string }) {
-  return <Home className={className} />;
-}
+export function getDriverBottomNavItems(
+  effectiveMode: "canonical" | "driver" | "staff_portal"
+): StaffNavItem[] {
+  const homeHref =
+    effectiveMode === "canonical"
+      ? "/staff/driver"
+      : effectiveMode === "driver"
+      ? "/driver"
+      : "/staff-portal";
 
-function TripsIcon({ className }: { className?: string }) {
-  return <Truck className={className} />;
-}
+  const tripsHref =
+    effectiveMode === "canonical"
+      ? "/staff/driver/trips"
+      : effectiveMode === "driver"
+      ? "/driver/dispatch"
+      : "/staff-portal/dispatch";
 
-function MapIcon({ className }: { className?: string }) {
-  return <Map className={className} />;
-}
+  const scanHref =
+    effectiveMode === "canonical"
+      ? "/staff/scan"
+      : "/scan";
 
-function ProfileIcon({ className }: { className?: string }) {
-  return <User className={className} />;
-}
+  const mapHref =
+    effectiveMode === "canonical"
+      ? "/staff/driver/map"
+      : effectiveMode === "driver"
+      ? "/driver/map"
+      : "/staff-portal/map";
 
-function JobsActionIcon({ className }: { className?: string }) {
-  return <Plus className={className} />;
+  const moreHref =
+    effectiveMode === "canonical"
+      ? "/staff/driver/more"
+      : effectiveMode === "driver"
+      ? "/driver/more"
+      : "/staff-portal/more";
+
+  return [
+    {
+      key: "today",
+      label: "Today",
+      href: homeHref,
+      icon: Home,
+    },
+    {
+      key: "trips",
+      label: "Trips",
+      href: tripsHref,
+      icon: Truck,
+    },
+    {
+      key: "scan",
+      label: "Scan",
+      href: scanHref,
+      icon: QrCode,
+      isScan: true,
+    },
+    {
+      key: "map",
+      label: "Map",
+      href: mapHref,
+      icon: Map,
+    },
+    {
+      key: "more",
+      label: "More",
+      href: moreHref,
+      icon: MoreHorizontal,
+    },
+  ];
 }
 
 export function DriverMobileBottomNav({
   isProfileOpen = false,
   onProfileOpen,
+  mode,
 }: DriverMobileBottomNavProps) {
   const pathname = usePathname();
-  const isStandaloneDriver = pathname.startsWith("/driver");
-  const homeHref = isStandaloneDriver ? "/driver" : "/staff-portal";
-  const tripsHref = isStandaloneDriver ? "/driver/dispatch" : "/staff-portal/dispatch";
-  const mapHref = isStandaloneDriver ? "/driver/map" : "/staff-portal/map";
-  const jobsHref = isStandaloneDriver ? "/driver/jobs" : "/staff-portal/jobs";
-  const profileActive = isProfileOpen || pathname.startsWith("/staff-portal/profile") || pathname.startsWith("/staff-portal/attendance");
+  const effectiveMode =
+    mode ??
+    (pathname?.startsWith("/staff")
+      ? "canonical"
+      : pathname?.startsWith("/driver")
+      ? "driver"
+      : "staff_portal");
 
-  const items: FloatingMobileNavItem[] = [
-    {
-      label: "Home",
-      href: homeHref,
-      icon: HomeIcon,
-      active: pathname === homeHref,
-    },
-    {
-      label: "Trips",
-      href: tripsHref,
-      icon: TripsIcon,
-      active: pathname.startsWith(tripsHref),
-    },
-    {
-      label: "Map",
-      href: mapHref,
-      icon: MapIcon,
-      active: pathname.startsWith(mapHref),
-    },
-    {
-      label: "Profile",
-      ariaLabel: "Open profile",
-      icon: ProfileIcon,
-      active: profileActive,
-      onClick: onProfileOpen,
-    },
-  ];
+  const items = getDriverBottomNavItems(effectiveMode);
 
   return (
-    <FloatingMobileBottomNav
+    <StaffBottomNav
       items={items}
-      centerAction={{
-        label: "Jobs",
-        icon: JobsActionIcon,
-        href: jobsHref,
-        active: pathname.startsWith(jobsHref),
-      }}
       ariaLabel="Driver portal navigation"
     />
   );

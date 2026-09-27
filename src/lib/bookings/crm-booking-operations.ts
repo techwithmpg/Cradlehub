@@ -7,6 +7,7 @@ import { getNotificationTargetPath } from "@/lib/notifications/notification-targ
 import { isResourceAvailable } from "@/lib/engine/resource-availability";
 import { revalidateOperationalBookingSurfaces } from "@/lib/bookings/revalidate-booking-surfaces";
 import { revalidatePath } from "next/cache";
+import { triggerUtilityRoomTurnoverOnServiceCompletion } from "@/lib/staff-pwa/utility-turnover";
 import { logError } from "@/lib/logger";
 import { z } from "zod";
 import { canAccessCrmWorkspace } from "@/lib/auth/crm-permissions";
@@ -38,6 +39,8 @@ export type BookingOperationResult = {
   code?: string;
   releasedNow?: boolean;
   releaseAt?: string;
+  turnoverSyncStatus?: "synced" | "failed" | "skipped";
+  turnoverWarning?: string;
 };
 
 export const DEV_BYPASS_STAFF_ID = "00000000-0000-0000-0000-000000000000";
@@ -1461,6 +1464,8 @@ export function revalidateServiceSurfaces(branchId: string): void {
   for (const path of STAFF_PORTAL_PATHS) {
     revalidatePath(path);
   }
+  revalidatePath("/staff/utility");
+  revalidatePath("/staff/utility/work");
 }
 
 export async function confirmCrmBooking(
@@ -1655,6 +1660,7 @@ export async function startCrmBookingService(
     p_booking_id: parsed.data.bookingId,
     p_source: "crm",
     p_actor_staff_id: ctx.me.id,
+    p_resource_id: booking.resource_id ?? null,
   });
 
   if (error) {
@@ -1690,9 +1696,37 @@ export async function completeCrmBookingService(
   if (!bookingResult.success) return bookingResult;
   const booking = bookingResult.booking;
 
-  // Idempotent: already completed → return success
+  // Idempotent: already completed → verify & repair turnover if missing
   if (booking.status === "completed" || booking.booking_progress_status === "completed") {
-    return { success: true };
+    const turnoverRepairResult = await triggerUtilityRoomTurnoverOnServiceCompletion({
+      bookingId: parsed.data.bookingId,
+      actorStaffId: ctx.me.id,
+    }).catch((err) => {
+      logError("crm.turnover_repair_failed", {
+        bookingId: parsed.data.bookingId,
+        error: err,
+      });
+      return { ok: false, error: err instanceof Error ? err.message : String(err) } as const;
+    });
+
+    const turnoverSyncStatus: "synced" | "failed" | "skipped" = !turnoverRepairResult.ok
+      ? "failed"
+      : turnoverRepairResult.skipped
+        ? "skipped"
+        : "synced";
+
+    revalidateServiceSurfaces(booking.branch_id);
+    return {
+      success: true,
+      turnoverSyncStatus,
+      ...(turnoverSyncStatus === "failed"
+        ? {
+            code: "TURNOVER_SYNC_REQUIRED",
+            turnoverWarning:
+              "Booking was already completed, but room turnover task synchronization requires attention.",
+          }
+        : {}),
+    };
   }
 
   if (booking.status === "cancelled" || booking.status === "no_show") {
@@ -1714,6 +1748,42 @@ export async function completeCrmBookingService(
     return { success: false, error: error.message };
   }
 
+  const turnoverResult = await triggerUtilityRoomTurnoverOnServiceCompletion({
+    bookingId: parsed.data.bookingId,
+    actorStaffId: ctx.me.id,
+  }).catch((err) => {
+    logError("crm.turnover_trigger_failed", {
+      bookingId: parsed.data.bookingId,
+      error: err,
+    });
+    return { ok: false, error: err instanceof Error ? err.message : String(err) } as const;
+  });
+
+  let turnoverSyncStatus: "synced" | "failed" | "skipped" = "synced";
+  let turnoverWarning: string | undefined;
+
+  if (!turnoverResult.ok) {
+    logError("crm.turnover_sync_failed", {
+      bookingId: parsed.data.bookingId,
+      branchId: booking.branch_id,
+      error: turnoverResult.error,
+    });
+    turnoverSyncStatus = "failed";
+    turnoverWarning =
+      "Service completed, but room turnover task synchronization failed. Manual turnover sync required.";
+  } else if (turnoverResult.skipped) {
+    turnoverSyncStatus = "skipped";
+  }
+
   revalidateServiceSurfaces(booking.branch_id);
-  return { success: true };
+  return {
+    success: true,
+    turnoverSyncStatus,
+    ...(turnoverSyncStatus === "failed"
+      ? {
+          code: "TURNOVER_SYNC_REQUIRED",
+          turnoverWarning,
+        }
+      : {}),
+  };
 }

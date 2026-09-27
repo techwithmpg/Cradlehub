@@ -83,7 +83,7 @@ export function SiteFooter({ branches, logoUrl, logoAlt, taglineText }: SiteFoot
               <BrandLogo
                 size="md"
                 variant="dark"
-                className="w-32 md:w-40"
+                className={logoUrl ? "w-32 md:w-40" : "w-60 md:w-64"}
                 customUrl={logoUrl}
                 customAlt={logoAlt}
               />

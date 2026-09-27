@@ -5,6 +5,7 @@
  * Nested inside (dashboard)/layout.tsx which renders sidebar, header, and main scroll container.
  */
 
+import type { Metadata } from "next";
 import type { ReactNode } from "react";
 import { WorkspaceRoutePrefetcher } from "@/components/features/workspace/workspace-route-prefetcher";
 import { STAFF_PORTAL_PREFETCH } from "@/components/features/workspace/workspace-prefetch-config";
@@ -12,7 +13,18 @@ import { DriverMobileShell } from "@/components/features/staff-portal/driver/dri
 import { StaffMobileShell } from "@/components/features/staff-portal/mobile/staff-mobile-shell";
 import { TherapistMobileShell } from "@/components/features/staff-portal/therapist/therapist-mobile-shell";
 import { getMyProfileAction } from "./actions";
-import { getStaffPortalMode } from "@/lib/staff/get-staff-portal-mode";
+import {
+  resolveStaffOperationalRole,
+  resolveNavigationProfile,
+} from "@/components/features/staff-pwa/role-navigation";
+
+export const metadata: Metadata = {
+  manifest: "/manifest-staff.webmanifest",
+  title: {
+    template: "%s | CradleHub Staff",
+    default: "CradleHub Staff",
+  },
+};
 
 export default async function StaffPortalLayout({
   children,
@@ -24,14 +36,20 @@ export default async function StaffPortalLayout({
   let content: ReactNode = children;
 
   if (staff) {
-    const mode = getStaffPortalMode(staff);
+    const opRole = resolveStaffOperationalRole({
+      system_role: staff.system_role,
+      staff_type: staff.staff_type,
+    });
+    const profile = resolveNavigationProfile(opRole);
 
-    if (mode === "driver") {
+    if (profile === "driver") {
       content = <DriverMobileShell staff={staff}>{children}</DriverMobileShell>;
-    } else if (mode === "therapist") {
+    } else if (profile === "provider") {
       content = <TherapistMobileShell>{children}</TherapistMobileShell>;
+    } else if (profile === "utility") {
+      content = <StaffMobileShell profile="utility">{children}</StaffMobileShell>;
     } else {
-      content = <StaffMobileShell>{children}</StaffMobileShell>;
+      content = <StaffMobileShell profile="crm_general">{children}</StaffMobileShell>;
     }
   }
 

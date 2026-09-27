@@ -49,7 +49,18 @@ const nextConfig: NextConfig = {
         ],
       },
       {
-        source: "/:serviceWorker(sw|cradlehub-push-sw).js",
+        // Narrow Staff scanner route policy: only scanner routes permit same-origin camera.
+        // Central Staff SCAN navigation performs a document navigation so this policy is loaded.
+        source: "/staff/scan/:path*",
+        headers: [
+          {
+            key: "Permissions-Policy",
+            value: "camera=(self), microphone=(), geolocation=(self)",
+          },
+        ],
+      },
+      {
+        source: "/:serviceWorker(sw|staff-sw|cradlehub-push-sw).js",
         headers: [
           {
             key: "Content-Type",
