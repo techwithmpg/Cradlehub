@@ -55,7 +55,6 @@ CF5 delivers the faithful, exact visual reproduction of the four approved visual
 
 ### Modified Existing Files
 1. `src/components/features/dashboard/nav-config.ts` — Added `{ label: "Cash Flow", href: "/crm/cash-flow", icon: "DollarSign" }` to `CRM_NAV_ITEMS` between Bookings and Schedule.
-2. `tests/lib/bookings/booking-simplification-safety.test.ts` — Updated test date assertion from hardcoded static date to dynamic tomorrow to prevent calendar rollover failure.
 
 ---
 
@@ -96,10 +95,10 @@ CF5 delivers the faithful, exact visual reproduction of the four approved visual
 | Gate | Command | Result | Details |
 |---|---|---|---|
 | **Cash Flow Tests** | `pnpm vitest run tests/lib/cash-flow/` | **PASS (4 files, 83 tests)** | UI, payment writer, order payable, financial foundation contracts |
-| **Booking Tests** | `pnpm vitest run tests/lib/bookings/` | **PASS (21 files, 159 tests)** | Zero regression on booking simplification suite |
+| **Booking Tests** | `pnpm vitest run tests/lib/bookings/` | **FAIL (Pre-existing defect)** | See Section 8: isolated calendar rollover in `booking-simplification-safety.test.ts` |
 | **Type Check** | `pnpm type-check` | **PASS (exit code 0)** | Zero TypeScript errors across entire repository |
-| **Targeted Lint** | `pnpm eslint ...` (14 files) | **PASS (exit code 0)** | Zero errors, zero warnings on all touched CF5 files |
-| **Full Lint** | `pnpm lint` | **PASS (Baseline Preserved)** | Exactly 114 problems in `tests/lib/pwa/*`, zero new errors/warnings |
+| **Targeted Lint** | `pnpm eslint <all CF5 files>` | **PASS (exit code 0)** | Zero errors, zero warnings on all CF5 files |
+| **Full Repository Lint** | `pnpm lint` | **FAIL (Pre-existing Baseline)** | Exit code 1: 114 problems (88 errors, 26 warnings) in `tests/lib/pwa/*`; CF5 introduced: 0 |
 | **Production Build** | `pnpm build` | **PASS (Next.js 16.2.4 Turbopack)** | Compiled all 149 routes; `/crm/cash-flow` dynamic route registered |
 | **Diff Check** | `git diff --check` | **PASS (exit code 0)** | Zero whitespace or formatting conflicts |
 
@@ -132,3 +131,47 @@ CF5 delivers the faithful, exact visual reproduction of the four approved visual
   - Payroll and commission payouts
   - Petty cash replenishment
   - Refund ledger operations
+
+---
+
+## 8. CF5 Correction Pass 1 Evidence
+
+### CF5 Correction Base SHA
+`80f5588a008a665a49ae412a2adf94aa66d7b195`
+
+### Booking Test Scope Isolation
+- `tests/lib/bookings/booking-simplification-safety.test.ts` was restored to its exact pre-CF5 content (`61dd51195d25fcccc7eeed750c3b95326528bff3`).
+- Diff against CF5 base is 0 bytes (`git diff 61dd5119... HEAD -- tests/lib/bookings/booking-simplification-safety.test.ts` is empty).
+- Test execution result:
+  `BOOKING REGRESSION: FAIL — PRE-EXISTING TIME-SENSITIVE TEST DEFECT`
+  - Failed test: `tests/lib/bookings/booking-simplification-safety.test.ts > Booking Simplification Safety & Domain Invariants > Case I: Validation schema accepts valid multi-attendee order and rejects malformed payloads` (line 229).
+  - Cause: Test payload contains static date `"2026-09-27"` which expired when local system date rolled over to `2026-09-28`, failing future date validation in `createOnlineBookingMultiSchema`.
+  - Resolution: Isolated from CF5 scope; scheduled for a separately authorized Booking maintenance task.
+
+### Full Lint Classification Truth
+- `pnpm lint` exit code: `1` (Non-zero).
+- Status: **FAIL — PRE-EXISTING REPOSITORY BASELINE**
+- Problem breakdown:
+  - 88 errors
+  - 26 warnings
+  - 114 total problems strictly confined to `tests/lib/pwa/*`
+- CF5 introduced lint problems: **0**
+- Targeted CF5 ESLint: **PASS** (0 errors, 0 warnings across all CF5 files).
+
+### Unsupported Visible Action Status
+All unbuilt action triggers are explicitly disabled with descriptive titles to prevent fake behaviors or unhandled operations:
+1. **Open (Workspace Header):** Disabled (`disabled`, `title="Open workspace options not yet configured."`, `opacity-60 cursor-not-allowed`).
+2. **Export Summary (Workspace Header):** Disabled (`disabled`, `title="Export summary will be enabled with Day Close reporting."`, `opacity-60 cursor-not-allowed`).
+3. **Export (Ledger Tab):** Disabled (`disabled`, `title="Export functionality will be enabled with Day Close reporting."`, `opacity-60 cursor-not-allowed`).
+4. **Overflow Menu (Ledger Tab):** Disabled (`disabled`, `opacity-60 cursor-not-allowed`).
+5. **Mark as reviewed (Day Close Tab):** Disabled (`disabled`, `title="Day Close finalization engine will be authorized in a subsequent stage."`, with `Preview` badge). Zero production mutations.
+6. **Export PDF (Day Close Tab):** Disabled (`disabled`, `opacity-70 cursor-not-allowed`).
+7. **Open detailed ledger (Day Close Tab):** Safely switches view to Ledger tab via `onNavigateToLedger`.
+8. **History Actions:** Pagination disabled when empty; zero fake rows or review actions.
+
+### Verified Dev Server & Network Status
+- Listener verified: `0.0.0.0:3000` (`Get-NetTCPConnection -LocalPort 3000` shows `Listen`).
+- Localhost HTTP status: `200 OK` (Verified via `Invoke-WebRequest http://localhost:3000/crm/cash-flow -UseBasicParsing | Select-Object StatusCode`).
+- LAN IP: `192.168.137.7`.
+- LAN HTTP status: `200 OK` (Verified via `Invoke-WebRequest http://192.168.137.7:3000/crm/cash-flow -UseBasicParsing | Select-Object StatusCode`).
+- Phone / Host Visual Status: **OWNER VISUAL REVIEW REQUIRED** (No visual reproduction claimed as exact without owner inspection).
