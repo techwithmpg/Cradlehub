@@ -11,8 +11,9 @@
 | **Branch** | `stage/cf-financial-foundation` |
 | **Base Commit SHA** | `78ac8cb90423f9bb4c4efbbd91249de4bf86e904` |
 | **Implementation Commit SHA** | `6e802ebd7232fa282a084857ab7b8179894be0c9` |
+| **Layout Correction Commit SHA** | `d7f5ee681ae89a05f14eec35d470d04961cefd58` |
 | **Visual Authority** | Approved PNG (`Record Financial Entry` centered desktop modal UI) |
-| **Scope Status** | Strict UI structure, presentation, and safe existing CF4 payment preservation |
+| **Scope Status** | Strict UI structure, presentation, layout dimensions, and safe existing CF4 payment preservation |
 | **Visual Review Status** | **OWNER VISUAL REVIEW REQUIRED** |
 
 ---
@@ -23,9 +24,11 @@
 - **Old Drawer Ownership:** The legacy `RecordPaymentSheet` was implemented as a right-hand sliding sheet (`Sheet`, `SheetContent side="right"`).
 - **New Modal Ownership:** Completely replaced by `RecordFinancialEntryModal` (`src/components/features/cash-flow/record-financial-entry-modal.tsx`).
   - Centered in the viewport using Base UI Dialog primitives with dark/soft overlay (`bg-black/10 backdrop-blur-xs`).
-  - Desktop-first layout with max-width `940px` (880–960px design range) and max-height `92vh`.
-  - Internal vertical scrolling (`overflow-y-auto`) ensuring the modal never exceeds the viewport.
-  - Warm cream/off-white surface (`bg-[#FAF8F5]`), rounded corners (`rounded-2xl`), subtle border (`border-[#EAE4DC]`), and soft drop shadow (`shadow-xl`).
+  - **Desktop Width:** `w-[96vw] md:w-[min(94vw,1000px)] max-w-none sm:max-w-none` overriding default `sm:max-w-sm` to provide a full ~1000px desktop operations workspace.
+  - **Desktop Height & Scroll Architecture:** `max-h-[90vh]` with fixed header (`shrink-0`), scrollable content body (`flex-1 min-h-0 overflow-y-auto`), and stable footer (`shrink-0`).
+  - **Two-Column Grid Ratio:** `grid-cols-1 lg:grid-cols-[minmax(0,2.2fr)_minmax(270px,0.9fr)] gap-6` allocating ~71% to main form and ~29% (min 270px) to summary cards.
+  - **Mode Cards:** `grid-cols-2 sm:grid-cols-4 gap-3` with unwrapped titles (`whitespace-nowrap`) and clean helper copy.
+  - Warm cream/off-white surface (`bg-[#FAF8F5]`), rounded corners (`rounded-2xl`), subtle border (`border-[#EAE4DC]`), and soft drop shadow (`shadow-2xl`).
   - Accessible top-right `X` close button and `Escape` key trap.
   - Backwards-compatibility preserved: `src/components/features/cash-flow/record-payment-sheet.tsx` re-exports `RecordFinancialEntryModal` as `RecordPaymentSheet`.
 
