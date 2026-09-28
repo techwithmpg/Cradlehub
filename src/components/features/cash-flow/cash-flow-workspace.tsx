@@ -13,7 +13,7 @@ import { TodayTab } from './today-tab';
 import { LedgerTab } from './ledger-tab';
 import { DayCloseTab } from './day-close-tab';
 import { HistoryTab } from './history-tab';
-import { RecordPaymentSheet } from './record-payment-sheet';
+import { RecordFinancialEntryModal } from './record-financial-entry-modal';
 
 interface CashFlowWorkspaceProps {
   initialData: CashFlowWorkspaceData;
@@ -166,8 +166,8 @@ export function CashFlowWorkspace({ initialData }: CashFlowWorkspaceProps) {
         )}
       </div>
 
-      {/* ── Record Payment Drawer (Sheet) ───────────────────────────── */}
-      <RecordPaymentSheet
+      {/* ── Record Financial Entry Modal ─────────────────────────────── */}
+      <RecordFinancialEntryModal
         open={isRecordPaymentOpen}
         onOpenChange={setIsRecordPaymentOpen}
         accounts={initialData.accounts}

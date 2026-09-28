@@ -9,6 +9,8 @@ import type {
   RecentPaymentItem,
   LedgerRecordItem,
   PayableOrderOption,
+  PayableOrderItemDetail,
+  PayableOrderPreviousPayment,
 } from './cash-flow-types';
 import type { FinancialPaymentMethod } from './financial-contract';
 
@@ -523,7 +525,7 @@ export async function getCashFlowData(
     if (r.outflow) ledgerOutflow += r.outflow;
   }
 
-  // 8. Fetch payable orders for the Record Payment sheet
+  // 8. Fetch payable orders for the Record Payment modal
   // Looks for orders or bookings with unpaid/partial balances
   const payableOrders: PayableOrderOption[] = [];
 
@@ -531,21 +533,58 @@ export async function getCashFlowData(
     const total = Number(b.total_amount) || 0;
     const paid = Number(b.amount_paid) || 0;
     const remaining = Math.max(0, total - paid);
-    if (remaining > 0 || b.payment_status !== 'paid') {
-      const cust = Array.isArray(b.customers) ? b.customers[0] : b.customers;
-      const svc = Array.isArray(b.services) ? b.services[0] : b.services;
-      payableOrders.push({
-        id: b.order_id || b.id,
-        orderNumber: `BK-${b.id.slice(0, 8)}`,
-        customerName: cust?.full_name || 'Guest',
-        customerPhone: cust?.phone ?? null,
-        serviceDescription: svc?.name || 'Spa Service',
-        totalAmount: total,
-        amountPaid: paid,
-        remainingBalance: remaining,
-        bookingDate: b.booking_date,
+    const isPaid = b.payment_status === 'paid' || (total > 0 && remaining <= 0);
+    const isPartial = !isPaid && paid > 0;
+    const isHomeService = b.type === 'home_service' || b.delivery_type === 'home_service';
+
+    const cust = Array.isArray(b.customers) ? b.customers[0] : b.customers;
+    const svc = Array.isArray(b.services) ? b.services[0] : b.services;
+
+    const payableItems: PayableOrderItemDetail[] = [];
+    if (svc?.name) {
+      payableItems.push({
+        id: `item-svc-${b.id}`,
+        description: svc.name,
+        amount: total,
+        itemType: 'service',
+        subDescription: svc.duration_minutes ? `${svc.duration_minutes} mins` : undefined,
+      });
+    } else {
+      payableItems.push({
+        id: `item-svc-${b.id}`,
+        description: 'Spa Service',
+        amount: total,
+        itemType: 'service',
       });
     }
+
+    const previousPayments: PayableOrderPreviousPayment[] = [];
+    if (paid > 0) {
+      previousPayments.push({
+        date: b.booking_date,
+        amount: paid,
+        method: formatMethodLabel(b.payment_method || 'Payment'),
+      });
+    }
+
+    payableOrders.push({
+      id: b.order_id || b.id,
+      orderNumber: `BK-${b.id.slice(0, 8)}`,
+      customerName: cust?.full_name || 'Guest',
+      customerPhone: cust?.phone ?? null,
+      serviceDescription: svc?.name || 'Spa Service',
+      totalAmount: total,
+      amountPaid: paid,
+      remainingBalance: remaining,
+      bookingDate: b.booking_date,
+      serviceTime: b.start_time ? formatTimeFromHHMM(b.start_time) : null,
+      branchName: branchName,
+      visitType: isHomeService ? 'home_service' : 'in_spa',
+      bookingStatus: b.status ? b.status.charAt(0).toUpperCase() + b.status.slice(1) : 'Confirmed',
+      paymentStatus: isPaid ? 'paid' : isPartial ? 'partially_paid' : 'unpaid',
+      payableItems,
+      previousPayments,
+    });
   }
 
   // 9. Day Close and History Construction

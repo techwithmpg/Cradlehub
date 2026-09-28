@@ -143,6 +143,20 @@ export interface HistoryTabSummary {
   }>;
 }
 
+export interface PayableOrderItemDetail {
+  id: string;
+  description: string;
+  amount: number;
+  itemType?: 'service' | 'home_service_fee' | 'retail_product' | 'surcharge' | 'discount' | 'manual_adjustment' | 'other';
+  subDescription?: string | null;
+}
+
+export interface PayableOrderPreviousPayment {
+  date: string;
+  amount: number;
+  method: string;
+}
+
 export interface PayableOrderOption {
   id: string;
   orderNumber: string;
@@ -153,11 +167,13 @@ export interface PayableOrderOption {
   amountPaid: number;
   remainingBalance: number;
   bookingDate: string;
-  payableItems?: Array<{
-    id: string;
-    description: string;
-    amount: number;
-  }>;
+  serviceTime?: string | null;
+  branchName?: string;
+  visitType?: 'in_spa' | 'home_service';
+  bookingStatus?: string;
+  paymentStatus?: 'unpaid' | 'partially_paid' | 'paid';
+  payableItems?: PayableOrderItemDetail[];
+  previousPayments?: PayableOrderPreviousPayment[];
 }
 
 export interface CashFlowWorkspaceData {

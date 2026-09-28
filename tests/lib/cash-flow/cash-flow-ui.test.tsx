@@ -31,6 +31,7 @@ import { TodayTab } from '@/components/features/cash-flow/today-tab';
 import { LedgerTab } from '@/components/features/cash-flow/ledger-tab';
 import { DayCloseTab } from '@/components/features/cash-flow/day-close-tab';
 import { HistoryTab } from '@/components/features/cash-flow/history-tab';
+import { RecordFinancialEntryModal } from '@/components/features/cash-flow/record-financial-entry-modal';
 import { RecordPaymentSheet } from '@/components/features/cash-flow/record-payment-sheet';
 import type { CashFlowWorkspaceData } from '@/lib/cash-flow/cash-flow-types';
 
@@ -158,11 +159,58 @@ const mockWorkspaceData: CashFlowWorkspaceData = {
       id: 'ord-1',
       orderNumber: 'BK-20260928-002',
       customerName: 'Michael Tan',
+      customerPhone: '0917 123 4567',
       serviceDescription: 'Deep Tissue Massage',
       totalAmount: 1800,
       amountPaid: 0,
       remainingBalance: 1800,
       bookingDate: '2026-09-28',
+      serviceTime: '2:00 PM – 4:00 PM',
+      branchName: 'Main Spa',
+      visitType: 'in_spa',
+      bookingStatus: 'Confirmed',
+      paymentStatus: 'unpaid',
+      payableItems: [
+        { id: 'item-1', description: 'Deep Tissue Massage', amount: 1800, itemType: 'service', subDescription: '60 mins' },
+      ],
+    },
+    {
+      id: 'ord-2',
+      orderNumber: 'BK-20260928-003',
+      customerName: 'Maria Santos',
+      customerPhone: '0918 987 6543',
+      serviceDescription: 'Signature Home Service Massage',
+      totalAmount: 3800,
+      amountPaid: 2000,
+      remainingBalance: 1800,
+      bookingDate: '2026-09-28',
+      serviceTime: '3:00 PM – 5:00 PM',
+      branchName: 'Main Spa',
+      visitType: 'home_service',
+      bookingStatus: 'Completed',
+      paymentStatus: 'partially_paid',
+      payableItems: [
+        { id: 'item-hs-svc', description: 'Signature Home Service Massage', amount: 3500, itemType: 'service', subDescription: '2 hrs • 1 therapist' },
+        { id: 'item-hs-fee', description: 'Home Service Gas Fee / Travel Fee', amount: 300, itemType: 'home_service_fee', subDescription: 'Travel fee for home service location' },
+      ],
+      previousPayments: [
+        { date: '2026-09-27', amount: 2000, method: 'GCash' },
+      ],
+    },
+    {
+      id: 'ord-3',
+      orderNumber: 'BK-20260928-004',
+      customerName: 'Anna Reyes',
+      customerPhone: '0919 555 4321',
+      serviceDescription: 'Swedish Massage',
+      totalAmount: 1200,
+      amountPaid: 1200,
+      remainingBalance: 0,
+      bookingDate: '2026-09-28',
+      branchName: 'Main Spa',
+      visitType: 'in_spa',
+      bookingStatus: 'Completed',
+      paymentStatus: 'paid',
     },
   ],
 };
@@ -322,9 +370,9 @@ describe('CF5 Cash Flow UI Foundation', () => {
     expect(mockPush).toHaveBeenCalledWith('/crm/cash-flow?tab=ledger', { scroll: false });
   });
 
-  it('10. Record Payment sheet opens and supports split-tender addition', () => {
+  it('10. Record Financial Entry modal renders centered with 4 modes and Customer Payment active', () => {
     render(
-      <RecordPaymentSheet
+      <RecordFinancialEntryModal
         open={true}
         onOpenChange={vi.fn()}
         accounts={mockWorkspaceData.accounts}
@@ -333,8 +381,20 @@ describe('CF5 Cash Flow UI Foundation', () => {
       />
     );
 
-    expect(screen.getByRole('heading', { name: 'Record Payment' })).toBeTruthy();
-    expect(screen.getByText(/Michael Tan/i)).toBeTruthy();
+    // Modal title & subtitle and backwards compatibility alias
+    expect(RecordPaymentSheet).toBe(RecordFinancialEntryModal);
+    expect(screen.getByRole('heading', { name: 'Record Financial Entry' })).toBeTruthy();
+    expect(screen.getByText(/Record customer payments, expenses, tips, and other cash-flow entries/i)).toBeTruthy();
+
+    // 4 Mode cards
+    expect(screen.getByText('Customer Payment')).toBeTruthy();
+    expect(screen.getByText('Expense')).toBeTruthy();
+    expect(screen.getByText('Tip')).toBeTruthy();
+    expect(screen.getByText('Other Entry')).toBeTruthy();
+
+    // Initial order data
+    expect(screen.getAllByText(/Michael Tan/i).length).toBeGreaterThan(0);
+    expect(screen.getByText('BK-20260928-002')).toBeTruthy();
 
     // Add another payment method button
     const addMethodButton = screen.getByRole('button', { name: /Add Another Payment Method/i });
@@ -343,9 +403,21 @@ describe('CF5 Cash Flow UI Foundation', () => {
     // Should now have 2 tender lines
     expect(screen.getByText('Tender #1')).toBeTruthy();
     expect(screen.getByText('Tender #2')).toBeTruthy();
+
+    // Switch to Expense mode and verify safe placeholder
+    const expenseButton = screen.getByRole('button', { name: /Expense/i });
+    fireEvent.click(expenseButton);
+
+    expect(screen.getByText('Expense Recording')).toBeTruthy();
+    expect(screen.getByText(/Expense recording will be enabled in a later Cash Flow stage/i)).toBeTruthy();
+
+    // Return to Customer Payment
+    const returnButton = screen.getByRole('button', { name: /Return to Customer Payment/i });
+    fireEvent.click(returnButton);
+    expect(screen.getByText('1. Select Booking / Order')).toBeTruthy();
   });
 
-  it('11. Record Payment calls server action using CF4 atomic writer', async () => {
+  it('11. Record Entry calls server action using CF4 atomic writer', async () => {
     mockRecordOrderPaymentAction.mockResolvedValueOnce({
       ok: true,
       data: {
@@ -356,7 +428,7 @@ describe('CF5 Cash Flow UI Foundation', () => {
     });
 
     render(
-      <RecordPaymentSheet
+      <RecordFinancialEntryModal
         open={true}
         onOpenChange={vi.fn()}
         accounts={mockWorkspaceData.accounts}
@@ -365,8 +437,8 @@ describe('CF5 Cash Flow UI Foundation', () => {
       />
     );
 
-    const submitButtons = screen.getAllByRole('button', { name: /Record Payment/i });
-    fireEvent.click(submitButtons[submitButtons.length - 1]!);
+    const submitButton = screen.getByRole('button', { name: /Record Entry/i });
+    fireEvent.click(submitButton);
 
     expect(mockRecordOrderPaymentAction).toHaveBeenCalled();
     const callArg = mockRecordOrderPaymentAction.mock.calls[0]![0];
@@ -375,7 +447,63 @@ describe('CF5 Cash Flow UI Foundation', () => {
     expect(callArg.payments[0].paymentMethod).toBe('cash');
   });
 
-  it('12. Runtime data is completely free of hardcoded mock amounts', () => {
+  it('12. Fully-paid booking is protected and disables payment submission', () => {
+    render(
+      <RecordFinancialEntryModal
+        open={true}
+        onOpenChange={vi.fn()}
+        accounts={mockWorkspaceData.accounts}
+        payableOrders={mockWorkspaceData.payableOrders}
+        initialOrderId="ord-3"
+        businessDate={mockWorkspaceData.businessDate}
+      />
+    );
+
+    expect(screen.getAllByText(/Anna Reyes/i).length).toBeGreaterThan(0);
+    expect(screen.getByText(/This booking is already fully paid. No further payment required./i)).toBeTruthy();
+    expect((screen.getByRole('button', { name: /Record Entry/i }) as HTMLButtonElement).disabled).toBe(true);
+  });
+
+  it('13. Home Service booking separates service charge from travel fee', () => {
+    render(
+      <RecordFinancialEntryModal
+        open={true}
+        onOpenChange={vi.fn()}
+        accounts={mockWorkspaceData.accounts}
+        payableOrders={mockWorkspaceData.payableOrders}
+        initialOrderId="ord-2"
+        businessDate={mockWorkspaceData.businessDate}
+      />
+    );
+
+    expect(screen.getAllByText(/Maria Santos/i).length).toBeGreaterThan(0);
+    expect(screen.getByText('Signature Home Service Massage')).toBeTruthy();
+    expect(screen.getByText(/Home Service Gas Fee \/ Travel Fee/i)).toBeTruthy();
+    expect(screen.getByText(/Travel fee for home service location/i)).toBeTruthy();
+    expect(screen.getByText(/Less: Previous Payments/i)).toBeTruthy();
+    expect(screen.getAllByText('₱1,800.00').length).toBeGreaterThan(0);
+  });
+
+  it('14. Pay full balance populates tender amount with outstanding balance', () => {
+    render(
+      <RecordFinancialEntryModal
+        open={true}
+        onOpenChange={vi.fn()}
+        accounts={mockWorkspaceData.accounts}
+        payableOrders={mockWorkspaceData.payableOrders}
+        initialOrderId="ord-2"
+        businessDate={mockWorkspaceData.businessDate}
+      />
+    );
+
+    const payFullButton = screen.getByRole('button', { name: /Pay full balance/i });
+    fireEvent.click(payFullButton);
+
+    const amountInputs = screen.getAllByRole('spinbutton');
+    expect((amountInputs[0] as HTMLInputElement).value).toBe('1800');
+  });
+
+  it('15. Runtime data is completely free of hardcoded mock amounts', () => {
     // Zero-data case: ensuring zero data produces clean ₱0.00 and 0 bookings, NOT ₱14,750 or 11 bookings
     const emptyWorkspaceData: CashFlowWorkspaceData = {
       ...mockWorkspaceData,
