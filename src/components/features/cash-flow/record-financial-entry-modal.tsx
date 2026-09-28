@@ -74,7 +74,7 @@ export function RecordFinancialEntryModal({
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent
         showCloseButton={false}
-        className="w-[96vw] max-w-[940px] max-h-[92vh] overflow-y-auto p-5 sm:p-6 lg:p-7 bg-[#FAF8F5] border border-[#EAE4DC] text-[#1E1916] rounded-2xl shadow-xl"
+        className="flex flex-col p-0 gap-0 overflow-hidden w-[96vw] md:w-[min(94vw,1000px)] max-w-none sm:max-w-none max-h-[90vh] bg-[#FAF8F5] border border-[#EAE4DC] text-[#1E1916] rounded-2xl shadow-2xl"
       >
         {open && (
           <RecordFinancialEntryForm
@@ -385,9 +385,9 @@ function RecordFinancialEntryForm({
   }, [selectedOrder]);
 
   return (
-    <div className="space-y-5">
-      {/* ── Modal Header ────────────────────────────────────────────── */}
-      <div className="flex items-start justify-between pb-3 border-b border-[#EAE4DC]">
+    <div className="flex flex-col h-full max-h-[90vh] overflow-hidden">
+      {/* ── Fixed Modal Header ────────────────────────────────────────── */}
+      <div className="shrink-0 px-6 py-4 border-b border-[#EAE4DC] flex items-start justify-between bg-[#FAF8F5]">
         <div>
           <DialogTitle className="font-heading text-xl sm:text-2xl font-bold tracking-tight text-[#1E1916]">
             Record Financial Entry
@@ -405,44 +405,46 @@ function RecordFinancialEntryForm({
         </button>
       </div>
 
-      {/* ── Mode Switch Grid (4 cards matching PNG) ────────────────── */}
-      <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5">
-        {/* 1. Customer Payment */}
-        <button
-          type="button"
-          onClick={() => setActiveMode('customer_payment')}
-          className={`p-3 rounded-xl border text-left transition-all flex flex-col justify-between ${
-            activeMode === 'customer_payment'
-              ? 'border-2 border-[#1B4D3E] bg-[#EEF7F2] shadow-2xs'
-              : 'border-[#EAE4DC] bg-white hover:border-[#D4C8BC]'
-          }`}
-        >
-          <div className="flex items-center gap-2 mb-1.5">
-            <div
-              className={`p-1.5 rounded-lg ${
-                activeMode === 'customer_payment' ? 'bg-[#1B4D3E] text-white' : 'bg-[#FAF8F5] text-[#1B4D3E]'
-              }`}
-            >
-              <Banknote className="w-4 h-4" />
+      {/* ── Scrollable Content Body ──────────────────────────────────── */}
+      <div className="flex-1 min-h-0 overflow-y-auto px-6 py-5 space-y-6">
+        {/* ── Mode Switch Grid (4 cards matching PNG) ────────────────── */}
+        <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+          {/* 1. Customer Payment */}
+          <button
+            type="button"
+            onClick={() => setActiveMode('customer_payment')}
+            className={`p-3.5 rounded-xl border text-left transition-all flex flex-col justify-between ${
+              activeMode === 'customer_payment'
+                ? 'border-2 border-[#1B4D3E] bg-[#EEF7F2] shadow-2xs'
+                : 'border-[#EAE4DC] bg-white hover:border-[#D4C8BC]'
+            }`}
+          >
+            <div className="flex items-center gap-2 mb-1.5">
+              <div
+                className={`p-1.5 rounded-lg ${
+                  activeMode === 'customer_payment' ? 'bg-[#1B4D3E] text-white' : 'bg-[#FAF8F5] text-[#1B4D3E]'
+                }`}
+              >
+                <Banknote className="w-4 h-4" />
+              </div>
+              <span
+                className={`text-xs font-bold whitespace-nowrap ${
+                  activeMode === 'customer_payment' ? 'text-[#163E32]' : 'text-[#1E1916]'
+                }`}
+              >
+                Customer Payment
+              </span>
             </div>
-            <span
-              className={`text-xs font-bold ${
-                activeMode === 'customer_payment' ? 'text-[#163E32]' : 'text-[#1E1916]'
-              }`}
-            >
-              Customer Payment
-            </span>
-          </div>
-          <p className="text-[10px] text-[#7A6E65] leading-tight">
-            Record payment for a booking
-          </p>
-        </button>
+            <p className="text-[11px] text-[#7A6E65] leading-snug">
+              Record payment for a booking
+            </p>
+          </button>
 
         {/* 2. Expense */}
         <button
           type="button"
           onClick={() => setActiveMode('expense')}
-          className={`p-3 rounded-xl border text-left transition-all flex flex-col justify-between ${
+          className={`p-3.5 rounded-xl border text-left transition-all flex flex-col justify-between ${
             activeMode === 'expense'
               ? 'border-2 border-amber-600 bg-amber-50 shadow-2xs'
               : 'border-[#EAE4DC] bg-white hover:border-[#D4C8BC]'
@@ -457,14 +459,14 @@ function RecordFinancialEntryForm({
               <ShoppingCart className="w-4 h-4" />
             </div>
             <span
-              className={`text-xs font-bold ${
+              className={`text-xs font-bold whitespace-nowrap ${
                 activeMode === 'expense' ? 'text-amber-900' : 'text-[#1E1916]'
               }`}
             >
               Expense
             </span>
           </div>
-          <p className="text-[10px] text-[#7A6E65] leading-tight">
+          <p className="text-[11px] text-[#7A6E65] leading-snug">
             Record business expenses
           </p>
         </button>
@@ -473,7 +475,7 @@ function RecordFinancialEntryForm({
         <button
           type="button"
           onClick={() => setActiveMode('tip')}
-          className={`p-3 rounded-xl border text-left transition-all flex flex-col justify-between ${
+          className={`p-3.5 rounded-xl border text-left transition-all flex flex-col justify-between ${
             activeMode === 'tip'
               ? 'border-2 border-rose-600 bg-rose-50 shadow-2xs'
               : 'border-[#EAE4DC] bg-white hover:border-[#D4C8BC]'
@@ -488,14 +490,14 @@ function RecordFinancialEntryForm({
               <Gift className="w-4 h-4" />
             </div>
             <span
-              className={`text-xs font-bold ${
+              className={`text-xs font-bold whitespace-nowrap ${
                 activeMode === 'tip' ? 'text-rose-900' : 'text-[#1E1916]'
               }`}
             >
               Tip
             </span>
           </div>
-          <p className="text-[10px] text-[#7A6E65] leading-tight">
+          <p className="text-[11px] text-[#7A6E65] leading-snug">
             Record staff or house tips
           </p>
         </button>
@@ -504,7 +506,7 @@ function RecordFinancialEntryForm({
         <button
           type="button"
           onClick={() => setActiveMode('other_entry')}
-          className={`p-3 rounded-xl border text-left transition-all flex flex-col justify-between ${
+          className={`p-3.5 rounded-xl border text-left transition-all flex flex-col justify-between ${
             activeMode === 'other_entry'
               ? 'border-2 border-stone-600 bg-stone-100 shadow-2xs'
               : 'border-[#EAE4DC] bg-white hover:border-[#D4C8BC]'
@@ -519,14 +521,14 @@ function RecordFinancialEntryForm({
               <FileText className="w-4 h-4" />
             </div>
             <span
-              className={`text-xs font-bold ${
+              className={`text-xs font-bold whitespace-nowrap ${
                 activeMode === 'other_entry' ? 'text-stone-900' : 'text-[#1E1916]'
               }`}
             >
               Other Entry
             </span>
           </div>
-          <p className="text-[10px] text-[#7A6E65] leading-tight">
+          <p className="text-[11px] text-[#7A6E65] leading-snug">
             Adjustments, misc income, etc.
           </p>
         </button>
@@ -583,9 +585,9 @@ function RecordFinancialEntryForm({
           )}
 
           {/* Desktop Two-Column Layout */}
-          <div className="grid grid-cols-1 lg:grid-cols-12 gap-5 items-start">
-            {/* ── Left Column (Main Form - 8 cols) ────────────────────── */}
-            <div className="lg:col-span-8 space-y-4">
+          <div className="grid grid-cols-1 lg:grid-cols-[minmax(0,2.2fr)_minmax(270px,0.9fr)] gap-6 items-start">
+            {/* ── Left Column (Main Form - ~71%) ────────────────────── */}
+            <div className="space-y-5">
               {/* 1. Select Booking / Order */}
               <div className="space-y-2">
                 <h3 className="text-xs font-bold uppercase tracking-wider text-[#1E1916]">
@@ -977,8 +979,8 @@ function RecordFinancialEntryForm({
               </div>
             </div>
 
-            {/* ── Right Column (Summary & Help - 4 cols) ───────────────── */}
-            <div className="lg:col-span-4 space-y-4">
+            {/* ── Right Column (Summary & Help - ~29%) ───────────────── */}
+            <div className="space-y-4">
               {/* Payment Summary Side Card */}
               {selectedOrder && (
                 <div className="bg-white rounded-xl border border-[#EAE4DC] p-4 shadow-2xs space-y-3">
@@ -1034,9 +1036,10 @@ function RecordFinancialEntryForm({
           </div>
         </>
       )}
+      </div>
 
-      {/* ── Modal Footer ────────────────────────────────────────────── */}
-      <div className="pt-4 border-t border-[#EAE4DC] flex flex-col sm:flex-row items-center justify-between gap-4">
+      {/* ── Stable Modal Footer (shrink-0) ────────────────────────────── */}
+      <div className="shrink-0 px-6 py-4 border-t border-[#EAE4DC] bg-[#FAF8F5] flex flex-col sm:flex-row items-center justify-between gap-4">
         {activeMode === 'customer_payment' ? (
           <div className="space-y-0.5 text-left w-full sm:w-auto">
             <div className="text-xs text-[#7A6E65] flex items-center gap-2">
