@@ -13,7 +13,7 @@
 --   1. public.financial_expense_categories (Taxonomy catalog for business expenses)
 --   2. public.financial_expense_details (Child explanation of expense transactions)
 --   3. public.financial_tip_details (Direct cash vs. company-custodied tip ledger)
---   4. public.financial_commercial_details (Misc income, cash adjustments, transfers)
+--   4. public.financial_commercial_details (Commercial income: misc income, retail sale)
 --   5. public.post_expense_atomic(...)
 --   6. public.post_tip_atomic(...)
 --   7. public.post_misc_income_atomic(...)
@@ -136,11 +136,11 @@ CREATE INDEX IF NOT EXISTS idx_cf_tip_details_staff ON public.financial_tip_deta
 CREATE INDEX IF NOT EXISTS idx_cf_tip_details_custody ON public.financial_tip_details(custody_type);
 
 
--- ─── 4. COMMERCIAL DETAILS (MISC INCOME / CASH ADJUSTMENTS / TRANSFERS) ──────
+-- ─── 4. COMMERCIAL DETAILS (NON-BOOKING COMMERCIAL REVENUE: CF1-D15) ─────────
 CREATE TABLE IF NOT EXISTS public.financial_commercial_details (
   id              UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   transaction_id  UUID NOT NULL REFERENCES public.financial_transactions(id) ON DELETE RESTRICT,
-  commercial_type TEXT NOT NULL CHECK (commercial_type IN ('misc_income', 'retail_sale', 'cash_addition', 'cash_removal', 'transfer')),
+  commercial_type TEXT NOT NULL CHECK (commercial_type IN ('misc_income', 'retail_sale')),
   description     TEXT NOT NULL,
   payee_source    TEXT,
   reference       TEXT,
@@ -427,10 +427,18 @@ BEGIN
     p_branch_id := v_staff.branch_id;
   END IF;
 
+  IF v_staff.branch_id IS NOT NULL AND v_staff.branch_id <> p_branch_id AND v_staff.role NOT IN ('owner', 'admin') THEN
+    RAISE EXCEPTION 'BRANCH_MISMATCH: Staff member is not authorized for branch %', p_branch_id;
+  END IF;
+
   -- Validate beneficiary staff
   SELECT * INTO v_beneficiary FROM public.staff WHERE id = p_beneficiary_staff_id AND is_active = true;
   IF v_beneficiary.id IS NULL THEN
     RAISE EXCEPTION 'BENEFICIARY_NOT_FOUND: Active staff member not found for ID %', p_beneficiary_staff_id;
+  END IF;
+
+  IF v_beneficiary.branch_id IS NOT NULL AND p_branch_id IS NOT NULL AND v_beneficiary.branch_id <> p_branch_id THEN
+    RAISE EXCEPTION 'BENEFICIARY_BRANCH_MISMATCH: Beneficiary staff belongs to branch %, not %', v_beneficiary.branch_id, p_branch_id;
   END IF;
 
   -- 3. Idempotency Check
@@ -487,6 +495,9 @@ BEGIN
     END IF;
     IF NOT v_account.is_active THEN
       RAISE EXCEPTION 'ACCOUNT_INACTIVE: Financial account is inactive';
+    END IF;
+    IF v_account.branch_id IS NOT NULL AND p_branch_id IS NOT NULL AND v_account.branch_id <> p_branch_id THEN
+      RAISE EXCEPTION 'ACCOUNT_BRANCH_MISMATCH: Financial account belongs to branch %, not %', v_account.branch_id, p_branch_id;
     END IF;
 
     -- Positive inflow: company drawer/wallet holds the tip liability
@@ -622,6 +633,10 @@ BEGIN
     p_branch_id := v_staff.branch_id;
   END IF;
 
+  IF v_staff.branch_id IS NOT NULL AND v_staff.branch_id <> p_branch_id AND v_staff.role NOT IN ('owner', 'admin') THEN
+    RAISE EXCEPTION 'BRANCH_MISMATCH: Staff member is not authorized for branch %', p_branch_id;
+  END IF;
+
   -- Idempotency
   IF p_idempotency_key IS NOT NULL AND TRIM(p_idempotency_key) <> '' THEN
     SELECT * INTO v_existing_tx FROM public.financial_transactions
@@ -642,6 +657,9 @@ BEGIN
   END IF;
   IF NOT v_account.is_active THEN
     RAISE EXCEPTION 'ACCOUNT_INACTIVE: Financial account is inactive';
+  END IF;
+  IF v_account.branch_id IS NOT NULL AND p_branch_id IS NOT NULL AND v_account.branch_id <> p_branch_id THEN
+    RAISE EXCEPTION 'ACCOUNT_BRANCH_MISMATCH: Financial account belongs to branch %, not %', v_account.branch_id, p_branch_id;
   END IF;
 
   v_business_date := COALESCE(p_business_date, CURRENT_DATE);
@@ -745,7 +763,6 @@ DECLARE
   v_now             TIMESTAMPTZ := clock_timestamp();
   v_transaction_id  UUID;
   v_movement_id     UUID;
-  v_commercial_id   UUID;
   v_amount          NUMERIC(12,2);
   v_signed_amount   NUMERIC(12,2);
 BEGIN
@@ -787,6 +804,10 @@ BEGIN
     p_branch_id := v_staff.branch_id;
   END IF;
 
+  IF v_staff.branch_id IS NOT NULL AND v_staff.branch_id <> p_branch_id AND v_staff.role NOT IN ('owner', 'admin') THEN
+    RAISE EXCEPTION 'BRANCH_MISMATCH: Staff member is not authorized for branch %', p_branch_id;
+  END IF;
+
   -- Idempotency
   IF p_idempotency_key IS NOT NULL AND TRIM(p_idempotency_key) <> '' THEN
     SELECT * INTO v_existing_tx FROM public.financial_transactions
@@ -811,6 +832,9 @@ BEGIN
   END IF;
   IF v_account.account_type <> 'cash_drawer' THEN
     RAISE EXCEPTION 'CASH_DRAWER_REQUIRED: Cash adjustments can only be performed on cash_drawer accounts';
+  END IF;
+  IF v_account.branch_id IS NOT NULL AND p_branch_id IS NOT NULL AND v_account.branch_id <> p_branch_id THEN
+    RAISE EXCEPTION 'ACCOUNT_BRANCH_MISMATCH: Financial account belongs to branch %, not %', v_account.branch_id, p_branch_id;
   END IF;
 
   v_business_date := COALESCE(p_business_date, CURRENT_DATE);
@@ -837,7 +861,7 @@ BEGIN
     'PHP',
     'posted',
     p_idempotency_key,
-    p_notes
+    TRIM(p_reason) || CASE WHEN p_notes IS NOT NULL AND TRIM(p_notes) <> '' THEN ' — ' || TRIM(p_notes) ELSE '' END
   ) RETURNING id INTO v_transaction_id;
 
   -- Signed Movement
@@ -854,23 +878,6 @@ BEGIN
     'cash',
     v_now
   ) RETURNING id INTO v_movement_id;
-
-  -- Commercial Detail
-  INSERT INTO public.financial_commercial_details (
-    transaction_id,
-    commercial_type,
-    description,
-    payee_source,
-    notes,
-    created_at
-  ) VALUES (
-    v_transaction_id,
-    CASE WHEN p_adjustment_type = 'addition' THEN 'cash_addition' ELSE 'cash_removal' END,
-    TRIM(p_reason),
-    v_account.name,
-    p_notes,
-    v_now
-  ) RETURNING id INTO v_commercial_id;
 
   RETURN jsonb_build_object(
     'success', true,
@@ -910,7 +917,6 @@ DECLARE
   v_transaction_id  UUID;
   v_outflow_id      UUID;
   v_inflow_id       UUID;
-  v_commercial_id   UUID;
   v_amount          NUMERIC(12,2);
 BEGIN
   IF p_amount IS NULL OR p_amount <= 0 THEN
@@ -944,6 +950,10 @@ BEGIN
     p_branch_id := v_staff.branch_id;
   END IF;
 
+  IF v_staff.branch_id IS NOT NULL AND v_staff.branch_id <> p_branch_id AND v_staff.role NOT IN ('owner', 'admin') THEN
+    RAISE EXCEPTION 'BRANCH_MISMATCH: Staff member is not authorized for branch %', p_branch_id;
+  END IF;
+
   -- Idempotency
   IF p_idempotency_key IS NOT NULL AND TRIM(p_idempotency_key) <> '' THEN
     SELECT * INTO v_existing_tx FROM public.financial_transactions
@@ -962,10 +972,16 @@ BEGIN
   IF v_src_account.id IS NULL OR NOT v_src_account.is_active THEN
     RAISE EXCEPTION 'SOURCE_ACCOUNT_INVALID: Source account is invalid or inactive';
   END IF;
+  IF v_src_account.branch_id IS NOT NULL AND p_branch_id IS NOT NULL AND v_src_account.branch_id <> p_branch_id THEN
+    RAISE EXCEPTION 'ACCOUNT_BRANCH_MISMATCH: Source account belongs to branch %, not %', v_src_account.branch_id, p_branch_id;
+  END IF;
 
   SELECT * INTO v_dst_account FROM public.financial_accounts WHERE id = p_destination_account_id;
   IF v_dst_account.id IS NULL OR NOT v_dst_account.is_active THEN
     RAISE EXCEPTION 'DESTINATION_ACCOUNT_INVALID: Destination account is invalid or inactive';
+  END IF;
+  IF v_dst_account.branch_id IS NOT NULL AND p_branch_id IS NOT NULL AND v_dst_account.branch_id <> p_branch_id THEN
+    RAISE EXCEPTION 'ACCOUNT_BRANCH_MISMATCH: Destination account belongs to branch %, not %', v_dst_account.branch_id, p_branch_id;
   END IF;
 
   v_business_date := COALESCE(p_business_date, CURRENT_DATE);
@@ -992,7 +1008,7 @@ BEGIN
     'PHP',
     'posted',
     p_idempotency_key,
-    p_notes
+    'Transfer: ' || v_src_account.name || ' -> ' || v_dst_account.name || CASE WHEN p_notes IS NOT NULL AND TRIM(p_notes) <> '' THEN ' — ' || TRIM(p_notes) ELSE '' END
   ) RETURNING id INTO v_transaction_id;
 
   -- Outflow Movement (-amount)
@@ -1032,25 +1048,6 @@ BEGIN
     END,
     v_now
   ) RETURNING id INTO v_inflow_id;
-
-  -- Commercial Detail: transfer (Net Zero business effect)
-  INSERT INTO public.financial_commercial_details (
-    transaction_id,
-    commercial_type,
-    description,
-    payee_source,
-    reference,
-    notes,
-    created_at
-  ) VALUES (
-    v_transaction_id,
-    'transfer',
-    'Internal Transfer: ' || v_src_account.name || ' -> ' || v_dst_account.name,
-    v_src_account.name,
-    v_dst_account.name,
-    p_notes,
-    v_now
-  ) RETURNING id INTO v_commercial_id;
 
   RETURN jsonb_build_object(
     'success', true,

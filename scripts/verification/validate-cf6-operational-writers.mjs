@@ -737,15 +737,22 @@ async function main() {
   );
   assertSuccess(addRes, '[E.1] Cash addition recorded successfully');
   const addRecord = queryJson(`
-    SELECT m.amount, cd.commercial_type
+    SELECT m.amount, t.notes
     FROM public.financial_account_movements m
     JOIN public.financial_transactions t ON t.id = m.transaction_id
-    JOIN public.financial_commercial_details cd ON cd.transaction_id = t.id
     WHERE t.idempotency_key = 'cash-add-1'
   `);
   assertEqual(Number(addRecord[0].amount), 1000, 'Cash addition creates positive movement (+1000)');
+  assertEqual(addRecord[0].notes.includes('Opening morning change float addition'), true, 'Cash addition reason recorded on transaction header');
+  const addCdCount = queryJson(`
+    SELECT COUNT(*)::int AS count
+    FROM public.financial_commercial_details cd
+    JOIN public.financial_transactions t ON t.id = cd.transaction_id
+    WHERE t.idempotency_key = 'cash-add-1'
+  `);
+  assertEqual(addCdCount[0].count, 0, 'No commercial details record created for cash addition (domain separation)');
   passedCount++;
-  console.log('  ✓ [E.2] Cash addition creates positive drawer movement');
+  console.log('  ✓ [E.2] Cash addition creates positive drawer movement and preserves domain boundary');
 
   // Removal (- safe drop)
   const remRes = callCashAdjustmentRpc(
@@ -761,15 +768,22 @@ async function main() {
   );
   assertSuccess(remRes, '[E.3] Cash removal recorded successfully');
   const remRecord = queryJson(`
-    SELECT m.amount, cd.commercial_type
+    SELECT m.amount, t.notes
     FROM public.financial_account_movements m
     JOIN public.financial_transactions t ON t.id = m.transaction_id
-    JOIN public.financial_commercial_details cd ON cd.transaction_id = t.id
     WHERE t.idempotency_key = 'cash-rem-1'
   `);
   assertEqual(Number(remRecord[0].amount), -2000, 'Cash removal creates negative movement (-2000)');
+  assertEqual(remRecord[0].notes.includes('Midday safe drop to manager safe'), true, 'Cash removal reason recorded on transaction header');
+  const remCdCount = queryJson(`
+    SELECT COUNT(*)::int AS count
+    FROM public.financial_commercial_details cd
+    JOIN public.financial_transactions t ON t.id = cd.transaction_id
+    WHERE t.idempotency_key = 'cash-rem-1'
+  `);
+  assertEqual(remCdCount[0].count, 0, 'No commercial details record created for cash removal (domain separation)');
   passedCount++;
-  console.log('  ✓ [E.4] Cash removal creates negative drawer movement');
+  console.log('  ✓ [E.4] Cash removal creates negative drawer movement and preserves domain boundary');
 
   // Cash adjustment on digital account rejected
   assertFailure(
@@ -817,6 +831,96 @@ async function main() {
   assertEqual(Number(transferMovements[0].amount) + Number(transferMovements[1].amount), 0, 'Net effect of transfer is exactly 0.00');
   passedCount++;
   console.log('  ✓ [F.3] Transfer creates balanced dual movements with net zero effect');
+
+  const transferCdCount = queryJson(`
+    SELECT COUNT(*)::int AS count
+    FROM public.financial_commercial_details cd
+    JOIN public.financial_transactions t ON t.id = cd.transaction_id
+    WHERE t.idempotency_key = 'tx-transfer-1'
+  `);
+  assertEqual(transferCdCount[0].count, 0, 'No commercial details record created for transfer (domain separation)');
+  passedCount++;
+  console.log('  ✓ [F.4] Transfer creates no commercial records (internal liquidity reallocation)');
+
+  // ─── PART G: Security & Authorization Invariants ──────────────────────────
+  console.log('\n--- Part G: Security and Authorization Invariants ---');
+
+  // Cross-branch expense denial
+  assertFailure(
+    callExpenseRpc(
+      authUser,
+      branch2Id,
+      'exp-cross-branch',
+      250,
+      fuelCategoryId,
+      otherBranchAccId,
+      'Other Branch Vendor',
+      'Unauthorized cross branch expense'
+    ),
+    'BRANCH_MISMATCH',
+    '[G.1] Cross-branch expense post rejected for CSR staff'
+  );
+
+  // Cross-branch tip denial
+  assertFailure(
+    callTipRpc(
+      authUser,
+      branch2Id,
+      therapistId,
+      'direct_cash',
+      100,
+      null,
+      'cash',
+      '2026-09-28',
+      'Cross branch tip attempt',
+      'tip-cross-branch'
+    ),
+    'BRANCH_MISMATCH',
+    '[G.2] Cross-branch tip post rejected for CSR staff'
+  );
+
+  // Direct table writes denied by RLS for authenticated role
+  const directExpenseInsertSql = `
+    SET LOCAL ROLE authenticated;
+    SET LOCAL "request.jwt.claim.sub" = '${staffAuthUid}';
+    INSERT INTO public.financial_expense_details (
+      transaction_id, category_id, payee, description
+    ) VALUES (
+      gen_random_uuid(), '${fuelCategoryId}', 'Hacker Payee', 'Bypassing RPC'
+    );
+  `;
+  const directExpenseInsertRes = runPsql(directExpenseInsertSql);
+  assertEqual(directExpenseInsertRes.ok, false, 'Direct INSERT into financial_expense_details denied by RLS policy');
+  passedCount++;
+  console.log('  ✓ [G.3] Direct INSERT into financial_expense_details blocked by RLS');
+
+  const directTipInsertSql = `
+    SET LOCAL ROLE authenticated;
+    SET LOCAL "request.jwt.claim.sub" = '${staffAuthUid}';
+    INSERT INTO public.financial_tip_details (
+      transaction_id, beneficiary_staff_id, tip_amount, custody_type
+    ) VALUES (
+      gen_random_uuid(), '${therapistId}', 500, 'direct_cash'
+    );
+  `;
+  const directTipInsertRes = runPsql(directTipInsertSql);
+  assertEqual(directTipInsertRes.ok, false, 'Direct INSERT into financial_tip_details denied by RLS policy');
+  passedCount++;
+  console.log('  ✓ [G.4] Direct INSERT into financial_tip_details blocked by RLS');
+
+  const directCommercialInsertSql = `
+    SET LOCAL ROLE authenticated;
+    SET LOCAL "request.jwt.claim.sub" = '${staffAuthUid}';
+    INSERT INTO public.financial_commercial_details (
+      transaction_id, commercial_type, description
+    ) VALUES (
+      gen_random_uuid(), 'misc_income', 'Direct insert hack'
+    );
+  `;
+  const directCommercialInsertRes = runPsql(directCommercialInsertSql);
+  assertEqual(directCommercialInsertRes.ok, false, 'Direct INSERT into financial_commercial_details denied by RLS policy');
+  passedCount++;
+  console.log('  ✓ [G.5] Direct INSERT into financial_commercial_details blocked by RLS');
 
   console.log('\n======================================================================');
   console.log(`ALL CF6 DATABASE ASSERTIONS PASSED (${passedCount} checks passed)`);
