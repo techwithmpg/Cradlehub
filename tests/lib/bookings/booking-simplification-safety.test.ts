@@ -215,7 +215,7 @@ describe("Booking Simplification Safety & Domain Invariants", () => {
     const validPayload = {
       branchId: "11111111-1111-1111-1111-111111111111",
       serviceIds: ["33333333-3333-3333-3333-333333333333"],
-      date: "2026-09-27",
+      date: new Date(Date.now() + 86400000).toISOString().slice(0, 10),
       startTime: "14:00",
       fullName: "Jane Doe",
       phone: "09171234567",
