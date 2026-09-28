@@ -75,6 +75,47 @@ export async function getCashFlowData(
     branchId: acc.branch_id,
   }));
 
+  // 1b. Fetch active expense categories
+  interface DynamicCategoryQuery {
+    from: (table: string) => {
+      select: (cols: string) => {
+        eq: (col: string, val: unknown) => {
+          order: (col: string) => Promise<{
+            data: Array<{ id: string; code: string; name: string; description: string | null }> | null;
+            error: unknown;
+          }>;
+        };
+      };
+    };
+  }
+
+  const { data: categoriesData } = await (supabase as unknown as DynamicCategoryQuery)
+    .from('financial_expense_categories')
+    .select('id, code, name, description')
+    .eq('is_active', true)
+    .order('display_order');
+
+  const expenseCategories = ((categoriesData as Array<{ id: string; code: string; name: string; description: string | null }>) || []).map((c) => ({
+    id: c.id,
+    code: c.code,
+    name: c.name,
+    description: c.description,
+  }));
+
+  // 1c. Fetch active staff members for this branch
+  const { data: staffData } = await supabase
+    .from('staff')
+    .select('id, full_name, system_role')
+    .eq('branch_id', branchId)
+    .eq('is_active', true)
+    .order('full_name');
+
+  const staffOptions = (staffData || []).map((s) => ({
+    id: s.id,
+    name: s.full_name,
+    role: s.system_role,
+  }));
+
   // 2. Fetch financial transactions for this branch
   const { data: txData } = await supabase
     .from('financial_transactions')
@@ -461,7 +502,18 @@ export async function getCashFlowData(
         dateTime: formatDateTimeString(m.created_at || tx.occurred_at),
         reference: m.external_reference || tx.external_reference || `TX-${tx.id.slice(0, 8)}`,
         customerSource: tx.notes || (tx.source_type ? tx.source_type.replace(/_/g, ' ') : 'Customer'),
-        category: tx.transaction_type === 'customer_deposit' ? 'Deposit' : 'Booking Payment',
+        category:
+          tx.transaction_type === 'customer_deposit'
+            ? 'Deposit'
+            : tx.transaction_type === 'operational_expense'
+            ? 'Expense'
+            : tx.transaction_type === 'tip_collection'
+            ? 'Staff Tip'
+            : tx.transaction_type === 'other_income'
+            ? 'Misc Income'
+            : tx.transaction_type === 'cash_adjustment'
+            ? 'Adjustment'
+            : 'Booking Payment',
         method: formatMethodLabel(m.payment_method),
         inflow: isInflow ? amt : null,
         outflow: !isInflow ? Math.abs(amt) : null,
@@ -653,6 +705,8 @@ export async function getCashFlowData(
     dayClose: dayCloseSummary,
     history: historySummary,
     payableOrders,
+    expenseCategories,
+    staffOptions,
   };
 }
 

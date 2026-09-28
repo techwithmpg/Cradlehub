@@ -176,11 +176,79 @@ export interface PayableOrderOption {
   previousPayments?: PayableOrderPreviousPayment[];
 }
 
+export interface ExpenseCategoryOption {
+  id: string;
+  code: string;
+  name: string;
+  description?: string | null;
+}
+
+export interface StaffOption {
+  id: string;
+  name: string;
+  role: string;
+}
+
+export interface RecordExpenseInput {
+  branchId?: string;
+  categoryId: string;
+  financialAccountId: string;
+  amount: number;
+  payee: string;
+  description: string;
+  receiptReference?: string;
+  businessDate?: string;
+  notes?: string;
+  idempotencyKey?: string;
+}
+
+export interface RecordTipInput {
+  branchId?: string;
+  beneficiaryStaffId: string;
+  custodyType: 'direct_cash' | 'company_custodied';
+  amount: number;
+  financialAccountId?: string;
+  paymentMethod?: FinancialPaymentMethod;
+  businessDate?: string;
+  notes?: string;
+  idempotencyKey?: string;
+}
+
+export interface RecordOtherEntryInput {
+  branchId?: string;
+  entryType: 'misc_income' | 'cash_addition' | 'cash_removal' | 'transfer';
+  amount: number;
+  businessDate?: string;
+  notes?: string;
+  idempotencyKey?: string;
+  // misc_income specific
+  receivingAccountId?: string;
+  incomeDescription?: string;
+  payeeSource?: string;
+  paymentMethod?: FinancialPaymentMethod;
+  // cash_addition / cash_removal specific
+  cashDrawerId?: string;
+  adjustmentReason?: string;
+  // transfer specific
+  sourceAccountId?: string;
+  destinationAccountId?: string;
+}
+
+export interface OperationalEntryResult {
+  ok: boolean;
+  error?: string;
+  code?: string;
+  transactionId?: string;
+  idempotentReplay?: boolean;
+}
+
 export interface CashFlowWorkspaceData {
   branchId: string;
   branchName: string;
   businessDate: string;
   accounts: MaskedAccountOption[];
+  expenseCategories?: ExpenseCategoryOption[];
+  staffOptions?: StaffOption[];
   today: {
     kpis: TodayKpiSummary;
     paymentMix: PaymentMixItem[];

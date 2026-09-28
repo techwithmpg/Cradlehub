@@ -171,6 +171,8 @@ export function CashFlowWorkspace({ initialData }: CashFlowWorkspaceProps) {
         open={isRecordPaymentOpen}
         onOpenChange={setIsRecordPaymentOpen}
         accounts={initialData.accounts}
+        expenseCategories={initialData.expenseCategories}
+        staffOptions={initialData.staffOptions}
         payableOrders={initialData.payableOrders}
         initialOrderId={targetOrderId}
         businessDate={initialData.businessDate}

@@ -28,18 +28,26 @@ import {
   Car,
   Flower2,
   Info,
+  Lock,
 } from 'lucide-react';
 import type {
   MaskedAccountOption,
   PayableOrderOption,
   PayableOrderItemDetail,
+  ExpenseCategoryOption,
+  StaffOption,
 } from '@/lib/cash-flow/cash-flow-types';
 import {
   FINANCIAL_PAYMENT_RAILS,
   type FinancialPaymentMethod,
   isPaymentMethodCompatibleWithAccount,
 } from '@/lib/cash-flow/financial-contract';
-import { recordOrderPaymentAction } from '@/lib/cash-flow/cash-flow-actions';
+import {
+  recordOrderPaymentAction,
+  recordExpenseAction,
+  recordTipAction,
+  recordOtherEntryAction,
+} from '@/lib/cash-flow/cash-flow-actions';
 
 export type FinancialEntryMode = 'customer_payment' | 'expense' | 'tip' | 'other_entry';
 
@@ -55,6 +63,8 @@ export interface RecordFinancialEntryModalProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   accounts: MaskedAccountOption[];
+  expenseCategories?: ExpenseCategoryOption[];
+  staffOptions?: StaffOption[];
   payableOrders: PayableOrderOption[];
   initialOrderId?: string;
   businessDate: string;
@@ -65,6 +75,8 @@ export function RecordFinancialEntryModal({
   open,
   onOpenChange,
   accounts,
+  expenseCategories,
+  staffOptions,
   payableOrders,
   initialOrderId,
   businessDate,
@@ -80,6 +92,8 @@ export function RecordFinancialEntryModal({
           <RecordFinancialEntryForm
             onClose={() => onOpenChange(false)}
             accounts={accounts}
+            expenseCategories={expenseCategories}
+            staffOptions={staffOptions}
             payableOrders={payableOrders}
             initialOrderId={initialOrderId}
             businessDate={businessDate}
@@ -97,6 +111,8 @@ export const RecordPaymentSheet = RecordFinancialEntryModal;
 interface RecordFinancialEntryFormProps {
   onClose: () => void;
   accounts: MaskedAccountOption[];
+  expenseCategories?: ExpenseCategoryOption[];
+  staffOptions?: StaffOption[];
   payableOrders: PayableOrderOption[];
   initialOrderId?: string;
   businessDate: string;
@@ -106,6 +122,8 @@ interface RecordFinancialEntryFormProps {
 function RecordFinancialEntryForm({
   onClose,
   accounts,
+  expenseCategories,
+  staffOptions,
   payableOrders,
   initialOrderId,
   businessDate,
@@ -156,6 +174,61 @@ function RecordFinancialEntryForm({
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [successMessage, setSuccessMessage] = useState<string | null>(null);
+
+  // Fallbacks for categories and staff
+  const effectiveCategories = useMemo(() => {
+    if (expenseCategories && expenseCategories.length > 0) return expenseCategories;
+    return [
+      { id: 'cat-fuel', code: 'fuel', name: 'Fuel & Transportation' },
+      { id: 'cat-supplies', code: 'supplies', name: 'Spa Supplies & Materials' },
+      { id: 'cat-laundry', code: 'laundry', name: 'Laundry Services' },
+      { id: 'cat-utilities', code: 'utilities', name: 'Water & Utilities' },
+      { id: 'cat-allowance', code: 'staff_allowance', name: 'Staff Allowance & Meals' },
+      { id: 'cat-maintenance', code: 'maintenance', name: 'Repairs & Maintenance' },
+      { id: 'cat-telecom', code: 'telecom', name: 'Telecom & Internet' },
+      { id: 'cat-services', code: 'services', name: 'Business Services' },
+      { id: 'cat-other', code: 'other', name: 'Other Operating Expense' },
+    ];
+  }, [expenseCategories]);
+
+  const effectiveStaff = useMemo(() => {
+    if (staffOptions && staffOptions.length > 0) return staffOptions;
+    return [
+      { id: 'staff-general', name: 'Duty Staff / Therapist', role: 'staff' },
+    ];
+  }, [staffOptions]);
+
+  // Operational Expense state
+  const [expenseAmount, setExpenseAmount] = useState<number | ''>('');
+  const [expenseCategoryId, setExpenseCategoryId] = useState<string>(() => effectiveCategories[0]?.id || '');
+  const [expenseAccountId, setExpenseAccountId] = useState<string>(() => defaultAccount?.id || accounts[0]?.id || '');
+  const [expensePayee, setExpensePayee] = useState<string>('');
+  const [expenseDescription, setExpenseDescription] = useState<string>('');
+  const [expenseReceiptRef, setExpenseReceiptRef] = useState<string>('');
+  const [expenseNotes, setExpenseNotes] = useState<string>('');
+
+  // Tip state
+  const [tipCustodyType, setTipCustodyType] = useState<'direct_cash' | 'company_custodied'>('direct_cash');
+  const [tipBeneficiaryStaffId, setTipBeneficiaryStaffId] = useState<string>(() => effectiveStaff[0]?.id || '');
+  const [tipAmount, setTipAmount] = useState<number | ''>('');
+  const [tipAccountId, setTipAccountId] = useState<string>(() => defaultAccount?.id || accounts[0]?.id || '');
+  const [tipPaymentMethod, setTipPaymentMethod] = useState<FinancialPaymentMethod>('cash');
+  const [tipNotes, setTipNotes] = useState<string>('');
+
+  // Other Entry state
+  const [otherEntryType, setOtherEntryType] = useState<
+    'misc_income' | 'cash_addition' | 'cash_removal' | 'transfer' | 'generic_adjustment'
+  >('misc_income');
+  const [otherAmount, setOtherAmount] = useState<number | ''>('');
+  const [otherNotes, setOtherNotes] = useState<string>('');
+  const [miscReceivingAccountId, setMiscReceivingAccountId] = useState<string>(() => accounts[0]?.id || '');
+  const [miscDescription, setMiscDescription] = useState<string>('');
+  const [miscPayeeSource, setMiscPayeeSource] = useState<string>('');
+  const [miscPaymentMethod, setMiscPaymentMethod] = useState<FinancialPaymentMethod>('cash');
+  const [cashDrawerId, setCashDrawerId] = useState<string>(() => defaultAccount?.id || accounts[0]?.id || '');
+  const [cashAdjustmentReason, setCashAdjustmentReason] = useState<string>('');
+  const [transferSourceAccountId, setTransferSourceAccountId] = useState<string>(() => accounts[0]?.id || '');
+  const [transferDestAccountId, setTransferDestAccountId] = useState<string>(() => accounts[1]?.id || accounts[0]?.id || '');
 
   // Handle order selection change
   const handleSelectOrder = (order: PayableOrderOption) => {
@@ -336,6 +409,159 @@ function RecordFinancialEntryForm({
       }
     } catch (err: unknown) {
       setErrorMessage(err instanceof Error ? err.message : 'An unexpected error occurred');
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
+  const handleExpenseSubmit = async () => {
+    setErrorMessage(null);
+    setSuccessMessage(null);
+    const amt = typeof expenseAmount === 'number' ? expenseAmount : parseFloat(expenseAmount);
+    if (!amt || amt <= 0) {
+      setErrorMessage('Please enter a valid expense amount greater than ₱0.00.');
+      return;
+    }
+    if (!expenseCategoryId) {
+      setErrorMessage('Please select an expense category.');
+      return;
+    }
+    if (!expenseAccountId) {
+      setErrorMessage('Please select a payment account.');
+      return;
+    }
+    if (!expenseDescription.trim()) {
+      setErrorMessage('Please provide an expense description.');
+      return;
+    }
+
+    setIsSubmitting(true);
+    try {
+      const res = await recordExpenseAction({
+        amount: amt,
+        categoryId: expenseCategoryId,
+        financialAccountId: expenseAccountId,
+        payee: expensePayee.trim() || 'Direct Vendor',
+        description: expenseDescription.trim(),
+        receiptReference: expenseReceiptRef.trim() || undefined,
+        businessDate,
+        notes: expenseNotes.trim() || undefined,
+        idempotencyKey: `cf6_exp_${Date.now()}_${Math.random().toString(36).substring(2, 9)}`,
+      });
+
+      if (!res.ok) {
+        setErrorMessage(res.error || 'Failed to record expense.');
+        return;
+      }
+
+      setSuccessMessage('Operational expense recorded successfully!');
+      if (onSuccess) onSuccess();
+      setTimeout(() => {
+        onClose();
+      }, 1000);
+    } catch (err: unknown) {
+      setErrorMessage(err instanceof Error ? err.message : 'An unexpected error occurred.');
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
+  const handleTipSubmit = async () => {
+    setErrorMessage(null);
+    setSuccessMessage(null);
+    const amt = typeof tipAmount === 'number' ? tipAmount : parseFloat(tipAmount);
+    if (!amt || amt <= 0) {
+      setErrorMessage('Please enter a valid tip amount greater than ₱0.00.');
+      return;
+    }
+    if (!tipBeneficiaryStaffId) {
+      setErrorMessage('Please select the therapist receiving the tip.');
+      return;
+    }
+    if (tipCustodyType === 'company_custodied' && !tipAccountId) {
+      setErrorMessage('Please select the account receiving company-custodied tip funds.');
+      return;
+    }
+
+    setIsSubmitting(true);
+    try {
+      const res = await recordTipAction({
+        amount: amt,
+        beneficiaryStaffId: tipBeneficiaryStaffId,
+        custodyType: tipCustodyType,
+        financialAccountId: tipCustodyType === 'company_custodied' ? tipAccountId : undefined,
+        paymentMethod: tipPaymentMethod,
+        businessDate,
+        notes: tipNotes.trim() || undefined,
+        idempotencyKey: `cf6_tip_${Date.now()}_${Math.random().toString(36).substring(2, 9)}`,
+      });
+
+      if (!res.ok) {
+        setErrorMessage(res.error || 'Failed to record tip.');
+        return;
+      }
+
+      setSuccessMessage(
+        tipCustodyType === 'direct_cash'
+          ? 'Direct therapist tip recorded for transparency (zero company custody).'
+          : 'Company-custodied tip recorded (liability pending disbursement).'
+      );
+      if (onSuccess) onSuccess();
+      setTimeout(() => {
+        onClose();
+      }, 1000);
+    } catch (err: unknown) {
+      setErrorMessage(err instanceof Error ? err.message : 'An unexpected error occurred.');
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
+  const handleOtherEntrySubmit = async () => {
+    setErrorMessage(null);
+    setSuccessMessage(null);
+
+    if (otherEntryType === 'generic_adjustment') {
+      setErrorMessage('Policy Required: Generic adjustments remain locked pending management reconciliation policy.');
+      return;
+    }
+
+    const amt = typeof otherAmount === 'number' ? otherAmount : parseFloat(otherAmount);
+    if (!amt || amt <= 0) {
+      setErrorMessage('Please enter a valid amount greater than ₱0.00.');
+      return;
+    }
+
+    setIsSubmitting(true);
+    try {
+      const res = await recordOtherEntryAction({
+        entryType: otherEntryType,
+        amount: amt,
+        businessDate,
+        notes: otherNotes.trim() || undefined,
+        receivingAccountId: otherEntryType === 'misc_income' ? miscReceivingAccountId : undefined,
+        incomeDescription: otherEntryType === 'misc_income' ? miscDescription : undefined,
+        payeeSource: otherEntryType === 'misc_income' ? miscPayeeSource : undefined,
+        paymentMethod: otherEntryType === 'misc_income' ? miscPaymentMethod : undefined,
+        cashDrawerId: (otherEntryType === 'cash_addition' || otherEntryType === 'cash_removal') ? cashDrawerId : undefined,
+        adjustmentReason: (otherEntryType === 'cash_addition' || otherEntryType === 'cash_removal') ? cashAdjustmentReason : undefined,
+        sourceAccountId: otherEntryType === 'transfer' ? transferSourceAccountId : undefined,
+        destinationAccountId: otherEntryType === 'transfer' ? transferDestAccountId : undefined,
+        idempotencyKey: `cf6_other_${Date.now()}_${Math.random().toString(36).substring(2, 9)}`,
+      });
+
+      if (!res.ok) {
+        setErrorMessage(res.error || 'Failed to record financial entry.');
+        return;
+      }
+
+      setSuccessMessage('Financial entry recorded successfully!');
+      if (onSuccess) onSuccess();
+      setTimeout(() => {
+        onClose();
+      }, 1000);
+    } catch (err: unknown) {
+      setErrorMessage(err instanceof Error ? err.message : 'An unexpected error occurred.');
     } finally {
       setIsSubmitting(false);
     }
@@ -534,37 +760,741 @@ function RecordFinancialEntryForm({
         </button>
       </div>
 
-      {/* ── Informational Placeholder for Inactive Modes ─────────────── */}
-      {activeMode !== 'customer_payment' && (
-        <div className="bg-white rounded-xl border border-[#EAE4DC] p-8 text-center space-y-3">
-          <div className="w-12 h-12 rounded-full bg-[#FAF8F5] border border-[#EAE4DC] flex items-center justify-center mx-auto text-[#6B5D52]">
-            {activeMode === 'expense' && <ShoppingCart className="w-6 h-6 text-amber-600" />}
-            {activeMode === 'tip' && <Gift className="w-6 h-6 text-rose-500" />}
-            {activeMode === 'other_entry' && <FileText className="w-6 h-6 text-stone-600" />}
+      {/* ── Operational Expense Mode ─────────────────────────────────── */}
+      {activeMode === 'expense' && (
+        <>
+          {errorMessage && (
+            <div className="p-3 rounded-xl bg-rose-50 border border-rose-200 text-rose-800 text-xs flex items-start gap-2">
+              <AlertCircle className="w-4 h-4 flex-shrink-0 mt-0.5" />
+              <span>{errorMessage}</span>
+            </div>
+          )}
+
+          {successMessage && (
+            <div className="p-3 rounded-xl bg-emerald-50 border border-emerald-200 text-emerald-800 text-xs flex items-start gap-2">
+              <CheckCircle2 className="w-4 h-4 flex-shrink-0 mt-0.5" />
+              <span>{successMessage}</span>
+            </div>
+          )}
+
+          <div className="grid grid-cols-1 lg:grid-cols-[minmax(0,2.2fr)_minmax(270px,0.9fr)] gap-6 items-start">
+            {/* Left Column (Main Form - ~71%) */}
+            <div className="space-y-5">
+              {/* 1. Category & Account */}
+              <div className="space-y-2">
+                <h3 className="text-xs font-bold uppercase tracking-wider text-[#1E1916]">
+                  1. Expense Classification & Payment Account
+                </h3>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                  <div>
+                    <label className="block text-[11px] font-semibold text-[#7A6E65] mb-1">
+                      Expense Category <span className="text-rose-500">*</span>
+                    </label>
+                    <select
+                      value={expenseCategoryId}
+                      onChange={(e) => setExpenseCategoryId(e.target.value)}
+                      className="w-full px-3 py-2 bg-white border border-[#EAE4DC] hover:border-[#1B4D3E] rounded-xl text-xs text-[#1E1916] focus:outline-none focus:border-[#1B4D3E]"
+                    >
+                      {effectiveCategories.map((c) => (
+                        <option key={c.id} value={c.id}>
+                          {c.name}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+
+                  <div>
+                    <label className="block text-[11px] font-semibold text-[#7A6E65] mb-1">
+                      Disbursement Account <span className="text-rose-500">*</span>
+                    </label>
+                    <select
+                      value={expenseAccountId}
+                      onChange={(e) => setExpenseAccountId(e.target.value)}
+                      className="w-full px-3 py-2 bg-white border border-[#EAE4DC] hover:border-[#1B4D3E] rounded-xl text-xs text-[#1E1916] focus:outline-none focus:border-[#1B4D3E]"
+                    >
+                      {accounts.map((a) => (
+                        <option key={a.id} value={a.id}>
+                          {a.name} ({a.identifierMask})
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                </div>
+              </div>
+
+              {/* 2. Payee & Description */}
+              <div className="space-y-2">
+                <h3 className="text-xs font-bold uppercase tracking-wider text-[#1E1916]">
+                  2. Expense Details & Justification
+                </h3>
+                <div className="space-y-3">
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                    <div>
+                      <label className="block text-[11px] font-semibold text-[#7A6E65] mb-1">
+                        Payee / Vendor <span className="text-rose-500">*</span>
+                      </label>
+                      <input
+                        type="text"
+                        placeholder="e.g., Shell Gas Station, Clean Linen Services"
+                        value={expensePayee}
+                        onChange={(e) => setExpensePayee(e.target.value)}
+                        className="w-full px-3 py-2 bg-white border border-[#EAE4DC] rounded-xl text-xs text-[#1E1916] placeholder:text-[#9C8878] focus:outline-none focus:border-[#1B4D3E]"
+                      />
+                    </div>
+
+                    <div>
+                      <label className="block text-[11px] font-semibold text-[#7A6E65] mb-1">
+                        Receipt / OR Reference
+                      </label>
+                      <input
+                        type="text"
+                        placeholder="e.g., OR-987654"
+                        value={expenseReceiptRef}
+                        onChange={(e) => setExpenseReceiptRef(e.target.value)}
+                        className="w-full px-3 py-2 bg-white border border-[#EAE4DC] rounded-xl text-xs text-[#1E1916] placeholder:text-[#9C8878] focus:outline-none focus:border-[#1B4D3E]"
+                      />
+                    </div>
+                  </div>
+
+                  <div>
+                    <label className="block text-[11px] font-semibold text-[#7A6E65] mb-1">
+                      Description <span className="text-rose-500">*</span>
+                    </label>
+                    <input
+                      type="text"
+                      placeholder="e.g., Fuel for home service van (3 appointments)"
+                      value={expenseDescription}
+                      onChange={(e) => setExpenseDescription(e.target.value)}
+                      className="w-full px-3 py-2 bg-white border border-[#EAE4DC] rounded-xl text-xs text-[#1E1916] placeholder:text-[#9C8878] focus:outline-none focus:border-[#1B4D3E]"
+                    />
+                  </div>
+                </div>
+              </div>
+
+              {/* 3. Amount & Notes */}
+              <div className="space-y-2">
+                <h3 className="text-xs font-bold uppercase tracking-wider text-[#1E1916]">
+                  3. Outflow Amount & Internal Notes
+                </h3>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                  <div>
+                    <label className="block text-[11px] font-semibold text-[#7A6E65] mb-1">
+                      Amount (PHP) <span className="text-rose-500">*</span>
+                    </label>
+                    <div className="relative">
+                      <span className="absolute left-3 top-1/2 -translate-y-1/2 text-[#7A6E65] font-bold text-xs">₱</span>
+                      <input
+                        type="number"
+                        step="0.01"
+                        min="0.01"
+                        placeholder="0.00"
+                        value={expenseAmount}
+                        onChange={(e) => {
+                          const val = e.target.value === '' ? '' : Math.max(0, parseFloat(e.target.value));
+                          setExpenseAmount(val);
+                        }}
+                        className="w-full pl-7 pr-3 py-2 bg-white border border-[#EAE4DC] rounded-xl text-xs font-bold font-mono text-[#1E1916] placeholder:text-[#9C8878] focus:outline-none focus:border-[#1B4D3E]"
+                      />
+                    </div>
+                  </div>
+
+                  <div>
+                    <label className="block text-[11px] font-semibold text-[#7A6E65] mb-1">
+                      Internal Notes
+                    </label>
+                    <input
+                      type="text"
+                      placeholder="Optional notes or context..."
+                      value={expenseNotes}
+                      onChange={(e) => setExpenseNotes(e.target.value)}
+                      className="w-full px-3 py-2 bg-white border border-[#EAE4DC] rounded-xl text-xs text-[#1E1916] placeholder:text-[#9C8878] focus:outline-none focus:border-[#1B4D3E]"
+                    />
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            {/* Right Column (Summary & Help - ~29%) */}
+            <div className="space-y-4">
+              <div className="bg-white rounded-xl border border-[#EAE4DC] p-4 shadow-2xs space-y-3">
+                <h4 className="text-xs font-bold text-[#1E1916]">Expense Summary</h4>
+                <div className="space-y-2 text-xs">
+                  <div className="flex items-center justify-between text-[#7A6E65]">
+                    <span>Category</span>
+                    <span className="font-semibold text-[#1E1916]">
+                      {effectiveCategories.find((c) => c.id === expenseCategoryId)?.name || 'General'}
+                    </span>
+                  </div>
+                  <div className="flex items-center justify-between text-[#7A6E65]">
+                    <span>Payment Account</span>
+                    <span className="font-semibold text-[#1E1916] truncate max-w-[140px]">
+                      {accounts.find((a) => a.id === expenseAccountId)?.name || 'Account'}
+                    </span>
+                  </div>
+                  <div className="pt-2 border-t border-[#F0ECE5] flex items-center justify-between">
+                    <span className="font-bold text-[#D9383A]">Disbursement Total</span>
+                    <span className="font-bold text-sm text-[#D9383A] tabular-nums font-mono">
+                      -{formatPeso(typeof expenseAmount === 'number' ? expenseAmount : 0)}
+                    </span>
+                  </div>
+                </div>
+              </div>
+
+              <div className="bg-[#FEF3E2] border border-[#FAD7A0] rounded-xl p-4 text-xs space-y-2">
+                <div className="flex items-center gap-1.5 text-[#B5651D] font-bold">
+                  <Lightbulb className="w-4 h-4 text-[#B5651D]" />
+                  <span>About Operational Expenses</span>
+                </div>
+                <p className="text-[11px] text-[#7A4B1A] leading-relaxed">
+                  Operational expenses immediately post a verified signed negative movement against the selected account. No fake booking orders are fabricated.
+                </p>
+              </div>
+            </div>
           </div>
-          <h3 className="text-base font-bold text-[#1E1916]">
-            {activeMode === 'expense' && 'Expense Recording'}
-            {activeMode === 'tip' && 'Tip Recording'}
-            {activeMode === 'other_entry' && 'Other Financial Entries'}
-          </h3>
-          <p className="text-xs text-[#7A6E65] max-w-md mx-auto">
-            {activeMode === 'expense' &&
-              'Expense recording will be enabled in a later Cash Flow stage. Zero fake ledger rows are fabricated.'}
-            {activeMode === 'tip' &&
-              'Tip recording will be enabled in a later Cash Flow stage. Preserves canonical CF1-D09 tip custody rules.'}
-            {activeMode === 'other_entry' &&
-              'Other financial entries (adjustments, transfers, misc income) will be enabled in a later Cash Flow stage.'}
-          </p>
-          <div className="pt-2">
-            <button
-              type="button"
-              onClick={() => setActiveMode('customer_payment')}
-              className="px-4 py-1.5 bg-[#163E32] text-white text-xs font-semibold rounded-lg hover:bg-[#1B4D3E] transition"
-            >
-              Return to Customer Payment
-            </button>
+        </>
+      )}
+
+      {/* ── Tip Recording Mode ───────────────────────────────────────── */}
+      {activeMode === 'tip' && (
+        <>
+          {errorMessage && (
+            <div className="p-3 rounded-xl bg-rose-50 border border-rose-200 text-rose-800 text-xs flex items-start gap-2">
+              <AlertCircle className="w-4 h-4 flex-shrink-0 mt-0.5" />
+              <span>{errorMessage}</span>
+            </div>
+          )}
+
+          {successMessage && (
+            <div className="p-3 rounded-xl bg-emerald-50 border border-emerald-200 text-emerald-800 text-xs flex items-start gap-2">
+              <CheckCircle2 className="w-4 h-4 flex-shrink-0 mt-0.5" />
+              <span>{successMessage}</span>
+            </div>
+          )}
+
+          <div className="grid grid-cols-1 lg:grid-cols-[minmax(0,2.2fr)_minmax(270px,0.9fr)] gap-6 items-start">
+            {/* Left Column (Main Form - ~71%) */}
+            <div className="space-y-5">
+              {/* 1. Custody Type Toggle (CF1-D09) */}
+              <div className="space-y-2">
+                <h3 className="text-xs font-bold uppercase tracking-wider text-[#1E1916]">
+                  1. Tip Custody Model (CF1-D09)
+                </h3>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                  <button
+                    type="button"
+                    onClick={() => setTipCustodyType('direct_cash')}
+                    className={`p-3 rounded-xl border text-left transition flex flex-col justify-between ${
+                      tipCustodyType === 'direct_cash'
+                        ? 'border-2 border-emerald-600 bg-emerald-50/70 shadow-2xs'
+                        : 'border-[#EAE4DC] bg-white hover:border-[#D4C8BC]'
+                    }`}
+                  >
+                    <div className="flex items-center justify-between mb-1">
+                      <span className="text-xs font-bold text-[#1E1916]">Direct Cash Tip</span>
+                      <span className="text-[10px] px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-800 font-bold">
+                        Zero Custody
+                      </span>
+                    </div>
+                    <p className="text-[11px] text-[#7A6E65] leading-snug">
+                      Cash handed directly to therapist. Zero company custody, 0 movements on shop accounts.
+                    </p>
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => setTipCustodyType('company_custodied')}
+                    className={`p-3 rounded-xl border text-left transition flex flex-col justify-between ${
+                      tipCustodyType === 'company_custodied'
+                        ? 'border-2 border-rose-600 bg-rose-50/70 shadow-2xs'
+                        : 'border-[#EAE4DC] bg-white hover:border-[#D4C8BC]'
+                    }`}
+                  >
+                    <div className="flex items-center justify-between mb-1">
+                      <span className="text-xs font-bold text-[#1E1916]">Company Custodied</span>
+                      <span className="text-[10px] px-2 py-0.5 rounded-full bg-rose-100 text-rose-800 font-bold">
+                        Pending Payout
+                      </span>
+                    </div>
+                    <p className="text-[11px] text-[#7A6E65] leading-snug">
+                      Customer pays via GCash, Maya, Card, or Drawer. Company holds funds pending payout.
+                    </p>
+                  </button>
+                </div>
+              </div>
+
+              {/* 2. Beneficiary & Amount */}
+              <div className="space-y-2">
+                <h3 className="text-xs font-bold uppercase tracking-wider text-[#1E1916]">
+                  2. Beneficiary Therapist & Amount
+                </h3>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                  <div>
+                    <label className="block text-[11px] font-semibold text-[#7A6E65] mb-1">
+                      Beneficiary Staff Member <span className="text-rose-500">*</span>
+                    </label>
+                    <select
+                      value={tipBeneficiaryStaffId}
+                      onChange={(e) => setTipBeneficiaryStaffId(e.target.value)}
+                      className="w-full px-3 py-2 bg-white border border-[#EAE4DC] hover:border-[#1B4D3E] rounded-xl text-xs text-[#1E1916] focus:outline-none focus:border-[#1B4D3E]"
+                    >
+                      {effectiveStaff.map((s) => (
+                        <option key={s.id} value={s.id}>
+                          {s.name} ({s.role})
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+
+                  <div>
+                    <label className="block text-[11px] font-semibold text-[#7A6E65] mb-1">
+                      Tip Amount (PHP) <span className="text-rose-500">*</span>
+                    </label>
+                    <div className="relative">
+                      <span className="absolute left-3 top-1/2 -translate-y-1/2 text-[#7A6E65] font-bold text-xs">₱</span>
+                      <input
+                        type="number"
+                        step="0.01"
+                        min="0.01"
+                        placeholder="0.00"
+                        value={tipAmount}
+                        onChange={(e) => {
+                          const val = e.target.value === '' ? '' : Math.max(0, parseFloat(e.target.value));
+                          setTipAmount(val);
+                        }}
+                        className="w-full pl-7 pr-3 py-2 bg-white border border-[#EAE4DC] rounded-xl text-xs font-bold font-mono text-[#1E1916] placeholder:text-[#9C8878] focus:outline-none focus:border-[#1B4D3E]"
+                      />
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              {/* 3. Account selection when Company Custodied */}
+              {tipCustodyType === 'company_custodied' && (
+                <div className="space-y-2">
+                  <h3 className="text-xs font-bold uppercase tracking-wider text-[#1E1916]">
+                    3. Receiving Account & Rail
+                  </h3>
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                    <div>
+                      <label className="block text-[11px] font-semibold text-[#7A6E65] mb-1">
+                        Receiving Account <span className="text-rose-500">*</span>
+                      </label>
+                      <select
+                        value={tipAccountId}
+                        onChange={(e) => setTipAccountId(e.target.value)}
+                        className="w-full px-3 py-2 bg-white border border-[#EAE4DC] hover:border-[#1B4D3E] rounded-xl text-xs text-[#1E1916] focus:outline-none focus:border-[#1B4D3E]"
+                      >
+                        {accounts.map((a) => (
+                          <option key={a.id} value={a.id}>
+                            {a.name} ({a.identifierMask})
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+
+                    <div>
+                      <label className="block text-[11px] font-semibold text-[#7A6E65] mb-1">
+                        Payment Method
+                      </label>
+                      <select
+                        value={tipPaymentMethod}
+                        onChange={(e) => setTipPaymentMethod(e.target.value as FinancialPaymentMethod)}
+                        className="w-full px-3 py-2 bg-white border border-[#EAE4DC] hover:border-[#1B4D3E] rounded-xl text-xs text-[#1E1916] focus:outline-none focus:border-[#1B4D3E]"
+                      >
+                        <option value="cash">Cash</option>
+                        <option value="gcash">GCash</option>
+                        <option value="maya">Maya</option>
+                        <option value="card">Card Terminal</option>
+                        <option value="bank_transfer">Bank Transfer</option>
+                      </select>
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {/* Notes */}
+              <div>
+                <label className="block text-[11px] font-semibold text-[#7A6E65] mb-1">
+                  Notes
+                </label>
+                <input
+                  type="text"
+                  placeholder="Optional customer reference or shift context..."
+                  value={tipNotes}
+                  onChange={(e) => setTipNotes(e.target.value)}
+                  className="w-full px-3 py-2 bg-white border border-[#EAE4DC] rounded-xl text-xs text-[#1E1916] placeholder:text-[#9C8878] focus:outline-none focus:border-[#1B4D3E]"
+                />
+              </div>
+            </div>
+
+            {/* Right Column (Summary & Help - ~29%) */}
+            <div className="space-y-4">
+              <div className="bg-white rounded-xl border border-[#EAE4DC] p-4 shadow-2xs space-y-3">
+                <h4 className="text-xs font-bold text-[#1E1916]">Tip Summary</h4>
+                <div className="space-y-2 text-xs">
+                  <div className="flex items-center justify-between text-[#7A6E65]">
+                    <span>Beneficiary</span>
+                    <span className="font-semibold text-[#1E1916]">
+                      {effectiveStaff.find((s) => s.id === tipBeneficiaryStaffId)?.name || 'Staff'}
+                    </span>
+                  </div>
+                  <div className="flex items-center justify-between text-[#7A6E65]">
+                    <span>Custody Type</span>
+                    <span className="font-semibold text-[#1E1916]">
+                      {tipCustodyType === 'direct_cash' ? 'Direct Cash' : 'Company Custodied'}
+                    </span>
+                  </div>
+                  {tipCustodyType === 'company_custodied' && (
+                    <div className="flex items-center justify-between text-[#7A6E65]">
+                      <span>Account</span>
+                      <span className="font-semibold text-[#1E1916] truncate max-w-[140px]">
+                        {accounts.find((a) => a.id === tipAccountId)?.name || 'Account'}
+                      </span>
+                    </div>
+                  )}
+                  <div className="pt-2 border-t border-[#F0ECE5] flex items-center justify-between">
+                    <span className="font-bold text-[#163E32]">Tip Amount</span>
+                    <span className="font-bold text-sm text-[#163E32] tabular-nums font-mono">
+                      {formatPeso(typeof tipAmount === 'number' ? tipAmount : 0)}
+                    </span>
+                  </div>
+                </div>
+              </div>
+
+              <div className="bg-[#EEF7F2] border border-[#CDE5D8] rounded-xl p-4 text-xs space-y-2">
+                <div className="flex items-center gap-1.5 text-[#163E32] font-bold">
+                  <Lightbulb className="w-4 h-4 text-[#1B4D3E]" />
+                  <span>About Tip Custody</span>
+                </div>
+                <p className="text-[11px] text-[#3D5A4C] leading-relaxed">
+                  Per rule CF1-D09, direct cash tips are zero company custody. Company-custodied tips are recorded as pending liability to therapist.
+                </p>
+              </div>
+            </div>
           </div>
-        </div>
+        </>
+      )}
+
+      {/* ── Other Entry Mode ─────────────────────────────────────────── */}
+      {activeMode === 'other_entry' && (
+        <>
+          {errorMessage && (
+            <div className="p-3 rounded-xl bg-rose-50 border border-rose-200 text-rose-800 text-xs flex items-start gap-2">
+              <AlertCircle className="w-4 h-4 flex-shrink-0 mt-0.5" />
+              <span>{errorMessage}</span>
+            </div>
+          )}
+
+          {successMessage && (
+            <div className="p-3 rounded-xl bg-emerald-50 border border-emerald-200 text-emerald-800 text-xs flex items-start gap-2">
+              <CheckCircle2 className="w-4 h-4 flex-shrink-0 mt-0.5" />
+              <span>{successMessage}</span>
+            </div>
+          )}
+
+          <div className="grid grid-cols-1 lg:grid-cols-[minmax(0,2.2fr)_minmax(270px,0.9fr)] gap-6 items-start">
+            {/* Left Column (Main Form - ~71%) */}
+            <div className="space-y-5">
+              {/* 1. Entry Type Selector */}
+              <div className="space-y-2">
+                <h3 className="text-xs font-bold uppercase tracking-wider text-[#1E1916]">
+                  1. Select Entry Type
+                </h3>
+                <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+                  <button
+                    type="button"
+                    onClick={() => setOtherEntryType('misc_income')}
+                    className={`p-2.5 rounded-xl border text-center transition ${
+                      otherEntryType === 'misc_income'
+                        ? 'border-2 border-stone-800 bg-stone-100 font-bold text-stone-900'
+                        : 'border-[#EAE4DC] bg-white text-[#7A6E65] hover:border-[#D4C8BC]'
+                    }`}
+                  >
+                    <span className="text-xs">Misc Income</span>
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => setOtherEntryType('cash_addition')}
+                    className={`p-2.5 rounded-xl border text-center transition ${
+                      otherEntryType === 'cash_addition'
+                        ? 'border-2 border-emerald-700 bg-emerald-50 font-bold text-emerald-900'
+                        : 'border-[#EAE4DC] bg-white text-[#7A6E65] hover:border-[#D4C8BC]'
+                    }`}
+                  >
+                    <span className="text-xs">Cash Addition</span>
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => setOtherEntryType('cash_removal')}
+                    className={`p-2.5 rounded-xl border text-center transition ${
+                      otherEntryType === 'cash_removal'
+                        ? 'border-2 border-rose-700 bg-rose-50 font-bold text-rose-900'
+                        : 'border-[#EAE4DC] bg-white text-[#7A6E65] hover:border-[#D4C8BC]'
+                    }`}
+                  >
+                    <span className="text-xs">Cash Removal</span>
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => setOtherEntryType('transfer')}
+                    className={`p-2.5 rounded-xl border text-center transition ${
+                      otherEntryType === 'transfer'
+                        ? 'border-2 border-blue-700 bg-blue-50 font-bold text-blue-900'
+                        : 'border-[#EAE4DC] bg-white text-[#7A6E65] hover:border-[#D4C8BC]'
+                    }`}
+                  >
+                    <span className="text-xs">Transfer</span>
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => setOtherEntryType('generic_adjustment')}
+                    className={`p-2.5 rounded-xl border text-center transition flex items-center justify-center gap-1 ${
+                      otherEntryType === 'generic_adjustment'
+                        ? 'border-2 border-stone-800 bg-stone-100 font-bold text-stone-900'
+                        : 'border-[#EAE4DC] bg-white text-[#7A6E65] hover:border-[#D4C8BC]'
+                    }`}
+                  >
+                    <Lock className="w-3 h-3 text-[#7A6E65]" />
+                    <span className="text-xs">Adjustment (Locked)</span>
+                  </button>
+                </div>
+              </div>
+
+              {/* 2. Dynamic fields per Entry Type */}
+              {otherEntryType === 'generic_adjustment' && (
+                <div className="p-4 rounded-xl bg-amber-50 border border-amber-200 text-amber-900 space-y-2">
+                  <div className="flex items-center gap-2 font-bold text-xs">
+                    <Lock className="w-4 h-4 text-amber-700" />
+                    <span>General Adjustment Locked</span>
+                  </div>
+                  <p className="text-xs text-amber-800 leading-relaxed">
+                    General adjustment entries without formal approval policy are locked. Use Cash Addition / Removal with strict reason attribution, or record specific customer/expense adjustments.
+                  </p>
+                </div>
+              )}
+              {otherEntryType === 'misc_income' && (
+                <div className="space-y-3">
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                    <div>
+                      <label className="block text-[11px] font-semibold text-[#7A6E65] mb-1">
+                        Receiving Account <span className="text-rose-500">*</span>
+                      </label>
+                      <select
+                        value={miscReceivingAccountId}
+                        onChange={(e) => {
+                          const accId = e.target.value;
+                          setMiscReceivingAccountId(accId);
+                          const acc = accounts.find((a) => a.id === accId);
+                          if (acc?.accountType === 'gcash') setMiscPaymentMethod('gcash');
+                          else if (acc?.accountType === 'maya') setMiscPaymentMethod('maya');
+                          else if (acc?.accountType === 'bank_transfer') setMiscPaymentMethod('bank_transfer');
+                          else if (acc?.accountType === 'card_terminal') setMiscPaymentMethod('card');
+                          else setMiscPaymentMethod('cash');
+                        }}
+                        className="w-full px-3 py-2 bg-white border border-[#EAE4DC] rounded-xl text-xs text-[#1E1916] focus:outline-none focus:border-[#1B4D3E]"
+                      >
+                        {accounts.map((a) => (
+                          <option key={a.id} value={a.id}>
+                            {a.name} ({a.identifierMask})
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+
+                    <div>
+                      <label className="block text-[11px] font-semibold text-[#7A6E65] mb-1">
+                        Payer / Source
+                      </label>
+                      <input
+                        type="text"
+                        placeholder="e.g., Event organizer, scrap vendor"
+                        value={miscPayeeSource}
+                        onChange={(e) => setMiscPayeeSource(e.target.value)}
+                        className="w-full px-3 py-2 bg-white border border-[#EAE4DC] rounded-xl text-xs text-[#1E1916] focus:outline-none focus:border-[#1B4D3E]"
+                      />
+                    </div>
+                  </div>
+
+                  <div>
+                    <label className="block text-[11px] font-semibold text-[#7A6E65] mb-1">
+                      Income Description <span className="text-rose-500">*</span>
+                    </label>
+                    <input
+                      type="text"
+                      placeholder="e.g., Space rental fee for photoshoot"
+                      value={miscDescription}
+                      onChange={(e) => setMiscDescription(e.target.value)}
+                      className="w-full px-3 py-2 bg-white border border-[#EAE4DC] rounded-xl text-xs text-[#1E1916] focus:outline-none focus:border-[#1B4D3E]"
+                    />
+                  </div>
+                </div>
+              )}
+
+              {(otherEntryType === 'cash_addition' || otherEntryType === 'cash_removal') && (
+                <div className="space-y-3">
+                  <div>
+                    <label className="block text-[11px] font-semibold text-[#7A6E65] mb-1">
+                      Cash Drawer Account <span className="text-rose-500">*</span>
+                    </label>
+                    <select
+                      value={cashDrawerId}
+                      onChange={(e) => setCashDrawerId(e.target.value)}
+                      className="w-full px-3 py-2 bg-white border border-[#EAE4DC] rounded-xl text-xs text-[#1E1916] focus:outline-none focus:border-[#1B4D3E]"
+                    >
+                      {accounts
+                        .filter((a) => a.accountType === 'cash_drawer')
+                        .map((a) => (
+                          <option key={a.id} value={a.id}>
+                            {a.name} ({a.identifierMask})
+                          </option>
+                        ))}
+                    </select>
+                  </div>
+
+                  <div>
+                    <label className="block text-[11px] font-semibold text-[#7A6E65] mb-1">
+                      Adjustment Reason <span className="text-rose-500">*</span>
+                    </label>
+                    <input
+                      type="text"
+                      placeholder={
+                        otherEntryType === 'cash_addition'
+                          ? 'e.g., Opening petty cash float replenishment'
+                          : 'e.g., Mid-day safe drop deposit'
+                      }
+                      value={cashAdjustmentReason}
+                      onChange={(e) => setCashAdjustmentReason(e.target.value)}
+                      className="w-full px-3 py-2 bg-white border border-[#EAE4DC] rounded-xl text-xs text-[#1E1916] focus:outline-none focus:border-[#1B4D3E]"
+                    />
+                  </div>
+                </div>
+              )}
+
+              {otherEntryType === 'transfer' && (
+                <div className="space-y-3">
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                    <div>
+                      <label className="block text-[11px] font-semibold text-[#7A6E65] mb-1">
+                        Source Account (Outflow) <span className="text-rose-500">*</span>
+                      </label>
+                      <select
+                        value={transferSourceAccountId}
+                        onChange={(e) => setTransferSourceAccountId(e.target.value)}
+                        className="w-full px-3 py-2 bg-white border border-[#EAE4DC] rounded-xl text-xs text-[#1E1916] focus:outline-none focus:border-[#1B4D3E]"
+                      >
+                        {accounts.map((a) => (
+                          <option key={a.id} value={a.id}>
+                            {a.name} ({a.identifierMask})
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+
+                    <div>
+                      <label className="block text-[11px] font-semibold text-[#7A6E65] mb-1">
+                        Destination Account (Inflow) <span className="text-rose-500">*</span>
+                      </label>
+                      <select
+                        value={transferDestAccountId}
+                        onChange={(e) => setTransferDestAccountId(e.target.value)}
+                        className="w-full px-3 py-2 bg-white border border-[#EAE4DC] rounded-xl text-xs text-[#1E1916] focus:outline-none focus:border-[#1B4D3E]"
+                      >
+                        {accounts.map((a) => (
+                          <option key={a.id} value={a.id}>
+                            {a.name} ({a.identifierMask})
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {/* 3. Amount & Notes */}
+              <div className="space-y-2">
+                <h3 className="text-xs font-bold uppercase tracking-wider text-[#1E1916]">
+                  3. Entry Amount & Notes
+                </h3>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                  <div>
+                    <label className="block text-[11px] font-semibold text-[#7A6E65] mb-1">
+                      Amount (PHP) <span className="text-rose-500">*</span>
+                    </label>
+                    <div className="relative">
+                      <span className="absolute left-3 top-1/2 -translate-y-1/2 text-[#7A6E65] font-bold text-xs">₱</span>
+                      <input
+                        type="number"
+                        step="0.01"
+                        min="0.01"
+                        placeholder="0.00"
+                        value={otherAmount}
+                        onChange={(e) => {
+                          const val = e.target.value === '' ? '' : Math.max(0, parseFloat(e.target.value));
+                          setOtherAmount(val);
+                        }}
+                        className="w-full pl-7 pr-3 py-2 bg-white border border-[#EAE4DC] rounded-xl text-xs font-bold font-mono text-[#1E1916] focus:outline-none focus:border-[#1B4D3E]"
+                      />
+                    </div>
+                  </div>
+
+                  <div>
+                    <label className="block text-[11px] font-semibold text-[#7A6E65] mb-1">
+                      Notes
+                    </label>
+                    <input
+                      type="text"
+                      placeholder="Optional remarks..."
+                      value={otherNotes}
+                      onChange={(e) => setOtherNotes(e.target.value)}
+                      className="w-full px-3 py-2 bg-white border border-[#EAE4DC] rounded-xl text-xs text-[#1E1916] focus:outline-none focus:border-[#1B4D3E]"
+                    />
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            {/* Right Column (Summary & Help - ~29%) */}
+            <div className="space-y-4">
+              <div className="bg-white rounded-xl border border-[#EAE4DC] p-4 shadow-2xs space-y-3">
+                <h4 className="text-xs font-bold text-[#1E1916]">Entry Summary</h4>
+                <div className="space-y-2 text-xs">
+                  <div className="flex items-center justify-between text-[#7A6E65]">
+                    <span>Type</span>
+                    <span className="font-semibold text-[#1E1916]">
+                      {otherEntryType === 'misc_income'
+                        ? 'Misc Income'
+                        : otherEntryType === 'cash_addition'
+                        ? 'Cash Addition'
+                        : otherEntryType === 'cash_removal'
+                        ? 'Cash Removal'
+                        : 'Transfer'}
+                    </span>
+                  </div>
+                  <div className="pt-2 border-t border-[#F0ECE5] flex items-center justify-between">
+                    <span className="font-bold text-[#1E1916]">Transaction Amount</span>
+                    <span className="font-bold text-sm text-[#1E1916] tabular-nums font-mono">
+                      {formatPeso(typeof otherAmount === 'number' ? otherAmount : 0)}
+                    </span>
+                  </div>
+                </div>
+              </div>
+
+              <div className="bg-[#FAF8F5] border border-[#EAE4DC] rounded-xl p-4 text-xs space-y-2">
+                <div className="flex items-center gap-1.5 text-[#1E1916] font-bold">
+                  <Lightbulb className="w-4 h-4 text-[#7A6E65]" />
+                  <span>Audit Trail Guaranteed</span>
+                </div>
+                <p className="text-[11px] text-[#7A6E65] leading-relaxed">
+                  Every entry writes a single canonical financial transaction header and signed account movements with full staff attribution.
+                </p>
+              </div>
+            </div>
+          </div>
+        </>
       )}
 
       {/* ── Customer Payment Mode ────────────────────────────────────── */}
@@ -1063,8 +1993,52 @@ function RecordFinancialEntryForm({
               </span>
             </div>
           </div>
+        ) : activeMode === 'expense' ? (
+          <div className="space-y-0.5 text-left w-full sm:w-auto">
+            <div className="text-xs text-[#7A6E65] flex items-center gap-2">
+              <span className="text-[#9C8878]">Expense Outflow:</span>
+              <span className="font-bold text-sm text-[#D9383A] tabular-nums font-mono">
+                -{formatPeso(typeof expenseAmount === 'number' ? expenseAmount : 0)}
+              </span>
+            </div>
+            <div className="text-xs text-[#7A6E65]">
+              Disbursed from {accounts.find((a) => a.id === expenseAccountId)?.name || 'Account'}
+            </div>
+          </div>
+        ) : activeMode === 'tip' ? (
+          <div className="space-y-0.5 text-left w-full sm:w-auto">
+            <div className="text-xs text-[#7A6E65] flex items-center gap-2">
+              <span className="text-[#9C8878]">Tip Total:</span>
+              <span className="font-bold text-sm text-[#163E32] tabular-nums font-mono">
+                {formatPeso(typeof tipAmount === 'number' ? tipAmount : 0)}
+              </span>
+            </div>
+            <div className="text-xs text-[#7A6E65]">
+              {tipCustodyType === 'direct_cash'
+                ? 'Direct to Therapist (Zero company custody)'
+                : 'Company Custodied (Pending liability)'}
+            </div>
+          </div>
         ) : (
-          <div />
+          <div className="space-y-0.5 text-left w-full sm:w-auto">
+            <div className="text-xs text-[#7A6E65] flex items-center gap-2">
+              <span className="text-[#9C8878]">Entry Amount:</span>
+              <span className="font-bold text-sm text-[#1E1916] tabular-nums font-mono">
+                {formatPeso(typeof otherAmount === 'number' ? otherAmount : 0)}
+              </span>
+            </div>
+            <div className="text-xs text-[#7A6E65]">
+              {otherEntryType === 'misc_income'
+                ? 'Miscellaneous Operating Inflow'
+                : otherEntryType === 'cash_addition'
+                ? 'Cash Addition to Drawer'
+                : otherEntryType === 'cash_removal'
+                ? 'Cash Removal from Drawer'
+                : otherEntryType === 'transfer'
+                ? 'Dual-Account Transfer (Net Zero)'
+                : 'Generic Adjustment (Locked)'}
+            </div>
+          </div>
         )}
 
         <div className="flex items-center gap-2.5 w-full sm:w-auto justify-end">
@@ -1091,6 +2065,47 @@ function RecordFinancialEntryForm({
             >
               {isSubmitting && <Loader2 className="w-3.5 h-3.5 animate-spin" />}
               <span>Record Entry</span>
+            </button>
+          )}
+
+          {activeMode === 'expense' && (
+            <button
+              type="button"
+              onClick={handleExpenseSubmit}
+              disabled={isSubmitting || !expenseAmount || Number(expenseAmount) <= 0 || !expenseDescription.trim()}
+              className="px-5 py-2 bg-[#163E32] hover:bg-[#1B4D3E] text-white text-xs font-semibold rounded-xl shadow-2xs transition disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-1.5"
+            >
+              {isSubmitting && <Loader2 className="w-3.5 h-3.5 animate-spin" />}
+              <span>Record Expense</span>
+            </button>
+          )}
+
+          {activeMode === 'tip' && (
+            <button
+              type="button"
+              onClick={handleTipSubmit}
+              disabled={isSubmitting || !tipAmount || Number(tipAmount) <= 0 || !tipBeneficiaryStaffId}
+              className="px-5 py-2 bg-[#163E32] hover:bg-[#1B4D3E] text-white text-xs font-semibold rounded-xl shadow-2xs transition disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-1.5"
+            >
+              {isSubmitting && <Loader2 className="w-3.5 h-3.5 animate-spin" />}
+              <span>Record Tip</span>
+            </button>
+          )}
+
+          {activeMode === 'other_entry' && (
+            <button
+              type="button"
+              onClick={handleOtherEntrySubmit}
+              disabled={
+                isSubmitting ||
+                !otherAmount ||
+                Number(otherAmount) <= 0 ||
+                otherEntryType === 'generic_adjustment'
+              }
+              className="px-5 py-2 bg-[#163E32] hover:bg-[#1B4D3E] text-white text-xs font-semibold rounded-xl shadow-2xs transition disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-1.5"
+            >
+              {isSubmitting && <Loader2 className="w-3.5 h-3.5 animate-spin" />}
+              <span>Record Other Entry</span>
             </button>
           )}
         </div>

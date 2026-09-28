@@ -20,10 +20,16 @@ vi.mock('next/navigation', () => ({
 
 vi.mock('server-only', () => ({}));
 
-// Mock server action for payment recording
+// Mock server actions for financial entries
 const mockRecordOrderPaymentAction = vi.fn();
+const mockRecordExpenseAction = vi.fn();
+const mockRecordTipAction = vi.fn();
+const mockRecordOtherEntryAction = vi.fn();
 vi.mock('@/lib/cash-flow/cash-flow-actions', () => ({
   recordOrderPaymentAction: (...args: unknown[]) => mockRecordOrderPaymentAction(...args),
+  recordExpenseAction: (...args: unknown[]) => mockRecordExpenseAction(...args),
+  recordTipAction: (...args: unknown[]) => mockRecordTipAction(...args),
+  recordOtherEntryAction: (...args: unknown[]) => mockRecordOtherEntryAction(...args),
 }));
 
 import { CashFlowWorkspace } from '@/components/features/cash-flow/cash-flow-workspace';
@@ -54,6 +60,14 @@ const mockWorkspaceData: CashFlowWorkspaceData = {
       identifierMask: '0917-***-1234',
       branchId: '11111111-1111-1111-1111-111111111111',
     },
+  ],
+  expenseCategories: [
+    { id: 'cat-supplies', code: 'supplies', name: 'Supplies & Consumables', description: 'Spa oils, lotions, linens' },
+    { id: 'cat-utilities', code: 'utilities', name: 'Utilities', description: 'Electricity, water, internet' },
+  ],
+  staffOptions: [
+    { id: 'staff-1', name: 'Maria Santos', role: 'therapist' },
+    { id: 'staff-2', name: 'Elena Cruz', role: 'therapist' },
   ],
   today: {
     kpis: {
@@ -404,16 +418,15 @@ describe('CF5 Cash Flow UI Foundation', () => {
     expect(screen.getByText('Tender #1')).toBeTruthy();
     expect(screen.getByText('Tender #2')).toBeTruthy();
 
-    // Switch to Expense mode and verify safe placeholder
+    // Switch to Expense mode
     const expenseButton = screen.getByRole('button', { name: /Expense/i });
     fireEvent.click(expenseButton);
 
-    expect(screen.getByText('Expense Recording')).toBeTruthy();
-    expect(screen.getByText(/Expense recording will be enabled in a later Cash Flow stage/i)).toBeTruthy();
+    expect(screen.getByText(/1\. Expense Classification & Payment Account/i)).toBeTruthy();
 
     // Return to Customer Payment
-    const returnButton = screen.getByRole('button', { name: /Return to Customer Payment/i });
-    fireEvent.click(returnButton);
+    const paymentButton = screen.getByRole('button', { name: /Customer Payment/i });
+    fireEvent.click(paymentButton);
     expect(screen.getByText('1. Select Booking / Order')).toBeTruthy();
   });
 
@@ -538,5 +551,153 @@ describe('CF5 Cash Flow UI Foundation', () => {
     expect(screen.queryByText('₱14,750.00')).toBeNull();
     expect(screen.queryByText('₱4,850.00')).toBeNull();
     expect(screen.getByText('No payment activity recorded today')).toBeTruthy();
+  });
+
+  it('16. Record Financial Entry Modal supports switching to Expense, Tip, and Other Entry modes', () => {
+    render(
+      <RecordFinancialEntryModal
+        open={true}
+        onOpenChange={vi.fn()}
+        accounts={mockWorkspaceData.accounts}
+        payableOrders={mockWorkspaceData.payableOrders}
+        businessDate={mockWorkspaceData.businessDate}
+        expenseCategories={mockWorkspaceData.expenseCategories}
+        staffOptions={mockWorkspaceData.staffOptions}
+      />
+    );
+
+    // Initial mode is Customer Payment
+    expect(screen.getByText('1. Select Booking / Order')).toBeTruthy();
+
+    // Switch to Operational Expense
+    const expenseTab = screen.getByRole('button', { name: /Expense/i });
+    fireEvent.click(expenseTab);
+    expect(screen.getByText(/1\. Expense Classification & Payment Account/i)).toBeTruthy();
+    expect(screen.getAllByText('Supplies & Consumables').length).toBeGreaterThan(0);
+
+    // Switch to Staff Tip
+    const tipTab = screen.getByRole('button', { name: /Tip/i });
+    fireEvent.click(tipTab);
+    expect(screen.getByText(/1\. Tip Custody Model/i)).toBeTruthy();
+    expect(screen.getByText('Maria Santos (therapist)')).toBeTruthy();
+
+    // Switch to Other Entry
+    const otherTab = screen.getByRole('button', { name: /Other Entry/i });
+    fireEvent.click(otherTab);
+    expect(screen.getByText(/1\. Select Entry Type/i)).toBeTruthy();
+    expect(screen.getAllByText('Misc Income').length).toBeGreaterThan(0);
+  });
+
+  it('17. Operational Expense form validates required fields and calls recordExpenseAction', async () => {
+    mockRecordExpenseAction.mockResolvedValueOnce({
+      ok: true,
+      transactionId: 'tx-exp-123',
+    });
+
+    render(
+      <RecordFinancialEntryModal
+        open={true}
+        onOpenChange={vi.fn()}
+        accounts={mockWorkspaceData.accounts}
+        payableOrders={mockWorkspaceData.payableOrders}
+        businessDate={mockWorkspaceData.businessDate}
+        expenseCategories={mockWorkspaceData.expenseCategories}
+        staffOptions={mockWorkspaceData.staffOptions}
+      />
+    );
+
+    fireEvent.click(screen.getByRole('button', { name: /Expense/i }));
+
+    // Fill expense description and amount
+    const descInput = screen.getByPlaceholderText(/Fuel for home service van/i);
+    fireEvent.change(descInput, { target: { value: 'Massage oils and candles' } });
+
+    const amountInput = screen.getByPlaceholderText('0.00');
+    fireEvent.change(amountInput, { target: { value: '450' } });
+
+    // Submit expense
+    const submitBtn = screen.getByRole('button', { name: /Record Expense/i });
+    fireEvent.click(submitBtn);
+
+    expect(mockRecordExpenseAction).toHaveBeenCalled();
+    const payload = mockRecordExpenseAction.mock.calls[0]![0];
+    expect(payload.amount).toBe(450);
+    expect(payload.description).toBe('Massage oils and candles');
+    expect(payload.categoryId).toBe('cat-supplies');
+    expect(payload.financialAccountId).toBe('acc-cash-1');
+  });
+
+  it('18. Staff Tip form dispatches direct cash vs company-custodied tips via recordTipAction', async () => {
+    mockRecordTipAction.mockResolvedValueOnce({
+      ok: true,
+      transactionId: 'tx-tip-123',
+    });
+
+    render(
+      <RecordFinancialEntryModal
+        open={true}
+        onOpenChange={vi.fn()}
+        accounts={mockWorkspaceData.accounts}
+        payableOrders={mockWorkspaceData.payableOrders}
+        businessDate={mockWorkspaceData.businessDate}
+        expenseCategories={mockWorkspaceData.expenseCategories}
+        staffOptions={mockWorkspaceData.staffOptions}
+      />
+    );
+
+    fireEvent.click(screen.getByRole('button', { name: /Tip/i }));
+
+    const tipAmountInput = screen.getByPlaceholderText('0.00');
+    fireEvent.change(tipAmountInput, { target: { value: '200' } });
+
+    const submitBtn = screen.getByRole('button', { name: /Record Tip/i });
+    fireEvent.click(submitBtn);
+
+    expect(mockRecordTipAction).toHaveBeenCalled();
+    const payload = mockRecordTipAction.mock.calls[0]![0];
+    expect(payload.amount).toBe(200);
+    expect(payload.beneficiaryStaffId).toBe('staff-1');
+    expect(payload.custodyType).toBe('direct_cash');
+  });
+
+  it('19. Other Entry form dispatches misc income and blocks locked generic adjustments', async () => {
+    mockRecordOtherEntryAction.mockResolvedValueOnce({
+      ok: true,
+      transactionId: 'tx-misc-123',
+    });
+
+    render(
+      <RecordFinancialEntryModal
+        open={true}
+        onOpenChange={vi.fn()}
+        accounts={mockWorkspaceData.accounts}
+        payableOrders={mockWorkspaceData.payableOrders}
+        businessDate={mockWorkspaceData.businessDate}
+        expenseCategories={mockWorkspaceData.expenseCategories}
+        staffOptions={mockWorkspaceData.staffOptions}
+      />
+    );
+
+    fireEvent.click(screen.getByRole('button', { name: /Other Entry/i }));
+
+    const amountInput = screen.getByPlaceholderText('0.00');
+    fireEvent.change(amountInput, { target: { value: '500' } });
+
+    const descInput = screen.getByPlaceholderText(/Space rental fee for photoshoot/i);
+    fireEvent.change(descInput, { target: { value: 'Space rental fee' } });
+
+    const submitBtn = screen.getByRole('button', { name: /Record Other Entry/i });
+    fireEvent.click(submitBtn);
+
+    expect(mockRecordOtherEntryAction).toHaveBeenCalled();
+    const payload = mockRecordOtherEntryAction.mock.calls[0]![0];
+    expect(payload.entryType).toBe('misc_income');
+    expect(payload.amount).toBe(500);
+    expect(payload.incomeDescription).toBe('Space rental fee');
+
+    // Switch to locked Generic Adjustment
+    fireEvent.click(screen.getByText('Adjustment (Locked)'));
+    expect(screen.getByText(/General adjustment entries without formal approval policy are locked\./i)).toBeTruthy();
+    expect((screen.getByRole('button', { name: /Record Other Entry/i }) as HTMLButtonElement).disabled).toBe(true);
   });
 });
