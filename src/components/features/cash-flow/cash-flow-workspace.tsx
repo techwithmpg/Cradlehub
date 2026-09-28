@@ -72,20 +72,18 @@ export function CashFlowWorkspace({ initialData }: CashFlowWorkspaceProps) {
         {/* Right-side Action Buttons */}
         <div className="flex items-center gap-2 flex-wrap">
           <button
-            onClick={() => {
-              alert('Workspace options available.');
-            }}
-            className="inline-flex items-center gap-1.5 px-3 py-1.5 border border-[#EAE4DC] hover:border-[#D4C8BC] bg-white text-xs font-semibold text-[#1E1916] rounded-lg shadow-2xs transition"
+            disabled
+            title="Open workspace options not yet configured."
+            className="inline-flex items-center gap-1.5 px-3 py-1.5 border border-[#EAE4DC] bg-white text-xs font-semibold text-[#1E1916] rounded-lg shadow-2xs opacity-60 cursor-not-allowed"
           >
             <FolderOpen className="w-3.5 h-3.5 text-[#6B5D52]" />
             <span>Open</span>
           </button>
 
           <button
-            onClick={() => {
-              alert('Export summary is available for completed business dates.');
-            }}
-            className="inline-flex items-center gap-1.5 px-3 py-1.5 border border-[#EAE4DC] hover:border-[#D4C8BC] bg-white text-xs font-semibold text-[#1E1916] rounded-lg shadow-2xs transition"
+            disabled
+            title="Export summary will be enabled with Day Close reporting."
+            className="inline-flex items-center gap-1.5 px-3 py-1.5 border border-[#EAE4DC] bg-white text-xs font-semibold text-[#1E1916] rounded-lg shadow-2xs opacity-60 cursor-not-allowed"
           >
             <Download className="w-3.5 h-3.5 text-[#6B5D52]" />
             <span>Export Summary</span>

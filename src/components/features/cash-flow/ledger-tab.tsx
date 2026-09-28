@@ -128,15 +128,17 @@ export function LedgerTab({
 
           <div className="flex items-center gap-2">
             <button
-              onClick={() => {
-                alert('Export functionality will be enabled with Day Close reporting.');
-              }}
-              className="inline-flex items-center gap-1.5 px-3 py-1.5 border border-[#EAE4DC] hover:border-[#D4C8BC] bg-[#FAF8F5] text-xs font-semibold text-[#1E1916] rounded-lg transition"
+              disabled
+              title="Export functionality will be enabled with Day Close reporting."
+              className="inline-flex items-center gap-1.5 px-3 py-1.5 border border-[#EAE4DC] bg-[#FAF8F5] text-xs font-semibold text-[#1E1916] rounded-lg opacity-60 cursor-not-allowed"
             >
               <Download className="w-3.5 h-3.5 text-[#6B5D52]" />
               <span>Export</span>
             </button>
-            <button className="p-1.5 border border-[#EAE4DC] bg-[#FAF8F5] text-[#6B5D52] hover:text-[#1E1916] rounded-lg transition">
+            <button
+              disabled
+              className="p-1.5 border border-[#EAE4DC] bg-[#FAF8F5] text-[#6B5D52] rounded-lg opacity-60 cursor-not-allowed"
+            >
               <MoreHorizontal className="w-4 h-4" />
             </button>
           </div>
