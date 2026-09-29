@@ -10,7 +10,7 @@ import {
 
 // Full booking with all related data
 const BOOKING_SELECT = `
-  id, branch_id, booking_date, start_time, end_time, type, delivery_type, status,
+  id, order_id, branch_id, booking_date, start_time, end_time, type, delivery_type, status,
   travel_buffer_mins, metadata, created_at, updated_at,
   resource_id,
   branches   ( id, name ),
@@ -20,7 +20,7 @@ const BOOKING_SELECT = `
 `;
 
 const BOOKING_SELECT_CORE = `
-  id, branch_id, booking_date, start_time, end_time, type, delivery_type, status,
+  id, order_id, branch_id, booking_date, start_time, end_time, type, delivery_type, status,
   travel_buffer_mins, metadata, created_at, updated_at,
   branches   ( id, name ),
   services   ( id, name, duration_minutes ),
@@ -29,7 +29,7 @@ const BOOKING_SELECT_CORE = `
 `;
 
 const BOOKING_SELECT_WITH_PAYMENTS = `
-  id, branch_id, booking_date, start_time, end_time, type, delivery_type, status,
+  id, order_id, branch_id, booking_date, start_time, end_time, type, delivery_type, status,
   travel_buffer_mins, metadata, created_at, updated_at,
   payment_method, payment_status, payment_reference, amount_paid,
   resource_id,
@@ -40,7 +40,7 @@ const BOOKING_SELECT_WITH_PAYMENTS = `
 `;
 
 const BOOKING_SELECT_WITH_PAYMENTS_NO_RESOURCE = `
-  id, branch_id, booking_date, start_time, end_time, type, delivery_type, status,
+  id, order_id, branch_id, booking_date, start_time, end_time, type, delivery_type, status,
   travel_buffer_mins, metadata, created_at, updated_at,
   payment_method, payment_status, payment_reference, amount_paid,
   branches   ( id, name ),
@@ -50,7 +50,7 @@ const BOOKING_SELECT_WITH_PAYMENTS_NO_RESOURCE = `
 `;
 
 const TODAY_SCHEDULE_SELECT = `
-  id, branch_id, booking_date, start_time, end_time, type, delivery_type, status,
+  id, order_id, branch_id, booking_date, start_time, end_time, type, delivery_type, status,
   travel_buffer_mins, metadata, created_at, updated_at,
   resource_id,
   services  ( id, name, duration_minutes, metadata ),
@@ -59,7 +59,7 @@ const TODAY_SCHEDULE_SELECT = `
 `;
 
 const TODAY_SCHEDULE_SELECT_CORE = `
-  id, branch_id, booking_date, start_time, end_time, type, delivery_type, status,
+  id, order_id, branch_id, booking_date, start_time, end_time, type, delivery_type, status,
   travel_buffer_mins, metadata, created_at, updated_at,
   services  ( id, name, duration_minutes, metadata ),
   staff!staff_id ( id, full_name, nickname, tier ),
@@ -67,7 +67,7 @@ const TODAY_SCHEDULE_SELECT_CORE = `
 `;
 
 const TODAY_SCHEDULE_SELECT_WITH_PAYMENTS = `
-  id, branch_id, booking_date, start_time, end_time, type, delivery_type, status,
+  id, order_id, branch_id, booking_date, start_time, end_time, type, delivery_type, status,
   travel_buffer_mins, metadata, created_at, updated_at,
   payment_method, payment_status, payment_reference, amount_paid,
   hold_expires_at,
@@ -80,7 +80,7 @@ const TODAY_SCHEDULE_SELECT_WITH_PAYMENTS = `
 `;
 
 const TODAY_SCHEDULE_SELECT_WITH_PAYMENTS_NO_RESOURCE = `
-  id, branch_id, booking_date, start_time, end_time, type, delivery_type, status,
+  id, order_id, branch_id, booking_date, start_time, end_time, type, delivery_type, status,
   travel_buffer_mins, metadata, created_at, updated_at,
   payment_method, payment_status, payment_reference, amount_paid,
   hold_expires_at,
@@ -194,6 +194,7 @@ type StaffUpcomingRow = {
 type DailyPaymentRow = {
   status: string;
   metadata: unknown;
+  order_id?: string | null;
 } & MaybePaymentFields;
 type SelectVariant = {
   select: string;
@@ -375,7 +376,7 @@ async function loadDailyPaymentFallbackRows(
 ): Promise<DailyPaymentRow[]> {
   const fallback = await supabase
     .from("bookings")
-    .select("status, metadata")
+    .select("status, metadata, order_id")
     .eq("branch_id", branchId)
     .eq("booking_date", date);
 
@@ -532,7 +533,7 @@ export async function getDailyPaymentSummary(branchId: string, date: string) {
   const supabase = await createClient();
   const result = await supabase
     .from("bookings")
-    .select("status, metadata, payment_method, payment_status, amount_paid")
+    .select("status, metadata, order_id, payment_method, payment_status, amount_paid")
     .eq("branch_id", branchId)
     .eq("booking_date", date);
 
@@ -545,15 +546,78 @@ export async function getDailyPaymentSummary(branchId: string, date: string) {
     : withPaymentDefaults((result.data ?? []) as DailyPaymentRow[]);
 
   const activeRows = rows.filter((r) => !isBookingClosedForCrm(r.status));
-  const paidRows = activeRows.filter((r) => r.payment_status === "paid");
-  const unpaidRows = activeRows.filter((r) => ["unpaid", "pending"].includes(r.payment_status));
-
-  const totalExpected = activeRows.reduce((s, r) => s + readPricePaid(r.metadata), 0);
-  const totalCollected = activeRows.reduce((sum, row) => sum + Number(row.amount_paid ?? 0), 0);
-  const totalUnpaid = unpaidRows.reduce(
-    (sum, row) => sum + Math.max(0, readPricePaid(row.metadata) - Number(row.amount_paid ?? 0)),
-    0
-  );
+  const orderIds = [...new Set(activeRows.flatMap((r) => r.order_id ? [r.order_id] : []))];
+  const orderStates = new Map<string, { total: number; paid: number; status: string }>();
+  const canonicalMethodTotals: Record<string, number> = {};
+  if (orderIds.length > 0) {
+    const [
+      { data: summaries, error: summaryError },
+      { data: orders, error: ordersError },
+      { data: payments, error: paymentsError },
+    ] =
+      await Promise.all([
+        supabase.from("v_booking_order_financial_summaries")
+          .select("order_id, total_payable, net_allocated, payment_state")
+          .in("order_id", orderIds),
+        supabase.from("booking_orders").select("id, metadata").in("id", orderIds),
+        supabase.from("financial_transactions")
+          .select("source_id, financial_account_movements(amount, payment_method)")
+          .eq("source_type", "booking_order")
+          .eq("status", "posted")
+          .in("source_id", orderIds),
+      ]);
+    if (summaryError || ordersError || paymentsError) {
+      throw new Error("Could not load order payment summaries.");
+    }
+    const quotes = new Map((orders ?? []).map((order) => [
+      order.id, Number((order.metadata as Record<string, unknown> | null)?.total_amount) || 0,
+    ]));
+    for (const summary of summaries ?? []) {
+      if (!summary.order_id) continue;
+      const payable = Number(summary.total_payable) || 0;
+      orderStates.set(summary.order_id, {
+        total: payable > 0 ? payable : (quotes.get(summary.order_id) ?? 0),
+        paid: Number(summary.net_allocated) || 0,
+        status: payable > 0 || (quotes.get(summary.order_id) ?? 0) === 0
+          ? (summary.payment_state ?? "unpaid") : "unpaid",
+      });
+    }
+    for (const payment of payments ?? []) {
+      for (const movement of payment.financial_account_movements ?? []) {
+        const amount = Number(movement.amount) || 0;
+        if (amount <= 0) continue;
+        const method = movement.payment_method ?? "other";
+        canonicalMethodTotals[method] = (canonicalMethodTotals[method] ?? 0) + amount;
+      }
+    }
+  }
+  const seenOrders = new Set<string>();
+  let totalExpected = 0;
+  let totalCollected = 0;
+  let totalUnpaid = 0;
+  let paidCount = 0;
+  let unpaidCount = 0;
+  for (const row of activeRows) {
+    if (row.order_id) {
+      const state = orderStates.get(row.order_id);
+      if (!state) continue;
+      if (state.status === "paid") paidCount++;
+      else unpaidCount++;
+      if (seenOrders.has(row.order_id)) continue;
+      seenOrders.add(row.order_id);
+      totalExpected += state.total;
+      totalCollected += state.paid;
+      totalUnpaid += Math.max(0, state.total - state.paid);
+    } else {
+      const expected = readPricePaid(row.metadata);
+      const collected = Number(row.amount_paid ?? 0);
+      totalExpected += expected;
+      totalCollected += collected;
+      totalUnpaid += Math.max(0, expected - collected);
+      if (row.payment_status === "paid") paidCount++;
+      else unpaidCount++;
+    }
+  }
 
   const byMethod: Record<string, number> = {
     cash: 0,
@@ -563,7 +627,12 @@ export async function getDailyPaymentSummary(branchId: string, date: string) {
     pay_on_site: 0,
     other: 0,
   };
-  for (const r of activeRows.filter((row) => Number(row.amount_paid ?? 0) > 0)) {
+  for (const [method, amount] of Object.entries(canonicalMethodTotals)) {
+    byMethod[method] = (byMethod[method] ?? 0) + amount;
+  }
+  for (const r of activeRows.filter((row) =>
+    !row.order_id && Number(row.amount_paid ?? 0) > 0
+  )) {
     const m = r.payment_method ?? "other";
     byMethod[m] = (byMethod[m] ?? 0) + Number(r.amount_paid ?? 0);
   }
@@ -573,8 +642,8 @@ export async function getDailyPaymentSummary(branchId: string, date: string) {
     total_expected: totalExpected,
     total_collected: totalCollected,
     total_unpaid: totalUnpaid,
-    paid_count: paidRows.length,
-    unpaid_count: unpaidRows.length,
+    paid_count: paidCount,
+    unpaid_count: unpaidCount,
     total_count: activeRows.length,
     by_method: byMethod as {
       cash: number;

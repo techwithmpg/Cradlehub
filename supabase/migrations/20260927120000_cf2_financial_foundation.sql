@@ -188,7 +188,7 @@ CREATE OR REPLACE FUNCTION public.enforce_financial_ledger_immutability()
 RETURNS TRIGGER
 LANGUAGE plpgsql
 SECURITY DEFINER
-SET search_path = public, pg_temp
+SET search_path = ''
 AS $$
 BEGIN
   -- Allow bypass only if explicitly authorized via a session-local config (e.g. for emergency maintenance by superusers)
@@ -275,7 +275,7 @@ DROP POLICY IF EXISTS "financial_accounts_owner_read_all" ON public.financial_ac
 CREATE POLICY "financial_accounts_owner_read_all"
   ON public.financial_accounts FOR SELECT
   TO authenticated
-  USING (public.get_auth_role() IN ('owner', 'finance'));
+  USING (public.get_auth_role() = 'owner');
 
 -- Branch Management & Front Desk: Read accounts assigned to own branch or corporate accounts (branch_id IS NULL)
 DROP POLICY IF EXISTS "financial_accounts_branch_read" ON public.financial_accounts;
@@ -283,7 +283,7 @@ CREATE POLICY "financial_accounts_branch_read"
   ON public.financial_accounts FOR SELECT
   TO authenticated
   USING (
-    public.get_auth_role() IN ('manager', 'assistant_manager', 'store_manager', 'crm', 'csr', 'csr_head', 'csr_staff')
+    public.get_auth_role() IN ('manager', 'assistant_manager', 'store_manager', 'crm')
     AND (branch_id = public.get_auth_branch_id() OR branch_id IS NULL)
   );
 
@@ -292,8 +292,8 @@ DROP POLICY IF EXISTS "financial_accounts_owner_manage" ON public.financial_acco
 CREATE POLICY "financial_accounts_owner_manage"
   ON public.financial_accounts FOR ALL
   TO authenticated
-  USING (public.get_auth_role() IN ('owner', 'finance'))
-  WITH CHECK (public.get_auth_role() IN ('owner', 'finance'));
+  USING (public.get_auth_role() = 'owner')
+  WITH CHECK (public.get_auth_role() = 'owner');
 
 -- Service Role: Full access
 DROP POLICY IF EXISTS "financial_accounts_service_role_all" ON public.financial_accounts;
@@ -310,7 +310,7 @@ DROP POLICY IF EXISTS "financial_transactions_owner_read_all" ON public.financia
 CREATE POLICY "financial_transactions_owner_read_all"
   ON public.financial_transactions FOR SELECT
   TO authenticated
-  USING (public.get_auth_role() IN ('owner', 'finance'));
+  USING (public.get_auth_role() = 'owner');
 
 -- Branch Staff & Management: Read transactions strictly for own branch
 DROP POLICY IF EXISTS "financial_transactions_branch_read" ON public.financial_transactions;
@@ -318,7 +318,7 @@ CREATE POLICY "financial_transactions_branch_read"
   ON public.financial_transactions FOR SELECT
   TO authenticated
   USING (
-    public.get_auth_role() IN ('manager', 'assistant_manager', 'store_manager', 'crm', 'csr', 'csr_head', 'csr_staff')
+    public.get_auth_role() IN ('manager', 'assistant_manager', 'store_manager', 'crm')
     AND branch_id = public.get_auth_branch_id()
   );
 
@@ -337,7 +337,7 @@ DROP POLICY IF EXISTS "financial_movements_owner_read_all" ON public.financial_a
 CREATE POLICY "financial_movements_owner_read_all"
   ON public.financial_account_movements FOR SELECT
   TO authenticated
-  USING (public.get_auth_role() IN ('owner', 'finance'));
+  USING (public.get_auth_role() = 'owner');
 
 -- Branch Staff & Management: Read movements belonging to transactions in own branch
 DROP POLICY IF EXISTS "financial_movements_branch_read" ON public.financial_account_movements;
@@ -345,7 +345,7 @@ CREATE POLICY "financial_movements_branch_read"
   ON public.financial_account_movements FOR SELECT
   TO authenticated
   USING (
-    public.get_auth_role() IN ('manager', 'assistant_manager', 'store_manager', 'crm', 'csr', 'csr_head', 'csr_staff')
+    public.get_auth_role() IN ('manager', 'assistant_manager', 'store_manager', 'crm')
     AND EXISTS (
       SELECT 1 FROM public.financial_transactions ft
       WHERE ft.id = financial_account_movements.transaction_id

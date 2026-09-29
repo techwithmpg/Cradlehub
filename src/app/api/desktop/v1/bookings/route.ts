@@ -17,6 +17,11 @@ function mapDomainCodeToHttpStatus(code: string): number {
     case "RESOURCE_UNAVAILABLE":
     case "DISPATCH_CONFLICT":
     case "DUPLICATE_ERROR":
+    case "ACCOUNT_SELECTION_REQUIRED":
+    case "ACCOUNT_NOT_CONFIGURED":
+    case "IDEMPOTENCY_CONFLICT":
+    case "BOOKING_STAFF_TIME_CONFLICT":
+    case "BOOKING_RESOURCE_TIME_CONFLICT":
       return 409;
     case "VALIDATION_ERROR":
     case "INVALID_BOOKING_TIME":
@@ -33,6 +38,8 @@ function mapDomainCodeToHttpStatus(code: string): number {
     case "SERVICE_NOT_CONFIGURED_FOR_BRANCH":
     case "TIME_TOO_LATE":
     case "BOOKING_RULES_ERROR":
+    case "ACCOUNT_BRANCH_OR_RAIL_MISMATCH":
+    case "PAYMENT_DELTA_MISMATCH":
       return 400;
     default:
       return 500;

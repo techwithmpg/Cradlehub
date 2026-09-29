@@ -100,7 +100,9 @@ describe("Booking Simplification Safety & Domain Invariants", () => {
       return (h ?? 0) * 60 + (m ?? 0);
     };
     const formatMins = (mins: number) => {
-      const h = Math.floor(mins / 60).toString().padStart(2, "0");
+      const h = Math.floor(mins / 60)
+        .toString()
+        .padStart(2, "0");
       const m = (mins % 60).toString().padStart(2, "0");
       return `${h}:${m}:00`;
     };
@@ -182,10 +184,7 @@ describe("Booking Simplification Safety & Domain Invariants", () => {
 
   // Case G: MULTIPLE ATTENDEES - one therapist cannot be double-booked concurrently
   it("Case G: Multiple attendees cannot double-book the same therapist concurrently", () => {
-    const singleTherapistCandidates = [
-      ["therapist-solo"],
-      ["therapist-solo"],
-    ];
+    const singleTherapistCandidates = [["therapist-solo"], ["therapist-solo"]];
 
     const assignment = findDistinctStaffAssignment(singleTherapistCandidates);
     expect(assignment).toBeNull();
@@ -212,10 +211,17 @@ describe("Booking Simplification Safety & Domain Invariants", () => {
 
   // Case I: DUPLICATE / RETRY SAFETY - documents idempotency behavior and schema validation
   it("Case I: Validation schema accepts valid multi-attendee order and rejects malformed payloads", () => {
+    const tomorrow = new Date();
+    tomorrow.setDate(tomorrow.getDate() + 1);
+    const bookingDate = [
+      tomorrow.getFullYear(),
+      String(tomorrow.getMonth() + 1).padStart(2, "0"),
+      String(tomorrow.getDate()).padStart(2, "0"),
+    ].join("-");
     const validPayload = {
       branchId: "11111111-1111-1111-1111-111111111111",
       serviceIds: ["33333333-3333-3333-3333-333333333333"],
-      date: "2026-09-27",
+      date: bookingDate,
       startTime: "14:00",
       fullName: "Jane Doe",
       phone: "09171234567",

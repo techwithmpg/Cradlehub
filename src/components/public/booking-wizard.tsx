@@ -1104,12 +1104,25 @@ export function BookingWizard({
       const result =
         mode === "inhouse"
           ? await createInhouseBookingMultiAction({
-              ...payload,
+              branchId: payload.branchId,
               serviceIds: selectedServices.map((s) => s.id),
+              staffId: payload.staffId,
+              date: payload.date,
+              startTime: payload.startTime,
+              fullName: payload.fullName,
+              phone: payload.phone,
+              email: payload.email,
+              notes: payload.notes,
+              idempotencyKey: attemptId,
+              ...hsPayload,
               type: getBookingTypeForVisitType(visitType, "inhouse"),
-              paymentMethod: form.paymentMethod as "cash" | "gcash" | "maya" | "card" | "other",
-              paymentReference: form.paymentReference.trim() || undefined,
-              paymentNote: form.paymentNote.trim() || undefined,
+              // Post a receipt only when staff explicitly marks payment as collected.
+              paymentReceived: paymentChoice === "pay_now",
+              paymentMethod:
+                paymentChoice === "pay_now" ? form.paymentMethod || undefined : undefined,
+              paymentReference:
+                paymentChoice === "pay_now" ? form.paymentReference || undefined : undefined,
+              paymentNote: paymentChoice === "pay_now" ? form.paymentNote || undefined : undefined,
             })
           : await createOnlineBookingMultiAction({
               ...payload,
@@ -1225,7 +1238,9 @@ export function BookingWizard({
                   ? form.fullName.trim().length >= 2 &&
                     form.phone.trim().length >= 7 &&
                     hsAddressFilled &&
-                    (mode !== "inhouse" || form.paymentMethod.trim().length > 0)
+                    (mode !== "inhouse" ||
+                      paymentChoice !== "pay_now" ||
+                      form.paymentMethod.trim().length > 0)
                   : false;
   const canClickContinue = currentStepName === "location" || canProceed;
   const mobileProgressIndex = getMobileProgressIndex(currentStepName);
@@ -3164,6 +3179,8 @@ function StepDetails({
   bookingFor,
   recipientName,
   attendees,
+  paymentChoice,
+  onPaymentChoiceChange,
 }: {
   form: DetailsForm;
   onChange: (f: DetailsForm) => void;
@@ -3307,60 +3324,78 @@ function StepDetails({
               <p className="text-[13px] font-semibold" style={WARM_HEADING_STYLE}>
                 Payment
               </p>
-              <span
-                className="ml-auto text-[10px] font-semibold uppercase tracking-wide px-2 py-0.5 rounded-full"
-                style={{ background: "rgba(212,181,122,0.14)", color: "#D4B57A" }}
-              >
-                Required
-              </span>
             </div>
             <p className="text-[12px] -mt-2" style={WARM_BODY_STYLE}>
-              Record the customer&apos;s payment before finalizing this in-house booking.
+              Choose whether payment has actually been collected. Pay later creates an unpaid
+              booking.
             </p>
 
             <div>
-              <label className={LABEL_CLS}>Payment method *</label>
+              <label htmlFor="wizard-inhouse-payment-choice" className={LABEL_CLS}>
+                Payment status *
+              </label>
               <select
-                value={form.paymentMethod}
-                onChange={(e) => onChange({ ...form, paymentMethod: e.target.value })}
+                id="wizard-inhouse-payment-choice"
+                value={paymentChoice ?? "pay_later"}
+                onChange={(e) => onPaymentChoiceChange?.(e.target.value as BookingPaymentChoice)}
                 className={fieldClassName}
               >
-                <option value="" disabled>
-                  Select payment method…
-                </option>
-                <option value="cash">Cash</option>
-                <option value="gcash">GCash</option>
-                <option value="maya">Maya</option>
-                <option value="card">Card</option>
-                <option value="other">Other</option>
+                <option value="pay_later">Pay later / not collected</option>
+                <option value="pay_now">Collected now</option>
               </select>
             </div>
 
-            <div>
-              <label className={LABEL_CLS}>
-                Reference / receipt no. <span className="normal-case font-normal">(optional)</span>
-              </label>
-              <input
-                type="text"
-                value={form.paymentReference}
-                onChange={(e) => onChange({ ...form, paymentReference: e.target.value })}
-                placeholder="e.g. GCash ref #, receipt number"
-                className={fieldClassName}
-              />
-            </div>
+            {paymentChoice === "pay_now" && (
+              <>
+                <div>
+                  <label htmlFor="wizard-inhouse-payment-method" className={LABEL_CLS}>
+                    Payment method *
+                  </label>
+                  <select
+                    id="wizard-inhouse-payment-method"
+                    value={form.paymentMethod}
+                    onChange={(e) => onChange({ ...form, paymentMethod: e.target.value })}
+                    className={fieldClassName}
+                  >
+                    <option value="" disabled>
+                      Select payment method…
+                    </option>
+                    <option value="cash">Cash</option>
+                    <option value="gcash">GCash</option>
+                    <option value="maya">Maya</option>
+                    <option value="card">Card</option>
+                    <option value="bank_transfer">Bank transfer</option>
+                  </select>
+                </div>
 
-            <div>
-              <label className={LABEL_CLS}>
-                Payment note <span className="normal-case font-normal">(optional)</span>
-              </label>
-              <textarea
-                value={form.paymentNote}
-                onChange={(e) => onChange({ ...form, paymentNote: e.target.value })}
-                placeholder="Internal note about this payment…"
-                rows={2}
-                className={`${fieldClassName} resize-none`}
-              />
-            </div>
+                <div>
+                  <label className={LABEL_CLS}>
+                    Reference / receipt no.{" "}
+                    <span className="normal-case font-normal">(optional)</span>
+                  </label>
+                  <input
+                    type="text"
+                    value={form.paymentReference}
+                    onChange={(e) => onChange({ ...form, paymentReference: e.target.value })}
+                    placeholder="e.g. GCash ref #, receipt number"
+                    className={fieldClassName}
+                  />
+                </div>
+
+                <div>
+                  <label className={LABEL_CLS}>
+                    Payment note <span className="normal-case font-normal">(optional)</span>
+                  </label>
+                  <textarea
+                    value={form.paymentNote}
+                    onChange={(e) => onChange({ ...form, paymentNote: e.target.value })}
+                    placeholder="Internal note about this payment…"
+                    rows={2}
+                    className={`${fieldClassName} resize-none`}
+                  />
+                </div>
+              </>
+            )}
           </div>
         )}
 

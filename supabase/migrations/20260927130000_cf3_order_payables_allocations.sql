@@ -293,7 +293,7 @@ CREATE OR REPLACE FUNCTION public.enforce_financial_allocation_immutability()
 RETURNS TRIGGER
 LANGUAGE plpgsql
 SECURITY DEFINER
-SET search_path = public, pg_temp
+SET search_path = ''
 AS $$
 BEGIN
   IF current_setting('cradlehub.allow_financial_mutation', true) = 'true' THEN
@@ -436,7 +436,7 @@ DROP POLICY IF EXISTS "order_payable_items_owner_read_all" ON public.order_payab
 CREATE POLICY "order_payable_items_owner_read_all"
   ON public.order_payable_items FOR SELECT
   TO authenticated
-  USING (public.get_auth_role() IN ('owner', 'finance'));
+  USING (public.get_auth_role() = 'owner');
 
 -- Branch Staff & Management: Read payables for orders belonging to own branch
 DROP POLICY IF EXISTS "order_payable_items_branch_read" ON public.order_payable_items;
@@ -444,7 +444,7 @@ CREATE POLICY "order_payable_items_branch_read"
   ON public.order_payable_items FOR SELECT
   TO authenticated
   USING (
-    public.get_auth_role() IN ('manager', 'assistant_manager', 'store_manager', 'crm', 'csr', 'csr_head', 'csr_staff')
+    public.get_auth_role() IN ('manager', 'assistant_manager', 'store_manager', 'crm')
     AND EXISTS (
       SELECT 1 FROM public.booking_orders bo
       WHERE bo.id = order_payable_items.order_id
@@ -467,7 +467,7 @@ DROP POLICY IF EXISTS "financial_allocations_owner_read_all" ON public.financial
 CREATE POLICY "financial_allocations_owner_read_all"
   ON public.financial_order_allocations FOR SELECT
   TO authenticated
-  USING (public.get_auth_role() IN ('owner', 'finance'));
+  USING (public.get_auth_role() = 'owner');
 
 -- Branch Staff & Management: Read allocations for orders belonging to own branch
 DROP POLICY IF EXISTS "financial_allocations_branch_read" ON public.financial_order_allocations;
@@ -475,7 +475,7 @@ CREATE POLICY "financial_allocations_branch_read"
   ON public.financial_order_allocations FOR SELECT
   TO authenticated
   USING (
-    public.get_auth_role() IN ('manager', 'assistant_manager', 'store_manager', 'crm', 'csr', 'csr_head', 'csr_staff')
+    public.get_auth_role() IN ('manager', 'assistant_manager', 'store_manager', 'crm')
     AND EXISTS (
       SELECT 1 FROM public.booking_orders bo
       WHERE bo.id = financial_order_allocations.order_id

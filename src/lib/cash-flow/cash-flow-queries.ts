@@ -11,8 +11,10 @@ import type {
   PayableOrderOption,
   PayableOrderItemDetail,
   PayableOrderPreviousPayment,
+  CashSessionSummary,
 } from './cash-flow-types';
 import type { FinancialPaymentMethod } from './financial-contract';
+import { findUnmatchedBookingPayments, isCashFlowReceiptTransactionType } from './payment-evidence';
 
 export interface CashFlowQueryFilters {
   tab?: string;
@@ -49,6 +51,12 @@ interface RawTransaction {
   external_reference: string | null;
   notes: string | null;
   financial_account_movements?: RawMovement[];
+}
+
+function bookingPriceSnapshot(metadata: Record<string, unknown> | null): number {
+  const raw = metadata?.price_paid;
+  const amount = typeof raw === 'number' || typeof raw === 'string' ? Number(raw) : NaN;
+  return Number.isFinite(amount) && amount >= 0 ? amount : 0;
 }
 
 export async function getCashFlowData(
@@ -146,14 +154,107 @@ export async function getCashFlowData(
 
   const allTransactions: RawTransaction[] = (txData as unknown as RawTransaction[]) || [];
 
+  // 2b. Available physical cash drawer accounts for this branch
+  const availableDrawers = accounts.filter((acc) => acc.accountType === 'cash_drawer');
+
+  // 2c. Fetch active cash sessions for this branch
+  let rawSessions: Array<{
+    id: string;
+    branch_id: string;
+    cash_drawer_account_id: string;
+    business_date: string;
+    status: 'open' | 'closed';
+    opening_float: number | string;
+    opening_note: string | null;
+    opened_by: string;
+    opened_at: string;
+    closed_by: string | null;
+    closed_at: string | null;
+  }> = [];
+
+  try {
+    const { data: sessionRows, error: sessionErr } = await (supabase as unknown as {
+      from: (tbl: string) => {
+        select: (cols: string) => {
+          eq: (c1: string, v1: unknown) => {
+            eq: (c2: string, v2: unknown) => {
+              order: (c3: string, o?: { ascending?: boolean }) => Promise<{
+                data: typeof rawSessions | null;
+                error: unknown;
+              }>;
+            };
+          };
+        };
+      };
+    })
+      .from('cash_sessions')
+      .select('id, branch_id, cash_drawer_account_id, business_date, status, opening_float, opening_note, opened_by, opened_at, closed_by, closed_at')
+      .eq('branch_id', branchId)
+      .eq('status', 'open')
+      .order('opened_at', { ascending: false });
+
+    if (!sessionErr && sessionRows) {
+      rawSessions = sessionRows;
+    }
+  } catch {
+    rawSessions = [];
+  }
+
+  // Derive active cash session summaries with strictly derived expectedCash
+  // Expected physical drawer cash = opening_float + SUM(signed movements on SAME drawer from POSTED transactions occurring at/after session.opened_at)
+  const activeSessions: CashSessionSummary[] = rawSessions.map((s) => {
+    const openingFloat = Number(s.opening_float) || 0;
+    const drawerAcc = accounts.find((a) => a.id === s.cash_drawer_account_id);
+    const openerStaff = staffOptions.find((st) => st.id === s.opened_by);
+    const sessionOpenedAtMs = new Date(s.opened_at).getTime();
+
+    let drawerMovementsTotal = 0;
+    for (const tx of allTransactions) {
+      if (tx.status !== 'posted') continue;
+
+      if (tx.financial_account_movements && Array.isArray(tx.financial_account_movements)) {
+        for (const m of tx.financial_account_movements) {
+          if (m.financial_account_id !== s.cash_drawer_account_id) continue;
+
+          const mCreatedAtMs = new Date(m.created_at).getTime();
+          if (mCreatedAtMs >= sessionOpenedAtMs) {
+            drawerMovementsTotal += Number(m.amount) || 0;
+          }
+        }
+      }
+    }
+
+    const expectedCash = openingFloat + drawerMovementsTotal;
+
+    return {
+      id: s.id,
+      branchId: s.branch_id,
+      businessDate: s.business_date,
+      cashDrawerAccountId: s.cash_drawer_account_id,
+      cashDrawerName: drawerAcc?.name || 'Cash Drawer',
+      status: s.status,
+      openingFloat,
+      openingNote: s.opening_note || null,
+      openedBy: s.opened_by,
+      openedByName: openerStaff?.name || 'Staff',
+      openedAt: s.opened_at,
+      closedBy: s.closed_by || null,
+      closedAt: s.closed_at || null,
+      expectedCash,
+    };
+  });
+
   // Filter transactions for today's business date
   const todayTransactions = allTransactions.filter(
     (tx) => tx.business_date === businessDate && tx.status === 'posted'
   );
+  const receiptTransactions = todayTransactions.filter((tx) =>
+    isCashFlowReceiptTransactionType(tx.transaction_type)
+  );
 
   // Collect today's movements
   const todayMovements: RawMovement[] = [];
-  for (const tx of todayTransactions) {
+  for (const tx of receiptTransactions) {
     if (tx.financial_account_movements && Array.isArray(tx.financial_account_movements)) {
       todayMovements.push(...tx.financial_account_movements);
     }
@@ -172,7 +273,7 @@ export async function getCashFlowData(
       payment_status,
       payment_method,
       amount_paid,
-      total_amount,
+      metadata,
       order_id,
       customers:customer_id ( full_name, phone ),
       services:service_id ( name, duration_minutes )
@@ -190,48 +291,132 @@ export async function getCashFlowData(
     payment_status: string | null;
     payment_method: string | null;
     amount_paid: number | null;
-    total_amount: number | null;
+    metadata: Record<string, unknown> | null;
     order_id: string | null;
     customers: { full_name: string; phone: string | null } | { full_name: string; phone: string | null }[] | null;
     services: { name: string; duration_minutes: number | null } | { name: string; duration_minutes: number | null }[] | null;
   };
 
   const todayBookings: RawBooking[] = (bookingsData as unknown as RawBooking[]) || [];
+  const orderIds = [...new Set(todayBookings.flatMap((b) => b.order_id ? [b.order_id] : []))];
+  type OrderSummary = {
+    order_id: string;
+    total_payable: number | string;
+    net_allocated: number | string;
+    remaining_balance: number | string;
+    payment_state: string;
+  };
+  const orderSummaryById = new Map<string, OrderSummary>();
+  const orderQuoteById = new Map<string, number>();
+  const orderItemsById = new Map<string, PayableOrderItemDetail[]>();
+  if (orderIds.length > 0) {
+    const [
+      { data: summaries, error: summaryError },
+      { data: orders, error: ordersError },
+      { data: orderItems, error: itemsError },
+    ] =
+      await Promise.all([
+        supabase.from('v_booking_order_financial_summaries')
+          .select('order_id, total_payable, net_allocated, remaining_balance, payment_state')
+          .in('order_id', orderIds),
+        supabase.from('booking_orders').select('id, metadata').in('id', orderIds),
+        supabase.from('order_payable_items')
+          .select('id, order_id, description, amount, charge_type, sequence')
+          .in('order_id', orderIds).order('sequence'),
+      ]);
+    if (summaryError || ordersError || itemsError) {
+      throw new Error('Could not load authoritative order payment summaries.');
+    }
+    for (const row of (summaries ?? []) as OrderSummary[]) {
+      orderSummaryById.set(row.order_id, row);
+    }
+    for (const row of orders ?? []) {
+      const raw = (row.metadata as Record<string, unknown> | null)?.total_amount;
+      const quote = Number(raw);
+      if (Number.isFinite(quote) && quote > 0) orderQuoteById.set(row.id, quote);
+    }
+    for (const row of orderItems ?? []) {
+      const list = orderItemsById.get(row.order_id) ?? [];
+      list.push({
+        id: row.id,
+        description: row.description,
+        amount: Number(row.amount) || 0,
+        itemType: row.charge_type === 'other_charge'
+          ? 'other'
+          : row.charge_type as PayableOrderItemDetail['itemType'],
+      });
+      orderItemsById.set(row.order_id, list);
+    }
+  }
+  const orderPayment = (orderId: string) => {
+    const summary = orderSummaryById.get(orderId);
+    if (!summary) return null;
+    const canonicalTotal = Number(summary.total_payable) || 0;
+    const total = canonicalTotal > 0 ? canonicalTotal : (orderQuoteById.get(orderId) ?? 0);
+    const paid = Number(summary.net_allocated) || 0;
+    return {
+      total,
+      paid,
+      remaining: Math.max(0, total - paid),
+      status: canonicalTotal > 0 || total === 0
+        ? summary.payment_state : 'unpaid',
+    };
+  };
 
   // Calculate booking payment statistics
   let totalBookingsPaid = 0;
   let totalBookingsNeedsPayment = 0;
   let totalOutstandingAmount = 0;
-  let bookingInflowTotal = 0;
-  let homeServiceInflowTotal = 0;
   let inSpaPaidCount = 0;
   let homeServicePaidCount = 0;
+  const outstandingOrdersCounted = new Set<string>();
 
   for (const b of todayBookings) {
-    const isPaid = b.payment_status === 'paid';
-    const isPartial = b.payment_status === 'partial';
+    const orderState = b.order_id ? orderPayment(b.order_id) : null;
+    if (b.order_id && !orderState) continue;
+    const isPaid = b.order_id
+      ? orderState?.status === 'paid'
+      : b.payment_status === 'paid';
     const isHomeService = b.type === 'home_service' || b.delivery_type === 'home_service';
 
-    const total = Number(b.total_amount) || 0;
-    const paid = Number(b.amount_paid) || 0;
-    const remaining = Math.max(0, total - paid);
+    const total = orderState?.total ?? bookingPriceSnapshot(b.metadata);
+    const paid = orderState?.paid ?? (Number(b.amount_paid) || 0);
+    const remaining = orderState?.remaining ?? Math.max(0, total - paid);
 
     if (isPaid) {
       totalBookingsPaid++;
       if (isHomeService) {
         homeServicePaidCount++;
-        homeServiceInflowTotal += paid;
       } else {
         inSpaPaidCount++;
-        bookingInflowTotal += paid;
       }
     } else {
       totalBookingsNeedsPayment++;
-      totalOutstandingAmount += remaining;
-      if (isPartial) {
-        if (isHomeService) homeServiceInflowTotal += paid;
-        else bookingInflowTotal += paid;
+      if (!b.order_id || !outstandingOrdersCounted.has(b.order_id)) {
+        totalOutstandingAmount += remaining;
+        if (b.order_id) outstandingOrdersCounted.add(b.order_id);
       }
+    }
+  }
+
+  const unmatchedPayments = findUnmatchedBookingPayments(branchId, todayBookings, allTransactions);
+  let bookingInflowTotal = 0;
+  let homeServiceInflowTotal = 0;
+  for (const tx of todayTransactions) {
+    if (tx.transaction_type !== 'customer_payment' && tx.transaction_type !== 'customer_deposit') continue;
+    const linkedBookings = tx.source_type === 'legacy_booking'
+      ? todayBookings.filter((booking) => booking.id === tx.source_id)
+      : tx.source_type === 'booking_order'
+        ? todayBookings.filter((booking) => booking.order_id === tx.source_id)
+        : [];
+    if (linkedBookings.length === 0) continue;
+    const amount = (tx.financial_account_movements || []).reduce(
+      (sum, movement) => sum + Math.max(0, Number(movement.amount) || 0), 0
+    );
+    if (linkedBookings.every((booking) => booking.type === 'home_service' || booking.delivery_type === 'home_service')) {
+      homeServiceInflowTotal += amount;
+    } else if (linkedBookings.every((booking) => booking.type !== 'home_service' && booking.delivery_type !== 'home_service')) {
+      bookingInflowTotal += amount;
     }
   }
 
@@ -248,30 +433,6 @@ export async function getCashFlowData(
       existing.amount += amt;
       existing.count += 1;
       mixMap.set(method, existing);
-    }
-  }
-
-  // If canonical movements are empty but bookings have recorded payments, fall back gracefully
-  // while strictly NEVER counting 'pay_on_site' as received money.
-  if (totalInflowFromMovements === 0 && (bookingInflowTotal > 0 || homeServiceInflowTotal > 0)) {
-    for (const b of todayBookings) {
-      const paid = Number(b.amount_paid) || 0;
-      const method = b.payment_method?.toLowerCase() || '';
-      // Exclude 'pay_on_site' or pending intents from received cash
-      if (paid > 0 && method !== 'pay_on_site' && method !== 'pending') {
-        let canonicalMethod: FinancialPaymentMethod | 'other' = 'other';
-        if (method === 'cash') canonicalMethod = 'cash';
-        else if (method.includes('gcash')) canonicalMethod = 'gcash';
-        else if (method.includes('maya')) canonicalMethod = 'maya';
-        else if (method.includes('card')) canonicalMethod = 'card';
-        else if (method.includes('bank')) canonicalMethod = 'bank_transfer';
-
-        totalInflowFromMovements += paid;
-        const existing = mixMap.get(canonicalMethod) || { amount: 0, count: 0 };
-        existing.amount += paid;
-        existing.count += 1;
-        mixMap.set(canonicalMethod, existing);
-      }
     }
   }
 
@@ -351,7 +512,7 @@ export async function getCashFlowData(
       id: 'payments',
       label: 'Payments',
       amount: totalInflowFromMovements,
-      countLabel: `${todayMovements.length || totalBookingsPaid} transactions`,
+      countLabel: `${todayMovements.length} transactions`,
       isAvailable: true,
       iconType: 'credit_card',
     },
@@ -451,7 +612,7 @@ export async function getCashFlowData(
   const recentPayments: RecentPaymentItem[] = [];
 
   // Add payments from canonical transactions
-  for (const tx of todayTransactions) {
+  for (const tx of receiptTransactions) {
     const movements = tx.financial_account_movements || [];
     const totalAmount = movements.reduce((sum, m) => sum + (Number(m.amount) || 0), 0);
     if (totalAmount <= 0) continue;
@@ -477,32 +638,6 @@ export async function getCashFlowData(
       status: tx.status === 'posted' ? 'paid' : 'pending',
       orderId: tx.source_id,
     });
-  }
-
-  // If no canonical transactions yet, populate from bookings with real payment info
-  if (recentPayments.length === 0) {
-    for (const b of todayBookings) {
-      const paid = Number(b.amount_paid) || 0;
-      if (paid > 0) {
-        const cust = Array.isArray(b.customers) ? b.customers[0] : b.customers;
-        const svc = Array.isArray(b.services) ? b.services[0] : b.services;
-        const timeStr = b.start_time ? formatTimeFromHHMM(b.start_time) : '10:00 AM';
-
-        recentPayments.push({
-          id: b.id,
-          time: timeStr,
-          type: b.type === 'home_service' || b.delivery_type === 'home_service' ? 'Home Service' : 'Booking',
-          customerName: cust?.full_name || 'Guest',
-          reference: `#BK-${b.id.slice(0, 8)}`,
-          serviceDescription: svc?.name || 'Spa Treatment',
-          durationMinutes: svc?.duration_minutes ?? null,
-          paymentMethodDisplay: formatMethodLabel(b.payment_method || 'Cash'),
-          amount: paid,
-          status: b.payment_status === 'paid' ? 'paid' : 'partial',
-          orderId: b.order_id,
-        });
-      }
-    }
   }
 
   // 7. Build Ledger records
@@ -539,26 +674,23 @@ export async function getCashFlowData(
     }
   }
 
-  // If no transactions in ledger yet, populate from bookings that have payments
-  if (allLedgerRecords.length === 0) {
-    for (const b of todayBookings) {
-      const paid = Number(b.amount_paid) || 0;
-      if (paid > 0) {
-        const cust = Array.isArray(b.customers) ? b.customers[0] : b.customers;
-        allLedgerRecords.push({
-          id: b.id,
-          dateTime: `${b.booking_date} ${formatTimeFromHHMM(b.start_time || '10:00')}`,
-          reference: `BK-${b.id.slice(0, 8)}`,
-          customerSource: cust?.full_name || 'Guest',
-          category: b.type === 'home_service' || b.delivery_type === 'home_service' ? 'Home Service' : 'Booking',
-          method: formatMethodLabel(b.payment_method || 'Cash'),
-          inflow: paid,
-          outflow: null,
-          netEffect: paid,
-          status: b.payment_status === 'paid' ? 'Paid' : 'Pending',
-        });
-      }
-    }
+  // Show unmatched booking snapshots as review rows, never as financial movements.
+  for (const gap of unmatchedPayments) {
+    allLedgerRecords.unshift({
+      id: `unmatched-${gap.sourceType}-${gap.sourceId}`,
+      dateTime: businessDate,
+      reference: gap.sourceType === 'legacy_booking' ? `BK-${gap.sourceId.slice(0, 8)}` : `ORDER-${gap.sourceId.slice(0, 8)}`,
+      customerSource: gap.reason === 'ambiguous_order'
+        ? `Order-level payment cannot be assigned to booking snapshots; review ${gap.snapshotAmount.toFixed(2)}`
+        : `Booking snapshot ${gap.snapshotAmount.toFixed(2)}; ${gap.unmatchedAmount.toFixed(2)} lacks financial evidence`,
+      category: 'Booking payment snapshot',
+      method: 'Unverified',
+      inflow: null,
+      outflow: null,
+      netEffect: 0,
+      status: 'Needs reconciliation',
+      isReconciliationOnly: true,
+    });
   }
 
   // Filter ledger records if filter applied
@@ -597,19 +729,30 @@ export async function getCashFlowData(
   // Looks for orders or bookings with unpaid/partial balances
   const payableOrders: PayableOrderOption[] = [];
 
+  const listedOrders = new Set<string>();
   for (const b of todayBookings) {
-    const total = Number(b.total_amount) || 0;
-    const paid = Number(b.amount_paid) || 0;
-    const remaining = Math.max(0, total - paid);
-    const isPaid = b.payment_status === 'paid' || (total > 0 && remaining <= 0);
+    // CF4 Record Payment accepts booking_orders only. Historical legacy rows
+    // remain payable through the explicit booking payment command.
+    if (!b.order_id) continue;
+    if (b.order_id && listedOrders.has(b.order_id)) continue;
+    if (b.order_id) listedOrders.add(b.order_id);
+    const orderState = b.order_id ? orderPayment(b.order_id) : null;
+    if (b.order_id && !orderState) continue;
+    const total = orderState?.total ?? bookingPriceSnapshot(b.metadata);
+    const paid = orderState?.paid ?? (Number(b.amount_paid) || 0);
+    const remaining = orderState?.remaining ?? Math.max(0, total - paid);
+    const isPaid = b.order_id
+      ? orderState?.status === 'paid'
+      : b.payment_status === 'paid' || (total > 0 && remaining <= 0);
     const isPartial = !isPaid && paid > 0;
     const isHomeService = b.type === 'home_service' || b.delivery_type === 'home_service';
 
     const cust = Array.isArray(b.customers) ? b.customers[0] : b.customers;
     const svc = Array.isArray(b.services) ? b.services[0] : b.services;
 
-    const payableItems: PayableOrderItemDetail[] = [];
-    if (svc?.name) {
+    const payableItems: PayableOrderItemDetail[] =
+      b.order_id ? [...(orderItemsById.get(b.order_id) ?? [])] : [];
+    if (payableItems.length === 0 && svc?.name) {
       payableItems.push({
         id: `item-svc-${b.id}`,
         description: svc.name,
@@ -617,7 +760,7 @@ export async function getCashFlowData(
         itemType: 'service',
         subDescription: svc.duration_minutes ? `${svc.duration_minutes} mins` : undefined,
       });
-    } else {
+    } else if (payableItems.length === 0) {
       payableItems.push({
         id: `item-svc-${b.id}`,
         description: 'Spa Service',
@@ -631,13 +774,13 @@ export async function getCashFlowData(
       previousPayments.push({
         date: b.booking_date,
         amount: paid,
-        method: formatMethodLabel(b.payment_method || 'Payment'),
+        method: b.order_id ? 'Order payment' : formatMethodLabel(b.payment_method || 'Payment'),
       });
     }
 
     payableOrders.push({
       id: b.order_id || b.id,
-      orderNumber: `BK-${b.id.slice(0, 8)}`,
+      orderNumber: b.order_id ? `ORDER-${b.order_id.slice(0, 8)}` : `BK-${b.id.slice(0, 8)}`,
       customerName: cust?.full_name || 'Guest',
       customerPhone: cust?.phone ?? null,
       serviceDescription: svc?.name || 'Spa Service',
@@ -658,13 +801,13 @@ export async function getCashFlowData(
   // 9. Day Close and History Construction
   const dayCloseSummary = {
     businessDate,
-    isBalanced: totalOutstandingAmount === 0,
+    isBalanced: totalOutstandingAmount === 0 && unmatchedPayments.length === 0,
     readyForReview: true,
     lastUpdatedText: 'today at 10:28 PM',
     recordedInflow: totalInflowFromMovements,
     recordedOutflow: 0,
     netPosition: totalInflowFromMovements,
-    openIssuesCount: totalBookingsNeedsPayment,
+    openIssuesCount: totalBookingsNeedsPayment + unmatchedPayments.length,
     paymentBreakdown: paymentMix,
     coverageCategories: coverage,
     timeline: recentPayments.map((p) => ({
@@ -698,6 +841,7 @@ export async function getCashFlowData(
         outstandingBalance: totalOutstandingAmount,
         paidBookingsCount: totalBookingsPaid,
         needsPaymentCount: totalBookingsNeedsPayment,
+        unreconciledBookingCount: unmatchedPayments.length,
         recordedPaymentsTrend: totalInflowFromMovements > 0 ? null : null,
       },
       paymentMix,
@@ -710,7 +854,10 @@ export async function getCashFlowData(
         inflow: ledgerInflow,
         outflow: ledgerOutflow,
         netFlow: ledgerInflow - ledgerOutflow,
-        unreconciledText: 'Reconciliation not configured',
+        unreconciledText: unmatchedPayments.length > 0
+          ? `${unmatchedPayments.length} booking payment snapshot${unmatchedPayments.length === 1 ? '' : 's'} need review`
+          : 'Reconciliation not configured',
+        unreconciledCount: unmatchedPayments.length,
       },
       records: pagedRecords,
       totalRecords,
@@ -723,6 +870,10 @@ export async function getCashFlowData(
     payableOrders,
     expenseCategories,
     staffOptions,
+    cashSessions: {
+      activeSessions,
+      availableDrawers,
+    },
   };
 }
 

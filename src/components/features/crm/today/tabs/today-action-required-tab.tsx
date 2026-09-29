@@ -6,6 +6,7 @@ import { CrmActionItem } from "../crm-action-item";
 import type { ReadinessIssue } from "@/types/readiness";
 import type { BookingListItemData } from "../crm-booking-list-item";
 import { isBookingClosedForCrm } from "@/lib/bookings/crm-booking-status";
+import { getCradleFlowPaymentStatus, getCradleFlowBalance } from "@/lib/crm/cradle-flow";
 
 export function TodayActionRequiredTab({
   readinessIssues,
@@ -17,7 +18,14 @@ export function TodayActionRequiredTab({
   queueData: BookingListItemData[];
 }) {
   const unassigned = queueData.filter((b) => b.status === "confirmed" && !b.staff_name);
-  const unpaid = queueData.filter((b) => b.payment_status !== "paid" && !isBookingClosedForCrm(b.status));
+  const seenPaymentOrders = new Set<string>();
+  const unpaid = queueData.filter((b) => {
+    if (getCradleFlowPaymentStatus(b) === "paid" || isBookingClosedForCrm(b.status)) return false;
+    if (!b.order_id) return true;
+    if (seenPaymentOrders.has(b.order_id)) return false;
+    seenPaymentOrders.add(b.order_id);
+    return true;
+  });
   const homeServiceIssues = queueData.filter((b) => b.type === "home_service" && (b.needs_location_review || b.dispatch_warning));
   const staffScheduleIssues = queueData.filter(
     (b) => b.needs_staff_schedule_review
@@ -39,11 +47,11 @@ export function TodayActionRequiredTab({
     ...unpaid.map((b) => ({
       id: `payment-${b.id}`,
       title: `Payment pending for ${b.customer_name ?? "Unnamed"}`,
-      description: `${b.service_name ?? "Service"} · ₱${((b.price_paid ?? 0) - (b.amount_paid ?? 0)).toLocaleString()} outstanding`,
+      description: `${b.order_id ? "Order" : b.service_name ?? "Service"} · ₱${getCradleFlowBalance(b).toLocaleString()} outstanding`,
       category: "Payments",
       severity: "warning" as const,
       actionLabel: "Review Payment",
-      actionHref: `/crm/bookings?bookingId=${b.id}`,
+      actionHref: b.order_id ? "/crm/cash-flow" : `/crm/bookings?bookingId=${b.id}`,
     })),
     ...unassigned.map((b) => ({
       id: `unassigned-${b.id}`,

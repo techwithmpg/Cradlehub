@@ -122,7 +122,7 @@ export function LedgerTab({
           <div>
             <h2 className="text-base font-bold text-[#1E1916]">Ledger</h2>
             <p className="text-xs text-[#9C8878]">
-              Complete financial ledger of all transactions. {filtered.length} records found.
+              Financial movements and booking snapshots needing review. {filtered.length} records found.
             </p>
           </div>
 
@@ -223,6 +223,7 @@ export function LedgerTab({
             <option value="paid">Paid</option>
             <option value="pending">Pending</option>
             <option value="reversed">Reversed</option>
+            <option value="needs reconciliation">Needs reconciliation</option>
           </select>
         </div>
 
@@ -283,7 +284,11 @@ export function LedgerTab({
                         item.netEffect >= 0 ? 'text-[#1E1916]' : 'text-rose-700'
                       }`}
                     >
-                      {item.netEffect < 0 ? `-${formatPeso(Math.abs(item.netEffect))}` : formatPeso(item.netEffect)}
+                      {item.isReconciliationOnly
+                        ? '—'
+                        : item.netEffect < 0
+                          ? `-${formatPeso(Math.abs(item.netEffect))}`
+                          : formatPeso(item.netEffect)}
                     </td>
                     <td className="py-3 px-3 text-center">
                       <span

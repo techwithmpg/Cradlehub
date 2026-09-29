@@ -37,12 +37,12 @@ CREATE POLICY "expense_receipts_authenticated_select"
     bucket_id = 'expense-receipts'
     AND (
       (storage.foldername(name))[1] = (SELECT public.get_auth_branch_id()::text)
-      OR (SELECT public.get_auth_role()) IN ('owner', 'admin', 'finance')
+      OR (SELECT public.get_auth_role()) = 'owner'
       OR EXISTS (
         SELECT 1 FROM public.staff
         WHERE auth_user_id = (SELECT auth.uid())
           AND is_active = true
-          AND (role IN ('owner', 'admin', 'finance') OR system_role IN ('owner', 'admin', 'finance'))
+          AND system_role = 'owner'
       )
     )
   );
@@ -56,12 +56,12 @@ CREATE POLICY "expense_receipts_authenticated_insert"
     bucket_id = 'expense-receipts'
     AND (
       (storage.foldername(name))[1] = (SELECT public.get_auth_branch_id()::text)
-      OR (SELECT public.get_auth_role()) IN ('owner', 'admin', 'finance')
+      OR (SELECT public.get_auth_role()) = 'owner'
       OR EXISTS (
         SELECT 1 FROM public.staff
         WHERE auth_user_id = (SELECT auth.uid())
           AND is_active = true
-          AND (role IN ('owner', 'admin', 'finance') OR system_role IN ('owner', 'admin', 'finance'))
+          AND system_role = 'owner'
       )
     )
     AND (
@@ -79,22 +79,22 @@ CREATE POLICY "expense_receipts_authenticated_delete"
     bucket_id = 'expense-receipts'
     AND (
       (storage.foldername(name))[1] = (SELECT public.get_auth_branch_id()::text)
-      OR (SELECT public.get_auth_role()) IN ('owner', 'admin', 'finance')
+      OR (SELECT public.get_auth_role()) = 'owner'
       OR EXISTS (
         SELECT 1 FROM public.staff
         WHERE auth_user_id = (SELECT auth.uid())
           AND is_active = true
-          AND (role IN ('owner', 'admin', 'finance') OR system_role IN ('owner', 'admin', 'finance'))
+          AND system_role = 'owner'
       )
     )
     AND (
       owner_id = (SELECT auth.uid()::text)
-      OR (SELECT public.get_auth_role()) IN ('owner', 'admin', 'finance')
+      OR (SELECT public.get_auth_role()) = 'owner'
       OR EXISTS (
         SELECT 1 FROM public.staff
         WHERE auth_user_id = (SELECT auth.uid())
           AND is_active = true
-          AND (role IN ('owner', 'admin', 'finance') OR system_role IN ('owner', 'admin', 'finance'))
+          AND system_role = 'owner'
       )
     )
   );
@@ -131,7 +131,7 @@ CREATE OR REPLACE FUNCTION public.post_expense_atomic(
 RETURNS JSONB
 LANGUAGE plpgsql
 SECURITY DEFINER
-SET search_path = public, pg_temp
+SET search_path = ''
 AS $func$
 DECLARE
   v_auth_uid        UUID;
@@ -167,10 +167,7 @@ BEGIN
   -- 2. Actor authentication & authorization
   v_auth_uid := auth.uid();
   IF v_auth_uid IS NULL THEN
-    SELECT * INTO v_staff FROM public.staff WHERE is_active = true ORDER BY created_at LIMIT 1;
-    IF v_staff IS NULL THEN
-      RAISE EXCEPTION 'UNAUTHENTICATED: Authentication required to post expense';
-    END IF;
+    RAISE EXCEPTION 'AUTH_REQUIRED: Authentication required to post expense';
   ELSE
     SELECT * INTO v_staff FROM public.staff WHERE auth_user_id = v_auth_uid AND is_active = true LIMIT 1;
     IF v_staff IS NULL THEN
@@ -187,7 +184,10 @@ BEGIN
     RAISE EXCEPTION 'BRANCH_REQUIRED: Branch ID is required';
   END IF;
 
-  IF v_staff.branch_id IS NOT NULL AND v_staff.branch_id <> p_branch_id AND v_staff.role NOT IN ('owner', 'admin') THEN
+  IF v_staff.system_role NOT IN ('owner', 'manager', 'assistant_manager', 'store_manager', 'crm') THEN
+    RAISE EXCEPTION 'EXPENSE_ROLE_UNAUTHORIZED: Caller cannot post expenses';
+  END IF;
+  IF v_staff.system_role <> 'owner' AND v_staff.branch_id <> p_branch_id THEN
     RAISE EXCEPTION 'BRANCH_MISMATCH: Staff member is not authorized for branch %', p_branch_id;
   END IF;
 
@@ -254,7 +254,7 @@ BEGIN
     'PHP',
     'posted',
     p_idempotency_key,
-    'payroll_run',
+    NULL,
     NULL,
     p_receipt_reference,
     p_notes
@@ -324,3 +324,8 @@ $func$;
 
 COMMENT ON FUNCTION public.post_expense_atomic(UUID, TEXT, NUMERIC, UUID, UUID, TEXT, TEXT, TEXT, DATE, TEXT, TEXT) IS
   'CF7: Posts an operational expense atomically with negative account movement and optional durable receipt image path.';
+
+REVOKE ALL ON FUNCTION public.post_expense_atomic(UUID, TEXT, NUMERIC, UUID, UUID, TEXT, TEXT, TEXT, DATE, TEXT, TEXT)
+  FROM PUBLIC, anon;
+GRANT EXECUTE ON FUNCTION public.post_expense_atomic(UUID, TEXT, NUMERIC, UUID, UUID, TEXT, TEXT, TEXT, DATE, TEXT, TEXT)
+  TO authenticated, service_role;

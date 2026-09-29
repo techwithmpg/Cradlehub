@@ -71,7 +71,7 @@ CREATE OR REPLACE FUNCTION public.post_order_payment_atomic(
 RETURNS JSONB
 LANGUAGE plpgsql
 SECURITY DEFINER
-SET search_path = public, pg_temp
+SET search_path = ''
 AS $func$
 DECLARE
   v_auth_uid            UUID;
@@ -146,7 +146,7 @@ BEGIN
     RAISE EXCEPTION 'AUTH_REQUIRED: Unauthenticated caller cannot post payments';
   END IF;
 
-  SELECT s.id, s.branch_id, s.role, s.is_active
+  SELECT s.id, s.branch_id, s.system_role, s.is_active
   INTO v_staff
   FROM public.staff s
   WHERE s.auth_user_id = v_auth_uid;
@@ -160,7 +160,10 @@ BEGIN
   END IF;
 
   -- 5. Branch permission verification
-  IF v_staff.role <> 'owner' AND v_staff.branch_id <> v_order.branch_id THEN
+  IF v_staff.system_role NOT IN ('owner', 'manager', 'assistant_manager', 'store_manager', 'crm') THEN
+    RAISE EXCEPTION 'PAYMENT_ROLE_UNAUTHORIZED: Caller cannot record order payments';
+  END IF;
+  IF v_staff.system_role <> 'owner' AND v_staff.branch_id <> v_order.branch_id THEN
     RAISE EXCEPTION 'BRANCH_UNAUTHORIZED: Staff % (branch %) unauthorized for order in branch %',
       v_staff.id, v_staff.branch_id, v_order.branch_id;
   END IF;

@@ -9,6 +9,7 @@ const CRM_BOOKING_SURFACE_PATHS = [
   "/crm/schedule",
   "/crm/dispatch",
   "/crm/control",
+  "/crm/cash-flow",
 ] as const;
 
 const MANAGER_BOOKING_SURFACE_PATHS = [

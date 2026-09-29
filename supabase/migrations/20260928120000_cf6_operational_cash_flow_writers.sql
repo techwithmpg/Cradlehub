@@ -102,7 +102,12 @@ CREATE POLICY "Allow authenticated staff to read expense details"
   ON public.financial_expense_details
   FOR SELECT
   TO authenticated
-  USING (true);
+  USING (EXISTS (
+    SELECT 1 FROM public.financial_transactions ft
+    JOIN public.staff s ON s.auth_user_id = (SELECT auth.uid()) AND s.is_active = true
+    WHERE ft.id = transaction_id
+      AND (s.system_role = 'owner' OR s.branch_id = ft.branch_id)
+  ));
 
 CREATE INDEX IF NOT EXISTS idx_cf_expense_details_tx ON public.financial_expense_details(transaction_id);
 CREATE INDEX IF NOT EXISTS idx_cf_expense_details_category ON public.financial_expense_details(category_id);
@@ -129,7 +134,12 @@ CREATE POLICY "Allow authenticated staff to read tip details"
   ON public.financial_tip_details
   FOR SELECT
   TO authenticated
-  USING (true);
+  USING (EXISTS (
+    SELECT 1 FROM public.financial_transactions ft
+    JOIN public.staff s ON s.auth_user_id = (SELECT auth.uid()) AND s.is_active = true
+    WHERE ft.id = transaction_id
+      AND (s.system_role = 'owner' OR s.branch_id = ft.branch_id)
+  ));
 
 CREATE INDEX IF NOT EXISTS idx_cf_tip_details_tx ON public.financial_tip_details(transaction_id);
 CREATE INDEX IF NOT EXISTS idx_cf_tip_details_staff ON public.financial_tip_details(beneficiary_staff_id);
@@ -154,7 +164,12 @@ CREATE POLICY "Allow authenticated staff to read commercial details"
   ON public.financial_commercial_details
   FOR SELECT
   TO authenticated
-  USING (true);
+  USING (EXISTS (
+    SELECT 1 FROM public.financial_transactions ft
+    JOIN public.staff s ON s.auth_user_id = (SELECT auth.uid()) AND s.is_active = true
+    WHERE ft.id = transaction_id
+      AND (s.system_role = 'owner' OR s.branch_id = ft.branch_id)
+  ));
 
 CREATE INDEX IF NOT EXISTS idx_cf_commercial_details_tx ON public.financial_commercial_details(transaction_id);
 
@@ -175,7 +190,7 @@ CREATE OR REPLACE FUNCTION public.post_expense_atomic(
 RETURNS JSONB
 LANGUAGE plpgsql
 SECURITY DEFINER
-SET search_path = public, pg_temp
+SET search_path = ''
 AS $func$
 DECLARE
   v_auth_uid        UUID;
@@ -211,10 +226,7 @@ BEGIN
   -- 2. Actor authentication & authorization
   v_auth_uid := auth.uid();
   IF v_auth_uid IS NULL THEN
-    SELECT * INTO v_staff FROM public.staff WHERE is_active = true ORDER BY created_at LIMIT 1;
-    IF v_staff IS NULL THEN
-      RAISE EXCEPTION 'UNAUTHENTICATED: Authentication required to post expense';
-    END IF;
+    RAISE EXCEPTION 'AUTH_REQUIRED: Authentication required to post expense';
   ELSE
     SELECT * INTO v_staff FROM public.staff WHERE auth_user_id = v_auth_uid AND is_active = true LIMIT 1;
     IF v_staff IS NULL THEN
@@ -231,7 +243,10 @@ BEGIN
     RAISE EXCEPTION 'BRANCH_REQUIRED: Branch ID is required';
   END IF;
 
-  IF v_staff.branch_id IS NOT NULL AND v_staff.branch_id <> p_branch_id AND v_staff.role NOT IN ('owner', 'admin') THEN
+  IF v_staff.system_role NOT IN ('owner', 'manager', 'assistant_manager', 'store_manager', 'crm') THEN
+    RAISE EXCEPTION 'EXPENSE_ROLE_UNAUTHORIZED: Caller cannot post expenses';
+  END IF;
+  IF v_staff.system_role <> 'owner' AND v_staff.branch_id <> p_branch_id THEN
     RAISE EXCEPTION 'BRANCH_MISMATCH: Staff member is not authorized for branch %', p_branch_id;
   END IF;
 
@@ -298,7 +313,7 @@ BEGIN
     'PHP',
     'posted',
     p_idempotency_key,
-    'payroll_run', -- generic internal source
+    NULL, -- operating expense is independent of payroll and customer charges
     NULL,
     p_receipt_reference,
     p_notes
@@ -379,7 +394,7 @@ CREATE OR REPLACE FUNCTION public.post_tip_atomic(
 RETURNS JSONB
 LANGUAGE plpgsql
 SECURITY DEFINER
-SET search_path = public, pg_temp
+SET search_path = ''
 AS $func$
 DECLARE
   v_auth_uid        UUID;
@@ -411,10 +426,7 @@ BEGIN
   -- 2. Actor authentication & authorization
   v_auth_uid := auth.uid();
   IF v_auth_uid IS NULL THEN
-    SELECT * INTO v_staff FROM public.staff WHERE is_active = true ORDER BY created_at LIMIT 1;
-    IF v_staff IS NULL THEN
-      RAISE EXCEPTION 'UNAUTHENTICATED: Authentication required to record tip';
-    END IF;
+    RAISE EXCEPTION 'AUTH_REQUIRED: Authentication required to record tip';
   ELSE
     SELECT * INTO v_staff FROM public.staff WHERE auth_user_id = v_auth_uid AND is_active = true LIMIT 1;
     IF v_staff IS NULL THEN
@@ -427,7 +439,10 @@ BEGIN
     p_branch_id := v_staff.branch_id;
   END IF;
 
-  IF v_staff.branch_id IS NOT NULL AND v_staff.branch_id <> p_branch_id AND v_staff.role NOT IN ('owner', 'admin') THEN
+  IF v_staff.system_role NOT IN ('owner', 'manager', 'assistant_manager', 'store_manager', 'crm') THEN
+    RAISE EXCEPTION 'TIP_ROLE_UNAUTHORIZED: Caller cannot record tips';
+  END IF;
+  IF v_staff.system_role <> 'owner' AND v_staff.branch_id <> p_branch_id THEN
     RAISE EXCEPTION 'BRANCH_MISMATCH: Staff member is not authorized for branch %', p_branch_id;
   END IF;
 
@@ -588,7 +603,7 @@ CREATE OR REPLACE FUNCTION public.post_misc_income_atomic(
 RETURNS JSONB
 LANGUAGE plpgsql
 SECURITY DEFINER
-SET search_path = public, pg_temp
+SET search_path = ''
 AS $func$
 DECLARE
   v_auth_uid        UUID;
@@ -618,10 +633,7 @@ BEGIN
   -- Actor auth
   v_auth_uid := auth.uid();
   IF v_auth_uid IS NULL THEN
-    SELECT * INTO v_staff FROM public.staff WHERE is_active = true ORDER BY created_at LIMIT 1;
-    IF v_staff IS NULL THEN
-      RAISE EXCEPTION 'UNAUTHENTICATED: Authentication required to record misc income';
-    END IF;
+    RAISE EXCEPTION 'AUTH_REQUIRED: Authentication required to record misc income';
   ELSE
     SELECT * INTO v_staff FROM public.staff WHERE auth_user_id = v_auth_uid AND is_active = true LIMIT 1;
     IF v_staff IS NULL THEN
@@ -633,7 +645,10 @@ BEGIN
     p_branch_id := v_staff.branch_id;
   END IF;
 
-  IF v_staff.branch_id IS NOT NULL AND v_staff.branch_id <> p_branch_id AND v_staff.role NOT IN ('owner', 'admin') THEN
+  IF v_staff.system_role NOT IN ('owner', 'manager', 'assistant_manager', 'store_manager', 'crm') THEN
+    RAISE EXCEPTION 'INCOME_ROLE_UNAUTHORIZED: Caller cannot record income';
+  END IF;
+  IF v_staff.system_role <> 'owner' AND v_staff.branch_id <> p_branch_id THEN
     RAISE EXCEPTION 'BRANCH_MISMATCH: Staff member is not authorized for branch %', p_branch_id;
   END IF;
 
@@ -752,7 +767,7 @@ CREATE OR REPLACE FUNCTION public.post_cash_adjustment_atomic(
 RETURNS JSONB
 LANGUAGE plpgsql
 SECURITY DEFINER
-SET search_path = public, pg_temp
+SET search_path = ''
 AS $func$
 DECLARE
   v_auth_uid        UUID;
@@ -789,10 +804,7 @@ BEGIN
   -- Actor auth
   v_auth_uid := auth.uid();
   IF v_auth_uid IS NULL THEN
-    SELECT * INTO v_staff FROM public.staff WHERE is_active = true ORDER BY created_at LIMIT 1;
-    IF v_staff IS NULL THEN
-      RAISE EXCEPTION 'UNAUTHENTICATED: Authentication required to adjust cash';
-    END IF;
+    RAISE EXCEPTION 'AUTH_REQUIRED: Authentication required to adjust cash';
   ELSE
     SELECT * INTO v_staff FROM public.staff WHERE auth_user_id = v_auth_uid AND is_active = true LIMIT 1;
     IF v_staff IS NULL THEN
@@ -804,7 +816,10 @@ BEGIN
     p_branch_id := v_staff.branch_id;
   END IF;
 
-  IF v_staff.branch_id IS NOT NULL AND v_staff.branch_id <> p_branch_id AND v_staff.role NOT IN ('owner', 'admin') THEN
+  IF v_staff.system_role NOT IN ('owner', 'manager', 'assistant_manager', 'store_manager', 'crm') THEN
+    RAISE EXCEPTION 'CASH_ROLE_UNAUTHORIZED: Caller cannot adjust cash';
+  END IF;
+  IF v_staff.system_role <> 'owner' AND v_staff.branch_id <> p_branch_id THEN
     RAISE EXCEPTION 'BRANCH_MISMATCH: Staff member is not authorized for branch %', p_branch_id;
   END IF;
 
@@ -904,7 +919,7 @@ CREATE OR REPLACE FUNCTION public.post_transfer_atomic(
 RETURNS JSONB
 LANGUAGE plpgsql
 SECURITY DEFINER
-SET search_path = public, pg_temp
+SET search_path = ''
 AS $func$
 DECLARE
   v_auth_uid        UUID;
@@ -935,10 +950,7 @@ BEGIN
   -- Actor auth
   v_auth_uid := auth.uid();
   IF v_auth_uid IS NULL THEN
-    SELECT * INTO v_staff FROM public.staff WHERE is_active = true ORDER BY created_at LIMIT 1;
-    IF v_staff IS NULL THEN
-      RAISE EXCEPTION 'UNAUTHENTICATED: Authentication required to perform transfer';
-    END IF;
+    RAISE EXCEPTION 'AUTH_REQUIRED: Authentication required to perform transfer';
   ELSE
     SELECT * INTO v_staff FROM public.staff WHERE auth_user_id = v_auth_uid AND is_active = true LIMIT 1;
     IF v_staff IS NULL THEN
@@ -950,7 +962,10 @@ BEGIN
     p_branch_id := v_staff.branch_id;
   END IF;
 
-  IF v_staff.branch_id IS NOT NULL AND v_staff.branch_id <> p_branch_id AND v_staff.role NOT IN ('owner', 'admin') THEN
+  IF v_staff.system_role NOT IN ('owner', 'manager', 'assistant_manager', 'store_manager', 'crm') THEN
+    RAISE EXCEPTION 'TRANSFER_ROLE_UNAUTHORIZED: Caller cannot transfer funds';
+  END IF;
+  IF v_staff.system_role <> 'owner' AND v_staff.branch_id <> p_branch_id THEN
     RAISE EXCEPTION 'BRANCH_MISMATCH: Staff member is not authorized for branch %', p_branch_id;
   END IF;
 
@@ -1062,5 +1077,33 @@ BEGIN
   );
 END;
 $func$;
+
+REVOKE ALL ON TABLE public.financial_expense_categories, public.financial_expense_details,
+  public.financial_tip_details, public.financial_commercial_details FROM PUBLIC, anon, authenticated;
+GRANT SELECT ON TABLE public.financial_expense_categories, public.financial_expense_details,
+  public.financial_tip_details, public.financial_commercial_details TO authenticated;
+GRANT ALL ON TABLE public.financial_expense_categories, public.financial_expense_details,
+  public.financial_tip_details, public.financial_commercial_details TO service_role;
+
+REVOKE ALL ON FUNCTION public.post_expense_atomic(UUID, TEXT, NUMERIC, UUID, UUID, TEXT, TEXT, TEXT, DATE, TEXT)
+  FROM PUBLIC, anon;
+GRANT EXECUTE ON FUNCTION public.post_expense_atomic(UUID, TEXT, NUMERIC, UUID, UUID, TEXT, TEXT, TEXT, DATE, TEXT)
+  TO authenticated, service_role;
+REVOKE ALL ON FUNCTION public.post_tip_atomic(UUID, UUID, TEXT, NUMERIC, UUID, TEXT, DATE, TEXT, TEXT)
+  FROM PUBLIC, anon;
+GRANT EXECUTE ON FUNCTION public.post_tip_atomic(UUID, UUID, TEXT, NUMERIC, UUID, TEXT, DATE, TEXT, TEXT)
+  TO authenticated, service_role;
+REVOKE ALL ON FUNCTION public.post_misc_income_atomic(UUID, UUID, NUMERIC, TEXT, TEXT, TEXT, DATE, TEXT, TEXT)
+  FROM PUBLIC, anon;
+GRANT EXECUTE ON FUNCTION public.post_misc_income_atomic(UUID, UUID, NUMERIC, TEXT, TEXT, TEXT, DATE, TEXT, TEXT)
+  TO authenticated, service_role;
+REVOKE ALL ON FUNCTION public.post_cash_adjustment_atomic(UUID, UUID, TEXT, NUMERIC, TEXT, DATE, TEXT, TEXT)
+  FROM PUBLIC, anon;
+GRANT EXECUTE ON FUNCTION public.post_cash_adjustment_atomic(UUID, UUID, TEXT, NUMERIC, TEXT, DATE, TEXT, TEXT)
+  TO authenticated, service_role;
+REVOKE ALL ON FUNCTION public.post_transfer_atomic(UUID, UUID, UUID, NUMERIC, DATE, TEXT, TEXT)
+  FROM PUBLIC, anon;
+GRANT EXECUTE ON FUNCTION public.post_transfer_atomic(UUID, UUID, UUID, NUMERIC, DATE, TEXT, TEXT)
+  TO authenticated, service_role;
 
 COMMIT;

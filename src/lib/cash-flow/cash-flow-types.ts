@@ -13,6 +13,7 @@ export interface TodayKpiSummary {
   outstandingBalance: number;
   paidBookingsCount: number;
   needsPaymentCount: number;
+  unreconciledBookingCount?: number;
   recordedPaymentsTrend?: string | null;
   outstandingTrend?: string | null;
   paidBookingsTrend?: string | null;
@@ -83,6 +84,7 @@ export interface LedgerRecordItem {
   outflow: number | null;
   netEffect: number;
   status: string;
+  isReconciliationOnly?: boolean;
 }
 
 export interface DayCloseSummaryData {
@@ -243,6 +245,41 @@ export interface OperationalEntryResult {
   idempotentReplay?: boolean;
 }
 
+export interface CashSessionSummary {
+  id: string;
+  branchId: string;
+  businessDate: string;
+  cashDrawerAccountId: string;
+  cashDrawerName: string;
+  status: 'open' | 'closed';
+  openingFloat: number;
+  openingNote?: string | null;
+  openedBy: string;
+  openedByName?: string;
+  openedAt: string;
+  closedBy?: string | null;
+  closedByName?: string | null;
+  closedAt?: string | null;
+  expectedCash: number;
+}
+
+export interface OpenCashSessionInput {
+  branchId: string;
+  cashDrawerAccountId: string;
+  businessDate: string;
+  openingFloat: number;
+  openingNote?: string;
+  idempotencyKey: string;
+}
+
+export interface OpenCashSessionResult {
+  ok: boolean;
+  error?: string;
+  code?: string;
+  session?: CashSessionSummary;
+  idempotentReplay?: boolean;
+}
+
 export interface CashFlowWorkspaceData {
   branchId: string;
   branchName: string;
@@ -250,6 +287,10 @@ export interface CashFlowWorkspaceData {
   accounts: MaskedAccountOption[];
   expenseCategories?: ExpenseCategoryOption[];
   staffOptions?: StaffOption[];
+  cashSessions?: {
+    activeSessions: CashSessionSummary[];
+    availableDrawers: MaskedAccountOption[];
+  };
   today: {
     kpis: TodayKpiSummary;
     paymentMix: PaymentMixItem[];

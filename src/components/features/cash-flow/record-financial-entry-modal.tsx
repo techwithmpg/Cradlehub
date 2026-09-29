@@ -1488,7 +1488,7 @@ function RecordFinancialEntryForm({
                         : 'border-[#EAE4DC] bg-white text-[#7A6E65] hover:border-[#D4C8BC]'
                     }`}
                   >
-                    <span className="text-xs">Transfer</span>
+                    <span className="text-xs">Transfer / Safe Drop</span>
                   </button>
 
                   <button
@@ -2277,7 +2277,7 @@ function RecordFinancialEntryForm({
                 : otherEntryType === 'cash_removal'
                 ? 'Cash Removal from Drawer'
                 : otherEntryType === 'transfer'
-                ? 'Dual-Account Transfer (Net Zero)'
+                ? 'Transfer / Safe Drop (Net Zero)'
                 : 'Generic Adjustment (Locked)'}
             </div>
           </div>
