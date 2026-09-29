@@ -7,13 +7,17 @@ import {
   Download,
   FolderOpen,
   Plus,
+  FileText,
 } from 'lucide-react';
 import type { CashFlowWorkspaceData } from '@/lib/cash-flow/cash-flow-types';
 import { TodayTab } from './today-tab';
 import { LedgerTab } from './ledger-tab';
 import { DayCloseTab } from './day-close-tab';
 import { HistoryTab } from './history-tab';
-import { RecordFinancialEntryModal } from './record-financial-entry-modal';
+import {
+  RecordFinancialEntryModal,
+  type FinancialEntryMode,
+} from './record-financial-entry-modal';
 
 interface CashFlowWorkspaceProps {
   initialData: CashFlowWorkspaceData;
@@ -28,6 +32,7 @@ export function CashFlowWorkspace({ initialData }: CashFlowWorkspaceProps) {
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [isRecordPaymentOpen, setIsRecordPaymentOpen] = useState(false);
   const [targetOrderId, setTargetOrderId] = useState<string | undefined>(undefined);
+  const [entryModalMode, setEntryModalMode] = useState<FinancialEntryMode>('customer_payment');
 
   const handleTabChange = (newTab: string) => {
     router.push(`/crm/cash-flow?tab=${newTab}`, { scroll: false });
@@ -42,7 +47,14 @@ export function CashFlowWorkspace({ initialData }: CashFlowWorkspaceProps) {
   };
 
   const openRecordPayment = (orderId?: string) => {
+    setEntryModalMode('customer_payment');
     setTargetOrderId(orderId);
+    setIsRecordPaymentOpen(true);
+  };
+
+  const openRecordExpense = () => {
+    setEntryModalMode('expense');
+    setTargetOrderId(undefined);
     setIsRecordPaymentOpen(true);
   };
 
@@ -98,6 +110,14 @@ export function CashFlowWorkspace({ initialData }: CashFlowWorkspaceProps) {
           </button>
 
           <button
+            onClick={() => openRecordExpense()}
+            className="inline-flex items-center gap-1.5 px-3.5 py-1.5 border border-amber-300 bg-amber-50 hover:bg-amber-100 text-xs font-semibold text-amber-900 rounded-lg shadow-2xs transition"
+          >
+            <FileText className="w-3.5 h-3.5 text-amber-800" />
+            <span>Record Expense</span>
+          </button>
+
+          <button
             onClick={handleRefresh}
             disabled={isRefreshing}
             className="inline-flex items-center gap-1.5 px-3.5 py-1.5 bg-[#163E32] hover:bg-[#1B4D3E] text-white text-xs font-semibold rounded-lg shadow-2xs transition disabled:opacity-75"
@@ -139,6 +159,7 @@ export function CashFlowWorkspace({ initialData }: CashFlowWorkspaceProps) {
             recentPayments={initialData.today.recentPayments}
             onNavigateToLedger={() => handleTabChange('ledger')}
             onRecordPaymentClick={openRecordPayment}
+            onRecordExpenseClick={openRecordExpense}
           />
         )}
 
@@ -175,6 +196,8 @@ export function CashFlowWorkspace({ initialData }: CashFlowWorkspaceProps) {
         staffOptions={initialData.staffOptions}
         payableOrders={initialData.payableOrders}
         initialOrderId={targetOrderId}
+        initialMode={entryModalMode}
+        branchId={initialData.branchId}
         businessDate={initialData.businessDate}
         onSuccess={() => {
           router.refresh();

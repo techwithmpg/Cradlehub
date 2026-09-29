@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 import React from 'react';
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
-import { render, screen, fireEvent, cleanup } from '@testing-library/react';
+import { render, screen, fireEvent, cleanup, waitFor } from '@testing-library/react';
 
 // Mock Next.js navigation
 const mockPush = vi.fn();
@@ -30,6 +30,20 @@ vi.mock('@/lib/cash-flow/cash-flow-actions', () => ({
   recordExpenseAction: (...args: unknown[]) => mockRecordExpenseAction(...args),
   recordTipAction: (...args: unknown[]) => mockRecordTipAction(...args),
   recordOtherEntryAction: (...args: unknown[]) => mockRecordOtherEntryAction(...args),
+}));
+
+// Mock Supabase storage client
+const mockStorageUpload = vi.fn().mockResolvedValue({ error: null });
+const mockStorageRemove = vi.fn().mockResolvedValue({ error: null });
+vi.mock('@/lib/supabase/client', () => ({
+  createClient: () => ({
+    storage: {
+      from: () => ({
+        upload: mockStorageUpload,
+        remove: mockStorageRemove,
+      }),
+    },
+  }),
 }));
 
 import { CashFlowWorkspace } from '@/components/features/cash-flow/cash-flow-workspace';
@@ -233,6 +247,11 @@ describe('CF5 Cash Flow UI Foundation', () => {
   beforeEach(() => {
     vi.clearAllMocks();
     mockSearchParamTab = 'today';
+    mockStorageUpload.mockResolvedValue({ error: null });
+    mockStorageRemove.mockResolvedValue({ error: null });
+    if (typeof window !== 'undefined' && !window.URL.createObjectURL) {
+      window.URL.createObjectURL = vi.fn(() => 'blob:mock-receipt-preview');
+    }
   });
 
   afterEach(() => {
@@ -699,5 +718,179 @@ describe('CF5 Cash Flow UI Foundation', () => {
     fireEvent.click(screen.getByText('Adjustment (Locked)'));
     expect(screen.getByText(/General adjustment entries without formal approval policy are locked\./i)).toBeTruthy();
     expect((screen.getByRole('button', { name: /Record Other Entry/i }) as HTMLButtonElement).disabled).toBe(true);
+  });
+
+  it('20. Cash Flow Workspace header renders Record Expense button and opens modal with expense initialMode', () => {
+    render(<CashFlowWorkspace initialData={mockWorkspaceData} />);
+    const recordExpenseBtn = screen.getByRole('button', { name: /Record Expense/i });
+    expect(recordExpenseBtn).toBeTruthy();
+
+    fireEvent.click(recordExpenseBtn);
+    // Modal should open directly into Expense mode
+    expect(screen.getByText(/1\. Expense Classification & Payment Account/i)).toBeTruthy();
+    expect(screen.getByRole('button', { name: /Record Expense/i })).toBeTruthy();
+  });
+
+  it('21. Today tab Expenses coverage card invokes onRecordExpenseClick callback when clicked', () => {
+    const onRecordExpenseClick = vi.fn();
+    render(
+      <TodayTab
+        kpis={mockWorkspaceData.today.kpis}
+        paymentMix={mockWorkspaceData.today.paymentMix}
+        totalInflow={mockWorkspaceData.today.totalInflow}
+        coverage={mockWorkspaceData.today.coverage}
+        recentPayments={mockWorkspaceData.today.recentPayments}
+        onNavigateToLedger={vi.fn()}
+        onRecordPaymentClick={vi.fn()}
+        onRecordExpenseClick={onRecordExpenseClick}
+      />
+    );
+
+    const expenseCard = screen.getByText('Expenses').closest('div[role="button"]');
+    expect(expenseCard).toBeTruthy();
+    if (expenseCard) {
+      fireEvent.click(expenseCard);
+      expect(onRecordExpenseClick).toHaveBeenCalledTimes(1);
+    }
+  });
+
+  it('22. RecordFinancialEntryModal opens directly in Expense mode when initialMode="expense"', () => {
+    render(
+      <RecordFinancialEntryModal
+        open={true}
+        onOpenChange={vi.fn()}
+        accounts={mockWorkspaceData.accounts}
+        businessDate={mockWorkspaceData.businessDate}
+        expenseCategories={mockWorkspaceData.expenseCategories}
+        initialMode="expense"
+      />
+    );
+
+    expect(screen.getByText(/1\. Expense Classification & Payment Account/i)).toBeTruthy();
+    expect(screen.getByText(/Receipt Attachment/i)).toBeTruthy();
+    expect(screen.getByRole('button', { name: /Record Expense/i })).toBeTruthy();
+  });
+
+  it('23. [T03 & T04] Receipt attachment UI validates file MIME type and max size (5 MB)', () => {
+    render(
+      <RecordFinancialEntryModal
+        open={true}
+        onOpenChange={vi.fn()}
+        accounts={mockWorkspaceData.accounts}
+        businessDate={mockWorkspaceData.businessDate}
+        expenseCategories={mockWorkspaceData.expenseCategories}
+        initialMode="expense"
+      />
+    );
+
+    const fileInput = screen.getByTestId('expense-receipt-file-input') as HTMLInputElement;
+    expect(fileInput).toBeTruthy();
+
+    // T03: Invalid MIME (e.g. text/plain)
+    const invalidFile = new File(['hello world'], 'notes.txt', { type: 'text/plain' });
+    fireEvent.change(fileInput, { target: { files: [invalidFile] } });
+    expect(screen.getByText(/Invalid file type\. Allowed formats: JPEG, PNG, WebP, PDF/i)).toBeTruthy();
+
+    // T04: Exceeds 5 MB (5 * 1024 * 1024 + 1 bytes)
+    const oversizedFile = new File([new ArrayBuffer(5242881)], 'large.jpg', { type: 'image/jpeg' });
+    fireEvent.change(fileInput, { target: { files: [oversizedFile] } });
+    expect(screen.getByText(/File size exceeds the 5 MB limit/i)).toBeTruthy();
+  });
+
+  it('24. [T01 & T02] Expense form uploads receipt to private storage and passes receiptImagePath', async () => {
+    mockRecordExpenseAction.mockResolvedValueOnce({
+      ok: true,
+      transactionId: 'tx-exp-123',
+    });
+
+    render(
+      <RecordFinancialEntryModal
+        open={true}
+        onOpenChange={vi.fn()}
+        accounts={mockWorkspaceData.accounts}
+        businessDate={mockWorkspaceData.businessDate}
+        expenseCategories={mockWorkspaceData.expenseCategories}
+        initialMode="expense"
+        branchId="11111111-1111-1111-1111-111111111111"
+      />
+    );
+
+    // Fill form
+    const amountInput = screen.getByPlaceholderText('0.00');
+    fireEvent.change(amountInput, { target: { value: '850' } });
+
+    const payeeInput = screen.getByPlaceholderText(/Shell Gas Station, Clean Linen Services/i);
+    fireEvent.change(payeeInput, { target: { value: 'Ace Hardware' } });
+
+    const descInput = screen.getByPlaceholderText(/Fuel for home service van/i);
+    fireEvent.change(descInput, { target: { value: 'Disinfectant and towels' } });
+
+    // Attach valid JPEG receipt
+    const fileInput = screen.getByTestId('expense-receipt-file-input') as HTMLInputElement;
+    const validFile = new File(['fake-jpg-content'], 'receipt.jpg', { type: 'image/jpeg' });
+    fireEvent.change(fileInput, { target: { files: [validFile] } });
+
+    expect(screen.getByText('receipt.jpg')).toBeTruthy();
+
+    // Submit
+    const submitBtn = screen.getByRole('button', { name: /Record Expense/i });
+    fireEvent.click(submitBtn);
+
+    // Wait for storage upload and action dispatch
+    await waitFor(() => {
+      expect(mockStorageUpload).toHaveBeenCalledTimes(1);
+      expect(mockRecordExpenseAction).toHaveBeenCalledTimes(1);
+    });
+
+    const uploadedPath = mockStorageUpload.mock.calls[0]![0] as string;
+    expect(uploadedPath).toMatch(/^11111111-1111-1111-1111-111111111111\/2026\/09\/rec_20260928_[a-f0-9]+\.jpg$/);
+
+    const payload = mockRecordExpenseAction.mock.calls[0]![0];
+    expect(payload.amount).toBe(850);
+    expect(payload.payee).toBe('Ace Hardware');
+    expect(payload.receiptImagePath).toBe(uploadedPath);
+  });
+
+  it('25. [T13] Orphan cleanup: deletes newly uploaded receipt object if recordExpenseAction fails', async () => {
+    mockRecordExpenseAction.mockResolvedValueOnce({
+      ok: false,
+      error: 'Simulated database transaction failure',
+    });
+
+    render(
+      <RecordFinancialEntryModal
+        open={true}
+        onOpenChange={vi.fn()}
+        accounts={mockWorkspaceData.accounts}
+        businessDate={mockWorkspaceData.businessDate}
+        expenseCategories={mockWorkspaceData.expenseCategories}
+        initialMode="expense"
+        branchId="11111111-1111-1111-1111-111111111111"
+      />
+    );
+
+    // Fill form
+    fireEvent.change(screen.getByPlaceholderText('0.00'), { target: { value: '300' } });
+    fireEvent.change(screen.getByPlaceholderText(/Shell Gas Station, Clean Linen Services/i), { target: { value: 'Shell' } });
+    fireEvent.change(screen.getByPlaceholderText(/Fuel for home service van/i), { target: { value: 'Gasoline' } });
+
+    // Attach valid file
+    const fileInput = screen.getByTestId('expense-receipt-file-input') as HTMLInputElement;
+    const validFile = new File(['fake-pdf-content'], 'receipt.pdf', { type: 'application/pdf' });
+    fireEvent.change(fileInput, { target: { files: [validFile] } });
+
+    // Submit
+    fireEvent.click(screen.getByRole('button', { name: /Record Expense/i }));
+
+    // Storage upload was called, action failed, orphan cleanup removal was immediately triggered
+    await waitFor(() => {
+      expect(mockStorageRemove).toHaveBeenCalledTimes(1);
+    });
+
+    const uploadedPath = mockStorageUpload.mock.calls[0]![0] as string;
+    expect(mockStorageRemove).toHaveBeenCalledWith([uploadedPath]);
+
+    // Error was rendered to user
+    expect(screen.getByText(/Simulated database transaction failure/i)).toBeTruthy();
   });
 });

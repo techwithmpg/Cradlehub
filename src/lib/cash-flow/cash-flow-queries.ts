@@ -313,6 +313,22 @@ export async function getCashFlowData(
     });
   }
 
+  // Operational expenses calculation from canonical transactions/movements (CF7)
+  const expenseTransactions = todayTransactions.filter(
+    (tx) => tx.transaction_type === 'operational_expense'
+  );
+  let totalExpenseOutflow = 0;
+  for (const tx of expenseTransactions) {
+    const movements = tx.financial_account_movements || [];
+    for (const m of movements) {
+      const amt = Number(m.amount) || 0;
+      if (amt < 0) {
+        totalExpenseOutflow += Math.abs(amt);
+      }
+    }
+  }
+  const expenseCount = expenseTransactions.length;
+
   // 5. Build Cash Flow Coverage categories (13 tiles matching visual reference)
   const coverage: CashFlowCoverageCategory[] = [
     {
@@ -342,10 +358,10 @@ export async function getCashFlowData(
     {
       id: 'expenses',
       label: 'Expenses',
-      amount: 0,
-      countLabel: 'Not yet configured',
-      isAvailable: false,
-      statusText: 'Not yet configured',
+      amount: totalExpenseOutflow,
+      countLabel: expenseCount > 0 ? `${expenseCount} logged` : '0 logged',
+      isAvailable: true,
+      statusText: expenseCount > 0 ? `${expenseCount} logged` : '0 logged',
       iconType: 'shopping_cart',
     },
     {

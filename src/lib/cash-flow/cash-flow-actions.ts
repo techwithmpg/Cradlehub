@@ -103,6 +103,7 @@ export async function recordExpenseAction(
     p_receipt_reference: input.receiptReference || null,
     p_business_date: input.businessDate || null,
     p_notes: input.notes || null,
+    p_receipt_image_path: input.receiptImagePath?.trim() || null,
   });
 
   if (error) {

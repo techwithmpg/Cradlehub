@@ -29,6 +29,7 @@ import {
   Flower2,
   Info,
   Lock,
+  UploadCloud,
 } from 'lucide-react';
 import type {
   MaskedAccountOption,
@@ -48,6 +49,7 @@ import {
   recordTipAction,
   recordOtherEntryAction,
 } from '@/lib/cash-flow/cash-flow-actions';
+import { createClient } from '@/lib/supabase/client';
 
 export type FinancialEntryMode = 'customer_payment' | 'expense' | 'tip' | 'other_entry';
 
@@ -65,8 +67,10 @@ export interface RecordFinancialEntryModalProps {
   accounts: MaskedAccountOption[];
   expenseCategories?: ExpenseCategoryOption[];
   staffOptions?: StaffOption[];
-  payableOrders: PayableOrderOption[];
+  payableOrders?: PayableOrderOption[];
   initialOrderId?: string;
+  initialMode?: FinancialEntryMode;
+  branchId?: string;
   businessDate: string;
   onSuccess?: () => void;
 }
@@ -79,6 +83,8 @@ export function RecordFinancialEntryModal({
   staffOptions,
   payableOrders,
   initialOrderId,
+  initialMode,
+  branchId,
   businessDate,
   onSuccess,
 }: RecordFinancialEntryModalProps) {
@@ -96,6 +102,8 @@ export function RecordFinancialEntryModal({
             staffOptions={staffOptions}
             payableOrders={payableOrders}
             initialOrderId={initialOrderId}
+            initialMode={initialMode}
+            branchId={branchId}
             businessDate={businessDate}
             onSuccess={onSuccess}
           />
@@ -113,8 +121,10 @@ interface RecordFinancialEntryFormProps {
   accounts: MaskedAccountOption[];
   expenseCategories?: ExpenseCategoryOption[];
   staffOptions?: StaffOption[];
-  payableOrders: PayableOrderOption[];
+  payableOrders?: PayableOrderOption[];
   initialOrderId?: string;
+  initialMode?: FinancialEntryMode;
+  branchId?: string;
   businessDate: string;
   onSuccess?: () => void;
 }
@@ -122,14 +132,16 @@ interface RecordFinancialEntryFormProps {
 function RecordFinancialEntryForm({
   onClose,
   accounts,
-  expenseCategories,
-  staffOptions,
-  payableOrders,
+  expenseCategories = [],
+  staffOptions = [],
+  payableOrders = [],
   initialOrderId,
+  initialMode,
+  branchId,
   businessDate,
   onSuccess,
 }: RecordFinancialEntryFormProps) {
-  const [activeMode, setActiveMode] = useState<FinancialEntryMode>('customer_payment');
+  const [activeMode, setActiveMode] = useState<FinancialEntryMode>(initialMode || 'customer_payment');
 
   // Find initially selected order
   const initialOrder =
@@ -206,6 +218,64 @@ function RecordFinancialEntryForm({
   const [expenseDescription, setExpenseDescription] = useState<string>('');
   const [expenseReceiptRef, setExpenseReceiptRef] = useState<string>('');
   const [expenseNotes, setExpenseNotes] = useState<string>('');
+
+  // Receipt attachment state (CF7)
+  const [receiptFile, setReceiptFile] = useState<File | null>(null);
+  const [receiptPreviewUrl, setReceiptPreviewUrl] = useState<string | null>(null);
+  const [receiptError, setReceiptError] = useState<string | null>(null);
+  const [isUploadingReceipt, setIsUploadingReceipt] = useState(false);
+  const receiptFileInputRef = React.useRef<HTMLInputElement | null>(null);
+
+  const handleRemoveReceipt = () => {
+    if (receiptPreviewUrl) {
+      URL.revokeObjectURL(receiptPreviewUrl);
+    }
+    setReceiptFile(null);
+    setReceiptPreviewUrl(null);
+    setReceiptError(null);
+    if (receiptFileInputRef.current) {
+      receiptFileInputRef.current.value = '';
+    }
+  };
+
+  const handleReceiptFileChange = (file: File | null) => {
+    if (!file) return;
+    const ALLOWED_MIME = ['image/jpeg', 'image/png', 'image/webp', 'application/pdf'];
+    const MAX_SIZE = 5 * 1024 * 1024; // 5 MB
+
+    if (!ALLOWED_MIME.includes(file.type)) {
+      setReceiptError('Invalid file type. Allowed formats: JPEG, PNG, WebP, PDF.');
+      return;
+    }
+    if (file.size > MAX_SIZE) {
+      setReceiptError('File size exceeds the 5 MB limit.');
+      return;
+    }
+
+    if (receiptPreviewUrl) {
+      URL.revokeObjectURL(receiptPreviewUrl);
+    }
+
+    setReceiptError(null);
+    setReceiptFile(file);
+    if (file.type.startsWith('image/')) {
+      setReceiptPreviewUrl(URL.createObjectURL(file));
+    } else {
+      setReceiptPreviewUrl(null);
+    }
+  };
+
+  const generateReceiptPath = (branch: string, dateStr: string, originalName: string) => {
+    const cleanDate = dateStr.replace(/[^0-9]/g, '') || new Date().toISOString().slice(0, 10).replace(/-/g, '');
+    const yyyy = dateStr.slice(0, 4) || new Date().getFullYear().toString();
+    const mm = dateStr.slice(5, 7) || String(new Date().getMonth() + 1).padStart(2, '0');
+    const extMatch = originalName.match(/\.([a-zA-Z0-9]+)$/);
+    const ext = extMatch?.[1] ? extMatch[1].toLowerCase() : 'jpg';
+    const randomHex = Array.from(crypto.getRandomValues(new Uint8Array(4)))
+      .map((b) => b.toString(16).padStart(2, '0'))
+      .join('');
+    return `${branch}/${yyyy}/${mm}/rec_${cleanDate}_${randomHex}.${ext}`;
+  };
 
   // Tip state
   const [tipCustodyType, setTipCustodyType] = useState<'direct_cash' | 'company_custodied'>('direct_cash');
@@ -417,6 +487,8 @@ function RecordFinancialEntryForm({
   const handleExpenseSubmit = async () => {
     setErrorMessage(null);
     setSuccessMessage(null);
+    setReceiptError(null);
+
     const amt = typeof expenseAmount === 'number' ? expenseAmount : parseFloat(expenseAmount);
     if (!amt || amt <= 0) {
       setErrorMessage('Please enter a valid expense amount greater than ₱0.00.');
@@ -435,21 +507,74 @@ function RecordFinancialEntryForm({
       return;
     }
 
+    const effectiveBranchId =
+      branchId ||
+      accounts.find((a) => a.id === expenseAccountId)?.branchId ||
+      accounts[0]?.branchId ||
+      '';
+
+    let uploadedPath: string | undefined = undefined;
+
+    // Optional receipt upload (CF7)
+    if (receiptFile) {
+      if (!effectiveBranchId) {
+        setErrorMessage('Branch context is required to upload receipt.');
+        return;
+      }
+      setIsUploadingReceipt(true);
+      const objectPath = generateReceiptPath(effectiveBranchId, businessDate, receiptFile.name);
+      try {
+        const supabase = createClient();
+        const { error: uploadErr } = await supabase.storage
+          .from('expense-receipts')
+          .upload(objectPath, receiptFile, {
+            contentType: receiptFile.type,
+            upsert: false,
+          });
+
+        if (uploadErr) {
+          setIsUploadingReceipt(false);
+          setErrorMessage(
+            `Receipt upload failed: ${uploadErr.message}. You can retry, or remove the receipt to record the expense without it.`
+          );
+          return;
+        }
+        uploadedPath = objectPath;
+      } catch (uploadException: unknown) {
+        setIsUploadingReceipt(false);
+        setErrorMessage(
+          `Receipt upload failed: ${uploadException instanceof Error ? uploadException.message : 'Network error'}. You can retry, or remove the receipt to proceed.`
+        );
+        return;
+      }
+    }
+
     setIsSubmitting(true);
     try {
       const res = await recordExpenseAction({
+        branchId: effectiveBranchId || undefined,
         amount: amt,
         categoryId: expenseCategoryId,
         financialAccountId: expenseAccountId,
         payee: expensePayee.trim() || 'Direct Vendor',
         description: expenseDescription.trim(),
         receiptReference: expenseReceiptRef.trim() || undefined,
+        receiptImagePath: uploadedPath,
         businessDate,
         notes: expenseNotes.trim() || undefined,
-        idempotencyKey: `cf6_exp_${Date.now()}_${Math.random().toString(36).substring(2, 9)}`,
+        idempotencyKey: `cf7_exp_${Date.now()}_${Math.random().toString(36).substring(2, 9)}`,
       });
 
       if (!res.ok) {
+        // Orphan cleanup: if upload succeeded but database posting failed, remove the uploaded object
+        if (uploadedPath) {
+          try {
+            const supabase = createClient();
+            await supabase.storage.from('expense-receipts').remove([uploadedPath]);
+          } catch (cleanupErr) {
+            console.error('Failed to clean up orphaned receipt object:', cleanupErr);
+          }
+        }
         setErrorMessage(res.error || 'Failed to record expense.');
         return;
       }
@@ -460,9 +585,19 @@ function RecordFinancialEntryForm({
         onClose();
       }, 1000);
     } catch (err: unknown) {
+      // Orphan cleanup on unexpected error
+      if (uploadedPath) {
+        try {
+          const supabase = createClient();
+          await supabase.storage.from('expense-receipts').remove([uploadedPath]);
+        } catch (cleanupErr) {
+          console.error('Failed to clean up orphaned receipt object:', cleanupErr);
+        }
+      }
       setErrorMessage(err instanceof Error ? err.message : 'An unexpected error occurred.');
     } finally {
       setIsSubmitting(false);
+      setIsUploadingReceipt(false);
     }
   };
 
@@ -868,6 +1003,105 @@ function RecordFinancialEntryForm({
                       className="w-full px-3 py-2 bg-white border border-[#EAE4DC] rounded-xl text-xs text-[#1E1916] placeholder:text-[#9C8878] focus:outline-none focus:border-[#1B4D3E]"
                     />
                   </div>
+
+                  {/* Receipt Photo Attachment (CF7) */}
+                  <div>
+                    <div className="flex items-center justify-between mb-1">
+                      <label className="text-[11px] font-semibold text-[#7A6E65]">
+                        Receipt Attachment <span className="text-[10px] font-normal text-[#9C8878]">(Optional)</span>
+                      </label>
+                      {receiptFile && (
+                        <span className="text-[10px] text-[#1B4D3E] font-medium">
+                          {(receiptFile.size / (1024 * 1024)).toFixed(2)} MB
+                        </span>
+                      )}
+                    </div>
+
+                    <input
+                      ref={receiptFileInputRef}
+                      type="file"
+                      data-testid="expense-receipt-file-input"
+                      accept="image/jpeg,image/png,image/webp,application/pdf"
+                      className="hidden"
+                      onChange={(e) => {
+                        const file = e.target.files?.[0] || null;
+                        handleReceiptFileChange(file);
+                      }}
+                    />
+
+                    {!receiptFile ? (
+                      <div
+                        onClick={() => receiptFileInputRef.current?.click()}
+                        onDragOver={(e) => e.preventDefault()}
+                        onDrop={(e) => {
+                          e.preventDefault();
+                          const file = e.dataTransfer.files?.[0] || null;
+                          handleReceiptFileChange(file);
+                        }}
+                        className="group border border-dashed border-[#D4C8BC] hover:border-[#1B4D3E] bg-[#FAF8F5] hover:bg-[#F5F2EC] rounded-xl p-3.5 text-center cursor-pointer transition flex flex-col items-center justify-center gap-1.5"
+                      >
+                        <div className="p-2 rounded-full bg-white text-[#6B5D52] group-hover:text-[#1B4D3E] shadow-2xs transition">
+                          <UploadCloud className="w-4 h-4" />
+                        </div>
+                        <div className="text-xs text-[#1E1916] font-medium">
+                          <span className="text-[#1B4D3E] underline font-semibold">Click to upload receipt</span> or drag and drop
+                        </div>
+                        <p className="text-[10px] text-[#9C8878]">
+                          JPEG, PNG, WebP or PDF (max 5 MB) · Private audit evidence
+                        </p>
+                      </div>
+                    ) : (
+                      <div className="flex items-center justify-between p-2.5 bg-white border border-[#EAE4DC] rounded-xl">
+                        <div className="flex items-center gap-2.5 min-w-0">
+                          {receiptPreviewUrl ? (
+                            /* eslint-disable-next-line @next/next/no-img-element */
+                            <img
+                              src={receiptPreviewUrl}
+                              alt="Receipt preview"
+                              className="w-10 h-10 object-cover rounded-lg border border-[#EAE4DC] flex-shrink-0"
+                            />
+                          ) : (
+                            <div className="w-10 h-10 rounded-lg bg-amber-50 border border-amber-200 flex items-center justify-center flex-shrink-0 text-amber-800">
+                              <FileText className="w-5 h-5" />
+                            </div>
+                          )}
+                          <div className="min-w-0">
+                            <p className="text-xs font-semibold text-[#1E1916] truncate max-w-[220px]">
+                              {receiptFile.name}
+                            </p>
+                            <p className="text-[10px] text-[#7A6E65]">
+                              {(receiptFile.size / (1024 * 1024)).toFixed(2)} MB · {receiptFile.type || 'Document'}
+                            </p>
+                          </div>
+                        </div>
+
+                        <div className="flex items-center gap-1.5 flex-shrink-0">
+                          <button
+                            type="button"
+                            onClick={() => receiptFileInputRef.current?.click()}
+                            className="px-2 py-1 text-[11px] font-semibold text-[#1B4D3E] hover:bg-[#EEF8F2] rounded-lg transition"
+                          >
+                            Replace
+                          </button>
+                          <button
+                            type="button"
+                            onClick={handleRemoveReceipt}
+                            className="p-1 text-[#9C8878] hover:text-rose-600 hover:bg-rose-50 rounded-lg transition"
+                            title="Remove receipt"
+                          >
+                            <Trash2 className="w-4 h-4" />
+                          </button>
+                        </div>
+                      </div>
+                    )}
+
+                    {receiptError && (
+                      <p className="mt-1 text-[11px] text-rose-600 font-medium flex items-center gap-1">
+                        <AlertCircle className="w-3.5 h-3.5 flex-shrink-0" />
+                        <span>{receiptError}</span>
+                      </p>
+                    )}
+                  </div>
                 </div>
               </div>
 
@@ -931,6 +1165,14 @@ function RecordFinancialEntryForm({
                       {accounts.find((a) => a.id === expenseAccountId)?.name || 'Account'}
                     </span>
                   </div>
+                  {receiptFile && (
+                    <div className="flex items-center justify-between text-[#7A6E65]">
+                      <span>Receipt File</span>
+                      <span className="font-semibold text-emerald-700 flex items-center gap-1">
+                        <CheckCircle2 className="w-3.5 h-3.5" /> Attached
+                      </span>
+                    </div>
+                  )}
                   <div className="pt-2 border-t border-[#F0ECE5] flex items-center justify-between">
                     <span className="font-bold text-[#D9383A]">Disbursement Total</span>
                     <span className="font-bold text-sm text-[#D9383A] tabular-nums font-mono">
@@ -2072,11 +2314,23 @@ function RecordFinancialEntryForm({
             <button
               type="button"
               onClick={handleExpenseSubmit}
-              disabled={isSubmitting || !expenseAmount || Number(expenseAmount) <= 0 || !expenseDescription.trim()}
+              disabled={
+                isSubmitting ||
+                isUploadingReceipt ||
+                !expenseAmount ||
+                Number(expenseAmount) <= 0 ||
+                !expenseDescription.trim()
+              }
               className="px-5 py-2 bg-[#163E32] hover:bg-[#1B4D3E] text-white text-xs font-semibold rounded-xl shadow-2xs transition disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-1.5"
             >
-              {isSubmitting && <Loader2 className="w-3.5 h-3.5 animate-spin" />}
-              <span>Record Expense</span>
+              {(isSubmitting || isUploadingReceipt) && <Loader2 className="w-3.5 h-3.5 animate-spin" />}
+              <span>
+                {isUploadingReceipt
+                  ? 'Uploading Receipt...'
+                  : isSubmitting
+                  ? 'Recording Expense...'
+                  : 'Record Expense'}
+              </span>
             </button>
           )}
 

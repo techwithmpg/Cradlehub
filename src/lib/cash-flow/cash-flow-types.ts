@@ -197,6 +197,7 @@ export interface RecordExpenseInput {
   payee: string;
   description: string;
   receiptReference?: string;
+  receiptImagePath?: string;
   businessDate?: string;
   notes?: string;
   idempotencyKey?: string;

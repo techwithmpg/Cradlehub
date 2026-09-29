@@ -37,6 +37,7 @@ interface TodayTabProps {
   recentPayments: RecentPaymentItem[];
   onNavigateToLedger: () => void;
   onRecordPaymentClick: (orderId?: string) => void;
+  onRecordExpenseClick?: () => void;
 }
 
 export function TodayTab({
@@ -47,6 +48,7 @@ export function TodayTab({
   recentPayments,
   onNavigateToLedger,
   onRecordPaymentClick,
+  onRecordExpenseClick,
 }: TodayTabProps) {
   const formatPeso = (val: number) =>
     `₱${val.toLocaleString('en-PH', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
@@ -175,33 +177,57 @@ export function TodayTab({
           </p>
 
           <div className="grid grid-cols-2 sm:grid-cols-3 gap-2.5">
-            {coverage.map((cat) => (
-              <div
-                key={cat.id}
-                className={`p-2.5 rounded-lg border flex items-start gap-2.5 transition-all ${
-                  cat.isAvailable
-                    ? 'border-[#EAE4DC] bg-[#FAF8F5] hover:border-[#D4C8BC]'
-                    : 'border-[#F0ECE5] bg-[#FCFBF9] opacity-75'
-                }`}
-              >
+            {coverage.map((cat) => {
+              const isExpensesTile = cat.id === 'expenses' && !!onRecordExpenseClick;
+              return (
                 <div
-                  className={`p-1.5 rounded-md flex-shrink-0 ${
-                    cat.isAvailable ? 'bg-white text-[#1B4D3E] shadow-2xs' : 'bg-[#F0ECE5] text-[#9C8878]'
+                  key={cat.id}
+                  onClick={isExpensesTile ? onRecordExpenseClick : undefined}
+                  role={isExpensesTile ? 'button' : undefined}
+                  tabIndex={isExpensesTile ? 0 : undefined}
+                  onKeyDown={
+                    isExpensesTile
+                      ? (e) => {
+                          if (e.key === 'Enter' || e.key === ' ') {
+                            e.preventDefault();
+                            onRecordExpenseClick();
+                          }
+                        }
+                      : undefined
+                  }
+                  className={`p-2.5 rounded-lg border flex items-start gap-2.5 transition-all ${
+                    isExpensesTile
+                      ? 'cursor-pointer hover:border-amber-400 hover:bg-amber-50/50 hover:shadow-2xs active:scale-[0.99] '
+                      : ''
+                  }${
+                    cat.isAvailable
+                      ? 'border-[#EAE4DC] bg-[#FAF8F5] hover:border-[#D4C8BC]'
+                      : 'border-[#F0ECE5] bg-[#FCFBF9] opacity-75'
                   }`}
                 >
-                  {renderCategoryIcon(cat.iconType)}
+                  <div
+                    className={`p-1.5 rounded-md flex-shrink-0 ${
+                      cat.isAvailable
+                        ? isExpensesTile
+                          ? 'bg-amber-100 text-amber-800 shadow-2xs'
+                          : 'bg-white text-[#1B4D3E] shadow-2xs'
+                        : 'bg-[#F0ECE5] text-[#9C8878]'
+                    }`}
+                  >
+                    {renderCategoryIcon(cat.iconType)}
+                  </div>
+                  <div className="min-w-0 flex-1">
+                    <p className="text-[11px] font-semibold text-[#1E1916] truncate">{cat.label}</p>
+                    <p className="text-xs font-bold text-[#1E1916] tabular-nums mt-0.5">
+                      {cat.isAvailable ? formatPeso(cat.amount) : 'Not available'}
+                    </p>
+                    <p className="text-[10px] text-[#9C8878] truncate mt-0.5">
+                      {cat.countLabel}
+                    </p>
+                  </div>
                 </div>
-                <div className="min-w-0 flex-1">
-                  <p className="text-[11px] font-semibold text-[#1E1916] truncate">{cat.label}</p>
-                  <p className="text-xs font-bold text-[#1E1916] tabular-nums mt-0.5">
-                    {cat.isAvailable ? formatPeso(cat.amount) : 'Not available'}
-                  </p>
-                  <p className="text-[10px] text-[#9C8878] truncate mt-0.5">
-                    {cat.countLabel}
-                  </p>
-                </div>
-              </div>
-            ))}
+              );
+            })}
           </div>
         </div>
       </div>
