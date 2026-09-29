@@ -5,6 +5,8 @@ import { Button } from "@/components/ui/button";
 import { getServiceById } from "@/lib/queries/services";
 import { getAllCategories } from "@/lib/queries/services";
 import { updateServiceAction } from "@/app/(dashboard)/owner/services/actions";
+import { getMarketingMediaAssets } from "@/lib/queries/marketing-media";
+import { OwnerServiceForm, OwnerServiceImageField } from "./owner-service-form";
 import { formatCurrency } from "@/lib/utils";
 import { ArrowLeft } from "lucide-react";
 
@@ -14,27 +16,31 @@ type Props = {
 
 export default async function EditServicePage({ params }: Props) {
   const { serviceId } = await params;
-  const [service, categories] = await Promise.all([
+  const [service, categories, mediaAssets] = await Promise.all([
     getServiceById(serviceId),
     getAllCategories(),
+    getMarketingMediaAssets({ limit: 150 }),
   ]);
 
   if (!service) notFound();
 
-  async function handleUpdate(formData: FormData) {
+  async function handleUpdate(_state: { success: boolean; error?: string }, formData: FormData) {
     "use server";
     const result = await updateServiceAction({
       serviceId,
       name: formData.get("name") as string,
-      description: (formData.get("description") as string) || undefined,
+      description: (formData.get("description") as string) ?? "",
       durationMinutes: Number(formData.get("durationMinutes")),
       price: Number(formData.get("price")),
       categoryId: (formData.get("categoryId") as string) || undefined,
-    });
+      imageUrl: (formData.get("imageUrl") as string) || null,
+      imageAlt: (formData.get("imageAlt") as string) || null,
+    }).catch(() => ({ success: false, error: "Service save failed. Please try again." }));
 
     if (result.success) {
       redirect("/owner/services");
     }
+    return { success: false, error: result.error ?? "Service save failed. Please try again." };
   }
 
   return (
@@ -64,7 +70,7 @@ export default async function EditServicePage({ params }: Props) {
           padding: "1.5rem",
         }}
       >
-        <form action={handleUpdate} style={{ display: "flex", flexDirection: "column", gap: "1.25rem" }}>
+        <OwnerServiceForm action={handleUpdate}>
           {/* Name */}
           <div>
             <label
@@ -168,6 +174,12 @@ export default async function EditServicePage({ params }: Props) {
             />
           </div>
 
+          <OwnerServiceImageField
+            imageUrl={service.image_url ?? ""}
+            imageAlt={service.image_alt ?? ""}
+            mediaAssets={mediaAssets}
+          />
+
           {/* Duration + Price */}
           <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "1rem" }}>
             <div>
@@ -266,7 +278,7 @@ export default async function EditServicePage({ params }: Props) {
               <Link href="/owner/services">Cancel</Link>
             </Button>
           </div>
-        </form>
+        </OwnerServiceForm>
       </div>
     </div>
   );

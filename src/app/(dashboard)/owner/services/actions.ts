@@ -19,6 +19,7 @@ import {
 } from "@/lib/cache/cache-tags";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { synchronizeBranchServiceCatalog } from "@/lib/services/service-catalog";
+import { updateCanonicalService } from "@/lib/services/service-mutation";
 
 function revalidateServicePaths() {
   revalidatePath("/");
@@ -128,21 +129,7 @@ export async function updateServiceAction(rawInput: unknown) {
   if (!parsed.success) return { success: false, error: parsed.error.issues[0]?.message };
   const supabase = await requireOwner();
   if (!supabase) return { success: false, error: "Unauthorized" };
-  const { serviceId, ...updates } = parsed.data;
-  const mapped = {
-    ...(updates.categoryId      !== undefined && { category_id:      updates.categoryId }),
-    ...(updates.name            !== undefined && { name:             updates.name }),
-    ...(updates.description     !== undefined && { description:      updates.description }),
-    ...(updates.durationMinutes !== undefined && { duration_minutes: updates.durationMinutes }),
-    ...(updates.price           !== undefined && { price:            updates.price }),
-    ...(updates.bufferBefore    !== undefined && { buffer_before:    updates.bufferBefore }),
-    ...(updates.bufferAfter     !== undefined && { buffer_after:     updates.bufferAfter }),
-    ...(updates.isActive        !== undefined && { is_active:        updates.isActive }),
-  };
-  const { error } = await supabase.from("services").update(mapped).eq("id", serviceId);
-  if (error) return { success: false, error: error.message };
-  await invalidateServiceSurfaces(serviceId);
-  return { success: true };
+  return updateCanonicalService(supabase, parsed.data);
 }
 
 export async function toggleServiceActiveAction(rawInput: unknown) {

@@ -1,10 +1,8 @@
 "use server";
 
-import { revalidatePath } from "next/cache";
 import { createClient } from "@/lib/supabase/server";
-import { cacheTags, invalidateTag } from "@/lib/cache/cache-tags";
 import { getMarketingAccessContext } from "@/lib/queries/marketing-content";
-import type { Database, Json } from "@/types/supabase";
+import { updateCanonicalService } from "@/lib/services/service-mutation";
 
 export interface UpdateServicePresentationParams {
   serviceId: string;
@@ -20,70 +18,7 @@ export async function updateServicePresentationDirect(
   supabase: Awaited<ReturnType<typeof createClient>>,
   params: UpdateServicePresentationParams
 ): Promise<{ success: boolean; error?: string }> {
-  const {
-    serviceId,
-    description,
-    shortDescription,
-    imageUrl,
-    imageAlt,
-    badges = [],
-    inclusions = [],
-  } = params;
-
-  // Fetch existing service metadata so we preserve non-marketing metadata fields
-  const { data: existingService, error: fetchError } = await supabase
-    .from("services")
-    .select("metadata")
-    .eq("id", serviceId)
-    .single();
-
-  if (fetchError || !existingService) {
-    return {
-      success: false,
-      error: `Failed to read existing service: ${fetchError?.message ?? "Service not found."}`,
-    };
-  }
-
-  const existingMeta = (
-    existingService.metadata &&
-    typeof existingService.metadata === "object" &&
-    !Array.isArray(existingService.metadata)
-      ? existingService.metadata
-      : {}
-  ) as Record<string, Json>;
-
-  const updatedMetadata: Record<string, Json> = {
-    ...existingMeta,
-    public_short_description:
-      shortDescription ?? (existingMeta.public_short_description as Json) ?? null,
-    service_badges: badges,
-    inclusions: inclusions,
-  };
-
-  const updatePayload: Database["public"]["Tables"]["services"]["Update"] = {
-    metadata: updatedMetadata as unknown as Json,
-  };
-  if (imageUrl !== undefined) updatePayload.image_url = imageUrl;
-  if (imageAlt !== undefined) updatePayload.image_alt = imageAlt;
-  if (description !== undefined) updatePayload.description = description;
-
-  const { error: updateError } = await supabase
-    .from("services")
-    .update(updatePayload)
-    .eq("id", serviceId);
-
-  if (updateError) {
-    return { success: false, error: updateError.message };
-  }
-
-  invalidateTag(cacheTags.serviceCatalog);
-  revalidatePath("/marketing");
-  revalidatePath("/owner/marketing");
-  revalidatePath("/services");
-  revalidatePath("/book");
-  revalidatePath("/");
-
-  return { success: true };
+  return updateCanonicalService(supabase, params);
 }
 
 export async function updateServicePresentationAction(
@@ -109,7 +44,12 @@ export async function updateServicePresentationAction(
     // fallback empty
   }
 
-  const context = await getMarketingAccessContext();
+  let context;
+  try {
+    context = await getMarketingAccessContext();
+  } catch {
+    return { success: false, error: "Could not verify access. Please try again." };
+  }
   if (!context) return { success: false, error: "Unauthorized" };
 
   if (context.role !== "owner") {
@@ -128,7 +68,7 @@ export async function updateServicePresentationAction(
     imageAlt,
     badges,
     inclusions,
-  });
+  }).catch(() => ({ success: false, error: "Service save failed. Please try again." }));
 
   if (!result.success) {
     return { success: false, error: result.error };

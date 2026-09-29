@@ -303,6 +303,11 @@ export function ServicesStudioView({
           {saveState.message}
         </div>
       )}
+      {saveState?.error && (
+        <div role="alert" className="rounded-lg border border-red-500/30 bg-red-500/10 p-3 text-xs text-red-700 dark:text-red-300">
+          {saveState.error} Your edits are still here; review them and retry.
+        </div>
+      )}
 
       {/* Top Filter and Search Bar (Standardized Light Panel) */}
       <div className="flex flex-col gap-4 rounded-2xl border border-[var(--cs-border)] bg-[var(--cs-surface)] p-4 shadow-xs md:flex-row md:items-center md:justify-between">
@@ -611,7 +616,7 @@ export function ServicesStudioView({
                         <input type="hidden" name="altText" value={formValues.imageAlt} />
                         <input
                           type="hidden"
-                          name="metadata"
+                          name="metadataJson"
                           value={JSON.stringify({
                             shortDescription: formValues.shortDescription,
                             badges: formValues.badges,

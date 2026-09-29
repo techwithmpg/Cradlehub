@@ -64,7 +64,7 @@ export async function saveMarketingDraftAction(
     sortOrder: numberValue(formData, "sortOrder"),
     isEnabled: formData.get("isEnabled") === "on",
     metadata,
-  });
+  }).catch(() => ({ success: false as const, error: "Draft save failed. Please try again." }));
 
   if (!result.success) return { success: false, error: result.error };
   return { success: true, message: result.message, draft: result.draft };

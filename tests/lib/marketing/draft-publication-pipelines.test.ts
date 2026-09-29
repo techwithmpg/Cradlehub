@@ -314,7 +314,7 @@ describe("Draft Publication Pipelines (C5.4 Review Corrections)", () => {
 
   describe("Service Draft Publication", () => {
     it("publishes service draft by updating ONLY presentation fields and preserving all non-marketing metadata", async () => {
-      const realServiceId = "srv-aromatherapy-01";
+      const realServiceId = "33333333-3333-4333-8333-333333333333";
       const draftUuid = "44444444-4444-4444-8444-444444444444";
       const existingServiceMeta = {
         internal_code: "AROMA_60",
@@ -370,7 +370,7 @@ describe("Draft Publication Pipelines (C5.4 Review Corrections)", () => {
             return {
               select: vi.fn().mockReturnValue({
                 eq: vi.fn().mockReturnValue({
-                  single: vi.fn().mockResolvedValue({
+                  maybeSingle: vi.fn().mockResolvedValue({
                     data: { metadata: existingServiceMeta },
                     error: null,
                   }),
@@ -379,8 +379,19 @@ describe("Draft Publication Pipelines (C5.4 Review Corrections)", () => {
               update: vi.fn().mockImplementation((payload) => {
                 capturedServiceUpdatePayload = payload;
                 return {
-                  eq: vi.fn().mockResolvedValue({ error: null }),
+                  eq: vi.fn().mockReturnValue({
+                    select: vi.fn().mockReturnValue({
+                      maybeSingle: vi.fn().mockResolvedValue({ data: { id: realServiceId }, error: null }),
+                    }),
+                  }),
                 };
+              }),
+            };
+          }
+          if (table === "branch_services") {
+            return {
+              select: vi.fn().mockReturnValue({
+                eq: vi.fn().mockResolvedValue({ data: [], error: null }),
               }),
             };
           }

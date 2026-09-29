@@ -227,7 +227,8 @@ export async function publishMarketingDraftAction(
 ): Promise<MarketingActionState> {
   void prevState;
   if (!(await requireOwner())) return { success: false, error: "Unauthorized" };
-  const result = await publishMarketingContentDraft({ id: text(formData, "id") });
+  const result = await publishMarketingContentDraft({ id: text(formData, "id") })
+    .catch(() => ({ success: false as const, error: "Publication failed. Please try again." }));
 
   if (!result.success) return { success: false, error: result.error };
   return { success: true, message: result.message, draft: result.draft };

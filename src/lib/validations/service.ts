@@ -23,7 +23,12 @@ export type CreateServiceInput = z.infer<typeof createServiceSchema>;
 
 export const updateServiceSchema = createServiceSchema
   .partial()
-  .extend({ serviceId: uuid, isActive: z.boolean().optional() });
+  .extend({
+    serviceId: uuid,
+    isActive: z.boolean().optional(),
+    imageUrl: z.string().max(2048).nullable().optional(),
+    imageAlt: z.string().max(300).nullable().optional(),
+  });
 export type UpdateServiceInput = z.infer<typeof updateServiceSchema>;
 
 export const toggleServiceSchema = z.object({

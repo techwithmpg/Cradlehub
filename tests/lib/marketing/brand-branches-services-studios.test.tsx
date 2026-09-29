@@ -575,4 +575,14 @@ describe("C5.4 Review Corrections — Isolation, Hydration, and Approved Draft S
 
     expect(screen.getByRole("button", { name: /Publish to Live/i })).toBeDefined();
   });
+
+  it("ServicesStudioView submits service presentation metadata under the server action field name", () => {
+    render(<ServicesStudioView role="digital_marketer" services={mockServices} />);
+    const saveForm = screen.getByRole("button", { name: /Save Draft/i }).closest("form");
+    expect(saveForm).not.toBeNull();
+    const metadata = saveForm?.querySelector<HTMLInputElement>('input[name="metadataJson"]');
+    expect(metadata).not.toBeNull();
+    expect(JSON.parse(metadata?.value ?? "{}")).toHaveProperty("shortDescription");
+    expect(saveForm?.querySelector('input[name="metadata"]')).toBeNull();
+  });
 });
