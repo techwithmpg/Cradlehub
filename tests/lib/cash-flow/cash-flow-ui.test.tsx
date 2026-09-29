@@ -6,15 +6,11 @@ import { render, screen, fireEvent, cleanup, waitFor } from '@testing-library/re
 // Mock Next.js navigation
 const mockPush = vi.fn();
 const mockRefresh = vi.fn();
-let mockSearchParamTab = 'today';
 
 vi.mock('next/navigation', () => ({
   useRouter: () => ({
     push: mockPush,
     refresh: mockRefresh,
-  }),
-  useSearchParams: () => ({
-    get: (key: string) => (key === 'tab' ? mockSearchParamTab : null),
   }),
 }));
 
@@ -246,7 +242,6 @@ const mockWorkspaceData: CashFlowWorkspaceData = {
 describe('CF5 Cash Flow UI Foundation', () => {
   beforeEach(() => {
     vi.clearAllMocks();
-    mockSearchParamTab = 'today';
     mockStorageUpload.mockResolvedValue({ error: null });
     mockStorageRemove.mockResolvedValue({ error: null });
     if (typeof window !== 'undefined' && !window.URL.createObjectURL) {
@@ -394,13 +389,60 @@ describe('CF5 Cash Flow UI Foundation', () => {
     expect(screen.getByText('No day-close audit activity yet.')).toBeTruthy();
   });
 
-  it('9. Tab switching updates navigation query parameter', () => {
+  it('9. Cash Flow opens on Today by default', () => {
+    render(<CashFlowWorkspace initialData={mockWorkspaceData} />);
+    expect(screen.getByText('Payment mix')).toBeTruthy();
+    expect(screen.queryByText('NET FLOW')).toBeNull();
+  });
+
+  it('9a. A valid initial Ledger tab renders from the loaded workspace data', () => {
+    render(<CashFlowWorkspace initialData={mockWorkspaceData} initialTab="ledger" />);
+    expect(screen.getByText('NET FLOW')).toBeTruthy();
+    expect(screen.queryByText('Payment mix')).toBeNull();
+  });
+
+  it('9b. Tab clicks show all loaded views without router navigation or refresh', () => {
     render(<CashFlowWorkspace initialData={mockWorkspaceData} />);
 
-    const ledgerButton = screen.getByRole('button', { name: 'Ledger' });
-    fireEvent.click(ledgerButton);
+    fireEvent.click(screen.getByRole('button', { name: 'Ledger' }));
+    expect(screen.getByText('NET FLOW')).toBeTruthy();
 
-    expect(mockPush).toHaveBeenCalledWith('/crm/cash-flow?tab=ledger', { scroll: false });
+    fireEvent.click(screen.getByRole('button', { name: 'Day Close' }));
+    expect(screen.getByText(/Auto-generated Day Summary · 2026-09-28/i)).toBeTruthy();
+
+    fireEvent.click(screen.getByRole('button', { name: 'History' }));
+    expect(screen.getByText('No historical day close records')).toBeTruthy();
+
+    expect(mockPush).not.toHaveBeenCalled();
+    expect(mockRefresh).not.toHaveBeenCalled();
+  });
+
+  it('9c. A successful payment still refreshes financial data', async () => {
+    mockRecordOrderPaymentAction.mockResolvedValueOnce({
+      ok: true,
+      data: { success: true, transactionId: 'tx-new-123', orderId: 'ord-1' },
+    });
+    render(<CashFlowWorkspace initialData={mockWorkspaceData} />);
+
+    fireEvent.click(screen.getByRole('button', { name: 'Record Payment' }));
+    fireEvent.click(screen.getByRole('button', { name: /Record Entry/i }));
+
+    await waitFor(() => expect(mockRefresh).toHaveBeenCalledTimes(1));
+    expect(mockPush).not.toHaveBeenCalled();
+  });
+
+  it('9d. A successful expense still refreshes financial data', async () => {
+    mockRecordExpenseAction.mockResolvedValueOnce({ ok: true, transactionId: 'tx-exp-123' });
+    render(<CashFlowWorkspace initialData={mockWorkspaceData} />);
+
+    fireEvent.click(screen.getByRole('button', { name: 'Record Expense' }));
+    fireEvent.change(screen.getByPlaceholderText('0.00'), { target: { value: '450' } });
+    fireEvent.change(screen.getByPlaceholderText(/Shell Gas Station, Clean Linen Services/i), { target: { value: 'Ace Hardware' } });
+    fireEvent.change(screen.getByPlaceholderText(/Fuel for home service van/i), { target: { value: 'Supplies' } });
+    fireEvent.click(screen.getAllByRole('button', { name: 'Record Expense' }).at(-1)!);
+
+    await waitFor(() => expect(mockRefresh).toHaveBeenCalledTimes(1));
+    expect(mockPush).not.toHaveBeenCalled();
   });
 
   it('10. Record Financial Entry modal renders centered with 4 modes and Customer Payment active', () => {

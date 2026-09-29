@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useState } from 'react';
-import { useRouter, useSearchParams } from 'next/navigation';
+import { useRouter } from 'next/navigation';
 import {
   RefreshCw,
   Download,
@@ -19,23 +19,24 @@ import {
   type FinancialEntryMode,
 } from './record-financial-entry-modal';
 
+export type CashFlowTab = 'today' | 'ledger' | 'day-close' | 'history';
+
 interface CashFlowWorkspaceProps {
   initialData: CashFlowWorkspaceData;
+  initialTab?: CashFlowTab;
 }
 
-export function CashFlowWorkspace({ initialData }: CashFlowWorkspaceProps) {
+export function CashFlowWorkspace({ initialData, initialTab = 'today' }: CashFlowWorkspaceProps) {
   const router = useRouter();
-  const searchParams = useSearchParams();
-
-  const activeTab = searchParams.get('tab') || 'today';
+  const [activeTab, setActiveTab] = useState<CashFlowTab>(initialTab);
 
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [isRecordPaymentOpen, setIsRecordPaymentOpen] = useState(false);
   const [targetOrderId, setTargetOrderId] = useState<string | undefined>(undefined);
   const [entryModalMode, setEntryModalMode] = useState<FinancialEntryMode>('customer_payment');
 
-  const handleTabChange = (newTab: string) => {
-    router.push(`/crm/cash-flow?tab=${newTab}`, { scroll: false });
+  const handleTabChange = (newTab: CashFlowTab) => {
+    setActiveTab(newTab);
   };
 
   const handleRefresh = () => {
@@ -58,7 +59,7 @@ export function CashFlowWorkspace({ initialData }: CashFlowWorkspaceProps) {
     setIsRecordPaymentOpen(true);
   };
 
-  const tabs = [
+  const tabs: { key: CashFlowTab; label: string }[] = [
     { key: 'today', label: 'Today' },
     { key: 'ledger', label: 'Ledger' },
     { key: 'day-close', label: 'Day Close' },

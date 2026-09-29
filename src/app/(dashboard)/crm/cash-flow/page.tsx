@@ -1,7 +1,7 @@
 import { getFrontDeskContext } from '@/lib/queries/crm-context';
 import { getBranchBusinessDate } from '@/lib/engine/slot-time';
 import { getCashFlowData } from '@/lib/cash-flow/cash-flow-queries';
-import { CashFlowWorkspace } from '@/components/features/cash-flow/cash-flow-workspace';
+import { CashFlowWorkspace, type CashFlowTab } from '@/components/features/cash-flow/cash-flow-workspace';
 
 export default async function CrmCashFlowPage({
   searchParams,
@@ -10,12 +10,17 @@ export default async function CrmCashFlowPage({
 }) {
   const { branchId, branchName } = await getFrontDeskContext();
   const params = await searchParams;
+  const requestedTab = params.tab;
+  const initialTab: CashFlowTab =
+    requestedTab === 'ledger' || requestedTab === 'day-close' || requestedTab === 'history'
+      ? requestedTab
+      : 'today';
 
   const today = getBranchBusinessDate();
   const selectedDate = typeof params.date === 'string' ? params.date : today;
 
   const filters = {
-    tab: typeof params.tab === 'string' ? params.tab : 'today',
+    tab: initialTab,
     search: typeof params.search === 'string' ? params.search : undefined,
     category: typeof params.category === 'string' ? params.category : undefined,
     method: typeof params.method === 'string' ? params.method : undefined,
@@ -25,5 +30,5 @@ export default async function CrmCashFlowPage({
 
   const cashFlowData = await getCashFlowData(branchId, branchName, selectedDate, filters);
 
-  return <CashFlowWorkspace initialData={cashFlowData} />;
+  return <CashFlowWorkspace initialData={cashFlowData} initialTab={initialTab} />;
 }
