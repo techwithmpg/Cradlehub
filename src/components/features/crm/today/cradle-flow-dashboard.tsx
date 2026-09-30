@@ -89,8 +89,9 @@ export function CradleFlowDashboard(props: CradleFlowDashboardProps) {
     setSelected(booking);
     if (stage === "in_service") return setDialog("complete");
     if (stage === "ready_to_pay") return setDialog("checkout");
-    if (stage === "completed" || booking.type === "home_service") {
-      return setDialog("details");
+    if (stage === "completed" || booking.type === "home_service" || booking.delivery_type === "home_service") {
+      router.push(`/crm/bookings?bookingId=${booking.id}`);
+      return;
     }
     startAction(async () => {
       let result: { success: boolean; error?: string };
