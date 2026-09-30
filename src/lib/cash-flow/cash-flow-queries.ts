@@ -218,11 +218,13 @@ export async function getCashFlowData(
       .eq('status', 'open')
       .order('opened_at', { ascending: false });
 
-    if (!sessionErr && sessionRows) {
-      rawSessions = sessionRows;
+    if (sessionErr) {
+      throw sessionErr;
     }
+
+    rawSessions = sessionRows ?? [];
   } catch {
-    rawSessions = [];
+    throw new CashFlowRequiredDataError('cash_sessions');
   }
 
   // Derive active cash session summaries with strictly derived expectedCash
@@ -670,6 +672,16 @@ export async function getCashFlowData(
 
   for (const tx of allTransactions) {
     const movements = tx.financial_account_movements || [];
+    const movementAmounts = movements.map((movement) => Number(movement.amount) || 0);
+    const isCanonicalTransfer =
+      tx.transaction_type === 'cash_adjustment' &&
+      movements.length === 2 &&
+      movementAmounts.some((amount) => amount > 0) &&
+      movementAmounts.some((amount) => amount < 0) &&
+      Math.round(
+        movementAmounts.reduce((sum, amount) => sum + amount, 0) * 100
+      ) === 0;
+
     for (const m of movements) {
       const amt = Number(m.amount) || 0;
       const isInflow = amt > 0;
@@ -688,7 +700,13 @@ export async function getCashFlowData(
             : tx.transaction_type === 'other_income'
             ? 'Misc Income'
             : tx.transaction_type === 'cash_adjustment'
-            ? 'Adjustment'
+            ? isCanonicalTransfer
+              ? 'Transfer'
+              : movements.length === 1
+                ? isInflow
+                  ? 'Cash Addition'
+                  : 'Cash Removal'
+                : 'Adjustment'
             : 'Booking Payment',
         method: formatMethodLabel(m.payment_method),
         inflow: isInflow ? amt : null,

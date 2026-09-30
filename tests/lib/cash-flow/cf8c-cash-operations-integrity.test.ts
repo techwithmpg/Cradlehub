@@ -77,9 +77,10 @@ describe('CF8-C cash operations integrity', () => {
     expect(modal).toContain('transferDestinationOptions.length === 0');
 
     expect(modal).toContain(
-      'Transfer / Safe Drop is unavailable until a real'
+      'Transfer is unavailable until a real'
     );
 
+    expect(modal).not.toContain('Transfer / Safe Drop');
     expect(modal).toContain('transferBlocked');
   });
 

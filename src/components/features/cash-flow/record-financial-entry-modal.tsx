@@ -1637,7 +1637,7 @@ function RecordFinancialEntryForm({
                         : 'border-[#EAE4DC] bg-white text-[#7A6E65] hover:border-[#D4C8BC]'
                     }`}
                   >
-                    <span className="text-xs">Transfer / Safe Drop</span>
+                    <span className="text-xs">Transfer</span>
                   </button>
 
                   <button
@@ -1896,7 +1896,7 @@ function RecordFinancialEntryForm({
                       role="alert"
                       className="rounded-xl border border-amber-200 bg-amber-50 p-3 text-xs text-amber-900"
                     >
-                      Transfer / Safe Drop is unavailable until a real
+                      Transfer is unavailable until a real
                       destination financial account is configured. Do not use
                       Cash Removal as a substitute for a safe drop.
                     </div>
@@ -2546,7 +2546,7 @@ function RecordFinancialEntryForm({
                 : otherEntryType === 'cash_removal'
                 ? 'Cash Removal from Drawer'
                 : otherEntryType === 'transfer'
-                ? 'Transfer / Safe Drop (Net Zero)'
+                ? 'Transfer (Net Zero)'
                 : 'Generic Adjustment (Locked)'}
             </div>
           </div>
