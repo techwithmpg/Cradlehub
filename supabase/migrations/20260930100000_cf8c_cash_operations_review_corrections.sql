@@ -285,7 +285,7 @@ BEGIN
     v_staff.id,
     'PHP',
     'posted',
-    p_idempotency_key,
+    TRIM(p_idempotency_key),
     v_expected_notes
   )
   RETURNING id INTO v_transaction_id;
@@ -595,7 +595,7 @@ BEGIN
     v_staff.id,
     'PHP',
     'posted',
-    p_idempotency_key,
+    TRIM(p_idempotency_key),
     v_expected_notes
   )
   RETURNING id INTO v_transaction_id;

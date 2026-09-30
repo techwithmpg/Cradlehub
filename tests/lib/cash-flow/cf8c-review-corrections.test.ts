@@ -140,6 +140,18 @@ describe('CF8-C independent-review corrections', () => {
     ).toBe(2);
   });
 
+  it('stores the same normalized idempotency key used for locking and replay lookup', () => {
+    expect(
+      forwardMigration.match(
+        /'posted',\s+TRIM\(p_idempotency_key\),\s+v_expected_notes/g
+      )?.length
+    ).toBe(2);
+
+    expect(forwardMigration).not.toMatch(
+      /'posted',\s+p_idempotency_key,\s+v_expected_notes/
+    );
+  });
+
   it('rejects sub-cent adjustment and transfer values rather than silently rounding', () => {
     expect(
       forwardMigration.match(/AMOUNT_PRECISION_INVALID/g)?.length
