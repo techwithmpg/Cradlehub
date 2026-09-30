@@ -92,6 +92,7 @@ export type CreateWalkinBookingInput = z.infer<typeof createWalkinBookingSchema>
 // ── In-house wizard booking (CRM/Manager): multi-service + optional therapist ──
 export const createInhouseBookingMultiSchema = z
   .object({
+    idempotencyKey: uuid.optional(),
     branchId: uuid.optional(), // defaults to operator's branch when omitted
     customerId: uuid.optional(),
     serviceIds: z.array(uuid).min(1, "Select a service.").max(5, "Maximum 5 services per booking"),
@@ -134,6 +135,13 @@ export const createInhouseBookingMultiSchema = z
       .optional(),
     paymentReference: z.string().max(100).optional(),
     paymentNote: z.string().max(500).optional(),
+    financialAccountId: uuid.optional(),
+    payments: z.array(z.object({
+      amount: z.number().positive().multipleOf(0.01),
+      paymentMethod: z.enum(["cash", "gcash", "maya", "card", "bank_transfer"]),
+      financialAccountId: uuid.optional(),
+      externalReference: z.string().max(100).optional(),
+    })).min(1).optional(),
   })
   .superRefine((data, ctx) => {
     const deliveryType =
@@ -155,6 +163,13 @@ export const createInhouseBookingMultiSchema = z
         path: ["paymentMethod"],
       });
     }
+      if (paymentReceived && !data.idempotencyKey) {
+        ctx.addIssue({
+          code: "custom",
+          message: "A stable booking request key is required when payment is collected.",
+          path: ["idempotencyKey"],
+        });
+      }
   })
   .strict();
 export type CreateInhouseBookingMultiInput = z.infer<typeof createInhouseBookingMultiSchema>;
@@ -208,6 +223,19 @@ export const homeServiceAddressSchema = z.object({
 });
 export type HomeServiceAddressInput = z.infer<typeof homeServiceAddressSchema>;
 
+// ── Attendee input for multi-guest booking orders ───────────────────────────
+export const bookingAttendeeInputSchema = z.object({
+  id: z.string().max(100),
+  name: z.string().max(100).optional(),
+  isOrganizer: z.boolean().optional(),
+  serviceIds: z
+    .array(uuid)
+    .min(1, "Select at least one service")
+    .max(5, "Maximum 5 services per guest"),
+  notes: z.string().max(500).optional(),
+});
+export type BookingAttendeeInput = z.infer<typeof bookingAttendeeInputSchema>;
+
 // ── Multi-service public online booking ───────────────────────────────────────
 export const createOnlineBookingMultiSchema = z
   .object({
@@ -216,13 +244,18 @@ export const createOnlineBookingMultiSchema = z
     serviceIds: z
       .array(uuid)
       .min(1, "Select at least one service")
-      .max(5, "Maximum 5 services per booking"),
+      .max(25, "Maximum 25 services per booking order"),
     staffId: uuid.optional(),
+    idempotencyKey: z.string().uuid("Invalid idempotency key").optional(),
     date: onlineBookingDate,
     startTime: timeStr,
     type: z.enum(["online", "home_service"]).default("online"),
     deliveryType: z.enum(["in_spa", "home_service"]).optional(),
     travelBufferMins: z.number().int().min(0).max(240).optional(),
+    bookingFor: z.enum(["me", "me_and_others", "someone_else"]).optional(),
+    recipientName: z.string().max(100).optional(),
+    attendees: z.array(bookingAttendeeInputSchema).max(10).optional(),
+    paymentChoice: z.enum(["pay_later", "pay_now"]).optional(),
     fullName: z.string().min(2, "Name must be at least 2 characters").max(100),
     phone,
     email: z.string().email("Invalid email").optional().or(z.literal("")),
@@ -243,6 +276,7 @@ export const createOnlineBookingMultiSchema = z
     homeServiceFormattedAddress: z.string().max(500).optional(),
     homeServiceAddressComponents: z.array(googleAddressComponentSchema).max(24).optional(),
     homeServiceMapUrl: z.string().url().max(1000).optional(),
+    dryRun: z.boolean().optional(),
   })
   .strict()
   .superRefine((data, ctx) => {
@@ -271,7 +305,7 @@ export const getAvailableSlotsSchema = z.object({
 export type GetAvailableSlotsInput = z.infer<typeof getAvailableSlotsSchema>;
 
 // ── Payment constants ─────────────────────────────────────────────────────
-export const PAYMENT_METHODS = ["cash", "gcash", "maya", "card", "pay_on_site", "other"] as const;
+export const PAYMENT_METHODS = ["cash", "gcash", "maya", "card", "bank_transfer", "pay_on_site", "other"] as const;
 export type PaymentMethod = (typeof PAYMENT_METHODS)[number];
 
 export const PAYMENT_STATUSES = ["unpaid", "pending", "paid", "refunded"] as const;
@@ -282,17 +316,33 @@ export const PAYMENT_METHOD_LABELS: Record<PaymentMethod, string> = {
   gcash: "GCash",
   maya: "Maya",
   card: "Card",
+  bank_transfer: "Bank Transfer",
   pay_on_site: "Pay on Site",
   other: "Other",
 };
 
 // ── CRM confirm pending-payment booking ───────────────────────────────────
+const bookingTenderSchema = z.object({
+  amount: z.number().positive(),
+  paymentMethod: z.enum(["cash", "gcash", "maya", "card", "bank_transfer"]),
+  financialAccountId: uuid.optional(),
+  externalReference: z.string().max(100).optional(),
+});
+
+const canonicalPaymentOptions = {
+  financialAccountId: uuid.optional(),
+  payments: z.array(bookingTenderSchema).min(1).optional(),
+  idempotencyKey: z.string().trim().min(1).max(255).optional(),
+  businessDate: anyDate.optional(),
+};
+
 export const confirmBookingPaymentSchema = z.object({
   bookingId: uuid,
-  paymentMethod: z.enum(["cash", "gcash", "maya", "card", "other"]),
+  paymentMethod: z.enum(["cash", "gcash", "maya", "card", "bank_transfer", "other"]),
   paymentReference: z.string().max(100).optional(),
   amountPaid: z.number().min(0).optional(),
   note: z.string().max(500).optional(),
+  ...canonicalPaymentOptions,
 });
 export type ConfirmBookingPaymentInput = z.infer<typeof confirmBookingPaymentSchema>;
 
@@ -305,5 +355,6 @@ export const updateBookingPaymentSchema = z.object({
   paymentReference: z.string().max(100).optional(),
   paymentPurpose: z.enum(["final_settlement", "deposit", "advance", "partial"]).optional(),
   reason: z.string().max(500).optional(),
+  ...canonicalPaymentOptions,
 });
 export type UpdateBookingPaymentInput = z.infer<typeof updateBookingPaymentSchema>;

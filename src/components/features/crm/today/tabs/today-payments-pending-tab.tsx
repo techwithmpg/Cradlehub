@@ -7,6 +7,7 @@ import { CrmPaymentListItem } from "../crm-payment-list-item";
 import type { BookingListItemData } from "../crm-booking-list-item";
 import type { CrmTodayPayment } from "@/lib/queries/crm-today";
 import { isBookingClosedForCrm } from "@/lib/bookings/crm-booking-status";
+import { getCradleFlowPaymentStatus, getCradleFlowAmountPaid } from "@/lib/crm/cradle-flow";
 
 export function TodayPaymentsPendingTab({
   queueData,
@@ -16,11 +17,14 @@ export function TodayPaymentsPendingTab({
   paymentSummary: CrmTodayPayment | null;
 }) {
   const router = useRouter();
-  const pending = queueData.filter(
-    (b) =>
-      b.payment_status !== "paid" &&
-      !isBookingClosedForCrm(b.status)
-  );
+  const seenPaymentOrders = new Set<string>();
+  const pending = queueData.filter((b) => {
+    if (getCradleFlowPaymentStatus(b) === "paid" || isBookingClosedForCrm(b.status)) return false;
+    if (!b.order_id) return true;
+    if (seenPaymentOrders.has(b.order_id)) return false;
+    seenPaymentOrders.add(b.order_id);
+    return true;
+  });
 
   const byMethod: Record<string, number> = {};
   pending.forEach((b) => {
@@ -95,15 +99,15 @@ export function TodayPaymentsPendingTab({
                   id: b.id,
                   customer_name: b.customer_name,
                   service_name: b.service_name,
-                  amount_paid: b.amount_paid,
-                  price_paid: b.price_paid,
-                  payment_status: b.payment_status,
-                  payment_method: b.payment_method,
+                  amount_paid: getCradleFlowAmountPaid(b),
+                  price_paid: b.order_id ? b.order_total_amount : b.price_paid,
+                  payment_status: getCradleFlowPaymentStatus(b),
+                  payment_method: b.order_id ? "other" : b.payment_method,
                   status: b.status,
                   start_time: b.start_time,
                 }}
                 onReview={() => {
-                  router.push(`/crm/bookings?bookingId=${b.id}`);
+                  router.push(b.order_id ? "/crm/cash-flow" : `/crm/bookings?bookingId=${b.id}`);
                 }}
               />
             ))}

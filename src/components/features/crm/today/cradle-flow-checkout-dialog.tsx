@@ -1,6 +1,7 @@
 "use client";
 
 import { useMemo, useState, useTransition } from "react";
+import Link from "next/link";
 import { Banknote, CheckCircle2 } from "lucide-react";
 import { toast } from "sonner";
 import {
@@ -79,6 +80,32 @@ export function CradleFlowCheckoutDialog({
   }
 
   if (!booking) return null;
+  if (booking.order_id) {
+    const orderPaid = Number(booking.order_amount_paid ?? 0);
+    const orderTotal = Number(booking.order_total_amount ?? 0);
+    return (
+      <AdminDialog open={open} onOpenChange={onOpenChange} placement="center" size="md" ariaLabel="Order checkout">
+        <AdminOverlayHeader title="Order payment" description={booking.customer_name ?? "Customer"} />
+        <AdminOverlayBody className="grid gap-3 text-sm">
+          <p>Payment for this service belongs to its booking order.</p>
+          <p>
+            Order status: {booking.order_payment_status ?? "unpaid"} ·
+            {" "}{formatCradleFlowMoney(orderPaid)} paid
+            {orderTotal > 0 ? ` · ${formatCradleFlowMoney(Math.max(0, orderTotal - orderPaid))} due` : ""}
+          </p>
+          <p>Record the order payment in Cash Flow to keep its balance and service lines together.</p>
+        </AdminOverlayBody>
+        <AdminOverlayFooter className="flex justify-end gap-2">
+          <button type="button" onClick={() => onOpenChange(false)} className="cs-btn cs-btn-secondary h-10 rounded-lg px-4">
+            Close
+          </button>
+          <Link href="/crm/cash-flow" className="inline-flex h-10 items-center rounded-lg bg-[#164b36] px-4 text-sm font-bold text-white">
+            Open Cash Flow
+          </Link>
+        </AdminOverlayFooter>
+      </AdminDialog>
+    );
+  }
   return (
     <AdminDialog
       open={open}

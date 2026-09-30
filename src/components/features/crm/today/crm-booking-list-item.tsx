@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import { getCradleFlowPaymentStatus, getCradleFlowAmountPaid } from "@/lib/crm/cradle-flow";
 
 export type BookingListItemData = {
   id: string;
@@ -11,6 +12,10 @@ export type BookingListItemData = {
   type: string;
   travel_buffer_mins: number | null;
   payment_status?: string | null;
+  order_id?: string | null;
+  order_payment_status?: string | null;
+  order_amount_paid?: number | null;
+  order_total_amount?: number | null;
   payment_method?: string | null;
   amount_paid?: number | null;
   price_paid?: number | null;
@@ -64,7 +69,7 @@ export function CrmBookingListItem({
   highlight?: boolean;
 }) {
   const statusMeta = STATUS_META[booking.status] ?? { bg: "var(--cs-surface-warm)", color: "var(--cs-text-muted)" };
-  const payStatus = booking.payment_status ?? "pay_on_site";
+  const payStatus = getCradleFlowPaymentStatus(booking);
   const payMeta = PAYMENT_META[payStatus] ?? PAYMENT_META["pending"]!;
   const isHomeService = booking.type === "home_service";
 
@@ -195,8 +200,8 @@ export function CrmBookingListItem({
             color: payMeta.color,
           }}
         >
-          {payStatus === "paid" && booking.amount_paid
-            ? `₱${booking.amount_paid.toLocaleString()}`
+          {payStatus === "paid" && getCradleFlowAmountPaid(booking)
+            ? `₱${getCradleFlowAmountPaid(booking).toLocaleString()}`
             : payStatus.replace(/_/g, " ")}
         </span>
         {booking.needs_location_review && (

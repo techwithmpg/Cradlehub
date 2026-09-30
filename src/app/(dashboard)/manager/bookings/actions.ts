@@ -501,7 +501,7 @@ export async function editBookingAction(rawInput: unknown) {
 
 // ── Update booking payment (method, status, amount, reference) ────────────
 // Intentionally separate from booking status — paying does not complete the service.
-// Appends an audit row to booking_payment_logs before updating.
+// The explicit payment RPC posts any new money and updates the booking atomically.
 export async function updateBookingPaymentAction(rawInput: unknown) {
   const parsed = updateBookingPaymentSchema.safeParse(rawInput);
   if (!parsed.success) {
@@ -520,6 +520,10 @@ export async function updateBookingPaymentAction(rawInput: unknown) {
     paymentReference,
     paymentPurpose,
     reason,
+    financialAccountId,
+    payments,
+    idempotencyKey,
+    businessDate,
   } = parsed.data;
 
   // Fetch current payment state for audit log
@@ -571,6 +575,10 @@ export async function updateBookingPaymentAction(rawInput: unknown) {
         ? `[${paymentPurpose}] ${reason?.trim() ?? ""}`.trim()
         : reason,
     changedByStaffId: me.id === DEV_BYPASS_STAFF_ID ? null : me.id,
+    financialAccountId,
+    payments,
+    idempotencyKey,
+    businessDate,
   });
 
   if (!paymentResult.ok) return { success: false, error: paymentResult.error };
@@ -600,5 +608,5 @@ export async function updateBookingPaymentAction(rawInput: unknown) {
   }
 
   revalidateOperationalBookingSurfaces(paymentResult.booking.branch_id);
-  return { success: true };
+  return { success: true, warning: paymentResult.reconciliationWarning ?? undefined };
 }

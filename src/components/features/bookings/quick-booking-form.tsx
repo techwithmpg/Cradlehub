@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useId, useMemo, useState, type ReactNode } from "react";
+import { useEffect, useId, useMemo, useRef, useState, type ReactNode } from "react";
 import { useRouter } from "next/navigation";
 import {
   CalendarDays,
@@ -356,8 +356,9 @@ export function QuickBookingForm({
   const [homeServiceDistanceQuote, setHomeServiceDistanceQuote] =
     useState<HomeServiceDistanceQuote | null>(null);
   const [paymentReceived, setPaymentReceived] = useState(false);
+  const submissionKey = useRef<{ fingerprint: string; key: string } | null>(null);
   const [paymentMethod, setPaymentMethod] = useState<
-    "cash" | "gcash" | "maya" | "card" | "other" | ""
+    "cash" | "gcash" | "maya" | "card" | ""
   >("");
   const [staffId, setStaffId] = useState(initialStaffId);
   const [resourceId, setResourceId] = useState("");
@@ -956,7 +957,7 @@ export function QuickBookingForm({
 
     setIsSaving(true);
     try {
-      const result = await createInhouseBookingMultiAction({
+      const bookingInput = {
         branchId,
         customerId: selectedCustomer?.id,
         serviceIds: selectedServiceIds,
@@ -988,6 +989,14 @@ export function QuickBookingForm({
           ? homeServicePlace?.addressComponents
           : undefined,
         homeServiceMapUrl: isHomeService ? homeServicePlace?.mapUrl : undefined,
+      };
+      const fingerprint = JSON.stringify(bookingInput);
+      if (submissionKey.current?.fingerprint !== fingerprint) {
+        submissionKey.current = { fingerprint, key: crypto.randomUUID() };
+      }
+      const result = await createInhouseBookingMultiAction({
+        ...bookingInput,
+        idempotencyKey: submissionKey.current.key,
       });
 
       if (!result.ok) {
@@ -1001,6 +1010,7 @@ export function QuickBookingForm({
       toast.success("Booking saved", {
         description: result.warning ?? "The booking is now in the CRM workspace.",
       });
+      submissionKey.current = null;
       onSuccess?.({
         bookingId: result.bookingId,
         date,
@@ -1447,7 +1457,6 @@ export function QuickBookingForm({
                       <option value="gcash">GCash</option>
                       <option value="maya">Maya</option>
                       <option value="card">Card</option>
-                      <option value="other">Other</option>
                     </select>
                   ) : (
                     <div className="flex h-10 items-center rounded-xl border border-dashed border-[var(--cs-border)] px-3 text-xs text-[var(--cs-text-muted)]">

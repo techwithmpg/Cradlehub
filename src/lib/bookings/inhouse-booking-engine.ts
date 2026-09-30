@@ -66,6 +66,10 @@ function minutesToTime(mins: number): string {
   return `${String(hh).padStart(2, "0")}:${String(mm).padStart(2, "0")}:00`;
 }
 
+function phpCents(amount: number): number {
+  return Math.round((amount + Number.EPSILON) * 100) / 100;
+}
+
 function computeEndTimeLocal(startTime: string, totalMinutes: number): string | null {
   const start = timeToMinutes(startTime);
   const end = start + totalMinutes;
@@ -542,10 +546,10 @@ export async function executeInhouseBookingCreation(
         return [serviceId, price] as const;
       })
     );
-    const serviceSubtotal = d.serviceIds.reduce(
+    const serviceSubtotal = phpCents(d.serviceIds.reduce(
       (sum, serviceId) => sum + (servicePriceById.get(serviceId) ?? 0),
       0
-    );
+    ));
 
     // Build home service address data from the selected Google place.
     let hsAddressData: { [key: string]: Json | undefined } | null = null;
@@ -639,7 +643,7 @@ export async function executeInhouseBookingCreation(
       } satisfies { [key: string]: Json | undefined };
     }
 
-    const insertedIds: string[] = [];
+    const serviceLines: Array<Record<string, unknown>> = [];
     let currentStart = startTime;
 
     for (const [serviceIndex, serviceId] of d.serviceIds.entries()) {
@@ -668,10 +672,7 @@ export async function executeInhouseBookingCreation(
         };
       }
 
-      const overridePrice = overrideByServiceId.get(service.id)?.custom_price ?? undefined;
       const servicePrice = servicePriceById.get(service.id) ?? Number(service.price);
-      const travelFeeForThisRow =
-        homeServiceQuote && serviceIndex === 0 ? homeServiceQuote.travelFee : 0;
       const pricingBreakdown = homeServiceQuote
         ? buildHomeServicePricingBreakdown({
             serviceSubtotal,
@@ -681,10 +682,7 @@ export async function executeInhouseBookingCreation(
           })
         : null;
       const metadata = {
-        price_paid:
-          (overridePrice !== null && overridePrice !== undefined
-            ? Number(overridePrice)
-            : Number(service.price)) + travelFeeForThisRow,
+        price_paid: phpCents(servicePrice),
         service_name: service.name,
         duration_minutes: effectiveDurationMinutes,
         customer_notes: d.notes ?? null,
@@ -701,8 +699,7 @@ export async function executeInhouseBookingCreation(
           operational_starts_before_shift: selectedExactProvider.operationalStartsBeforeShift,
           policy: "start_inside_schedule_finish_after_allowed",
         },
-        payment_received: paymentReceived,
-        ...(paymentReceived && { payment_purpose: "advance" }),
+        payment_received: false,
         ...(hsAddressData && { home_service_address: hsAddressData }),
         ...(homeServiceQuote && {
           home_service_distance_km: homeServiceQuote.distanceKm,
@@ -722,115 +719,104 @@ export async function executeInhouseBookingCreation(
         ...(hsAddressData && { dispatch: dispatchData }),
       };
 
-      const amountPaid = paymentReceived ? Number(servicePrice) + travelFeeForThisRow : 0;
-      const paymentMethod = paymentReceived ? (d.paymentMethod ?? "pay_on_site") : "pay_on_site";
-
-      const { data: booking, error: bookingError } = await admin
-        .from("bookings")
-        .insert({
-          branch_id: resolvedBranchId,
-          service_id: serviceId,
-          staff_id: resolvedStaffId,
-          resource_id: resolvedResourceId,
-          customer_id: resolvedCustomerId,
-          booking_date: d.date,
-          start_time: currentStart,
-          end_time: endTime,
-          type: d.type,
-          delivery_type: deliveryType,
-          status: "confirmed",
-          booking_progress_status:
-            d.markArrived && deliveryType !== "home_service" ? "checked_in" : "not_started",
-          checked_in_at:
-            d.markArrived && deliveryType !== "home_service" ? new Date().toISOString() : null,
-          payment_method: paymentMethod,
-          payment_status: paymentReceived ? "paid" : "pending",
-          payment_reference: d.paymentReference ?? null,
-          amount_paid: amountPaid,
-          session_duration_minutes_snapshot: effectiveDurationMinutes,
-          hold_expires_at: null,
-          travel_buffer_mins:
-            deliveryType === "home_service"
-              ? (d.travelBufferMins ?? rulesCheck.rules.travelBufferMins)
-              : null,
-          metadata,
-        })
-        .select("id")
-        .single();
-
-      if (bookingError || !booking) {
-        // Rollback previously inserted bookings
-        if (insertedIds.length > 0) {
-          await admin.from("bookings").update({ status: "cancelled" }).in("id", insertedIds);
-        }
-
-        const bookingErrorMessage = bookingError?.message ?? "";
-        if (
-          bookingError?.code === "23P01" ||
-          bookingErrorMessage.includes("BOOKING_STAFF_TIME_CONFLICT") ||
-          bookingErrorMessage.includes("BOOKING_RESOURCE_TIME_CONFLICT")
-        ) {
-          return {
-            ok: false,
-            code: "SLOT_UNAVAILABLE",
-            message:
-              "That therapist or room was just booked. Please choose another available option.",
-          };
-        }
-
-        console.error("[CRM_BOOKING] insert failed", {
-          ...logContext,
-          serviceId,
-          currentStart,
-          endTime,
-          bookingError,
-        });
-        logBookingError(
-          { ...logContext, serviceId, currentStart, endTime },
-          bookingError ?? new Error("insert returned no booking")
-        );
-        return {
-          ok: false,
-          code: "BOOKING_INSERT_FAILED",
-          message: `Could not create booking for ${service.name}. The slot may have been taken. Please select a different time.`,
-        };
-      }
-
-      insertedIds.push(booking.id);
-
-      // Append-only payment audit log per booking row
-      await admin
-        .from("booking_payment_logs")
-        .insert({
-          booking_id: booking.id,
-          changed_by: staff?.id ?? null,
-          old_payment_method: null,
-          old_payment_status: null,
-          old_amount_paid: null,
-          old_payment_reference: null,
-          new_payment_method: paymentMethod,
-          new_payment_status: paymentReceived ? "paid" : "pending",
-          new_amount_paid: amountPaid,
-          new_payment_reference: d.paymentReference ?? null,
-          reason:
-            d.paymentNote?.trim() ||
-            (paymentReceived
-              ? "[advance] Authorized full advance payment at booking creation"
-              : "CRM quick booking - payment pending"),
-        })
-        .then(({ error: logErr }) => {
-          if (logErr) console.error("[CRM_BOOKING] payment_log insert failed", logErr.message);
-        });
+      serviceLines.push({
+        attendee_sequence: 1,
+        line_sequence: serviceIndex + 1,
+        service_id: serviceId,
+        staff_id: resolvedStaffId,
+        start_time: currentStart,
+        end_time: endTime,
+        travel_buffer_mins:
+          deliveryType === "home_service"
+            ? (d.travelBufferMins ?? rulesCheck.rules.travelBufferMins)
+            : null,
+        metadata,
+      });
 
       currentStart = endTime;
     }
+
+    const orderMetadata = {
+      total_amount: phpCents(serviceSubtotal + (homeServiceQuote?.travelFee ?? 0)),
+      subtotal_amount: serviceSubtotal,
+      home_service_fee: phpCents(homeServiceQuote?.travelFee ?? 0),
+      crm_booking_mode: crmBookingMode,
+      source: "crm_quick_booking",
+      payment_received: paymentReceived,
+    };
+    const rpcArgs = {
+      p_actor_auth_user_id: operator.authUserId,
+      p_idempotency_key: d.idempotencyKey ?? crypto.randomUUID(),
+      p_order: {
+        branch_id: resolvedBranchId,
+        organizer_customer_id: resolvedCustomerId,
+        delivery_type: deliveryType,
+        booking_date: d.date,
+        currency: "PHP",
+        payment_preference: "pay_at_spa",
+        metadata: orderMetadata,
+      },
+      p_attendees: [{
+        sequence: 1,
+        display_name: d.fullName,
+        customer_id: resolvedCustomerId,
+      }],
+      p_service_lines: serviceLines,
+      p_options: {
+        type: d.type,
+        resource_id: resolvedResourceId,
+        mark_arrived: d.markArrived ?? false,
+        payment_received: paymentReceived,
+        payment_method: paymentReceived ? d.paymentMethod : null,
+        payment_reference: d.paymentReference ?? null,
+        payment_note: d.paymentNote ?? null,
+        financial_account_id: d.financialAccountId ?? null,
+        payments: d.payments?.map((part) => ({
+          amount: part.amount,
+          payment_method: part.paymentMethod,
+          financial_account_id: part.financialAccountId ?? null,
+          external_reference: part.externalReference ?? null,
+        })) ?? null,
+      },
+    };
+    const { data: atomicData, error: atomicError } = await (
+      admin as unknown as {
+        rpc: (name: string, args: typeof rpcArgs) => Promise<{
+          data: { service_line_ids?: string[]; idempotency_status?: string } | null;
+          error: { message: string; code?: string } | null;
+        }>;
+      }
+    ).rpc("create_inhouse_order_with_payment_atomic", rpcArgs);
+    if (atomicError || !atomicData?.service_line_ids?.length) {
+      const message = atomicError?.message ?? "Atomic booking creation returned no service lines";
+      const knownCodes = [
+        "ACCOUNT_SELECTION_REQUIRED", "ACCOUNT_NOT_CONFIGURED",
+        "ACCOUNT_BRANCH_OR_RAIL_MISMATCH", "PAYMENT_DELTA_MISMATCH",
+        "IDEMPOTENCY_CONFLICT", "BOOKING_STAFF_TIME_CONFLICT",
+        "BOOKING_RESOURCE_TIME_CONFLICT",
+      ];
+      const code = knownCodes.find((known) => message.includes(known)) ??
+        "BOOKING_ATOMIC_PERSISTENCE_FAILED";
+      logBookingError(logContext, atomicError ?? new Error(message));
+      return {
+        ok: false,
+        code,
+        message: code === "ACCOUNT_SELECTION_REQUIRED"
+          ? "Select the payment account before collecting this payment."
+          : code === "ACCOUNT_NOT_CONFIGURED"
+            ? "No compatible payment account is configured for this branch."
+            : "Could not create the booking and payment together. Please review the booking and try again.",
+      };
+    }
+    const insertedIds = atomicData.service_line_ids;
+    const isReplay = atomicData.idempotency_status === "replayed";
 
     const isHomeService = deliveryType === "home_service";
     const serviceNames = d.serviceIds
       .map((id) => servicesById.get(id)?.name ?? "")
       .filter(Boolean)
       .join(", ");
-    const notificationJobs: Promise<void>[] = [
+    const notificationJobs: Promise<void>[] = isReplay ? [] : [
       createNotification({
         branchId: resolvedBranchId,
         targetWorkspace: "staff",
@@ -851,7 +837,7 @@ export async function executeInhouseBookingCreation(
       // No CRM payment_pending notification for in-house bookings — payment is already recorded.
     ];
 
-    if (isHomeService && dispatchData.needs_location_review === true) {
+    if (!isReplay && isHomeService && dispatchData.needs_location_review === true) {
       notificationJobs.push(
         createNotification({
           branchId: resolvedBranchId,
@@ -869,7 +855,7 @@ export async function executeInhouseBookingCreation(
       );
     }
 
-    if (isHomeService && typeof dispatchData.dispatch_warning === "string") {
+    if (!isReplay && isHomeService && typeof dispatchData.dispatch_warning === "string") {
       notificationJobs.push(
         createNotification({
           branchId: resolvedBranchId,
@@ -897,7 +883,7 @@ export async function executeInhouseBookingCreation(
       );
     }
 
-    logBusinessEvent("booking.crm.created", {
+    logBusinessEvent(isReplay ? "booking.crm.replayed" : "booking.crm.created", {
       branchId: resolvedBranchId,
       bookingIds: insertedIds,
       bookingId: insertedIds[0],

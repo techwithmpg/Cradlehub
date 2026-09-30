@@ -14,6 +14,7 @@ import { revalidatePath } from "next/cache";
 import { cacheTags, invalidateTag } from "@/lib/cache/cache-tags";
 import { updateBookingPaymentSchema } from "@/lib/validations/booking";
 import { getBookingPaymentGate } from "@/lib/bookings/payment-gate";
+import { recordBookingPaymentChange } from "@/lib/bookings/payment-transaction";
 import { getCrossbranchCashSummary } from "@/lib/queries/analytics";
 
 export type OwnerReportsRequest = {
@@ -277,7 +278,7 @@ export async function getOwnerWorkspaceBookingsAction(filters?: {
 
 // ── Update payment on any booking (cross-branch, owner only) ─────────────
 // No branch filter — owner can record payment for any branch.
-// Appends an audit row to booking_payment_logs before updating.
+// The explicit payment RPC posts any new money and updates the booking atomically.
 export async function ownerUpdateBookingPaymentAction(rawInput: unknown) {
   const parsed = updateBookingPaymentSchema.safeParse(rawInput);
   if (!parsed.success) {
@@ -295,6 +296,10 @@ export async function ownerUpdateBookingPaymentAction(rawInput: unknown) {
     paymentReference,
     paymentPurpose,
     reason,
+    financialAccountId,
+    payments,
+    idempotencyKey,
+    businessDate,
   } = parsed.data;
 
   // Fetch current payment state for audit log
@@ -332,42 +337,31 @@ export async function ownerUpdateBookingPaymentAction(rawInput: unknown) {
     return { success: false, error: "Reason is required for voids, refunds, or corrections" };
   }
 
-  // Insert audit log
-  await ctx.supabase.from("booking_payment_logs").insert({
-    booking_id: bookingId,
-    changed_by: ctx.me.id ?? null,
-    old_payment_method: before?.payment_method ?? null,
-    old_payment_status: before?.payment_status ?? null,
-    old_amount_paid: before?.amount_paid ?? null,
-    old_payment_reference: before?.payment_reference ?? null,
-    new_payment_method: paymentMethod,
-    new_payment_status: paymentStatus,
-    new_amount_paid: amountPaid,
-    new_payment_reference: paymentReference ?? null,
+  const paymentResult = await recordBookingPaymentChange(ctx.supabase, {
+    bookingId,
+    branchId: null,
+    paymentMethod,
+    paymentStatus,
+    amountPaid,
+    paymentReference,
     reason:
       paymentPurpose && paymentPurpose !== "final_settlement"
         ? `[${paymentPurpose}] ${reason?.trim() ?? ""}`.trim()
         : (reason?.trim() ?? null),
+    financialAccountId,
+    payments,
+    idempotencyKey,
+    businessDate,
   });
-
-  const { error } = await ctx.supabase
-    .from("bookings")
-    .update({
-      payment_method: paymentMethod,
-      payment_status: paymentStatus,
-      amount_paid: amountPaid,
-      payment_reference: paymentReference ?? null,
-    })
-    .eq("id", bookingId);
-
-  if (error) return { success: false, error: error.message };
+  if (!paymentResult.ok) return { success: false, error: paymentResult.error };
 
   revalidatePath("/owner");
   revalidatePath("/owner/bookings");
   revalidatePath("/owner/reports");
+  revalidatePath("/crm/cash-flow");
   if (before?.branch_id) {
     invalidateTag(cacheTags.ownerWorkspace(before.branch_id));
     invalidateTag(cacheTags.crmWorkspace(before.branch_id));
   }
-  return { success: true };
+  return { success: true, warning: paymentResult.reconciliationWarning ?? undefined };
 }

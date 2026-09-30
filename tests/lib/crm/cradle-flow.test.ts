@@ -66,6 +66,19 @@ describe("Cradle Flow lifecycle", () => {
     ).toBe("completed");
   });
 
+  it("uses paid order status for a completed service without inventing booking amount", () => {
+    expect(getCradleFlowStage(booking({
+      order_id: "order-1",
+      status: "completed",
+      booking_progress_status: "completed",
+      payment_status: "pending",
+      amount_paid: 0,
+      order_payment_status: "paid",
+      order_amount_paid: 1000,
+      order_total_amount: 1000,
+    }))).toBe("completed");
+  });
+
   it("counts home service inside the same lifecycle", () => {
     const counts = getCradleFlowCounts([
       booking(),

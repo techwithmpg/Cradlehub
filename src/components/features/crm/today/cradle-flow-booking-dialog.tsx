@@ -12,6 +12,9 @@ import {
   formatCradleFlowMoney,
   getCradleFlowPrimaryLabel,
   getCradleFlowStage,
+  getCradleFlowPaymentStatus,
+  getCradleFlowAmountPaid,
+  getCradleFlowBalance,
   type CradleFlowBooking,
 } from "@/lib/crm/cradle-flow";
 
@@ -87,8 +90,13 @@ export function CradleFlowBookingDialog({
               {formatCradleFlowMoney(booking.price_paid ?? 0)}
             </div>
             <div className="text-xs font-bold uppercase text-[var(--cs-text-muted)]">
-              {booking.payment_status === "paid" ? "Paid" : "Payment pending"}
+              {getCradleFlowPaymentStatus(booking) === "paid" ? "Paid" : "Payment pending"}
             </div>
+            {booking.order_id && (
+              <div className="text-xs text-[var(--cs-text-muted)]">
+                Order: {formatCradleFlowMoney(getCradleFlowAmountPaid(booking))} paid · {formatCradleFlowMoney(getCradleFlowBalance(booking))} due
+              </div>
+            )}
           </div>
         </div>
 

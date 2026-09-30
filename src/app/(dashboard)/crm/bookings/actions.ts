@@ -416,7 +416,8 @@ export async function confirmBookingPaymentAction(
   if (!ctx) return { success: false, error: "Unauthorized" };
   const { supabase, me } = ctx;
 
-  const { bookingId, paymentMethod, paymentReference, amountPaid, note } = parsed.data;
+  const { bookingId, paymentMethod, paymentReference, amountPaid, note,
+    financialAccountId, payments, idempotencyKey, businessDate } = parsed.data;
 
   // Load booking — try with hold_expires_at first, fall back if column absent
   type BookingRow = {
@@ -553,6 +554,10 @@ export async function confirmBookingPaymentAction(
     changedByStaffId: me.id === DEV_BYPASS_STAFF_ID ? null : me.id,
     nextStatus: "confirmed",
     clearHold: true,
+    financialAccountId,
+    payments,
+    idempotencyKey,
+    businessDate,
   });
 
   if (!paymentResult.ok) {
