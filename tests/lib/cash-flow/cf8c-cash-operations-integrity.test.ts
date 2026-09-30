@@ -230,13 +230,9 @@ describe('CF8-C cash operations integrity', () => {
   });
 
   it('keeps transfers net-zero and separate from revenue/expense semantics', () => {
-    expect(migration).toContain(
-      'v_src_account.id,\n    -v_amount'
-    );
+    expect(migration).toMatch(/v_src_account\.id,\s*-v_amount/);
 
-    expect(migration).toContain(
-      'v_dst_account.id,\n    v_amount'
-    );
+    expect(migration).toMatch(/v_dst_account\.id,\s*v_amount/);
 
     expect(migration).toContain(
       "'netEffect', 0.00"
