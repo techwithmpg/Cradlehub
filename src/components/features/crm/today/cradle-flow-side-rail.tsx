@@ -93,7 +93,21 @@ export function CradleFlowSideRail({
   const attention = [...bookingAttention, ...readinessAttention];
 
   return (
-    <aside className="grid min-w-0 content-start gap-3" aria-label="Front desk supporting information">
+    <aside className="grid w-full min-w-0 max-w-full grid-cols-[minmax(0,1fr)] content-start gap-3" aria-label="Front desk supporting information">
+      <AttendanceScanFeedPanel
+        workspace="crm"
+        selectedDate={attendanceDate}
+        branchId={attendanceFeed.branchId}
+        branchName={branchName}
+        feed={attendanceFeed}
+        maxItems={4}
+        realtimeStatus={attendanceRealtimeStatus}
+        isValidating={attendanceRefreshing}
+        refreshError={attendanceRefreshError}
+        onRefresh={onAttendanceRefresh}
+        onScanSelect={onAttendanceSelect}
+        className="rounded-xl"
+      />
       <CradleFlowMoneySummary
         payment={payment}
         collectedOverride={collected}
@@ -134,20 +148,6 @@ export function CradleFlowSideRail({
           <RailLink href="/crm/cash-flow" title="Open Cash Flow" helper="Collections and daily records" icon={<WalletCards className="size-4" />} />
         </div>
       </RailPanel>
-      <AttendanceScanFeedPanel
-        workspace="crm"
-        selectedDate={attendanceDate}
-        branchId={attendanceFeed.branchId}
-        branchName={branchName}
-        feed={attendanceFeed}
-        maxItems={4}
-        realtimeStatus={attendanceRealtimeStatus}
-        isValidating={attendanceRefreshing}
-        refreshError={attendanceRefreshError}
-        onRefresh={onAttendanceRefresh}
-        onScanSelect={onAttendanceSelect}
-        className="rounded-xl"
-      />
     </aside>
   );
 }

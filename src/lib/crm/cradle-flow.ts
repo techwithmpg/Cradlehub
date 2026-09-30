@@ -11,6 +11,7 @@ export type CradleFlowBooking = ControlBooking & {
   branch_id?: string | null;
   delivery_type?: string | null;
   resource_id?: string | null;
+  staff_id?: string | null;
   customer_phone?: string | null;
   checked_in_at?: string | null;
   session_started_at?: string | null;

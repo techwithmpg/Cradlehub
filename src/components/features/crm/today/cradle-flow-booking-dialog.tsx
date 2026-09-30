@@ -50,11 +50,15 @@ export function CradleFlowBookingDialog({
   open,
   onOpenChange,
   onPrimary,
+  onAssignRoom,
+  onAssignTherapist,
 }: {
   booking: CradleFlowBooking | null;
   open: boolean;
   onOpenChange: (open: boolean) => void;
   onPrimary: (booking: CradleFlowBooking) => void;
+  onAssignRoom: (booking: CradleFlowBooking) => void;
+  onAssignTherapist: (booking: CradleFlowBooking) => void;
 }) {
   if (!booking) return null;
   const homeService = booking.type === "home_service" || booking.delivery_type === "home_service";
@@ -161,7 +165,19 @@ export function CradleFlowBookingDialog({
         >
           Open full booking
         </Link>
-        <div className="flex gap-2">
+        <div className="flex flex-wrap gap-2">
+          {stage === "waiting" || stage === "in_service" ? (
+            <>
+              <button type="button" onClick={() => { onOpenChange(false); onAssignTherapist(booking); }} className="cs-btn cs-btn-secondary h-10 rounded-lg px-3 text-xs">
+                {booking.staff_id ? "Change Therapist" : "Assign Therapist"}
+              </button>
+              {!homeService ? (
+                <button type="button" onClick={() => { onOpenChange(false); onAssignRoom(booking); }} className="cs-btn cs-btn-secondary h-10 rounded-lg px-3 text-xs">
+                  {booking.resource_id ? "Change Room" : "Assign Room"}
+                </button>
+              ) : null}
+            </>
+          ) : null}
           <button
             type="button"
             onClick={() => onOpenChange(false)}

@@ -52,6 +52,8 @@ export function CradleFlowWorkflow({
   pendingFollowUps,
   onOpen,
   onPrimary,
+  onAssignRoom,
+  onAssignTherapist,
   filter,
   onFilterChange,
 }: {
@@ -60,6 +62,8 @@ export function CradleFlowWorkflow({
   pendingFollowUps: number;
   onOpen: (booking: CradleFlowBooking) => void;
   onPrimary: (booking: CradleFlowBooking) => void;
+  onAssignRoom: (booking: CradleFlowBooking) => void;
+  onAssignTherapist: (booking: CradleFlowBooking) => void;
   filter: CradleFlowFilter;
   onFilterChange: (filter: CradleFlowFilter) => void;
 }) {
@@ -142,6 +146,8 @@ export function CradleFlowWorkflow({
                 booking={booking}
                 onOpen={onOpen}
                 onPrimary={onPrimary}
+                onAssignRoom={onAssignRoom}
+                onAssignTherapist={onAssignTherapist}
               />
             ))}
           </div>

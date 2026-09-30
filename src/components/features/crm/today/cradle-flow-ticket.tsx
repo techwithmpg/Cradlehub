@@ -1,6 +1,5 @@
 "use client";
 
-import Link from "next/link";
 import { Home, MapPin, MoreHorizontal, UserRound } from "lucide-react";
 import {
   formatCradleFlowMoney,
@@ -28,10 +27,14 @@ export function CradleFlowTicket({
   booking,
   onOpen,
   onPrimary,
+  onAssignRoom,
+  onAssignTherapist,
 }: {
   booking: CradleFlowBooking;
   onOpen: (booking: CradleFlowBooking) => void;
   onPrimary: (booking: CradleFlowBooking) => void;
+  onAssignRoom: (booking: CradleFlowBooking) => void;
+  onAssignTherapist: (booking: CradleFlowBooking) => void;
 }) {
   const stage = getCradleFlowStage(booking);
   const homeService = isHomeServiceVisit(booking);
@@ -105,10 +108,15 @@ export function CradleFlowTicket({
         >
           {getCradleFlowPrimaryLabel(booking)}
         </button>
-        {missingRoom || missingTherapist ? (
-          <Link href={`/crm/bookings?bookingId=${booking.id}${missingRoom ? "&openRoomAssignment=1" : ""}`} className="inline-flex min-h-9 items-center rounded-lg border border-[var(--cs-border)] px-2 text-[11px] font-bold text-[var(--cs-text-secondary)] hover:bg-[var(--cs-surface-warm)]">
-            {missingRoom ? "Assign Room" : "Assign Therapist"}
-          </Link>
+        {missingRoom ? (
+          <button type="button" onClick={() => onAssignRoom(booking)} className="inline-flex min-h-9 items-center rounded-lg border border-[var(--cs-border)] px-2 text-[11px] font-bold text-[var(--cs-text-secondary)] hover:bg-[var(--cs-surface-warm)]">
+            Assign Room
+          </button>
+        ) : null}
+        {missingTherapist ? (
+          <button type="button" onClick={() => onAssignTherapist(booking)} className="inline-flex min-h-9 items-center rounded-lg border border-[var(--cs-border)] px-2 text-[11px] font-bold text-[var(--cs-text-secondary)] hover:bg-[var(--cs-surface-warm)]">
+            Assign Therapist
+          </button>
         ) : null}
         <button
           type="button"

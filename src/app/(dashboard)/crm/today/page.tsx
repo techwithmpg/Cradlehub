@@ -27,7 +27,7 @@ import { RetainedWorkspaceModule } from "@/components/features/dashboard/retaine
 type Relation<T> = T | T[] | null;
 type CustomerRel = { full_name: string; phone: string | null };
 type ServiceRel = { name: string; duration_minutes: number };
-type StaffRel = { full_name: string; nickname?: string | null };
+type StaffRel = { id: string; full_name: string; nickname?: string | null };
 type ResourceRel = { name: string };
 
 type BookingRow = {
@@ -212,6 +212,7 @@ export default async function CrmTodayPage() {
       service_name: first(b.services)?.name ?? null,
       service_duration: first(b.services)?.duration_minutes ?? null,
       staff_name: first(b.staff) ? getStaffAdminName(first(b.staff)!) : null,
+      staff_id: first(b.staff)?.id ?? null,
       resource_name: b.resource_id
         ? (resourceNameMap.get(b.resource_id) ?? first(b.branch_resources)?.name ?? null)
         : (first(b.branch_resources)?.name ?? null),

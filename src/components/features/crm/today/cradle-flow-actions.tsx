@@ -1,9 +1,9 @@
 "use client";
 
 import { useEffect } from "react";
-import { useRouter } from "next/navigation";
 import { ArrowLeftRight, Banknote, Plus, ReceiptText, RotateCcw } from "lucide-react";
 import { useAdministrativeBookingModal } from "@/components/features/bookings/administrative-booking-modal-provider";
+import type { FinancialEntryMode } from "@/components/features/cash-flow/record-financial-entry-modal";
 import type { CradleFlowBooking } from "@/lib/crm/cradle-flow";
 
 type ActionCardProps = {
@@ -76,27 +76,30 @@ function ActionCard({
 export function CradleFlowActions({
   pendingBooking,
   onResumePending,
+  onOpenFinancialEntry,
 }: {
   pendingBooking: CradleFlowBooking | null;
   onResumePending: (booking: CradleFlowBooking) => void;
+  onOpenFinancialEntry: (mode: FinancialEntryMode) => void;
 }) {
-  const router = useRouter();
   const { openBookingModal } = useAdministrativeBookingModal();
 
   useEffect(() => {
     const onKeyDown = (event: KeyboardEvent) => {
-      if (event.ctrlKey || event.metaKey || event.altKey) return;
+      if (event.defaultPrevented || event.ctrlKey || event.metaKey || event.altKey) return;
       const target = event.target;
-      if (target instanceof HTMLInputElement || target instanceof HTMLTextAreaElement) return;
+      if (target instanceof HTMLInputElement || target instanceof HTMLTextAreaElement || target instanceof HTMLSelectElement) return;
+      if (target instanceof HTMLElement && target.isContentEditable) return;
+      if (document.querySelector('[role="dialog"]')) return;
       if (event.key === "F1") openBookingModal({ mode: "walkin" });
-      if (event.key === "F2") router.push("/crm/cash-flow?entry=payment");
-      if (event.key === "F3") router.push("/crm/cash-flow?entry=expense");
-      if (event.key === "F4") router.push("/crm/cash-flow?entry=cash-operations");
+      if (event.key === "F2") onOpenFinancialEntry("customer_payment");
+      if (event.key === "F3") onOpenFinancialEntry("expense");
+      if (event.key === "F4") onOpenFinancialEntry("other_entry");
       if (["F1", "F2", "F3", "F4"].includes(event.key)) event.preventDefault();
     };
     window.addEventListener("keydown", onKeyDown);
     return () => window.removeEventListener("keydown", onKeyDown);
-  }, [openBookingModal, router]);
+  }, [onOpenFinancialEntry, openBookingModal]);
 
   return (
     <section className="grid gap-2.5 sm:grid-cols-2 xl:grid-cols-4" aria-label="Primary front desk actions">
@@ -113,21 +116,21 @@ export function CradleFlowActions({
         description="Collect payments and settle visits"
         shortcut="F2"
         icon={<Banknote className="size-5" />}
-        onClick={() => router.push("/crm/cash-flow?entry=payment")}
+        onClick={() => onOpenFinancialEntry("customer_payment")}
       />
       <ActionCard
         title="RECORD EXPENSES"
         description="Log operational expenses"
         shortcut="F3"
         icon={<ReceiptText className="size-5" />}
-        onClick={() => router.push("/crm/cash-flow?entry=expense")}
+        onClick={() => onOpenFinancialEntry("expense")}
       />
       <ActionCard
         title="CASH OPERATIONS"
         description="Adjust cash or transfer funds"
         shortcut="F4"
         icon={<ArrowLeftRight className="size-5" />}
-        onClick={() => router.push("/crm/cash-flow?entry=cash-operations")}
+        onClick={() => onOpenFinancialEntry("other_entry")}
       />
       {pendingBooking ? (
         <button

@@ -714,15 +714,25 @@ export async function publishMarketingContentDraft(
       (typeof meta.shortDescription === "string" && meta.shortDescription) ||
       existing.data.subtitle ||
       null;
-    const badges = Array.isArray(meta.badges) ? (meta.badges as string[]) : [];
-    const inclusions = Array.isArray(meta.inclusions) ? (meta.inclusions as string[]) : [];
+    const badges = Array.isArray(meta.badges) && meta.badges.every((item) => typeof item === "string")
+      ? (meta.badges as string[])
+      : undefined;
+    const inclusions = Array.isArray(meta.inclusions) && meta.inclusions.every((item) => typeof item === "string")
+      ? (meta.inclusions as string[])
+      : undefined;
     const imageAlt =
       existing.data.alt_text || (typeof meta.imageAlt === "string" ? meta.imageAlt : null);
 
+    const { parseServicePrice } = await import("@/lib/services/service-mutation");
+    const price = meta.price === undefined ? undefined : parseServicePrice(meta.price);
+    if (price === null) {
+      return { success: false, error: "Draft has an invalid PHP service price." };
+    }
     const { updateServicePresentationDirect } =
       await import("@/app/(dashboard)/marketing/service-actions");
     const serviceResult = await updateServicePresentationDirect(context.supabase, {
       serviceId,
+      price,
       description: existing.data.body || null,
       shortDescription,
       imageUrl: existing.data.image_url || null,

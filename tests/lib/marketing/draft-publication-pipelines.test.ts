@@ -33,6 +33,11 @@ let currentMockSupabase: unknown = null;
 vi.mock("@/lib/supabase/server", () => ({
   createClient: vi.fn(async () => currentMockSupabase),
 }));
+vi.mock("@/lib/supabase/admin", () => ({
+  createAdminClient: vi.fn(() => ({
+    from: () => ({ select: () => ({ eq: async () => ({ data: [] }) }) }),
+  })),
+}));
 
 vi.mock("@/lib/dev-bypass", () => ({
   isDevAuthBypassEnabled: vi.fn(() => false),
@@ -321,6 +326,7 @@ describe("Draft Publication Pipelines (C5.4 Review Corrections)", () => {
         commission_rate: 0.35,
         required_equipment: ["diffuser", "towel_warmer"],
         public_short_description: "Old short summary",
+        price_label: "₱850",
       };
 
       const mockDraftRow = {
@@ -338,6 +344,7 @@ describe("Draft Publication Pipelines (C5.4 Review Corrections)", () => {
           badges: ["Bestseller", "Aromatherapy"],
           inclusions: ["Lavender & Bergamot Oils", "Hot Herbal Towel", "Foot Soak"],
           imageAlt: "Therapist applying essential oils",
+          price: 1199.5,
         },
       };
 
@@ -379,7 +386,11 @@ describe("Draft Publication Pipelines (C5.4 Review Corrections)", () => {
               update: vi.fn().mockImplementation((payload) => {
                 capturedServiceUpdatePayload = payload;
                 return {
-                  eq: vi.fn().mockResolvedValue({ error: null }),
+                  eq: vi.fn().mockReturnValue({
+                    select: vi.fn().mockReturnValue({
+                      maybeSingle: vi.fn().mockResolvedValue({ data: { id: realServiceId }, error: null }),
+                    }),
+                  }),
                 };
               }),
             };
@@ -397,6 +408,7 @@ describe("Draft Publication Pipelines (C5.4 Review Corrections)", () => {
 
       // Verify payload written to services table writes only presentation fields and preserves existing metadata
       expect(capturedServiceUpdatePayload).toEqual({
+        price: 1199.5,
         image_url: "https://example.com/aroma-treatment.webp",
         image_alt: "Therapist applying essential oils",
         description:

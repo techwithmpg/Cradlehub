@@ -5,6 +5,7 @@ import {
   submitMarketingContentDraft,
   type MarketingContentDraftRow,
 } from "@/lib/queries/marketing-content";
+import { parseServicePrice } from "@/lib/services/service-mutation";
 
 export type MarketingDraftActionState = {
   success?: boolean;
@@ -46,6 +47,13 @@ export async function saveMarketingDraftAction(
   const metadata = metadataFromForm(formData);
   if (typeof metadata === "string") {
     return { success: false, error: metadata };
+  }
+  if (text(formData, "contentType") === "service" && metadata.price !== undefined) {
+    const price = parseServicePrice(metadata.price);
+    if (price === null) {
+      return { success: false, error: "Enter a valid PHP price with at most two decimal places." };
+    }
+    metadata.price = price;
   }
 
   const result = await saveMarketingContentDraft({

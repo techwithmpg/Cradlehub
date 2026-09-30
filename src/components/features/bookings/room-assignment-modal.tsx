@@ -28,7 +28,7 @@ import {
 
 type RoomAssignmentModalProps = {
   open: boolean;
-  booking: WorkspaceBookingRow | null;
+  booking: Pick<WorkspaceBookingRow, "id" | "resource_id"> | null;
   onOpenChange: (open: boolean) => void;
   onAssigned: () => void;
 };

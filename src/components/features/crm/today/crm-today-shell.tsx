@@ -36,12 +36,6 @@ export function CrmTodayShell({
 }) {
   return (
     <CradleFlowDashboard
-      key={queueData
-        .map(
-          (booking) =>
-            `${booking.id}:${booking.status}:${booking.payment_status}:${booking.amount_paid ?? 0}:${booking.order_payment_status ?? ''}:${booking.order_amount_paid ?? 0}:${booking.order_total_amount ?? 0}`
-        )
-        .join("|")}
       branchName={branchName}
       dateLabel={dateLabel}
       queueData={queueData}

@@ -28,6 +28,7 @@ export type ServicesStudioViewProps = {
 };
 
 type ServiceFormValues = {
+  price: string;
   imageUrl: string;
   imageAlt: string;
   description: string;
@@ -108,6 +109,12 @@ export function ServicesStudioView({
   // Find active mutable draft for current service
   const activeServiceDraft = useMemo(() => {
     if (!currentService) return null;
+    const publishedDraft = publishState?.success
+      ? (publishState as { draft?: MarketingContentDraftRow }).draft
+      : undefined;
+    if (publishedDraft?.content_type === "service" && publishedDraft.content_key === currentService.id && publishedDraft.status === "published") {
+      return null;
+    }
 
     const draftFromAction =
       (saveState?.success && (saveState as { draft?: MarketingContentDraftRow }).draft) ||
@@ -130,12 +137,13 @@ export function ServicesStudioView({
           ["draft", "submitted", "changes_requested", "approved"].includes(d.status)
       ) ?? null
     );
-  }, [currentService, drafts, saveState, submitState]);
+  }, [currentService, drafts, saveState, submitState, publishState]);
 
   // Initial values from active mutable draft or live catalog service
   const initialValues: ServiceFormValues = useMemo(() => {
     if (!currentService) {
       return {
+        price: "",
         imageUrl: "",
         imageAlt: "",
         description: "",
@@ -163,6 +171,7 @@ export function ServicesStudioView({
           : currentService.shortDescription || "";
 
       return {
+        price: typeof meta.price === "number" || typeof meta.price === "string" ? String(meta.price) : String(currentService.price),
         imageUrl: activeServiceDraft.image_url || currentService.imageUrl || "",
         imageAlt:
           activeServiceDraft.alt_text ||
@@ -176,6 +185,7 @@ export function ServicesStudioView({
     }
 
     return {
+      price: String(currentService.price),
       imageUrl: currentService.imageUrl || "",
       imageAlt: currentService.imageAlt || `${currentService.name} treatment`,
       description: currentService.description || "",
@@ -206,6 +216,7 @@ export function ServicesStudioView({
             ? (draft.metadata as Record<string, unknown>)
             : {};
         setFormValues({
+          price: typeof meta.price === "number" || typeof meta.price === "string" ? String(meta.price) : String(service.price),
           imageUrl: draft.image_url || service.imageUrl || "",
           imageAlt: draft.alt_text || service.imageAlt || `${service.name} treatment`,
           description: draft.body || service.description || "",
@@ -220,6 +231,7 @@ export function ServicesStudioView({
         });
       } else {
         setFormValues({
+          price: String(service.price),
           imageUrl: service.imageUrl || "",
           imageAlt: service.imageAlt || `${service.name} treatment`,
           description: service.description || "",
@@ -301,6 +313,21 @@ export function ServicesStudioView({
       {saveState?.message && (
         <div className="rounded-lg border border-green-500/30 bg-green-500/10 p-3 text-xs text-green-700 dark:text-green-300">
           {saveState.message}
+        </div>
+      )}
+      {saveState?.error && (
+        <div role="alert" className="rounded-lg border border-red-500/30 bg-red-500/10 p-3 text-xs text-red-700 dark:text-red-300">
+          {saveState.error}
+        </div>
+      )}
+      {submitState?.message && (
+        <div className="rounded-lg border border-green-500/30 bg-green-500/10 p-3 text-xs text-green-700 dark:text-green-300">
+          {submitState.message}
+        </div>
+      )}
+      {submitState?.error && (
+        <div role="alert" className="rounded-lg border border-red-500/30 bg-red-500/10 p-3 text-xs text-red-700 dark:text-red-300">
+          {submitState.error}
         </div>
       )}
 
@@ -460,9 +487,27 @@ export function ServicesStudioView({
                   </div>
                 </MarketingFieldGroup>
 
-                {/* 2. Descriptions */}
                 <MarketingFieldGroup
-                  title="2. Treatment Copy & Descriptions"
+                  title="2. Service Price"
+                  description="PHP price; live booking price changes only after owner publication"
+                >
+                  <label className="text-xs font-semibold text-[var(--cs-text)]" htmlFor="marketing-service-price">
+                    Canonical Price (PHP)
+                  </label>
+                  <input
+                    id="marketing-service-price"
+                    type="number"
+                    min={0}
+                    step="0.01"
+                    value={formValues.price}
+                    onChange={(e) => setFormValues((p) => ({ ...p, price: e.target.value }))}
+                    className="mt-1 w-full rounded-lg border border-[var(--cs-border)] bg-[var(--cs-surface)] px-3 py-1.5 text-xs text-[var(--cs-text)]"
+                  />
+                </MarketingFieldGroup>
+
+                {/* 3. Descriptions */}
+                <MarketingFieldGroup
+                  title="3. Treatment Copy & Descriptions"
                   description="Short highlights and full public treatment description"
                 >
                   <div>
@@ -498,7 +543,7 @@ export function ServicesStudioView({
 
                 {/* 3. Badges Manager */}
                 <MarketingFieldGroup
-                  title="3. Promotional Badges"
+                  title="4. Promotional Badges"
                   description="Highlight key tags on public catalog cards"
                 >
                   <div className="flex flex-wrap gap-1.5">
@@ -540,7 +585,7 @@ export function ServicesStudioView({
 
                 {/* 4. Inclusions Manager */}
                 <MarketingFieldGroup
-                  title="4. Service Inclusions"
+                  title="5. Service Inclusions"
                   description="Amenities included with this therapy"
                 >
                   <div className="flex flex-wrap gap-1.5">
@@ -611,11 +656,12 @@ export function ServicesStudioView({
                         <input type="hidden" name="altText" value={formValues.imageAlt} />
                         <input
                           type="hidden"
-                          name="metadata"
+                          name="metadataJson"
                           value={JSON.stringify({
                             shortDescription: formValues.shortDescription,
                             badges: formValues.badges,
                             inclusions: formValues.inclusions,
+                            price: formValues.price,
                           })}
                         />
                         <button
@@ -627,6 +673,9 @@ export function ServicesStudioView({
                           {isSaving ? "Saving..." : "Save Draft"}
                         </button>
                       </form>
+                      <p className="w-full text-[11px] text-[var(--cs-text-secondary)]">
+                        Save Draft stays private. Submit for review, then an owner must publish to update the website and booking price.
+                      </p>
 
                       {/* Submit for Review (Marketer / Owner) */}
                       {activeServiceDraft &&
@@ -662,6 +711,7 @@ export function ServicesStudioView({
                           ) : (
                             <form action={ownerUpdateAction}>
                               <input type="hidden" name="serviceId" value={currentService.id} />
+                              <input type="hidden" name="price" value={formValues.price} />
                               <input type="hidden" name="imageUrl" value={formValues.imageUrl} />
                               <input type="hidden" name="imageAlt" value={formValues.imageAlt} />
                               <input
@@ -753,7 +803,7 @@ export function ServicesStudioView({
                     </div>
                     <div className="text-right">
                       <p className="text-sm font-bold text-[#C8A96B]">
-                        {formatCurrency(currentService.price)}
+                        {formatCurrency(Number(formValues.price) || 0)}
                       </p>
                       <p className="text-[10px] text-[#9AA89A]">
                         {currentService.durationMinutes} min
