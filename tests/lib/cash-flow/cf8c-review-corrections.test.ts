@@ -78,7 +78,7 @@ describe('CF8-C independent-review corrections', () => {
     expect(lock).toBeGreaterThan(-1);
     expect(lookup).toBeGreaterThan(lock);
     expect(adjustment).toContain(
-      "idem_cf8c_cash_adjustment_"
+      "idem_cf8c_cash_operation_"
     );
   });
 
@@ -100,7 +100,21 @@ describe('CF8-C independent-review corrections', () => {
     expect(lock).toBeGreaterThan(-1);
     expect(lookup).toBeGreaterThan(lock);
     expect(transfer).toContain(
-      "idem_cf8c_transfer_"
+      "idem_cf8c_cash_operation_"
+    );
+  });
+
+  it('serializes the global cash-operation idempotency domain with one shared lock namespace', () => {
+    expect(
+      forwardMigration.match(/idem_cf8c_cash_operation_/g)?.length
+    ).toBe(2);
+
+    expect(forwardMigration).not.toContain(
+      'idem_cf8c_cash_adjustment_'
+    );
+
+    expect(forwardMigration).not.toContain(
+      'idem_cf8c_transfer_'
     );
   });
 

@@ -164,7 +164,7 @@ BEGIN
      AND TRIM(p_idempotency_key) <> '' THEN
 
     PERFORM pg_advisory_xact_lock(
-      hashtext('idem_cf8c_cash_adjustment_' || TRIM(p_idempotency_key))
+      hashtext('idem_cf8c_cash_operation_' || TRIM(p_idempotency_key))
     );
 
     SELECT *
@@ -448,7 +448,7 @@ BEGIN
      AND TRIM(p_idempotency_key) <> '' THEN
 
     PERFORM pg_advisory_xact_lock(
-      hashtext('idem_cf8c_transfer_' || TRIM(p_idempotency_key))
+      hashtext('idem_cf8c_cash_operation_' || TRIM(p_idempotency_key))
     );
 
     SELECT *
