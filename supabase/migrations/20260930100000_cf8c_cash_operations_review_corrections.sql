@@ -68,6 +68,13 @@ DECLARE
   v_existing_count    INTEGER;
   v_existing_amount   NUMERIC(12,2);
 BEGIN
+  IF p_idempotency_key IS NULL
+     OR NULLIF(TRIM(p_idempotency_key), '') IS NULL
+     OR LENGTH(TRIM(p_idempotency_key)) > 255 THEN
+    RAISE EXCEPTION
+      'IDEMPOTENCY_KEY_REQUIRED: Cash operations require an idempotency key of 1 to 255 characters';
+  END IF;
+
   IF p_amount IS NULL OR p_amount <= 0 THEN
     RAISE EXCEPTION
       'INVALID_AMOUNT: Adjustment amount must be greater than zero';
@@ -160,19 +167,16 @@ BEGIN
   -- same adjustment payload.
   -- -------------------------------------------------------------------------
 
-  IF p_idempotency_key IS NOT NULL
-     AND TRIM(p_idempotency_key) <> '' THEN
+  PERFORM pg_advisory_xact_lock(
+    hashtext('idem_cf8c_cash_operation_' || TRIM(p_idempotency_key))
+  );
 
-    PERFORM pg_advisory_xact_lock(
-      hashtext('idem_cf8c_cash_operation_' || TRIM(p_idempotency_key))
-    );
+  SELECT *
+  INTO v_existing_tx
+  FROM public.financial_transactions
+  WHERE idempotency_key = TRIM(p_idempotency_key);
 
-    SELECT *
-    INTO v_existing_tx
-    FROM public.financial_transactions
-    WHERE idempotency_key = TRIM(p_idempotency_key);
-
-    IF v_existing_tx.id IS NOT NULL THEN
+  IF v_existing_tx.id IS NOT NULL THEN
 
       SELECT
         COUNT(*)::INTEGER,
@@ -205,7 +209,6 @@ BEGIN
         'amount', v_signed_amount
       );
     END IF;
-  END IF;
 
   -- Account authority.
   SELECT *
@@ -346,6 +349,13 @@ DECLARE
   v_source_amount       NUMERIC(12,2);
   v_destination_amount  NUMERIC(12,2);
 BEGIN
+  IF p_idempotency_key IS NULL
+     OR NULLIF(TRIM(p_idempotency_key), '') IS NULL
+     OR LENGTH(TRIM(p_idempotency_key)) > 255 THEN
+    RAISE EXCEPTION
+      'IDEMPOTENCY_KEY_REQUIRED: Cash operations require an idempotency key of 1 to 255 characters';
+  END IF;
+
   IF p_amount IS NULL OR p_amount <= 0 THEN
     RAISE EXCEPTION
       'INVALID_AMOUNT: Transfer amount must be greater than zero';
@@ -444,19 +454,16 @@ BEGIN
   -- IDEMPOTENCY
   -- -------------------------------------------------------------------------
 
-  IF p_idempotency_key IS NOT NULL
-     AND TRIM(p_idempotency_key) <> '' THEN
+  PERFORM pg_advisory_xact_lock(
+    hashtext('idem_cf8c_cash_operation_' || TRIM(p_idempotency_key))
+  );
 
-    PERFORM pg_advisory_xact_lock(
-      hashtext('idem_cf8c_cash_operation_' || TRIM(p_idempotency_key))
-    );
+  SELECT *
+  INTO v_existing_tx
+  FROM public.financial_transactions
+  WHERE idempotency_key = TRIM(p_idempotency_key);
 
-    SELECT *
-    INTO v_existing_tx
-    FROM public.financial_transactions
-    WHERE idempotency_key = TRIM(p_idempotency_key);
-
-    IF v_existing_tx.id IS NOT NULL THEN
+  IF v_existing_tx.id IS NOT NULL THEN
 
       SELECT
         COUNT(*)::INTEGER,
@@ -500,7 +507,6 @@ BEGIN
         'amount', v_amount
       );
     END IF;
-  END IF;
 
   -- New writes require valid active accounts.
   IF v_src_account.id IS NULL OR NOT v_src_account.is_active THEN

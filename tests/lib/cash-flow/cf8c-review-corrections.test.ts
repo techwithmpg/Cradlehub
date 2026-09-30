@@ -118,6 +118,28 @@ describe('CF8-C independent-review corrections', () => {
     );
   });
 
+  it('requires a nonblank bounded idempotency key for every cash operation', () => {
+    expect(
+      forwardMigration.match(/IDEMPOTENCY_KEY_REQUIRED/g)?.length
+    ).toBe(2);
+
+    expect(
+      forwardMigration.match(/NULLIF\(TRIM\(p_idempotency_key\), ''\) IS NULL/g)?.length
+    ).toBe(2);
+
+    expect(
+      forwardMigration.match(/LENGTH\(TRIM\(p_idempotency_key\)\) > 255/g)?.length
+    ).toBe(2);
+
+    expect(forwardMigration).not.toContain(
+      "IF p_idempotency_key IS NOT NULL\n     AND TRIM(p_idempotency_key) <> '' THEN"
+    );
+
+    expect(
+      forwardMigration.match(/pg_advisory_xact_lock\(/g)?.length
+    ).toBe(2);
+  });
+
   it('rejects sub-cent adjustment and transfer values rather than silently rounding', () => {
     expect(
       forwardMigration.match(/AMOUNT_PRECISION_INVALID/g)?.length
