@@ -3,6 +3,7 @@ import { getBranchBusinessDate } from '@/lib/engine/slot-time';
 import { getCashFlowData } from '@/lib/cash-flow/cash-flow-queries';
 import { CashFlowRequiredDataError } from '@/lib/cash-flow/cash-flow-errors';
 import { CashFlowWorkspace, type CashFlowTab } from '@/components/features/cash-flow/cash-flow-workspace';
+import type { FinancialEntryMode } from '@/components/features/cash-flow/record-financial-entry-modal';
 
 export default async function CrmCashFlowPage({
   searchParams,
@@ -16,6 +17,10 @@ export default async function CrmCashFlowPage({
     requestedTab === 'ledger' || requestedTab === 'day-close' || requestedTab === 'history'
       ? requestedTab
       : 'today';
+  const initialEntryMode: FinancialEntryMode | null =
+    params.entry === 'payment' ? 'customer_payment'
+      : params.entry === 'expense' ? 'expense'
+        : params.entry === 'cash-operations' ? 'other_entry' : null;
 
   const today = getBranchBusinessDate();
   const selectedDate = typeof params.date === 'string' ? params.date : today;
@@ -45,5 +50,5 @@ export default async function CrmCashFlowPage({
     );
   }
 
-  return <CashFlowWorkspace initialData={cashFlowData} initialTab={initialTab} />;
+  return <CashFlowWorkspace initialData={cashFlowData} initialTab={initialTab} initialEntryMode={initialEntryMode} />;
 }

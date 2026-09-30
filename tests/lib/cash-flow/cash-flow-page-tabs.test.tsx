@@ -45,6 +45,17 @@ describe('Cash Flow page initial tab', () => {
     expect(mockGetCashFlowData).toHaveBeenCalledOnce();
   });
 
+  it.each([
+    ['payment', 'customer_payment'],
+    ['expense', 'expense'],
+    ['cash-operations', 'other_entry'],
+  ])('opens the existing %s entry mode from a Cradle Flow link', async (entry, expectedMode) => {
+    const page = await CrmCashFlowPage({ searchParams: Promise.resolve({ entry }) });
+
+    expect(page.props.initialEntryMode).toBe(expectedMode);
+    expect(mockGetCashFlowData).toHaveBeenCalledOnce();
+  });
+
   it('shows a clear unavailable state when required financial data cannot load', async () => {
     mockGetCashFlowData.mockRejectedValue(new CashFlowRequiredDataError('financial_accounts'));
 

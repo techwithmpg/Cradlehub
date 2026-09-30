@@ -10,7 +10,6 @@ import {
 import { useAttendanceScanFeed } from "@/components/features/attendance/use-attendance-scan-feed";
 import { notifyBookingsChanged } from "@/lib/bookings/bookings-client-events";
 import {
-  getCradleFlowCounts,
   getCradleFlowStage,
   type CradleFlowBooking,
 } from "@/lib/crm/cradle-flow";
@@ -22,7 +21,7 @@ import { CradleFlowBookingDialog } from "./cradle-flow-booking-dialog";
 import { CradleFlowCheckoutDialog } from "./cradle-flow-checkout-dialog";
 import { CradleFlowCompleteDialog } from "./cradle-flow-complete-dialog";
 import { CradleFlowHeader } from "./cradle-flow-header";
-import { CradleFlowMoneySummary, CradleFlowRecentActivity } from "./cradle-flow-lower-panels";
+import { getCradleFlowDisplayCounts, type CradleFlowFilter } from "./cradle-flow-display";
 import { CradleFlowSideRail } from "./cradle-flow-side-rail";
 import { CradleFlowSummary } from "./cradle-flow-summary";
 import {
@@ -58,6 +57,7 @@ export function CradleFlowDashboard(props: CradleFlowDashboardProps) {
   const [readinessOpen, setReadinessOpen] = useState(false);
   const [totalsOpen, setTotalsOpen] = useState(false);
   const [collected, setCollected] = useState(props.snapshot.payment?.total_collected ?? 0);
+  const [filter, setFilter] = useState<CradleFlowFilter>("all");
   const [isActing, startAction] = useTransition();
   const attendanceState = useAttendanceScanFeed({
     workspace: "crm",
@@ -67,7 +67,7 @@ export function CradleFlowDashboard(props: CradleFlowDashboardProps) {
     maxItems: 6,
   });
 
-  const counts = useMemo(() => getCradleFlowCounts(bookings), [bookings]);
+  const counts = useMemo(() => getCradleFlowDisplayCounts(bookings), [bookings]);
   const pendingBooking =
     bookings.find((booking) => ["pending", "pending_crm_confirmation"].includes(booking.status)) ??
     null;
@@ -127,7 +127,7 @@ export function CradleFlowDashboard(props: CradleFlowDashboardProps) {
   }
 
   return (
-    <div className="mx-auto grid w-full max-w-[1600px] gap-4 p-3 sm:p-5 lg:p-6">
+    <div className="mx-auto grid w-full max-w-[1600px] gap-3 p-3 sm:p-5 lg:p-6">
       <CradleFlowHeader
         branchName={props.branchName}
         fallbackDateLabel={props.dateLabel}
@@ -135,16 +135,18 @@ export function CradleFlowDashboard(props: CradleFlowDashboardProps) {
         onRefresh={() => router.refresh()}
         onReviewWarnings={() => setReadinessOpen(true)}
       />
-      <CradleFlowActions pendingBooking={pendingBooking} onResumePending={openBooking} />
-      <CradleFlowSummary counts={counts} collectedRevenue={collected} />
-      <div className="grid items-start gap-4 xl:grid-cols-[minmax(0,1fr)_320px]">
-        <main className={isActing ? "min-w-0 opacity-80" : "min-w-0"}>
+      <div className="grid items-start gap-3 xl:grid-cols-[minmax(0,1fr)_16rem]">
+        <main className={isActing ? "grid min-w-0 gap-3 opacity-80" : "grid min-w-0 gap-3"}>
+          <CradleFlowActions pendingBooking={pendingBooking} onResumePending={openBooking} />
+          <CradleFlowSummary counts={counts} collectedRevenue={collected} onSelectFilter={setFilter} />
           <CradleFlowWorkflow
             bookings={bookings}
             staffAvailable={props.snapshot.staffReadiness.availableNow}
             pendingFollowUps={props.actionNotifications.length}
             onOpen={openBooking}
             onPrimary={runPrimary}
+            filter={filter}
+            onFilterChange={setFilter}
           />
         </main>
         <CradleFlowSideRail
@@ -155,20 +157,16 @@ export function CradleFlowDashboard(props: CradleFlowDashboardProps) {
           attendanceRefreshing={attendanceState.isValidating}
           attendanceRefreshError={attendanceState.error}
           onAttendanceRefresh={attendanceState.refreshFeed}
-          readinessStatus={props.readinessStatus}
+          bookings={bookings}
+          payment={props.snapshot.payment}
+          collected={collected}
+          readyToPayCount={counts.ready_to_pay}
           readinessIssues={props.readinessIssues}
           onAttendanceSelect={setAttendance}
           onReviewReadiness={() => setReadinessOpen(true)}
-        />
-      </div>
-      <div className="grid gap-4 xl:grid-cols-[minmax(0,1fr)_minmax(340px,0.55fr)]">
-        <CradleFlowRecentActivity
-          attendance={attendanceState.feed}
-          notifications={props.actionNotifications}
-        />
-        <CradleFlowMoneySummary
-          payment={props.snapshot.payment}
-          collectedOverride={collected}
+          onOpenBooking={openBooking}
+          onShowNeedsAction={() => setFilter("needs_action")}
+          onShowReadyToPay={() => setFilter("ready_to_pay")}
           onViewTotals={() => setTotalsOpen(true)}
         />
       </div>

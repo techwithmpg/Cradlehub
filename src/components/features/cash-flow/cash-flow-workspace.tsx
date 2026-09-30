@@ -16,17 +16,18 @@ export type CashFlowTab = "today" | "ledger" | "day-close" | "history";
 interface CashFlowWorkspaceProps {
   initialData: CashFlowWorkspaceData;
   initialTab?: CashFlowTab;
+  initialEntryMode?: FinancialEntryMode | null;
 }
 
-export function CashFlowWorkspace({ initialData, initialTab = "today" }: CashFlowWorkspaceProps) {
+export function CashFlowWorkspace({ initialData, initialTab = "today", initialEntryMode = null }: CashFlowWorkspaceProps) {
   const router = useRouter();
   const [activeTab, setActiveTab] = useState<CashFlowTab>(initialTab);
 
   const [isRefreshing, setIsRefreshing] = useState(false);
-  const [isRecordPaymentOpen, setIsRecordPaymentOpen] = useState(false);
+  const [isRecordPaymentOpen, setIsRecordPaymentOpen] = useState(Boolean(initialEntryMode));
   const [isOpenDrawerModalOpen, setIsOpenDrawerModalOpen] = useState(false);
   const [targetOrderId, setTargetOrderId] = useState<string | undefined>(undefined);
-  const [entryModalMode, setEntryModalMode] = useState<FinancialEntryMode>("customer_payment");
+  const [entryModalMode, setEntryModalMode] = useState<FinancialEntryMode>(initialEntryMode ?? "customer_payment");
 
   const handleTabChange = (newTab: CashFlowTab) => {
     setActiveTab(newTab);

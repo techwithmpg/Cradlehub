@@ -449,6 +449,14 @@ describe("CF5 Cash Flow UI Foundation", () => {
     expect(screen.queryByText("Payment mix")).toBeNull();
   });
 
+  it("9aa. A Cradle Flow expense link opens the existing financial entry modal in Expense mode", () => {
+    render(<CashFlowWorkspace initialData={mockWorkspaceData} initialEntryMode="expense" />);
+
+    expect(screen.getByRole("dialog")).toBeTruthy();
+    expect(screen.getByPlaceholderText(/Shell Gas Station, Clean Linen Services/i)).toBeTruthy();
+    expect(screen.getByRole("button", { name: /Record Expense/i })).toBeTruthy();
+  });
+
   it("9b. Tab clicks show all loaded views without router navigation or refresh", () => {
     render(<CashFlowWorkspace initialData={mockWorkspaceData} />);
 

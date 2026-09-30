@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { ArrowRight, Banknote, Bell, Clock3 } from "lucide-react";
 import type { AttendanceScanFeedData } from "@/lib/attendance/types";
 import type { CrmTodayPayment } from "@/lib/queries/crm-today";
@@ -74,50 +75,45 @@ export function CradleFlowMoneySummary({
   payment,
   collectedOverride,
   onViewTotals,
+  readyToPayCount,
+  onShowReadyToPay,
 }: {
   payment: CrmTodayPayment | null;
   collectedOverride: number;
   onViewTotals: () => void;
+  readyToPayCount: number;
+  onShowReadyToPay: () => void;
 }) {
-  const collected = collectedOverride;
   return (
-    <section className="rounded-xl border border-[#d5c096] bg-[linear-gradient(135deg,#fffaf0,#f8f1df)] p-4 shadow-[var(--cs-shadow-xs)] sm:p-5">
-      <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-        <div className="flex items-center gap-3">
-          <span className="grid size-10 place-items-center rounded-full bg-[#164b36] text-white">
-            <Banknote className="size-5" />
-          </span>
-          <div>
-            <h2 className="text-sm font-extrabold text-[var(--cs-text)]">Today’s Money</h2>
-            <p className="text-xs text-[var(--cs-text-muted)]">
-              Booking collections, not a drawer close.
-            </p>
-          </div>
-        </div>
-        <div className="grid grid-cols-3 gap-5">
-          {[
-            ["Collected", collected],
-            ["Expected", payment?.total_expected ?? 0],
-            ["Outstanding", payment?.total_unpaid ?? 0],
-          ].map(([label, value]) => (
-            <div key={String(label)} className="text-right">
-              <div className="text-[10px] font-bold uppercase text-[var(--cs-text-muted)]">
-                {label}
-              </div>
-              <div className="mt-1 text-sm font-extrabold">
-                {formatCradleFlowMoney(Number(value))}
-              </div>
-            </div>
-          ))}
-        </div>
-        <button
-          type="button"
-          onClick={onViewTotals}
-          className="inline-flex h-10 items-center justify-center gap-2 rounded-lg border border-[#b78a42] bg-white/70 px-4 text-xs font-bold text-[#6f4a1c]"
-        >
-          View Day Totals <ArrowRight className="size-4" />
-        </button>
+    <section className="rounded-xl border border-[var(--cs-border-soft)] bg-[var(--cs-surface)] p-3 shadow-[var(--cs-shadow-xs)]">
+      <div className="flex items-start justify-between gap-2 border-b border-[var(--cs-border-soft)] pb-2.5">
+        <h2 className="inline-flex items-center gap-1.5 text-sm font-extrabold text-[var(--cs-text)]">
+          <Banknote className="size-4 text-emerald-700" aria-hidden="true" /> Today’s Money
+        </h2>
+        <Link href="/crm/cash-flow" className="inline-flex shrink-0 items-center gap-1 text-[11px] font-bold text-blue-700 hover:underline">
+          View in Cash Flow <ArrowRight className="size-3" aria-hidden="true" />
+        </Link>
       </div>
+      <dl className="divide-y divide-[var(--cs-border-soft)]">
+        {[
+          ["Collected", collectedOverride],
+          ["Expected from today’s visits", payment?.total_expected ?? 0],
+          ["Outstanding", payment?.total_unpaid ?? 0],
+        ].map(([label, value]) => (
+          <div key={String(label)} className="flex items-center justify-between gap-2 py-2 text-[11px]">
+            <dt className="text-[var(--cs-text-secondary)]">{label}</dt>
+            <dd className="font-extrabold tabular-nums text-[var(--cs-text)]">{formatCradleFlowMoney(Number(value))}</dd>
+          </div>
+        ))}
+      </dl>
+      <button type="button" onClick={onShowReadyToPay} className="mt-1 flex w-full items-center justify-between rounded-lg border border-orange-200 bg-orange-50 px-2.5 py-2 text-[11px] font-bold text-orange-800 hover:bg-orange-100">
+        <span>{readyToPayCount} {readyToPayCount === 1 ? "visit" : "visits"} ready for payment</span>
+        <ArrowRight className="size-3.5" aria-hidden="true" />
+      </button>
+      <button type="button" onClick={onViewTotals} className="mt-2 text-[11px] font-semibold text-[var(--cs-text-muted)] hover:text-[var(--cs-text)] hover:underline">
+        View booking collection totals
+      </button>
+      <p className="mt-1 text-[10px] text-[var(--cs-text-muted)]">Booking collections for this branch and date.</p>
     </section>
   );
 }
