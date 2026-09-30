@@ -172,6 +172,11 @@ const mockWorkspaceData: CashFlowWorkspaceData = {
     isBalanced: true,
     readyForReview: true,
     lastUpdatedText: "today at 10:28 PM",
+    reconciliationStatus: "submitted",
+    expectedCash: 3000,
+    actualCash: 3000,
+    cashVariance: 0,
+    channelVariance: 0,
     recordedInflow: 5000,
     recordedOutflow: 0,
     netPosition: 5000,
@@ -408,16 +413,33 @@ describe("CF5 Cash Flow UI Foundation", () => {
     expect(screen.getByText("No matching ledger records")).toBeTruthy();
   });
 
-  it("7. Day Close tab renders auto-generated day summary banner and balanced status", () => {
+  it("7. Day Close tab renders persisted reconciliation state and opens its workflow", () => {
     render(<DayCloseTab summary={mockWorkspaceData.dayClose} onNavigateToLedger={vi.fn()} />);
 
     expect(screen.getByText(/Auto-generated Day Summary · 2026-09-28/i)).toBeTruthy();
-    expect(screen.getByText(/Ready for review/i)).toBeTruthy();
-    expect(screen.getByText(/Records are balanced/i)).toBeTruthy();
+    expect(screen.getByText(/Reconciliation submitted/i)).toBeTruthy();
+    expect(screen.getByText(/Saved reconciliation totals match/i)).toBeTruthy();
+    expect(screen.getByText(/Open End-of-Day Reconciliation/i)).toBeTruthy();
 
-    // Mark as reviewed is disabled/preview
-    const reviewButton = screen.getByRole("button", { name: /Mark as reviewed/i });
-    expect(reviewButton.hasAttribute("disabled")).toBe(true);
+    expect(screen.getByRole("link", { name: /Open End-of-Day Reconciliation/i }).getAttribute("href"))
+      .toBe("/crm/reconciliation");
+  });
+
+  it("does not call an unsaved day balanced", () => {
+    render(<DayCloseTab summary={{
+      ...mockWorkspaceData.dayClose,
+      isBalanced: false,
+      readyForReview: false,
+      reconciliationStatus: "not_started",
+      expectedCash: null,
+      actualCash: null,
+      cashVariance: null,
+      channelVariance: null,
+    }} onNavigateToLedger={vi.fn()} />);
+
+    expect(screen.getAllByText(/No reconciliation recorded/i).length).toBeGreaterThan(0);
+    expect(screen.queryByText(/Saved reconciliation totals match/i)).toBeNull();
+    expect(screen.getByText(/No channel variance is available yet/i)).toBeTruthy();
   });
 
   it("8. History tab renders designed empty state when no historical day closes exist", () => {

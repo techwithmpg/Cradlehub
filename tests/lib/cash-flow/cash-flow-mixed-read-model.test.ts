@@ -85,6 +85,7 @@ describe('Cash Flow mixed canonical and booking snapshots', () => {
     'financial_account_movements',
     'order_payable_items',
     'v_booking_order_financial_summaries',
+    'daily_cash_reconciliations',
   ])('surfaces a required %s query failure instead of a zero-activity view', async (table) => {
     mockTables({}, table);
     await expect(getCashFlowData('branch-a', 'Main Spa', '2026-09-29'))
@@ -131,6 +132,49 @@ describe('Cash Flow mixed canonical and booking snapshots', () => {
     expect(data.dayClose.recordedInflow).toBe(500);
     expect(data.dayClose.openIssuesCount).toBe(1);
     expect(data.dayClose.isBalanced).toBe(false);
+  });
+
+  it.each([
+    { status: 'draft', actualCash: 400, balanced: false },
+    { status: 'submitted', actualCash: 400, balanced: true },
+    { status: 'approved', actualCash: 390, balanced: false },
+  ])('uses saved $status reconciliation and posted movements for Day Close', async ({
+    status, actualCash, balanced,
+  }) => {
+    const movement = (id: string, amount: number) => ({
+      id, financial_account_id: 'drawer-a', amount, payment_method: 'cash',
+      external_reference: null, created_at: '2026-09-29T02:00:00Z',
+    });
+    const transaction = (id: string, type: string, movementAmount: number) => ({
+      id, branch_id: 'branch-a', transaction_type: type, business_date: '2026-09-29',
+      occurred_at: '2026-09-29T02:00:00Z', recorded_at: '2026-09-29T02:00:00Z',
+      status: 'posted', source_type: null, source_id: null, external_reference: null,
+      notes: null, financial_account_movements: [movement(`${id}-movement`, movementAmount)],
+    });
+    mockTables({
+      financial_accounts: [], financial_expense_categories: [], staff: [], cash_sessions: [],
+      financial_transactions: [
+        transaction('payment-a', 'customer_payment', 500),
+        transaction('expense-a', 'operational_expense', -100),
+      ],
+      bookings: [],
+      daily_cash_reconciliations: [{
+        branch_id: 'branch-a', reconciliation_date: '2026-09-29', status,
+        expected_cash: 400, actual_cash: actualCash,
+        expected_gcash: 0, actual_gcash: 0,
+        expected_maya: 0, actual_maya: 0,
+        expected_card: 0, actual_card: 0,
+        expected_other: 0, actual_other: 0,
+        updated_at: '2026-09-29T12:00:00Z',
+      }],
+    });
+
+    const data = await getCashFlowData('branch-a', 'Main Spa', '2026-09-29');
+    expect(data.dayClose).toMatchObject({
+      reconciliationStatus: status, expectedCash: 400, actualCash,
+      cashVariance: actualCash - 400, isBalanced: balanced,
+      recordedInflow: 500, recordedOutflow: 100, netPosition: 400,
+    });
   });
 
   it.each([

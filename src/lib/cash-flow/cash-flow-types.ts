@@ -92,6 +92,11 @@ export interface DayCloseSummaryData {
   isBalanced: boolean;
   readyForReview: boolean;
   lastUpdatedText: string;
+  reconciliationStatus: 'not_started' | 'draft' | 'submitted' | 'approved';
+  expectedCash: number | null;
+  actualCash: number | null;
+  cashVariance: number | null;
+  channelVariance: number | null;
   recordedInflow: number;
   recordedOutflow: number;
   netPosition: number;

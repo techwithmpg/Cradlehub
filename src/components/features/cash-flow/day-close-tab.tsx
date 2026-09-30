@@ -1,6 +1,7 @@
 'use client';
 
 import React from 'react';
+import Link from 'next/link';
 import {
   CheckCircle2,
   Banknote,
@@ -37,6 +38,9 @@ interface DayCloseTabProps {
 export function DayCloseTab({ summary, onNavigateToLedger }: DayCloseTabProps) {
   const formatPeso = (val: number) =>
     `₱${val.toLocaleString('en-PH', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+  const statusLabel = summary.reconciliationStatus === 'not_started'
+    ? 'No reconciliation recorded'
+    : `Reconciliation ${summary.reconciliationStatus}`;
 
   return (
     <div className="space-y-4">
@@ -61,10 +65,10 @@ export function DayCloseTab({ summary, onNavigateToLedger }: DayCloseTabProps) {
         <div className="flex flex-col sm:flex-row sm:items-center md:items-end gap-1.5 md:text-right">
           <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-semibold bg-[#E8F5EE] text-[#163E32] border border-[#BCE2CD] w-fit">
             <span className="w-1.5 h-1.5 rounded-full bg-[#1B4D3E]" />
-            Ready for review
+            {statusLabel}
           </span>
           <span className="text-[11px] text-[#9C8878]">
-            Last updated {summary.lastUpdatedText}
+            {summary.reconciliationStatus === 'not_started' ? 'No saved update' : `Last updated ${summary.lastUpdatedText}`}
           </span>
         </div>
       </div>
@@ -78,7 +82,7 @@ export function DayCloseTab({ summary, onNavigateToLedger }: DayCloseTabProps) {
           dotColorClass="bg-emerald-500"
           label="RECORDED INFLOW"
           value={formatPeso(summary.recordedInflow)}
-          description="Total cash received today"
+          description="Posted financial movement inflow"
         />
 
         <CashFlowKpiCard
@@ -88,7 +92,7 @@ export function DayCloseTab({ summary, onNavigateToLedger }: DayCloseTabProps) {
           dotColorClass="bg-amber-500"
           label="RECORDED OUTFLOW"
           value={formatPeso(summary.recordedOutflow)}
-          description="Total operational expenses"
+          description="Posted financial movement outflow"
         />
 
         <CashFlowKpiCard
@@ -258,36 +262,38 @@ export function DayCloseTab({ summary, onNavigateToLedger }: DayCloseTabProps) {
         {/* Bottom Right: Finalize Day Close (6 cols) */}
         <div className="lg:col-span-6 bg-white rounded-xl border border-[#EAE4DC] p-5 shadow-[0_1px_2px_rgba(0,0,0,0.02)] flex flex-col justify-between">
           <div>
-            <h2 className="text-base font-bold text-[#1E1916]">Finalize Day Close</h2>
+            <h2 className="text-base font-bold text-[#1E1916]">Daily reconciliation</h2>
             <p className="text-xs text-[#9C8878] mb-4">
-              Review the summary and complete today&apos;s reconciliation.
+              Expected and actual amounts come from the saved reconciliation record.
             </p>
 
-            {/* Balanced status banner */}
-            <div className="bg-[#FAFDFB] border border-[#BCE2CD] rounded-xl p-4 flex items-start gap-3 mb-4">
-              <div className="p-1 rounded-full bg-[#1B4D3E] text-white flex-shrink-0 mt-0.5">
-                <CheckCircle2 className="w-4 h-4" />
-              </div>
+            <div className={`rounded-xl border p-4 mb-4 ${summary.isBalanced ? 'bg-[#FAFDFB] border-[#BCE2CD]' : 'bg-amber-50 border-amber-200'}`}>
               <div>
-                <p className="text-xs font-bold text-[#163E32]">Records are balanced</p>
-                <p className="text-[11px] text-[#4A6B59] mt-0.5">
-                  All transactions are accounted for and ready to close.
+                <p className="text-xs font-bold text-[#163E32]">
+                  {summary.isBalanced ? 'Saved reconciliation totals match' : statusLabel}
+                </p>
+                <p className="text-[11px] text-[#4A6B59] mt-1">
+                  {summary.cashVariance === null
+                    ? 'Enter and save the actual count in End-of-Day Reconciliation.'
+                    : `Cash expected ${formatPeso(summary.expectedCash ?? 0)} · actual ${formatPeso(summary.actualCash ?? 0)} · variance ${formatPeso(summary.cashVariance)}`}
+                </p>
+                <p className="text-[11px] text-[#4A6B59] mt-1">
+                  {summary.channelVariance === null
+                    ? 'No channel variance is available yet.'
+                    : `Total absolute channel variance: ${formatPeso(summary.channelVariance)}.`}
                 </p>
               </div>
             </div>
           </div>
 
-          {/* Action buttons matching screenshot */}
           <div className="space-y-2 mt-4">
-            <button
-              disabled
-              title="Day Close finalization engine will be authorized in a subsequent stage."
-              className="w-full py-2.5 px-4 bg-[#1B4D3E]/70 text-white rounded-lg text-xs font-semibold flex items-center justify-center gap-2 cursor-not-allowed opacity-90"
+            <Link
+              href="/crm/reconciliation"
+              className="w-full py-2.5 px-4 bg-[#1B4D3E] text-white rounded-lg text-xs font-semibold flex items-center justify-center gap-2 hover:bg-[#163E32]"
             >
               <CheckCircle2 className="w-4 h-4" />
-              <span>Mark as reviewed</span>
-              <span className="text-[10px] bg-white/20 px-1.5 py-0.5 rounded text-white ml-2">Preview</span>
-            </button>
+              <span>Open End-of-Day Reconciliation</span>
+            </Link>
 
             <div className="grid grid-cols-2 gap-2">
               <button

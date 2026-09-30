@@ -275,6 +275,11 @@ export async function getCashFlowData(
   const todayTransactions = allTransactions.filter(
     (tx) => tx.business_date === businessDate && tx.status === 'posted'
   );
+  const postedDayAmounts = todayTransactions.flatMap((tx) =>
+    (tx.financial_account_movements ?? []).map((movement) => Number(movement.amount) || 0)
+  );
+  const postedDayInflow = postedDayAmounts.reduce((sum, amount) => sum + Math.max(0, amount), 0);
+  const postedDayOutflow = postedDayAmounts.reduce((sum, amount) => sum + Math.max(0, -amount), 0);
   const receiptTransactions = todayTransactions.filter((tx) =>
     isCashFlowReceiptTransactionType(tx.transaction_type)
   );
@@ -845,15 +850,45 @@ export async function getCashFlowData(
     });
   }
 
-  // 9. Day Close and History Construction
+  // 9. Consume the persisted reconciliation authority for this branch/date.
+  const { data: reconciliationRows, error: reconciliationError } = await supabase
+    .from('daily_cash_reconciliations')
+    .select('status, expected_cash, expected_gcash, expected_maya, expected_card, expected_other, actual_cash, actual_gcash, actual_maya, actual_card, actual_other, updated_at')
+    .eq('branch_id', branchId)
+    .eq('reconciliation_date', businessDate)
+    .limit(1);
+  if (reconciliationError) {
+    throw new CashFlowRequiredDataError('daily_cash_reconciliations');
+  }
+  const reconciliation = reconciliationRows?.[0] ?? null;
+  const reconciliationStatus: CashFlowWorkspaceData['dayClose']['reconciliationStatus'] = reconciliation?.status === 'draft' ||
+    reconciliation?.status === 'submitted' || reconciliation?.status === 'approved'
+    ? reconciliation.status : 'not_started';
+  const expectedCash = reconciliation ? Number(reconciliation.expected_cash) : null;
+  const actualCash = reconciliation ? Number(reconciliation.actual_cash) : null;
+  const cashVariance = expectedCash !== null && actualCash !== null
+    ? actualCash - expectedCash : null;
+  const channelVariance = reconciliation ? [
+    'cash', 'gcash', 'maya', 'card', 'other',
+  ].reduce((sum, channel) =>
+    sum + Math.abs(Number(reconciliation[`actual_${channel}` as keyof typeof reconciliation]) -
+      Number(reconciliation[`expected_${channel}` as keyof typeof reconciliation])), 0) : null;
+
+  // 10. Day Close and History Construction
   const dayCloseSummary = {
     businessDate,
-    isBalanced: totalOutstandingAmount === 0 && unmatchedPayments.length === 0,
-    readyForReview: true,
-    lastUpdatedText: 'today at 10:28 PM',
-    recordedInflow: totalInflowFromMovements,
-    recordedOutflow: 0,
-    netPosition: totalInflowFromMovements,
+    isBalanced: (reconciliationStatus === 'submitted' || reconciliationStatus === 'approved') && channelVariance === 0,
+    readyForReview: reconciliationStatus === 'submitted',
+    lastUpdatedText: reconciliation?.updated_at
+      ? formatDateTimeString(reconciliation.updated_at) : 'not recorded',
+    reconciliationStatus,
+    expectedCash,
+    actualCash,
+    cashVariance,
+    channelVariance,
+    recordedInflow: postedDayInflow,
+    recordedOutflow: postedDayOutflow,
+    netPosition: postedDayInflow - postedDayOutflow,
     openIssuesCount: totalBookingsNeedsPayment + unmatchedPayments.length,
     paymentBreakdown: paymentMix,
     coverageCategories: coverage,
