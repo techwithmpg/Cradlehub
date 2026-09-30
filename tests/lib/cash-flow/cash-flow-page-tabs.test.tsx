@@ -12,6 +12,7 @@ vi.mock('@/lib/cash-flow/cash-flow-queries', () => ({ getCashFlowData: mockGetCa
 vi.mock('server-only', () => ({}));
 
 import CrmCashFlowPage from '@/app/(dashboard)/crm/cash-flow/page';
+import { CashFlowRequiredDataError } from '@/lib/cash-flow/cash-flow-errors';
 
 describe('Cash Flow page initial tab', () => {
   beforeEach(() => {
@@ -42,5 +43,23 @@ describe('Cash Flow page initial tab', () => {
 
     expect(page.props.initialTab).toBe('today');
     expect(mockGetCashFlowData).toHaveBeenCalledOnce();
+  });
+
+  it('shows a clear unavailable state when required financial data cannot load', async () => {
+    mockGetCashFlowData.mockRejectedValue(new CashFlowRequiredDataError('financial_accounts'));
+
+    const page = await CrmCashFlowPage({ searchParams: Promise.resolve({}) });
+
+    expect(page.type).toBe('section');
+    expect(page.props.role).toBe('alert');
+    expect(page.props.children[0].props.children).toBe('Cash Flow is unavailable');
+    expect(mockGetCashFlowData).toHaveBeenCalledOnce();
+  });
+
+  it('lets unexpected failures reach the existing error boundary', async () => {
+    mockGetCashFlowData.mockRejectedValue(new Error('Unexpected failure'));
+
+    await expect(CrmCashFlowPage({ searchParams: Promise.resolve({}) }))
+      .rejects.toThrow('Unexpected failure');
   });
 });

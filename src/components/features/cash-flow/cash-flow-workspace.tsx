@@ -107,17 +107,15 @@ export function CashFlowWorkspace({ initialData, initialTab = "today" }: CashFlo
               <span>Open Cash Drawer</span>
             </button>
           )}
-          {initialData.cashSessions?.activeSessions?.length ? (
-            <button
-              type="button"
-              onClick={openCashOperations}
-              className="inline-flex items-center gap-1.5 rounded-lg border border-[#D8CDBF] bg-white px-3.5 py-1.5 text-xs font-semibold text-[#493F37] shadow-2xs transition hover:border-[#BFAF9E] hover:bg-[#FAF8F5]"
-              title="Record physical cash additions, removals, or safe drops"
-            >
-              <ArrowLeftRight className="h-3.5 w-3.5 text-[#6B5D52]" />
-              <span>Cash Operations</span>
-            </button>
-          ) : null}
+          <button
+            type="button"
+            onClick={openCashOperations}
+            className="inline-flex items-center gap-1.5 rounded-lg border border-[#D8CDBF] bg-white px-3.5 py-1.5 text-xs font-semibold text-[#493F37] shadow-2xs transition hover:border-[#BFAF9E] hover:bg-[#FAF8F5]"
+            title="Record cash corrections or transfers between configured financial accounts"
+          >
+            <ArrowLeftRight className="h-3.5 w-3.5 text-[#6B5D52]" />
+            <span>Cash Operations</span>
+          </button>
           <button
             onClick={() => openRecordPayment()}
             className="inline-flex items-center gap-1.5 px-3.5 py-1.5 border border-[#1B4D3E] bg-[#EEF8F2] hover:bg-[#E3F2E9] text-xs font-semibold text-[#163E32] rounded-lg shadow-2xs transition"
@@ -315,6 +313,7 @@ export function CashFlowWorkspace({ initialData, initialTab = "today" }: CashFlo
         expenseCategories={initialData.expenseCategories}
         staffOptions={initialData.staffOptions}
         payableOrders={initialData.payableOrders}
+        activeCashSessions={initialData.cashSessions?.activeSessions ?? []}
         initialOrderId={targetOrderId}
         initialMode={entryModalMode}
         branchId={initialData.branchId}

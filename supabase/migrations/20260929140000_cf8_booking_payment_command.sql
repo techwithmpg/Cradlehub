@@ -82,7 +82,7 @@ BEGIN
   PERFORM pg_advisory_xact_lock(hashtext('idem_cf4_' || p_idempotency_key));
 
   -- 3. Row lock on booking order
-  SELECT id, branch_id, organizer_customer_id, booking_date, metadata
+  SELECT id, branch_id, organizer_customer_id, booking_date, metadata, currency
   INTO v_order
   FROM public.booking_orders
   WHERE id = p_order_id
@@ -91,7 +91,6 @@ BEGIN
   IF NOT FOUND THEN
     RAISE EXCEPTION 'ORDER_NOT_FOUND: Booking order % does not exist', p_order_id;
   END IF;
-
   -- 4. Authenticated identity & staff resolution
   v_auth_uid := auth.uid();
   IF v_auth_uid IS NULL THEN
@@ -118,6 +117,9 @@ BEGIN
   IF v_staff.system_role <> 'owner' AND v_staff.branch_id <> v_order.branch_id THEN
     RAISE EXCEPTION 'BRANCH_UNAUTHORIZED: Staff % (branch %) unauthorized for order in branch %',
       v_staff.id, v_staff.branch_id, v_order.branch_id;
+  END IF;
+  IF v_order.currency IS DISTINCT FROM 'PHP' THEN
+    RAISE EXCEPTION 'UNSUPPORTED_ORDER_CURRENCY: Cash Flow currently supports PHP orders only';
   END IF;
 
   -- Build forward payable evidence only when an explicit payment is posted.
@@ -656,6 +658,9 @@ DECLARE
   v_key TEXT;
   v_order_branch_id UUID;
   v_order_metadata JSONB;
+  v_order_currency TEXT;
+  v_expected_source_type TEXT;
+  v_expected_source_id TEXT;
 BEGIN
   IF auth.uid() IS NULL THEN
     RAISE EXCEPTION 'AUTH_REQUIRED: Payment posting requires an authenticated user';
@@ -682,10 +687,14 @@ BEGIN
     RAISE EXCEPTION 'BRANCH_UNAUTHORIZED: Caller cannot update this branch';
   END IF;
   IF v_booking.order_id IS NOT NULL THEN
-    SELECT bo.branch_id, bo.metadata INTO v_order_branch_id, v_order_metadata
+    SELECT bo.branch_id, bo.metadata, bo.currency
+      INTO v_order_branch_id, v_order_metadata, v_order_currency
     FROM public.booking_orders bo WHERE bo.id = v_booking.order_id FOR UPDATE;
     IF NOT FOUND OR v_order_branch_id <> v_booking.branch_id THEN
       RAISE EXCEPTION 'BOOKING_ORDER_BRANCH_MISMATCH: Booking and order branches differ';
+    END IF;
+    IF v_order_currency IS DISTINCT FROM 'PHP' THEN
+      RAISE EXCEPTION 'UNSUPPORTED_ORDER_CURRENCY: Cash Flow currently supports PHP orders only';
     END IF;
     -- This command's cumulative amount is a booking-level input. For a
     -- multi-line or order-only-charge order, it cannot represent order money.
@@ -724,15 +733,23 @@ BEGIN
     RAISE EXCEPTION 'INVALID_IDEMPOTENCY_KEY: Key must contain 1 to 255 characters';
   END IF;
 
+  IF v_booking.order_id IS NULL THEN
+    v_expected_source_type := 'legacy_booking';
+    v_expected_source_id := v_booking.id::text;
+  ELSE
+    v_expected_source_type := 'booking_order';
+    v_expected_source_id := v_booking.order_id::text;
+  END IF;
+
   IF p_idempotency_key IS NOT NULL THEN
     v_key := 'cf8:' || p_booking_id::text || ':' || p_idempotency_key;
     PERFORM pg_advisory_xact_lock(hashtext('idem_cf4_' || v_key));
     SELECT tx.id, tx.source_type, tx.source_id INTO v_existing
     FROM public.financial_transactions tx WHERE tx.idempotency_key = v_key;
     IF FOUND THEN
-      IF v_existing.source_type <> CASE WHEN v_booking.order_id IS NULL THEN 'legacy_booking' ELSE 'booking_order' END
-         OR v_existing.source_id <> COALESCE(v_booking.order_id, v_booking.id)::text
-         OR v_delta <> 0
+      IF v_existing.source_type IS DISTINCT FROM v_expected_source_type
+         OR v_existing.source_id IS DISTINCT FROM v_expected_source_id
+         OR v_delta IS DISTINCT FROM 0
          OR v_booking.payment_method IS DISTINCT FROM p_payment_method
          OR v_booking.payment_status IS DISTINCT FROM p_payment_status
          OR v_booking.payment_reference IS DISTINCT FROM p_payment_reference THEN
@@ -933,6 +950,7 @@ DECLARE
   v_account RECORD;
   v_payment JSONB;
   v_existing UUID;
+  v_order_currency TEXT;
   v_ordered_ids JSONB;
 BEGIN
   IF p_actor_auth_user_id IS NULL OR p_idempotency_key IS NULL
@@ -1016,6 +1034,11 @@ BEGIN
   v_result := public.create_booking_order_atomic(
     p_idempotency_key, v_order, p_attendees, p_service_lines);
   v_order_id := (v_result->>'order_id')::uuid;
+  SELECT bo.currency INTO v_order_currency
+  FROM public.booking_orders bo WHERE bo.id = v_order_id;
+  IF v_paid AND v_order_currency IS DISTINCT FROM 'PHP' THEN
+    RAISE EXCEPTION 'UNSUPPORTED_ORDER_CURRENCY: Cash Flow currently supports PHP orders only';
+  END IF;
   IF v_result->>'idempotency_status' = 'replayed' THEN
     IF v_paid THEN
       SELECT tx.id INTO v_existing FROM public.financial_transactions tx

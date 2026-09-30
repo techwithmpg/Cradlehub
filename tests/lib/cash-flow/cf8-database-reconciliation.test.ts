@@ -132,4 +132,40 @@ describe("CF8 database reconciliation against accepted repository contracts", ()
       );
     }
   });
+
+  it("rejects non-PHP order currency before any order-backed payment or replay", () => {
+    const guard = "UNSUPPORTED_ORDER_CURRENCY: Cash Flow currently supports PHP orders only";
+    const cf4Writer = cf4.slice(cf4.indexOf("CREATE OR REPLACE FUNCTION public.post_order_payment_atomic("));
+    const cf8Writer = cf8.slice(
+      cf8.indexOf("CREATE OR REPLACE FUNCTION public.post_order_payment_atomic("),
+      cf8.indexOf("CREATE OR REPLACE FUNCTION public.post_booking_payment_atomic(")
+    );
+    const bookingCommand = cf8.slice(
+      cf8.indexOf("CREATE OR REPLACE FUNCTION public.post_booking_payment_atomic("),
+      cf8.indexOf("CREATE OR REPLACE FUNCTION public.create_inhouse_order_with_payment_atomic(")
+    );
+    const creation = cf8.slice(cf8.indexOf("CREATE OR REPLACE FUNCTION public.create_inhouse_order_with_payment_atomic("));
+    for (const writer of [cf4Writer, cf8Writer]) {
+      expect(writer).toMatch(/SELECT id, branch_id, organizer_customer_id, booking_date, (?:metadata, )?currency/);
+      expect(writer).toContain("v_order.currency IS DISTINCT FROM 'PHP'");
+      expect(writer).toContain(guard);
+      expect(writer.indexOf(guard)).toBeGreaterThan(writer.indexOf("BRANCH_UNAUTHORIZED: Staff"));
+    }
+    expect(bookingCommand).toContain("bo.currency");
+    expect(bookingCommand.indexOf(guard)).toBeLessThan(bookingCommand.indexOf("IF p_idempotency_key IS NOT NULL THEN"));
+    expect(creation).toContain("IF v_paid AND v_order_currency IS DISTINCT FROM 'PHP' THEN");
+    expect(creation.indexOf(guard)).toBeLessThan(creation.indexOf("idempotency_status' = 'replayed'"));
+  });
+
+  it("uses precomputed source identity for CF8 replay and preserves the BKG3 booking-line shape", () => {
+    expect(cf8).toContain("v_expected_source_type TEXT;");
+    expect(cf8).toContain("v_expected_source_id TEXT;");
+    expect(cf8).toContain("v_existing.source_type IS DISTINCT FROM v_expected_source_type");
+    expect(cf8).toContain("v_existing.source_id IS DISTINCT FROM v_expected_source_id");
+    expect(cf8).not.toMatch(/IF v_existing\.source_type\s*<>\s*CASE/);
+    for (const sql of [cf2, cf3, cf4, cf6, cf7, cash, cf8]) {
+      expect(sql).not.toContain("booking_service_lines");
+      expect(sql).not.toContain("daily_cash_reconciliations");
+    }
+  });
 });

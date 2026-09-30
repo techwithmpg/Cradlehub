@@ -21,91 +21,10 @@ ON CONFLICT (id) DO UPDATE SET
   allowed_mime_types = ARRAY['image/jpeg', 'image/png', 'image/webp', 'application/pdf']::text[];
 
 
--- ─── 2. STORAGE POLICIES ─────────────────────────────────────────────────────
--- Private receipt storage requires authenticated, branch-isolated access.
--- Path format: {branchId}/{YYYY}/{MM}/rec_{businessDate}_{random}.{ext}
--- Folder token 1 represents the branchId.
-
-ALTER TABLE storage.objects ENABLE ROW LEVEL SECURITY;
-
--- 2.1. SELECT Policy (Authenticated staff read receipts for their branch or owner/admin/finance)
-DROP POLICY IF EXISTS "expense_receipts_authenticated_select" ON storage.objects;
-CREATE POLICY "expense_receipts_authenticated_select"
-  ON storage.objects FOR SELECT
-  TO authenticated
-  USING (
-    bucket_id = 'expense-receipts'
-    AND (
-      (storage.foldername(name))[1] = (SELECT public.get_auth_branch_id()::text)
-      OR (SELECT public.get_auth_role()) = 'owner'
-      OR EXISTS (
-        SELECT 1 FROM public.staff
-        WHERE auth_user_id = (SELECT auth.uid())
-          AND is_active = true
-          AND system_role = 'owner'
-      )
-    )
-  );
-
--- 2.2. INSERT Policy (Authenticated staff upload to own branch folder; ownership via owner_id)
-DROP POLICY IF EXISTS "expense_receipts_authenticated_insert" ON storage.objects;
-CREATE POLICY "expense_receipts_authenticated_insert"
-  ON storage.objects FOR INSERT
-  TO authenticated
-  WITH CHECK (
-    bucket_id = 'expense-receipts'
-    AND (
-      (storage.foldername(name))[1] = (SELECT public.get_auth_branch_id()::text)
-      OR (SELECT public.get_auth_role()) = 'owner'
-      OR EXISTS (
-        SELECT 1 FROM public.staff
-        WHERE auth_user_id = (SELECT auth.uid())
-          AND is_active = true
-          AND system_role = 'owner'
-      )
-    )
-    AND (
-      owner_id = (SELECT auth.uid()::text)
-      OR owner_id IS NULL
-    )
-  );
-
--- 2.3. DELETE Policy (Orphan cleanup: staff can delete their own uploaded object in branch folder; owner/admin can delete)
-DROP POLICY IF EXISTS "expense_receipts_authenticated_delete" ON storage.objects;
-CREATE POLICY "expense_receipts_authenticated_delete"
-  ON storage.objects FOR DELETE
-  TO authenticated
-  USING (
-    bucket_id = 'expense-receipts'
-    AND (
-      (storage.foldername(name))[1] = (SELECT public.get_auth_branch_id()::text)
-      OR (SELECT public.get_auth_role()) = 'owner'
-      OR EXISTS (
-        SELECT 1 FROM public.staff
-        WHERE auth_user_id = (SELECT auth.uid())
-          AND is_active = true
-          AND system_role = 'owner'
-      )
-    )
-    AND (
-      owner_id = (SELECT auth.uid()::text)
-      OR (SELECT public.get_auth_role()) = 'owner'
-      OR EXISTS (
-        SELECT 1 FROM public.staff
-        WHERE auth_user_id = (SELECT auth.uid())
-          AND is_active = true
-          AND system_role = 'owner'
-      )
-    )
-  );
-
--- 2.4. Service Role Policy (Full access for background maintenance)
-DROP POLICY IF EXISTS "expense_receipts_service_role_all" ON storage.objects;
-CREATE POLICY "expense_receipts_service_role_all"
-  ON storage.objects FOR ALL
-  TO service_role
-  USING (bucket_id = 'expense-receipts')
-  WITH CHECK (bucket_id = 'expense-receipts');
+-- ─── 2. MANAGED STORAGE ACCESS ───────────────────────────────────────────────
+-- storage.objects is Supabase-owned. No table RLS or policy DDL is performed
+-- here. Receipt upload and orphan cleanup use an authenticated, authorized
+-- server action with the server-only service-role client. The bucket is private.
 
 
 -- ─── 3. RPC: post_expense_atomic (ADDITIVE RECEIPT PATH SUPPORT) ─────────────

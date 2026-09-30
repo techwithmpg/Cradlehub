@@ -15,6 +15,8 @@ import type {
 } from './cash-flow-types';
 import type { FinancialPaymentMethod } from './financial-contract';
 import { findUnmatchedBookingPayments, isCashFlowReceiptTransactionType } from './payment-evidence';
+import { CashFlowRequiredDataError } from './cash-flow-errors';
+import { validatedLegacyBookingPrice } from './legacy-booking-price';
 
 export interface CashFlowQueryFilters {
   tab?: string;
@@ -68,12 +70,15 @@ export async function getCashFlowData(
   const supabase = await createClient();
 
   // 1. Fetch active financial accounts for this branch
-  const { data: accountsData } = await supabase
+  const { data: accountsData, error: accountsError } = await supabase
     .from('financial_accounts')
     .select('id, name, account_type, identifier_mask, branch_id, is_active')
     .or(`branch_id.eq.${branchId},branch_id.is.null`)
     .eq('is_active', true)
     .order('name');
+  if (accountsError) {
+    throw new CashFlowRequiredDataError('financial_accounts');
+  }
 
   const accounts: MaskedAccountOption[] = (accountsData || []).map((acc) => ({
     id: acc.id,
@@ -125,7 +130,7 @@ export async function getCashFlowData(
   }));
 
   // 2. Fetch financial transactions for this branch
-  const { data: txData } = await supabase
+  const { data: txData, error: transactionsError } = await supabase
     .from('financial_transactions')
     .select(`
       id,
@@ -151,6 +156,26 @@ export async function getCashFlowData(
     `)
     .eq('branch_id', branchId)
     .order('occurred_at', { ascending: false });
+  if (transactionsError) {
+    throw new CashFlowRequiredDataError('financial_transactions or financial_account_movements');
+  }
+
+  // These are required CF tables even on days with no transactions or orders.
+  // A missing migration must not render as a plausible zero-activity day.
+  const [movementsProbe, payablesProbe, summariesProbe] = await Promise.all([
+    supabase.from('financial_account_movements').select('id').limit(0),
+    supabase.from('order_payable_items').select('id').limit(0),
+    supabase.from('v_booking_order_financial_summaries').select('order_id').limit(0),
+  ]);
+  if (movementsProbe.error) {
+    throw new CashFlowRequiredDataError('financial_account_movements');
+  }
+  if (payablesProbe.error) {
+    throw new CashFlowRequiredDataError('order_payable_items');
+  }
+  if (summariesProbe.error) {
+    throw new CashFlowRequiredDataError('v_booking_order_financial_summaries');
+  }
 
   const allTransactions: RawTransaction[] = (txData as unknown as RawTransaction[]) || [];
 
@@ -731,19 +756,22 @@ export async function getCashFlowData(
 
   const listedOrders = new Set<string>();
   for (const b of todayBookings) {
-    // CF4 Record Payment accepts booking_orders only. Historical legacy rows
-    // remain payable through the explicit booking payment command.
-    if (!b.order_id) continue;
     if (b.order_id && listedOrders.has(b.order_id)) continue;
     if (b.order_id) listedOrders.add(b.order_id);
     const orderState = b.order_id ? orderPayment(b.order_id) : null;
     if (b.order_id && !orderState) continue;
-    const total = orderState?.total ?? bookingPriceSnapshot(b.metadata);
-    const paid = orderState?.paid ?? (Number(b.amount_paid) || 0);
+    if (!b.order_id && ['cancelled', 'no_show'].includes(b.status ?? '')) continue;
+    const legacyTotal = b.order_id ? null : validatedLegacyBookingPrice(b.metadata);
+    if (!b.order_id && legacyTotal === null) continue;
+    const legacyPaid = Number(b.amount_paid ?? 0);
+    if (!b.order_id && (!Number.isFinite(legacyPaid) || legacyPaid < 0)) continue;
+    const total = orderState?.total ?? legacyTotal!;
+    const paid = orderState?.paid ?? legacyPaid;
     const remaining = orderState?.remaining ?? Math.max(0, total - paid);
     const isPaid = b.order_id
       ? orderState?.status === 'paid'
-      : b.payment_status === 'paid' || (total > 0 && remaining <= 0);
+      : b.payment_status === 'paid';
+    if (isPaid || remaining <= 0) continue;
     const isPartial = !isPaid && paid > 0;
     const isHomeService = b.type === 'home_service' || b.delivery_type === 'home_service';
 
@@ -774,12 +802,13 @@ export async function getCashFlowData(
       previousPayments.push({
         date: b.booking_date,
         amount: paid,
-        method: b.order_id ? 'Order payment' : formatMethodLabel(b.payment_method || 'Payment'),
+        method: b.order_id ? 'Order payment' : 'Booking snapshot (unverified)',
       });
     }
 
     payableOrders.push({
       id: b.order_id || b.id,
+      sourceKind: b.order_id ? 'booking_order' : 'legacy_booking',
       orderNumber: b.order_id ? `ORDER-${b.order_id.slice(0, 8)}` : `BK-${b.id.slice(0, 8)}`,
       customerName: cust?.full_name || 'Guest',
       customerPhone: cust?.phone ?? null,

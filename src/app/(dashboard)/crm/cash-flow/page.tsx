@@ -1,6 +1,7 @@
 import { getFrontDeskContext } from '@/lib/queries/crm-context';
 import { getBranchBusinessDate } from '@/lib/engine/slot-time';
 import { getCashFlowData } from '@/lib/cash-flow/cash-flow-queries';
+import { CashFlowRequiredDataError } from '@/lib/cash-flow/cash-flow-errors';
 import { CashFlowWorkspace, type CashFlowTab } from '@/components/features/cash-flow/cash-flow-workspace';
 
 export default async function CrmCashFlowPage({
@@ -28,7 +29,21 @@ export default async function CrmCashFlowPage({
     page: typeof params.page === 'string' ? parseInt(params.page, 10) : 1,
   };
 
-  const cashFlowData = await getCashFlowData(branchId, branchName, selectedDate, filters);
+  let cashFlowData;
+  try {
+    cashFlowData = await getCashFlowData(branchId, branchName, selectedDate, filters);
+  } catch (error) {
+    if (!(error instanceof CashFlowRequiredDataError)) throw error;
+
+    return (
+      <section role="alert" className="rounded-xl border border-amber-200 bg-amber-50 p-6">
+        <h1 className="text-xl font-semibold text-amber-950">Cash Flow is unavailable</h1>
+        <p className="mt-2 text-sm text-amber-900">
+          Required financial data could not be loaded. Ask an administrator to check the Cash Flow database setup.
+        </p>
+      </section>
+    );
+  }
 
   return <CashFlowWorkspace initialData={cashFlowData} initialTab={initialTab} />;
 }

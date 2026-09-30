@@ -161,6 +161,7 @@ export interface PayableOrderPreviousPayment {
 
 export interface PayableOrderOption {
   id: string;
+  sourceKind: 'booking_order' | 'legacy_booking';
   orderNumber: string;
   customerName: string;
   customerPhone?: string | null;
@@ -199,7 +200,6 @@ export interface RecordExpenseInput {
   payee: string;
   description: string;
   receiptReference?: string;
-  receiptImagePath?: string;
   businessDate?: string;
   notes?: string;
   idempotencyKey?: string;
@@ -241,6 +241,7 @@ export interface OperationalEntryResult {
   ok: boolean;
   error?: string;
   code?: string;
+  warning?: string;
   transactionId?: string;
   idempotentReplay?: boolean;
 }

@@ -37,6 +37,7 @@ import type {
   PayableOrderItemDetail,
   ExpenseCategoryOption,
   StaffOption,
+  CashSessionSummary,
 } from '@/lib/cash-flow/cash-flow-types';
 import {
   FINANCIAL_PAYMENT_RAILS,
@@ -45,11 +46,11 @@ import {
 } from '@/lib/cash-flow/financial-contract';
 import {
   recordOrderPaymentAction,
+  recordLegacyBookingPaymentAction,
   recordExpenseAction,
   recordTipAction,
   recordOtherEntryAction,
 } from '@/lib/cash-flow/cash-flow-actions';
-import { createClient } from '@/lib/supabase/client';
 
 export type FinancialEntryMode = 'customer_payment' | 'expense' | 'tip' | 'other_entry';
 
@@ -68,6 +69,7 @@ export interface RecordFinancialEntryModalProps {
   expenseCategories?: ExpenseCategoryOption[];
   staffOptions?: StaffOption[];
   payableOrders?: PayableOrderOption[];
+  activeCashSessions?: CashSessionSummary[];
   initialOrderId?: string;
   initialMode?: FinancialEntryMode;
   branchId?: string;
@@ -82,6 +84,7 @@ export function RecordFinancialEntryModal({
   expenseCategories,
   staffOptions,
   payableOrders,
+  activeCashSessions = [],
   initialOrderId,
   initialMode,
   branchId,
@@ -101,6 +104,7 @@ export function RecordFinancialEntryModal({
             expenseCategories={expenseCategories}
             staffOptions={staffOptions}
             payableOrders={payableOrders}
+            activeCashSessions={activeCashSessions}
             initialOrderId={initialOrderId}
             initialMode={initialMode}
             branchId={branchId}
@@ -122,6 +126,7 @@ interface RecordFinancialEntryFormProps {
   expenseCategories?: ExpenseCategoryOption[];
   staffOptions?: StaffOption[];
   payableOrders?: PayableOrderOption[];
+  activeCashSessions?: CashSessionSummary[];
   initialOrderId?: string;
   initialMode?: FinancialEntryMode;
   branchId?: string;
@@ -135,6 +140,7 @@ function RecordFinancialEntryForm({
   expenseCategories = [],
   staffOptions = [],
   payableOrders = [],
+  activeCashSessions = [],
   initialOrderId,
   initialMode,
   branchId,
@@ -146,23 +152,27 @@ function RecordFinancialEntryForm({
   // Find initially selected order
   const initialOrder =
     payableOrders.find((o) => o.id === initialOrderId) ||
-    (payableOrders.length > 0 ? payableOrders[0] : undefined);
+    (payableOrders.length === 1 ? payableOrders[0] : undefined);
 
   const [selectedOrderId, setSelectedOrderId] = useState<string>(initialOrder?.id || '');
   const [searchQuery, setSearchQuery] = useState('');
-  const [isDropdownOpen, setIsDropdownOpen] = useState(false);
+  const [isDropdownOpen, setIsDropdownOpen] = useState(payableOrders.length > 1 && initialMode !== 'expense');
 
-  const selectedOrder = payableOrders.find((o) => o.id === selectedOrderId) || initialOrder;
+  const selectedOrder = payableOrders.find((o) => o.id === selectedOrderId);
 
   // Filtered orders for selector
   const filteredOrders = useMemo(() => {
     if (!searchQuery.trim()) return payableOrders;
     const q = searchQuery.toLowerCase().trim();
+    const digits = q.replace(/\D/g, '');
     return payableOrders.filter(
       (o) =>
         o.orderNumber.toLowerCase().includes(q) ||
         o.customerName.toLowerCase().includes(q) ||
-        (o.customerPhone && o.customerPhone.includes(q))
+        Boolean(o.customerPhone && (
+          o.customerPhone.toLowerCase().includes(q) ||
+          (digits && o.customerPhone.replace(/\D/g, '').includes(digits))
+        ))
     );
   }, [payableOrders, searchQuery]);
 
@@ -176,7 +186,7 @@ function RecordFinancialEntryForm({
     {
       id: crypto.randomUUID(),
       method: 'cash',
-      accountId: defaultAccount?.id || accounts[0]?.id || '',
+      accountId: defaultAccount?.id || '',
       amount: selectedOrder && selectedOrder.remainingBalance > 0 ? selectedOrder.remainingBalance : '',
       reference: '',
     },
@@ -186,6 +196,7 @@ function RecordFinancialEntryForm({
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [successMessage, setSuccessMessage] = useState<string | null>(null);
+  const paymentAttemptRef = React.useRef<{ signature: string; key: string } | null>(null);
 
   // Fallbacks for categories and staff
   const effectiveCategories = useMemo(() => {
@@ -225,6 +236,7 @@ function RecordFinancialEntryForm({
   const [receiptError, setReceiptError] = useState<string | null>(null);
   const [isUploadingReceipt, setIsUploadingReceipt] = useState(false);
   const receiptFileInputRef = React.useRef<HTMLInputElement | null>(null);
+  const expenseAttemptRef = React.useRef<{ signature: string; key: string } | null>(null);
 
   const handleRemoveReceipt = () => {
     if (receiptPreviewUrl) {
@@ -265,18 +277,6 @@ function RecordFinancialEntryForm({
     }
   };
 
-  const generateReceiptPath = (branch: string, dateStr: string, originalName: string) => {
-    const cleanDate = dateStr.replace(/[^0-9]/g, '') || new Date().toISOString().slice(0, 10).replace(/-/g, '');
-    const yyyy = dateStr.slice(0, 4) || new Date().getFullYear().toString();
-    const mm = dateStr.slice(5, 7) || String(new Date().getMonth() + 1).padStart(2, '0');
-    const extMatch = originalName.match(/\.([a-zA-Z0-9]+)$/);
-    const ext = extMatch?.[1] ? extMatch[1].toLowerCase() : 'jpg';
-    const randomHex = Array.from(crypto.getRandomValues(new Uint8Array(4)))
-      .map((b) => b.toString(16).padStart(2, '0'))
-      .join('');
-    return `${branch}/${yyyy}/${mm}/rec_${cleanDate}_${randomHex}.${ext}`;
-  };
-
   // Tip state
   const [tipCustodyType, setTipCustodyType] = useState<'direct_cash' | 'company_custodied'>('direct_cash');
   const [tipBeneficiaryStaffId, setTipBeneficiaryStaffId] = useState<string>(() => effectiveStaff[0]?.id || '');
@@ -285,21 +285,109 @@ function RecordFinancialEntryForm({
   const [tipPaymentMethod, setTipPaymentMethod] = useState<FinancialPaymentMethod>('cash');
   const [tipNotes, setTipNotes] = useState<string>('');
 
-  // Other Entry state
+  // Other Entry / CF8-C Cash Operations state
   const [otherEntryType, setOtherEntryType] = useState<
     'misc_income' | 'cash_addition' | 'cash_removal' | 'transfer' | 'generic_adjustment'
   >('misc_income');
   const [otherAmount, setOtherAmount] = useState<number | ''>('');
-  const [otherNotes, setOtherNotes] = useState<string>('');
-  const [miscReceivingAccountId, setMiscReceivingAccountId] = useState<string>(() => accounts[0]?.id || '');
-  const [miscDescription, setMiscDescription] = useState<string>('');
-  const [miscPayeeSource, setMiscPayeeSource] = useState<string>('');
+  const [otherNotes, setOtherNotes] = useState('');
+  const [miscReceivingAccountId, setMiscReceivingAccountId] = useState(() => accounts[0]?.id || '');
+  const [miscDescription, setMiscDescription] = useState('');
+  const [miscPayeeSource, setMiscPayeeSource] = useState('');
   const [miscPaymentMethod, setMiscPaymentMethod] = useState<FinancialPaymentMethod>('cash');
-  const [cashDrawerId, setCashDrawerId] = useState<string>(() => defaultAccount?.id || accounts[0]?.id || '');
-  const [cashAdjustmentReason, setCashAdjustmentReason] = useState<string>('');
-  const [transferSourceAccountId, setTransferSourceAccountId] = useState<string>(() => accounts[0]?.id || '');
-  const [transferDestAccountId, setTransferDestAccountId] = useState<string>(() => accounts[1]?.id || accounts[0]?.id || '');
 
+  const preferredCashDrawerId =
+    activeCashSessions.find(
+      (session) => session.status === 'open'
+    )?.cashDrawerAccountId ||
+    defaultAccount?.id ||
+    accounts.find((account) => account.accountType === 'cash_drawer')?.id ||
+    '';
+
+  const [cashDrawerId, setCashDrawerId] = useState(() => preferredCashDrawerId);
+  const [cashAdjustmentReason, setCashAdjustmentReason] = useState('');
+
+  const [transferSourceAccountId, setTransferSourceAccountId] = useState(
+    () => preferredCashDrawerId || accounts[0]?.id || ''
+  );
+
+  const [transferDestAccountId, setTransferDestAccountId] = useState(() => {
+    const sourceId = preferredCashDrawerId || accounts[0]?.id || '';
+    return accounts.find((account) => account.id !== sourceId)?.id || '';
+  });
+
+  const openCashSessions = useMemo(
+    () =>
+      activeCashSessions.filter(
+        (session) => session.status === 'open'
+      ),
+    [activeCashSessions]
+  );
+
+  const openCashDrawerIds = useMemo(
+    () => new Set(openCashSessions.map((session) => session.cashDrawerAccountId)),
+    [openCashSessions]
+  );
+
+  const selectedCashSession = openCashSessions.find(
+    (session) => session.cashDrawerAccountId === cashDrawerId
+  );
+
+  const transferDestinationOptions = accounts.filter(
+    (account) => account.id !== transferSourceAccountId
+  );
+
+  const transferSourceAccount = accounts.find(
+    (account) => account.id === transferSourceAccountId
+  );
+
+  const transferDestinationAccount = accounts.find(
+    (account) => account.id === transferDestAccountId
+  );
+
+  const transferTouchesClosedDrawer =
+    [transferSourceAccount, transferDestinationAccount].some(
+      (account) =>
+        account?.accountType === 'cash_drawer' &&
+        !openCashDrawerIds.has(account.id)
+    );
+
+  const adjustmentAmount =
+    typeof otherAmount === 'number' && Number.isFinite(otherAmount)
+      ? otherAmount
+      : 0;
+
+  const expectedCashAfterAdjustment = selectedCashSession
+    ? selectedCashSession.expectedCash +
+      (otherEntryType === 'cash_addition'
+        ? adjustmentAmount
+        : otherEntryType === 'cash_removal'
+          ? -adjustmentAmount
+          : 0)
+    : null;
+
+  const cashAdjustmentBlocked =
+    (otherEntryType === 'cash_addition' || otherEntryType === 'cash_removal') &&
+    (
+      !cashDrawerId ||
+      !openCashDrawerIds.has(cashDrawerId) ||
+      !cashAdjustmentReason.trim()
+    );
+
+  const transferBlocked =
+    otherEntryType === 'transfer' &&
+    (
+      !transferSourceAccountId ||
+      !transferDestAccountId ||
+      transferSourceAccountId === transferDestAccountId ||
+      transferDestinationOptions.length === 0 ||
+      transferTouchesClosedDrawer
+    );
+
+  const otherEntryAttemptRef = React.useRef<{
+    signature: string;
+    key: string;
+  } | null>(null);
   // Handle order selection change
   const handleSelectOrder = (order: PayableOrderOption) => {
     setSelectedOrderId(order.id);
@@ -318,7 +406,7 @@ function RecordFinancialEntryForm({
       {
         id: crypto.randomUUID(),
         method: currentMethod,
-        accountId: compAccount?.id || accounts[0]?.id || '',
+        accountId: compAccount?.id || '',
         amount: rem > 0 ? rem : '',
         reference: '',
       },
@@ -340,7 +428,7 @@ function RecordFinancialEntryForm({
       {
         id: crypto.randomUUID(),
         method: currentMethod,
-        accountId: compAccount?.id || accounts[0]?.id || '',
+        accountId: compAccount?.id || '',
         amount: rem,
         reference: paymentLines[0]?.reference || '',
       },
@@ -364,7 +452,7 @@ function RecordFinancialEntryForm({
       {
         id: crypto.randomUUID(),
         method: nextMethod,
-        accountId: compAccount?.id || accounts[0]?.id || '',
+        accountId: compAccount?.id || '',
         amount: remainingToPay > 0 ? remainingToPay : '',
         reference: '',
       },
@@ -387,7 +475,7 @@ function RecordFinancialEntryForm({
           ? {
               ...line,
               method: newMethod,
-              accountId: compAccount?.id || accounts[0]?.id || '',
+              accountId: compAccount?.id || '',
             }
           : line
       )
@@ -408,6 +496,12 @@ function RecordFinancialEntryForm({
   };
 
   const totalPayment = paymentLines.reduce((sum, p) => sum + (Number(p.amount) || 0), 0);
+  const hasMissingCompatibleAccount = paymentLines.some((line) =>
+    !accounts.some((account) =>
+      account.id === line.accountId &&
+      isPaymentMethodCompatibleWithAccount(line.method, account.accountType)
+    )
+  );
   const remainingAfterPayment = selectedOrder
     ? Math.max(0, selectedOrder.remainingBalance - totalPayment)
     : 0;
@@ -437,37 +531,61 @@ function RecordFinancialEntryForm({
       return;
     }
 
+    if (hasMissingCompatibleAccount) {
+      setErrorMessage('No compatible financial account is configured for the selected payment method. Ask an administrator to set up the account.');
+      return;
+    }
     for (const line of paymentLines) {
-      if (!line.accountId) {
-        setErrorMessage(`Please select a deposit account for ${line.method.toUpperCase()}.`);
-        return;
-      }
       if (!line.amount || Number(line.amount) <= 0) {
         setErrorMessage('All payment lines must have an amount greater than zero.');
         return;
       }
     }
+    if (selectedOrder.sourceKind === 'legacy_booking' && !branchId) {
+      setErrorMessage('Branch context is required to record this booking payment.');
+      return;
+    }
 
     setIsSubmitting(true);
     setErrorMessage(null);
 
-    const idempotencyKey = crypto.randomUUID();
-
-    const payload = {
-      orderId: selectedOrder.id,
-      idempotencyKey,
-      payments: paymentLines.map((p) => ({
-        amount: Number(p.amount),
-        paymentMethod: p.method,
-        financialAccountId: p.accountId,
-        externalReference: p.reference.trim() || null,
-      })),
+    const payments = paymentLines.map((p) => ({
+      amount: Number(p.amount),
+      paymentMethod: p.method,
+      financialAccountId: p.accountId,
+      externalReference: p.reference.trim() || null,
+    }));
+    const signature = JSON.stringify({
+      sourceKind: selectedOrder.sourceKind,
+      sourceId: selectedOrder.id,
+      amountPaid: selectedOrder.amountPaid,
       businessDate,
-      notes: notes.trim() || null,
-    };
+      payments,
+      notes: notes.trim(),
+    });
+    if (paymentAttemptRef.current?.signature !== signature) {
+      paymentAttemptRef.current = { signature, key: crypto.randomUUID() };
+    }
+    const idempotencyKey = paymentAttemptRef.current.key;
 
     try {
-      const result = await recordOrderPaymentAction(payload);
+      const result = selectedOrder.sourceKind === 'legacy_booking'
+        ? await recordLegacyBookingPaymentAction({
+          bookingId: selectedOrder.id,
+          branchId: branchId!,
+          expectedAmountPaid: selectedOrder.amountPaid,
+          idempotencyKey,
+          payments,
+          businessDate,
+          notes: notes.trim() || null,
+        })
+        : await recordOrderPaymentAction({
+          orderId: selectedOrder.id,
+          idempotencyKey,
+          payments,
+          businessDate,
+          notes: notes.trim() || null,
+        });
       if (result.ok) {
         setSuccessMessage('Payment recorded successfully!');
         if (onSuccess) onSuccess();
@@ -513,42 +631,23 @@ function RecordFinancialEntryForm({
       accounts[0]?.branchId ||
       '';
 
-    let uploadedPath: string | undefined = undefined;
-
-    // Optional receipt upload (CF7)
-    if (receiptFile) {
-      if (!effectiveBranchId) {
-        setErrorMessage('Branch context is required to upload receipt.');
-        return;
-      }
-      setIsUploadingReceipt(true);
-      const objectPath = generateReceiptPath(effectiveBranchId, businessDate, receiptFile.name);
-      try {
-        const supabase = createClient();
-        const { error: uploadErr } = await supabase.storage
-          .from('expense-receipts')
-          .upload(objectPath, receiptFile, {
-            contentType: receiptFile.type,
-            upsert: false,
-          });
-
-        if (uploadErr) {
-          setIsUploadingReceipt(false);
-          setErrorMessage(
-            `Receipt upload failed: ${uploadErr.message}. You can retry, or remove the receipt to record the expense without it.`
-          );
-          return;
-        }
-        uploadedPath = objectPath;
-      } catch (uploadException: unknown) {
-        setIsUploadingReceipt(false);
-        setErrorMessage(
-          `Receipt upload failed: ${uploadException instanceof Error ? uploadException.message : 'Network error'}. You can retry, or remove the receipt to proceed.`
-        );
-        return;
-      }
+    const signature = JSON.stringify({
+      effectiveBranchId, businessDate, amt, expenseCategoryId, expenseAccountId,
+      expensePayee, expenseDescription, expenseReceiptRef, expenseNotes,
+      receipt: receiptFile && [receiptFile.name, receiptFile.size, receiptFile.type, receiptFile.lastModified],
+    });
+    if (expenseAttemptRef.current?.signature !== signature) {
+      expenseAttemptRef.current = {
+        signature,
+        key: `cf7_exp_${typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function'
+          ? crypto.randomUUID()
+          : `${Date.now()}_${Math.random().toString(36).slice(2)}`}`,
+      };
     }
+    const receiptForm = receiptFile ? new FormData() : undefined;
+    if (receiptFile) receiptForm?.set('receipt', receiptFile);
 
+    setIsUploadingReceipt(Boolean(receiptFile));
     setIsSubmitting(true);
     try {
       const res = await recordExpenseAction({
@@ -559,41 +658,22 @@ function RecordFinancialEntryForm({
         payee: expensePayee.trim() || 'Direct Vendor',
         description: expenseDescription.trim(),
         receiptReference: expenseReceiptRef.trim() || undefined,
-        receiptImagePath: uploadedPath,
         businessDate,
         notes: expenseNotes.trim() || undefined,
-        idempotencyKey: `cf7_exp_${Date.now()}_${Math.random().toString(36).substring(2, 9)}`,
-      });
+        idempotencyKey: expenseAttemptRef.current.key,
+      }, receiptForm);
 
       if (!res.ok) {
-        // Orphan cleanup: if upload succeeded but database posting failed, remove the uploaded object
-        if (uploadedPath) {
-          try {
-            const supabase = createClient();
-            await supabase.storage.from('expense-receipts').remove([uploadedPath]);
-          } catch (cleanupErr) {
-            console.error('Failed to clean up orphaned receipt object:', cleanupErr);
-          }
-        }
         setErrorMessage(res.error || 'Failed to record expense.');
         return;
       }
 
-      setSuccessMessage('Operational expense recorded successfully!');
+      setSuccessMessage(res.warning || 'Operational expense recorded successfully!');
       if (onSuccess) onSuccess();
       setTimeout(() => {
         onClose();
       }, 1000);
     } catch (err: unknown) {
-      // Orphan cleanup on unexpected error
-      if (uploadedPath) {
-        try {
-          const supabase = createClient();
-          await supabase.storage.from('expense-receipts').remove([uploadedPath]);
-        } catch (cleanupErr) {
-          console.error('Failed to clean up orphaned receipt object:', cleanupErr);
-        }
-      }
       setErrorMessage(err instanceof Error ? err.message : 'An unexpected error occurred.');
     } finally {
       setIsSubmitting(false);
@@ -667,9 +747,70 @@ function RecordFinancialEntryForm({
       return;
     }
 
+    if (otherEntryType === 'cash_addition' || otherEntryType === 'cash_removal') {
+      if (!cashDrawerId || !openCashDrawerIds.has(cashDrawerId)) {
+        setErrorMessage('Open the cash drawer before recording physical cash operations.');
+        return;
+      }
+
+      if (!cashAdjustmentReason.trim()) {
+        setErrorMessage('A reason is required for every cash adjustment.');
+        return;
+      }
+    }
+
+    if (otherEntryType === 'transfer') {
+      if (!transferSourceAccountId || !transferDestAccountId) {
+        setErrorMessage('Configure a real destination financial account before recording a transfer.');
+        return;
+      }
+
+      if (transferSourceAccountId === transferDestAccountId) {
+        setErrorMessage('Source and destination accounts must be different.');
+        return;
+      }
+
+      if (transferTouchesClosedDrawer) {
+        setErrorMessage('Any cash drawer used in a transfer must have an open cash session.');
+        return;
+      }
+    }
+
+    const otherEntrySignature = JSON.stringify({
+      entryType: otherEntryType,
+      amount: amt,
+      businessDate,
+      branchId,
+      notes: otherNotes.trim(),
+      receivingAccountId: otherEntryType === 'misc_income' ? miscReceivingAccountId : null,
+      incomeDescription: otherEntryType === 'misc_income' ? miscDescription.trim() : null,
+      payeeSource: otherEntryType === 'misc_income' ? miscPayeeSource.trim() : null,
+      paymentMethod: otherEntryType === 'misc_income' ? miscPaymentMethod : null,
+      cashDrawerId:
+        otherEntryType === 'cash_addition' || otherEntryType === 'cash_removal'
+          ? cashDrawerId
+          : null,
+      adjustmentReason:
+        otherEntryType === 'cash_addition' || otherEntryType === 'cash_removal'
+          ? cashAdjustmentReason.trim()
+          : null,
+      sourceAccountId: otherEntryType === 'transfer' ? transferSourceAccountId : null,
+      destinationAccountId: otherEntryType === 'transfer' ? transferDestAccountId : null,
+    });
+
+    if (otherEntryAttemptRef.current?.signature !== otherEntrySignature) {
+      otherEntryAttemptRef.current = {
+        signature: otherEntrySignature,
+        key: `cf8c_${crypto.randomUUID()}`,
+      };
+    }
+
+    const otherEntryIdempotencyKey = otherEntryAttemptRef.current.key;
+
     setIsSubmitting(true);
     try {
       const res = await recordOtherEntryAction({
+        branchId,
         entryType: otherEntryType,
         amount: amt,
         businessDate,
@@ -682,7 +823,7 @@ function RecordFinancialEntryForm({
         adjustmentReason: (otherEntryType === 'cash_addition' || otherEntryType === 'cash_removal') ? cashAdjustmentReason : undefined,
         sourceAccountId: otherEntryType === 'transfer' ? transferSourceAccountId : undefined,
         destinationAccountId: otherEntryType === 'transfer' ? transferDestAccountId : undefined,
-        idempotencyKey: `cf6_other_${Date.now()}_${Math.random().toString(36).substring(2, 9)}`,
+        idempotencyKey: otherEntryIdempotencyKey,
       });
 
       if (!res.ok) {
@@ -690,7 +831,15 @@ function RecordFinancialEntryForm({
         return;
       }
 
-      setSuccessMessage('Financial entry recorded successfully!');
+      setSuccessMessage(
+        otherEntryType === 'cash_addition'
+          ? 'Cash addition recorded successfully.'
+          : otherEntryType === 'cash_removal'
+            ? 'Cash removal recorded successfully.'
+            : otherEntryType === 'transfer'
+              ? 'Transfer recorded successfully.'
+              : 'Financial entry recorded successfully!'
+      );
       if (onSuccess) onSuccess();
       setTimeout(() => {
         onClose();
@@ -1580,39 +1729,106 @@ function RecordFinancialEntryForm({
                 <div className="space-y-3">
                   <div>
                     <label className="block text-[11px] font-semibold text-[#7A6E65] mb-1">
-                      Cash Drawer Account <span className="text-rose-500">*</span>
+                      Open Cash Drawer <span className="text-rose-500">*</span>
                     </label>
+
                     <select
                       value={cashDrawerId}
                       onChange={(e) => setCashDrawerId(e.target.value)}
-                      className="w-full px-3 py-2 bg-white border border-[#EAE4DC] rounded-xl text-xs text-[#1E1916] focus:outline-none focus:border-[#1B4D3E]"
+                      disabled={openCashSessions.length === 0}
+                      className="w-full px-3 py-2 bg-white border border-[#EAE4DC] rounded-xl text-xs text-[#1E1916] focus:outline-none focus:border-[#1B4D3E] disabled:bg-[#F5F2EE] disabled:text-[#9C8878]"
                     >
-                      {accounts
-                        .filter((a) => a.accountType === 'cash_drawer')
-                        .map((a) => (
-                          <option key={a.id} value={a.id}>
-                            {a.name} ({a.identifierMask})
-                          </option>
-                        ))}
+                      {accounts.filter(
+                        (account) =>
+                          account.accountType === 'cash_drawer' &&
+                          openCashDrawerIds.has(account.id)
+                      ).length === 0 ? (
+                        <option value="">No open cash drawer available</option>
+                      ) : (
+                        accounts
+                          .filter(
+                            (account) =>
+                              account.accountType === 'cash_drawer' &&
+                              openCashDrawerIds.has(account.id)
+                          )
+                          .map((account) => (
+                            <option key={account.id} value={account.id}>
+                              {account.name} ({account.identifierMask})
+                            </option>
+                          ))
+                      )}
                     </select>
                   </div>
+
+                  {openCashSessions.length === 0 && (
+                    <div
+                      role="alert"
+                      className="rounded-xl border border-amber-200 bg-amber-50 p-3 text-xs text-amber-900"
+                    >
+                      Open the cash drawer before recording physical cash operations.
+                    </div>
+                  )}
 
                   <div>
                     <label className="block text-[11px] font-semibold text-[#7A6E65] mb-1">
                       Adjustment Reason <span className="text-rose-500">*</span>
                     </label>
+
                     <input
                       type="text"
                       placeholder={
                         otherEntryType === 'cash_addition'
-                          ? 'e.g., Opening petty cash float replenishment'
-                          : 'e.g., Mid-day safe drop deposit'
+                          ? 'e.g., Authorized cash correction discovered during shift'
+                          : 'e.g., Authorized physical cash correction after count'
                       }
                       value={cashAdjustmentReason}
                       onChange={(e) => setCashAdjustmentReason(e.target.value)}
                       className="w-full px-3 py-2 bg-white border border-[#EAE4DC] rounded-xl text-xs text-[#1E1916] focus:outline-none focus:border-[#1B4D3E]"
                     />
+
+                    <p className="mt-1.5 text-[10px] leading-4 text-[#7A6E65]">
+                      Use this only for an exceptional physical cash correction.
+                      Customer payments, expenses, tips and safe drops have dedicated workflows.
+                    </p>
                   </div>
+
+                  {selectedCashSession && (
+                    <div className="rounded-xl border border-emerald-200 bg-emerald-50/60 p-3">
+                      <div className="flex items-center justify-between gap-3 text-xs">
+                        <span className="text-[#6B5D52]">
+                          Expected drawer cash now
+                        </span>
+
+                        <span className="font-bold tabular-nums text-[#163E32]">
+                          {formatPeso(selectedCashSession.expectedCash)}
+                        </span>
+                      </div>
+
+                      <div className="mt-1.5 flex items-center justify-between gap-3 text-xs">
+                        <span className="text-[#6B5D52]">
+                          Expected after operation
+                        </span>
+
+                        <span
+                          className={`font-bold tabular-nums ${
+                            expectedCashAfterAdjustment !== null &&
+                            expectedCashAfterAdjustment < 0
+                              ? 'text-rose-700'
+                              : 'text-[#163E32]'
+                          }`}
+                        >
+                          {formatPeso(
+                            expectedCashAfterAdjustment ??
+                              selectedCashSession.expectedCash
+                          )}
+                        </span>
+                      </div>
+
+                      <p className="mt-2 text-[10px] leading-4 text-[#6B5D52]">
+                        Opening float remains session state and is not revenue.
+                      </p>
+                    </div>
+                  )}
                 </div>
               )}
 
@@ -1623,14 +1839,27 @@ function RecordFinancialEntryForm({
                       <label className="block text-[11px] font-semibold text-[#7A6E65] mb-1">
                         Source Account (Outflow) <span className="text-rose-500">*</span>
                       </label>
+
                       <select
                         value={transferSourceAccountId}
-                        onChange={(e) => setTransferSourceAccountId(e.target.value)}
+                        onChange={(e) => {
+                          const nextSourceId = e.target.value;
+
+                          setTransferSourceAccountId(nextSourceId);
+
+                          if (transferDestAccountId === nextSourceId) {
+                            setTransferDestAccountId(
+                              accounts.find(
+                                (account) => account.id !== nextSourceId
+                              )?.id || ''
+                            );
+                          }
+                        }}
                         className="w-full px-3 py-2 bg-white border border-[#EAE4DC] rounded-xl text-xs text-[#1E1916] focus:outline-none focus:border-[#1B4D3E]"
                       >
-                        {accounts.map((a) => (
-                          <option key={a.id} value={a.id}>
-                            {a.name} ({a.identifierMask})
+                        {accounts.map((account) => (
+                          <option key={account.id} value={account.id}>
+                            {account.name} ({account.identifierMask})
                           </option>
                         ))}
                       </select>
@@ -1640,18 +1869,53 @@ function RecordFinancialEntryForm({
                       <label className="block text-[11px] font-semibold text-[#7A6E65] mb-1">
                         Destination Account (Inflow) <span className="text-rose-500">*</span>
                       </label>
+
                       <select
                         value={transferDestAccountId}
                         onChange={(e) => setTransferDestAccountId(e.target.value)}
-                        className="w-full px-3 py-2 bg-white border border-[#EAE4DC] rounded-xl text-xs text-[#1E1916] focus:outline-none focus:border-[#1B4D3E]"
+                        disabled={transferDestinationOptions.length === 0}
+                        className="w-full px-3 py-2 bg-white border border-[#EAE4DC] rounded-xl text-xs text-[#1E1916] focus:outline-none focus:border-[#1B4D3E] disabled:bg-[#F5F2EE] disabled:text-[#9C8878]"
                       >
-                        {accounts.map((a) => (
-                          <option key={a.id} value={a.id}>
-                            {a.name} ({a.identifierMask})
+                        {transferDestinationOptions.length === 0 ? (
+                          <option value="">
+                            No other financial account configured
                           </option>
-                        ))}
+                        ) : (
+                          transferDestinationOptions.map((account) => (
+                            <option key={account.id} value={account.id}>
+                              {account.name} ({account.identifierMask})
+                            </option>
+                          ))
+                        )}
                       </select>
                     </div>
+                  </div>
+
+                  {transferDestinationOptions.length === 0 && (
+                    <div
+                      role="alert"
+                      className="rounded-xl border border-amber-200 bg-amber-50 p-3 text-xs text-amber-900"
+                    >
+                      Transfer / Safe Drop is unavailable until a real
+                      destination financial account is configured. Do not use
+                      Cash Removal as a substitute for a safe drop.
+                    </div>
+                  )}
+
+                  {transferTouchesClosedDrawer && (
+                    <div
+                      role="alert"
+                      className="rounded-xl border border-rose-200 bg-rose-50 p-3 text-xs text-rose-800"
+                    >
+                      Any cash drawer used in a transfer must have an open cash
+                      session.
+                    </div>
+                  )}
+
+                  <div className="rounded-xl border border-blue-100 bg-blue-50/60 p-3 text-[11px] leading-4 text-blue-900">
+                    Transfers move custody between real financial accounts.
+                    They do not create revenue and they do not create an
+                    operating expense.
                   </div>
                 </div>
               )}
@@ -2133,6 +2397,11 @@ function RecordFinancialEntryForm({
                       <span>Add Another Payment Method</span>
                     </button>
                   </div>
+                  {hasMissingCompatibleAccount && (
+                    <p role="alert" className="text-xs text-amber-800">
+                      No compatible financial account is configured for the selected payment method. Ask an administrator to set up the account before recording payment.
+                    </p>
+                  )}
                 </div>
               )}
 
@@ -2301,6 +2570,7 @@ function RecordFinancialEntryForm({
                 isOrderFullyPaid ||
                 !selectedOrder ||
                 totalPayment <= 0 ||
+                hasMissingCompatibleAccount ||
                 totalPayment > (selectedOrder?.remainingBalance || 0)
               }
               className="px-5 py-2 bg-[#163E32] hover:bg-[#1B4D3E] text-white text-xs font-semibold rounded-xl shadow-2xs transition disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-1.5"
@@ -2354,12 +2624,22 @@ function RecordFinancialEntryForm({
                 isSubmitting ||
                 !otherAmount ||
                 Number(otherAmount) <= 0 ||
-                otherEntryType === 'generic_adjustment'
+                otherEntryType === 'generic_adjustment' ||
+                cashAdjustmentBlocked ||
+                transferBlocked
               }
               className="px-5 py-2 bg-[#163E32] hover:bg-[#1B4D3E] text-white text-xs font-semibold rounded-xl shadow-2xs transition disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-1.5"
             >
               {isSubmitting && <Loader2 className="w-3.5 h-3.5 animate-spin" />}
-              <span>Record Other Entry</span>
+              <span>
+                {otherEntryType === 'cash_addition'
+                  ? 'Record Cash Addition'
+                  : otherEntryType === 'cash_removal'
+                    ? 'Record Cash Removal'
+                    : otherEntryType === 'transfer'
+                      ? 'Record Transfer'
+                      : 'Record Other Entry'}
+              </span>
             </button>
           )}
         </div>

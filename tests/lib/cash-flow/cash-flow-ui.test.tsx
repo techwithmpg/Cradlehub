@@ -18,28 +18,16 @@ vi.mock("server-only", () => ({}));
 
 // Mock server actions for financial entries
 const mockRecordOrderPaymentAction = vi.fn();
+const mockRecordLegacyBookingPaymentAction = vi.fn();
 const mockRecordExpenseAction = vi.fn();
 const mockRecordTipAction = vi.fn();
 const mockRecordOtherEntryAction = vi.fn();
 vi.mock("@/lib/cash-flow/cash-flow-actions", () => ({
   recordOrderPaymentAction: (...args: unknown[]) => mockRecordOrderPaymentAction(...args),
+  recordLegacyBookingPaymentAction: (...args: unknown[]) => mockRecordLegacyBookingPaymentAction(...args),
   recordExpenseAction: (...args: unknown[]) => mockRecordExpenseAction(...args),
   recordTipAction: (...args: unknown[]) => mockRecordTipAction(...args),
   recordOtherEntryAction: (...args: unknown[]) => mockRecordOtherEntryAction(...args),
-}));
-
-// Mock Supabase storage client
-const mockStorageUpload = vi.fn().mockResolvedValue({ error: null });
-const mockStorageRemove = vi.fn().mockResolvedValue({ error: null });
-vi.mock("@/lib/supabase/client", () => ({
-  createClient: () => ({
-    storage: {
-      from: () => ({
-        upload: mockStorageUpload,
-        remove: mockStorageRemove,
-      }),
-    },
-  }),
 }));
 
 import { CashFlowWorkspace } from "@/components/features/cash-flow/cash-flow-workspace";
@@ -225,6 +213,7 @@ const mockWorkspaceData: CashFlowWorkspaceData = {
   payableOrders: [
     {
       id: "ord-1",
+      sourceKind: "booking_order",
       orderNumber: "BK-20260928-002",
       customerName: "Michael Tan",
       customerPhone: "0917 123 4567",
@@ -250,6 +239,7 @@ const mockWorkspaceData: CashFlowWorkspaceData = {
     },
     {
       id: "ord-2",
+      sourceKind: "booking_order",
       orderNumber: "BK-20260928-003",
       customerName: "Maria Santos",
       customerPhone: "0918 987 6543",
@@ -283,6 +273,7 @@ const mockWorkspaceData: CashFlowWorkspaceData = {
     },
     {
       id: "ord-3",
+      sourceKind: "booking_order",
       orderNumber: "BK-20260928-004",
       customerName: "Anna Reyes",
       customerPhone: "0919 555 4321",
@@ -302,8 +293,6 @@ const mockWorkspaceData: CashFlowWorkspaceData = {
 describe("CF5 Cash Flow UI Foundation", () => {
   beforeEach(() => {
     vi.clearAllMocks();
-    mockStorageUpload.mockResolvedValue({ error: null });
-    mockStorageRemove.mockResolvedValue({ error: null });
     if (typeof window !== "undefined" && !window.URL.createObjectURL) {
       window.URL.createObjectURL = vi.fn(() => "blob:mock-receipt-preview");
     }
@@ -441,6 +430,8 @@ describe("CF5 Cash Flow UI Foundation", () => {
 
     expect(screen.getByText("CLOSED DAYS THIS MONTH")).toBeTruthy();
     expect(screen.getByText("No historical day close records")).toBeTruthy();
+    expect(screen.getByText("No day close selected")).toBeTruthy();
+    expect(screen.queryByText("Day close reviewed")).toBeNull();
     expect(screen.getByText("No day-close audit activity yet.")).toBeTruthy();
   });
 
@@ -482,6 +473,7 @@ describe("CF5 Cash Flow UI Foundation", () => {
     render(<CashFlowWorkspace initialData={mockWorkspaceData} />);
 
     fireEvent.click(screen.getByRole("button", { name: "Record Payment" }));
+    fireEvent.click(screen.getByText("BK-20260928-002 — Michael Tan"));
     fireEvent.click(screen.getByRole("button", { name: /Record Entry/i }));
 
     await waitFor(() => expect(mockRefresh).toHaveBeenCalledTimes(1));
@@ -532,7 +524,7 @@ describe("CF5 Cash Flow UI Foundation", () => {
 
     // Initial order data
     expect(screen.getAllByText(/Michael Tan/i).length).toBeGreaterThan(0);
-    expect(screen.getByText("BK-20260928-002")).toBeTruthy();
+    expect(screen.getByText("BK-20260928-002 — Michael Tan")).toBeTruthy();
 
     // Add another payment method button
     const addMethodButton = screen.getByRole("button", { name: /Add Another Payment Method/i });
@@ -575,6 +567,7 @@ describe("CF5 Cash Flow UI Foundation", () => {
     );
 
     const submitButton = screen.getByRole("button", { name: /Record Entry/i });
+    fireEvent.click(screen.getByText("BK-20260928-002 — Michael Tan"));
     fireEvent.click(submitButton);
 
     expect(mockRecordOrderPaymentAction).toHaveBeenCalled();
@@ -915,7 +908,7 @@ describe("CF5 Cash Flow UI Foundation", () => {
     expect(screen.getByText(/File size exceeds the 5 MB limit/i)).toBeTruthy();
   });
 
-  it("24. [T01 & T02] Expense form uploads receipt to private storage and passes receiptImagePath", async () => {
+  it("24. Expense form sends the file to the server action without a browser storage path", async () => {
     mockRecordExpenseAction.mockResolvedValueOnce({
       ok: true,
       transactionId: "tx-exp-123",
@@ -954,24 +947,19 @@ describe("CF5 Cash Flow UI Foundation", () => {
     const submitBtn = screen.getByRole("button", { name: /Record Expense/i });
     fireEvent.click(submitBtn);
 
-    // Wait for storage upload and action dispatch
+    // The action owns validation, upload, and path generation.
     await waitFor(() => {
-      expect(mockStorageUpload).toHaveBeenCalledTimes(1);
       expect(mockRecordExpenseAction).toHaveBeenCalledTimes(1);
     });
-
-    const uploadedPath = mockStorageUpload.mock.calls[0]![0] as string;
-    expect(uploadedPath).toMatch(
-      /^11111111-1111-1111-1111-111111111111\/2026\/09\/rec_20260928_[a-f0-9]+\.jpg$/
-    );
-
     const payload = mockRecordExpenseAction.mock.calls[0]![0];
+    const formData = mockRecordExpenseAction.mock.calls[0]![1] as FormData;
     expect(payload.amount).toBe(850);
     expect(payload.payee).toBe("Ace Hardware");
-    expect(payload.receiptImagePath).toBe(uploadedPath);
+    expect(payload.receiptImagePath).toBeUndefined();
+    expect(formData.get("receipt")).toBe(validFile);
   });
 
-  it("25. [T13] Orphan cleanup: deletes newly uploaded receipt object if recordExpenseAction fails", async () => {
+  it("25. Expense action failure is displayed to the user", async () => {
     mockRecordExpenseAction.mockResolvedValueOnce({
       ok: false,
       error: "Simulated database transaction failure",
@@ -1006,15 +994,95 @@ describe("CF5 Cash Flow UI Foundation", () => {
     // Submit
     fireEvent.click(screen.getByRole("button", { name: /Record Expense/i }));
 
-    // Storage upload was called, action failed, orphan cleanup removal was immediately triggered
     await waitFor(() => {
-      expect(mockStorageRemove).toHaveBeenCalledTimes(1);
+      expect(screen.getByText(/Simulated database transaction failure/i)).toBeTruthy();
     });
+  });
 
-    const uploadedPath = mockStorageUpload.mock.calls[0]![0] as string;
-    expect(mockStorageRemove).toHaveBeenCalledWith([uploadedPath]);
+  it("routes a legacy booking and exact split tenders to the booking payment action", async () => {
+    mockRecordLegacyBookingPaymentAction.mockResolvedValueOnce({ ok: true, data: { transactionId: "tx-legacy" } });
+    const legacy = {
+      ...mockWorkspaceData.payableOrders[0]!,
+      id: "legacy-booking-1",
+      sourceKind: "legacy_booking" as const,
+      amountPaid: 100,
+      totalAmount: 900,
+      remainingBalance: 800,
+    };
+    render(
+      <RecordFinancialEntryModal
+        open={true}
+        onOpenChange={vi.fn()}
+        accounts={mockWorkspaceData.accounts}
+        payableOrders={[legacy]}
+        branchId={mockWorkspaceData.branchId}
+        businessDate={mockWorkspaceData.businessDate}
+      />
+    );
+    fireEvent.change(screen.getByRole("spinbutton"), { target: { value: "300" } });
+    fireEvent.click(screen.getByRole("button", { name: /Add Another Payment Method/i }));
+    fireEvent.click(screen.getByRole("button", { name: /Record Entry/i }));
 
-    // Error was rendered to user
-    expect(screen.getByText(/Simulated database transaction failure/i)).toBeTruthy();
+    await waitFor(() => expect(mockRecordLegacyBookingPaymentAction).toHaveBeenCalledOnce());
+    const payload = mockRecordLegacyBookingPaymentAction.mock.calls[0]![0];
+    expect(payload).toMatchObject({
+      bookingId: "legacy-booking-1",
+      branchId: mockWorkspaceData.branchId,
+      expectedAmountPaid: 100,
+      businessDate: mockWorkspaceData.businessDate,
+      payments: [
+        { amount: 300, paymentMethod: "cash", financialAccountId: "acc-cash-1" },
+        { amount: 500, paymentMethod: "gcash", financialAccountId: "acc-gcash-1" },
+      ],
+    });
+    expect(mockRecordOrderPaymentAction).not.toHaveBeenCalled();
+  });
+
+  it("keeps a legacy booking visible when no payment account is configured and blocks posting", () => {
+    const legacy = {
+      ...mockWorkspaceData.payableOrders[0]!,
+      id: "legacy-booking-1",
+      sourceKind: "legacy_booking" as const,
+    };
+    render(
+      <RecordFinancialEntryModal
+        open={true}
+        onOpenChange={vi.fn()}
+        accounts={[]}
+        payableOrders={[legacy]}
+        branchId={mockWorkspaceData.branchId}
+        businessDate={mockWorkspaceData.businessDate}
+      />
+    );
+    expect(screen.getByText("BK-20260928-002 — Michael Tan")).toBeTruthy();
+    expect(screen.getByText(/No compatible financial account is configured/i)).toBeTruthy();
+    expect((screen.getByRole("button", { name: /Record Entry/i }) as HTMLButtonElement).disabled).toBe(true);
+  });
+
+  it("preserves the payment request key when the same form is retried", async () => {
+    mockRecordLegacyBookingPaymentAction
+      .mockResolvedValueOnce({ ok: false, error: "Network response lost" })
+      .mockResolvedValueOnce({ ok: true, data: { transactionId: "tx-legacy", isIdempotentReplay: true } });
+    const legacy = {
+      ...mockWorkspaceData.payableOrders[0]!,
+      id: "legacy-booking-1",
+      sourceKind: "legacy_booking" as const,
+    };
+    render(
+      <RecordFinancialEntryModal
+        open={true}
+        onOpenChange={vi.fn()}
+        accounts={mockWorkspaceData.accounts}
+        payableOrders={[legacy]}
+        branchId={mockWorkspaceData.branchId}
+        businessDate={mockWorkspaceData.businessDate}
+      />
+    );
+    fireEvent.click(screen.getByRole("button", { name: /Record Entry/i }));
+    await waitFor(() => expect(screen.getByText("Network response lost")).toBeTruthy());
+    fireEvent.click(screen.getByRole("button", { name: /Record Entry/i }));
+    await waitFor(() => expect(mockRecordLegacyBookingPaymentAction).toHaveBeenCalledTimes(2));
+    expect(mockRecordLegacyBookingPaymentAction.mock.calls[0]![0].idempotencyKey)
+      .toBe(mockRecordLegacyBookingPaymentAction.mock.calls[1]![0].idempotencyKey);
   });
 });

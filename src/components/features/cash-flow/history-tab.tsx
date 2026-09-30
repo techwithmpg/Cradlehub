@@ -214,6 +214,7 @@ export function HistoryTab({ history, businessDate }: HistoryTabProps) {
         {/* Right Side: Selected Close Summary & Audit Trail (5 cols) */}
         <div className="lg:col-span-5 space-y-4">
           {/* Selected close summary card */}
+          {history.selectedClose ? (
           <div className="bg-white rounded-xl border border-[#EAE4DC] p-5 shadow-[0_1px_2px_rgba(0,0,0,0.02)]">
             <div className="flex items-center justify-between mb-1">
               <h2 className="text-base font-bold text-[#1E1916]">Selected close summary</h2>
@@ -318,6 +319,15 @@ export function HistoryTab({ history, businessDate }: HistoryTabProps) {
               </div>
             </div>
           </div>
+
+          ) : (
+            <div className="bg-white rounded-xl border border-[#EAE4DC] p-6 text-center shadow-[0_1px_2px_rgba(0,0,0,0.02)]">
+              <h2 className="text-base font-bold text-[#1E1916]">No day close selected</h2>
+              <p className="mt-2 text-sm text-[#6B5D52]">
+                No historical day close is available to review.
+              </p>
+            </div>
+          )}
 
           {/* Audit & activity trail card */}
           <div className="bg-white rounded-xl border border-[#EAE4DC] p-5 shadow-[0_1px_2px_rgba(0,0,0,0.02)]">

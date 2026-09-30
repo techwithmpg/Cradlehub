@@ -130,7 +130,7 @@ BEGIN
   PERFORM pg_advisory_xact_lock(hashtext('idem_cf4_' || p_idempotency_key));
 
   -- 3. Row lock on booking order
-  SELECT id, branch_id, organizer_customer_id, booking_date
+  SELECT id, branch_id, organizer_customer_id, booking_date, currency
   INTO v_order
   FROM public.booking_orders
   WHERE id = p_order_id
@@ -139,7 +139,6 @@ BEGIN
   IF NOT FOUND THEN
     RAISE EXCEPTION 'ORDER_NOT_FOUND: Booking order % does not exist', p_order_id;
   END IF;
-
   -- 4. Authenticated identity & staff resolution
   v_auth_uid := auth.uid();
   IF v_auth_uid IS NULL THEN
@@ -166,6 +165,9 @@ BEGIN
   IF v_staff.system_role <> 'owner' AND v_staff.branch_id <> v_order.branch_id THEN
     RAISE EXCEPTION 'BRANCH_UNAUTHORIZED: Staff % (branch %) unauthorized for order in branch %',
       v_staff.id, v_staff.branch_id, v_order.branch_id;
+  END IF;
+  IF v_order.currency IS DISTINCT FROM 'PHP' THEN
+    RAISE EXCEPTION 'UNSUPPORTED_ORDER_CURRENCY: Cash Flow currently supports PHP orders only';
   END IF;
 
   -- 6. Validate payment parts & rails
