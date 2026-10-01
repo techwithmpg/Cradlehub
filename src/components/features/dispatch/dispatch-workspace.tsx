@@ -9,7 +9,6 @@ import {
   CalendarDays,
   ListChecks,
   Route,
-  Settings2,
   AlertTriangle,
   CheckCircle2,
   Clock3,
@@ -153,7 +152,7 @@ export function HomeServiceDispatchWorkspace({
               Home Service Operations
             </h1>
             <p className="mt-1 max-w-3xl text-sm text-[var(--cs-text-secondary)]">
-              Monitor today's home-service visits, travel progress, staff, and customer locations.
+              Monitor today&apos;s home-service visits, travel progress, staff, and customer locations.
             </p>
           </div>
 

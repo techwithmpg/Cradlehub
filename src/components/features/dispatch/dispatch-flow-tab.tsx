@@ -424,7 +424,7 @@ function EmptyState() {
       </h3>
 
       <p className="mt-1 text-sm text-[var(--cs-text-muted)]">
-        Today's Home Service bookings will appear here automatically.
+        Today&apos;s Home Service bookings will appear here automatically.
       </p>
     </div>
   );
@@ -438,20 +438,12 @@ export function DispatchFlowTab({
   onChanged: () => void;
 }) {
   const [selectedId, setSelectedId] =
-    useState<string | null>(
-      data.items[0]?.id ?? null
-    );
+    useState<string | null>(null);
 
-  useEffect(() => {
-    if (
-      selectedId &&
-      data.items.some((item) => item.id === selectedId)
-    ) {
-      return;
-    }
-
-    setSelectedId(data.items[0]?.id ?? null);
-  }, [data.items, selectedId]);
+  const activeSelectedId =
+    selectedId && data.items.some((item) => item.id === selectedId)
+      ? selectedId
+      : data.items[0]?.id ?? null;
 
   const sortedItems = useMemo(
     () =>
@@ -462,7 +454,7 @@ export function DispatchFlowTab({
   );
 
   const selected =
-    sortedItems.find((item) => item.id === selectedId) ??
+    sortedItems.find((item) => item.id === activeSelectedId) ??
     sortedItems[0] ??
     null;
 
@@ -476,11 +468,11 @@ export function DispatchFlowTab({
         <div className="mb-4 flex items-center justify-between gap-3 border-b border-[var(--cs-border)] pb-4">
           <div>
             <h2 className="text-xl font-bold text-[var(--cs-text)]">
-              Today's Home Visits
+              Today&apos;s Home Visits
             </h2>
 
             <p className="mt-1 text-sm text-[var(--cs-text-muted)]">
-              Live operational status for today's Home Service visits.
+              Live operational status for today&apos;s Home Service visits.
             </p>
           </div>
 
