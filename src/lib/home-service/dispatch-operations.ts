@@ -81,7 +81,7 @@ export async function assignHomeServiceDriver(
   const { data: booking, error: bookingError } = await client
     .from("bookings")
     .select(
-      "id, branch_id, delivery_type, type, driver_id, payment_status, booking_date, start_time"
+      "id, branch_id, delivery_type, type, driver_id, booking_date, start_time"
     )
     .eq("id", bookingId)
     .maybeSingle();
@@ -182,9 +182,8 @@ export async function assignHomeServiceDriver(
     };
   }
 
-  // Preserve the existing hosted notification semantics exactly:
-  // notifications change only when the booking is already paid.
-  if (booking.driver_id !== driverId && booking.payment_status === "paid") {
+  // Driver assignment is operational and must work for pay-after-service bookings.
+  if (booking.driver_id !== driverId) {
     await resolveNotificationsForEntity("booking", booking.id, "driver", "home_service_assigned");
 
     if (booking.driver_id) {

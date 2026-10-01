@@ -39,8 +39,6 @@ function statusLabel(status: unknown): string {
   const s = statusText(status);
   if (s === "awaiting_driver") return "Needs Driver";
   if (s === "ready") return "Ready";
-  if (s === "scheduled") return "Scheduled";
-  if (s === "released_to_driver") return "Released";
   if (s === "in_route") return "En Route";
   if (s === "arrived_at_customer") return "Arrived";
   if (s === "service_started") return "In Service";
@@ -58,14 +56,6 @@ function statusBadge(status: unknown): { variant: BadgeVariant; cls: string } {
 
   if (s === "ready") {
     return { variant: "outline", cls: "border-green-300 bg-green-50 text-green-700" };
-  }
-
-  if (s === "scheduled") {
-    return { variant: "outline", cls: "border-blue-300 bg-blue-50 text-blue-700" };
-  }
-
-  if (s === "released_to_driver") {
-    return { variant: "outline", cls: "border-purple-300 bg-purple-50 text-purple-700" };
   }
 
   if (["in_route", "arrived_at_customer", "service_started"].includes(s)) {
@@ -86,8 +76,6 @@ function getReadinessBadges(item: RealDispatchItem): string[] {
   if (!item.therapistId) badges.push("Therapist Needed");
   if (item.lat === null || item.lng === null) badges.push("GPS Missing");
   if (badges.length === 0 && statusText(item.dispatchStatus) === "ready") badges.push("GPS Ready");
-  if (statusText(item.dispatchStatus) === "scheduled") badges.push("Scheduled");
-  if (statusText(item.dispatchStatus) === "released_to_driver") badges.push("Released");
 
   return badges;
 }
@@ -268,16 +256,15 @@ function ChecklistItem({
 
 function SelectedBookingPanel({
   item,
-  onPrepare,
+  onManage,
 }: {
   item: RealDispatchItem;
-  onPrepare: () => void;
+  onManage: () => void;
 }) {
   const badge = statusBadge(item.dispatchStatus);
   const hasGps = item.lat !== null && item.lng !== null;
   const hasDriver = Boolean(item.driverId);
   const hasTherapist = Boolean(item.therapistId);
-  const dispatchOk = hasGps && hasDriver && hasTherapist;
 
   return (
     <aside className="rounded-3xl border border-[var(--cs-border)] bg-[var(--cs-surface)] p-5 shadow-sm">
@@ -315,7 +302,7 @@ function SelectedBookingPanel({
           action={
             !hasDriver ? (
               <span className="inline-flex rounded-lg border border-[var(--cs-border)] bg-white px-3 py-1.5 text-xs font-semibold text-[var(--cs-text-secondary)]">
-                Assign in dispatch
+                Assign driver
               </span>
             ) : null
           }
@@ -335,28 +322,22 @@ function SelectedBookingPanel({
 
       <div className="mt-4 rounded-3xl border border-[var(--cs-border)] bg-[var(--cs-surface-warm)] p-4">
         <p className="mb-3 text-xs font-bold uppercase tracking-wide text-[var(--cs-text-muted)]">
-          Dispatch Checklist
+          Operational Details
         </p>
         <div className="grid gap-2 sm:grid-cols-2">
           <ChecklistItem ok={hasDriver} label="Driver assigned" />
           <ChecklistItem ok={hasTherapist} label="Therapist confirmed" />
           <ChecklistItem ok={hasGps} label="GPS location ready" />
-          <ChecklistItem ok={dispatchOk} label="Dispatch OK" />
         </div>
-      </div>
-
-      <div className="mt-4 rounded-2xl border border-[var(--cs-border)] bg-[var(--cs-surface-warm)] px-4 py-3 text-sm text-[var(--cs-text-secondary)]">
-        <span className="font-semibold text-[var(--cs-text)]">CRM can prepare dispatch early.</span>{" "}
-        Driver sees it only when released.
       </div>
 
       <Button
         type="button"
-        onClick={onPrepare}
+        onClick={onManage}
         className="mt-4 h-12 w-full rounded-2xl bg-[#155A33] text-base font-bold text-white hover:bg-[#104728]"
       >
         <Navigation size={18} />
-        Prepare Dispatch
+        Manage Booking
       </Button>
     </aside>
   );
@@ -368,7 +349,7 @@ function EmptyState() {
       <Inbox className="mb-3 text-[var(--cs-text-muted)]" size={34} />
       <h3 className="font-bold text-[var(--cs-text)]">No home-service bookings</h3>
       <p className="mt-1 max-w-sm text-sm text-[var(--cs-text-muted)]">
-        Home-service bookings for this date will appear here for dispatch preparation.
+        Home-service bookings for this date will appear here for assignment and monitoring.
       </p>
     </div>
   );
@@ -386,14 +367,14 @@ export function DispatchFlowTab({
   const [modalItem, setModalItem] = useState<RealDispatchItem | null>(null);
 
   const groups = useMemo(() => {
+    const activeStatuses = ["in_route", "arrived_at_customer", "service_started"];
+    const closedStatuses = ["completed", "cancelled"];
     const needsSetup = data.items.filter((item) => {
       const s = statusText(item.dispatchStatus);
       return (
-        s === "awaiting_driver" ||
-        !item.driverId ||
-        !item.therapistId ||
-        item.lat === null ||
-        item.lng === null
+        !activeStatuses.includes(s) && !closedStatuses.includes(s) &&
+        (s === "awaiting_driver" || !item.driverId || !item.therapistId ||
+        item.lat === null || item.lng === null)
       );
     });
 
@@ -408,15 +389,9 @@ export function DispatchFlowTab({
       );
     });
 
-    const scheduled = data.items.filter((item) => statusText(item.dispatchStatus) === "scheduled");
-
-    const released = data.items.filter((item) =>
-      ["released_to_driver", "in_route", "arrived_at_customer", "service_started"].includes(
-        statusText(item.dispatchStatus)
-      )
-    );
-
-    return { needsSetup, ready, scheduled, released };
+    const active = data.items.filter((item) => activeStatuses.includes(statusText(item.dispatchStatus)));
+    const finished = data.items.filter((item) => closedStatuses.includes(statusText(item.dispatchStatus)));
+    return { needsSetup, ready, active, finished };
   }, [data.items]);
 
   const selected =
@@ -433,9 +408,9 @@ export function DispatchFlowTab({
       <section className="rounded-3xl border border-[var(--cs-border)] bg-[var(--cs-surface)] p-5 shadow-sm">
         <div className="mb-5 flex flex-col gap-3 border-b border-[var(--cs-border)] pb-4 lg:flex-row lg:items-center lg:justify-between">
           <div>
-            <h2 className="text-xl font-bold text-[var(--cs-text)]">Dispatch Queue</h2>
+            <h2 className="text-xl font-bold text-[var(--cs-text)]">Home Service Bookings</h2>
             <p className="mt-1 text-sm text-[var(--cs-text-muted)]">
-              Drag-and-drop style workflow for driver, therapist, GPS, and timed release.
+              Monitor bookings, assignments, location, and service progress.
             </p>
           </div>
 
@@ -461,14 +436,14 @@ export function DispatchFlowTab({
               onSelect={(item) => setSelectedId(item.id)}
             />
             <Column
-              title="Scheduled"
-              items={groups.scheduled}
+              title="Active"
+              items={groups.active}
               selectedId={selected?.id ?? null}
               onSelect={(item) => setSelectedId(item.id)}
             />
             <Column
-              title="Released"
-              items={groups.released}
+              title="Finished"
+              items={groups.finished}
               selectedId={selected?.id ?? null}
               onSelect={(item) => setSelectedId(item.id)}
             />
@@ -477,7 +452,7 @@ export function DispatchFlowTab({
           {selected ? (
             <SelectedBookingPanel
               item={selected}
-              onPrepare={() => setModalItem(selected)}
+              onManage={() => setModalItem(selected)}
             />
           ) : (
             <EmptyState />
@@ -487,7 +462,7 @@ export function DispatchFlowTab({
 
       <HomeServiceDispatchModal
         open={Boolean(modalItem)}
-        item={modalItem}
+        item={modalItem ? data.items.find((item) => item.id === modalItem.id) ?? modalItem : null}
         onOpenChange={(open) => {
           if (!open) setModalItem(null);
         }}

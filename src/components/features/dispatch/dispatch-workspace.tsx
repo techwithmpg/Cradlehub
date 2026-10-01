@@ -17,7 +17,7 @@ import { DispatchTravelProgressTab } from "./dispatch-travel-progress-tab";
 type TabId = "flow" | "map" | "progress";
 
 const TABS: { id: TabId; label: string }[] = [
-  { id: "flow", label: "Dispatch Queue" },
+  { id: "flow", label: "Home Service Bookings" },
   { id: "map", label: "Live Map" },
   { id: "progress", label: "Travel Progress" },
 ];
@@ -114,14 +114,14 @@ export function HomeServiceDispatchWorkspace({
 
   const metrics = useMemo(() => {
     const items = data.items;
+    const activeStatuses = ["in_route", "arrived_at_customer", "service_started"];
+    const closedStatuses = ["completed", "cancelled"];
     const needsSetup = items.filter((item) => {
       const s = statusText(item.dispatchStatus);
       return (
-        s === "awaiting_driver" ||
-        !item.driverId ||
-        !item.therapistId ||
-        item.lat === null ||
-        item.lng === null
+        !activeStatuses.includes(s) && !closedStatuses.includes(s) &&
+        (s === "awaiting_driver" || !item.driverId || !item.therapistId ||
+        item.lat === null || item.lng === null)
       );
     }).length;
 
@@ -136,18 +136,15 @@ export function HomeServiceDispatchWorkspace({
       );
     }).length;
 
-    const scheduled = items.filter((item) => statusText(item.dispatchStatus) === "scheduled").length;
-    const released = items.filter((item) =>
-      ["released_to_driver", "in_route", "arrived_at_customer", "service_started"].includes(
-        statusText(item.dispatchStatus)
-      )
-    ).length;
+    const active = items.filter((item) => activeStatuses.includes(statusText(item.dispatchStatus))).length;
+    const finished = items.filter((item) => closedStatuses.includes(statusText(item.dispatchStatus))).length;
 
     const alerts = items.filter(
-      (item) => !item.driverId || !item.therapistId || item.lat === null || item.lng === null
+      (item) => !closedStatuses.includes(statusText(item.dispatchStatus)) &&
+        (!item.driverId || !item.therapistId || item.lat === null || item.lng === null)
     ).length;
 
-    return { needsSetup, ready, scheduled, released, alerts };
+    return { needsSetup, ready, active, finished, alerts };
   }, [data.items]);
 
   return (
@@ -156,10 +153,10 @@ export function HomeServiceDispatchWorkspace({
         <header className="flex flex-col gap-4 xl:flex-row xl:items-end xl:justify-between">
           <div>
             <h1 className="text-2xl font-bold leading-tight text-[var(--cs-text)]">
-              Home-Service Dispatch Center
+              Home Service Operations
             </h1>
             <p className="mt-1 max-w-3xl text-sm text-[var(--cs-text-secondary)]">
-              Coordinate home-service bookings, drivers, therapist movement, customer locations, and dispatch readiness.
+              Monitor home-service bookings, drivers, therapists, customer locations, and travel progress.
             </p>
           </div>
 
@@ -215,14 +212,14 @@ export function HomeServiceDispatchWorkspace({
         />
         <DispatchMetric
           icon={<CalendarDays size={18} />}
-          label="Scheduled"
-          value={metrics.scheduled}
+          label="Active"
+          value={metrics.active}
           tone="info"
         />
         <DispatchMetric
           icon={<Route size={18} />}
-          label="Released"
-          value={metrics.released}
+          label="Finished"
+          value={metrics.finished}
           tone="purple"
         />
         <DispatchMetric

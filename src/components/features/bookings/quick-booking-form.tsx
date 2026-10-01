@@ -1632,7 +1632,7 @@ export function QuickBookingForm({
                   ) : (
                     <SummaryNote text="Select the destination to calculate the travel fee." />
                   )}
-                  <SummaryRow label="Driver" value="Assigned during dispatch preparation" />
+                  <SummaryRow label="Driver" value="Assigned in Home Service Operations" />
                 </>
               )}
               <SummaryRow

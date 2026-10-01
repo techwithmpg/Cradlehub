@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState, useTransition } from "react";
+import { useState, useTransition } from "react";
 import {
   CalendarClock,
   Car,
@@ -9,7 +9,6 @@ import {
   MapPinned,
   Navigation,
   ExternalLink,
-  Send,
   UserRound,  Check,  ChevronDown,  Loader2,  RefreshCw,  Sparkles,
 
 
@@ -26,10 +25,7 @@ import {
   getTherapistRecommendationsAction,
 } from "@/lib/actions/assignment-recommendations";
 import { assignBookingDriverAction } from "@/lib/actions/driver-actions";
-import {
-  assignBookingTherapistAction,
-  prepareHomeServiceDispatchAction,
-} from "@/app/(dashboard)/crm/bookings/actions";
+import { assignBookingTherapistAction } from "@/app/(dashboard)/crm/bookings/actions";
 import type { ScoredStaff } from "@/lib/assignments/recommendation-engine";
 import { formatTime12h } from "@/lib/utils/time-format";
 import type { RealDispatchItem } from "@/lib/queries/dispatch-queries";
@@ -40,8 +36,6 @@ type HomeServiceDispatchModalProps = {
   onOpenChange: (open: boolean) => void;
   onChanged: () => void;
 };
-
-const DISPATCH_BUFFER_MINUTES = 10;
 
 function formatCoordinate(value: number | null | undefined): string {
   if (typeof value !== "number" || !Number.isFinite(value)) return "—";
@@ -115,7 +109,7 @@ function MiniGpsRoutePreview({
         <MapPinned className="mb-2 text-red-500" size={32} />
         <p className="text-sm font-bold text-red-700">GPS location missing</p>
         <p className="mt-1 max-w-xs text-xs text-red-600">
-          Add customer GPS coordinates before dispatch can be released.
+          Add customer GPS coordinates so the driver can navigate to this booking.
         </p>
       </div>
     );
@@ -161,35 +155,6 @@ function MiniGpsRoutePreview({
       </div>
     </div>
   );
-}
-
-function toAppointmentDate(item: RealDispatchItem): Date {
-  return new Date(`${item.bookingDate}T${item.startTime}`);
-}
-
-function addMinutes(date: Date, minutes: number): Date {
-  return new Date(date.getTime() + minutes * 60_000);
-}
-
-function formatClock(date: Date): string {
-  return date.toLocaleTimeString("en-PH", {
-    hour: "numeric",
-    minute: "2-digit",
-  });
-}
-
-function getReleasePlan(item: RealDispatchItem) {
-  const eta = item.etaMinutes ?? 25;
-  const appointment = toAppointmentDate(item);
-  const releaseAt = addMinutes(appointment, -(eta + DISPATCH_BUFFER_MINUTES));
-  const isDueNow = Date.now() >= releaseAt.getTime();
-
-  return {
-    eta,
-    appointment,
-    releaseAt,
-    isDueNow,
-  };
 }
 
 function StepBadge({ number }: { number: number }) {
@@ -488,22 +453,13 @@ export function HomeServiceDispatchModal({
   onOpenChange,
   onChanged,
 }: HomeServiceDispatchModalProps) {
-  const [feedback, setFeedback] = useState<string | null>(null);
   const [isPending, startTransition] = useTransition();
-
-  const releasePlan = useMemo(() => {
-    return item ? getReleasePlan(item) : null;
-  }, [item]);
-
-  if (!open || !item || !releasePlan) return null;
+  if (!open || !item) return null;
 
   const currentItem = item;
-  const currentReleasePlan = releasePlan;
   const hasGps = currentItem.lat !== null && currentItem.lng !== null;
   const hasDriver = Boolean(currentItem.driverId);
   const hasTherapist = Boolean(currentItem.therapistId);
-  const ready = hasGps && hasDriver && hasTherapist;
-  const actionLabel = currentReleasePlan.isDueNow ? "Release to Driver Now" : "Schedule Dispatch";
 
   function refreshAll() {
     onChanged();
@@ -544,32 +500,6 @@ export function HomeServiceDispatchModal({
     });
   }
 
-  function handleDispatchOk(forceRelease: boolean) {
-    if (!ready) {
-      setFeedback("GPS, driver, and therapist must be ready before dispatch.");
-      return;
-    }
-
-    setFeedback(null);
-
-    startTransition(async () => {
-      const result = await prepareHomeServiceDispatchAction({
-        bookingId: currentItem.id,
-        releaseNow: forceRelease,
-        note: "Dispatch prepared by CRM.",
-      });
-
-      if (!result.success) {
-        setFeedback(result.error ?? "Could not prepare dispatch.");
-        return;
-      }
-
-      toast.success(result.releasedNow ? "Trip released to driver." : "Dispatch scheduled.");
-      refreshAll();
-      onOpenChange(false);
-    });
-  }
-
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/35 p-4 backdrop-blur-sm">
       <div className="flex max-h-[90dvh] w-full max-w-5xl flex-col overflow-hidden rounded-3xl border border-[var(--cs-border)] bg-[var(--cs-surface)] shadow-2xl">
@@ -578,14 +508,14 @@ export function HomeServiceDispatchModal({
           <div>
             <div className="flex items-center gap-3">
               <h2 className="text-xl font-bold text-[var(--cs-text)]">
-                Prepare Home Service Dispatch
+                Home Service Booking
               </h2>
               <Badge className="border-green-200 bg-green-50 text-green-700">
                 Home Service
               </Badge>
             </div>
             <p className="mt-1 text-sm text-[var(--cs-text-muted)]">
-              Confirm driver, therapist, and GPS route. The system will release the trip when it is time to leave.
+              Assign the driver and therapist, and review the customer route. Assigned drivers can start travel from their workspace.
             </p>
           </div>
 
@@ -649,7 +579,6 @@ export function HomeServiceDispatchModal({
                           {formatCoordinate(currentItem.lat)}, {formatCoordinate(currentItem.lng)}
                         </p>
                       </div>
-
                       <div>
                         <p className="text-xs font-bold uppercase tracking-wide text-[var(--cs-text-muted)]">
                           Distance
@@ -658,24 +587,15 @@ export function HomeServiceDispatchModal({
                           {currentItem.etaMinutes ? "Calculated from saved GPS" : "Uses saved booking coordinates"}
                         </p>
                       </div>
-
                       <div>
                         <p className="text-xs font-bold uppercase tracking-wide text-[var(--cs-text-muted)]">
                           ETA
                         </p>
                         <p className="font-semibold text-[var(--cs-text)]">
-                          {currentReleasePlan.eta} min
+                          {currentItem.etaMinutes !== null ? `${currentItem.etaMinutes} min` : "Not available"}
                         </p>
                       </div>
 
-                      <div>
-                        <p className="text-xs font-bold uppercase tracking-wide text-[var(--cs-text-muted)]">
-                          Suggested leave time
-                        </p>
-                        <p className="font-bold text-[#155A33]">
-                          {formatClock(currentReleasePlan.releaseAt)}
-                        </p>
-                      </div>
                     </div>
 
                     <MiniGpsRoutePreview
@@ -691,45 +611,7 @@ export function HomeServiceDispatchModal({
                     Route uses the same saved branch GPS location used by Home Service distance pricing, then routes to the customer GPS destination.
                   </p>
                 </section>
-
-                {/* Dispatch timing */}
-                <section className="rounded-2xl border border-[var(--cs-border)] bg-[var(--cs-surface)] p-4 shadow-sm">
-                  <div className="mb-4 flex items-center gap-2">
-                    <StepBadge number={5} />
-                    <h3 className="font-bold text-[var(--cs-text)]">Dispatch Timing</h3>
-                  </div>
-
-                  <div className="grid gap-3 text-center sm:grid-cols-4">
-                    <div className="rounded-xl bg-[var(--cs-surface-warm)] p-3">
-                      <CalendarClock className="mx-auto mb-1 text-[var(--cs-text-muted)]" size={18} />
-                      <p className="text-[0.65rem] text-[var(--cs-text-muted)]">Appointment time</p>
-                      <p className="font-bold text-[var(--cs-text)]">{formatTime12h(currentItem.startTime)}</p>
-                    </div>
-                    <div className="rounded-xl bg-[var(--cs-surface-warm)] p-3">
-                      <Car className="mx-auto mb-1 text-[var(--cs-text-muted)]" size={18} />
-                      <p className="text-[0.65rem] text-[var(--cs-text-muted)]">Travel time</p>
-                      <p className="font-bold text-[var(--cs-text)]">{currentReleasePlan.eta} min</p>
-                    </div>
-                    <div className="rounded-xl bg-[var(--cs-surface-warm)] p-3">
-                      <Clock className="mx-auto mb-1 text-[var(--cs-text-muted)]" size={18} />
-                      <p className="text-[0.65rem] text-[var(--cs-text-muted)]">Buffer</p>
-                      <p className="font-bold text-[var(--cs-text)]">{DISPATCH_BUFFER_MINUTES} min</p>
-                    </div>
-                    <div className="rounded-xl bg-green-50 p-3">
-                      <Send className="mx-auto mb-1 text-[#155A33]" size={18} />
-                      <p className="text-[0.65rem] text-green-700">Release to driver</p>
-                      <p className="font-bold text-[#155A33]">{formatClock(currentReleasePlan.releaseAt)}</p>
-                    </div>
-                  </div>
-
-                  <div className="mt-4 rounded-xl border border-green-200 bg-green-50 px-4 py-3 text-sm font-semibold text-green-800">
-                    {currentReleasePlan.isDueNow
-                      ? "Release time has arrived. This dispatch can be sent to the driver now."
-                      : `Dispatch will be released automatically at ${formatClock(currentReleasePlan.releaseAt)}.`}
-                  </div>
-                </section>
               </div>
-
               <div className="space-y-4">
                 {/* Driver */}
                 <section className="rounded-2xl border border-[var(--cs-border)] bg-[var(--cs-surface)] p-4 shadow-sm">
@@ -786,22 +668,21 @@ export function HomeServiceDispatchModal({
                   </p>
                 </section>
 
-                {/* Checklist */}
+                {/* Operational details */}
                 <section className="rounded-2xl border border-[var(--cs-border)] bg-[var(--cs-surface)] p-4 shadow-sm">
                   <div className="mb-3 flex items-center gap-2">
-                    <StepBadge number={6} />
-                    <h3 className="font-bold text-[var(--cs-text)]">Dispatch Checklist</h3>
+                    <StepBadge number={5} />
+                    <h3 className="font-bold text-[var(--cs-text)]">Operational Details</h3>
                   </div>
 
                   <div className="space-y-2">
                     <ChecklistRow checked={hasDriver} label="Driver assigned" />
                     <ChecklistRow checked={hasTherapist} label="Therapist confirmed" />
                     <ChecklistRow checked={hasGps} label="GPS location ready" />
-                    <ChecklistRow checked={ready} label="Dispatch OK" />
                   </div>
 
                   <p className="mt-3 text-xs text-[var(--cs-text-muted)]">
-                    Prepared early. The system notifies the assigned driver at the correct time.
+                    Driver assignment makes this booking available to the driver. GPS and therapist details help the team complete the visit.
                   </p>
                 </section>
               </div>
@@ -811,11 +692,6 @@ export function HomeServiceDispatchModal({
 
         {/* Footer */}
         <div className="shrink-0 border-t border-[var(--cs-border)] bg-[var(--cs-surface)] px-6 py-3 shadow-[0_-8px_20px_rgba(0,0,0,0.04)]">
-          {feedback ? (
-            <div className="mb-3 rounded-xl border border-red-200 bg-red-50 px-3 py-2 text-sm font-semibold text-red-700">
-              {feedback}
-            </div>
-          ) : null}
           <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
             <Button
               variant="outline"
@@ -823,28 +699,8 @@ export function HomeServiceDispatchModal({
               onClick={() => onOpenChange(false)}
               className="h-10 rounded-xl px-5"
             >
-              Cancel
+              Close
             </Button>
-
-            <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
-              <Button
-                variant="outline"
-                disabled={isPending || !ready}
-                onClick={() => handleDispatchOk(true)}
-                className="h-10 rounded-xl px-5"
-              >
-                Release Now
-              </Button>
-
-              <Button
-                disabled={isPending || !ready}
-                onClick={() => handleDispatchOk(false)}
-                className="h-10 rounded-xl bg-[#155A33] px-5 font-bold text-white hover:bg-[#104728]"
-              >
-                <Send size={16} />
-                {isPending ? "Saving..." : actionLabel}
-              </Button>
-            </div>
           </div>
         </div>
       </div>

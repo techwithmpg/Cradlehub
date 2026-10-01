@@ -600,7 +600,7 @@ export async function recordBookingFollowup(
     });
   }
 
-  if (isCancellation && booking.staff_id && booking.payment_status === "paid") {
+  if (isCancellation && booking.staff_id && (isHomeServiceBooking(booking) || booking.payment_status === "paid")) {
     const sameDay = booking.booking_date === new Date().toISOString().split("T")[0];
     await createNotification({
       branchId: booking.branch_id,
@@ -623,7 +623,7 @@ export async function recordBookingFollowup(
     await resolveNotificationsForEntity("booking", booking.id, "staff", "home_service_assigned");
   }
 
-  if (isCancellation && booking.driver_id && booking.payment_status === "paid") {
+  if (isCancellation && booking.driver_id && (isHomeServiceBooking(booking) || booking.payment_status === "paid")) {
     await createNotification({
       branchId: booking.branch_id,
       targetWorkspace: "driver",
@@ -917,7 +917,7 @@ export async function rescheduleBooking(
     await resolveNotificationsForEntity("booking", booking.id, "staff", "booking_assigned");
     await resolveNotificationsForEntity("booking", booking.id, "staff", "home_service_assigned");
 
-    if (booking.staff_id && booking.payment_status === "paid") {
+    if (booking.staff_id && (isHomeServiceBooking(booking) || booking.payment_status === "paid")) {
       await createNotification({
         branchId: booking.branch_id,
         targetWorkspace: "staff",
@@ -938,7 +938,7 @@ export async function rescheduleBooking(
       });
     }
 
-    if (targetStaffId && booking.payment_status === "paid") {
+    if (targetStaffId && (isHomeServiceBooking(booking) || booking.payment_status === "paid")) {
       const isHS = isHomeServiceBooking(booking);
       await createNotification({
         branchId: booking.branch_id,
@@ -958,7 +958,7 @@ export async function rescheduleBooking(
         requiresAction: isHS,
       });
     }
-  } else if (booking.staff_id && booking.payment_status === "paid") {
+  } else if (booking.staff_id && (isHomeServiceBooking(booking) || booking.payment_status === "paid")) {
     await createNotification({
       branchId: booking.branch_id,
       targetWorkspace: "staff",
@@ -978,7 +978,7 @@ export async function rescheduleBooking(
     });
   }
 
-  if (booking.driver_id && booking.payment_status === "paid") {
+  if (booking.driver_id && (isHomeServiceBooking(booking) || booking.payment_status === "paid")) {
     await createNotification({
       branchId: booking.branch_id,
       targetWorkspace: "driver",
@@ -1156,7 +1156,8 @@ export async function assignBookingTherapist(
   });
 
   // Notify newly assigned therapist
-  if (parsed.data.staffId !== previousStaffId && booking.payment_status === "paid") {
+  if (parsed.data.staffId !== previousStaffId &&
+      (isHomeServiceBooking(booking) || booking.payment_status === "paid")) {
     const isHS = updated.delivery_type === "home_service" || updated.type === "home_service";
     await resolveNotificationsForEntity("booking", booking.id, "staff", "booking_assigned");
     await resolveNotificationsForEntity("booking", booking.id, "staff", "home_service_assigned");
