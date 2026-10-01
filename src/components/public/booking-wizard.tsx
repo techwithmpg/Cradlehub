@@ -56,6 +56,7 @@ import {
   type PlacesAutocompleteStatus,
 } from "@/components/public/places-autocomplete";
 import { TherapistSelectionStep } from "@/components/features/booking/therapist-picker/therapist-selection-step";
+import { TherapistDropdownPicker } from "@/components/features/booking/therapist-picker/therapist-dropdown-picker";
 import {
   buildTherapistPickerOptions,
   getTherapistInitials,
@@ -574,6 +575,7 @@ export function BookingWizard({
   );
   const isHomeService = visitType === "home_service";
   const steps = useMemo(() => getSteps(isHomeService), [isHomeService]);
+  const visibleSteps = mode === "public" ? steps.filter((item) => item.name !== "therapist") : steps;
   const currentStepName = useMemo(() => getStepName(step, isHomeService), [step, isHomeService]);
   const isTherapistStep = currentStepName === "therapist";
   const successStep = isHomeService ? 8 : 7;
@@ -981,8 +983,8 @@ export function BookingWizard({
     } else if (currentStepName === "therapist") {
       setSelectedStaff(DEFAULT_STAFF_PREFERENCE);
     }
-    setStep((s) => Math.max(1, s - 1));
-  }, [currentStepName]);
+    setStep((s) => Math.max(1, s - (mode === "public" && currentStepName === "details" ? 2 : 1)));
+  }, [currentStepName, mode]);
 
   const handleConfirmBooking = useCallback(async () => {
     if (isSubmittingRef.current || submitting) return;
@@ -1256,19 +1258,19 @@ export function BookingWizard({
     }
 
     setFormError("");
-    setStep((current) => current + 1);
-  }, [currentStepName, locationValid, preciseLocationRequired]);
+    setStep((current) => current + (mode === "public" && currentStepName === "date_time" ? 2 : 1));
+  }, [currentStepName, locationValid, mode, preciseLocationRequired]);
 
   return (
     <div
       className={
         mode === "public"
-          ? "public-booking-surface flex h-[100dvh] min-h-[100dvh] w-full max-w-full flex-col overflow-hidden pt-14 text-[#F6EBD6] md:block md:h-auto md:min-h-screen md:overflow-x-hidden md:overflow-y-visible md:pt-0"
+          ? `public-booking-surface flex h-[100dvh] min-h-[100dvh] w-full max-w-full flex-col overflow-hidden pt-14 text-[#F6EBD6] md:block md:h-auto md:min-h-screen md:overflow-x-hidden md:overflow-y-visible ${currentStepName === "details" ? "md:pt-20" : "md:pt-0"}`
           : ""
       }
       style={{ background: mode === "public" ? BOOKING_PAGE_BACKGROUND : "transparent" }}
     >
-      {mode === "public" && (
+      {mode === "public" && currentStepName !== "details" && (
         <div className="relative hidden overflow-hidden pt-28 pb-12 md:block lg:pt-32 lg:pb-16">
           <div className="absolute inset-0">
             <Image
@@ -1307,21 +1309,31 @@ export function BookingWizard({
           mode === "public"
             ? isTherapistStep
               ? "mx-auto flex min-h-0 w-full max-w-full flex-1 flex-col overflow-hidden px-4 pt-3 md:block md:max-w-7xl md:overflow-visible md:px-8 md:py-10 lg:py-12"
-              : "mx-auto flex min-h-0 w-full max-w-full flex-1 flex-col overflow-hidden px-4 pt-3 md:block md:max-w-5xl md:overflow-visible md:px-6 md:py-10 lg:py-14"
+              : currentStepName === "details"
+                ? "mx-auto flex min-h-0 w-full max-w-full flex-1 flex-col overflow-hidden px-4 pt-2 md:block md:max-w-5xl md:overflow-visible md:px-6 md:py-5"
+                : "mx-auto flex min-h-0 w-full max-w-full flex-1 flex-col overflow-hidden px-4 pt-3 md:block md:max-w-5xl md:overflow-visible md:px-6 md:py-10 lg:py-14"
             : "mx-auto max-w-6xl py-2"
         }
       >
         {mode === "public" && currentStepName !== "success" && (
           <div className="mb-3 shrink-0 text-center md:hidden">
-            <p className="mb-1 text-[9px] font-semibold uppercase tracking-[0.2em] text-[#D4B57A]">
-              Book Your Pause
-            </p>
-            <h1 className="text-[22px] font-medium leading-none text-[#F6EBD6] [font-family:var(--sp-font-display)]">
-              Choose your care
-            </h1>
-            <p className="mx-auto mt-1.5 max-w-[270px] text-[11px] leading-4 text-[#F6EBD6]/68">
-              Select your branch, treatment, time, and details. We&apos;ll guide you gently.
-            </p>
+            {currentStepName === "details" ? (
+              <h1 className="text-[22px] font-medium leading-tight text-[#F6EBD6] [font-family:var(--sp-font-display)]">
+                Details
+              </h1>
+            ) : (
+              <>
+                <p className="mb-1 text-[9px] font-semibold uppercase tracking-[0.2em] text-[#D4B57A]">
+                  Book Your Pause
+                </p>
+                <h1 className="text-[22px] font-medium leading-none text-[#F6EBD6] [font-family:var(--sp-font-display)]">
+                  Choose your care
+                </h1>
+                <p className="mx-auto mt-1.5 max-w-[270px] text-[11px] leading-4 text-[#F6EBD6]/68">
+                  Select your branch, treatment, time, and details. We&apos;ll guide you gently.
+                </p>
+              </>
+            )}
           </div>
         )}
 
@@ -1361,9 +1373,9 @@ export function BookingWizard({
 
         {/* Stepper */}
         {currentStepName !== "success" && (
-          <div className="mb-12 hidden items-center justify-center md:flex">
+          <div className={`${currentStepName === "details" && mode === "public" ? "mb-5" : "mb-12"} hidden items-center justify-center md:flex`}>
             <div className="flex items-center gap-0.5 sm:gap-2">
-              {steps.map((s, i) => (
+              {visibleSteps.map((s, i) => (
                 <div key={s.id} className="flex items-center gap-0.5 sm:gap-2">
                   <div className="flex flex-col items-center">
                     <div
@@ -1375,7 +1387,7 @@ export function BookingWizard({
                             : "border border-[#D4B57A]/22 bg-[#05241D]/70 text-[#F6EBD6]/42"
                       }`}
                     >
-                      {step > s.id ? <Check className="h-3.5 w-3.5" /> : s.id}
+                      {step > s.id ? <Check className="h-3.5 w-3.5" /> : mode === "public" ? i + 1 : s.id}
                     </div>
                     <span
                       className={`hidden sm:block text-[10px] mt-1.5 font-medium ${
@@ -1385,7 +1397,7 @@ export function BookingWizard({
                       {s.label}
                     </span>
                   </div>
-                  {i < steps.length - 1 && (
+                  {i < visibleSteps.length - 1 && (
                     <div
                       className={`w-4 sm:w-8 lg:w-12 h-0.5 rounded-full mb-4 sm:mb-3 transition-colors duration-300 ${
                         step > s.id ? "bg-[#D4B57A]" : "bg-[#D4B57A]/20"
@@ -1402,7 +1414,9 @@ export function BookingWizard({
         <div
           className={
             mode === "public"
-              ? "flex min-h-0 flex-1 flex-col overflow-hidden md:grid md:gap-8 md:overflow-visible lg:grid-cols-3"
+              ? currentStepName === "details"
+                ? "flex min-h-0 flex-1 flex-col overflow-hidden md:block md:overflow-visible"
+                : "flex min-h-0 flex-1 flex-col overflow-hidden md:grid md:gap-8 md:overflow-visible lg:grid-cols-3"
               : "grid min-w-0 gap-8 lg:grid-cols-3"
           }
         >
@@ -1410,7 +1424,9 @@ export function BookingWizard({
           <div
             className={
               mode === "public"
-                ? "flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden md:block md:overflow-visible lg:col-span-2"
+                ? currentStepName === "details"
+                  ? "flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden md:block md:overflow-visible"
+                  : "flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden md:block md:overflow-visible lg:col-span-2"
                 : "min-w-0 lg:col-span-2"
             }
           >
@@ -1563,6 +1579,10 @@ export function BookingWizard({
                   attendees={attendees}
                   paymentChoice={paymentChoice}
                   onPaymentChoiceChange={setPaymentChoice}
+                  availableStaff={staffPreferenceOptions}
+                  selectedSlot={selectedSlot}
+                  selectedStaff={selectedStaffForBooking}
+                  onSelectStaff={setSelectedStaff}
                 />
               )}
               {currentStepName === "success" && success && (
@@ -1593,7 +1613,9 @@ export function BookingWizard({
                   mode === "public"
                     ? isTherapistStep
                       ? "fixed inset-x-0 bottom-0 z-40 flex items-center justify-between gap-3 border-t border-[#D4B57A]/25 bg-[#031B16]/82 px-4 py-3 shadow-[0_-18px_50px_rgba(0,0,0,0.35)] backdrop-blur-xl md:relative md:mt-8 md:border-t md:bg-transparent md:px-0 md:pt-6 md:shadow-none md:backdrop-blur-0"
-                      : "fixed inset-x-0 bottom-0 z-40 flex items-center justify-between gap-3 border-t border-[#D4B57A]/25 bg-[#031B16]/82 px-4 py-3 shadow-[0_-18px_50px_rgba(0,0,0,0.35)] backdrop-blur-xl md:static md:mt-10 md:border-t md:bg-transparent md:px-0 md:pt-8 md:shadow-none md:backdrop-blur-0"
+                      : currentStepName === "details"
+                        ? "fixed inset-x-0 bottom-0 z-40 flex items-center justify-between gap-3 border-t border-[#D4B57A]/25 bg-[#031B16]/82 px-4 py-3 shadow-[0_-18px_50px_rgba(0,0,0,0.35)] backdrop-blur-xl md:static md:mx-auto md:mt-5 md:w-full md:max-w-3xl md:border-t md:bg-transparent md:px-0 md:pt-5 md:shadow-none md:backdrop-blur-0"
+                        : "fixed inset-x-0 bottom-0 z-40 flex items-center justify-between gap-3 border-t border-[#D4B57A]/25 bg-[#031B16]/82 px-4 py-3 shadow-[0_-18px_50px_rgba(0,0,0,0.35)] backdrop-blur-xl md:static md:mt-10 md:border-t md:bg-transparent md:px-0 md:pt-8 md:shadow-none md:backdrop-blur-0"
                     : "flex items-center justify-between mt-10 pt-8 border-t border-[#EDE4D3]"
                 }
                 style={{
@@ -1604,7 +1626,7 @@ export function BookingWizard({
                 <button
                   onClick={handleBack}
                   disabled={currentStepName === "branch"}
-                  className="flex min-h-11 items-center gap-2 rounded-full border border-[#D4B57A]/35 bg-[#031B16]/50 px-4 text-[13px] font-medium text-[#F6EBD6] transition-colors disabled:cursor-not-allowed disabled:opacity-30 hover:border-[#D4B57A]/60 md:bg-transparent"
+                  className="flex min-h-11 items-center gap-2 rounded-full border border-[#D4B57A]/35 bg-[#031B16]/50 px-4 text-[13px] font-medium text-[#F6EBD6] transition-colors disabled:cursor-not-allowed disabled:opacity-30 hover:border-[#D4B57A]/60 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#D4B57A] md:bg-transparent"
                 >
                   <ChevronLeft className="h-4 w-4" />
                   Back
@@ -1634,7 +1656,8 @@ export function BookingWizard({
                     disabled={submitting}
                     aria-busy={submitting}
                     className={[
-                      "inline-flex min-h-12 flex-1 items-center justify-center gap-2 rounded-[7px] px-8 py-3 text-[12px] font-semibold tracking-widest uppercase transition-all duration-300 disabled:cursor-not-allowed disabled:opacity-50 hover:shadow-lg md:flex-none md:rounded-full",
+                      "inline-flex min-h-12 flex-1 items-center justify-center gap-2 rounded-[7px] px-8 py-3 text-[12px] font-semibold tracking-widest uppercase transition-all duration-300 disabled:cursor-not-allowed disabled:opacity-50 hover:shadow-lg focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#D4B57A] md:flex-none md:rounded-full",
+                      mode === "public" && "md:max-w-[260px]",
                       submitting ? WARM_DISABLED_BUTTON_CLS : WARM_PRIMARY_BUTTON_CLS,
                     ].join(" ")}
                   >
@@ -1656,7 +1679,7 @@ export function BookingWizard({
           </div>
 
           {/* Summary sidebar */}
-          {currentStepName !== "success" && (
+          {currentStepName !== "success" && !(mode === "public" && currentStepName === "details") && (
             <div className="hidden lg:block">
               <BookingSummary
                 branch={selectedBranch}
@@ -3172,6 +3195,162 @@ const HS_ZONE_OPTIONS: { value: string; label: string }[] = [
   { value: "outside_bacolod", label: "Outside Bacolod" },
 ];
 
+export function PublicStepDetails({
+  form,
+  onChange,
+  error,
+  bookingFor,
+  recipientName,
+  attendees,
+  availableStaff,
+  selectedSlot,
+  selectedStaff,
+  onSelectStaff,
+}: {
+  form: DetailsForm;
+  onChange: (form: DetailsForm) => void;
+  error: string;
+  bookingFor?: BookingForChoice;
+  recipientName?: string;
+  attendees?: WizardAttendee[];
+  availableStaff: StaffOption[];
+  selectedSlot: Slot | null;
+  selectedStaff: "auto" | string;
+  onSelectStaff: (choice: "auto" | string) => void;
+}) {
+  const [therapistOpen, setTherapistOpen] = useState(false);
+  const [optionalExpanded, setOptionalExpanded] = useState(
+    Boolean(form.email.trim() || form.notes.trim())
+  );
+  const therapistOptions = buildTherapistPickerOptions(
+    availableStaff,
+    selectedSlot ? formatTime(selectedSlot.slot_time) : "selected time"
+  );
+
+  return (
+    <div className="mx-auto w-full max-w-3xl space-y-4 pb-2 md:space-y-5">
+      <div>
+        <h2 className="text-[22px] font-medium leading-tight md:text-[28px]" style={WARM_HEADING_STYLE}>
+          Complete your booking
+        </h2>
+        {bookingFor === "someone_else" && (
+          <p className="mt-1 text-[13px] leading-5" style={WARM_BODY_STYLE}>
+            Your contact details for {recipientName?.trim() || "the recipient"}.
+          </p>
+        )}
+      </div>
+
+      {error && (
+        <p role="alert" className="rounded-lg border border-red-300/30 bg-red-950/35 px-3 py-2 text-[13px] text-red-100">
+          {error}
+        </p>
+      )}
+
+      <div className="grid gap-3 sm:grid-cols-2 md:gap-4">
+        <div>
+          <label htmlFor="wizard-fullName" className="mb-1 block text-[13px] font-semibold text-[#D4B57A]">
+            Full name <span aria-hidden="true">*</span>
+          </label>
+          <input
+            id="wizard-fullName"
+            name="fullName"
+            type="text"
+            autoComplete="name"
+            required
+            value={form.fullName}
+            onChange={(event) => onChange({ ...form, fullName: event.target.value })}
+            placeholder="Your full name"
+            className={PUBLIC_INPUT_CLS}
+          />
+        </div>
+        <div>
+          <label htmlFor="wizard-phone" className="mb-1 block text-[13px] font-semibold text-[#D4B57A]">
+            Phone number <span aria-hidden="true">*</span>
+          </label>
+          <input
+            id="wizard-phone"
+            name="phone"
+            type="tel"
+            autoComplete="tel"
+            required
+            value={form.phone}
+            onChange={(event) => onChange({ ...form, phone: event.target.value })}
+            placeholder="e.g. 0917 123 4567"
+            className={PUBLIC_INPUT_CLS}
+          />
+        </div>
+      </div>
+
+      <div>
+        <div className="mb-1 flex items-baseline justify-between gap-2">
+          <p className="text-[13px] font-semibold text-[#D4B57A]">Therapist preference</p>
+          <span className="text-[12px] text-[#F6EBD6]/70">Optional</span>
+        </div>
+        <TherapistDropdownPicker
+          options={therapistOptions}
+          value={selectedStaff}
+          open={therapistOpen}
+          onOpenChange={setTherapistOpen}
+          onValueChange={onSelectStaff}
+          compact
+        />
+        {bookingFor === "me_and_others" && (attendees?.length ?? 0) > 1 && selectedStaff === "auto" && (
+          <p className="mt-1.5 text-[12px] leading-5 text-[#F6EBD6]/70">
+            {attendees?.length} guests · We&apos;ll assign one qualified therapist to each guest.
+          </p>
+        )}
+      </div>
+
+      <div className="border-t border-[#D4B57A]/20 pt-1">
+        <button
+          type="button"
+          aria-expanded={optionalExpanded}
+          aria-controls="wizard-optional-details"
+          onClick={() => setOptionalExpanded((expanded) => !expanded)}
+          className="inline-flex min-h-11 items-center gap-1.5 text-[13px] font-medium text-[#D4B57A] underline-offset-4 hover:underline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#D4B57A]"
+        >
+          <Plus className="size-4" aria-hidden="true" />
+          {optionalExpanded ? "Hide optional details" : "Add email or special request"}
+        </button>
+      </div>
+
+      <div id="wizard-optional-details" hidden={!optionalExpanded}>
+        <div className="grid gap-3 sm:grid-cols-2 md:gap-4">
+          <div id="wizard-optional-email">
+            <label htmlFor="wizard-email" className="mb-1 block text-[13px] font-semibold text-[#D4B57A]">
+              Email (optional)
+            </label>
+            <input
+              id="wizard-email"
+              name="email"
+              type="email"
+              autoComplete="email"
+              value={form.email}
+              onChange={(event) => onChange({ ...form, email: event.target.value })}
+              placeholder="your@email.com"
+              className={PUBLIC_INPUT_CLS}
+            />
+          </div>
+          <div id="wizard-optional-notes">
+            <label htmlFor="wizard-notes" className="mb-1 block text-[13px] font-semibold text-[#D4B57A]">
+              Special requests (optional)
+            </label>
+            <textarea
+              id="wizard-notes"
+              name="notes"
+              value={form.notes}
+              onChange={(event) => onChange({ ...form, notes: event.target.value })}
+              placeholder="Anything we should know?"
+              rows={2}
+              className={`${PUBLIC_INPUT_CLS} resize-y`}
+            />
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 function StepDetails({
   form,
   onChange,
@@ -3183,6 +3362,10 @@ function StepDetails({
   attendees,
   paymentChoice,
   onPaymentChoiceChange,
+  availableStaff,
+  selectedSlot,
+  selectedStaff,
+  onSelectStaff,
 }: {
   form: DetailsForm;
   onChange: (f: DetailsForm) => void;
@@ -3194,11 +3377,30 @@ function StepDetails({
   attendees?: WizardAttendee[];
   paymentChoice?: BookingPaymentChoice;
   onPaymentChoiceChange?: (choice: BookingPaymentChoice) => void;
+  availableStaff: StaffOption[];
+  selectedSlot: Slot | null;
+  selectedStaff: "auto" | string;
+  onSelectStaff: (choice: "auto" | string) => void;
 }) {
+  const publicDetails = mode === "public" ? (
+    <PublicStepDetails
+      form={form}
+      onChange={onChange}
+      error={error}
+      bookingFor={bookingFor}
+      recipientName={recipientName}
+      attendees={attendees}
+      availableStaff={availableStaff}
+      selectedSlot={selectedSlot}
+      selectedStaff={selectedStaff}
+      onSelectStaff={onSelectStaff}
+    />
+  ) : null;
+
   const isHomeService = visitType === "home_service";
   const fieldClassName = mode === "public" ? PUBLIC_INPUT_CLS : INPUT_CLS;
 
-  return (
+  return publicDetails ?? (
     <div>
       <h2
         className="mb-1.5 text-[18px] font-semibold md:mb-2 md:text-2xl md:font-medium"

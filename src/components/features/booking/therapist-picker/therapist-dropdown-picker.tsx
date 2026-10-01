@@ -29,6 +29,7 @@ type TherapistDropdownPickerProps = {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   onValueChange: (value: TherapistPickerValue) => void;
+  compact?: boolean;
 };
 
 export function TherapistDropdownPicker({
@@ -37,8 +38,12 @@ export function TherapistDropdownPicker({
   open,
   onOpenChange,
   onValueChange,
+  compact = false,
 }: TherapistDropdownPickerProps) {
   const selectedOption = getSelectedTherapistOption(options, value);
+  const selectedLabel = compact && selectedOption.isAnyProvider
+    ? "Any available therapist"
+    : selectedOption.displayName;
   const allOptions = [ANY_PROVIDER_OPTION, ...options];
 
   function handleSelect(option: TherapistPickerOption) {
@@ -50,14 +55,17 @@ export function TherapistDropdownPicker({
     <Popover open={open} onOpenChange={onOpenChange}>
       <PopoverTrigger
         type="button"
-        aria-label="Choose a therapist"
+        aria-label={compact ? `Choose a therapist: ${selectedLabel}` : "Choose a therapist"}
         aria-expanded={open}
         className={cn(
-          "flex min-h-16 w-full items-center gap-3 rounded-2xl border border-[#D4B57A]/25 bg-[#0D2B20]/65 px-4 py-3 text-left shadow-[0_18px_42px_rgba(0,0,0,0.22)] backdrop-blur-xl transition-all hover:border-[#D4B57A]/60 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#D4B57A]/35",
+          "flex w-full items-center gap-3 border border-[#D4B57A]/25 bg-[#0D2B20]/65 text-left transition-all hover:border-[#D4B57A]/60 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#D4B57A]/35",
+          compact
+            ? "min-h-12 rounded-xl px-3 py-2"
+            : "min-h-16 rounded-2xl px-4 py-3 shadow-[0_18px_42px_rgba(0,0,0,0.22)] backdrop-blur-xl",
           open && "border-[#D4B57A]/75 ring-2 ring-[#D4B57A]/20"
         )}
       >
-        <Avatar className="size-10 border border-[#D4B57A]/24 bg-[#05241D] shadow-sm">
+        <Avatar className={cn("border border-[#D4B57A]/24 bg-[#05241D] shadow-sm", compact ? "size-7" : "size-10")}>
           {selectedOption.avatarUrl ? (
             <AvatarImage src={selectedOption.avatarUrl} alt={selectedOption.displayName} />
           ) : null}
@@ -67,9 +75,9 @@ export function TherapistDropdownPicker({
         </Avatar>
         <span className="min-w-0 flex-1">
           <span className="block truncate text-[14px] font-semibold text-[#F6EBD6]">
-            {selectedOption.displayName}
+            {selectedLabel}
           </span>
-          <span className="mt-0.5 block truncate text-[12px] text-[#F6EBD6]/64">
+          <span className={cn("truncate text-[12px] text-[#F6EBD6]/64", compact ? "hidden" : "mt-0.5 block")}>
             {selectedOption.isAnyProvider
               ? "Recommended default"
               : getTherapistSubLabel(selectedOption)}
