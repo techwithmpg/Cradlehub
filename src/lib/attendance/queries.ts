@@ -33,6 +33,7 @@ import {
 } from "@/lib/attendance/shift-instance";
 import { getResolvedStaffSchedulesForDate } from "@/lib/queries/resolved-staff-schedules";
 import { isOperationalStaff } from "@/lib/staff/operational-staff";
+import { resolveOwnerFrontDeskBranch } from "@/lib/queries/front-desk-branch";
 
 export type AttendanceActionContext = {
   branchId: string;
@@ -200,14 +201,19 @@ export async function getAttendanceActionContext(options?: {
     .eq("is_active", true)
     .maybeSingle();
 
-  if (me?.branch_id && canAccessCrmWorkspace(me.system_role)) {
+  if (me && canAccessCrmWorkspace(me.system_role) && (me.branch_id || canonicalizeSystemRole(me.system_role) === "owner")) {
     const role = canonicalizeSystemRole(me.system_role);
     const requestedBranchId = options?.branchId?.trim() || null;
 
     if (role === "owner") {
+      const selectedBranch = requestedBranchId
+        ? null
+        : await resolveOwnerFrontDeskBranch(user.id, me.branch_id);
+      const targetBranchId = requestedBranchId ?? selectedBranch?.id ?? me.branch_id;
+      if (!targetBranchId) return null;
       const branch = await requireBranch(
         asAttendanceDb(createAdminClient()),
-        requestedBranchId ?? me.branch_id
+        targetBranchId
       );
       return {
         branchId: branch.id,
@@ -221,7 +227,7 @@ export async function getAttendanceActionContext(options?: {
     if (requestedBranchId && requestedBranchId !== me.branch_id) return null;
     const branch = first(me.branches as Relation<{ name: string | null }>);
     return {
-      branchId: me.branch_id,
+      branchId: me.branch_id!,
       branchName: branch?.name ?? "Branch",
       actorStaffId: me.id,
       role,

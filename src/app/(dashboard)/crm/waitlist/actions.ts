@@ -7,6 +7,7 @@ import { revalidatePath } from "next/cache";
 import { z } from "zod";
 import { canonicalizeSystemRole } from "@/constants/staff";
 import { canAccessCrmWorkspace } from "@/lib/auth/crm-permissions";
+import { resolveOwnerFrontDeskBranch } from "@/lib/queries/front-desk-branch";
 
 async function requireCrm() {
   const supabase = await createClient();
@@ -26,8 +27,12 @@ async function requireCrm() {
     .maybeSingle();
 
   const role = me ? canonicalizeSystemRole(me.system_role) : null;
-  if (!me || !role || !canAccessCrmWorkspace(role) || !me.branch_id) return null;
-  return { supabase, staffId: me.id as string, branchId: me.branch_id as string };
+  if (!me || !role || !canAccessCrmWorkspace(role) || (!me.branch_id && role !== "owner")) return null;
+  const ownerBranch = role === "owner"
+    ? await resolveOwnerFrontDeskBranch(user.id, me.branch_id)
+    : null;
+  if (role === "owner" && !ownerBranch) return null;
+  return { supabase, staffId: me.id as string, branchId: ownerBranch?.id ?? me.branch_id! };
 }
 
 export async function getWaitlistAction(branchId: string, status?: string) {

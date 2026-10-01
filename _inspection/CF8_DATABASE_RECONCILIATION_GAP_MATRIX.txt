@@ -1,0 +1,35 @@
+CF8 DATABASE CONTRACT GAP MATRIX — 2026-09-29
+Branch: stage/cf-financial-foundation
+Base HEAD: 431db1f8e779adca017cbcf66d678c4265f8f298
+Project ref: lsrbwqhvzjfpiabeolkv (matched repository production ref)
+Evidence labels: LIVE READ-ONLY VERIFIED FACT = catalog/MCP query on this project;
+REPOSITORY EXPECTED = pending SQL/application; REPOSITORY-RECORDED PRODUCTION EVIDENCE = older docs only.
+
+Object / authority | Repository expected | Live observed | Gap / disposition
+-------------------|---------------------|---------------|------------------
+staff role | staff.system_role | system_role exists; role absent [LIVE READ-ONLY VERIFIED FACT] | Pending CF4/CF6/CF7/CF8 SQL corrected to system_role; no duplicate role column.
+BKG3 order | booking_orders + organizer_customer_id | table and columns present; migration 20260927080000 recorded [LIVE READ-ONLY VERIFIED FACT] | No BKG3 replay.
+BKG3 attendee | booking_attendees + booking_order_id | table, FK and RLS present [LIVE READ-ONLY VERIFIED FACT] | None.
+Service line | bookings.order_id/attendee_id/line_sequence, provider in bookings.staff_id | columns, FKs, indexes and overlap trigger present [LIVE READ-ONLY VERIFIED FACT] | No separate booking_service_lines table by accepted BKG3 design.
+Legacy booking | order_id nullable | nullable column and legacy payment fields present [LIVE READ-ONLY VERIFIED FACT] | Preserve order_id NULL path; no historical order fabrication.
+Order read view | v_booking_orders, security_invoker | view present with security_invoker=true [LIVE READ-ONLY VERIFIED FACT] | None.
+Order creation RPC | create_booking_order_atomic, service_role-only | signature, SECURITY INVOKER, pinned search_path, service_role grant present [LIVE READ-ONLY VERIFIED FACT] | New CF8 wrapper composes it; no deployment of BKG3.
+Financial foundation | financial_accounts/transactions/account_movements and v_financial_accounts | absent [LIVE READ-ONLY VERIFIED FACT] | Pending 20260927120000 CF2; role policy corrected.
+Order payable | order_payable_items, financial_order_allocations, v_booking_order_financial_summaries | absent [LIVE READ-ONLY VERIFIED FACT] | Pending 20260927130000 CF3; role policy corrected.
+Order payment RPC | post_order_payment_atomic | absent [LIVE READ-ONLY VERIFIED FACT] | Pending CF4, then CF8 replacement with role, exact tender replay and single-booking mirror guards.
+Operational finance | expense_categories/details, tip_details, commercial_details and CF6 writers | absent [LIVE READ-ONLY VERIFIED FACT] | Pending CF6; auth fallback removed, branch RLS and explicit grants added.
+Receipt storage | expense-receipts private bucket/policies; CF7 expense RPC | bucket and named policies absent [LIVE READ-ONLY VERIFIED FACT] | Pending CF7; policy role corrected and RPC grant explicit.
+Cash drawer | cash_sessions and open_cash_session_atomic | absent [LIVE READ-ONLY VERIFIED FACT] | Pending 20260929130000 CF8; auth before replay, one-open-drawer index, float is state.
+Booking payment RPC | post_booking_payment_atomic | absent [LIVE READ-ONLY VERIFIED FACT] | Pending 20260929140000 CF8; legacy delta and order-backed guards.
+Old booking snapshot RPC | record_booking_payment_change | present, SECURITY INVOKER, authenticated/service_role EXECUTE [LIVE READ-ONLY VERIFIED FACT] | CF8 revokes direct EXECUTE for app roles; internal call remains under explicit payment command.
+Booking triggers | no generic payment-posting trigger | live trigger catalog has attendance, overlap, lifecycle, timestamps only [LIVE READ-ONLY VERIFIED FACT] | No trigger-based financial backfill drafted.
+Booking payment method | bank_transfer accepted by finance command | live bookings CHECK lacks bank_transfer [LIVE READ-ONLY VERIFIED FACT] | Pending CF8 alters CHECK to admit bank_transfer; no row rewrite.
+RLS | BKG3 tables protected; new finance tables protected | booking_orders/attendees/bookings RLS enabled; CF tables absent [LIVE READ-ONLY VERIFIED FACT] | Pending migrations enable RLS and restrict writes.
+Realtime | booking lines observable | bookings in supabase_realtime; orders/attendees not in publication [LIVE READ-ONLY VERIFIED FACT] | Current UI refreshes/revalidates order projection; no publication change drafted.
+Cash Flow receipts | customer/other commercial receipts only; canonical movements | finance tables absent [LIVE READ-ONLY VERIFIED FACT] | Query now excludes transfers, drawer adjustments and staff tips from receipt totals; ledger still shows signed movements.
+Types | repository pending schema and RPC types | production schema behind pending migrations [LIVE READ-ONLY VERIFIED FACT] | Do not regenerate from live; src/types/supabase.ts includes earlier draft CF2/CF3 but not CF6/CF8. Keep explicit server RPC adapters until post-deploy type generation.
+Existing row impact | no automatic backfill/transformation | exact booking row population NOT ACCESSED: aggregate business-data count was rejected by auto-review | No data transformation proposed. Exact affected population remains unknown.
+
+Live catalog sources: Supabase list_projects, list_tables, list_migrations and read-only
+information_schema / pg_catalog / storage catalog SELECT queries during this pass.
+No DDL, DML, migration application, or production data query succeeded.

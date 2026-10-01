@@ -1,0 +1,355 @@
+warning: in the working copy of 'src/components/features/cash-flow/today-tab.tsx', LF will be replaced by CRLF the next time Git touches it
+diff --git a/src/components/features/cash-flow/today-tab.tsx b/src/components/features/cash-flow/today-tab.tsx
+index ba0eabee..983c75bb 100644
+--- a/src/components/features/cash-flow/today-tab.tsx
++++ b/src/components/features/cash-flow/today-tab.tsx
+@@ -53,19 +53,22 @@ export function TodayTab({
+   const formatPeso = (val: number) =>
+     `Γé▒${val.toLocaleString('en-PH', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+ 
++  const expenseCoverage = coverage.find((item) => item.id === 'expenses');
++  const expenseOutflow = expenseCoverage?.isAvailable ? expenseCoverage.amount : 0;
++  const netOperationalFlow = totalInflow - expenseOutflow;
++
+   return (
+     <div className="space-y-4">
+       {/* ΓöÇΓöÇ Top Row: 4 KPI Cards ΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇ */}
+-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
++      <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-4 xl:gap-4">
+         <CashFlowKpiCard
+           icon={Banknote}
+           iconBgClass="bg-emerald-50"
+           iconColorClass="text-emerald-700"
+           dotColorClass="bg-emerald-500"
+-          label="RECORDED PAYMENTS"
+-          value={formatPeso(kpis.recordedPayments)}
+-          trendText={kpis.recordedPayments > 0 ? null : null}
+-          description="Total cash and digital payments received"
++          label="RECEIPTS"
++          value={formatPeso(totalInflow)}
++          description="Money received across recorded financial accounts"
+         />
+ 
+         <CashFlowKpiCard
+@@ -73,10 +76,9 @@ export function TodayTab({
+           iconBgClass="bg-amber-50"
+           iconColorClass="text-amber-700"
+           dotColorClass="bg-amber-500"
+-          label="OUTSTANDING"
+-          value={formatPeso(kpis.outstandingBalance)}
+-          trendText={kpis.outstandingBalance > 0 ? null : null}
+-          description="Unpaid or pending balances"
++          label="EXPENSES"
++          value={formatPeso(expenseOutflow)}
++          description="Operational expenses recorded today"
+         />
+ 
+         <CashFlowKpiCard
+@@ -84,10 +86,9 @@ export function TodayTab({
+           iconBgClass="bg-teal-50"
+           iconColorClass="text-teal-700"
+           dotColorClass="bg-blue-500"
+-          label="PAID BOOKINGS"
+-          value={kpis.paidBookingsCount.toString()}
+-          trendText={kpis.paidBookingsCount > 0 ? null : null}
+-          description="Bookings completed with payments"
++          label="NET FLOW"
++          value={formatPeso(netOperationalFlow)}
++          description="Recorded receipts minus operational expenses"
+         />
+ 
+         <CashFlowKpiCard
+@@ -95,28 +96,31 @@ export function TodayTab({
+           iconBgClass="bg-orange-50"
+           iconColorClass="text-orange-700"
+           dotColorClass="bg-amber-500"
+-          label="NEEDS PAYMENT"
++          label="NEEDS ATTENTION"
+           value={kpis.needsPaymentCount.toString()}
+-          trendText={kpis.needsPaymentCount > 0 ? null : null}
+           trendColorClass="text-amber-700"
+-          description="Bookings requiring payment follow-up"
++          description={
++            kpis.needsPaymentCount > 0
++              ? `${formatPeso(kpis.outstandingBalance)} awaiting payment`
++              : 'No payment follow-up required'
++          }
+         />
+       </div>
+ 
+       {/* ΓöÇΓöÇ Middle Row: Payment Mix & Cash Flow Coverage ΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇ */}
+       <div className="grid grid-cols-1 lg:grid-cols-12 gap-4">
+         {/* Left: Payment Mix (5 columns) */}
+-        <div className="lg:col-span-5 bg-white rounded-xl border border-[#EAE4DC] p-5 shadow-[0_1px_2px_rgba(0,0,0,0.02)] flex flex-col justify-between">
++        <div className="lg:col-span-5 bg-white rounded-xl border border-[#EAE4DC] p-4 sm:p-5 shadow-[0_1px_2px_rgba(0,0,0,0.02)] flex flex-col justify-between">
+           <div>
+             <div className="flex items-center justify-between mb-1">
+-              <h2 className="text-base font-bold text-[#1E1916]">Payment mix</h2>
++              <h2 className="text-base font-bold text-[#1E1916]">Money received</h2>
+               <div className="flex items-center gap-1 text-xs text-[#6B5D52] bg-[#FAF8F5] border border-[#EAE4DC] rounded-md px-2 py-1">
+                 <span>Today</span>
+                 <ChevronDown className="w-3 h-3 text-[#9C8878]" />
+               </div>
+             </div>
+             <p className="text-xs text-[#9C8878] mb-4">
+-              All payments received today, grouped by method.
++              Where today's recorded receipts were received.
+             </p>
+ 
+             {/* Table Header */}
+@@ -155,7 +159,7 @@ export function TodayTab({
+ 
+           {/* Footer: Total Inflow */}
+           <div className="pt-3 mt-4 border-t border-[#EAE4DC] flex items-center justify-between text-xs font-bold text-[#1E1916]">
+-            <span>Total Inflow</span>
++            <span>Total received</span>
+             <div className="flex items-center gap-4">
+               <span className="tabular-nums text-sm text-[#1B4D3E]">{formatPeso(totalInflow)}</span>
+               <div className="w-16 h-2 bg-[#1B4D3E] rounded-full" />
+@@ -163,82 +167,171 @@ export function TodayTab({
+           </div>
+         </div>
+ 
+-        {/* Right: Cash Flow Coverage (7 columns) */}
+-        <div className="lg:col-span-7 bg-white rounded-xl border border-[#EAE4DC] p-5 shadow-[0_1px_2px_rgba(0,0,0,0.02)]">
+-          <div className="flex items-center justify-between mb-1">
+-            <h2 className="text-base font-bold text-[#1E1916]">Cash flow coverage</h2>
+-            <div className="flex items-center gap-1 text-xs text-[#6B5D52] bg-[#FAF8F5] border border-[#EAE4DC] rounded-md px-2 py-1">
+-              <span>Today</span>
+-              <ChevronDown className="w-3 h-3 text-[#9C8878]" />
++        {/* Right: Front-desk attention and quick actions */}
++        <div className="lg:col-span-7 bg-white rounded-xl border border-[#EAE4DC] p-4 sm:p-5 shadow-[0_1px_2px_rgba(0,0,0,0.02)]">
++          <div className="flex items-start justify-between gap-3">
++            <div>
++              <h2 className="text-base font-bold text-[#1E1916]">
++                Needs your attention
++              </h2>
++              <p className="text-xs text-[#9C8878] mt-0.5">
++                Only financial items requiring front-desk action appear here.
++              </p>
+             </div>
++
++            <span
++              className={`inline-flex shrink-0 items-center rounded-full border px-2.5 py-1 text-[11px] font-semibold ${
++                kpis.needsPaymentCount > 0
++                  ? 'border-amber-200 bg-amber-50 text-amber-800'
++                  : 'border-emerald-200 bg-emerald-50 text-emerald-800'
++              }`}
++            >
++              {kpis.needsPaymentCount > 0
++                ? `${kpis.needsPaymentCount} open`
++                : 'All clear'}
++            </span>
+           </div>
+-          <p className="text-xs text-[#9C8878] mb-4">
+-            All financial sources that feed into Cash Flow.
+-          </p>
+-
+-          <div className="grid grid-cols-2 sm:grid-cols-3 gap-2.5">
+-            {coverage.map((cat) => {
+-              const isExpensesTile = cat.id === 'expenses' && !!onRecordExpenseClick;
+-              return (
+-                <div
+-                  key={cat.id}
+-                  onClick={isExpensesTile ? onRecordExpenseClick : undefined}
+-                  role={isExpensesTile ? 'button' : undefined}
+-                  tabIndex={isExpensesTile ? 0 : undefined}
+-                  onKeyDown={
+-                    isExpensesTile
+-                      ? (e) => {
+-                          if (e.key === 'Enter' || e.key === ' ') {
+-                            e.preventDefault();
+-                            onRecordExpenseClick();
+-                          }
+-                        }
+-                      : undefined
+-                  }
+-                  className={`p-2.5 rounded-lg border flex items-start gap-2.5 transition-all ${
+-                    isExpensesTile
+-                      ? 'cursor-pointer hover:border-amber-400 hover:bg-amber-50/50 hover:shadow-2xs active:scale-[0.99] '
+-                      : ''
+-                  }${
+-                    cat.isAvailable
+-                      ? 'border-[#EAE4DC] bg-[#FAF8F5] hover:border-[#D4C8BC]'
+-                      : 'border-[#F0ECE5] bg-[#FCFBF9] opacity-75'
+-                  }`}
+-                >
+-                  <div
+-                    className={`p-1.5 rounded-md flex-shrink-0 ${
+-                      cat.isAvailable
+-                        ? isExpensesTile
+-                          ? 'bg-amber-100 text-amber-800 shadow-2xs'
+-                          : 'bg-white text-[#1B4D3E] shadow-2xs'
+-                        : 'bg-[#F0ECE5] text-[#9C8878]'
+-                    }`}
+-                  >
+-                    {renderCategoryIcon(cat.iconType)}
++
++          <div className="mt-4 space-y-2.5">
++            {kpis.needsPaymentCount > 0 ? (
++              <div className="rounded-xl border border-amber-200 bg-amber-50/70 p-3.5 sm:p-4">
++                <div className="flex flex-col justify-between gap-3 sm:flex-row sm:items-center">
++                  <div>
++                    <p className="text-sm font-semibold text-[#1E1916]">
++                      Payment follow-up
++                    </p>
++
++                    <p className="text-xs text-[#6B5D52] mt-1">
++                      {kpis.needsPaymentCount}{' '}
++                      {kpis.needsPaymentCount === 1
++                        ? 'booking requires'
++                        : 'bookings require'}{' '}
++                      payment ┬╖ {formatPeso(kpis.outstandingBalance)} outstanding
++                    </p>
+                   </div>
+-                  <div className="min-w-0 flex-1">
+-                    <p className="text-[11px] font-semibold text-[#1E1916] truncate">{cat.label}</p>
+-                    <p className="text-xs font-bold text-[#1E1916] tabular-nums mt-0.5">
+-                      {cat.isAvailable ? formatPeso(cat.amount) : 'Not available'}
++
++                  <button
++                    type="button"
++                    onClick={() => onRecordPaymentClick()}
++                    className="inline-flex shrink-0 items-center justify-center rounded-lg bg-[#163E32] px-3.5 py-2 text-xs font-semibold text-white transition hover:bg-[#1B4D3E]"
++                  >
++                    Record payment
++                  </button>
++                </div>
++              </div>
++            ) : (
++              <div className="rounded-xl border border-[#D8E8DF] bg-[#F7FBF8] p-3.5 sm:p-4">
++                <div className="flex items-start gap-3">
++                  <div className="mt-1 h-2 w-2 shrink-0 rounded-full bg-emerald-500" />
++
++                  <div>
++                    <p className="text-sm font-semibold text-[#1E1916]">
++                      No payment follow-up required
+                     </p>
+-                    <p className="text-[10px] text-[#9C8878] truncate mt-0.5">
+-                      {cat.countLabel}
++
++                    <p className="text-xs text-[#6B5D52] mt-1">
++                      There are no known booking-payment issues requiring front-desk action.
+                     </p>
+                   </div>
+                 </div>
+-              );
+-            })}
++              </div>
++            )}
++
++            <div className="rounded-xl border border-[#D8E8DF] bg-[#F7FBF8] p-3.5 sm:p-4">
++              <div className="flex items-start gap-3">
++                <div className="mt-1 h-2 w-2 shrink-0 rounded-full bg-emerald-500" />
++
++                <div>
++                  <p className="text-sm font-semibold text-[#1E1916]">
++                    No other financial issues
++                  </p>
++
++                  <p className="text-xs text-[#6B5D52] mt-1">
++                    Expense, transfer and reconciliation alerts will appear here
++                    when their CF8 contracts are activated.
++                  </p>
++                </div>
++              </div>
++            </div>
++          </div>
++
++          <div className="mt-4 border-t border-[#F0ECE5] pt-4">
++            <div>
++              <h3 className="text-sm font-bold text-[#1E1916]">
++                Quick actions
++              </h3>
++
++              <p className="text-xs text-[#9C8878] mt-0.5">
++                Common financial tasks for the front desk.
++              </p>
++            </div>
++
++            <div className="mt-3 grid grid-cols-1 gap-2.5 sm:grid-cols-3">
++              <button
++                type="button"
++                onClick={() => onRecordPaymentClick()}
++                className="rounded-xl border border-[#BFDCCE] bg-[#F1F9F4] p-3 text-left transition hover:border-[#8FC5A8] hover:bg-[#EAF6EE]"
++              >
++                <div className="mb-2.5 flex h-8 w-8 items-center justify-center rounded-lg bg-emerald-100 text-emerald-700">
++                  <span className="text-base">Γé▒</span>
++                </div>
++
++                <span className="block text-xs font-semibold text-[#163E32]">
++                  Record payment
++                </span>
++
++                <span className="mt-1 block text-[10px] leading-4 text-[#6B5D52]">
++                  Customer or booking payment
++                </span>
++              </button>
++
++              <button
++                type="button"
++                onClick={() => onRecordExpenseClick?.()}
++                disabled={!onRecordExpenseClick}
++                className="rounded-xl border border-amber-200 bg-amber-50/60 p-3 text-left transition hover:border-amber-300 hover:bg-amber-50 disabled:cursor-not-allowed disabled:opacity-50"
++              >
++                <div className="mb-2.5 flex h-8 w-8 items-center justify-center rounded-lg bg-amber-100 text-amber-700">
++                  <span className="text-sm font-bold">ΓêÆ</span>
++                </div>
++
++                <span className="block text-xs font-semibold text-amber-900">
++                  Record expense
++                </span>
++
++                <span className="mt-1 block text-[10px] leading-4 text-[#6B5D52]">
++                  Fuel, laundry, supplies and more
++                </span>
++              </button>
++
++              <button
++                type="button"
++                onClick={onNavigateToLedger}
++                className="rounded-xl border border-[#DED7CF] bg-[#FAF8F5] p-3 text-left transition hover:border-[#C8BBB0] hover:bg-white"
++              >
++                <div className="mb-2.5 flex h-8 w-8 items-center justify-center rounded-lg bg-[#EEE9E3] text-[#6B5D52]">
++                  <span className="text-sm">Γëí</span>
++                </div>
++
++                <span className="block text-xs font-semibold text-[#1E1916]">
++                  View ledger
++                </span>
++
++                <span className="mt-1 block text-[10px] leading-4 text-[#6B5D52]">
++                  Review all money movements
++                </span>
++              </button>
++            </div>
+           </div>
+         </div>
+       </div>
+-
+-      {/* ΓöÇΓöÇ Bottom Wide Card: Recent Payment Activity ΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇ */}
+-      <div className="bg-white rounded-xl border border-[#EAE4DC] p-5 shadow-[0_1px_2px_rgba(0,0,0,0.02)]">
++      {/* ΓöÇΓöÇ Bottom Wide Card: Today's Money Movements ΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇ */}
++      <div className="bg-white rounded-xl border border-[#EAE4DC] p-4 sm:p-5 shadow-[0_1px_2px_rgba(0,0,0,0.02)]">
+         <div className="flex items-center justify-between mb-1">
+           <div>
+-            <h2 className="text-base font-bold text-[#1E1916]">Recent payment activity</h2>
++            <h2 className="text-base font-bold text-[#1E1916]">Today's money movements</h2>
+             <p className="text-xs text-[#9C8878]">
+-              Latest booking and other financial transactions today.
++              Latest recorded money activity across bookings and operations.
+             </p>
+           </div>
+           <button
+@@ -251,9 +344,9 @@ export function TodayTab({
+ 
+         {recentPayments.length === 0 ? (
+           <div className="py-12 text-center">
+-            <p className="text-sm font-medium text-[#1E1916]">No payment activity recorded today</p>
++            <p className="text-sm font-medium text-[#1E1916]">No financial activity recorded today</p>
+             <p className="text-xs text-[#9C8878] mt-1 mb-4">
+-              Payments posted via front desk checkout will appear here in real time.
++              Payments and operational entries will appear here as they are recorded.
+             </p>
+             <button
+               onClick={() => onRecordPaymentClick()}

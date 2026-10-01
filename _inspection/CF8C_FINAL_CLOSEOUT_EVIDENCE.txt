@@ -1,0 +1,243 @@
+============================================================
+CF8-C FINAL CLOSEOUT EVIDENCE
+============================================================
+
+TARGET
+CradleHub Web
+
+PROGRAM
+CONTROLLED STABILIZATION
+
+TASK
+CF8-C — Cash Operations / Financial Flow stabilization closeout
+
+BRANCH
+stage/cf-financial-foundation
+
+ACCEPTED REVIEW BASE
+20afec933f830a3a2a6670bb5c13b53a1e04e411
+
+FINAL HEAD
+cef68fa28d4912a1bb9182711af553f2cb2aa630
+
+FULL REVIEW RANGE
+20afec933f830a3a2a6670bb5c13b53a1e04e411..cef68fa28d4912a1bb9182711af553f2cb2aa630
+
+
+============================================================
+A. PRODUCTION EVIDENCE
+============================================================
+
+LIVE VERIFIED FACT — production project:
+lsrbwqhvzjfpiabeolkv
+
+LIVE VERIFIED FACT — original CF8-C production migration:
+20260930004444 cf8c_cash_operations_integrity
+
+LIVE VERIFIED FACT — final correction migration:
+20260930042139 cf8c_cash_operations_review_corrections
+
+Authorized repository migration file:
+supabase/migrations/20260930100000_cf8c_cash_operations_review_corrections.sql
+
+LIVE VERIFIED FACT — post-apply RPC read-back:
+
+post_cash_adjustment_atomic
+- required idempotency-key guard: PRESENT
+- amount precision guard: PRESENT
+- advisory lock: PRESENT
+- shared idem_cf8c_cash_operation_ namespace: PRESENT
+- old operation-specific lock namespaces: ABSENT
+- trimmed idempotency lookup: PRESENT
+- trimmed canonical idempotency storage: PRESENT
+- cash-session guard: PRESENT
+- PHP guard: PRESENT
+- changed-payload idempotency conflict guard: PRESENT
+- SECURITY DEFINER: PRESERVED
+- pinned empty search_path: PRESERVED
+- anon execute: FALSE
+- authenticated execute: TRUE
+- service_role execute: TRUE
+- definition MD5:
+  c11195bf640507ae2eaf5702ab8f6bc0
+
+post_transfer_atomic
+- required idempotency-key guard: PRESENT
+- amount precision guard: PRESENT
+- advisory lock: PRESENT
+- shared idem_cf8c_cash_operation_ namespace: PRESENT
+- old operation-specific lock namespaces: ABSENT
+- trimmed idempotency lookup: PRESENT
+- trimmed canonical idempotency storage: PRESENT
+- cash-session guard: PRESENT
+- PHP guard: PRESENT
+- changed-payload idempotency conflict guard: PRESENT
+- SECURITY DEFINER: PRESERVED
+- pinned empty search_path: PRESERVED
+- anon execute: FALSE
+- authenticated execute: TRUE
+- service_role execute: TRUE
+- definition MD5:
+  5bb8096c0627984a4af76c8a2ec5cb32
+
+LIVE VERIFIED FACT — protected production row counts,
+unchanged pre-apply to post-apply:
+
+financial_accounts             = 1
+financial_transactions         = 4
+financial_account_movements    = 4
+cash_sessions                  = 1
+daily_cash_reconciliations     = 0
+
+No generic supabase db push was used.
+No historical migration was replayed or marked applied.
+No production financial account was created.
+No production test transaction was created.
+No Safe/Vault destination was fabricated.
+
+
+============================================================
+B. PRODUCTION IMPACT
+============================================================
+
+The authorized forward correction replaced the existing
+post_cash_adjustment_atomic and post_transfer_atomic function
+definitions and reasserted their accepted execution grants.
+
+It did not mutate canonical financial rows, cash-session rows,
+daily cash reconciliation rows, or financial-account records.
+
+
+============================================================
+C. LIMITATIONS
+============================================================
+
+1. Transfer runtime proof was NOT performed because production
+   currently has only one real financial account.
+
+2. No fake destination financial account was created merely to
+   produce test evidence.
+
+3. No new hosted-browser verification is claimed by this closeout.
+
+4. No native/Desktop verification applies to this Web stage.
+
+5. This stage branch is not merged into main at the time this
+   report is generated.
+
+6. Production migration application does not itself authorize
+   repository merge.
+
+
+============================================================
+D. ROLLBACK CONSIDERATIONS
+============================================================
+
+Do NOT delete or rewrite production migration history.
+
+If rollback becomes necessary, create an explicitly authorized
+forward correction restoring the previously accepted function
+definitions and execution boundary.
+
+Do not replay historical local migrations and do not mark them
+applied as a cleanup shortcut.
+
+
+============================================================
+E. CHECKPOINT HISTORY
+============================================================
+
+20afec933f830a3a2a6670bb5c13b53a1e04e411
+  accepted review base
+
+f968522091e6e0f8adb6409db4d98538e3d6a18d
+  CF8 checkpoint
+
+0d30d926207495d86139c7d57f7d03c0aa9d7140
+  independent-review corrections
+
+e01bc7d15a4d074772135613b3580940994c1476
+  shared cash-operation idempotency serialization
+
+6677c753cd2b5339dd26ab9a36f8279f8fd1a6b8
+  required idempotency key enforcement
+
+cef68fa28d4912a1bb9182711af553f2cb2aa630
+  normalized canonical idempotency storage
+
+
+============================================================
+F. CHANGED FILES — FULL REVIEW RANGE
+============================================================
+M	src/app/(dashboard)/crm/cash-flow/page.tsx
+M	src/components/features/cash-flow/cash-flow-workspace.tsx
+M	src/components/features/cash-flow/history-tab.tsx
+M	src/components/features/cash-flow/record-financial-entry-modal.tsx
+M	src/lib/cash-flow/cash-flow-actions.ts
+A	src/lib/cash-flow/cash-flow-errors.ts
+M	src/lib/cash-flow/cash-flow-queries.ts
+M	src/lib/cash-flow/cash-flow-types.ts
+A	src/lib/cash-flow/expense-receipt.ts
+A	src/lib/cash-flow/legacy-booking-price.ts
+M	src/lib/supabase/admin.ts
+M	supabase/migrations/20260927140000_cf4_atomic_payment_writer.sql
+M	supabase/migrations/20260929120000_cf7_expense_receipt_storage.sql
+M	supabase/migrations/20260929140000_cf8_booking_payment_command.sql
+A	supabase/migrations/20260930083000_cf8c_cash_operations_integrity.sql
+A	supabase/migrations/20260930100000_cf8c_cash_operations_review_corrections.sql
+M	tests/lib/cash-flow/cash-flow-mixed-read-model.test.ts
+M	tests/lib/cash-flow/cash-flow-page-tabs.test.tsx
+M	tests/lib/cash-flow/cash-flow-ui.test.tsx
+A	tests/lib/cash-flow/cf7-receipt-correction.test.ts
+M	tests/lib/cash-flow/cf8-database-reconciliation.test.ts
+A	tests/lib/cash-flow/cf8c-cash-operations-integrity.test.ts
+A	tests/lib/cash-flow/cf8c-review-corrections.test.ts
+A	tests/lib/cash-flow/legacy-payment-action.test.ts
+
+============================================================
+G. DIFF STAT
+============================================================
+ src/app/(dashboard)/crm/cash-flow/page.tsx         |  17 +-
+ .../features/cash-flow/cash-flow-workspace.tsx     |  21 +-
+ src/components/features/cash-flow/history-tab.tsx  |  10 +
+ .../cash-flow/record-financial-entry-modal.tsx     | 542 ++++++++++++----
+ src/lib/cash-flow/cash-flow-actions.ts             | 354 ++++++++++-
+ src/lib/cash-flow/cash-flow-errors.ts              |   6 +
+ src/lib/cash-flow/cash-flow-queries.ts             |  73 ++-
+ src/lib/cash-flow/cash-flow-types.ts               |   3 +-
+ src/lib/cash-flow/expense-receipt.ts               |  52 ++
+ src/lib/cash-flow/legacy-booking-price.ts          |   9 +
+ src/lib/supabase/admin.ts                          |   2 +
+ .../20260927140000_cf4_atomic_payment_writer.sql   |   6 +-
+ .../20260929120000_cf7_expense_receipt_storage.sql |  89 +--
+ .../20260929140000_cf8_booking_payment_command.sql |  35 +-
+ ...260930083000_cf8c_cash_operations_integrity.sql | 700 +++++++++++++++++++++
+ ...000_cf8c_cash_operations_review_corrections.sql | 677 ++++++++++++++++++++
+ .../cash-flow/cash-flow-mixed-read-model.test.ts   |  79 ++-
+ tests/lib/cash-flow/cash-flow-page-tabs.test.tsx   |  19 +
+ tests/lib/cash-flow/cash-flow-ui.test.tsx          | 136 +++-
+ tests/lib/cash-flow/cf7-receipt-correction.test.ts | 164 +++++
+ .../cash-flow/cf8-database-reconciliation.test.ts  |  36 ++
+ .../cf8c-cash-operations-integrity.test.ts         | 282 +++++++++
+ .../lib/cash-flow/cf8c-review-corrections.test.ts  | 214 +++++++
+ tests/lib/cash-flow/legacy-payment-action.test.ts  | 173 +++++
+ 24 files changed, 3386 insertions(+), 313 deletions(-)
+
+============================================================
+H. COMMIT HISTORY
+============================================================
+cef68fa2 (HEAD -> stage/cf-financial-foundation) fix(cf8c): normalize cash operation idempotency keys
+6677c753 fix(cf8c): require cash operation idempotency keys
+e01bc7d1 fix(cf8c): serialize cash operation idempotency
+0d30d926 fix(cf8c): address cash operations review findings
+f9685220 fix(cf8): stabilize financial flows through cash operations
+
+============================================================
+I. LOCAL QUALITY GATE
+============================================================
+PASS — see CF8C_FINAL_LOCAL_GATES.txt
+
+============================================================
+J. CURRENT WORKTREE
+============================================================
+?? _inspection/

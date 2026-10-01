@@ -1,0 +1,285 @@
+============================================================
+CF8-C FINAL CLOSEOUT
+Generated: 2026-09-30 08:55:39
+Target: CradleHub Web
+Stage: CF8-C Cash Operations
+Branch: stage/cf-financial-foundation
+HEAD: 20afec933f830a3a2a6670bb5c13b53a1e04e411
+============================================================
+
+============================================================
+1. CF8-C FOCUSED TEST
+============================================================
+
+[1m[30m[46m RUN [49m[39m[22m [36mv4.1.5 [39m[90mE:/cradlehub-booking-simplification[39m
+
+ [32mΓ£ô[39m tests/lib/cash-flow/cf8c-cash-operations-integrity.test.ts [2m([22m[2m19 tests[22m[2m)[22m[32m 8[2mms[22m[39m
+
+[2m Test Files [22m [1m[32m1 passed[39m[22m[90m (1)[39m
+[2m      Tests [22m [1m[32m19 passed[39m[22m[90m (19)[39m
+[2m   Start at [22m 08:55:41
+[2m   Duration [22m 441ms[2m (transform 104ms, setup 0ms, import 166ms, tests 8ms, environment 0ms)[22m
+
+
+EXIT CODE: 0
+
+============================================================
+2. CASH FLOW REGRESSION TESTS
+============================================================
+
+[1m[30m[46m RUN [49m[39m[22m [36mv4.1.5 [39m[90mE:/cradlehub-booking-simplification[39m
+
+ [32mΓ£ô[39m tests/lib/cash-flow/cf8-database-reconciliation.test.ts [2m([22m[2m14 tests[22m[2m)[22m[32m 16[2mms[22m[39m
+ [32mΓ£ô[39m tests/lib/cash-flow/cash-flow-mixed-read-model.test.ts [2m([22m[2m9 tests[22m[2m)[22m[32m 58[2mms[22m[39m
+ [32mΓ£ô[39m tests/lib/cash-flow/legacy-payment-action.test.ts [2m([22m[2m5 tests[22m[2m)[22m[32m 14[2mms[22m[39m
+ [32mΓ£ô[39m tests/lib/cash-flow/cf7-receipt-correction.test.ts [2m([22m[2m9 tests[22m[2m)[22m[32m 41[2mms[22m[39m
+ [32mΓ£ô[39m tests/lib/cash-flow/cash-flow-page-tabs.test.tsx [2m([22m[2m10 tests[22m[2m)[22m[32m 10[2mms[22m[39m
+ [32mΓ£ô[39m tests/lib/cash-flow/cash-flow-ui.test.tsx [2m([22m[2m32 tests[22m[2m)[22m[33m 3053[2mms[22m[39m
+
+[2m Test Files [22m [1m[32m6 passed[39m[22m[90m (6)[39m
+[2m      Tests [22m [1m[32m79 passed[39m[22m[90m (79)[39m
+[2m   Start at [22m 08:55:43
+[2m   Duration [22m 26.81s[2m (transform 1.36s, setup 0ms, import 16.22s, tests 3.19s, environment 19.20s)[22m
+
+
+EXIT CODE: 0
+
+============================================================
+3. TYPE CHECK
+============================================================
+
+> cradlehub@0.1.0 type-check E:\cradlehub-booking-simplification
+> tsc --noEmit
+
+
+EXIT CODE: 0
+
+============================================================
+4. TARGETED ESLINT
+============================================================
+
+EXIT CODE: 0
+
+============================================================
+5. GIT DIFF CHECK
+============================================================
+warning: in the working copy of 'src/app/(dashboard)/crm/cash-flow/page.tsx', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'src/components/features/cash-flow/cash-flow-workspace.tsx', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'src/components/features/cash-flow/history-tab.tsx', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'src/components/features/cash-flow/record-financial-entry-modal.tsx', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'src/lib/cash-flow/cash-flow-actions.ts', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'supabase/migrations/20260927140000_cf4_atomic_payment_writer.sql', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'supabase/migrations/20260929120000_cf7_expense_receipt_storage.sql', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'supabase/migrations/20260929140000_cf8_booking_payment_command.sql', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'tests/lib/cash-flow/cash-flow-mixed-read-model.test.ts', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'tests/lib/cash-flow/cash-flow-page-tabs.test.tsx', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'tests/lib/cash-flow/cash-flow-ui.test.tsx', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'tests/lib/cash-flow/cf8-database-reconciliation.test.ts', LF will be replaced by CRLF the next time Git touches it
+
+EXIT CODE: 0
+
+============================================================
+6. REPOSITORY STATE
+============================================================
+BRANCH:
+stage/cf-financial-foundation
+
+HEAD:
+20afec933f830a3a2a6670bb5c13b53a1e04e411
+
+STATUS:
+ M src/app/(dashboard)/crm/cash-flow/page.tsx
+ M src/components/features/cash-flow/cash-flow-workspace.tsx
+ M src/components/features/cash-flow/history-tab.tsx
+ M src/components/features/cash-flow/record-financial-entry-modal.tsx
+ M src/lib/cash-flow/cash-flow-actions.ts
+ M src/lib/cash-flow/cash-flow-queries.ts
+ M src/lib/cash-flow/cash-flow-types.ts
+ M src/lib/supabase/admin.ts
+ M supabase/migrations/20260927140000_cf4_atomic_payment_writer.sql
+ M supabase/migrations/20260929120000_cf7_expense_receipt_storage.sql
+ M supabase/migrations/20260929140000_cf8_booking_payment_command.sql
+ M tests/lib/cash-flow/cash-flow-mixed-read-model.test.ts
+ M tests/lib/cash-flow/cash-flow-page-tabs.test.tsx
+ M tests/lib/cash-flow/cash-flow-ui.test.tsx
+ M tests/lib/cash-flow/cf8-database-reconciliation.test.ts
+?? _inspection/
+?? src/lib/cash-flow/cash-flow-errors.ts
+?? src/lib/cash-flow/expense-receipt.ts
+?? src/lib/cash-flow/legacy-booking-price.ts
+?? supabase/migrations/20260930083000_cf8c_cash_operations_integrity.sql
+?? tests/lib/cash-flow/cf7-receipt-correction.test.ts
+?? tests/lib/cash-flow/cf8c-cash-operations-integrity.test.ts
+?? tests/lib/cash-flow/legacy-payment-action.test.ts
+
+TRACKED CHANGED FILES:
+warning: in the working copy of 'src/app/(dashboard)/crm/cash-flow/page.tsx', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'src/components/features/cash-flow/cash-flow-workspace.tsx', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'src/components/features/cash-flow/history-tab.tsx', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'src/components/features/cash-flow/record-financial-entry-modal.tsx', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'src/lib/cash-flow/cash-flow-actions.ts', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'supabase/migrations/20260927140000_cf4_atomic_payment_writer.sql', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'supabase/migrations/20260929120000_cf7_expense_receipt_storage.sql', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'supabase/migrations/20260929140000_cf8_booking_payment_command.sql', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'tests/lib/cash-flow/cash-flow-mixed-read-model.test.ts', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'tests/lib/cash-flow/cash-flow-page-tabs.test.tsx', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'tests/lib/cash-flow/cash-flow-ui.test.tsx', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'tests/lib/cash-flow/cf8-database-reconciliation.test.ts', LF will be replaced by CRLF the next time Git touches it
+src/app/(dashboard)/crm/cash-flow/page.tsx
+src/components/features/cash-flow/cash-flow-workspace.tsx
+src/components/features/cash-flow/history-tab.tsx
+src/components/features/cash-flow/record-financial-entry-modal.tsx
+src/lib/cash-flow/cash-flow-actions.ts
+src/lib/cash-flow/cash-flow-queries.ts
+src/lib/cash-flow/cash-flow-types.ts
+src/lib/supabase/admin.ts
+supabase/migrations/20260927140000_cf4_atomic_payment_writer.sql
+supabase/migrations/20260929120000_cf7_expense_receipt_storage.sql
+supabase/migrations/20260929140000_cf8_booking_payment_command.sql
+tests/lib/cash-flow/cash-flow-mixed-read-model.test.ts
+tests/lib/cash-flow/cash-flow-page-tabs.test.tsx
+tests/lib/cash-flow/cash-flow-ui.test.tsx
+tests/lib/cash-flow/cf8-database-reconciliation.test.ts
+
+UNTRACKED FILES:
+_inspection/CF7_STORAGE_CORRECTION_REPORT.md
+_inspection/CF8A_approved_ui_checks.txt
+_inspection/CF8A_approved_ui_diff.txt
+_inspection/CF8B_cash_session_inspection.txt
+_inspection/CF8B_contract_sql_context.txt
+_inspection/CF8C_FINAL_CLOSEOUT.txt
+_inspection/CF8C_LOCAL_GATE_OUTPUT.txt
+_inspection/CF8C_SHELL_BASELINE.txt
+_inspection/CF8_AGENT_INTERRUPTED.patch
+_inspection/CF8_AGENT_INTERRUPTED_HANDOFF.txt
+_inspection/CF8_DATABASE_RECONCILIATION_GAP_MATRIX.txt
+_inspection/CF8_DATABASE_RECONCILIATION_REPORT.md
+_inspection/CF8_DATABASE_RECONCILIATION_VERIFY.sql
+_inspection/CF8_PAYMENT_SYNTAX_CURRENCY_REVALIDATION.md
+_inspection/CF8_PRODUCTION_APPLY_EXACT_MIGRATIONS.zip
+_inspection/CF8_PRODUCTION_PREAPPLY_CATALOG_SNAPSHOT.json
+_inspection/CF8_PRODUCTION_PREAPPLY_FUNCTIONS_SNAPSHOT.json
+_inspection/CF8_PRODUCTION_PREAPPLY_STATUS_SNAPSHOT.json
+_inspection/CF8_PRODUCTION_SYNC_BLOCKED_REPORT.md
+_inspection/CF8_payment_visibility_diagnostic.txt
+_inspection/backups/today-tab_before_approved_ui_20260929_123938.tsx
+_inspection/cf8-local-db-baseline/cf4-baseline-objects.txt
+_inspection/cf8-local-db-baseline/cf4-baseline-schema.sql
+_inspection/cf8-local-db-baseline/cf4-baseline.dump
+_inspection/cf8-local-db-baseline/cf4-public-baseline.dump
+_inspection/cf8c-shell-backup-1/cash-flow-actions.ts
+_inspection/cf8c-shell-backup-1/cash-flow-workspace.tsx
+_inspection/cf8c-shell-backup-1/record-financial-entry-modal.tsx
+_inspection/cf8c-shell-backup-1a-retry/cash-flow-actions.ts
+_inspection/cf8c-shell-backup-1a-retry/cash-flow-workspace.tsx
+_inspection/cf8c-shell-backup-1a-retry/record-financial-entry-modal.tsx
+_inspection/cf8c-shell-backup-1a/cash-flow-actions.ts
+_inspection/cf8c-shell-backup-1a/cash-flow-workspace.tsx
+_inspection/cf8c-shell-backup-1a/record-financial-entry-modal.tsx
+_inspection/cf8c-shell-backup-1b/cash-flow-workspace.tsx
+_inspection/cf8c-shell-backup-1b/record-financial-entry-modal.tsx
+_inspection/cf8c-shell-backup-2a/cash-flow-actions.ts
+_inspection/cf8c-shell-backup-2a/cf8c-cash-operations-integrity.test.ts
+_inspection/cf8c-shell-backup-2a/cf8c_cash_operations_integrity.sql
+_inspection/cf8c-shell-backup-2a/record-financial-entry-modal.tsx
+src/lib/cash-flow/cash-flow-errors.ts
+src/lib/cash-flow/expense-receipt.ts
+src/lib/cash-flow/legacy-booking-price.ts
+supabase/migrations/20260930083000_cf8c_cash_operations_integrity.sql
+tests/lib/cash-flow/cf7-receipt-correction.test.ts
+tests/lib/cash-flow/cf8c-cash-operations-integrity.test.ts
+tests/lib/cash-flow/legacy-payment-action.test.ts
+
+DIFF STAT:
+warning: in the working copy of 'src/app/(dashboard)/crm/cash-flow/page.tsx', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'src/components/features/cash-flow/cash-flow-workspace.tsx', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'src/components/features/cash-flow/history-tab.tsx', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'src/components/features/cash-flow/record-financial-entry-modal.tsx', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'src/lib/cash-flow/cash-flow-actions.ts', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'supabase/migrations/20260927140000_cf4_atomic_payment_writer.sql', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'supabase/migrations/20260929120000_cf7_expense_receipt_storage.sql', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'supabase/migrations/20260929140000_cf8_booking_payment_command.sql', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'tests/lib/cash-flow/cash-flow-mixed-read-model.test.ts', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'tests/lib/cash-flow/cash-flow-page-tabs.test.tsx', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'tests/lib/cash-flow/cash-flow-ui.test.tsx', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'tests/lib/cash-flow/cf8-database-reconciliation.test.ts', LF will be replaced by CRLF the next time Git touches it
+ src/app/(dashboard)/crm/cash-flow/page.tsx         |  17 +-
+ .../features/cash-flow/cash-flow-workspace.tsx     |  21 +-
+ src/components/features/cash-flow/history-tab.tsx  |  10 +
+ .../cash-flow/record-financial-entry-modal.tsx     | 538 ++++++++++++++++-----
+ src/lib/cash-flow/cash-flow-actions.ts             | 354 +++++++++++++-
+ src/lib/cash-flow/cash-flow-queries.ts             |  47 +-
+ src/lib/cash-flow/cash-flow-types.ts               |   3 +-
+ src/lib/supabase/admin.ts                          |   2 +
+ .../20260927140000_cf4_atomic_payment_writer.sql   |   6 +-
+ .../20260929120000_cf7_expense_receipt_storage.sql |  89 +---
+ .../20260929140000_cf8_booking_payment_command.sql |  35 +-
+ .../cash-flow/cash-flow-mixed-read-model.test.ts   |  79 ++-
+ tests/lib/cash-flow/cash-flow-page-tabs.test.tsx   |  19 +
+ tests/lib/cash-flow/cash-flow-ui.test.tsx          | 136 ++++--
+ .../cash-flow/cf8-database-reconciliation.test.ts  |  36 ++
+ 15 files changed, 1085 insertions(+), 307 deletions(-)
+
+============================================================
+7. CF8-C FORWARD MIGRATION CONTRACT
+============================================================
+E:\cradlehub-booking-simplification\supabase\migrations\20260930083000_cf8c_cash_operations_integrity.sql:94:SECURITY DEFINER
+E:\cradlehub-booking-simplification\supabase\migrations\20260930083000_cf8c_cash_operations_integrity.sql:95:SET search_path = ''
+E:\cradlehub-booking-simplification\supabase\migrations\20260930083000_cf8c_cash_operations_integrity.sql:230:          'IDEMPOTENCY_CONFLICT: Key was already used for a different cash adjustment';
+E:\cradlehub-booking-simplification\supabase\migrations\20260930083000_cf8c_cash_operations_integrity.sql:265:      'UNSUPPORTED_CURRENCY: Cash operations currently require PHP accounts';
+E:\cradlehub-booking-simplification\supabase\migrations\20260930083000_cf8c_cash_operations_integrity.sql:292:      'CASH_SESSION_REQUIRED: Open the cash drawer before recording physical cash operations';
+E:\cradlehub-booking-simplification\supabase\migrations\20260930083000_cf8c_cash_operations_integrity.sql:364:SECURITY DEFINER
+E:\cradlehub-booking-simplification\supabase\migrations\20260930083000_cf8c_cash_operations_integrity.sql:365:SET search_path = ''
+E:\cradlehub-booking-simplification\supabase\migrations\20260930083000_cf8c_cash_operations_integrity.sql:520:          'IDEMPOTENCY_CONFLICT: Key was already used for a different transfer';
+E:\cradlehub-booking-simplification\supabase\migrations\20260930083000_cf8c_cash_operations_integrity.sql:546:      'UNSUPPORTED_CURRENCY: Transfers currently require PHP accounts';
+E:\cradlehub-booking-simplification\supabase\migrations\20260930083000_cf8c_cash_operations_integrity.sql:582:      'CASH_SESSION_REQUIRED: Open the source cash drawer before transferring physical cash';
+E:\cradlehub-booking-simplification\supabase\migrations\20260930083000_cf8c_cash_operations_integrity.sql:595:      'CASH_SESSION_REQUIRED: Open the destination cash drawer before transferring physical cash';
+
+============================================================
+8. LIVE PRODUCTION EVIDENCE ALREADY VERIFIED
+============================================================
+LIVE VERIFIED FACT — CF8-C migration applied.
+Repository filename:
+  20260930083000_cf8c_cash_operations_integrity.sql
+
+Production migration record:
+  20260930004444 cf8c_cash_operations_integrity
+
+LIVE VERIFIED FACT — RPC read-back:
+  post_cash_adjustment_atomic:
+    cash-session guard = present
+    PHP guard = present
+    idempotency conflict guard = present
+    SECURITY DEFINER = preserved
+    pinned search_path = preserved
+    business-date session equality guard = absent
+
+  post_transfer_atomic:
+    cash-session guard = present
+    PHP guard = present
+    idempotency conflict guard = present
+    SECURITY DEFINER = preserved
+    pinned search_path = preserved
+    business-date session equality guard = absent
+
+LIVE VERIFIED FACT — controlled runtime proof:
+  Pre-proof expected drawer cash = PHP 2,200
+  Cash Addition = +PHP 1
+  Expected cash after addition = PHP 2,201
+  Cash Removal = -PHP 1
+  Expected cash after removal = PHP 2,200
+
+  Customer payment receipts remained = PHP 1,700
+  Operational expenses remained = PHP 0
+  Net adjustment effect = PHP 0
+
+No transfer runtime proof performed because no real second financial
+account is configured. No fake Safe/Vault account was created.
+
+No historical migrations were replayed.
+No generic supabase db push was used.
+
+============================================================
+FINAL VERDICT
+============================================================
+CORRECTION REQUIRED

@@ -1,0 +1,35 @@
+TARGET: CradleHub Web
+BRANCH: stage/cf-financial-foundation-main-reconcile
+MERGE COMMIT: 5fe61dfac3e880cb769e7b72288c9808b93952d6
+FINAL HEAD: fd1b5b2a4c4ebd2e4c24b481ebc609902c9b763c
+REMOTE HEAD: fd1b5b2a4c4ebd2e4c24b481ebc609902c9b763c
+LOCAL == REMOTE: YES (post-push fetch)
+VERDICT: PASS
+CF8-C integrity/review: PASS 31/31
+COMMAND: pnpm exec vitest run tests/lib/cash-flow/cf8c-cash-operations-integrity.test.ts tests/lib/cash-flow/cf8c-review-corrections.test.ts
+Cash Flow workspace: PASS 51/51
+COMMAND: pnpm exec vitest run tests/lib/cash-flow/cash-flow-mixed-read-model.test.ts tests/lib/cash-flow/cash-flow-page-tabs.test.tsx tests/lib/cash-flow/cash-flow-ui.test.tsx
+Financial regressions: PASS 28/28
+COMMAND: pnpm exec vitest run tests/lib/cash-flow/cf8-database-reconciliation.test.ts tests/lib/cash-flow/legacy-payment-action.test.ts tests/lib/cash-flow/cf7-receipt-correction.test.ts
+Booking payment regressions: PASS 9/9
+COMMAND: pnpm exec vitest run tests/lib/bookings/booking-payment-command.test.ts tests/lib/bookings/cf8-atomic-creation-contract.test.ts
+Desktop booking authority: PASS 13/13
+COMMAND: pnpm exec vitest run "src/app/api/desktop/v1/bookings/[bookingId]/reschedule/route.test.ts" tests/lib/bookings/reschedule-booking-service.test.ts
+Desktop staff authority: PASS 55/55
+COMMAND: pnpm exec vitest run "src/app/api/desktop/v1/staff/onboarding/route.test.ts" "src/app/api/desktop/v1/staff/staff-routes.test.ts" tests/lib/staff/staff-mutation-service.test.ts tests/lib/staff/staff-onboarding-service.test.ts
+Type-check: PASS
+COMMAND: pnpm type-check
+Targeted ESLint: PASS, 79 changed JS/TS files; 0 errors and 12 warnings in unchanged verification scripts
+COMMAND: pnpm exec eslint <79 individually expanded changed JS/TS paths>
+Build: PASS, Next.js 16.2.4; 149 static pages generated
+COMMAND: pnpm build
+New whitespace defects: 0; PASS
+COMMAND: git diff --check 5fe61dfac3e880cb769e7b72288c9808b93952d6 HEAD
+OWNER-ACCEPTED RELEASE EXCEPTION: 71 inherited git diff --check diagnostic entries across 12 files (141 raw output lines); all affected final blobs byte-identical to frozen CF8 parent.
+Protected historical migrations modified by follow-up: NO
+Tracked worktree after gates: CLEAN; only _inspection/ untracked
+Push: normal stage-branch push PASS
+Post-push fetch and local==remote verification: PASS
+Post-push read-only scope/topology review: PASS
+Production operation: NONE
+Deployment: NONE

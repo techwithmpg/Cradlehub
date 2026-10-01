@@ -1,0 +1,264 @@
+CF8 MAIN RECONCILIATION WHITESPACE CLASSIFICATION
+BASE=03242a0bfbcfe6c4b1b03ba624510004cae7cc6a
+FROZEN_CF8_PARENT=cef68fa28d4912a1bb9182711af553f2cb2aa630
+MERGE=5fe61dfac3e880cb769e7b72288c9808b93952d6
+REMOTE_RECONCILIATION_HEAD_AT_PREFLIGHT=5fe61dfac3e880cb769e7b72288c9808b93952d6
+RAW_OUTPUT_LINES=141
+DIAGNOSTIC_ENTRIES=71
+AFFECTED_FILES=12
+CATEGORY_A=14
+CATEGORY_B=9
+CATEGORY_C=0 (no CRLF/LF artifacts in Git blobs)
+CATEGORY_D=48
+CATEGORY_E_MIGRATION_OVERLAY=18
+CATEGORY_F=0
+ALL_AFFECTED_BLOBS_IDENTICAL_TO_FROZEN_CF8_PARENT=True
+CF8_PARENT_TO_MERGE_DIFF_CHECK_EXIT=0
+WORKTREE_TEST_CORRECTION_DIFF_CHECK_EXIT=0
+PROSPECTIVE_BASE_TO_WORKTREE_DIFF_CHECK_EXIT=2
+SAFE_NONMIGRATION_ENTRIES=5 (four single trailing spaces in Markdown; one whitespace-only JS blank line)
+PROTECTED_ENTRIES=66 (48 Markdown hard line breaks; 18 SQL migration diagnostics)
+NO_ADDITIONAL_EDIT_MADE: safe edits cannot clear the gate while protected entries remain.
+
+EXACT 12 FILES:
+CradleHub_CF0_1_Architecture_Reconciliation.md
+CradleHub_CF0_Financial_Truth_and_Build_Blueprint.md
+CradleHub_CF1_Financial_Contract_Freeze.md
+CradleHub_CF2_Prep_Baseline_Report.md
+CradleHub_CF5_Exact_Cash_Flow_UI_Report.md
+CradleHub_CF7_Operational_Expense_Register_Report.md
+scripts/verification/validate-cf6-operational-writers.mjs
+supabase/migrations/20260927120000_cf2_financial_foundation.sql
+supabase/migrations/20260927140000_cf4_atomic_payment_writer.sql
+supabase/migrations/20260928120000_cf6_operational_cash_flow_writers.sql
+supabase/migrations/20260929120000_cf7_expense_receipt_storage.sql
+supabase/migrations/20260929140000_cf8_booking_payment_command.sql
+
+PER-DIAGNOSTIC CLASSIFICATION:
+CradleHub_CF0_1_Architecture_Reconciliation.md:3 | D semantic-looking Markdown hard line break | migration E=False | inherited CF8 parent=True | trailing bytes=2 | trailing whitespace.
+CradleHub_CF0_1_Architecture_Reconciliation.md:4 | D semantic-looking Markdown hard line break | migration E=False | inherited CF8 parent=True | trailing bytes=2 | trailing whitespace.
+CradleHub_CF0_1_Architecture_Reconciliation.md:5 | D semantic-looking Markdown hard line break | migration E=False | inherited CF8 parent=True | trailing bytes=2 | trailing whitespace.
+CradleHub_CF0_1_Architecture_Reconciliation.md:6 | D semantic-looking Markdown hard line break | migration E=False | inherited CF8 parent=True | trailing bytes=2 | trailing whitespace.
+CradleHub_CF0_1_Architecture_Reconciliation.md:7 | D semantic-looking Markdown hard line break | migration E=False | inherited CF8 parent=True | trailing bytes=2 | trailing whitespace.
+CradleHub_CF0_1_Architecture_Reconciliation.md:14 | A trailing spaces/tabs | migration E=False | inherited CF8 parent=True | trailing bytes=1 | trailing whitespace.
+CradleHub_CF0_1_Architecture_Reconciliation.md:290 | A trailing spaces/tabs | migration E=False | inherited CF8 parent=True | trailing bytes=1 | trailing whitespace.
+CradleHub_CF0_1_Architecture_Reconciliation.md:674 | D semantic-looking Markdown hard line break | migration E=False | inherited CF8 parent=True | trailing bytes=2 | trailing whitespace.
+CradleHub_CF0_Financial_Truth_and_Build_Blueprint.md:3 | D semantic-looking Markdown hard line break | migration E=False | inherited CF8 parent=True | trailing bytes=2 | trailing whitespace.
+CradleHub_CF0_Financial_Truth_and_Build_Blueprint.md:4 | D semantic-looking Markdown hard line break | migration E=False | inherited CF8 parent=True | trailing bytes=2 | trailing whitespace.
+CradleHub_CF0_Financial_Truth_and_Build_Blueprint.md:5 | D semantic-looking Markdown hard line break | migration E=False | inherited CF8 parent=True | trailing bytes=2 | trailing whitespace.
+CradleHub_CF0_Financial_Truth_and_Build_Blueprint.md:6 | D semantic-looking Markdown hard line break | migration E=False | inherited CF8 parent=True | trailing bytes=2 | trailing whitespace.
+CradleHub_CF0_Financial_Truth_and_Build_Blueprint.md:7 | D semantic-looking Markdown hard line break | migration E=False | inherited CF8 parent=True | trailing bytes=2 | trailing whitespace.
+CradleHub_CF0_Financial_Truth_and_Build_Blueprint.md:616 | D semantic-looking Markdown hard line break | migration E=False | inherited CF8 parent=True | trailing bytes=2 | trailing whitespace.
+CradleHub_CF1_Financial_Contract_Freeze.md:3 | D semantic-looking Markdown hard line break | migration E=False | inherited CF8 parent=True | trailing bytes=2 | trailing whitespace.
+CradleHub_CF1_Financial_Contract_Freeze.md:4 | D semantic-looking Markdown hard line break | migration E=False | inherited CF8 parent=True | trailing bytes=2 | trailing whitespace.
+CradleHub_CF1_Financial_Contract_Freeze.md:5 | D semantic-looking Markdown hard line break | migration E=False | inherited CF8 parent=True | trailing bytes=2 | trailing whitespace.
+CradleHub_CF1_Financial_Contract_Freeze.md:6 | D semantic-looking Markdown hard line break | migration E=False | inherited CF8 parent=True | trailing bytes=2 | trailing whitespace.
+CradleHub_CF1_Financial_Contract_Freeze.md:7 | D semantic-looking Markdown hard line break | migration E=False | inherited CF8 parent=True | trailing bytes=2 | trailing whitespace.
+CradleHub_CF1_Financial_Contract_Freeze.md:609 | D semantic-looking Markdown hard line break | migration E=False | inherited CF8 parent=True | trailing bytes=2 | trailing whitespace.
+CradleHub_CF1_Financial_Contract_Freeze.md:733 | A trailing spaces/tabs | migration E=False | inherited CF8 parent=True | trailing bytes=1 | trailing whitespace.
+CradleHub_CF2_Prep_Baseline_Report.md:3 | D semantic-looking Markdown hard line break | migration E=False | inherited CF8 parent=True | trailing bytes=2 | trailing whitespace.
+CradleHub_CF2_Prep_Baseline_Report.md:4 | D semantic-looking Markdown hard line break | migration E=False | inherited CF8 parent=True | trailing bytes=2 | trailing whitespace.
+CradleHub_CF2_Prep_Baseline_Report.md:5 | D semantic-looking Markdown hard line break | migration E=False | inherited CF8 parent=True | trailing bytes=2 | trailing whitespace.
+CradleHub_CF2_Prep_Baseline_Report.md:6 | D semantic-looking Markdown hard line break | migration E=False | inherited CF8 parent=True | trailing bytes=2 | trailing whitespace.
+CradleHub_CF2_Prep_Baseline_Report.md:7 | D semantic-looking Markdown hard line break | migration E=False | inherited CF8 parent=True | trailing bytes=2 | trailing whitespace.
+CradleHub_CF2_Prep_Baseline_Report.md:8 | D semantic-looking Markdown hard line break | migration E=False | inherited CF8 parent=True | trailing bytes=2 | trailing whitespace.
+CradleHub_CF2_Prep_Baseline_Report.md:44 | D semantic-looking Markdown hard line break | migration E=False | inherited CF8 parent=True | trailing bytes=2 | trailing whitespace.
+CradleHub_CF2_Prep_Baseline_Report.md:51 | D semantic-looking Markdown hard line break | migration E=False | inherited CF8 parent=True | trailing bytes=2 | trailing whitespace.
+CradleHub_CF2_Prep_Baseline_Report.md:98 | D semantic-looking Markdown hard line break | migration E=False | inherited CF8 parent=True | trailing bytes=2 | trailing whitespace.
+CradleHub_CF2_Prep_Baseline_Report.md:108 | D semantic-looking Markdown hard line break | migration E=False | inherited CF8 parent=True | trailing bytes=2 | trailing whitespace.
+CradleHub_CF2_Prep_Baseline_Report.md:115 | A trailing spaces/tabs | migration E=False | inherited CF8 parent=True | trailing bytes=1 | trailing whitespace.
+CradleHub_CF2_Prep_Baseline_Report.md:125 | D semantic-looking Markdown hard line break | migration E=False | inherited CF8 parent=True | trailing bytes=2 | trailing whitespace.
+CradleHub_CF2_Prep_Baseline_Report.md:126 | D semantic-looking Markdown hard line break | migration E=False | inherited CF8 parent=True | trailing bytes=2 | trailing whitespace.
+CradleHub_CF2_Prep_Baseline_Report.md:133 | D semantic-looking Markdown hard line break | migration E=False | inherited CF8 parent=True | trailing bytes=2 | trailing whitespace.
+CradleHub_CF2_Prep_Baseline_Report.md:172 | D semantic-looking Markdown hard line break | migration E=False | inherited CF8 parent=True | trailing bytes=2 | trailing whitespace.
+CradleHub_CF2_Prep_Baseline_Report.md:179 | D semantic-looking Markdown hard line break | migration E=False | inherited CF8 parent=True | trailing bytes=2 | trailing whitespace.
+CradleHub_CF2_Prep_Baseline_Report.md:186 | D semantic-looking Markdown hard line break | migration E=False | inherited CF8 parent=True | trailing bytes=2 | trailing whitespace.
+CradleHub_CF2_Prep_Baseline_Report.md:193 | D semantic-looking Markdown hard line break | migration E=False | inherited CF8 parent=True | trailing bytes=2 | trailing whitespace.
+CradleHub_CF2_Prep_Baseline_Report.md:200 | D semantic-looking Markdown hard line break | migration E=False | inherited CF8 parent=True | trailing bytes=2 | trailing whitespace.
+CradleHub_CF5_Exact_Cash_Flow_UI_Report.md:3 | D semantic-looking Markdown hard line break | migration E=False | inherited CF8 parent=True | trailing bytes=2 | trailing whitespace.
+CradleHub_CF5_Exact_Cash_Flow_UI_Report.md:4 | D semantic-looking Markdown hard line break | migration E=False | inherited CF8 parent=True | trailing bytes=2 | trailing whitespace.
+CradleHub_CF5_Exact_Cash_Flow_UI_Report.md:5 | D semantic-looking Markdown hard line break | migration E=False | inherited CF8 parent=True | trailing bytes=2 | trailing whitespace.
+CradleHub_CF5_Exact_Cash_Flow_UI_Report.md:6 | D semantic-looking Markdown hard line break | migration E=False | inherited CF8 parent=True | trailing bytes=2 | trailing whitespace.
+CradleHub_CF5_Exact_Cash_Flow_UI_Report.md:7 | D semantic-looking Markdown hard line break | migration E=False | inherited CF8 parent=True | trailing bytes=2 | trailing whitespace.
+CradleHub_CF5_Exact_Cash_Flow_UI_Report.md:8 | D semantic-looking Markdown hard line break | migration E=False | inherited CF8 parent=True | trailing bytes=2 | trailing whitespace.
+CradleHub_CF7_Operational_Expense_Register_Report.md:3 | D semantic-looking Markdown hard line break | migration E=False | inherited CF8 parent=True | trailing bytes=2 | trailing whitespace.
+CradleHub_CF7_Operational_Expense_Register_Report.md:4 | D semantic-looking Markdown hard line break | migration E=False | inherited CF8 parent=True | trailing bytes=2 | trailing whitespace.
+CradleHub_CF7_Operational_Expense_Register_Report.md:5 | D semantic-looking Markdown hard line break | migration E=False | inherited CF8 parent=True | trailing bytes=2 | trailing whitespace.
+CradleHub_CF7_Operational_Expense_Register_Report.md:6 | D semantic-looking Markdown hard line break | migration E=False | inherited CF8 parent=True | trailing bytes=2 | trailing whitespace.
+CradleHub_CF7_Operational_Expense_Register_Report.md:7 | D semantic-looking Markdown hard line break | migration E=False | inherited CF8 parent=True | trailing bytes=2 | trailing whitespace.
+CradleHub_CF7_Operational_Expense_Register_Report.md:8 | D semantic-looking Markdown hard line break | migration E=False | inherited CF8 parent=True | trailing bytes=2 | trailing whitespace.
+scripts/verification/validate-cf6-operational-writers.mjs:563 | B whitespace-only blank line | migration E=False | inherited CF8 parent=True | trailing bytes=2 | trailing whitespace.
+supabase/migrations/20260927120000_cf2_financial_foundation.sql:33 | A trailing spaces/tabs | migration E=True | inherited CF8 parent=True | trailing bytes=1 | trailing whitespace.
+supabase/migrations/20260927120000_cf2_financial_foundation.sql:41 | A trailing spaces/tabs | migration E=True | inherited CF8 parent=True | trailing bytes=1 | trailing whitespace.
+supabase/migrations/20260927140000_cf4_atomic_payment_writer.sql:27 | A trailing spaces/tabs | migration E=True | inherited CF8 parent=True | trailing bytes=1 | trailing whitespace.
+supabase/migrations/20260927140000_cf4_atomic_payment_writer.sql:35 | A trailing spaces/tabs | migration E=True | inherited CF8 parent=True | trailing bytes=1 | trailing whitespace.
+supabase/migrations/20260927140000_cf4_atomic_payment_writer.sql:43 | A trailing spaces/tabs | migration E=True | inherited CF8 parent=True | trailing bytes=1 | trailing whitespace.
+supabase/migrations/20260927140000_cf4_atomic_payment_writer.sql:51 | A trailing spaces/tabs | migration E=True | inherited CF8 parent=True | trailing bytes=1 | trailing whitespace.
+supabase/migrations/20260927140000_cf4_atomic_payment_writer.sql:89 | B whitespace-only blank line | migration E=True | inherited CF8 parent=True | trailing bytes=2 | trailing whitespace.
+supabase/migrations/20260927140000_cf4_atomic_payment_writer.sql:103 | B whitespace-only blank line | migration E=True | inherited CF8 parent=True | trailing bytes=2 | trailing whitespace.
+supabase/migrations/20260928120000_cf6_operational_cash_flow_writers.sql:30 | A trailing spaces/tabs | migration E=True | inherited CF8 parent=True | trailing bytes=1 | trailing whitespace.
+supabase/migrations/20260928120000_cf6_operational_cash_flow_writers.sql:38 | A trailing spaces/tabs | migration E=True | inherited CF8 parent=True | trailing bytes=1 | trailing whitespace.
+supabase/migrations/20260928120000_cf6_operational_cash_flow_writers.sql:257 | B whitespace-only blank line | migration E=True | inherited CF8 parent=True | trailing bytes=4 | trailing whitespace.
+supabase/migrations/20260928120000_cf6_operational_cash_flow_writers.sql:463 | B whitespace-only blank line | migration E=True | inherited CF8 parent=True | trailing bytes=4 | trailing whitespace.
+supabase/migrations/20260928120000_cf6_operational_cash_flow_writers.sql:529 | A trailing spaces/tabs | migration E=True | inherited CF8 parent=True | trailing bytes=1 | trailing whitespace.
+supabase/migrations/20260928120000_cf6_operational_cash_flow_writers.sql:718 | A trailing spaces/tabs | migration E=True | inherited CF8 parent=True | trailing bytes=1 | trailing whitespace.
+supabase/migrations/20260929120000_cf7_expense_receipt_storage.sql:117 | B whitespace-only blank line | migration E=True | inherited CF8 parent=True | trailing bytes=4 | trailing whitespace.
+supabase/migrations/20260929140000_cf8_booking_payment_command.sql:38 | B whitespace-only blank line | migration E=True | inherited CF8 parent=True | trailing bytes=2 | trailing whitespace.
+supabase/migrations/20260929140000_cf8_booking_payment_command.sql:52 | B whitespace-only blank line | migration E=True | inherited CF8 parent=True | trailing bytes=2 | trailing whitespace.
+supabase/migrations/20260929140000_cf8_booking_payment_command.sql:1196 | B whitespace-only blank line | migration E=True | inherited CF8 parent=True | trailing bytes=0 | new blank line at EOF.
+
+RAW GIT DIFF --CHECK OUTPUT:
+CradleHub_CF0_1_Architecture_Reconciliation.md:3: trailing whitespace.
++**Target Repository:** `E:\cradlehub-booking-simplification`  
+CradleHub_CF0_1_Architecture_Reconciliation.md:4: trailing whitespace.
++**Branch:** `stage/bkg-home-service-simplification`  
+CradleHub_CF0_1_Architecture_Reconciliation.md:5: trailing whitespace.
++**Accepted Base SHA:** `f8977cce5c1286402eed2e6805ba0428c38dc660`  
+CradleHub_CF0_1_Architecture_Reconciliation.md:6: trailing whitespace.
++**Program:** CradleHub Web â€” CONTROLLED STABILIZATION  
+CradleHub_CF0_1_Architecture_Reconciliation.md:7: trailing whitespace.
++**Stage:** CF0.1 â€” FINANCIAL ARCHITECTURE RECONCILIATION (CORRECTION PASS 1)  
+CradleHub_CF0_1_Architecture_Reconciliation.md:14: trailing whitespace.
++Stage CF0 established the business necessity of absorbing the operational financial workflows of CRADLE MAINSHEETS into CradleHub Web. However, CF0 was an initial discovery pass that left several architectural ambiguities, misnomers, and potential boundary collisions in its proposed data model. 
+CradleHub_CF0_1_Architecture_Reconciliation.md:290: trailing whitespace.
++Operating expenses represent money leaving a financial account for operational purposes. 
+CradleHub_CF0_1_Architecture_Reconciliation.md:674: trailing whitespace.
++> **NET OPERATIONAL CASH FLOW != ACCOUNTING PROFIT.**  
+CradleHub_CF0_Financial_Truth_and_Build_Blueprint.md:3: trailing whitespace.
++**Target Repository:** `E:\cradlehub-booking-simplification`  
+CradleHub_CF0_Financial_Truth_and_Build_Blueprint.md:4: trailing whitespace.
++**Branch:** `stage/bkg-home-service-simplification`  
+CradleHub_CF0_Financial_Truth_and_Build_Blueprint.md:5: trailing whitespace.
++**Accepted Base SHA:** `f8977cce5c1286402eed2e6805ba0428c38dc660`  
+CradleHub_CF0_Financial_Truth_and_Build_Blueprint.md:6: trailing whitespace.
++**Program:** CradleHub Web â€” CONTROLLED STABILIZATION  
+CradleHub_CF0_Financial_Truth_and_Build_Blueprint.md:7: trailing whitespace.
++**Stage:** CF0 â€” FINANCIAL BUSINESS TRUTH + SYSTEM TRUTH + BUILD BLUEPRINT  
+CradleHub_CF0_Financial_Truth_and_Build_Blueprint.md:616: trailing whitespace.
++**PASS â€” FINANCIAL TRUTH AND BUILD BLUEPRINT ESTABLISHED**  
+CradleHub_CF1_Financial_Contract_Freeze.md:3: trailing whitespace.
++**Target Repository:** `E:\cradlehub-booking-simplification`  
+CradleHub_CF1_Financial_Contract_Freeze.md:4: trailing whitespace.
++**Current Branch:** `stage/bkg-home-service-simplification`  
+CradleHub_CF1_Financial_Contract_Freeze.md:5: trailing whitespace.
++**Accepted Base SHA:** `f8977cce5c1286402eed2e6805ba0428c38dc660`  
+CradleHub_CF1_Financial_Contract_Freeze.md:6: trailing whitespace.
++**Program:** CradleHub Web â€” CONTROLLED STABILIZATION  
+CradleHub_CF1_Financial_Contract_Freeze.md:7: trailing whitespace.
++**Stage:** CF1 â€” FINANCIAL CONTRACT & TAXONOMY FREEZE  
+CradleHub_CF1_Financial_Contract_Freeze.md:609: trailing whitespace.
++> **NET OPERATIONAL CASH FLOW != ACCOUNTING PROFIT.**  
+CradleHub_CF1_Financial_Contract_Freeze.md:733: trailing whitespace.
++All 24 architectural decisions (**CF1-D01 through CF1-D24**) are formally frozen and authorized by the project owner. The 20-point Capability Gate is established as the sole criterion for retiring CRADLE MAINSHEETS. 
+CradleHub_CF2_Prep_Baseline_Report.md:3: trailing whitespace.
++**Target Repository:** `E:\cradlehub-booking-simplification`  
+CradleHub_CF2_Prep_Baseline_Report.md:4: trailing whitespace.
++**Current Branch:** `stage/cf-financial-foundation`  
+CradleHub_CF2_Prep_Baseline_Report.md:5: trailing whitespace.
++**Source Branch:** `stage/bkg-home-service-simplification`  
+CradleHub_CF2_Prep_Baseline_Report.md:6: trailing whitespace.
++**Program:** CradleHub Web â€” CONTROLLED STABILIZATION  
+CradleHub_CF2_Prep_Baseline_Report.md:7: trailing whitespace.
++**Stage:** CF2-PREP â€” BASELINE ISOLATION & IMPLEMENTATION READINESS  
+CradleHub_CF2_Prep_Baseline_Report.md:8: trailing whitespace.
++**Date:** 2026-09-27  
+CradleHub_CF2_Prep_Baseline_Report.md:44: trailing whitespace.
++`378943df80250819a5eda04d495375bfdfbd4c8b`  
+CradleHub_CF2_Prep_Baseline_Report.md:51: trailing whitespace.
++`92fa6bd1e8fa012c7cc21030760f55c08dca586b`  
+CradleHub_CF2_Prep_Baseline_Report.md:98: trailing whitespace.
++**Command:** `pnpm test tests/lib/bookings/ --run`  
+CradleHub_CF2_Prep_Baseline_Report.md:108: trailing whitespace.
++**Command:** `pnpm type-check` (`tsc --noEmit`)  
+CradleHub_CF2_Prep_Baseline_Report.md:115: trailing whitespace.
++**Command:** 
+CradleHub_CF2_Prep_Baseline_Report.md:125: trailing whitespace.
++**Command:** `pnpm lint`  
+CradleHub_CF2_Prep_Baseline_Report.md:126: trailing whitespace.
++**Result:** 114 problems (88 errors, 26 warnings).  
+CradleHub_CF2_Prep_Baseline_Report.md:133: trailing whitespace.
++**Command:** `git diff --check`  
+CradleHub_CF2_Prep_Baseline_Report.md:172: trailing whitespace.
++**Expected:** NONE  
+CradleHub_CF2_Prep_Baseline_Report.md:179: trailing whitespace.
++**Expected:** NONE  
+CradleHub_CF2_Prep_Baseline_Report.md:186: trailing whitespace.
++**Expected:** NONE  
+CradleHub_CF2_Prep_Baseline_Report.md:193: trailing whitespace.
++**Expected:** NONE  
+CradleHub_CF2_Prep_Baseline_Report.md:200: trailing whitespace.
++**CF2 IMPLEMENTATION NOT STARTED.**  
+CradleHub_CF5_Exact_Cash_Flow_UI_Report.md:3: trailing whitespace.
++**Stage:** CF5 â€” CASH FLOW UI FOUNDATION  
+CradleHub_CF5_Exact_Cash_Flow_UI_Report.md:4: trailing whitespace.
++**Target Repository:** `E:\cradlehub-booking-simplification`  
+CradleHub_CF5_Exact_Cash_Flow_UI_Report.md:5: trailing whitespace.
++**Branch:** `stage/cf-financial-foundation`  
+CradleHub_CF5_Exact_Cash_Flow_UI_Report.md:6: trailing whitespace.
++**Authorized Base SHA:** `61dd51195d25fcccc7eeed750c3b95326528bff3`  
+CradleHub_CF5_Exact_Cash_Flow_UI_Report.md:7: trailing whitespace.
++**Date:** 2026-09-28  
+CradleHub_CF5_Exact_Cash_Flow_UI_Report.md:8: trailing whitespace.
++**Status:** IMPLEMENTATION COMPLETE â€” OWNER VISUAL REVIEW REQUIRED  
+CradleHub_CF7_Operational_Expense_Register_Report.md:3: trailing whitespace.
++**TARGET:** CradleHub Web â€” Cash Flow  
+CradleHub_CF7_Operational_Expense_Register_Report.md:4: trailing whitespace.
++**STAGE:** CF7 â€” Operational Expense Register UI  
+CradleHub_CF7_Operational_Expense_Register_Report.md:5: trailing whitespace.
++**BRANCH:** `stage/cf-financial-foundation`  
+CradleHub_CF7_Operational_Expense_Register_Report.md:6: trailing whitespace.
++**BASE SHA:** `d0d7f105521abf17b90fd0c542c753b7362c0ae4`  
+CradleHub_CF7_Operational_Expense_Register_Report.md:7: trailing whitespace.
++**IMPLEMENTATION SHA:** `c5873dcb1cb89e851f06f1c0b5776b02e7e6c36c`  
+CradleHub_CF7_Operational_Expense_Register_Report.md:8: trailing whitespace.
++**DOCUMENTATION DATE:** 2026-09-29  
+scripts/verification/validate-cf6-operational-writers.mjs:563: trailing whitespace.
++  
+supabase/migrations/20260927120000_cf2_financial_foundation.sql:33: trailing whitespace.
++    SELECT 1 FROM information_schema.tables 
+supabase/migrations/20260927120000_cf2_financial_foundation.sql:41: trailing whitespace.
++    SELECT 1 FROM information_schema.tables 
+supabase/migrations/20260927140000_cf4_atomic_payment_writer.sql:27: trailing whitespace.
++    SELECT 1 FROM information_schema.tables 
+supabase/migrations/20260927140000_cf4_atomic_payment_writer.sql:35: trailing whitespace.
++    SELECT 1 FROM information_schema.tables 
+supabase/migrations/20260927140000_cf4_atomic_payment_writer.sql:43: trailing whitespace.
++    SELECT 1 FROM information_schema.tables 
+supabase/migrations/20260927140000_cf4_atomic_payment_writer.sql:51: trailing whitespace.
++    SELECT 1 FROM information_schema.tables 
+supabase/migrations/20260927140000_cf4_atomic_payment_writer.sql:89: trailing whitespace.
++  
+supabase/migrations/20260927140000_cf4_atomic_payment_writer.sql:103: trailing whitespace.
++  
+supabase/migrations/20260928120000_cf6_operational_cash_flow_writers.sql:30: trailing whitespace.
++    SELECT 1 FROM information_schema.tables 
+supabase/migrations/20260928120000_cf6_operational_cash_flow_writers.sql:38: trailing whitespace.
++    SELECT 1 FROM information_schema.tables 
+supabase/migrations/20260928120000_cf6_operational_cash_flow_writers.sql:257: trailing whitespace.
++    
+supabase/migrations/20260928120000_cf6_operational_cash_flow_writers.sql:463: trailing whitespace.
++    
+supabase/migrations/20260928120000_cf6_operational_cash_flow_writers.sql:529: trailing whitespace.
++      CASE 
+supabase/migrations/20260928120000_cf6_operational_cash_flow_writers.sql:718: trailing whitespace.
++    CASE 
+supabase/migrations/20260929120000_cf7_expense_receipt_storage.sql:117: trailing whitespace.
++    
+supabase/migrations/20260929140000_cf8_booking_payment_command.sql:38: trailing whitespace.
++  
+supabase/migrations/20260929140000_cf8_booking_payment_command.sql:52: trailing whitespace.
++  
+supabase/migrations/20260929140000_cf8_booking_payment_command.sql:1196: new blank line at EOF.
+
+
+FINAL RELEASE-CANDIDATE CLOSEOUT
+FINAL_HEAD=fd1b5b2a4c4ebd2e4c24b481ebc609902c9b763c
+REMOTE_HEAD=fd1b5b2a4c4ebd2e4c24b481ebc609902c9b763c
+OWNER_ACCEPTED_RELEASE_EXCEPTION=71 inherited formatting entries (141 raw output lines)
+NEW_RECONCILIATION_INTRODUCED_ENTRIES=0
+ALL_AFFECTED_FINAL_BLOBS_IDENTICAL_TO_FROZEN_CF8_PARENT=True
+MERGE_TO_FINAL_DIFF_CHECK_EXIT=0
+PROTECTED_HISTORICAL_MIGRATIONS_MODIFIED=NO
+FUTURE_NEW_OR_SEMANTIC_WHITESPACE_DEFECTS_NOT_WAIVED=YES
+PRODUCTION_OPERATION=NONE
+DEPLOYMENT=NONE

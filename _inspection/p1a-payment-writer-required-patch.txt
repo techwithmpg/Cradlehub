@@ -1,0 +1,34 @@
+P1-A PAYMENT WRITER PATCH REQUIRED
+==================================
+
+SOURCE:
+supabase\migrations\20260930145947_require_open_drawer_for_cash_payments.sql
+
+DO NOT EDIT THE HISTORICAL SOURCE MIGRATION.
+
+The current lazy payable INSERT contains:
+
+FROM public.bookings b
+WHERE b.order_id = p_order_id
+  AND (b.metadata->>'price_paid') ~ ...
+  AND (b.metadata->>'price_paid')::numeric > 0;
+
+The forward P1-A definition of post_order_payment_atomic must preserve the
+current P1-B function body and add:
+
+  AND b.status NOT IN ('cancelled', 'no_show')
+
+to BOTH:
+
+1. the unsafe-price preflight check, so a closed sibling with an old/bad
+   price snapshot cannot block collection for valid active siblings;
+
+2. the lazy positive service-payable INSERT.
+
+The total_amount snapshot comparison must NOT require the original booking
+order metadata total after closed lines have been excluded. The canonical
+collectible total is order_payable_items after P1-A adjustments.
+
+Do not infer per-line historical payment allocation.
+
+No production DB operation is authorized.

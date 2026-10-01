@@ -1,0 +1,43 @@
+============================================================
+CF8-A APPROVED RESPONSIVE TODAY UI
+============================================================
+
+BRANCH
+stage/cf-financial-foundation
+
+HEAD
+431db1f8e779adca017cbcf66d678c4265f8f298
+
+------------------------------------------------------------
+TYPE CHECK
+EXIT CODE: 2
+------------------------------------------------------------
+
+
+> cradlehub@0.1.0 type-check E:\cradlehub-booking-simplification
+> tsc --noEmit
+
+_inspection/backups/today-tab_before_approved_ui_20260929_123938.tsx(24,33): error TS2307: Cannot find module './cash-flow-kpi-card' or its corresponding type declarations.
+ΓÇëELIFECYCLEΓÇë Command failed with exit code 2.
+
+------------------------------------------------------------
+TARGETED ESLINT
+EXIT CODE: 1
+------------------------------------------------------------
+
+
+E:\cradlehub-booking-simplification\src\components\features\cash-flow\today-tab.tsx
+  123:26  error    `'` can be escaped with `&apos;`, `&lsquo;`, `&#39;`, `&rsquo;`  react/no-unescaped-entities
+  332:69  error    `'` can be escaped with `&apos;`, `&lsquo;`, `&#39;`, `&rsquo;`  react/no-unescaped-entities
+  444:10  warning  'renderCategoryIcon' is defined but never used                   @typescript-eslint/no-unused-vars
+
+Γ£û 3 problems (2 errors, 1 warning)
+
+
+------------------------------------------------------------
+GIT DIFF CHECK
+EXIT CODE: 0
+------------------------------------------------------------
+
+warning: in the working copy of 'src/components/features/cash-flow/today-tab.tsx', LF will be replaced by CRLF the next time Git touches it
+

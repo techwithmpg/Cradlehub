@@ -22,6 +22,7 @@ import {
 
 import { canonicalizeSystemRole } from "@/constants/staff";
 import { canAccessCrmWorkspace } from "@/lib/auth/crm-permissions";
+import { resolveOwnerFrontDeskBranch } from "@/lib/queries/front-desk-branch";
 import { bookingBlocksAvailability } from "@/lib/bookings/hold-status";
 import { recordBookingPaymentChange } from "@/lib/bookings/payment-transaction";
 import { revalidateOperationalBookingSurfaces } from "@/lib/bookings/revalidate-booking-surfaces";
@@ -69,8 +70,12 @@ async function getCrmActionsContext() {
     .maybeSingle();
 
   const role = me ? canonicalizeSystemRole(me.system_role) : null;
-  if (!me || !me.branch_id || !role || !canAccessCrmWorkspace(role)) return null;
-  return { supabase, authUserId: user.id, me: { ...me, system_role: role } };
+  if (!me || !role || !canAccessCrmWorkspace(role) || (!me.branch_id && role !== "owner")) return null;
+  const ownerBranch = role === "owner"
+    ? await resolveOwnerFrontDeskBranch(user.id, me.branch_id)
+    : null;
+  if (role === "owner" && !ownerBranch) return null;
+  return { supabase, authUserId: user.id, me: { ...me, branch_id: ownerBranch?.id ?? me.branch_id!, system_role: role } };
 }
 
 const resolveStaffScheduleExceptionSchema = bookingIdSchema.extend({

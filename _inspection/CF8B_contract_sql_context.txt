@@ -1,0 +1,912 @@
+CF8-B CANONICAL SESSION CONTRACT CONTEXT
+Generated: 2026-09-29 12:51:29
+
+=== REPOSITORY ===
+stage/cf-financial-foundation
+431db1f8e779adca017cbcf66d678c4265f8f298
+ M src/components/features/cash-flow/today-tab.tsx
+?? _inspection/
+
+============================================================
+FILE: supabase/migrations/20260927120000_cf2_financial_foundation.sql
+LINES: 45-220
+============================================================
+   45:       USING ERRCODE = '55000';
+   46:   END IF;
+   47: END;
+   48: $preflight$;
+   49: 
+   50: 
+   51: -- ─── 1. TABLE: financial_accounts ─────────────────────────────────────────────
+   52: -- Relational catalog representing physical drawers, digital wallets, bank accounts,
+   53: -- and card terminals.
+   54: CREATE TABLE IF NOT EXISTS public.financial_accounts (
+   55:   id                  UUID          PRIMARY KEY DEFAULT gen_random_uuid(),
+   56:   branch_id           UUID          REFERENCES public.branches(id) ON DELETE RESTRICT,
+   57:   name                TEXT          NOT NULL,
+   58:   account_type        TEXT          NOT NULL
+   59:                                     CHECK (account_type IN (
+   60:                                       'cash_drawer',
+   61:                                       'gcash',
+   62:                                       'maya',
+   63:                                       'bank_transfer',
+   64:                                       'card_terminal'
+   65:                                     )),
+   66:   identifier_mask     TEXT          NOT NULL,
+   67:   currency            TEXT          NOT NULL DEFAULT 'PHP'
+   68:                                     CHECK (currency = 'PHP'),
+   69:   is_active           BOOLEAN       NOT NULL DEFAULT true,
+   70:   created_at          TIMESTAMPTZ   NOT NULL DEFAULT now(),
+   71:   updated_at          TIMESTAMPTZ   NOT NULL DEFAULT now()
+   72: );
+   73: 
+   74: COMMENT ON TABLE public.financial_accounts IS
+   75:   'Catalog of physical and digital accounts (cash drawers, GCash, Maya, Bank, Card terminals).';
+   76: COMMENT ON COLUMN public.financial_accounts.branch_id IS
+   77:   'Branch ownership; NULL denotes corporate/HQ level financial account.';
+   78: COMMENT ON COLUMN public.financial_accounts.identifier_mask IS
+   79:   'Safe display identifier for front-desk staff (e.g. *1234 or 0917-***-5678).';
+   80: 
+   81: 
+   82: -- ─── 2. TABLE: financial_transactions ─────────────────────────────────────────
+   83: -- Single canonical financial event identity header.
+   84: -- Contains business metadata, operating business date, and idempotency key.
+   85: -- Contains NO independent mutable monetary amount.
+   86: CREATE TABLE IF NOT EXISTS public.financial_transactions (
+   87:   id                          UUID          PRIMARY KEY DEFAULT gen_random_uuid(),
+   88:   branch_id                   UUID          NOT NULL REFERENCES public.branches(id) ON DELETE RESTRICT,
+   89:   transaction_type            TEXT          NOT NULL
+   90:                                             CHECK (transaction_type IN (
+   91:                                               'customer_payment',
+   92:                                               'customer_refund',
+   93:                                               'customer_deposit',
+   94:                                               'operational_expense',
+   95:                                               'cash_adjustment',
+   96:                                               'tip_collection',
+   97:                                               'tip_disbursement',
+   98:                                               'payroll_disbursement',
+   99:                                               'voucher_sale',
+  100:                                               'voucher_redemption',
+  101:                                               'retail_sale',
+  102:                                               'other_income'
+  103:                                             )),
+  104:   business_date               DATE          NOT NULL,
+  105:   occurred_at                 TIMESTAMPTZ   NOT NULL,
+  106:   recorded_at                 TIMESTAMPTZ   NOT NULL DEFAULT now(),
+  107:   recorded_by                 UUID          NOT NULL REFERENCES public.staff(id) ON DELETE RESTRICT,
+  108:   currency                    TEXT          NOT NULL DEFAULT 'PHP'
+  109:                                             CHECK (currency = 'PHP'),
+  110:   status                      TEXT          NOT NULL DEFAULT 'posted'
+  111:                                             CHECK (status IN ('posted', 'reversed', 'voided')),
+  112:   idempotency_key             TEXT          NOT NULL UNIQUE,
+  113:   source_type                 TEXT          CHECK (source_type IS NULL OR source_type IN (
+  114:                                               'booking_order',
+  115:                                               'cash_session',
+  116:                                               'payroll_run',
+  117:                                               'retail_sale',
+  118:                                               'legacy_booking'
+  119:                                             )),
+  120:   source_id                   TEXT          NULL,
+  121:   external_reference          TEXT          NULL,
+  122:   reversal_of_transaction_id  UUID          NULL REFERENCES public.financial_transactions(id) ON DELETE RESTRICT,
+  123:   notes                       TEXT          NULL,
+  124:   created_at                  TIMESTAMPTZ   NOT NULL DEFAULT now(),
+  125:   CONSTRAINT check_financial_transaction_no_self_reversal
+  126:     CHECK (reversal_of_transaction_id IS NULL OR reversal_of_transaction_id <> id)
+  127: );
+  128: 
+  129: COMMENT ON TABLE public.financial_transactions IS
+  130:   'Single canonical financial transaction event identity header.';
+  131: COMMENT ON COLUMN public.financial_transactions.idempotency_key IS
+  132:   'Unique idempotency key ensuring replay suppression and retry safety.';
+  133: COMMENT ON COLUMN public.financial_transactions.reversal_of_transaction_id IS
+  134:   'Self-referencing link to the original transaction if this record is a corrective reversal or refund.';
+  135: 
+  136: 
+  137: -- ─── 3. TABLE: financial_account_movements ────────────────────────────────────
+  138: -- Sole monetary authority in CF2. Records individual signed inflows/outflows
+  139: -- on specific financial accounts.
+  140: CREATE TABLE IF NOT EXISTS public.financial_account_movements (
+  141:   id                    UUID            PRIMARY KEY DEFAULT gen_random_uuid(),
+  142:   transaction_id        UUID            NOT NULL REFERENCES public.financial_transactions(id) ON DELETE RESTRICT,
+  143:   financial_account_id  UUID            NOT NULL REFERENCES public.financial_accounts(id) ON DELETE RESTRICT,
+  144:   amount                NUMERIC(12,2)   NOT NULL,
+  145:   payment_method        TEXT            NOT NULL
+  146:                                         CHECK (payment_method IN (
+  147:                                           'cash',
+  148:                                           'gcash',
+  149:                                           'maya',
+  150:                                           'bank_transfer',
+  151:                                           'card'
+  152:                                         )),
+  153:   external_reference    TEXT            NULL,
+  154:   created_at            TIMESTAMPTZ     NOT NULL DEFAULT now(),
+  155:   CONSTRAINT check_financial_account_movement_non_zero
+  156:     CHECK (amount <> 0)
+  157: );
+  158: 
+  159: COMMENT ON TABLE public.financial_account_movements IS
+  160:   'Authoritative signed monetary movements on financial accounts (+ = enters account, - = leaves account).';
+  161: COMMENT ON COLUMN public.financial_account_movements.amount IS
+  162:   'Signed monetary value (+ = inflow, - = outflow). Zero is strictly prohibited.';
+  163: 
+  164: 
+  165: -- ─── 4. SAFE MASKED FRONT-DESK VIEW ───────────────────────────────────────────
+  166: -- Caller-RLS respecting view for front desk and CRM interfaces.
+  167: CREATE OR REPLACE VIEW public.v_financial_accounts
+  168: WITH (security_invoker = true)
+  169: AS
+  170: SELECT
+  171:   fa.id,
+  172:   fa.branch_id,
+  173:   fa.name,
+  174:   fa.account_type,
+  175:   fa.identifier_mask,
+  176:   fa.currency,
+  177:   fa.is_active,
+  178:   fa.created_at
+  179: FROM public.financial_accounts fa;
+  180: 
+  181: COMMENT ON VIEW public.v_financial_accounts IS
+  182:   'Safe view of financial accounts exposing masked identifiers with caller security (security_invoker = true).';
+  183: 
+  184: 
+  185: -- ─── 5. IMMUTABILITY SAFEGUARDS (APPEND-ONLY ENFORCEMENT) ─────────────────────
+  186: -- Trigger function prohibiting updates or deletions of committed financial history.
+  187: CREATE OR REPLACE FUNCTION public.enforce_financial_ledger_immutability()
+  188: RETURNS TRIGGER
+  189: LANGUAGE plpgsql
+  190: SECURITY DEFINER
+  191: SET search_path = public, pg_temp
+  192: AS $$
+  193: BEGIN
+  194:   -- Allow bypass only if explicitly authorized via a session-local config (e.g. for emergency maintenance by superusers)
+  195:   IF current_setting('cradlehub.allow_financial_mutation', true) = 'true' THEN
+  196:     IF TG_OP = 'DELETE' THEN
+  197:       RETURN OLD;
+  198:     ELSE
+  199:       RETURN NEW;
+  200:     END IF;
+  201:   END IF;
+  202: 
+  203:   RAISE EXCEPTION 'FINANCIAL_IMMUTABILITY_VIOLATION: Committed financial transactions and movements are append-only. Destructive % is prohibited.', TG_OP
+  204:     USING ERRCODE = '55000';
+  205: END;
+  206: $$;
+  207: 
+  208: DROP TRIGGER IF EXISTS trg_protect_financial_transactions_immutability ON public.financial_transactions;
+  209: CREATE TRIGGER trg_protect_financial_transactions_immutability
+  210:   BEFORE UPDATE OR DELETE ON public.financial_transactions
+  211:   FOR EACH ROW
+  212:   EXECUTE FUNCTION public.enforce_financial_ledger_immutability();
+  213: 
+  214: DROP TRIGGER IF EXISTS trg_protect_financial_account_movements_immutability ON public.financial_account_movements;
+  215: CREATE TRIGGER trg_protect_financial_account_movements_immutability
+  216:   BEFORE UPDATE OR DELETE ON public.financial_account_movements
+  217:   FOR EACH ROW
+  218:   EXECUTE FUNCTION public.enforce_financial_ledger_immutability();
+  219: 
+  220: 
+
+============================================================
+FILE: supabase/migrations/20260927140000_cf4_atomic_payment_writer.sql
+LINES: 120-270
+============================================================
+  120: 
+  121:   IF p_idempotency_key IS NULL OR trim(p_idempotency_key) = '' THEN
+  122:     RAISE EXCEPTION 'IDEMPOTENCY_KEY_REQUIRED: Idempotency key is required';
+  123:   END IF;
+  124: 
+  125:   IF p_payments IS NULL OR jsonb_typeof(p_payments) <> 'array' OR jsonb_array_length(p_payments) = 0 THEN
+  126:     RAISE EXCEPTION 'PAYMENTS_REQUIRED: At least one payment part is required';
+  127:   END IF;
+  128: 
+  129:   -- 2. Concurrency serialization: Acquire advisory transaction lock for idempotency key
+  130:   PERFORM pg_advisory_xact_lock(hashtext('idem_cf4_' || p_idempotency_key));
+  131: 
+  132:   -- 3. Row lock on booking order
+  133:   SELECT id, branch_id, organizer_customer_id, booking_date
+  134:   INTO v_order
+  135:   FROM public.booking_orders
+  136:   WHERE id = p_order_id
+  137:   FOR UPDATE;
+  138: 
+  139:   IF NOT FOUND THEN
+  140:     RAISE EXCEPTION 'ORDER_NOT_FOUND: Booking order % does not exist', p_order_id;
+  141:   END IF;
+  142: 
+  143:   -- 4. Authenticated identity & staff resolution
+  144:   v_auth_uid := auth.uid();
+  145:   IF v_auth_uid IS NULL THEN
+  146:     RAISE EXCEPTION 'AUTH_REQUIRED: Unauthenticated caller cannot post payments';
+  147:   END IF;
+  148: 
+  149:   SELECT s.id, s.branch_id, s.role, s.is_active
+  150:   INTO v_staff
+  151:   FROM public.staff s
+  152:   WHERE s.auth_user_id = v_auth_uid;
+  153: 
+  154:   IF NOT FOUND THEN
+  155:     RAISE EXCEPTION 'STAFF_NOT_FOUND: Active staff record not found for authenticated user %', v_auth_uid;
+  156:   END IF;
+  157: 
+  158:   IF NOT v_staff.is_active THEN
+  159:     RAISE EXCEPTION 'STAFF_INACTIVE: Staff member % is inactive', v_staff.id;
+  160:   END IF;
+  161: 
+  162:   -- 5. Branch permission verification
+  163:   IF v_staff.role <> 'owner' AND v_staff.branch_id <> v_order.branch_id THEN
+  164:     RAISE EXCEPTION 'BRANCH_UNAUTHORIZED: Staff % (branch %) unauthorized for order in branch %',
+  165:       v_staff.id, v_staff.branch_id, v_order.branch_id;
+  166:   END IF;
+  167: 
+  168:   -- 6. Validate payment parts & rails
+  169:   FOR v_part IN SELECT * FROM jsonb_array_elements(p_payments)
+  170:   LOOP
+  171:     IF (v_part->>'amount') IS NULL THEN
+  172:       RAISE EXCEPTION 'INVALID_PAYMENT_AMOUNT: Payment part missing amount';
+  173:     END IF;
+  174: 
+  175:     v_part_amount := (v_part->>'amount')::numeric;
+  176:     IF v_part_amount <= 0 THEN
+  177:       RAISE EXCEPTION 'INVALID_PAYMENT_AMOUNT: Payment amount must be positive, got %', v_part_amount;
+  178:     END IF;
+  179: 
+  180:     v_part_method := (v_part->>'payment_method');
+  181:     IF v_part_method IS NULL OR v_part_method NOT IN ('cash', 'gcash', 'maya', 'bank_transfer', 'card') THEN
+  182:       RAISE EXCEPTION 'INVALID_PAYMENT_METHOD: Unsupported payment method %', v_part_method;
+  183:     END IF;
+  184: 
+  185:     IF (v_part->>'financial_account_id') IS NULL THEN
+  186:       RAISE EXCEPTION 'ACCOUNT_ID_REQUIRED: Financial account ID required for payment method %', v_part_method;
+  187:     END IF;
+  188: 
+  189:     v_part_account_id := (v_part->>'financial_account_id')::uuid;
+  190: 
+  191:     SELECT id, branch_id, account_type, is_active, currency
+  192:     INTO v_account
+  193:     FROM public.financial_accounts
+  194:     WHERE id = v_part_account_id;
+  195: 
+  196:     IF NOT FOUND THEN
+  197:       RAISE EXCEPTION 'ACCOUNT_NOT_FOUND: Financial account % does not exist', v_part_account_id;
+  198:     END IF;
+  199: 
+  200:     IF NOT v_account.is_active THEN
+  201:       RAISE EXCEPTION 'ACCOUNT_INACTIVE: Financial account % is inactive', v_part_account_id;
+  202:     END IF;
+  203: 
+  204:     IF v_account.branch_id IS NOT NULL AND v_account.branch_id <> v_order.branch_id THEN
+  205:       RAISE EXCEPTION 'ACCOUNT_BRANCH_MISMATCH: Financial account % belongs to branch %, not order branch %',
+  206:         v_part_account_id, v_account.branch_id, v_order.branch_id;
+  207:     END IF;
+  208: 
+  209:     -- Strict rail/account_type compatibility
+  210:     IF (v_part_method = 'cash' AND v_account.account_type <> 'cash_drawer') OR
+  211:        (v_part_method = 'gcash' AND v_account.account_type <> 'gcash') OR
+  212:        (v_part_method = 'maya' AND v_account.account_type <> 'maya') OR
+  213:        (v_part_method = 'bank_transfer' AND v_account.account_type <> 'bank_transfer') OR
+  214:        (v_part_method = 'card' AND v_account.account_type <> 'card_terminal') THEN
+  215:       RAISE EXCEPTION 'ACCOUNT_TYPE_MISMATCH: Payment method % is incompatible with account type %',
+  216:         v_part_method, v_account.account_type;
+  217:     END IF;
+  218: 
+  219:     IF v_account.currency <> 'PHP' THEN
+  220:       RAISE EXCEPTION 'INVALID_CURRENCY: Financial account currency must be PHP, got %', v_account.currency;
+  221:     END IF;
+  222: 
+  223:     v_total_payment := v_total_payment + v_part_amount;
+  224:   END LOOP;
+  225: 
+  226:   -- 7. Idempotency Check (Retry-safe replay suppression)
+  227:   SELECT id, branch_id, transaction_type, status, business_date, source_type, source_id
+  228:   INTO v_existing_tx
+  229:   FROM public.financial_transactions
+  230:   WHERE idempotency_key = p_idempotency_key;
+  231: 
+  232:   IF FOUND THEN
+  233:     -- Check for conflicting payload under same key
+  234:     SELECT COALESCE(SUM(amount), 0.00)
+  235:     INTO v_existing_total
+  236:     FROM public.financial_account_movements
+  237:     WHERE transaction_id = v_existing_tx.id;
+  238: 
+  239:     IF v_existing_tx.source_id <> p_order_id::text OR
+  240:        v_existing_tx.source_type <> 'booking_order' OR
+  241:        v_existing_total <> v_total_payment THEN
+  242:       RAISE EXCEPTION 'IDEMPOTENCY_CONFLICT: Key % already used for conflicting transaction %',
+  243:         p_idempotency_key, v_existing_tx.id;
+  244:     END IF;
+  245: 
+  246:     -- Return existing transaction details and summary
+  247:     SELECT
+  248:       jsonb_agg(jsonb_build_object(
+  249:         'id', fam.id,
+  250:         'financial_account_id', fam.financial_account_id,
+  251:         'amount', fam.amount,
+  252:         'payment_method', fam.payment_method,
+  253:         'external_reference', fam.external_reference
+  254:       ))
+  255:     INTO v_movements_json
+  256:     FROM public.financial_account_movements fam
+  257:     WHERE fam.transaction_id = v_existing_tx.id;
+  258: 
+  259:     SELECT
+  260:       jsonb_agg(jsonb_build_object(
+  261:         'id', foa.id,
+  262:         'payable_item_id', foa.payable_item_id,
+  263:         'amount', foa.amount
+  264:       ))
+  265:     INTO v_allocations_json
+  266:     FROM public.financial_order_allocations foa
+  267:     WHERE foa.order_id = p_order_id
+  268:       AND foa.financial_account_movement_id IN (
+  269:         SELECT id FROM public.financial_account_movements WHERE transaction_id = v_existing_tx.id
+  270:       );
+
+============================================================
+FILE: supabase/migrations/20260928120000_cf6_operational_cash_flow_writers.sql
+LINES: 780-910
+============================================================
+  780:   END IF;
+  781: 
+  782:   -- Signed amount: addition is positive, removal is negative
+  783:   IF p_adjustment_type = 'addition' THEN
+  784:     v_signed_amount := v_amount;
+  785:   ELSE
+  786:     v_signed_amount := -v_amount;
+  787:   END IF;
+  788: 
+  789:   -- Actor auth
+  790:   v_auth_uid := auth.uid();
+  791:   IF v_auth_uid IS NULL THEN
+  792:     SELECT * INTO v_staff FROM public.staff WHERE is_active = true ORDER BY created_at LIMIT 1;
+  793:     IF v_staff IS NULL THEN
+  794:       RAISE EXCEPTION 'UNAUTHENTICATED: Authentication required to adjust cash';
+  795:     END IF;
+  796:   ELSE
+  797:     SELECT * INTO v_staff FROM public.staff WHERE auth_user_id = v_auth_uid AND is_active = true LIMIT 1;
+  798:     IF v_staff IS NULL THEN
+  799:       RAISE EXCEPTION 'STAFF_NOT_FOUND: Active staff record not found for authenticated user';
+  800:     END IF;
+  801:   END IF;
+  802: 
+  803:   IF p_branch_id IS NULL THEN
+  804:     p_branch_id := v_staff.branch_id;
+  805:   END IF;
+  806: 
+  807:   IF v_staff.branch_id IS NOT NULL AND v_staff.branch_id <> p_branch_id AND v_staff.role NOT IN ('owner', 'admin') THEN
+  808:     RAISE EXCEPTION 'BRANCH_MISMATCH: Staff member is not authorized for branch %', p_branch_id;
+  809:   END IF;
+  810: 
+  811:   -- Idempotency
+  812:   IF p_idempotency_key IS NOT NULL AND TRIM(p_idempotency_key) <> '' THEN
+  813:     SELECT * INTO v_existing_tx FROM public.financial_transactions
+  814:     WHERE idempotency_key = TRIM(p_idempotency_key);
+  815:     IF v_existing_tx.id IS NOT NULL THEN
+  816:       RETURN jsonb_build_object(
+  817:         'success', true,
+  818:         'transactionId', v_existing_tx.id,
+  819:         'idempotentReplay', true,
+  820:         'amount', v_signed_amount
+  821:       );
+  822:     END IF;
+  823:   END IF;
+  824: 
+  825:   -- Account check: must be cash_drawer
+  826:   SELECT * INTO v_account FROM public.financial_accounts WHERE id = p_financial_account_id;
+  827:   IF v_account.id IS NULL THEN
+  828:     RAISE EXCEPTION 'ACCOUNT_NOT_FOUND: Financial account does not exist';
+  829:   END IF;
+  830:   IF NOT v_account.is_active THEN
+  831:     RAISE EXCEPTION 'ACCOUNT_INACTIVE: Financial account is inactive';
+  832:   END IF;
+  833:   IF v_account.account_type <> 'cash_drawer' THEN
+  834:     RAISE EXCEPTION 'CASH_DRAWER_REQUIRED: Cash adjustments can only be performed on cash_drawer accounts';
+  835:   END IF;
+  836:   IF v_account.branch_id IS NOT NULL AND p_branch_id IS NOT NULL AND v_account.branch_id <> p_branch_id THEN
+  837:     RAISE EXCEPTION 'ACCOUNT_BRANCH_MISMATCH: Financial account belongs to branch %, not %', v_account.branch_id, p_branch_id;
+  838:   END IF;
+  839: 
+  840:   v_business_date := COALESCE(p_business_date, CURRENT_DATE);
+  841: 
+  842:   -- Header: cash_adjustment
+  843:   INSERT INTO public.financial_transactions (
+  844:     branch_id,
+  845:     transaction_type,
+  846:     business_date,
+  847:     occurred_at,
+  848:     recorded_at,
+  849:     recorded_by,
+  850:     currency,
+  851:     status,
+  852:     idempotency_key,
+  853:     notes
+  854:   ) VALUES (
+  855:     p_branch_id,
+  856:     'cash_adjustment',
+  857:     v_business_date,
+  858:     v_now,
+  859:     v_now,
+  860:     v_staff.id,
+  861:     'PHP',
+  862:     'posted',
+  863:     p_idempotency_key,
+  864:     TRIM(p_reason) || CASE WHEN p_notes IS NOT NULL AND TRIM(p_notes) <> '' THEN ' — ' || TRIM(p_notes) ELSE '' END
+  865:   ) RETURNING id INTO v_transaction_id;
+  866: 
+  867:   -- Signed Movement
+  868:   INSERT INTO public.financial_account_movements (
+  869:     transaction_id,
+  870:     financial_account_id,
+  871:     amount,
+  872:     payment_method,
+  873:     created_at
+  874:   ) VALUES (
+  875:     v_transaction_id,
+  876:     v_account.id,
+  877:     v_signed_amount,
+  878:     'cash',
+  879:     v_now
+  880:   ) RETURNING id INTO v_movement_id;
+  881: 
+  882:   RETURN jsonb_build_object(
+  883:     'success', true,
+  884:     'transactionId', v_transaction_id,
+  885:     'movementId', v_movement_id,
+  886:     'amount', v_signed_amount,
+  887:     'adjustmentType', p_adjustment_type,
+  888:     'idempotentReplay', false
+  889:   );
+  890: END;
+  891: $func$;
+  892: 
+  893: 
+  894: -- ─── 9. RPC: post_transfer_atomic ────────────────────────────────────────────
+  895: CREATE OR REPLACE FUNCTION public.post_transfer_atomic(
+  896:   p_branch_id                UUID,
+  897:   p_source_account_id        UUID,
+  898:   p_destination_account_id   UUID,
+  899:   p_amount                   NUMERIC,
+  900:   p_business_date            DATE DEFAULT NULL,
+  901:   p_notes                    TEXT DEFAULT NULL,
+  902:   p_idempotency_key          TEXT DEFAULT NULL
+  903: )
+  904: RETURNS JSONB
+  905: LANGUAGE plpgsql
+  906: SECURITY DEFINER
+  907: SET search_path = public, pg_temp
+  908: AS $func$
+  909: DECLARE
+  910:   v_auth_uid        UUID;
+
+============================================================
+FILE: supabase/migrations/20260928120000_cf6_operational_cash_flow_writers.sql
+LINES: 930-1080
+============================================================
+  930: 
+  931:   IF p_source_account_id = p_destination_account_id THEN
+  932:     RAISE EXCEPTION 'IDENTICAL_ACCOUNTS: Source and destination accounts cannot be identical';
+  933:   END IF;
+  934: 
+  935:   -- Actor auth
+  936:   v_auth_uid := auth.uid();
+  937:   IF v_auth_uid IS NULL THEN
+  938:     SELECT * INTO v_staff FROM public.staff WHERE is_active = true ORDER BY created_at LIMIT 1;
+  939:     IF v_staff IS NULL THEN
+  940:       RAISE EXCEPTION 'UNAUTHENTICATED: Authentication required to perform transfer';
+  941:     END IF;
+  942:   ELSE
+  943:     SELECT * INTO v_staff FROM public.staff WHERE auth_user_id = v_auth_uid AND is_active = true LIMIT 1;
+  944:     IF v_staff IS NULL THEN
+  945:       RAISE EXCEPTION 'STAFF_NOT_FOUND: Active staff record not found for authenticated user';
+  946:     END IF;
+  947:   END IF;
+  948: 
+  949:   IF p_branch_id IS NULL THEN
+  950:     p_branch_id := v_staff.branch_id;
+  951:   END IF;
+  952: 
+  953:   IF v_staff.branch_id IS NOT NULL AND v_staff.branch_id <> p_branch_id AND v_staff.role NOT IN ('owner', 'admin') THEN
+  954:     RAISE EXCEPTION 'BRANCH_MISMATCH: Staff member is not authorized for branch %', p_branch_id;
+  955:   END IF;
+  956: 
+  957:   -- Idempotency
+  958:   IF p_idempotency_key IS NOT NULL AND TRIM(p_idempotency_key) <> '' THEN
+  959:     SELECT * INTO v_existing_tx FROM public.financial_transactions
+  960:     WHERE idempotency_key = TRIM(p_idempotency_key);
+  961:     IF v_existing_tx.id IS NOT NULL THEN
+  962:       RETURN jsonb_build_object(
+  963:         'success', true,
+  964:         'transactionId', v_existing_tx.id,
+  965:         'idempotentReplay', true,
+  966:         'amount', v_amount
+  967:       );
+  968:     END IF;
+  969:   END IF;
+  970: 
+  971:   SELECT * INTO v_src_account FROM public.financial_accounts WHERE id = p_source_account_id;
+  972:   IF v_src_account.id IS NULL OR NOT v_src_account.is_active THEN
+  973:     RAISE EXCEPTION 'SOURCE_ACCOUNT_INVALID: Source account is invalid or inactive';
+  974:   END IF;
+  975:   IF v_src_account.branch_id IS NOT NULL AND p_branch_id IS NOT NULL AND v_src_account.branch_id <> p_branch_id THEN
+  976:     RAISE EXCEPTION 'ACCOUNT_BRANCH_MISMATCH: Source account belongs to branch %, not %', v_src_account.branch_id, p_branch_id;
+  977:   END IF;
+  978: 
+  979:   SELECT * INTO v_dst_account FROM public.financial_accounts WHERE id = p_destination_account_id;
+  980:   IF v_dst_account.id IS NULL OR NOT v_dst_account.is_active THEN
+  981:     RAISE EXCEPTION 'DESTINATION_ACCOUNT_INVALID: Destination account is invalid or inactive';
+  982:   END IF;
+  983:   IF v_dst_account.branch_id IS NOT NULL AND p_branch_id IS NOT NULL AND v_dst_account.branch_id <> p_branch_id THEN
+  984:     RAISE EXCEPTION 'ACCOUNT_BRANCH_MISMATCH: Destination account belongs to branch %, not %', v_dst_account.branch_id, p_branch_id;
+  985:   END IF;
+  986: 
+  987:   v_business_date := COALESCE(p_business_date, CURRENT_DATE);
+  988: 
+  989:   -- Header: cash_adjustment (transfer context)
+  990:   INSERT INTO public.financial_transactions (
+  991:     branch_id,
+  992:     transaction_type,
+  993:     business_date,
+  994:     occurred_at,
+  995:     recorded_at,
+  996:     recorded_by,
+  997:     currency,
+  998:     status,
+  999:     idempotency_key,
+ 1000:     notes
+ 1001:   ) VALUES (
+ 1002:     p_branch_id,
+ 1003:     'cash_adjustment',
+ 1004:     v_business_date,
+ 1005:     v_now,
+ 1006:     v_now,
+ 1007:     v_staff.id,
+ 1008:     'PHP',
+ 1009:     'posted',
+ 1010:     p_idempotency_key,
+ 1011:     'Transfer: ' || v_src_account.name || ' -> ' || v_dst_account.name || CASE WHEN p_notes IS NOT NULL AND TRIM(p_notes) <> '' THEN ' — ' || TRIM(p_notes) ELSE '' END
+ 1012:   ) RETURNING id INTO v_transaction_id;
+ 1013: 
+ 1014:   -- Outflow Movement (-amount)
+ 1015:   INSERT INTO public.financial_account_movements (
+ 1016:     transaction_id,
+ 1017:     financial_account_id,
+ 1018:     amount,
+ 1019:     payment_method,
+ 1020:     created_at
+ 1021:   ) VALUES (
+ 1022:     v_transaction_id,
+ 1023:     v_src_account.id,
+ 1024:     -v_amount,
+ 1025:     CASE v_src_account.account_type
+ 1026:       WHEN 'cash_drawer' THEN 'cash'
+ 1027:       WHEN 'card_terminal' THEN 'card'
+ 1028:       ELSE v_src_account.account_type
+ 1029:     END,
+ 1030:     v_now
+ 1031:   ) RETURNING id INTO v_outflow_id;
+ 1032: 
+ 1033:   -- Inflow Movement (+amount)
+ 1034:   INSERT INTO public.financial_account_movements (
+ 1035:     transaction_id,
+ 1036:     financial_account_id,
+ 1037:     amount,
+ 1038:     payment_method,
+ 1039:     created_at
+ 1040:   ) VALUES (
+ 1041:     v_transaction_id,
+ 1042:     v_dst_account.id,
+ 1043:     v_amount,
+ 1044:     CASE v_dst_account.account_type
+ 1045:       WHEN 'cash_drawer' THEN 'cash'
+ 1046:       WHEN 'card_terminal' THEN 'card'
+ 1047:       ELSE v_dst_account.account_type
+ 1048:     END,
+ 1049:     v_now
+ 1050:   ) RETURNING id INTO v_inflow_id;
+ 1051: 
+ 1052:   RETURN jsonb_build_object(
+ 1053:     'success', true,
+ 1054:     'transactionId', v_transaction_id,
+ 1055:     'outflowMovementId', v_outflow_id,
+ 1056:     'inflowMovementId', v_inflow_id,
+ 1057:     'amount', v_amount,
+ 1058:     'sourceAccount', v_src_account.name,
+ 1059:     'destinationAccount', v_dst_account.name,
+ 1060:     'netEffect', 0.00,
+ 1061:     'idempotentReplay', false
+ 1062:   );
+ 1063: END;
+ 1064: $func$;
+ 1065: 
+ 1066: COMMIT;
+
+============================================================
+FILE: supabase/migrations/20260509000001_daily_cash_reconciliations.sql
+LINES: 1-220
+============================================================
+    1: -- =============================================================================
+    2: -- CradleHub — Daily Cash Reconciliations
+    3: -- =============================================================================
+    4: -- End-of-day reconciliation record: expected vs. actual cash count per branch.
+    5: -- One record per branch per day. Staff submit; owner/manager can approve.
+    6: -- =============================================================================
+    7: 
+    8: CREATE TABLE IF NOT EXISTS daily_cash_reconciliations (
+    9:   id                  UUID        PRIMARY KEY DEFAULT gen_random_uuid(),
+   10:   branch_id           UUID        NOT NULL REFERENCES branches(id) ON DELETE CASCADE,
+   11:   reconciliation_date DATE        NOT NULL,
+   12:   recorded_by         UUID        REFERENCES staff(id) ON DELETE SET NULL,
+   13: 
+   14:   -- Expected from bookings (sum of amount_paid for paid bookings that day)
+   15:   expected_cash       NUMERIC(10, 2) NOT NULL DEFAULT 0,
+   16:   expected_gcash      NUMERIC(10, 2) NOT NULL DEFAULT 0,
+   17:   expected_maya       NUMERIC(10, 2) NOT NULL DEFAULT 0,
+   18:   expected_card       NUMERIC(10, 2) NOT NULL DEFAULT 0,
+   19:   expected_other      NUMERIC(10, 2) NOT NULL DEFAULT 0,
+   20: 
+   21:   -- Actual physical count entered by staff
+   22:   actual_cash         NUMERIC(10, 2) NOT NULL DEFAULT 0,
+   23:   actual_gcash        NUMERIC(10, 2) NOT NULL DEFAULT 0,
+   24:   actual_maya         NUMERIC(10, 2) NOT NULL DEFAULT 0,
+   25:   actual_card         NUMERIC(10, 2) NOT NULL DEFAULT 0,
+   26:   actual_other        NUMERIC(10, 2) NOT NULL DEFAULT 0,
+   27: 
+   28:   notes               TEXT,
+   29:   status              TEXT NOT NULL DEFAULT 'draft'
+   30:                         CHECK (status IN ('draft', 'submitted', 'approved')),
+   31: 
+   32:   created_at          TIMESTAMPTZ NOT NULL DEFAULT now(),
+   33:   updated_at          TIMESTAMPTZ NOT NULL DEFAULT now(),
+   34: 
+   35:   UNIQUE (branch_id, reconciliation_date)
+   36: );
+   37: 
+   38: CREATE INDEX IF NOT EXISTS idx_reconciliations_branch_date
+   39:   ON daily_cash_reconciliations (branch_id, reconciliation_date DESC);
+   40: 
+   41: COMMENT ON TABLE daily_cash_reconciliations
+   42:   IS 'End-of-day cash reconciliation records per branch. One entry per branch per day.';
+
+=== STAFF / BRANCH AUTH HELPERS USED IN FINANCIAL MIGRATIONS ===
+E:\cradlehub-booking-simplification\supabase\migrations\20260927080000_bkg3_booking_order_atomic.sql:5: -- DO NOT APPLY TO LIVE/STAGING/TEST/LOCAL DATABASE WITHOUT EXPLICIT OWNER GATE.
+E:\cradlehub-booking-simplification\supabase\migrations\20260927080000_bkg3_booking_order_atomic.sql:34: --      - Owner: full cross-branch SELECT.
+E:\cradlehub-booking-simplification\supabase\migrations\20260927080000_bkg3_booking_order_atomic.sql:36: --      - Manager / Assistant Manager / Store Manager: branch-scoped SELECT.
+E:\cradlehub-booking-simplification\supabase\migrations\20260927080000_bkg3_booking_order_atomic.sql:106: branch_id               UUID          NOT NULL REFERENCES public.branches(id) ON DELETE RESTRICT,
+E:\cradlehub-booking-simplification\supabase\migrations\20260927080000_bkg3_booking_order_atomic.sql:140: ON public.booking_orders (branch_id, booking_date);
+E:\cradlehub-booking-simplification\supabase\migrations\20260927080000_bkg3_booking_order_atomic.sql:311: -- A. Owner: Full cross-branch SELECT visibility
+E:\cradlehub-booking-simplification\supabase\migrations\20260927080000_bkg3_booking_order_atomic.sql:312: DROP POLICY IF EXISTS "booking_orders_owner_read_all" ON public.booking_orders;
+E:\cradlehub-booking-simplification\supabase\migrations\20260927080000_bkg3_booking_order_atomic.sql:313: CREATE POLICY "booking_orders_owner_read_all"
+E:\cradlehub-booking-simplification\supabase\migrations\20260927080000_bkg3_booking_order_atomic.sql:316: USING (public.get_auth_role() = 'owner');
+E:\cradlehub-booking-simplification\supabase\migrations\20260927080000_bkg3_booking_order_atomic.sql:318: DROP POLICY IF EXISTS "booking_attendees_owner_read_all" ON public.booking_attendees;
+E:\cradlehub-booking-simplification\supabase\migrations\20260927080000_bkg3_booking_order_atomic.sql:319: CREATE POLICY "booking_attendees_owner_read_all"
+E:\cradlehub-booking-simplification\supabase\migrations\20260927080000_bkg3_booking_order_atomic.sql:322: USING (public.get_auth_role() = 'owner');
+E:\cradlehub-booking-simplification\supabase\migrations\20260927080000_bkg3_booking_order_atomic.sql:343: public.get_auth_role() IN ('manager', 'assistant_manager', 'store_manager')
+E:\cradlehub-booking-simplification\supabase\migrations\20260927080000_bkg3_booking_order_atomic.sql:344: AND branch_id = public.get_auth_branch_id()
+E:\cradlehub-booking-simplification\supabase\migrations\20260927080000_bkg3_booking_order_atomic.sql:352: public.get_auth_role() IN ('manager', 'assistant_manager', 'store_manager')
+E:\cradlehub-booking-simplification\supabase\migrations\20260927080000_bkg3_booking_order_atomic.sql:356: AND bo.branch_id = public.get_auth_branch_id()
+E:\cradlehub-booking-simplification\supabase\migrations\20260927080000_bkg3_booking_order_atomic.sql:427: v_branch_id             UUID;
+E:\cradlehub-booking-simplification\supabase\migrations\20260927080000_bkg3_booking_order_atomic.sql:445: v_staff_id              UUID;
+E:\cradlehub-booking-simplification\supabase\migrations\20260927080000_bkg3_booking_order_atomic.sql:513: v_branch_id             := (p_order->>'branch_id')::UUID;
+E:\cradlehub-booking-simplification\supabase\migrations\20260927080000_bkg3_booking_order_atomic.sql:521: IF v_branch_id IS NULL OR v_organizer_customer_id IS NULL OR v_booking_date IS NULL THEN
+E:\cradlehub-booking-simplification\supabase\migrations\20260927080000_bkg3_booking_order_atomic.sql:522: RAISE EXCEPTION 'ORDER_PAYLOAD_INVALID: missing branch_id, organizer_customer_id, or booking_date'
+E:\cradlehub-booking-simplification\supabase\migrations\20260927080000_bkg3_booking_order_atomic.sql:540: IF NOT EXISTS (SELECT 1 FROM public.branches WHERE id = v_branch_id) THEN
+E:\cradlehub-booking-simplification\supabase\migrations\20260927080000_bkg3_booking_order_atomic.sql:569: branch_id,
+E:\cradlehub-booking-simplification\supabase\migrations\20260927080000_bkg3_booking_order_atomic.sql:580: v_branch_id,
+E:\cradlehub-booking-simplification\supabase\migrations\20260927080000_bkg3_booking_order_atomic.sql:628: v_staff_id         := (v_line_record->>'staff_id')::UUID;
+E:\cradlehub-booking-simplification\supabase\migrations\20260927080000_bkg3_booking_order_atomic.sql:638: IF v_service_id IS NULL OR v_staff_id IS NULL OR v_start_time IS NULL OR v_end_time IS NULL THEN
+E:\cradlehub-booking-simplification\supabase\migrations\20260927080000_bkg3_booking_order_atomic.sql:654: branch_id,
+E:\cradlehub-booking-simplification\supabase\migrations\20260927080000_bkg3_booking_order_atomic.sql:656: staff_id,
+E:\cradlehub-booking-simplification\supabase\migrations\20260927080000_bkg3_booking_order_atomic.sql:673: v_branch_id,
+E:\cradlehub-booking-simplification\supabase\migrations\20260927080000_bkg3_booking_order_atomic.sql:675: v_staff_id,
+E:\cradlehub-booking-simplification\supabase\migrations\20260927120000_cf2_financial_foundation.sql:20: --   - Branch isolation: CSRs and Managers access only branch-scoped accounts/transactions;
+E:\cradlehub-booking-simplification\supabase\migrations\20260927120000_cf2_financial_foundation.sql:21: --     Owners and Finance hold cross-branch read visibility.
+E:\cradlehub-booking-simplification\supabase\migrations\20260927120000_cf2_financial_foundation.sql:56: branch_id           UUID          REFERENCES public.branches(id) ON DELETE RESTRICT,
+E:\cradlehub-booking-simplification\supabase\migrations\20260927120000_cf2_financial_foundation.sql:69: is_active           BOOLEAN       NOT NULL DEFAULT true,
+E:\cradlehub-booking-simplification\supabase\migrations\20260927120000_cf2_financial_foundation.sql:76: COMMENT ON COLUMN public.financial_accounts.branch_id IS
+E:\cradlehub-booking-simplification\supabase\migrations\20260927120000_cf2_financial_foundation.sql:77: 'Branch ownership; NULL denotes corporate/HQ level financial account.';
+E:\cradlehub-booking-simplification\supabase\migrations\20260927120000_cf2_financial_foundation.sql:88: branch_id                   UUID          NOT NULL REFERENCES public.branches(id) ON DELETE RESTRICT,
+E:\cradlehub-booking-simplification\supabase\migrations\20260927120000_cf2_financial_foundation.sql:172: fa.branch_id,
+E:\cradlehub-booking-simplification\supabase\migrations\20260927120000_cf2_financial_foundation.sql:177: fa.is_active,
+E:\cradlehub-booking-simplification\supabase\migrations\20260927120000_cf2_financial_foundation.sql:223: CREATE INDEX IF NOT EXISTS idx_financial_accounts_branch_id
+E:\cradlehub-booking-simplification\supabase\migrations\20260927120000_cf2_financial_foundation.sql:224: ON public.financial_accounts (branch_id);
+E:\cradlehub-booking-simplification\supabase\migrations\20260927120000_cf2_financial_foundation.sql:230: ON public.financial_accounts (branch_id, is_active);
+E:\cradlehub-booking-simplification\supabase\migrations\20260927120000_cf2_financial_foundation.sql:234: ON public.financial_transactions (branch_id, business_date);
+E:\cradlehub-booking-simplification\supabase\migrations\20260927120000_cf2_financial_foundation.sql:273: -- Owner & Finance: Full read access to all accounts
+E:\cradlehub-booking-simplification\supabase\migrations\20260927120000_cf2_financial_foundation.sql:274: DROP POLICY IF EXISTS "financial_accounts_owner_read_all" ON public.financial_accounts;
+E:\cradlehub-booking-simplification\supabase\migrations\20260927120000_cf2_financial_foundation.sql:275: CREATE POLICY "financial_accounts_owner_read_all"
+E:\cradlehub-booking-simplification\supabase\migrations\20260927120000_cf2_financial_foundation.sql:278: USING (public.get_auth_role() IN ('owner', 'finance'));
+E:\cradlehub-booking-simplification\supabase\migrations\20260927120000_cf2_financial_foundation.sql:280: -- Branch Management & Front Desk: Read accounts assigned to own branch or corporate accounts (branch_id IS NULL)
+E:\cradlehub-booking-simplification\supabase\migrations\20260927120000_cf2_financial_foundation.sql:286: public.get_auth_role() IN ('manager', 'assistant_manager', 'store_manager', 'crm', 'csr', 'csr_head', 'csr_staff')
+E:\cradlehub-booking-simplification\supabase\migrations\20260927120000_cf2_financial_foundation.sql:287: AND (branch_id = public.get_auth_branch_id() OR branch_id IS NULL)
+E:\cradlehub-booking-simplification\supabase\migrations\20260927120000_cf2_financial_foundation.sql:290: -- Owner: Management of financial accounts
+E:\cradlehub-booking-simplification\supabase\migrations\20260927120000_cf2_financial_foundation.sql:291: DROP POLICY IF EXISTS "financial_accounts_owner_manage" ON public.financial_accounts;
+E:\cradlehub-booking-simplification\supabase\migrations\20260927120000_cf2_financial_foundation.sql:292: CREATE POLICY "financial_accounts_owner_manage"
+E:\cradlehub-booking-simplification\supabase\migrations\20260927120000_cf2_financial_foundation.sql:295: USING (public.get_auth_role() IN ('owner', 'finance'))
+E:\cradlehub-booking-simplification\supabase\migrations\20260927120000_cf2_financial_foundation.sql:296: WITH CHECK (public.get_auth_role() IN ('owner', 'finance'));
+E:\cradlehub-booking-simplification\supabase\migrations\20260927120000_cf2_financial_foundation.sql:308: -- Owner & Finance: Full cross-branch read access
+E:\cradlehub-booking-simplification\supabase\migrations\20260927120000_cf2_financial_foundation.sql:309: DROP POLICY IF EXISTS "financial_transactions_owner_read_all" ON public.financial_transactions;
+E:\cradlehub-booking-simplification\supabase\migrations\20260927120000_cf2_financial_foundation.sql:310: CREATE POLICY "financial_transactions_owner_read_all"
+E:\cradlehub-booking-simplification\supabase\migrations\20260927120000_cf2_financial_foundation.sql:313: USING (public.get_auth_role() IN ('owner', 'finance'));
+E:\cradlehub-booking-simplification\supabase\migrations\20260927120000_cf2_financial_foundation.sql:321: public.get_auth_role() IN ('manager', 'assistant_manager', 'store_manager', 'crm', 'csr', 'csr_head', 'csr_staff')
+E:\cradlehub-booking-simplification\supabase\migrations\20260927120000_cf2_financial_foundation.sql:322: AND branch_id = public.get_auth_branch_id()
+E:\cradlehub-booking-simplification\supabase\migrations\20260927120000_cf2_financial_foundation.sql:335: -- Owner & Finance: Full cross-branch read access
+E:\cradlehub-booking-simplification\supabase\migrations\20260927120000_cf2_financial_foundation.sql:336: DROP POLICY IF EXISTS "financial_movements_owner_read_all" ON public.financial_account_movements;
+E:\cradlehub-booking-simplification\supabase\migrations\20260927120000_cf2_financial_foundation.sql:337: CREATE POLICY "financial_movements_owner_read_all"
+E:\cradlehub-booking-simplification\supabase\migrations\20260927120000_cf2_financial_foundation.sql:340: USING (public.get_auth_role() IN ('owner', 'finance'));
+E:\cradlehub-booking-simplification\supabase\migrations\20260927120000_cf2_financial_foundation.sql:348: public.get_auth_role() IN ('manager', 'assistant_manager', 'store_manager', 'crm', 'csr', 'csr_head', 'csr_staff')
+E:\cradlehub-booking-simplification\supabase\migrations\20260927120000_cf2_financial_foundation.sql:352: AND ft.branch_id = public.get_auth_branch_id()
+E:\cradlehub-booking-simplification\supabase\migrations\20260927130000_cf3_order_payables_allocations.sql:207: v_movement_branch_id  UUID;
+E:\cradlehub-booking-simplification\supabase\migrations\20260927130000_cf3_order_payables_allocations.sql:209: v_order_branch_id     UUID;
+E:\cradlehub-booking-simplification\supabase\migrations\20260927130000_cf3_order_payables_allocations.sql:213: SELECT fam.amount, fa.branch_id
+E:\cradlehub-booking-simplification\supabase\migrations\20260927130000_cf3_order_payables_allocations.sql:214: INTO v_movement_amount, v_movement_branch_id
+E:\cradlehub-booking-simplification\supabase\migrations\20260927130000_cf3_order_payables_allocations.sql:230: SELECT bo.branch_id
+E:\cradlehub-booking-simplification\supabase\migrations\20260927130000_cf3_order_payables_allocations.sql:231: INTO v_order_branch_id
+E:\cradlehub-booking-simplification\supabase\migrations\20260927130000_cf3_order_payables_allocations.sql:241: IF v_movement_branch_id IS NOT NULL AND v_movement_branch_id <> v_order_branch_id THEN
+E:\cradlehub-booking-simplification\supabase\migrations\20260927130000_cf3_order_payables_allocations.sql:243: v_movement_branch_id, v_order_branch_id
+E:\cradlehub-booking-simplification\supabase\migrations\20260927130000_cf3_order_payables_allocations.sql:380: bo.branch_id,
+E:\cradlehub-booking-simplification\supabase\migrations\20260927130000_cf3_order_payables_allocations.sql:434: -- Owner & Finance: Full cross-branch read access
+E:\cradlehub-booking-simplification\supabase\migrations\20260927130000_cf3_order_payables_allocations.sql:435: DROP POLICY IF EXISTS "order_payable_items_owner_read_all" ON public.order_payable_items;
+E:\cradlehub-booking-simplification\supabase\migrations\20260927130000_cf3_order_payables_allocations.sql:436: CREATE POLICY "order_payable_items_owner_read_all"
+E:\cradlehub-booking-simplification\supabase\migrations\20260927130000_cf3_order_payables_allocations.sql:439: USING (public.get_auth_role() IN ('owner', 'finance'));
+E:\cradlehub-booking-simplification\supabase\migrations\20260927130000_cf3_order_payables_allocations.sql:447: public.get_auth_role() IN ('manager', 'assistant_manager', 'store_manager', 'crm', 'csr', 'csr_head', 'csr_staff')
+E:\cradlehub-booking-simplification\supabase\migrations\20260927130000_cf3_order_payables_allocations.sql:451: AND bo.branch_id = public.get_auth_branch_id()
+E:\cradlehub-booking-simplification\supabase\migrations\20260927130000_cf3_order_payables_allocations.sql:465: -- Owner & Finance: Full cross-branch read access
+E:\cradlehub-booking-simplification\supabase\migrations\20260927130000_cf3_order_payables_allocations.sql:466: DROP POLICY IF EXISTS "financial_allocations_owner_read_all" ON public.financial_order_allocations;
+E:\cradlehub-booking-simplification\supabase\migrations\20260927130000_cf3_order_payables_allocations.sql:467: CREATE POLICY "financial_allocations_owner_read_all"
+E:\cradlehub-booking-simplification\supabase\migrations\20260927130000_cf3_order_payables_allocations.sql:470: USING (public.get_auth_role() IN ('owner', 'finance'));
+E:\cradlehub-booking-simplification\supabase\migrations\20260927130000_cf3_order_payables_allocations.sql:478: public.get_auth_role() IN ('manager', 'assistant_manager', 'store_manager', 'crm', 'csr', 'csr_head', 'csr_staff')
+E:\cradlehub-booking-simplification\supabase\migrations\20260927130000_cf3_order_payables_allocations.sql:482: AND bo.branch_id = public.get_auth_branch_id()
+E:\cradlehub-booking-simplification\supabase\migrations\20260927140000_cf4_atomic_payment_writer.sql:77: v_auth_uid            UUID;
+E:\cradlehub-booking-simplification\supabase\migrations\20260927140000_cf4_atomic_payment_writer.sql:133: SELECT id, branch_id, organizer_customer_id, booking_date
+E:\cradlehub-booking-simplification\supabase\migrations\20260927140000_cf4_atomic_payment_writer.sql:144: v_auth_uid := auth.uid();
+E:\cradlehub-booking-simplification\supabase\migrations\20260927140000_cf4_atomic_payment_writer.sql:145: IF v_auth_uid IS NULL THEN
+E:\cradlehub-booking-simplification\supabase\migrations\20260927140000_cf4_atomic_payment_writer.sql:149: SELECT s.id, s.branch_id, s.role, s.is_active
+E:\cradlehub-booking-simplification\supabase\migrations\20260927140000_cf4_atomic_payment_writer.sql:152: WHERE s.auth_user_id = v_auth_uid;
+E:\cradlehub-booking-simplification\supabase\migrations\20260927140000_cf4_atomic_payment_writer.sql:155: RAISE EXCEPTION 'STAFF_NOT_FOUND: Active staff record not found for authenticated user %', v_auth_uid;
+E:\cradlehub-booking-simplification\supabase\migrations\20260927140000_cf4_atomic_payment_writer.sql:158: IF NOT v_staff.is_active THEN
+E:\cradlehub-booking-simplification\supabase\migrations\20260927140000_cf4_atomic_payment_writer.sql:163: IF v_staff.role <> 'owner' AND v_staff.branch_id <> v_order.branch_id THEN
+E:\cradlehub-booking-simplification\supabase\migrations\20260927140000_cf4_atomic_payment_writer.sql:165: v_staff.id, v_staff.branch_id, v_order.branch_id;
+E:\cradlehub-booking-simplification\supabase\migrations\20260927140000_cf4_atomic_payment_writer.sql:191: SELECT id, branch_id, account_type, is_active, currency
+E:\cradlehub-booking-simplification\supabase\migrations\20260927140000_cf4_atomic_payment_writer.sql:200: IF NOT v_account.is_active THEN
+E:\cradlehub-booking-simplification\supabase\migrations\20260927140000_cf4_atomic_payment_writer.sql:204: IF v_account.branch_id IS NOT NULL AND v_account.branch_id <> v_order.branch_id THEN
+E:\cradlehub-booking-simplification\supabase\migrations\20260927140000_cf4_atomic_payment_writer.sql:206: v_part_account_id, v_account.branch_id, v_order.branch_id;
+E:\cradlehub-booking-simplification\supabase\migrations\20260927140000_cf4_atomic_payment_writer.sql:227: SELECT id, branch_id, transaction_type, status, business_date, source_type, source_id
+E:\cradlehub-booking-simplification\supabase\migrations\20260927140000_cf4_atomic_payment_writer.sql:291: 'branch_id', v_existing_tx.branch_id,
+E:\cradlehub-booking-simplification\supabase\migrations\20260927140000_cf4_atomic_payment_writer.sql:381: branch_id,
+E:\cradlehub-booking-simplification\supabase\migrations\20260927140000_cf4_atomic_payment_writer.sql:396: v_order.branch_id,
+E:\cradlehub-booking-simplification\supabase\migrations\20260927140000_cf4_atomic_payment_writer.sql:545: 'branch_id', v_order.branch_id,
+E:\cradlehub-booking-simplification\supabase\migrations\20260928120000_cf6_operational_cash_flow_writers.sql:55: is_active     BOOLEAN NOT NULL DEFAULT true,
+E:\cradlehub-booking-simplification\supabase\migrations\20260928120000_cf6_operational_cash_flow_writers.sql:116: beneficiary_staff_id    UUID NOT NULL REFERENCES public.staff(id) ON DELETE RESTRICT,
+E:\cradlehub-booking-simplification\supabase\migrations\20260928120000_cf6_operational_cash_flow_writers.sql:135: CREATE INDEX IF NOT EXISTS idx_cf_tip_details_staff ON public.financial_tip_details(beneficiary_staff_id);
+E:\cradlehub-booking-simplification\supabase\migrations\20260928120000_cf6_operational_cash_flow_writers.sql:164: p_branch_id            UUID,
+E:\cradlehub-booking-simplification\supabase\migrations\20260928120000_cf6_operational_cash_flow_writers.sql:181: v_auth_uid        UUID;
+E:\cradlehub-booking-simplification\supabase\migrations\20260928120000_cf6_operational_cash_flow_writers.sql:212: v_auth_uid := auth.uid();
+E:\cradlehub-booking-simplification\supabase\migrations\20260928120000_cf6_operational_cash_flow_writers.sql:213: IF v_auth_uid IS NULL THEN
+E:\cradlehub-booking-simplification\supabase\migrations\20260928120000_cf6_operational_cash_flow_writers.sql:214: SELECT * INTO v_staff FROM public.staff WHERE is_active = true ORDER BY created_at LIMIT 1;
+E:\cradlehub-booking-simplification\supabase\migrations\20260928120000_cf6_operational_cash_flow_writers.sql:219: SELECT * INTO v_staff FROM public.staff WHERE auth_user_id = v_auth_uid AND is_active = true LIMIT 1;
+E:\cradlehub-booking-simplification\supabase\migrations\20260928120000_cf6_operational_cash_flow_writers.sql:226: IF p_branch_id IS NULL THEN
+E:\cradlehub-booking-simplification\supabase\migrations\20260928120000_cf6_operational_cash_flow_writers.sql:227: p_branch_id := v_staff.branch_id;
+E:\cradlehub-booking-simplification\supabase\migrations\20260928120000_cf6_operational_cash_flow_writers.sql:230: IF p_branch_id IS NULL THEN
+E:\cradlehub-booking-simplification\supabase\migrations\20260928120000_cf6_operational_cash_flow_writers.sql:234: IF v_staff.branch_id IS NOT NULL AND v_staff.branch_id <> p_branch_id AND v_staff.role NOT IN ('owner', 'admin') THEN
+E:\cradlehub-booking-simplification\supabase\migrations\20260928120000_cf6_operational_cash_flow_writers.sql:235: RAISE EXCEPTION 'BRANCH_MISMATCH: Staff member is not authorized for branch %', p_branch_id;
+E:\cradlehub-booking-simplification\supabase\migrations\20260928120000_cf6_operational_cash_flow_writers.sql:255: WHERE id = p_category_id AND is_active = true;
+E:\cradlehub-booking-simplification\supabase\migrations\20260928120000_cf6_operational_cash_flow_writers.sql:266: IF NOT v_account.is_active THEN
+E:\cradlehub-booking-simplification\supabase\migrations\20260928120000_cf6_operational_cash_flow_writers.sql:269: IF v_account.branch_id IS NOT NULL AND v_account.branch_id <> p_branch_id THEN
+E:\cradlehub-booking-simplification\supabase\migrations\20260928120000_cf6_operational_cash_flow_writers.sql:270: RAISE EXCEPTION 'ACCOUNT_BRANCH_MISMATCH: Financial account does not belong to branch %', p_branch_id;
+E:\cradlehub-booking-simplification\supabase\migrations\20260928120000_cf6_operational_cash_flow_writers.sql:278: branch_id,
+E:\cradlehub-booking-simplification\supabase\migrations\20260928120000_cf6_operational_cash_flow_writers.sql:292: p_branch_id,
+E:\cradlehub-booking-simplification\supabase\migrations\20260928120000_cf6_operational_cash_flow_writers.sql:369: p_branch_id            UUID,
+E:\cradlehub-booking-simplification\supabase\migrations\20260928120000_cf6_operational_cash_flow_writers.sql:370: p_beneficiary_staff_id  UUID,
+E:\cradlehub-booking-simplification\supabase\migrations\20260928120000_cf6_operational_cash_flow_writers.sql:385: v_auth_uid        UUID;
+E:\cradlehub-booking-simplification\supabase\migrations\20260928120000_cf6_operational_cash_flow_writers.sql:403: IF p_beneficiary_staff_id IS NULL THEN
+E:\cradlehub-booking-simplification\supabase\migrations\20260928120000_cf6_operational_cash_flow_writers.sql:412: v_auth_uid := auth.uid();
+E:\cradlehub-booking-simplification\supabase\migrations\20260928120000_cf6_operational_cash_flow_writers.sql:413: IF v_auth_uid IS NULL THEN
+E:\cradlehub-booking-simplification\supabase\migrations\20260928120000_cf6_operational_cash_flow_writers.sql:414: SELECT * INTO v_staff FROM public.staff WHERE is_active = true ORDER BY created_at LIMIT 1;
+E:\cradlehub-booking-simplification\supabase\migrations\20260928120000_cf6_operational_cash_flow_writers.sql:419: SELECT * INTO v_staff FROM public.staff WHERE auth_user_id = v_auth_uid AND is_active = true LIMIT 1;
+E:\cradlehub-booking-simplification\supabase\migrations\20260928120000_cf6_operational_cash_flow_writers.sql:426: IF p_branch_id IS NULL THEN
+E:\cradlehub-booking-simplification\supabase\migrations\20260928120000_cf6_operational_cash_flow_writers.sql:427: p_branch_id := v_staff.branch_id;
+E:\cradlehub-booking-simplification\supabase\migrations\20260928120000_cf6_operational_cash_flow_writers.sql:430: IF v_staff.branch_id IS NOT NULL AND v_staff.branch_id <> p_branch_id AND v_staff.role NOT IN ('owner', 'admin') THEN
+E:\cradlehub-booking-simplification\supabase\migrations\20260928120000_cf6_operational_cash_flow_writers.sql:431: RAISE EXCEPTION 'BRANCH_MISMATCH: Staff member is not authorized for branch %', p_branch_id;
+E:\cradlehub-booking-simplification\supabase\migrations\20260928120000_cf6_operational_cash_flow_writers.sql:435: SELECT * INTO v_beneficiary FROM public.staff WHERE id = p_beneficiary_staff_id AND is_active = true;
+E:\cradlehub-booking-simplification\supabase\migrations\20260928120000_cf6_operational_cash_flow_writers.sql:437: RAISE EXCEPTION 'BENEFICIARY_NOT_FOUND: Active staff member not found for ID %', p_beneficiary_staff_id;
+E:\cradlehub-booking-simplification\supabase\migrations\20260928120000_cf6_operational_cash_flow_writers.sql:440: IF v_beneficiary.branch_id IS NOT NULL AND p_branch_id IS NOT NULL AND v_beneficiary.branch_id <> p_branch_id THEN
+E:\cradlehub-booking-simplification\supabase\migrations\20260928120000_cf6_operational_cash_flow_writers.sql:441: RAISE EXCEPTION 'BENEFICIARY_BRANCH_MISMATCH: Beneficiary staff belongs to branch %, not %', v_beneficiary.branch_id, p_branch_id;
+E:\cradlehub-booking-simplification\supabase\migrations\20260928120000_cf6_operational_cash_flow_writers.sql:463: branch_id,
+E:\cradlehub-booking-simplification\supabase\migrations\20260928120000_cf6_operational_cash_flow_writers.sql:474: p_branch_id,
+E:\cradlehub-booking-simplification\supabase\migrations\20260928120000_cf6_operational_cash_flow_writers.sql:496: IF NOT v_account.is_active THEN
+E:\cradlehub-booking-simplification\supabase\migrations\20260928120000_cf6_operational_cash_flow_writers.sql:499: IF v_account.branch_id IS NOT NULL AND p_branch_id IS NOT NULL AND v_account.branch_id <> p_branch_id THEN
+E:\cradlehub-booking-simplification\supabase\migrations\20260928120000_cf6_operational_cash_flow_writers.sql:500: RAISE EXCEPTION 'ACCOUNT_BRANCH_MISMATCH: Financial account belongs to branch %, not %', v_account.branch_id, p_branch_id;
+E:\cradlehub-booking-simplification\supabase\migrations\20260928120000_cf6_operational_cash_flow_writers.sql:526: beneficiary_staff_id,
+E:\cradlehub-booking-simplification\supabase\migrations\20260928120000_cf6_operational_cash_flow_writers.sql:545: beneficiary_staff_id,
+E:\cradlehub-booking-simplification\supabase\migrations\20260928120000_cf6_operational_cash_flow_writers.sql:578: p_branch_id            UUID,
+E:\cradlehub-booking-simplification\supabase\migrations\20260928120000_cf6_operational_cash_flow_writers.sql:594: v_auth_uid        UUID;
+E:\cradlehub-booking-simplification\supabase\migrations\20260928120000_cf6_operational_cash_flow_writers.sql:619: v_auth_uid := auth.uid();
+E:\cradlehub-booking-simplification\supabase\migrations\20260928120000_cf6_operational_cash_flow_writers.sql:620: IF v_auth_uid IS NULL THEN
+E:\cradlehub-booking-simplification\supabase\migrations\20260928120000_cf6_operational_cash_flow_writers.sql:621: SELECT * INTO v_staff FROM public.staff WHERE is_active = true ORDER BY created_at LIMIT 1;
+E:\cradlehub-booking-simplification\supabase\migrations\20260928120000_cf6_operational_cash_flow_writers.sql:626: SELECT * INTO v_staff FROM public.staff WHERE auth_user_id = v_auth_uid AND is_active = true LIMIT 1;
+E:\cradlehub-booking-simplification\supabase\migrations\20260928120000_cf6_operational_cash_flow_writers.sql:632: IF p_branch_id IS NULL THEN
+E:\cradlehub-booking-simplification\supabase\migrations\20260928120000_cf6_operational_cash_flow_writers.sql:633: p_branch_id := v_staff.branch_id;
+E:\cradlehub-booking-simplification\supabase\migrations\20260928120000_cf6_operational_cash_flow_writers.sql:636: IF v_staff.branch_id IS NOT NULL AND v_staff.branch_id <> p_branch_id AND v_staff.role NOT IN ('owner', 'admin') THEN
+E:\cradlehub-booking-simplification\supabase\migrations\20260928120000_cf6_operational_cash_flow_writers.sql:637: RAISE EXCEPTION 'BRANCH_MISMATCH: Staff member is not authorized for branch %', p_branch_id;
+E:\cradlehub-booking-simplification\supabase\migrations\20260928120000_cf6_operational_cash_flow_writers.sql:658: IF NOT v_account.is_active THEN
+E:\cradlehub-booking-simplification\supabase\migrations\20260928120000_cf6_operational_cash_flow_writers.sql:661: IF v_account.branch_id IS NOT NULL AND p_branch_id IS NOT NULL AND v_account.branch_id <> p_branch_id THEN
+E:\cradlehub-booking-simplification\supabase\migrations\20260928120000_cf6_operational_cash_flow_writers.sql:662: RAISE EXCEPTION 'ACCOUNT_BRANCH_MISMATCH: Financial account belongs to branch %, not %', v_account.branch_id, p_branch_id;
+E:\cradlehub-booking-simplification\supabase\migrations\20260928120000_cf6_operational_cash_flow_writers.sql:669: branch_id,
+E:\cradlehub-booking-simplification\supabase\migrations\20260928120000_cf6_operational_cash_flow_writers.sql:680: p_branch_id,
+E:\cradlehub-booking-simplification\supabase\migrations\20260928120000_cf6_operational_cash_flow_writers.sql:743: p_branch_id            UUID,
+E:\cradlehub-booking-simplification\supabase\migrations\20260928120000_cf6_operational_cash_flow_writers.sql:758: v_auth_uid        UUID;
+E:\cradlehub-booking-simplification\supabase\migrations\20260928120000_cf6_operational_cash_flow_writers.sql:790: v_auth_uid := auth.uid();
+E:\cradlehub-booking-simplification\supabase\migrations\20260928120000_cf6_operational_cash_flow_writers.sql:791: IF v_auth_uid IS NULL THEN
+E:\cradlehub-booking-simplification\supabase\migrations\20260928120000_cf6_operational_cash_flow_writers.sql:792: SELECT * INTO v_staff FROM public.staff WHERE is_active = true ORDER BY created_at LIMIT 1;
+E:\cradlehub-booking-simplification\supabase\migrations\20260928120000_cf6_operational_cash_flow_writers.sql:797: SELECT * INTO v_staff FROM public.staff WHERE auth_user_id = v_auth_uid AND is_active = true LIMIT 1;
+E:\cradlehub-booking-simplification\supabase\migrations\20260928120000_cf6_operational_cash_flow_writers.sql:803: IF p_branch_id IS NULL THEN
+E:\cradlehub-booking-simplification\supabase\migrations\20260928120000_cf6_operational_cash_flow_writers.sql:804: p_branch_id := v_staff.branch_id;
+E:\cradlehub-booking-simplification\supabase\migrations\20260928120000_cf6_operational_cash_flow_writers.sql:807: IF v_staff.branch_id IS NOT NULL AND v_staff.branch_id <> p_branch_id AND v_staff.role NOT IN ('owner', 'admin') THEN
+E:\cradlehub-booking-simplification\supabase\migrations\20260928120000_cf6_operational_cash_flow_writers.sql:808: RAISE EXCEPTION 'BRANCH_MISMATCH: Staff member is not authorized for branch %', p_branch_id;
+E:\cradlehub-booking-simplification\supabase\migrations\20260928120000_cf6_operational_cash_flow_writers.sql:830: IF NOT v_account.is_active THEN
+E:\cradlehub-booking-simplification\supabase\migrations\20260928120000_cf6_operational_cash_flow_writers.sql:836: IF v_account.branch_id IS NOT NULL AND p_branch_id IS NOT NULL AND v_account.branch_id <> p_branch_id THEN
+E:\cradlehub-booking-simplification\supabase\migrations\20260928120000_cf6_operational_cash_flow_writers.sql:837: RAISE EXCEPTION 'ACCOUNT_BRANCH_MISMATCH: Financial account belongs to branch %, not %', v_account.branch_id, p_branch_id;
+E:\cradlehub-booking-simplification\supabase\migrations\20260928120000_cf6_operational_cash_flow_writers.sql:844: branch_id,
+E:\cradlehub-booking-simplification\supabase\migrations\20260928120000_cf6_operational_cash_flow_writers.sql:855: p_branch_id,
+E:\cradlehub-booking-simplification\supabase\migrations\20260928120000_cf6_operational_cash_flow_writers.sql:896: p_branch_id                UUID,
+E:\cradlehub-booking-simplification\supabase\migrations\20260928120000_cf6_operational_cash_flow_writers.sql:910: v_auth_uid        UUID;
+E:\cradlehub-booking-simplification\supabase\migrations\20260928120000_cf6_operational_cash_flow_writers.sql:936: v_auth_uid := auth.uid();
+E:\cradlehub-booking-simplification\supabase\migrations\20260928120000_cf6_operational_cash_flow_writers.sql:937: IF v_auth_uid IS NULL THEN
+E:\cradlehub-booking-simplification\supabase\migrations\20260928120000_cf6_operational_cash_flow_writers.sql:938: SELECT * INTO v_staff FROM public.staff WHERE is_active = true ORDER BY created_at LIMIT 1;
+E:\cradlehub-booking-simplification\supabase\migrations\20260928120000_cf6_operational_cash_flow_writers.sql:943: SELECT * INTO v_staff FROM public.staff WHERE auth_user_id = v_auth_uid AND is_active = true LIMIT 1;
+E:\cradlehub-booking-simplification\supabase\migrations\20260928120000_cf6_operational_cash_flow_writers.sql:949: IF p_branch_id IS NULL THEN
+E:\cradlehub-booking-simplification\supabase\migrations\20260928120000_cf6_operational_cash_flow_writers.sql:950: p_branch_id := v_staff.branch_id;
+E:\cradlehub-booking-simplification\supabase\migrations\20260928120000_cf6_operational_cash_flow_writers.sql:953: IF v_staff.branch_id IS NOT NULL AND v_staff.branch_id <> p_branch_id AND v_staff.role NOT IN ('owner', 'admin') THEN
+E:\cradlehub-booking-simplification\supabase\migrations\20260928120000_cf6_operational_cash_flow_writers.sql:954: RAISE EXCEPTION 'BRANCH_MISMATCH: Staff member is not authorized for branch %', p_branch_id;
+E:\cradlehub-booking-simplification\supabase\migrations\20260928120000_cf6_operational_cash_flow_writers.sql:972: IF v_src_account.id IS NULL OR NOT v_src_account.is_active THEN
+E:\cradlehub-booking-simplification\supabase\migrations\20260928120000_cf6_operational_cash_flow_writers.sql:975: IF v_src_account.branch_id IS NOT NULL AND p_branch_id IS NOT NULL AND v_src_account.branch_id <> p_branch_id THEN
+E:\cradlehub-booking-simplification\supabase\migrations\20260928120000_cf6_operational_cash_flow_writers.sql:976: RAISE EXCEPTION 'ACCOUNT_BRANCH_MISMATCH: Source account belongs to branch %, not %', v_src_account.branch_id, p_branch_id;
+E:\cradlehub-booking-simplification\supabase\migrations\20260928120000_cf6_operational_cash_flow_writers.sql:980: IF v_dst_account.id IS NULL OR NOT v_dst_account.is_active THEN
+E:\cradlehub-booking-simplification\supabase\migrations\20260928120000_cf6_operational_cash_flow_writers.sql:983: IF v_dst_account.branch_id IS NOT NULL AND p_branch_id IS NOT NULL AND v_dst_account.branch_id <> p_branch_id THEN
+E:\cradlehub-booking-simplification\supabase\migrations\20260928120000_cf6_operational_cash_flow_writers.sql:984: RAISE EXCEPTION 'ACCOUNT_BRANCH_MISMATCH: Destination account belongs to branch %, not %', v_dst_account.branch_id, p_branch_id;
+E:\cradlehub-booking-simplification\supabase\migrations\20260928120000_cf6_operational_cash_flow_writers.sql:991: branch_id,
+E:\cradlehub-booking-simplification\supabase\migrations\20260928120000_cf6_operational_cash_flow_writers.sql:1002: p_branch_id,
+E:\cradlehub-booking-simplification\supabase\migrations\20260929120000_cf7_expense_receipt_storage.sql:31: -- 2.1. SELECT Policy (Authenticated staff read receipts for their branch or owner/admin/finance)
+E:\cradlehub-booking-simplification\supabase\migrations\20260929120000_cf7_expense_receipt_storage.sql:39: (storage.foldername(name))[1] = (SELECT public.get_auth_branch_id()::text)
+E:\cradlehub-booking-simplification\supabase\migrations\20260929120000_cf7_expense_receipt_storage.sql:40: OR (SELECT public.get_auth_role()) IN ('owner', 'admin', 'finance')
+E:\cradlehub-booking-simplification\supabase\migrations\20260929120000_cf7_expense_receipt_storage.sql:43: WHERE auth_user_id = (SELECT auth.uid())
+E:\cradlehub-booking-simplification\supabase\migrations\20260929120000_cf7_expense_receipt_storage.sql:44: AND is_active = true
+E:\cradlehub-booking-simplification\supabase\migrations\20260929120000_cf7_expense_receipt_storage.sql:45: AND (role IN ('owner', 'admin', 'finance') OR system_role IN ('owner', 'admin', 'finance'))
+E:\cradlehub-booking-simplification\supabase\migrations\20260929120000_cf7_expense_receipt_storage.sql:50: -- 2.2. INSERT Policy (Authenticated staff upload to own branch folder; ownership via owner_id)
+E:\cradlehub-booking-simplification\supabase\migrations\20260929120000_cf7_expense_receipt_storage.sql:58: (storage.foldername(name))[1] = (SELECT public.get_auth_branch_id()::text)
+E:\cradlehub-booking-simplification\supabase\migrations\20260929120000_cf7_expense_receipt_storage.sql:59: OR (SELECT public.get_auth_role()) IN ('owner', 'admin', 'finance')
+E:\cradlehub-booking-simplification\supabase\migrations\20260929120000_cf7_expense_receipt_storage.sql:62: WHERE auth_user_id = (SELECT auth.uid())
+E:\cradlehub-booking-simplification\supabase\migrations\20260929120000_cf7_expense_receipt_storage.sql:63: AND is_active = true
+E:\cradlehub-booking-simplification\supabase\migrations\20260929120000_cf7_expense_receipt_storage.sql:64: AND (role IN ('owner', 'admin', 'finance') OR system_role IN ('owner', 'admin', 'finance'))
+E:\cradlehub-booking-simplification\supabase\migrations\20260929120000_cf7_expense_receipt_storage.sql:68: owner_id = (SELECT auth.uid()::text)
+E:\cradlehub-booking-simplification\supabase\migrations\20260929120000_cf7_expense_receipt_storage.sql:69: OR owner_id IS NULL
+E:\cradlehub-booking-simplification\supabase\migrations\20260929120000_cf7_expense_receipt_storage.sql:73: -- 2.3. DELETE Policy (Orphan cleanup: staff can delete their own uploaded object in branch folder; owner/admin can delete)
+E:\cradlehub-booking-simplification\supabase\migrations\20260929120000_cf7_expense_receipt_storage.sql:81: (storage.foldername(name))[1] = (SELECT public.get_auth_branch_id()::text)
+E:\cradlehub-booking-simplification\supabase\migrations\20260929120000_cf7_expense_receipt_storage.sql:82: OR (SELECT public.get_auth_role()) IN ('owner', 'admin', 'finance')
+E:\cradlehub-booking-simplification\supabase\migrations\20260929120000_cf7_expense_receipt_storage.sql:85: WHERE auth_user_id = (SELECT auth.uid())
+E:\cradlehub-booking-simplification\supabase\migrations\20260929120000_cf7_expense_receipt_storage.sql:86: AND is_active = true
+E:\cradlehub-booking-simplification\supabase\migrations\20260929120000_cf7_expense_receipt_storage.sql:87: AND (role IN ('owner', 'admin', 'finance') OR system_role IN ('owner', 'admin', 'finance'))
+E:\cradlehub-booking-simplification\supabase\migrations\20260929120000_cf7_expense_receipt_storage.sql:91: owner_id = (SELECT auth.uid()::text)
+E:\cradlehub-booking-simplification\supabase\migrations\20260929120000_cf7_expense_receipt_storage.sql:92: OR (SELECT public.get_auth_role()) IN ('owner', 'admin', 'finance')
+E:\cradlehub-booking-simplification\supabase\migrations\20260929120000_cf7_expense_receipt_storage.sql:95: WHERE auth_user_id = (SELECT auth.uid())
+E:\cradlehub-booking-simplification\supabase\migrations\20260929120000_cf7_expense_receipt_storage.sql:96: AND is_active = true
+E:\cradlehub-booking-simplification\supabase\migrations\20260929120000_cf7_expense_receipt_storage.sql:97: AND (role IN ('owner', 'admin', 'finance') OR system_role IN ('owner', 'admin', 'finance'))
+E:\cradlehub-booking-simplification\supabase\migrations\20260929120000_cf7_expense_receipt_storage.sql:119: p_branch_id            UUID,
+E:\cradlehub-booking-simplification\supabase\migrations\20260929120000_cf7_expense_receipt_storage.sql:137: v_auth_uid        UUID;
+E:\cradlehub-booking-simplification\supabase\migrations\20260929120000_cf7_expense_receipt_storage.sql:168: v_auth_uid := auth.uid();
+E:\cradlehub-booking-simplification\supabase\migrations\20260929120000_cf7_expense_receipt_storage.sql:169: IF v_auth_uid IS NULL THEN
+E:\cradlehub-booking-simplification\supabase\migrations\20260929120000_cf7_expense_receipt_storage.sql:170: SELECT * INTO v_staff FROM public.staff WHERE is_active = true ORDER BY created_at LIMIT 1;
+E:\cradlehub-booking-simplification\supabase\migrations\20260929120000_cf7_expense_receipt_storage.sql:175: SELECT * INTO v_staff FROM public.staff WHERE auth_user_id = v_auth_uid AND is_active = true LIMIT 1;
+E:\cradlehub-booking-simplification\supabase\migrations\20260929120000_cf7_expense_receipt_storage.sql:182: IF p_branch_id IS NULL THEN
+E:\cradlehub-booking-simplification\supabase\migrations\20260929120000_cf7_expense_receipt_storage.sql:183: p_branch_id := v_staff.branch_id;
+E:\cradlehub-booking-simplification\supabase\migrations\20260929120000_cf7_expense_receipt_storage.sql:186: IF p_branch_id IS NULL THEN
+E:\cradlehub-booking-simplification\supabase\migrations\20260929120000_cf7_expense_receipt_storage.sql:190: IF v_staff.branch_id IS NOT NULL AND v_staff.branch_id <> p_branch_id AND v_staff.role NOT IN ('owner', 'admin') THEN
+E:\cradlehub-booking-simplification\supabase\migrations\20260929120000_cf7_expense_receipt_storage.sql:191: RAISE EXCEPTION 'BRANCH_MISMATCH: Staff member is not authorized for branch %', p_branch_id;
+E:\cradlehub-booking-simplification\supabase\migrations\20260929120000_cf7_expense_receipt_storage.sql:211: WHERE id = p_category_id AND is_active = true;
+E:\cradlehub-booking-simplification\supabase\migrations\20260929120000_cf7_expense_receipt_storage.sql:222: IF NOT v_account.is_active THEN
+E:\cradlehub-booking-simplification\supabase\migrations\20260929120000_cf7_expense_receipt_storage.sql:225: IF v_account.branch_id IS NOT NULL AND v_account.branch_id <> p_branch_id THEN
+E:\cradlehub-booking-simplification\supabase\migrations\20260929120000_cf7_expense_receipt_storage.sql:226: RAISE EXCEPTION 'ACCOUNT_BRANCH_MISMATCH: Financial account does not belong to branch %', p_branch_id;
+E:\cradlehub-booking-simplification\supabase\migrations\20260929120000_cf7_expense_receipt_storage.sql:234: branch_id,
+E:\cradlehub-booking-simplification\supabase\migrations\20260929120000_cf7_expense_receipt_storage.sql:248: p_branch_id,

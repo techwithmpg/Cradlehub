@@ -1,0 +1,2359 @@
+============================================================
+CF8-C COMMIT SCOPE REVIEW
+Generated: 2026-09-30 09:00:34
+Branch: stage/cf-financial-foundation
+HEAD: 20afec933f830a3a2a6670bb5c13b53a1e04e411
+============================================================
+
+DIRECT CF8-C FILES
+============================================================
+
+------------------------------------------------------------
+FILE: src/components/features/cash-flow/record-financial-entry-modal.tsx
+------------------------------------------------------------
+warning: in the working copy of 'src/components/features/cash-flow/record-financial-entry-modal.tsx', LF will be replaced by CRLF the next time Git touches it
+diff --git a/src/components/features/cash-flow/record-financial-entry-modal.tsx b/src/components/features/cash-flow/record-financial-entry-modal.tsx
+index be2a8049..cfc5ff91 100644
+--- a/src/components/features/cash-flow/record-financial-entry-modal.tsx
++++ b/src/components/features/cash-flow/record-financial-entry-modal.tsx
+@@ -37,6 +37,7 @@ import type {
+   PayableOrderItemDetail,
+   ExpenseCategoryOption,
+   StaffOption,
++  CashSessionSummary,
+ } from '@/lib/cash-flow/cash-flow-types';
+ import {
+   FINANCIAL_PAYMENT_RAILS,
+@@ -45,11 +46,11 @@ import {
+ } from '@/lib/cash-flow/financial-contract';
+ import {
+   recordOrderPaymentAction,
++  recordLegacyBookingPaymentAction,
+   recordExpenseAction,
+   recordTipAction,
+   recordOtherEntryAction,
+ } from '@/lib/cash-flow/cash-flow-actions';
+-import { createClient } from '@/lib/supabase/client';
+ 
+ export type FinancialEntryMode = 'customer_payment' | 'expense' | 'tip' | 'other_entry';
+ 
+@@ -68,6 +69,7 @@ export interface RecordFinancialEntryModalProps {
+   expenseCategories?: ExpenseCategoryOption[];
+   staffOptions?: StaffOption[];
+   payableOrders?: PayableOrderOption[];
++  activeCashSessions?: CashSessionSummary[];
+   initialOrderId?: string;
+   initialMode?: FinancialEntryMode;
+   branchId?: string;
+@@ -82,6 +84,7 @@ export function RecordFinancialEntryModal({
+   expenseCategories,
+   staffOptions,
+   payableOrders,
++  activeCashSessions = [],
+   initialOrderId,
+   initialMode,
+   branchId,
+@@ -101,6 +104,7 @@ export function RecordFinancialEntryModal({
+             expenseCategories={expenseCategories}
+             staffOptions={staffOptions}
+             payableOrders={payableOrders}
++            activeCashSessions={activeCashSessions}
+             initialOrderId={initialOrderId}
+             initialMode={initialMode}
+             branchId={branchId}
+@@ -122,6 +126,7 @@ interface RecordFinancialEntryFormProps {
+   expenseCategories?: ExpenseCategoryOption[];
+   staffOptions?: StaffOption[];
+   payableOrders?: PayableOrderOption[];
++  activeCashSessions?: CashSessionSummary[];
+   initialOrderId?: string;
+   initialMode?: FinancialEntryMode;
+   branchId?: string;
+@@ -135,6 +140,7 @@ function RecordFinancialEntryForm({
+   expenseCategories = [],
+   staffOptions = [],
+   payableOrders = [],
++  activeCashSessions = [],
+   initialOrderId,
+   initialMode,
+   branchId,
+@@ -146,23 +152,27 @@ function RecordFinancialEntryForm({
+   // Find initially selected order
+   const initialOrder =
+     payableOrders.find((o) => o.id === initialOrderId) ||
+-    (payableOrders.length > 0 ? payableOrders[0] : undefined);
++    (payableOrders.length === 1 ? payableOrders[0] : undefined);
+ 
+   const [selectedOrderId, setSelectedOrderId] = useState<string>(initialOrder?.id || '');
+   const [searchQuery, setSearchQuery] = useState('');
+-  const [isDropdownOpen, setIsDropdownOpen] = useState(false);
++  const [isDropdownOpen, setIsDropdownOpen] = useState(payableOrders.length > 1 && initialMode !== 'expense');
+ 
+-  const selectedOrder = payableOrders.find((o) => o.id === selectedOrderId) || initialOrder;
++  const selectedOrder = payableOrders.find((o) => o.id === selectedOrderId);
+ 
+   // Filtered orders for selector
+   const filteredOrders = useMemo(() => {
+     if (!searchQuery.trim()) return payableOrders;
+     const q = searchQuery.toLowerCase().trim();
++    const digits = q.replace(/\D/g, '');
+     return payableOrders.filter(
+       (o) =>
+         o.orderNumber.toLowerCase().includes(q) ||
+         o.customerName.toLowerCase().includes(q) ||
+-        (o.customerPhone && o.customerPhone.includes(q))
++        Boolean(o.customerPhone && (
++          o.customerPhone.toLowerCase().includes(q) ||
++          (digits && o.customerPhone.replace(/\D/g, '').includes(digits))
++        ))
+     );
+   }, [payableOrders, searchQuery]);
+ 
+@@ -176,7 +186,7 @@ function RecordFinancialEntryForm({
+     {
+       id: crypto.randomUUID(),
+       method: 'cash',
+-      accountId: defaultAccount?.id || accounts[0]?.id || '',
++      accountId: defaultAccount?.id || '',
+       amount: selectedOrder && selectedOrder.remainingBalance > 0 ? selectedOrder.remainingBalance : '',
+       reference: '',
+     },
+@@ -186,6 +196,7 @@ function RecordFinancialEntryForm({
+   const [isSubmitting, setIsSubmitting] = useState(false);
+   const [errorMessage, setErrorMessage] = useState<string | null>(null);
+   const [successMessage, setSuccessMessage] = useState<string | null>(null);
++  const paymentAttemptRef = React.useRef<{ signature: string; key: string } | null>(null);
+ 
+   // Fallbacks for categories and staff
+   const effectiveCategories = useMemo(() => {
+@@ -225,6 +236,7 @@ function RecordFinancialEntryForm({
+   const [receiptError, setReceiptError] = useState<string | null>(null);
+   const [isUploadingReceipt, setIsUploadingReceipt] = useState(false);
+   const receiptFileInputRef = React.useRef<HTMLInputElement | null>(null);
++  const expenseAttemptRef = React.useRef<{ signature: string; key: string } | null>(null);
+ 
+   const handleRemoveReceipt = () => {
+     if (receiptPreviewUrl) {
+@@ -265,18 +277,6 @@ function RecordFinancialEntryForm({
+     }
+   };
+ 
+-  const generateReceiptPath = (branch: string, dateStr: string, originalName: string) => {
+-    const cleanDate = dateStr.replace(/[^0-9]/g, '') || new Date().toISOString().slice(0, 10).replace(/-/g, '');
+-    const yyyy = dateStr.slice(0, 4) || new Date().getFullYear().toString();
+-    const mm = dateStr.slice(5, 7) || String(new Date().getMonth() + 1).padStart(2, '0');
+-    const extMatch = originalName.match(/\.([a-zA-Z0-9]+)$/);
+-    const ext = extMatch?.[1] ? extMatch[1].toLowerCase() : 'jpg';
+-    const randomHex = Array.from(crypto.getRandomValues(new Uint8Array(4)))
+-      .map((b) => b.toString(16).padStart(2, '0'))
+-      .join('');
+-    return `${branch}/${yyyy}/${mm}/rec_${cleanDate}_${randomHex}.${ext}`;
+-  };
+-
+   // Tip state
+   const [tipCustodyType, setTipCustodyType] = useState<'direct_cash' | 'company_custodied'>('direct_cash');
+   const [tipBeneficiaryStaffId, setTipBeneficiaryStaffId] = useState<string>(() => effectiveStaff[0]?.id || '');
+@@ -285,21 +285,109 @@ function RecordFinancialEntryForm({
+   const [tipPaymentMethod, setTipPaymentMethod] = useState<FinancialPaymentMethod>('cash');
+   const [tipNotes, setTipNotes] = useState<string>('');
+ 
+-  // Other Entry state
++  // Other Entry / CF8-C Cash Operations state
+   const [otherEntryType, setOtherEntryType] = useState<
+     'misc_income' | 'cash_addition' | 'cash_removal' | 'transfer' | 'generic_adjustment'
+   >('misc_income');
+   const [otherAmount, setOtherAmount] = useState<number | ''>('');
+-  const [otherNotes, setOtherNotes] = useState<string>('');
+-  const [miscReceivingAccountId, setMiscReceivingAccountId] = useState<string>(() => accounts[0]?.id || '');
+-  const [miscDescription, setMiscDescription] = useState<string>('');
+-  const [miscPayeeSource, setMiscPayeeSource] = useState<string>('');
++  const [otherNotes, setOtherNotes] = useState('');
++  const [miscReceivingAccountId, setMiscReceivingAccountId] = useState(() => accounts[0]?.id || '');
++  const [miscDescription, setMiscDescription] = useState('');
++  const [miscPayeeSource, setMiscPayeeSource] = useState('');
+   const [miscPaymentMethod, setMiscPaymentMethod] = useState<FinancialPaymentMethod>('cash');
+-  const [cashDrawerId, setCashDrawerId] = useState<string>(() => defaultAccount?.id || accounts[0]?.id || '');
+-  const [cashAdjustmentReason, setCashAdjustmentReason] = useState<string>('');
+-  const [transferSourceAccountId, setTransferSourceAccountId] = useState<string>(() => accounts[0]?.id || '');
+-  const [transferDestAccountId, setTransferDestAccountId] = useState<string>(() => accounts[1]?.id || accounts[0]?.id || '');
+ 
++  const preferredCashDrawerId =
++    activeCashSessions.find(
++      (session) => session.status === 'open'
++    )?.cashDrawerAccountId ||
++    defaultAccount?.id ||
++    accounts.find((account) => account.accountType === 'cash_drawer')?.id ||
++    '';
++
++  const [cashDrawerId, setCashDrawerId] = useState(() => preferredCashDrawerId);
++  const [cashAdjustmentReason, setCashAdjustmentReason] = useState('');
++
++  const [transferSourceAccountId, setTransferSourceAccountId] = useState(
++    () => preferredCashDrawerId || accounts[0]?.id || ''
++  );
++
++  const [transferDestAccountId, setTransferDestAccountId] = useState(() => {
++    const sourceId = preferredCashDrawerId || accounts[0]?.id || '';
++    return accounts.find((account) => account.id !== sourceId)?.id || '';
++  });
++
++  const openCashSessions = useMemo(
++    () =>
++      activeCashSessions.filter(
++        (session) => session.status === 'open'
++      ),
++    [activeCashSessions]
++  );
++
++  const openCashDrawerIds = useMemo(
++    () => new Set(openCashSessions.map((session) => session.cashDrawerAccountId)),
++    [openCashSessions]
++  );
++
++  const selectedCashSession = openCashSessions.find(
++    (session) => session.cashDrawerAccountId === cashDrawerId
++  );
++
++  const transferDestinationOptions = accounts.filter(
++    (account) => account.id !== transferSourceAccountId
++  );
++
++  const transferSourceAccount = accounts.find(
++    (account) => account.id === transferSourceAccountId
++  );
++
++  const transferDestinationAccount = accounts.find(
++    (account) => account.id === transferDestAccountId
++  );
++
++  const transferTouchesClosedDrawer =
++    [transferSourceAccount, transferDestinationAccount].some(
++      (account) =>
++        account?.accountType === 'cash_drawer' &&
++        !openCashDrawerIds.has(account.id)
++    );
++
++  const adjustmentAmount =
++    typeof otherAmount === 'number' && Number.isFinite(otherAmount)
++      ? otherAmount
++      : 0;
++
++  const expectedCashAfterAdjustment = selectedCashSession
++    ? selectedCashSession.expectedCash +
++      (otherEntryType === 'cash_addition'
++        ? adjustmentAmount
++        : otherEntryType === 'cash_removal'
++          ? -adjustmentAmount
++          : 0)
++    : null;
++
++  const cashAdjustmentBlocked =
++    (otherEntryType === 'cash_addition' || otherEntryType === 'cash_removal') &&
++    (
++      !cashDrawerId ||
++      !openCashDrawerIds.has(cashDrawerId) ||
++      !cashAdjustmentReason.trim()
++    );
++
++  const transferBlocked =
++    otherEntryType === 'transfer' &&
++    (
++      !transferSourceAccountId ||
++      !transferDestAccountId ||
++      transferSourceAccountId === transferDestAccountId ||
++      transferDestinationOptions.length === 0 ||
++      transferTouchesClosedDrawer
++    );
++
++  const otherEntryAttemptRef = React.useRef<{
++    signature: string;
++    key: string;
++  } | null>(null);
+   // Handle order selection change
+   const handleSelectOrder = (order: PayableOrderOption) => {
+     setSelectedOrderId(order.id);
+@@ -318,7 +406,7 @@ function RecordFinancialEntryForm({
+       {
+         id: crypto.randomUUID(),
+         method: currentMethod,
+-        accountId: compAccount?.id || accounts[0]?.id || '',
++        accountId: compAccount?.id || '',
+         amount: rem > 0 ? rem : '',
+         reference: '',
+       },
+@@ -340,7 +428,7 @@ function RecordFinancialEntryForm({
+       {
+         id: crypto.randomUUID(),
+         method: currentMethod,
+-        accountId: compAccount?.id || accounts[0]?.id || '',
++        accountId: compAccount?.id || '',
+         amount: rem,
+         reference: paymentLines[0]?.reference || '',
+       },
+@@ -364,7 +452,7 @@ function RecordFinancialEntryForm({
+       {
+         id: crypto.randomUUID(),
+         method: nextMethod,
+-        accountId: compAccount?.id || accounts[0]?.id || '',
++        accountId: compAccount?.id || '',
+         amount: remainingToPay > 0 ? remainingToPay : '',
+         reference: '',
+       },
+@@ -387,7 +475,7 @@ function RecordFinancialEntryForm({
+           ? {
+               ...line,
+               method: newMethod,
+-              accountId: compAccount?.id || accounts[0]?.id || '',
++              accountId: compAccount?.id || '',
+             }
+           : line
+       )
+@@ -408,6 +496,12 @@ function RecordFinancialEntryForm({
+   };
+ 
+   const totalPayment = paymentLines.reduce((sum, p) => sum + (Number(p.amount) || 0), 0);
++  const hasMissingCompatibleAccount = paymentLines.some((line) =>
++    !accounts.some((account) =>
++      account.id === line.accountId &&
++      isPaymentMethodCompatibleWithAccount(line.method, account.accountType)
++    )
++  );
+   const remainingAfterPayment = selectedOrder
+     ? Math.max(0, selectedOrder.remainingBalance - totalPayment)
+     : 0;
+@@ -437,37 +531,61 @@ function RecordFinancialEntryForm({
+       return;
+     }
+ 
++    if (hasMissingCompatibleAccount) {
++      setErrorMessage('No compatible financial account is configured for the selected payment method. Ask an administrator to set up the account.');
++      return;
++    }
+     for (const line of paymentLines) {
+-      if (!line.accountId) {
+-        setErrorMessage(`Please select a deposit account for ${line.method.toUpperCase()}.`);
+-        return;
+-      }
+       if (!line.amount || Number(line.amount) <= 0) {
+         setErrorMessage('All payment lines must have an amount greater than zero.');
+         return;
+       }
+     }
++    if (selectedOrder.sourceKind === 'legacy_booking' && !branchId) {
++      setErrorMessage('Branch context is required to record this booking payment.');
++      return;
++    }
+ 
+     setIsSubmitting(true);
+     setErrorMessage(null);
+ 
+-    const idempotencyKey = crypto.randomUUID();
+-
+-    const payload = {
+-      orderId: selectedOrder.id,
+-      idempotencyKey,
+-      payments: paymentLines.map((p) => ({
+-        amount: Number(p.amount),
+-        paymentMethod: p.method,
+-        financialAccountId: p.accountId,
+-        externalReference: p.reference.trim() || null,
+-      })),
++    const payments = paymentLines.map((p) => ({
++      amount: Number(p.amount),
++      paymentMethod: p.method,
++      financialAccountId: p.accountId,
++      externalReference: p.reference.trim() || null,
++    }));
++    const signature = JSON.stringify({
++      sourceKind: selectedOrder.sourceKind,
++      sourceId: selectedOrder.id,
++      amountPaid: selectedOrder.amountPaid,
+       businessDate,
+-      notes: notes.trim() || null,
+-    };
++      payments,
++      notes: notes.trim(),
++    });
++    if (paymentAttemptRef.current?.signature !== signature) {
++      paymentAttemptRef.current = { signature, key: crypto.randomUUID() };
++    }
++    const idempotencyKey = paymentAttemptRef.current.key;
+ 
+     try {
+-      const result = await recordOrderPaymentAction(payload);
++      const result = selectedOrder.sourceKind === 'legacy_booking'
++        ? await recordLegacyBookingPaymentAction({
++          bookingId: selectedOrder.id,
++          branchId: branchId!,
++          expectedAmountPaid: selectedOrder.amountPaid,
++          idempotencyKey,
++          payments,
++          businessDate,
++          notes: notes.trim() || null,
++        })
++        : await recordOrderPaymentAction({
++          orderId: selectedOrder.id,
++          idempotencyKey,
++          payments,
++          businessDate,
++          notes: notes.trim() || null,
++        });
+       if (result.ok) {
+         setSuccessMessage('Payment recorded successfully!');
+         if (onSuccess) onSuccess();
+@@ -513,42 +631,23 @@ function RecordFinancialEntryForm({
+       accounts[0]?.branchId ||
+       '';
+ 
+-    let uploadedPath: string | undefined = undefined;
+-
+-    // Optional receipt upload (CF7)
+-    if (receiptFile) {
+-      if (!effectiveBranchId) {
+-        setErrorMessage('Branch context is required to upload receipt.');
+-        return;
+-      }
+-      setIsUploadingReceipt(true);
+-      const objectPath = generateReceiptPath(effectiveBranchId, businessDate, receiptFile.name);
+-      try {
+-        const supabase = createClient();
+-        const { error: uploadErr } = await supabase.storage
+-          .from('expense-receipts')
+-          .upload(objectPath, receiptFile, {
+-            contentType: receiptFile.type,
+-            upsert: false,
+-          });
+-
+-        if (uploadErr) {
+-          setIsUploadingReceipt(false);
+-          setErrorMessage(
+-            `Receipt upload failed: ${uploadErr.message}. You can retry, or remove the receipt to record the expense without it.`
+-          );
+-          return;
+-        }
+-        uploadedPath = objectPath;
+-      } catch (uploadException: unknown) {
+-        setIsUploadingReceipt(false);
+-        setErrorMessage(
+-          `Receipt upload failed: ${uploadException instanceof Error ? uploadException.message : 'Network error'}. You can retry, or remove the receipt to proceed.`
+-        );
+-        return;
+-      }
++    const signature = JSON.stringify({
++      effectiveBranchId, businessDate, amt, expenseCategoryId, expenseAccountId,
++      expensePayee, expenseDescription, expenseReceiptRef, expenseNotes,
++      receipt: receiptFile && [receiptFile.name, receiptFile.size, receiptFile.type, receiptFile.lastModified],
++    });
++    if (expenseAttemptRef.current?.signature !== signature) {
++      expenseAttemptRef.current = {
++        signature,
++        key: `cf7_exp_${typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function'
++          ? crypto.randomUUID()
++          : `${Date.now()}_${Math.random().toString(36).slice(2)}`}`,
++      };
+     }
++    const receiptForm = receiptFile ? new FormData() : undefined;
++    if (receiptFile) receiptForm?.set('receipt', receiptFile);
+ 
++    setIsUploadingReceipt(Boolean(receiptFile));
+     setIsSubmitting(true);
+     try {
+       const res = await recordExpenseAction({
+@@ -559,41 +658,22 @@ function RecordFinancialEntryForm({
+         payee: expensePayee.trim() || 'Direct Vendor',
+         description: expenseDescription.trim(),
+         receiptReference: expenseReceiptRef.trim() || undefined,
+-        receiptImagePath: uploadedPath,
+         businessDate,
+         notes: expenseNotes.trim() || undefined,
+-        idempotencyKey: `cf7_exp_${Date.now()}_${Math.random().toString(36).substring(2, 9)}`,
+-      });
++        idempotencyKey: expenseAttemptRef.current.key,
++      }, receiptForm);
+ 
+       if (!res.ok) {
+-        // Orphan cleanup: if upload succeeded but database posting failed, remove the uploaded object
+-        if (uploadedPath) {
+-          try {
+-            const supabase = createClient();
+-            await supabase.storage.from('expense-receipts').remove([uploadedPath]);
+-          } catch (cleanupErr) {
+-            console.error('Failed to clean up orphaned receipt object:', cleanupErr);
+-          }
+-        }
+         setErrorMessage(res.error || 'Failed to record expense.');
+         return;
+       }
+ 
+-      setSuccessMessage('Operational expense recorded successfully!');
++      setSuccessMessage(res.warning || 'Operational expense recorded successfully!');
+       if (onSuccess) onSuccess();
+       setTimeout(() => {
+         onClose();
+       }, 1000);
+     } catch (err: unknown) {
+-      // Orphan cleanup on unexpected error
+-      if (uploadedPath) {
+-        try {
+-          const supabase = createClient();
+-          await supabase.storage.from('expense-receipts').remove([uploadedPath]);
+-        } catch (cleanupErr) {
+-          console.error('Failed to clean up orphaned receipt object:', cleanupErr);
+-        }
+-      }
+       setErrorMessage(err instanceof Error ? err.message : 'An unexpected error occurred.');
+     } finally {
+       setIsSubmitting(false);
+@@ -667,9 +747,70 @@ function RecordFinancialEntryForm({
+       return;
+     }
+ 
++    if (otherEntryType === 'cash_addition' || otherEntryType === 'cash_removal') {
++      if (!cashDrawerId || !openCashDrawerIds.has(cashDrawerId)) {
++        setErrorMessage('Open the cash drawer before recording physical cash operations.');
++        return;
++      }
++
++      if (!cashAdjustmentReason.trim()) {
++        setErrorMessage('A reason is required for every cash adjustment.');
++        return;
++      }
++    }
++
++    if (otherEntryType === 'transfer') {
++      if (!transferSourceAccountId || !transferDestAccountId) {
++        setErrorMessage('Configure a real destination financial account before recording a transfer.');
++        return;
++      }
++
++      if (transferSourceAccountId === transferDestAccountId) {
++        setErrorMessage('Source and destination accounts must be different.');
++        return;
++      }
++
++      if (transferTouchesClosedDrawer) {
++        setErrorMessage('Any cash drawer used in a transfer must have an open cash session.');
++        return;
++      }
++    }
++
++    const otherEntrySignature = JSON.stringify({
++      entryType: otherEntryType,
++      amount: amt,
++      businessDate,
++      branchId,
++      notes: otherNotes.trim(),
++      receivingAccountId: otherEntryType === 'misc_income' ? miscReceivingAccountId : null,
++      incomeDescription: otherEntryType === 'misc_income' ? miscDescription.trim() : null,
++      payeeSource: otherEntryType === 'misc_income' ? miscPayeeSource.trim() : null,
++      paymentMethod: otherEntryType === 'misc_income' ? miscPaymentMethod : null,
++      cashDrawerId:
++        otherEntryType === 'cash_addition' || otherEntryType === 'cash_removal'
++          ? cashDrawerId
++          : null,
++      adjustmentReason:
++        otherEntryType === 'cash_addition' || otherEntryType === 'cash_removal'
++          ? cashAdjustmentReason.trim()
++          : null,
++      sourceAccountId: otherEntryType === 'transfer' ? transferSourceAccountId : null,
++      destinationAccountId: otherEntryType === 'transfer' ? transferDestAccountId : null,
++    });
++
++    if (otherEntryAttemptRef.current?.signature !== otherEntrySignature) {
++      otherEntryAttemptRef.current = {
++        signature: otherEntrySignature,
++        key: `cf8c_${crypto.randomUUID()}`,
++      };
++    }
++
++    const otherEntryIdempotencyKey = otherEntryAttemptRef.current.key;
++
+     setIsSubmitting(true);
+     try {
+       const res = await recordOtherEntryAction({
++        branchId,
+         entryType: otherEntryType,
+         amount: amt,
+         businessDate,
+@@ -682,7 +823,7 @@ function RecordFinancialEntryForm({
+         adjustmentReason: (otherEntryType === 'cash_addition' || otherEntryType === 'cash_removal') ? cashAdjustmentReason : undefined,
+         sourceAccountId: otherEntryType === 'transfer' ? transferSourceAccountId : undefined,
+         destinationAccountId: otherEntryType === 'transfer' ? transferDestAccountId : undefined,
+-        idempotencyKey: `cf6_other_${Date.now()}_${Math.random().toString(36).substring(2, 9)}`,
++        idempotencyKey: otherEntryIdempotencyKey,
+       });
+ 
+       if (!res.ok) {
+@@ -690,7 +831,15 @@ function RecordFinancialEntryForm({
+         return;
+       }
+ 
+-      setSuccessMessage('Financial entry recorded successfully!');
++      setSuccessMessage(
++        otherEntryType === 'cash_addition'
++          ? 'Cash addition recorded successfully.'
++          : otherEntryType === 'cash_removal'
++            ? 'Cash removal recorded successfully.'
++            : otherEntryType === 'transfer'
++              ? 'Transfer recorded successfully.'
++              : 'Financial entry recorded successfully!'
++      );
+       if (onSuccess) onSuccess();
+       setTimeout(() => {
+         onClose();
+@@ -1580,39 +1729,106 @@ function RecordFinancialEntryForm({
+                 <div className="space-y-3">
+                   <div>
+                     <label className="block text-[11px] font-semibold text-[#7A6E65] mb-1">
+-                      Cash Drawer Account <span className="text-rose-500">*</span>
++                      Open Cash Drawer <span className="text-rose-500">*</span>
+                     </label>
++
+                     <select
+                       value={cashDrawerId}
+                       onChange={(e) => setCashDrawerId(e.target.value)}
+-                      className="w-full px-3 py-2 bg-white border border-[#EAE4DC] rounded-xl text-xs text-[#1E1916] focus:outline-none focus:border-[#1B4D3E]"
++                      disabled={openCashSessions.length === 0}
++                      className="w-full px-3 py-2 bg-white border border-[#EAE4DC] rounded-xl text-xs text-[#1E1916] focus:outline-none focus:border-[#1B4D3E] disabled:bg-[#F5F2EE] disabled:text-[#9C8878]"
+                     >
+-                      {accounts
+-                        .filter((a) => a.accountType === 'cash_drawer')
+-                        .map((a) => (
+-                          <option key={a.id} value={a.id}>
+-                            {a.name} ({a.identifierMask})
+-                          </option>
+-                        ))}
++                      {accounts.filter(
++                        (account) =>
++                          account.accountType === 'cash_drawer' &&
++                          openCashDrawerIds.has(account.id)
++                      ).length === 0 ? (
++                        <option value="">No open cash drawer available</option>
++                      ) : (
++                        accounts
++                          .filter(
++                            (account) =>
++                              account.accountType === 'cash_drawer' &&
++                              openCashDrawerIds.has(account.id)
++                          )
++                          .map((account) => (
++                            <option key={account.id} value={account.id}>
++                              {account.name} ({account.identifierMask})
++                            </option>
++                          ))
++                      )}
+                     </select>
+                   </div>
+ 
++                  {openCashSessions.length === 0 && (
++                    <div
++                      role="alert"
++                      className="rounded-xl border border-amber-200 bg-amber-50 p-3 text-xs text-amber-900"
++                    >
++                      Open the cash drawer before recording physical cash operations.
++                    </div>
++                  )}
++
+                   <div>
+                     <label className="block text-[11px] font-semibold text-[#7A6E65] mb-1">
+                       Adjustment Reason <span className="text-rose-500">*</span>
+                     </label>
++
+                     <input
+                       type="text"
+                       placeholder={
+                         otherEntryType === 'cash_addition'
+-                          ? 'e.g., Opening petty cash float replenishment'
+-                          : 'e.g., Mid-day safe drop deposit'
++                          ? 'e.g., Authorized cash correction discovered during shift'
++                          : 'e.g., Authorized physical cash correction after count'
+                       }
+                       value={cashAdjustmentReason}
+                       onChange={(e) => setCashAdjustmentReason(e.target.value)}
+                       className="w-full px-3 py-2 bg-white border border-[#EAE4DC] rounded-xl text-xs text-[#1E1916] focus:outline-none focus:border-[#1B4D3E]"
+                     />
++
++                    <p className="mt-1.5 text-[10px] leading-4 text-[#7A6E65]">
++                      Use this only for an exceptional physical cash correction.
++                      Customer payments, expenses, tips and safe drops have dedicated workflows.
++                    </p>
+                   </div>
++
++                  {selectedCashSession && (
++                    <div className="rounded-xl border border-emerald-200 bg-emerald-50/60 p-3">
++                      <div className="flex items-center justify-between gap-3 text-xs">
++                        <span className="text-[#6B5D52]">
++                          Expected drawer cash now
++                        </span>
++
++                        <span className="font-bold tabular-nums text-[#163E32]">
++                          {formatPeso(selectedCashSession.expectedCash)}
++                        </span>
++                      </div>
++
++                      <div className="mt-1.5 flex items-center justify-between gap-3 text-xs">
++                        <span className="text-[#6B5D52]">
++                          Expected after operation
++                        </span>
++
++                        <span
++                          className={`font-bold tabular-nums ${
++                            expectedCashAfterAdjustment !== null &&
++                            expectedCashAfterAdjustment < 0
++                              ? 'text-rose-700'
++                              : 'text-[#163E32]'
++                          }`}
++                        >
++                          {formatPeso(
++                            expectedCashAfterAdjustment ??
++                              selectedCashSession.expectedCash
++                          )}
++                        </span>
++                      </div>
++
++                      <p className="mt-2 text-[10px] leading-4 text-[#6B5D52]">
++                        Opening float remains session state and is not revenue.
++                      </p>
++                    </div>
++                  )}
+                 </div>
+               )}
+ 
+@@ -1623,14 +1839,27 @@ function RecordFinancialEntryForm({
+                       <label className="block text-[11px] font-semibold text-[#7A6E65] mb-1">
+                         Source Account (Outflow) <span className="text-rose-500">*</span>
+                       </label>
++
+                       <select
+                         value={transferSourceAccountId}
+-                        onChange={(e) => setTransferSourceAccountId(e.target.value)}
++                        onChange={(e) => {
++                          const nextSourceId = e.target.value;
++
++                          setTransferSourceAccountId(nextSourceId);
++
++                          if (transferDestAccountId === nextSourceId) {
++                            setTransferDestAccountId(
++                              accounts.find(
++                                (account) => account.id !== nextSourceId
++                              )?.id || ''
++                            );
++                          }
++                        }}
+                         className="w-full px-3 py-2 bg-white border border-[#EAE4DC] rounded-xl text-xs text-[#1E1916] focus:outline-none focus:border-[#1B4D3E]"
+                       >
+-                        {accounts.map((a) => (
+-                          <option key={a.id} value={a.id}>
+-                            {a.name} ({a.identifierMask})
++                        {accounts.map((account) => (
++                          <option key={account.id} value={account.id}>
++                            {account.name} ({account.identifierMask})
+                           </option>
+                         ))}
+                       </select>
+@@ -1640,19 +1869,54 @@ function RecordFinancialEntryForm({
+                       <label className="block text-[11px] font-semibold text-[#7A6E65] mb-1">
+                         Destination Account (Inflow) <span className="text-rose-500">*</span>
+                       </label>
++
+                       <select
+                         value={transferDestAccountId}
+                         onChange={(e) => setTransferDestAccountId(e.target.value)}
+-                        className="w-full px-3 py-2 bg-white border border-[#EAE4DC] rounded-xl text-xs text-[#1E1916] focus:outline-none focus:border-[#1B4D3E]"
++                        disabled={transferDestinationOptions.length === 0}
++                        className="w-full px-3 py-2 bg-white border border-[#EAE4DC] rounded-xl text-xs text-[#1E1916] focus:outline-none focus:border-[#1B4D3E] disabled:bg-[#F5F2EE] disabled:text-[#9C8878]"
+                       >
+-                        {accounts.map((a) => (
+-                          <option key={a.id} value={a.id}>
+-                            {a.name} ({a.identifierMask})
++                        {transferDestinationOptions.length === 0 ? (
++                          <option value="">
++                            No other financial account configured
+                           </option>
+-                        ))}
++                        ) : (
++                          transferDestinationOptions.map((account) => (
++                            <option key={account.id} value={account.id}>
++                              {account.name} ({account.identifierMask})
++                            </option>
++                          ))
++                        )}
+                       </select>
+                     </div>
+                   </div>
++
++                  {transferDestinationOptions.length === 0 && (
++                    <div
++                      role="alert"
++                      className="rounded-xl border border-amber-200 bg-amber-50 p-3 text-xs text-amber-900"
++                    >
++                      Transfer / Safe Drop is unavailable until a real
++                      destination financial account is configured. Do not use
++                      Cash Removal as a substitute for a safe drop.
++                    </div>
++                  )}
++
++                  {transferTouchesClosedDrawer && (
++                    <div
++                      role="alert"
++                      className="rounded-xl border border-rose-200 bg-rose-50 p-3 text-xs text-rose-800"
++                    >
++                      Any cash drawer used in a transfer must have an open cash
++                      session.
++                    </div>
++                  )}
++
++                  <div className="rounded-xl border border-blue-100 bg-blue-50/60 p-3 text-[11px] leading-4 text-blue-900">
++                    Transfers move custody between real financial accounts.
++                    They do not create revenue and they do not create an
++                    operating expense.
++                  </div>
+                 </div>
+               )}
+ 
+@@ -2133,6 +2397,11 @@ function RecordFinancialEntryForm({
+                       <span>Add Another Payment Method</span>
+                     </button>
+                   </div>
++                  {hasMissingCompatibleAccount && (
++                    <p role="alert" className="text-xs text-amber-800">
++                      No compatible financial account is configured for the selected payment method. Ask an administrator to set up the account before recording payment.
++                    </p>
++                  )}
+                 </div>
+               )}
+ 
+@@ -2301,6 +2570,7 @@ function RecordFinancialEntryForm({
+                 isOrderFullyPaid ||
+                 !selectedOrder ||
+                 totalPayment <= 0 ||
++                hasMissingCompatibleAccount ||
+                 totalPayment > (selectedOrder?.remainingBalance || 0)
+               }
+               className="px-5 py-2 bg-[#163E32] hover:bg-[#1B4D3E] text-white text-xs font-semibold rounded-xl shadow-2xs transition disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-1.5"
+@@ -2354,12 +2624,22 @@ function RecordFinancialEntryForm({
+                 isSubmitting ||
+                 !otherAmount ||
+                 Number(otherAmount) <= 0 ||
+-                otherEntryType === 'generic_adjustment'
++                otherEntryType === 'generic_adjustment' ||
++                cashAdjustmentBlocked ||
++                transferBlocked
+               }
+               className="px-5 py-2 bg-[#163E32] hover:bg-[#1B4D3E] text-white text-xs font-semibold rounded-xl shadow-2xs transition disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-1.5"
+             >
+               {isSubmitting && <Loader2 className="w-3.5 h-3.5 animate-spin" />}
+-              <span>Record Other Entry</span>
++              <span>
++                {otherEntryType === 'cash_addition'
++                  ? 'Record Cash Addition'
++                  : otherEntryType === 'cash_removal'
++                    ? 'Record Cash Removal'
++                    : otherEntryType === 'transfer'
++                      ? 'Record Transfer'
++                      : 'Record Other Entry'}
++              </span>
+             </button>
+           )}
+         </div>
+
+------------------------------------------------------------
+FILE: src/components/features/cash-flow/cash-flow-workspace.tsx
+------------------------------------------------------------
+warning: in the working copy of 'src/components/features/cash-flow/cash-flow-workspace.tsx', LF will be replaced by CRLF the next time Git touches it
+diff --git a/src/components/features/cash-flow/cash-flow-workspace.tsx b/src/components/features/cash-flow/cash-flow-workspace.tsx
+index bc946ad9..9574d623 100644
+--- a/src/components/features/cash-flow/cash-flow-workspace.tsx
++++ b/src/components/features/cash-flow/cash-flow-workspace.tsx
+@@ -107,17 +107,15 @@ export function CashFlowWorkspace({ initialData, initialTab = "today" }: CashFlo
+               <span>Open Cash Drawer</span>
+             </button>
+           )}
+-          {initialData.cashSessions?.activeSessions?.length ? (
+-            <button
+-              type="button"
+-              onClick={openCashOperations}
+-              className="inline-flex items-center gap-1.5 rounded-lg border border-[#D8CDBF] bg-white px-3.5 py-1.5 text-xs font-semibold text-[#493F37] shadow-2xs transition hover:border-[#BFAF9E] hover:bg-[#FAF8F5]"
+-              title="Record physical cash additions, removals, or safe drops"
+-            >
+-              <ArrowLeftRight className="h-3.5 w-3.5 text-[#6B5D52]" />
+-              <span>Cash Operations</span>
+-            </button>
+-          ) : null}
++          <button
++            type="button"
++            onClick={openCashOperations}
++            className="inline-flex items-center gap-1.5 rounded-lg border border-[#D8CDBF] bg-white px-3.5 py-1.5 text-xs font-semibold text-[#493F37] shadow-2xs transition hover:border-[#BFAF9E] hover:bg-[#FAF8F5]"
++            title="Record cash corrections or transfers between configured financial accounts"
++          >
++            <ArrowLeftRight className="h-3.5 w-3.5 text-[#6B5D52]" />
++            <span>Cash Operations</span>
++          </button>
+           <button
+             onClick={() => openRecordPayment()}
+             className="inline-flex items-center gap-1.5 px-3.5 py-1.5 border border-[#1B4D3E] bg-[#EEF8F2] hover:bg-[#E3F2E9] text-xs font-semibold text-[#163E32] rounded-lg shadow-2xs transition"
+@@ -315,6 +313,7 @@ export function CashFlowWorkspace({ initialData, initialTab = "today" }: CashFlo
+         expenseCategories={initialData.expenseCategories}
+         staffOptions={initialData.staffOptions}
+         payableOrders={initialData.payableOrders}
++        activeCashSessions={initialData.cashSessions?.activeSessions ?? []}
+         initialOrderId={targetOrderId}
+         initialMode={entryModalMode}
+         branchId={initialData.branchId}
+
+------------------------------------------------------------
+FILE: src/lib/cash-flow/cash-flow-actions.ts
+------------------------------------------------------------
+warning: in the working copy of 'src/lib/cash-flow/cash-flow-actions.ts', LF will be replaced by CRLF the next time Git touches it
+diff --git a/src/lib/cash-flow/cash-flow-actions.ts b/src/lib/cash-flow/cash-flow-actions.ts
+index 30a6c23e..0ab56a51 100644
+--- a/src/lib/cash-flow/cash-flow-actions.ts
++++ b/src/lib/cash-flow/cash-flow-actions.ts
+@@ -3,9 +3,19 @@
+ import { revalidatePath } from 'next/cache';
+ import { revalidateOperationalBookingSurfaces } from '@/lib/bookings/revalidate-booking-surfaces';
+ import { createClient } from '@/lib/supabase/server';
++import { createAdminClient } from '@/lib/supabase/admin';
++import { z } from 'zod';
++import { recordBookingPaymentChange } from '@/lib/bookings/payment-transaction';
++import { validatedLegacyBookingPrice } from './legacy-booking-price';
++import {
++  EXPENSE_RECEIPT_BUCKET,
++  makeExpenseReceiptPath,
++  validateExpenseReceipt,
++} from './expense-receipt';
+ import { recordOrderPayment, type RecordOrderPaymentResult } from './payment-writer';
+ import {
+   PostOrderPaymentPayloadSchema,
++  PaymentPartPayloadSchema,
+   type PostOrderPaymentPayload,
+ } from './financial-contract';
+ import type {
+@@ -28,6 +38,65 @@ interface GenericRpcClient {
+   }>;
+ }
+ 
++interface DynamicCashSessionEqQuery {
++  eq: (column: string, value: unknown) => DynamicCashSessionEqQuery;
++  maybeSingle: () => Promise<{
++    data: { id: string } | null;
++    error: { message: string; code?: string } | null;
++  }>;
++}
++
++interface DynamicCashSessionClient {
++  from: (table: string) => {
++    select: (columns: string) => DynamicCashSessionEqQuery;
++  };
++}
++
++async function requireOpenCashSessionForDrawer(
++  supabase: Awaited<ReturnType<typeof createClient>>,
++  branchId: string | undefined,
++  drawerId: string
++): Promise<
++  | { ok: true }
++  | { ok: false; error: string; code: string }
++> {
++  if (!branchId) {
++    return {
++      ok: false,
++      error: 'BRANCH_REQUIRED: Branch context is required for physical cash operations.',
++      code: 'BRANCH_REQUIRED',
++    };
++  }
++
++  const query = (supabase as unknown as DynamicCashSessionClient)
++    .from('cash_sessions')
++    .select('id')
++    .eq('branch_id', branchId)
++    .eq('cash_drawer_account_id', drawerId)
++    .eq('status', 'open');
++
++
++  const { data, error } = await query.maybeSingle();
++
++  if (error) {
++    return {
++      ok: false,
++      error: `CASH_SESSION_CHECK_FAILED: ${error.message}`,
++      code: error.code || 'CASH_SESSION_CHECK_FAILED',
++    };
++  }
++
++  if (!data) {
++    return {
++      ok: false,
++      error: 'CASH_SESSION_REQUIRED: Open the cash drawer before recording physical cash operations.',
++      code: 'CASH_SESSION_REQUIRED',
++    };
++  }
++
++  return { ok: true };
++}
++
+ export async function recordOrderPaymentAction(
+   payload: PostOrderPaymentPayload
+ ): Promise<RecordOrderPaymentResult> {
+@@ -67,8 +136,103 @@ export async function recordOrderPaymentAction(
+   return result;
+ }
+ 
++const LegacyBookingPaymentPayloadSchema = z.object({
++  bookingId: z.guid(),
++  branchId: z.guid(),
++  expectedAmountPaid: z.number().nonnegative().refine(
++    (amount) => Number.isFinite(amount) && Number(amount.toFixed(2)) === amount
++  ),
++  idempotencyKey: z.string().trim().min(1).max(255),
++  payments: z.array(PaymentPartPayloadSchema).min(1),
++  businessDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
++  notes: z.string().trim().max(1000).nullish(),
++});
++
++export type LegacyBookingPaymentPayload = z.infer<typeof LegacyBookingPaymentPayloadSchema>;
++
++export async function recordLegacyBookingPaymentAction(
++  input: LegacyBookingPaymentPayload
++): Promise<
++  | { ok: true; data: { transactionId: string | null; paymentDelta: number; isIdempotentReplay: boolean; branchId: string } }
++  | { ok: false; error: string; code?: string }
++> {
++  const parsed = LegacyBookingPaymentPayloadSchema.safeParse(input);
++  if (!parsed.success) {
++    return { ok: false, error: 'VALIDATION_FAILED: Invalid booking payment request.', code: 'VALIDATION_FAILED' };
++  }
++  const payload = parsed.data;
++  const supabase = await createClient();
++  const { data: { user } } = await supabase.auth.getUser();
++  if (!user) {
++    return { ok: false, error: 'AUTH_REQUIRED: Authentication required to record payments.', code: 'AUTH_REQUIRED' };
++  }
++
++  const { data: booking, error: bookingError } = await supabase.from('bookings')
++    .select('id, branch_id, order_id, amount_paid, payment_status, status, metadata')
++    .eq('id', payload.bookingId)
++    .maybeSingle();
++  if (bookingError || !booking) {
++    return { ok: false, error: 'BOOKING_NOT_FOUND: Booking is unavailable.', code: 'BOOKING_NOT_FOUND' };
++  }
++  if (booking.order_id !== null) {
++    return { ok: false, error: 'SOURCE_MISMATCH: Use the order payment command for this booking.', code: 'SOURCE_MISMATCH' };
++  }
++  if (booking.branch_id !== payload.branchId) {
++    return { ok: false, error: 'BRANCH_MISMATCH: Booking belongs to another branch.', code: 'BRANCH_MISMATCH' };
++  }
++  if (booking.status === 'cancelled' || booking.status === 'no_show') {
++    return { ok: false, error: 'BOOKING_NOT_PAYABLE: This booking cannot receive payment.', code: 'BOOKING_NOT_PAYABLE' };
++  }
++
++  const total = validatedLegacyBookingPrice(booking.metadata as Record<string, unknown> | null);
++  if (total === null) {
++    return { ok: false, error: 'BOOKING_PRICE_INVALID: Booking price snapshot is unavailable.', code: 'BOOKING_PRICE_INVALID' };
++  }
++  const tenderCents = payload.payments.reduce((sum, part) => sum + Math.round(part.amount * 100), 0);
++  const previousCents = Math.round(payload.expectedAmountPaid * 100);
++  const targetCents = previousCents + tenderCents;
++  const currentPaid = Number(booking.amount_paid ?? 0);
++  const currentCents = Math.round(currentPaid * 100);
++  if (!Number.isFinite(currentPaid) || currentPaid < 0 ||
++      targetCents > Math.round(total * 100) ||
++      (currentCents !== previousCents && currentCents !== targetCents) ||
++      (currentCents === previousCents && booking.payment_status === 'paid')) {
++    return { ok: false, error: 'PAYMENT_STATE_CHANGED: Refresh the booking balance before posting.', code: 'PAYMENT_STATE_CHANGED' };
++  }
++
++  const isFullPayment = targetCents === Math.round(total * 100);
++  const shouldConfirm = isFullPayment && booking.status === 'pending_payment';
++  const result = await recordBookingPaymentChange(supabase, {
++    bookingId: booking.id,
++    branchId: payload.branchId,
++    paymentMethod: payload.payments.length === 1 ? payload.payments[0]!.paymentMethod : 'other',
++    paymentStatus: isFullPayment ? 'paid' : 'pending',
++    amountPaid: targetCents / 100,
++    paymentReference: payload.payments.length === 1 ? payload.payments[0]!.externalReference ?? null : null,
++    reason: payload.notes || 'Cash Flow payment',
++    nextStatus: shouldConfirm ? 'confirmed' : null,
++    clearHold: shouldConfirm,
++    idempotencyKey: payload.idempotencyKey,
++    payments: payload.payments,
++    businessDate: payload.businessDate,
++  });
++  if (!result.ok) return { ok: false, error: result.error, code: 'PAYMENT_REJECTED' };
++  revalidateOperationalBookingSurfaces(result.booking.branch_id);
++  revalidatePath('/crm/cash-flow');
++  return {
++    ok: true,
++    data: {
++      transactionId: result.transactionId,
++      paymentDelta: result.paymentDelta,
++      isIdempotentReplay: result.isIdempotentReplay,
++      branchId: result.booking.branch_id,
++    },
++  };
++}
++
+ export async function recordExpenseAction(
+-  input: import('./cash-flow-types').RecordExpenseInput
++  input: import('./cash-flow-types').RecordExpenseInput,
++  receiptFormData?: FormData
+ ): Promise<import('./cash-flow-types').OperationalEntryResult> {
+   const supabase = await createClient();
+ 
+@@ -84,6 +248,12 @@ export async function recordExpenseAction(
+     };
+   }
+ 
++  // The receipt path is always server-generated. Reject callers of the old
++  // browser-upload contract even if they bypass TypeScript.
++  if ((input as { receiptImagePath?: unknown }).receiptImagePath) {
++    return { ok: false, error: 'RECEIPT_PATH_FORBIDDEN: Receipt path must be generated by the server.', code: 'RECEIPT_PATH_FORBIDDEN' };
++  }
++
+   if (!input.amount || input.amount <= 0) {
+     return { ok: false, error: 'INVALID_AMOUNT: Expense amount must be greater than zero.', code: 'INVALID_AMOUNT' };
+   }
+@@ -97,29 +267,132 @@ export async function recordExpenseAction(
+     return { ok: false, error: 'DESCRIPTION_REQUIRED: Description is required.', code: 'DESCRIPTION_REQUIRED' };
+   }
+ 
+-  const { data, error } = await (supabase as unknown as GenericRpcClient).rpc('post_expense_atomic', {
+-    p_branch_id: input.branchId || null,
+-    p_idempotency_key: input.idempotencyKey || null,
+-    p_amount: input.amount,
+-    p_category_id: input.categoryId,
+-    p_financial_account_id: input.financialAccountId,
+-    p_payee: input.payee || 'Direct Vendor',
+-    p_description: input.description.trim(),
+-    p_receipt_reference: input.receiptReference || null,
+-    p_business_date: input.businessDate || null,
+-    p_notes: input.notes || null,
+-    p_receipt_image_path: input.receiptImagePath?.trim() || null,
+-  });
++  const receipt = receiptFormData?.get('receipt');
++  if (receipt !== undefined && receipt !== null && !(receipt instanceof File)) {
++    return { ok: false, error: 'RECEIPT_INVALID: A file is required.', code: 'RECEIPT_INVALID' };
++  }
+ 
+-  if (error) {
+-    return { ok: false, error: error.message, code: error.code || 'RPC_ERROR' };
++  let receiptPath: string | null = null;
++  let effectiveBranchId = input.branchId || null;
++  let admin: ReturnType<typeof createAdminClient> | null = null;
++
++  if (receipt instanceof File) {
++    const validated = await validateExpenseReceipt(receipt);
++    if (!validated.ok) {
++      return { ok: false, error: validated.error, code: validated.code };
++    }
++
++    const { data: staff, error: staffError } = await supabase
++      .from('staff')
++      .select('id, branch_id, system_role, is_active')
++      .eq('auth_user_id', user.id)
++      .maybeSingle();
++    if (staffError || !staff || !staff.is_active) {
++      return { ok: false, error: 'STAFF_INACTIVE: Active staff account required.', code: 'STAFF_INACTIVE' };
++    }
++    if (!['owner', 'manager', 'assistant_manager', 'store_manager', 'crm'].includes(staff.system_role ?? '')) {
++      return { ok: false, error: 'EXPENSE_ROLE_UNAUTHORIZED: Caller cannot post expenses.', code: 'EXPENSE_ROLE_UNAUTHORIZED' };
++    }
++    if (staff.system_role === 'owner') {
++      if (!effectiveBranchId) {
++        return { ok: false, error: 'BRANCH_REQUIRED: Select a branch for this receipt.', code: 'BRANCH_REQUIRED' };
++      }
++    } else {
++      if (!staff.branch_id || (effectiveBranchId && effectiveBranchId !== staff.branch_id)) {
++        return { ok: false, error: 'BRANCH_MISMATCH: Caller cannot upload for that branch.', code: 'BRANCH_MISMATCH' };
++      }
++      effectiveBranchId = staff.branch_id;
++    }
++
++    const [{ data: branch, error: branchError }, { data: account, error: accountError }] = await Promise.all([
++      supabase.from('branches').select('id').eq('id', effectiveBranchId!).maybeSingle(),
++      supabase.from('financial_accounts').select('id, branch_id, is_active').eq('id', input.financialAccountId).maybeSingle(),
++    ]);
++    if (branchError || !branch) {
++      return { ok: false, error: 'BRANCH_NOT_FOUND: Receipt branch is unavailable.', code: 'BRANCH_NOT_FOUND' };
++    }
++    if (accountError || !account || !account.is_active ||
++      (account.branch_id && account.branch_id !== effectiveBranchId)) {
++      return { ok: false, error: 'ACCOUNT_BRANCH_MISMATCH: Payment account is unavailable for this branch.', code: 'ACCOUNT_BRANCH_MISMATCH' };
++    }
++
++    try {
++      receiptPath = makeExpenseReceiptPath(effectiveBranchId!, input.businessDate || '', validated.extension);
++    } catch {
++      return { ok: false, error: 'BUSINESS_DATE_INVALID: A valid business date is required for a receipt.', code: 'BUSINESS_DATE_INVALID' };
++    }
++    admin = createAdminClient();
++    try {
++      const { error: uploadError } = await admin.storage
++        .from(EXPENSE_RECEIPT_BUCKET)
++        .upload(receiptPath, receipt, { contentType: validated.mimeType, upsert: false });
++      if (uploadError) {
++        return { ok: false, error: `RECEIPT_UPLOAD_FAILED: ${uploadError.message}`, code: 'RECEIPT_UPLOAD_FAILED' };
++      }
++    } catch {
++      try {
++        const { error: cleanupError } = await admin.storage.from(EXPENSE_RECEIPT_BUCKET).remove([receiptPath]);
++        if (cleanupError) {
++          return { ok: false, error: 'RECEIPT_UPLOAD_FAILED: Storage request failed; cleanup also failed.', code: 'RECEIPT_UPLOAD_CLEANUP_FAILED' };
++        }
++      } catch {
++        return { ok: false, error: 'RECEIPT_UPLOAD_FAILED: Storage request failed; cleanup also failed.', code: 'RECEIPT_UPLOAD_CLEANUP_FAILED' };
++      }
++      return { ok: false, error: 'RECEIPT_UPLOAD_FAILED: Storage request failed.', code: 'RECEIPT_UPLOAD_FAILED' };
++    }
++  }
++
++  const cleanupReceipt = async (): Promise<string | null> => {
++    if (!receiptPath || !admin) return null;
++    try {
++      const { error } = await admin.storage.from(EXPENSE_RECEIPT_BUCKET).remove([receiptPath]);
++      return error?.message || null;
++    } catch {
++      return 'Storage removal failed.';
++    }
++  };
++
++  let data: GenericRpcResult | null = null;
++  let rpcError: { message: string; code?: string } | null = null;
++  try {
++    const response = await (supabase as unknown as GenericRpcClient).rpc('post_expense_atomic', {
++      p_branch_id: effectiveBranchId,
++      p_idempotency_key: input.idempotencyKey || null,
++      p_amount: input.amount,
++      p_category_id: input.categoryId,
++      p_financial_account_id: input.financialAccountId,
++      p_payee: input.payee || 'Direct Vendor',
++      p_description: input.description.trim(),
++      p_receipt_reference: input.receiptReference || null,
++      p_business_date: input.businessDate || null,
++      p_notes: input.notes || null,
++      p_receipt_image_path: receiptPath,
++    });
++    data = response.data;
++    rpcError = response.error;
++  } catch {
++    rpcError = { message: 'Expense posting request failed.', code: 'RPC_ERROR' };
+   }
+ 
++  if (rpcError || !data) {
++    const cleanupError = await cleanupReceipt();
++    return {
++      ok: false,
++      error: cleanupError
++        ? `Expense posting failed; receipt cleanup also failed: ${cleanupError}`
++        : rpcError?.message || 'Expense posting returned no result.',
++      code: cleanupError ? 'EXPENSE_FAILED_RECEIPT_CLEANUP_FAILED' : rpcError?.code || 'RPC_ERROR',
++    };
++  }
++
++  // A replay uses the original database receipt path, so remove this new upload.
++  const replayCleanupError = data.idempotentReplay ? await cleanupReceipt() : null;
+   revalidatePath('/crm/cash-flow');
+   return {
+     ok: true,
+-    transactionId: (data as { transactionId?: string })?.transactionId,
+-    idempotentReplay: (data as { idempotentReplay?: boolean })?.idempotentReplay,
++    transactionId: data.transactionId,
++    idempotentReplay: data.idempotentReplay,
++    warning: replayCleanupError ? `Expense was already recorded; receipt cleanup failed: ${replayCleanupError}` : undefined,
+   };
+ }
+ 
+@@ -228,6 +501,16 @@ export async function recordOtherEntryAction(
+       return { ok: false, error: 'REASON_REQUIRED: Reason for adjustment is required.', code: 'REASON_REQUIRED' };
+     }
+ 
++    const cashSessionCheck = await requireOpenCashSessionForDrawer(
++      supabase,
++      input.branchId,
++      input.cashDrawerId
++    );
++
++    if (!cashSessionCheck.ok) {
++      return cashSessionCheck;
++    }
++
+     const { data, error } = await (supabase as unknown as GenericRpcClient).rpc('post_cash_adjustment_atomic', {
+       p_branch_id: input.branchId || null,
+       p_financial_account_id: input.cashDrawerId,
+@@ -252,6 +535,41 @@ export async function recordOtherEntryAction(
+       return { ok: false, error: 'IDENTICAL_ACCOUNTS: Source and destination accounts cannot be identical.', code: 'IDENTICAL_ACCOUNTS' };
+     }
+ 
++    const { data: transferAccounts, error: transferAccountsError } = await supabase
++      .from('financial_accounts')
++      .select('id, account_type')
++      .in('id', [input.sourceAccountId, input.destinationAccountId]);
++
++    if (transferAccountsError) {
++      return {
++        ok: false,
++        error: `ACCOUNT_LOOKUP_FAILED: ${transferAccountsError.message}`,
++        code: transferAccountsError.code || 'ACCOUNT_LOOKUP_FAILED',
++      };
++    }
++
++    if (!transferAccounts || transferAccounts.length !== 2) {
++      return {
++        ok: false,
++        error: 'ACCOUNT_NOT_FOUND: Transfer accounts could not be resolved.',
++        code: 'ACCOUNT_NOT_FOUND',
++      };
++    }
++
++    for (const account of transferAccounts) {
++      if (account.account_type !== 'cash_drawer') continue;
++
++      const cashSessionCheck = await requireOpenCashSessionForDrawer(
++        supabase,
++        input.branchId,
++        account.id
++      );
++
++      if (!cashSessionCheck.ok) {
++        return cashSessionCheck;
++      }
++    }
++
+     const { data, error } = await (supabase as unknown as GenericRpcClient).rpc('post_transfer_atomic', {
+       p_branch_id: input.branchId || null,
+       p_source_account_id: input.sourceAccountId,
+
+------------------------------------------------------------
+FILE: supabase/migrations/20260930083000_cf8c_cash_operations_integrity.sql
+------------------------------------------------------------
+UNTRACKED FILE — FULL CONTENT FOLLOWS
+-- =============================================================================
+-- CF8-C — Cash Operations Integrity
+--
+-- Forward-only correction.
+--
+-- Protects canonical cash operations at the database authority boundary:
+--
+-- 1. Physical cash adjustments require an OPEN cash session for the
+--    exact drawer, branch and business date.
+--
+-- 2. Transfers touching a cash drawer require that drawer to have an
+--    OPEN cash session.
+--
+-- 3. Cash operations are PHP-only.
+--
+-- 4. Idempotent replay validates the original payload shape rather than
+--    silently accepting a changed payload under the same key.
+--
+-- This migration does NOT:
+--   - replay historical transactions
+--   - modify cash session records
+--   - modify existing financial evidence
+--   - create financial accounts
+--   - create a safe/vault account
+--   - touch daily_cash_reconciliations
+-- =============================================================================
+
+BEGIN;
+
+-- ---------------------------------------------------------------------------
+-- PRE-FLIGHT
+-- ---------------------------------------------------------------------------
+
+DO $preflight$
+BEGIN
+  IF to_regclass('public.cash_sessions') IS NULL THEN
+    RAISE EXCEPTION
+      'MIGRATION_HALT: public.cash_sessions does not exist'
+      USING ERRCODE = '55000';
+  END IF;
+
+  IF to_regclass('public.financial_accounts') IS NULL THEN
+    RAISE EXCEPTION
+      'MIGRATION_HALT: public.financial_accounts does not exist'
+      USING ERRCODE = '55000';
+  END IF;
+
+  IF to_regclass('public.financial_transactions') IS NULL THEN
+    RAISE EXCEPTION
+      'MIGRATION_HALT: public.financial_transactions does not exist'
+      USING ERRCODE = '55000';
+  END IF;
+
+  IF to_regclass('public.financial_account_movements') IS NULL THEN
+    RAISE EXCEPTION
+      'MIGRATION_HALT: public.financial_account_movements does not exist'
+      USING ERRCODE = '55000';
+  END IF;
+
+  IF to_regprocedure(
+    'public.post_cash_adjustment_atomic(uuid,uuid,text,numeric,text,date,text,text)'
+  ) IS NULL THEN
+    RAISE EXCEPTION
+      'MIGRATION_HALT: post_cash_adjustment_atomic signature is missing'
+      USING ERRCODE = '55000';
+  END IF;
+
+  IF to_regprocedure(
+    'public.post_transfer_atomic(uuid,uuid,uuid,numeric,date,text,text)'
+  ) IS NULL THEN
+    RAISE EXCEPTION
+      'MIGRATION_HALT: post_transfer_atomic signature is missing'
+      USING ERRCODE = '55000';
+  END IF;
+END;
+$preflight$;
+
+-- ===========================================================================
+-- CASH ADJUSTMENT
+-- ===========================================================================
+
+CREATE OR REPLACE FUNCTION public.post_cash_adjustment_atomic(
+  p_branch_id            UUID,
+  p_financial_account_id UUID,
+  p_adjustment_type      TEXT,
+  p_amount               NUMERIC,
+  p_reason               TEXT,
+  p_business_date        DATE DEFAULT NULL,
+  p_notes                TEXT DEFAULT NULL,
+  p_idempotency_key      TEXT DEFAULT NULL
+)
+RETURNS JSONB
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = ''
+AS $func$
+DECLARE
+  v_auth_uid          UUID;
+  v_staff             RECORD;
+  v_account           RECORD;
+  v_existing_tx       RECORD;
+  v_business_date     DATE;
+  v_now               TIMESTAMPTZ := clock_timestamp();
+  v_transaction_id    UUID;
+  v_movement_id       UUID;
+  v_amount            NUMERIC(12,2);
+  v_signed_amount     NUMERIC(12,2);
+  v_expected_notes    TEXT;
+  v_existing_count    INTEGER;
+  v_existing_amount   NUMERIC(12,2);
+BEGIN
+  IF p_amount IS NULL OR p_amount <= 0 THEN
+    RAISE EXCEPTION
+      'INVALID_AMOUNT: Adjustment amount must be greater than zero';
+  END IF;
+
+  v_amount := ROUND(p_amount::numeric, 2);
+
+  IF p_adjustment_type NOT IN ('addition', 'removal') THEN
+    RAISE EXCEPTION
+      'INVALID_ADJUSTMENT_TYPE: Type must be addition or removal';
+  END IF;
+
+  IF p_reason IS NULL OR TRIM(p_reason) = '' THEN
+    RAISE EXCEPTION
+      'REASON_REQUIRED: Reason for cash adjustment is required';
+  END IF;
+
+  IF p_adjustment_type = 'addition' THEN
+    v_signed_amount := v_amount;
+  ELSE
+    v_signed_amount := -v_amount;
+  END IF;
+
+  -- Actor authority.
+  v_auth_uid := auth.uid();
+
+  IF v_auth_uid IS NULL THEN
+    RAISE EXCEPTION
+      'AUTH_REQUIRED: Authentication required to adjust cash';
+  END IF;
+
+  SELECT *
+  INTO v_staff
+  FROM public.staff
+  WHERE auth_user_id = v_auth_uid
+    AND is_active = true
+  LIMIT 1;
+
+  IF v_staff IS NULL THEN
+    RAISE EXCEPTION
+      'STAFF_NOT_FOUND: Active staff record not found for authenticated user';
+  END IF;
+
+  IF p_branch_id IS NULL THEN
+    p_branch_id := v_staff.branch_id;
+  END IF;
+
+  IF p_branch_id IS NULL THEN
+    RAISE EXCEPTION
+      'BRANCH_REQUIRED: Branch context is required for cash adjustment';
+  END IF;
+
+  IF v_staff.system_role NOT IN (
+    'owner',
+    'manager',
+    'assistant_manager',
+    'store_manager',
+    'crm'
+  ) THEN
+    RAISE EXCEPTION
+      'CASH_ROLE_UNAUTHORIZED: Caller cannot adjust cash';
+  END IF;
+
+  IF v_staff.system_role <> 'owner'
+     AND v_staff.branch_id <> p_branch_id THEN
+    RAISE EXCEPTION
+      'BRANCH_MISMATCH: Staff member is not authorized for branch %',
+      p_branch_id;
+  END IF;
+
+  v_business_date := COALESCE(p_business_date, CURRENT_DATE);
+
+  v_expected_notes :=
+    TRIM(p_reason) ||
+    CASE
+      WHEN p_notes IS NOT NULL AND TRIM(p_notes) <> ''
+        THEN ' — ' || TRIM(p_notes)
+      ELSE ''
+    END;
+
+  -- -------------------------------------------------------------------------
+  -- IDEMPOTENCY
+  --
+  -- Replay is allowed only when the stored canonical transaction matches the
+  -- same adjustment payload.
+  -- -------------------------------------------------------------------------
+
+  IF p_idempotency_key IS NOT NULL
+     AND TRIM(p_idempotency_key) <> '' THEN
+
+    SELECT *
+    INTO v_existing_tx
+    FROM public.financial_transactions
+    WHERE idempotency_key = TRIM(p_idempotency_key);
+
+    IF v_existing_tx.id IS NOT NULL THEN
+
+      SELECT
+        COUNT(*)::INTEGER,
+        COALESCE(SUM(m.amount), 0)::NUMERIC(12,2)
+      INTO
+        v_existing_count,
+        v_existing_amount
+      FROM public.financial_account_movements m
+      WHERE m.transaction_id = v_existing_tx.id
+        AND m.financial_account_id = p_financial_account_id
+        AND m.payment_method = 'cash';
+
+      IF v_existing_tx.transaction_type <> 'cash_adjustment'
+         OR v_existing_tx.branch_id IS DISTINCT FROM p_branch_id
+         OR v_existing_tx.business_date IS DISTINCT FROM v_business_date
+         OR v_existing_tx.currency IS DISTINCT FROM 'PHP'
+         OR v_existing_tx.status IS DISTINCT FROM 'posted'
+         OR COALESCE(v_existing_tx.notes, '') IS DISTINCT FROM v_expected_notes
+         OR v_existing_count <> 1
+         OR v_existing_amount IS DISTINCT FROM v_signed_amount THEN
+
+        RAISE EXCEPTION
+          'IDEMPOTENCY_CONFLICT: Key was already used for a different cash adjustment';
+      END IF;
+
+      RETURN jsonb_build_object(
+        'success', true,
+        'transactionId', v_existing_tx.id,
+        'idempotentReplay', true,
+        'amount', v_signed_amount
+      );
+    END IF;
+  END IF;
+
+  -- Account authority.
+  SELECT *
+  INTO v_account
+  FROM public.financial_accounts
+  WHERE id = p_financial_account_id;
+
+  IF v_account.id IS NULL THEN
+    RAISE EXCEPTION
+      'ACCOUNT_NOT_FOUND: Financial account does not exist';
+  END IF;
+
+  IF NOT v_account.is_active THEN
+    RAISE EXCEPTION
+      'ACCOUNT_INACTIVE: Financial account is inactive';
+  END IF;
+
+  IF v_account.account_type <> 'cash_drawer' THEN
+    RAISE EXCEPTION
+      'CASH_DRAWER_REQUIRED: Cash adjustments can only be performed on cash_drawer accounts';
+  END IF;
+
+  IF v_account.currency IS DISTINCT FROM 'PHP' THEN
+    RAISE EXCEPTION
+      'UNSUPPORTED_CURRENCY: Cash operations currently require PHP accounts';
+  END IF;
+
+  IF v_account.branch_id IS NOT NULL
+     AND v_account.branch_id <> p_branch_id THEN
+    RAISE EXCEPTION
+      'ACCOUNT_BRANCH_MISMATCH: Financial account belongs to branch %, not %',
+      v_account.branch_id,
+      p_branch_id;
+  END IF;
+
+  -- -------------------------------------------------------------------------
+  -- PHYSICAL CASH AUTHORITY
+  --
+  -- An open cash session represents physical drawer custody.
+  -- Calendar/business-date rollover does not silently close custody.
+  -- Explicit Day Close / Shift Handover will own closure later.
+  -- -------------------------------------------------------------------------
+
+  IF NOT EXISTS (
+    SELECT 1
+    FROM public.cash_sessions cs
+    WHERE cs.branch_id = p_branch_id
+      AND cs.cash_drawer_account_id = v_account.id
+      AND cs.status = 'open'
+  ) THEN
+    RAISE EXCEPTION
+      'CASH_SESSION_REQUIRED: Open the cash drawer before recording physical cash operations';
+  END IF;
+
+  -- Canonical transaction.
+  INSERT INTO public.financial_transactions (
+    branch_id,
+    transaction_type,
+    business_date,
+    occurred_at,
+    recorded_at,
+    recorded_by,
+    currency,
+    status,
+    idempotency_key,
+    notes
+  )
+  VALUES (
+    p_branch_id,
+    'cash_adjustment',
+    v_business_date,
+    v_now,
+    v_now,
+    v_staff.id,
+    'PHP',
+    'posted',
+    p_idempotency_key,
+    v_expected_notes
+  )
+  RETURNING id INTO v_transaction_id;
+
+  INSERT INTO public.financial_account_movements (
+    transaction_id,
+    financial_account_id,
+    amount,
+    payment_method,
+    created_at
+  )
+  VALUES (
+    v_transaction_id,
+    v_account.id,
+    v_signed_amount,
+    'cash',
+    v_now
+  )
+  RETURNING id INTO v_movement_id;
+
+  RETURN jsonb_build_object(
+    'success', true,
+    'transactionId', v_transaction_id,
+    'movementId', v_movement_id,
+    'amount', v_signed_amount,
+    'adjustmentType', p_adjustment_type,
+    'idempotentReplay', false
+  );
+END;
+$func$;
+
+-- ===========================================================================
+-- ACCOUNT TRANSFER
+-- ===========================================================================
+
+CREATE OR REPLACE FUNCTION public.post_transfer_atomic(
+  p_branch_id              UUID,
+  p_source_account_id      UUID,
+  p_destination_account_id UUID,
+  p_amount                 NUMERIC,
+  p_business_date          DATE DEFAULT NULL,
+  p_notes                  TEXT DEFAULT NULL,
+  p_idempotency_key        TEXT DEFAULT NULL
+)
+RETURNS JSONB
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = ''
+AS $func$
+DECLARE
+  v_auth_uid            UUID;
+  v_staff               RECORD;
+  v_src_account         RECORD;
+  v_dst_account         RECORD;
+  v_existing_tx         RECORD;
+  v_business_date       DATE;
+  v_now                 TIMESTAMPTZ := clock_timestamp();
+  v_transaction_id      UUID;
+  v_outflow_id          UUID;
+  v_inflow_id           UUID;
+  v_amount              NUMERIC(12,2);
+  v_expected_notes      TEXT;
+  v_source_count        INTEGER;
+  v_destination_count   INTEGER;
+  v_source_amount       NUMERIC(12,2);
+  v_destination_amount  NUMERIC(12,2);
+BEGIN
+  IF p_amount IS NULL OR p_amount <= 0 THEN
+    RAISE EXCEPTION
+      'INVALID_AMOUNT: Transfer amount must be greater than zero';
+  END IF;
+
+  v_amount := ROUND(p_amount::numeric, 2);
+
+  IF p_source_account_id IS NULL
+     OR p_destination_account_id IS NULL THEN
+    RAISE EXCEPTION
+      'ACCOUNTS_REQUIRED: Both source and destination accounts are required';
+  END IF;
+
+  IF p_source_account_id = p_destination_account_id THEN
+    RAISE EXCEPTION
+      'IDENTICAL_ACCOUNTS: Source and destination accounts cannot be identical';
+  END IF;
+
+  -- Actor authority.
+  v_auth_uid := auth.uid();
+
+  IF v_auth_uid IS NULL THEN
+    RAISE EXCEPTION
+      'AUTH_REQUIRED: Authentication required to perform transfer';
+  END IF;
+
+  SELECT *
+  INTO v_staff
+  FROM public.staff
+  WHERE auth_user_id = v_auth_uid
+    AND is_active = true
+  LIMIT 1;
+
+  IF v_staff IS NULL THEN
+    RAISE EXCEPTION
+      'STAFF_NOT_FOUND: Active staff record not found for authenticated user';
+  END IF;
+
+  IF p_branch_id IS NULL THEN
+    p_branch_id := v_staff.branch_id;
+  END IF;
+
+  IF p_branch_id IS NULL THEN
+    RAISE EXCEPTION
+      'BRANCH_REQUIRED: Branch context is required for transfer';
+  END IF;
+
+  IF v_staff.system_role NOT IN (
+    'owner',
+    'manager',
+    'assistant_manager',
+    'store_manager',
+    'crm'
+  ) THEN
+    RAISE EXCEPTION
+      'TRANSFER_ROLE_UNAUTHORIZED: Caller cannot transfer funds';
+  END IF;
+
+  IF v_staff.system_role <> 'owner'
+     AND v_staff.branch_id <> p_branch_id THEN
+    RAISE EXCEPTION
+      'BRANCH_MISMATCH: Staff member is not authorized for branch %',
+      p_branch_id;
+  END IF;
+
+  v_business_date := COALESCE(p_business_date, CURRENT_DATE);
+
+  -- Resolve accounts early so replay can validate exact payload.
+  SELECT *
+  INTO v_src_account
+  FROM public.financial_accounts
+  WHERE id = p_source_account_id;
+
+  SELECT *
+  INTO v_dst_account
+  FROM public.financial_accounts
+  WHERE id = p_destination_account_id;
+
+  v_expected_notes :=
+    'Transfer: ' ||
+    COALESCE(v_src_account.name, p_source_account_id::text) ||
+    ' -> ' ||
+    COALESCE(v_dst_account.name, p_destination_account_id::text) ||
+    CASE
+      WHEN p_notes IS NOT NULL AND TRIM(p_notes) <> ''
+        THEN ' — ' || TRIM(p_notes)
+      ELSE ''
+    END;
+
+  -- -------------------------------------------------------------------------
+  -- IDEMPOTENCY
+  -- -------------------------------------------------------------------------
+
+  IF p_idempotency_key IS NOT NULL
+     AND TRIM(p_idempotency_key) <> '' THEN
+
+    SELECT *
+    INTO v_existing_tx
+    FROM public.financial_transactions
+    WHERE idempotency_key = TRIM(p_idempotency_key);
+
+    IF v_existing_tx.id IS NOT NULL THEN
+
+      SELECT
+        COUNT(*)::INTEGER,
+        COALESCE(SUM(m.amount), 0)::NUMERIC(12,2)
+      INTO
+        v_source_count,
+        v_source_amount
+      FROM public.financial_account_movements m
+      WHERE m.transaction_id = v_existing_tx.id
+        AND m.financial_account_id = p_source_account_id;
+
+      SELECT
+        COUNT(*)::INTEGER,
+        COALESCE(SUM(m.amount), 0)::NUMERIC(12,2)
+      INTO
+        v_destination_count,
+        v_destination_amount
+      FROM public.financial_account_movements m
+      WHERE m.transaction_id = v_existing_tx.id
+        AND m.financial_account_id = p_destination_account_id;
+
+      IF v_existing_tx.transaction_type <> 'cash_adjustment'
+         OR v_existing_tx.branch_id IS DISTINCT FROM p_branch_id
+         OR v_existing_tx.business_date IS DISTINCT FROM v_business_date
+         OR v_existing_tx.currency IS DISTINCT FROM 'PHP'
+         OR v_existing_tx.status IS DISTINCT FROM 'posted'
+         OR COALESCE(v_existing_tx.notes, '') IS DISTINCT FROM v_expected_notes
+         OR v_source_count <> 1
+         OR v_destination_count <> 1
+         OR v_source_amount IS DISTINCT FROM -v_amount
+         OR v_destination_amount IS DISTINCT FROM v_amount THEN
+
+        RAISE EXCEPTION
+          'IDEMPOTENCY_CONFLICT: Key was already used for a different transfer';
+      END IF;
+
+      RETURN jsonb_build_object(
+        'success', true,
+        'transactionId', v_existing_tx.id,
+        'idempotentReplay', true,
+        'amount', v_amount
+      );
+    END IF;
+  END IF;
+
+  -- New writes require valid active accounts.
+  IF v_src_account.id IS NULL OR NOT v_src_account.is_active THEN
+    RAISE EXCEPTION
+      'SOURCE_ACCOUNT_INVALID: Source account is invalid or inactive';
+  END IF;
+
+  IF v_dst_account.id IS NULL OR NOT v_dst_account.is_active THEN
+    RAISE EXCEPTION
+      'DESTINATION_ACCOUNT_INVALID: Destination account is invalid or inactive';
+  END IF;
+
+  IF v_src_account.currency IS DISTINCT FROM 'PHP'
+     OR v_dst_account.currency IS DISTINCT FROM 'PHP' THEN
+    RAISE EXCEPTION
+      'UNSUPPORTED_CURRENCY: Transfers currently require PHP accounts';
+  END IF;
+
+  IF v_src_account.branch_id IS NOT NULL
+     AND v_src_account.branch_id <> p_branch_id THEN
+    RAISE EXCEPTION
+      'ACCOUNT_BRANCH_MISMATCH: Source account belongs to branch %, not %',
+      v_src_account.branch_id,
+      p_branch_id;
+  END IF;
+
+  IF v_dst_account.branch_id IS NOT NULL
+     AND v_dst_account.branch_id <> p_branch_id THEN
+    RAISE EXCEPTION
+      'ACCOUNT_BRANCH_MISMATCH: Destination account belongs to branch %, not %',
+      v_dst_account.branch_id,
+      p_branch_id;
+  END IF;
+
+  -- -------------------------------------------------------------------------
+  -- CASH DRAWER AUTHORITY
+  --
+  -- Digital-to-digital transfers do not require a cash session.
+  -- Any transfer touching physical drawer custody does.
+  -- -------------------------------------------------------------------------
+
+  IF v_src_account.account_type = 'cash_drawer'
+     AND NOT EXISTS (
+       SELECT 1
+       FROM public.cash_sessions cs
+       WHERE cs.branch_id = p_branch_id
+         AND cs.cash_drawer_account_id = v_src_account.id
+            AND cs.status = 'open'
+     ) THEN
+
+    RAISE EXCEPTION
+      'CASH_SESSION_REQUIRED: Open the source cash drawer before transferring physical cash';
+  END IF;
+
+  IF v_dst_account.account_type = 'cash_drawer'
+     AND NOT EXISTS (
+       SELECT 1
+       FROM public.cash_sessions cs
+       WHERE cs.branch_id = p_branch_id
+         AND cs.cash_drawer_account_id = v_dst_account.id
+            AND cs.status = 'open'
+     ) THEN
+
+    RAISE EXCEPTION
+      'CASH_SESSION_REQUIRED: Open the destination cash drawer before transferring physical cash';
+  END IF;
+
+  INSERT INTO public.financial_transactions (
+    branch_id,
+    transaction_type,
+    business_date,
+    occurred_at,
+    recorded_at,
+    recorded_by,
+    currency,
+    status,
+    idempotency_key,
+    notes
+  )
+  VALUES (
+    p_branch_id,
+    'cash_adjustment',
+    v_business_date,
+    v_now,
+    v_now,
+    v_staff.id,
+    'PHP',
+    'posted',
+    p_idempotency_key,
+    v_expected_notes
+  )
+  RETURNING id INTO v_transaction_id;
+
+  INSERT INTO public.financial_account_movements (
+    transaction_id,
+    financial_account_id,
+    amount,
+    payment_method,
+    created_at
+  )
+  VALUES (
+    v_transaction_id,
+    v_src_account.id,
+    -v_amount,
+    CASE v_src_account.account_type
+      WHEN 'cash_drawer' THEN 'cash'
+      WHEN 'card_terminal' THEN 'card'
+      ELSE v_src_account.account_type
+    END,
+    v_now
+  )
+  RETURNING id INTO v_outflow_id;
+
+  INSERT INTO public.financial_account_movements (
+    transaction_id,
+    financial_account_id,
+    amount,
+    payment_method,
+    created_at
+  )
+  VALUES (
+    v_transaction_id,
+    v_dst_account.id,
+    v_amount,
+    CASE v_dst_account.account_type
+      WHEN 'cash_drawer' THEN 'cash'
+      WHEN 'card_terminal' THEN 'card'
+      ELSE v_dst_account.account_type
+    END,
+    v_now
+  )
+  RETURNING id INTO v_inflow_id;
+
+  RETURN jsonb_build_object(
+    'success', true,
+    'transactionId', v_transaction_id,
+    'outflowMovementId', v_outflow_id,
+    'inflowMovementId', v_inflow_id,
+    'amount', v_amount,
+    'sourceAccount', v_src_account.name,
+    'destinationAccount', v_dst_account.name,
+    'netEffect', 0.00,
+    'idempotentReplay', false
+  );
+END;
+$func$;
+
+-- Preserve existing execution boundary explicitly.
+REVOKE ALL ON FUNCTION public.post_cash_adjustment_atomic(
+  UUID, UUID, TEXT, NUMERIC, TEXT, DATE, TEXT, TEXT
+)
+FROM PUBLIC, anon;
+
+GRANT EXECUTE ON FUNCTION public.post_cash_adjustment_atomic(
+  UUID, UUID, TEXT, NUMERIC, TEXT, DATE, TEXT, TEXT
+)
+TO authenticated, service_role;
+
+REVOKE ALL ON FUNCTION public.post_transfer_atomic(
+  UUID, UUID, UUID, NUMERIC, DATE, TEXT, TEXT
+)
+FROM PUBLIC, anon;
+
+GRANT EXECUTE ON FUNCTION public.post_transfer_atomic(
+  UUID, UUID, UUID, NUMERIC, DATE, TEXT, TEXT
+)
+TO authenticated, service_role;
+
+COMMIT;
+
+------------------------------------------------------------
+FILE: tests/lib/cash-flow/cf8c-cash-operations-integrity.test.ts
+------------------------------------------------------------
+UNTRACKED FILE — FULL CONTENT FOLLOWS
+import { readFileSync } from 'node:fs';
+import { join } from 'node:path';
+import { describe, expect, it } from 'vitest';
+
+const root = process.cwd();
+
+const modal = readFileSync(
+  join(root, 'src/components/features/cash-flow/record-financial-entry-modal.tsx'),
+  'utf8'
+);
+
+const workspace = readFileSync(
+  join(root, 'src/components/features/cash-flow/cash-flow-workspace.tsx'),
+  'utf8'
+);
+
+const actions = readFileSync(
+  join(root, 'src/lib/cash-flow/cash-flow-actions.ts'),
+  'utf8'
+);
+
+const migration = readFileSync(
+  join(
+    root,
+    'supabase/migrations/20260930083000_cf8c_cash_operations_integrity.sql'
+  ),
+  'utf8'
+);
+
+describe('CF8-C cash operations integrity', () => {
+  it('passes active cash sessions into the financial entry modal', () => {
+    expect(workspace).toContain(
+      'activeCashSessions={initialData.cashSessions?.activeSessions ?? []}'
+    );
+
+    expect(modal).toContain('activeCashSessions?: CashSessionSummary[]');
+    expect(modal).toContain('openCashSessions');
+    expect(modal).toContain('openCashDrawerIds');
+  });
+
+  it('requires an open drawer for physical cash adjustments in UI state', () => {
+    expect(modal).toContain(
+      'Open the cash drawer before recording physical cash operations.'
+    );
+
+    expect(modal).toContain(
+      "!openCashDrawerIds.has(cashDrawerId)"
+    );
+
+    expect(modal).toContain('cashAdjustmentBlocked');
+  });
+
+  it('requires an adjustment reason', () => {
+    expect(modal).toContain(
+      'A reason is required for every cash adjustment.'
+    );
+
+    expect(modal).toContain('!cashAdjustmentReason.trim()');
+  });
+
+  it('does not describe safe drop as cash removal', () => {
+    expect(modal).not.toContain('Mid-day safe drop deposit');
+
+    expect(modal).toContain(
+      'Cash Removal as a substitute for a safe drop.'
+    );
+  });
+
+  it('shows expected drawer cash before and after a cash adjustment', () => {
+    expect(modal).toContain('selectedCashSession.expectedCash');
+    expect(modal).toContain('expectedCashAfterAdjustment');
+    expect(modal).toContain('Expected drawer cash now');
+    expect(modal).toContain('Expected after operation');
+  });
+
+  it('blocks transfer when no real destination account exists', () => {
+    expect(modal).toContain('transferDestinationOptions.length === 0');
+
+    expect(modal).toContain(
+      'Transfer / Safe Drop is unavailable until a real'
+    );
+
+    expect(modal).toContain('transferBlocked');
+  });
+
+  it('does not allow transfer source and destination to be identical', () => {
+    expect(modal).toContain(
+      'transferSourceAccountId === transferDestAccountId'
+    );
+
+    expect(modal).toContain(
+      'Source and destination accounts must be different.'
+    );
+  });
+
+  it('passes branch context to the cash operation server action', () => {
+    expect(modal).toMatch(
+      /recordOtherEntryAction\(\{\s*branchId,\s*entryType: otherEntryType/
+    );
+  });
+
+  it('uses stable retry idempotency for other entries', () => {
+    expect(modal).toContain('otherEntryAttemptRef');
+    expect(modal).toContain('otherEntrySignature');
+    expect(modal).toContain('idempotencyKey: otherEntryIdempotencyKey');
+
+    expect(modal).not.toContain(
+      'idempotencyKey: `cf6_other_${Date.now()}_'
+    );
+  });
+
+  it('server action verifies an open cash session before cash adjustment', () => {
+    expect(actions).toContain('requireOpenCashSessionForDrawer');
+
+    expect(actions).toContain(
+      "error: 'CASH_SESSION_REQUIRED: Open the cash drawer before recording physical cash operations.'"
+    );
+
+    const adjustmentCallIndex = actions.indexOf(
+      "rpc('post_cash_adjustment_atomic'"
+    );
+
+    const adjustmentGuardIndex = actions.lastIndexOf(
+      'requireOpenCashSessionForDrawer',
+      adjustmentCallIndex
+    );
+
+    expect(adjustmentGuardIndex).toBeGreaterThan(-1);
+    expect(adjustmentGuardIndex).toBeLessThan(adjustmentCallIndex);
+  });
+
+  it('server action checks drawer sessions for transfers touching a drawer', () => {
+    expect(actions).toContain(
+      "account.account_type !== 'cash_drawer'"
+    );
+
+    expect(actions).toContain(
+      'requireOpenCashSessionForDrawer'
+    );
+
+    expect(actions).toContain(
+      "rpc('post_transfer_atomic'"
+    );
+  });
+
+  it('database cash adjustment RPC requires an open matching cash session', () => {
+    expect(migration).toContain(
+      'CREATE OR REPLACE FUNCTION public.post_cash_adjustment_atomic'
+    );
+
+    expect(migration).toContain(
+      'FROM public.cash_sessions cs'
+    );
+
+    expect(migration).toContain(
+      'cs.cash_drawer_account_id = v_account.id'
+    );
+
+    expect(migration).toContain(
+      "cs.status = 'open'"
+    );
+
+    expect(migration).toContain(
+      'CASH_SESSION_REQUIRED: Open the cash drawer before recording physical cash operations'
+    );
+  });
+
+  it('does not silently close physical drawer custody at business-date rollover', () => {
+    expect(modal).toContain(
+      "activeCashSessions.filter("
+    );
+
+    expect(actions).not.toContain(
+      ".eq('business_date', businessDate)"
+    );
+
+    expect(migration).not.toContain(
+      'cs.business_date = v_business_date'
+    );
+  });
+  it('database transfer RPC requires open sessions for any drawer it touches', () => {
+    expect(migration).toContain(
+      'CREATE OR REPLACE FUNCTION public.post_transfer_atomic'
+    );
+
+    expect(migration).toContain(
+      "v_src_account.account_type = 'cash_drawer'"
+    );
+
+    expect(migration).toContain(
+      "v_dst_account.account_type = 'cash_drawer'"
+    );
+
+    expect(migration).toContain(
+      'cs.cash_drawer_account_id = v_src_account.id'
+    );
+
+    expect(migration).toContain(
+      'cs.cash_drawer_account_id = v_dst_account.id'
+    );
+  });
+
+  it('enforces PHP-only cash operations', () => {
+    expect(migration).toContain(
+      "v_account.currency IS DISTINCT FROM 'PHP'"
+    );
+
+    expect(migration).toContain(
+      "v_src_account.currency IS DISTINCT FROM 'PHP'"
+    );
+
+    expect(migration).toContain(
+      "v_dst_account.currency IS DISTINCT FROM 'PHP'"
+    );
+
+    expect(migration).toContain('UNSUPPORTED_CURRENCY');
+  });
+
+  it('detects changed-payload reuse of an idempotency key', () => {
+    expect(migration).toContain('IDEMPOTENCY_CONFLICT');
+
+    expect(migration).toContain(
+      'Key was already used for a different cash adjustment'
+    );
+
+    expect(migration).toContain(
+      'Key was already used for a different transfer'
+    );
+  });
+
+  it('keeps transfers net-zero and separate from revenue/expense semantics', () => {
+    expect(migration).toContain(
+      'v_src_account.id,\n    -v_amount'
+    );
+
+    expect(migration).toContain(
+      'v_dst_account.id,\n    v_amount'
+    );
+
+    expect(migration).toContain(
+      "'netEffect', 0.00"
+    );
+  });
+
+  it('preserves the security-definer boundary', () => {
+    const securityDefinerCount =
+      migration.match(/SECURITY DEFINER/g)?.length ?? 0;
+
+    const pinnedSearchPathCount =
+      migration.match(/SET search_path = ''/g)?.length ?? 0;
+
+    expect(securityDefinerCount).toBe(2);
+    expect(pinnedSearchPathCount).toBe(2);
+
+    expect(migration).toContain(
+      'FROM PUBLIC, anon'
+    );
+
+    expect(migration).toContain(
+      'TO authenticated, service_role'
+    );
+  });
+
+  it('does not rewrite historical authority or day-close tables', () => {
+    expect(migration).not.toContain(
+      'ALTER TABLE public.daily_cash_reconciliations'
+    );
+
+    expect(migration).not.toContain(
+      'DROP TABLE public.daily_cash_reconciliations'
+    );
+
+    expect(migration).not.toContain(
+      'DELETE FROM public.financial_transactions'
+    );
+
+    expect(migration).not.toContain(
+      'UPDATE public.financial_transactions'
+    );
+  });
+});
+
+============================================================
+OTHER WORKTREE CHANGES — DO NOT AUTO-COMMIT
+============================================================
+ M src/app/(dashboard)/crm/cash-flow/page.tsx
+ M src/components/features/cash-flow/history-tab.tsx
+ M src/lib/cash-flow/cash-flow-queries.ts
+ M src/lib/cash-flow/cash-flow-types.ts
+ M src/lib/supabase/admin.ts
+ M supabase/migrations/20260927140000_cf4_atomic_payment_writer.sql
+ M supabase/migrations/20260929120000_cf7_expense_receipt_storage.sql
+ M supabase/migrations/20260929140000_cf8_booking_payment_command.sql
+ M tests/lib/cash-flow/cash-flow-mixed-read-model.test.ts
+ M tests/lib/cash-flow/cash-flow-page-tabs.test.tsx
+ M tests/lib/cash-flow/cash-flow-ui.test.tsx
+ M tests/lib/cash-flow/cf8-database-reconciliation.test.ts
+?? _inspection/
+?? src/lib/cash-flow/cash-flow-errors.ts
+?? src/lib/cash-flow/expense-receipt.ts
+?? src/lib/cash-flow/legacy-booking-price.ts
+?? tests/lib/cash-flow/cf7-receipt-correction.test.ts
+?? tests/lib/cash-flow/legacy-payment-action.test.ts
+
+============================================================
+HISTORICAL MIGRATION MODIFICATIONS
+============================================================
+ M supabase/migrations/20260927140000_cf4_atomic_payment_writer.sql
+ M supabase/migrations/20260929120000_cf7_expense_receipt_storage.sql
+ M supabase/migrations/20260929140000_cf8_booking_payment_command.sql
+?? supabase/migrations/20260930083000_cf8c_cash_operations_integrity.sql
+
+============================================================
+DIRECT CF8-C DIFF STAT
+============================================================
+ .../features/cash-flow/cash-flow-workspace.tsx     |  21 +-
+ .../cash-flow/record-financial-entry-modal.tsx     | 538 ++++++++++++++++-----
+ src/lib/cash-flow/cash-flow-actions.ts             | 354 +++++++++++++-
+ 3 files changed, 755 insertions(+), 158 deletions(-)
+
+FullName                                                                                                  Length
+--------                                                                                                  ------
+E:\cradlehub-booking-simplification\supabase\migrations\20260930083000_cf8c_cash_operations_integrity.sql  19560
+E:\cradlehub-booking-simplification\tests\lib\cash-flow\cf8c-cash-operations-integrity.test.ts              7701
+
+

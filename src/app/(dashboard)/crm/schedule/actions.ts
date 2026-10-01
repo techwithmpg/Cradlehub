@@ -6,6 +6,7 @@ import { getBranchStaffAndServiceAssignments } from "@/lib/queries/crm-services"
 import { createAdminClient } from "@/lib/supabase/admin";
 import { createClient } from "@/lib/supabase/server";
 import { resolveSuperAdminContext } from "@/lib/auth/super-admin";
+import { resolveOwnerFrontDeskBranch } from "@/lib/queries/front-desk-branch";
 import { canAccessCrmWorkspace } from "@/lib/auth/crm-permissions";
 import { canonicalizeSystemRole } from "@/constants/staff";
 import { isDevAuthBypassEnabled } from "@/lib/dev-bypass";
@@ -96,7 +97,8 @@ async function getActorContext(
 
   const superAdmin = await resolveSuperAdminContext(user.id);
   if (superAdmin) {
-    if (targetBranchId && superAdmin.branch_id.toLowerCase() !== targetBranchId.toLowerCase()) {
+    const selectedBranch = await resolveOwnerFrontDeskBranch(user.id, superAdmin.branch_id);
+    if (targetBranchId && selectedBranch?.id.toLowerCase() !== targetBranchId.toLowerCase()) {
       return { ok: false, error: "You can only view staff schedules for your active branch." };
     }
     return { ok: true };
