@@ -21,6 +21,7 @@ const OWNER_ROUTE_PREFIXES = new Set([
   "/owner",
   "/owner/attendance",
   "/owner/bookings",
+  "/owner/cash-flow",
   "/owner/branches",
   "/owner/dispatch",
   "/owner/marketing",
@@ -150,6 +151,7 @@ describe("Owner navigation and prefetch config", () => {
     expect(resolveWorkspaceKeyFromRole("digital_marketer")).toBe("marketing");
     expect(hrefs).not.toContain("/dev");
     expect(hrefs).not.toContain("/owner/settings");
+    expect(hrefs).toContain("/owner/cash-flow");
     expect(hrefs.every((href) => OWNER_ROUTE_PREFIXES.has(href))).toBe(true);
   });
 

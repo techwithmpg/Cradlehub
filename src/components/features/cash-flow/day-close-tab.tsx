@@ -33,9 +33,10 @@ import type {
 interface DayCloseTabProps {
   summary: DayCloseSummaryData;
   onNavigateToLedger: () => void;
+  reconciliationHref?: string | null;
 }
 
-export function DayCloseTab({ summary, onNavigateToLedger }: DayCloseTabProps) {
+export function DayCloseTab({ summary, onNavigateToLedger, reconciliationHref = '/crm/reconciliation' }: DayCloseTabProps) {
   const formatPeso = (val: number) =>
     `₱${val.toLocaleString('en-PH', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
   const statusLabel = summary.reconciliationStatus === 'not_started'
@@ -287,13 +288,19 @@ export function DayCloseTab({ summary, onNavigateToLedger }: DayCloseTabProps) {
           </div>
 
           <div className="space-y-2 mt-4">
-            <Link
-              href="/crm/reconciliation"
-              className="w-full py-2.5 px-4 bg-[#1B4D3E] text-white rounded-lg text-xs font-semibold flex items-center justify-center gap-2 hover:bg-[#163E32]"
-            >
-              <CheckCircle2 className="w-4 h-4" />
-              <span>Open End-of-Day Reconciliation</span>
-            </Link>
+            {reconciliationHref ? (
+              <Link
+                href={reconciliationHref}
+                className="w-full py-2.5 px-4 bg-[#1B4D3E] text-white rounded-lg text-xs font-semibold flex items-center justify-center gap-2 hover:bg-[#163E32]"
+              >
+                <CheckCircle2 className="w-4 h-4" />
+                <span>Open End-of-Day Reconciliation</span>
+              </Link>
+            ) : (
+              <p className="text-xs text-[#6B5D52]">
+                Actual counts are entered in the branch&apos;s Front Desk reconciliation workflow.
+              </p>
+            )}
 
             <div className="grid grid-cols-2 gap-2">
               <button

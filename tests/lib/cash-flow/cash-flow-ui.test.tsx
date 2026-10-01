@@ -442,6 +442,18 @@ describe("CF5 Cash Flow UI Foundation", () => {
     expect(screen.getByText(/No channel variance is available yet/i)).toBeTruthy();
   });
 
+  it("shows saved Day Close data in the owner view without a branch-changing reconciliation link", () => {
+    render(<DayCloseTab
+      summary={mockWorkspaceData.dayClose}
+      onNavigateToLedger={vi.fn()}
+      reconciliationHref={null}
+    />);
+
+    expect(screen.getByText(/Reconciliation submitted/i)).toBeTruthy();
+    expect(screen.queryByRole("link", { name: /Open End-of-Day Reconciliation/i })).toBeNull();
+    expect(screen.getByText(/branch.s Front Desk reconciliation workflow/i)).toBeTruthy();
+  });
+
   it("8. History tab renders designed empty state when no historical day closes exist", () => {
     render(
       <HistoryTab

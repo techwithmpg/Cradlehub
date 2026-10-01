@@ -25,6 +25,7 @@ const OWNER_NAV_ITEMS: NavItem[] = [
   { label: "Overview", href: "/owner", icon: "LayoutDashboard" },
   { label: "Schedule", href: "/owner/schedule", icon: "CalendarDays" },
   { label: "Bookings", href: "/owner/bookings", icon: "CalendarDays" },
+  { label: "Cash Flow", href: "/owner/cash-flow", icon: "DollarSign" },
   { label: "Reports", href: "/owner/reports", icon: "BarChart2" },
   { label: "Marketing Studio", href: "/owner/marketing", icon: "Sparkles" },
   { label: "Dispatch", href: "/owner/dispatch", icon: "Truck" },

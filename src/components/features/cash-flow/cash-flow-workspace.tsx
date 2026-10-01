@@ -17,9 +17,10 @@ interface CashFlowWorkspaceProps {
   initialData: CashFlowWorkspaceData;
   initialTab?: CashFlowTab;
   initialEntryMode?: FinancialEntryMode | null;
+  reconciliationHref?: string | null;
 }
 
-export function CashFlowWorkspace({ initialData, initialTab = "today", initialEntryMode = null }: CashFlowWorkspaceProps) {
+export function CashFlowWorkspace({ initialData, initialTab = "today", initialEntryMode = null, reconciliationHref = "/crm/reconciliation" }: CashFlowWorkspaceProps) {
   const router = useRouter();
   const [activeTab, setActiveTab] = useState<CashFlowTab>(initialTab);
 
@@ -285,6 +286,7 @@ export function CashFlowWorkspace({ initialData, initialTab = "today", initialEn
           <DayCloseTab
             summary={initialData.dayClose}
             onNavigateToLedger={() => handleTabChange("ledger")}
+            reconciliationHref={reconciliationHref}
           />
         )}
 
