@@ -22,6 +22,7 @@
 - Targeted ESLint on the two changed application files and new test — passed after final edits.
 - `git diff --check` — passed after final edits.
 - `next build` compiled and type-checked, then failed during static generation of `/owner/marketing` because this isolated worktree has no Supabase URL. No database target was configured or contacted; this is not a full build pass.
+- A second clean-checkout build with dummy `127.0.0.1` LOCAL Supabase variables stopped earlier in Turbopack because the offline checkout could not resolve Next Google Font assets (`@vercel/turbopack-next/internal/font/google/font`). It never contacted a live database. The separate build checkout was archived. A full build pass remains unverified.
 - Mock-only local browser QA used the actual wizard UI and fixed site header with no database calls. At 320×568, the single middle content area scrolled and the final optional control cleared the footer after scrolling. At 360×640 it had a 1 px content overflow. At 375×667, 390×844, 412×915, 430×932, 1280×720, 1366×768, 1440×900, and 1920×1080, default Details and the footer fit without content or page scroll. Screenshots were visually inspected at 320×568, 390×844, and 1366×768. Browser viewport emulation is not physical-device evidence. The temporary QA route and server were removed/stopped.
 
 ## Remaining gates and impact
