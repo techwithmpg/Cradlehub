@@ -45,6 +45,7 @@ type BookingServicePickerProps = {
   loading: boolean;
   selected: BookingWizardService[];
   onToggle: (service: BookingWizardService) => void;
+  heading?: string;
   totalDuration: number;
   totalPrice: number;
   visitType: VisitType;
@@ -254,6 +255,7 @@ export function BookingServicePicker({
   loading,
   selected,
   onToggle,
+  heading = "Select services",
   totalDuration,
   totalPrice,
   visitType,
@@ -270,9 +272,9 @@ export function BookingServicePicker({
 
   if (loading) {
     return (
-      <div className="h-full min-h-0 md:h-auto">
+      <div>
         {/* Mobile loading skeleton */}
-        <div className="flex h-full min-h-0 w-full max-w-full flex-col overflow-hidden md:hidden">
+        <div className="w-full max-w-full md:hidden">
           <div className="w-full max-w-full shrink-0 overflow-hidden">
             <div className="mb-3 flex max-w-full gap-2 overflow-x-auto overscroll-x-contain pb-2">
               {Array.from({ length: 4 }).map((_, i) => (
@@ -280,7 +282,7 @@ export function BookingServicePicker({
               ))}
             </div>
           </div>
-          <div className="min-h-0 w-full max-w-full flex-1 overflow-y-auto overscroll-contain pb-[calc(7rem+env(safe-area-inset-bottom))]">
+          <div className="w-full max-w-full">
             <div className="grid w-full max-w-full grid-cols-2 gap-2.5 min-[390px]:grid-cols-3 min-[520px]:grid-cols-4">
               {Array.from({ length: 9 }).map((_, i) => (
                 <Skeleton key={i} className={`rounded-2xl ${skeletonClassName}`} style={{ aspectRatio: "4/3" }} />
@@ -330,12 +332,12 @@ export function BookingServicePicker({
         : "grid grid-cols-2 gap-2 md:grid-cols-3 xl:grid-cols-4";
 
   return (
-    <div className="flex h-full min-h-0 w-full max-w-full flex-col overflow-hidden md:block md:h-auto md:overflow-visible">
+    <div className="w-full max-w-full">
       <h2
         className="mb-1.5 shrink-0 text-[17px] font-semibold md:mb-2 md:text-2xl md:font-medium"
         style={WARM_HEADING_STYLE}
       >
-        Select services
+        {heading}
       </h2>
       <p className="mb-3 shrink-0 text-[12px] leading-5 md:mb-5 md:text-[14px] md:leading-6" style={WARM_BODY_STYLE}>
         Choose one or more services for your visit.
@@ -365,7 +367,7 @@ export function BookingServicePicker({
       )}
 
       {/* ── Mobile layout ─────────────────────────────────────────────────────── */}
-      <div className="flex min-h-0 w-full max-w-full flex-1 flex-col overflow-hidden md:hidden">
+      <div className="w-full max-w-full md:hidden">
         {/* Category chips — scrollable row, no page overflow */}
         <div className="w-full max-w-full shrink-0 overflow-hidden">
           <div className="mb-3 flex max-w-full gap-2 overflow-x-auto overscroll-x-contain pb-2">
@@ -390,7 +392,7 @@ export function BookingServicePicker({
         </div>
 
         {/* Mobile service grid: 2 → 3 → 4 columns */}
-        <div className="min-h-0 w-full max-w-full flex-1 overflow-y-auto overscroll-contain pb-[calc(7rem+env(safe-area-inset-bottom))]">
+        <div className="w-full max-w-full">
           {!activeCategory ? (
             <div
               className="rounded-2xl border border-dashed border-[#D4B57A]/25 bg-[#05241D]/50 px-4 py-8 text-center text-[#F6EBD6]/68"

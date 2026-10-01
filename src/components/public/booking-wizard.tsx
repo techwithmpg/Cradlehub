@@ -1420,9 +1420,7 @@ export function BookingWizard({
                 mode === "public"
                   ? [
                       "min-h-0 flex-1 overscroll-contain md:overflow-visible md:pb-0",
-                      currentStepName === "services"
-                        ? "overflow-hidden pb-0"
-                        : "overflow-y-auto pb-28",
+                      "overflow-y-auto pb-[calc(7rem+env(safe-area-inset-bottom))]",
                     ].join(" ")
                   : ""
               }
@@ -1474,6 +1472,17 @@ export function BookingWizard({
                     loading={loadingServices}
                     selected={activeServicesForPicker}
                     onToggle={toggleService}
+                    heading={
+                      mode === "public"
+                        ? bookingFor === "me_and_others"
+                          ? activeAttendee?.isOrganizer
+                            ? "Treatment for you"
+                            : `Treatment for ${activeAttendee?.name || "guest"}`
+                          : bookingFor === "someone_else"
+                            ? "Choose their treatment"
+                            : "Choose your treatment"
+                        : undefined
+                    }
                     totalDuration={totalDuration}
                     totalPrice={totalPrice}
                     visitType={visitType}
@@ -1969,7 +1978,7 @@ function BookingSummary({
 
 // ── Booking for progressive disclosure selector ───────────────────────────────
 
-function BookingForSection({
+export function BookingForSection({
   bookingFor,
   onBookingForChange,
   recipientName,
@@ -1996,9 +2005,23 @@ function BookingForSection({
 }) {
   const activeAttendee = attendees.find((a) => a.id === activeAttendeeId) ?? attendees[0];
   const inputClass = mode === "public" ? PUBLIC_INPUT_CLS : INPUT_CLS;
+  const guestTabsRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (bookingFor !== "me_and_others") return;
+    const strip = guestTabsRef.current;
+    const activeTab = strip?.querySelector<HTMLElement>('[aria-pressed="true"]');
+    if (!strip || !activeTab) return;
+    const left = activeTab.offsetLeft - strip.offsetLeft;
+    const right = left + activeTab.offsetWidth;
+    if (left < strip.scrollLeft) strip.scrollLeft = left;
+    if (right > strip.scrollLeft + strip.clientWidth) {
+      strip.scrollLeft = right - strip.clientWidth;
+    }
+  }, [bookingFor, activeAttendeeId, attendees.length]);
 
   return (
-    <div className={`mb-6 rounded-2xl p-5 ${WARM_GLASS_PANEL_CLS}`}>
+    <div className={`mb-4 rounded-2xl p-3 md:mb-6 md:p-5 ${WARM_GLASS_PANEL_CLS}`}>
       <p
         className="text-[11px] font-semibold uppercase tracking-wider mb-3"
         style={WARM_LABEL_STYLE}
@@ -2006,46 +2029,31 @@ function BookingForSection({
         Who is this booking for?
       </p>
 
-      {/* 3 options */}
-      <div className="grid grid-cols-1 sm:grid-cols-3 gap-2.5">
-        <button
-          type="button"
-          onClick={() => onBookingForChange("me")}
-          className={`flex items-center justify-center gap-2.5 rounded-xl px-4 py-3 text-[13px] font-medium transition-all ${
-            bookingFor === "me"
-              ? `${WARM_SELECTED_CARD_CLS} text-[#F6EBD6]`
-              : `${WARM_IDLE_CARD_CLS} text-[#F6EBD6]/75`
-          }`}
-        >
-          <User className="h-4 w-4 text-[#D4B57A]" />
-          <span>Just me</span>
-        </button>
-
-        <button
-          type="button"
-          onClick={() => onBookingForChange("me_and_others")}
-          className={`flex items-center justify-center gap-2.5 rounded-xl px-4 py-3 text-[13px] font-medium transition-all ${
-            bookingFor === "me_and_others"
-              ? `${WARM_SELECTED_CARD_CLS} text-[#F6EBD6]`
-              : `${WARM_IDLE_CARD_CLS} text-[#F6EBD6]/75`
-          }`}
-        >
-          <Users className="h-4 w-4 text-[#D4B57A]" />
-          <span>Me and others</span>
-        </button>
-
-        <button
-          type="button"
-          onClick={() => onBookingForChange("someone_else")}
-          className={`flex items-center justify-center gap-2.5 rounded-xl px-4 py-3 text-[13px] font-medium transition-all ${
-            bookingFor === "someone_else"
-              ? `${WARM_SELECTED_CARD_CLS} text-[#F6EBD6]`
-              : `${WARM_IDLE_CARD_CLS} text-[#F6EBD6]/75`
-          }`}
-        >
-          <Gift className="h-4 w-4 text-[#D4B57A]" />
-          <span>Someone else</span>
-        </button>
+      <div role="radiogroup" aria-label="Who is this booking for?" className="grid grid-cols-3 gap-1 rounded-xl border border-[#D4B57A]/30 bg-[#031B16]/55 p-1">
+        {([
+          ["me", "Me"],
+          ["me_and_others", "Me + Guests"],
+          ["someone_else", "Someone Else"],
+        ] as const).map(([choice, label]) => (
+          <label
+            key={choice}
+            className={`flex min-h-11 min-w-0 cursor-pointer items-center justify-center rounded-lg px-1 text-center text-[11px] font-semibold leading-tight transition-colors focus-within:outline-2 focus-within:outline-offset-2 focus-within:outline-[#D4B57A] min-[390px]:text-[12px] ${
+              bookingFor === choice
+                ? "bg-[#D4B57A] text-[#031B16]"
+                : "text-[#F6EBD6] hover:bg-[#D4B57A]/15"
+            }`}
+          >
+            <input
+              type="radio"
+              name="booking-recipient"
+              value={choice}
+              checked={bookingFor === choice}
+              onChange={() => onBookingForChange(choice)}
+              className="sr-only"
+            />
+            {label}
+          </label>
+        ))}
       </div>
 
       {/* Progressive disclosure: Someone else */}
@@ -2071,64 +2079,57 @@ function BookingForSection({
 
       {/* Progressive disclosure: Me and others */}
       {bookingFor === "me_and_others" && (
-        <div className="mt-4 pt-4 border-t border-[#D4B57A]/15">
-          <div className="flex flex-wrap items-center justify-between gap-2 mb-3">
-            <div>
-              <p className="text-[12px] font-semibold text-[#F6EBD6]">
-                Guest Sessions ({attendees.length} Guests)
-              </p>
-              <p className="text-[11px]" style={WARM_MUTED_STYLE}>
-                Select each guest tab below to assign their treatments.
-              </p>
-            </div>
+        <div className="mt-3 border-t border-[#D4B57A]/15 pt-3">
+          <div className="mb-2 flex items-center justify-between gap-2">
+            <p className="text-[11px] font-semibold uppercase tracking-wider text-[#D4B57A]">
+              Guest Sessions
+            </p>
             {attendees.length < 10 && (
               <button
                 type="button"
                 onClick={onAddAttendee}
-                className="inline-flex items-center gap-1.5 rounded-full border border-[#D4B57A]/35 bg-[#031B16]/50 px-3 py-1 text-[11px] font-semibold text-[#D4B57A] transition-colors hover:border-[#D4B57A]/70"
+                className="inline-flex min-h-11 items-center gap-1 rounded-full px-2 text-[11px] font-semibold text-[#D4B57A] underline-offset-2 hover:underline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#D4B57A]"
               >
-                <Plus className="h-3 w-3" />
+                <Plus className="h-3.5 w-3.5" aria-hidden="true" />
                 Add Guest
               </button>
             )}
           </div>
 
           {/* Guest Tabs */}
-          <div className="flex flex-wrap gap-2">
+          <div ref={guestTabsRef} aria-label="Guest sessions" className="flex max-w-full gap-2 overflow-x-auto overscroll-x-contain pb-2">
             {attendees.map((att, idx) => {
               const isSelected = att.id === activeAttendeeId;
               const svcCount = att.serviceIds.length;
               return (
                 <div
                   key={att.id}
-                  className={`flex items-center gap-1.5 rounded-xl px-3 py-2 text-[12px] transition-all ${
+                  className={`flex min-h-12 shrink-0 items-center rounded-xl border text-[12px] transition-colors ${
                     isSelected
-                      ? "border border-[#D4B57A] bg-[#D4B57A]/22 text-[#F6EBD6] shadow-[0_0_16px_rgba(212,181,122,0.18)]"
-                      : "border border-[#D4B57A]/20 bg-[#05241D]/60 text-[#F6EBD6]/70 hover:border-[#D4B57A]/45 hover:text-[#F6EBD6]"
+                      ? "border-[#D4B57A] bg-[#D4B57A]/22 text-[#F6EBD6]"
+                      : "border-[#D4B57A]/30 bg-[#05241D]/60 text-[#F6EBD6] hover:border-[#D4B57A]/60"
                   }`}
                 >
                   <button
                     type="button"
                     onClick={() => onSelectAttendee(att.id)}
-                    className="flex items-center gap-2 font-medium"
+                    aria-pressed={isSelected}
+                    aria-label={`${att.isOrganizer ? "You" : att.name}, ${svcCount} ${svcCount === 1 ? "service" : "services"} selected`}
+                    className="flex min-h-11 flex-col justify-center px-3 text-left font-medium focus-visible:outline-2 focus-visible:outline-offset-[-2px] focus-visible:outline-[#D4B57A]"
                   >
-                    <span>{att.name}</span>
-                    <span
-                      className={`rounded-full px-1.5 py-0.5 text-[10px] font-semibold ${
-                        svcCount > 0 ? "bg-[#D4B57A] text-[#031B16]" : "bg-white/10 text-white/50"
-                      }`}
-                    >
-                      {svcCount} {svcCount === 1 ? "svc" : "svcs"}
+                    <span>{att.isOrganizer ? "You" : att.name}</span>
+                    <span className={`text-[10px] ${svcCount > 0 ? "text-[#D4B57A]" : "text-[#F6EBD6]/65"}`}>
+                      {svcCount > 0 ? `${svcCount} ${svcCount === 1 ? "service" : "services"} ✓` : "Choose service"}
                     </span>
                   </button>
                   {idx > 0 && (
                     <button
                       type="button"
                       onClick={() => onRemoveAttendee(att.id)}
-                      className="ml-1 text-[#F6EBD6]/40 hover:text-rose-400"
-                      title="Remove guest"
+                      className="flex min-h-11 min-w-10 items-center justify-center border-l border-[#D4B57A]/20 text-[#F6EBD6]/75 hover:text-rose-300 focus-visible:outline-2 focus-visible:outline-offset-[-2px] focus-visible:outline-[#D4B57A]"
+                      aria-label={`Remove ${att.name}`}
                     >
-                      <X className="h-3 w-3" />
+                      <X className="h-3.5 w-3.5" aria-hidden="true" />
                     </button>
                   )}
                 </div>
@@ -2138,16 +2139,17 @@ function BookingForSection({
 
           {/* Active Guest Custom Name */}
           {activeAttendee && (
-            <div className="mt-3.5 flex flex-wrap items-center gap-2 rounded-lg bg-[#05241D]/45 px-3 py-2 border border-[#D4B57A]/15">
-              <span className="text-[11px] font-medium" style={WARM_LABEL_STYLE}>
-                Custom name for {activeAttendee.name}:
-              </span>
+            <div className="mt-1 flex items-center gap-2">
+              <label htmlFor="active-guest-name" className="shrink-0 text-[11px] font-medium" style={WARM_LABEL_STYLE}>
+                Attendee name
+              </label>
               <input
+                id="active-guest-name"
                 type="text"
                 value={activeAttendee.name}
                 onChange={(e) => onRenameAttendee(activeAttendee.id, e.target.value)}
                 placeholder="e.g. Sarah"
-                className="rounded-md border border-[#D4B57A]/25 bg-[#031B16]/60 px-2 py-0.5 text-[11px] text-[#F6EBD6] focus:border-[#D4B57A] focus:outline-none"
+                className="min-h-10 min-w-0 flex-1 rounded-md border border-[#D4B57A]/25 bg-[#031B16]/60 px-2 text-[12px] text-[#F6EBD6] focus:border-[#D4B57A] focus:outline-none"
               />
             </div>
           )}
