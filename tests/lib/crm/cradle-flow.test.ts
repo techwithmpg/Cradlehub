@@ -101,6 +101,15 @@ describe("Cradle Flow lifecycle", () => {
     });
   });
 
+  it("labels pending Home Service confirmation as Confirm & Dispatch with payment still pending", () => {
+    expect(getCradleFlowPrimaryLabel(booking({
+      type: "home_service",
+      delivery_type: "home_service",
+      status: "pending_crm_confirmation",
+      payment_status: "pending",
+    }))).toBe("Confirm & Dispatch");
+  });
+
   it("searches customer, phone, booking id, service, staff, and address", () => {
     const row = booking({ hs_address: "12 Lacson Street" });
     expect(matchesCradleFlowSearch(row, "0917")).toBe(true);

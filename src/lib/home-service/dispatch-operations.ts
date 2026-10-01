@@ -62,7 +62,8 @@ function canAccessBranch(actor: HomeServiceMutationActor, bookingBranchId: strin
 export async function assignHomeServiceDriver(
   client: SupabaseClient<Database>,
   actor: HomeServiceMutationActor,
-  rawInput: unknown
+  rawInput: unknown,
+  options: { onlyIfUnassigned?: boolean } = {}
 ): Promise<HomeServiceOperationResult> {
   if (!actor.branchId || !canAccessCrmWorkspace(actor.role))
     return { ok: false, code: "FORBIDDEN", message: "CRM access is required." };
@@ -114,6 +115,8 @@ export async function assignHomeServiceDriver(
     };
   }
 
+  if (options.onlyIfUnassigned && booking.driver_id) return { ok: true };
+
   if (driverId !== null) {
     const { data: driver, error: driverError } = await client
       .from("staff")
@@ -160,12 +163,13 @@ export async function assignHomeServiceDriver(
 
   const admin = createAdminClient();
 
-  const { data: updatedRows, error: updateError } = await admin
+  let update = admin
     .from("bookings")
     .update({ driver_id: driverId })
     .eq("id", bookingId)
-    .eq("branch_id", booking.branch_id)
-    .select("id");
+    .eq("branch_id", booking.branch_id);
+  if (options.onlyIfUnassigned) update = update.is("driver_id", null);
+  const { data: updatedRows, error: updateError } = await update.select("id");
 
   if (updateError || !updatedRows || updatedRows.length === 0) {
     logError("home_service.driver_assignment.failed", {

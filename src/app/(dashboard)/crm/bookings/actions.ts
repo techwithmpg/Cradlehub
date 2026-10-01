@@ -39,6 +39,9 @@ import { createNotification, resolveNotificationsForEntity } from "@/lib/notific
 import { getNotificationTargetPath } from "@/lib/notifications/notification-targets";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { createClient } from "@/lib/supabase/server";
+import { getDriverRecommendationsAction } from "@/lib/actions/assignment-recommendations";
+import { assignHomeServiceDriver } from "@/lib/home-service/dispatch-operations";
+import { automaticDriverCandidate } from "@/lib/home-service/automatic-driver-candidate";
 import { confirmBookingPaymentSchema } from "@/lib/validations/booking";
 import type { Database } from "@/types/supabase";
 import { z } from "zod";
@@ -161,6 +164,31 @@ export async function confirmHomeServiceHandoffAction(
 ): Promise<BookingOperationResult> {
   const ctx = await getCrmActionsContext();
   if (!ctx) return { success: false, error: "Unauthorized" };
+  const initial = await confirmHomeServiceHandoff(ctx, rawInput);
+  if (initial.success || initial.error !== "Assign a driver before Confirm & Dispatch.") return initial;
+
+  const parsed = bookingIdSchema.safeParse(rawInput);
+  if (!parsed.success) return initial;
+  const recommendations = await getDriverRecommendationsAction({ bookingId: parsed.data.bookingId });
+  if (!recommendations.success) return initial;
+  const driverId = automaticDriverCandidate(null, recommendations.data.drivers);
+  if (!driverId) return initial;
+
+  try {
+    await assignHomeServiceDriver(
+      ctx.supabase,
+      {
+        staffId: ctx.me.id,
+        branchId: ctx.me.branch_id,
+        role: ctx.me.system_role,
+        allowOwnerCrossBranch: true,
+      },
+      { bookingId: parsed.data.bookingId, driverId },
+      { onlyIfUnassigned: true }
+    );
+  } catch (error) {
+    logError("home_service.auto_driver_assignment_failed", { bookingId: parsed.data.bookingId, error });
+  }
   return confirmHomeServiceHandoff(ctx, rawInput);
 }
 

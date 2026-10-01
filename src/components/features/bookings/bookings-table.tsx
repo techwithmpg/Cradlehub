@@ -1692,15 +1692,18 @@ function BookingRecommendationSection({
 }) {
   const isHomeService = Boolean(
     booking.type === "home_service" ||
+    booking.delivery_type === "home_service" ||
     (booking.metadata && (booking.metadata.delivery_type === "home_service" || booking.metadata.type === "home_service"))
   );
   const staff = readFirst(booking.staff);
+  const driver = readFirst(booking.driver);
   const isClosed = isClosedOperationalBooking(booking);
 
   if (isClosed) return null;
 
   return (
     <div>
+      {isHomeService ? <p className="mb-2 text-sm font-semibold">Driver: {driver?.full_name ?? (booking.driver_id ? "Assigned driver" : "Not assigned")}</p> : null}
       <AssignmentRecommendationPanel
         key={booking.id}
         bookingId={booking.id}
@@ -1724,10 +1727,11 @@ function BookingRecommendationSection({
             toast.error(result.error ?? "Could not assign driver.");
             return;
           }
+          toast.success(booking.driver_id ? "Driver changed." : "Driver assigned.");
           onBookingsChanged?.();
         }}
         currentTherapistId={staff?.id ?? null}
-        currentDriverId={null}
+        currentDriverId={booking.driver_id ?? null}
         showTherapists
         showDrivers={isHomeService}
       />

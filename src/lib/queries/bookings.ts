@@ -12,19 +12,21 @@ import {
 const BOOKING_SELECT = `
   id, order_id, branch_id, booking_date, start_time, end_time, type, delivery_type, status,
   travel_buffer_mins, metadata, created_at, updated_at,
-  resource_id,
+  resource_id, driver_id,
   branches   ( id, name ),
   services   ( id, name, duration_minutes ),
   staff!staff_id ( id, full_name, nickname, tier ),
+  driver:staff!driver_id ( id, full_name ),
   customers  ( id, full_name, phone, email )
 `;
 
 const BOOKING_SELECT_CORE = `
   id, order_id, branch_id, booking_date, start_time, end_time, type, delivery_type, status,
-  travel_buffer_mins, metadata, created_at, updated_at,
+  travel_buffer_mins, metadata, created_at, updated_at, driver_id,
   branches   ( id, name ),
   services   ( id, name, duration_minutes ),
   staff!staff_id ( id, full_name, nickname, tier ),
+  driver:staff!driver_id ( id, full_name ),
   customers  ( id, full_name, phone, email )
 `;
 
@@ -32,43 +34,47 @@ const BOOKING_SELECT_WITH_PAYMENTS = `
   id, order_id, branch_id, booking_date, start_time, end_time, type, delivery_type, status,
   travel_buffer_mins, metadata, created_at, updated_at,
   payment_method, payment_status, payment_reference, amount_paid,
-  resource_id,
+  resource_id, driver_id,
   branches   ( id, name ),
   services   ( id, name, duration_minutes ),
   staff!staff_id ( id, full_name, nickname, tier ),
+  driver:staff!driver_id ( id, full_name ),
   customers  ( id, full_name, phone, email )
 `;
 
 const BOOKING_SELECT_WITH_PAYMENTS_NO_RESOURCE = `
   id, order_id, branch_id, booking_date, start_time, end_time, type, delivery_type, status,
   travel_buffer_mins, metadata, created_at, updated_at,
-  payment_method, payment_status, payment_reference, amount_paid,
+  payment_method, payment_status, payment_reference, amount_paid, driver_id,
   branches   ( id, name ),
   services   ( id, name, duration_minutes ),
   staff!staff_id ( id, full_name, nickname, tier ),
+  driver:staff!driver_id ( id, full_name ),
   customers  ( id, full_name, phone, email )
 `;
 
 const TODAY_SCHEDULE_SELECT = `
   id, order_id, branch_id, booking_date, start_time, end_time, type, delivery_type, status,
-  travel_buffer_mins, metadata, created_at, updated_at,
+  travel_buffer_mins, metadata, created_at, updated_at, driver_id,
   resource_id,
   services  ( id, name, duration_minutes, metadata ),
   staff!staff_id ( id, full_name, nickname, tier ),
+  driver:staff!driver_id ( id, full_name ),
   customers ( id, full_name, phone )
 `;
 
 const TODAY_SCHEDULE_SELECT_CORE = `
   id, order_id, branch_id, booking_date, start_time, end_time, type, delivery_type, status,
-  travel_buffer_mins, metadata, created_at, updated_at,
+  travel_buffer_mins, metadata, created_at, updated_at, driver_id,
   services  ( id, name, duration_minutes, metadata ),
   staff!staff_id ( id, full_name, nickname, tier ),
+  driver:staff!driver_id ( id, full_name ),
   customers ( id, full_name, phone )
 `;
 
 const TODAY_SCHEDULE_SELECT_WITH_PAYMENTS = `
   id, order_id, branch_id, booking_date, start_time, end_time, type, delivery_type, status,
-  travel_buffer_mins, metadata, created_at, updated_at,
+  travel_buffer_mins, metadata, created_at, updated_at, driver_id,
   payment_method, payment_status, payment_reference, amount_paid,
   hold_expires_at,
   booking_progress_status,
@@ -76,18 +82,20 @@ const TODAY_SCHEDULE_SELECT_WITH_PAYMENTS = `
   resource_id,
   services  ( id, name, duration_minutes, metadata ),
   staff!staff_id ( id, full_name, nickname, tier ),
+  driver:staff!driver_id ( id, full_name ),
   customers ( id, full_name, phone )
 `;
 
 const TODAY_SCHEDULE_SELECT_WITH_PAYMENTS_NO_RESOURCE = `
   id, order_id, branch_id, booking_date, start_time, end_time, type, delivery_type, status,
-  travel_buffer_mins, metadata, created_at, updated_at,
+  travel_buffer_mins, metadata, created_at, updated_at, driver_id,
   payment_method, payment_status, payment_reference, amount_paid,
   hold_expires_at,
   booking_progress_status,
   checked_in_at, travel_started_at, arrived_at, session_started_at, session_due_at, session_duration_minutes_snapshot, session_completed_at, no_show_at,
   services  ( id, name, duration_minutes, metadata ),
   staff!staff_id ( id, full_name, nickname, tier ),
+  driver:staff!driver_id ( id, full_name ),
   customers ( id, full_name, phone )
 `;
 
@@ -153,9 +161,11 @@ type BookingFullRow = {
   created_at: string;
   updated_at: string;
   resource_id: string | null;
+  driver_id: string | null;
   branches: BranchRelation;
   services: ServiceRelation;
   staff: StaffRelation;
+  driver: StaffRelation;
   customers: CustomerRelation;
   booking_events?: unknown;
 } & MaybePaymentFields;
@@ -173,8 +183,10 @@ type TodayScheduleRow = {
   created_at: string;
   updated_at: string;
   resource_id: string | null;
+  driver_id: string | null;
   services: ServiceRelation;
   staff: StaffRelation;
+  driver: StaffRelation;
   customers: CustomerRelation;
 } & MaybePaymentFields &
   MaybeProgressFields;
@@ -436,8 +448,8 @@ export async function getBookingById(
     const { data, error } = await supabase
       .from("bookings")
       .select(
-        `${BOOKING_SELECT_WITH_PAYMENTS}, driver_id, booking_progress_status, checked_in_at, travel_started_at, arrived_at, session_started_at, session_completed_at, completed_at,
-      driver:staff!driver_id ( id, full_name ), booking_events ( id, from_status, to_status, notes, created_at )`
+        `${BOOKING_SELECT_WITH_PAYMENTS}, booking_progress_status, checked_in_at, travel_started_at, arrived_at, session_started_at, session_completed_at, completed_at,
+      booking_events ( id, from_status, to_status, notes, created_at )`
       )
       .eq("id", bookingId)
       .eq("branch_id", options.branchId)

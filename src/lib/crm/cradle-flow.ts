@@ -128,11 +128,11 @@ export function getCradleFlowPrimaryLabel(booking: CradleFlowBooking): string {
   if (stage === "in_service") return "Complete Service";
   if (stage === "ready_to_pay") return "Collect Payment";
   if (stage === "completed") return "View Record";
-  if (booking.status === "pending" || booking.status === "pending_crm_confirmation") {
-    return "Confirm Booking";
-  }
   if (booking.type === "home_service" || booking.delivery_type === "home_service") {
     return "Confirm & Dispatch";
+  }
+  if (booking.status === "pending" || booking.status === "pending_crm_confirmation") {
+    return "Confirm Booking";
   }
   if (booking.booking_progress_status === "checked_in") return "Start Service";
   return "Check In";

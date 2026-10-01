@@ -44,6 +44,7 @@ export type WorkspaceBookingRow = {
     nickname?: string | null;
     tier?: string;
   }>;
+  driver?: OneOrMany<{ id?: string; full_name: string }>;
   customers?: OneOrMany<{
     id?: string;
     full_name: string;

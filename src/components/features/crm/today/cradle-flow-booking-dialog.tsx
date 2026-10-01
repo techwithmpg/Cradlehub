@@ -1,7 +1,14 @@
 "use client";
 
+import { useState } from "react";
 import Link from "next/link";
-import { Clock3, Home, MapPin, Phone, UserRound } from "lucide-react";
+import { Clock3, Home, MapPin, Phone, Truck, UserRound } from "lucide-react";
+import { toast } from "sonner";
+import { AssignmentRecommendationPanel } from "@/components/features/assignments/assignment-recommendation-panel";
+import { assignBookingTherapistAction } from "@/app/(dashboard)/crm/bookings/actions";
+import { assignBookingDriverAction } from "@/lib/actions/driver-actions";
+import { getAssignmentRecommendationsAction } from "@/lib/actions/assignment-recommendations";
+import { notifyBookingsChanged } from "@/lib/bookings/bookings-client-events";
 import {
   AdminDialog,
   AdminOverlayBody,
@@ -69,6 +76,7 @@ export function CradleFlowBookingDialog({
   onAssignRoom: (booking: CradleFlowBooking) => void;
   onAssignTherapist: (booking: CradleFlowBooking) => void;
 }) {
+  const [assignmentOpen, setAssignmentOpen] = useState(false);
   if (!booking) return null;
   const homeService = booking.type === "home_service" || booking.delivery_type === "home_service";
   const stage = getCradleFlowStage(booking);
@@ -149,6 +157,9 @@ export function CradleFlowBookingDialog({
             value={booking.staff_name ?? "Needs assignment"}
             icon={<UserRound className="size-3" />}
           />
+          {homeService ? (
+            <Detail label="Driver" value={booking.driver_name ?? "Not assigned"} icon={<Truck className="size-3" />} />
+          ) : null}
           <Detail
             label={homeService ? "Service address" : "Room"}
             value={
@@ -159,6 +170,48 @@ export function CradleFlowBookingDialog({
             icon={homeService ? <Home className="size-3" /> : <MapPin className="size-3" />}
           />
         </div>
+
+        {homeService && stage !== "completed" ? (
+          <section className="grid gap-3">
+            <div className="flex flex-wrap gap-2">
+              <button type="button" onClick={() => setAssignmentOpen(true)} className="cs-btn cs-btn-secondary h-10 rounded-lg px-3 text-xs">
+                {booking.staff_id ? "Change Therapist" : "Assign Therapist"}
+              </button>
+              <button type="button" onClick={() => setAssignmentOpen(true)} className="cs-btn cs-btn-secondary h-10 rounded-lg px-3 text-xs">
+                {booking.driver_id ? "Change Driver" : "Assign Driver"}
+              </button>
+            </div>
+            {assignmentOpen ? (
+              <AssignmentRecommendationPanel
+                key={booking.id}
+                bookingId={booking.id}
+                fetchRecommendations={getAssignmentRecommendationsAction}
+                onAssignTherapist={async (staffId, overrideReason) => {
+                  const result = await assignBookingTherapistAction({ bookingId: booking.id, staffId, overrideReason });
+                  if (!result.success) {
+                    toast.error(result.error ?? "Could not assign therapist.");
+                    return;
+                  }
+                  toast.success("Therapist assigned.");
+                  notifyBookingsChanged();
+                }}
+                onAssignDriver={async (driverId) => {
+                  const result = await assignBookingDriverAction({ bookingId: booking.id, driverId });
+                  if (!result.success) {
+                    toast.error(result.error ?? "Could not assign driver.");
+                    return;
+                  }
+                  toast.success(booking.driver_id ? "Driver changed." : "Driver assigned.");
+                  notifyBookingsChanged();
+                }}
+                currentTherapistId={booking.staff_id ?? null}
+                currentDriverId={booking.driver_id ?? null}
+                showTherapists
+                showDrivers
+              />
+            ) : null}
+          </section>
+        ) : null}
 
         <section>
           <h3 className="text-xs font-extrabold uppercase tracking-wide text-[var(--cs-text-muted)]">
@@ -221,9 +274,9 @@ export function CradleFlowBookingDialog({
         <div className="flex flex-wrap gap-2">
           {stage === "waiting" || stage === "in_service" ? (
             <>
-              <button type="button" onClick={() => { onOpenChange(false); onAssignTherapist(booking); }} className="cs-btn cs-btn-secondary h-10 rounded-lg px-3 text-xs">
+              {!homeService ? <button type="button" onClick={() => { onOpenChange(false); onAssignTherapist(booking); }} className="cs-btn cs-btn-secondary h-10 rounded-lg px-3 text-xs">
                 {booking.staff_id ? "Change Therapist" : "Assign Therapist"}
-              </button>
+              </button> : null}
               {!homeService ? (
                 <button type="button" onClick={() => { onOpenChange(false); onAssignRoom(booking); }} className="cs-btn cs-btn-secondary h-10 rounded-lg px-3 text-xs">
                   {booking.resource_id ? "Change Room" : "Assign Room"}
@@ -257,7 +310,7 @@ export function CradleFlowBookingDialog({
             <button
               type="button"
               onClick={() => {
-                onOpenChange(false);
+                if (!homeService) onOpenChange(false);
                 onPrimary(booking);
               }}
               className="h-10 rounded-lg bg-[#164b36] px-4 text-sm font-bold text-white"

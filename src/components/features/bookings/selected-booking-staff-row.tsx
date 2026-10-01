@@ -1,14 +1,14 @@
 "use client";
 
 import { useState } from "react";
-import { UserRound } from "lucide-react";
+import { Truck, UserRound } from "lucide-react";
 import { toast } from "sonner";
 import { AssignmentRecommendationPanel } from "@/components/features/assignments/assignment-recommendation-panel";
 import type { WorkspaceBookingRow } from "./booking-workspace-types";
 import { SelectedBookingOverviewRow, overviewActionClass } from "./selected-booking-overview-row";
 import { assignBookingTherapistAction } from "@/app/(dashboard)/crm/bookings/actions";
 import { assignBookingDriverAction } from "@/lib/actions/driver-actions";
-import { getAssignmentRecommendationsAction } from "@/lib/actions/assignment-recommendations";
+import { getAssignmentRecommendationsAction, getDriverRecommendationsAction } from "@/lib/actions/assignment-recommendations";
 import { firstBookingRelation, getBookingRoomLabel, getBookingStaffName } from "@/lib/bookings/booking-display";
 import { isHomeServiceBooking } from "@/lib/bookings/bookings-workspace-filters";
 
@@ -26,11 +26,15 @@ export function SelectedBookingStaffRow({
   onChanged?: () => void;
 }) {
   const [localExpanded, setLocalExpanded] = useState(false);
+  const [driverExpanded, setDriverExpanded] = useState(false);
   const isExpanded = expanded ?? localExpanded;
   const setExpanded = onExpandedChange ?? setLocalExpanded;
   const staff = firstBookingRelation(booking.staff);
+  const homeService = isHomeServiceBooking(booking);
+  const driver = firstBookingRelation(booking.driver);
 
   return (
+    <>
     <SelectedBookingOverviewRow
       icon={<UserRound className="size-4" />}
       label="Staff assignment"
@@ -51,20 +55,40 @@ export function SelectedBookingStaffRow({
             toast.success("Therapist assigned.");
             onChanged?.();
           }}
-          onAssignDriver={async (driverId) => {
-            const result = await assignBookingDriverAction({ bookingId: booking.id, driverId });
-            if (!result.success) {
-              toast.error(result.error ?? "Could not assign driver.");
-              return;
-            }
-            onChanged?.();
-          }}
           currentTherapistId={staff?.id ?? null}
-          currentDriverId={booking.driver_id ?? null}
           showTherapists
-          showDrivers={isHomeServiceBooking(booking)}
+          showDrivers={false}
         />
       ) : null}
     </SelectedBookingOverviewRow>
+    {homeService ? (
+      <SelectedBookingOverviewRow
+        icon={<Truck className="size-4" />}
+        label="Driver"
+        summary={driver?.full_name ?? (booking.driver_id ? "Assigned driver" : "Not assigned")}
+        action={canEdit ? <button type="button" onClick={() => setDriverExpanded(!driverExpanded)} className={overviewActionClass}>{driverExpanded ? "Close" : booking.driver_id ? "Change" : "Assign Driver"}</button> : undefined}
+      >
+        {canEdit && driverExpanded ? (
+          <AssignmentRecommendationPanel
+            key={`${booking.id}-driver`}
+            bookingId={booking.id}
+            fetchRecommendations={getDriverRecommendationsAction}
+            onAssignDriver={async (driverId) => {
+              const result = await assignBookingDriverAction({ bookingId: booking.id, driverId });
+              if (!result.success) {
+                toast.error(result.error ?? "Could not assign driver.");
+                return;
+              }
+              toast.success(booking.driver_id ? "Driver changed." : "Driver assigned.");
+              onChanged?.();
+            }}
+            currentDriverId={booking.driver_id ?? null}
+            showTherapists={false}
+            showDrivers
+          />
+        ) : null}
+      </SelectedBookingOverviewRow>
+    ) : null}
+    </>
   );
 }
