@@ -1,25 +1,33 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import {
+  useEffect,
+  useMemo,
+  useState } from "react";
 import useSWR from "swr";
 import {
   CalendarDays,
-  ListChecks,  Route,
-  Settings2,} from "lucide-react";
+  ListChecks,
+  Route,
+  Settings2,
+  AlertTriangle,
+  CheckCircle2,
+  Clock3,
+  MapPin,
+  Navigation,
+} from "lucide-react";
 import { AttendanceTabPanel, ContextChip } from "@/components/features/attendance/attendance-ui";
 import type { DispatchData } from "@/lib/queries/dispatch-queries";
 import { refreshDispatchDataAction } from "@/lib/actions/dispatch-data-actions";
 import { BOOKINGS_CHANGED_EVENT } from "@/lib/bookings/bookings-client-events";
 import { DispatchFlowTab } from "./dispatch-flow-tab";
 import { DispatchLiveMapTab } from "./dispatch-live-map-tab";
-import { DispatchTravelProgressTab } from "./dispatch-travel-progress-tab";
 
-type TabId = "flow" | "map" | "progress";
+type TabId = "flow" | "map";
 
 const TABS: { id: TabId; label: string }[] = [
-  { id: "flow", label: "Home Service Bookings" },
-  { id: "map", label: "Live Map" },
-  { id: "progress", label: "Travel Progress" },
+  { id: "flow", label: "Live Operations" },
+  { id: "map", label: "Full Map" },
 ];
 
 export interface HomeServiceDispatchWorkspaceProps {
@@ -113,39 +121,28 @@ export function HomeServiceDispatchWorkspace({
   }
 
   const metrics = useMemo(() => {
-    const items = data.items;
-    const activeStatuses = ["in_route", "arrived_at_customer", "service_started"];
-    const closedStatuses = ["completed", "cancelled"];
-    const needsSetup = items.filter((item) => {
-      const s = statusText(item.dispatchStatus);
-      return (
-        !activeStatuses.includes(s) && !closedStatuses.includes(s) &&
-        (s === "awaiting_driver" || !item.driverId || !item.therapistId ||
-        item.lat === null || item.lng === null)
-      );
-    }).length;
+    const count = (status: string) =>
+      data.items.filter(
+        (item) => statusText(item.dispatchStatus) === status
+      ).length;
 
-    const ready = items.filter((item) => {
-      const s = statusText(item.dispatchStatus);
-      return (
-        s === "ready" &&
-        item.driverId &&
-        item.therapistId &&
-        item.lat !== null &&
-        item.lng !== null
-      );
-    }).length;
+    const scheduled = count("awaiting_driver");
+    const awaitingTravel = count("ready");
+    const enRoute = count("in_route");
+    const arrived = count("arrived_at_customer");
+    const inService = count("service_started");
+    const completed = count("completed");
 
-    const active = items.filter((item) => activeStatuses.includes(statusText(item.dispatchStatus))).length;
-    const finished = items.filter((item) => closedStatuses.includes(statusText(item.dispatchStatus))).length;
-
-    const alerts = items.filter(
-      (item) => !closedStatuses.includes(statusText(item.dispatchStatus)) &&
-        (!item.driverId || !item.therapistId || item.lat === null || item.lng === null)
-    ).length;
-
-    return { needsSetup, ready, active, finished, alerts };
-  }, [data.items]);
+    return {
+      scheduled,
+      awaitingTravel,
+      enRoute,
+      arrived,
+      inService,
+      completed,
+      alerts: data.alerts.length,
+    };
+  }, [data.alerts.length, data.items]);
 
   return (
     <section className="space-y-5 p-4 md:p-0">
@@ -156,7 +153,7 @@ export function HomeServiceDispatchWorkspace({
               Home Service Operations
             </h1>
             <p className="mt-1 max-w-3xl text-sm text-[var(--cs-text-secondary)]">
-              Monitor home-service bookings, drivers, therapists, customer locations, and travel progress.
+              Monitor today's home-service visits, travel progress, staff, and customer locations.
             </p>
           </div>
 
@@ -169,7 +166,7 @@ export function HomeServiceDispatchWorkspace({
 
       <div
         role="tablist"
-        aria-label="Dispatch workspace tabs"
+        aria-label="Home Service Operations views"
         onKeyDown={handleTabKeyDown}
         className="flex flex-wrap gap-2 rounded-lg border border-[var(--cs-border)] bg-[var(--cs-surface)] p-1 shadow-sm md:w-fit"
       >
@@ -197,39 +194,49 @@ export function HomeServiceDispatchWorkspace({
         })}
       </div>
 
-      <div className="grid gap-3 md:grid-cols-5">
+      <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4 xl:grid-cols-7">
         <DispatchMetric
-          icon={<ListChecks size={18} />}
-          label="Needs setup"
-          value={metrics.needsSetup}
+          icon={<CalendarDays size={18} />}
+          label="Scheduled"
+          value={metrics.scheduled}
+        />
+        <DispatchMetric
+          icon={<Clock3 size={18} />}
+          label="Awaiting Travel"
+          value={metrics.awaitingTravel}
           tone="warning"
         />
         <DispatchMetric
-          icon={<ListChecks size={18} />}
-          label="Ready"
-          value={metrics.ready}
-          tone="success"
-        />
-        <DispatchMetric
-          icon={<CalendarDays size={18} />}
-          label="Active"
-          value={metrics.active}
+          icon={<Navigation size={18} />}
+          label="En Route"
+          value={metrics.enRoute}
           tone="info"
         />
         <DispatchMetric
+          icon={<MapPin size={18} />}
+          label="Arrived"
+          value={metrics.arrived}
+          tone="success"
+        />
+        <DispatchMetric
           icon={<Route size={18} />}
-          label="Finished"
-          value={metrics.finished}
+          label="In Service"
+          value={metrics.inService}
           tone="purple"
         />
         <DispatchMetric
-          icon={<Settings2 size={18} />}
+          icon={<CheckCircle2 size={18} />}
+          label="Completed"
+          value={metrics.completed}
+          tone="success"
+        />
+        <DispatchMetric
+          icon={<AlertTriangle size={18} />}
           label="Alerts"
           value={metrics.alerts}
           tone={metrics.alerts > 0 ? "danger" : "neutral"}
         />
       </div>
-
       <AttendanceTabPanel
         id="dispatch-panel-flow"
         labelledBy="dispatch-tab-flow"
@@ -246,19 +253,6 @@ export function HomeServiceDispatchWorkspace({
       >
         {activeTab === "map" ? <DispatchLiveMapTab data={data} /> : null}
       </AttendanceTabPanel>
-      <AttendanceTabPanel
-        id="dispatch-panel-progress"
-        labelledBy="dispatch-tab-progress"
-        active={activeTab === "progress"}
-      >
-        {activeTab === "progress" ? (
-          <div className="rounded-lg border border-[var(--cs-border)] bg-[var(--cs-surface)] p-5 shadow-sm">
-            <DispatchTravelProgressTab data={data} />
-          </div>
-        ) : null}
-      </AttendanceTabPanel>
     </section>
   );
 }
-
-

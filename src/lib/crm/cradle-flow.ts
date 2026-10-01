@@ -132,7 +132,7 @@ export function getCradleFlowPrimaryLabel(booking: CradleFlowBooking): string {
     return "Confirm Booking";
   }
   if (booking.type === "home_service" || booking.delivery_type === "home_service") {
-    return "Open Home Service";
+    return "Confirm & Dispatch";
   }
   if (booking.booking_progress_status === "checked_in") return "Start Service";
   return "Check In";
