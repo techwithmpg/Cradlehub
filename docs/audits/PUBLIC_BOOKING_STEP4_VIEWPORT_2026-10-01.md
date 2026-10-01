@@ -2,9 +2,9 @@
 
 ## Authority and source state
 
-- Owner request: simplify the public Details step for mobile and laptop/desktop, keep required controls in the default viewport where practical, preserve booking contracts, and perform physical-phone QA after implementation. The owner subsequently authorized commit, merge, and push to `main` **when done**.
+- Owner request: simplify the public Details step for mobile and laptop/desktop, keep required controls in the default viewport where practical, preserve booking contracts, and perform physical-phone QA after implementation. After receiving the report of unverified phone, build, and external-review gates, the owner explicitly directed a commit and push to `main` on 2026-10-01.
 - Branch: `fix/public-booking-step4-viewport` in a managed isolated worktree. Source HEAD before this correction: `eb55d5fc380890abbccccb09a0387695877696af` (the prior Step 2 fix); implementation HEAD: `ca41d0d` (`fix(booking): compact public details for viewport`). A fresh fetch confirmed accepted `origin/main` at `e663ba18d61b26e66668dfe17be689aff30d7318`; the fix branch is two commits ahead and zero behind at implementation HEAD.
-- Current verdict: **CORRECTION REQUIRED** before merge. The implementation commit is pushed to `origin/fix/public-booking-step4-viewport`; it is not merged or deployed.
+- Current verdict: the viewport correction passes local browser and focused code checks. Physical-phone Step 4 QA, a full build pass, and external review remain unverified. The owner has directed a production-connected main push with those limitations recorded; no production outcome is asserted here.
 - The shared `E:\cradlehub` checkout has separate uncommitted startup-diagnostic and Next configuration changes. They were not reset, staged, or included in this correction.
 
 ## Scope and decisions
@@ -18,6 +18,7 @@
 ## Verification actually performed
 
 - Focused Vitest run after final edits: four files, 22 tests passed (`public-details-step`, `public-service-step`, `therapist-selection-preference`, `booking-wizard-confirm`). An initial retry was stopped before execution by an automatic approval usage-limit error; the subsequent retry completed successfully.
+- Final pre-release combined booking suite: six files, 37 tests passed, adding `booking-order-contract` and `booking-simplification-safety` to the four files above. TypeScript, targeted ESLint for both booking corrections, and `git diff --check origin/main...HEAD` also passed after the temporary preview was removed.
 - `node_modules\.bin\tsc.cmd --noEmit --incremental false` — passed after final edits.
 - Targeted ESLint on the two changed application files and new test — passed after final edits.
 - `git diff --check` — passed after final edits.
@@ -28,7 +29,7 @@
 ## Remaining gates and impact
 
 - Physical Android Chrome Step 4 QA is still required. The host currently exposes no `adb` or `scrcpy` command; access to Windows PnP inventory was denied. No physical-phone Step 4 result is claimed.
-- The owner reported that the original port-3000 splash now clears. A separate mock-only Step 4 preview is being served at `http://192.168.137.1:3006/qa-booking-step4` for physical-phone layout and interaction QA. Its temporary route and LAN development-origin setting are uncommitted and will be removed after that check; the preview does not represent live availability or a booking submission.
-- External review is required by `docs/14-BRANCH-STRATEGY.md`. Reconcile with a freshly fetched accepted `origin/main`, complete the build gate in an identified LOCAL/TEST environment, and perform physical-phone QA before merging. The owner has authorized a main merge and push **when done**, but those conditions are not yet met.
+- The owner reported that the original port-3000 splash now clears. A separate mock-only Step 4 preview was served at `http://192.168.137.1:3006/qa-booking-step4`; no physical-phone Step 4 result was received. The temporary route and LAN development-origin setting were removed before release.
+- `docs/14-BRANCH-STRATEGY.md` requires external review. No external review is recorded. A fresh fetch confirmed `origin/main` remains the accepted base and this branch is a fast-forward. The owner's latest direct instruction to push main follows the report of the missing gates; this record preserves their unverified status. No database operation, migration, or production-data mutation is authorized by this release direction.
 - Git staging in the managed worktree was initially denied by the sandbox because its index resides in protected `E:\cradlehub\.git`; an approved retry succeeded. The implementation commit was created and pushed normally; no history was rewritten.
-- Production impact: none so far. A later accepted `main` push may deploy; no production outcome is asserted. Rollback after a reviewed merge would be a normal revert of the correction commit.
+- Production impact: a `main` push may deploy. No production outcome or physical-device behavior is asserted. Rollback after the main push would be a normal revert of the correction commits.
