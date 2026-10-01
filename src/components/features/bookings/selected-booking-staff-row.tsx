@@ -60,7 +60,7 @@ export function SelectedBookingStaffRow({
             onChanged?.();
           }}
           currentTherapistId={staff?.id ?? null}
-          currentDriverId={null}
+          currentDriverId={booking.driver_id ?? null}
           showTherapists
           showDrivers={isHomeServiceBooking(booking)}
         />

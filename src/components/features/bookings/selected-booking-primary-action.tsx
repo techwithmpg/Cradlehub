@@ -34,7 +34,7 @@ export function SelectedBookingPrimaryAction({
     deliveryType: booking.delivery_type,
     resourceId: booking.resource_id,
     hasStaff: Boolean(firstBookingRelation(booking.staff)),
-    hasDriver: false,
+    hasDriver: Boolean(booking.driver_id),
     hasDispatchHref: Boolean(dispatchHref),
   });
 
