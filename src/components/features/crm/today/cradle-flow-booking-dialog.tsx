@@ -33,6 +33,15 @@ function timeLabel(value: string | null | undefined): string {
   }`;
 }
 
+function readMetadataNumber(value: unknown): number | null {
+  if (typeof value === "number" && Number.isFinite(value)) return value;
+  if (typeof value === "string" && value.trim()) {
+    const parsed = Number(value);
+    return Number.isFinite(parsed) ? parsed : null;
+  }
+  return null;
+}
+
 function Detail({ label, value, icon }: { label: string; value: string; icon?: React.ReactNode }) {
   return (
     <div className="rounded-lg border border-[var(--cs-border-soft)] bg-[var(--cs-surface-warm)] p-3">
@@ -65,6 +74,24 @@ export function CradleFlowBookingDialog({
   const stage = getCradleFlowStage(booking);
   const metadata = booking.metadata ?? {};
   const notes = typeof metadata.customer_notes === "string" ? metadata.customer_notes : "No notes";
+
+  const pricingBreakdownRaw = metadata.pricing_breakdown;
+  const pricingBreakdown =
+    pricingBreakdownRaw &&
+    typeof pricingBreakdownRaw === "object" &&
+    !Array.isArray(pricingBreakdownRaw)
+      ? (pricingBreakdownRaw as Record<string, unknown>)
+      : null;
+
+  const homeServiceDistanceKm =
+    readMetadataNumber(metadata.home_service_distance_km) ??
+    readMetadataNumber(pricingBreakdown?.distance_km) ??
+    readMetadataNumber(pricingBreakdown?.home_service_distance_km);
+
+  const homeServiceTravelFee =
+    readMetadataNumber(metadata.home_service_travel_fee) ??
+    readMetadataNumber(pricingBreakdown?.travel_fee) ??
+    readMetadataNumber(pricingBreakdown?.home_service_travel_fee);
 
   return (
     <AdminDialog
@@ -148,6 +175,32 @@ export function CradleFlowBookingDialog({
           </div>
         </section>
 
+        {homeService ? (
+          <section>
+            <h3 className="text-xs font-extrabold uppercase tracking-wide text-[var(--cs-text-muted)]">
+              Home Service travel
+            </h3>
+            <div className="mt-2 grid gap-2 sm:grid-cols-2">
+              <Detail
+                label="Distance"
+                value={
+                  homeServiceDistanceKm !== null
+                    ? `${homeServiceDistanceKm.toFixed(1)} km`
+                    : "Not calculated"
+                }
+              />
+              <Detail
+                label="Travel fee"
+                value={
+                  homeServiceTravelFee !== null
+                    ? formatCradleFlowMoney(homeServiceTravelFee)
+                    : "Not calculated"
+                }
+              />
+            </div>
+          </section>
+        ) : null}
+
         <Detail label="Notes" value={notes} />
 
         {booking.needs_staff_schedule_review || booking.dispatch_warning ? (
@@ -175,7 +228,22 @@ export function CradleFlowBookingDialog({
                 <button type="button" onClick={() => { onOpenChange(false); onAssignRoom(booking); }} className="cs-btn cs-btn-secondary h-10 rounded-lg px-3 text-xs">
                   {booking.resource_id ? "Change Room" : "Assign Room"}
                 </button>
-              ) : null}
+              ) : (
+                <>
+                  <Link
+                    href={`/crm/bookings?bookingId=${booking.id}&action=reschedule`}
+                    className="cs-btn cs-btn-secondary h-10 rounded-lg px-3 text-xs"
+                  >
+                    Change Time
+                  </Link>
+                  <Link
+                    href={`/crm/bookings?bookingId=${booking.id}&action=location`}
+                    className="cs-btn cs-btn-secondary h-10 rounded-lg px-3 text-xs"
+                  >
+                    Change Location
+                  </Link>
+                </>
+              )}
             </>
           ) : null}
           <button
