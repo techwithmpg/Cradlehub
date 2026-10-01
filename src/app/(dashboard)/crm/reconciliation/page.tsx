@@ -2,6 +2,7 @@ import { redirect } from "next/navigation";
 import { EmptyState, WorkspaceSection } from "@/components/features/attendance/attendance-ui";
 import { CrmOperationalPageShell } from "@/components/features/crm/operational/crm-operational-page-shell";
 import { getDailyPaymentSummary } from "@/lib/queries/bookings";
+import { getPostedReconciliationExpected } from "@/lib/cash-flow/reconciliation-expected";
 import { getReconciliationsAction } from "./actions";
 import { ReconciliationForm } from "./reconciliation-form";
 import { getBranchBusinessDate } from "@/lib/engine/slot-time";
@@ -28,8 +29,9 @@ export default async function ReconciliationPage() {
     day: "numeric",
   });
 
-  const [summary, historyResult] = await Promise.all([
+  const [summary, expected, historyResult] = await Promise.all([
     getDailyPaymentSummary(branchId, today).catch(() => null),
+    getPostedReconciliationExpected(branchId, today).catch(() => null),
     getReconciliationsAction(branchId, 20),
   ]);
 
@@ -154,7 +156,7 @@ export default async function ReconciliationPage() {
         <ReconciliationForm
           branchId={branchId}
           date={today}
-          summary={summary}
+          expected={expected}
           existing={
             existing
               ? {

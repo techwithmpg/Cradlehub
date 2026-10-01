@@ -326,28 +326,6 @@ EXECUTE FUNCTION public.p1a_reject_closed_service_payable();
 
 
 -- ---------------------------------------------------------------------------
--- IMPORTANT:
---
--- The canonical post_order_payment_atomic body is intentionally NOT replaced
--- blindly in this migration generator.
---
--- Its current P1-B definition is large and is the authority for:
---   authorization
---   branch enforcement
---   account/rail validation
---   cash-session validation
---   idempotency
---   allocations
---   booking payment mirrors
---
--- The application patch below changes only its lazy payable materialization
--- query so cancelled/no_show lines are excluded.
---
--- This migration remains incomplete until that exact current RPC definition
--- is copied forward with the P1-A predicate and tests pass.
--- ---------------------------------------------------------------------------
-
--- ---------------------------------------------------------------------------
 -- 5. Canonical order payment writer — P1-A forward definition.
 --
 -- This is the exact accepted P1-B writer carried forward with only the
@@ -485,12 +463,12 @@ BEGIN
     IF EXISTS (
       SELECT 1 FROM public.bookings b WHERE b.order_id = p_order_id
         AND b.status NOT IN ('cancelled', 'no_show')
-        AND COALESCE((b.metadata->>'price_paid') ~ '^[0-9]+([.][0-9]{1,2})?$'$', FALSE) = FALSE
+        AND COALESCE((b.metadata->>'price_paid') ~ '^[0-9]+([.][0-9]{1,2})?$', FALSE) = FALSE
     ) THEN
       RAISE EXCEPTION 'BOOKING_PRICE_SNAPSHOT_REQUIRED: Cannot derive order payable safely';
     END IF;
     IF v_order.metadata ? 'home_service_fee'
-       AND COALESCE((v_order.metadata->>'home_service_fee') ~ '^[0-9]+([.][0-9]{1,2})?$'$', FALSE) = FALSE THEN
+       AND COALESCE((v_order.metadata->>'home_service_fee') ~ '^[0-9]+([.][0-9]{1,2})?$', FALSE) = FALSE THEN
       RAISE EXCEPTION 'ORDER_FEE_SNAPSHOT_INVALID: Cannot derive Home Service fee safely';
     END IF;
     INSERT INTO public.order_payable_items (

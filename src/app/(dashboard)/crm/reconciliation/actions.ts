@@ -2,7 +2,7 @@
 
 import { createClient } from "@/lib/supabase/server";
 import { isDevAuthBypassEnabled, getDevBypassLayoutStaff } from "@/lib/dev-bypass";
-import { getDailyPaymentSummary } from "@/lib/queries/bookings";
+import { getPostedReconciliationExpected } from "@/lib/cash-flow/reconciliation-expected";
 import { createNotification, resolveNotificationsForEntity } from "@/lib/notifications/create";
 import { getNotificationTargetPath } from "@/lib/notifications/notification-targets";
 import { revalidatePath } from "next/cache";
@@ -17,7 +17,7 @@ async function requireCrmStaff() {
 
   if (isDevAuthBypassEnabled()) {
     const mock = getDevBypassLayoutStaff();
-    return { supabase, staffId: null as string | null, branchId: mock.branch_id as string };
+    return { supabase, staffId: null as string | null, branchId: mock.branch_id as string, role: canonicalizeSystemRole(mock.system_role) };
   }
 
   const { data: me } = await supabase
@@ -29,7 +29,7 @@ async function requireCrmStaff() {
 
   const role = me ? canonicalizeSystemRole(me.system_role) : null;
   if (!me || !role || !canAccessCrmWorkspace(role) || !me.branch_id) return null;
-  return { supabase, staffId: me.id as string, branchId: me.branch_id as string };
+  return { supabase, staffId: me.id as string, branchId: me.branch_id as string, role };
 }
 
 const upsertSchema = z.object({
@@ -54,14 +54,14 @@ export async function upsertReconciliationAction(rawInput: unknown) {
   }
   const d = parsed.data;
 
-  // Load expected totals from payment summary
-  const summary = await getDailyPaymentSummary(d.branchId, d.date).catch(() => null);
-  const expected = summary?.by_method ?? { cash: 0, gcash: 0, maya: 0, card: 0, pay_on_site: 0, other: 0 };
+  let expected;
+  try {
+    expected = await getPostedReconciliationExpected(d.branchId, d.date, ctx.supabase);
+  } catch {
+    return { ok: false as const, error: "Posted financial movements could not be loaded. Reconciliation was not saved." };
+  }
 
-  const { data: reconciliation, error } = await ctx.supabase
-    .from("daily_cash_reconciliations")
-    .upsert(
-      {
+  const values = {
         branch_id:            d.branchId,
         reconciliation_date:  d.date,
         recorded_by:          ctx.staffId,
@@ -69,7 +69,7 @@ export async function upsertReconciliationAction(rawInput: unknown) {
         expected_gcash:       expected.gcash,
         expected_maya:        expected.maya,
         expected_card:        expected.card,
-        expected_other:       expected.other + expected.pay_on_site,
+        expected_other:       expected.other,
         actual_cash:          d.actualCash,
         actual_gcash:         d.actualGcash,
         actual_maya:          d.actualMaya,
@@ -78,14 +78,37 @@ export async function upsertReconciliationAction(rawInput: unknown) {
         notes:                d.notes ?? null,
         status:               d.status,
         updated_at:           new Date().toISOString(),
-      },
-      { onConflict: "branch_id,reconciliation_date" }
-    )
-    .select("id")
-    .single();
+  };
+
+  const { data: existing, error: lookupError } = await ctx.supabase
+    .from("daily_cash_reconciliations")
+    .select("id, status")
+    .eq("branch_id", d.branchId)
+    .eq("reconciliation_date", d.date)
+    .maybeSingle();
+  if (lookupError) {
+    return { ok: false as const, error: "Could not check reconciliation state." };
+  }
+  if (existing?.status === "approved") {
+    return { ok: false as const, error: "Approved reconciliations cannot be edited." };
+  }
+
+  const { data: reconciliation, error } = existing
+    ? await ctx.supabase
+        .from("daily_cash_reconciliations")
+        .update(values)
+        .eq("id", existing.id)
+        .neq("status", "approved")
+        .select("id")
+        .maybeSingle()
+    : await ctx.supabase
+        .from("daily_cash_reconciliations")
+        .insert(values)
+        .select("id")
+        .maybeSingle();
 
   if (error || !reconciliation) {
-    return { ok: false as const, error: error?.message ?? "Could not save reconciliation" };
+    return { ok: false as const, error: error?.message ?? "Reconciliation state changed; refresh before saving." };
   }
 
   if (d.status === "submitted") {
@@ -122,12 +145,16 @@ export async function upsertReconciliationAction(rawInput: unknown) {
 export async function approveReconciliationAction(reconciliationId: string) {
   const ctx = await requireCrmStaff();
   if (!ctx) return { ok: false as const, error: "Unauthorized" };
+  if (ctx.role !== "owner" && ctx.role !== "manager") {
+    return { ok: false as const, error: "Only an owner or manager can approve reconciliation." };
+  }
 
   const { data: updatedRows, error } = await ctx.supabase
     .from("daily_cash_reconciliations")
     .update({ status: "approved", updated_at: new Date().toISOString() })
     .eq("id", reconciliationId)
     .eq("branch_id", ctx.branchId)
+    .eq("status", "submitted")
     .select("id");
 
   if (error) return { ok: false as const, error: error.message };

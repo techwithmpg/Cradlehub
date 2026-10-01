@@ -5,12 +5,7 @@ import { toast } from "sonner";
 import { WorkspaceNotice, WorkspaceSection } from "@/components/features/attendance/attendance-ui";
 import { Button } from "@/components/ui/button";
 import { upsertReconciliationAction } from "./actions";
-
-type PaymentSummary = {
-  by_method: { cash: number; gcash: number; maya: number; card: number; pay_on_site: number; other: number };
-  total_expected: number;
-  total_collected: number;
-};
+import type { ReconciliationExpected } from "@/lib/cash-flow/reconciliation-expected";
 
 type ExistingRecord = {
   actual_cash: number;
@@ -32,26 +27,25 @@ const METHODS = [
 
 type MethodKey = typeof METHODS[number]["key"];
 
-function getExpected(key: MethodKey, summary: PaymentSummary | null): number {
-  if (!summary) return 0;
-  const m = summary.by_method;
-  if (key === "actualCash")  return m.cash;
-  if (key === "actualGcash") return m.gcash;
-  if (key === "actualMaya")  return m.maya;
-  if (key === "actualCard")  return m.card;
-  if (key === "actualOther") return m.other + m.pay_on_site;
+function getExpected(key: MethodKey, expected: ReconciliationExpected | null): number {
+  if (!expected) return 0;
+  if (key === "actualCash")  return expected.cash;
+  if (key === "actualGcash") return expected.gcash;
+  if (key === "actualMaya")  return expected.maya;
+  if (key === "actualCard")  return expected.card;
+  if (key === "actualOther") return expected.other;
   return 0;
 }
 
 export function ReconciliationForm({
   branchId,
   date,
-  summary,
+  expected,
   existing,
 }: {
   branchId: string;
   date: string;
-  summary: PaymentSummary | null;
+  expected: ReconciliationExpected | null;
   existing: ExistingRecord | null;
 }) {
   const isApproved = existing?.status === "approved";
@@ -77,8 +71,8 @@ export function ReconciliationForm({
     return METHODS.reduce((sum, m) => sum + (parseFloat(actuals[m.key]) || 0), 0);
   }
   function totalExpected() {
-    if (!summary) return 0;
-    return summary.total_collected;
+    if (!expected) return 0;
+    return expected.cash + expected.gcash + expected.maya + expected.card + expected.other;
   }
   function variance() {
     return totalActual() - totalExpected();
@@ -128,7 +122,9 @@ export function ReconciliationForm({
           }}
         >
           Variance:{" "}
-          {varAmount === 0
+          {!expected
+            ? "Unavailable"
+            : varAmount === 0
             ? "Balanced"
             : `${varAmount > 0 ? "+" : ""}₱${varAmount.toLocaleString("en-PH", {
                 minimumFractionDigits: 2,
@@ -144,6 +140,12 @@ export function ReconciliationForm({
           </WorkspaceNotice>
         )}
 
+        {!expected && (
+          <WorkspaceNotice tone="error" title="Expected totals unavailable">
+            Posted financial movements could not be loaded. Reconciliation cannot be saved yet.
+          </WorkspaceNotice>
+        )}
+
         <div className="overflow-x-auto">
           <div className="grid min-w-[540px] gap-3">
             <div className="grid grid-cols-[1fr_1fr_1fr_80px] items-center gap-2 border-b border-[var(--cs-border)] pb-1 text-[0.6875rem] font-bold uppercase tracking-wide text-[var(--cs-text-muted)]">
@@ -154,9 +156,9 @@ export function ReconciliationForm({
             </div>
 
             {METHODS.map((m) => {
-              const expected = getExpected(m.key, summary);
+              const expectedAmount = getExpected(m.key, expected);
               const actual = parseFloat(actuals[m.key]) || 0;
-              const diff = actual - expected;
+              const diff = actual - expectedAmount;
               return (
                 <div
                   key={m.key}
@@ -167,7 +169,7 @@ export function ReconciliationForm({
                     {m.label}
                   </div>
                   <div className="text-right text-sm text-[var(--cs-text-muted)]">
-                    ₱{expected.toLocaleString("en-PH", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                    {expected ? `₱${expectedAmount.toLocaleString("en-PH", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}` : "Unavailable"}
                   </div>
                   <div>
                     <input
@@ -212,7 +214,9 @@ export function ReconciliationForm({
                 ₱{totalActual().toLocaleString("en-PH", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
               </div>
               <div className="text-right" style={{ color: varColor }}>
-                {varAmount === 0
+                {!expected
+                  ? "Unavailable"
+                  : varAmount === 0
                   ? "✓"
                   : `${varAmount > 0 ? "+" : ""}₱${varAmount.toLocaleString("en-PH", {
                       minimumFractionDigits: 2,
@@ -255,14 +259,14 @@ export function ReconciliationForm({
               type="button"
               variant="outline"
               onClick={() => handleSubmit("draft")}
-              disabled={isPending}
+               disabled={isPending || !expected}
             >
               Save Draft
             </Button>
             <Button
               type="button"
               onClick={() => handleSubmit("submitted")}
-              disabled={isPending}
+               disabled={isPending || !expected}
               className="bg-[var(--cs-sand)] text-white hover:bg-[var(--cs-sand)]/90"
             >
               Submit for Approval

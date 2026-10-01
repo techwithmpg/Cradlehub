@@ -70,6 +70,12 @@ describe("P1-A closed booking financial safety migration", () => {
     expect(exclusions?.length ?? 0).toBeGreaterThanOrEqual(2)
   })
 
+  it("keeps the payable snapshot validation regexes quoted exactly once", () => {
+    expect(sql).not.toContain("?$''")
+    expect(sql).toContain("(b.metadata->>'price_paid') ~ '^[0-9]+([.][0-9]{1,2})?$', FALSE")
+    expect(sql).toContain("(v_order.metadata->>'home_service_fee') ~ '^[0-9]+([.][0-9]{1,2})?$', FALSE")
+  })
+
   it("carries forward the P1-B cash drawer protection", () => {
     expect(sql).toContain(
       "CASH_DRAWER_SESSION_REQUIRED",
