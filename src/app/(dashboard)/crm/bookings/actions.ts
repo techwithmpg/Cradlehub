@@ -14,6 +14,7 @@ import {
   rescheduleBooking,
   type BookingOperationResult,
   confirmCrmBooking,
+  confirmHomeServiceHandoff,
   markCrmBookingArrived,
   startCrmBookingService,
   completeCrmBookingService,
@@ -153,6 +154,14 @@ export async function markBookingConfirmedAction(
   const ctx = await getCrmActionsContext();
   if (!ctx) return { success: false, error: "Unauthorized" };
   return confirmCrmBooking(ctx, rawInput);
+}
+
+export async function confirmHomeServiceHandoffAction(
+  rawInput: unknown
+): Promise<BookingOperationResult> {
+  const ctx = await getCrmActionsContext();
+  if (!ctx) return { success: false, error: "Unauthorized" };
+  return confirmHomeServiceHandoff(ctx, rawInput);
 }
 
 export async function recordBookingFollowupAction(

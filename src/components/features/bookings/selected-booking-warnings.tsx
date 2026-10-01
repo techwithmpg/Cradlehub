@@ -54,6 +54,8 @@ export function SelectedBookingWarnings({
   const exception = getOpenStaffScheduleException(booking.metadata);
   const missingRoom = booking.booking_progress_status === "checked_in" && !booking.resource_id;
   const pendingPayment = ["unpaid", "pending", "pending_payment"].includes(booking.payment_status);
+  const isHomeService =
+    booking.delivery_type === "home_service" || booking.type === "home_service";
 
   function callCustomer() {
     const phone = firstBookingRelation(booking.customers)?.phone?.trim();
@@ -83,7 +85,18 @@ export function SelectedBookingWarnings({
     <div className="overflow-hidden rounded-xl border border-amber-200">
       {exception ? <WarningStrip title="Staff schedule exception" detail={getStaffScheduleExceptionMessage(exception.reasonCode, exception.selectedStaffName)} actionLabel="Review" onAction={() => setShowStaffReview((current) => !current)} /> : null}
       {missingRoom ? <WarningStrip title="Room assignment required" detail="The customer is checked in and needs a room before service can start." actionLabel="Assign" onAction={onOpenRoom} /> : null}
-      {pendingPayment ? <WarningStrip title="Payment requires review" detail="This booking still has an unpaid or pending payment state." actionLabel="Manage" onAction={onOpenPayment} /> : null}
+      {pendingPayment ? (
+        <WarningStrip
+          title={isHomeService ? "Payment pending" : "Payment requires review"}
+          detail={
+            isHomeService
+              ? "Payment is still pending or due on site. This does not prevent Home Service dispatch."
+              : "This booking still has an unpaid or pending payment state."
+          }
+          actionLabel="Manage"
+          onAction={onOpenPayment}
+        />
+      ) : null}
       {showStaffReview && exception ? (
         <div className="grid grid-cols-3 gap-2 border-t border-amber-200 bg-white p-3">
           <button type="button" disabled={isResolving} onClick={() => resolve("kept_selected_staff")} className={reviewButtonClass}>Keep selected staff</button>

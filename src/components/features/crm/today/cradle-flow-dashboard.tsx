@@ -4,6 +4,7 @@ import { useCallback, useEffect, useMemo, useState, useTransition } from "react"
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 import {
+  confirmHomeServiceHandoffAction,
   crmStartServiceAction,
   markBookingArrivedAction,
 } from "@/app/(dashboard)/crm/bookings/actions";
@@ -116,8 +117,21 @@ export function CradleFlowDashboard(props: CradleFlowDashboardProps) {
       });
       return;
     }
-    if (stage === "completed" || booking.type === "home_service" || booking.delivery_type === "home_service") {
+    if (stage === "completed") {
       router.push(`/crm/bookings?bookingId=${booking.id}`);
+      return;
+    }
+    if (booking.type === "home_service" || booking.delivery_type === "home_service") {
+      startAction(async () => {
+        const result = await confirmHomeServiceHandoffAction({ bookingId: booking.id });
+        if (!result.success) {
+          toast.error(result.error ?? "Home Service could not be confirmed and dispatched.");
+          return;
+        }
+        notifyBookingsChanged();
+        setDialog(null);
+        toast.success("Home Service confirmed and dispatched.");
+      });
       return;
     }
     startAction(async () => {
