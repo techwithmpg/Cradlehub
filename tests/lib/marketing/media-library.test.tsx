@@ -143,6 +143,31 @@ describe("marketing media validation schemas", () => {
 });
 
 describe("UniversalMediaPicker component", () => {
+  it("keeps its upload form outside an enclosing editor form", () => {
+    const onEditorSubmit = vi.fn((event: React.FormEvent) => event.preventDefault());
+    const { container } = render(
+      <form aria-label="Edit service" onSubmit={onEditorSubmit}>
+        <UniversalMediaPicker
+          isOpen={true}
+          onClose={vi.fn()}
+          onSelect={vi.fn()}
+          availableAssets={mockAssets}
+        />
+      </form>
+    );
+
+    fireEvent.click(screen.getByRole("button", { name: "Upload Asset" }));
+
+    const editorForm = container.querySelector("form");
+    const uploadForm = screen.getByRole("dialog").querySelector("form");
+    expect(editorForm).not.toBeNull();
+    expect(uploadForm).not.toBeNull();
+    expect(editorForm?.contains(uploadForm)).toBe(false);
+    expect(uploadForm?.parentElement?.closest("form")).toBeNull();
+    fireEvent.submit(uploadForm!);
+    expect(onEditorSubmit).not.toHaveBeenCalled();
+  });
+
   it("renders when isOpen is true and displays active media assets with alt text", () => {
     const handleClose = vi.fn();
     const handleSelect = vi.fn();

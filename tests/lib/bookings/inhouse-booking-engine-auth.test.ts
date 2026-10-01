@@ -40,6 +40,36 @@ describe("Inhouse Booking Engine Authorization & Branch Boundary", () => {
     process.env = originalEnv;
   });
 
+  it("takes paid creation through normal validation before the atomic RPC boundary", async () => {
+    const operator: InhouseBookingOperator = {
+      authUserId: "user-receptionist-1",
+      staff: { id: "staff-rec-1", branch_id: BRANCH_AAA, system_role: "crm" },
+      staffRole: "crm",
+      isDevBypass: false,
+    };
+    vi.mocked(branchRules.validateBookingAgainstBranchRules).mockResolvedValueOnce({
+      ok: false,
+      message: "The selected time is outside branch booking hours.",
+      rules: { branchId: BRANCH_AAA, ...DEFAULT_BRANCH_BOOKING_RULES },
+    });
+    const result = await executeInhouseBookingCreation({
+      branchId: BRANCH_AAA,
+      fullName: "Paid Customer",
+      phone: "09171234567",
+      serviceIds: [SERVICE_ID_1],
+      date: "2026-09-15",
+      startTime: "10:00",
+      type: "walkin",
+      paymentReceived: true,
+      paymentMethod: "cash",
+      idempotencyKey: "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa",
+    }, operator);
+
+    expect(result).toMatchObject({ ok: false, code: "BOOKING_RULES_ERROR" });
+    expect(branchRules.validateBookingAgainstBranchRules).toHaveBeenCalledOnce();
+    expect(adminSupabase.createAdminClient).not.toHaveBeenCalled();
+  });
+
   it("rejects non-owner operator attempting cross-branch booking before any DB mutation", async () => {
     const nonOwnerOperator: InhouseBookingOperator = {
       authUserId: "user-receptionist-1",

@@ -7,6 +7,8 @@ import { getAllCategories } from "@/lib/queries/services";
 import { updateServiceAction } from "@/app/(dashboard)/owner/services/actions";
 import { formatCurrency } from "@/lib/utils";
 import { ArrowLeft } from "lucide-react";
+import { getMarketingMediaAssets } from "@/lib/queries/marketing-media";
+import { ServiceImageFields } from "@/components/features/owner/service-image-fields";
 
 type Props = {
   params: Promise<{ serviceId: string }>;
@@ -14,9 +16,10 @@ type Props = {
 
 export default async function EditServicePage({ params }: Props) {
   const { serviceId } = await params;
-  const [service, categories] = await Promise.all([
+  const [service, categories, mediaAssets] = await Promise.all([
     getServiceById(serviceId),
     getAllCategories(),
+    getMarketingMediaAssets({ limit: 150 }),
   ]);
 
   if (!service) notFound();
@@ -26,9 +29,11 @@ export default async function EditServicePage({ params }: Props) {
     const result = await updateServiceAction({
       serviceId,
       name: formData.get("name") as string,
-      description: (formData.get("description") as string) || undefined,
+      description: String(formData.get("description") ?? ""),
       durationMinutes: Number(formData.get("durationMinutes")),
       price: Number(formData.get("price")),
+      imageUrl: String(formData.get("imageUrl") ?? ""),
+      imageAlt: String(formData.get("imageAlt") ?? ""),
       categoryId: (formData.get("categoryId") as string) || undefined,
     });
 
@@ -169,6 +174,12 @@ export default async function EditServicePage({ params }: Props) {
           </div>
 
           {/* Duration + Price */}
+          <ServiceImageFields
+            imageUrl={service.image_url ?? ""}
+            imageAlt={service.image_alt ?? ""}
+            mediaAssets={mediaAssets}
+          />
+
           <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "1rem" }}>
             <div>
               <label

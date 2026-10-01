@@ -25,6 +25,7 @@ const OWNER_NAV_ITEMS: NavItem[] = [
   { label: "Overview", href: "/owner", icon: "LayoutDashboard" },
   { label: "Schedule", href: "/owner/schedule", icon: "CalendarDays" },
   { label: "Bookings", href: "/owner/bookings", icon: "CalendarDays" },
+  { label: "Cash Flow", href: "/owner/cash-flow", icon: "DollarSign" },
   { label: "Reports", href: "/owner/reports", icon: "BarChart2" },
   { label: "Marketing Studio", href: "/owner/marketing", icon: "Sparkles" },
   { label: "Dispatch", href: "/owner/dispatch", icon: "Truck" },
@@ -58,6 +59,7 @@ const MANAGER_NAV_ITEMS: NavItem[] = [
 const CRM_NAV_ITEMS: NavItem[] = [
   { label: "Cradle Flow", href: "/crm/today", icon: "LayoutDashboard" },
   { label: "Bookings", href: "/crm/bookings", icon: "ClipboardList" },
+  { label: "Cash Flow", href: "/crm/cash-flow", icon: "DollarSign" },
   { label: "Schedule", href: "/crm/schedule", icon: "CalendarDays" },
   { label: "Attendance", href: "/crm/attendance", icon: "ClipboardCheck" },
   { label: "Customers", href: "/crm/customers", icon: "Users" },

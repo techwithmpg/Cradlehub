@@ -1,8 +1,9 @@
 "use client";
 
 import { useEffect } from "react";
-import { CalendarDays, Home, Plus, RotateCcw, UserRoundPlus } from "lucide-react";
+import { ArrowLeftRight, Banknote, Plus, ReceiptText, RotateCcw } from "lucide-react";
 import { useAdministrativeBookingModal } from "@/components/features/bookings/administrative-booking-modal-provider";
+import type { FinancialEntryMode } from "@/components/features/cash-flow/record-financial-entry-modal";
 import type { CradleFlowBooking } from "@/lib/crm/cradle-flow";
 
 type ActionCardProps = {
@@ -28,8 +29,8 @@ function ActionCard({
       onClick={onClick}
       className={
         primary
-          ? "group flex min-h-24 items-center gap-3 rounded-xl border border-emerald-800/20 bg-[linear-gradient(135deg,#0f4c35,#1f6649)] px-4 text-left text-white shadow-[var(--cs-shadow-sm)] transition hover:-translate-y-0.5 hover:shadow-[var(--cs-shadow-md)]"
-          : "group flex min-h-24 items-center gap-3 rounded-xl border border-[var(--cs-border)] bg-[var(--cs-surface)] px-4 text-left shadow-[var(--cs-shadow-xs)] transition hover:-translate-y-0.5 hover:border-[var(--cs-border-strong)] hover:shadow-[var(--cs-shadow-sm)]"
+          ? "group flex min-h-20 items-center gap-3 rounded-xl border border-emerald-800/20 bg-[linear-gradient(135deg,#0f4c35,#1f6649)] px-3 text-left text-white shadow-[var(--cs-shadow-sm)] transition hover:-translate-y-0.5 hover:shadow-[var(--cs-shadow-md)]"
+          : "group flex min-h-20 items-center gap-3 rounded-xl border border-[var(--cs-border)] bg-[var(--cs-surface)] px-3 text-left shadow-[var(--cs-shadow-xs)] transition hover:-translate-y-0.5 hover:border-[var(--cs-border-strong)] hover:shadow-[var(--cs-shadow-sm)]"
       }
     >
       <span
@@ -45,8 +46,8 @@ function ActionCard({
         <span
           className={
             primary
-              ? "block text-sm font-extrabold tracking-wide text-white"
-              : "block text-sm font-extrabold tracking-wide text-[var(--cs-text)]"
+              ? "block text-xs font-extrabold tracking-wide text-white"
+              : "block text-xs font-extrabold tracking-wide text-[var(--cs-text)]"
           }
         >
           {title}
@@ -54,8 +55,8 @@ function ActionCard({
         <span
           className={
             primary
-              ? "mt-1 block text-xs text-white/75"
-              : "mt-1 block text-xs text-[var(--cs-text-muted)]"
+              ? "mt-0.5 block text-[11px] text-white/75"
+              : "mt-0.5 block text-[11px] text-[var(--cs-text-muted)]"
           }
         >
           {description}
@@ -75,57 +76,61 @@ function ActionCard({
 export function CradleFlowActions({
   pendingBooking,
   onResumePending,
+  onOpenFinancialEntry,
 }: {
   pendingBooking: CradleFlowBooking | null;
   onResumePending: (booking: CradleFlowBooking) => void;
+  onOpenFinancialEntry: (mode: FinancialEntryMode) => void;
 }) {
   const { openBookingModal } = useAdministrativeBookingModal();
 
   useEffect(() => {
     const onKeyDown = (event: KeyboardEvent) => {
-      if (event.ctrlKey || event.metaKey || event.altKey) return;
+      if (event.defaultPrevented || event.ctrlKey || event.metaKey || event.altKey) return;
       const target = event.target;
-      if (target instanceof HTMLInputElement || target instanceof HTMLTextAreaElement) return;
+      if (target instanceof HTMLInputElement || target instanceof HTMLTextAreaElement || target instanceof HTMLSelectElement) return;
+      if (target instanceof HTMLElement && target.isContentEditable) return;
+      if (document.querySelector('[role="dialog"]')) return;
       if (event.key === "F1") openBookingModal({ mode: "walkin" });
-      if (event.key === "F2") openBookingModal({ mode: "walkin" });
-      if (event.key === "F3") openBookingModal({ mode: "standard_future" });
-      if (event.key === "F4") openBookingModal({ mode: "home_service" });
+      if (event.key === "F2") onOpenFinancialEntry("customer_payment");
+      if (event.key === "F3") onOpenFinancialEntry("expense");
+      if (event.key === "F4") onOpenFinancialEntry("other_entry");
       if (["F1", "F2", "F3", "F4"].includes(event.key)) event.preventDefault();
     };
     window.addEventListener("keydown", onKeyDown);
     return () => window.removeEventListener("keydown", onKeyDown);
-  }, [openBookingModal]);
+  }, [onOpenFinancialEntry, openBookingModal]);
 
   return (
-    <section className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4" aria-label="Booking shortcuts">
+    <section className="grid gap-2.5 sm:grid-cols-2 xl:grid-cols-4" aria-label="Primary front desk actions">
       <ActionCard
         title="NEW BOOKING"
-        description="Create any booking"
+        description="Create a booking, walk-in or Home Service"
         shortcut="F1"
         icon={<Plus className="size-5" />}
         primary
         onClick={() => openBookingModal({ mode: "walkin" })}
       />
       <ActionCard
-        title="WALK-IN"
-        description="Start an in-spa visit"
+        title="RECORD PAYMENT"
+        description="Collect payments and settle visits"
         shortcut="F2"
-        icon={<UserRoundPlus className="size-5" />}
-        onClick={() => openBookingModal({ mode: "walkin" })}
+        icon={<Banknote className="size-5" />}
+        onClick={() => onOpenFinancialEntry("customer_payment")}
       />
       <ActionCard
-        title="BOOK FOR LATER"
-        description="Phone or future booking"
+        title="RECORD EXPENSES"
+        description="Log operational expenses"
         shortcut="F3"
-        icon={<CalendarDays className="size-5" />}
-        onClick={() => openBookingModal({ mode: "standard_future" })}
+        icon={<ReceiptText className="size-5" />}
+        onClick={() => onOpenFinancialEntry("expense")}
       />
       <ActionCard
-        title="HOME SERVICE"
-        description="Create and prepare dispatch"
+        title="CASH OPERATIONS"
+        description="Adjust cash or transfer funds"
         shortcut="F4"
-        icon={<Home className="size-5" />}
-        onClick={() => openBookingModal({ mode: "home_service" })}
+        icon={<ArrowLeftRight className="size-5" />}
+        onClick={() => onOpenFinancialEntry("other_entry")}
       />
       {pendingBooking ? (
         <button

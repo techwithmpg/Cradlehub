@@ -9,7 +9,7 @@ import { CrmTabNav, DISPATCH_TABS } from "@/components/features/crm/crm-tab-nav"
 import { getFrontDeskContext } from "@/lib/queries/crm-context";
 import { getBranchBusinessDate } from "@/lib/engine/slot-time";
 
-export const metadata: Metadata = { title: "Home Service Dispatch — CRM" };
+export const metadata: Metadata = { title: "Home Service Operations — CRM" };
 
 export default async function CrmDispatchPage() {
   const { role, branchId, branchName } = await getFrontDeskContext();
@@ -25,8 +25,8 @@ export default async function CrmDispatchPage() {
 
   return (
     <CrmOperationalPageShell
-      title="Home-Service Dispatch Center"
-      description="Coordinate home-service bookings, drivers, therapist movement, customer locations, and dispatch readiness."
+      title="Home Service Operations"
+      description="Monitor home-service bookings, assignments, customer locations, and travel progress."
       context={`${branchName} · ${today} · ${role} view`}
       tabs={<CrmTabNav tabs={DISPATCH_TABS} activeHref="/crm/dispatch" />}
     >

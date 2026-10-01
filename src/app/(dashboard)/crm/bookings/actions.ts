@@ -14,6 +14,7 @@ import {
   rescheduleBooking,
   type BookingOperationResult,
   confirmCrmBooking,
+  confirmHomeServiceHandoff,
   markCrmBookingArrived,
   startCrmBookingService,
   completeCrmBookingService,
@@ -22,6 +23,7 @@ import {
 
 import { canonicalizeSystemRole } from "@/constants/staff";
 import { canAccessCrmWorkspace } from "@/lib/auth/crm-permissions";
+import { resolveOwnerFrontDeskBranch } from "@/lib/queries/front-desk-branch";
 import { bookingBlocksAvailability } from "@/lib/bookings/hold-status";
 import { recordBookingPaymentChange } from "@/lib/bookings/payment-transaction";
 import { revalidateOperationalBookingSurfaces } from "@/lib/bookings/revalidate-booking-surfaces";
@@ -37,6 +39,9 @@ import { createNotification, resolveNotificationsForEntity } from "@/lib/notific
 import { getNotificationTargetPath } from "@/lib/notifications/notification-targets";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { createClient } from "@/lib/supabase/server";
+import { getDriverRecommendationsAction } from "@/lib/actions/assignment-recommendations";
+import { assignHomeServiceDriver } from "@/lib/home-service/dispatch-operations";
+import { automaticDriverCandidate } from "@/lib/home-service/automatic-driver-candidate";
 import { confirmBookingPaymentSchema } from "@/lib/validations/booking";
 import type { Database } from "@/types/supabase";
 import { z } from "zod";
@@ -69,8 +74,12 @@ async function getCrmActionsContext() {
     .maybeSingle();
 
   const role = me ? canonicalizeSystemRole(me.system_role) : null;
-  if (!me || !me.branch_id || !role || !canAccessCrmWorkspace(role)) return null;
-  return { supabase, authUserId: user.id, me: { ...me, system_role: role } };
+  if (!me || !role || !canAccessCrmWorkspace(role) || (!me.branch_id && role !== "owner")) return null;
+  const ownerBranch = role === "owner"
+    ? await resolveOwnerFrontDeskBranch(user.id, me.branch_id)
+    : null;
+  if (role === "owner" && !ownerBranch) return null;
+  return { supabase, authUserId: user.id, me: { ...me, branch_id: ownerBranch?.id ?? me.branch_id!, system_role: role } };
 }
 
 const resolveStaffScheduleExceptionSchema = bookingIdSchema.extend({
@@ -148,6 +157,39 @@ export async function markBookingConfirmedAction(
   const ctx = await getCrmActionsContext();
   if (!ctx) return { success: false, error: "Unauthorized" };
   return confirmCrmBooking(ctx, rawInput);
+}
+
+export async function confirmHomeServiceHandoffAction(
+  rawInput: unknown
+): Promise<BookingOperationResult> {
+  const ctx = await getCrmActionsContext();
+  if (!ctx) return { success: false, error: "Unauthorized" };
+  const initial = await confirmHomeServiceHandoff(ctx, rawInput);
+  if (initial.success || initial.error !== "Assign a driver before Confirm & Dispatch.") return initial;
+
+  const parsed = bookingIdSchema.safeParse(rawInput);
+  if (!parsed.success) return initial;
+  const recommendations = await getDriverRecommendationsAction({ bookingId: parsed.data.bookingId });
+  if (!recommendations.success) return initial;
+  const driverId = automaticDriverCandidate(null, recommendations.data.drivers);
+  if (!driverId) return initial;
+
+  try {
+    await assignHomeServiceDriver(
+      ctx.supabase,
+      {
+        staffId: ctx.me.id,
+        branchId: ctx.me.branch_id,
+        role: ctx.me.system_role,
+        allowOwnerCrossBranch: true,
+      },
+      { bookingId: parsed.data.bookingId, driverId },
+      { onlyIfUnassigned: true }
+    );
+  } catch (error) {
+    logError("home_service.auto_driver_assignment_failed", { bookingId: parsed.data.bookingId, error });
+  }
+  return confirmHomeServiceHandoff(ctx, rawInput);
 }
 
 export async function recordBookingFollowupAction(
@@ -416,7 +458,8 @@ export async function confirmBookingPaymentAction(
   if (!ctx) return { success: false, error: "Unauthorized" };
   const { supabase, me } = ctx;
 
-  const { bookingId, paymentMethod, paymentReference, amountPaid, note } = parsed.data;
+  const { bookingId, paymentMethod, paymentReference, amountPaid, note,
+    financialAccountId, payments, idempotencyKey, businessDate } = parsed.data;
 
   // Load booking — try with hold_expires_at first, fall back if column absent
   type BookingRow = {
@@ -553,6 +596,10 @@ export async function confirmBookingPaymentAction(
     changedByStaffId: me.id === DEV_BYPASS_STAFF_ID ? null : me.id,
     nextStatus: "confirmed",
     clearHold: true,
+    financialAccountId,
+    payments,
+    idempotencyKey,
+    businessDate,
   });
 
   if (!paymentResult.ok) {

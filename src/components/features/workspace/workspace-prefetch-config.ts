@@ -77,6 +77,7 @@ export const OWNER_PREFETCH: WorkspacePrefetchConfig = {
   immediate: [],
   idle: ["/owner", "/owner/reports", "/owner/bookings"],
   hover: [
+    "/owner/cash-flow",
     "/owner/schedule",
     "/owner/attendance",
     "/owner/marketing",

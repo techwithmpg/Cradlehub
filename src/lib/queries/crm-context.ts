@@ -21,6 +21,7 @@ import { createClient } from "@/lib/supabase/server";
 import { isDevAuthBypassEnabled } from "@/lib/dev-bypass";
 import { getDevBypassBranchContext } from "@/lib/dev-bypass-server";
 import { resolveSuperAdminContext } from "@/lib/auth/super-admin";
+import { resolveOwnerFrontDeskBranch } from "@/lib/queries/front-desk-branch";
 
 type BranchRelation = { name: string | null } | { name: string | null }[] | null;
 
@@ -101,7 +102,8 @@ export const getCrmContext = cache(async function getCrmContext() {
   // Super-admin: grant owner-level CRM access.
   const superAdmin = await resolveSuperAdminContext(user.id);
   if (superAdmin) {
-    return { role: "owner" as string, branchId: null as string | null };
+    const branch = await resolveOwnerFrontDeskBranch(user.id, superAdmin.branch_id);
+    return { role: "owner" as string, branchId: branch?.id ?? null };
   }
 
   if (isDevAuthBypassEnabled()) {
@@ -118,9 +120,12 @@ export const getCrmContext = cache(async function getCrmContext() {
   if (!me || !canAccessCrmWorkspace(me.system_role)) redirect("/login");
 
   const role = canonicalizeSystemRole(me.system_role);
+  const ownerBranch = role === "owner"
+    ? await resolveOwnerFrontDeskBranch(user.id, me.branch_id)
+    : null;
   return {
     role,
-    branchId: role === "owner" ? null : me.branch_id,
+    branchId: role === "owner" ? ownerBranch?.id ?? null : me.branch_id,
   };
 });
 
@@ -134,11 +139,13 @@ export const getFrontDeskContext = cache(async function getFrontDeskContext(): P
   const superAdmin = await resolveSuperAdminContext(user.id);
   if (superAdmin) {
     const role = superAdmin.system_role;
+    const branch = await resolveOwnerFrontDeskBranch(user.id, superAdmin.branch_id);
+    if (!branch) redirect("/login");
     return {
       userId: user.id,
       role,
-      branchId: superAdmin.branch_id,
-      branchName: branchNameFromRelation(superAdmin.branches),
+      branchId: branch.id,
+      branchName: branch.name,
       capabilities: buildFrontDeskCapabilities(role),
       allowedDestinations: buildAllowedFrontDeskDestinations(role),
     };
@@ -151,7 +158,7 @@ export const getFrontDeskContext = cache(async function getFrontDeskContext(): P
     .eq("is_active", true)
     .maybeSingle();
 
-  if ((!me || !canAccessCrmWorkspace(me.system_role) || !me.branch_id) && isDevAuthBypassEnabled()) {
+  if ((!me || !canAccessCrmWorkspace(me.system_role) || (!me.branch_id && canonicalizeSystemRole(me.system_role) !== "owner")) && isDevAuthBypassEnabled()) {
     const devBranch = await getDevBypassBranchContext();
     if (!devBranch) redirect("/login");
     const role = devBranch.role;
@@ -165,14 +172,18 @@ export const getFrontDeskContext = cache(async function getFrontDeskContext(): P
     };
   }
 
-  if (!me || !canAccessCrmWorkspace(me.system_role) || !me.branch_id) redirect("/login");
+  if (!me || !canAccessCrmWorkspace(me.system_role) || (!me.branch_id && canonicalizeSystemRole(me.system_role) !== "owner")) redirect("/login");
 
   const role = canonicalizeSystemRole(me.system_role);
+  const ownerBranch = role === "owner"
+    ? await resolveOwnerFrontDeskBranch(user.id, me.branch_id)
+    : null;
+  if (role === "owner" && !ownerBranch) redirect("/login");
   return {
     userId: user.id,
     role,
-    branchId: me.branch_id,
-    branchName: branchNameFromRelation(me.branches as BranchRelation),
+    branchId: ownerBranch?.id ?? me.branch_id!,
+    branchName: ownerBranch?.name ?? branchNameFromRelation(me.branches as BranchRelation),
     capabilities: buildFrontDeskCapabilities(role),
     allowedDestinations: buildAllowedFrontDeskDestinations(role),
   };

@@ -104,3 +104,4 @@ docs/service-images/generated-batches/
 *.orig
 *.rej
 *.old
+/_inspection/

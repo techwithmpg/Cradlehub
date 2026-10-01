@@ -168,7 +168,9 @@ export function getSelectedBookingActionPlan(
   if (isPendingConfirmation) {
     return {
       mode: "normal",
-      primary: { id: "confirm", label: "Mark Booking Confirmed", tone: "primary" },
+      primary: isHomeService
+        ? { id: "open_dispatch", label: "Confirm & Dispatch", tone: "primary" }
+        : { id: "confirm", label: "Mark Booking Confirmed", tone: "primary" },
       secondary: [
         { id: "call", label: "Call Customer", tone: "secondary" },
         { id: "copy_message", label: "Copy Message", tone: "secondary" },
@@ -183,7 +185,7 @@ export function getSelectedBookingActionPlan(
     if (input.status === "confirmed" && (!progress || progress === "not_started")) {
       return {
         mode: "normal",
-        primary: { id: "open_dispatch", label: "Open Dispatch", tone: "primary" },
+        primary: { id: "open_dispatch", label: "Confirm & Dispatch", tone: "primary" },
         secondary: [
           { id: "call", label: "Call Customer", tone: "secondary" },
           { id: "copy_message", label: "Copy Message", tone: "secondary" },

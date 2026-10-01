@@ -1,6 +1,7 @@
 "use client";
 
 import { useActionState, useEffect, useMemo, useRef, useState } from "react";
+import { createPortal } from "react-dom";
 import Image from "next/image";
 import {
   AlertCircle,
@@ -193,7 +194,7 @@ export function UniversalMediaPicker({
     }
   };
 
-  return (
+  const dialog = (
     <div
       role="dialog"
       aria-modal="true"
@@ -889,6 +890,7 @@ export function UniversalMediaPicker({
 
             <form
               action={uploadAction}
+              onSubmit={(event) => event.stopPropagation()}
               style={{ display: "flex", flexDirection: "column", gap: "1rem" }}
             >
               <div>
@@ -1095,4 +1097,6 @@ export function UniversalMediaPicker({
       </div>
     </div>
   );
+
+  return createPortal(dialog, document.body);
 }

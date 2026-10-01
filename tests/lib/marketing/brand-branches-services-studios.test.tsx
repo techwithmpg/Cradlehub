@@ -299,6 +299,21 @@ describe("C5.4 Branches Studio", () => {
 });
 
 describe("C5.4 Services Studio", () => {
+  it("submits price and presentation in the service draft metadata field", () => {
+    const { container } = render(
+      <ServicesStudioView role="digital_marketer" services={mockServices} drafts={[]} />
+    );
+    fireEvent.change(screen.getByLabelText("Canonical Price (PHP)"), { target: { value: "1199.50" } });
+    const metadata = container.querySelector('input[name="metadataJson"]') as HTMLInputElement;
+    expect(metadata).not.toBeNull();
+    expect(JSON.parse(metadata.value)).toEqual(expect.objectContaining({
+      price: "1199.50",
+      shortDescription: mockServices[0]!.shortDescription,
+      badges: mockServices[0]!.badges,
+      inclusions: mockServices[0]!.inclusions,
+    }));
+    expect(screen.getByText(/Save Draft stays private/)).toBeDefined();
+  });
   it("renders ServicesStudioView with category tabs and service listing", () => {
     render(<ServicesStudioView role="digital_marketer" services={mockServices} drafts={[]} />);
 

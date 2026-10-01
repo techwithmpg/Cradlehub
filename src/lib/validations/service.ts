@@ -23,7 +23,17 @@ export type CreateServiceInput = z.infer<typeof createServiceSchema>;
 
 export const updateServiceSchema = createServiceSchema
   .partial()
-  .extend({ serviceId: uuid, isActive: z.boolean().optional() });
+  .extend({
+    serviceId: uuid,
+    isActive: z.boolean().optional(),
+    imageUrl: z.string().trim().max(1000).refine((value) => {
+      if (!value) return true;
+      if (value.startsWith("/") && !value.startsWith("//")) return true;
+      try { return ["http:", "https:"].includes(new URL(value).protocol); }
+      catch { return false; }
+    }, "Use a local path or http(s) image URL").optional(),
+    imageAlt: z.string().trim().max(220).optional(),
+  });
 export type UpdateServiceInput = z.infer<typeof updateServiceSchema>;
 
 export const toggleServiceSchema = z.object({

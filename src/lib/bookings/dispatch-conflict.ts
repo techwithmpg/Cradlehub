@@ -140,7 +140,7 @@ export async function checkHomeServiceDispatchConflict({
     return {
       conflict: "warning",
       message:
-        "Location zone is not confirmed. A CSR will review this booking before dispatch.",
+        "Location needs review. Update the Home Service location before operational handoff.",
       needs_location_review: true,
     };
   }
@@ -157,7 +157,7 @@ export async function checkHomeServiceDispatchConflict({
         return {
           conflict: "warning",
           message:
-            "An overlapping home service booking has an unconfirmed location. A CSR will review dispatch feasibility.",
+            "An overlapping Home Service booking has an unconfirmed location. Review the location before operational handoff.",
           needs_location_review: true,
         };
       }

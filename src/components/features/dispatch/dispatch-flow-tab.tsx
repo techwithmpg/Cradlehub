@@ -1,98 +1,108 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import {
   AlertCircle,
   Car,
   CheckCircle2,
   Clock,
-  Inbox,
   MapPin,
   Navigation,
   UserRound,
 } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { HomeServiceDispatchModal } from "./home-service-dispatch-modal";
 import { formatTime12h } from "@/lib/utils/time-format";
-import type { DispatchData, RealDispatchItem } from "@/lib/queries/dispatch-queries";
+import type {
+  DispatchData,
+  RealDispatchItem,
+} from "@/lib/queries/dispatch-queries";
 
-type BadgeVariant = "default" | "secondary" | "destructive" | "outline";
+type BadgeVariant =
+  | "default"
+  | "secondary"
+  | "destructive"
+  | "outline";
 
 function statusText(value: unknown): string {
   return typeof value === "string" ? value : "";
 }
 
-function getInitials(name: string): string {
+function statusLabel(status: unknown): string {
+  const value = statusText(status);
+
+  if (value === "awaiting_driver") return "Scheduled";
+  if (value === "ready") return "Awaiting Travel";
+  if (value === "in_route") return "En Route";
+  if (value === "arrived_at_customer") return "Arrived";
+  if (value === "service_started") return "In Service";
+  if (value === "completed") return "Completed";
+  if (value === "cancelled") return "Cancelled";
+
+  return "Scheduled";
+}
+
+function statusBadge(status: unknown): {
+  variant: BadgeVariant;
+  cls: string;
+} {
+  const value = statusText(status);
+
+  if (value === "completed") {
+    return {
+      variant: "outline",
+      cls: "border-green-300 bg-green-50 text-green-700",
+    };
+  }
+
+  if (value === "cancelled") {
+    return {
+      variant: "outline",
+      cls: "border-red-300 bg-red-50 text-red-700",
+    };
+  }
+
+  if (
+    value === "in_route" ||
+    value === "arrived_at_customer" ||
+    value === "service_started"
+  ) {
+    return {
+      variant: "outline",
+      cls: "border-emerald-300 bg-emerald-50 text-emerald-700",
+    };
+  }
+
+  if (value === "ready") {
+    return {
+      variant: "outline",
+      cls: "border-blue-300 bg-blue-50 text-blue-700",
+    };
+  }
+
+  return {
+    variant: "outline",
+    cls: "border-amber-300 bg-amber-50 text-amber-700",
+  };
+}
+
+function locationLabel(item: RealDispatchItem): string {
   return (
-    name
-      .split(" ")
-      .filter(Boolean)
-      .slice(0, 2)
-      .map((part) => part[0])
-      .join("")
-      .toUpperCase() || "HS"
+    item.area ??
+    item.formattedAddress ??
+    (item.lat !== null && item.lng !== null
+      ? "Customer location saved"
+      : "Location needs attention")
   );
 }
 
-function statusLabel(status: unknown): string {
-  const s = statusText(status);
-  if (s === "awaiting_driver") return "Needs Driver";
-  if (s === "ready") return "Ready";
-  if (s === "scheduled") return "Scheduled";
-  if (s === "released_to_driver") return "Released";
-  if (s === "in_route") return "En Route";
-  if (s === "arrived_at_customer") return "Arrived";
-  if (s === "service_started") return "In Service";
-  if (s === "completed") return "Completed";
-  if (s === "cancelled") return "Cancelled";
-  return "Needs Setup";
+function etaLabel(item: RealDispatchItem): string {
+  if (item.eta?.minutes) return `${item.eta.minutes} min`;
+  if (item.etaMinutes) return `${item.etaMinutes} min`;
+  return "—";
 }
 
-function statusBadge(status: unknown): { variant: BadgeVariant; cls: string } {
-  const s = statusText(status);
-
-  if (s === "awaiting_driver") {
-    return { variant: "outline", cls: "border-amber-400 bg-amber-50 text-amber-700" };
-  }
-
-  if (s === "ready") {
-    return { variant: "outline", cls: "border-green-300 bg-green-50 text-green-700" };
-  }
-
-  if (s === "scheduled") {
-    return { variant: "outline", cls: "border-blue-300 bg-blue-50 text-blue-700" };
-  }
-
-  if (s === "released_to_driver") {
-    return { variant: "outline", cls: "border-purple-300 bg-purple-50 text-purple-700" };
-  }
-
-  if (["in_route", "arrived_at_customer", "service_started"].includes(s)) {
-    return { variant: "outline", cls: "border-emerald-300 bg-emerald-50 text-emerald-700" };
-  }
-
-  if (s === "cancelled") {
-    return { variant: "outline", cls: "border-red-300 bg-red-50 text-red-700" };
-  }
-
-  return { variant: "outline", cls: "border-amber-300 bg-amber-50 text-amber-700" };
-}
-
-function getReadinessBadges(item: RealDispatchItem): string[] {
-  const badges: string[] = [];
-
-  if (!item.driverId) badges.push("Driver Needed");
-  if (!item.therapistId) badges.push("Therapist Needed");
-  if (item.lat === null || item.lng === null) badges.push("GPS Missing");
-  if (badges.length === 0 && statusText(item.dispatchStatus) === "ready") badges.push("GPS Ready");
-  if (statusText(item.dispatchStatus) === "scheduled") badges.push("Scheduled");
-  if (statusText(item.dispatchStatus) === "released_to_driver") badges.push("Released");
-
-  return badges;
-}
-
-function QueueCard({
+function VisitCard({
   item,
   selected,
   onSelect,
@@ -102,273 +112,319 @@ function QueueCard({
   onSelect: () => void;
 }) {
   const badge = statusBadge(item.dispatchStatus);
-  const readinessBadges = getReadinessBadges(item);
+  const hasDriver = Boolean(item.driverId);
+  const hasTherapist = Boolean(item.therapistId);
+  const hasLocation = item.lat !== null && item.lng !== null;
 
   return (
     <button
       type="button"
       aria-pressed={selected}
       onClick={onSelect}
-      className={`w-full rounded-2xl border p-4 text-left shadow-sm transition hover:border-[#155A33] hover:shadow-md ${
+      className={`w-full rounded-2xl border p-4 text-left transition ${
         selected
-          ? "border-[#155A33] bg-green-50"
-          : "border-[var(--cs-border)] bg-[var(--cs-surface)]"
+          ? "border-[#155A33] bg-green-50/60 shadow-sm"
+          : "border-[var(--cs-border)] bg-[var(--cs-surface)] hover:border-[#155A33]/50"
       }`}
     >
-      <div className="flex items-start justify-between gap-3">
+      <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
         <div className="min-w-0">
-          <p className="font-mono text-xs text-[var(--cs-text-muted)]">{item.number}</p>
-          <p className="mt-1 truncate text-base font-bold text-[var(--cs-text)]">
+          <div className="flex flex-wrap items-center gap-2">
+            <span className="text-base font-bold text-[var(--cs-text)]">
+              {formatTime12h(item.startTime)}
+            </span>
+
+            <Badge
+              variant={badge.variant}
+              className={`text-[0.68rem] ${badge.cls}`}
+            >
+              {statusLabel(item.dispatchStatus)}
+            </Badge>
+
+            {item.paymentStatus &&
+            item.paymentStatus !== "paid" ? (
+              <Badge
+                variant="outline"
+                className="border-[var(--cs-border)] bg-white text-[0.68rem] text-[var(--cs-text-muted)]"
+              >
+                Payment {item.paymentStatus}
+              </Badge>
+            ) : null}
+          </div>
+
+          <h3 className="mt-2 truncate text-lg font-bold text-[var(--cs-text)]">
             {item.customerName}
-          </p>
-          <p className="mt-0.5 truncate text-xs text-[var(--cs-text-secondary)]">
+          </h3>
+
+          <p className="truncate text-sm text-[var(--cs-text-secondary)]">
             {item.serviceName}
           </p>
         </div>
 
-        <div className="flex size-10 shrink-0 items-center justify-center rounded-full bg-[var(--cs-surface-warm)] text-xs font-bold text-[var(--cs-text-muted)]">
-          {getInitials(item.customerName)}
-        </div>
+        <span className="font-mono text-xs text-[var(--cs-text-muted)]">
+          {item.number}
+        </span>
       </div>
 
-      <div className="mt-3 space-y-1.5 text-xs text-[var(--cs-text-secondary)]">
-        <div className="flex items-center gap-1.5">
-          <Clock size={13} />
-          <span>
-            {formatTime12h(item.startTime)}
-            {item.endTime ? ` – ${formatTime12h(item.endTime)}` : ""}
-          </span>
-        </div>
-        <div className="flex items-center gap-1.5">
-          <MapPin size={13} />
+      <div className="mt-4 grid gap-2 text-sm sm:grid-cols-2 xl:grid-cols-4">
+        <div className="flex min-w-0 items-center gap-2 text-[var(--cs-text-secondary)]">
+          <UserRound size={15} className="shrink-0" />
           <span className="truncate">
-            {item.area ?? item.formattedAddress ?? "Customer GPS saved"}
+            {item.therapistName ?? "Therapist not assigned"}
           </span>
+        </div>
+
+        <div className="flex min-w-0 items-center gap-2 text-[var(--cs-text-secondary)]">
+          <Car size={15} className="shrink-0" />
+          <span className="truncate">
+            {item.driverName ?? "Driver not assigned"}
+          </span>
+        </div>
+
+        <div className="flex min-w-0 items-center gap-2 text-[var(--cs-text-secondary)]">
+          <MapPin size={15} className="shrink-0" />
+          <span className="truncate">
+            {locationLabel(item)}
+          </span>
+        </div>
+
+        <div className="flex items-center gap-2 text-[var(--cs-text-secondary)]">
+          <Clock size={15} className="shrink-0" />
+          <span>ETA {etaLabel(item)}</span>
         </div>
       </div>
 
-      <div className="mt-3 flex flex-wrap gap-1.5">
-        <Badge variant={badge.variant} className={`text-[0.68rem] ${badge.cls}`}>
-          {statusLabel(item.dispatchStatus)}
-        </Badge>
+      {(!hasDriver ||
+        !hasTherapist ||
+        !hasLocation ||
+        item.needsLocationReview) && (
+        <div className="mt-3 flex flex-wrap gap-2">
+          {!hasDriver ? (
+            <span className="inline-flex items-center gap-1 rounded-full bg-amber-50 px-2.5 py-1 text-xs font-semibold text-amber-700">
+              <AlertCircle size={12} />
+              Driver not assigned
+            </span>
+          ) : null}
 
-        {readinessBadges.slice(0, 3).map((label) => (
-          <Badge
-            key={label}
-            variant="outline"
-            className={`text-[0.68rem] ${
-              label.includes("Needed") || label.includes("Missing")
-                ? "border-amber-300 bg-amber-50 text-amber-700"
-                : "border-green-200 bg-green-50 text-green-700"
-            }`}
-          >
-            {label}
-          </Badge>
-        ))}
-      </div>
+          {!hasTherapist ? (
+            <span className="inline-flex items-center gap-1 rounded-full bg-amber-50 px-2.5 py-1 text-xs font-semibold text-amber-700">
+              <AlertCircle size={12} />
+              Therapist not assigned
+            </span>
+          ) : null}
 
+          {!hasLocation || item.needsLocationReview ? (
+            <span className="inline-flex items-center gap-1 rounded-full bg-red-50 px-2.5 py-1 text-xs font-semibold text-red-700">
+              <AlertCircle size={12} />
+              Location needs attention
+            </span>
+          ) : null}
+        </div>
+      )}
     </button>
   );
 }
 
-function Column({
-  title,
-  items,
-  selectedId,
-  onSelect,
-}: {
-  title: string;
-  items: RealDispatchItem[];
-  selectedId: string | null;
-  onSelect: (item: RealDispatchItem) => void;
-}) {
-  return (
-    <div className="rounded-3xl border border-[var(--cs-border)] bg-[var(--cs-surface-warm)] p-4">
-      <div className="mb-4 flex items-center justify-between">
-        <h3 className="font-bold text-[var(--cs-text)]">{title}</h3>
-        <span className="rounded-full bg-white px-2 py-0.5 text-xs font-bold text-[var(--cs-text-muted)] shadow-sm">
-          {items.length}
-        </span>
-      </div>
-
-      <div className="min-h-[430px] space-y-3">
-        {items.length > 0 ? (
-          items.map((item) => (
-            <QueueCard
-              key={item.id}
-              item={item}
-              selected={selectedId === item.id}
-              onSelect={() => onSelect(item)}
-            />
-          ))
-        ) : (
-          <div className="flex min-h-[115px] items-center justify-center rounded-2xl border border-dashed border-[var(--cs-border)] bg-[var(--cs-surface)] px-4 text-center text-sm text-[var(--cs-text-muted)]">
-            No bookings here yet
-          </div>
-        )}
-      </div>
-    </div>
-  );
-}
-
-function DetailTile({
-  icon,
-  label,
-  value,
-  warning,
-  action,
-}: {
-  icon: React.ReactNode;
-  label: string;
-  value: string;
-  warning?: boolean;
-  action?: React.ReactNode;
-}) {
-  return (
-    <div className="rounded-2xl border border-[var(--cs-border)] bg-[var(--cs-surface)] p-4">
-      <div className="flex items-start gap-3">
-        <div className={warning ? "text-amber-600" : "text-[var(--cs-text-muted)]"}>{icon}</div>
-        <div className="min-w-0 flex-1">
-          <p className="text-[0.65rem] font-bold uppercase tracking-wide text-[var(--cs-text-muted)]">
-            {label}
-          </p>
-          <p
-            className={`mt-1 truncate text-sm font-bold ${
-              warning ? "text-amber-700" : "text-[var(--cs-text)]"
-            }`}
-            title={value}
-          >
-            {value}
-          </p>
-          {action ? <div className="mt-2">{action}</div> : null}
-        </div>
-      </div>
-    </div>
-  );
-}
-
-function ChecklistItem({
-  ok,
-  label,
-}: {
-  ok: boolean;
-  label: string;
-}) {
-  return (
-    <div className="flex items-center gap-2 text-sm">
-      {ok ? (
-        <CheckCircle2 size={16} className="text-emerald-600" />
-      ) : (
-        <AlertCircle size={16} className="text-amber-600" />
-      )}
-      <span className={ok ? "text-[var(--cs-text)]" : "text-amber-700"}>{label}</span>
-    </div>
-  );
-}
-
-function SelectedBookingPanel({
+function SelectedVisit({
   item,
-  onPrepare,
 }: {
   item: RealDispatchItem;
-  onPrepare: () => void;
 }) {
   const badge = statusBadge(item.dispatchStatus);
-  const hasGps = item.lat !== null && item.lng !== null;
-  const hasDriver = Boolean(item.driverId);
-  const hasTherapist = Boolean(item.therapistId);
-  const dispatchOk = hasGps && hasDriver && hasTherapist;
+  const hasLocation = item.lat !== null && item.lng !== null;
 
   return (
-    <aside className="rounded-3xl border border-[var(--cs-border)] bg-[var(--cs-surface)] p-5 shadow-sm">
-      <div className="mb-4 flex items-start justify-between gap-3">
-        <div>
-          <p className="font-mono text-xs text-[var(--cs-text-muted)]">{item.number}</p>
-          <h2 className="mt-1 text-2xl font-bold text-[var(--cs-text)]">{item.customerName}</h2>
-          <p className="mt-1 text-sm text-[var(--cs-text-secondary)]">
-            {item.serviceName} · {formatTime12h(item.startTime)}
-            {item.endTime ? ` – ${formatTime12h(item.endTime)}` : ""}
+    <aside className="rounded-2xl border border-[var(--cs-border)] bg-[var(--cs-surface)] p-5">
+      <div className="flex items-start justify-between gap-3">
+        <div className="min-w-0">
+          <p className="text-xs font-semibold uppercase tracking-wide text-[var(--cs-text-muted)]">
+            Selected visit
           </p>
-          <p className="mt-2 flex items-center gap-1.5 text-xs text-[var(--cs-text-muted)]">
-            <MapPin size={13} />
-            {item.area ?? item.formattedAddress ?? "Customer GPS saved"}
+
+          <h3 className="mt-1 truncate text-xl font-bold text-[var(--cs-text)]">
+            {item.customerName}
+          </h3>
+
+          <p className="mt-1 text-sm text-[var(--cs-text-secondary)]">
+            {item.serviceName}
           </p>
         </div>
 
-        <Badge variant={badge.variant} className={badge.cls}>
+        <Badge
+          variant={badge.variant}
+          className={badge.cls}
+        >
           {statusLabel(item.dispatchStatus)}
         </Badge>
       </div>
 
-      <div className="grid gap-3 sm:grid-cols-2">
-        <DetailTile
-          icon={<UserRound size={17} />}
-          label="Therapist"
-          value={item.therapistName ?? "Not assigned"}
-          warning={!hasTherapist}
-        />
-        <DetailTile
-          icon={<Car size={17} />}
-          label="Driver"
-          value={item.driverName ?? "Not assigned"}
-          warning={!hasDriver}
-          action={
-            !hasDriver ? (
-              <span className="inline-flex rounded-lg border border-[var(--cs-border)] bg-white px-3 py-1.5 text-xs font-semibold text-[var(--cs-text-secondary)]">
-                Assign in dispatch
-              </span>
-            ) : null
-          }
-        />
-        <DetailTile
-          icon={<MapPin size={17} />}
-          label="GPS Status"
-          value={hasGps ? "Coordinates ready" : "GPS location missing"}
-          warning={!hasGps}
-        />
-        <DetailTile
-          icon={<Clock size={17} />}
-          label="ETA"
-          value={item.etaMinutes ? `${item.etaMinutes} min` : "Will use default ETA"}
-        />
-      </div>
+      <div className="mt-5 space-y-3 text-sm">
+        <div className="flex items-start gap-3">
+          <Clock
+            size={16}
+            className="mt-0.5 shrink-0 text-[var(--cs-text-muted)]"
+          />
+          <div>
+            <p className="font-semibold text-[var(--cs-text)]">
+              {formatTime12h(item.startTime)}
+              {item.endTime
+                ? ` – ${formatTime12h(item.endTime)}`
+                : ""}
+            </p>
+            <p className="text-xs text-[var(--cs-text-muted)]">
+              Scheduled visit
+            </p>
+          </div>
+        </div>
 
-      <div className="mt-4 rounded-3xl border border-[var(--cs-border)] bg-[var(--cs-surface-warm)] p-4">
-        <p className="mb-3 text-xs font-bold uppercase tracking-wide text-[var(--cs-text-muted)]">
-          Dispatch Checklist
-        </p>
-        <div className="grid gap-2 sm:grid-cols-2">
-          <ChecklistItem ok={hasDriver} label="Driver assigned" />
-          <ChecklistItem ok={hasTherapist} label="Therapist confirmed" />
-          <ChecklistItem ok={hasGps} label="GPS location ready" />
-          <ChecklistItem ok={dispatchOk} label="Dispatch OK" />
+        <div className="flex items-start gap-3">
+          <UserRound
+            size={16}
+            className="mt-0.5 shrink-0 text-[var(--cs-text-muted)]"
+          />
+          <div>
+            <p className="font-semibold text-[var(--cs-text)]">
+              {item.therapistName ?? "Not assigned"}
+            </p>
+            <p className="text-xs text-[var(--cs-text-muted)]">
+              Therapist
+            </p>
+          </div>
+        </div>
+
+        <div className="flex items-start gap-3">
+          <Car
+            size={16}
+            className="mt-0.5 shrink-0 text-[var(--cs-text-muted)]"
+          />
+          <div>
+            <p className="font-semibold text-[var(--cs-text)]">
+              {item.driverName ?? "Not assigned"}
+            </p>
+            <p className="text-xs text-[var(--cs-text-muted)]">
+              Driver
+            </p>
+          </div>
+        </div>
+
+        <div className="flex items-start gap-3">
+          <MapPin
+            size={16}
+            className="mt-0.5 shrink-0 text-[var(--cs-text-muted)]"
+          />
+          <div className="min-w-0">
+            <p className="font-semibold text-[var(--cs-text)]">
+              {locationLabel(item)}
+            </p>
+            <p className="text-xs text-[var(--cs-text-muted)]">
+              Customer destination
+            </p>
+          </div>
+        </div>
+
+        <div className="flex items-start gap-3">
+          <Navigation
+            size={16}
+            className="mt-0.5 shrink-0 text-[var(--cs-text-muted)]"
+          />
+          <div>
+            <p className="font-semibold text-[var(--cs-text)]">
+              {etaLabel(item)}
+            </p>
+            <p className="text-xs text-[var(--cs-text-muted)]">
+              Current ETA
+            </p>
+          </div>
         </div>
       </div>
 
-      <div className="mt-4 rounded-2xl border border-[var(--cs-border)] bg-[var(--cs-surface-warm)] px-4 py-3 text-sm text-[var(--cs-text-secondary)]">
-        <span className="font-semibold text-[var(--cs-text)]">CRM can prepare dispatch early.</span>{" "}
-        Driver sees it only when released.
+      <div className="mt-5 rounded-2xl bg-[var(--cs-surface-warm)] p-4">
+        <p className="text-xs font-bold uppercase tracking-wide text-[var(--cs-text-muted)]">
+          Progress
+        </p>
+
+        <div className="mt-3 space-y-2">
+          <ProgressLine
+            complete={Boolean(item.travelStartedAt)}
+            label="Travel started"
+          />
+          <ProgressLine
+            complete={Boolean(item.arrivedAt)}
+            label="Arrived"
+          />
+          <ProgressLine
+            complete={Boolean(item.sessionStartedAt)}
+            label="Service started"
+          />
+          <ProgressLine
+            complete={Boolean(item.completedAt)}
+            label="Completed"
+          />
+        </div>
       </div>
 
+      {(!hasLocation || item.needsLocationReview) && (
+        <div className="mt-4 flex gap-2 rounded-2xl border border-red-200 bg-red-50 p-3 text-sm text-red-700">
+          <AlertCircle size={17} className="mt-0.5 shrink-0" />
+          <span>
+            Customer location requires attention in the booking workflow.
+          </span>
+        </div>
+      )}
+
       <Button
-        type="button"
-        onClick={onPrepare}
-        className="mt-4 h-12 w-full rounded-2xl bg-[#155A33] text-base font-bold text-white hover:bg-[#104728]"
+        asChild
+        variant="outline"
+        className="mt-5 h-11 w-full rounded-xl"
       >
-        <Navigation size={18} />
-        Prepare Dispatch
+        <a href={`/crm/bookings?bookingId=${encodeURIComponent(item.id)}`}>
+          View Booking
+        </a>
       </Button>
     </aside>
   );
 }
 
+function ProgressLine({
+  complete,
+  label,
+}: {
+  complete: boolean;
+  label: string;
+}) {
+  return (
+    <div className="flex items-center gap-2 text-sm">
+      {complete ? (
+        <CheckCircle2
+          size={15}
+          className="text-emerald-600"
+        />
+      ) : (
+        <span className="size-[15px] rounded-full border-2 border-[var(--cs-border)]" />
+      )}
+
+      <span
+        className={
+          complete
+            ? "font-medium text-[var(--cs-text)]"
+            : "text-[var(--cs-text-muted)]"
+        }
+      >
+        {label}
+      </span>
+    </div>
+  );
+}
+
 function EmptyState() {
   return (
-    <div className="flex flex-col items-center justify-center rounded-3xl border border-dashed border-[var(--cs-border)] bg-[var(--cs-surface)] p-10 text-center">
-      <Inbox className="mb-3 text-[var(--cs-text-muted)]" size={34} />
-      <h3 className="font-bold text-[var(--cs-text)]">No home-service bookings</h3>
-      <p className="mt-1 max-w-sm text-sm text-[var(--cs-text-muted)]">
-        Home-service bookings for this date will appear here for dispatch preparation.
+    <div className="rounded-2xl border border-dashed border-[var(--cs-border)] bg-[var(--cs-surface)] p-10 text-center">
+      <h3 className="font-bold text-[var(--cs-text)]">
+        No home-service visits today
+      </h3>
+
+      <p className="mt-1 text-sm text-[var(--cs-text-muted)]">
+        Today&apos;s Home Service bookings will appear here automatically.
       </p>
     </div>
   );
@@ -376,123 +432,71 @@ function EmptyState() {
 
 export function DispatchFlowTab({
   data,
-  onChanged,
 }: {
   data: DispatchData;
   role: string;
   onChanged: () => void;
 }) {
-  const [selectedId, setSelectedId] = useState<string | null>(data.items[0]?.id ?? null);
-  const [modalItem, setModalItem] = useState<RealDispatchItem | null>(null);
+  const [selectedId, setSelectedId] =
+    useState<string | null>(null);
 
-  const groups = useMemo(() => {
-    const needsSetup = data.items.filter((item) => {
-      const s = statusText(item.dispatchStatus);
-      return (
-        s === "awaiting_driver" ||
-        !item.driverId ||
-        !item.therapistId ||
-        item.lat === null ||
-        item.lng === null
-      );
-    });
+  const activeSelectedId =
+    selectedId && data.items.some((item) => item.id === selectedId)
+      ? selectedId
+      : data.items[0]?.id ?? null;
 
-    const ready = data.items.filter((item) => {
-      const s = statusText(item.dispatchStatus);
-      return (
-        s === "ready" &&
-        item.driverId &&
-        item.therapistId &&
-        item.lat !== null &&
-        item.lng !== null
-      );
-    });
-
-    const scheduled = data.items.filter((item) => statusText(item.dispatchStatus) === "scheduled");
-
-    const released = data.items.filter((item) =>
-      ["released_to_driver", "in_route", "arrived_at_customer", "service_started"].includes(
-        statusText(item.dispatchStatus)
-      )
-    );
-
-    return { needsSetup, ready, scheduled, released };
-  }, [data.items]);
+  const sortedItems = useMemo(
+    () =>
+      [...data.items].sort((a, b) =>
+        a.startTime.localeCompare(b.startTime)
+      ),
+    [data.items]
+  );
 
   const selected =
-    data.items.find((item) => item.id === selectedId) ??
-    data.items[0] ??
+    sortedItems.find((item) => item.id === activeSelectedId) ??
+    sortedItems[0] ??
     null;
 
-  if (data.items.length === 0) {
+  if (sortedItems.length === 0) {
     return <EmptyState />;
   }
 
   return (
-    <>
-      <section className="rounded-3xl border border-[var(--cs-border)] bg-[var(--cs-surface)] p-5 shadow-sm">
-        <div className="mb-5 flex flex-col gap-3 border-b border-[var(--cs-border)] pb-4 lg:flex-row lg:items-center lg:justify-between">
+    <section className="grid gap-4 xl:grid-cols-[minmax(0,1.65fr)_minmax(320px,0.75fr)]">
+      <div className="rounded-2xl border border-[var(--cs-border)] bg-[var(--cs-surface)] p-5 shadow-sm">
+        <div className="mb-4 flex items-center justify-between gap-3 border-b border-[var(--cs-border)] pb-4">
           <div>
-            <h2 className="text-xl font-bold text-[var(--cs-text)]">Dispatch Queue</h2>
+            <h2 className="text-xl font-bold text-[var(--cs-text)]">
+              Today&apos;s Home Visits
+            </h2>
+
             <p className="mt-1 text-sm text-[var(--cs-text-muted)]">
-              Drag-and-drop style workflow for driver, therapist, GPS, and timed release.
+              Live operational status for today&apos;s Home Service visits.
             </p>
           </div>
 
-          <div className="flex items-center gap-2">
-            <span className="rounded-full border border-green-200 bg-green-50 px-3 py-1 text-xs font-semibold text-green-700">
-              {data.items.length} home-service booking{data.items.length === 1 ? "" : "s"}
-            </span>
-          </div>
+          <span className="rounded-full border border-green-200 bg-green-50 px-3 py-1 text-xs font-semibold text-green-700">
+            {sortedItems.length} visit
+            {sortedItems.length === 1 ? "" : "s"}
+          </span>
         </div>
 
-        <div className="grid gap-4 xl:grid-cols-[1.4fr_0.95fr]">
-          <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
-            <Column
-              title="Needs Setup"
-              items={groups.needsSetup}
-              selectedId={selected?.id ?? null}
-              onSelect={(item) => setSelectedId(item.id)}
+        <div className="space-y-3">
+          {sortedItems.map((item) => (
+            <VisitCard
+              key={item.id}
+              item={item}
+              selected={selected?.id === item.id}
+              onSelect={() => setSelectedId(item.id)}
             />
-            <Column
-              title="Ready"
-              items={groups.ready}
-              selectedId={selected?.id ?? null}
-              onSelect={(item) => setSelectedId(item.id)}
-            />
-            <Column
-              title="Scheduled"
-              items={groups.scheduled}
-              selectedId={selected?.id ?? null}
-              onSelect={(item) => setSelectedId(item.id)}
-            />
-            <Column
-              title="Released"
-              items={groups.released}
-              selectedId={selected?.id ?? null}
-              onSelect={(item) => setSelectedId(item.id)}
-            />
-          </div>
-
-          {selected ? (
-            <SelectedBookingPanel
-              item={selected}
-              onPrepare={() => setModalItem(selected)}
-            />
-          ) : (
-            <EmptyState />
-          )}
+          ))}
         </div>
-      </section>
+      </div>
 
-      <HomeServiceDispatchModal
-        open={Boolean(modalItem)}
-        item={modalItem}
-        onOpenChange={(open) => {
-          if (!open) setModalItem(null);
-        }}
-        onChanged={onChanged}
-      />
-    </>
+      {selected ? (
+        <SelectedVisit item={selected} />
+      ) : null}
+    </section>
   );
 }

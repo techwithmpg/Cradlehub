@@ -23,6 +23,7 @@ export type WorkspaceBookingRow = {
   session_completed_at?: string | null;
   no_show_at?: string | null;
   resource_id?: string | null;
+  driver_id?: string | null;
   travel_buffer_mins?: number | null;
   metadata?: Record<string, unknown> | null;
   payment_method: string;
@@ -43,6 +44,7 @@ export type WorkspaceBookingRow = {
     nickname?: string | null;
     tier?: string;
   }>;
+  driver?: OneOrMany<{ id?: string; full_name: string }>;
   customers?: OneOrMany<{
     id?: string;
     full_name: string;

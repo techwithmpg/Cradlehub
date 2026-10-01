@@ -62,7 +62,8 @@ function canAccessBranch(actor: HomeServiceMutationActor, bookingBranchId: strin
 export async function assignHomeServiceDriver(
   client: SupabaseClient<Database>,
   actor: HomeServiceMutationActor,
-  rawInput: unknown
+  rawInput: unknown,
+  options: { onlyIfUnassigned?: boolean } = {}
 ): Promise<HomeServiceOperationResult> {
   if (!actor.branchId || !canAccessCrmWorkspace(actor.role))
     return { ok: false, code: "FORBIDDEN", message: "CRM access is required." };
@@ -81,7 +82,7 @@ export async function assignHomeServiceDriver(
   const { data: booking, error: bookingError } = await client
     .from("bookings")
     .select(
-      "id, branch_id, delivery_type, type, driver_id, payment_status, booking_date, start_time"
+      "id, branch_id, delivery_type, type, driver_id, booking_date, start_time"
     )
     .eq("id", bookingId)
     .maybeSingle();
@@ -113,6 +114,8 @@ export async function assignHomeServiceDriver(
       message: "Driver assignment is only available for home-service bookings.",
     };
   }
+
+  if (options.onlyIfUnassigned && booking.driver_id) return { ok: true };
 
   if (driverId !== null) {
     const { data: driver, error: driverError } = await client
@@ -160,12 +163,13 @@ export async function assignHomeServiceDriver(
 
   const admin = createAdminClient();
 
-  const { data: updatedRows, error: updateError } = await admin
+  let update = admin
     .from("bookings")
     .update({ driver_id: driverId })
     .eq("id", bookingId)
-    .eq("branch_id", booking.branch_id)
-    .select("id");
+    .eq("branch_id", booking.branch_id);
+  if (options.onlyIfUnassigned) update = update.is("driver_id", null);
+  const { data: updatedRows, error: updateError } = await update.select("id");
 
   if (updateError || !updatedRows || updatedRows.length === 0) {
     logError("home_service.driver_assignment.failed", {
@@ -182,9 +186,8 @@ export async function assignHomeServiceDriver(
     };
   }
 
-  // Preserve the existing hosted notification semantics exactly:
-  // notifications change only when the booking is already paid.
-  if (booking.driver_id !== driverId && booking.payment_status === "paid") {
+  // Driver assignment is operational and must work for pay-after-service bookings.
+  if (booking.driver_id !== driverId) {
     await resolveNotificationsForEntity("booking", booking.id, "driver", "home_service_assigned");
 
     if (booking.driver_id) {

@@ -17,42 +17,8 @@ import {
   invalidateManagerWorkspace,
   invalidateTag,
 } from "@/lib/cache/cache-tags";
-import { createAdminClient } from "@/lib/supabase/admin";
 import { synchronizeBranchServiceCatalog } from "@/lib/services/service-catalog";
-
-function revalidateServicePaths() {
-  revalidatePath("/");
-  revalidatePath("/services");
-  revalidatePath("/book");
-  revalidatePath("/owner/services");
-  revalidatePath("/owner/branches");
-  revalidatePath("/manager/services");
-  revalidatePath("/crm/services");
-  revalidatePath("/crm/setup");
-  revalidatePath("/crm/staff");
-  revalidatePath("/crm/today");
-}
-
-async function invalidateServiceSurfaces(serviceId?: string) {
-  invalidateTag(cacheTags.serviceCatalog);
-  revalidateServicePaths();
-
-  if (!serviceId) return;
-
-  const { data } = await createAdminClient()
-    .from("branch_services")
-    .select("branch_id")
-    .eq("service_id", serviceId);
-
-  const branchIds = Array.from(new Set((data ?? []).map((row) => row.branch_id)));
-  for (const branchId of branchIds) {
-    invalidateTag(cacheTags.branchServices(branchId));
-    invalidateTag(cacheTags.branchAssignableServices(branchId));
-    invalidateCrmWorkspace(branchId);
-    invalidateManagerWorkspace(branchId);
-    revalidatePath(`/owner/branches/${branchId}`);
-  }
-}
+import { invalidateServiceSurfaces, writeCanonicalService } from "@/lib/services/service-mutation";
 
 async function requireOwner() {
   const supabase = await createClient();
@@ -139,10 +105,11 @@ export async function updateServiceAction(rawInput: unknown) {
     ...(updates.bufferAfter     !== undefined && { buffer_after:     updates.bufferAfter }),
     ...(updates.isActive        !== undefined && { is_active:        updates.isActive }),
   };
-  const { error } = await supabase.from("services").update(mapped).eq("id", serviceId);
-  if (error) return { success: false, error: error.message };
-  await invalidateServiceSurfaces(serviceId);
-  return { success: true };
+  return writeCanonicalService(supabase, serviceId, mapped, {
+    ...(updates.description !== undefined && { description: updates.description }),
+    ...(updates.imageUrl !== undefined && { imageUrl: updates.imageUrl }),
+    ...(updates.imageAlt !== undefined && { imageAlt: updates.imageAlt }),
+  });
 }
 
 export async function toggleServiceActiveAction(rawInput: unknown) {

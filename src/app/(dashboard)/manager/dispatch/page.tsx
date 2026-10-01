@@ -7,7 +7,7 @@ import { HomeServiceDispatchWorkspace } from "@/components/features/dispatch/dis
 import { getDispatchData } from "@/lib/queries/dispatch-queries";
 import { logInfo } from "@/lib/logger";
 
-export const metadata: Metadata = { title: "Home Service Dispatch — Manager" };
+export const metadata: Metadata = { title: "Home Service Operations — Manager" };
 
 const ALLOWED_ROLES = ["owner", "manager", "assistant_manager", "store_manager"];
 

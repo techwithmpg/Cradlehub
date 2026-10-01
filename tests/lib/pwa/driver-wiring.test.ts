@@ -70,9 +70,17 @@ describe("Driver server boundary", () => {
     expect(state.rpc).not.toHaveBeenCalled();
   });
   it("permits online Home Service travel through existing RPC", async () => {
+    state.booking.payment_status = "unpaid";
+    state.booking.metadata = { dispatch: { status: "scheduled" } };
     expect((await updateBookingProgressAction({ bookingId: "job", nextStatus: "travel_started" })).ok).toBe(true);
     expect(state.rpc).toHaveBeenCalledWith("update_booking_progress", { p_booking_id: "job", p_next_status: "travel_started" });
     expect(state.rpc).toHaveBeenCalledTimes(1);
+  });
+  it("permits assigned driver arrival without a release step", async () => {
+    state.booking.booking_progress_status = "travel_started";
+    state.booking.payment_status = "unpaid";
+    expect((await updateBookingProgressAction({ bookingId: "job", nextStatus: "arrived" })).ok).toBe(true);
+    expect(state.rpc).toHaveBeenCalledWith("update_booking_progress", { p_booking_id: "job", p_next_status: "arrived" });
   });
   it("preserves rejected server transition without success", async () => {
     state.rpc.mockResolvedValue({ data: null, error: { message: "Assignment changed" } });

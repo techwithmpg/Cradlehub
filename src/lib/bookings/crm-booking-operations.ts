@@ -96,6 +96,8 @@ export const prepareHomeServiceDispatchSchema = bookingIdSchema.extend({
   note: z.string().max(500).optional(),
 });
 
+export const confirmHomeServiceHandoffSchema = bookingIdSchema;
+
 export type CrmBookingActionRow = {
   id: string;
   branch_id: string;
@@ -600,7 +602,7 @@ export async function recordBookingFollowup(
     });
   }
 
-  if (isCancellation && booking.staff_id && booking.payment_status === "paid") {
+  if (isCancellation && booking.staff_id && (isHomeServiceBooking(booking) || booking.payment_status === "paid")) {
     const sameDay = booking.booking_date === new Date().toISOString().split("T")[0];
     await createNotification({
       branchId: booking.branch_id,
@@ -623,7 +625,7 @@ export async function recordBookingFollowup(
     await resolveNotificationsForEntity("booking", booking.id, "staff", "home_service_assigned");
   }
 
-  if (isCancellation && booking.driver_id && booking.payment_status === "paid") {
+  if (isCancellation && booking.driver_id && (isHomeServiceBooking(booking) || booking.payment_status === "paid")) {
     await createNotification({
       branchId: booking.branch_id,
       targetWorkspace: "driver",
@@ -917,7 +919,7 @@ export async function rescheduleBooking(
     await resolveNotificationsForEntity("booking", booking.id, "staff", "booking_assigned");
     await resolveNotificationsForEntity("booking", booking.id, "staff", "home_service_assigned");
 
-    if (booking.staff_id && booking.payment_status === "paid") {
+    if (booking.staff_id && (isHomeServiceBooking(booking) || booking.payment_status === "paid")) {
       await createNotification({
         branchId: booking.branch_id,
         targetWorkspace: "staff",
@@ -938,7 +940,7 @@ export async function rescheduleBooking(
       });
     }
 
-    if (targetStaffId && booking.payment_status === "paid") {
+    if (targetStaffId && (isHomeServiceBooking(booking) || booking.payment_status === "paid")) {
       const isHS = isHomeServiceBooking(booking);
       await createNotification({
         branchId: booking.branch_id,
@@ -958,7 +960,7 @@ export async function rescheduleBooking(
         requiresAction: isHS,
       });
     }
-  } else if (booking.staff_id && booking.payment_status === "paid") {
+  } else if (booking.staff_id && (isHomeServiceBooking(booking) || booking.payment_status === "paid")) {
     await createNotification({
       branchId: booking.branch_id,
       targetWorkspace: "staff",
@@ -978,7 +980,7 @@ export async function rescheduleBooking(
     });
   }
 
-  if (booking.driver_id && booking.payment_status === "paid") {
+  if (booking.driver_id && (isHomeServiceBooking(booking) || booking.payment_status === "paid")) {
     await createNotification({
       branchId: booking.branch_id,
       targetWorkspace: "driver",
@@ -1156,7 +1158,8 @@ export async function assignBookingTherapist(
   });
 
   // Notify newly assigned therapist
-  if (parsed.data.staffId !== previousStaffId && booking.payment_status === "paid") {
+  if (parsed.data.staffId !== previousStaffId &&
+      (isHomeServiceBooking(booking) || booking.payment_status === "paid")) {
     const isHS = updated.delivery_type === "home_service" || updated.type === "home_service";
     await resolveNotificationsForEntity("booking", booking.id, "staff", "booking_assigned");
     await resolveNotificationsForEntity("booking", booking.id, "staff", "home_service_assigned");
@@ -1302,6 +1305,203 @@ export function withDispatchMetadata(
       source: "crm_dispatch_modal",
     },
   } as Database["public"]["Tables"]["bookings"]["Update"]["metadata"];
+}
+
+
+/**
+ * Authoritative Home Service operational handoff.
+ *
+ * This deliberately does NOT use the legacy prepare/approve/release dispatch
+ * metadata contract. Payment state is not an operational gate.
+ */
+export async function confirmHomeServiceHandoff(
+  ctx: CrmActionContext,
+  rawInput: unknown
+): Promise<BookingOperationResult> {
+  const parsed = confirmHomeServiceHandoffSchema.safeParse(rawInput);
+  if (!parsed.success) {
+    return {
+      success: false,
+      error: parsed.error.issues[0]?.message ?? "Invalid booking identifier.",
+    };
+  }
+
+  if (!ctx.me.branch_id || !canAccessCrmWorkspace(ctx.me.system_role)) {
+    return { success: false, code: "FORBIDDEN", error: "Unauthorized" };
+  }
+
+  const bookingResult = await loadCrmBookingForAction(
+    ctx,
+    parsed.data.bookingId,
+    "booking.home_service.handoff"
+  );
+  if (!bookingResult.success) return bookingResult;
+
+  const booking = bookingResult.booking;
+
+  if (!isHomeServiceBooking(booking)) {
+    return {
+      success: false,
+      error: "Confirm & Dispatch only applies to Home Service bookings.",
+    };
+  }
+
+  if (
+    CLOSED_BOOKING_STATUSES.has(booking.status) ||
+    booking.status === "completed" ||
+    booking.booking_progress_status === "completed"
+  ) {
+    return {
+      success: false,
+      error: "This Home Service booking can no longer be dispatched.",
+    };
+  }
+
+  if (!booking.staff_id) {
+    return {
+      success: false,
+      error: "Assign a therapist before Confirm & Dispatch.",
+    };
+  }
+
+  if (!booking.driver_id) {
+    return {
+      success: false,
+      error: "Assign a driver before Confirm & Dispatch.",
+    };
+  }
+
+  const gps = readHomeServiceGps(booking.metadata);
+  if (gps.lat === null || gps.lng === null) {
+    return {
+      success: false,
+      error: "Home Service GPS location is missing. Update the location before Confirm & Dispatch.",
+    };
+  }
+
+  if (
+    booking.status !== "confirmed" &&
+    !CONFIRMABLE_STATUSES.has(booking.status)
+  ) {
+    return {
+      success: false,
+      error: `Booking cannot be dispatched from status "${booking.status}".`,
+    };
+  }
+
+  const admin = createAdminClient();
+  const actorId = ctx.me.id === DEV_BYPASS_STAFF_ID ? null : ctx.me.id;
+  const previousStatus = booking.status;
+
+  // Payment is intentionally absent from this update.
+  // Pay-on-site / pending payment remains pending until money is recorded.
+  if (booking.status !== "confirmed") {
+    const { data: updatedRows, error } = await admin
+      .from("bookings")
+      .update({
+        status: "confirmed",
+        ...(normalizeProgress(booking.booking_progress_status) === "not_started"
+          ? { booking_progress_status: "not_started" }
+          : {}),
+      })
+      .eq("id", booking.id)
+      .eq("branch_id", booking.branch_id)
+      .select("id");
+
+    if (error) {
+      logError("crm.home_service_handoff_confirm_failed", {
+        bookingId: booking.id,
+        authUserId: ctx.authUserId,
+        branchId: booking.branch_id,
+        error,
+      });
+      return {
+        success: false,
+        error: "Home Service booking could not be confirmed. Please try again.",
+      };
+    }
+
+    if (!updatedRows || updatedRows.length === 0) {
+      return {
+        success: false,
+        error: "Home Service booking could not be confirmed.",
+      };
+    }
+
+    await annotateLatestBookingEvent({
+      actorId,
+      admin,
+      bookingId: booking.id,
+      previousStatus,
+      result: "confirmed",
+      nextStatus: "confirmed",
+    });
+  }
+
+  // createNotification uses the project's create-or-update notification
+  // workflow. Stable dedupe keys make repeated handoff clicks safe.
+  await createNotification({
+    branchId: booking.branch_id,
+    targetWorkspace: "staff",
+    recipientStaffId: booking.staff_id,
+    type: "home_service_assigned",
+    title: "Home Service visit ready",
+    body: "Your assigned Home Service visit is confirmed and ready for the operational workflow.",
+    entityType: "booking",
+    entityId: booking.id,
+    actionHref: getNotificationTargetPath({
+      workspace: "staff-portal",
+      entityType: "booking",
+      entityId: booking.id,
+    }),
+    priority: "high",
+    requiresAction: true,
+    dedupeKey: `booking:${booking.id}:home_service_handoff:staff:${booking.staff_id}`,
+  });
+
+  await createNotification({
+    branchId: booking.branch_id,
+    targetWorkspace: "driver",
+    recipientStaffId: booking.driver_id,
+    type: "home_service_assigned",
+    title: "Home Service trip ready",
+    body: "This Home Service booking is confirmed. Open the trip when you are ready to begin travel.",
+    entityType: "booking",
+    entityId: booking.id,
+    actionHref: `/driver/jobs/${booking.id}`,
+    priority: "high",
+    requiresAction: true,
+    dedupeKey: `booking:${booking.id}:home_service_handoff:driver:${booking.driver_id}`,
+    metadata: {
+      destinationLat: gps.lat,
+      destinationLng: gps.lng,
+    },
+  });
+
+  // Only create the explicit handoff audit entry the first time confirmation
+  // transitions into the operational handoff. Repeated clicks remain safe.
+  if (previousStatus !== "confirmed") {
+    await insertBookingAuditEvent({
+      actorId,
+      admin,
+      bookingId: booking.id,
+      fromStatus: previousStatus,
+      toStatus: "confirmed",
+      result: "home_service_handoff",
+      note: "Home Service booking confirmed for therapist and driver operational handoff.",
+    });
+  }
+
+  revalidateOperationalBookingSurfaces(booking.branch_id);
+  revalidatePath("/crm/dispatch");
+  revalidatePath("/manager/dispatch");
+  revalidatePath("/driver");
+  revalidatePath("/driver/dispatch");
+  revalidatePath("/staff-portal");
+  revalidatePath("/staff-portal/today");
+  revalidatePath("/staff-portal/dispatch");
+
+  return { success: true };
 }
 
 export async function prepareHomeServiceDispatch(

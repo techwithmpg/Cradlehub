@@ -10,7 +10,7 @@ const migrationPath = join(
 );
 
 describe("service catalogue repair migration contract", () => {
-  const sql = readFileSync(migrationPath, "utf8");
+  const sql = readFileSync(migrationPath, "utf8").replace(/\r\n/g, "\n");
 
   it("repairs SM from Main active in-spa services without overwriting existing SM rows", () => {
     expect(sql).toContain("c1000000-0000-0000-0000-000000000001");

@@ -7,7 +7,7 @@ import { HomeServiceDispatchWorkspace } from "@/components/features/dispatch/dis
 import { getDispatchData } from "@/lib/queries/dispatch-queries";
 import { logInfo } from "@/lib/logger";
 
-export const metadata: Metadata = { title: "Home Service Dispatch — Owner" };
+export const metadata: Metadata = { title: "Home Service Operations — Owner" };
 
 export default async function OwnerDispatchPage() {
   const supabase = await createClient();

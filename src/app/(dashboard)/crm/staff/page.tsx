@@ -21,6 +21,7 @@ import { getBranchAssignmentIssuesForActor } from "@/lib/staff/branch-assignment
 import { isDevAuthBypassEnabled, getDevBypassLayoutStaff } from "@/lib/dev-bypass";
 import { canonicalizeSystemRole } from "@/constants/staff";
 import { canAccessCrmWorkspace } from "@/lib/auth/crm-permissions";
+import { getFrontDeskContext } from "@/lib/queries/crm-context";
 
 export const metadata = { title: "Staff | Front Desk" };
 
@@ -64,11 +65,13 @@ async function getCrmStaffPageContext() {
     };
   }
 
+  const frontDesk = await getFrontDeskContext();
+
   return {
     status: "ready" as const,
     me: resolvedMe,
-    branchId: resolvedMe.branch_id,
-    branchName: resolvedMe.branches?.name ?? "Your Branch",
+    branchId: frontDesk.branchId,
+    branchName: frontDesk.branchName,
     canReviewOnboarding: canReviewStaffOnboarding(canonicalRole),
   };
 }
@@ -182,13 +185,13 @@ export default async function CrmStaffPage({
   if (ctx.canReviewOnboarding) {
     onboardingRequests = await fetchOnboardingRequests(
       canonicalizeSystemRole(ctx.me.system_role),
-      ctx.me.branch_id
+      branchId
     );
   }
 
   const branchCorrectionRequests = await getBranchAssignmentIssuesForActor({
     systemRole: ctx.me.system_role,
-    branchId: ctx.me.branch_id,
+    branchId,
   });
 
   return (
@@ -210,7 +213,7 @@ export default async function CrmStaffPage({
         onboardingRequests={onboardingRequests}
         branchCorrectionRequests={branchCorrectionRequests}
         reviewerSystemRole={ctx.me.system_role}
-        reviewerBranchId={ctx.me.branch_id}
+        reviewerBranchId={branchId}
         canReviewOnboarding={ctx.canReviewOnboarding}
       />
     </CrmOperationalPageShell>

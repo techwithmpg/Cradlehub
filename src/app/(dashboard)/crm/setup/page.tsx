@@ -13,6 +13,7 @@ import { getBranchWithFullDetail } from "@/lib/queries/branches";
 import { getBranchBookingRulesOrDefault } from "@/lib/queries/branch-booking-rules";
 import { getStaffAdminName } from "@/lib/staff/display-name";
 import { canManageCrmSetup, canManageResources } from "@/lib/auth/crm-permissions";
+import { getFrontDeskContext } from "@/lib/queries/crm-context";
 import { canonicalizeSystemRole } from "@/constants/staff";
 import { SetupHealthContent } from "@/components/features/setup-center/setup-health-content";
 import { CrmSetupWorkspace } from "@/components/features/crm/setup/crm-setup-workspace";
@@ -56,9 +57,11 @@ async function getPageContext(): Promise<PageContext> {
     redirect("/crm");
   }
 
+  const frontDesk = await getFrontDeskContext();
+
   return {
-    branchId:   me.branch_id as string,
-    branchName: (me.branches as { name: string } | null)?.name ?? "Your Branch",
+    branchId:   frontDesk.branchId,
+    branchName: frontDesk.branchName,
     role,
   };
 }

@@ -5,7 +5,7 @@ import { useState, useTransition } from "react";
 import { CheckCircle2, Home, Phone } from "lucide-react";
 import { toast } from "sonner";
 import type { WorkspaceBookingRow } from "./booking-workspace-types";
-import { crmStartServiceAction, markBookingConfirmedAction } from "@/app/(dashboard)/crm/bookings/actions";
+import { confirmHomeServiceHandoffAction, crmStartServiceAction, markBookingConfirmedAction } from "@/app/(dashboard)/crm/bookings/actions";
 import { firstBookingRelation } from "@/lib/bookings/booking-display";
 import { getSelectedBookingActionPlan, type SelectedBookingActionId } from "@/lib/bookings/selected-booking-panel";
 
@@ -34,7 +34,7 @@ export function SelectedBookingPrimaryAction({
     deliveryType: booking.delivery_type,
     resourceId: booking.resource_id,
     hasStaff: Boolean(firstBookingRelation(booking.staff)),
-    hasDriver: false,
+    hasDriver: Boolean(booking.driver_id),
     hasDispatchHref: Boolean(dispatchHref),
   });
 
@@ -63,7 +63,19 @@ export function SelectedBookingPrimaryAction({
     }
     if (actionId === "mark_arrived") return onOpenArrival();
     if (actionId === "assign_room" || actionId === "change_room") return onOpenRoom();
-    if (actionId === "open_dispatch" || actionId === "track_dispatch") {
+    if (actionId === "open_dispatch") {
+      startTransition(async () => {
+        const result = await confirmHomeServiceHandoffAction({ bookingId: booking.id });
+        if (!result.success) {
+          toast.error(result.error ?? "Home Service could not be confirmed and dispatched.");
+          return;
+        }
+        toast.success("Home Service confirmed and dispatched.");
+        onChanged?.();
+      });
+      return;
+    }
+    if (actionId === "track_dispatch") {
       if (dispatchHref) router.push(dispatchHref);
       return;
     }
@@ -88,7 +100,12 @@ export function SelectedBookingPrimaryAction({
 
   if (plan.mode === "active_service" || !plan.primary) return null;
   const Icon = plan.primary.id === "open_dispatch" || plan.primary.id === "track_dispatch" ? Home : plan.primary.id === "call" ? Phone : CheckCircle2;
-  const pendingLabel = plan.primary.id === "confirm" ? "Confirming…" : "Working…";
+  const pendingLabel =
+    plan.primary.id === "confirm"
+      ? "Confirming…"
+      : plan.primary.id === "open_dispatch"
+        ? "Confirming & dispatching…"
+        : "Working…";
 
   return (
     <div className="mx-5">

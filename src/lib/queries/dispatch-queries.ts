@@ -162,8 +162,7 @@ function resolveBranchOrigin(branch: DispatchBranchLocationRow | null | undefine
 function computeDispatchStatus(
   bookingStatus: string,
   progressStatus: string | null,
-  driverId: string | null,
-  dispatchMetaStatus: string | null
+  driverId: string | null
 ): DispatchStatus {
   if (bookingStatus === "cancelled" || bookingStatus === "no_show") return "cancelled";
   if (bookingStatus === "completed" || progressStatus === "completed") return "completed";
@@ -171,8 +170,6 @@ function computeDispatchStatus(
   if (progressStatus === "arrived") return "arrived_at_customer";
   if (progressStatus === "travel_started") return "in_route";
   if (!driverId) return "awaiting_driver";
-  if (dispatchMetaStatus === "scheduled") return "scheduled";
-  if (dispatchMetaStatus === "released_to_driver") return "released_to_driver";
   return "ready";
 }
 
@@ -224,7 +221,6 @@ function computeAlerts(items: RealDispatchItem[]): DispatchAlert[] {
       "service_started",
       "completed",
       "cancelled",
-      "scheduled",
     ].includes(item.dispatchStatus);
 
     if (minutesPast > 10 && notProgressed && item.dispatchStatus !== "awaiting_driver") {
@@ -247,10 +243,10 @@ function computeStats(items: RealDispatchItem[]): DispatchStats {
   return {
     totalToday: items.filter((item) => item.dispatchStatus !== "cancelled").length,
     awaitingDispatch: items.filter((item) =>
-      ["awaiting_driver", "ready", "scheduled"].includes(item.dispatchStatus)
+      ["awaiting_driver", "ready"].includes(item.dispatchStatus)
     ).length,
     activeTrips: items.filter((item) =>
-      ["released_to_driver", "in_route", "arrived_at_customer", "service_started"].includes(
+      ["in_route", "arrived_at_customer", "service_started"].includes(
         item.dispatchStatus
       )
     ).length,
@@ -434,7 +430,6 @@ export async function getDispatchData(args: GetDispatchDataArgs): Promise<Dispat
       const lng = rawLng !== null && Math.abs(rawLng) <= 180 ? rawLng : null;
       const liveEta = parseLiveEta(dispatch?.live_eta);
 
-      const dispatchMetaStatus = readString(dispatch?.status);
       const driverId = booking.driver_id ?? null;
       const therapistId = booking.staff_id ?? "";
       const bookingStatus = booking.status ?? "pending";
@@ -463,8 +458,7 @@ export async function getDispatchData(args: GetDispatchDataArgs): Promise<Dispat
       const dispatchStatus = computeDispatchStatus(
         bookingStatus,
         progressStatus,
-        driverId,
-        dispatchMetaStatus
+        driverId
       );
 
       return {
@@ -520,10 +514,7 @@ export async function getDispatchData(args: GetDispatchDataArgs): Promise<Dispat
       };
     });
 
-    const items =
-      args.role === "driver"
-        ? mappedItems.filter((item) => item.dispatchStatus !== "scheduled")
-        : mappedItems;
+    const items = mappedItems;
 
     return {
       items,

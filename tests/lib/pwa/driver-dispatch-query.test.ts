@@ -50,9 +50,32 @@ describe("Assigned Driver dispatch query", () => {
     state.rows = [];
     expect(await getDispatchData(args)).toMatchObject({ items: [], stats: { totalToday: 0 } });
   });
-  it("omits unreleased scheduled jobs", async () => {
-    state.rows[0].metadata.dispatch.status = "scheduled";
-    expect((await getDispatchData(args)).items).toEqual([]);
+  it.each(["scheduled", "released_to_driver"])("uses booking progress instead of legacy %s metadata", async legacyStatus => {
+    state.rows[0].metadata.dispatch.status = legacyStatus;
+    state.rows[0].payment_status = "unpaid";
+    const { items } = await getDispatchData(args);
+    expect(items).toMatchObject([{ id: "booking", dispatchStatus: "ready", paymentStatus: "unpaid" }]);
+  });
+  it.each(["online", "walkin"])("shows assigned %s Home Service bookings without preparation", async source => {
+    state.rows[0].type = source;
+    state.rows[0].metadata.dispatch = { eta_minutes: 7 };
+    const { items } = await getDispatchData(args);
+    expect(items).toMatchObject([{ id: "booking", dispatchStatus: "ready" }]);
+  });
+  it.each([
+    ["travel_started", "in_route"],
+    ["arrived", "arrived_at_customer"],
+    ["session_started", "service_started"],
+    ["completed", "completed"],
+  ])("shows %s as %s", async (progress, status) => {
+    state.rows[0].booking_progress_status = progress;
+    const { items } = await getDispatchData(args);
+    expect(items[0]?.dispatchStatus).toBe(status);
+  });
+  it.each(["cancelled", "no_show"])("keeps %s bookings out of the ready state", async status => {
+    state.rows[0].status = status;
+    const { items } = await getDispatchData(args);
+    expect(items[0]?.dispatchStatus).toBe("cancelled");
   });
   it("does not fabricate coordinates, payment or ETA", async () => {
     state.rows[0].payment_status = null;

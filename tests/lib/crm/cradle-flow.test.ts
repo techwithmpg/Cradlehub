@@ -66,6 +66,19 @@ describe("Cradle Flow lifecycle", () => {
     ).toBe("completed");
   });
 
+  it("uses paid order status for a completed service without inventing booking amount", () => {
+    expect(getCradleFlowStage(booking({
+      order_id: "order-1",
+      status: "completed",
+      booking_progress_status: "completed",
+      payment_status: "pending",
+      amount_paid: 0,
+      order_payment_status: "paid",
+      order_amount_paid: 1000,
+      order_total_amount: 1000,
+    }))).toBe("completed");
+  });
+
   it("counts home service inside the same lifecycle", () => {
     const counts = getCradleFlowCounts([
       booking(),
@@ -86,6 +99,15 @@ describe("Cradle Flow lifecycle", () => {
       completed: 1,
       homeService: 1,
     });
+  });
+
+  it("labels pending Home Service confirmation as Confirm & Dispatch with payment still pending", () => {
+    expect(getCradleFlowPrimaryLabel(booking({
+      type: "home_service",
+      delivery_type: "home_service",
+      status: "pending_crm_confirmation",
+      payment_status: "pending",
+    }))).toBe("Confirm & Dispatch");
   });
 
   it("searches customer, phone, booking id, service, staff, and address", () => {

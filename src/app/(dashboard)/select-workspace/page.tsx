@@ -20,6 +20,8 @@ import {
   type WorkspaceAccess,
   type WorkspaceKey,
 } from "@/lib/auth/workspace-access";
+import { getOwnerFrontDeskBranches } from "@/lib/queries/front-desk-branch";
+import { openOwnerFrontDeskBranch } from "./actions";
 
 const WORKSPACE_ICONS: Record<WorkspaceKey, LucideIcon> = {
   crm: Headphones,
@@ -57,6 +59,11 @@ export default async function SelectWorkspacePage() {
   const { workspaces } = access;
   if (workspaces.length === 0) redirect("/account/setup");
   if (workspaces.length === 1) redirect(getWorkspaceSwitchDestination(workspaces));
+  const ownerCanChooseFrontDeskBranch = workspaces.some((workspace) => workspace.key === "owner")
+    && workspaces.some((workspace) => workspace.key === "crm");
+  const frontDeskBranches = ownerCanChooseFrontDeskBranch
+    ? await getOwnerFrontDeskBranches().catch(() => [])
+    : [];
 
   return (
     <section className="mx-auto flex min-h-full w-full max-w-5xl flex-col justify-center px-4 py-10 sm:px-6 lg:px-8">
@@ -76,6 +83,48 @@ export default async function SelectWorkspacePage() {
       <div className="grid gap-4 md:grid-cols-2">
         {workspaces.map((workspace) => {
           const Icon = WORKSPACE_ICONS[workspace.key];
+          if (ownerCanChooseFrontDeskBranch && workspace.key === "crm") {
+            return (
+              <div
+                key={workspace.key}
+                className="flex h-full min-h-44 flex-col rounded-2xl border border-[var(--cs-border-soft)] bg-[var(--cs-surface)] p-5 text-left shadow-sm"
+              >
+                <span className="flex size-12 items-center justify-center rounded-2xl border border-[var(--cs-border-soft)] bg-[var(--cs-surface-warm)] text-[var(--sp-forest)]">
+                  <Icon className="size-5" />
+                </span>
+                <span className="mt-5 text-lg font-semibold text-[var(--cs-text)]">{workspace.label}</span>
+                <span className="mt-2 text-sm leading-6 text-[var(--cs-text-muted)]">{workspace.description}</span>
+                {frontDeskBranches.length > 0 ? (
+                  <form action={openOwnerFrontDeskBranch} className="mt-4 flex flex-col gap-3">
+                    <label htmlFor="owner-front-desk-branch" className="text-sm font-medium text-[var(--cs-text)]">
+                      Choose a branch to open
+                    </label>
+                    <select
+                      id="owner-front-desk-branch"
+                      name="branchId"
+                      defaultValue=""
+                      required
+                      className="min-h-11 w-full rounded-lg border border-[var(--cs-border)] bg-[var(--cs-surface)] px-3 text-sm text-[var(--cs-text)] focus-visible:outline-none focus-visible:ring-3 focus-visible:ring-[var(--cs-sand)]/35"
+                    >
+                      <option value="" disabled>Select a branch</option>
+                      {frontDeskBranches.map((branch) => (
+                        <option key={branch.id} value={branch.id}>{branch.name}</option>
+                      ))}
+                    </select>
+                    <button
+                      type="submit"
+                      className="flex min-h-10 w-full items-center justify-center gap-2 rounded-lg bg-[var(--cs-crm-accent)] px-4 text-sm font-semibold text-white transition hover:brightness-95 focus-visible:outline-none focus-visible:ring-3 focus-visible:ring-[var(--cs-sand)]/35"
+                    >
+                      Open Front Desk
+                      <ChevronRight className="size-4" />
+                    </button>
+                  </form>
+                ) : (
+                  <p className="mt-4 text-sm text-[var(--cs-text-muted)]">Front Desk branches are unavailable. Reload to try again.</p>
+                )}
+              </div>
+            );
+          }
           return (
             <WorkspaceSwitchLink
               className="group flex h-full min-h-44 flex-col rounded-2xl border border-[var(--cs-border-soft)] bg-[var(--cs-surface)] p-5 text-left shadow-sm transition hover:-translate-y-0.5 hover:border-[var(--cs-sand)]/50 hover:shadow-lg hover:shadow-black/10 focus-visible:outline-none focus-visible:ring-3 focus-visible:ring-[var(--cs-sand)]/35"

@@ -16,6 +16,7 @@ import { revalidatePath } from "next/cache";
 import { cacheTags, invalidateTag } from "@/lib/cache/cache-tags";
 import { canonicalizeSystemRole } from "@/constants/staff";
 import { canAccessCrmWorkspace } from "@/lib/auth/crm-permissions";
+import { resolveOwnerFrontDeskBranch } from "@/lib/queries/front-desk-branch";
 
 // ── Auth: CRM/Front-desk + owner only ─────────────────────────────────────
 async function requireCrmAccess() {
@@ -39,9 +40,13 @@ async function requireCrmAccess() {
   const role = me ? canonicalizeSystemRole(me.system_role) : null;
   if (!me || !role || !canAccessCrmWorkspace(role)) return null;
 
+  const ownerBranch = role === "owner"
+    ? await resolveOwnerFrontDeskBranch(user.id, me.branch_id)
+    : null;
+
   return {
     supabase,
-    branchId: role === "owner" ? null : me.branch_id,
+    branchId: role === "owner" ? ownerBranch?.id ?? null : me.branch_id,
   };
 }
 

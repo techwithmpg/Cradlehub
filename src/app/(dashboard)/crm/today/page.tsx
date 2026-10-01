@@ -27,11 +27,12 @@ import { RetainedWorkspaceModule } from "@/components/features/dashboard/retaine
 type Relation<T> = T | T[] | null;
 type CustomerRel = { full_name: string; phone: string | null };
 type ServiceRel = { name: string; duration_minutes: number };
-type StaffRel = { full_name: string; nickname?: string | null };
+type StaffRel = { id: string; full_name: string; nickname?: string | null };
 type ResourceRel = { name: string };
 
 type BookingRow = {
   id: string;
+  order_id?: string | null;
   branch_id: string;
   booking_date: string;
   start_time: string;
@@ -117,6 +118,37 @@ export default async function CrmTodayPage() {
     const dateCompare = a.booking_date.localeCompare(b.booking_date);
     return dateCompare !== 0 ? dateCompare : a.start_time.localeCompare(b.start_time);
   });
+  const orderIds = [...new Set(bookings.flatMap((b) => b.order_id ? [b.order_id] : []))];
+  const orderStates = new Map<string, {
+    status: string; paid: number; total: number;
+  }>();
+  if (orderIds.length > 0) {
+    const admin = createAdminClient();
+    const [
+      { data: summaries, error: summaryError },
+      { data: orders, error: ordersError },
+    ] = await Promise.all([
+      admin.from("v_booking_order_financial_summaries")
+        .select("order_id, total_payable, net_allocated, payment_state")
+        .in("order_id", orderIds),
+      admin.from("booking_orders").select("id, metadata").in("id", orderIds),
+    ]);
+    if (summaryError || ordersError) throw new Error("Could not load order payment status.");
+    const quotes = new Map((orders ?? []).map((order) => [
+      order.id, Number((order.metadata as Record<string, unknown> | null)?.total_amount) || 0,
+    ]));
+    for (const summary of summaries ?? []) {
+      if (!summary.order_id) continue;
+      const payable = Number(summary.total_payable) || 0;
+      const total = payable > 0 ? payable : (quotes.get(summary.order_id) ?? 0);
+      orderStates.set(summary.order_id, {
+        status: payable > 0 || total === 0
+          ? (summary.payment_state ?? "unpaid") : "unpaid",
+        paid: Number(summary.net_allocated) || 0,
+        total,
+      });
+    }
+  }
 
   const resourceIds = [
     ...new Set(bookings.map((booking) => booking.resource_id).filter(Boolean) as string[]),
@@ -159,6 +191,10 @@ export default async function CrmTodayPage() {
 
     return {
       id: b.id,
+      order_id: b.order_id ?? null,
+      order_payment_status: b.order_id ? orderStates.get(b.order_id)?.status ?? null : null,
+      order_amount_paid: b.order_id ? orderStates.get(b.order_id)?.paid ?? null : null,
+      order_total_amount: b.order_id ? orderStates.get(b.order_id)?.total ?? null : null,
       branch_id: b.branch_id,
       booking_date: b.booking_date,
       start_time: b.start_time,
@@ -176,6 +212,7 @@ export default async function CrmTodayPage() {
       service_name: first(b.services)?.name ?? null,
       service_duration: first(b.services)?.duration_minutes ?? null,
       staff_name: first(b.staff) ? getStaffAdminName(first(b.staff)!) : null,
+      staff_id: first(b.staff)?.id ?? null,
       resource_name: b.resource_id
         ? (resourceNameMap.get(b.resource_id) ?? first(b.branch_resources)?.name ?? null)
         : (first(b.branch_resources)?.name ?? null),

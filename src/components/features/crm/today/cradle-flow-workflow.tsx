@@ -4,13 +4,16 @@ import Link from "next/link";
 import { CalendarClock, Search, UserRoundCheck, UsersRound } from "lucide-react";
 import { useMemo, useState } from "react";
 import { CradleFlowTicket } from "./cradle-flow-ticket";
+import {
+  CRADLE_FLOW_FILTERS,
+  getCradleFlowDisplayCounts,
+  matchesCradleFlowFilter,
+  type CradleFlowFilter,
+} from "./cradle-flow-display";
 import { useAdministrativeBookingModal } from "@/components/features/bookings/administrative-booking-modal-provider";
 import {
-  CRADLE_FLOW_STAGES,
-  getCradleFlowStage,
   matchesCradleFlowSearch,
   type CradleFlowBooking,
-  type CradleFlowStage,
 } from "@/lib/crm/cradle-flow";
 import { cn } from "@/lib/utils";
 
@@ -49,26 +52,32 @@ export function CradleFlowWorkflow({
   pendingFollowUps,
   onOpen,
   onPrimary,
+  onAssignRoom,
+  onAssignTherapist,
+  filter,
+  onFilterChange,
 }: {
   bookings: CradleFlowBooking[];
   staffAvailable: number;
   pendingFollowUps: number;
   onOpen: (booking: CradleFlowBooking) => void;
   onPrimary: (booking: CradleFlowBooking) => void;
+  onAssignRoom: (booking: CradleFlowBooking) => void;
+  onAssignTherapist: (booking: CradleFlowBooking) => void;
+  filter: CradleFlowFilter;
+  onFilterChange: (filter: CradleFlowFilter) => void;
 }) {
   const { openBookingModal } = useAdministrativeBookingModal();
-  const [stage, setStage] = useState<CradleFlowStage>("waiting");
   const [query, setQuery] = useState("");
-  const upcomingCount = bookings.filter(
-    (booking) => getCradleFlowStage(booking) === "waiting"
-  ).length;
+  const counts = useMemo(() => getCradleFlowDisplayCounts(bookings), [bookings]);
+  const upcomingCount = counts.not_arrived + counts.waiting_arrived;
   const visible = useMemo(
     () =>
       bookings.filter(
         (booking) =>
-          getCradleFlowStage(booking) === stage && matchesCradleFlowSearch(booking, query)
+          matchesCradleFlowFilter(booking, filter) && matchesCradleFlowSearch(booking, query)
       ),
-    [bookings, query, stage]
+    [bookings, query, filter]
   );
 
   return (
@@ -77,10 +86,10 @@ export function CradleFlowWorkflow({
         <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
           <div>
             <h2 className="text-base font-extrabold text-[var(--cs-text)]">
-              Active Service Workflow
+              Active Service Workflow <span className="font-medium text-[var(--cs-text-muted)]">({counts.all})</span>
             </h2>
             <p className="mt-0.5 text-xs text-[var(--cs-text-muted)]">
-              One clear next action for every customer visit.
+              Manage today’s customer visits and service flow.
             </p>
           </div>
           <label className="relative block w-full lg:max-w-sm">
@@ -96,31 +105,29 @@ export function CradleFlowWorkflow({
         </div>
 
         <div
-          className="mt-4 grid grid-cols-2 gap-2 sm:flex sm:flex-wrap"
+          className="mt-3 flex flex-wrap gap-1.5"
           role="tablist"
           aria-label="Service status"
         >
-          {CRADLE_FLOW_STAGES.map((item) => {
-            const count = bookings.filter(
-              (booking) => getCradleFlowStage(booking) === item.key
-            ).length;
+          {CRADLE_FLOW_FILTERS.map((item) => {
+            const count = counts[item.key];
             return (
               <button
                 key={item.key}
                 type="button"
                 role="tab"
-                aria-selected={stage === item.key}
-                onClick={() => setStage(item.key)}
+                aria-selected={filter === item.key}
+                onClick={() => onFilterChange(item.key)}
                 className={cn(
-                  "flex h-9 items-center justify-between gap-2 rounded-lg border px-3 text-xs font-bold sm:justify-center",
-                  stage === item.key
+                  "flex h-8 items-center justify-between gap-2 rounded-lg border px-2.5 text-[11px] font-bold sm:justify-center",
+                  filter === item.key
                     ? "border-[#164b36] bg-[#164b36] text-white"
                     : "border-[var(--cs-border)] bg-[var(--cs-surface)] text-[var(--cs-text-secondary)]"
                 )}
               >
                 {item.label}
                 <span
-                  className={stage === item.key ? "text-white/70" : "text-[var(--cs-text-muted)]"}
+                  className={filter === item.key ? "text-white/70" : "text-[var(--cs-text-muted)]"}
                 >
                   {count}
                 </span>
@@ -130,15 +137,17 @@ export function CradleFlowWorkflow({
         </div>
       </header>
 
-      <div className="min-h-72 p-4 sm:p-5">
+      <div className="min-h-72 p-2 sm:p-3">
         {visible.length > 0 ? (
-          <div className="grid gap-3">
+          <div className="grid gap-2">
             {visible.map((booking) => (
               <CradleFlowTicket
                 key={booking.id}
                 booking={booking}
                 onOpen={onOpen}
                 onPrimary={onPrimary}
+                onAssignRoom={onAssignRoom}
+                onAssignTherapist={onAssignTherapist}
               />
             ))}
           </div>
@@ -151,14 +160,14 @@ export function CradleFlowWorkflow({
               <h3 className="mt-3 text-base font-extrabold text-[var(--cs-text)]">
                 {query
                   ? "No matching bookings"
-                  : `No ${CRADLE_FLOW_STAGES.find((item) => item.key === stage)?.label.toLowerCase()} bookings`}
+                  : `No ${CRADLE_FLOW_FILTERS.find((item) => item.key === filter)?.label.toLowerCase()} bookings`}
               </h3>
               <p className="mt-1 text-sm text-[var(--cs-text-muted)]">
                 {query
                   ? "Try a customer name, phone number, booking ID, therapist, or address."
                   : "Start with a new booking or review the supporting work below."}
               </p>
-              {!query && stage === "waiting" ? (
+              {!query && filter === "all" ? (
                 <button
                   type="button"
                   onClick={() => openBookingModal({ mode: "walkin" })}

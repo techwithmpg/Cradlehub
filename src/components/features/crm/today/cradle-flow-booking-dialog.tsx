@@ -1,7 +1,14 @@
 "use client";
 
+import { useState } from "react";
 import Link from "next/link";
-import { Clock3, Home, MapPin, Phone, UserRound } from "lucide-react";
+import { Clock3, Home, MapPin, Phone, Truck, UserRound } from "lucide-react";
+import { toast } from "sonner";
+import { AssignmentRecommendationPanel } from "@/components/features/assignments/assignment-recommendation-panel";
+import { assignBookingTherapistAction } from "@/app/(dashboard)/crm/bookings/actions";
+import { assignBookingDriverAction } from "@/lib/actions/driver-actions";
+import { getAssignmentRecommendationsAction } from "@/lib/actions/assignment-recommendations";
+import { notifyBookingsChanged } from "@/lib/bookings/bookings-client-events";
 import {
   AdminDialog,
   AdminOverlayBody,
@@ -12,6 +19,9 @@ import {
   formatCradleFlowMoney,
   getCradleFlowPrimaryLabel,
   getCradleFlowStage,
+  getCradleFlowPaymentStatus,
+  getCradleFlowAmountPaid,
+  getCradleFlowBalance,
   type CradleFlowBooking,
 } from "@/lib/crm/cradle-flow";
 
@@ -28,6 +38,15 @@ function timeLabel(value: string | null | undefined): string {
   return `${hour % 12 || 12}:${String(minuteRaw ?? 0).padStart(2, "0")} ${
     hour >= 12 ? "PM" : "AM"
   }`;
+}
+
+function readMetadataNumber(value: unknown): number | null {
+  if (typeof value === "number" && Number.isFinite(value)) return value;
+  if (typeof value === "string" && value.trim()) {
+    const parsed = Number(value);
+    return Number.isFinite(parsed) ? parsed : null;
+  }
+  return null;
 }
 
 function Detail({ label, value, icon }: { label: string; value: string; icon?: React.ReactNode }) {
@@ -47,17 +66,40 @@ export function CradleFlowBookingDialog({
   open,
   onOpenChange,
   onPrimary,
+  onAssignRoom,
+  onAssignTherapist,
 }: {
   booking: CradleFlowBooking | null;
   open: boolean;
   onOpenChange: (open: boolean) => void;
   onPrimary: (booking: CradleFlowBooking) => void;
+  onAssignRoom: (booking: CradleFlowBooking) => void;
+  onAssignTherapist: (booking: CradleFlowBooking) => void;
 }) {
+  const [assignmentOpen, setAssignmentOpen] = useState(false);
   if (!booking) return null;
   const homeService = booking.type === "home_service" || booking.delivery_type === "home_service";
   const stage = getCradleFlowStage(booking);
   const metadata = booking.metadata ?? {};
   const notes = typeof metadata.customer_notes === "string" ? metadata.customer_notes : "No notes";
+
+  const pricingBreakdownRaw = metadata.pricing_breakdown;
+  const pricingBreakdown =
+    pricingBreakdownRaw &&
+    typeof pricingBreakdownRaw === "object" &&
+    !Array.isArray(pricingBreakdownRaw)
+      ? (pricingBreakdownRaw as Record<string, unknown>)
+      : null;
+
+  const homeServiceDistanceKm =
+    readMetadataNumber(metadata.home_service_distance_km) ??
+    readMetadataNumber(pricingBreakdown?.distance_km) ??
+    readMetadataNumber(pricingBreakdown?.home_service_distance_km);
+
+  const homeServiceTravelFee =
+    readMetadataNumber(metadata.home_service_travel_fee) ??
+    readMetadataNumber(pricingBreakdown?.travel_fee) ??
+    readMetadataNumber(pricingBreakdown?.home_service_travel_fee);
 
   return (
     <AdminDialog
@@ -87,8 +129,13 @@ export function CradleFlowBookingDialog({
               {formatCradleFlowMoney(booking.price_paid ?? 0)}
             </div>
             <div className="text-xs font-bold uppercase text-[var(--cs-text-muted)]">
-              {booking.payment_status === "paid" ? "Paid" : "Payment pending"}
+              {getCradleFlowPaymentStatus(booking) === "paid" ? "Paid" : "Payment pending"}
             </div>
+            {booking.order_id && (
+              <div className="text-xs text-[var(--cs-text-muted)]">
+                Order: {formatCradleFlowMoney(getCradleFlowAmountPaid(booking))} paid · {formatCradleFlowMoney(getCradleFlowBalance(booking))} due
+              </div>
+            )}
           </div>
         </div>
 
@@ -110,6 +157,9 @@ export function CradleFlowBookingDialog({
             value={booking.staff_name ?? "Needs assignment"}
             icon={<UserRound className="size-3" />}
           />
+          {homeService ? (
+            <Detail label="Driver" value={booking.driver_name ?? "Not assigned"} icon={<Truck className="size-3" />} />
+          ) : null}
           <Detail
             label={homeService ? "Service address" : "Room"}
             value={
@@ -120,6 +170,48 @@ export function CradleFlowBookingDialog({
             icon={homeService ? <Home className="size-3" /> : <MapPin className="size-3" />}
           />
         </div>
+
+        {homeService && stage !== "completed" ? (
+          <section className="grid gap-3">
+            <div className="flex flex-wrap gap-2">
+              <button type="button" onClick={() => setAssignmentOpen(true)} className="cs-btn cs-btn-secondary h-10 rounded-lg px-3 text-xs">
+                {booking.staff_id ? "Change Therapist" : "Assign Therapist"}
+              </button>
+              <button type="button" onClick={() => setAssignmentOpen(true)} className="cs-btn cs-btn-secondary h-10 rounded-lg px-3 text-xs">
+                {booking.driver_id ? "Change Driver" : "Assign Driver"}
+              </button>
+            </div>
+            {assignmentOpen ? (
+              <AssignmentRecommendationPanel
+                key={booking.id}
+                bookingId={booking.id}
+                fetchRecommendations={getAssignmentRecommendationsAction}
+                onAssignTherapist={async (staffId, overrideReason) => {
+                  const result = await assignBookingTherapistAction({ bookingId: booking.id, staffId, overrideReason });
+                  if (!result.success) {
+                    toast.error(result.error ?? "Could not assign therapist.");
+                    return;
+                  }
+                  toast.success("Therapist assigned.");
+                  notifyBookingsChanged();
+                }}
+                onAssignDriver={async (driverId) => {
+                  const result = await assignBookingDriverAction({ bookingId: booking.id, driverId });
+                  if (!result.success) {
+                    toast.error(result.error ?? "Could not assign driver.");
+                    return;
+                  }
+                  toast.success(booking.driver_id ? "Driver changed." : "Driver assigned.");
+                  notifyBookingsChanged();
+                }}
+                currentTherapistId={booking.staff_id ?? null}
+                currentDriverId={booking.driver_id ?? null}
+                showTherapists
+                showDrivers
+              />
+            ) : null}
+          </section>
+        ) : null}
 
         <section>
           <h3 className="text-xs font-extrabold uppercase tracking-wide text-[var(--cs-text-muted)]">
@@ -135,6 +227,32 @@ export function CradleFlowBookingDialog({
             <Detail label="Completed" value={timeLabel(booking.session_completed_at)} />
           </div>
         </section>
+
+        {homeService ? (
+          <section>
+            <h3 className="text-xs font-extrabold uppercase tracking-wide text-[var(--cs-text-muted)]">
+              Home Service travel
+            </h3>
+            <div className="mt-2 grid gap-2 sm:grid-cols-2">
+              <Detail
+                label="Distance"
+                value={
+                  homeServiceDistanceKm !== null
+                    ? `${homeServiceDistanceKm.toFixed(1)} km`
+                    : "Not calculated"
+                }
+              />
+              <Detail
+                label="Travel fee"
+                value={
+                  homeServiceTravelFee !== null
+                    ? formatCradleFlowMoney(homeServiceTravelFee)
+                    : "Not calculated"
+                }
+              />
+            </div>
+          </section>
+        ) : null}
 
         <Detail label="Notes" value={notes} />
 
@@ -153,7 +271,34 @@ export function CradleFlowBookingDialog({
         >
           Open full booking
         </Link>
-        <div className="flex gap-2">
+        <div className="flex flex-wrap gap-2">
+          {stage === "waiting" || stage === "in_service" ? (
+            <>
+              {!homeService ? <button type="button" onClick={() => { onOpenChange(false); onAssignTherapist(booking); }} className="cs-btn cs-btn-secondary h-10 rounded-lg px-3 text-xs">
+                {booking.staff_id ? "Change Therapist" : "Assign Therapist"}
+              </button> : null}
+              {!homeService ? (
+                <button type="button" onClick={() => { onOpenChange(false); onAssignRoom(booking); }} className="cs-btn cs-btn-secondary h-10 rounded-lg px-3 text-xs">
+                  {booking.resource_id ? "Change Room" : "Assign Room"}
+                </button>
+              ) : (
+                <>
+                  <Link
+                    href={`/crm/bookings?bookingId=${booking.id}&action=reschedule`}
+                    className="cs-btn cs-btn-secondary h-10 rounded-lg px-3 text-xs"
+                  >
+                    Change Time
+                  </Link>
+                  <Link
+                    href={`/crm/bookings?bookingId=${booking.id}&action=location`}
+                    className="cs-btn cs-btn-secondary h-10 rounded-lg px-3 text-xs"
+                  >
+                    Change Location
+                  </Link>
+                </>
+              )}
+            </>
+          ) : null}
           <button
             type="button"
             onClick={() => onOpenChange(false)}
@@ -165,7 +310,7 @@ export function CradleFlowBookingDialog({
             <button
               type="button"
               onClick={() => {
-                onOpenChange(false);
+                if (!homeService) onOpenChange(false);
                 onPrimary(booking);
               }}
               className="h-10 rounded-lg bg-[#164b36] px-4 text-sm font-bold text-white"

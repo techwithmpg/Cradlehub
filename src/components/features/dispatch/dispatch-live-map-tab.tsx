@@ -539,8 +539,7 @@ export function DispatchLiveMapTab({ data }: { data: DispatchData }) {
         <MapPin className="mb-3 text-[var(--cs-text-muted)]" size={34} />
         <h3 className="font-bold text-[var(--cs-text)]">No home-service bookings to map</h3>
         <p className="mt-1 max-w-md text-sm text-[var(--cs-text-muted)]">
-          Pending, confirmed, scheduled, and released home-service bookings will appear here when
-          customer GPS coordinates are saved.
+          Home-service bookings will appear here when customer GPS coordinates are saved.
         </p>
       </div>
     );
