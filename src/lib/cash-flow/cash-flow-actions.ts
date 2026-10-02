@@ -21,6 +21,10 @@ import {
 import type {
   OpenCashSessionInput,
   OpenCashSessionResult,
+  CloseCashSessionInput,
+  CloseCashSessionResult,
+  HandoverCashSessionInput,
+  HandoverCashSessionResult,
 } from './cash-flow-types';
 
 interface GenericRpcResult {
@@ -720,6 +724,252 @@ export async function openCashSessionAction(
       openedByName: data.openedByName || 'Staff',
       openedAt: data.openedAt || new Date().toISOString(),
       expectedCash: openingFloatNum,
+    },
+  };
+}
+
+export async function closeCashSessionAction(
+  input: CloseCashSessionInput
+): Promise<CloseCashSessionResult> {
+  const supabase = await createClient();
+
+  // 1. Verify caller session (Strict CF4 auth check)
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+
+  if (!user) {
+    return {
+      ok: false,
+      error: 'AUTH_REQUIRED: Authentication required to close cash session.',
+      code: 'AUTH_REQUIRED',
+    };
+  }
+
+  // 2. Validate input parameters
+  if (!input.sessionId || !input.sessionId.trim()) {
+    return {
+      ok: false,
+      error: 'SESSION_ID_REQUIRED: Cash session ID is required.',
+      code: 'SESSION_ID_REQUIRED',
+    };
+  }
+
+  if (
+    input.countedCash === undefined ||
+    input.countedCash === null ||
+    input.countedCash < 0 ||
+    Number.isNaN(Number(input.countedCash))
+  ) {
+    return {
+      ok: false,
+      error: 'INVALID_COUNTED_CASH: Counted cash must be non-negative.',
+      code: 'INVALID_COUNTED_CASH',
+    };
+  }
+
+  if (!input.idempotencyKey || !input.idempotencyKey.trim()) {
+    return {
+      ok: false,
+      error: 'IDEMPOTENCY_KEY_REQUIRED: Idempotency key is required.',
+      code: 'IDEMPOTENCY_KEY_REQUIRED',
+    };
+  }
+
+  // 3. Call canonical RPC: close_cash_session_atomic
+  const { data, error } = await (supabase as unknown as {
+    rpc: (
+      fn: string,
+      args: Record<string, unknown>
+    ) => Promise<{
+      data: {
+        ok?: boolean;
+        sessionId?: string;
+        branchId?: string;
+        cashDrawerAccountId?: string;
+        cashDrawerName?: string;
+        businessDate?: string;
+        status?: 'closed';
+        openingFloat?: number;
+        expectedCash?: number;
+        countedCash?: number;
+        variance?: number;
+        closedBy?: string;
+        closedByName?: string;
+        closedAt?: string;
+        idempotentReplay?: boolean;
+      } | null;
+      error: { message: string; code?: string } | null;
+    }>;
+  }).rpc('close_cash_session_atomic', {
+    p_session_id: input.sessionId.trim(),
+    p_counted_cash: Number(input.countedCash),
+    p_closing_note: input.closingNote?.trim() || null,
+    p_idempotency_key: input.idempotencyKey.trim(),
+  });
+
+  if (error) {
+    return {
+      ok: false,
+      error: error.message,
+      code: error.code || 'RPC_ERROR',
+    };
+  }
+
+  if (!data || !data.sessionId) {
+    return {
+      ok: false,
+      error: 'RPC_FAILED: No session returned from close_cash_session_atomic.',
+      code: 'RPC_FAILED',
+    };
+  }
+
+  // 4. Revalidate cache on success
+  revalidatePath('/crm/cash-flow');
+  revalidatePath('/crm/reconciliation');
+  revalidatePath('/owner/cash-flow');
+
+  return {
+    ok: true,
+    idempotentReplay: data.idempotentReplay,
+    session: {
+      id: data.sessionId,
+      branchId: data.branchId || '',
+      cashDrawerAccountId: data.cashDrawerAccountId || '',
+      cashDrawerName: data.cashDrawerName,
+      businessDate: data.businessDate || '',
+      status: 'closed',
+      openingFloat: Number(data.openingFloat) || 0,
+      expectedCash: Number(data.expectedCash) || 0,
+      countedCash: Number(data.countedCash) || 0,
+      variance: Number(data.variance) || 0,
+      closedBy: data.closedBy || user.id,
+      closedByName: data.closedByName,
+      closedAt: data.closedAt || new Date().toISOString(),
+    },
+  };
+}
+
+export async function handoverCashSessionAction(
+  input: HandoverCashSessionInput
+): Promise<HandoverCashSessionResult> {
+  const supabase = await createClient();
+
+  // 1. Verify caller session (Strict CF4 auth check)
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+
+  if (!user) {
+    return {
+      ok: false,
+      error: 'AUTH_REQUIRED: Authentication required to hand over cash drawer.',
+      code: 'AUTH_REQUIRED',
+    };
+  }
+
+  // 2. Validate input parameters
+  if (!input.sessionId || !input.sessionId.trim()) {
+    return {
+      ok: false,
+      error: 'SESSION_ID_REQUIRED: Cash session ID is required.',
+      code: 'SESSION_ID_REQUIRED',
+    };
+  }
+
+  if (!input.incomingCustodianId || !input.incomingCustodianId.trim()) {
+    return {
+      ok: false,
+      error: 'INCOMING_CUSTODIAN_REQUIRED: Incoming custodian ID is required.',
+      code: 'INCOMING_CUSTODIAN_REQUIRED',
+    };
+  }
+
+  if (
+    input.countedCash === undefined ||
+    input.countedCash === null ||
+    input.countedCash < 0 ||
+    Number.isNaN(Number(input.countedCash))
+  ) {
+    return {
+      ok: false,
+      error: 'INVALID_COUNTED_CASH: Counted cash must be non-negative.',
+      code: 'INVALID_COUNTED_CASH',
+    };
+  }
+
+  if (!input.idempotencyKey || !input.idempotencyKey.trim()) {
+    return {
+      ok: false,
+      error: 'IDEMPOTENCY_KEY_REQUIRED: Idempotency key is required.',
+      code: 'IDEMPOTENCY_KEY_REQUIRED',
+    };
+  }
+
+  // 3. Call canonical RPC: handover_cash_session_atomic
+  const { data, error } = await (supabase as unknown as {
+    rpc: (
+      fn: string,
+      args: Record<string, unknown>
+    ) => Promise<{
+      data: {
+        ok?: boolean;
+        handoverId?: string;
+        sessionId?: string;
+        outgoingCustodianId?: string;
+        outgoingCustodianName?: string;
+        incomingCustodianId?: string;
+        incomingCustodianName?: string;
+        expectedCash?: number;
+        countedCash?: number;
+        variance?: number;
+        recordedAt?: string;
+        idempotentReplay?: boolean;
+      } | null;
+      error: { message: string; code?: string } | null;
+    }>;
+  }).rpc('handover_cash_session_atomic', {
+    p_session_id: input.sessionId.trim(),
+    p_incoming_custodian_id: input.incomingCustodianId.trim(),
+    p_counted_cash: Number(input.countedCash),
+    p_notes: input.notes?.trim() || null,
+    p_idempotency_key: input.idempotencyKey.trim(),
+  });
+
+  if (error) {
+    return {
+      ok: false,
+      error: error.message,
+      code: error.code || 'RPC_ERROR',
+    };
+  }
+
+  if (!data || !data.handoverId) {
+    return {
+      ok: false,
+      error: 'RPC_FAILED: No handover record returned from handover_cash_session_atomic.',
+      code: 'RPC_FAILED',
+    };
+  }
+
+  // 4. Revalidate cache on success
+  revalidatePath('/crm/cash-flow');
+  revalidatePath('/owner/cash-flow');
+
+  return {
+    ok: true,
+    idempotentReplay: data.idempotentReplay,
+    handover: {
+      id: data.handoverId,
+      sessionId: data.sessionId || input.sessionId,
+      outgoingCustodianId: data.outgoingCustodianId || '',
+      outgoingCustodianName: data.outgoingCustodianName,
+      incomingCustodianId: data.incomingCustodianId || input.incomingCustodianId,
+      incomingCustodianName: data.incomingCustodianName,
+      expectedCash: Number(data.expectedCash) || 0,
+      countedCash: Number(data.countedCash) || 0,
+      variance: Number(data.variance) || 0,
+      recordedAt: data.recordedAt || new Date().toISOString(),
     },
   };
 }

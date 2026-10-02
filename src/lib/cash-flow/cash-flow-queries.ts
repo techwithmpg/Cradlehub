@@ -61,6 +61,49 @@ function bookingPriceSnapshot(metadata: Record<string, unknown> | null): number 
   return Number.isFinite(amount) && amount >= 0 ? amount : 0;
 }
 
+export interface CashMovementLike {
+  accountId?: string;
+  financial_account_id?: string;
+  amount: number | string;
+  paymentMethod?: string;
+  created_at?: string;
+  createdAt?: string;
+}
+
+export interface TransactionLike {
+  status: string;
+  occurredAt?: string;
+  occurred_at?: string;
+  movements?: CashMovementLike[];
+  financial_account_movements?: CashMovementLike[];
+}
+
+export function computeExpectedPhysicalCash(
+  session: { openingFloat: number; cashDrawerAccountId: string; openedAt: string },
+  transactions: TransactionLike[]
+): number {
+  const sessionOpenedAtMs = new Date(session.openedAt).getTime();
+  let netMovement = 0;
+
+  for (const tx of transactions) {
+    if (tx.status !== 'posted') continue;
+
+    const movements = tx.movements || tx.financial_account_movements || [];
+    for (const m of movements) {
+      const accId = m.financial_account_id || m.accountId;
+      if (accId !== session.cashDrawerAccountId) continue;
+
+      const createdTime = m.created_at || m.createdAt || tx.occurred_at || tx.occurredAt;
+      const mCreatedAtMs = createdTime ? new Date(createdTime).getTime() : sessionOpenedAtMs;
+      if (mCreatedAtMs >= sessionOpenedAtMs) {
+        netMovement += Number(m.amount) || 0;
+      }
+    }
+  }
+
+  return session.openingFloat + netMovement;
+}
+
 export async function getCashFlowData(
   branchId: string,
   branchName: string,
@@ -193,8 +236,13 @@ export async function getCashFlowData(
     opening_note: string | null;
     opened_by: string;
     opened_at: string;
+    current_custodian_id?: string | null;
     closed_by: string | null;
     closed_at: string | null;
+    counted_cash?: number | string | null;
+    expected_cash_at_close?: number | string | null;
+    variance?: number | string | null;
+    closing_note?: string | null;
   }> = [];
 
   try {
@@ -213,7 +261,7 @@ export async function getCashFlowData(
       };
     })
       .from('cash_sessions')
-      .select('id, branch_id, cash_drawer_account_id, business_date, status, opening_float, opening_note, opened_by, opened_at, closed_by, closed_at')
+      .select('id, branch_id, cash_drawer_account_id, business_date, status, opening_float, opening_note, opened_by, opened_at, current_custodian_id, closed_by, closed_at, counted_cash, expected_cash_at_close, variance, closing_note')
       .eq('branch_id', branchId)
       .eq('status', 'open')
       .order('opened_at', { ascending: false });
@@ -233,25 +281,17 @@ export async function getCashFlowData(
     const openingFloat = Number(s.opening_float) || 0;
     const drawerAcc = accounts.find((a) => a.id === s.cash_drawer_account_id);
     const openerStaff = staffOptions.find((st) => st.id === s.opened_by);
-    const sessionOpenedAtMs = new Date(s.opened_at).getTime();
+    const custodianId = s.current_custodian_id || s.opened_by;
+    const custodianStaff = staffOptions.find((st) => st.id === custodianId) || openerStaff;
 
-    let drawerMovementsTotal = 0;
-    for (const tx of allTransactions) {
-      if (tx.status !== 'posted') continue;
-
-      if (tx.financial_account_movements && Array.isArray(tx.financial_account_movements)) {
-        for (const m of tx.financial_account_movements) {
-          if (m.financial_account_id !== s.cash_drawer_account_id) continue;
-
-          const mCreatedAtMs = new Date(m.created_at).getTime();
-          if (mCreatedAtMs >= sessionOpenedAtMs) {
-            drawerMovementsTotal += Number(m.amount) || 0;
-          }
-        }
-      }
-    }
-
-    const expectedCash = openingFloat + drawerMovementsTotal;
+    const expectedCash = computeExpectedPhysicalCash(
+      {
+        openingFloat,
+        cashDrawerAccountId: s.cash_drawer_account_id,
+        openedAt: s.opened_at,
+      },
+      allTransactions
+    );
 
     return {
       id: s.id,
@@ -265,9 +305,15 @@ export async function getCashFlowData(
       openedBy: s.opened_by,
       openedByName: openerStaff?.name || 'Staff',
       openedAt: s.opened_at,
+      currentCustodianId: custodianId,
+      currentCustodianName: custodianStaff?.name || openerStaff?.name || 'Staff',
       closedBy: s.closed_by || null,
       closedAt: s.closed_at || null,
       expectedCash,
+      countedCash: s.counted_cash != null ? Number(s.counted_cash) : null,
+      expectedCashAtClose: s.expected_cash_at_close != null ? Number(s.expected_cash_at_close) : null,
+      variance: s.variance != null ? Number(s.variance) : null,
+      closingNote: s.closing_note || null,
     };
   });
 

@@ -263,10 +263,16 @@ export interface CashSessionSummary {
   openedBy: string;
   openedByName?: string;
   openedAt: string;
+  currentCustodianId?: string;
+  currentCustodianName?: string;
   closedBy?: string | null;
   closedByName?: string | null;
   closedAt?: string | null;
   expectedCash: number;
+  countedCash?: number | null;
+  expectedCashAtClose?: number | null;
+  variance?: number | null;
+  closingNote?: string | null;
 }
 
 export interface OpenCashSessionInput {
@@ -284,6 +290,62 @@ export interface OpenCashSessionResult {
   code?: string;
   session?: CashSessionSummary;
   idempotentReplay?: boolean;
+}
+
+export interface CloseCashSessionInput {
+  sessionId: string;
+  countedCash: number;
+  closingNote?: string;
+  idempotencyKey: string;
+}
+
+export interface CloseCashSessionResult {
+  ok: boolean;
+  error?: string;
+  code?: string;
+  idempotentReplay?: boolean;
+  session?: {
+    id: string;
+    branchId: string;
+    cashDrawerAccountId: string;
+    cashDrawerName?: string;
+    businessDate: string;
+    status: 'closed';
+    openingFloat: number;
+    expectedCash: number;
+    countedCash: number;
+    variance: number;
+    closedBy: string;
+    closedByName?: string;
+    closedAt: string;
+  };
+}
+
+export interface HandoverCashSessionInput {
+  sessionId: string;
+  incomingCustodianId: string;
+  countedCash: number;
+  notes?: string;
+  idempotencyKey: string;
+}
+
+export interface HandoverCashSessionResult {
+  ok: boolean;
+  error?: string;
+  code?: string;
+  idempotentReplay?: boolean;
+  handover?: {
+    id: string;
+    sessionId: string;
+    outgoingCustodianId: string;
+    outgoingCustodianName?: string;
+    incomingCustodianId: string;
+    incomingCustodianName?: string;
+    expectedCash: number;
+    countedCash: number;
+    variance: number;
+    recordedAt: string;
+  };
 }
 
 export interface CashFlowWorkspaceData {

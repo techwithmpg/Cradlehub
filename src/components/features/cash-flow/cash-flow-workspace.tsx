@@ -2,13 +2,15 @@
 
 import React, { useState } from "react";
 import { useRouter } from "next/navigation";
-import { RefreshCw, Banknote, ArrowLeftRight, Plus, FileText } from "lucide-react";
-import type { CashFlowWorkspaceData } from "@/lib/cash-flow/cash-flow-types";
+import { RefreshCw, Banknote, ArrowLeftRight, Plus, FileText, CheckCircle2 } from "lucide-react";
+import type { CashFlowWorkspaceData, CashSessionSummary } from "@/lib/cash-flow/cash-flow-types";
 import { TodayTab } from "./today-tab";
 import { LedgerTab } from "./ledger-tab";
 import { DayCloseTab } from "./day-close-tab";
 import { HistoryTab } from "./history-tab";
 import { OpenCashDrawerModal } from "./open-cash-drawer-modal";
+import { HandoverDrawerModal } from "./handover-drawer-modal";
+import { CloseDrawerModal } from "./close-drawer-modal";
 import { RecordFinancialEntryModal, type FinancialEntryMode } from "./record-financial-entry-modal";
 
 export type CashFlowTab = "today" | "ledger" | "day-close" | "history";
@@ -27,8 +29,16 @@ export function CashFlowWorkspace({ initialData, initialTab = "today", initialEn
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [isRecordPaymentOpen, setIsRecordPaymentOpen] = useState(Boolean(initialEntryMode));
   const [isOpenDrawerModalOpen, setIsOpenDrawerModalOpen] = useState(false);
+  const [isHandoverModalOpen, setIsHandoverModalOpen] = useState(false);
+  const [isCloseDrawerModalOpen, setIsCloseDrawerModalOpen] = useState(false);
+  const [selectedSession, setSelectedSession] = useState<CashSessionSummary | null>(null);
   const [targetOrderId, setTargetOrderId] = useState<string | undefined>(undefined);
   const [entryModalMode, setEntryModalMode] = useState<FinancialEntryMode>(initialEntryMode ?? "customer_payment");
+
+  const activeSession = initialData.cashSessions?.activeSessions?.[0] ?? null;
+
+  const formatPeso = (val: number) =>
+    `₱${val.toLocaleString("en-PH", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 
   const handleTabChange = (newTab: CashFlowTab) => {
     setActiveTab(newTab);
@@ -85,20 +95,33 @@ export function CashFlowWorkspace({ initialData, initialTab = "today", initialEn
 
         {/* Right-side Action Buttons */}
         <div className="flex items-center gap-2 flex-wrap">
-          {initialData.cashSessions?.activeSessions?.length ? (
-            <button
-              type="button"
-              onClick={() => setIsOpenDrawerModalOpen(true)}
-              className="inline-flex items-center gap-2 rounded-lg border border-emerald-200 bg-emerald-50 px-3 py-1.5 text-xs font-semibold text-emerald-800 transition hover:bg-emerald-100"
-              title="View cash drawer status"
-            >
-              <span className="h-2 w-2 rounded-full bg-emerald-500" />
-              <span>
-                {initialData.cashSessions.activeSessions.length === 1
-                  ? "Drawer Open"
-                  : `${initialData.cashSessions.activeSessions.length} Drawers Open`}
-              </span>
-            </button>
+          {activeSession ? (
+            <>
+              <button
+                type="button"
+                onClick={() => {
+                  setSelectedSession(activeSession);
+                  setIsHandoverModalOpen(true);
+                }}
+                className="inline-flex items-center gap-1.5 rounded-lg border border-blue-300 bg-blue-50 px-3 py-1.5 text-xs font-semibold text-blue-900 shadow-2xs transition hover:bg-blue-100"
+                title="Hand over drawer custody to next CSR"
+              >
+                <ArrowLeftRight className="h-3.5 w-3.5" />
+                <span>Hand Over</span>
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  setSelectedSession(activeSession);
+                  setIsCloseDrawerModalOpen(true);
+                }}
+                className="inline-flex items-center gap-1.5 rounded-lg border border-emerald-700 bg-[#163E32] px-3.5 py-1.5 text-xs font-semibold text-white shadow-2xs transition hover:bg-[#1B4D3E]"
+                title="Reconcile and close cash drawer session"
+              >
+                <CheckCircle2 className="h-3.5 w-3.5" />
+                <span>Day Close</span>
+              </button>
+            </>
           ) : (
             <button
               type="button"
@@ -144,6 +167,97 @@ export function CashFlowWorkspace({ initialData, initialTab = "today", initialEn
           </button>
         </div>
       </div>
+
+      {/* ── Cash Drawer Operational Status Banner ──────────────────── */}
+      {activeSession ? (
+        <div className="rounded-xl border border-emerald-200 bg-white p-4 shadow-2xs">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+            <div className="flex items-center gap-3">
+              <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-emerald-50 text-emerald-700">
+                <Banknote className="h-5 w-5" />
+              </div>
+              <div>
+                <div className="flex items-center gap-2">
+                  <span className="text-sm font-bold text-[#1E1916]">{activeSession.cashDrawerName}</span>
+                  <span className="inline-flex items-center gap-1 rounded-full border border-emerald-300 bg-emerald-50 px-2 py-0.5 text-[10px] font-bold text-emerald-800 uppercase">
+                    <span className="h-1.5 w-1.5 rounded-full bg-emerald-500" />
+                    Open
+                  </span>
+                </div>
+                <div className="flex flex-wrap items-center gap-x-4 gap-y-1 mt-1 text-xs text-[#6B5D52]">
+                  <span>Opening Float: <strong className="text-[#1E1916]">{formatPeso(activeSession.openingFloat)}</strong></span>
+                  <span>Expected Cash: <strong className="text-[#163E32]">{formatPeso(activeSession.expectedCash)}</strong></span>
+                  <span>Current Custodian: <strong className="text-[#1E1916]">{activeSession.currentCustodianName || activeSession.openedByName || "Staff"}</strong></span>
+                </div>
+              </div>
+            </div>
+            <div className="flex items-center gap-2 flex-wrap">
+              <button
+                type="button"
+                onClick={openCashOperations}
+                className="inline-flex items-center gap-1.5 rounded-lg border border-[#D8CDBF] bg-white px-3 py-1.5 text-xs font-semibold text-[#493F37] shadow-2xs transition hover:bg-[#FAF8F5]"
+              >
+                <ArrowLeftRight className="h-3.5 w-3.5 text-[#6B5D52]" />
+                <span>Cash Operations</span>
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  setSelectedSession(activeSession);
+                  setIsHandoverModalOpen(true);
+                }}
+                className="inline-flex items-center gap-1.5 rounded-lg border border-blue-300 bg-blue-50 px-3 py-1.5 text-xs font-semibold text-blue-900 shadow-2xs transition hover:bg-blue-100"
+              >
+                <ArrowLeftRight className="h-3.5 w-3.5" />
+                <span>Hand Over</span>
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  setSelectedSession(activeSession);
+                  setIsCloseDrawerModalOpen(true);
+                }}
+                className="inline-flex items-center gap-1.5 rounded-lg border border-emerald-700 bg-[#163E32] px-3.5 py-1.5 text-xs font-semibold text-white shadow-2xs transition hover:bg-[#1B4D3E]"
+              >
+                <CheckCircle2 className="h-3.5 w-3.5" />
+                <span>Day Close</span>
+              </button>
+            </div>
+          </div>
+        </div>
+      ) : (
+        <div className="rounded-xl border border-amber-200 bg-white p-4 shadow-2xs">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+            <div className="flex items-center gap-3">
+              <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-amber-50 text-amber-800">
+                <Banknote className="h-5 w-5" />
+              </div>
+              <div>
+                <div className="flex items-center gap-2">
+                  <span className="text-sm font-bold text-[#1E1916]">
+                    {initialData.cashSessions?.availableDrawers?.[0]?.name || "Front Desk Cash Drawer"}
+                  </span>
+                  <span className="inline-flex items-center gap-1 rounded-full border border-amber-300 bg-amber-50 px-2 py-0.5 text-[10px] font-bold text-amber-900 uppercase">
+                    <span className="h-1.5 w-1.5 rounded-full bg-amber-500" />
+                    Closed
+                  </span>
+                </div>
+                <p className="mt-0.5 text-xs text-[#6B5D52]">
+                  No active cash drawer session for this branch. Open drawer to start receiving cash.
+                </p>
+              </div>
+            </div>
+            <button
+              type="button"
+              onClick={() => setIsOpenDrawerModalOpen(true)}
+              className="inline-flex items-center gap-1.5 rounded-lg border border-amber-300 bg-amber-50 px-3.5 py-1.5 text-xs font-semibold text-amber-900 shadow-2xs transition hover:bg-amber-100"
+            >
+              <Banknote className="h-3.5 w-3.5" />
+              <span>Open Cash Session</span>
+            </button>
+          </div>
+        </div>
+      )}
 
       {/* ── Tab Navigation Bar ──────────────────────────────────────── */}
       <div className="bg-white rounded-xl border border-[#EAE4DC] p-1 flex gap-1 w-fit shadow-2xs">
@@ -308,6 +422,30 @@ export function CashFlowWorkspace({ initialData, initialTab = "today", initialEn
           }}
         />
       )}
+
+      {isHandoverModalOpen && (selectedSession || activeSession) && (
+        <HandoverDrawerModal
+          open={isHandoverModalOpen}
+          onOpenChange={setIsHandoverModalOpen}
+          session={(selectedSession || activeSession)!}
+          staffOptions={initialData.staffOptions ?? []}
+          onSuccess={() => {
+            router.refresh();
+          }}
+        />
+      )}
+
+      {isCloseDrawerModalOpen && (selectedSession || activeSession) && (
+        <CloseDrawerModal
+          open={isCloseDrawerModalOpen}
+          onOpenChange={setIsCloseDrawerModalOpen}
+          session={(selectedSession || activeSession)!}
+          onSuccess={() => {
+            router.refresh();
+          }}
+        />
+      )}
+
       {/* ── Record Financial Entry Modal ─────────────────────────────── */}
       <RecordFinancialEntryModal
         open={isRecordPaymentOpen}
