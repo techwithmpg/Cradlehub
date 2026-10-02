@@ -9,6 +9,7 @@ import { revalidatePath } from "next/cache";
 import { z } from "zod";
 import { canonicalizeSystemRole } from "@/constants/staff";
 import { canAccessCrmWorkspace } from "@/lib/auth/crm-permissions";
+import { getFrontDeskContext } from "@/lib/queries/crm-context";
 
 async function requireCrmStaff() {
   const supabase = await createClient();
@@ -28,8 +29,9 @@ async function requireCrmStaff() {
     .maybeSingle();
 
   const role = me ? canonicalizeSystemRole(me.system_role) : null;
-  if (!me || !role || !canAccessCrmWorkspace(role) || !me.branch_id) return null;
-  return { supabase, staffId: me.id as string, branchId: me.branch_id as string, role };
+  if (!me || !role || !canAccessCrmWorkspace(role) || (role !== "owner" && !me.branch_id)) return null;
+  const frontDesk = await getFrontDeskContext();
+  return { supabase, staffId: me.id as string, branchId: frontDesk.branchId, role };
 }
 
 const upsertSchema = z.object({
@@ -53,6 +55,9 @@ export async function upsertReconciliationAction(rawInput: unknown) {
     return { ok: false as const, error: parsed.error.issues[0]?.message ?? "Invalid input" };
   }
   const d = parsed.data;
+  if (d.branchId !== ctx.branchId) {
+    return { ok: false as const, error: "Selected branch changed. Refresh before saving reconciliation." };
+  }
 
   let expected;
   try {
@@ -174,6 +179,9 @@ export async function approveReconciliationAction(reconciliationId: string) {
 export async function getReconciliationsAction(branchId: string, limit = 30) {
   const ctx = await requireCrmStaff();
   if (!ctx) return { ok: false as const, error: "Unauthorized", data: [] };
+  if (branchId !== ctx.branchId) {
+    return { ok: false as const, error: "Selected branch changed. Refresh before loading reconciliation.", data: [] };
+  }
 
   const { data, error } = await ctx.supabase
     .from("daily_cash_reconciliations")
