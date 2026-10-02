@@ -106,6 +106,37 @@ describe("P1 Cash Session Close & Handover Operational Safety", () => {
       expect(migrationSql).toContain("cs.status = 'open'");
       expect(migrationSql).toContain("CASH_DRAWER_SESSION_REQUIRED");
     });
+
+    it("preserves exact post_expense_atomic parameter contract established in cf7", () => {
+      const cf7Sql = readMigration("20260929120000_cf7_expense_receipt_storage.sql");
+      const p1Sql = readMigration("20261002100000_p1_cash_session_close_handover.sql");
+
+      const extractSignature = (sql: string) => {
+        const match = sql.match(/CREATE OR REPLACE FUNCTION public\.post_expense_atomic\s*\(([\s\S]*?)\)\s*RETURNS JSONB/i);
+        if (!match || !match[1]) throw new Error("Could not find post_expense_atomic in migration");
+        return match[1]
+          .split(",")
+          .map((line) => line.trim().replace(/\s+/g, " "))
+          .filter(Boolean);
+      };
+
+      const cf7Params = extractSignature(cf7Sql);
+      const p1Params = extractSignature(p1Sql);
+
+      expect(p1Params).toEqual(cf7Params);
+      expect(p1Params).toHaveLength(11);
+      expect(p1Params[0]).toBe("p_branch_id UUID");
+      expect(p1Params[1]).toBe("p_idempotency_key TEXT");
+      expect(p1Params[2]).toBe("p_amount NUMERIC");
+      expect(p1Params[3]).toBe("p_category_id UUID");
+      expect(p1Params[4]).toBe("p_financial_account_id UUID");
+      expect(p1Params[5]).toBe("p_payee TEXT");
+      expect(p1Params[6]).toBe("p_description TEXT");
+      expect(p1Params[7]).toBe("p_receipt_reference TEXT DEFAULT NULL");
+      expect(p1Params[8]).toBe("p_business_date DATE DEFAULT NULL");
+      expect(p1Params[9]).toBe("p_notes TEXT DEFAULT NULL");
+      expect(p1Params[10]).toBe("p_receipt_image_path TEXT DEFAULT NULL");
+    });
   });
 
   // =========================================================================

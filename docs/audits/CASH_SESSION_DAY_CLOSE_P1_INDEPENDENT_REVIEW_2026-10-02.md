@@ -342,9 +342,15 @@ All quality gates were executed independently:
 ---
 
 ## 19. CORRECTIONS MADE DURING REVIEW
-- **File:** `supabase/migrations/20261002100000_p1_cash_session_close_handover.sql`
-- **Correction:** Removed trailing whitespace on blank line 840.
-- **Verification:** `git diff --check` now exits cleanly with code 0.
+1. **Migration Function Contract Alignment:**
+   - **File:** `supabase/migrations/20261002100000_p1_cash_session_close_handover.sql`
+   - **Correction:** Restored exact `public.post_expense_atomic` parameter names, ordering, and signature established in `20260929120000_cf7_expense_receipt_storage.sql` (`p_branch_id UUID, p_idempotency_key TEXT, p_amount NUMERIC, p_category_id UUID, p_financial_account_id UUID, p_payee TEXT, p_description TEXT, p_receipt_reference TEXT, p_business_date DATE, p_notes TEXT, p_receipt_image_path TEXT`). This fixes PostgreSQL error `42P13: cannot change name of input parameter "p_branch_id"` while preserving the P1 `CASH_DRAWER_SESSION_REQUIRED` check and restoring table writes to `public.financial_expense_details`.
+2. **Whitespace Cleanup:**
+   - **File:** `supabase/migrations/20261002100000_p1_cash_session_close_handover.sql`
+   - **Correction:** Removed trailing whitespace on blank line.
+3. **Contract Regression Test:**
+   - **File:** `tests/lib/cash-flow/cash-session-close-handover.test.ts`
+   - **Addition:** Added `it("preserves exact post_expense_atomic parameter contract established in cf7")` to prevent future parameter renames or signature drift.
 
 ---
 

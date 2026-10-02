@@ -760,17 +760,17 @@ GRANT EXECUTE ON FUNCTION public.handover_cash_session_atomic(UUID, UUID, NUMERI
 -- ─── 7. EXPENSE POST-CLOSE DRAWER GUARD ────────────────────────────────────────
 
 CREATE OR REPLACE FUNCTION public.post_expense_atomic(
-  p_category_id           UUID,
-  p_description           TEXT,
-  p_amount                NUMERIC,
-  p_financial_account_id  UUID,
-  p_branch_id             UUID,
-  p_payee                 TEXT,
-  p_receipt_reference     TEXT DEFAULT NULL,
-  p_receipt_path          TEXT DEFAULT NULL,
-  p_business_date         DATE DEFAULT NULL,
-  p_notes                 TEXT DEFAULT NULL,
-  p_idempotency_key       TEXT DEFAULT NULL
+  p_branch_id            UUID,
+  p_idempotency_key      TEXT,
+  p_amount               NUMERIC,
+  p_category_id          UUID,
+  p_financial_account_id UUID,
+  p_payee                TEXT,
+  p_description          TEXT,
+  p_receipt_reference    TEXT DEFAULT NULL,
+  p_business_date        DATE DEFAULT NULL,
+  p_notes                TEXT DEFAULT NULL,
+  p_receipt_image_path   TEXT DEFAULT NULL
 )
 RETURNS JSONB
 LANGUAGE plpgsql
@@ -778,38 +778,40 @@ SECURITY DEFINER
 SET search_path = ''
 AS $func$
 DECLARE
-  v_auth_uid            UUID;
-  v_staff               RECORD;
-  v_account             RECORD;
-  v_category            RECORD;
-  v_existing_tx         RECORD;
-  v_tx_id               UUID;
-  v_movement_id         UUID;
-  v_now                 TIMESTAMPTZ := clock_timestamp();
-  v_business_date       DATE;
-  v_amount              NUMERIC(12, 2);
-  v_receipt_path        TEXT;
+  v_auth_uid        UUID;
+  v_staff           RECORD;
+  v_account         RECORD;
+  v_category        RECORD;
+  v_existing_tx     RECORD;
+  v_business_date   DATE;
+  v_now             TIMESTAMPTZ := clock_timestamp();
+  v_transaction_id  UUID;
+  v_movement_id     UUID;
+  v_expense_id      UUID;
+  v_amount          NUMERIC(12,2);
 BEGIN
-  -- 1. Input Sanity
+  -- 1. Input sanity
   IF p_amount IS NULL OR p_amount <= 0 THEN
-    RAISE EXCEPTION 'INVALID_AMOUNT: Expense amount must be positive, got %', p_amount;
+    RAISE EXCEPTION 'INVALID_AMOUNT: Expense amount must be greater than zero';
   END IF;
-  v_amount := p_amount::NUMERIC(12, 2);
+  v_amount := ROUND(p_amount::numeric, 2);
+
+  IF p_category_id IS NULL THEN
+    RAISE EXCEPTION 'CATEGORY_REQUIRED: Expense category is required';
+  END IF;
+
+  IF p_financial_account_id IS NULL THEN
+    RAISE EXCEPTION 'ACCOUNT_REQUIRED: Financial payment account is required';
+  END IF;
 
   IF p_description IS NULL OR TRIM(p_description) = '' THEN
     RAISE EXCEPTION 'DESCRIPTION_REQUIRED: Expense description is required';
   END IF;
 
-  IF p_payee IS NULL OR TRIM(p_payee) = '' THEN
-    RAISE EXCEPTION 'PAYEE_REQUIRED: Expense payee is required';
-  END IF;
-
-  v_receipt_path := NULLIF(TRIM(COALESCE(p_receipt_path, '')), '');
-
-  -- 2. Authenticate
+  -- 2. Actor authentication & authorization
   v_auth_uid := auth.uid();
   IF v_auth_uid IS NULL THEN
-    RAISE EXCEPTION 'AUTH_REQUIRED: Unauthenticated caller cannot post expenses';
+    RAISE EXCEPTION 'AUTH_REQUIRED: Authentication required to post expense';
   ELSE
     SELECT * INTO v_staff FROM public.staff WHERE auth_user_id = v_auth_uid AND is_active = true LIMIT 1;
     IF v_staff IS NULL THEN
@@ -868,7 +870,7 @@ BEGIN
     RAISE EXCEPTION 'ACCOUNT_BRANCH_MISMATCH: Financial account does not belong to branch %', p_branch_id;
   END IF;
 
-  -- 5b. Cash drawer session requirement
+  -- 5b. Cash drawer session requirement (P1 Cash Flow protection)
   IF v_account.account_type = 'cash_drawer'
      AND NOT EXISTS (
        SELECT 1
@@ -908,83 +910,69 @@ BEGIN
     'PHP',
     'posted',
     p_idempotency_key,
-    'operational_expense',
+    NULL,
     NULL,
     p_receipt_reference,
     p_notes
-  ) RETURNING id INTO v_tx_id;
+  ) RETURNING id INTO v_transaction_id;
 
-  -- 8. Insert Outflow Movement
+  -- 8. Insert Negative Account Movement (Outflow = -amount per CF1-D08)
   INSERT INTO public.financial_account_movements (
     transaction_id,
     financial_account_id,
     amount,
-    currency,
-    direction,
-    movement_type,
     payment_method,
     external_reference,
     created_at
   ) VALUES (
-    v_tx_id,
-    p_financial_account_id,
-    -v_amount,
-    'PHP',
-    'outflow',
-    'expense_payout',
-    CASE
-      WHEN v_account.account_type = 'cash_drawer' THEN 'cash'
-      WHEN v_account.account_type = 'bank_account' THEN 'bank_transfer'
-      ELSE 'other'
+    v_transaction_id,
+    v_account.id,
+    -v_amount, -- NEGATIVE SIGNED OUTFLOW
+    CASE v_account.account_type
+      WHEN 'cash_drawer' THEN 'cash'
+      WHEN 'card_terminal' THEN 'card'
+      ELSE v_account.account_type
     END,
     p_receipt_reference,
     v_now
   ) RETURNING id INTO v_movement_id;
 
-  -- 9. Insert Operational Expense Record
-  INSERT INTO public.operational_expenses (
-    branch_id,
+  -- 9. Insert Expense Detail with Receipt Image Path (Persisted to receipt_image_url)
+  INSERT INTO public.financial_expense_details (
     transaction_id,
-    financial_account_id,
     category_id,
-    amount,
-    currency,
-    business_date,
     payee,
     description,
     receipt_reference,
-    receipt_path,
+    receipt_image_url,
+    approval_status,
+    approved_by,
     notes,
-    recorded_by,
-    created_at,
-    updated_at
+    created_at
   ) VALUES (
-    p_branch_id,
-    v_tx_id,
-    p_financial_account_id,
-    p_category_id,
-    v_amount,
-    'PHP',
-    v_business_date,
-    p_payee,
-    p_description,
+    v_transaction_id,
+    v_category.id,
+    COALESCE(TRIM(p_payee), 'Direct Vendor'),
+    TRIM(p_description),
     p_receipt_reference,
-    v_receipt_path,
-    p_notes,
+    p_receipt_image_path,
+    'approved_instant',
     v_staff.id,
-    v_now,
+    p_notes,
     v_now
-  );
+  ) RETURNING id INTO v_expense_id;
 
+  -- 10. Return canonical result
   RETURN jsonb_build_object(
     'success', true,
-    'transactionId', v_tx_id,
+    'transactionId', v_transaction_id,
     'movementId', v_movement_id,
+    'expenseDetailId', v_expense_id,
     'amount', v_amount,
-    'currency', 'PHP',
+    'category', v_category.name,
+    'account', v_account.name,
     'businessDate', v_business_date,
-    'branchId', p_branch_id,
-    'receiptPath', v_receipt_path,
+    'receiptImagePath', p_receipt_image_path,
     'idempotentReplay', false
   );
 END;
