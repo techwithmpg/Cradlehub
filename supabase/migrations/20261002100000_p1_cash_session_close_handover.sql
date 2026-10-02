@@ -837,7 +837,7 @@ BEGIN
   IF p_idempotency_key IS NOT NULL AND TRIM(p_idempotency_key) <> '' THEN
     SELECT * INTO v_existing_tx FROM public.financial_transactions
     WHERE idempotency_key = TRIM(p_idempotency_key);
-    
+
     IF v_existing_tx.id IS NOT NULL THEN
       RETURN jsonb_build_object(
         'success', true,
