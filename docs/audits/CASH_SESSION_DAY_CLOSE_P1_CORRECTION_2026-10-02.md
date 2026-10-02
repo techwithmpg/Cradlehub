@@ -29,8 +29,7 @@
 ---
 
 ## 5. HEAD SHA
-Pre-fix commit: `ffc6321e15e693b2317a94fbecf9ed4ac7a7968e` (`docs(audit): record crm csr operational readiness and owner reconciliation action fix`)  
-Current working HEAD will be recorded upon final commit.
+`7610d84aebd76b57cd8030af9b71ddf6848d4c00` (Fix commit: `fix(cash-flow): complete drawer session close and handover`)
 
 ---
 
