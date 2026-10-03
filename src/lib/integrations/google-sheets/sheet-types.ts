@@ -84,6 +84,7 @@ export interface SheetProjection {
   spreadsheetId: string;
   sheetName: string;
   businessTimezone: "Asia/Manila";
+  sourceRowCount: number;
   visits: SheetVisit[];
   duties: SheetDuty[];
   classifiedRows: ClassifiedSheetRow[];

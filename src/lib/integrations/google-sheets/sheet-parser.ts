@@ -254,7 +254,7 @@ export function parseSheetRows(input: {
   });
 
   return {
-    spreadsheetId, sheetName, businessTimezone: "Asia/Manila", visits, duties,
+    spreadsheetId, sheetName, businessTimezone: "Asia/Manila", sourceRowCount: rows.length, visits, duties,
     classifiedRows, needsReview,
   };
 }
