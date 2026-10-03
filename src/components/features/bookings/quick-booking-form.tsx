@@ -1045,8 +1045,8 @@ export function QuickBookingForm({
           <p className="mt-0.5 text-sm text-[var(--cs-text-secondary)]">{branchName}</p>
         </header>
 
-        <div className="grid min-h-0 flex-1 overflow-y-auto lg:grid-cols-[minmax(0,1fr)_340px] lg:overflow-hidden">
-          <div className="min-h-0 px-4 py-3 sm:px-5 lg:overflow-y-auto">
+        <div className="flex min-h-0 flex-1 flex-col overflow-y-auto lg:grid lg:grid-cols-[minmax(0,1fr)_340px] lg:overflow-hidden">
+          <div className="min-w-0 px-4 py-3 sm:px-5 lg:min-h-0 lg:overflow-y-auto">
             <div className="grid gap-3">
               <div>
                 <FieldLabel icon={<Sparkles size={15} />} label="Booking mode" />
@@ -1535,7 +1535,7 @@ export function QuickBookingForm({
             </div>
           </div>
 
-          <aside className="min-h-0 border-t border-[var(--cs-border-soft)] bg-[var(--cs-surface-warm)] p-4 lg:border-l lg:border-t-0 lg:overflow-y-auto">
+          <aside className="min-w-0 border-t border-[var(--cs-border-soft)] bg-[var(--cs-surface-warm)] p-4 lg:min-h-0 lg:border-l lg:border-t-0 lg:overflow-y-auto">
             <div className="text-xs font-semibold uppercase tracking-wide text-[var(--cs-text-muted)]">
               Summary
             </div>

@@ -26,9 +26,10 @@
  *   supabase/migrations/*
  */
 
+import { cache } from "react";
 import { createClient } from "@/lib/supabase/server";
-import { type SetupIssue } from "./crm-setup";
-import { getCrmTodaySnapshotCached, getCrmSetupHealthCached } from "./workspace-cached";
+import { getCrmSetupHealth, type SetupIssue } from "./crm-setup";
+import { getCrmTodaySnapshot } from "./crm-today";
 import type { CrmAvailabilitySummary } from "./crm-availability";
 import type { DispatchStats } from "./dispatch-queries";
 import { isAttendanceEnforcementEnabled } from "@/lib/config/mvp-flags";
@@ -477,7 +478,12 @@ async function getDailyOperationsReadinessIssues(
   branchId: string,
   today: string
 ): Promise<ReadinessIssue[]> {
-  const dailySchedule = await getDailySchedule({ branchId, date: today });
+  let dailySchedule: DailyScheduleStaffRow[] = [];
+  try {
+    dailySchedule = await getDailySchedule({ branchId, date: today });
+  } catch (err) {
+    console.error("Failed to load daily schedule for operations readiness checks:", err);
+  }
   const [ghostResult, openingResult, pendingResult] = await Promise.allSettled([
     getCheckedInNotScheduledIssue(branchId, today, dailySchedule),
     getNoOpeningShiftIssue(dailySchedule),
@@ -777,8 +783,8 @@ export async function getCrmReadinessIssues(branchId: string): Promise<Readiness
   // a redundant second call to getCrmAvailabilitySnapshot.
   const [setupResult, todayResult, dailyOpsResult, dispatchMissingResult] =
     await Promise.allSettled([
-      getCrmSetupHealthCached(branchId),
-      getCrmTodaySnapshotCached(branchId, today),
+      getCrmSetupHealth(branchId),
+      getCrmTodaySnapshot({ branchId, date: today }),
       getDailyOperationsReadinessIssues(branchId, today),
       getDispatchMissingReadinessIssues(branchId, today),
     ]);
@@ -879,21 +885,15 @@ export async function getCrmReadiness(branchId: string): Promise<ReadinessResult
 
 // ── Cached variant ────────────────────────────────────────────────────────────
 
-import { unstable_cache } from "next/cache";
-import { cacheTags } from "@/lib/cache/cache-tags";
-
 /**
- * Cross-request cached variant of getCrmReadiness.
+ * Request-scoped cached variant of getCrmReadiness using React cache.
  *
- * TTL: 60 seconds — readiness is relatively stable but should reflect
- * recent mutations within a reasonable window.
- *
- * Invalidated via `invalidateTag(cacheTags.crmSetup(branchId))` or
- * `invalidateCrmWorkspace(branchId)`.
+ * Deduplicates multiple readiness evaluations during a single request lifecycle
+ * (e.g. Layout and Today page evaluating readiness in the same render pass)
+ * while preserving request authentication and cookie context.
  */
-export function getCrmReadinessCached(branchId: string): Promise<ReadinessResult> {
-  return unstable_cache(async () => getCrmReadiness(branchId), ["crm-readiness", branchId], {
-    tags: [cacheTags.crmSetup(branchId)],
-    revalidate: 60,
-  })();
-}
+export const getCrmReadinessCached = cache(
+  async (branchId: string): Promise<ReadinessResult> => {
+    return getCrmReadiness(branchId);
+  }
+);

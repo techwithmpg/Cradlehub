@@ -17,6 +17,7 @@ import type { FinancialPaymentMethod } from './financial-contract';
 import { findUnmatchedBookingPayments, isCashFlowReceiptTransactionType } from './payment-evidence';
 import { CashFlowRequiredDataError } from './cash-flow-errors';
 import { validatedLegacyBookingPrice } from './legacy-booking-price';
+import { isBookingClosedForCrm } from '@/lib/bookings/crm-booking-status';
 
 export interface CashFlowQueryFilters {
   tab?: string;
@@ -387,11 +388,13 @@ export async function getCashFlowData(
   const orderSummaryById = new Map<string, OrderSummary>();
   const orderQuoteById = new Map<string, number>();
   const orderItemsById = new Map<string, PayableOrderItemDetail[]>();
+  const orderBookingStatusesById = new Map<string, string[]>();
   if (orderIds.length > 0) {
     const [
       { data: summaries, error: summaryError },
       { data: orders, error: ordersError },
       { data: orderItems, error: itemsError },
+      { data: orderBookings, error: bookingsError },
     ] =
       await Promise.all([
         supabase.from('v_booking_order_financial_summaries')
@@ -401,9 +404,19 @@ export async function getCashFlowData(
         supabase.from('order_payable_items')
           .select('id, order_id, description, amount, charge_type, sequence')
           .in('order_id', orderIds).order('sequence'),
+        supabase.from('bookings')
+          .select('id, order_id, status')
+          .in('order_id', orderIds),
       ]);
-    if (summaryError || ordersError || itemsError) {
+    if (summaryError || ordersError || itemsError || bookingsError) {
       throw new Error('Could not load authoritative order payment summaries.');
+    }
+    for (const b of orderBookings ?? []) {
+      if (b.order_id && b.status) {
+        const list = orderBookingStatusesById.get(b.order_id) ?? [];
+        list.push(b.status);
+        orderBookingStatusesById.set(b.order_id, list);
+      }
     }
     for (const row of (summaries ?? []) as OrderSummary[]) {
       orderSummaryById.set(row.order_id, row);
@@ -827,9 +840,18 @@ export async function getCashFlowData(
   for (const b of todayBookings) {
     if (b.order_id && listedOrders.has(b.order_id)) continue;
     if (b.order_id) listedOrders.add(b.order_id);
+
+    // Exclude closed/ineligible bookings (cancelled, no_show, expired)
+    if (b.order_id) {
+      const childStatuses = orderBookingStatusesById.get(b.order_id) ?? (b.status ? [b.status] : []);
+      const hasPayableBooking = childStatuses.length > 0 && childStatuses.some((st) => !isBookingClosedForCrm(st));
+      if (!hasPayableBooking) continue;
+    } else {
+      if (isBookingClosedForCrm(b.status ?? '')) continue;
+    }
+
     const orderState = b.order_id ? orderPayment(b.order_id) : null;
     if (b.order_id && !orderState) continue;
-    if (!b.order_id && ['cancelled', 'no_show'].includes(b.status ?? '')) continue;
     const legacyTotal = b.order_id ? null : validatedLegacyBookingPrice(b.metadata);
     if (!b.order_id && legacyTotal === null) continue;
     const legacyPaid = Number(b.amount_paid ?? 0);

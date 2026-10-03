@@ -13,6 +13,7 @@ import {
   validateExpenseReceipt,
 } from './expense-receipt';
 import { recordOrderPayment, type RecordOrderPaymentResult } from './payment-writer';
+import { isBookingClosedForCrm } from '@/lib/bookings/crm-booking-status';
 import {
   PostOrderPaymentPayloadSchema,
   PaymentPartPayloadSchema,
@@ -130,7 +131,38 @@ export async function recordOrderPaymentAction(
     };
   }
 
-  // 3. Delegate to canonical CF4 atomic payment writer
+  // 3. Server guard: Verify that the order has at least one active, non-closed booking
+  const { data: orderBookings, error: bookingsErr } = await supabase
+    .from('bookings')
+    .select('id, status')
+    .eq('order_id', parsed.data.orderId);
+
+  if (bookingsErr) {
+    return {
+      ok: false,
+      error: `ORDER_CHECK_FAILED: ${bookingsErr.message}`,
+      code: 'ORDER_CHECK_FAILED',
+    };
+  }
+
+  if (!orderBookings || orderBookings.length === 0) {
+    return {
+      ok: false,
+      error: 'ORDER_NOT_PAYABLE: No bookings found associated with this order.',
+      code: 'ORDER_NOT_PAYABLE',
+    };
+  }
+
+  const hasPayableBooking = orderBookings.some((b) => !isBookingClosedForCrm(b.status ?? ''));
+  if (!hasPayableBooking) {
+    return {
+      ok: false,
+      error: 'ORDER_NOT_PAYABLE: All bookings for this order are closed (cancelled, expired, or no-show). Cannot record payment.',
+      code: 'ORDER_NOT_PAYABLE',
+    };
+  }
+
+  // 4. Delegate to canonical CF4 atomic payment writer
   const result = await recordOrderPayment(supabase, parsed.data);
 
   if (result.ok) {
@@ -184,8 +216,8 @@ export async function recordLegacyBookingPaymentAction(
   if (booking.branch_id !== payload.branchId) {
     return { ok: false, error: 'BRANCH_MISMATCH: Booking belongs to another branch.', code: 'BRANCH_MISMATCH' };
   }
-  if (booking.status === 'cancelled' || booking.status === 'no_show') {
-    return { ok: false, error: 'BOOKING_NOT_PAYABLE: This booking cannot receive payment.', code: 'BOOKING_NOT_PAYABLE' };
+  if (isBookingClosedForCrm(booking.status ?? '')) {
+    return { ok: false, error: 'BOOKING_NOT_PAYABLE: This booking is closed and cannot receive payment.', code: 'BOOKING_NOT_PAYABLE' };
   }
 
   const total = validatedLegacyBookingPrice(booking.metadata as Record<string, unknown> | null);

@@ -137,8 +137,18 @@ export async function getCrmSetupHealth(branchId: string): Promise<CrmSetupHealt
 
   const serviceStaffTypes = SERVICE_STAFF_TYPES as readonly string[];
 
+  // Fetch service staff IDs once to avoid redundant query and prevent PostgREST .in("staff_id", []) error
+  const { data: serviceStaffData } = await supabase
+    .from("staff")
+    .select("id")
+    .eq("branch_id", branchId)
+    .eq("is_active", true)
+    .in("staff_type", serviceStaffTypes);
+
+  const serviceStaffIds = serviceStaffData?.map((s) => s.id) ?? [];
+  const serviceStaffTotal = serviceStaffIds.length;
+
   const [
-    staffResult,
     scheduledStaffResult,
     assignableServices,
     providerReadiness,
@@ -147,33 +157,15 @@ export async function getCrmSetupHealth(branchId: string): Promise<CrmSetupHealt
     driversResult,
     unassignedResult,
   ] = await Promise.all([
-    // Total service-providing staff at branch
-    supabase
-      .from("staff")
-      .select("id", { count: "exact", head: true })
-      .eq("branch_id", branchId)
-      .eq("is_active", true)
-      .in("staff_type", serviceStaffTypes),
-
-    // Service staff with at least one individual schedule row
-    supabase
-      .from("staff_schedules")
-      .select("staff_id")
-      .eq("is_active", true)
-      .eq("day_of_week", dayOfWeek)
-      .in(
-        "staff_id",
-        // Subquery not supported in JS client — we'll handle this by fetching all branch service staff IDs separately
-        // For now: select all scheduled staff IDs and cross-reference below
-        (
-          await supabase
-            .from("staff")
-            .select("id")
-            .eq("branch_id", branchId)
-            .eq("is_active", true)
-            .in("staff_type", serviceStaffTypes)
-        ).data?.map((s) => s.id) ?? []
-      ),
+    // Service staff with at least one individual schedule row (guarded against empty staff array)
+    serviceStaffIds.length > 0
+      ? supabase
+          .from("staff_schedules")
+          .select("staff_id")
+          .eq("is_active", true)
+          .eq("day_of_week", dayOfWeek)
+          .in("staff_id", serviceStaffIds)
+      : Promise.resolve({ data: [] as { staff_id: string }[], error: null }),
 
     getBranchAssignableServices(branchId, { useAdminClient: true }),
     getBranchProviderReadiness(branchId),
@@ -205,8 +197,6 @@ export async function getCrmSetupHealth(branchId: string): Promise<CrmSetupHealt
       .eq("status", "confirmed")
       .is("staff_id", null),
   ]);
-
-  const serviceStaffTotal = staffResult.count ?? 0;
 
   // De-duplicate staff IDs from the schedule results
   const scheduledStaffIds = new Set((scheduledStaffResult.data ?? []).map((r) => r.staff_id));

@@ -51,6 +51,7 @@ import {
   recordTipAction,
   recordOtherEntryAction,
 } from '@/lib/cash-flow/cash-flow-actions';
+import { isBookingClosedForCrm } from '@/lib/bookings/crm-booking-status';
 
 export type FinancialEntryMode = 'customer_payment' | 'expense' | 'tip' | 'other_entry';
 
@@ -149,23 +150,33 @@ function RecordFinancialEntryForm({
 }: RecordFinancialEntryFormProps) {
   const [activeMode, setActiveMode] = useState<FinancialEntryMode>(initialMode || 'customer_payment');
 
-  // Find initially selected order
+  // Filter out any closed/cancelled bookings from eligible payable options
+  const eligiblePayableOrders = useMemo(() => {
+    return payableOrders.filter(
+      (o) => !o.bookingStatus || !isBookingClosedForCrm(o.bookingStatus.toLowerCase())
+    );
+  }, [payableOrders]);
+
+  // Find initially selected order among eligible orders
   const initialOrder =
-    payableOrders.find((o) => o.id === initialOrderId) ||
-    (payableOrders.length === 1 ? payableOrders[0] : undefined);
+    eligiblePayableOrders.find((o) => o.id === initialOrderId) ||
+    (eligiblePayableOrders.length === 1 ? eligiblePayableOrders[0] : undefined);
 
   const [selectedOrderId, setSelectedOrderId] = useState<string>(initialOrder?.id || '');
   const [searchQuery, setSearchQuery] = useState('');
-  const [isDropdownOpen, setIsDropdownOpen] = useState(payableOrders.length > 1 && initialMode !== 'expense');
+  const [isDropdownOpen, setIsDropdownOpen] = useState(eligiblePayableOrders.length > 1 && initialMode !== 'expense');
 
   const selectedOrder = payableOrders.find((o) => o.id === selectedOrderId);
+  const isSelectedOrderClosed = Boolean(
+    selectedOrder?.bookingStatus && isBookingClosedForCrm(selectedOrder.bookingStatus.toLowerCase())
+  );
 
   // Filtered orders for selector
   const filteredOrders = useMemo(() => {
-    if (!searchQuery.trim()) return payableOrders;
+    if (!searchQuery.trim()) return eligiblePayableOrders;
     const q = searchQuery.toLowerCase().trim();
     const digits = q.replace(/\D/g, '');
-    return payableOrders.filter(
+    return eligiblePayableOrders.filter(
       (o) =>
         o.orderNumber.toLowerCase().includes(q) ||
         o.customerName.toLowerCase().includes(q) ||
@@ -174,7 +185,7 @@ function RecordFinancialEntryForm({
           (digits && o.customerPhone.replace(/\D/g, '').includes(digits))
         ))
     );
-  }, [payableOrders, searchQuery]);
+  }, [eligiblePayableOrders, searchQuery]);
 
   // Default compatible cash account
   const defaultAccount = accounts.find((a) =>
@@ -511,6 +522,11 @@ function RecordFinancialEntryForm({
   const handleSubmit = async () => {
     if (!selectedOrder) {
       setErrorMessage('Please select a booking or order to record payment.');
+      return;
+    }
+
+    if (isSelectedOrderClosed) {
+      setErrorMessage('Cannot record payment for a cancelled or closed booking.');
       return;
     }
 
@@ -2290,8 +2306,18 @@ function RecordFinancialEntryForm({
                 </div>
               )}
 
+              {/* Closed / Cancelled Booking Warning */}
+              {isSelectedOrderClosed && (
+                <div className="p-3.5 rounded-xl bg-rose-50 border border-rose-200 text-rose-800 text-xs flex items-center gap-2">
+                  <AlertCircle className="w-4 h-4 flex-shrink-0 text-rose-600" />
+                  <span className="font-semibold">
+                    This booking is cancelled or closed and cannot receive payment.
+                  </span>
+                </div>
+              )}
+
               {/* 3. Payment Method(s) */}
-              {!isOrderFullyPaid && (
+              {!isOrderFullyPaid && !isSelectedOrderClosed && (
                 <div className="space-y-2">
                   <h3 className="text-xs font-bold uppercase tracking-wider text-[#1E1916]">
                     3. Payment Method(s)
@@ -2567,6 +2593,7 @@ function RecordFinancialEntryForm({
               onClick={handleSubmit}
               disabled={
                 isSubmitting ||
+                isSelectedOrderClosed ||
                 isOrderFullyPaid ||
                 !selectedOrder ||
                 totalPayment <= 0 ||

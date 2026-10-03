@@ -191,7 +191,7 @@ export function AdministrativeBookingModalProvider({
         size="xl"
         placement="center"
         ariaLabel="New booking"
-        className="h-[100dvh] max-h-[100dvh] rounded-none border-0 bg-[var(--cs-surface)] sm:h-[min(94dvh,900px)] sm:max-h-[min(94dvh,900px)] sm:w-[min(1180px,calc(100vw-32px))] sm:max-w-[min(1180px,calc(100vw-32px))] sm:rounded-2xl sm:border"
+        className="top-0 left-0 h-[100dvh] max-h-[100dvh] w-full max-w-full translate-x-0 translate-y-0 rounded-none border-0 bg-[var(--cs-surface)] sm:top-1/2 sm:left-1/2 sm:-translate-x-1/2 sm:-translate-y-1/2 sm:h-[min(94dvh,900px)] sm:max-h-[min(94dvh,900px)] sm:w-[min(1180px,calc(100vw-32px))] sm:max-w-[min(1180px,calc(100vw-32px))] sm:rounded-2xl sm:border"
       >
         <AdminOverlayBody padded={false} className="overflow-hidden bg-[var(--cs-bg)]">
           {loadingCustomer ? (
