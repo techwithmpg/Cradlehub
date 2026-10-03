@@ -138,12 +138,16 @@ export async function getCrmSetupHealth(branchId: string): Promise<CrmSetupHealt
   const serviceStaffTypes = SERVICE_STAFF_TYPES as readonly string[];
 
   // Fetch service staff IDs once to avoid redundant query and prevent PostgREST .in("staff_id", []) error
-  const { data: serviceStaffData } = await supabase
+  const { data: serviceStaffData, error: serviceStaffError } = await supabase
     .from("staff")
     .select("id")
     .eq("branch_id", branchId)
     .eq("is_active", true)
     .in("staff_type", serviceStaffTypes);
+
+  if (serviceStaffError) {
+    throw new Error("Could not load active service staff for setup readiness.");
+  }
 
   const serviceStaffIds = serviceStaffData?.map((s) => s.id) ?? [];
   const serviceStaffTotal = serviceStaffIds.length;
@@ -197,6 +201,10 @@ export async function getCrmSetupHealth(branchId: string): Promise<CrmSetupHealt
       .eq("status", "confirmed")
       .is("staff_id", null),
   ]);
+
+  if (scheduledStaffResult.error) {
+    throw new Error("Could not load service staff schedules for setup readiness.");
+  }
 
   // De-duplicate staff IDs from the schedule results
   const scheduledStaffIds = new Set((scheduledStaffResult.data ?? []).map((r) => r.staff_id));

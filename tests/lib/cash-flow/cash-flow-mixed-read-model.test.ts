@@ -38,6 +38,64 @@ function mockTables(tables: Record<string, Array<Record<string, unknown>>>, fail
 }
 
 describe('Cash Flow mixed canonical and booking snapshots', () => {
+  it.each([
+    ['confirmed', 'cancelled'],
+    ['cancelled', 'confirmed'],
+    ['confirmed', 'expired'],
+    ['expired', 'confirmed'],
+  ])('keeps mixed-order eligibility and collectible amount stable for %s + %s', async (first, second) => {
+    const booking = (id: string, status: string) => ({
+      id, branch_id: 'branch-a', booking_date: '2026-09-29', start_time: '10:00:00',
+      type: 'walkin', delivery_type: 'in_spa', status, payment_status: 'unpaid',
+      amount_paid: 0, metadata: { price_paid: status === 'confirmed' ? 1000 : 800 },
+      order_id: 'order-a', customers: { full_name: 'Order Customer', phone: null },
+      services: { name: 'Massage', duration_minutes: 60 },
+    });
+    mockTables({
+      financial_accounts: [], financial_expense_categories: [], staff: [], cash_sessions: [],
+      financial_transactions: [],
+      bookings: [booking('first', first), booking('second', second)],
+      v_booking_order_financial_summaries: [{
+        order_id: 'order-a', total_payable: 0, net_allocated: 0,
+        remaining_balance: 0, payment_state: 'paid',
+      }],
+      booking_orders: [{ id: 'order-a', metadata: { total_amount: 1800 } }],
+      order_payable_items: [],
+    });
+
+    const data = await getCashFlowData('branch-a', 'Main Spa', '2026-09-29');
+    expect(data.payableOrders).toHaveLength(1);
+    expect(data.payableOrders[0]).toMatchObject({
+      id: 'order-a', paymentEligible: true, totalAmount: 1000,
+      remainingBalance: 1000, bookingStatus: 'Mixed services',
+    });
+  });
+
+  it.each(['cancelled', 'no_show', 'expired'])(
+    'does not offer an all-%s order for payment', async (status) => {
+      mockTables({
+        financial_accounts: [], financial_expense_categories: [], staff: [], cash_sessions: [],
+        financial_transactions: [],
+        bookings: [{
+          id: 'closed-line', branch_id: 'branch-a', booking_date: '2026-09-29',
+          start_time: '10:00:00', type: 'walkin', delivery_type: 'in_spa', status,
+          payment_status: 'unpaid', amount_paid: 0, metadata: { price_paid: 800 },
+          order_id: 'order-a', customers: { full_name: 'Order Customer', phone: null },
+          services: { name: 'Massage', duration_minutes: 60 },
+        }],
+        v_booking_order_financial_summaries: [{
+          order_id: 'order-a', total_payable: 0, net_allocated: 0,
+          remaining_balance: 0, payment_state: 'paid',
+        }],
+        booking_orders: [{ id: 'order-a', metadata: { total_amount: 800 } }],
+        order_payable_items: [],
+      });
+
+      const data = await getCashFlowData('branch-a', 'Main Spa', '2026-09-29');
+      expect(data.payableOrders).toEqual([]);
+    }
+  );
+
   it('lists payable legacy bookings individually and groups order siblings once', async () => {
     const booking = (id: string, status: string, paymentStatus: string, price: unknown, paid: number, orderId: string | null = null) => ({
       id, branch_id: 'branch-a', booking_date: '2026-09-29', start_time: '10:00:00',

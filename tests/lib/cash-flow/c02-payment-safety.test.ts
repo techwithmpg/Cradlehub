@@ -118,7 +118,11 @@ describe("C-02: Payment Safety & Closed Booking Protection", () => {
       expect(mocks.recordOrderPayment).not.toHaveBeenCalled();
     });
 
-    it("allows payment when at least one child booking for an order is active/confirmed", async () => {
+    it.each([
+      ["cancelled", "confirmed"],
+      ["expired", "confirmed"],
+      ["confirmed", "expired"],
+    ])("allows payment when at least one child booking for an order is active/confirmed (%s + %s)", async (firstStatus, secondStatus) => {
       mocks.createClient.mockResolvedValue({
         auth: {
           getUser: async () => ({ data: { user: { id: "user-1" } } }),
@@ -128,8 +132,8 @@ describe("C-02: Payment Safety & Closed Booking Protection", () => {
             select: () => q,
             eq: async () => ({
               data: [
-                { id: "b1", status: "cancelled" },
-                { id: "b2", status: "confirmed" },
+                { id: "b1", status: firstStatus },
+                { id: "b2", status: secondStatus },
               ],
               error: null,
             }),

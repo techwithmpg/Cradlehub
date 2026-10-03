@@ -150,10 +150,12 @@ function RecordFinancialEntryForm({
 }: RecordFinancialEntryFormProps) {
   const [activeMode, setActiveMode] = useState<FinancialEntryMode>(initialMode || 'customer_payment');
 
-  // Filter out any closed/cancelled bookings from eligible payable options
+  // Orders carry eligibility from their complete child set; legacy bookings use their own status.
   const eligiblePayableOrders = useMemo(() => {
     return payableOrders.filter(
-      (o) => !o.bookingStatus || !isBookingClosedForCrm(o.bookingStatus.toLowerCase())
+      (o) => o.sourceKind === 'booking_order'
+        ? o.paymentEligible !== false
+        : (!o.bookingStatus || !isBookingClosedForCrm(o.bookingStatus.toLowerCase()))
     );
   }, [payableOrders]);
 
@@ -166,9 +168,10 @@ function RecordFinancialEntryForm({
   const [searchQuery, setSearchQuery] = useState('');
   const [isDropdownOpen, setIsDropdownOpen] = useState(eligiblePayableOrders.length > 1 && initialMode !== 'expense');
 
-  const selectedOrder = payableOrders.find((o) => o.id === selectedOrderId);
+  const selectedOrder = eligiblePayableOrders.find((o) => o.id === selectedOrderId);
   const isSelectedOrderClosed = Boolean(
-    selectedOrder?.bookingStatus && isBookingClosedForCrm(selectedOrder.bookingStatus.toLowerCase())
+    selectedOrder?.sourceKind === 'legacy_booking' && selectedOrder.bookingStatus &&
+    isBookingClosedForCrm(selectedOrder.bookingStatus.toLowerCase())
   );
 
   // Filtered orders for selector

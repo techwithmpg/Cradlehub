@@ -470,27 +470,38 @@ async function getPendingBookingFollowUpIssue(
 /**
  * getDailyOperationsReadinessIssues
  *
- * Runs the three daily operations checks in parallel.
- * Individual check failures are silently suppressed (the overall aggregator
- * still succeeds with partial results from the remaining checks).
+ * Runs the daily operations checks while preserving source failures as issues.
+ * Booking follow-up does not depend on the schedule and can still run when
+ * the schedule source is unavailable.
  */
 async function getDailyOperationsReadinessIssues(
   branchId: string,
   today: string
 ): Promise<ReadinessIssue[]> {
-  let dailySchedule: DailyScheduleStaffRow[] = [];
+  let dailySchedule: DailyScheduleStaffRow[] | null = null;
+  const issues: ReadinessIssue[] = [];
   try {
     dailySchedule = await getDailySchedule({ branchId, date: today });
   } catch (err) {
     console.error("Failed to load daily schedule for operations readiness checks:", err);
+    issues.push(createSourceFailureIssue({
+      sourceKey: "daily-schedule",
+      title: "Daily schedule readiness could not be checked",
+      problem: "The daily schedule could not be loaded. Staff check-in and opening-shift checks are unavailable.",
+      actionHref: "/crm/schedule",
+      actionLabel: "Open Schedule",
+    }));
   }
   const [ghostResult, openingResult, pendingResult] = await Promise.allSettled([
-    getCheckedInNotScheduledIssue(branchId, today, dailySchedule),
-    getNoOpeningShiftIssue(dailySchedule),
+    dailySchedule !== null
+      ? getCheckedInNotScheduledIssue(branchId, today, dailySchedule)
+      : Promise.resolve(null),
+    dailySchedule !== null
+      ? getNoOpeningShiftIssue(dailySchedule)
+      : Promise.resolve(null),
     getPendingBookingFollowUpIssue(branchId, today),
   ]);
 
-  const issues: ReadinessIssue[] = [];
   if (ghostResult.status === "fulfilled" && ghostResult.value !== null) {
     issues.push(ghostResult.value);
   }

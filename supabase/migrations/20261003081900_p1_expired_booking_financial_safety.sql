@@ -1,0 +1,1221 @@
+-- P1 Core CRM correction pass 2: expired booking financial safety.
+-- Forward migration from accepted P1-A definitions. Historical migrations stay unchanged.
+-- Expired is a closed CRM booking status alongside cancelled and no_show.
+-- Preserve received money, append-only payable adjustments, authorization,
+-- idempotency, cash drawer checks, split tenders, and order-level allocations.
+-- Do not apply to an unclassified or production database without a separate gate.
+BEGIN;
+-- Forward definition: reconcile_closed_booking_service_charge
+CREATE OR REPLACE FUNCTION public.reconcile_closed_booking_service_charge(
+    p_booking_id UUID,
+    p_actor_staff_id UUID DEFAULT NULL
+)
+RETURNS NUMERIC
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = ''
+AS $p1a$
+DECLARE
+    v_booking             RECORD;
+    v_service_payable     RECORD;
+    v_total_payable       NUMERIC(12,2);
+    v_total_allocated     NUMERIC(12,2);
+    v_order_remaining     NUMERIC(12,2);
+    v_existing_adjustment NUMERIC(12,2);
+    v_target_waiver       NUMERIC(12,2);
+    v_delta_adjustment    NUMERIC(12,2);
+BEGIN
+    SELECT
+        b.id,
+        b.order_id,
+        b.status
+    INTO v_booking
+    FROM public.bookings b
+    WHERE b.id = p_booking_id
+    FOR UPDATE;
+
+    IF NOT FOUND THEN
+        RAISE EXCEPTION
+            'BOOKING_NOT_FOUND: Booking % does not exist',
+            p_booking_id;
+    END IF;
+
+    -- Legacy/non-order bookings remain outside the order-payable contract.
+    IF v_booking.order_id IS NULL THEN
+        RETURN 0;
+    END IF;
+
+    IF v_booking.status NOT IN ('cancelled', 'no_show', 'expired') THEN
+        RETURN 0;
+    END IF;
+
+    -- Serialize financial reconciliation with the order payment writer.
+    PERFORM 1
+    FROM public.booking_orders bo
+    WHERE bo.id = v_booking.order_id
+    FOR UPDATE;
+
+    SELECT
+        opi.id,
+        opi.amount,
+        opi.currency,
+        opi.sequence
+    INTO v_service_payable
+    FROM public.order_payable_items opi
+    WHERE opi.order_id = v_booking.order_id
+      AND opi.booking_id = v_booking.id
+      AND opi.charge_type = 'service'
+      AND opi.amount > 0
+    ORDER BY opi.sequence NULLS LAST, opi.created_at, opi.id
+    LIMIT 1;
+
+    -- A closed line with no materialized service payable has nothing to waive.
+    -- The payment writer must independently refuse to materialize it later.
+    IF NOT FOUND THEN
+        RETURN 0;
+    END IF;
+
+    SELECT COALESCE(SUM(opi.amount), 0)
+    INTO v_total_payable
+    FROM public.order_payable_items opi
+    WHERE opi.order_id = v_booking.order_id;
+
+    SELECT COALESCE(SUM(foa.amount), 0)
+    INTO v_total_allocated
+    FROM public.financial_order_allocations foa
+    WHERE foa.order_id = v_booking.order_id;
+
+    v_order_remaining :=
+        GREATEST(v_total_payable - v_total_allocated, 0);
+
+    SELECT COALESCE(SUM(opi.amount), 0)
+    INTO v_existing_adjustment
+    FROM public.order_payable_items opi
+    WHERE opi.order_id = v_booking.order_id
+      AND opi.source_type = 'closed_service_adjustment'
+      AND opi.source_id = v_service_payable.id
+      AND opi.charge_type = 'manual_adjustment';
+
+    -- Existing adjustment is negative.
+    -- Determine the maximum additional waiver still required.
+    v_target_waiver :=
+        LEAST(
+            GREATEST(v_service_payable.amount + v_existing_adjustment, 0),
+            v_order_remaining
+        );
+
+    IF v_target_waiver <= 0 THEN
+        RETURN 0;
+    END IF;
+
+    v_delta_adjustment := -v_target_waiver;
+
+    INSERT INTO public.order_payable_items (
+        order_id,
+        booking_id,
+        charge_type,
+        description,
+        amount,
+        currency,
+        sequence,
+        source_type,
+        source_id,
+        created_by
+    )
+    VALUES (
+        v_booking.order_id,
+        v_booking.id,
+        'manual_adjustment',
+        CASE
+            WHEN v_booking.status = 'no_show'
+                THEN 'No-show service charge waiver'
+            WHEN v_booking.status = 'expired'
+                THEN 'Expired service charge waiver'
+            ELSE 'Cancelled service charge waiver'
+        END,
+        v_delta_adjustment,
+        v_service_payable.currency,
+        COALESCE(
+            (
+                SELECT MAX(opi.sequence)
+                FROM public.order_payable_items opi
+                WHERE opi.order_id = v_booking.order_id
+            ),
+            0
+        ) + 1,
+        'closed_service_adjustment',
+        v_service_payable.id,
+        p_actor_staff_id
+    )
+;
+    RETURN v_target_waiver;
+END;
+$p1a$;
+
+-- Forward definition: p1a_reconcile_booking_on_close
+CREATE OR REPLACE FUNCTION public.p1a_reconcile_booking_on_close()
+RETURNS TRIGGER
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = ''
+AS $trigger$
+DECLARE
+    v_staff_id UUID;
+BEGIN
+    IF NEW.status IN ('cancelled', 'no_show', 'expired')
+       AND OLD.status IS DISTINCT FROM NEW.status
+       AND NEW.order_id IS NOT NULL THEN
+
+        SELECT s.id
+        INTO v_staff_id
+        FROM public.staff s
+        WHERE s.auth_user_id = auth.uid()
+          AND s.is_active
+        LIMIT 1;
+
+        PERFORM public.reconcile_closed_booking_service_charge(
+            NEW.id,
+            v_staff_id
+        );
+    END IF;
+
+    RETURN NEW;
+END;
+$trigger$;
+
+-- Forward definition: p1a_reject_closed_service_payable
+CREATE OR REPLACE FUNCTION public.p1a_reject_closed_service_payable()
+RETURNS TRIGGER
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = ''
+AS $guard$
+DECLARE
+    v_status TEXT;
+BEGIN
+    IF NEW.charge_type = 'service'
+       AND NEW.booking_id IS NOT NULL
+       AND NEW.amount > 0 THEN
+
+        SELECT b.status
+        INTO v_status
+        FROM public.bookings b
+        WHERE b.id = NEW.booking_id;
+
+        IF v_status IN ('cancelled', 'no_show', 'expired') THEN
+            RAISE EXCEPTION
+                'CLOSED_BOOKING_SERVICE_NOT_COLLECTIBLE: Booking % is %',
+                NEW.booking_id,
+                v_status;
+        END IF;
+    END IF;
+
+    RETURN NEW;
+END;
+$guard$;
+
+-- Forward definition: post_order_payment_atomic
+CREATE OR REPLACE FUNCTION public.post_order_payment_atomic(
+  p_order_id             UUID,
+  p_idempotency_key      TEXT,
+  p_payments             JSONB,
+  p_allocations          JSONB DEFAULT NULL,
+  p_business_date        DATE DEFAULT NULL,
+  p_external_reference   TEXT DEFAULT NULL,
+  p_notes                TEXT DEFAULT NULL
+)
+RETURNS JSONB
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = ''
+AS $func$
+DECLARE
+  v_auth_uid            UUID;
+  v_staff               RECORD;
+  v_order               RECORD;
+  v_existing_tx         RECORD;
+  v_existing_total      NUMERIC(12,2);
+  v_existing_parts      JSONB;
+  v_requested_parts     JSONB;
+  v_total_payable       NUMERIC(12,2);
+  v_net_allocated       NUMERIC(12,2);
+  v_remaining_balance   NUMERIC(12,2);
+  v_total_payment       NUMERIC(12,2) := 0.00;
+  v_business_date       DATE;
+  v_now                 TIMESTAMPTZ := clock_timestamp();
+  v_transaction_id      UUID;
+
+  -- Iteration variables
+  v_part                JSONB;
+  v_part_amount         NUMERIC(12,2);
+  v_part_method         TEXT;
+  v_part_account_id     UUID;
+  v_part_ext_ref        TEXT;
+  v_account             RECORD;
+  v_movement_id         UUID;
+  v_alloc_item          JSONB;
+  v_alloc_amount        NUMERIC(12,2);
+  v_alloc_item_id       UUID;
+  v_alloc_sum           NUMERIC(12,2) := 0.00;
+  v_payable_item        RECORD;
+
+  -- Tracking arrays for movements and allocations
+  v_movements_json      JSONB := '[]'::jsonb;
+  v_allocations_json    JSONB := '[]'::jsonb;
+  v_movement_ids        UUID[] := ARRAY[]::UUID[];
+  v_movement_amounts    NUMERIC(12,2)[] := ARRAY[]::NUMERIC(12,2)[];
+  v_movement_rem        NUMERIC(12,2)[] := ARRAY[]::NUMERIC(12,2)[];
+  v_mov_idx             INT;
+  v_alloc_take          NUMERIC(12,2);
+  v_new_net_allocated   NUMERIC(12,2);
+  v_new_remaining       NUMERIC(12,2);
+  v_new_state           TEXT;
+  v_mirror_booking_id   UUID;
+  v_mirror_method       TEXT;
+  v_mirror_method_count INT;
+  v_cash_session_id UUID;
+BEGIN
+  -- 1. Input sanity validation
+  IF p_order_id IS NULL THEN
+    RAISE EXCEPTION 'ORDER_ID_REQUIRED: Booking order ID is required';
+  END IF;
+
+  IF p_idempotency_key IS NULL OR trim(p_idempotency_key) = '' THEN
+    RAISE EXCEPTION 'IDEMPOTENCY_KEY_REQUIRED: Idempotency key is required';
+  END IF;
+
+  IF p_payments IS NULL OR jsonb_typeof(p_payments) <> 'array' OR jsonb_array_length(p_payments) = 0 THEN
+    RAISE EXCEPTION 'PAYMENTS_REQUIRED: At least one payment part is required';
+  END IF;
+
+  -- 2. Concurrency serialization: Acquire advisory transaction lock for idempotency key
+  PERFORM pg_advisory_xact_lock(hashtext('idem_cf4_' || p_idempotency_key));
+
+  -- 3. Row lock on booking order
+  SELECT id, branch_id, organizer_customer_id, booking_date, metadata, currency
+  INTO v_order
+  FROM public.booking_orders
+  WHERE id = p_order_id
+  FOR UPDATE;
+
+  IF NOT FOUND THEN
+    RAISE EXCEPTION 'ORDER_NOT_FOUND: Booking order % does not exist', p_order_id;
+  END IF;
+  -- 4. Authenticated identity & staff resolution
+  v_auth_uid := auth.uid();
+  IF v_auth_uid IS NULL THEN
+    RAISE EXCEPTION 'AUTH_REQUIRED: Unauthenticated caller cannot post payments';
+  END IF;
+
+  SELECT s.id, s.branch_id, s.system_role, s.is_active
+  INTO v_staff
+  FROM public.staff s
+  WHERE s.auth_user_id = v_auth_uid;
+
+  IF NOT FOUND THEN
+    RAISE EXCEPTION 'STAFF_NOT_FOUND: Active staff record not found for authenticated user %', v_auth_uid;
+  END IF;
+
+  IF NOT v_staff.is_active THEN
+    RAISE EXCEPTION 'STAFF_INACTIVE: Staff member % is inactive', v_staff.id;
+  END IF;
+
+  -- 5. Branch permission verification
+  IF v_staff.system_role NOT IN ('owner', 'manager', 'assistant_manager', 'store_manager', 'crm') THEN
+    RAISE EXCEPTION 'PAYMENT_ROLE_UNAUTHORIZED: Caller cannot record order payments';
+  END IF;
+  IF v_staff.system_role <> 'owner' AND v_staff.branch_id <> v_order.branch_id THEN
+    RAISE EXCEPTION 'BRANCH_UNAUTHORIZED: Staff % (branch %) unauthorized for order in branch %',
+      v_staff.id, v_staff.branch_id, v_order.branch_id;
+  END IF;
+  IF v_order.currency IS DISTINCT FROM 'PHP' THEN
+    RAISE EXCEPTION 'UNSUPPORTED_ORDER_CURRENCY: Cash Flow currently supports PHP orders only';
+  END IF;
+
+  -- Build forward payable evidence only when an explicit payment is posted.
+  -- This does not convert or replay any historical payment snapshot.
+  IF NOT EXISTS (SELECT 1 FROM public.order_payable_items WHERE order_id = p_order_id) THEN
+    IF EXISTS (
+      SELECT 1 FROM public.bookings b WHERE b.order_id = p_order_id
+        AND b.status NOT IN ('cancelled', 'no_show', 'expired')
+        AND COALESCE((b.metadata->>'price_paid') ~ '^[0-9]+([.][0-9]{1,2})?$', FALSE) = FALSE
+    ) THEN
+      RAISE EXCEPTION 'BOOKING_PRICE_SNAPSHOT_REQUIRED: Cannot derive order payable safely';
+    END IF;
+    IF v_order.metadata ? 'home_service_fee'
+       AND COALESCE((v_order.metadata->>'home_service_fee') ~ '^[0-9]+([.][0-9]{1,2})?$', FALSE) = FALSE THEN
+      RAISE EXCEPTION 'ORDER_FEE_SNAPSHOT_INVALID: Cannot derive Home Service fee safely';
+    END IF;
+    INSERT INTO public.order_payable_items (
+      order_id, booking_id, charge_type, description, amount,
+      currency, sequence, source_type, source_id, created_by
+    )
+    SELECT p_order_id, b.id, 'service', 'Booking ' || left(b.id::text, 8),
+           (b.metadata->>'price_paid')::numeric, 'PHP', row_number() OVER (ORDER BY b.id),
+           'booking', b.id, v_staff.id
+    FROM public.bookings b
+    WHERE b.order_id = p_order_id
+      AND b.status NOT IN ('cancelled', 'no_show', 'expired')
+      AND (b.metadata->>'price_paid') ~ '^[0-9]+([.][0-9]{1,2})?$'
+      AND (b.metadata->>'price_paid')::numeric > 0;
+    IF (v_order.metadata->>'home_service_fee') ~ '^[0-9]+([.][0-9]{1,2})?$'
+       AND (v_order.metadata->>'home_service_fee')::numeric > 0 THEN
+      INSERT INTO public.order_payable_items (
+        order_id, booking_id, charge_type, description, amount,
+        currency, sequence, source_type, created_by
+      ) VALUES (
+        p_order_id, NULL, 'home_service_fee', 'Home Service travel',
+        (v_order.metadata->>'home_service_fee')::numeric, 'PHP',
+        (SELECT COALESCE(MAX(sequence), 0) + 1 FROM public.order_payable_items WHERE order_id = p_order_id),
+        'booking_order', v_staff.id
+      );
+    END IF;
+    IF NOT EXISTS (
+         SELECT 1
+         FROM public.bookings b
+         WHERE b.order_id = p_order_id
+           AND b.status IN ('cancelled', 'no_show', 'expired')
+       )
+       AND (v_order.metadata->>'total_amount') ~ '^[0-9]+([.][0-9]{1,2})?$'
+       AND (SELECT COALESCE(SUM(amount), 0)
+            FROM public.order_payable_items
+            WHERE order_id = p_order_id)
+           <> (v_order.metadata->>'total_amount')::numeric THEN
+      RAISE EXCEPTION 'ORDER_PAYABLE_SNAPSHOT_MISMATCH: Order charge snapshot needs review';
+    END IF;
+  END IF;
+  -- 6. Validate payment parts & rails
+  FOR v_part IN SELECT * FROM jsonb_array_elements(p_payments)
+  LOOP
+    IF (v_part->>'amount') IS NULL THEN
+      RAISE EXCEPTION 'INVALID_PAYMENT_AMOUNT: Payment part missing amount';
+    END IF;
+
+    IF (v_part->>'amount')::numeric <> round((v_part->>'amount')::numeric, 2) THEN
+      RAISE EXCEPTION 'INVALID_PAYMENT_AMOUNT: Payment parts require cent precision';
+    END IF;
+    v_part_amount := (v_part->>'amount')::numeric;
+    IF v_part_amount <= 0 THEN
+      RAISE EXCEPTION 'INVALID_PAYMENT_AMOUNT: Payment amount must be positive, got %', v_part_amount;
+    END IF;
+
+    v_part_method := (v_part->>'payment_method');
+    IF v_part_method IS NULL OR v_part_method NOT IN ('cash', 'gcash', 'maya', 'bank_transfer', 'card') THEN
+      RAISE EXCEPTION 'INVALID_PAYMENT_METHOD: Unsupported payment method %', v_part_method;
+    END IF;
+
+    IF (v_part->>'financial_account_id') IS NULL THEN
+      RAISE EXCEPTION 'ACCOUNT_ID_REQUIRED: Financial account ID required for payment method %', v_part_method;
+    END IF;
+
+    v_part_account_id := (v_part->>'financial_account_id')::uuid;
+
+    SELECT id, branch_id, account_type, is_active, currency
+    INTO v_account
+    FROM public.financial_accounts
+    WHERE id = v_part_account_id;
+
+    IF NOT FOUND THEN
+      RAISE EXCEPTION 'ACCOUNT_NOT_FOUND: Financial account % does not exist', v_part_account_id;
+    END IF;
+
+    IF NOT v_account.is_active THEN
+      RAISE EXCEPTION 'ACCOUNT_INACTIVE: Financial account % is inactive', v_part_account_id;
+    END IF;
+
+    IF v_account.branch_id IS NOT NULL AND v_account.branch_id <> v_order.branch_id THEN
+      RAISE EXCEPTION 'ACCOUNT_BRANCH_MISMATCH: Financial account % belongs to branch %, not order branch %',
+        v_part_account_id, v_account.branch_id, v_order.branch_id;
+    END IF;
+
+    -- Strict rail/account_type compatibility
+    IF (v_part_method = 'cash' AND v_account.account_type <> 'cash_drawer') OR
+       (v_part_method = 'gcash' AND v_account.account_type <> 'gcash') OR
+       (v_part_method = 'maya' AND v_account.account_type <> 'maya') OR
+       (v_part_method = 'bank_transfer' AND v_account.account_type <> 'bank_transfer') OR
+       (v_part_method = 'card' AND v_account.account_type <> 'card_terminal') THEN
+      RAISE EXCEPTION 'ACCOUNT_TYPE_MISMATCH: Payment method % is incompatible with account type %',
+        v_part_method, v_account.account_type;
+    END IF;
+
+    IF v_account.currency <> 'PHP' THEN
+      RAISE EXCEPTION 'INVALID_CURRENCY: Financial account currency must be PHP, got %', v_account.currency;
+    END IF;
+
+    v_total_payment := v_total_payment + v_part_amount;
+  END LOOP;
+
+  SELECT COALESCE(jsonb_agg(jsonb_build_object(
+      'account', part->>'financial_account_id',
+      'method', part->>'payment_method',
+      'amount', (part->>'amount')::numeric,
+      'reference', part->>'external_reference'
+    ) ORDER BY part->>'financial_account_id', part->>'payment_method',
+      (part->>'amount')::numeric, part->>'external_reference'), '[]'::jsonb)
+  INTO v_requested_parts
+  FROM jsonb_array_elements(p_payments) part;
+
+  -- 7. Idempotency Check (Retry-safe replay suppression)
+  SELECT id, branch_id, transaction_type, status, business_date, source_type, source_id, external_reference
+  INTO v_existing_tx
+  FROM public.financial_transactions
+  WHERE idempotency_key = p_idempotency_key;
+
+  IF FOUND THEN
+    -- Check for conflicting payload under same key
+    SELECT COALESCE(SUM(amount), 0.00)
+    INTO v_existing_total
+    FROM public.financial_account_movements
+    WHERE transaction_id = v_existing_tx.id;
+
+    SELECT COALESCE(jsonb_agg(jsonb_build_object(
+        'account', fam.financial_account_id::text,
+        'method', fam.payment_method,
+        'amount', fam.amount,
+        'reference', fam.external_reference
+      ) ORDER BY fam.financial_account_id::text, fam.payment_method,
+        fam.amount, fam.external_reference), '[]'::jsonb)
+    INTO v_existing_parts
+    FROM public.financial_account_movements fam
+    WHERE fam.transaction_id = v_existing_tx.id;
+
+    IF v_existing_tx.branch_id <> v_order.branch_id OR
+       v_existing_tx.transaction_type <> 'customer_payment' OR
+       v_existing_tx.status <> 'posted' OR
+       (p_business_date IS NOT NULL AND v_existing_tx.business_date <> p_business_date) OR
+       v_existing_tx.external_reference IS DISTINCT FROM p_external_reference OR
+       v_existing_tx.source_id <> p_order_id::text OR
+       v_existing_tx.source_type <> 'booking_order' OR
+       v_existing_total <> v_total_payment OR
+       v_existing_parts <> v_requested_parts THEN
+      RAISE EXCEPTION 'IDEMPOTENCY_CONFLICT: Key % already used for conflicting transaction %',
+        p_idempotency_key, v_existing_tx.id;
+    END IF;
+
+    -- Return existing transaction details and summary
+    SELECT
+      jsonb_agg(jsonb_build_object(
+        'id', fam.id,
+        'financial_account_id', fam.financial_account_id,
+        'amount', fam.amount,
+        'payment_method', fam.payment_method,
+        'external_reference', fam.external_reference
+      ))
+    INTO v_movements_json
+    FROM public.financial_account_movements fam
+    WHERE fam.transaction_id = v_existing_tx.id;
+
+    SELECT
+      jsonb_agg(jsonb_build_object(
+        'id', foa.id,
+        'payable_item_id', foa.payable_item_id,
+        'amount', foa.amount
+      ))
+    INTO v_allocations_json
+    FROM public.financial_order_allocations foa
+    WHERE foa.order_id = p_order_id
+      AND foa.financial_account_movement_id IN (
+        SELECT id FROM public.financial_account_movements WHERE transaction_id = v_existing_tx.id
+      );
+
+    -- Current financial summary
+    SELECT
+      COALESCE(SUM(amount), 0.00) INTO v_total_payable
+    FROM public.order_payable_items
+    WHERE order_id = p_order_id;
+
+    SELECT
+      COALESCE(SUM(amount), 0.00) INTO v_net_allocated
+    FROM public.financial_order_allocations
+    WHERE order_id = p_order_id;
+
+    v_remaining_balance := v_total_payable - v_net_allocated;
+    v_new_state := public.derive_order_payment_state(v_total_payable, v_net_allocated);
+
+    RETURN jsonb_build_object(
+      'success', true,
+      'is_idempotent_replay', true,
+      'transaction_id', v_existing_tx.id,
+      'order_id', p_order_id,
+      'branch_id', v_existing_tx.branch_id,
+      'business_date', v_existing_tx.business_date,
+      'total_paid', v_existing_total,
+      'total_payable', v_total_payable,
+      'net_allocated', v_net_allocated,
+      'remaining_balance', v_remaining_balance,
+      'payment_state', v_new_state,
+      'movements', COALESCE(v_movements_json, '[]'::jsonb),
+      'allocations', COALESCE(v_allocations_json, '[]'::jsonb)
+    );
+  END IF;
+
+  -- P1-A authoritative stale-collection protection.
+  --
+  -- Existing positive service payables may have been materialized before a
+  -- booking later became cancelled/no_show/expired. Reconcile every such closed line
+  -- before accepting NEW money. Idempotent replay returned above and therefore
+  -- does not create new reconciliation side effects.
+  FOR v_mirror_booking_id IN
+    SELECT b.id
+    FROM public.bookings b
+    WHERE b.order_id = p_order_id
+      AND b.status IN ('cancelled', 'no_show', 'expired')
+      AND EXISTS (
+        SELECT 1
+        FROM public.order_payable_items opi
+        WHERE opi.order_id = p_order_id
+          AND opi.booking_id = b.id
+          AND opi.charge_type = 'service'
+          AND opi.amount > 0
+      )
+    ORDER BY b.id
+  LOOP
+    PERFORM public.reconcile_closed_booking_service_charge(
+      v_mirror_booking_id,
+      v_staff.id
+    );
+  END LOOP;
+  -- A replay above does not collect new cash. Hold the selected drawer
+  -- session open until this new payment transaction finishes.
+  FOR v_part IN SELECT value FROM jsonb_array_elements(p_payments)
+  LOOP
+    IF v_part->>'payment_method' = 'cash' THEN
+      v_cash_session_id := NULL;
+      SELECT cs.id INTO v_cash_session_id
+      FROM public.cash_sessions cs
+      WHERE cs.cash_drawer_account_id = (v_part->>'financial_account_id')::uuid
+        AND cs.branch_id = v_order.branch_id
+        AND cs.status = 'open'
+      FOR SHARE;
+      IF v_cash_session_id IS NULL THEN
+        RAISE EXCEPTION 'CASH_DRAWER_SESSION_REQUIRED: Open the selected cash drawer before recording a cash payment.';
+      END IF;
+    END IF;
+  END LOOP;
+
+  -- 8. Order Payable and Balance Validation
+  SELECT COALESCE(SUM(amount), 0.00)
+  INTO v_total_payable
+  FROM public.order_payable_items
+  WHERE order_id = p_order_id;
+
+  SELECT COALESCE(SUM(amount), 0.00)
+  INTO v_net_allocated
+  FROM public.financial_order_allocations
+  WHERE order_id = p_order_id;
+
+  IF v_total_payable < 0 THEN
+    RAISE EXCEPTION 'INVALID_NEGATIVE_PAYABLE: Total payable is negative (%)', v_total_payable;
+  END IF;
+
+  IF v_total_payable = 0 THEN
+    RAISE EXCEPTION 'ZERO_PAYABLE_ORDER: Order has zero payable, no payment required';
+  END IF;
+
+  v_remaining_balance := v_total_payable - v_net_allocated;
+
+  IF v_remaining_balance <= 0 THEN
+    RAISE EXCEPTION 'ORDER_ALREADY_PAID: Order remaining balance is zero';
+  END IF;
+
+  -- Overpayment policy: Reject payments exceeding remaining balance in CF4
+  IF v_total_payment > v_remaining_balance THEN
+    RAISE EXCEPTION 'PAYMENT_EXCEEDS_REMAINING_BALANCE: Total payment % exceeds remaining balance %',
+      v_total_payment, v_remaining_balance;
+  END IF;
+
+  -- 9. Explicit Allocations Validation (if provided)
+  IF p_allocations IS NOT NULL AND jsonb_typeof(p_allocations) = 'array' AND jsonb_array_length(p_allocations) > 0 THEN
+    FOR v_alloc_item IN SELECT * FROM jsonb_array_elements(p_allocations)
+    LOOP
+      IF (v_alloc_item->>'amount') IS NULL THEN
+        RAISE EXCEPTION 'INVALID_ALLOCATION_AMOUNT: Allocation missing amount';
+      END IF;
+
+      v_alloc_amount := (v_alloc_item->>'amount')::numeric;
+      IF v_alloc_amount <= 0 THEN
+        RAISE EXCEPTION 'INVALID_ALLOCATION_AMOUNT: Allocation amount must be positive, got %', v_alloc_amount;
+      END IF;
+
+      IF (v_alloc_item->>'payable_item_id') IS NULL THEN
+        RAISE EXCEPTION 'PAYABLE_ITEM_REQUIRED: Explicit allocation requires payable_item_id';
+      END IF;
+
+      v_alloc_item_id := (v_alloc_item->>'payable_item_id')::uuid;
+
+      SELECT id, order_id
+      INTO v_payable_item
+      FROM public.order_payable_items
+      WHERE id = v_alloc_item_id;
+
+      IF NOT FOUND THEN
+        RAISE EXCEPTION 'PAYABLE_ITEM_NOT_FOUND: Payable item % does not exist', v_alloc_item_id;
+      END IF;
+
+      IF v_payable_item.order_id <> p_order_id THEN
+        RAISE EXCEPTION 'CROSS_ORDER_ITEM_MISMATCH: Payable item % belongs to order %, not order %',
+          v_alloc_item_id, v_payable_item.order_id, p_order_id;
+      END IF;
+
+      v_alloc_sum := v_alloc_sum + v_alloc_amount;
+    END LOOP;
+
+    IF v_alloc_sum <> v_total_payment THEN
+      RAISE EXCEPTION 'ALLOCATION_TOTAL_MISMATCH: Sum of allocations % does not equal total payment %',
+        v_alloc_sum, v_total_payment;
+    END IF;
+  END IF;
+
+  -- 10. Atomic Execution: Insert Transaction Header
+  v_business_date := COALESCE(p_business_date, CURRENT_DATE);
+
+  INSERT INTO public.financial_transactions (
+    id,
+    branch_id,
+    transaction_type,
+    business_date,
+    occurred_at,
+    recorded_at,
+    recorded_by,
+    currency,
+    status,
+    idempotency_key,
+    source_type,
+    source_id,
+    external_reference,
+    notes
+  ) VALUES (
+    gen_random_uuid(),
+    v_order.branch_id,
+    'customer_payment',
+    v_business_date,
+    v_now,
+    v_now,
+    v_staff.id,
+    'PHP',
+    'posted',
+    p_idempotency_key,
+    'booking_order',
+    p_order_id::text,
+    p_external_reference,
+    p_notes
+  ) RETURNING id INTO v_transaction_id;
+
+  -- 11. Atomic Execution: Insert Movements
+  FOR v_part IN SELECT * FROM jsonb_array_elements(p_payments)
+  LOOP
+    v_part_amount := (v_part->>'amount')::numeric;
+    v_part_method := (v_part->>'payment_method');
+    v_part_account_id := (v_part->>'financial_account_id')::uuid;
+    v_part_ext_ref := (v_part->>'external_reference');
+
+    INSERT INTO public.financial_account_movements (
+      id,
+      transaction_id,
+      financial_account_id,
+      amount,
+      payment_method,
+      external_reference
+    ) VALUES (
+      gen_random_uuid(),
+      v_transaction_id,
+      v_part_account_id,
+      v_part_amount,
+      v_part_method,
+      v_part_ext_ref
+    ) RETURNING id INTO v_movement_id;
+
+    v_movement_ids := array_append(v_movement_ids, v_movement_id);
+    v_movement_amounts := array_append(v_movement_amounts, v_part_amount);
+    v_movement_rem := array_append(v_movement_rem, v_part_amount);
+
+    v_movements_json := v_movements_json || jsonb_build_object(
+      'id', v_movement_id,
+      'financial_account_id', v_part_account_id,
+      'amount', v_part_amount,
+      'payment_method', v_part_method,
+      'external_reference', v_part_ext_ref
+    );
+  END LOOP;
+
+  -- 12. Atomic Execution: Insert Allocations
+  IF p_allocations IS NULL OR jsonb_typeof(p_allocations) <> 'array' OR jsonb_array_length(p_allocations) = 0 THEN
+    -- A. Default Order-Level Allocations: 1 allocation per movement for full movement amount
+    FOR i IN 1..array_length(v_movement_ids, 1)
+    LOOP
+      DECLARE
+        v_alloc_id UUID;
+      BEGIN
+        INSERT INTO public.financial_order_allocations (
+          id,
+          financial_account_movement_id,
+          order_id,
+          payable_item_id,
+          amount,
+          created_by
+        ) VALUES (
+          gen_random_uuid(),
+          v_movement_ids[i],
+          p_order_id,
+          NULL,
+          v_movement_amounts[i],
+          v_staff.id
+        ) RETURNING id INTO v_alloc_id;
+
+        v_allocations_json := v_allocations_json || jsonb_build_object(
+          'id', v_alloc_id,
+          'financial_account_movement_id', v_movement_ids[i],
+          'payable_item_id', NULL,
+          'amount', v_movement_amounts[i]
+        );
+      END;
+    END LOOP;
+  ELSE
+    -- B. Explicit Item-Level Allocations
+    -- Distribute items against movements deterministically without exceeding any movement
+    v_mov_idx := 1;
+    FOR v_alloc_item IN SELECT * FROM jsonb_array_elements(p_allocations)
+    LOOP
+      v_alloc_amount := (v_alloc_item->>'amount')::numeric;
+      v_alloc_item_id := (v_alloc_item->>'payable_item_id')::uuid;
+
+      WHILE v_alloc_amount > 0 AND v_mov_idx <= array_length(v_movement_ids, 1)
+      LOOP
+        IF v_movement_rem[v_mov_idx] <= 0 THEN
+          v_mov_idx := v_mov_idx + 1;
+          CONTINUE;
+        END IF;
+
+        v_alloc_take := LEAST(v_alloc_amount, v_movement_rem[v_mov_idx]);
+
+        DECLARE
+          v_alloc_id UUID;
+        BEGIN
+          INSERT INTO public.financial_order_allocations (
+            id,
+            financial_account_movement_id,
+            order_id,
+            payable_item_id,
+            amount,
+            created_by
+          ) VALUES (
+            gen_random_uuid(),
+            v_movement_ids[v_mov_idx],
+            p_order_id,
+            v_alloc_item_id,
+            v_alloc_take,
+            v_staff.id
+          ) RETURNING id INTO v_alloc_id;
+
+          v_allocations_json := v_allocations_json || jsonb_build_object(
+            'id', v_alloc_id,
+            'financial_account_movement_id', v_movement_ids[v_mov_idx],
+            'payable_item_id', v_alloc_item_id,
+            'amount', v_alloc_take
+          );
+        END;
+
+        v_movement_rem[v_mov_idx] := v_movement_rem[v_mov_idx] - v_alloc_take;
+        v_alloc_amount := v_alloc_amount - v_alloc_take;
+
+        IF v_movement_rem[v_mov_idx] <= 0 THEN
+          v_mov_idx := v_mov_idx + 1;
+        END IF;
+      END LOOP;
+    END LOOP;
+  END IF;
+
+  -- 13. Derive Final State
+  v_new_net_allocated := v_net_allocated + v_total_payment;
+  v_new_remaining := v_total_payable - v_new_net_allocated;
+  v_new_state := public.derive_order_payment_state(v_total_payable, v_new_net_allocated);
+
+  -- Only a single service booking with no order-only payable can inherit the
+  -- cumulative order amount. Multi-line and fee/discount orders retain their
+  -- order-level truth; an order-level allocation has no booking attribution.
+  SELECT b.id
+    INTO v_mirror_booking_id
+  FROM public.bookings b
+  WHERE b.order_id = p_order_id
+    AND b.amount_paid = v_net_allocated
+    AND (SELECT count(*) FROM public.bookings other WHERE other.order_id = p_order_id) = 1
+    AND NOT EXISTS (
+       SELECT 1 FROM public.order_payable_items opi
+       WHERE opi.order_id = p_order_id
+         AND (opi.charge_type <> 'service' OR opi.booking_id IS DISTINCT FROM b.id)
+     );
+
+  IF v_mirror_booking_id IS NOT NULL THEN
+    SELECT count(DISTINCT fam.payment_method), min(fam.payment_method)
+      INTO v_mirror_method_count, v_mirror_method
+    FROM public.financial_order_allocations foa
+    JOIN public.financial_account_movements fam
+      ON fam.id = foa.financial_account_movement_id
+    WHERE foa.order_id = p_order_id;
+    IF v_mirror_method_count <> 1 THEN v_mirror_method := 'other'; END IF;
+    UPDATE public.bookings
+    SET amount_paid = v_new_net_allocated,
+        payment_status = CASE WHEN v_new_state = 'paid' THEN 'paid' ELSE 'pending' END,
+        payment_method = v_mirror_method,
+        payment_reference = COALESCE(p_external_reference, payment_reference)
+    WHERE id = v_mirror_booking_id;
+  END IF;
+
+  RETURN jsonb_build_object(
+    'success', true,
+    'is_idempotent_replay', false,
+    'transaction_id', v_transaction_id,
+    'order_id', p_order_id,
+    'branch_id', v_order.branch_id,
+    'business_date', v_business_date,
+    'total_paid', v_total_payment,
+    'total_payable', v_total_payable,
+    'net_allocated', v_new_net_allocated,
+    'remaining_balance', v_new_remaining,
+    'payment_state', v_new_state,
+    'movements', v_movements_json,
+    'allocations', v_allocations_json
+  );
+END;
+$func$;
+
+-- Forward definition: post_booking_payment_atomic
+CREATE OR REPLACE FUNCTION public.post_booking_payment_atomic(
+  p_booking_id UUID,
+  p_payment_method TEXT,
+  p_payment_status TEXT,
+  p_amount_paid NUMERIC,
+  p_payment_reference TEXT DEFAULT NULL,
+  p_reason TEXT DEFAULT NULL,
+  p_branch_id UUID DEFAULT NULL,
+  p_next_status TEXT DEFAULT NULL,
+  p_clear_hold BOOLEAN DEFAULT FALSE,
+  p_idempotency_key TEXT DEFAULT NULL,
+  p_payments JSONB DEFAULT NULL,
+  p_business_date DATE DEFAULT NULL,
+  p_financial_account_id UUID DEFAULT NULL
+)
+RETURNS JSONB
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = ''
+AS $booking$
+DECLARE
+  v_staff RECORD;
+  v_booking RECORD;
+  v_existing RECORD;
+  v_delta NUMERIC(12,2);
+  v_total NUMERIC(12,2) := 0;
+  v_parts JSONB;
+  v_parts_normalized JSONB := '[]'::jsonb;
+  v_part JSONB;
+  v_rail TEXT;
+  v_account_type TEXT;
+  v_account_id UUID;
+  v_account RECORD;
+  v_account_count INTEGER;
+  v_amount NUMERIC(12,2);
+  v_transaction_id UUID;
+  v_order_result JSONB;
+  v_warning TEXT;
+  v_key TEXT;
+  v_order_branch_id UUID;
+  v_order_metadata JSONB;
+  v_order_currency TEXT;
+  v_expected_source_type TEXT;
+  v_expected_source_id TEXT;
+  v_cash_session_id UUID;
+BEGIN
+  IF auth.uid() IS NULL THEN
+    RAISE EXCEPTION 'AUTH_REQUIRED: Payment posting requires an authenticated user';
+  END IF;
+  SELECT s.id, s.branch_id, s.system_role, s.is_active INTO v_staff
+  FROM public.staff s WHERE s.auth_user_id = auth.uid();
+  IF NOT FOUND THEN RAISE EXCEPTION 'STAFF_NOT_FOUND: No staff record for caller'; END IF;
+  IF NOT v_staff.is_active THEN RAISE EXCEPTION 'STAFF_INACTIVE: Caller is inactive'; END IF;
+  IF v_staff.system_role NOT IN (
+    'owner', 'manager', 'assistant_manager', 'store_manager', 'crm'
+  ) THEN
+    RAISE EXCEPTION 'PAYMENT_ROLE_UNAUTHORIZED: Caller cannot record booking payments';
+  END IF;
+
+  SELECT b.id, b.branch_id, b.order_id, b.amount_paid,
+         b.payment_method, b.payment_reference, b.payment_status, b.status
+    INTO v_booking
+  FROM public.bookings b WHERE b.id = p_booking_id FOR UPDATE;
+  IF NOT FOUND THEN RAISE EXCEPTION 'BOOKING_NOT_FOUND: Booking does not exist'; END IF;
+  IF p_branch_id IS NOT NULL AND p_branch_id <> v_booking.branch_id THEN
+    RAISE EXCEPTION 'BRANCH_UNAUTHORIZED: Requested branch does not match booking';
+  END IF;
+  IF v_staff.system_role <> 'owner' AND v_staff.branch_id <> v_booking.branch_id THEN
+    RAISE EXCEPTION 'BRANCH_UNAUTHORIZED: Caller cannot update this branch';
+  END IF;
+  IF v_booking.order_id IS NOT NULL THEN
+    SELECT bo.branch_id, bo.metadata, bo.currency
+      INTO v_order_branch_id, v_order_metadata, v_order_currency
+    FROM public.booking_orders bo WHERE bo.id = v_booking.order_id FOR UPDATE;
+    IF NOT FOUND OR v_order_branch_id <> v_booking.branch_id THEN
+      RAISE EXCEPTION 'BOOKING_ORDER_BRANCH_MISMATCH: Booking and order branches differ';
+    END IF;
+    IF v_order_currency IS DISTINCT FROM 'PHP' THEN
+      RAISE EXCEPTION 'UNSUPPORTED_ORDER_CURRENCY: Cash Flow currently supports PHP orders only';
+    END IF;
+    -- This command's cumulative amount is a booking-level input. For a
+    -- multi-line or order-only-charge order, it cannot represent order money.
+    -- Those payments remain available through CF4 Record Payment.
+    IF (SELECT count(*) FROM public.bookings b WHERE b.order_id = v_booking.order_id) <> 1
+       OR EXISTS (
+         SELECT 1 FROM public.order_payable_items opi
+         WHERE opi.order_id = v_booking.order_id
+           AND (opi.charge_type <> 'service' OR opi.booking_id <> v_booking.id)
+       )
+       OR COALESCE((v_order_metadata->>'home_service_fee')::numeric, 0) <> 0 THEN
+      RAISE EXCEPTION 'ORDER_LEVEL_PAYMENT_REQUIRED: Use order payment for multi-line or order-only charges';
+    END IF;
+  END IF;
+  IF p_next_status IS NOT NULL AND (
+    p_next_status <> 'confirmed' OR
+    v_booking.status NOT IN ('pending_payment', 'pending_crm_confirmation', 'pending', 'confirmed')
+  ) THEN
+    RAISE EXCEPTION 'BOOKING_STATUS_UNAUTHORIZED: Payment cannot change booking to requested status';
+  END IF;
+  IF p_clear_hold AND p_next_status IS DISTINCT FROM 'confirmed' THEN
+    RAISE EXCEPTION 'BOOKING_HOLD_UNAUTHORIZED: Hold may only clear on confirmation';
+  END IF;
+  IF p_payment_status IS NULL OR p_payment_status NOT IN ('unpaid', 'pending', 'paid', 'refunded') THEN
+    RAISE EXCEPTION 'INVALID_PAYMENT_STATUS: Unsupported booking payment status';
+  END IF;
+  IF p_payment_method IS NULL OR p_payment_method NOT IN ('cash', 'gcash', 'maya', 'card', 'bank_transfer', 'pay_on_site', 'other') THEN
+    RAISE EXCEPTION 'INVALID_PAYMENT_METHOD: Unsupported booking payment method';
+  END IF;
+  IF p_amount_paid IS NULL OR p_amount_paid < 0 OR round(p_amount_paid, 2) <> p_amount_paid THEN
+    RAISE EXCEPTION 'INVALID_PAYMENT_AMOUNT: Cumulative amount must be nonnegative PHP cents';
+  END IF;
+  v_delta := p_amount_paid - COALESCE(v_booking.amount_paid, 0);
+
+  -- P1-A: a cancelled/no-show/expired booking may retain historical received money,
+  -- but it cannot accept additional ordinary collection.
+  IF v_booking.status IN ('cancelled', 'no_show', 'expired') AND v_delta > 0 THEN
+    RAISE EXCEPTION
+      'CLOSED_BOOKING_PAYMENT_NOT_COLLECTIBLE: Booking % is % and cannot accept additional payment',
+      v_booking.id,
+      v_booking.status;
+  END IF;
+  IF p_idempotency_key IS NOT NULL
+     AND (NULLIF(trim(p_idempotency_key), '') IS NULL OR length(p_idempotency_key) > 255) THEN
+    RAISE EXCEPTION 'INVALID_IDEMPOTENCY_KEY: Key must contain 1 to 255 characters';
+  END IF;
+
+  IF v_booking.order_id IS NULL THEN
+    v_expected_source_type := 'legacy_booking';
+    v_expected_source_id := v_booking.id::text;
+  ELSE
+    v_expected_source_type := 'booking_order';
+    v_expected_source_id := v_booking.order_id::text;
+  END IF;
+
+  IF p_idempotency_key IS NOT NULL THEN
+    v_key := 'cf8:' || p_booking_id::text || ':' || p_idempotency_key;
+    PERFORM pg_advisory_xact_lock(hashtext('idem_cf4_' || v_key));
+    SELECT tx.id, tx.source_type, tx.source_id INTO v_existing
+    FROM public.financial_transactions tx WHERE tx.idempotency_key = v_key;
+    IF FOUND THEN
+      IF v_existing.source_type IS DISTINCT FROM v_expected_source_type
+         OR v_existing.source_id IS DISTINCT FROM v_expected_source_id
+         OR v_delta IS DISTINCT FROM 0
+         OR v_booking.payment_method IS DISTINCT FROM p_payment_method
+         OR v_booking.payment_status IS DISTINCT FROM p_payment_status
+         OR v_booking.payment_reference IS DISTINCT FROM p_payment_reference THEN
+        RAISE EXCEPTION 'IDEMPOTENCY_CONFLICT: Key already belongs to a different payment';
+      END IF;
+      RETURN jsonb_build_object(
+        'booking_id', v_booking.id, 'branch_id', v_booking.branch_id,
+        'transaction_id', v_existing.id, 'payment_delta', 0,
+        'is_idempotent_replay', true, 'reconciliation_warning', NULL
+      );
+    END IF;
+  END IF;
+
+  IF v_delta < 0 OR (v_booking.payment_status = 'paid' AND p_payment_status <> 'paid') THEN
+    IF NULLIF(trim(COALESCE(p_reason, '')), '') IS NULL THEN
+      RAISE EXCEPTION 'PAYMENT_CORRECTION_REASON_REQUIRED: State decrease needs a reason';
+    END IF;
+    v_warning := 'PAYMENT_CORRECTION_REQUIRES_FINANCIAL_RECONCILIATION';
+  END IF;
+
+  IF v_delta <= 0 AND p_payments IS NOT NULL THEN
+    RAISE EXCEPTION 'PAYMENT_DELTA_MISMATCH: Tenders cannot be ignored when no new money is recorded';
+  END IF;
+
+  IF v_delta > 0 THEN
+    IF NULLIF(trim(COALESCE(p_idempotency_key, '')), '') IS NULL THEN
+      RAISE EXCEPTION 'IDEMPOTENCY_KEY_REQUIRED: Positive payment needs a key';
+    END IF;
+    IF p_payment_method = 'pay_on_site' OR p_payment_status IN ('unpaid', 'refunded') THEN
+      RAISE EXCEPTION 'PAYMENT_COLLECTION_REQUIRED: Intent or refund state cannot post a receipt';
+    END IF;
+    IF p_payments IS NOT NULL AND p_financial_account_id IS NOT NULL THEN
+      RAISE EXCEPTION 'ACCOUNT_INPUT_CONFLICT: Use tender accounts or a single account, not both';
+    END IF;
+    IF p_payments IS NULL THEN
+      v_parts := jsonb_build_array(jsonb_build_object(
+        'amount', v_delta, 'payment_method', p_payment_method,
+        'financial_account_id', p_financial_account_id,
+        'external_reference', p_payment_reference
+      ));
+    ELSE
+      v_parts := p_payments;
+    END IF;
+    IF jsonb_typeof(v_parts) <> 'array' OR jsonb_array_length(v_parts) = 0 THEN
+      RAISE EXCEPTION 'PAYMENTS_REQUIRED: Provide at least one collected tender';
+    END IF;
+    IF jsonb_array_length(v_parts) > 1 AND p_payment_method <> 'other' THEN
+      RAISE EXCEPTION 'SPLIT_TENDER_METHOD_REQUIRED: Use other for the booking display mirror';
+    END IF;
+
+    FOR v_part IN SELECT value FROM jsonb_array_elements(v_parts)
+    LOOP
+      IF jsonb_typeof(v_part) <> 'object' THEN
+        RAISE EXCEPTION 'INVALID_TENDER: Payment tender must be an object';
+      END IF;
+      v_amount := (v_part->>'amount')::numeric;
+      IF v_amount IS NULL OR v_amount <= 0 OR round(v_amount, 2) <> v_amount THEN
+        RAISE EXCEPTION 'INVALID_TENDER_AMOUNT: Tender must be positive PHP cents';
+      END IF;
+      v_rail := v_part->>'payment_method';
+      IF v_rail NOT IN ('cash', 'gcash', 'maya', 'bank_transfer', 'card') OR v_rail IS NULL THEN
+        RAISE EXCEPTION 'INVALID_PAYMENT_RAIL: Unsupported collected tender';
+      END IF;
+      IF jsonb_array_length(v_parts) = 1 AND p_payment_method <> v_rail THEN
+        RAISE EXCEPTION 'PAYMENT_RAIL_MISMATCH: Booking method and tender differ';
+      END IF;
+      v_account_type := CASE v_rail
+        WHEN 'cash' THEN 'cash_drawer'
+        WHEN 'card' THEN 'card_terminal'
+        ELSE v_rail END;
+      IF NULLIF(v_part->>'financial_account_id', '') IS NULL THEN
+        SELECT COUNT(*), MIN(fa.id) INTO v_account_count, v_account_id
+        FROM public.financial_accounts fa
+        WHERE fa.is_active AND fa.currency = 'PHP'
+          AND (fa.branch_id = v_booking.branch_id OR fa.branch_id IS NULL)
+          AND fa.account_type = v_account_type;
+        IF v_account_count = 0 THEN
+          RAISE EXCEPTION 'ACCOUNT_NOT_CONFIGURED: No compatible active PHP account';
+        ELSIF v_account_count > 1 THEN
+          RAISE EXCEPTION 'ACCOUNT_SELECTION_REQUIRED: Select the payment account explicitly';
+        END IF;
+      ELSE
+        v_account_id := (v_part->>'financial_account_id')::uuid;
+      END IF;
+      SELECT fa.id, fa.branch_id, fa.account_type, fa.currency, fa.is_active INTO v_account
+      FROM public.financial_accounts fa WHERE fa.id = v_account_id;
+      IF NOT FOUND THEN RAISE EXCEPTION 'ACCOUNT_NOT_FOUND: Account does not exist'; END IF;
+      IF NOT v_account.is_active THEN RAISE EXCEPTION 'ACCOUNT_INACTIVE: Account is inactive'; END IF;
+      IF v_account.branch_id IS NOT NULL AND v_account.branch_id <> v_booking.branch_id THEN
+        RAISE EXCEPTION 'ACCOUNT_BRANCH_MISMATCH: Account belongs to another branch';
+      END IF;
+      IF v_account.currency <> 'PHP' THEN
+        RAISE EXCEPTION 'INVALID_CURRENCY: Payment account must use PHP';
+      END IF;
+      IF v_account.account_type <> v_account_type THEN
+        RAISE EXCEPTION 'ACCOUNT_TYPE_MISMATCH: Account is incompatible with payment rail';
+      END IF;
+      IF v_rail = 'cash' THEN
+        v_cash_session_id := NULL;
+        SELECT cs.id INTO v_cash_session_id
+        FROM public.cash_sessions cs
+        WHERE cs.cash_drawer_account_id = v_account_id
+          AND cs.branch_id = v_booking.branch_id
+          AND cs.status = 'open'
+        FOR SHARE;
+        IF v_cash_session_id IS NULL THEN
+          RAISE EXCEPTION 'CASH_DRAWER_SESSION_REQUIRED: Open the selected cash drawer before recording a cash payment.';
+        END IF;
+      END IF;
+      v_total := v_total + v_amount;
+      v_parts_normalized := v_parts_normalized || jsonb_build_object(
+        'amount', v_amount, 'payment_method', v_rail,
+        'financial_account_id', v_account_id,
+        'external_reference', v_part->>'external_reference'
+      );
+    END LOOP;
+    IF v_total <> v_delta THEN
+      RAISE EXCEPTION 'PAYMENT_DELTA_MISMATCH: Tenders must equal the new collected delta';
+    END IF;
+
+    IF v_booking.order_id IS NOT NULL THEN
+      v_order_result := public.post_order_payment_atomic(
+        v_booking.order_id, v_key, v_parts_normalized,
+        NULL, COALESCE(p_business_date, CURRENT_DATE), p_payment_reference, p_reason
+      );
+      v_transaction_id := (v_order_result->>'transaction_id')::uuid;
+    ELSE
+      INSERT INTO public.financial_transactions (
+        branch_id, transaction_type, business_date, occurred_at, recorded_at,
+        recorded_by, currency, status, idempotency_key, source_type, source_id,
+        external_reference, notes
+      ) VALUES (
+        v_booking.branch_id, 'customer_payment', COALESCE(p_business_date, CURRENT_DATE),
+        clock_timestamp(), clock_timestamp(), v_staff.id, 'PHP', 'posted',
+        v_key, 'legacy_booking', v_booking.id::text,
+        p_payment_reference, p_reason
+      ) RETURNING id INTO v_transaction_id;
+      FOR v_part IN SELECT value FROM jsonb_array_elements(v_parts_normalized)
+      LOOP
+        INSERT INTO public.financial_account_movements (
+          transaction_id, financial_account_id, amount, payment_method, external_reference
+        ) VALUES (
+          v_transaction_id, (v_part->>'financial_account_id')::uuid,
+          (v_part->>'amount')::numeric, v_part->>'payment_method',
+          v_part->>'external_reference'
+        );
+      END LOOP;
+    END IF;
+  END IF;
+
+  PERFORM public.record_booking_payment_change(
+    p_booking_id, p_payment_method, p_payment_status, p_amount_paid,
+    p_payment_reference, p_reason, v_staff.id, v_booking.branch_id,
+    p_next_status, p_clear_hold
+  );
+  RETURN jsonb_build_object(
+    'booking_id', v_booking.id, 'branch_id', v_booking.branch_id,
+    'transaction_id', v_transaction_id, 'payment_delta', v_delta,
+    'is_idempotent_replay', false, 'reconciliation_warning', v_warning
+  );
+END;
+$booking$;
+
+-- Recreate only the lifecycle trigger so its WHEN condition includes expired.
+DROP TRIGGER IF EXISTS trg_p1a_reconcile_booking_on_close ON public.bookings;
+CREATE TRIGGER trg_p1a_reconcile_booking_on_close
+AFTER UPDATE OF status ON public.bookings
+FOR EACH ROW
+WHEN (
+  NEW.status IN ('cancelled', 'no_show', 'expired')
+  AND OLD.status IS DISTINCT FROM NEW.status
+)
+EXECUTE FUNCTION public.p1a_reconcile_booking_on_close();
+
+-- Reconcile already-expired service lines that predate this forward migration.
+-- The existing helper caps each append-only waiver at the unpaid order balance;
+-- rerunning it does not erase received money or add a duplicate waiver.
+DO $expired_backfill$
+DECLARE
+  v_booking_id UUID;
+BEGIN
+  FOR v_booking_id IN
+    SELECT DISTINCT b.id
+    FROM public.bookings b
+    JOIN public.order_payable_items opi
+      ON opi.order_id = b.order_id AND opi.booking_id = b.id
+    WHERE b.status = 'expired'
+      AND opi.charge_type = 'service'
+      AND opi.amount > 0
+    ORDER BY b.id
+  LOOP
+    PERFORM public.reconcile_closed_booking_service_charge(v_booking_id, NULL);
+  END LOOP;
+END;
+$expired_backfill$;
+COMMIT;

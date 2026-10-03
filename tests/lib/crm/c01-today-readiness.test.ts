@@ -175,13 +175,38 @@ describe("C-01: Today Readiness Checks Engine", () => {
     expect(issues.find((i) => i.title === "Setup readiness could not be checked")).toBeUndefined();
   });
 
-  it("recovers gracefully when getDailySchedule rejects, reporting remaining checks without crashing", async () => {
-    mocks.getDailySchedule.mockRejectedValueOnce(new Error("Database connection timeout"));
+  it("treats a successful empty daily schedule as valid data", async () => {
+    mocks.getDailySchedule.mockResolvedValueOnce([]);
 
     const issues = await getCrmReadinessIssues(branchId);
 
-    // Aggregator must not reject and must not report daily operations failure
-    expect(issues.find((i) => i.title === "Daily operations checks could not be completed")).toBeUndefined();
+    expect(issues.find((issue) => issue.id === "system:failure:daily-schedule")).toBeUndefined();
+  });
+
+  it("reports an unavailable schedule without running schedule-dependent checks", async () => {
+    mocks.getDailySchedule.mockRejectedValueOnce(new Error("Database connection timeout"));
+    const from = vi.fn(() => {
+      const q = {
+        select: () => q,
+        eq: () => q,
+        or: () => q,
+        not: () => q,
+        neq: () => q,
+        gte: () => q,
+        lte: () => q,
+        limit: async () => ({ data: [], error: null }),
+      };
+      return q;
+    });
+    mocks.createClient.mockResolvedValue({ from });
+
+    const issues = await getCrmReadinessIssues(branchId);
+
+    expect(issues.find((i) => i.id === "system:failure:daily-schedule")).toBeDefined();
+    expect(issues.find((i) => i.id === "daily:checked-in-not-scheduled")).toBeUndefined();
+    expect(issues.find((i) => i.id === "daily:no-opening-shift-today")).toBeUndefined();
+    expect(from).not.toHaveBeenCalledWith("staff_shift_checkins");
+    expect(from).toHaveBeenCalledWith("bookings");
   });
 
   it("evaluates readiness and returns structured ReadinessResult", async () => {

@@ -167,6 +167,8 @@ export interface PayableOrderPreviousPayment {
 export interface PayableOrderOption {
   id: string;
   sourceKind: 'booking_order' | 'legacy_booking';
+  /** Explicit order-level eligibility; never inferred from a representative child status. */
+  paymentEligible?: boolean;
   orderNumber: string;
   customerName: string;
   customerPhone?: string | null;

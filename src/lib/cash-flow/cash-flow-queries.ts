@@ -18,6 +18,11 @@ import { findUnmatchedBookingPayments, isCashFlowReceiptTransactionType } from '
 import { CashFlowRequiredDataError } from './cash-flow-errors';
 import { validatedLegacyBookingPrice } from './legacy-booking-price';
 import { isBookingClosedForCrm } from '@/lib/bookings/crm-booking-status';
+import {
+  deriveOrderPaymentEligibility,
+  type OrderPaymentChild,
+  type OrderPaymentItem,
+} from './order-payment-eligibility';
 
 export interface CashFlowQueryFilters {
   tab?: string;
@@ -387,8 +392,10 @@ export async function getCashFlowData(
   };
   const orderSummaryById = new Map<string, OrderSummary>();
   const orderQuoteById = new Map<string, number>();
+  const orderFeeById = new Map<string, unknown>();
   const orderItemsById = new Map<string, PayableOrderItemDetail[]>();
-  const orderBookingStatusesById = new Map<string, string[]>();
+  const orderRawItemsById = new Map<string, OrderPaymentItem[]>();
+  const orderChildrenById = new Map<string, OrderPaymentChild[]>();
   if (orderIds.length > 0) {
     const [
       { data: summaries, error: summaryError },
@@ -402,21 +409,20 @@ export async function getCashFlowData(
           .in('order_id', orderIds),
         supabase.from('booking_orders').select('id, metadata').in('id', orderIds),
         supabase.from('order_payable_items')
-          .select('id, order_id, description, amount, charge_type, sequence')
+          .select('id, order_id, booking_id, description, amount, charge_type, sequence, source_type, source_id')
           .in('order_id', orderIds).order('sequence'),
         supabase.from('bookings')
-          .select('id, order_id, status')
+          .select('id, order_id, status, metadata')
           .in('order_id', orderIds),
       ]);
     if (summaryError || ordersError || itemsError || bookingsError) {
       throw new Error('Could not load authoritative order payment summaries.');
     }
     for (const b of orderBookings ?? []) {
-      if (b.order_id && b.status) {
-        const list = orderBookingStatusesById.get(b.order_id) ?? [];
-        list.push(b.status);
-        orderBookingStatusesById.set(b.order_id, list);
-      }
+      if (!b.order_id) continue;
+      const list = orderChildrenById.get(b.order_id) ?? [];
+      list.push({ id: b.id, status: b.status, metadata: b.metadata as Record<string, unknown> | null });
+      orderChildrenById.set(b.order_id, list);
     }
     for (const row of (summaries ?? []) as OrderSummary[]) {
       orderSummaryById.set(row.order_id, row);
@@ -425,6 +431,7 @@ export async function getCashFlowData(
       const raw = (row.metadata as Record<string, unknown> | null)?.total_amount;
       const quote = Number(raw);
       if (Number.isFinite(quote) && quote > 0) orderQuoteById.set(row.id, quote);
+      orderFeeById.set(row.id, (row.metadata as Record<string, unknown> | null)?.home_service_fee);
     }
     for (const row of orderItems ?? []) {
       const list = orderItemsById.get(row.order_id) ?? [];
@@ -437,20 +444,40 @@ export async function getCashFlowData(
           : row.charge_type as PayableOrderItemDetail['itemType'],
       });
       orderItemsById.set(row.order_id, list);
+      const rawList = orderRawItemsById.get(row.order_id) ?? [];
+      rawList.push({
+        id: row.id,
+        booking_id: row.booking_id,
+        amount: Number(row.amount),
+        charge_type: row.charge_type,
+        source_type: row.source_type,
+        source_id: row.source_id,
+        sequence: row.sequence,
+      });
+      orderRawItemsById.set(row.order_id, rawList);
     }
   }
+  const orderEligibilityById = new Map<string, ReturnType<typeof deriveOrderPaymentEligibility>>();
+  for (const orderId of orderIds) {
+    orderEligibilityById.set(orderId, deriveOrderPaymentEligibility({
+      children: orderChildrenById.get(orderId) ?? [],
+      items: orderRawItemsById.get(orderId) ?? [],
+      totalPayable: Number(orderSummaryById.get(orderId)?.total_payable ?? 0),
+      netAllocated: Number(orderSummaryById.get(orderId)?.net_allocated ?? 0),
+      quotedTotal: orderQuoteById.get(orderId) ?? null,
+      homeServiceFee: orderFeeById.get(orderId),
+    }));
+  }
   const orderPayment = (orderId: string) => {
-    const summary = orderSummaryById.get(orderId);
-    if (!summary) return null;
-    const canonicalTotal = Number(summary.total_payable) || 0;
-    const total = canonicalTotal > 0 ? canonicalTotal : (orderQuoteById.get(orderId) ?? 0);
-    const paid = Number(summary.net_allocated) || 0;
+    const collectible = orderEligibilityById.get(orderId);
+    if (!collectible) return null;
+    const { total, paid, remaining } = collectible;
     return {
       total,
       paid,
-      remaining: Math.max(0, total - paid),
-      status: canonicalTotal > 0 || total === 0
-        ? summary.payment_state : 'unpaid',
+      remaining,
+      status: total > 0 && paid >= total
+        ? 'paid' : paid > 0 ? 'partial' : 'unpaid',
     };
   };
 
@@ -841,36 +868,68 @@ export async function getCashFlowData(
     if (b.order_id && listedOrders.has(b.order_id)) continue;
     if (b.order_id) listedOrders.add(b.order_id);
 
-    // Exclude closed/ineligible bookings (cancelled, no_show, expired)
-    if (b.order_id) {
-      const childStatuses = orderBookingStatusesById.get(b.order_id) ?? (b.status ? [b.status] : []);
-      const hasPayableBooking = childStatuses.length > 0 && childStatuses.some((st) => !isBookingClosedForCrm(st));
-      if (!hasPayableBooking) continue;
-    } else {
-      if (isBookingClosedForCrm(b.status ?? '')) continue;
-    }
+    if (!b.order_id && isBookingClosedForCrm(b.status ?? '')) continue;
 
     const orderState = b.order_id ? orderPayment(b.order_id) : null;
     if (b.order_id && !orderState) continue;
+    const orderEligibility = b.order_id ? orderEligibilityById.get(b.order_id) : null;
+    if (b.order_id && !orderEligibility?.eligible) continue;
     const legacyTotal = b.order_id ? null : validatedLegacyBookingPrice(b.metadata);
     if (!b.order_id && legacyTotal === null) continue;
     const legacyPaid = Number(b.amount_paid ?? 0);
     if (!b.order_id && (!Number.isFinite(legacyPaid) || legacyPaid < 0)) continue;
-    const total = orderState?.total ?? legacyTotal!;
-    const paid = orderState?.paid ?? legacyPaid;
-    const remaining = orderState?.remaining ?? Math.max(0, total - paid);
+    const total = orderEligibility?.total ?? legacyTotal!;
+    const paid = orderEligibility?.paid ?? legacyPaid;
+    const remaining = orderEligibility?.remaining ?? Math.max(0, total - paid);
     const isPaid = b.order_id
       ? orderState?.status === 'paid'
       : b.payment_status === 'paid';
     if (isPaid || remaining <= 0) continue;
     const isPartial = !isPaid && paid > 0;
-    const isHomeService = b.type === 'home_service' || b.delivery_type === 'home_service';
+    const displayBooking = b.order_id
+      ? todayBookings.find((row) => row.order_id === b.order_id && !isBookingClosedForCrm(row.status ?? '')) ?? b
+      : b;
+    const isHomeService = displayBooking.type === 'home_service' || displayBooking.delivery_type === 'home_service';
 
-    const cust = Array.isArray(b.customers) ? b.customers[0] : b.customers;
-    const svc = Array.isArray(b.services) ? b.services[0] : b.services;
+    const cust = Array.isArray(displayBooking.customers) ? displayBooking.customers[0] : displayBooking.customers;
+    const svc = Array.isArray(displayBooking.services) ? displayBooking.services[0] : displayBooking.services;
 
     const payableItems: PayableOrderItemDetail[] =
       b.order_id ? [...(orderItemsById.get(b.order_id) ?? [])] : [];
+    for (const waiver of orderEligibility?.projectedWaivers ?? []) {
+      payableItems.push({
+        id: `projected-waiver-${waiver.bookingId}`,
+        description: 'Closed service charge waiver',
+        amount: -waiver.amount,
+        itemType: 'manual_adjustment',
+      });
+    }
+    if (payableItems.length === 0 && b.order_id) {
+      for (const child of orderChildrenById.get(b.order_id) ?? []) {
+        if (isBookingClosedForCrm(child.status ?? '')) continue;
+        const amount = validatedLegacyBookingPrice(child.metadata);
+        if (amount === null) continue;
+        const childBooking = todayBookings.find((row) => row.id === child.id);
+        const childService = childBooking
+          ? Array.isArray(childBooking.services) ? childBooking.services[0] : childBooking.services
+          : null;
+        payableItems.push({
+          id: `item-svc-${child.id}`,
+          description: childService?.name ?? `Booking ${child.id.slice(0, 8)}`,
+          amount,
+          itemType: 'service',
+        });
+      }
+      const fee = Number(orderFeeById.get(b.order_id) ?? 0);
+      if (fee > 0) {
+        payableItems.push({
+          id: `item-fee-${b.order_id}`,
+          description: 'Home Service travel',
+          amount: fee,
+          itemType: 'home_service_fee',
+        });
+      }
+    }
     if (payableItems.length === 0 && svc?.name) {
       payableItems.push({
         id: `item-svc-${b.id}`,
@@ -907,11 +966,16 @@ export async function getCashFlowData(
       totalAmount: total,
       amountPaid: paid,
       remainingBalance: remaining,
-      bookingDate: b.booking_date,
-      serviceTime: b.start_time ? formatTimeFromHHMM(b.start_time) : null,
+      bookingDate: displayBooking.booking_date,
+      serviceTime: displayBooking.start_time ? formatTimeFromHHMM(displayBooking.start_time) : null,
       branchName: branchName,
       visitType: isHomeService ? 'home_service' : 'in_spa',
-      bookingStatus: b.status ? b.status.charAt(0).toUpperCase() + b.status.slice(1) : 'Confirmed',
+      bookingStatus: b.order_id
+        ? (orderChildrenById.get(b.order_id) ?? []).some((child) => isBookingClosedForCrm(child.status ?? ''))
+          ? 'Mixed services'
+          : 'Active'
+        : b.status ? b.status.charAt(0).toUpperCase() + b.status.slice(1) : 'Confirmed',
+      paymentEligible: b.order_id ? orderEligibility?.eligible === true : true,
       paymentStatus: isPaid ? 'paid' : isPartial ? 'partially_paid' : 'unpaid',
       payableItems,
       previousPayments,
