@@ -1,5 +1,6 @@
 import { createClient } from "@/lib/supabase/server";
 import { redirect }     from "next/navigation";
+import { revalidatePath } from "next/cache";
 import Link from "next/link";
 import { ChevronDown, HelpCircle, LogOut, Settings, Shuffle, UserRound } from "lucide-react";
 import { WorkspaceSwitchLink } from "@/components/shared/workspace-switch-link";
@@ -14,6 +15,8 @@ async function logoutAction() {
   "use server";
   const supabase = await createClient();
   await supabase.auth.signOut();
+  // Remove the authorized Review payload from the Next client router cache on logout.
+  revalidatePath("/crm/master-sheet");
   redirect("/login");
 }
 

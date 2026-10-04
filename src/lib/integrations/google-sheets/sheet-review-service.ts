@@ -4,7 +4,7 @@ import { createClient } from "@/lib/supabase/server";
 import { resolveSuperAdminContext } from "@/lib/auth/super-admin";
 import { canonicalizeSystemRole } from "@/constants/staff-roles";
 import { logInfo } from "@/lib/logger";
-import { createLocalAdcSheetTokenProvider } from "./sheet-adc-token-provider";
+import { selectSheetTokenProvider } from "./sheet-token-provider-selector";
 import { createGoogleSheetsReader, type SheetReader, type SheetReadPhase } from "./sheet-reader";
 import { projectSheetRead, type SheetReviewState } from "./sheet-review-projection";
 
@@ -45,17 +45,17 @@ export async function loadOwnerSheetReview(
   if (!authorized) return { status: "forbidden" };
 
   const timings: Partial<Record<SheetReadPhase, number>> = {};
-  const reader =
-    options.reader ??
-    createGoogleSheetsReader({
-      tokenProvider: createLocalAdcSheetTokenProvider(),
-      onTiming: (phase, milliseconds) => {
-        timings[phase] = (timings[phase] ?? 0) + milliseconds;
-      },
-    });
   let state: SheetReviewState;
   let adapterMs = 0;
   try {
+    const reader =
+      options.reader ??
+      createGoogleSheetsReader({
+        tokenProvider: selectSheetTokenProvider() ?? undefined,
+        onTiming: (phase, milliseconds) => {
+          timings[phase] = (timings[phase] ?? 0) + milliseconds;
+        },
+      });
     const result = await reader.readCurrentAndPrevious();
     const adapterStarted = performance.now();
     state = projectSheetRead(result, (options.now ?? (() => new Date()))().toISOString());
