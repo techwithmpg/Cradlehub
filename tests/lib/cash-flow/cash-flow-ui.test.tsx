@@ -22,12 +22,17 @@ const mockRecordLegacyBookingPaymentAction = vi.fn();
 const mockRecordExpenseAction = vi.fn();
 const mockRecordTipAction = vi.fn();
 const mockRecordOtherEntryAction = vi.fn();
+const mockUseSheetNativeReferences = vi.hoisted(() => vi.fn());
 vi.mock("@/lib/cash-flow/cash-flow-actions", () => ({
   recordOrderPaymentAction: (...args: unknown[]) => mockRecordOrderPaymentAction(...args),
-  recordLegacyBookingPaymentAction: (...args: unknown[]) => mockRecordLegacyBookingPaymentAction(...args),
+  recordLegacyBookingPaymentAction: (...args: unknown[]) =>
+    mockRecordLegacyBookingPaymentAction(...args),
   recordExpenseAction: (...args: unknown[]) => mockRecordExpenseAction(...args),
   recordTipAction: (...args: unknown[]) => mockRecordTipAction(...args),
   recordOtherEntryAction: (...args: unknown[]) => mockRecordOtherEntryAction(...args),
+}));
+vi.mock("@/components/features/crm/master-sheet/use-sheet-native-references", () => ({
+  useSheetNativeReferences: mockUseSheetNativeReferences,
 }));
 
 import { CashFlowWorkspace } from "@/components/features/cash-flow/cash-flow-workspace";
@@ -38,6 +43,7 @@ import { HistoryTab } from "@/components/features/cash-flow/history-tab";
 import { RecordFinancialEntryModal } from "@/components/features/cash-flow/record-financial-entry-modal";
 import { RecordPaymentSheet } from "@/components/features/cash-flow/record-payment-sheet";
 import type { CashFlowWorkspaceData } from "@/lib/cash-flow/cash-flow-types";
+import type { SheetNativeReferencesState } from "@/lib/integrations/google-sheets/sheet-native-types";
 
 const mockWorkspaceData: CashFlowWorkspaceData = {
   branchId: "11111111-1111-1111-1111-111111111111",
@@ -298,6 +304,10 @@ const mockWorkspaceData: CashFlowWorkspaceData = {
 describe("CF5 Cash Flow UI Foundation", () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    mockUseSheetNativeReferences.mockReturnValue({
+      state: { status: "unavailable", observedAt: "2026-09-28T00:00:00.000Z" },
+      isLoading: false,
+    });
     if (typeof window !== "undefined" && !window.URL.createObjectURL) {
       window.URL.createObjectURL = vi.fn(() => "blob:mock-receipt-preview");
     }
@@ -312,6 +322,67 @@ describe("CF5 Cash Flow UI Foundation", () => {
     expect(screen.getByRole("heading", { level: 1, name: /Cash Flow/i })).toBeTruthy();
     expect(screen.getByText(/Main Spa Branch · 2026-09-28/i)).toBeTruthy();
     expect(screen.getByText(/Financial activity and daily reconciliation/i)).toBeTruthy();
+  });
+
+  it("keeps canonical ledger output identical when Sheet evidence is available, empty, or unavailable", () => {
+    const base = {
+      observedAt: "2026-09-28T00:00:00.000Z",
+      branchLabel: "Main Branch",
+      bookings: [] as [],
+    };
+    const states: SheetNativeReferencesState[] = [
+      {
+        ...base,
+        status: "available",
+        payments: [
+          {
+            kind: "sheet_transaction_reference",
+            evidenceKey: "sheet-row:0",
+            sourceType: "MASTER_SHEET",
+            readOnly: true,
+            canonicalLink: "UNLINKED",
+            branchId: "main-id",
+            branchLabel: "Main Branch",
+            branchDecisionStatus: "PROVISIONAL",
+            businessDate: "2026-09-28",
+            observedAt: base.observedAt,
+            reviewWarnings: [],
+            source: {
+              sheetName: "WEEK",
+              startRow: 4,
+              endRow: 4,
+              sourceKey: "sheet-row",
+              contentFingerprint: "hash",
+            },
+            customerDisplay: "Sample Customer",
+            channel: "Cash",
+            amount: 999999,
+            ambiguous: false,
+          },
+        ],
+      },
+      { ...base, status: "available_empty", payments: [] },
+      { status: "unavailable", observedAt: base.observedAt },
+    ];
+    const canonicalLedger: string[] = [];
+    const initialData = structuredClone(mockWorkspaceData);
+    for (const state of states) {
+      mockUseSheetNativeReferences.mockReturnValue({ state, isLoading: false });
+      render(<CashFlowWorkspace initialData={mockWorkspaceData} initialTab="ledger" />);
+      const ledger = screen.getByRole("heading", { name: "Ledger" }).closest(".space-y-4");
+      expect(ledger).toBeTruthy();
+      canonicalLedger.push(ledger?.textContent ?? "");
+      if (state.status === "available") {
+        expect(screen.getByText("₱999,999.00")).toBeTruthy();
+        expect(ledger?.textContent).not.toContain("999,999");
+      }
+      cleanup();
+    }
+    expect(canonicalLedger[0]).toEqual(canonicalLedger[1]);
+    expect(canonicalLedger[1]).toEqual(canonicalLedger[2]);
+    expect(mockWorkspaceData).toEqual(initialData);
+    expect(mockRecordOrderPaymentAction).not.toHaveBeenCalled();
+    expect(mockRecordLegacyBookingPaymentAction).not.toHaveBeenCalled();
   });
 
   it("2. Today tab renders 4 KPI cards and payment mix with actual data", () => {
@@ -421,21 +492,27 @@ describe("CF5 Cash Flow UI Foundation", () => {
     expect(screen.getByText(/Saved reconciliation totals match/i)).toBeTruthy();
     expect(screen.getByText(/Open End-of-Day Reconciliation/i)).toBeTruthy();
 
-    expect(screen.getByRole("link", { name: /Open End-of-Day Reconciliation/i }).getAttribute("href"))
-      .toBe("/crm/reconciliation");
+    expect(
+      screen.getByRole("link", { name: /Open End-of-Day Reconciliation/i }).getAttribute("href")
+    ).toBe("/crm/reconciliation");
   });
 
   it("does not call an unsaved day balanced", () => {
-    render(<DayCloseTab summary={{
-      ...mockWorkspaceData.dayClose,
-      isBalanced: false,
-      readyForReview: false,
-      reconciliationStatus: "not_started",
-      expectedCash: null,
-      actualCash: null,
-      cashVariance: null,
-      channelVariance: null,
-    }} onNavigateToLedger={vi.fn()} />);
+    render(
+      <DayCloseTab
+        summary={{
+          ...mockWorkspaceData.dayClose,
+          isBalanced: false,
+          readyForReview: false,
+          reconciliationStatus: "not_started",
+          expectedCash: null,
+          actualCash: null,
+          cashVariance: null,
+          channelVariance: null,
+        }}
+        onNavigateToLedger={vi.fn()}
+      />
+    );
 
     expect(screen.getAllByText(/No reconciliation recorded/i).length).toBeGreaterThan(0);
     expect(screen.queryByText(/Saved reconciliation totals match/i)).toBeNull();
@@ -443,11 +520,13 @@ describe("CF5 Cash Flow UI Foundation", () => {
   });
 
   it("shows saved Day Close data in the owner view without a branch-changing reconciliation link", () => {
-    render(<DayCloseTab
-      summary={mockWorkspaceData.dayClose}
-      onNavigateToLedger={vi.fn()}
-      reconciliationHref={null}
-    />);
+    render(
+      <DayCloseTab
+        summary={mockWorkspaceData.dayClose}
+        onNavigateToLedger={vi.fn()}
+        reconciliationHref={null}
+      />
+    );
 
     expect(screen.getByText(/Reconciliation submitted/i)).toBeTruthy();
     expect(screen.queryByRole("link", { name: /Open End-of-Day Reconciliation/i })).toBeNull();
@@ -1042,7 +1121,10 @@ describe("CF5 Cash Flow UI Foundation", () => {
   });
 
   it("routes a legacy booking and exact split tenders to the booking payment action", async () => {
-    mockRecordLegacyBookingPaymentAction.mockResolvedValueOnce({ ok: true, data: { transactionId: "tx-legacy" } });
+    mockRecordLegacyBookingPaymentAction.mockResolvedValueOnce({
+      ok: true,
+      data: { transactionId: "tx-legacy" },
+    });
     const legacy = {
       ...mockWorkspaceData.payableOrders[0]!,
       id: "legacy-booking-1",
@@ -1098,13 +1180,18 @@ describe("CF5 Cash Flow UI Foundation", () => {
     );
     expect(screen.getByText("BK-20260928-002 — Michael Tan")).toBeTruthy();
     expect(screen.getByText(/No compatible financial account is configured/i)).toBeTruthy();
-    expect((screen.getByRole("button", { name: /Record Entry/i }) as HTMLButtonElement).disabled).toBe(true);
+    expect(
+      (screen.getByRole("button", { name: /Record Entry/i }) as HTMLButtonElement).disabled
+    ).toBe(true);
   });
 
   it("preserves the payment request key when the same form is retried", async () => {
     mockRecordLegacyBookingPaymentAction
       .mockResolvedValueOnce({ ok: false, error: "Network response lost" })
-      .mockResolvedValueOnce({ ok: true, data: { transactionId: "tx-legacy", isIdempotentReplay: true } });
+      .mockResolvedValueOnce({
+        ok: true,
+        data: { transactionId: "tx-legacy", isIdempotentReplay: true },
+      });
     const legacy = {
       ...mockWorkspaceData.payableOrders[0]!,
       id: "legacy-booking-1",
@@ -1124,7 +1211,8 @@ describe("CF5 Cash Flow UI Foundation", () => {
     await waitFor(() => expect(screen.getByText("Network response lost")).toBeTruthy());
     fireEvent.click(screen.getByRole("button", { name: /Record Entry/i }));
     await waitFor(() => expect(mockRecordLegacyBookingPaymentAction).toHaveBeenCalledTimes(2));
-    expect(mockRecordLegacyBookingPaymentAction.mock.calls[0]![0].idempotencyKey)
-      .toBe(mockRecordLegacyBookingPaymentAction.mock.calls[1]![0].idempotencyKey);
+    expect(mockRecordLegacyBookingPaymentAction.mock.calls[0]![0].idempotencyKey).toBe(
+      mockRecordLegacyBookingPaymentAction.mock.calls[1]![0].idempotencyKey
+    );
   });
 });
