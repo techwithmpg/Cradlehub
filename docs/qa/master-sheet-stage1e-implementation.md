@@ -7,6 +7,7 @@
 **Accepted `origin/main`:** `6a310021df66679d71daf753434e6c328e3181b4`  
 **Planning SHA:** `058f58fada20a1a4be5ed9f4bdca8ee35fdef103`  
 **Implementation start SHA:** `058f58fada20a1a4be5ed9f4bdca8ee35fdef103`
+**Implementation commit:** `2bd78186fbbe8ee6b1f10a04a09941235bd003ac`
 
 ## Scope and architecture
 
