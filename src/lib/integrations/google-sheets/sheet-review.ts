@@ -13,6 +13,8 @@ export type SheetReviewReason =
   | "ORPHAN_CONTINUATION"
   | "CONFLICTING_CONTINUATION"
   | "UNASSIGNED_FINANCIAL_NOTE"
+  | "OUT_OF_WEEK_DATE"
+  | "DATE_BOUNDARY_AMBIGUOUS"
   | "UNKNOWN_ROW"
   | "OTHER";
 
@@ -36,10 +38,16 @@ function sourceCoordinates(source: SheetSource): SheetReviewEntry["source"] {
   };
 }
 
-export function ambiguousPaymentColumns(visit: SheetVisit): SheetReviewEntry["ambiguousPaymentColumns"] {
+export function ambiguousPaymentColumns(
+  visit: SheetVisit
+): SheetReviewEntry["ambiguousPaymentColumns"] {
   const columns: SheetReviewEntry["ambiguousPaymentColumns"] = [];
   for (const column of ["cash", "gcash", "bankQr", "cardTerminal"] as const) {
-    if (visit.paymentEvidence.some((payment) => payment[column].marker && payment[column].marker !== "-")) {
+    if (
+      visit.paymentEvidence.some(
+        (payment) => payment[column].marker && payment[column].marker !== "-"
+      )
+    ) {
       columns.push(column);
     }
   }
@@ -53,7 +61,9 @@ function visitReasons(visit: SheetVisit): SheetReviewReason[] {
   if (!visit.customerRawName) reasons.push("MISSING_CUSTOMER");
   if (!visit.attendantRawNames) reasons.push("MISSING_ATTENDANT");
   if (ambiguousPaymentColumns(visit).length) reasons.push("AMBIGUOUS_PAYMENT_MARKER");
-  if (visit.ambiguities.some((ambiguity) => /^(?:HRS|RATE|FUEL|COMMISSION) marker/.test(ambiguity))) {
+  if (
+    visit.ambiguities.some((ambiguity) => /^(?:HRS|RATE|FUEL|COMMISSION) marker/.test(ambiguity))
+  ) {
     reasons.push("AMBIGUOUS_SERVICE_VALUE");
   }
   return reasons.length ? reasons : ["OTHER"];
@@ -65,9 +75,12 @@ export function buildSheetReviewEntries(projection: SheetProjection): SheetRevie
   for (const visit of projection.visits) {
     if (visit.confidence !== "needs_review") continue;
     entries.push({
-      source: sourceCoordinates(visit.source), classification: "SERVICE",
-      businessDate: visit.businessDate, reasons: visitReasons(visit),
-      serviceLineCount: visit.services.length, hasCustomer: Boolean(visit.customerRawName),
+      source: sourceCoordinates(visit.source),
+      classification: "SERVICE",
+      businessDate: visit.businessDate,
+      reasons: visitReasons(visit),
+      serviceLineCount: visit.services.length,
+      hasCustomer: Boolean(visit.customerRawName),
       hasAttendantOrStaff: Boolean(visit.attendantRawNames),
       ambiguousPaymentColumns: ambiguousPaymentColumns(visit),
     });
@@ -76,28 +89,46 @@ export function buildSheetReviewEntries(projection: SheetProjection): SheetRevie
   for (const duty of projection.duties) {
     if (duty.confidence !== "needs_review") continue;
     entries.push({
-      source: sourceCoordinates(duty.source), classification: "STAFF_DUTY",
+      source: sourceCoordinates(duty.source),
+      classification: "STAFF_DUTY",
       businessDate: duty.businessDate,
       reasons: [
         ...(!duty.businessDate ? ["MISSING_BUSINESS_DATE" as const] : []),
         ...(!duty.staffRawName ? ["MISSING_STAFF" as const] : []),
       ],
-      serviceLineCount: 0, hasCustomer: false,
-      hasAttendantOrStaff: Boolean(duty.staffRawName), ambiguousPaymentColumns: [],
+      serviceLineCount: 0,
+      hasCustomer: false,
+      hasAttendantOrStaff: Boolean(duty.staffRawName),
+      ambiguousPaymentColumns: [],
     });
   }
 
   for (const row of projection.needsReview) {
-    const classification = projection.classifiedRows.find((classified) => classified.sourceRow === row.source.startRow)?.classification;
-    const reason: SheetReviewReason = row.reason === "Orphan service continuation" ? "ORPHAN_CONTINUATION"
-      : row.reason === "Conflicting continuation location" ? "CONFLICTING_CONTINUATION"
-        : row.reason === "Unassigned financial note" ? "UNASSIGNED_FINANCIAL_NOTE" : "UNKNOWN_ROW";
+    const classification = projection.classifiedRows.find(
+      (classified) => classified.sourceRow === row.source.startRow
+    )?.classification;
+    const reason: SheetReviewReason =
+      row.reason === "Orphan service continuation"
+        ? "ORPHAN_CONTINUATION"
+        : row.reason === "Conflicting continuation location"
+          ? "CONFLICTING_CONTINUATION"
+          : row.reason === "Unassigned financial note"
+            ? "UNASSIGNED_FINANCIAL_NOTE"
+            : row.reason === "Out-of-week operational date"
+              ? "OUT_OF_WEEK_DATE"
+              : row.reason === "Ambiguous operational date boundary"
+                ? "DATE_BOUNDARY_AMBIGUOUS"
+                : "UNKNOWN_ROW";
     entries.push({
       source: sourceCoordinates(row.source),
-      classification: classification === "FINANCIAL_NOTE" ? "FINANCIAL_NOTE" : "UNKNOWN_NEEDS_REVIEW",
-      businessDate: row.businessDate, reasons: [reason],
-      serviceLineCount: 0, hasCustomer: false,
-      hasAttendantOrStaff: false, ambiguousPaymentColumns: [],
+      classification:
+        classification === "FINANCIAL_NOTE" ? "FINANCIAL_NOTE" : "UNKNOWN_NEEDS_REVIEW",
+      businessDate: row.businessDate,
+      reasons: [reason],
+      serviceLineCount: 0,
+      hasCustomer: false,
+      hasAttendantOrStaff: false,
+      ambiguousPaymentColumns: [],
     });
   }
 
