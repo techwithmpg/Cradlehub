@@ -50,14 +50,24 @@ describe("server-only Google Sheets reader", () => {
       expect(init?.method).toBe("GET");
       return new Response(JSON.stringify(payload), { status: 200 });
     });
+    const onTiming = vi.fn();
     const reader = createGoogleSheetsReader({
       tokenProvider: { getAccessToken: async () => "test-token" },
       fetcher: fetcher as typeof fetch,
+      onTiming,
     });
     expect(Object.keys(reader)).toEqual(["readCurrentAndPrevious"]);
     const result = await reader.readCurrentAndPrevious("2026-10-03");
     expect(result.status).toBe("available");
     expect(fetcher).toHaveBeenCalledTimes(3);
+    expect(onTiming.mock.calls.map(([phase]) => phase).sort()).toEqual([
+      "auth",
+      "metadata",
+      "parse",
+      "parse",
+      "tab_read",
+      "tab_read",
+    ]);
     if (result.status === "available") expect(result.current.visits).toHaveLength(1);
   });
 

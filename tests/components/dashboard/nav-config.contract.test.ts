@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import {
   NAV_CONFIG,
   resolveWorkspaceKeyFromRole,
+  visibleNavItems,
 } from "@/components/features/dashboard/nav-config";
 
 describe("workspace navigation contract", () => {
@@ -33,5 +34,22 @@ describe("workspace navigation contract", () => {
       href: "/marketing",
       icon: "Sparkles",
     });
+  });
+
+  it("shows the Master Sheet Review destination only in Owner navigation", () => {
+    const crmItems = NAV_CONFIG.crm?.items ?? [];
+    expect(visibleNavItems(crmItems, false).some((item) => item.href === "/crm/master-sheet")).toBe(
+      false
+    );
+    expect(
+      visibleNavItems(crmItems, true).filter((item) => item.href === "/crm/master-sheet")
+    ).toEqual([
+      {
+        label: "Master Sheet Review",
+        href: "/crm/master-sheet",
+        icon: "BookOpen",
+        ownerOnly: true,
+      },
+    ]);
   });
 });
