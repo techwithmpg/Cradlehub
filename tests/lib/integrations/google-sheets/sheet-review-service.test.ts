@@ -31,8 +31,8 @@ vi.mock("@/lib/integrations/google-sheets/sheet-token-provider-selector", () => 
 }));
 
 import {
-  hasOwnerSheetReviewAccess,
-  loadOwnerSheetReview,
+  hasMasterSheetReviewAccess,
+  loadMasterSheetReview,
 } from "@/lib/integrations/google-sheets/sheet-review-service";
 
 beforeEach(() => {
@@ -49,35 +49,57 @@ beforeEach(() => {
   mocks.selectProvider.mockReset();
 });
 
-describe("owner Master Sheet review authorization", () => {
-  it("admits an authenticated active Owner or super-admin", async () => {
-    expect(await hasOwnerSheetReviewAccess()).toBe(true);
+describe("Master Sheet review authorization", () => {
+  it("admits authenticated active Owner, management, and Front Desk roles or super-admin", async () => {
+    expect(await hasMasterSheetReviewAccess()).toBe(true);
+    for (const role of [
+      "manager",
+      "assistant_manager",
+      "store_manager",
+      "crm",
+      "csr",
+      "csr_head",
+      "csr_staff",
+    ]) {
+      mocks.role = role;
+      expect(await hasMasterSheetReviewAccess()).toBe(true);
+    }
     mocks.superAdmin = true;
-    mocks.role = "crm";
-    expect(await hasOwnerSheetReviewAccess()).toBe(true);
+    mocks.role = "staff";
+    expect(await hasMasterSheetReviewAccess()).toBe(true);
   });
 
-  it("rejects unauthenticated, non-Owner, inactive, and failed staff lookups", async () => {
+  it("rejects unauthenticated, unauthorized, inactive, and failed staff lookups", async () => {
     mocks.userId = null;
-    expect(await hasOwnerSheetReviewAccess()).toBe(false);
+    expect(await hasMasterSheetReviewAccess()).toBe(false);
     mocks.userId = "user-1";
-    mocks.role = "crm";
-    expect(await hasOwnerSheetReviewAccess()).toBe(false);
+    for (const role of ["staff", "driver", "utility", "digital_marketer", "unknown_role"]) {
+      mocks.role = role;
+      expect(await hasMasterSheetReviewAccess()).toBe(false);
+    }
     mocks.role = "owner";
     mocks.active = false;
-    expect(await hasOwnerSheetReviewAccess()).toBe(false);
+    expect(await hasMasterSheetReviewAccess()).toBe(false);
     mocks.active = true;
     mocks.lookupError = new Error("lookup failed");
-    expect(await hasOwnerSheetReviewAccess()).toBe(false);
+    expect(await hasMasterSheetReviewAccess()).toBe(false);
+  });
+
+  it("never acquires a token or reads Sheets for an unauthorized staff member", async () => {
+    mocks.role = "staff";
+    const reader = { readCurrentAndPrevious: vi.fn() };
+    expect(await loadMasterSheetReview({ reader })).toEqual({ status: "forbidden" });
+    expect(reader.readCurrentAndPrevious).not.toHaveBeenCalled();
+    expect(mocks.selectProvider).not.toHaveBeenCalled();
   });
 
   it("never calls the Sheet reader when authorization fails or throws", async () => {
     const reader = { readCurrentAndPrevious: vi.fn() };
-    expect(await loadOwnerSheetReview({ authorize: async () => false, reader })).toEqual({
+    expect(await loadMasterSheetReview({ authorize: async () => false, reader })).toEqual({
       status: "forbidden",
     });
     expect(
-      await loadOwnerSheetReview({
+      await loadMasterSheetReview({
         authorize: async () => {
           throw new Error("auth failed");
         },
@@ -92,7 +114,7 @@ describe("owner Master Sheet review authorization", () => {
   it("returns only unavailable state when a credential provider fails", async () => {
     const getAccessToken = vi.fn().mockRejectedValue(new Error("private credential material"));
     mocks.selectProvider.mockReturnValue({ getAccessToken });
-    const state = await loadOwnerSheetReview({
+    const state = await loadMasterSheetReview({
       authorize: async () => true,
       now: () => new Date("2026-10-04T00:00:00.000Z"),
     });
@@ -106,7 +128,7 @@ describe("owner Master Sheet review authorization", () => {
     const reader = {
       readCurrentAndPrevious: vi.fn().mockRejectedValue(new Error("private Sheet content")),
     };
-    const result = await loadOwnerSheetReview({
+    const result = await loadMasterSheetReview({
       authorize: async () => true,
       reader,
       now: () => new Date("2026-10-04T00:00:00.000Z"),

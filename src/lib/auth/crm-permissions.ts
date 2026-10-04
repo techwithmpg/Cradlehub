@@ -62,6 +62,11 @@ export function canAccessCrmWorkspace(role: string): boolean {
   return MANAGEMENT_ROLES.includes(canonicalRole) || isFrontDeskRole(role);
 }
 
+/** External Master Sheet references are visible to approved CRM workspace roles. */
+export function canViewMasterSheetReview(role: string): boolean {
+  return canAccessCrmWorkspace(role);
+}
+
 /** Can configure CRM-wide setup (booking rules, branch settings).
  *  Available to all CRM/front-desk roles; branch scope still applies. */
 export function canManageCrmSetup(role: string): boolean {

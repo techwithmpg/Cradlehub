@@ -7,7 +7,7 @@ import { getLayoutStaffContext } from "@/lib/queries/staff-context";
 import { getCrmReadinessCached } from "@/lib/queries/crm-readiness";
 import { getUserWorkspaceAccess } from "@/lib/auth/get-user-workspace-access";
 import { getStaffDisplayName } from "@/lib/staff/display-name";
-import { canonicalizeSystemRole } from "@/constants/staff-roles";
+import { canViewMasterSheetReview } from "@/lib/auth/crm-permissions";
 
 // force-dynamic is NOT set here — the layout is already dynamic because
 // createClient() calls cookies() from next/headers, which inherently opts
@@ -42,7 +42,7 @@ export default async function DashboardLayout({ children }: { children: React.Re
       <OfflineBanner />
       <Sidebar
         role={resolvedMe.system_role}
-        canReviewMasterSheet={Boolean(me && canonicalizeSystemRole(me.system_role) === "owner")}
+        canReviewMasterSheet={Boolean(me && canViewMasterSheetReview(me.system_role))}
         fullName={resolvedMe.full_name}
         nickname={resolvedMe.nickname}
         avatarUrl={resolvedMe.avatar_url}

@@ -4,6 +4,7 @@ import {
   resolveWorkspaceKeyFromRole,
   visibleNavItems,
 } from "@/components/features/dashboard/nav-config";
+import { canViewMasterSheetReview } from "@/lib/auth/crm-permissions";
 
 describe("workspace navigation contract", () => {
   it("shows exactly one Staff Attendance destination", () => {
@@ -36,11 +37,22 @@ describe("workspace navigation contract", () => {
     });
   });
 
-  it("shows the Master Sheet Review destination only in Owner navigation", () => {
+  it("shows Master Sheet Review to approved CRM roles and hides it from unauthorized roles", () => {
     const crmItems = NAV_CONFIG.crm?.items ?? [];
-    expect(visibleNavItems(crmItems, false).some((item) => item.href === "/crm/master-sheet")).toBe(
-      false
-    );
+    for (const role of ["owner", "manager", "assistant_manager", "store_manager", "crm", "csr"]) {
+      expect(
+        visibleNavItems(crmItems, canViewMasterSheetReview(role)).some(
+          (item) => item.href === "/crm/master-sheet"
+        )
+      ).toBe(true);
+    }
+    for (const role of ["staff", "driver", "utility", "digital_marketer"]) {
+      expect(
+        visibleNavItems(crmItems, canViewMasterSheetReview(role)).some(
+          (item) => item.href === "/crm/master-sheet"
+        )
+      ).toBe(false);
+    }
     expect(
       visibleNavItems(crmItems, true).filter((item) => item.href === "/crm/master-sheet")
     ).toEqual([
@@ -48,7 +60,7 @@ describe("workspace navigation contract", () => {
         label: "Master Sheet Review",
         href: "/crm/master-sheet",
         icon: "BookOpen",
-        ownerOnly: true,
+        masterSheetAccessOnly: true,
       },
     ]);
   });

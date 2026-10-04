@@ -2,13 +2,13 @@ import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 import { CrmOperationalPageShell } from "@/components/features/crm/operational/crm-operational-page-shell";
 import { MasterSheetReview } from "@/components/features/crm/master-sheet/master-sheet-review";
-import { loadOwnerSheetReview } from "@/lib/integrations/google-sheets/sheet-review-service";
+import { loadMasterSheetReview } from "@/lib/integrations/google-sheets/sheet-review-service";
 
 export const dynamic = "force-dynamic";
 export const metadata: Metadata = { title: "Master Sheet Review — CRM" };
 
 export default async function MasterSheetReviewPage() {
-  const state = await loadOwnerSheetReview();
+  const state = await loadMasterSheetReview();
   if (state.status === "forbidden") notFound();
 
   return (

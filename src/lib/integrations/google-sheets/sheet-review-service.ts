@@ -3,12 +3,13 @@ import "server-only";
 import { createClient } from "@/lib/supabase/server";
 import { resolveSuperAdminContext } from "@/lib/auth/super-admin";
 import { canonicalizeSystemRole } from "@/constants/staff-roles";
+import { canViewMasterSheetReview } from "@/lib/auth/crm-permissions";
 import { logInfo } from "@/lib/logger";
 import { selectSheetTokenProvider } from "./sheet-token-provider-selector";
 import { createGoogleSheetsReader, type SheetReader, type SheetReadPhase } from "./sheet-reader";
 import { projectSheetRead, type SheetReviewState } from "./sheet-review-projection";
 
-export async function hasOwnerSheetReviewAccess(): Promise<boolean> {
+export async function hasMasterSheetReviewAccess(): Promise<boolean> {
   const supabase = await createClient();
   const {
     data: { user },
@@ -21,23 +22,23 @@ export async function hasOwnerSheetReviewAccess(): Promise<boolean> {
     .eq("auth_user_id", user.id)
     .eq("is_active", true)
     .maybeSingle();
-  return !error && canonicalizeSystemRole(staff?.system_role ?? "") === "owner";
+  return !error && canViewMasterSheetReview(canonicalizeSystemRole(staff?.system_role ?? ""));
 }
 
-export type OwnerSheetReviewResult = SheetReviewState | { status: "forbidden" };
+export type MasterSheetReviewResult = SheetReviewState | { status: "forbidden" };
 
 /** Authorization precedes every Sheet read. Injection is used only by focused tests. */
-export async function loadOwnerSheetReview(
+export async function loadMasterSheetReview(
   options: {
     authorize?: () => Promise<boolean>;
     reader?: SheetReader;
     now?: () => Date;
   } = {}
-): Promise<OwnerSheetReviewResult> {
+): Promise<MasterSheetReviewResult> {
   const started = performance.now();
   let authorized = false;
   try {
-    authorized = await (options.authorize ?? hasOwnerSheetReviewAccess)();
+    authorized = await (options.authorize ?? hasMasterSheetReviewAccess)();
   } catch {
     /* Fail closed. */
   }

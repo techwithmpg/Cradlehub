@@ -1,9 +1,11 @@
 // @vitest-environment jsdom
 import { afterEach, describe, expect, it } from "vitest";
-import { cleanup, fireEvent, render, screen } from "@testing-library/react";
+import { cleanup, fireEvent, render, screen, within } from "@testing-library/react";
 import { MasterSheetReview } from "@/components/features/crm/master-sheet/master-sheet-review";
 import type {
   SheetReviewState,
+  SheetDutyReference,
+  SheetReviewReference,
   SheetVisitReference,
 } from "@/lib/integrations/google-sheets/sheet-review-projection";
 
@@ -39,6 +41,49 @@ const state: SheetReviewState = {
 };
 
 describe("Master Sheet Review display", () => {
+  it("marks visits, duties, and review entries as external read-only records", () => {
+    const duty: SheetDutyReference = {
+      sourceType: "MASTER_SHEET",
+      readOnly: true,
+      branchState: "BRANCH_UNKNOWN",
+      canonicalLink: "UNLINKED",
+      source: { ...visit.source, sourceKey: "duty-8", startRow: 8, endRow: 8 },
+      businessDate: "2026-10-02",
+      reviewReasons: [],
+      kind: "duty",
+      staffDisplay: "Sample Staff",
+      dutyLabel: "Opening",
+    };
+    const review: SheetReviewReference = {
+      sourceType: "MASTER_SHEET",
+      readOnly: true,
+      branchState: "BRANCH_UNKNOWN",
+      canonicalLink: "UNLINKED",
+      source: { ...visit.source, sourceKey: "review-9", startRow: 9, endRow: 9 },
+      businessDate: null,
+      reviewReasons: ["UNASSIGNED_FINANCIAL_NOTE"],
+      kind: "review",
+      classification: "FINANCIAL_NOTE",
+    };
+    render(
+      <MasterSheetReview
+        state={{
+          ...state,
+          current: { ...state.current, duties: [duty], review: [review] },
+        }}
+      />
+    );
+    const cards = screen.getAllByRole("article");
+    expect(cards).toHaveLength(3);
+    for (const card of cards) {
+      expect(within(card).getByText("Master Sheet")).toBeTruthy();
+      expect(within(card).getByText("Read only")).toBeTruthy();
+      expect(within(card).getByText("Branch: Unknown")).toBeTruthy();
+      expect(within(card).queryByRole("button")).toBeNull();
+      expect(within(card).queryByRole("link")).toBeNull();
+    }
+  });
+
   it("shows provenance, branch unknown, read-only payment evidence, and escaped Sheet text", () => {
     const { container } = render(<MasterSheetReview state={state} />);
     expect(screen.getByText("Branch: Unknown")).toBeTruthy();

@@ -4,7 +4,7 @@ export type NavItem = {
   label: string;
   href: string;
   icon: string; // Lucide icon name
-  ownerOnly?: boolean;
+  masterSheetAccessOnly?: boolean;
 };
 
 export type NavGroup = {
@@ -65,14 +65,19 @@ const CRM_NAV_ITEMS: NavItem[] = [
   { label: "Attendance", href: "/crm/attendance", icon: "ClipboardCheck" },
   { label: "Customers", href: "/crm/customers", icon: "Users" },
   { label: "Home Service", href: "/crm/dispatch", icon: "Truck" },
-  { label: "Master Sheet Review", href: "/crm/master-sheet", icon: "BookOpen", ownerOnly: true },
+  {
+    label: "Master Sheet Review",
+    href: "/crm/master-sheet",
+    icon: "BookOpen",
+    masterSheetAccessOnly: true,
+  },
 ];
 
 export function visibleNavItems(
   items: readonly NavItem[],
   canReviewMasterSheet: boolean
 ): NavItem[] {
-  return items.filter((item) => !item.ownerOnly || canReviewMasterSheet);
+  return items.filter((item) => !item.masterSheetAccessOnly || canReviewMasterSheet);
 }
 
 const CRM_SYSTEM_NAV_ITEMS: NavItem[] = [
