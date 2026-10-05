@@ -185,7 +185,7 @@ export async function createOnlineBookingAction(
   try {
     // Home service requires address+zone for dispatch validation — must use the
     // multi-service action which carries those fields.
-    if (d.type === "home_service") {
+    if (deliveryType === "home_service" || d.type === "home_service") {
       return {
         ok: false,
         code: "USE_MULTI_ACTION",
@@ -312,7 +312,7 @@ export async function createOnlineBookingAction(
       branchId: d.branchId,
       bookingDate: d.date,
       startTime: d.startTime,
-      deliveryType: deliveryType === "home_service" ? "home_service" : "in_spa",
+      deliveryType: "in_spa",
       bookingFor: "me",
       organizer: {
         fullName: d.fullName,
@@ -822,7 +822,7 @@ export async function createOnlineBookingMultiAction(
 
       hsAddressData = {
         address: formattedAddress,
-        full_address: d.homeServiceAddress?.trim() || formattedAddress,
+        full_address: formattedAddress,
         address_details: d.homeServiceAddressDetails ?? null,
         barangay: d.homeServiceBarangay ?? null,
         city: d.homeServiceCity ?? null,

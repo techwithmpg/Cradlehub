@@ -47,8 +47,10 @@ function isPreciseHomeServiceLocation(input: {
     !!input.homeServiceFormattedAddress?.trim() &&
     typeof input.homeServiceLat === "number" &&
     Number.isFinite(input.homeServiceLat) &&
+    Math.abs(input.homeServiceLat) <= 90 &&
     typeof input.homeServiceLng === "number" &&
-    Number.isFinite(input.homeServiceLng)
+    Number.isFinite(input.homeServiceLng) &&
+    Math.abs(input.homeServiceLng) <= 180
   );
 }
 
@@ -136,12 +138,17 @@ export const createInhouseBookingMultiSchema = z
     paymentReference: z.string().max(100).optional(),
     paymentNote: z.string().max(500).optional(),
     financialAccountId: uuid.optional(),
-    payments: z.array(z.object({
-      amount: z.number().positive().multipleOf(0.01),
-      paymentMethod: z.enum(["cash", "gcash", "maya", "card", "bank_transfer"]),
-      financialAccountId: uuid.optional(),
-      externalReference: z.string().max(100).optional(),
-    })).min(1).optional(),
+    payments: z
+      .array(
+        z.object({
+          amount: z.number().positive().multipleOf(0.01),
+          paymentMethod: z.enum(["cash", "gcash", "maya", "card", "bank_transfer"]),
+          financialAccountId: uuid.optional(),
+          externalReference: z.string().max(100).optional(),
+        })
+      )
+      .min(1)
+      .optional(),
   })
   .superRefine((data, ctx) => {
     const deliveryType =
@@ -163,13 +170,13 @@ export const createInhouseBookingMultiSchema = z
         path: ["paymentMethod"],
       });
     }
-      if (paymentReceived && !data.idempotencyKey) {
-        ctx.addIssue({
-          code: "custom",
-          message: "A stable booking request key is required when payment is collected.",
-          path: ["idempotencyKey"],
-        });
-      }
+    if (paymentReceived && !data.idempotencyKey) {
+      ctx.addIssue({
+        code: "custom",
+        message: "A stable booking request key is required when payment is collected.",
+        path: ["idempotencyKey"],
+      });
+    }
   })
   .strict();
 export type CreateInhouseBookingMultiInput = z.infer<typeof createInhouseBookingMultiSchema>;
@@ -305,7 +312,15 @@ export const getAvailableSlotsSchema = z.object({
 export type GetAvailableSlotsInput = z.infer<typeof getAvailableSlotsSchema>;
 
 // ── Payment constants ─────────────────────────────────────────────────────
-export const PAYMENT_METHODS = ["cash", "gcash", "maya", "card", "bank_transfer", "pay_on_site", "other"] as const;
+export const PAYMENT_METHODS = [
+  "cash",
+  "gcash",
+  "maya",
+  "card",
+  "bank_transfer",
+  "pay_on_site",
+  "other",
+] as const;
 export type PaymentMethod = (typeof PAYMENT_METHODS)[number];
 
 export const PAYMENT_STATUSES = ["unpaid", "pending", "paid", "refunded"] as const;

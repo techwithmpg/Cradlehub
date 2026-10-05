@@ -77,6 +77,11 @@ function readString(value: unknown): string | null {
   return typeof value === "string" && value.trim() ? value : null;
 }
 
+function readDestinationText(value: unknown): string | null {
+  const text = readString(value);
+  return text && text.toLowerCase() !== "unknown" ? text : null;
+}
+
 function readNumber(value: unknown): number | null {
   if (typeof value === "number" && Number.isFinite(value)) return value;
   if (typeof value === "string") {
@@ -84,6 +89,34 @@ function readNumber(value: unknown): number | null {
     return Number.isFinite(parsed) ? parsed : null;
   }
   return null;
+}
+
+export function resolveBookingHomeServiceDestination(
+  metadata: unknown
+): Pick<RealDispatchItem, "area" | "formattedAddress" | "lat" | "lng" | "needsLocationReview"> {
+  const address = asRecord(asRecord(metadata)?.home_service_address);
+  const rawLat = readNumber(address?.lat);
+  const rawLng = readNumber(address?.lng);
+  const lat = rawLat !== null && Math.abs(rawLat) <= 90 ? rawLat : null;
+  const lng = rawLng !== null && Math.abs(rawLng) <= 180 ? rawLng : null;
+  const formattedAddress =
+    readDestinationText(address?.full_address) ??
+    readDestinationText(address?.formatted_address) ??
+    readDestinationText(address?.address);
+  const area =
+    readDestinationText(address?.barangay) ??
+    readDestinationText(address?.city) ??
+    readDestinationText(address?.zone);
+
+  // Older bookings may have a zone-only review flag despite a precise place.
+  // Destination completeness is determined by the authoritative booking address.
+  return {
+    area,
+    formattedAddress,
+    lat,
+    lng,
+    needsLocationReview: !formattedAddress || lat === null || lng === null,
+  };
 }
 
 type DispatchBranchLocationRow = {
@@ -443,13 +476,8 @@ export async function getDispatchData(args: GetDispatchDataArgs): Promise<Dispat
 
     const mappedItems: RealDispatchItem[] = rawBookings.map((booking, index) => {
       const metadata = asRecord(booking.metadata);
-      const homeServiceAddress = asRecord(metadata?.home_service_address);
+      const destination = resolveBookingHomeServiceDestination(metadata);
       const dispatch = asRecord(metadata?.dispatch);
-
-      const rawLat = readNumber(homeServiceAddress?.lat);
-      const rawLng = readNumber(homeServiceAddress?.lng);
-      const lat = rawLat !== null && Math.abs(rawLat) <= 90 ? rawLat : null;
-      const lng = rawLng !== null && Math.abs(rawLng) <= 180 ? rawLng : null;
       const liveEta = parseLiveEta(dispatch?.live_eta);
 
       const driverId = booking.driver_id ?? null;
@@ -472,11 +500,6 @@ export async function getDispatchData(args: GetDispatchDataArgs): Promise<Dispat
       );
       const branchOrigin = resolveBranchOrigin(branch);
 
-      const area =
-        readString(homeServiceAddress?.zone) ??
-        readString(homeServiceAddress?.barangay) ??
-        readString(homeServiceAddress?.city);
-
       const dispatchStatus = computeDispatchStatus(bookingStatus, progressStatus, driverId);
 
       return {
@@ -487,14 +510,10 @@ export async function getDispatchData(args: GetDispatchDataArgs): Promise<Dispat
         endTime: booking.end_time,
         customerName: customer?.full_name ?? "Guest Customer",
         serviceName: service?.name ?? "—",
-        area,
-        formattedAddress: readString(homeServiceAddress?.full_address),
-        lat,
-        lng,
+        ...destination,
         branchName: branchOrigin.branchName ?? branchRouteOrigin?.branchName ?? null,
         branchLat: branchOrigin.branchLat ?? branchRouteOrigin?.lat ?? null,
         branchLng: branchOrigin.branchLng ?? branchRouteOrigin?.lng ?? null,
-        needsLocationReview: dispatch?.needs_location_review === true,
         driverId,
         driverName: driverId ? (driverNameMap.get(driverId) ?? null) : null,
         therapistId,

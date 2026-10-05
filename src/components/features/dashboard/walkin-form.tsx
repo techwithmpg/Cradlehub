@@ -148,7 +148,8 @@ export function WalkinForm() {
     return () => window.clearTimeout(timer);
   }, [phone]);
 
-  const selectedService = ctx?.services.find((branchService) => branchService.services?.id === serviceId) ?? null;
+  const selectedService =
+    ctx?.services.find((branchService) => branchService.services?.id === serviceId) ?? null;
 
   function handleSubmit(event: React.FormEvent) {
     event.preventDefault();
@@ -242,7 +243,13 @@ export function WalkinForm() {
             <button
               key={option.value}
               type="button"
-              onClick={() => setBookingType(option.value)}
+              onClick={() => {
+                if (option.value === "home_service") {
+                  router.push("/crm/bookings");
+                  return;
+                }
+                setBookingType(option.value);
+              }}
               style={{
                 padding: "6px 16px",
                 borderRadius: 6,
@@ -262,8 +269,14 @@ export function WalkinForm() {
           ))}
         </div>
 
+        <p style={{ marginTop: "0.5rem", fontSize: "0.8125rem", color: "var(--cs-text-muted)" }}>
+          Home Service opens CRM Bookings, where a customer destination is required.
+        </p>
+
         {bookingType === "home_service" && (
-          <div style={{ marginTop: "0.75rem", display: "flex", alignItems: "center", gap: "0.75rem" }}>
+          <div
+            style={{ marginTop: "0.75rem", display: "flex", alignItems: "center", gap: "0.75rem" }}
+          >
             <Label htmlFor="travelMins" style={{ whiteSpace: "nowrap" }}>
               Travel buffer
             </Label>
@@ -448,7 +461,13 @@ export function WalkinForm() {
             Date &amp; Time
           </legend>
 
-          <div style={{ marginBottom: "0.75rem", fontSize: "0.8125rem", color: "var(--cs-text-muted)" }}>
+          <div
+            style={{
+              marginBottom: "0.75rem",
+              fontSize: "0.8125rem",
+              color: "var(--cs-text-muted)",
+            }}
+          >
             {selectedService?.services?.name
               ? `Selected service: ${selectedService.services.name}`
               : "Choose an available slot"}
@@ -571,7 +590,9 @@ export function WalkinForm() {
           opacity: isPending || !selected || !serviceId || !fullName || !phone ? 0.5 : 1,
         }}
       >
-        {isPending ? "Creating booking…" : `Confirm ${bookingType === "home_service" ? "Home Service" : "Walk-in"}`}
+        {isPending
+          ? "Creating booking…"
+          : `Confirm ${bookingType === "home_service" ? "Home Service" : "Walk-in"}`}
       </Button>
     </form>
   );

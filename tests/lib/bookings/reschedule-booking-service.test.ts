@@ -42,6 +42,13 @@ vi.mock("@/lib/bookings/revalidate-booking-surfaces", () => ({
   revalidateOperationalBookingSurfaces: vi.fn(),
 }));
 
+vi.mock("@/lib/home-service/distance-service", () => ({
+  calculateHomeServiceDistanceQuote: vi.fn().mockResolvedValue({
+    ok: true,
+    quote: { distanceKm: 6, distanceSource: "google_driving", travelFee: 100 },
+  }),
+}));
+
 vi.mock("@/lib/cache/cache-tags", () => ({
   invalidateCrmWorkspace: vi.fn(),
   invalidateManagerWorkspace: vi.fn(),
@@ -204,6 +211,62 @@ function setupDefaultStaffTable() {
 describe("rescheduleBooking — Service-Level Combined Authority", () => {
   beforeEach(() => {
     vi.clearAllMocks();
+  });
+
+  it("repairs an existing Home Service destination without revalidating the unchanged therapist schedule", async () => {
+    const booking = makeBooking({
+      delivery_type: "home_service",
+      type: "home_service",
+      metadata: { home_service_address: { full_address: "Old address", travel_fee: 300 } },
+    });
+    const capture: { payload?: Record<string, unknown> } = {};
+    const updateMock = makeUpdateChain([{ id: BOOKING_ID }], (payload) => {
+      capture.payload = payload;
+    });
+    mockAdminClient.from.mockImplementation((table: string) => {
+      if (table === "bookings")
+        return {
+          select: vi.fn().mockReturnValue(makeSelectChain(booking)),
+          update: updateMock,
+        };
+      if (table === "staff") return setupDefaultStaffTable();
+      if (table === "booking_events")
+        return {
+          insert: vi.fn().mockResolvedValue({ error: null }),
+        };
+      return {};
+    });
+
+    const rejected = await rescheduleBooking(makeCtx(), {
+      bookingId: BOOKING_ID,
+      date: booking.booking_date,
+      startTime: booking.start_time,
+      homeServiceAddress: "123 Sample Street, Bacolod City",
+    });
+    expect(rejected.success).toBe(false);
+    expect(updateMock).not.toHaveBeenCalled();
+
+    const corrected = await rescheduleBooking(makeCtx(), {
+      bookingId: BOOKING_ID,
+      date: booking.booking_date,
+      startTime: booking.start_time,
+      homeServiceAddress: "123 Sample Street, Bacolod City",
+      homeServicePlaceId: "google-place-1",
+      homeServiceFormattedAddress: "123 Sample Street, Bacolod City",
+      homeServiceLat: 10.67,
+      homeServiceLng: 122.95,
+    });
+    expect(corrected.success).toBe(true);
+    expect(mockedBuildRec).not.toHaveBeenCalled();
+    expect(capture.payload?.metadata).toMatchObject({
+      home_service_address: {
+        full_address: "123 Sample Street, Bacolod City",
+        lat: 10.67,
+        lng: 122.95,
+        travel_fee: 300,
+      },
+      dispatch: { needs_location_review: false, live_eta: null },
+    });
   });
 
   it("1. schedule-only change keeps existing therapist validation", async () => {

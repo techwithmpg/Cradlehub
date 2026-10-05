@@ -15,6 +15,8 @@ import { canCancelBooking, canReassignBooking } from "@/lib/permissions";
 import { buildRecommendationContext } from "@/lib/queries/assignment-recommendations";
 import { scoreTherapistCandidates } from "@/lib/assignments/recommendation-engine";
 import { computeEndTime } from "@/lib/engine/booking-time";
+import { calculateHomeServiceDistanceQuote } from "@/lib/home-service/distance-service";
+import { buildGoogleMapsSearchUrl } from "@/lib/maps/google-maps";
 import {
   getOpenStaffScheduleException,
   resolveStaffScheduleExceptionMetadata,
@@ -64,6 +66,21 @@ export const rescheduleBookingSchema = bookingIdSchema.extend({
   note: z.string().max(500).optional(),
   homeServiceAddress: z.string().max(1000).optional(),
   homeServiceAccessNote: z.string().max(500).optional(),
+  homeServicePlaceId: z.string().max(300).optional(),
+  homeServiceFormattedAddress: z.string().max(500).optional(),
+  homeServiceLat: z.number().finite().min(-90).max(90).optional(),
+  homeServiceLng: z.number().finite().min(-180).max(180).optional(),
+  homeServiceMapUrl: z.url().max(1000).optional(),
+  homeServiceAddressComponents: z
+    .array(
+      z.object({
+        long_name: z.string().max(200),
+        short_name: z.string().max(100),
+        types: z.array(z.string().max(80)).max(12),
+      })
+    )
+    .max(24)
+    .optional(),
   therapistId: z.guid("Invalid therapist ID").optional(),
   overrideReason: z
     .enum([
@@ -212,6 +229,17 @@ export function withRescheduleMetadata(
     toTime: string;
     homeServiceAddress?: string;
     homeServiceAccessNote?: string;
+    homeServiceLocation?: {
+      formattedAddress: string;
+      placeId: string;
+      lat: number;
+      lng: number;
+      mapUrl: string;
+      addressComponents: Array<{ long_name: string; short_name: string; types: string[] }>;
+      distanceKm: number | null;
+      distanceSource: string | null;
+      distanceWarning: string | null;
+    };
   }
 ): Database["public"]["Tables"]["bookings"]["Update"]["metadata"] {
   const current =
@@ -251,12 +279,40 @@ export function withRescheduleMetadata(
             ...(input.homeServiceAddress !== undefined
               ? { full_address: input.homeServiceAddress.trim() }
               : {}),
+            ...(input.homeServiceLocation
+              ? {
+                  formatted_address: input.homeServiceLocation.formattedAddress,
+                  place_id: input.homeServiceLocation.placeId,
+                  lat: input.homeServiceLocation.lat,
+                  lng: input.homeServiceLocation.lng,
+                  map_url: input.homeServiceLocation.mapUrl,
+                  address_components: input.homeServiceLocation.addressComponents,
+                  distance_km: input.homeServiceLocation.distanceKm,
+                  distance_source: input.homeServiceLocation.distanceSource,
+                  source: "google_places",
+                }
+              : {}),
             ...(input.homeServiceAccessNote !== undefined
               ? { access_note: input.homeServiceAccessNote.trim() }
               : {}),
             updated_by: input.actorId,
             updated_at: updatedAt,
-            source: "crm_reschedule",
+            correction_source: "crm_reschedule",
+          },
+        }
+      : {}),
+    ...(input.homeServiceLocation
+      ? {
+          dispatch: {
+            ...(current.dispatch &&
+            typeof current.dispatch === "object" &&
+            !Array.isArray(current.dispatch)
+              ? (current.dispatch as Record<string, unknown>)
+              : {}),
+            needs_location_review: false,
+            dispatch_warning: input.homeServiceLocation.distanceWarning,
+            live_eta: null,
+            eta_minutes: null,
           },
         }
       : {}),
@@ -712,9 +768,44 @@ export async function rescheduleBooking(
     typeof currentHomeAddress.access_note === "string" ? currentHomeAddress.access_note : "";
   const nextAddress = parsed.data.homeServiceAddress?.trim();
   const nextAccessNote = parsed.data.homeServiceAccessNote?.trim();
+  const hasLocationPatch = [
+    parsed.data.homeServicePlaceId,
+    parsed.data.homeServiceFormattedAddress,
+    parsed.data.homeServiceLat,
+    parsed.data.homeServiceLng,
+    parsed.data.homeServiceMapUrl,
+    parsed.data.homeServiceAddressComponents,
+  ].some((value) => value !== undefined);
+  const locationChanged = isHomeServiceBooking(booking) && hasLocationPatch;
+  if (hasLocationPatch && !isHomeServiceBooking(booking)) {
+    return { success: false, error: "A customer destination is only valid for Home Service." };
+  }
+  if (
+    isHomeServiceBooking(booking) &&
+    nextAddress !== undefined &&
+    nextAddress !== currentAddress &&
+    !hasLocationPatch
+  ) {
+    return { success: false, error: "Select the updated address from the Google suggestions." };
+  }
+  if (
+    hasLocationPatch &&
+    (!nextAddress ||
+      !parsed.data.homeServicePlaceId?.trim() ||
+      !parsed.data.homeServiceFormattedAddress?.trim() ||
+      nextAddress !== parsed.data.homeServiceFormattedAddress.trim() ||
+      parsed.data.homeServiceLat === undefined ||
+      parsed.data.homeServiceLng === undefined)
+  ) {
+    return {
+      success: false,
+      error: "Select a valid customer destination from the Google suggestions.",
+    };
+  }
   const addressChanged =
     isHomeServiceBooking(booking) &&
-    ((nextAddress !== undefined && nextAddress !== currentAddress) ||
+    (locationChanged ||
+      (nextAddress !== undefined && nextAddress !== currentAddress) ||
       (nextAccessNote !== undefined && nextAccessNote !== currentAccessNote));
 
   const targetStaffId = parsed.data.therapistId ?? booking.staff_id ?? null;
@@ -732,79 +823,81 @@ export async function rescheduleBooking(
     return { success: false, error: "You do not have permission to reassign therapists" };
   }
 
-  let nextEndTime: string;
-  try {
-    nextEndTime = await computeEndTime(nextStartTime, booking.service_id, ctx.supabase);
-  } catch {
-    return {
-      success: false,
-      ...(ctx.allowOwnerCrossBranch === false ? { code: "SERVER_ERROR" } : {}),
-      error: "Could not calculate the new booking end time.",
-    };
-  }
-
-  const recommendationContext = await buildRecommendationContext(
-    booking.id,
-    {
-      booking_date: nextDate,
-      start_time: nextStartTime,
-      end_time: nextEndTime,
-    },
-    {
-      supabase: ctx.supabase,
-      throwOnError: ctx.allowOwnerCrossBranch === false,
-      branchId: ctx.allowOwnerCrossBranch === false ? ctx.me.branch_id : undefined,
-    }
-  );
-  if (!recommendationContext) {
-    return { success: false, error: "Could not verify staff availability for the new time." };
-  }
-
-  const scoredCandidates = scoreTherapistCandidates(recommendationContext);
-
-  if (staffChanged && targetStaffId) {
-    const admin = createAdminClient();
-    const { data: staffData, error: staffError } = await admin
-      .from("staff")
-      .select("id, branch_id, full_name, is_active")
-      .eq("id", targetStaffId)
-      .maybeSingle();
-
-    if (
-      staffError ||
-      !staffData ||
-      !staffData.is_active ||
-      staffData.branch_id !== booking.branch_id
-    ) {
-      return { success: false, error: "Selected therapist is not available for this branch." };
-    }
-
-    const candidate = scoredCandidates.find((c) => c.staffId === targetStaffId);
-    if (!candidate) {
-      return { success: false, error: "Selected therapist is not qualified for this service." };
-    }
-    if (candidate.status === "unavailable") {
+  let nextEndTime = booking.end_time ?? nextStartTime;
+  if (scheduleChanged || staffChanged) {
+    try {
+      nextEndTime = await computeEndTime(nextStartTime, booking.service_id, ctx.supabase);
+    } catch {
       return {
         success: false,
-        error: candidate.warnings[0] ?? "Selected therapist is not available at this time.",
+        ...(ctx.allowOwnerCrossBranch === false ? { code: "SERVER_ERROR" } : {}),
+        error: "Could not calculate the new booking end time.",
       };
     }
-  } else if (booking.staff_id) {
-    const currentTherapist = scoredCandidates.find(
-      (candidate) => candidate.staffId === booking.staff_id
+
+    const recommendationContext = await buildRecommendationContext(
+      booking.id,
+      {
+        booking_date: nextDate,
+        start_time: nextStartTime,
+        end_time: nextEndTime,
+      },
+      {
+        supabase: ctx.supabase,
+        throwOnError: ctx.allowOwnerCrossBranch === false,
+        branchId: ctx.allowOwnerCrossBranch === false ? ctx.me.branch_id : undefined,
+      }
     );
-    if (!currentTherapist || currentTherapist.status === "unavailable") {
-      return {
-        success: false,
-        error:
-          currentTherapist?.warnings[0] ?? "Assigned therapist is not available at the new time.",
-      };
+    if (!recommendationContext) {
+      return { success: false, error: "Could not verify staff availability for the new time." };
     }
-  } else if (!scoredCandidates.some((candidate) => candidate.status !== "unavailable")) {
-    return { success: false, error: "No therapist is available at the new time." };
+
+    const scoredCandidates = scoreTherapistCandidates(recommendationContext);
+
+    if (staffChanged && targetStaffId) {
+      const admin = createAdminClient();
+      const { data: staffData, error: staffError } = await admin
+        .from("staff")
+        .select("id, branch_id, full_name, is_active")
+        .eq("id", targetStaffId)
+        .maybeSingle();
+
+      if (
+        staffError ||
+        !staffData ||
+        !staffData.is_active ||
+        staffData.branch_id !== booking.branch_id
+      ) {
+        return { success: false, error: "Selected therapist is not available for this branch." };
+      }
+
+      const candidate = scoredCandidates.find((c) => c.staffId === targetStaffId);
+      if (!candidate) {
+        return { success: false, error: "Selected therapist is not qualified for this service." };
+      }
+      if (candidate.status === "unavailable") {
+        return {
+          success: false,
+          error: candidate.warnings[0] ?? "Selected therapist is not available at this time.",
+        };
+      }
+    } else if (booking.staff_id) {
+      const currentTherapist = scoredCandidates.find(
+        (candidate) => candidate.staffId === booking.staff_id
+      );
+      if (!currentTherapist || currentTherapist.status === "unavailable") {
+        return {
+          success: false,
+          error:
+            currentTherapist?.warnings[0] ?? "Assigned therapist is not available at the new time.",
+        };
+      }
+    } else if (!scoredCandidates.some((candidate) => candidate.status !== "unavailable")) {
+      return { success: false, error: "No therapist is available at the new time." };
+    }
   }
 
-  if (booking.resource_id && !isHomeServiceBooking(booking)) {
+  if (scheduleChanged && booking.resource_id && !isHomeServiceBooking(booking)) {
     const resourceAvailable = await isResourceAvailable(
       {
         resourceId: booking.resource_id,
@@ -822,6 +915,28 @@ export async function rescheduleBooking(
 
   const actorId = ctx.me.id === DEV_BYPASS_STAFF_ID ? null : ctx.me.id;
   const now = new Date().toISOString();
+  let homeServiceLocation: Parameters<typeof withRescheduleMetadata>[1]["homeServiceLocation"];
+  if (locationChanged) {
+    const lat = parsed.data.homeServiceLat!;
+    const lng = parsed.data.homeServiceLng!;
+    const distance = await calculateHomeServiceDistanceQuote({
+      branchId: booking.branch_id,
+      destination: { lat, lng },
+    });
+    homeServiceLocation = {
+      formattedAddress: parsed.data.homeServiceFormattedAddress!.trim(),
+      placeId: parsed.data.homeServicePlaceId!.trim(),
+      lat,
+      lng,
+      mapUrl: parsed.data.homeServiceMapUrl?.trim() || buildGoogleMapsSearchUrl(lat, lng),
+      addressComponents: parsed.data.homeServiceAddressComponents ?? [],
+      distanceKm: distance.ok ? distance.quote.distanceKm : null,
+      distanceSource: distance.ok ? distance.quote.distanceSource : null,
+      distanceWarning: distance.ok
+        ? null
+        : "Customer destination saved. Branch distance is unavailable; review the travel fee.",
+    };
+  }
   let updatedMetadata = withRescheduleMetadata(booking.metadata, {
     actorId,
     fromDate: booking.booking_date,
@@ -831,6 +946,7 @@ export async function rescheduleBooking(
     toTime: nextStartTime,
     homeServiceAddress: isHomeServiceBooking(booking) ? nextAddress : undefined,
     homeServiceAccessNote: isHomeServiceBooking(booking) ? nextAccessNote : undefined,
+    homeServiceLocation,
   }) as Record<string, unknown>;
 
   if (staffChanged && targetStaffId) {

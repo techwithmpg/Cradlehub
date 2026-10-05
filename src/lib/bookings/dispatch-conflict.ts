@@ -18,12 +18,12 @@ export const DISPATCH_ZONES = [
 export type DispatchZone = (typeof DISPATCH_ZONES)[number];
 
 export const ZONE_LABELS: Record<DispatchZone, string> = {
-  central_bacolod:       "Central Bacolod",
+  central_bacolod: "Central Bacolod",
   north_bacolod_talisay: "North Bacolod / Talisay",
-  south_bacolod_alijis:  "South Bacolod / Alijis",
-  east_bacolod:          "East Bacolod",
-  outside_bacolod:       "Outside Bacolod",
-  unknown:               "Not sure / Let CSR confirm",
+  south_bacolod_alijis: "South Bacolod / Alijis",
+  east_bacolod: "East Bacolod",
+  outside_bacolod: "Outside Bacolod",
+  unknown: "Not sure / Let CSR confirm",
 };
 
 // Zone pairs considered too far apart for a single driver with no buffer time.
@@ -31,14 +31,13 @@ export const ZONE_LABELS: Record<DispatchZone, string> = {
 const FAR_ZONE_PAIRS: [string, string][] = [
   ["north_bacolod_talisay", "south_bacolod_alijis"],
   ["north_bacolod_talisay", "outside_bacolod"],
-  ["south_bacolod_alijis",  "outside_bacolod"],
-  ["east_bacolod",          "outside_bacolod"],
+  ["south_bacolod_alijis", "outside_bacolod"],
+  ["east_bacolod", "outside_bacolod"],
 ];
 
 function isZonesFar(zoneA: string, zoneB: string): boolean {
   return FAR_ZONE_PAIRS.some(
-    ([a, b]) =>
-      (zoneA === a && zoneB === b) || (zoneA === b && zoneB === a)
+    ([a, b]) => (zoneA === a && zoneB === b) || (zoneA === b && zoneB === a)
   );
 }
 
@@ -47,16 +46,8 @@ function timeToMins(t: string): number {
   return (h ?? 0) * 60 + (m ?? 0);
 }
 
-function timesOverlap(
-  startA: string,
-  endA: string,
-  startB: string,
-  endB: string
-): boolean {
-  return (
-    timeToMins(startA) < timeToMins(endB) &&
-    timeToMins(endA) > timeToMins(startB)
-  );
+function timesOverlap(startA: string, endA: string, startB: string, endB: string): boolean {
+  return timeToMins(startA) < timeToMins(endB) && timeToMins(endA) > timeToMins(startB);
 }
 
 type HomeServiceAddress = {
@@ -135,8 +126,11 @@ export async function checkHomeServiceDispatchConflict({
     };
   }
 
-  // Unknown zone — allow but flag for CSR review
-  if (!selectedZone || selectedZone === "unknown") {
+  // A selected place with coordinates is usable even without a classified zone.
+  if (
+    (!selectedZone || selectedZone === "unknown") &&
+    (selectedLat == null || selectedLng == null)
+  ) {
     return {
       conflict: "warning",
       message:
@@ -162,7 +156,7 @@ export async function checkHomeServiceDispatchConflict({
         };
       }
 
-      if (isZonesFar(selectedZone, existingZone)) {
+      if (selectedZone && isZonesFar(selectedZone, existingZone)) {
         // Try Google travel time if both coords are available
         if (
           isGoogleMapsEnabled() &&

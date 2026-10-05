@@ -22,9 +22,20 @@ export async function createWalkinBookingAction(rawInput: unknown) {
   const d = parsed.data;
   const deliveryType = d.deliveryType ?? (d.type === "home_service" ? "home_service" : "in_spa");
 
+  // This legacy action has no destination fields. Home Service must use the
+  // CRM booking workflow, which stores the selected place on each booking.
+  if (deliveryType === "home_service" || d.type === "home_service") {
+    return {
+      success: false,
+      error: "Create Home Service bookings in CRM Bookings so the customer destination is saved.",
+    };
+  }
+
   // Get auth context — manager's branch_id
   const supabase = await createClient();
-  const { data: { user } } = await supabase.auth.getUser();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
   if (!user) return { success: false, error: "Unauthorized" };
 
   const { data: me } = await supabase
@@ -38,7 +49,11 @@ export async function createWalkinBookingAction(rawInput: unknown) {
     // Dev bypass: allow walk-in creation with a dummy branch
     // This requires a real branch_id to validate slots — fall through to error
     // since we can't safely invent a branch_id for booking validation.
-    return { success: false, error: "Dev bypass active but no branch_id available. Create a staff record with branch_id to test walk-in bookings." };
+    return {
+      success: false,
+      error:
+        "Dev bypass active but no branch_id available. Create a staff record with branch_id to test walk-in bookings.",
+    };
   }
 
   if (!me || !canManageBookings(me.system_role)) {
@@ -56,7 +71,7 @@ export async function createWalkinBookingAction(rawInput: unknown) {
     let resolvedResourceId = d.resourceId ?? null;
 
     // ── Auto-assign room if not provided ──────────────────────────────────
-    if (deliveryType !== "home_service" && !resolvedResourceId) {
+    if (!resolvedResourceId) {
       resolvedResourceId = await autoAssignBookingResource({
         branchId,
         date: d.date,
@@ -67,7 +82,8 @@ export async function createWalkinBookingAction(rawInput: unknown) {
       if (!resolvedResourceId) {
         return {
           success: false,
-          error: "No room/bed is available for this time. Please assign a space manually or choose another time.",
+          error:
+            "No room/bed is available for this time. Please assign a space manually or choose another time.",
         };
       }
     }
@@ -120,8 +136,15 @@ export async function createWalkinBookingAction(rawInput: unknown) {
     // Set attribution for trigger (fire-and-forget — non-critical).
     // set_config is a Postgres built-in, not in generated Supabase types — cast required.
     try {
-      await (supabase as unknown as { rpc: (fn: string, args: Record<string, unknown>) => Promise<unknown> })
-        .rpc("set_config", { setting: "app.current_staff_id", value: staffRow?.id ?? "", is_local: true });
+      await (
+        supabase as unknown as {
+          rpc: (fn: string, args: Record<string, unknown>) => Promise<unknown>;
+        }
+      ).rpc("set_config", {
+        setting: "app.current_staff_id",
+        value: staffRow?.id ?? "",
+        is_local: true,
+      });
     } catch {
       // Non-critical: trigger attribution may not run, booking creation proceeds
     }
@@ -140,8 +163,7 @@ export async function createWalkinBookingAction(rawInput: unknown) {
         type: d.type,
         delivery_type: deliveryType,
         status: "confirmed",
-        travel_buffer_mins:
-          deliveryType === "home_service" ? (d.travelBufferMins ?? 30) : null,
+        travel_buffer_mins: null,
         metadata,
       })
       .select("id")
