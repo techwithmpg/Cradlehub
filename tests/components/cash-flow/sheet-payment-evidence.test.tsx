@@ -22,6 +22,8 @@ const available: SheetNativeReferencesState = {
     {
       kind: "sheet_transaction_reference",
       evidenceKey: "source:0",
+      timeText: null,
+      sortMinute: null,
       sourceType: "MASTER_SHEET",
       readOnly: true,
       canonicalLink: "UNLINKED",

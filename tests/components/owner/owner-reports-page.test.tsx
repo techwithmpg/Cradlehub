@@ -14,6 +14,10 @@ vi.mock("next/navigation", () => ({
 }));
 vi.mock("@/app/(dashboard)/owner/bookings/actions", () => ({
   getOwnerReportsDataAction: (request: unknown) => getReports(request),
+  getOwnerReportSheetEvidenceAction: async () => ({
+    status: "no_source",
+    scopeNote: "No source configured",
+  }),
 }));
 vi.mock("@/components/features/dashboard/page-header", () => ({ PageHeader: () => null }));
 vi.mock("@/components/features/dashboard/daily-cash-summary", () => ({
@@ -30,11 +34,6 @@ vi.mock("@/components/features/owner/reports/booking-trend-card", () => ({
 }));
 vi.mock("@/components/features/owner/reports/reports-empty-state", () => ({
   ReportsEmptyState: () => null,
-}));
-vi.mock("@/components/features/owner/reports/report-kpi-cards", () => ({
-  ReportKpiCards: ({ revenueData }: { revenueData: Array<{ name?: string }> }) => (
-    <div data-testid="report-data">{revenueData[0]?.name}</div>
-  ),
 }));
 
 function reportData(marker: string, preset: string): OwnerReportsData {
@@ -87,12 +86,10 @@ describe("OwnerReportsPage retained data", () => {
       </SWRConfig>
     );
 
-    expect(screen.getByTestId("report-data").textContent).toBe("last-seven-data");
+    expect(screen.getAllByText("last-seven-data").length).toBeGreaterThan(0);
     expect(screen.getByText("Updating report data…")).toBeTruthy();
 
     nextRequest.resolve({ success: true, data: reportData("last-thirty-data", "last30") });
-    await waitFor(() =>
-      expect(screen.getByTestId("report-data").textContent).toBe("last-thirty-data")
-    );
+    await waitFor(() => expect(screen.getAllByText("last-thirty-data").length).toBeGreaterThan(0));
   });
 });

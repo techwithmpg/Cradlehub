@@ -67,6 +67,8 @@ export function projectNativeReferences(
           ...base,
           kind: "sheet_transaction_reference",
           evidenceKey: `${visit.source.sourceKey}:${index}`,
+          timeText: visit.time,
+          sortMinute: sheetTimeMinute(visit.time),
           customerDisplay: visit.customerDisplay,
           channel: evidence.channel,
           amount: evidence.amount,

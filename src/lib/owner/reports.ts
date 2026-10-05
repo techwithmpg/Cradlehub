@@ -76,7 +76,12 @@ export function calculateRevenueShare(
  */
 export function getDateRangeFromPreset(preset: string): { from: string; to: string } {
   const now = new Date();
-  const to = now.toISOString().split("T")[0]!;
+  const to = new Intl.DateTimeFormat("en-CA", {
+    timeZone: "Asia/Manila",
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+  }).format(now);
   let from = to;
 
   switch (preset) {
@@ -84,20 +89,19 @@ export function getDateRangeFromPreset(preset: string): { from: string; to: stri
       from = to;
       break;
     case "last7": {
-      const d = new Date();
-      d.setDate(d.getDate() - 6);
+      const d = new Date(`${to}T00:00:00.000Z`);
+      d.setUTCDate(d.getUTCDate() - 6);
       from = d.toISOString().split("T")[0]!;
       break;
     }
     case "last30": {
-      const d = new Date();
-      d.setDate(d.getDate() - 29);
+      const d = new Date(`${to}T00:00:00.000Z`);
+      d.setUTCDate(d.getUTCDate() - 29);
       from = d.toISOString().split("T")[0]!;
       break;
     }
     case "thisMonth": {
-      const d = new Date(now.getFullYear(), now.getMonth(), 1);
-      from = d.toISOString().split("T")[0]!;
+      from = `${to.slice(0, 7)}-01`;
       break;
     }
     default:

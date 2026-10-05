@@ -52,7 +52,7 @@ export function BranchReportsPanel({ data, onNavigateToTab }: BranchReportsPanel
     : [
         {
           key: "revenue",
-          name: data.branchName ?? "Branch Revenue",
+          name: data.branchName ?? "Branch Posted Receipts",
           color: "#1B4D3E",
           strokeWidth: 2,
         },
@@ -128,7 +128,7 @@ export function BranchReportsPanel({ data, onNavigateToTab }: BranchReportsPanel
 
                 <div className="mt-4 grid grid-cols-2 gap-3 text-xs">
                   <div>
-                    <span className="text-stone-500">Canonical Revenue</span>
+                    <span className="text-stone-500">Posted Receipts</span>
                     <div className="mt-0.5 text-base font-bold text-stone-900">
                       {formatPeso(branch.revenue)}
                     </div>
@@ -161,12 +161,12 @@ export function BranchReportsPanel({ data, onNavigateToTab }: BranchReportsPanel
         <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
           <div className="rounded-xl border border-stone-200/90 bg-white p-4 shadow-xs">
             <span className="text-xs font-semibold uppercase tracking-wider text-stone-500">
-              Branch Revenue
+              Branch Posted Receipts
             </span>
             <div className="mt-2 text-2xl font-bold tracking-tight text-stone-900">
               {formatPeso(kpis.canonicalRevenue)}
             </div>
-            <div className="mt-1 text-[11px] text-stone-500">Completed appointments</div>
+            <div className="mt-1 text-[11px] text-stone-500">Posted financial receipts</div>
           </div>
           <div className="rounded-xl border border-stone-200/90 bg-white p-4 shadow-xs">
             <span className="text-xs font-semibold uppercase tracking-wider text-stone-500">
@@ -184,7 +184,7 @@ export function BranchReportsPanel({ data, onNavigateToTab }: BranchReportsPanel
             <div className="mt-2 text-2xl font-bold tracking-tight text-stone-900">
               {kpis.totalBookings.toLocaleString()}
             </div>
-            <div className="mt-1 text-[11px] text-stone-500">All statuses</div>
+            <div className="mt-1 text-[11px] text-stone-500">Excludes cancelled and no-show</div>
           </div>
           <div className="rounded-xl border border-stone-200/90 bg-white p-4 shadow-xs">
             <span className="text-xs font-semibold uppercase tracking-wider text-stone-500">
@@ -204,13 +204,13 @@ export function BranchReportsPanel({ data, onNavigateToTab }: BranchReportsPanel
           <div>
             <h2 className="text-sm font-bold text-stone-900">
               {isAllBranches
-                ? "Cross-Branch Revenue Trajectory"
-                : `${data.branchName} Revenue Trajectory`}
+                ? "Cross-Branch Receipts Trajectory"
+                : `${data.branchName} Receipts Trajectory`}
             </h2>
             <p className="text-xs text-stone-500">
               {isAllBranches
-                ? "Daily revenue performance separated by branch"
-                : `Daily revenue trend for ${data.branchName}`}
+                ? "Daily posted receipts separated by branch"
+                : `Daily posted receipts for ${data.branchName}`}
             </p>
           </div>
         </div>
@@ -253,7 +253,7 @@ export function BranchReportsPanel({ data, onNavigateToTab }: BranchReportsPanel
               subLabel: s.category,
               value: s.completedCount,
               formattedValue: `${s.completedCount} completed`,
-              badge: formatPeso(s.revenue),
+              badge: `${s.completedCount} completed`,
               color: "#1B4D3E",
             }))}
             showRanking
@@ -268,7 +268,9 @@ export function BranchReportsPanel({ data, onNavigateToTab }: BranchReportsPanel
               <h2 className="text-sm font-bold text-stone-900">
                 {isAllBranches ? "Staff Productivity by Branch" : `Staff at ${data.branchName}`}
               </h2>
-              <p className="text-xs text-stone-500">Completed services and attributed revenue</p>
+              <p className="text-xs text-stone-500">
+                Completed services; revenue attribution deferred
+              </p>
             </div>
             <button
               type="button"
@@ -287,7 +289,7 @@ export function BranchReportsPanel({ data, onNavigateToTab }: BranchReportsPanel
               subLabel: `${st.branchName ?? "Branch"} • ${st.tier}`,
               value: st.completed,
               formattedValue: `${st.completed} completed`,
-              badge: formatPeso(st.revenue),
+              badge: `${st.completed} completed`,
               color: "#2E7D5B",
             }))}
             showRanking

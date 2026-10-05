@@ -6,11 +6,11 @@ import { RetainedWorkspaceModule } from "@/components/features/dashboard/retaine
 
 const VALID_TABS: readonly ReportTab[] = [
   "overview",
-  "branches",
+  "branch",
   "financial",
-  "services",
+  "service",
   "staff",
-  "sheet-evidence",
+  "sheet",
 ];
 
 interface ReportsPageProps {

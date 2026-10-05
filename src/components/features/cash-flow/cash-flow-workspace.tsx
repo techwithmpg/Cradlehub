@@ -6,7 +6,6 @@ import { RefreshCw, Banknote, ArrowLeftRight, Plus, FileText, CheckCircle2 } fro
 import type { CashFlowWorkspaceData, CashSessionSummary } from "@/lib/cash-flow/cash-flow-types";
 import { TodayTab } from "./today-tab";
 import { LedgerTab } from "./ledger-tab";
-import { SheetPaymentEvidence } from "./sheet-payment-evidence";
 import { DayCloseTab } from "./day-close-tab";
 import { HistoryTab } from "./history-tab";
 import { OpenCashDrawerModal } from "./open-cash-drawer-modal";
@@ -422,7 +421,6 @@ export function CashFlowWorkspace({
               totalRecords={initialData.ledger.totalRecords}
               businessDate={initialData.businessDate}
             />
-            <SheetPaymentEvidence businessDate={initialData.businessDate} />
           </div>
         )}
 

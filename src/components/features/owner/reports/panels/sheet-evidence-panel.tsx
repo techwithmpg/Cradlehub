@@ -54,27 +54,68 @@ export function SheetEvidencePanel({ data }: SheetEvidencePanelProps) {
       <div className="flex items-center gap-2 rounded-lg border border-stone-200 bg-stone-50 px-3.5 py-2.5 text-xs text-stone-600">
         <Info className="h-4 w-4 text-stone-500 shrink-0" />
         <span>
-          <strong>Branch Provenance Rule:</strong> Sheet evidence does not inherit the selected
-          reporting scope. Records with unverified branch origin remain explicitly labelled as{" "}
-          <code className="rounded bg-stone-200 px-1 py-0.5 text-[11px] font-mono text-stone-800">
-            BRANCH_UNKNOWN
-          </code>
-          .
+          <strong>Source scope:</strong> {sheetEvidence?.scopeNote ?? "Loading source mapping…"}
         </span>
       </div>
 
-      {!sheetEvidence || sheetEvidence.status === "unavailable" ? (
+      {!sheetEvidence ||
+      sheetEvidence.status !== "available" ||
+      sheetEvidence.coverage === "NO_COVERAGE" ? (
         <div className="flex h-56 flex-col items-center justify-center rounded-xl border border-dashed border-amber-200 bg-amber-50/30 p-6 text-center">
           <FileSpreadsheet className="h-8 w-8 text-amber-400 mb-2" />
-          <h3 className="text-sm font-bold text-amber-950">Master Sheet Evidence Unavailable</h3>
+          <h3 className="text-sm font-bold text-amber-950">
+            {sheetEvidence?.coverage === "NO_COVERAGE"
+              ? "No Master Sheet coverage for selected dates"
+              : sheetEvidence?.status === "no_source"
+                ? "No source configured"
+                : "Master Sheet Evidence Unavailable"}
+          </h3>
           <p className="mt-1 max-w-md text-xs text-amber-800/80">
-            {sheetEvidence?.status === "forbidden"
-              ? "Access to Google Sheet projections is restricted for this credential."
-              : "Google Sheet credentials are not configured or the operational sheet is currently unreachable."}
+            {sheetEvidence?.coverage === "NO_COVERAGE"
+              ? `Selected ${data.from}–${data.to}; loaded ${sheetEvidence.coverageFrom}–${sheetEvidence.coverageTo}. Evidence outside the loaded window is unavailable.`
+              : sheetEvidence?.status === "no_source"
+                ? sheetEvidence.scopeNote
+                : sheetEvidence?.status === "forbidden"
+                  ? "Access to Google Sheet projections is restricted for this credential."
+                  : "Google Sheet credentials are not configured or the operational sheet is currently unreachable."}
           </p>
         </div>
       ) : (
         <>
+          <div className="rounded-xl border border-amber-200 bg-white p-4 text-xs text-stone-700">
+            <div className="font-bold uppercase text-amber-900">
+              Master Sheet · Read only · Date coverage:{" "}
+              {sheetEvidence.coverage.replaceAll("_", " ")}
+            </div>
+            <div>
+              Selected: {data.from}–{data.to}
+            </div>
+            {(sheetEvidence.sources ?? []).map((source) => (
+              <div
+                key={`${source.workbook}:${source.branch}`}
+                className="mt-2 border-t border-amber-100 pt-2"
+              >
+                <div>
+                  {source.workbook} · {source.branch} ({source.mapping}) ·{" "}
+                  {source.coverage.replaceAll("_", " ")}
+                </div>
+                <div>
+                  Loaded: {source.from}–{source.to} · Tabs: {source.previousTab} ·{" "}
+                  {source.currentTab}
+                </div>
+              </div>
+            ))}
+            <div>{sheetEvidence.scopeNote}</div>
+            <div>
+              Amount known: {sheetEvidence.amountKnownCount ?? 0} · Amount unknown or ambiguous:{" "}
+              {sheetEvidence.amountUnknownCount ?? 0} · Possible matches: none approved
+            </div>
+            {sheetEvidence.coverage !== "FULL_COVERAGE" && (
+              <div className="mt-1 font-semibold text-amber-900">
+                Evidence outside loaded coverage is unavailable, not zero.
+              </div>
+            )}
+          </div>
           {/* ── Summary KPI Row ───────────────────────────────────────── */}
           <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
             <div className="rounded-xl border border-stone-200/90 bg-white p-4 shadow-xs">
@@ -84,7 +125,9 @@ export function SheetEvidencePanel({ data }: SheetEvidencePanelProps) {
               <div className="mt-2 text-2xl font-bold tracking-tight text-stone-900">
                 {sheetEvidence.totalRecords.toLocaleString()}
               </div>
-              <div className="mt-1 text-[11px] text-stone-500">Total sheet rows parsed</div>
+              <div className="mt-1 text-[11px] text-stone-500">
+                Records within selected and loaded dates
+              </div>
             </div>
 
             <div className="rounded-xl border border-stone-200/90 bg-white p-4 shadow-xs">
@@ -162,6 +205,9 @@ export function SheetEvidencePanel({ data }: SheetEvidencePanelProps) {
                         </td>
                         <td className="py-2.5 font-medium text-stone-900">
                           {v.customer ?? "Guest"}
+                          <div className="text-[10px] font-normal text-stone-500">
+                            {v.workbook} · {v.source}
+                          </div>
                         </td>
                         <td className="py-2.5 text-stone-600">{v.attendant ?? "Unassigned"}</td>
                         <td
@@ -180,7 +226,7 @@ export function SheetEvidencePanel({ data }: SheetEvidencePanelProps) {
                         </td>
                         <td className="py-2.5">
                           <span className="rounded bg-stone-200/70 px-1.5 py-0.5 text-[10px] font-mono text-stone-600">
-                            BRANCH_UNKNOWN
+                            {sheetEvidence.mappedBranch} · PROVISIONAL
                           </span>
                         </td>
                         <td className="py-2.5">

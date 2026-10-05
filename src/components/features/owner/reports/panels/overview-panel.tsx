@@ -57,7 +57,7 @@ export function OverviewPanel({ data, onNavigateToTab }: OverviewPanelProps) {
           strokeWidth: 1.5,
         })),
       ]
-    : [{ key: "revenue", name: "Recorded Revenue", color: "#1B4D3E", strokeWidth: 2.5 }];
+    : [{ key: "revenue", name: "Posted Receipts", color: "#1B4D3E", strokeWidth: 2.5 }];
 
   // Transform trendData to flatten branchSeries for chart
   const formattedLineData: Array<{
@@ -117,7 +117,7 @@ export function OverviewPanel({ data, onNavigateToTab }: OverviewPanelProps) {
         <div className="rounded-xl border border-stone-200/90 bg-white p-4 shadow-xs">
           <div className="flex items-center justify-between">
             <span className="text-xs font-semibold uppercase tracking-wider text-stone-500">
-              Canonical Revenue
+              Posted Receipts
             </span>
             <div className="rounded-md bg-emerald-50 p-1.5 text-emerald-700">
               <TrendingUp className="h-4 w-4" />
@@ -128,7 +128,7 @@ export function OverviewPanel({ data, onNavigateToTab }: OverviewPanelProps) {
           </div>
           <div className="mt-1 flex items-center gap-1.5 text-[11px] text-stone-500">
             <span className="inline-block h-1.5 w-1.5 rounded-full bg-emerald-500" />
-            <span>Completed bookings line revenue</span>
+            <span>Posted financial receipt movements</span>
           </div>
         </div>
 
@@ -161,7 +161,7 @@ export function OverviewPanel({ data, onNavigateToTab }: OverviewPanelProps) {
           <div className="mt-2 text-2xl font-bold tracking-tight text-stone-900">
             {kpis.totalBookings.toLocaleString()}
           </div>
-          <div className="mt-1 text-[11px] text-stone-500">All appointments in scope</div>
+          <div className="mt-1 text-[11px] text-stone-500">Excludes cancelled and no-show</div>
         </div>
 
         {/* Average Booking Value */}
@@ -187,9 +187,9 @@ export function OverviewPanel({ data, onNavigateToTab }: OverviewPanelProps) {
         <div className="rounded-xl border border-stone-200/90 bg-white p-5 shadow-xs lg:col-span-2">
           <div className="mb-4 flex flex-col gap-1 sm:flex-row sm:items-center sm:justify-between">
             <div>
-              <h2 className="text-sm font-bold text-stone-900">Revenue Trend</h2>
+              <h2 className="text-sm font-bold text-stone-900">Posted Receipts Trend</h2>
               <p className="text-xs text-stone-500">
-                Daily recorded canonical revenue over selected period
+                Daily posted canonical receipts over selected period
               </p>
             </div>
             <div className="text-right">
@@ -213,7 +213,7 @@ export function OverviewPanel({ data, onNavigateToTab }: OverviewPanelProps) {
           <div className="mb-4 flex items-center justify-between">
             <div>
               <h2 className="text-sm font-bold text-stone-900">Branch Performance</h2>
-              <p className="text-xs text-stone-500">Revenue contribution & share</p>
+              <p className="text-xs text-stone-500">Posted receipt contribution & share</p>
             </div>
             <button
               type="button"
@@ -227,7 +227,7 @@ export function OverviewPanel({ data, onNavigateToTab }: OverviewPanelProps) {
 
           {revenueData.length === 0 ? (
             <div className="flex h-48 items-center justify-center rounded-lg border border-dashed border-stone-200 text-xs text-stone-500">
-              No branch revenue data in this period
+              No branch receipt data in this period
             </div>
           ) : (
             <div className="space-y-4">
@@ -361,7 +361,7 @@ export function OverviewPanel({ data, onNavigateToTab }: OverviewPanelProps) {
                     <th className="pb-2">Staff Member</th>
                     <th className="pb-2">Branch</th>
                     <th className="pb-2 text-right">Completed</th>
-                    <th className="pb-2 text-right">Attributed Revenue</th>
+                    <th className="pb-2 text-right">Revenue Attribution</th>
                     <th className="pb-2 text-right">Avg / Service</th>
                   </tr>
                 </thead>
@@ -381,12 +381,8 @@ export function OverviewPanel({ data, onNavigateToTab }: OverviewPanelProps) {
                       <td className="py-2.5 text-right font-semibold text-stone-800">
                         {staff.completed}
                       </td>
-                      <td className="py-2.5 text-right font-semibold text-emerald-800">
-                        {formatPeso(staff.revenue)}
-                      </td>
-                      <td className="py-2.5 text-right text-stone-600">
-                        {formatPeso(staff.avgPerService)}
-                      </td>
+                      <td className="py-2.5 text-right font-semibold text-emerald-800">Deferred</td>
+                      <td className="py-2.5 text-right text-stone-600">Deferred</td>
                     </tr>
                   ))}
                 </tbody>
@@ -412,7 +408,7 @@ export function OverviewPanel({ data, onNavigateToTab }: OverviewPanelProps) {
               External operational evidence observed from Stage 1D/1E projection.
             </p>
 
-            {sheetEvidence ? (
+            {sheetEvidence?.status === "available" && sheetEvidence.coverage !== "NO_COVERAGE" ? (
               <div className="mt-4 space-y-2.5 text-xs">
                 <div className="flex items-center justify-between border-b border-amber-200/60 pb-1.5">
                   <span className="text-amber-800">Status</span>
@@ -421,9 +417,19 @@ export function OverviewPanel({ data, onNavigateToTab }: OverviewPanelProps) {
                   </span>
                 </div>
                 <div className="flex items-center justify-between border-b border-amber-200/60 pb-1.5">
-                  <span className="text-amber-800">Total Records</span>
-                  <span className="font-semibold text-amber-950">{sheetEvidence.totalRecords}</span>
+                  <span className="text-amber-800">Visits in selected dates</span>
+                  <span className="font-semibold text-amber-950">{sheetEvidence.visitCount}</span>
                 </div>
+                <div className="text-amber-900">
+                  Date coverage: {sheetEvidence.coverage.replaceAll("_", " ")} ·{" "}
+                  {sheetEvidence.coverageFrom}–{sheetEvidence.coverageTo}
+                </div>
+                <div className="text-amber-900">
+                  {sheetEvidence.mappedBranch} · {sheetEvidence.mappingStatus} source mapping
+                </div>
+                {sheetEvidence.scopeNote && (
+                  <div className="text-amber-900">{sheetEvidence.scopeNote}</div>
+                )}
                 <div className="flex items-center justify-between border-b border-amber-200/60 pb-1.5">
                   <span className="text-amber-800">Needs Review</span>
                   <span className="font-semibold text-amber-950">
@@ -444,7 +450,9 @@ export function OverviewPanel({ data, onNavigateToTab }: OverviewPanelProps) {
               </div>
             ) : (
               <div className="mt-4 text-center text-xs text-amber-700">
-                External sheet evidence unavailable
+                {sheetEvidence?.coverage === "NO_COVERAGE"
+                  ? `No Master Sheet coverage for ${data.from}–${data.to}; loaded ${sheetEvidence.coverageFrom}–${sheetEvidence.coverageTo}.`
+                  : (sheetEvidence?.scopeNote ?? "External sheet evidence loading or unavailable")}
               </div>
             )}
           </div>

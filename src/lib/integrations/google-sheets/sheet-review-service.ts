@@ -33,6 +33,7 @@ export async function loadMasterSheetReview(
     authorize?: () => Promise<boolean>;
     reader?: SheetReader;
     now?: () => Date;
+    workbookId?: string;
   } = {}
 ): Promise<MasterSheetReviewResult> {
   const started = performance.now();
@@ -52,6 +53,7 @@ export async function loadMasterSheetReview(
     const reader =
       options.reader ??
       createGoogleSheetsReader({
+        spreadsheetId: options.workbookId,
         tokenProvider: selectSheetTokenProvider() ?? undefined,
         onTiming: (phase, milliseconds) => {
           timings[phase] = (timings[phase] ?? 0) + milliseconds;

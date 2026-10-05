@@ -2,7 +2,7 @@ import "server-only";
 
 import { createClient } from "@/lib/supabase/server";
 import { getStaffAdminName } from "@/lib/staff/display-name";
-import { loadMasterSheetReview } from "@/lib/integrations/google-sheets/sheet-review-service";
+import { isCashFlowReceiptTransactionType } from "@/lib/cash-flow/payment-evidence";
 import {
   getDateRangeFromPreset,
   formatReportDateRange,
@@ -15,7 +15,6 @@ import {
   type StaffProductivityReportItem,
   type DailyFinancialItem,
   type TopPaymentDayItem,
-  type MasterSheetEvidenceSummary,
 } from "@/lib/owner/reports";
 
 function readPricePaid(metadata: unknown): number {
@@ -32,12 +31,12 @@ const ISO_DATE = /^\d{4}-\d{2}-\d{2}$/;
  */
 function getDatesInRange(startDate: string, endDate: string): string[] {
   const dates: string[] = [];
-  const current = new Date(`${startDate}T00:00:00`);
-  const last = new Date(`${endDate}T00:00:00`);
+  const current = new Date(`${startDate}T00:00:00.000Z`);
+  const last = new Date(`${endDate}T00:00:00.000Z`);
 
   while (current <= last) {
     dates.push(current.toISOString().split("T")[0]!);
-    current.setDate(current.getDate() + 1);
+    current.setUTCDate(current.getUTCDate() + 1);
   }
   return dates;
 }
@@ -59,13 +58,17 @@ export async function fetchOwnerReportsData(
   let from: string;
   let to: string;
 
-  if (
-    preset === "custom" &&
-    request.from &&
-    request.to &&
-    ISO_DATE.test(request.from) &&
-    ISO_DATE.test(request.to)
-  ) {
+  if (preset === "custom") {
+    if (
+      !request.from ||
+      !request.to ||
+      !ISO_DATE.test(request.from) ||
+      !ISO_DATE.test(request.to) ||
+      new Date(`${request.from}T00:00:00.000Z`).toISOString().slice(0, 10) !== request.from ||
+      new Date(`${request.to}T00:00:00.000Z`).toISOString().slice(0, 10) !== request.to
+    ) {
+      throw new Error("Invalid report date range");
+    }
     if (request.from <= request.to) {
       from = request.from;
       to = request.to;
@@ -94,44 +97,93 @@ export async function fetchOwnerReportsData(
   const requestedBranchId =
     request.branchId && request.branchId !== "all" ? request.branchId : "all";
   const matchedBranch = branches.find((b) => b.id === requestedBranchId);
+  if (requestedBranchId !== "all" && !matchedBranch) throw new Error("Invalid report branch");
   const activeBranchId = matchedBranch ? matchedBranch.id : "all";
   const activeBranchName = matchedBranch ? matchedBranch.name : "All Branches";
 
   // 4. Query bookings in range with branch scope
-  let bookingsQuery = supabase
-    .from("bookings")
-    .select(
-      `id, branch_id, service_id, staff_id, customer_id, booking_date, start_time, end_time, status, metadata,
+  const bookingQuery = () =>
+    supabase
+      .from("bookings")
+      .select(
+        `id, branch_id, service_id, staff_id, customer_id, booking_date, start_time, end_time, status, metadata,
        payment_method, payment_status, amount_paid,
        branches ( id, name ),
        services ( id, name, category_id, service_categories ( id, name ) ),
        staff!staff_id ( id, full_name, nickname, tier, branch_id ),
        customers ( id, full_name )`
-    )
-    .gte("booking_date", from)
-    .lte("booking_date", to);
-
-  if (activeBranchId !== "all") {
-    bookingsQuery = bookingsQuery.eq("branch_id", activeBranchId);
+      )
+      .gte("booking_date", from)
+      .lte("booking_date", to)
+      .order("id");
+  type BookingRow = NonNullable<Awaited<ReturnType<typeof bookingQuery>>["data"]>[number];
+  const bookings: BookingRow[] = [];
+  for (let offset = 0; ; offset += 500) {
+    let bookingsQuery = bookingQuery().range(offset, offset + 499);
+    if (activeBranchId !== "all") bookingsQuery = bookingsQuery.eq("branch_id", activeBranchId);
+    const { data, error } = await bookingsQuery;
+    if (error) throw new Error(error.message);
+    bookings.push(...(data ?? []));
+    if ((data ?? []).length < 500) break;
   }
 
-  const { data: bookingRows, error: bookingsErr } = await bookingsQuery;
-  if (bookingsErr) throw new Error(bookingsErr.message);
-
-  const bookings = bookingRows ?? [];
+  // Signed posted movements own receipt amounts. Booking payment fields are snapshots.
+  type FinanceRow = {
+    id: string;
+    branch_id: string;
+    business_date: string;
+    transaction_type: string;
+    financial_account_movements: Array<{ amount: number | string; payment_method: string | null }>;
+  };
+  const financeRows: FinanceRow[] = [];
+  for (let offset = 0; ; offset += 500) {
+    let financeQuery = supabase
+      .from("financial_transactions")
+      .select(
+        "id, branch_id, business_date, transaction_type, financial_account_movements(amount, payment_method)"
+      )
+      .eq("status", "posted")
+      .gte("business_date", from)
+      .lte("business_date", to)
+      .order("id")
+      .range(offset, offset + 499);
+    if (activeBranchId !== "all") financeQuery = financeQuery.eq("branch_id", activeBranchId);
+    const { data, error } = await financeQuery;
+    if (error) throw new Error(error.message);
+    const page = (data ?? []) as FinanceRow[];
+    financeRows.push(...page);
+    if (page.length < 500) break;
+  }
+  const receiptRows = financeRows.filter((row) =>
+    isCashFlowReceiptTransactionType(row.transaction_type)
+  );
+  const positiveMovementAmount = (raw: number | string): number => {
+    const value = Number(raw);
+    if (!Number.isFinite(value)) throw new Error("Invalid posted financial movement amount");
+    return Math.max(0, value);
+  };
+  const receiptAmount = (row: FinanceRow) =>
+    row.financial_account_movements.reduce(
+      (sum, movement) => sum + positiveMovementAmount(movement.amount),
+      0
+    );
 
   // Filter partitions
   const activeBookings = bookings.filter((r) => !["cancelled", "no_show"].includes(r.status));
   const completedBookings = bookings.filter((r) => r.status === "completed");
-  const paidBookings = bookings.filter((r) => r.payment_status === "paid");
 
   // 5. Calculate Top KPIs
-  const canonicalRevenue = completedBookings.reduce((sum, r) => sum + readPricePaid(r.metadata), 0);
+  const bookingValue = completedBookings.reduce((sum, r) => sum + readPricePaid(r.metadata), 0);
+  const canonicalRevenue = receiptRows.reduce((sum, row) => sum + receiptAmount(row), 0);
   const completedServices = completedBookings.length;
   const totalBookings = activeBookings.length;
-  const averageBookingValue = completedServices > 0 ? canonicalRevenue / completedServices : 0;
-  const collectedPayments = paidBookings.reduce((sum, r) => sum + Number(r.amount_paid ?? 0), 0);
-  const averageTransaction = paidBookings.length > 0 ? collectedPayments / paidBookings.length : 0;
+  const averageBookingValue = completedServices > 0 ? bookingValue / completedServices : 0;
+  const customerReceipts = receiptRows.filter(
+    (row) =>
+      row.transaction_type === "customer_payment" || row.transaction_type === "customer_deposit"
+  );
+  const collectedPayments = customerReceipts.reduce((sum, row) => sum + receiptAmount(row), 0);
+  const averageTransaction = receiptRows.length > 0 ? canonicalRevenue / receiptRows.length : 0;
 
   const uniqueCustomerIds = new Set(
     bookings.map((r) => r.customer_id).filter((id): id is string => Boolean(id))
@@ -147,7 +199,14 @@ export async function fetchOwnerReportsData(
   // 6. Branch Breakdown (for all active branches)
   const branchMetricsMap = new Map<
     string,
-    { branchId: string; name: string; revenue: number; count: number; completedCount: number }
+    {
+      branchId: string;
+      name: string;
+      revenue: number;
+      bookingValue: number;
+      count: number;
+      completedCount: number;
+    }
   >();
 
   for (const b of branches) {
@@ -155,6 +214,7 @@ export async function fetchOwnerReportsData(
       branchId: b.id,
       name: b.name,
       revenue: 0,
+      bookingValue: 0,
       count: 0,
       completedCount: 0,
     });
@@ -168,7 +228,14 @@ export async function fetchOwnerReportsData(
       const bname = Array.isArray(r.branches)
         ? r.branches[0]?.name
         : ((r.branches as { name?: string } | null)?.name ?? bid);
-      entry = { branchId: bid, name: bname, revenue: 0, count: 0, completedCount: 0 };
+      entry = {
+        branchId: bid,
+        name: bname,
+        revenue: 0,
+        bookingValue: 0,
+        count: 0,
+        completedCount: 0,
+      };
       branchMetricsMap.set(bid, entry);
     }
     if (!["cancelled", "no_show"].includes(r.status)) {
@@ -176,16 +243,24 @@ export async function fetchOwnerReportsData(
     }
     if (r.status === "completed") {
       entry.completedCount++;
-      entry.revenue += readPricePaid(r.metadata);
+      entry.bookingValue += readPricePaid(r.metadata);
     }
+  }
+  for (const row of receiptRows) {
+    const entry = branchMetricsMap.get(row.branch_id);
+    if (entry) entry.revenue += receiptAmount(row);
   }
 
   const revenueData: RevenueByBranchItem[] = Array.from(branchMetricsMap.values())
     .map((item) => {
       const share = canonicalRevenue > 0 ? Math.round((item.revenue / canonicalRevenue) * 100) : 0;
-      const avgBookingValue = item.completedCount > 0 ? item.revenue / item.completedCount : 0;
+      const avgBookingValue = item.completedCount > 0 ? item.bookingValue / item.completedCount : 0;
       return {
-        ...item,
+        branchId: item.branchId,
+        name: item.name,
+        revenue: item.revenue,
+        count: item.count,
+        completedCount: item.completedCount,
         avgBookingValue,
         share,
       };
@@ -226,15 +301,20 @@ export async function fetchOwnerReportsData(
       entry.count++;
     }
     if (r.status === "completed") {
-      const rev = readPricePaid(r.metadata);
       entry.completedCount++;
-      entry.revenue += rev;
-
-      const bid = r.branch_id ?? "unknown";
-      entry.branchSeries[bid] = (entry.branchSeries[bid] ?? 0) + rev;
     }
-    if (r.payment_status === "paid") {
-      entry.collected += Number(r.amount_paid ?? 0);
+  }
+  for (const row of receiptRows) {
+    const entry = trendDataMap.get(row.business_date);
+    if (!entry) continue;
+    const amount = receiptAmount(row);
+    entry.revenue += amount;
+    entry.branchSeries[row.branch_id] = (entry.branchSeries[row.branch_id] ?? 0) + amount;
+    if (
+      row.transaction_type === "customer_payment" ||
+      row.transaction_type === "customer_deposit"
+    ) {
+      entry.collected += amount;
     }
   }
 
@@ -266,19 +346,22 @@ export async function fetchOwnerReportsData(
     other: { label: "Other", amount: 0, count: 0 },
   };
 
-  for (const r of paidBookings) {
-    const rawMethod = (r.payment_method ?? "other").toLowerCase();
-    const key = (rawMethod in methodMap ? rawMethod : "other") as PaymentMethodKey;
-    const amount = Number(r.amount_paid ?? 0);
-    const target = methodMap[key];
-    if (target) {
-      target.amount += amount;
-      target.count += 1;
+  for (const row of receiptRows) {
+    for (const movement of row.financial_account_movements) {
+      const amount = positiveMovementAmount(movement.amount);
+      if (!amount) continue;
+      const rawMethod = (movement.payment_method ?? "other").toLowerCase();
+      const key = (rawMethod in methodMap ? rawMethod : "other") as PaymentMethodKey;
+      const target = methodMap[key];
+      if (target) {
+        target.amount += amount;
+        target.count += 1;
+      }
     }
   }
 
   const totalCollectedPayment = Object.values(methodMap).reduce((s, m) => s + m.amount, 0);
-  const totalTransactionsCount = Object.values(methodMap).reduce((s, m) => s + m.count, 0);
+  const totalTransactionsCount = receiptRows.length;
 
   const paymentBreakdownMethods = Object.entries(methodMap).map(([method, data]) => ({
     method,
@@ -310,7 +393,6 @@ export async function fetchOwnerReportsData(
       svc as { service_categories?: { name?: string } | Array<{ name?: string }> } | null
     )?.service_categories;
     const catName: string = (Array.isArray(catRel) ? catRel[0]?.name : catRel?.name) ?? "General";
-    const rev = readPricePaid(r.metadata);
 
     let entry = serviceStatsMap.get(sid);
     if (!entry) {
@@ -325,7 +407,6 @@ export async function fetchOwnerReportsData(
       serviceStatsMap.set(sid, entry);
     }
     entry.completedCount++;
-    entry.revenue += rev;
     const bid = r.branch_id ?? "unknown";
     entry.branchBreakdown[bid] = (entry.branchBreakdown[bid] ?? 0) + 1;
 
@@ -335,7 +416,6 @@ export async function fetchOwnerReportsData(
       categoryMixMap.set(catName, catEntry);
     }
     catEntry.count++;
-    catEntry.revenue += rev;
   }
 
   const serviceData: ServiceReportItem[] = Array.from(serviceStatsMap.values())
@@ -383,19 +463,21 @@ export async function fetchOwnerReportsData(
       branch_id?: string | null;
     } | null;
 
-    let entry = staffStatsMap.get(sid);
+    const staffBranchId = r.branch_id ?? "unknown";
+    const staffKey = `${sid}:${staffBranchId}`;
+    let entry = staffStatsMap.get(staffKey);
     if (!entry) {
       entry = {
-        staffId: sid,
+        staffId: staffKey,
         name: staff ? getStaffAdminName(staff) : sid,
         tier: staff?.tier ?? "-",
-        branchId: staff?.branch_id ?? r.branch_id ?? undefined,
+        branchId: r.branch_id ?? undefined,
         total: 0,
         completed: 0,
         revenue: 0,
         serviceCounts: {},
       };
-      staffStatsMap.set(sid, entry);
+      staffStatsMap.set(staffKey, entry);
     }
 
     if (!["cancelled", "no_show"].includes(r.status)) {
@@ -403,7 +485,6 @@ export async function fetchOwnerReportsData(
     }
     if (r.status === "completed") {
       entry.completed++;
-      entry.revenue += readPricePaid(r.metadata);
 
       const svcRel = Array.isArray(r.services) ? r.services[0] : r.services;
       const svcName = (svcRel as { name?: string } | null)?.name ?? "Service";
@@ -450,7 +531,7 @@ export async function fetchOwnerReportsData(
       date: t.date,
       recordedRevenue: t.revenue,
       collectedPayments: t.collected,
-      transactions: t.count,
+      transactions: receiptRows.filter((row) => row.business_date === t.date).length,
       completedBookings: t.completedCount,
     }))
     .reverse(); // Most recent first for table
@@ -462,117 +543,8 @@ export async function fetchOwnerReportsData(
       date: t.date,
       revenue: t.revenue,
       collected: t.collected,
-      transactions: t.count,
+      transactions: receiptRows.filter((row) => row.business_date === t.date).length,
     }));
-
-  // 12. Master Sheet Operational Evidence (External, read-only)
-  let sheetEvidence: MasterSheetEvidenceSummary = {
-    status: "unavailable",
-    observedAt: new Date().toISOString(),
-    totalRecords: 0,
-    visitCount: 0,
-    dutyCount: 0,
-    needsReviewCount: 0,
-    evidenceAmount: 0,
-    effectOnCanonicalTotals: 0,
-  };
-
-  try {
-    const sheetReviewResult = await loadMasterSheetReview();
-    if (sheetReviewResult.status === "available") {
-      const cur = sheetReviewResult.current;
-      const prev = sheetReviewResult.previous;
-      const allVisits = [...(cur?.visits ?? []), ...(prev?.visits ?? [])];
-      const allDuties = [...(cur?.duties ?? []), ...(prev?.duties ?? [])];
-      const allReviews = [...(cur?.review ?? []), ...(prev?.review ?? [])];
-
-      let evidenceAmount = 0;
-      for (const v of allVisits) {
-        for (const fe of v.financialEvidence) {
-          if (fe.amount && Number.isFinite(fe.amount)) {
-            evidenceAmount += fe.amount;
-          }
-        }
-      }
-
-      const recentVisits = allVisits.slice(0, 15).map((v, idx) => ({
-        id: `visit-${idx}-${v.source.sourceKey}`,
-        date: v.businessDate,
-        time: v.time,
-        customer: v.customerDisplay,
-        attendant: v.staffDisplay,
-        services: v.services.map((s) => s.name).join(", ") || "Unspecified",
-        channel: v.financialEvidence.map((f) => f.channel).join(", ") || "Unrecorded",
-        amount: v.financialEvidence.reduce((sum, f) => sum + (f.amount ?? 0), 0) || null,
-        reasons: v.reviewReasons,
-        source: `${v.source.sheetName} (r${v.source.startRow}-${v.source.endRow})`,
-      }));
-
-      const recentReviews = allReviews.slice(0, 15).map((r, idx) => ({
-        id: `review-${idx}-${r.source.sourceKey}`,
-        date: r.businessDate,
-        classification: r.classification,
-        reasons: r.reviewReasons,
-        source: `${r.source.sheetName} (r${r.source.startRow}-${r.source.endRow})`,
-      }));
-
-      sheetEvidence = {
-        status: "available",
-        observedAt: sheetReviewResult.observedAt,
-        totalRecords: allVisits.length + allDuties.length + allReviews.length,
-        visitCount: allVisits.length,
-        dutyCount: allDuties.length,
-        needsReviewCount: allReviews.length,
-        evidenceAmount,
-        effectOnCanonicalTotals: 0,
-        recentVisits,
-        recentReviews,
-      };
-    } else if (sheetReviewResult.status === "forbidden") {
-      sheetEvidence = {
-        status: "forbidden",
-        observedAt: new Date().toISOString(),
-        totalRecords: 0,
-        visitCount: 0,
-        dutyCount: 0,
-        needsReviewCount: 0,
-        evidenceAmount: 0,
-        effectOnCanonicalTotals: 0,
-      };
-    }
-  } catch {
-    // Fail closed: preserve canonical reports
-    sheetEvidence = {
-      status: "unavailable",
-      observedAt: new Date().toISOString(),
-      totalRecords: 0,
-      visitCount: 0,
-      dutyCount: 0,
-      needsReviewCount: 0,
-      evidenceAmount: 0,
-      effectOnCanonicalTotals: 0,
-    };
-  }
-
-  // 13. Backwards-compatible legacy cashSummary
-  const legacyCashSummary = {
-    fromDate: from,
-    toDate: to,
-    total_expected: canonicalRevenue,
-    total_collected: collectedPayments,
-    total_unpaid: Math.max(0, canonicalRevenue - collectedPayments),
-    paid_count: paidBookings.length,
-    unpaid_count: Math.max(0, totalBookings - paidBookings.length),
-    total_count: totalBookings,
-    by_method: {
-      cash: methodMap.cash?.amount ?? 0,
-      gcash: methodMap.gcash?.amount ?? 0,
-      maya: methodMap.maya?.amount ?? 0,
-      card: methodMap.card?.amount ?? 0,
-      pay_on_site: methodMap.pay_on_site?.amount ?? 0,
-      other: methodMap.other?.amount ?? 0,
-    },
-  };
 
   return {
     preset,
@@ -606,7 +578,5 @@ export async function fetchOwnerReportsData(
     staffData,
     dailyFinancials,
     topPaymentDays,
-    sheetEvidence,
-    cashSummary: legacyCashSummary,
   };
 }

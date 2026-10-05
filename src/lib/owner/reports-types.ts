@@ -117,13 +117,34 @@ export interface TopPaymentDayItem {
 }
 
 export interface MasterSheetEvidenceSummary {
-  status: "available" | "unavailable" | "forbidden";
+  status: "available" | "unavailable" | "forbidden" | "no_source";
   observedAt: string;
+  coverage: "FULL_COVERAGE" | "PARTIAL_COVERAGE" | "NO_COVERAGE" | "UNAVAILABLE";
+  coverageFrom?: string;
+  coverageTo?: string;
+  sourceWorkbook?: string;
+  currentTab?: string;
+  previousTab?: string;
+  mappedBranch?: string;
+  mappingStatus?: "PROVISIONAL";
+  scopeNote?: string;
+  sources?: Array<{
+    workbook: string;
+    branch: string;
+    mapping: "PROVISIONAL";
+    coverage: "FULL_COVERAGE" | "PARTIAL_COVERAGE" | "NO_COVERAGE" | "UNAVAILABLE";
+    from?: string;
+    to?: string;
+    currentTab?: string;
+    previousTab?: string;
+  }>;
   totalRecords: number;
   visitCount: number;
   dutyCount: number;
   needsReviewCount: number;
   evidenceAmount: number;
+  amountKnownCount?: number;
+  amountUnknownCount?: number;
   effectOnCanonicalTotals: 0;
   recentVisits?: Array<{
     id: string;
@@ -136,6 +157,7 @@ export interface MasterSheetEvidenceSummary {
     amount: number | null;
     reasons: string[];
     source: string;
+    workbook?: string;
   }>;
   recentReviews?: Array<{
     id: string;
@@ -143,6 +165,7 @@ export interface MasterSheetEvidenceSummary {
     classification: string;
     reasons: string[];
     source: string;
+    workbook?: string;
   }>;
 }
 

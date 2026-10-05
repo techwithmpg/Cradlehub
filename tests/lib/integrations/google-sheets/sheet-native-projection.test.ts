@@ -4,6 +4,7 @@ vi.mock("server-only", () => ({}));
 
 import {
   resolveWorkbookSource,
+  resolveConfiguredWorkbookSources,
   type WorkbookSourceConfiguration,
 } from "@/lib/integrations/google-sheets/workbook-source-map";
 import { CRADLE_MAINSHEETS_SPREADSHEET_ID } from "@/lib/integrations/google-sheets/sheet-reader";
@@ -87,6 +88,7 @@ describe("provisional workbook mapping", () => {
     ).toBe("live-main");
     expect(mapping).toEqual({
       workbookId,
+      workbookLabel: "CRADLE MAINSHEETS",
       branchId: "main-id",
       label: "Main Branch",
       enabled: true,
@@ -118,6 +120,30 @@ describe("provisional workbook mapping", () => {
     expect(replacement?.branchId).toBe("replacement");
     expect(current.visits[0]?.source.spreadsheetId).toBe(workbookId);
     expect(current.visits[0]).not.toHaveProperty("branchId");
+  });
+
+  it("can map a later SM workbook through source configuration alone", () => {
+    const smConfig: WorkbookSourceConfiguration = {
+      workbookId: "sm-workbook",
+      branchLabel: "SM Branch",
+      enabled: true,
+      decisionStatus: "PROVISIONAL",
+    };
+    const resolved = resolveWorkbookSource("sm-workbook", branches, [smConfig]);
+    expect(resolved?.branchId).toBe("sm-id");
+    expect(resolved?.decisionStatus).toBe("PROVISIONAL");
+    expect(resolveWorkbookSource(workbookId, branches, [smConfig])).toBeNull();
+    const allSources = resolveConfiguredWorkbookSources(branches, [
+      {
+        workbookId,
+        workbookLabel: "CRADLE MAINSHEETS",
+        branchLabel: "Main Branch",
+        enabled: true,
+        decisionStatus: "PROVISIONAL",
+      },
+      smConfig,
+    ]);
+    expect(allSources.map((source) => source.branchId)).toEqual(["main-id", "sm-id"]);
   });
 });
 

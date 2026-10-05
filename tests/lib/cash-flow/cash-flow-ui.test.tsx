@@ -338,6 +338,8 @@ describe("CF5 Cash Flow UI Foundation", () => {
           {
             kind: "sheet_transaction_reference",
             evidenceKey: "sheet-row:0",
+            timeText: null,
+            sortMinute: null,
             sourceType: "MASTER_SHEET",
             readOnly: true,
             canonicalLink: "UNLINKED",
@@ -364,22 +366,26 @@ describe("CF5 Cash Flow UI Foundation", () => {
       { ...base, status: "available_empty", payments: [] },
       { status: "unavailable", observedAt: base.observedAt },
     ];
-    const canonicalLedger: string[] = [];
     const initialData = structuredClone(mockWorkspaceData);
     for (const state of states) {
       mockUseSheetNativeReferences.mockReturnValue({ state, isLoading: false });
       render(<CashFlowWorkspace initialData={mockWorkspaceData} initialTab="ledger" />);
       const ledger = screen.getByRole("heading", { name: "Ledger" }).closest(".space-y-4");
       expect(ledger).toBeTruthy();
-      canonicalLedger.push(ledger?.textContent ?? "");
       if (state.status === "available") {
-        expect(screen.getByText("₱999,999.00")).toBeTruthy();
-        expect(ledger?.textContent).not.toContain("999,999");
+        const sheetRow = ledger?.querySelector('[data-source="master-sheet"]');
+        expect(sheetRow).toBeTruthy();
+        expect(sheetRow?.textContent).toContain("₱999,999.00");
+        expect(sheetRow?.textContent).toContain("MASTER SHEET");
+        expect(sheetRow?.textContent).toContain("READ ONLY");
+        expect(sheetRow?.querySelector("button")).toBeNull();
+        expect(sheetRow?.textContent).toContain("Time unknown");
+      } else {
+        expect(ledger?.querySelector('[data-source="master-sheet"]')).toBeNull();
       }
+      expect(ledger?.textContent).toContain("₱5,000.00");
       cleanup();
     }
-    expect(canonicalLedger[0]).toEqual(canonicalLedger[1]);
-    expect(canonicalLedger[1]).toEqual(canonicalLedger[2]);
     expect(mockWorkspaceData).toEqual(initialData);
     expect(mockRecordOrderPaymentAction).not.toHaveBeenCalled();
     expect(mockRecordLegacyBookingPaymentAction).not.toHaveBeenCalled();

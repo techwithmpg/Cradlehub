@@ -1,7 +1,7 @@
 /** @vitest-environment jsdom */
 
 import React from "react";
-import { cleanup, fireEvent, render, screen } from "@testing-library/react";
+import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { SWRConfig } from "swr";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { OwnerReportsPage } from "@/components/features/owner/reports/owner-reports-page";
@@ -11,6 +11,7 @@ import type { OwnerReportsData, OwnerReportsRequest } from "@/lib/owner/reports-
 const mockGetReports = vi.fn();
 vi.mock("@/app/(dashboard)/owner/bookings/actions", () => ({
   getOwnerReportsDataAction: (request: OwnerReportsRequest) => mockGetReports(request),
+  getOwnerReportSheetEvidenceAction: async () => createMockReportsData().sheetEvidence,
 }));
 
 // Mock next/navigation
@@ -174,6 +175,12 @@ function createMockReportsData(overrides: Partial<OwnerReportsData> = {}): Owner
     sheetEvidence: {
       status: "available",
       observedAt: "2026-07-21T12:00:00.000Z",
+      coverage: "FULL_COVERAGE",
+      coverageFrom: "2026-07-14",
+      coverageTo: "2026-07-27",
+      mappedBranch: "Main Branch",
+      mappingStatus: "PROVISIONAL",
+      sourceWorkbook: "CRADLE MAINSHEETS",
       totalRecords: 142,
       visitCount: 118,
       dutyCount: 24,
@@ -270,7 +277,7 @@ describe("Owner Reports Rebuild — Single Workspace & Provenance", () => {
     expect(screen.getByRole("tab", { name: /Overview/i }).getAttribute("aria-selected")).toBe(
       "true"
     );
-    expect(screen.getByText("Canonical Revenue")).toBeTruthy();
+    expect(screen.getByText("Posted Receipts")).toBeTruthy();
 
     // Switch to Financial Reports
     fireEvent.click(screen.getByRole("tab", { name: /Financial Reports/i }));
@@ -316,7 +323,7 @@ describe("Owner Reports Rebuild — Single Workspace & Provenance", () => {
     ).toBe("true");
   });
 
-  it("maintains strict mathematical and visual separation for Master Sheet evidence", () => {
+  it("maintains strict mathematical and visual separation for Master Sheet evidence", async () => {
     const data = createMockReportsData();
     render(
       <SWRConfig value={{ provider: () => new Map() }}>
@@ -332,8 +339,7 @@ describe("Owner Reports Rebuild — Single Workspace & Provenance", () => {
     expect(zeroEffectTexts.length).toBeGreaterThan(0);
 
     // Check BRANCH_UNKNOWN label on sheet records
-    const unknownBranches = screen.getAllByText("BRANCH_UNKNOWN");
-    expect(unknownBranches.length).toBeGreaterThan(0);
+    await waitFor(() => expect(screen.getAllByText(/PROVISIONAL/).length).toBeGreaterThan(0));
 
     // Check noncanonical and read-only labels
     expect(screen.getByText("Noncanonical")).toBeTruthy();

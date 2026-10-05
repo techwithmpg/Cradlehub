@@ -32,6 +32,8 @@ export type SheetBookingReference = ExternalReference & {
 export type SheetTransactionReference = ExternalReference & {
   kind: "sheet_transaction_reference";
   evidenceKey: string;
+  timeText: string | null;
+  sortMinute: number | null;
   customerDisplay: string | null;
   channel: "Cash" | "GCash" | "Bank / QR" | "Card / terminal";
   amount: number | null;

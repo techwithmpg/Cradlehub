@@ -28,8 +28,8 @@ export function FinancialReportsPanel({ data, onNavigateToTab }: FinancialReport
 
   // Time-series trend for Financials: Recorded Revenue vs Collected Payments
   const lineSeries = [
-    { key: "revenue", name: "Recorded Revenue", color: "#1B4D3E", strokeWidth: 2.5 },
-    { key: "collected", name: "Collected Payments", color: "#10B981", strokeWidth: 2 },
+    { key: "revenue", name: "Posted Receipts", color: "#1B4D3E", strokeWidth: 2.5 },
+    { key: "collected", name: "Customer Payments", color: "#10B981", strokeWidth: 2 },
   ];
 
   const formattedLineData = trendData.map((t) => ({
@@ -64,7 +64,7 @@ export function FinancialReportsPanel({ data, onNavigateToTab }: FinancialReport
         <div className="rounded-xl border border-stone-200/90 bg-white p-4 shadow-xs">
           <div className="flex items-center justify-between">
             <span className="text-xs font-semibold uppercase tracking-wider text-stone-500">
-              Recorded Revenue
+              Posted Receipts
             </span>
             <span className="rounded-md bg-emerald-50 px-2 py-0.5 text-[10px] font-bold text-emerald-800">
               CANONICAL
@@ -73,29 +73,38 @@ export function FinancialReportsPanel({ data, onNavigateToTab }: FinancialReport
           <div className="mt-2 text-2xl font-bold tracking-tight text-stone-900">
             {formatPeso(kpis.canonicalRevenue)}
           </div>
-          <div className="mt-1 text-[11px] text-stone-500">Completed bookings value</div>
+          <div className="mt-1 text-[11px] text-stone-500">Positive posted receipt movements</div>
         </div>
 
         {/* Master Sheet Evidence (External) */}
         <div className="rounded-xl border border-amber-200 bg-amber-50/50 p-4 shadow-xs">
           <div className="flex items-center justify-between">
             <span className="text-xs font-semibold uppercase tracking-wider text-amber-800">
-              Sheet Evidence
+              MASTER SHEET Evidence
             </span>
             <span className="rounded-md border border-amber-300 bg-amber-100 px-2 py-0.5 text-[10px] font-bold text-amber-900">
               READ-ONLY
             </span>
           </div>
           <div className="mt-2 text-2xl font-bold tracking-tight text-amber-950">
-            {formatPeso(sheetEvidence?.evidenceAmount ?? 0)}
+            {sheetEvidence?.status === "available" && sheetEvidence.coverage !== "NO_COVERAGE"
+              ? formatPeso(sheetEvidence.evidenceAmount)
+              : "Unavailable"}
           </div>
           <div className="mt-1 flex items-center justify-between text-[11px] text-amber-800/80">
-            <span>External operational proof</span>
+            <span>
+              External evidence · date coverage{" "}
+              {sheetEvidence?.coverage?.replaceAll("_", " ") ?? "loading"} ·{" "}
+              {sheetEvidence?.mappedBranch ?? "source pending"}
+            </span>
             <span className="font-semibold text-amber-900">Effect on total: ₱0</span>
           </div>
+          {sheetEvidence?.scopeNote && (
+            <div className="mt-1 text-[11px] text-amber-900">{sheetEvidence.scopeNote}</div>
+          )}
           <button
             type="button"
-            onClick={() => onNavigateToTab("sheet-evidence")}
+            onClick={() => onNavigateToTab("sheet")}
             className="mt-2 flex items-center gap-1 text-[11px] font-semibold text-amber-900 hover:underline cursor-pointer"
           >
             Inspect evidence <ArrowRight className="h-3 w-3" />
@@ -115,7 +124,9 @@ export function FinancialReportsPanel({ data, onNavigateToTab }: FinancialReport
           <div className="mt-2 text-2xl font-bold tracking-tight text-stone-900">
             {formatPeso(kpis.collectedPayments)}
           </div>
-          <div className="mt-1 text-[11px] text-stone-500">Paid transaction receipts</div>
+          <div className="mt-1 text-[11px] text-stone-500">
+            Posted customer payments and deposits
+          </div>
         </div>
 
         {/* Average Transaction */}
@@ -131,7 +142,7 @@ export function FinancialReportsPanel({ data, onNavigateToTab }: FinancialReport
           <div className="mt-2 text-2xl font-bold tracking-tight text-stone-900">
             {formatPeso(kpis.averageTransaction)}
           </div>
-          <div className="mt-1 text-[11px] text-stone-500">Per collected payment</div>
+          <div className="mt-1 text-[11px] text-stone-500">Per posted receipt transaction</div>
         </div>
       </div>
 
@@ -141,9 +152,11 @@ export function FinancialReportsPanel({ data, onNavigateToTab }: FinancialReport
         <div className="rounded-xl border border-stone-200/90 bg-white p-5 shadow-xs lg:col-span-2">
           <div className="mb-4 flex flex-col gap-1 sm:flex-row sm:items-center sm:justify-between">
             <div>
-              <h2 className="text-sm font-bold text-stone-900">Financial Revenue & Collection</h2>
+              <h2 className="text-sm font-bold text-stone-900">
+                Posted Receipts & Customer Payments
+              </h2>
               <p className="text-xs text-stone-500">
-                Recorded canonical revenue compared with collected cash/payments
+                Canonical posted receipts compared with the customer payment subset
               </p>
             </div>
             <div className="flex items-center gap-4 text-xs font-medium">
@@ -189,7 +202,7 @@ export function FinancialReportsPanel({ data, onNavigateToTab }: FinancialReport
           <div>
             <h2 className="text-sm font-bold text-stone-900">Daily Financial Ledger</h2>
             <p className="text-xs text-stone-500">
-              Aggregated daily canonical revenue and transaction activity
+              Daily posted receipt movements and transaction activity
             </p>
           </div>
           <span className="text-xs text-stone-500 font-medium">
@@ -207,7 +220,7 @@ export function FinancialReportsPanel({ data, onNavigateToTab }: FinancialReport
               <thead>
                 <tr className="border-b border-stone-200 text-stone-400 font-semibold uppercase text-[10px]">
                   <th className="pb-2.5">Date</th>
-                  <th className="pb-2.5 text-right">Recorded Revenue</th>
+                  <th className="pb-2.5 text-right">Posted Receipts</th>
                   <th className="pb-2.5 text-right">Collected Payments</th>
                   <th className="pb-2.5 text-right">Transactions</th>
                   <th className="pb-2.5 text-right">Completed Bookings</th>
@@ -247,7 +260,7 @@ export function FinancialReportsPanel({ data, onNavigateToTab }: FinancialReport
         <div className="rounded-xl border border-stone-200/90 bg-white p-5 shadow-xs">
           <div className="mb-4">
             <h2 className="text-sm font-bold text-stone-900">Top Performing Days</h2>
-            <p className="text-xs text-stone-500">Days with highest recorded canonical revenue</p>
+            <p className="text-xs text-stone-500">Days with highest posted canonical receipts</p>
           </div>
 
           <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-5">

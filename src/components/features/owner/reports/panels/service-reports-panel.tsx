@@ -2,7 +2,6 @@
 
 import React, { useState } from "react";
 import type { OwnerReportsData, ReportTab } from "@/lib/owner/reports-types";
-import { formatPeso } from "@/lib/owner/reports";
 import { ProgressBarList } from "../charts/progress-bar-list";
 import { DonutChart } from "../charts/donut-chart";
 import { Sparkles, TrendingUp, Users2, Receipt, Search } from "lucide-react";
@@ -53,11 +52,8 @@ export function ServiceReportsPanel({ data }: ServiceReportsPanelProps) {
     label: c.category,
     value: c.count,
     color: categoryColors[idx % categoryColors.length] ?? "#64748B",
-    subLabel: formatPeso(c.revenue),
+    subLabel: `${c.count} completed`,
   }));
-
-  const avgServiceValue =
-    kpis.completedServices > 0 ? kpis.canonicalRevenue / kpis.completedServices : 0;
 
   return (
     <div className="space-y-6">
@@ -83,16 +79,14 @@ export function ServiceReportsPanel({ data }: ServiceReportsPanelProps) {
         <div className="rounded-xl border border-stone-200/90 bg-white p-4 shadow-xs">
           <div className="flex items-center justify-between">
             <span className="text-xs font-semibold uppercase tracking-wider text-stone-500">
-              Service Revenue
+              Service Revenue Attribution
             </span>
             <div className="rounded-md bg-emerald-50 p-1.5 text-emerald-700">
               <TrendingUp className="h-4 w-4" />
             </div>
           </div>
-          <div className="mt-2 text-2xl font-bold tracking-tight text-stone-900">
-            {formatPeso(kpis.canonicalRevenue)}
-          </div>
-          <div className="mt-1 text-[11px] text-stone-500">Line price attributed revenue</div>
+          <div className="mt-2 text-2xl font-bold tracking-tight text-stone-900">Deferred</div>
+          <div className="mt-1 text-[11px] text-stone-500">Requires approved order allocation</div>
         </div>
 
         {/* Unique Customers */}
@@ -121,10 +115,8 @@ export function ServiceReportsPanel({ data }: ServiceReportsPanelProps) {
               <Receipt className="h-4 w-4" />
             </div>
           </div>
-          <div className="mt-2 text-2xl font-bold tracking-tight text-stone-900">
-            {formatPeso(avgServiceValue)}
-          </div>
-          <div className="mt-1 text-[11px] text-stone-500">Per completed service</div>
+          <div className="mt-2 text-2xl font-bold tracking-tight text-stone-900">Deferred</div>
+          <div className="mt-1 text-[11px] text-stone-500">No safe line allocation yet</div>
         </div>
       </div>
 
@@ -143,10 +135,10 @@ export function ServiceReportsPanel({ data }: ServiceReportsPanelProps) {
             items={serviceData.slice(0, 7).map((s) => ({
               id: s.serviceId,
               label: s.name,
-              subLabel: `${s.category} • Avg ${formatPeso(s.avgValue)}`,
+              subLabel: s.category,
               value: s.completedCount,
               formattedValue: `${s.completedCount} completed`,
-              badge: formatPeso(s.revenue),
+              badge: `${s.completedCount} services`,
               color: "#1B4D3E",
             }))}
             showRanking
@@ -226,7 +218,7 @@ export function ServiceReportsPanel({ data }: ServiceReportsPanelProps) {
                   <th className="pb-2.5">Service Name</th>
                   <th className="pb-2.5">Category</th>
                   <th className="pb-2.5 text-right">Completed</th>
-                  <th className="pb-2.5 text-right">Revenue</th>
+                  <th className="pb-2.5 text-right">Revenue Attribution</th>
                   <th className="pb-2.5 text-right">Avg Value</th>
                   <th className="pb-2.5 text-right">Volume Share</th>
                 </tr>
@@ -248,10 +240,8 @@ export function ServiceReportsPanel({ data }: ServiceReportsPanelProps) {
                     <td className="py-2.5 text-right font-semibold text-stone-900">
                       {svc.completedCount.toLocaleString()}
                     </td>
-                    <td className="py-2.5 text-right font-semibold text-emerald-800">
-                      {formatPeso(svc.revenue)}
-                    </td>
-                    <td className="py-2.5 text-right text-stone-600">{formatPeso(svc.avgValue)}</td>
+                    <td className="py-2.5 text-right font-semibold text-emerald-800">Deferred</td>
+                    <td className="py-2.5 text-right text-stone-600">Deferred</td>
                     <td className="py-2.5 text-right font-mono text-stone-600">{svc.share}%</td>
                   </tr>
                 ))}

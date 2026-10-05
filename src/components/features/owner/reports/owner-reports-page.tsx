@@ -9,7 +9,10 @@ import {
   type WorkspaceScopedSWRKey,
 } from "@/components/features/dashboard/workspace-swr-cache";
 import { useWorkspaceReactivationRefresh } from "@/components/features/dashboard/use-workspace-visibility";
-import { getOwnerReportsDataAction } from "@/app/(dashboard)/owner/bookings/actions";
+import {
+  getOwnerReportsDataAction,
+  getOwnerReportSheetEvidenceAction,
+} from "@/app/(dashboard)/owner/bookings/actions";
 import type { OwnerReportsData, OwnerReportsRequest, ReportTab } from "@/lib/owner/reports-types";
 import { ReportsHeader } from "./reports-header";
 import { ReportsTabBar } from "./reports-tab-bar";
@@ -20,7 +23,6 @@ import { FinancialReportsPanel } from "./panels/financial-reports-panel";
 import { ServiceReportsPanel } from "./panels/service-reports-panel";
 import { StaffReportsPanel } from "./panels/staff-reports-panel";
 import { SheetEvidencePanel } from "./panels/sheet-evidence-panel";
-import { ReportKpiCards } from "./report-kpi-cards";
 import { AlertCircle } from "lucide-react";
 
 export interface OwnerReportsPageProps {
@@ -123,9 +125,27 @@ export function OwnerReportsPage({ initialData, initialRequest }: OwnerReportsPa
   );
 
   const report = data ?? initialData;
+  const sheetKey = useWorkspaceSWRKey([
+    "owner-report-sheet",
+    report.branchId ?? "all",
+    report.from,
+    report.to,
+  ] as const);
+  const { data: sheetEvidence, mutate: refreshSheet } = useSWR(
+    sheetKey,
+    async (
+      scopedKey: WorkspaceScopedSWRKey<readonly ["owner-report-sheet", string, string, string]>
+    ) => {
+      const [, branchId, from, to] = unwrapWorkspaceSWRKey(scopedKey);
+      return getOwnerReportSheetEvidenceAction({ branchId, from, to });
+    },
+    { revalidateOnFocus: false }
+  );
+  const reportWithSheet = { ...report, sheetEvidence };
 
   const refreshReports = useWorkspaceReactivationRefresh(async () => {
     await mutate();
+    await refreshSheet();
   });
 
   // Filter change handlers (pushState into URL history)
@@ -210,13 +230,13 @@ export function OwnerReportsPage({ initialData, initialRequest }: OwnerReportsPa
         className="focus:outline-hidden"
       >
         {activeTab === "overview" && (
-          <OverviewPanel data={report} onNavigateToTab={handleTabChange} />
+          <OverviewPanel data={reportWithSheet} onNavigateToTab={handleTabChange} />
         )}
         {activeTab === "branch" && (
           <BranchReportsPanel data={report} onNavigateToTab={handleTabChange} />
         )}
         {activeTab === "financial" && (
-          <FinancialReportsPanel data={report} onNavigateToTab={handleTabChange} />
+          <FinancialReportsPanel data={reportWithSheet} onNavigateToTab={handleTabChange} />
         )}
         {activeTab === "service" && (
           <ServiceReportsPanel data={report} onNavigateToTab={handleTabChange} />
@@ -225,14 +245,9 @@ export function OwnerReportsPage({ initialData, initialRequest }: OwnerReportsPa
           <StaffReportsPanel data={report} onNavigateToTab={handleTabChange} />
         )}
         {activeTab === "sheet" && (
-          <SheetEvidencePanel data={report} onNavigateToTab={handleTabChange} />
+          <SheetEvidencePanel data={reportWithSheet} onNavigateToTab={handleTabChange} />
         )}
       </main>
-
-      {/* ── Hidden Legacy Test Anchor for 100% Backward Test Compatibility ── */}
-      <div className="sr-only" aria-hidden="true">
-        <ReportKpiCards revenueData={report.revenueData} staffData={report.staffData} />
-      </div>
     </div>
   );
 }
