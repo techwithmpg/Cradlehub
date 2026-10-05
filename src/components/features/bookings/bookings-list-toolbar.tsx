@@ -74,7 +74,6 @@ export function BookingsListToolbar(props: BookingsListToolbarProps) {
     Boolean(
       props.status ||
       props.source ||
-      (props.referenceSource && props.referenceSource !== "all") ||
       props.delivery ||
       props.payment ||
       props.assignment ||
@@ -88,13 +87,17 @@ export function BookingsListToolbar(props: BookingsListToolbarProps) {
       {Object.entries(props.preservedQuery).map(([key, value]) =>
         value ? <input key={key} type="hidden" name={key} value={value} /> : null
       )}
+      {props.basePath === "/crm/bookings" ? (
+        <input
+          type="hidden"
+          name="referenceSource"
+          value={props.referenceSource === "master_sheet" ? "master_sheet" : "cradlehub"}
+        />
+      ) : null}
       {!showFilters ? (
         <>
           {props.status ? <input type="hidden" name="status" value={props.status} /> : null}
           {props.source ? <input type="hidden" name="type" value={props.source} /> : null}
-          {props.referenceSource && props.referenceSource !== "all" ? (
-            <input type="hidden" name="referenceSource" value={props.referenceSource} />
-          ) : null}
           {props.delivery ? <input type="hidden" name="delivery" value={props.delivery} /> : null}
           {props.payment ? <input type="hidden" name="payment" value={props.payment} /> : null}
           {props.assignment ? (
@@ -144,46 +147,51 @@ export function BookingsListToolbar(props: BookingsListToolbarProps) {
 
       {showFilters ? (
         <div className="grid grid-cols-2 gap-3 rounded-xl border border-[var(--cs-border-soft)] bg-[var(--cs-surface-warm)] p-3 shadow-sm">
-          <FilterSelect label="Record source" name="referenceSource" value={props.referenceSource}>
-            <option value="all">All</option>
-            <option value="cradlehub">CradleHub</option>
-            <option value="master_sheet">Master Sheet</option>
-          </FilterSelect>
-          <FilterSelect label="Status" name="status" value={props.status}>
-            <option value="">All statuses</option>
-            <option value="pending">Pending</option>
-            <option value="confirmed">Confirmed</option>
-            <option value="checked_in">Checked in</option>
-            <option value="in_service">In service</option>
-            <option value="completed">Completed</option>
-            <option value="cancelled">Cancelled</option>
-            <option value="no_show">No-show</option>
-          </FilterSelect>
-          <FilterSelect label="Source" name="type" value={props.source}>
-            <option value="">All sources</option>
-            <option value="online">Online</option>
-            <option value="walkin">Walk-in</option>
-            <option value="phone">Phone</option>
-          </FilterSelect>
-          <FilterSelect label="Location" name="delivery" value={props.delivery}>
-            <option value="">All locations</option>
-            <option value="in_spa">In-spa</option>
-            <option value="home_service">Home service</option>
-          </FilterSelect>
-          <FilterSelect label="Payment" name="payment" value={props.payment}>
-            <option value="">All payment states</option>
-            <option value="unpaid">Unpaid</option>
-            <option value="pending">Pending</option>
-            <option value="paid">Paid</option>
-            <option value="refunded">Refunded</option>
-          </FilterSelect>
-          <FilterSelect label="Assignment" name="assignment" value={props.assignment}>
-            <option value="">All assignments</option>
-            <option value="staff_assigned">Staff assigned</option>
-            <option value="staff_unassigned">Staff unassigned</option>
-            <option value="room_assigned">Room assigned</option>
-            <option value="room_unassigned">Room unassigned</option>
-          </FilterSelect>
+          {props.referenceSource !== "master_sheet" ? (
+            <FilterSelect label="Status" name="status" value={props.status}>
+              <option value="">All statuses</option>
+              <option value="pending">Pending</option>
+              <option value="confirmed">Confirmed</option>
+              <option value="checked_in">Checked in</option>
+              <option value="in_service">In service</option>
+              <option value="completed">Completed</option>
+              <option value="cancelled">Cancelled</option>
+              <option value="no_show">No-show</option>
+            </FilterSelect>
+          ) : null}
+          {props.referenceSource !== "master_sheet" ? (
+            <FilterSelect label="Source" name="type" value={props.source}>
+              <option value="">All sources</option>
+              <option value="online">Online</option>
+              <option value="walkin">Walk-in</option>
+              <option value="phone">Phone</option>
+            </FilterSelect>
+          ) : null}
+          {props.referenceSource !== "master_sheet" ? (
+            <FilterSelect label="Location" name="delivery" value={props.delivery}>
+              <option value="">All locations</option>
+              <option value="in_spa">In-spa</option>
+              <option value="home_service">Home service</option>
+            </FilterSelect>
+          ) : null}
+          {props.referenceSource !== "master_sheet" ? (
+            <FilterSelect label="Payment" name="payment" value={props.payment}>
+              <option value="">All payment states</option>
+              <option value="unpaid">Unpaid</option>
+              <option value="pending">Pending</option>
+              <option value="paid">Paid</option>
+              <option value="refunded">Refunded</option>
+            </FilterSelect>
+          ) : null}
+          {props.referenceSource !== "master_sheet" ? (
+            <FilterSelect label="Assignment" name="assignment" value={props.assignment}>
+              <option value="">All assignments</option>
+              <option value="staff_assigned">Staff assigned</option>
+              <option value="staff_unassigned">Staff unassigned</option>
+              <option value="room_assigned">Room assigned</option>
+              <option value="room_unassigned">Room unassigned</option>
+            </FilterSelect>
+          ) : null}
           {props.branches?.length ? (
             <FilterSelect label="Branch" name="branch" value={props.branch}>
               <option value="">All branches</option>

@@ -52,7 +52,7 @@ const booking: WorkspaceBookingRow = {
 };
 
 describe("native booking reference presentation", () => {
-  it("interleaves a distinct read-only row without calling canonical selection", () => {
+  it("keeps a distinct read-only row without calling canonical selection", () => {
     const selectBooking = vi.fn();
     const selectSheet = vi.fn();
     render(
@@ -65,8 +65,8 @@ describe("native booking reference presentation", () => {
       />
     );
     const rows = screen.getAllByRole("row");
-    expect(rows[1]?.textContent).toContain("Sample Customer");
-    expect(rows[2]?.textContent).toContain("Canonical Customer");
+    expect(rows[1]?.textContent).toContain("Canonical Customer");
+    expect(rows[2]?.textContent).toContain("Sample Customer");
     const sheetRow = screen.getByRole("row", { name: /Read only Master Sheet reference/i });
     expect(sheetRow.textContent).toContain("Master Sheet");
     expect(sheetRow.textContent).toContain("Read only");

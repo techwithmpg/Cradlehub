@@ -23,6 +23,8 @@ import { CradleFlowBookingDialog } from "./cradle-flow-booking-dialog";
 import { CradleFlowCheckoutDialog } from "./cradle-flow-checkout-dialog";
 import { CradleFlowCompleteDialog } from "./cradle-flow-complete-dialog";
 import { CradleFlowHeader } from "./cradle-flow-header";
+import { FrontDeskDutyBanner } from "./front-desk-duty-banner";
+import type { FrontDeskDutyContext } from "@/lib/queries/front-desk-duty";
 import {
   CradleFlowFinancialEntry,
   type CradleFlowFinancialEntryRequest,
@@ -41,6 +43,8 @@ type MutationAction = (input: unknown) => Promise<{ success: boolean; error?: st
 type ActiveDialog = "details" | "complete" | "checkout" | null;
 
 type CradleFlowDashboardProps = {
+  duty: FrontDeskDutyContext | null;
+  handoverConfirmed: boolean;
   branchName: string;
   dateLabel: string;
   queueData: CradleFlowBooking[];
@@ -163,6 +167,11 @@ export function CradleFlowDashboard(props: CradleFlowDashboardProps) {
         warningCount={warnings}
         onRefresh={() => router.refresh()}
         onReviewWarnings={() => setReadinessOpen(true)}
+      />
+      <FrontDeskDutyBanner
+        duty={props.duty}
+        handoverConfirmed={props.handoverConfirmed}
+        branchName={props.branchName}
       />
       <CradleFlowActions
         pendingBooking={pendingBooking}
