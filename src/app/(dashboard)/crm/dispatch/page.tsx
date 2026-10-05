@@ -5,7 +5,6 @@ import { CrmOperationalPageShell } from "@/components/features/crm/operational/c
 import { HomeServiceDispatchWorkspace } from "@/components/features/dispatch/dispatch-workspace";
 import { getDispatchData } from "@/lib/queries/dispatch-queries";
 import { logInfo } from "@/lib/logger";
-import { CrmTabNav, DISPATCH_TABS } from "@/components/features/crm/crm-tab-nav";
 import { getFrontDeskContext } from "@/lib/queries/crm-context";
 import { getBranchBusinessDate } from "@/lib/engine/slot-time";
 
@@ -28,7 +27,6 @@ export default async function CrmDispatchPage() {
       title="Home Service Operations"
       description="Monitor home-service bookings, assignments, customer locations, and travel progress."
       context={`${branchName} · ${today} · ${role} view`}
-      tabs={<CrmTabNav tabs={DISPATCH_TABS} activeHref="/crm/dispatch" />}
     >
       <HomeServiceDispatchWorkspace role="crm" data={data} showHeader={false} />
     </CrmOperationalPageShell>
