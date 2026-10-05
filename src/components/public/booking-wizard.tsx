@@ -3264,6 +3264,10 @@ export function PublicStepDetails({
         >
           Complete your booking
         </h2>
+        <p className="mt-1 text-[13px] leading-5" style={WARM_BODY_STYLE}>
+          Your booking request will be sent to our team for confirmation. No advance payment is
+          needed; payment is separate from appointment confirmation.
+        </p>
         {bookingFor === "someone_else" && (
           <p className="mt-1 text-[13px] leading-5" style={WARM_BODY_STYLE}>
             Your contact details for {recipientName?.trim() || "the recipient"}.
@@ -3666,9 +3670,9 @@ function StepDetails({
                 </span>
               </div>
               <p className="text-[12px] -mt-1 leading-5" style={WARM_BODY_STYLE}>
-                Your appointment is confirmed immediately. No advance deposit or card entry is
-                needed online. You may settle conveniently upon arrival or after your treatment via
-                Cash, Card, Maya QR, or GCash at our front desk.
+                Your booking request will be sent to our team for confirmation. No advance deposit
+                or card entry is needed online. Payment is separate from appointment confirmation;
+                you may settle at the spa or after your service.
               </p>
 
               <div className="mt-2 flex items-center gap-3 rounded-xl border border-[#D4B57A]/28 bg-[#05241D]/75 p-3.5">

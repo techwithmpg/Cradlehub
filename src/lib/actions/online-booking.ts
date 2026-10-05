@@ -554,7 +554,7 @@ export async function createOnlineBookingMultiAction(
     return {
       ok: false,
       code: "ONLINE_PAYMENT_UNAVAILABLE",
-      message: "Online payment is not available. Choose pay later to confirm this booking.",
+      message: "Online payment is not available. Choose pay later to send your booking request.",
     };
   }
   const deliveryType = d.deliveryType ?? (d.type === "home_service" ? "home_service" : "in_spa");

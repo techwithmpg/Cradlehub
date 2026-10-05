@@ -56,11 +56,17 @@ describe("public Details step", () => {
       />
     );
 
+    expect(
+      screen.getByText(/booking request will be sent to our team for confirmation/i)
+    ).toBeTruthy();
+    expect(screen.getByText(/payment is separate from appointment confirmation/i)).toBeTruthy();
+    expect(screen.queryByText(/your appointment is confirmed immediately/i)).toBeNull();
     expect(screen.getByRole("textbox", { name: /Full name/i })).toBeTruthy();
     expect(screen.getByRole("textbox", { name: /Phone number/i })).toBeTruthy();
-    expect(screen.getByRole("button", { name: /Choose a therapist: Any available therapist/ }).textContent).toContain(
-      "Any available therapist"
-    );
+    expect(
+      screen.getByRole("button", { name: /Choose a therapist: Any available therapist/ })
+        .textContent
+    ).toContain("Any available therapist");
     expect(screen.getByText(/2 guests · We'll assign one qualified therapist/i)).toBeTruthy();
     expect(screen.queryByRole("textbox", { name: /Email/i })).toBeNull();
     expect(screen.queryByRole("textbox", { name: /Special requests/i })).toBeNull();
