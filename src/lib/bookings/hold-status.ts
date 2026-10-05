@@ -1,12 +1,10 @@
 export const PUBLIC_BOOKING_HOLD_MINUTES = 120;
 
 const NON_BLOCKING_BOOKING_STATUSES = new Set(["cancelled", "no_show", "expired"]);
-const HOLD_BLOCKING_BOOKING_STATUSES = new Set([
-  "pending_payment",
-  "pending_crm_confirmation",
-]);
+const HOLD_BLOCKING_BOOKING_STATUSES = new Set(["pending_payment"]);
 const ALWAYS_BLOCKING_BOOKING_STATUSES = new Set([
   "pending",
+  "pending_crm_confirmation",
   "confirmed",
   "in_progress",
   "completed",
@@ -18,15 +16,10 @@ type BookingHoldState = {
 };
 
 export function getPublicBookingHoldExpiresAt(now = new Date()): string {
-  return new Date(
-    now.getTime() + PUBLIC_BOOKING_HOLD_MINUTES * 60 * 1000
-  ).toISOString();
+  return new Date(now.getTime() + PUBLIC_BOOKING_HOLD_MINUTES * 60 * 1000).toISOString();
 }
 
-export function bookingBlocksAvailability(
-  booking: BookingHoldState,
-  now = new Date()
-): boolean {
+export function bookingBlocksAvailability(booking: BookingHoldState, now = new Date()): boolean {
   const status = booking.status ?? "";
 
   if (NON_BLOCKING_BOOKING_STATUSES.has(status)) return false;

@@ -382,7 +382,8 @@ export async function createOnlineBookingAction(
     }
     const resolvedCustomerId = String(customerId);
 
-    // Online booking is confirmed immediately; payment is tracked separately.
+    // This legacy single-service action is not used by the current wizard, but
+    // remains callable. Public requests must never bypass CRM review.
     const { data: booking, error: bookErr } = await supabase
       .from("bookings")
       .insert({
@@ -395,7 +396,7 @@ export async function createOnlineBookingAction(
         end_time: endTime,
         type: d.type,
         delivery_type: deliveryType,
-        status: "confirmed",
+        status: "pending_crm_confirmation",
         payment_method: "pay_on_site",
         payment_status: "unpaid",
         amount_paid: 0,
@@ -445,8 +446,7 @@ export async function createOnlineBookingAction(
       }
     }
 
-    // Notifications: appointment is confirmed, CRM is notified of booking + unpaid status,
-    // and the assigned therapist is notified directly.
+    // Notify CRM of the review task; assignment remains provisional until review.
     try {
       await Promise.all([
         createNotification({
@@ -454,12 +454,12 @@ export async function createOnlineBookingAction(
           targetWorkspace: "crm",
           type: "booking_created",
           title: `New online booking — ${d.fullName} (${orderNumber})`,
-          body: `${serviceName} · ${d.date} at ${d.startTime}. Confirmed appointment (Payment due on site).`,
+          body: `${serviceName} · ${d.date} at ${d.startTime}. Booking request awaits CRM confirmation. Payment is separate.`,
           entityType: "booking",
           entityId: booking.id,
           actionHref: `/crm/bookings?bookingId=${booking.id}`,
-          priority: "normal",
-          requiresAction: false,
+          priority: "high",
+          requiresAction: true,
           dedupeKey: `booking:${booking.id}:created`,
           metadata: {
             order_id: orderId,
@@ -476,8 +476,8 @@ export async function createOnlineBookingAction(
           targetWorkspace: "staff",
           recipientStaffId: resolvedStaffId,
           type: "booking_assigned",
-          title: `New booking — ${d.fullName}`,
-          body: `You are assigned to ${d.fullName}'s ${serviceName} on ${d.date} at ${d.startTime}.`,
+          title: `Booking request — ${d.fullName}`,
+          body: `Provisional ${serviceName} assignment for ${d.date} at ${d.startTime}; awaiting CRM confirmation.`,
           entityType: "booking",
           entityId: booking.id,
           actionHref: "/staff-portal/schedule",
@@ -554,7 +554,7 @@ export async function createOnlineBookingMultiAction(
     return {
       ok: false,
       code: "ONLINE_PAYMENT_UNAVAILABLE",
-      message: "Online payment is not available. Choose pay later to confirm this booking.",
+      message: "Online payment is not available. Choose pay later to send your booking request.",
     };
   }
   const deliveryType = d.deliveryType ?? (d.type === "home_service" ? "home_service" : "in_spa");
@@ -1094,12 +1094,12 @@ export async function createOnlineBookingMultiAction(
           targetWorkspace: "crm",
           type: "booking_created",
           title: `New online booking — ${d.fullName} (${orderNumber})`,
-          body: `${atomicServiceLines.length} service(s) for ${attendees.length} guest(s)${isHSMulti ? " · Home Service" : ""} · ${d.date} at ${d.startTime}. Confirmed appointment (Payment due on site).`,
+          body: `${atomicServiceLines.length} service(s) for ${attendees.length} guest(s)${isHSMulti ? " · Home Service" : ""} · ${d.date} at ${d.startTime}. Booking request awaits CRM confirmation. Payment is separate.`,
           entityType: "booking",
           entityId: primaryBookingId,
           actionHref: `/crm/bookings?bookingId=${primaryBookingId}`,
-          priority: "normal",
-          requiresAction: false,
+          priority: "high",
+          requiresAction: true,
           dedupeKey: `booking:${orderId}:created`,
           metadata: {
             order_id: orderId,
@@ -1131,9 +1131,9 @@ export async function createOnlineBookingMultiAction(
               recipientStaffId: staffId,
               type: isHSMulti ? "home_service_assigned" : "booking_assigned",
               title: isHSMulti
-                ? `Home Service booking — ${d.fullName}`
-                : `New booking — ${d.fullName}`,
-              body: `You are assigned to ${d.fullName}'s booking on ${d.date} at ${d.startTime}.`,
+                ? `Home Service request — ${d.fullName}`
+                : `Booking request — ${d.fullName}`,
+              body: `Provisional assignment for ${d.date} at ${d.startTime}; awaiting CRM confirmation.`,
               entityType: "booking",
               entityId: primaryBookingId,
               actionHref: "/staff-portal/schedule",

@@ -575,7 +575,8 @@ export function BookingWizard({
   );
   const isHomeService = visitType === "home_service";
   const steps = useMemo(() => getSteps(isHomeService), [isHomeService]);
-  const visibleSteps = mode === "public" ? steps.filter((item) => item.name !== "therapist") : steps;
+  const visibleSteps =
+    mode === "public" ? steps.filter((item) => item.name !== "therapist") : steps;
   const currentStepName = useMemo(() => getStepName(step, isHomeService), [step, isHomeService]);
   const isTherapistStep = currentStepName === "therapist";
   const successStep = isHomeService ? 8 : 7;
@@ -1136,11 +1137,11 @@ export function BookingWizard({
           mode === "public" &&
           "staffPreferenceNeedsConfirmation" in result &&
           result.staffPreferenceNeedsConfirmation === true;
-        toast.success(mode === "inhouse" ? "Booking saved" : "Your booking is confirmed 🌿", {
+        toast.success(mode === "inhouse" ? "Booking saved" : "Booking request received 🌿", {
           description:
             mode === "inhouse"
               ? "Appointment saved to the CRM workspace."
-              : "Thank you for choosing Cradle Wellness Living. We look forward to taking care of you.",
+              : "Our team will review the schedule and confirm your appointment shortly.",
         });
         setSuccess({
           bookingId: result.bookingId,
@@ -1373,7 +1374,9 @@ export function BookingWizard({
 
         {/* Stepper */}
         {currentStepName !== "success" && (
-          <div className={`${currentStepName === "details" && mode === "public" ? "mb-5" : "mb-12"} hidden items-center justify-center md:flex`}>
+          <div
+            className={`${currentStepName === "details" && mode === "public" ? "mb-5" : "mb-12"} hidden items-center justify-center md:flex`}
+          >
             <div className="flex items-center gap-0.5 sm:gap-2">
               {visibleSteps.map((s, i) => (
                 <div key={s.id} className="flex items-center gap-0.5 sm:gap-2">
@@ -1387,7 +1390,13 @@ export function BookingWizard({
                             : "border border-[#D4B57A]/22 bg-[#05241D]/70 text-[#F6EBD6]/42"
                       }`}
                     >
-                      {step > s.id ? <Check className="h-3.5 w-3.5" /> : mode === "public" ? i + 1 : s.id}
+                      {step > s.id ? (
+                        <Check className="h-3.5 w-3.5" />
+                      ) : mode === "public" ? (
+                        i + 1
+                      ) : (
+                        s.id
+                      )}
                     </div>
                     <span
                       className={`hidden sm:block text-[10px] mt-1.5 font-medium ${
@@ -1664,11 +1673,11 @@ export function BookingWizard({
                     {submitting ? (
                       <>
                         <Loader2 className="h-4 w-4 animate-spin" />
-                        {mode === "inhouse" ? "Saving..." : "Confirming booking…"}
+                        {mode === "inhouse" ? "Saving..." : "Sending request…"}
                       </>
                     ) : (
                       <>
-                        {mode === "inhouse" ? "Confirm & Record Payment" : "Confirm Booking"}
+                        {mode === "inhouse" ? "Confirm & Record Payment" : "Send Booking Request"}
                         <Check className="h-4 w-4" />
                       </>
                     )}
@@ -1679,26 +1688,27 @@ export function BookingWizard({
           </div>
 
           {/* Summary sidebar */}
-          {currentStepName !== "success" && !(mode === "public" && currentStepName === "details") && (
-            <div className="hidden lg:block">
-              <BookingSummary
-                branch={selectedBranch}
-                services={allSelectedServices}
-                totalDuration={totalDuration}
-                totalPrice={totalPrice}
-                selectedDate={selectedDate}
-                selectedSlot={selectedSlot}
-                selectedStaff={selectedStaffForBooking}
-                availableStaff={staffPreferenceOptions}
-                visitType={visitType}
-                bookingRules={bookingRules}
-                variant={isTherapistStep ? "therapist" : "default"}
-                bookingFor={bookingFor}
-                recipientName={recipientName}
-                attendees={attendees}
-              />
-            </div>
-          )}
+          {currentStepName !== "success" &&
+            !(mode === "public" && currentStepName === "details") && (
+              <div className="hidden lg:block">
+                <BookingSummary
+                  branch={selectedBranch}
+                  services={allSelectedServices}
+                  totalDuration={totalDuration}
+                  totalPrice={totalPrice}
+                  selectedDate={selectedDate}
+                  selectedSlot={selectedSlot}
+                  selectedStaff={selectedStaffForBooking}
+                  availableStaff={staffPreferenceOptions}
+                  visitType={visitType}
+                  bookingRules={bookingRules}
+                  variant={isTherapistStep ? "therapist" : "default"}
+                  bookingFor={bookingFor}
+                  recipientName={recipientName}
+                  attendees={attendees}
+                />
+              </div>
+            )}
         </div>
       </div>
     </div>
@@ -2052,12 +2062,18 @@ export function BookingForSection({
         Who is this booking for?
       </p>
 
-      <div role="radiogroup" aria-label="Who is this booking for?" className="grid grid-cols-3 gap-1 rounded-xl border border-[#D4B57A]/30 bg-[#031B16]/55 p-1">
-        {([
-          ["me", "Me"],
-          ["me_and_others", "Me + Guests"],
-          ["someone_else", "Someone Else"],
-        ] as const).map(([choice, label]) => (
+      <div
+        role="radiogroup"
+        aria-label="Who is this booking for?"
+        className="grid grid-cols-3 gap-1 rounded-xl border border-[#D4B57A]/30 bg-[#031B16]/55 p-1"
+      >
+        {(
+          [
+            ["me", "Me"],
+            ["me_and_others", "Me + Guests"],
+            ["someone_else", "Someone Else"],
+          ] as const
+        ).map(([choice, label]) => (
           <label
             key={choice}
             className={`flex min-h-11 min-w-0 cursor-pointer items-center justify-center rounded-lg px-1 text-center text-[11px] font-semibold leading-tight transition-colors focus-within:outline-2 focus-within:outline-offset-2 focus-within:outline-[#D4B57A] min-[390px]:text-[12px] ${
@@ -2120,7 +2136,11 @@ export function BookingForSection({
           </div>
 
           {/* Guest Tabs */}
-          <div ref={guestTabsRef} aria-label="Guest sessions" className="flex max-w-full gap-2 overflow-x-auto overscroll-x-contain pb-2">
+          <div
+            ref={guestTabsRef}
+            aria-label="Guest sessions"
+            className="flex max-w-full gap-2 overflow-x-auto overscroll-x-contain pb-2"
+          >
             {attendees.map((att, idx) => {
               const isSelected = att.id === activeAttendeeId;
               const svcCount = att.serviceIds.length;
@@ -2141,8 +2161,12 @@ export function BookingForSection({
                     className="flex min-h-11 flex-col justify-center px-3 text-left font-medium focus-visible:outline-2 focus-visible:outline-offset-[-2px] focus-visible:outline-[#D4B57A]"
                   >
                     <span>{att.isOrganizer ? "You" : att.name}</span>
-                    <span className={`text-[10px] ${svcCount > 0 ? "text-[#D4B57A]" : "text-[#F6EBD6]/65"}`}>
-                      {svcCount > 0 ? `${svcCount} ${svcCount === 1 ? "service" : "services"} ✓` : "Choose service"}
+                    <span
+                      className={`text-[10px] ${svcCount > 0 ? "text-[#D4B57A]" : "text-[#F6EBD6]/65"}`}
+                    >
+                      {svcCount > 0
+                        ? `${svcCount} ${svcCount === 1 ? "service" : "services"} ✓`
+                        : "Choose service"}
                     </span>
                   </button>
                   {idx > 0 && (
@@ -2163,7 +2187,11 @@ export function BookingForSection({
           {/* Active Guest Custom Name */}
           {activeAttendee && (
             <div className="mt-1 flex items-center gap-2">
-              <label htmlFor="active-guest-name" className="shrink-0 text-[11px] font-medium" style={WARM_LABEL_STYLE}>
+              <label
+                htmlFor="active-guest-name"
+                className="shrink-0 text-[11px] font-medium"
+                style={WARM_LABEL_STYLE}
+              >
                 Attendee name
               </label>
               <input
@@ -3230,9 +3258,16 @@ export function PublicStepDetails({
   return (
     <div className="mx-auto w-full max-w-3xl space-y-4 pb-2 md:space-y-5">
       <div>
-        <h2 className="text-[22px] font-medium leading-tight md:text-[28px]" style={WARM_HEADING_STYLE}>
+        <h2
+          className="text-[22px] font-medium leading-tight md:text-[28px]"
+          style={WARM_HEADING_STYLE}
+        >
           Complete your booking
         </h2>
+        <p className="mt-1 text-[13px] leading-5" style={WARM_BODY_STYLE}>
+          Your booking request will be sent to our team for confirmation. No advance payment is
+          needed; payment is separate from appointment confirmation.
+        </p>
         {bookingFor === "someone_else" && (
           <p className="mt-1 text-[13px] leading-5" style={WARM_BODY_STYLE}>
             Your contact details for {recipientName?.trim() || "the recipient"}.
@@ -3241,14 +3276,20 @@ export function PublicStepDetails({
       </div>
 
       {error && (
-        <p role="alert" className="rounded-lg border border-red-300/30 bg-red-950/35 px-3 py-2 text-[13px] text-red-100">
+        <p
+          role="alert"
+          className="rounded-lg border border-red-300/30 bg-red-950/35 px-3 py-2 text-[13px] text-red-100"
+        >
           {error}
         </p>
       )}
 
       <div className="grid gap-3 sm:grid-cols-2 md:gap-4">
         <div>
-          <label htmlFor="wizard-fullName" className="mb-1 block text-[13px] font-semibold text-[#D4B57A]">
+          <label
+            htmlFor="wizard-fullName"
+            className="mb-1 block text-[13px] font-semibold text-[#D4B57A]"
+          >
             Full name <span aria-hidden="true">*</span>
           </label>
           <input
@@ -3264,7 +3305,10 @@ export function PublicStepDetails({
           />
         </div>
         <div>
-          <label htmlFor="wizard-phone" className="mb-1 block text-[13px] font-semibold text-[#D4B57A]">
+          <label
+            htmlFor="wizard-phone"
+            className="mb-1 block text-[13px] font-semibold text-[#D4B57A]"
+          >
             Phone number <span aria-hidden="true">*</span>
           </label>
           <input
@@ -3294,11 +3338,13 @@ export function PublicStepDetails({
           onValueChange={onSelectStaff}
           compact
         />
-        {bookingFor === "me_and_others" && (attendees?.length ?? 0) > 1 && selectedStaff === "auto" && (
-          <p className="mt-1.5 text-[12px] leading-5 text-[#F6EBD6]/70">
-            {attendees?.length} guests · We&apos;ll assign one qualified therapist to each guest.
-          </p>
-        )}
+        {bookingFor === "me_and_others" &&
+          (attendees?.length ?? 0) > 1 &&
+          selectedStaff === "auto" && (
+            <p className="mt-1.5 text-[12px] leading-5 text-[#F6EBD6]/70">
+              {attendees?.length} guests · We&apos;ll assign one qualified therapist to each guest.
+            </p>
+          )}
       </div>
 
       <div className="border-t border-[#D4B57A]/20 pt-1">
@@ -3317,7 +3363,10 @@ export function PublicStepDetails({
       <div id="wizard-optional-details" hidden={!optionalExpanded}>
         <div className="grid gap-3 sm:grid-cols-2 md:gap-4">
           <div id="wizard-optional-email">
-            <label htmlFor="wizard-email" className="mb-1 block text-[13px] font-semibold text-[#D4B57A]">
+            <label
+              htmlFor="wizard-email"
+              className="mb-1 block text-[13px] font-semibold text-[#D4B57A]"
+            >
               Email (optional)
             </label>
             <input
@@ -3332,7 +3381,10 @@ export function PublicStepDetails({
             />
           </div>
           <div id="wizard-optional-notes">
-            <label htmlFor="wizard-notes" className="mb-1 block text-[13px] font-semibold text-[#D4B57A]">
+            <label
+              htmlFor="wizard-notes"
+              className="mb-1 block text-[13px] font-semibold text-[#D4B57A]"
+            >
               Special requests (optional)
             </label>
             <textarea
@@ -3382,363 +3434,366 @@ function StepDetails({
   selectedStaff: "auto" | string;
   onSelectStaff: (choice: "auto" | string) => void;
 }) {
-  const publicDetails = mode === "public" ? (
-    <PublicStepDetails
-      form={form}
-      onChange={onChange}
-      error={error}
-      bookingFor={bookingFor}
-      recipientName={recipientName}
-      attendees={attendees}
-      availableStaff={availableStaff}
-      selectedSlot={selectedSlot}
-      selectedStaff={selectedStaff}
-      onSelectStaff={onSelectStaff}
-    />
-  ) : null;
+  const publicDetails =
+    mode === "public" ? (
+      <PublicStepDetails
+        form={form}
+        onChange={onChange}
+        error={error}
+        bookingFor={bookingFor}
+        recipientName={recipientName}
+        attendees={attendees}
+        availableStaff={availableStaff}
+        selectedSlot={selectedSlot}
+        selectedStaff={selectedStaff}
+        onSelectStaff={onSelectStaff}
+      />
+    ) : null;
 
   const isHomeService = visitType === "home_service";
   const fieldClassName = mode === "public" ? PUBLIC_INPUT_CLS : INPUT_CLS;
 
-  return publicDetails ?? (
-    <div>
-      <h2
-        className="mb-1.5 text-[18px] font-semibold md:mb-2 md:text-2xl md:font-medium"
-        style={WARM_HEADING_STYLE}
-      >
-        Your Details
-      </h2>
-      <p className="mb-4 text-[12px] leading-5 md:mb-8 md:text-[14px]" style={WARM_BODY_STYLE}>
-        Please provide your contact information to complete the booking.
-      </p>
-
-      {error && (
-        <div
-          role="alert"
-          aria-live="assertive"
-          className="mb-6 flex items-start gap-3 rounded-2xl border border-red-400/40 bg-red-950/70 p-4 text-[13px] font-medium text-red-200 shadow-lg backdrop-blur-md"
+  return (
+    publicDetails ?? (
+      <div>
+        <h2
+          className="mb-1.5 text-[18px] font-semibold md:mb-2 md:text-2xl md:font-medium"
+          style={WARM_HEADING_STYLE}
         >
-          <AlertCircle className="mt-0.5 h-5 w-5 shrink-0 text-red-400" />
-          <div className="flex-1">
-            <p className="font-semibold text-red-100">Unable to confirm booking</p>
-            <p className="mt-0.5 leading-relaxed">{error}</p>
-          </div>
-        </div>
-      )}
+          Your Details
+        </h2>
+        <p className="mb-4 text-[12px] leading-5 md:mb-8 md:text-[14px]" style={WARM_BODY_STYLE}>
+          Please provide your contact information to complete the booking.
+        </p>
 
-      {bookingFor === "someone_else" && (
-        <div className="mb-6 rounded-2xl border border-[#D4B57A]/28 bg-[#0D2B20]/65 p-4 text-left backdrop-blur-xl">
-          <div className="flex items-center gap-2 mb-1">
-            <Gift className="h-4 w-4" style={WARM_LABEL_STYLE} />
-            <p className="text-[13px] font-semibold" style={WARM_HEADING_STYLE}>
-              Booking for {recipientName?.trim() || "Someone Else"}
-            </p>
-          </div>
-          <p className="text-[12px] leading-5" style={WARM_BODY_STYLE}>
-            You are completing this reservation as the organizer. Enter your personal contact
-            details below so we can confirm the appointment and send the booking receipt.
-          </p>
-        </div>
-      )}
-
-      {bookingFor === "me_and_others" && (
-        <div className="mb-6 rounded-2xl border border-[#D4B57A]/28 bg-[#0D2B20]/65 p-4 text-left backdrop-blur-xl">
-          <div className="flex items-center gap-2 mb-1">
-            <Users className="h-4 w-4" style={WARM_LABEL_STYLE} />
-            <p className="text-[13px] font-semibold" style={WARM_HEADING_STYLE}>
-              Group Booking Organizer ({attendees?.length || 2} Guests)
-            </p>
-          </div>
-          <p className="text-[12px] leading-5" style={WARM_BODY_STYLE}>
-            As the booking organizer, your contact details will be used for appointment updates and
-            notifications for your entire party.
-          </p>
-        </div>
-      )}
-
-      <div className="flex flex-col gap-4 md:gap-5">
-        {/* Contact info */}
-        <div>
-          <label className={LABEL_CLS}>
-            <User className="h-3.5 w-3.5" />
-            Full Name *
-          </label>
-          <input
-            type="text"
-            id="wizard-fullName"
-            name="fullName"
-            value={form.fullName}
-            onChange={(e) => onChange({ ...form, fullName: e.target.value })}
-            placeholder="Enter your full name"
-            className={fieldClassName}
-          />
-        </div>
-
-        <div>
-          <label className={LABEL_CLS}>
-            <Phone className="h-3.5 w-3.5" />
-            Phone Number *
-          </label>
-          <input
-            type="tel"
-            id="wizard-phone"
-            name="phone"
-            value={form.phone}
-            onChange={(e) => onChange({ ...form, phone: e.target.value })}
-            placeholder="e.g. 0917 123 4567"
-            className={fieldClassName}
-          />
-        </div>
-
-        <div>
-          <label className={LABEL_CLS}>
-            <Mail className="h-3.5 w-3.5" />
-            Email <span className="normal-case font-normal">(optional)</span>
-          </label>
-          <input
-            type="email"
-            id="wizard-email"
-            name="email"
-            value={form.email}
-            onChange={(e) => onChange({ ...form, email: e.target.value })}
-            placeholder="your@email.com"
-            className={fieldClassName}
-          />
-        </div>
-
-        <div>
-          <label className={LABEL_CLS}>
-            <FileText className="h-3.5 w-3.5" />
-            Notes <span className="normal-case font-normal">(optional)</span>
-          </label>
-          <textarea
-            value={form.notes}
-            onChange={(e) => onChange({ ...form, notes: e.target.value })}
-            placeholder="Share any comfort notes or special requests."
-            rows={mode === "public" ? 2 : 3}
-            className={`${fieldClassName} resize-none`}
-          />
-        </div>
-
-        {/* CRM In-House Payment Capture */}
-        {mode === "inhouse" && (
-          <div className="flex flex-col gap-4 rounded-2xl border border-[#D4B57A]/25 bg-[#0D2B20]/65 p-5 backdrop-blur-xl">
-            <div className="flex items-center gap-2 mb-1">
-              <Sparkles className="h-4 w-4" style={WARM_LABEL_STYLE} />
-              <p className="text-[13px] font-semibold" style={WARM_HEADING_STYLE}>
-                Payment
-              </p>
+        {error && (
+          <div
+            role="alert"
+            aria-live="assertive"
+            className="mb-6 flex items-start gap-3 rounded-2xl border border-red-400/40 bg-red-950/70 p-4 text-[13px] font-medium text-red-200 shadow-lg backdrop-blur-md"
+          >
+            <AlertCircle className="mt-0.5 h-5 w-5 shrink-0 text-red-400" />
+            <div className="flex-1">
+              <p className="font-semibold text-red-100">Unable to confirm booking</p>
+              <p className="mt-0.5 leading-relaxed">{error}</p>
             </div>
-            <p className="text-[12px] -mt-2" style={WARM_BODY_STYLE}>
-              Choose whether payment has actually been collected. Pay later creates an unpaid
-              booking.
-            </p>
-
-            <div>
-              <label htmlFor="wizard-inhouse-payment-choice" className={LABEL_CLS}>
-                Payment status *
-              </label>
-              <select
-                id="wizard-inhouse-payment-choice"
-                value={paymentChoice ?? "pay_later"}
-                onChange={(e) => onPaymentChoiceChange?.(e.target.value as BookingPaymentChoice)}
-                className={fieldClassName}
-              >
-                <option value="pay_later">Pay later / not collected</option>
-                <option value="pay_now">Collected now</option>
-              </select>
-            </div>
-
-            {paymentChoice === "pay_now" && (
-              <>
-                <div>
-                  <label htmlFor="wizard-inhouse-payment-method" className={LABEL_CLS}>
-                    Payment method *
-                  </label>
-                  <select
-                    id="wizard-inhouse-payment-method"
-                    value={form.paymentMethod}
-                    onChange={(e) => onChange({ ...form, paymentMethod: e.target.value })}
-                    className={fieldClassName}
-                  >
-                    <option value="" disabled>
-                      Select payment method…
-                    </option>
-                    <option value="cash">Cash</option>
-                    <option value="gcash">GCash</option>
-                    <option value="maya">Maya</option>
-                    <option value="card">Card</option>
-                    <option value="bank_transfer">Bank transfer</option>
-                  </select>
-                </div>
-
-                <div>
-                  <label className={LABEL_CLS}>
-                    Reference / receipt no.{" "}
-                    <span className="normal-case font-normal">(optional)</span>
-                  </label>
-                  <input
-                    type="text"
-                    value={form.paymentReference}
-                    onChange={(e) => onChange({ ...form, paymentReference: e.target.value })}
-                    placeholder="e.g. GCash ref #, receipt number"
-                    className={fieldClassName}
-                  />
-                </div>
-
-                <div>
-                  <label className={LABEL_CLS}>
-                    Payment note <span className="normal-case font-normal">(optional)</span>
-                  </label>
-                  <textarea
-                    value={form.paymentNote}
-                    onChange={(e) => onChange({ ...form, paymentNote: e.target.value })}
-                    placeholder="Internal note about this payment…"
-                    rows={2}
-                    className={`${fieldClassName} resize-none`}
-                  />
-                </div>
-              </>
-            )}
           </div>
         )}
 
-        {/* Public Booking Payment Preference */}
-        {mode === "public" && (
-          <div className="flex flex-col gap-3 rounded-2xl border border-[#D4B57A]/25 bg-[#0D2B20]/65 p-5 backdrop-blur-xl">
+        {bookingFor === "someone_else" && (
+          <div className="mb-6 rounded-2xl border border-[#D4B57A]/28 bg-[#0D2B20]/65 p-4 text-left backdrop-blur-xl">
             <div className="flex items-center gap-2 mb-1">
-              <Sparkles className="h-4 w-4" style={WARM_LABEL_STYLE} />
+              <Gift className="h-4 w-4" style={WARM_LABEL_STYLE} />
               <p className="text-[13px] font-semibold" style={WARM_HEADING_STYLE}>
-                Payment: Pay at Spa / After Service
+                Booking for {recipientName?.trim() || "Someone Else"}
               </p>
-              <span className="ml-auto text-[10px] font-semibold uppercase tracking-wide px-2 py-0.5 rounded-full border border-emerald-400/30 bg-emerald-950/50 text-emerald-200">
-                No Upfront Fee
-              </span>
             </div>
-            <p className="text-[12px] -mt-1 leading-5" style={WARM_BODY_STYLE}>
-              Your appointment is confirmed immediately. No advance deposit or card entry is needed
-              online. You may settle conveniently upon arrival or after your treatment via Cash,
-              Card, Maya QR, or GCash at our front desk.
+            <p className="text-[12px] leading-5" style={WARM_BODY_STYLE}>
+              You are completing this reservation as the organizer. Enter your personal contact
+              details below so we can confirm the appointment and send the booking receipt.
             </p>
+          </div>
+        )}
 
-            <div className="mt-2 flex items-center gap-3 rounded-xl border border-[#D4B57A]/28 bg-[#05241D]/75 p-3.5">
-              <BadgeCheck className="h-5 w-5 shrink-0 text-[#D4B57A]" />
-              <div className="text-left">
-                <p className="text-[13px] font-medium text-[#F6EBD6]">Pay Later Accepted</p>
-                <p className="text-[11px] text-[#F6EBD6]/65">
-                  Payment tracked separately. Zero payment provider details required online.
+        {bookingFor === "me_and_others" && (
+          <div className="mb-6 rounded-2xl border border-[#D4B57A]/28 bg-[#0D2B20]/65 p-4 text-left backdrop-blur-xl">
+            <div className="flex items-center gap-2 mb-1">
+              <Users className="h-4 w-4" style={WARM_LABEL_STYLE} />
+              <p className="text-[13px] font-semibold" style={WARM_HEADING_STYLE}>
+                Group Booking Organizer ({attendees?.length || 2} Guests)
+              </p>
+            </div>
+            <p className="text-[12px] leading-5" style={WARM_BODY_STYLE}>
+              As the booking organizer, your contact details will be used for appointment updates
+              and notifications for your entire party.
+            </p>
+          </div>
+        )}
+
+        <div className="flex flex-col gap-4 md:gap-5">
+          {/* Contact info */}
+          <div>
+            <label className={LABEL_CLS}>
+              <User className="h-3.5 w-3.5" />
+              Full Name *
+            </label>
+            <input
+              type="text"
+              id="wizard-fullName"
+              name="fullName"
+              value={form.fullName}
+              onChange={(e) => onChange({ ...form, fullName: e.target.value })}
+              placeholder="Enter your full name"
+              className={fieldClassName}
+            />
+          </div>
+
+          <div>
+            <label className={LABEL_CLS}>
+              <Phone className="h-3.5 w-3.5" />
+              Phone Number *
+            </label>
+            <input
+              type="tel"
+              id="wizard-phone"
+              name="phone"
+              value={form.phone}
+              onChange={(e) => onChange({ ...form, phone: e.target.value })}
+              placeholder="e.g. 0917 123 4567"
+              className={fieldClassName}
+            />
+          </div>
+
+          <div>
+            <label className={LABEL_CLS}>
+              <Mail className="h-3.5 w-3.5" />
+              Email <span className="normal-case font-normal">(optional)</span>
+            </label>
+            <input
+              type="email"
+              id="wizard-email"
+              name="email"
+              value={form.email}
+              onChange={(e) => onChange({ ...form, email: e.target.value })}
+              placeholder="your@email.com"
+              className={fieldClassName}
+            />
+          </div>
+
+          <div>
+            <label className={LABEL_CLS}>
+              <FileText className="h-3.5 w-3.5" />
+              Notes <span className="normal-case font-normal">(optional)</span>
+            </label>
+            <textarea
+              value={form.notes}
+              onChange={(e) => onChange({ ...form, notes: e.target.value })}
+              placeholder="Share any comfort notes or special requests."
+              rows={mode === "public" ? 2 : 3}
+              className={`${fieldClassName} resize-none`}
+            />
+          </div>
+
+          {/* CRM In-House Payment Capture */}
+          {mode === "inhouse" && (
+            <div className="flex flex-col gap-4 rounded-2xl border border-[#D4B57A]/25 bg-[#0D2B20]/65 p-5 backdrop-blur-xl">
+              <div className="flex items-center gap-2 mb-1">
+                <Sparkles className="h-4 w-4" style={WARM_LABEL_STYLE} />
+                <p className="text-[13px] font-semibold" style={WARM_HEADING_STYLE}>
+                  Payment
                 </p>
               </div>
-            </div>
-          </div>
-        )}
-
-        {/* Home Service Address */}
-        {isHomeService && (
-          <div className="flex flex-col gap-4 rounded-2xl border border-[#D4B57A]/25 bg-[#0D2B20]/65 p-5 backdrop-blur-xl">
-            <div className="flex items-center gap-2 mb-1">
-              <Home className="h-4 w-4" style={WARM_LABEL_STYLE} />
-              <p className="text-[13px] font-semibold" style={WARM_HEADING_STYLE}>
-                Home Service Address
+              <p className="text-[12px] -mt-2" style={WARM_BODY_STYLE}>
+                Choose whether payment has actually been collected. Pay later creates an unpaid
+                booking.
               </p>
-              <span
-                className="ml-auto text-[10px] font-semibold uppercase tracking-wide px-2 py-0.5 rounded-full"
-                style={{ background: "rgba(212,181,122,0.14)", color: "#D4B57A" }}
-              >
-                Required
-              </span>
-            </div>
-            <p className="text-[12px] -mt-2" style={WARM_BODY_STYLE}>
-              We will use the selected Google location from the Location step for dispatch and
-              routing.
-            </p>
 
-            {mode === "inhouse" && (
-              <div className="flex items-center gap-2 rounded-xl border border-[#D4B57A]/22 bg-[#05241D]/58 px-4 py-3">
-                <MapPin className="h-4 w-4 shrink-0" style={WARM_LABEL_STYLE} />
-                <div className="flex-1 min-w-0">
+              <div>
+                <label htmlFor="wizard-inhouse-payment-choice" className={LABEL_CLS}>
+                  Payment status *
+                </label>
+                <select
+                  id="wizard-inhouse-payment-choice"
+                  value={paymentChoice ?? "pay_later"}
+                  onChange={(e) => onPaymentChoiceChange?.(e.target.value as BookingPaymentChoice)}
+                  className={fieldClassName}
+                >
+                  <option value="pay_later">Pay later / not collected</option>
+                  <option value="pay_now">Collected now</option>
+                </select>
+              </div>
+
+              {paymentChoice === "pay_now" && (
+                <>
+                  <div>
+                    <label htmlFor="wizard-inhouse-payment-method" className={LABEL_CLS}>
+                      Payment method *
+                    </label>
+                    <select
+                      id="wizard-inhouse-payment-method"
+                      value={form.paymentMethod}
+                      onChange={(e) => onChange({ ...form, paymentMethod: e.target.value })}
+                      className={fieldClassName}
+                    >
+                      <option value="" disabled>
+                        Select payment method…
+                      </option>
+                      <option value="cash">Cash</option>
+                      <option value="gcash">GCash</option>
+                      <option value="maya">Maya</option>
+                      <option value="card">Card</option>
+                      <option value="bank_transfer">Bank transfer</option>
+                    </select>
+                  </div>
+
+                  <div>
+                    <label className={LABEL_CLS}>
+                      Reference / receipt no.{" "}
+                      <span className="normal-case font-normal">(optional)</span>
+                    </label>
+                    <input
+                      type="text"
+                      value={form.paymentReference}
+                      onChange={(e) => onChange({ ...form, paymentReference: e.target.value })}
+                      placeholder="e.g. GCash ref #, receipt number"
+                      className={fieldClassName}
+                    />
+                  </div>
+
+                  <div>
+                    <label className={LABEL_CLS}>
+                      Payment note <span className="normal-case font-normal">(optional)</span>
+                    </label>
+                    <textarea
+                      value={form.paymentNote}
+                      onChange={(e) => onChange({ ...form, paymentNote: e.target.value })}
+                      placeholder="Internal note about this payment…"
+                      rows={2}
+                      className={`${fieldClassName} resize-none`}
+                    />
+                  </div>
+                </>
+              )}
+            </div>
+          )}
+
+          {/* Public Booking Payment Preference */}
+          {mode === "public" && (
+            <div className="flex flex-col gap-3 rounded-2xl border border-[#D4B57A]/25 bg-[#0D2B20]/65 p-5 backdrop-blur-xl">
+              <div className="flex items-center gap-2 mb-1">
+                <Sparkles className="h-4 w-4" style={WARM_LABEL_STYLE} />
+                <p className="text-[13px] font-semibold" style={WARM_HEADING_STYLE}>
+                  Payment: Pay at Spa / After Service
+                </p>
+                <span className="ml-auto text-[10px] font-semibold uppercase tracking-wide px-2 py-0.5 rounded-full border border-emerald-400/30 bg-emerald-950/50 text-emerald-200">
+                  No Upfront Fee
+                </span>
+              </div>
+              <p className="text-[12px] -mt-1 leading-5" style={WARM_BODY_STYLE}>
+                Your booking request will be sent to our team for confirmation. No advance deposit
+                or card entry is needed online. Payment is separate from appointment confirmation;
+                you may settle at the spa or after your service.
+              </p>
+
+              <div className="mt-2 flex items-center gap-3 rounded-xl border border-[#D4B57A]/28 bg-[#05241D]/75 p-3.5">
+                <BadgeCheck className="h-5 w-5 shrink-0 text-[#D4B57A]" />
+                <div className="text-left">
+                  <p className="text-[13px] font-medium text-[#F6EBD6]">Pay Later Accepted</p>
+                  <p className="text-[11px] text-[#F6EBD6]/65">
+                    Payment tracked separately. Zero payment provider details required online.
+                  </p>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* Home Service Address */}
+          {isHomeService && (
+            <div className="flex flex-col gap-4 rounded-2xl border border-[#D4B57A]/25 bg-[#0D2B20]/65 p-5 backdrop-blur-xl">
+              <div className="flex items-center gap-2 mb-1">
+                <Home className="h-4 w-4" style={WARM_LABEL_STYLE} />
+                <p className="text-[13px] font-semibold" style={WARM_HEADING_STYLE}>
+                  Home Service Address
+                </p>
+                <span
+                  className="ml-auto text-[10px] font-semibold uppercase tracking-wide px-2 py-0.5 rounded-full"
+                  style={{ background: "rgba(212,181,122,0.14)", color: "#D4B57A" }}
+                >
+                  Required
+                </span>
+              </div>
+              <p className="text-[12px] -mt-2" style={WARM_BODY_STYLE}>
+                We will use the selected Google location from the Location step for dispatch and
+                routing.
+              </p>
+
+              {mode === "inhouse" && (
+                <div className="flex items-center gap-2 rounded-xl border border-[#D4B57A]/22 bg-[#05241D]/58 px-4 py-3">
+                  <MapPin className="h-4 w-4 shrink-0" style={WARM_LABEL_STYLE} />
+                  <div className="flex-1 min-w-0">
+                    <p
+                      className="text-[11px] font-semibold uppercase tracking-wide"
+                      style={WARM_LABEL_STYLE}
+                    >
+                      Zone
+                    </p>
+                    <p className="text-[13px] font-medium" style={WARM_BODY_STYLE}>
+                      {HS_ZONE_OPTIONS.find((o) => o.value === form.hsZone)?.label ?? form.hsZone}
+                    </p>
+                  </div>
+                </div>
+              )}
+
+              {isPreciseHomeServiceLocation(form) ? (
+                <div className="flex items-start gap-3 rounded-xl border border-[#D4B57A]/22 bg-[#05241D]/58 px-4 py-3">
+                  <Check className="mt-0.5 h-4 w-4 shrink-0 text-[#D4B57A]" />
+                  <div className="min-w-0">
+                    <p className="text-[11px] font-semibold uppercase tracking-wide text-[#D4B57A]">
+                      Selected location
+                    </p>
+                    <p className="mt-0.5 text-[13px] leading-5" style={WARM_BODY_STYLE}>
+                      {form.hsFormattedAddress}
+                    </p>
+                    <p className="mt-1 text-[11px]" style={WARM_MUTED_STYLE}>
+                      Place ID captured for routing.
+                    </p>
+                  </div>
+                </div>
+              ) : (
+                <p className="rounded-lg border border-red-300/25 bg-red-950/30 px-4 py-3 text-[13px] font-medium text-red-100">
+                  {PRECISE_LOCATION_ERROR}
+                </p>
+              )}
+
+              {form.hsAddressDetails && (
+                <div className="rounded-xl border border-[#D4B57A]/22 bg-[#05241D]/58 px-4 py-3">
                   <p
                     className="text-[11px] font-semibold uppercase tracking-wide"
                     style={WARM_LABEL_STYLE}
                   >
-                    Zone
+                    House / Unit Details
                   </p>
-                  <p className="text-[13px] font-medium" style={WARM_BODY_STYLE}>
-                    {HS_ZONE_OPTIONS.find((o) => o.value === form.hsZone)?.label ?? form.hsZone}
+                  <p className="mt-0.5 text-[13px]" style={WARM_BODY_STYLE}>
+                    {form.hsAddressDetails}
                   </p>
                 </div>
-              </div>
-            )}
+              )}
 
-            {isPreciseHomeServiceLocation(form) ? (
-              <div className="flex items-start gap-3 rounded-xl border border-[#D4B57A]/22 bg-[#05241D]/58 px-4 py-3">
-                <Check className="mt-0.5 h-4 w-4 shrink-0 text-[#D4B57A]" />
-                <div className="min-w-0">
-                  <p className="text-[11px] font-semibold uppercase tracking-wide text-[#D4B57A]">
-                    Selected location
-                  </p>
-                  <p className="mt-0.5 text-[13px] leading-5" style={WARM_BODY_STYLE}>
-                    {form.hsFormattedAddress}
-                  </p>
-                  <p className="mt-1 text-[11px]" style={WARM_MUTED_STYLE}>
-                    Place ID captured for routing.
-                  </p>
+              {mode === "inhouse" && (
+                <div className="grid sm:grid-cols-2 gap-4">
+                  <div>
+                    <label className={LABEL_CLS}>Barangay *</label>
+                    <input
+                      type="text"
+                      value={form.hsBarangay}
+                      onChange={(event) => onChange({ ...form, hsBarangay: event.target.value })}
+                      placeholder="e.g. Brgy. San Antonio"
+                      className={fieldClassName}
+                    />
+                  </div>
+                  <div>
+                    <label className={LABEL_CLS}>City / Municipality *</label>
+                    <input
+                      type="text"
+                      value={form.hsCity}
+                      onChange={(event) => onChange({ ...form, hsCity: event.target.value })}
+                      placeholder="e.g. Bacolod City"
+                      className={fieldClassName}
+                    />
+                  </div>
                 </div>
-              </div>
-            ) : (
-              <p className="rounded-lg border border-red-300/25 bg-red-950/30 px-4 py-3 text-[13px] font-medium text-red-100">
-                {PRECISE_LOCATION_ERROR}
-              </p>
-            )}
+              )}
+            </div>
+          )}
+        </div>
 
-            {form.hsAddressDetails && (
-              <div className="rounded-xl border border-[#D4B57A]/22 bg-[#05241D]/58 px-4 py-3">
-                <p
-                  className="text-[11px] font-semibold uppercase tracking-wide"
-                  style={WARM_LABEL_STYLE}
-                >
-                  House / Unit Details
-                </p>
-                <p className="mt-0.5 text-[13px]" style={WARM_BODY_STYLE}>
-                  {form.hsAddressDetails}
-                </p>
-              </div>
-            )}
-
-            {mode === "inhouse" && (
-              <div className="grid sm:grid-cols-2 gap-4">
-                <div>
-                  <label className={LABEL_CLS}>Barangay *</label>
-                  <input
-                    type="text"
-                    value={form.hsBarangay}
-                    onChange={(event) => onChange({ ...form, hsBarangay: event.target.value })}
-                    placeholder="e.g. Brgy. San Antonio"
-                    className={fieldClassName}
-                  />
-                </div>
-                <div>
-                  <label className={LABEL_CLS}>City / Municipality *</label>
-                  <input
-                    type="text"
-                    value={form.hsCity}
-                    onChange={(event) => onChange({ ...form, hsCity: event.target.value })}
-                    placeholder="e.g. Bacolod City"
-                    className={fieldClassName}
-                  />
-                </div>
-              </div>
-            )}
-          </div>
+        {error && (
+          <p className="mt-5 rounded-lg border border-red-300/25 bg-red-950/30 px-4 py-3 text-[13px] font-medium text-red-100">
+            {error}
+          </p>
         )}
       </div>
-
-      {error && (
-        <p className="mt-5 rounded-lg border border-red-300/25 bg-red-950/30 px-4 py-3 text-[13px] font-medium text-red-100">
-          {error}
-        </p>
-      )}
-    </div>
+    )
   );
 }
 
@@ -3795,7 +3850,7 @@ function StepSuccess({
       </div>
 
       <h2 className="text-2xl sm:text-3xl font-medium mb-2.5" style={WARM_HEADING_STYLE}>
-        {mode === "inhouse" ? "Booking Saved" : "Your booking is confirmed 🌿"}
+        {mode === "inhouse" ? "Booking Saved" : "Booking request received 🌿"}
       </h2>
       <p
         className="text-[14px] md:text-[15px] max-w-md mx-auto mb-6 leading-relaxed"
@@ -3803,10 +3858,10 @@ function StepSuccess({
       >
         {mode === "inhouse"
           ? "The appointment has been saved and confirmed in the CRM workspace."
-          : "Thank you for choosing Cradle Wellness Living. We look forward to taking care of you."}
+          : "Thank you. Our team will review the schedule and confirm your appointment shortly."}
       </p>
 
-      {/* Confirmed Order Card */}
+      {/* Order request card */}
       <div className="mx-auto mb-6 max-w-lg rounded-2xl border border-[#D4B57A]/28 bg-[#0D2B20]/65 p-5 sm:p-6 text-left backdrop-blur-xl shadow-[0_20px_48px_rgba(0,0,0,0.35)]">
         <div className="flex items-center justify-between border-b border-[#D4B57A]/15 pb-4 mb-4">
           <div>
@@ -3817,7 +3872,7 @@ function StepSuccess({
           </div>
           <span className="inline-flex items-center gap-1.5 rounded-full border border-emerald-400/35 bg-emerald-950/60 px-3 py-1 text-[11px] font-semibold tracking-wide text-emerald-200">
             <span className="h-1.5 w-1.5 rounded-full bg-emerald-400 animate-pulse" />
-            Confirmed
+            {mode === "inhouse" ? "Confirmed" : "Awaiting CRM review"}
           </span>
         </div>
 
@@ -3938,8 +3993,12 @@ function StepSuccess({
           </div>
           <p className="text-[12px] leading-relaxed text-[#F6EBD6]/75">
             {paymentChoice === "pay_now"
-              ? "Your reservation is confirmed. We will provide payment guidance and receipt confirmation."
-              : `Your reservation is fully confirmed. You may settle the total of ${formatCurrency(totalPrice ?? 0)} upon arrival or after your service via cash, card, Maya, or GCash.`}
+              ? mode === "inhouse"
+                ? "Your booking is confirmed. We will provide payment guidance and receipt confirmation."
+                : "Your booking request awaits CRM confirmation. Payment guidance will be provided separately."
+              : mode === "inhouse"
+                ? `Your booking is confirmed. You may settle the total of ${formatCurrency(totalPrice ?? 0)} upon arrival or after your service via cash, card, Maya, or GCash.`
+                : `Your booking request awaits CRM confirmation. You may settle the total of ${formatCurrency(totalPrice ?? 0)} upon arrival or after your service via cash, card, Maya, or GCash.`}
           </p>
         </div>
       </div>
@@ -3947,8 +4006,9 @@ function StepSuccess({
       {staffPreferenceNeedsConfirmation && (
         <div className="mx-auto mb-6 max-w-lg rounded-xl border border-amber-300/35 bg-amber-300/10 px-5 py-3.5 text-left">
           <p className="text-[12px] leading-relaxed text-[#F6EBD6]">
-            Our scheduling system has confirmed your appointment. We have noted your therapist
-            preference and will ensure optimal specialist matching.
+            {mode === "inhouse"
+              ? "Your therapist preference has been noted for the confirmed appointment."
+              : "We have noted your therapist preference. Our team will review it when confirming your request."}
           </p>
         </div>
       )}

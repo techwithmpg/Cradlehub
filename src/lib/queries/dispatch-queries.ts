@@ -165,6 +165,13 @@ function computeDispatchStatus(
   driverId: string | null
 ): DispatchStatus {
   if (bookingStatus === "cancelled" || bookingStatus === "no_show") return "cancelled";
+  if (
+    bookingStatus === "pending" ||
+    bookingStatus === "pending_payment" ||
+    bookingStatus === "pending_crm_confirmation"
+  ) {
+    return "awaiting_driver";
+  }
   if (bookingStatus === "completed" || progressStatus === "completed") return "completed";
   if (progressStatus === "session_started") return "service_started";
   if (progressStatus === "arrived") return "arrived_at_customer";
@@ -246,9 +253,7 @@ function computeStats(items: RealDispatchItem[]): DispatchStats {
       ["awaiting_driver", "ready"].includes(item.dispatchStatus)
     ).length,
     activeTrips: items.filter((item) =>
-      ["in_route", "arrived_at_customer", "service_started"].includes(
-        item.dispatchStatus
-      )
+      ["in_route", "arrived_at_customer", "service_started"].includes(item.dispatchStatus)
     ).length,
     completedToday: items.filter((item) => item.dispatchStatus === "completed").length,
     cancelledToday: items.filter((item) => item.dispatchStatus === "cancelled").length,
@@ -303,20 +308,32 @@ export async function getDispatchData(args: GetDispatchDataArgs): Promise<Dispat
       .order("start_time", { ascending: true });
 
     if (args.bookingId) query = query.eq("id", args.bookingId);
-    else if (args.dateFrom && args.dateTo) query = query.gte("booking_date", args.dateFrom).lte("booking_date", args.dateTo).neq("booking_date", args.date);
+    else if (args.dateFrom && args.dateTo)
+      query = query
+        .gte("booking_date", args.dateFrom)
+        .lte("booking_date", args.dateTo)
+        .neq("booking_date", args.date);
     else query = query.eq("booking_date", args.date);
 
     if (args.role === "driver" && args.staffId) {
-      query = query.eq("driver_id", args.staffId);
+      query = query
+        .eq("driver_id", args.staffId)
+        .in("status", ["confirmed", "in_progress", "completed"]);
     } else if (args.role === "therapist" && args.staffId) {
       query = query.eq("staff_id", args.staffId);
     }
 
-    const { data: firstPage, error: bookingsError } = await (args.throwOnError && args.role !== "driver"
+    const { data: firstPage, error: bookingsError } = await (args.throwOnError &&
+    args.role !== "driver"
       ? query.order("id").range(0, 499)
       : query.order("booking_date").limit(args.role === "driver" ? 100 : 50));
     const rawBookings = [...(firstPage ?? [])];
-    if (args.throwOnError && args.role !== "driver" && !bookingsError && firstPage?.length === 500) {
+    if (
+      args.throwOnError &&
+      args.role !== "driver" &&
+      !bookingsError &&
+      firstPage?.length === 500
+    ) {
       for (let offset = 500; ; offset += 500) {
         const { data: page, error } = await query.range(offset, offset + 499);
         if (error) throw error;
@@ -351,47 +368,52 @@ export async function getDispatchData(args: GetDispatchDataArgs): Promise<Dispat
             error: null,
           });
 
-    const snapshotsPromise = args.role === "driver"
-      ? supabase.from("staff_location_snapshots")
-          .select("booking_id, lat, lng, recorded_at")
-          .eq("branch_id", args.branchId).eq("staff_id", args.staffId!)
-          .in("booking_id", bookingIds).order("recorded_at", { ascending: false }).limit(500)
-      : args.throwOnError
-      ? Promise.all(
-          rawBookings
-            .filter((booking) => booking.driver_id)
-            .map(async (booking) => {
-              const result = await supabase
-                .from("staff_location_snapshots")
-                .select("booking_id, lat, lng, recorded_at")
-                .eq("branch_id", args.branchId)
-                .eq("booking_id", booking.id)
-                .eq("staff_id", booking.driver_id!)
-                .order("recorded_at", { ascending: false })
-                .limit(1)
-                .maybeSingle();
-              if (result.error) throw result.error;
-              return result.data;
-            })
-        ).then((rows) => ({
-          data: rows.filter((row): row is NonNullable<typeof row> => row !== null),
-          error: null,
-        }))
-      : bookingIds.length > 0
+    const snapshotsPromise =
+      args.role === "driver"
         ? supabase
             .from("staff_location_snapshots")
             .select("booking_id, lat, lng, recorded_at")
+            .eq("branch_id", args.branchId)
+            .eq("staff_id", args.staffId!)
             .in("booking_id", bookingIds)
             .order("recorded_at", { ascending: false })
-        : Promise.resolve({
-            data: [] as {
-              booking_id: string | null;
-              lat: number;
-              lng: number;
-              recorded_at: string;
-            }[],
-            error: null,
-          });
+            .limit(500)
+        : args.throwOnError
+          ? Promise.all(
+              rawBookings
+                .filter((booking) => booking.driver_id)
+                .map(async (booking) => {
+                  const result = await supabase
+                    .from("staff_location_snapshots")
+                    .select("booking_id, lat, lng, recorded_at")
+                    .eq("branch_id", args.branchId)
+                    .eq("booking_id", booking.id)
+                    .eq("staff_id", booking.driver_id!)
+                    .order("recorded_at", { ascending: false })
+                    .limit(1)
+                    .maybeSingle();
+                  if (result.error) throw result.error;
+                  return result.data;
+                })
+            ).then((rows) => ({
+              data: rows.filter((row): row is NonNullable<typeof row> => row !== null),
+              error: null,
+            }))
+          : bookingIds.length > 0
+            ? supabase
+                .from("staff_location_snapshots")
+                .select("booking_id, lat, lng, recorded_at")
+                .in("booking_id", bookingIds)
+                .order("recorded_at", { ascending: false })
+            : Promise.resolve({
+                data: [] as {
+                  booking_id: string | null;
+                  lat: number;
+                  lng: number;
+                  recorded_at: string;
+                }[],
+                error: null,
+              });
 
     const [driversRes, snapshotsRes] = await Promise.all([driversPromise, snapshotsPromise]);
 
@@ -455,11 +477,7 @@ export async function getDispatchData(args: GetDispatchDataArgs): Promise<Dispat
         readString(homeServiceAddress?.barangay) ??
         readString(homeServiceAddress?.city);
 
-      const dispatchStatus = computeDispatchStatus(
-        bookingStatus,
-        progressStatus,
-        driverId
-      );
+      const dispatchStatus = computeDispatchStatus(bookingStatus, progressStatus, driverId);
 
       return {
         id: booking.id,
@@ -485,7 +503,10 @@ export async function getDispatchData(args: GetDispatchDataArgs): Promise<Dispat
         bookingStatus,
         bookingProgressStatus: progressStatus ?? "not_started",
         paymentStatus: booking.payment_status ?? "unknown",
-        etaMinutes: args.role === "driver" ? (liveEta?.eta_minutes ?? null) : (liveEta?.eta_minutes ?? readNumber(dispatch?.eta_minutes)),
+        etaMinutes:
+          args.role === "driver"
+            ? (liveEta?.eta_minutes ?? null)
+            : (liveEta?.eta_minutes ?? readNumber(dispatch?.eta_minutes)),
         ...(args.throwOnError
           ? {
               eta: liveEta

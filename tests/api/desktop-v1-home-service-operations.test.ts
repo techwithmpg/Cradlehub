@@ -328,14 +328,17 @@ describe("therapist and dispatch shared business rules", () => {
       expect.objectContaining({ supabase: db.client, branchId: branch, throwOnError: true })
     );
   });
-  it.each(["pending", "unpaid"])("notifies the therapist for %s Home Service assignment", async status => {
-    booking().payment_status = status;
-    booking().staff_id = null;
-    expect((await call("assign_therapist", { staffId: therapist })).status).toBe(200);
-    expect(mocks.notify).toHaveBeenCalledWith(
-      expect.objectContaining({ recipientStaffId: therapist, type: "home_service_assigned" })
-    );
-  });
+  it.each(["pending", "unpaid"])(
+    "notifies the therapist for %s Home Service assignment",
+    async (status) => {
+      booking().payment_status = status;
+      booking().staff_id = null;
+      expect((await call("assign_therapist", { staffId: therapist })).status).toBe(200);
+      expect(mocks.notify).toHaveBeenCalledWith(
+        expect.objectContaining({ recipientStaffId: therapist, type: "home_service_assigned" })
+      );
+    }
+  );
   it.each(["driver_id", "staff_id"])("requires %s before dispatch", async (key) => {
     booking()[key] = null;
     expect((await call("prepare_dispatch", {})).status).toBe(409);
@@ -646,22 +649,42 @@ describe("schedule exception and failure regressions", () => {
   it("notifies assigned staff and driver when unpaid Home Service is cancelled", async () => {
     booking().payment_status = "pending";
     expect((await cancel(request(cancellation), route)).status).toBe(200);
-    expect(mocks.notify).toHaveBeenCalledWith(expect.objectContaining({ targetWorkspace: "staff", type: "booking_cancelled" }));
-    expect(mocks.notify).toHaveBeenCalledWith(expect.objectContaining({ targetWorkspace: "driver", type: "booking_cancelled" }));
+    expect(mocks.notify).toHaveBeenCalledWith(
+      expect.objectContaining({ targetWorkspace: "staff", type: "booking_cancelled" })
+    );
+    expect(mocks.notify).toHaveBeenCalledWith(
+      expect.objectContaining({ targetWorkspace: "driver", type: "booking_cancelled" })
+    );
     expect(mocks.resolve).toHaveBeenCalledWith("booking", id, "driver", "home_service_assigned");
   });
   it("notifies therapist on unpaid Home Service reassignment", async () => {
     booking().payment_status = "pending";
     booking().staff_id = old;
     expect((await call("assign_therapist", { staffId: therapist })).status).toBe(200);
-    expect(mocks.notify).toHaveBeenCalledWith(expect.objectContaining({ recipientStaffId: therapist, type: "home_service_assigned" }));
+    expect(mocks.notify).toHaveBeenCalledWith(
+      expect.objectContaining({ recipientStaffId: therapist, type: "home_service_assigned" })
+    );
   });
-  it("keeps unpaid in-spa notification behavior unchanged", async () => {
+  it("rejects in-spa therapist assignment through the Home Service endpoint", async () => {
     booking().type = "walkin";
     booking().delivery_type = "in_spa";
     booking().payment_status = "pending";
     booking().staff_id = old;
-    expect((await call("assign_therapist", { staffId: therapist })).status).toBe(200);
+    expect((await call("assign_therapist", { staffId: therapist })).status).toBe(403);
+    expect(db.writes).toHaveLength(0);
+    expect(mocks.notify).not.toHaveBeenCalled();
+  });
+  it("keeps unpaid in-spa notifications quiet through general CRM assignment", async () => {
+    booking().type = "walkin";
+    booking().delivery_type = "in_spa";
+    booking().payment_status = "pending";
+    booking().staff_id = old;
+    expect(await assignBookingTherapistAction({ bookingId: id, staffId: therapist })).toMatchObject(
+      {
+        success: true,
+      }
+    );
+    expect(db.writes.some((write) => write.table === "bookings")).toBe(true);
     expect(mocks.notify).not.toHaveBeenCalled();
   });
   it("preserves hosted owner cross-branch driver authority", async () => {

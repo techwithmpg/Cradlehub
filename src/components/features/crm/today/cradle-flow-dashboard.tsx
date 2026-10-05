@@ -4,18 +4,17 @@ import { useCallback, useEffect, useMemo, useState, useTransition } from "react"
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 import {
-  confirmHomeServiceHandoffAction,
   crmStartServiceAction,
   markBookingArrivedAction,
 } from "@/app/(dashboard)/crm/bookings/actions";
 import { useAttendanceScanFeed } from "@/components/features/attendance/use-attendance-scan-feed";
 import { RoomAssignmentModal } from "@/components/features/bookings/room-assignment-modal";
-import { BOOKINGS_CHANGED_EVENT, notifyBookingsChanged } from "@/lib/bookings/bookings-client-events";
-import type { FinancialEntryMode } from "@/components/features/cash-flow/record-financial-entry-modal";
 import {
-  getCradleFlowStage,
-  type CradleFlowBooking,
-} from "@/lib/crm/cradle-flow";
+  BOOKINGS_CHANGED_EVENT,
+  notifyBookingsChanged,
+} from "@/lib/bookings/bookings-client-events";
+import type { FinancialEntryMode } from "@/components/features/cash-flow/record-financial-entry-modal";
+import { getCradleFlowStage, type CradleFlowBooking } from "@/lib/crm/cradle-flow";
 import type { AttendanceScanFeedData, RecentAttendanceScan } from "@/lib/attendance/types";
 import type { CrmTodaySnapshot } from "@/lib/queries/crm-today";
 import type { ReadinessIssue, ReadinessStatus } from "@/types/readiness";
@@ -24,7 +23,10 @@ import { CradleFlowBookingDialog } from "./cradle-flow-booking-dialog";
 import { CradleFlowCheckoutDialog } from "./cradle-flow-checkout-dialog";
 import { CradleFlowCompleteDialog } from "./cradle-flow-complete-dialog";
 import { CradleFlowHeader } from "./cradle-flow-header";
-import { CradleFlowFinancialEntry, type CradleFlowFinancialEntryRequest } from "./cradle-flow-financial-entry";
+import {
+  CradleFlowFinancialEntry,
+  type CradleFlowFinancialEntryRequest,
+} from "./cradle-flow-financial-entry";
 import { CradleFlowTherapistDialog } from "./cradle-flow-therapist-dialog";
 import { getCradleFlowDisplayCounts, type CradleFlowFilter } from "./cradle-flow-display";
 import { CradleFlowSideRail } from "./cradle-flow-side-rail";
@@ -64,7 +66,9 @@ export function CradleFlowDashboard(props: CradleFlowDashboardProps) {
   const [totalsOpen, setTotalsOpen] = useState(false);
   const collected = props.snapshot.payment?.total_collected ?? 0;
   const [filter, setFilter] = useState<CradleFlowFilter>("all");
-  const [financialRequest, setFinancialRequest] = useState<CradleFlowFinancialEntryRequest | null>(null);
+  const [financialRequest, setFinancialRequest] = useState<CradleFlowFinancialEntryRequest | null>(
+    null
+  );
   const [isActing, startAction] = useTransition();
   const attendanceState = useAttendanceScanFeed({
     workspace: "crm",
@@ -121,22 +125,16 @@ export function CradleFlowDashboard(props: CradleFlowDashboardProps) {
       router.push(`/crm/bookings?bookingId=${booking.id}`);
       return;
     }
-    if (booking.type === "home_service" || booking.delivery_type === "home_service") {
-      startAction(async () => {
-        const result = await confirmHomeServiceHandoffAction({ bookingId: booking.id });
-        if (!result.success) {
-          toast.error(result.error ?? "Home Service could not be confirmed and dispatched.");
-          return;
-        }
-        notifyBookingsChanged();
-        setDialog(null);
-        toast.success("Home Service confirmed and dispatched.");
-      });
+    if (
+      booking.status === "confirmed" &&
+      (booking.type === "home_service" || booking.delivery_type === "home_service")
+    ) {
+      router.push("/crm/dispatch");
       return;
     }
     startAction(async () => {
       let result: { success: boolean; error?: string };
-      if (["pending", "pending_crm_confirmation"].includes(booking.status)) {
+      if (["pending", "pending_payment", "pending_crm_confirmation"].includes(booking.status)) {
         result = props.statusAction
           ? await props.statusAction({ bookingId: booking.id, status: "confirmed" })
           : { success: false, error: "Confirmation action is unavailable." };
@@ -166,9 +164,15 @@ export function CradleFlowDashboard(props: CradleFlowDashboardProps) {
         onRefresh={() => router.refresh()}
         onReviewWarnings={() => setReadinessOpen(true)}
       />
-      <CradleFlowActions pendingBooking={pendingBooking} onResumePending={openBooking} onOpenFinancialEntry={openFinancialEntry} />
+      <CradleFlowActions
+        pendingBooking={pendingBooking}
+        onResumePending={openBooking}
+        onOpenFinancialEntry={openFinancialEntry}
+      />
       <div className="flex min-w-0 flex-col gap-3 xl:flex-row xl:items-start">
-        <main className={isActing ? "w-full min-w-0 opacity-80 xl:flex-1" : "w-full min-w-0 xl:flex-1"}>
+        <main
+          className={isActing ? "w-full min-w-0 opacity-80 xl:flex-1" : "w-full min-w-0 xl:flex-1"}
+        >
           <CradleFlowWorkflow
             bookings={bookings}
             staffAvailable={props.snapshot.staffReadiness.availableNow}
@@ -183,24 +187,24 @@ export function CradleFlowDashboard(props: CradleFlowDashboardProps) {
         </main>
         <div className="w-full min-w-0 shrink-0 xl:w-76 2xl:w-80">
           <CradleFlowSideRail
-          branchName={props.branchName}
-          attendanceDate={props.attendanceScanDate}
-          attendanceFeed={attendanceState.feed}
-          attendanceRealtimeStatus={attendanceState.realtimeStatus}
-          attendanceRefreshing={attendanceState.isValidating}
-          attendanceRefreshError={attendanceState.error}
-          onAttendanceRefresh={attendanceState.refreshFeed}
-          bookings={bookings}
-          payment={props.snapshot.payment}
-          collected={collected}
-          readyToPayCount={counts.ready_to_pay}
-          readinessIssues={props.readinessIssues}
-          onAttendanceSelect={setAttendance}
-          onReviewReadiness={() => setReadinessOpen(true)}
-          onOpenBooking={openBooking}
-          onShowNeedsAction={() => setFilter("needs_action")}
-          onShowReadyToPay={() => setFilter("ready_to_pay")}
-          onViewTotals={() => setTotalsOpen(true)}
+            branchName={props.branchName}
+            attendanceDate={props.attendanceScanDate}
+            attendanceFeed={attendanceState.feed}
+            attendanceRealtimeStatus={attendanceState.realtimeStatus}
+            attendanceRefreshing={attendanceState.isValidating}
+            attendanceRefreshError={attendanceState.error}
+            onAttendanceRefresh={attendanceState.refreshFeed}
+            bookings={bookings}
+            payment={props.snapshot.payment}
+            collected={collected}
+            readyToPayCount={counts.ready_to_pay}
+            readinessIssues={props.readinessIssues}
+            onAttendanceSelect={setAttendance}
+            onReviewReadiness={() => setReadinessOpen(true)}
+            onOpenBooking={openBooking}
+            onShowNeedsAction={() => setFilter("needs_action")}
+            onShowReadyToPay={() => setFilter("ready_to_pay")}
+            onViewTotals={() => setTotalsOpen(true)}
           />
         </div>
       </div>
@@ -277,7 +281,9 @@ function CradleFlowDialogs(props: DialogProps) {
           key={props.selected.id}
           open
           booking={{ id: props.selected.id, resource_id: props.selected.resource_id ?? null }}
-          onOpenChange={(open) => { if (!open) props.setAssignment(null); }}
+          onOpenChange={(open) => {
+            if (!open) props.setAssignment(null);
+          }}
           onAssigned={notifyBookingsChanged}
         />
       ) : null}
@@ -286,7 +292,9 @@ function CradleFlowDialogs(props: DialogProps) {
           key={props.selected.id}
           booking={props.selected}
           open
-          onOpenChange={(open) => { if (!open) props.setAssignment(null); }}
+          onOpenChange={(open) => {
+            if (!open) props.setAssignment(null);
+          }}
           onAssigned={notifyBookingsChanged}
         />
       ) : null}
