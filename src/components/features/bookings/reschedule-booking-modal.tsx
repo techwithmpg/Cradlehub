@@ -17,6 +17,11 @@ import {
 } from "@/app/(dashboard)/crm/bookings/actions";
 import { getTherapistRecommendationsAction } from "@/lib/actions/assignment-recommendations";
 import { AssignmentRecommendationPanel } from "@/components/features/assignments/assignment-recommendation-panel";
+import {
+  PlacesAutocomplete,
+  type PlaceSelectResult,
+  type PlacesAutocompleteStatus,
+} from "@/components/public/places-autocomplete";
 import { formatTime } from "@/lib/utils";
 import type { WorkspaceBookingRow } from "./bookings-workspace";
 import type { ScoredStaff } from "@/lib/assignments/recommendation-engine";
@@ -78,6 +83,22 @@ function readHomeServiceAccessNote(booking: WorkspaceBookingRow | null): string 
   return typeof record.access_note === "string" ? record.access_note : "";
 }
 
+function hasHomeServiceCoordinates(booking: WorkspaceBookingRow | null): boolean {
+  const raw = booking?.metadata?.home_service_address;
+  if (!raw || typeof raw !== "object" || Array.isArray(raw)) return false;
+  const address = raw as Record<string, unknown>;
+  const lat = Number(address.lat);
+  const lng = Number(address.lng);
+  return (
+    Number.isFinite(lat) &&
+    Math.abs(lat) <= 90 &&
+    Number.isFinite(lng) &&
+    Math.abs(lng) <= 180 &&
+    address.lat != null &&
+    address.lng != null
+  );
+}
+
 function safeRescheduleError(message: string | undefined): string {
   if (!message) return "Could not update booking.";
   const lower = message.toLowerCase();
@@ -125,23 +146,40 @@ function RescheduleBookingModalContent({
   const [startTime, setStartTime] = useState(() => timeInputValue(booking?.start_time ?? ""));
   const [selectedStaffId, setSelectedStaffId] = useState(() => currentStaffId);
   const [selectedStaffName, setSelectedStaffName] = useState(() => currentStaffName);
-  const [homeServiceAddress, setHomeServiceAddress] = useState(() => readHomeServiceAddress(booking));
-  const [homeServiceAccessNote, setHomeServiceAccessNote] = useState(() => readHomeServiceAccessNote(booking));
+  const [homeServiceAddress, setHomeServiceAddress] = useState(() =>
+    readHomeServiceAddress(booking)
+  );
+  const [homeServicePlace, setHomeServicePlace] = useState<PlaceSelectResult | null>(null);
+  const [placesStatus, setPlacesStatus] = useState<PlacesAutocompleteStatus>("idle");
+  const [homeServiceAccessNote, setHomeServiceAccessNote] = useState(() =>
+    readHomeServiceAccessNote(booking)
+  );
   const [note, setNote] = useState("");
   const [feedback, setFeedback] = useState<string | null>(null);
   const [isPending, startTransition] = useTransition();
 
   const changed = useMemo(() => {
     const dateChanged = date !== booking.booking_date;
-    const timeChanged = normalizeTimeForCompare(startTime) !== normalizeTimeForCompare(booking.start_time);
+    const timeChanged =
+      normalizeTimeForCompare(startTime) !== normalizeTimeForCompare(booking.start_time);
     const staffChanged = selectedStaffId !== currentStaffId;
     const addressChanged =
       isHomeServiceBooking(booking) &&
-      (homeServiceAddress.trim() !== readHomeServiceAddress(booking).trim() ||
+      (Boolean(homeServicePlace) ||
+        homeServiceAddress.trim() !== readHomeServiceAddress(booking).trim() ||
         homeServiceAccessNote.trim() !== readHomeServiceAccessNote(booking).trim());
 
     return dateChanged || timeChanged || staffChanged || addressChanged;
-  }, [booking, currentStaffId, date, homeServiceAccessNote, homeServiceAddress, selectedStaffId, startTime]);
+  }, [
+    booking,
+    currentStaffId,
+    date,
+    homeServiceAccessNote,
+    homeServiceAddress,
+    homeServicePlace,
+    selectedStaffId,
+    startTime,
+  ]);
 
   const currentBooking = booking;
 
@@ -149,11 +187,13 @@ function RescheduleBookingModalContent({
   const service = first(currentBooking.services);
   const resource = first(currentBooking.branch_resources);
   const isHomeService = isHomeServiceBooking(currentBooking);
-  const timeChanged = normalizeTimeForCompare(startTime) !== normalizeTimeForCompare(currentBooking.start_time);
+  const timeChanged =
+    normalizeTimeForCompare(startTime) !== normalizeTimeForCompare(currentBooking.start_time);
   const staffChanged = selectedStaffId !== currentStaffId;
   const addressChanged =
     isHomeService &&
-    (homeServiceAddress.trim() !== readHomeServiceAddress(currentBooking).trim() ||
+    (Boolean(homeServicePlace) ||
+      homeServiceAddress.trim() !== readHomeServiceAddress(currentBooking).trim() ||
       homeServiceAccessNote.trim() !== readHomeServiceAccessNote(currentBooking).trim());
   const dateChanged = date !== currentBooking.booking_date;
   const requiresReason = timeChanged || staffChanged || addressChanged;
@@ -186,8 +226,13 @@ function RescheduleBookingModalContent({
       return;
     }
 
-    if (isHomeService && addressChanged && !homeServiceAddress.trim()) {
-      setFeedback("Enter the updated home-service address.");
+    if (
+      isHomeService &&
+      (homeServiceAddress.trim() !== readHomeServiceAddress(currentBooking).trim() ||
+        (!hasHomeServiceCoordinates(currentBooking) && addressChanged)) &&
+      !homeServicePlace
+    ) {
+      setFeedback("Select the customer destination from the address suggestions.");
       return;
     }
 
@@ -202,8 +247,16 @@ function RescheduleBookingModalContent({
           date,
           startTime,
           note: note.trim() || undefined,
-          homeServiceAddress: isHomeService ? homeServiceAddress.trim() || undefined : undefined,
-          homeServiceAccessNote: isHomeService ? homeServiceAccessNote.trim() || undefined : undefined,
+          homeServiceAddress:
+            isHomeService && homeServicePlace ? homeServiceAddress.trim() : undefined,
+          homeServiceAccessNote:
+            isHomeService && addressChanged ? homeServiceAccessNote.trim() : undefined,
+          homeServicePlaceId: homeServicePlace?.placeId,
+          homeServiceFormattedAddress: homeServicePlace?.formattedAddress,
+          homeServiceLat: homeServicePlace?.lat,
+          homeServiceLng: homeServicePlace?.lng,
+          homeServiceMapUrl: homeServicePlace?.mapUrl,
+          homeServiceAddressComponents: homeServicePlace?.addressComponents,
         });
 
         if (!result.success) {
@@ -262,7 +315,11 @@ function RescheduleBookingModalContent({
               <SummaryItem label="Mode" value={isHomeService ? "Home Service" : "In-spa"} />
               <SummaryItem
                 label={isHomeService ? "Current Address" : "Room / Resource"}
-                value={isHomeService ? readHomeServiceAddress(currentBooking) || "No address saved" : resource?.name ?? "No room assigned"}
+                value={
+                  isHomeService
+                    ? readHomeServiceAddress(currentBooking) || "No address saved"
+                    : (resource?.name ?? "No room assigned")
+                }
               />
             </div>
           </div>
@@ -295,7 +352,8 @@ function RescheduleBookingModalContent({
               </label>
             </div>
             <p className="mt-2 text-xs text-[var(--cs-text-muted)]">
-              For online bookings, keep the customer-selected time unless the customer agreed to move.
+              For online bookings, keep the customer-selected time unless the customer agreed to
+              move.
             </p>
           </div>
 
@@ -306,7 +364,9 @@ function RescheduleBookingModalContent({
             </div>
             <div className="mb-3 rounded-lg border border-[var(--cs-border)] bg-[var(--cs-surface-warm)] px-3 py-2 text-sm">
               <span className="font-semibold text-[var(--cs-text)]">Selected:</span>{" "}
-              <span className="text-[var(--cs-text)]">{selectedStaffName || "No therapist selected"}</span>
+              <span className="text-[var(--cs-text)]">
+                {selectedStaffName || "No therapist selected"}
+              </span>
               {staffChanged ? (
                 <span className="ml-2 rounded-full bg-[var(--cs-sand)] px-2 py-0.5 text-[0.65rem] font-bold uppercase tracking-wide text-[var(--cs-text)]">
                   Change pending
@@ -346,18 +406,34 @@ function RescheduleBookingModalContent({
                 <Home size={16} />
                 Home-service address
               </div>
-              <label className="block text-xs font-semibold uppercase tracking-wide text-[var(--cs-text-muted)]">
-                Address
-                <textarea
-                  value={homeServiceAddress}
-                  onChange={(event) => setHomeServiceAddress(event.target.value)}
-                  disabled={isPending}
-                  rows={2}
-                  maxLength={1000}
-                  className="mt-2 w-full rounded-lg border border-[var(--cs-border)] bg-[var(--cs-surface)] px-3 py-2 text-sm normal-case tracking-normal text-[var(--cs-text)] outline-none focus:border-[var(--cs-sand)] disabled:cursor-not-allowed disabled:opacity-60"
-                  placeholder="Complete home-service address"
-                />
-              </label>
+              <div className="text-xs font-semibold uppercase tracking-wide text-[var(--cs-text-muted)]">
+                Customer destination
+                <div className="mt-2">
+                  <PlacesAutocomplete
+                    value={homeServiceAddress}
+                    onChange={setHomeServiceAddress}
+                    onPlaceSelect={(place) => {
+                      setHomeServicePlace(place);
+                      if (place) setHomeServiceAddress(place.formattedAddress);
+                    }}
+                    onStatusChange={setPlacesStatus}
+                    placeholder="Search complete customer address"
+                  />
+                </div>
+              </div>
+              {!hasHomeServiceCoordinates(currentBooking) ? (
+                <p className="mt-2 text-xs text-[var(--cs-warning-text)]">
+                  This booking needs a selected destination before travel. Choose an address result
+                  and save.
+                </p>
+              ) : null}
+              {placesStatus === "missing_key" ||
+              placesStatus === "failed" ||
+              placesStatus === "place_missing_coordinates" ? (
+                <p className="mt-2 text-xs text-[var(--cs-error-text)]">
+                  Address search is unavailable. A precise destination cannot be saved right now.
+                </p>
+              ) : null}
               <label className="mt-3 block text-xs font-semibold uppercase tracking-wide text-[var(--cs-text-muted)]">
                 Access note / landmark
                 <textarea
@@ -371,7 +447,8 @@ function RescheduleBookingModalContent({
                 />
               </label>
               <p className="mt-2 text-xs text-[var(--cs-text-muted)]">
-                Changing the address may affect travel time, ETA, and therapist availability.
+                Changing the address may affect travel time, ETA, and the booked travel fee. Review
+                the fee separately.
               </p>
             </div>
           ) : null}
@@ -389,15 +466,16 @@ function RescheduleBookingModalContent({
             />
           </label>
 
-          {feedback ? (
-            <WorkspaceNotice tone="error">
-              {feedback}
-            </WorkspaceNotice>
-          ) : null}
+          {feedback ? <WorkspaceNotice tone="error">{feedback}</WorkspaceNotice> : null}
         </div>
       </AdminOverlayBody>
       <AdminOverlayFooter className="flex flex-col gap-2 bg-[var(--cs-surface)] sm:flex-row sm:items-center sm:justify-between">
-        <Button type="button" variant="outline" disabled={isPending} onClick={() => onOpenChange(false)}>
+        <Button
+          type="button"
+          variant="outline"
+          disabled={isPending}
+          onClick={() => onOpenChange(false)}
+        >
           Cancel
         </Button>
         <Button type="button" disabled={isPending || !changed} onClick={handleSave}>
@@ -412,7 +490,9 @@ function RescheduleBookingModalContent({
 function SummaryItem({ label, value }: { label: string; value: string }) {
   return (
     <div className="min-w-0">
-      <div className="text-[0.65rem] font-bold uppercase tracking-wide text-[var(--cs-text-muted)]">{label}</div>
+      <div className="text-[0.65rem] font-bold uppercase tracking-wide text-[var(--cs-text-muted)]">
+        {label}
+      </div>
       <div className="mt-1 truncate text-sm font-medium text-[var(--cs-text)]" title={value}>
         {value}
       </div>

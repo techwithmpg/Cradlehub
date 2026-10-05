@@ -321,6 +321,19 @@ export async function editBookingAction(rawInput: unknown) {
 
   if (!current) return { success: false, error: "Booking not found" };
 
+  // This general editor cannot capture the precise destination required by
+  // Home Service. Keep mode changes in the CRM booking workflow.
+  const nextDeliveryType = changes.deliveryType ?? current.delivery_type;
+  if (
+    (nextDeliveryType === "home_service" || changes.type === "home_service") &&
+    current.delivery_type !== "home_service"
+  ) {
+    return {
+      success: false,
+      error: "Use CRM Bookings to create Home Service visits with a selected customer destination.",
+    };
+  }
+
   const resolvedServiceId = changes.serviceId ?? current.service_id;
   const resolvedStaffId = changes.staffId ?? current.staff_id;
   const resolvedDate = changes.date ?? current.booking_date;

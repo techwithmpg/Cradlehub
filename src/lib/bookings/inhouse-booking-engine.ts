@@ -546,10 +546,9 @@ export async function executeInhouseBookingCreation(
         return [serviceId, price] as const;
       })
     );
-    const serviceSubtotal = phpCents(d.serviceIds.reduce(
-      (sum, serviceId) => sum + (servicePriceById.get(serviceId) ?? 0),
-      0
-    ));
+    const serviceSubtotal = phpCents(
+      d.serviceIds.reduce((sum, serviceId) => sum + (servicePriceById.get(serviceId) ?? 0), 0)
+    );
 
     // Build home service address data from the selected Google place.
     let hsAddressData: { [key: string]: Json | undefined } | null = null;
@@ -594,7 +593,7 @@ export async function executeInhouseBookingCreation(
       const accessNote = d.homeServiceAccessNote?.trim() || undefined;
 
       hsAddressData = {
-        full_address: d.homeServiceAddress,
+        full_address: formattedAddress,
         address_details: d.homeServiceAddressDetails ?? null,
         barangay: d.homeServiceBarangay ?? null,
         city: d.homeServiceCity ?? null,
@@ -756,11 +755,13 @@ export async function executeInhouseBookingCreation(
         payment_preference: "pay_at_spa",
         metadata: orderMetadata,
       },
-      p_attendees: [{
-        sequence: 1,
-        display_name: d.fullName,
-        customer_id: resolvedCustomerId,
-      }],
+      p_attendees: [
+        {
+          sequence: 1,
+          display_name: d.fullName,
+          customer_id: resolvedCustomerId,
+        },
+      ],
       p_service_lines: serviceLines,
       p_options: {
         type: d.type,
@@ -771,17 +772,21 @@ export async function executeInhouseBookingCreation(
         payment_reference: d.paymentReference ?? null,
         payment_note: d.paymentNote ?? null,
         financial_account_id: d.financialAccountId ?? null,
-        payments: d.payments?.map((part) => ({
-          amount: part.amount,
-          payment_method: part.paymentMethod,
-          financial_account_id: part.financialAccountId ?? null,
-          external_reference: part.externalReference ?? null,
-        })) ?? null,
+        payments:
+          d.payments?.map((part) => ({
+            amount: part.amount,
+            payment_method: part.paymentMethod,
+            financial_account_id: part.financialAccountId ?? null,
+            external_reference: part.externalReference ?? null,
+          })) ?? null,
       },
     };
     const { data: atomicData, error: atomicError } = await (
       admin as unknown as {
-        rpc: (name: string, args: typeof rpcArgs) => Promise<{
+        rpc: (
+          name: string,
+          args: typeof rpcArgs
+        ) => Promise<{
           data: { service_line_ids?: string[]; idempotency_status?: string } | null;
           error: { message: string; code?: string } | null;
         }>;
@@ -790,22 +795,26 @@ export async function executeInhouseBookingCreation(
     if (atomicError || !atomicData?.service_line_ids?.length) {
       const message = atomicError?.message ?? "Atomic booking creation returned no service lines";
       const knownCodes = [
-        "ACCOUNT_SELECTION_REQUIRED", "ACCOUNT_NOT_CONFIGURED",
-        "ACCOUNT_BRANCH_OR_RAIL_MISMATCH", "PAYMENT_DELTA_MISMATCH",
-        "IDEMPOTENCY_CONFLICT", "BOOKING_STAFF_TIME_CONFLICT",
+        "ACCOUNT_SELECTION_REQUIRED",
+        "ACCOUNT_NOT_CONFIGURED",
+        "ACCOUNT_BRANCH_OR_RAIL_MISMATCH",
+        "PAYMENT_DELTA_MISMATCH",
+        "IDEMPOTENCY_CONFLICT",
+        "BOOKING_STAFF_TIME_CONFLICT",
         "BOOKING_RESOURCE_TIME_CONFLICT",
       ];
-      const code = knownCodes.find((known) => message.includes(known)) ??
-        "BOOKING_ATOMIC_PERSISTENCE_FAILED";
+      const code =
+        knownCodes.find((known) => message.includes(known)) ?? "BOOKING_ATOMIC_PERSISTENCE_FAILED";
       logBookingError(logContext, atomicError ?? new Error(message));
       return {
         ok: false,
         code,
-        message: code === "ACCOUNT_SELECTION_REQUIRED"
-          ? "Select the payment account before collecting this payment."
-          : code === "ACCOUNT_NOT_CONFIGURED"
-            ? "No compatible payment account is configured for this branch."
-            : "Could not create the booking and payment together. Please review the booking and try again.",
+        message:
+          code === "ACCOUNT_SELECTION_REQUIRED"
+            ? "Select the payment account before collecting this payment."
+            : code === "ACCOUNT_NOT_CONFIGURED"
+              ? "No compatible payment account is configured for this branch."
+              : "Could not create the booking and payment together. Please review the booking and try again.",
       };
     }
     const insertedIds = atomicData.service_line_ids;
@@ -816,26 +825,28 @@ export async function executeInhouseBookingCreation(
       .map((id) => servicesById.get(id)?.name ?? "")
       .filter(Boolean)
       .join(", ");
-    const notificationJobs: Promise<void>[] = isReplay ? [] : [
-      createNotification({
-        branchId: resolvedBranchId,
-        targetWorkspace: "staff",
-        recipientStaffId: resolvedStaffId,
-        type: isHomeService ? "home_service_assigned" : "booking_assigned",
-        title: isHomeService
-          ? `Home Service booking — ${d.fullName}`
-          : `New booking — ${d.fullName}`,
-        body: `${d.fullName} has a confirmed ${isHomeService ? "Home Service " : ""}booking for ${serviceNames} on ${d.date} at ${startTime}.`,
-        entityType: "booking",
-        entityId: insertedIds[0],
-        actionHref: "/staff-portal/schedule",
-        priority: isHomeService ? "high" : "normal",
-        requiresAction: isHomeService,
-        metadata: insertedIds.length > 1 ? { group_booking_ids: insertedIds } : {},
-        dedupeKey: `booking:${insertedIds[0]}:staff_assignment`,
-      }),
-      // No CRM payment_pending notification for in-house bookings — payment is already recorded.
-    ];
+    const notificationJobs: Promise<void>[] = isReplay
+      ? []
+      : [
+          createNotification({
+            branchId: resolvedBranchId,
+            targetWorkspace: "staff",
+            recipientStaffId: resolvedStaffId,
+            type: isHomeService ? "home_service_assigned" : "booking_assigned",
+            title: isHomeService
+              ? `Home Service booking — ${d.fullName}`
+              : `New booking — ${d.fullName}`,
+            body: `${d.fullName} has a confirmed ${isHomeService ? "Home Service " : ""}booking for ${serviceNames} on ${d.date} at ${startTime}.`,
+            entityType: "booking",
+            entityId: insertedIds[0],
+            actionHref: "/staff-portal/schedule",
+            priority: isHomeService ? "high" : "normal",
+            requiresAction: isHomeService,
+            metadata: insertedIds.length > 1 ? { group_booking_ids: insertedIds } : {},
+            dedupeKey: `booking:${insertedIds[0]}:staff_assignment`,
+          }),
+          // No CRM payment_pending notification for in-house bookings — payment is already recorded.
+        ];
 
     if (!isReplay && isHomeService && dispatchData.needs_location_review === true) {
       notificationJobs.push(

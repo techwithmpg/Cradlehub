@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useMemo, useState } from "react";
 import { AlertCircle, Car, CheckCircle2, Clock, MapPin, Navigation, UserRound } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -69,13 +69,7 @@ function statusBadge(status: unknown): {
 }
 
 function locationLabel(item: RealDispatchItem): string {
-  return (
-    item.area ??
-    item.formattedAddress ??
-    (item.lat !== null && item.lng !== null
-      ? "Customer location saved"
-      : "Location needs attention")
-  );
+  return item.formattedAddress ?? item.area ?? "Location needs attention";
 }
 
 function etaLabel(item: RealDispatchItem): string {
@@ -284,7 +278,9 @@ function SelectedVisit({ item }: { item: RealDispatchItem }) {
       )}
 
       <Button asChild variant="outline" className="mt-5 h-11 w-full rounded-xl">
-        <a href={`/crm/bookings?bookingId=${encodeURIComponent(item.id)}`}>View Booking</a>
+        <a href={`/crm/bookings?bookingId=${encodeURIComponent(item.id)}`}>
+          {item.needsLocationReview ? "View / Fix Booking" : "View Booking"}
+        </a>
       </Button>
     </aside>
   );
