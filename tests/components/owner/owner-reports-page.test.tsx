@@ -4,7 +4,7 @@ import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/re
 import { SWRConfig } from "swr";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { OwnerReportsPage } from "@/components/features/owner/reports/owner-reports-page";
-import type { OwnerReportsData } from "@/app/(dashboard)/owner/bookings/actions";
+import type { OwnerReportsData } from "@/lib/owner/reports";
 
 let currentSearchParams = new URLSearchParams("preset=last7");
 const getReports = vi.fn();
@@ -16,11 +16,21 @@ vi.mock("@/app/(dashboard)/owner/bookings/actions", () => ({
   getOwnerReportsDataAction: (request: unknown) => getReports(request),
 }));
 vi.mock("@/components/features/dashboard/page-header", () => ({ PageHeader: () => null }));
-vi.mock("@/components/features/dashboard/daily-cash-summary", () => ({ DailyCashSummary: () => null }));
-vi.mock("@/components/features/owner/reports/revenue-by-branch-card", () => ({ RevenueByBranchCard: () => null }));
-vi.mock("@/components/features/owner/reports/staff-productivity-card", () => ({ StaffProductivityCard: () => null }));
-vi.mock("@/components/features/owner/reports/booking-trend-card", () => ({ BookingTrendCard: () => null }));
-vi.mock("@/components/features/owner/reports/reports-empty-state", () => ({ ReportsEmptyState: () => null }));
+vi.mock("@/components/features/dashboard/daily-cash-summary", () => ({
+  DailyCashSummary: () => null,
+}));
+vi.mock("@/components/features/owner/reports/revenue-by-branch-card", () => ({
+  RevenueByBranchCard: () => null,
+}));
+vi.mock("@/components/features/owner/reports/staff-productivity-card", () => ({
+  StaffProductivityCard: () => null,
+}));
+vi.mock("@/components/features/owner/reports/booking-trend-card", () => ({
+  BookingTrendCard: () => null,
+}));
+vi.mock("@/components/features/owner/reports/reports-empty-state", () => ({
+  ReportsEmptyState: () => null,
+}));
 vi.mock("@/components/features/owner/reports/report-kpi-cards", () => ({
   ReportKpiCards: ({ revenueData }: { revenueData: Array<{ name?: string }> }) => (
     <div data-testid="report-data">{revenueData[0]?.name}</div>
@@ -43,7 +53,9 @@ function reportData(marker: string, preset: string): OwnerReportsData {
 
 function deferred<T>() {
   let resolve!: (value: T) => void;
-  const promise = new Promise<T>((next) => { resolve = next; });
+  const promise = new Promise<T>((next) => {
+    resolve = next;
+  });
   return { promise, resolve };
 }
 

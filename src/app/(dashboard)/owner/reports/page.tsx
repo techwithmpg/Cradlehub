@@ -1,25 +1,40 @@
 import Link from "next/link";
 import { OwnerReportsPage } from "@/components/features/owner/reports/owner-reports-page";
-import {
-  getOwnerReportsDataAction,
-  type OwnerReportsRequest,
-} from "../bookings/actions";
+import { getOwnerReportsDataAction } from "../bookings/actions";
+import type { OwnerReportsRequest, ReportTab } from "@/lib/owner/reports-types";
 import { RetainedWorkspaceModule } from "@/components/features/dashboard/retained-workspace-provider";
+
+const VALID_TABS: readonly ReportTab[] = [
+  "overview",
+  "branches",
+  "financial",
+  "services",
+  "staff",
+  "sheet-evidence",
+];
 
 interface ReportsPageProps {
   searchParams: Promise<{
     preset?: string;
-    from?:   string;
-    to?:     string;
+    from?: string;
+    to?: string;
+    branchId?: string;
+    view?: string;
   }>;
 }
 
 export default async function ReportsPage({ searchParams }: ReportsPageProps) {
   const params = await searchParams;
+  const tab: ReportTab = VALID_TABS.includes(params.view as ReportTab)
+    ? (params.view as ReportTab)
+    : "overview";
+
   const initialRequest: OwnerReportsRequest = {
     preset: params.preset || "last7",
     from: params.from,
     to: params.to,
+    branchId: params.branchId,
+    tab,
   };
   const result = await getOwnerReportsDataAction(initialRequest);
 
@@ -28,13 +43,25 @@ export default async function ReportsPage({ searchParams }: ReportsPageProps) {
       <RetainedWorkspaceModule moduleId="owner-reports">
         <div style={{ padding: "4rem 2rem", textAlign: "center" }}>
           <div style={{ fontSize: "3rem", marginBottom: "1rem" }}>⚠️</div>
-          <h2 style={{ fontSize: "1.5rem", fontWeight: 600, color: "var(--cs-text)", marginBottom: "0.5rem" }}>
+          <h2
+            style={{
+              fontSize: "1.5rem",
+              fontWeight: 600,
+              color: "var(--cs-text)",
+              marginBottom: "0.5rem",
+            }}
+          >
             Unable to load reports
           </h2>
           <p style={{ color: "var(--cs-text-muted)", marginBottom: "1.5rem" }}>
             There was an issue fetching the analytics data.
           </p>
-          <Link href="/owner/reports?retry=1" style={{ color: "var(--cs-sand)", fontWeight: 600, textDecoration: "underline" }}>Try again</Link>
+          <Link
+            href="/owner/reports?retry=1"
+            style={{ color: "var(--cs-sand)", fontWeight: 600, textDecoration: "underline" }}
+          >
+            Try again
+          </Link>
         </div>
       </RetainedWorkspaceModule>
     );
