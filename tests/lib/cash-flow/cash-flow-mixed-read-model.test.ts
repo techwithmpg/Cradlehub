@@ -289,4 +289,91 @@ describe('Cash Flow mixed canonical and booking snapshots', () => {
     expect(data.today.kpis.outstandingBalance).toBe(remaining);
     expect(data.today.totalInflow).toBe(paid);
   });
+
+  it.each([
+    { date: "2026-09-28", movementIds: ["previous-movement"], inflow: 40, outflow: 0 },
+    {
+      date: "2026-09-29",
+      movementIds: ["same-in-movement", "same-out-movement"],
+      inflow: 100,
+      outflow: 25,
+    },
+    { date: "2026-09-30", movementIds: ["next-movement"], inflow: 300, outflow: 0 },
+  ])(
+    "scopes branch activity and Ledger totals to business date $date without changing session state",
+    async ({ date, movementIds, inflow, outflow }) => {
+      const transaction = (id: string, branchId: string, businessDate: string, amount: number) => ({
+        id,
+        branch_id: branchId,
+        transaction_type: amount < 0 ? "operational_expense" : "customer_payment",
+        business_date: businessDate,
+        occurred_at: `${businessDate}T02:00:00Z`,
+        recorded_at: `${businessDate}T02:00:00Z`,
+        status: "posted",
+        source_type: null,
+        source_id: null,
+        external_reference: null,
+        notes: null,
+        financial_account_movements: [
+          {
+            id: `${id}-movement`,
+            financial_account_id: "drawer-a",
+            amount,
+            payment_method: "cash",
+            external_reference: null,
+            created_at: `${businessDate}T02:00:00Z`,
+          },
+        ],
+      });
+      mockTables({
+        financial_accounts: [
+          {
+            id: "drawer-a",
+            name: "Drawer",
+            account_type: "cash_drawer",
+            identifier_mask: null,
+            branch_id: "branch-a",
+            is_active: true,
+          },
+        ],
+        financial_expense_categories: [],
+        staff: [],
+        cash_sessions: [
+          {
+            id: "session-a",
+            branch_id: "branch-a",
+            cash_drawer_account_id: "drawer-a",
+            business_date: "2026-09-28",
+            status: "open",
+            opening_float: 500,
+            opening_note: null,
+            opened_by: "staff-a",
+            opened_at: "2026-09-27T00:00:00Z",
+            current_custodian_id: "staff-a",
+            closed_by: null,
+            closed_at: null,
+          },
+        ],
+        financial_transactions: [
+          transaction("previous", "branch-a", "2026-09-28", 40),
+          transaction("same-in", "branch-a", "2026-09-29", 100),
+          transaction("same-out", "branch-a", "2026-09-29", -25),
+          transaction("next", "branch-a", "2026-09-30", 300),
+          transaction("wrong-branch", "branch-b", "2026-09-29", 900),
+        ],
+        bookings: [],
+      });
+
+      const data = await getCashFlowData("branch-a", "Main Spa", date);
+
+      expect(data.ledger.records.map((row) => row.id)).toEqual(movementIds);
+      expect(data.ledger.totalRecords).toBe(movementIds.length);
+      expect(data.ledger.kpis).toMatchObject({ inflow, outflow, netFlow: inflow - outflow });
+      expect(data.today.totalInflow).toBe(inflow);
+      expect(data.dayClose).toMatchObject({ recordedInflow: inflow, recordedOutflow: outflow });
+      expect(data.cashSessions?.activeSessions[0]?.openingFloat).toBe(500);
+      expect(data.cashSessions?.activeSessions[0]?.expectedCash).toBe(915);
+      expect(data.cashSessions?.availableDrawers.map((drawer) => drawer.id)).toEqual(["drawer-a"]);
+    }
+  );
 });

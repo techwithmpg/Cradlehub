@@ -227,6 +227,10 @@ export async function getCashFlowData(
   }
 
   const allTransactions: RawTransaction[] = (txData as unknown as RawTransaction[]) || [];
+  // Activity follows the selected financial business date; session state still needs branch history.
+  const dateActivityTransactions = allTransactions.filter(
+    (tx) => tx.business_date === businessDate
+  );
 
   // 2b. Available physical cash drawer accounts for this branch
   const availableDrawers = accounts.filter((acc) => acc.accountType === 'cash_drawer');
@@ -323,10 +327,8 @@ export async function getCashFlowData(
     };
   });
 
-  // Filter transactions for today's business date
-  const todayTransactions = allTransactions.filter(
-    (tx) => tx.business_date === businessDate && tx.status === 'posted'
-  );
+  // Posted activity for the selected business date.
+  const todayTransactions = dateActivityTransactions.filter((tx) => tx.status === "posted");
   const postedDayAmounts = todayTransactions.flatMap((tx) =>
     (tx.financial_account_movements ?? []).map((movement) => Number(movement.amount) || 0)
   );
@@ -761,7 +763,7 @@ export async function getCashFlowData(
   // 7. Build Ledger records
   let allLedgerRecords: LedgerRecordItem[] = [];
 
-  for (const tx of allTransactions) {
+  for (const tx of dateActivityTransactions) {
     const movements = tx.financial_account_movements || [];
     const movementAmounts = movements.map((movement) => Number(movement.amount) || 0);
     const isCanonicalTransfer =
