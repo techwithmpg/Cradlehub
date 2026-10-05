@@ -5,6 +5,11 @@ import { useSearchParams } from "next/navigation";
 import { BookingsListToolbar } from "./bookings-list-toolbar";
 import { BookingsQuickFilters } from "./bookings-quick-filters";
 import { BookingsDesktopList } from "./bookings-desktop-list";
+import { BookingSourceSwitch } from "./booking-source-switch";
+import {
+  sortBookingsRecentFirst,
+  sortSheetReferencesRecentFirst,
+} from "@/lib/bookings/booking-recency";
 import { SheetBookingReferenceDetail } from "./sheet-booking-reference-row";
 import { SelectedBookingCommandPane } from "./selected-booking-command-pane";
 import { BookingsModalStack, type BookingModalState } from "./bookings-modal-stack";
@@ -96,7 +101,7 @@ export function BookingsDesktopWorkspace(props: DesktopWorkspaceProps) {
       assignment: props.assignmentFilter,
       branchId: props.branchFilter,
     });
-    return searchBookings(exactFiltered, props.search);
+    return sortBookingsRecentFirst(searchBookings(exactFiltered, props.search));
   }, [
     props.assignmentFilter,
     props.bookings,
@@ -124,14 +129,16 @@ export function BookingsDesktopWorkspace(props: DesktopWorkspaceProps) {
       props.sheetState?.status !== "available"
     )
       return [];
-    return filterSheetBookings(
-      withPossibleMatch(
-        props.sheetState.bookings.filter(
-          (reference) => !props.branchFilter || reference.branchId === props.branchFilter
+    return sortSheetReferencesRecentFirst(
+      filterSheetBookings(
+        withPossibleMatch(
+          props.sheetState.bookings.filter(
+            (reference) => !props.branchFilter || reference.branchId === props.branchFilter
+          ),
+          props.bookings
         ),
-        props.bookings
-      ),
-      props.search
+        props.search
+      )
     );
   }, [
     canonicalOnlyFilter,
@@ -232,9 +239,20 @@ export function BookingsDesktopWorkspace(props: DesktopWorkspaceProps) {
               </p>
             </div>
             <span className="rounded-lg border border-[var(--cs-border)] bg-white px-3 py-2 text-sm font-bold text-[var(--cs-text)]">
-              {props.bookings.length} total
+              {props.referenceSource === "master_sheet"
+                ? props.sheetState?.status === "available"
+                  ? `${sheetReferences.length} Master Sheet references`
+                  : "Master Sheet · read only"
+                : `${props.bookings.length} bookings`}
             </span>
           </header>
+          {props.workspaceContext === "crm" ? (
+            <div className="px-5 pb-3">
+              <BookingSourceSwitch
+                source={props.referenceSource === "master_sheet" ? "master_sheet" : "cradlehub"}
+              />
+            </div>
+          ) : null}
           <BookingsListToolbar
             basePath={basePath}
             date={props.date}
@@ -255,27 +273,31 @@ export function BookingsDesktopWorkspace(props: DesktopWorkspaceProps) {
               page: searchParams.get("page") ?? undefined,
             }}
           />
-          <BookingsQuickFilters
-            items={quickItems}
-            activeFilter={quickFilter}
-            onChange={selectQuickFilter}
-          />
+          {props.referenceSource !== "master_sheet" ? (
+            <BookingsQuickFilters
+              items={quickItems}
+              activeFilter={quickFilter}
+              onChange={selectQuickFilter}
+            />
+          ) : null}
           <div className="px-5 pb-2 text-xs text-[var(--cs-text-muted)]" aria-live="polite">
-            {canonicalOnlyFilter && props.referenceSource !== "cradlehub"
-              ? "Master Sheet references are excluded by canonical booking filters."
-              : props.sheetLoading
-                ? "Loading Master Sheet references…"
-                : props.sheetState?.status === "unavailable"
-                  ? "Master Sheet references temporarily unavailable."
-                  : props.sheetState?.status === "outside_loaded_window"
-                    ? "Master Sheet references are available for the current and previous week only."
-                    : props.sheetState?.status === "forbidden"
-                      ? "Master Sheet references are not available for this branch."
-                      : props.sheetState?.status === "available_empty"
-                        ? "No Master Sheet references for this date."
-                        : props.sheetState?.status === "available"
-                          ? `${sheetReferences.length} Master Sheet references · read only`
-                          : null}
+            {props.referenceSource !== "master_sheet"
+              ? "Canonical CradleHub bookings"
+              : canonicalOnlyFilter
+                ? "Master Sheet references are excluded by canonical booking filters."
+                : props.sheetLoading
+                  ? "Loading Master Sheet references…"
+                  : props.sheetState?.status === "unavailable"
+                    ? "Master Sheet references temporarily unavailable."
+                    : props.sheetState?.status === "outside_loaded_window"
+                      ? "Master Sheet references are available for the current and previous week only."
+                      : props.sheetState?.status === "forbidden"
+                        ? "Master Sheet references are not available for this branch."
+                        : props.sheetState?.status === "available_empty"
+                          ? "No Master Sheet references for this date."
+                          : props.sheetState?.status === "available"
+                            ? `${sheetReferences.length} Master Sheet references · read only`
+                            : null}
           </div>
           <BookingsDesktopList
             bookings={visibleBookings}

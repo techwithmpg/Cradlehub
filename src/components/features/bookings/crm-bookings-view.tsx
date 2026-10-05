@@ -18,6 +18,7 @@ import {
 import type { DailyCashSummaryData } from "@/components/features/dashboard/daily-cash-summary";
 import type { WaitlistRow } from "@/components/features/crm/customers/waitlist-followup-table";
 import { resolveBookingQuickFilter } from "@/lib/bookings/bookings-workspace-filters";
+import { resolveBookingReferenceSource } from "@/lib/bookings/booking-source";
 import { BOOKINGS_CHANGED_EVENT } from "@/lib/bookings/bookings-client-events";
 import { useWorkspaceReactivationRefresh } from "@/components/features/dashboard/use-workspace-visibility";
 import { useSheetNativeReferences } from "@/components/features/crm/master-sheet/use-sheet-native-references";
@@ -97,11 +98,7 @@ export function CrmBookingsView({
   const deliveryFilter = searchParams.get("delivery") ?? undefined;
   const paymentFilter = searchParams.get("payment") ?? undefined;
   const assignmentFilter = searchParams.get("assignment") ?? undefined;
-  const referenceSourceParam = searchParams.get("referenceSource");
-  const referenceSource =
-    referenceSourceParam === "cradlehub" || referenceSourceParam === "master_sheet"
-      ? referenceSourceParam
-      : "all";
+  const referenceSource = resolveBookingReferenceSource(searchParams.get("referenceSource"));
   const search = searchParams.get("search") ?? undefined;
   const page = Number(searchParams.get("page") ?? "1");
 
@@ -142,6 +139,7 @@ export function CrmBookingsView({
 
   return (
     <BookingsWorkspace
+      key={referenceSource}
       workspaceContext="crm"
       viewerRole={payload.role}
       branchName={payload.branchName}

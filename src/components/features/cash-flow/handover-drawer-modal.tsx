@@ -10,7 +10,8 @@ interface HandoverDrawerModalProps {
   onOpenChange: (open: boolean) => void;
   session: CashSessionSummary | null;
   staffOptions: StaffOption[];
-  onSuccess: () => void;
+  preferredIncomingStaffId?: string | null;
+  onSuccess: (handoverId?: string) => void;
 }
 
 export function HandoverDrawerModal({
@@ -18,6 +19,7 @@ export function HandoverDrawerModal({
   onOpenChange,
   session,
   staffOptions,
+  preferredIncomingStaffId,
   onSuccess,
 }: HandoverDrawerModalProps) {
   const currentCustodianId = session?.currentCustodianId || session?.openedBy || "";
@@ -32,7 +34,12 @@ export function HandoverDrawerModal({
     );
   }, [staffOptions, currentCustodianId]);
 
-  const [nextStaffId, setNextStaffId] = useState(() => eligibleStaff[0]?.id ?? "");
+  const [nextStaffId, setNextStaffId] = useState(
+    () =>
+      eligibleStaff.find((member) => member.id === preferredIncomingStaffId)?.id ??
+      eligibleStaff[0]?.id ??
+      ""
+  );
   const [physicalCount, setPhysicalCount] = useState("");
   const [notes, setNotes] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -51,11 +58,7 @@ export function HandoverDrawerModal({
   const hasCount = physicalCount.trim() !== "" && Number.isFinite(counted) && counted >= 0;
   const variance = hasCount ? counted - session.expectedCash : 0;
 
-  const canSubmit =
-    !!session.id &&
-    !!nextStaffId &&
-    hasCount &&
-    !isSubmitting;
+  const canSubmit = !!session.id && !!nextStaffId && hasCount && !isSubmitting;
 
   const formatPeso = (val: number) =>
     `₱${val.toLocaleString("en-PH", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
@@ -82,7 +85,7 @@ export function HandoverDrawerModal({
       }
 
       onOpenChange(false);
-      onSuccess();
+      onSuccess(result.handover?.id);
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : "Unable to complete handover.");
     } finally {
@@ -185,16 +188,16 @@ export function HandoverDrawerModal({
                 variance === 0
                   ? "border-emerald-200 bg-emerald-50 text-emerald-900"
                   : variance > 0
-                  ? "border-blue-200 bg-blue-50 text-blue-900"
-                  : "border-amber-200 bg-amber-50 text-amber-900"
+                    ? "border-blue-200 bg-blue-50 text-blue-900"
+                    : "border-amber-200 bg-amber-50 text-amber-900"
               }`}
             >
               <span className="font-medium">
                 {variance === 0
                   ? "Count matches expected (Balanced)"
                   : variance > 0
-                  ? "Overage (+)"
-                  : "Shortage (-)"}
+                    ? "Overage (+)"
+                    : "Shortage (-)"}
               </span>
               <span className="font-bold tabular-nums text-sm">
                 {variance > 0 ? `+${formatPeso(variance)}` : formatPeso(variance)}

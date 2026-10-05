@@ -17,6 +17,8 @@ export type CashFlowTab = "today" | "ledger" | "day-close" | "history";
 
 interface CashFlowWorkspaceProps {
   initialData: CashFlowWorkspaceData;
+  handoverSessionId?: string | null;
+  incomingStaffId?: string | null;
   initialTab?: CashFlowTab;
   initialEntryMode?: FinancialEntryMode | null;
   reconciliationHref?: string | null;
@@ -24,6 +26,8 @@ interface CashFlowWorkspaceProps {
 
 export function CashFlowWorkspace({
   initialData,
+  handoverSessionId = null,
+  incomingStaffId = null,
   initialTab = "today",
   initialEntryMode = null,
   reconciliationHref = "/crm/reconciliation",
@@ -43,6 +47,15 @@ export function CashFlowWorkspace({
   );
 
   const activeSession = initialData.cashSessions?.activeSessions?.[0] ?? null;
+  const reviewSession = handoverSessionId
+    ? (initialData.cashSessions?.activeSessions?.find(
+        (session) =>
+          session.id === handoverSessionId &&
+          session.branchId === initialData.branchId &&
+          (session.currentCustodianId || session.openedBy) !== incomingStaffId
+      ) ?? null)
+    : null;
+  const incomingStaff = initialData.staffOptions?.find((member) => member.id === incomingStaffId);
 
   const formatPeso = (val: number) =>
     `₱${val.toLocaleString("en-PH", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
@@ -285,6 +298,57 @@ export function CashFlowWorkspace({
         </div>
       )}
 
+      {reviewSession && incomingStaff ? (
+        <section
+          aria-label="Review shift handover"
+          className="rounded-xl border border-amber-300 bg-amber-50 p-4 shadow-sm"
+        >
+          <h2 className="text-base font-bold text-amber-950">Review shift handover</h2>
+          <p className="mt-1 text-sm text-amber-900">
+            Review the open session below, then count the physical cash before confirming the
+            transfer.
+          </p>
+          <dl className="mt-3 grid gap-2 text-sm sm:grid-cols-2">
+            <div>
+              <dt className="font-semibold">Current operator</dt>
+              <dd>{reviewSession.currentCustodianName || reviewSession.openedByName || "Staff"}</dd>
+            </div>
+            <div>
+              <dt className="font-semibold">Incoming operator</dt>
+              <dd>{incomingStaff.name}</dd>
+            </div>
+            <div>
+              <dt className="font-semibold">Branch</dt>
+              <dd>{initialData.branchName}</dd>
+            </div>
+            <div>
+              <dt className="font-semibold">Session opened</dt>
+              <dd>{new Date(reviewSession.openedAt).toLocaleString("en-PH")}</dd>
+            </div>
+            <div>
+              <dt className="font-semibold">Opening float</dt>
+              <dd>{formatPeso(reviewSession.openingFloat)}</dd>
+            </div>
+            <div>
+              <dt className="font-semibold">Expected cash</dt>
+              <dd>{formatPeso(reviewSession.expectedCash)}</dd>
+            </div>
+          </dl>
+          {reviewSession.openingNote ? (
+            <p className="mt-2 text-sm">Opening note: {reviewSession.openingNote}</p>
+          ) : null}
+          <button
+            type="button"
+            className="mt-4 rounded-lg bg-[#163E32] px-4 py-2 text-sm font-semibold text-white"
+            onClick={() => {
+              setSelectedSession(reviewSession);
+              setIsHandoverModalOpen(true);
+            }}
+          >
+            Start Handover
+          </button>
+        </section>
+      ) : null}
       {/* ── Tab Navigation Bar ──────────────────────────────────────── */}
       <div className="bg-white rounded-xl border border-[#EAE4DC] p-1 flex gap-1 w-fit shadow-2xs">
         {tabs.map((tab) => {
@@ -457,8 +521,11 @@ export function CashFlowWorkspace({
           onOpenChange={setIsHandoverModalOpen}
           session={(selectedSession || activeSession)!}
           staffOptions={initialData.staffOptions ?? []}
-          onSuccess={() => {
-            router.refresh();
+          preferredIncomingStaffId={incomingStaffId}
+          onSuccess={(handoverId) => {
+            if (reviewSession && handoverId)
+              router.push(`/crm/today?handover=${encodeURIComponent(handoverId)}`);
+            else router.refresh();
           }}
         />
       )}

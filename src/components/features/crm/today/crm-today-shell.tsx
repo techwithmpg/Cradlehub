@@ -5,10 +5,13 @@ import type { ReadinessIssue, ReadinessStatus } from "@/types/readiness";
 import { CradleFlowDashboard } from "./cradle-flow-dashboard";
 import type { AttendanceScanFeedData } from "@/lib/attendance/types";
 import type { CradleFlowBooking } from "@/lib/crm/cradle-flow";
+import type { FrontDeskDutyContext } from "@/lib/queries/front-desk-duty";
 
 type CrmTodayMutationAction = (input: unknown) => Promise<{ success: boolean; error?: string }>;
 
 export function CrmTodayShell({
+  duty,
+  handoverConfirmed,
   branchName,
   dateLabel,
   queueData,
@@ -21,6 +24,8 @@ export function CrmTodayShell({
   paymentAction,
   statusAction,
 }: {
+  duty: FrontDeskDutyContext | null;
+  handoverConfirmed: boolean;
   branchName: string;
   dateLabel: string;
   roleLabel: string;
@@ -36,6 +41,8 @@ export function CrmTodayShell({
 }) {
   return (
     <CradleFlowDashboard
+      duty={duty}
+      handoverConfirmed={handoverConfirmed}
       branchName={branchName}
       dateLabel={dateLabel}
       queueData={queueData}

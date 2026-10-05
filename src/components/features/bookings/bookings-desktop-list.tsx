@@ -7,6 +7,10 @@ import { SheetBookingReferenceRow } from "./sheet-booking-reference-row";
 import type { WorkspaceBookingRow } from "./booking-workspace-types";
 import type { SheetBookingReference } from "@/lib/integrations/google-sheets/sheet-native-types";
 import { cn } from "@/lib/utils";
+import {
+  sortBookingsRecentFirst,
+  sortSheetReferencesRecentFirst,
+} from "@/lib/bookings/booking-recency";
 
 const ROW_OPTIONS = [8, 10, 20] as const;
 
@@ -48,7 +52,7 @@ export function BookingsDesktopList({
       | { kind: "canonical"; booking: WorkspaceBookingRow; minute: number | null }
       | { kind: "sheet"; reference: SheetBookingReference; minute: number | null }
     > = [
-      ...bookings.map((booking) => {
+      ...sortBookingsRecentFirst(bookings).map((booking) => {
         const match = booking.start_time.match(/^(\d{1,2}):(\d{2})/);
         return {
           kind: "canonical" as const,
@@ -56,13 +60,13 @@ export function BookingsDesktopList({
           minute: match ? Number(match[1]) * 60 + Number(match[2]) : null,
         };
       }),
-      ...sheetReferences.map((reference) => ({
+      ...sortSheetReferencesRecentFirst(sheetReferences).map((reference) => ({
         kind: "sheet" as const,
         reference,
         minute: reference.sortMinute,
       })),
     ];
-    return combined.sort((a, b) => (a.minute ?? Infinity) - (b.minute ?? Infinity));
+    return combined;
   }, [bookings, sheetReferences]);
   const totalPages = Math.max(1, Math.ceil(rows.length / rowsPerPage));
   const safePageIndex = Math.min(pageIndex, totalPages - 1);

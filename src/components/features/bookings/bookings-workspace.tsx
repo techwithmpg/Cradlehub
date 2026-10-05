@@ -18,6 +18,11 @@ import {
 import { BookingsTable } from "./bookings-table";
 import { BookingsDesktopWorkspace } from "./bookings-desktop-workspace";
 import { SheetBookingReferenceCard } from "./sheet-booking-reference-row";
+import { BookingSourceSwitch } from "./booking-source-switch";
+import {
+  sortBookingsRecentFirst,
+  sortSheetReferencesRecentFirst,
+} from "@/lib/bookings/booking-recency";
 import type {
   BookingActionFn,
   Branch,
@@ -328,7 +333,7 @@ export function BookingsWorkspace({
       "needs-action"
   );
   const [showFilters, setShowFilters] = useState(
-    Boolean(statusFilter || typeFilter || branchFilter || referenceSource !== "all")
+    Boolean(statusFilter || typeFilter || branchFilter)
   );
   const tabItems = useMemo(
     () =>
@@ -344,7 +349,10 @@ export function BookingsWorkspace({
     [activeTab, bookings]
   );
   const visibleBookings = useMemo(
-    () => applySecondaryFilters(tabBookings, statusFilter, typeFilter, branchFilter),
+    () =>
+      sortBookingsRecentFirst(
+        applySecondaryFilters(tabBookings, statusFilter, typeFilter, branchFilter)
+      ),
     [branchFilter, statusFilter, tabBookings, typeFilter]
   );
   const dateLabel = new Date(`${date}T00:00:00`).toLocaleDateString("en-PH", {
@@ -355,7 +363,7 @@ export function BookingsWorkspace({
   const isOwner = workspaceContext === "owner";
   const isCrm = workspaceContext === "crm";
   const hasFilters = Boolean(
-    statusFilter || typeFilter || branchFilter || search || referenceSource !== "all"
+    statusFilter || typeFilter || branchFilter || search || referenceSource === "master_sheet"
   );
   const sheetExcludedByCanonicalFilter = Boolean(
     statusFilter || typeFilter || deliveryFilter || paymentFilter || assignmentFilter
@@ -367,7 +375,9 @@ export function BookingsWorkspace({
       sheetState?.status !== "available"
     )
       return [];
-    return filterSheetBookings(withPossibleMatch(sheetState.bookings, bookings), search);
+    return sortSheetReferencesRecentFirst(
+      filterSheetBookings(withPossibleMatch(sheetState.bookings, bookings), search)
+    );
   }, [bookings, referenceSource, search, sheetExcludedByCanonicalFilter, sheetState]);
   const needsActionCount = tabItems.find((tab) => tab.key === "needs-action")?.count ?? 0;
 
@@ -452,7 +462,7 @@ export function BookingsWorkspace({
               <RefreshCw data-icon="inline-start" />
               Refresh
             </Button>
-            {isCrm ? (
+            {isCrm && referenceSource !== "master_sheet" ? (
               <OpenAdministrativeBookingButton mode="standard_future" date={date} size="lg">
                 <Plus data-icon="inline-start" />
                 New Booking
@@ -476,24 +486,48 @@ export function BookingsWorkspace({
               {branchName}
             </ContextChip>
           ) : null}
-          <ContextChip
-            ariaLabel={`Bookings loaded: ${bookings.length}`}
-            icon={<ClipboardList className="size-4" />}
-          >
-            {bookings.length} booking{bookings.length !== 1 ? "s" : ""}
-          </ContextChip>
-          <ContextChip
-            ariaLabel={`Bookings needing action: ${needsActionCount}`}
-            icon={<AlertCircle className="size-4" />}
-          >
-            {needsActionCount} need action
-          </ContextChip>
+          {isCrm ? (
+            <BookingSourceSwitch
+              source={referenceSource === "master_sheet" ? "master_sheet" : "cradlehub"}
+            />
+          ) : null}
+          {referenceSource !== "master_sheet" ? (
+            <ContextChip
+              ariaLabel={`Bookings loaded: ${bookings.length}`}
+              icon={<ClipboardList className="size-4" />}
+            >
+              {bookings.length} booking{bookings.length !== 1 ? "s" : ""}
+            </ContextChip>
+          ) : (
+            <ContextChip
+              ariaLabel={
+                sheetState?.status === "available"
+                  ? `${mobileSheetReferences.length} Master Sheet references`
+                  : "Master Sheet references · read only"
+              }
+              icon={<ClipboardList className="size-4" />}
+            >
+              {sheetState?.status === "available"
+                ? `${mobileSheetReferences.length} Master Sheet references`
+                : "Master Sheet · read only"}
+            </ContextChip>
+          )}
+          {referenceSource !== "master_sheet" ? (
+            <ContextChip
+              ariaLabel={`Bookings needing action: ${needsActionCount}`}
+              icon={<AlertCircle className="size-4" />}
+            >
+              {needsActionCount} need action
+            </ContextChip>
+          ) : null}
         </div>
       </header>
 
       <form method="get" className="grid gap-3">
-        <input type="hidden" name="tab" value={activeTab} />
-        {!showFilters && referenceSource !== "all" ? (
+        {referenceSource !== "master_sheet" ? (
+          <input type="hidden" name="tab" value={activeTab} />
+        ) : null}
+        {!showFilters ? (
           <input type="hidden" name="referenceSource" value={referenceSource} />
         ) : null}
         <ToolbarShell
@@ -526,7 +560,9 @@ export function BookingsWorkspace({
               />
             </span>
           </label>
-          <WorkflowTabBar tabs={tabItems} activeKey={activeTab} onSelect={handleTabChange} />
+          {referenceSource !== "master_sheet" ? (
+            <WorkflowTabBar tabs={tabItems} activeKey={activeTab} onSelect={handleTabChange} />
+          ) : null}
         </ToolbarShell>
 
         {showFilters ? (
@@ -557,21 +593,8 @@ export function BookingsWorkspace({
                 className="h-10 w-full rounded-lg border border-border bg-background px-3 text-sm font-semibold text-foreground shadow-sm outline-none transition focus:border-emerald-800"
               />
             </label>
-            {isCrm ? (
-              <label className="grid min-w-0 gap-1">
-                <span className="text-[0.68rem] font-bold uppercase tracking-wide text-muted-foreground">
-                  Record source
-                </span>
-                <select
-                  name="referenceSource"
-                  defaultValue={referenceSource}
-                  className="h-10 w-full rounded-lg border border-border bg-background px-3 text-sm font-semibold text-foreground"
-                >
-                  <option value="all">All</option>
-                  <option value="cradlehub">CradleHub</option>
-                  <option value="master_sheet">Master Sheet</option>
-                </select>
-              </label>
+            {showFilters ? (
+              <input type="hidden" name="referenceSource" value={referenceSource} />
             ) : null}
             {isOwner && branches && branches.length > 0 ? (
               <label className="grid min-w-0 gap-1">
@@ -593,29 +616,33 @@ export function BookingsWorkspace({
               </label>
             ) : null}
 
-            <label className="grid min-w-0 gap-1">
-              <span className="text-[0.68rem] font-bold uppercase tracking-wide text-muted-foreground">
-                Source
-              </span>
-              <select
-                name="type"
-                defaultValue={typeFilter ?? ""}
-                className="h-10 w-full rounded-lg border border-border bg-background px-3 text-sm font-semibold text-foreground shadow-sm outline-none transition focus:border-emerald-800"
-              >
-                <option value="">All Sources</option>
-                <option value="walkin">Walk-in</option>
-                <option value="online">Online</option>
-                <option value="home_service">Home Service</option>
-              </select>
-            </label>
+            {referenceSource !== "master_sheet" ? (
+              <label className="grid min-w-0 gap-1">
+                <span className="text-[0.68rem] font-bold uppercase tracking-wide text-muted-foreground">
+                  Source
+                </span>
+                <select
+                  name="type"
+                  defaultValue={typeFilter ?? ""}
+                  className="h-10 w-full rounded-lg border border-border bg-background px-3 text-sm font-semibold text-foreground shadow-sm outline-none transition focus:border-emerald-800"
+                >
+                  <option value="">All Sources</option>
+                  <option value="walkin">Walk-in</option>
+                  <option value="online">Online</option>
+                  <option value="home_service">Home Service</option>
+                </select>
+              </label>
+            ) : null}
           </ToolbarShell>
         ) : null}
       </form>
 
-      <div className="text-xs text-[var(--cs-text-muted)]">
-        {visibleBookings.length} booking{visibleBookings.length !== 1 ? "s" : ""} in{" "}
-        {tabItems.find((tab) => tab.key === activeTab)?.label.toLowerCase()} for {dateLabel}
-      </div>
+      {referenceSource !== "master_sheet" ? (
+        <div className="text-xs text-[var(--cs-text-muted)]">
+          {visibleBookings.length} booking{visibleBookings.length !== 1 ? "s" : ""} in{" "}
+          {tabItems.find((tab) => tab.key === activeTab)?.label.toLowerCase()} for {dateLabel}
+        </div>
+      ) : null}
 
       {referenceSource !== "master_sheet"
         ? WORKFLOW_TABS.map((tab) => (
