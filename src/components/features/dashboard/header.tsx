@@ -1,5 +1,5 @@
 import { createClient } from "@/lib/supabase/server";
-import { redirect }     from "next/navigation";
+import { redirect } from "next/navigation";
 import { revalidatePath } from "next/cache";
 import Link from "next/link";
 import { ChevronDown, HelpCircle, LogOut, Settings, Shuffle, UserRound } from "lucide-react";
@@ -21,8 +21,8 @@ async function logoutAction() {
 }
 
 type HeaderProps = {
-  role:      string;
-  fullName:  string;
+  role: string;
+  fullName: string;
   displayName?: string;
   avatarUrl?: string | null;
   readiness?: ReadinessResult | null;
@@ -43,41 +43,53 @@ function settingsHref(role: string): string | null {
   return null;
 }
 
-export function Header({ role, fullName, displayName, avatarUrl, readiness, workspaces = [] }: HeaderProps) {
+export function Header({
+  role,
+  fullName,
+  displayName,
+  avatarUrl,
+  readiness,
+  workspaces = [],
+}: HeaderProps) {
   const canSwitchWorkspace = workspaces.length > 1;
   const headerName = displayName ?? fullName;
   const settingsDestination = settingsHref(role);
 
   return (
-    <header data-testid="workspace-header" style={{
-      height:          52,
-      backgroundColor: "var(--cs-surface)",
-      borderBottom:    "1px solid var(--cs-border-soft)",
-      display:         "flex",
-      alignItems:      "center",
-      justifyContent:  "space-between",
-      gap:             12,
-      minWidth:        0,
-      padding:         "0 20px",
-      position:        "sticky",
-      top:             0,
-      zIndex:          20,
-      boxShadow:       "var(--cs-shadow-xs)",
-    }}>
-
+    <header
+      data-testid="workspace-header"
+      style={{
+        height: 52,
+        backgroundColor: "var(--cs-surface)",
+        borderBottom: "1px solid var(--cs-border-soft)",
+        display: "flex",
+        alignItems: "center",
+        justifyContent: "space-between",
+        gap: 12,
+        minWidth: 0,
+        padding: "0 20px",
+        position: "sticky",
+        top: 0,
+        zIndex: 20,
+        boxShadow: "var(--cs-shadow-xs)",
+      }}
+    >
       {/* Left – workspace breadcrumb */}
       <WorkspaceBreadcrumb role={role} />
 
       {/* Right – date + user + sign out */}
       <div style={{ display: "flex", alignItems: "center", gap: 8, flexShrink: 0 }}>
-
-        <div style={{
-          fontSize:           11.5,
-          color:              "var(--cs-text-subtle)",
-          fontVariantNumeric: "tabular-nums",
-        }}>
+        <div
+          style={{
+            fontSize: 11.5,
+            color: "var(--cs-text-subtle)",
+            fontVariantNumeric: "tabular-nums",
+          }}
+        >
           {new Date().toLocaleDateString("en-PH", {
-            weekday: "short", month: "short", day: "numeric",
+            weekday: "short",
+            month: "short",
+            day: "numeric",
           })}
         </div>
 
@@ -117,11 +129,16 @@ export function Header({ role, fullName, displayName, avatarUrl, readiness, work
               {headerName !== fullName ? (
                 <p className="truncate text-xs text-[var(--cs-text-muted)]">{fullName}</p>
               ) : null}
-              <p className="text-xs capitalize text-[var(--cs-text-muted)]">{role.replace(/_/g, " ")}</p>
+              <p className="text-xs capitalize text-[var(--cs-text-muted)]">
+                {role.replace(/_/g, " ")}
+              </p>
             </div>
             <div className="my-1 h-px bg-[var(--cs-border-soft)]" />
 
-            <Link className="flex items-center gap-2 rounded-lg px-2.5 py-2 text-sm text-[var(--cs-text-secondary)] transition hover:bg-[var(--cs-surface-warm)] focus-visible:outline-none focus-visible:ring-3 focus-visible:ring-[var(--cs-sand)]/30" href={profileHref(workspaces)}>
+            <Link
+              className="flex items-center gap-2 rounded-lg px-2.5 py-2 text-sm text-[var(--cs-text-secondary)] transition hover:bg-[var(--cs-surface-warm)] focus-visible:outline-none focus-visible:ring-3 focus-visible:ring-[var(--cs-sand)]/30"
+              href={profileHref(workspaces)}
+            >
               <UserRound className="size-4" />
               My Profile
             </Link>
@@ -139,13 +156,19 @@ export function Header({ role, fullName, displayName, avatarUrl, readiness, work
             ) : null}
 
             {settingsDestination ? (
-              <Link className="flex items-center gap-2 rounded-lg px-2.5 py-2 text-sm text-[var(--cs-text-secondary)] transition hover:bg-[var(--cs-surface-warm)] focus-visible:outline-none focus-visible:ring-3 focus-visible:ring-[var(--cs-sand)]/30" href={settingsDestination}>
+              <Link
+                className="flex items-center gap-2 rounded-lg px-2.5 py-2 text-sm text-[var(--cs-text-secondary)] transition hover:bg-[var(--cs-surface-warm)] focus-visible:outline-none focus-visible:ring-3 focus-visible:ring-[var(--cs-sand)]/30"
+                href={settingsDestination}
+              >
                 <Settings className="size-4" />
                 Settings
               </Link>
             ) : null}
 
-            <a className="flex items-center gap-2 rounded-lg px-2.5 py-2 text-sm text-[var(--cs-text-secondary)] transition hover:bg-[var(--cs-surface-warm)] focus-visible:outline-none focus-visible:ring-3 focus-visible:ring-[var(--cs-sand)]/30" href="mailto:support@cradlewellnessliving.com">
+            <a
+              className="flex items-center gap-2 rounded-lg px-2.5 py-2 text-sm text-[var(--cs-text-secondary)] transition hover:bg-[var(--cs-surface-warm)] focus-visible:outline-none focus-visible:ring-3 focus-visible:ring-[var(--cs-sand)]/30"
+              href="mailto:support@cradlewellnessliving.com"
+            >
               <HelpCircle className="size-4" />
               Help &amp; Support
             </a>

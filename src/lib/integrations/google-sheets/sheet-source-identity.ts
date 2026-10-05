@@ -10,7 +10,7 @@ export function makeSheetSource(
   sheetName: string,
   startRow: number,
   endRow: number,
-  rawRows: readonly (readonly string[])[],
+  rawRows: readonly (readonly string[])[]
 ): SheetSource {
   if (!spreadsheetId || !sheetName || startRow < 1 || endRow < startRow) {
     throw new Error("Invalid Sheet source coordinates");
