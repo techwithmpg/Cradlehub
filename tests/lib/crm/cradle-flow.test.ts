@@ -67,16 +67,20 @@ describe("Cradle Flow lifecycle", () => {
   });
 
   it("uses paid order status for a completed service without inventing booking amount", () => {
-    expect(getCradleFlowStage(booking({
-      order_id: "order-1",
-      status: "completed",
-      booking_progress_status: "completed",
-      payment_status: "pending",
-      amount_paid: 0,
-      order_payment_status: "paid",
-      order_amount_paid: 1000,
-      order_total_amount: 1000,
-    }))).toBe("completed");
+    expect(
+      getCradleFlowStage(
+        booking({
+          order_id: "order-1",
+          status: "completed",
+          booking_progress_status: "completed",
+          payment_status: "pending",
+          amount_paid: 0,
+          order_payment_status: "paid",
+          order_amount_paid: 1000,
+          order_total_amount: 1000,
+        })
+      )
+    ).toBe("completed");
   });
 
   it("counts home service inside the same lifecycle", () => {
@@ -101,13 +105,29 @@ describe("Cradle Flow lifecycle", () => {
     });
   });
 
-  it("labels pending Home Service confirmation as Confirm & Dispatch with payment still pending", () => {
-    expect(getCradleFlowPrimaryLabel(booking({
-      type: "home_service",
-      delivery_type: "home_service",
-      status: "pending_crm_confirmation",
-      payment_status: "pending",
-    }))).toBe("Confirm & Dispatch");
+  it("labels pending Home Service confirmation as Confirm Booking", () => {
+    expect(
+      getCradleFlowPrimaryLabel(
+        booking({
+          type: "home_service",
+          delivery_type: "home_service",
+          status: "pending_crm_confirmation",
+          payment_status: "pending",
+        })
+      )
+    ).toBe("Confirm Booking");
+  });
+
+  it("labels confirmed Home Service as an operational workspace action", () => {
+    expect(
+      getCradleFlowPrimaryLabel(
+        booking({
+          type: "home_service",
+          delivery_type: "home_service",
+          status: "confirmed",
+        })
+      )
+    ).toBe("Open Home Service");
   });
 
   it("searches customer, phone, booking id, service, staff, and address", () => {

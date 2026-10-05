@@ -25,6 +25,7 @@ describe("BKG3 — Final Static SQL & Security Contract Verification", () => {
   const STAFF_2_ID = "44444444-4444-4444-8444-444444444442";
 
   let migrationSql: string;
+  let p1MigrationSql: string;
 
   beforeEach(() => {
     sim = new BookingOrderTransactionSimulator();
@@ -40,6 +41,102 @@ describe("BKG3 — Final Static SQL & Security Contract Verification", () => {
       "supabase/migrations/20260927080000_bkg3_booking_order_atomic.sql"
     );
     migrationSql = readFileSync(migrationPath, "utf-8");
+    p1MigrationSql = readFileSync(
+      resolve(
+        process.cwd(),
+        "supabase/migrations/20261005043621_p1_booking_confirmation_origin.sql"
+      ),
+      "utf-8"
+    );
+  });
+
+  it("P1: public online creation is pending CRM review while the in-house marker remains confirmed", async () => {
+    const publicInput = buildAtomicBookingOrderPayload({
+      idempotencyKey: "aaaaaaaa-bbbb-4ccc-8ddd-111111111111",
+      branchId: BRANCH_ID,
+      organizerCustomerId: ORGANIZER_ID,
+      deliveryType: "in_spa",
+      bookingDate: "2026-10-05",
+      attendees: [{ sequence: 1, displayName: "Public Request" }],
+      serviceLines: [
+        {
+          attendeeSequence: 1,
+          lineSequence: 1,
+          serviceId: SERVICE_1_ID,
+          staffId: STAFF_1_ID,
+          startTime: "10:00:00",
+          endTime: "11:00:00",
+        },
+        {
+          attendeeSequence: 1,
+          lineSequence: 2,
+          serviceId: SERVICE_2_ID,
+          staffId: STAFF_2_ID,
+          startTime: "11:00:00",
+          endTime: "12:00:00",
+        },
+      ],
+    });
+    const publicResult = await sim.executeAtomic(publicInput);
+    expect(publicResult.ok).toBe(true);
+    if (!publicResult.ok) return;
+    expect(publicResult.status).toBe("pending");
+    expect(publicResult.service_line_ids).toHaveLength(2);
+    for (const id of publicResult.service_line_ids) {
+      expect(sim.getBooking(id)?.status).toBe("pending_crm_confirmation");
+      expect(sim.getBooking(id)?.payment_status).toBe("unpaid");
+    }
+    const replay = await sim.executeAtomic(publicInput);
+    expect(replay).toMatchObject({
+      ok: true,
+      idempotency_status: "replayed",
+      service_line_ids: publicResult.service_line_ids,
+    });
+
+    const inHouseInput = buildAtomicBookingOrderPayload({
+      idempotencyKey: "aaaaaaaa-bbbb-4ccc-8ddd-222222222222",
+      branchId: BRANCH_ID,
+      organizerCustomerId: ORGANIZER_ID,
+      deliveryType: "in_spa",
+      bookingDate: "2026-10-05",
+      orderMetadata: {
+        cf8_inhouse: true,
+        cf8_creation_options_hash: "a".repeat(64),
+      },
+      attendees: [{ sequence: 1, displayName: "In-house Request" }],
+      serviceLines: [
+        {
+          attendeeSequence: 1,
+          lineSequence: 1,
+          serviceId: SERVICE_1_ID,
+          staffId: STAFF_1_ID,
+          startTime: "12:00:00",
+          endTime: "13:00:00",
+        },
+      ],
+    });
+    const inHouseResult = await sim.executeAtomic(inHouseInput);
+    expect(inHouseResult.ok).toBe(true);
+    if (!inHouseResult.ok) return;
+    expect(sim.getBooking(inHouseResult.service_line_ids[0]!)?.status).toBe("confirmed");
+  });
+
+  it("P1: migration preserves privileged execution and adds atomic CRM confirmation plus progress guards", () => {
+    expect(p1MigrationSql).toContain("pending_crm_confirmation");
+    expect(p1MigrationSql).toContain("cf8_inhouse");
+    expect(p1MigrationSql).toContain("cf8_creation_options_hash");
+    expect(p1MigrationSql).toContain(
+      "CREATE OR REPLACE FUNCTION public.confirm_online_booking_order_atomic"
+    );
+    expect(p1MigrationSql).toContain(
+      "GRANT EXECUTE ON FUNCTION public.confirm_online_booking_order_atomic(uuid, uuid) TO service_role;"
+    );
+    expect(p1MigrationSql).toContain("BOOKING_NOT_CONFIRMED");
+    expect(p1MigrationSql).toContain("HOME_SERVICE_TRAVEL_NOT_READY");
+    expect(p1MigrationSql).toContain("b.status = 'pending_payment'");
+    expect(p1MigrationSql).not.toMatch(
+      /GRANT\s+EXECUTE\s+ON\s+FUNCTION[^;]+TO\s+(PUBLIC|anon|authenticated)/i
+    );
   });
 
   // ─── A. v_booking_orders IS security_invoker ──────────────────────────────
@@ -806,6 +903,10 @@ describe("BKG3-ACT2 — Runtime Cutover & Integration Contract Verification", ()
       organizerCustomerId: ORGANIZER_ID,
       deliveryType: "in_spa",
       bookingDate: "2026-10-05",
+      orderMetadata: {
+        cf8_inhouse: true,
+        cf8_creation_options_hash: "a".repeat(64),
+      },
       attendees: [
         { sequence: 1, displayName: "Financial Boundary Test", customerId: ORGANIZER_ID },
       ],

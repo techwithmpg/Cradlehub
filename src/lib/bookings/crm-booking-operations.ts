@@ -100,6 +100,7 @@ export const confirmHomeServiceHandoffSchema = bookingIdSchema;
 
 export type CrmBookingActionRow = {
   id: string;
+  order_id?: string | null;
   branch_id: string;
   customer_id: string | null;
   service_id: string | null;
@@ -425,7 +426,7 @@ export async function loadCrmBookingForAction(
   const { data: details, error: detailError } = await admin
     .from("bookings")
     .select(
-      "id, branch_id, customer_id, service_id, booking_date, start_time, end_time, type, delivery_type, staff_id, driver_id, status, payment_status, booking_progress_status, checked_in_at, session_started_at, resource_id, metadata"
+      "id, order_id, branch_id, customer_id, service_id, booking_date, start_time, end_time, type, delivery_type, staff_id, driver_id, status, payment_status, booking_progress_status, checked_in_at, session_started_at, resource_id, metadata"
     )
     .eq("id", bookingId)
     .eq("branch_id", baseBooking.branch_id)
@@ -602,7 +603,11 @@ export async function recordBookingFollowup(
     });
   }
 
-  if (isCancellation && booking.staff_id && (isHomeServiceBooking(booking) || booking.payment_status === "paid")) {
+  if (
+    isCancellation &&
+    booking.staff_id &&
+    (isHomeServiceBooking(booking) || booking.payment_status === "paid")
+  ) {
     const sameDay = booking.booking_date === new Date().toISOString().split("T")[0];
     await createNotification({
       branchId: booking.branch_id,
@@ -625,7 +630,11 @@ export async function recordBookingFollowup(
     await resolveNotificationsForEntity("booking", booking.id, "staff", "home_service_assigned");
   }
 
-  if (isCancellation && booking.driver_id && (isHomeServiceBooking(booking) || booking.payment_status === "paid")) {
+  if (
+    isCancellation &&
+    booking.driver_id &&
+    (isHomeServiceBooking(booking) || booking.payment_status === "paid")
+  ) {
     await createNotification({
       branchId: booking.branch_id,
       targetWorkspace: "driver",
@@ -960,7 +969,10 @@ export async function rescheduleBooking(
         requiresAction: isHS,
       });
     }
-  } else if (booking.staff_id && (isHomeServiceBooking(booking) || booking.payment_status === "paid")) {
+  } else if (
+    booking.staff_id &&
+    (isHomeServiceBooking(booking) || booking.payment_status === "paid")
+  ) {
     await createNotification({
       branchId: booking.branch_id,
       targetWorkspace: "staff",
@@ -1158,8 +1170,10 @@ export async function assignBookingTherapist(
   });
 
   // Notify newly assigned therapist
-  if (parsed.data.staffId !== previousStaffId &&
-      (isHomeServiceBooking(booking) || booking.payment_status === "paid")) {
+  if (
+    parsed.data.staffId !== previousStaffId &&
+    (isHomeServiceBooking(booking) || booking.payment_status === "paid")
+  ) {
     const isHS = updated.delivery_type === "home_service" || updated.type === "home_service";
     await resolveNotificationsForEntity("booking", booking.id, "staff", "booking_assigned");
     await resolveNotificationsForEntity("booking", booking.id, "staff", "home_service_assigned");
@@ -1307,7 +1321,6 @@ export function withDispatchMetadata(
   } as Database["public"]["Tables"]["bookings"]["Update"]["metadata"];
 }
 
-
 /**
  * Authoritative Home Service operational handoff.
  *
@@ -1357,6 +1370,13 @@ export async function confirmHomeServiceHandoff(
     };
   }
 
+  if (booking.status !== "confirmed") {
+    return {
+      success: false,
+      error: "Confirm the booking in CRM before preparing its Home Service handoff.",
+    };
+  }
+
   if (!booking.staff_id) {
     return {
       success: false,
@@ -1377,65 +1397,6 @@ export async function confirmHomeServiceHandoff(
       success: false,
       error: "Home Service GPS location is missing. Update the location before Confirm & Dispatch.",
     };
-  }
-
-  if (
-    booking.status !== "confirmed" &&
-    !CONFIRMABLE_STATUSES.has(booking.status)
-  ) {
-    return {
-      success: false,
-      error: `Booking cannot be dispatched from status "${booking.status}".`,
-    };
-  }
-
-  const admin = createAdminClient();
-  const actorId = ctx.me.id === DEV_BYPASS_STAFF_ID ? null : ctx.me.id;
-  const previousStatus = booking.status;
-
-  // Payment is intentionally absent from this update.
-  // Pay-on-site / pending payment remains pending until money is recorded.
-  if (booking.status !== "confirmed") {
-    const { data: updatedRows, error } = await admin
-      .from("bookings")
-      .update({
-        status: "confirmed",
-        ...(normalizeProgress(booking.booking_progress_status) === "not_started"
-          ? { booking_progress_status: "not_started" }
-          : {}),
-      })
-      .eq("id", booking.id)
-      .eq("branch_id", booking.branch_id)
-      .select("id");
-
-    if (error) {
-      logError("crm.home_service_handoff_confirm_failed", {
-        bookingId: booking.id,
-        authUserId: ctx.authUserId,
-        branchId: booking.branch_id,
-        error,
-      });
-      return {
-        success: false,
-        error: "Home Service booking could not be confirmed. Please try again.",
-      };
-    }
-
-    if (!updatedRows || updatedRows.length === 0) {
-      return {
-        success: false,
-        error: "Home Service booking could not be confirmed.",
-      };
-    }
-
-    await annotateLatestBookingEvent({
-      actorId,
-      admin,
-      bookingId: booking.id,
-      previousStatus,
-      result: "confirmed",
-      nextStatus: "confirmed",
-    });
   }
 
   // createNotification uses the project's create-or-update notification
@@ -1477,20 +1438,6 @@ export async function confirmHomeServiceHandoff(
       destinationLng: gps.lng,
     },
   });
-
-  // Only create the explicit handoff audit entry the first time confirmation
-  // transitions into the operational handoff. Repeated clicks remain safe.
-  if (previousStatus !== "confirmed") {
-    await insertBookingAuditEvent({
-      actorId,
-      admin,
-      bookingId: booking.id,
-      fromStatus: previousStatus,
-      toStatus: "confirmed",
-      result: "home_service_handoff",
-      note: "Home Service booking confirmed for therapist and driver operational handoff.",
-    });
-  }
 
   revalidateOperationalBookingSurfaces(booking.branch_id);
   revalidatePath("/crm/dispatch");
@@ -1704,6 +1651,52 @@ export async function confirmCrmBooking(
     };
   }
 
+  if (booking.order_id && booking.type === "online") {
+    const admin = createAdminClient();
+    const atomicAdmin = admin as unknown as {
+      rpc: (
+        name: "confirm_online_booking_order_atomic",
+        args: { p_booking_id: string; p_branch_id: string }
+      ) => Promise<{
+        data: { ok: boolean; changed_ids: string[] } | null;
+        error: { message: string } | null;
+      }>;
+    };
+    const { data, error } = await atomicAdmin.rpc("confirm_online_booking_order_atomic", {
+      p_booking_id: booking.id,
+      p_branch_id: booking.branch_id,
+    });
+    if (error || !data?.ok) {
+      logError("crm.booking_order_confirm_failed", {
+        bookingId: booking.id,
+        branchId: booking.branch_id,
+        authUserId: ctx.authUserId,
+        error,
+      });
+      return {
+        success: false,
+        error:
+          "This booking request could not be confirmed. Review its schedule and current status, then try again.",
+      };
+    }
+    for (const id of data.changed_ids) {
+      await annotateLatestBookingEvent({
+        actorId: ctx.me.id === DEV_BYPASS_STAFF_ID ? null : ctx.me.id,
+        admin,
+        bookingId: id,
+        note: parsed.data.note,
+        previousStatus: "pending_crm_confirmation",
+        result: "confirmed",
+        nextStatus: "confirmed",
+      });
+    }
+    revalidateOperationalBookingSurfaces(booking.branch_id);
+    if (isHomeServiceBooking(booking)) revalidatePath("/crm/dispatch");
+    return { success: true };
+  }
+
+  if (booking.status === "confirmed") return { success: true };
+
   const currentProgress = normalizeProgress(booking.booking_progress_status);
   const updatePayload: Database["public"]["Tables"]["bookings"]["Update"] = {
     status: "confirmed",
@@ -1727,6 +1720,7 @@ export async function confirmCrmBooking(
     .update(updatePayload)
     .eq("id", booking.id)
     .eq("branch_id", booking.branch_id)
+    .eq("status", booking.status)
     .select("id");
 
   if (error) {

@@ -193,14 +193,9 @@ export async function resolvePortalClockOutEligibilityAction(): Promise<StaffPor
   }
 
   try {
-    const policy = await recalculateAttendanceClockOutPolicy(
-      admin,
-      openCheckinResult.data.id
-    );
+    const policy = await recalculateAttendanceClockOutPolicy(admin, openCheckinResult.data.id);
 
-    const code = !registeredDevice
-      ? "unregistered_device"
-      : policy.portalEligibilityReason;
+    const code = !registeredDevice ? "unregistered_device" : policy.portalEligibilityReason;
 
     return portalAvailabilityCopy({
       code,
@@ -536,10 +531,7 @@ export async function getMyServiceProgressAction(date?: string): Promise<Service
     targetDate = date ?? (await getProviderBusinessDate(me.branch_id));
   } catch (err) {
     return {
-      error:
-        err instanceof Error
-          ? err.message
-          : "Failed to resolve operational business date",
+      error: err instanceof Error ? err.message : "Failed to resolve operational business date",
     };
   }
 
@@ -764,10 +756,7 @@ export async function getMyTodayAction(date?: string) {
     targetDate = date ?? (await getProviderBusinessDate(me.branch_id));
   } catch (err) {
     return {
-      error:
-        err instanceof Error
-          ? err.message
-          : "Failed to resolve operational business date",
+      error: err instanceof Error ? err.message : "Failed to resolve operational business date",
     };
   }
 
@@ -899,9 +888,19 @@ export async function updateBookingProgressAction({
   const isCsrAction = csrActions.includes(nextStatus);
 
   // Driver assignment never grants Provider session or attendance authority.
-  if (isDriver && (!me.branch_id || booking.branch_id !== me.branch_id ||
-      !isAssignedDriver || booking.delivery_type !== "home_service" || !isDriverAction)) {
-    return { ok: false, code: "PERMISSION_DENIED", message: "This Driver action is not permitted." };
+  if (
+    isDriver &&
+    (!me.branch_id ||
+      booking.branch_id !== me.branch_id ||
+      !isAssignedDriver ||
+      booking.delivery_type !== "home_service" ||
+      !isDriverAction)
+  ) {
+    return {
+      ok: false,
+      code: "PERMISSION_DENIED",
+      message: "This Driver action is not permitted.",
+    };
   }
 
   // ── Permission checks ──
@@ -930,6 +929,14 @@ export async function updateBookingProgressAction({
   }
 
   // ── Booking state checks ──
+  if (["pending", "pending_payment", "pending_crm_confirmation"].includes(booking.status)) {
+    return {
+      ok: false,
+      code: "INVALID_TRANSITION",
+      message: "CRM must confirm the booking before service or travel can begin.",
+    };
+  }
+
   if (booking.status === "cancelled") {
     return {
       ok: false,
@@ -1219,9 +1226,16 @@ import type { RealDispatchItem, DispatchStats } from "@/lib/queries/dispatch-que
 
 export type DriverJobsResult =
   | { error: string }
-  | { items: RealDispatchItem[]; stats: DispatchStats; staff: StaffPortalStaff; businessDate?: string };
+  | {
+      items: RealDispatchItem[];
+      stats: DispatchStats;
+      staff: StaffPortalStaff;
+      businessDate?: string;
+    };
 
-async function loadDriverWorkspace(options: { date?: string; history?: boolean; bookingId?: string } = {}) {
+async function loadDriverWorkspace(
+  options: { date?: string; history?: boolean; bookingId?: string } = {}
+) {
   const me = await getMyStaffRecord();
   if (!me || resolveStaffPwaOperationalGroup(me.system_role, me.staff_type) !== "driver") {
     throw new Error("Unauthorized");
@@ -1232,10 +1246,22 @@ async function loadDriverWorkspace(options: { date?: string; history?: boolean; 
   from.setUTCDate(from.getUTCDate() - 30);
   const to = new Date(today + "T12:00:00Z");
   to.setUTCDate(to.getUTCDate() + 14);
-  const scope = { branchId: me.branch_id, date: options.date ?? today, role: "driver", staffId: me.id, throwOnError: true };
+  const scope = {
+    branchId: me.branch_id,
+    date: options.date ?? today,
+    role: "driver",
+    staffId: me.id,
+    throwOnError: true,
+  };
   const [data, history] = await Promise.all([
     getDispatchData({ ...scope, ...(options.bookingId ? { bookingId: options.bookingId } : {}) }),
-    options.history ? getDispatchData({ ...scope, dateFrom: from.toISOString().slice(0, 10), dateTo: to.toISOString().slice(0, 10) }) : Promise.resolve(null),
+    options.history
+      ? getDispatchData({
+          ...scope,
+          dateFrom: from.toISOString().slice(0, 10),
+          dateTo: to.toISOString().slice(0, 10),
+        })
+      : Promise.resolve(null),
   ]);
   return { data, history, staff: me, today };
 }
@@ -1251,14 +1277,21 @@ export async function getMyDriverJobsAction(date?: string): Promise<DriverJobsRe
 
 export type DriverAllJobsResult =
   | { error: string }
-  | { today: RealDispatchItem[]; recent: RealDispatchItem[]; staff: StaffPortalStaff; businessDate?: string };
+  | {
+      today: RealDispatchItem[];
+      recent: RealDispatchItem[];
+      staff: StaffPortalStaff;
+      businessDate?: string;
+    };
 
 export async function getMyDriverAllJobsAction(): Promise<DriverAllJobsResult> {
   try {
     const { data, history, staff, today } = await loadDriverWorkspace({ history: true });
     return {
-      today: data.items.filter(item => item.bookingDate === today),
-      recent: (history?.items ?? []).filter(item => item.bookingDate !== today), staff, businessDate: today,
+      today: data.items.filter((item) => item.bookingDate === today),
+      recent: (history?.items ?? []).filter((item) => item.bookingDate !== today),
+      staff,
+      businessDate: today,
     };
   } catch (error) {
     return { error: error instanceof Error ? error.message : "Driver trips unavailable." };
@@ -1267,7 +1300,10 @@ export async function getMyDriverAllJobsAction(): Promise<DriverAllJobsResult> {
 
 export type DriverJobByIdResult =
   | { error: string }
-  | { job: RealDispatchItem & { durationMinutes: number | null; notes: string | null }; staff: StaffPortalStaff };
+  | {
+      job: RealDispatchItem & { durationMinutes: number | null; notes: string | null };
+      staff: StaffPortalStaff;
+    };
 
 export async function getMyDriverJobByIdAction(bookingId: string): Promise<DriverJobByIdResult> {
   if (!bookingId) return { error: "Job not found" };
@@ -1297,9 +1333,18 @@ export async function getMyDriverStatsAction(
   month: number
 ): Promise<DriverStatsResult> {
   const me = await getMyStaffRecord();
-  if (!me || resolveStaffPwaOperationalGroup(me.system_role, me.staff_type) !== "driver") return { error: "Unauthorized" };
+  if (!me || resolveStaffPwaOperationalGroup(me.system_role, me.staff_type) !== "driver")
+    return { error: "Unauthorized" };
   if (!me.branch_id) return { error: "Driver branch unavailable." };
-  if (!Number.isInteger(year) || year < 2000 || year > 2100 || !Number.isInteger(month) || month < 1 || month > 12) return { error: "Invalid period" };
+  if (
+    !Number.isInteger(year) ||
+    year < 2000 ||
+    year > 2100 ||
+    !Number.isInteger(month) ||
+    month < 1 ||
+    month > 12
+  )
+    return { error: "Invalid period" };
 
   const supabase = await createClient();
   const fromDate = `${year}-${String(month).padStart(2, "0")}-01`;

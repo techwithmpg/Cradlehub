@@ -865,6 +865,12 @@ export class BookingOrderTransactionSimulator {
     }
 
     const stageOrderId = crypto.randomUUID();
+    const orderMetadata = input.order.metadata ?? {};
+    const inHouseCreation =
+      orderMetadata.cf8_inhouse === true &&
+      typeof orderMetadata.cf8_creation_options_hash === "string" &&
+      /^[0-9a-f]{64}$/.test(orderMetadata.cf8_creation_options_hash);
+    const initialBookingStatus = inHouseCreation ? "confirmed" : "pending_crm_confirmation";
     const stageOrder: BookingOrderRecord = {
       id: stageOrderId,
       order_number: orderNumber,
@@ -921,7 +927,16 @@ export class BookingOrderTransactionSimulator {
       const hasConflict = Array.from(this.bookings.values()).some((b) => {
         if (b.staff_id !== line.staff_id) return false;
         if (b.booking_date !== input.order.booking_date) return false;
-        if (!["pending", "confirmed", "in_progress"].includes(b.status)) return false;
+        if (
+          ![
+            "pending",
+            "pending_payment",
+            "pending_crm_confirmation",
+            "confirmed",
+            "in_progress",
+          ].includes(b.status)
+        )
+          return false;
         return line.start_time < b.end_time && line.end_time > b.start_time;
       });
 
@@ -958,7 +973,7 @@ export class BookingOrderTransactionSimulator {
         end_time: line.end_time,
         type: "online",
         delivery_type: input.order.delivery_type,
-        status: "confirmed",
+        status: initialBookingStatus,
         payment_method: "pay_on_site",
         payment_status: "unpaid",
         amount_paid: 0,
@@ -989,7 +1004,7 @@ export class BookingOrderTransactionSimulator {
       idempotency_status: "created",
       order_id: stageOrderId,
       order_number: orderNumber,
-      status: "confirmed",
+      status: this.getDerivedOrderStatus(stageOrderId),
       service_line_ids: stageServiceLines.map((l) => l.id),
       attendee_ids: stageAttendees.map((a) => a.id),
     };

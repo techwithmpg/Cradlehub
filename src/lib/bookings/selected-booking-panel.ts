@@ -1,4 +1,7 @@
-import { isBookingClosedForCrm, isCrmPendingBookingStatus } from "@/lib/bookings/crm-booking-status";
+import {
+  isBookingClosedForCrm,
+  isCrmPendingBookingStatus,
+} from "@/lib/bookings/crm-booking-status";
 
 export type SelectedBookingActionId =
   | "confirm"
@@ -168,9 +171,7 @@ export function getSelectedBookingActionPlan(
   if (isPendingConfirmation) {
     return {
       mode: "normal",
-      primary: isHomeService
-        ? { id: "open_dispatch", label: "Confirm & Dispatch", tone: "primary" }
-        : { id: "confirm", label: "Mark Booking Confirmed", tone: "primary" },
+      primary: { id: "confirm", label: "Confirm Booking", tone: "primary" },
       secondary: [
         { id: "call", label: "Call Customer", tone: "secondary" },
         { id: "copy_message", label: "Copy Message", tone: "secondary" },
@@ -185,7 +186,7 @@ export function getSelectedBookingActionPlan(
     if (input.status === "confirmed" && (!progress || progress === "not_started")) {
       return {
         mode: "normal",
-        primary: { id: "open_dispatch", label: "Confirm & Dispatch", tone: "primary" },
+        primary: { id: "open_dispatch", label: "Open Home Service", tone: "primary" },
         secondary: [
           { id: "call", label: "Call Customer", tone: "secondary" },
           { id: "copy_message", label: "Copy Message", tone: "secondary" },

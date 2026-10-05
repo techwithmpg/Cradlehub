@@ -88,6 +88,7 @@ type SetupOptions = {
   diagnostic?: Record<string, unknown> | null;
   paymentStatus?: string;
   updateError?: unknown;
+  confirmRpcResult?: QueryResult;
 };
 
 function setup(options: SetupOptions = {}) {
@@ -151,6 +152,13 @@ function setup(options: SetupOptions = {}) {
   const eventQuery = queryBuilder({ maybeSingle: { data: null, error: null } });
   let bookingCalls = 0;
   const admin = {
+    rpc: vi.fn(
+      async () =>
+        options.confirmRpcResult ?? {
+          data: { ok: true, changed_ids: [BOOKING_ID] },
+          error: null,
+        }
+    ),
     from: vi.fn((table: string) => {
       if (table === "booking_events") return eventQuery;
       if (table !== "bookings") return queryBuilder();
@@ -203,7 +211,6 @@ describe("CRM booking action identifier and lookup boundary", () => {
     expect(mocks.createClient).toHaveBeenCalled();
   });
 
-
   it("starts with the real UUID and a base-only booking select", async () => {
     const { baseQuery, updateQuery } = setup();
     const result = await markBookingConfirmedAction({ bookingId: BOOKING_ID });
@@ -216,6 +223,59 @@ describe("CRM booking action identifier and lookup boundary", () => {
     expect(updateQuery.update).toHaveBeenCalledWith(
       expect.objectContaining({ status: "confirmed" })
     );
+  });
+
+  it("confirms a pending online order through one privileged sibling-line operation", async () => {
+    const { admin, updateQuery } = setup({
+      details: {
+        id: BOOKING_ID,
+        order_id: "8e401bdc-ff22-4c60-855c-c1922e99ddff",
+        branch_id: BRANCH_ID,
+        customer_id: null,
+        service_id: null,
+        booking_date: "2026-07-14",
+        start_time: "10:00:00",
+        end_time: "11:00:00",
+        type: "online",
+        delivery_type: "home_service",
+        staff_id: STAFF_ID,
+        driver_id: null,
+        payment_status: "unpaid",
+        status: "pending_crm_confirmation",
+        booking_progress_status: "not_started",
+        checked_in_at: null,
+        session_started_at: null,
+        resource_id: null,
+        metadata: {},
+      },
+    });
+
+    expect(await markBookingConfirmedAction({ bookingId: BOOKING_ID })).toEqual({ success: true });
+    expect(admin.rpc).toHaveBeenCalledTimes(1);
+    expect(admin.rpc).toHaveBeenCalledWith("confirm_online_booking_order_atomic", {
+      p_booking_id: BOOKING_ID,
+      p_branch_id: BRANCH_ID,
+    });
+    expect(updateQuery.update).not.toHaveBeenCalled();
+  });
+
+  it("treats a replayed online confirmation as success without line updates", async () => {
+    const { admin, updateQuery } = setup({
+      details: {
+        id: BOOKING_ID,
+        order_id: "8e401bdc-ff22-4c60-855c-c1922e99ddff",
+        branch_id: BRANCH_ID,
+        type: "online",
+        delivery_type: "in_spa",
+        status: "confirmed",
+        booking_progress_status: "not_started",
+      },
+      confirmRpcResult: { data: { ok: true, changed_ids: [] }, error: null },
+    });
+
+    expect(await markBookingConfirmedAction({ bookingId: BOOKING_ID })).toEqual({ success: true });
+    expect(admin.rpc).toHaveBeenCalledTimes(1);
+    expect(updateQuery.update).not.toHaveBeenCalled();
   });
 
   it("returns a branch-access error instead of Booking not found", async () => {

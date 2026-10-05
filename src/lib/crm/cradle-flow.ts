@@ -37,16 +37,18 @@ export type CradleFlowPaymentView = {
 
 export function getCradleFlowPaymentStatus(booking: CradleFlowPaymentView): string {
   return booking.order_id
-    ? booking.order_payment_status ?? 'unpaid'
-    : booking.payment_status ?? 'pay_on_site';
+    ? (booking.order_payment_status ?? "unpaid")
+    : (booking.payment_status ?? "pay_on_site");
 }
 
 export function getCradleFlowAmountPaid(booking: CradleFlowPaymentView): number {
-  return Number(booking.order_id ? booking.order_amount_paid ?? 0 : booking.amount_paid ?? 0);
+  return Number(booking.order_id ? (booking.order_amount_paid ?? 0) : (booking.amount_paid ?? 0));
 }
 
 export function getCradleFlowBalance(booking: CradleFlowPaymentView): number {
-  const total = Number(booking.order_id ? booking.order_total_amount ?? 0 : booking.price_paid ?? 0);
+  const total = Number(
+    booking.order_id ? (booking.order_total_amount ?? 0) : (booking.price_paid ?? 0)
+  );
   return Math.max(0, total - getCradleFlowAmountPaid(booking));
 }
 
@@ -76,8 +78,7 @@ export function isServiceCompleted(booking: CradleFlowBooking): boolean {
 export function getCradleFlowStage(booking: CradleFlowBooking): CradleFlowStage | null {
   if (isCradleFlowClosed(booking)) return null;
   if (isServiceCompleted(booking)) {
-    return getCradleFlowPaymentStatus(booking) === "paid"
-      ? "completed" : "ready_to_pay";
+    return getCradleFlowPaymentStatus(booking) === "paid" ? "completed" : "ready_to_pay";
   }
   if (
     booking.status === "in_progress" ||
@@ -128,11 +129,11 @@ export function getCradleFlowPrimaryLabel(booking: CradleFlowBooking): string {
   if (stage === "in_service") return "Complete Service";
   if (stage === "ready_to_pay") return "Collect Payment";
   if (stage === "completed") return "View Record";
-  if (booking.type === "home_service" || booking.delivery_type === "home_service") {
-    return "Confirm & Dispatch";
-  }
   if (booking.status === "pending" || booking.status === "pending_crm_confirmation") {
     return "Confirm Booking";
+  }
+  if (booking.type === "home_service" || booking.delivery_type === "home_service") {
+    return "Open Home Service";
   }
   if (booking.booking_progress_status === "checked_in") return "Start Service";
   return "Check In";
