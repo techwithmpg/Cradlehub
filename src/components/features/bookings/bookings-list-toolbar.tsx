@@ -20,6 +20,7 @@ type BookingsListToolbarProps = {
   search?: string;
   status?: string;
   source?: string;
+  referenceSource?: "all" | "cradlehub" | "master_sheet";
   delivery?: string;
   payment?: string;
   assignment?: string;
@@ -72,11 +73,12 @@ export function BookingsListToolbar(props: BookingsListToolbarProps) {
   const [showFilters, setShowFilters] = useState(
     Boolean(
       props.status ||
-        props.source ||
-        props.delivery ||
-        props.payment ||
-        props.assignment ||
-        props.branch
+      props.source ||
+      (props.referenceSource && props.referenceSource !== "all") ||
+      props.delivery ||
+      props.payment ||
+      props.assignment ||
+      props.branch
     )
   );
 
@@ -90,9 +92,14 @@ export function BookingsListToolbar(props: BookingsListToolbarProps) {
         <>
           {props.status ? <input type="hidden" name="status" value={props.status} /> : null}
           {props.source ? <input type="hidden" name="type" value={props.source} /> : null}
+          {props.referenceSource && props.referenceSource !== "all" ? (
+            <input type="hidden" name="referenceSource" value={props.referenceSource} />
+          ) : null}
           {props.delivery ? <input type="hidden" name="delivery" value={props.delivery} /> : null}
           {props.payment ? <input type="hidden" name="payment" value={props.payment} /> : null}
-          {props.assignment ? <input type="hidden" name="assignment" value={props.assignment} /> : null}
+          {props.assignment ? (
+            <input type="hidden" name="assignment" value={props.assignment} />
+          ) : null}
           {props.branch ? <input type="hidden" name="branch" value={props.branch} /> : null}
         </>
       ) : null}
@@ -117,7 +124,9 @@ export function BookingsListToolbar(props: BookingsListToolbarProps) {
         >
           <Filter className="size-4" />
           Filters
-          <ChevronDown className={`size-4 transition-transform ${showFilters ? "rotate-180" : ""}`} />
+          <ChevronDown
+            className={`size-4 transition-transform ${showFilters ? "rotate-180" : ""}`}
+          />
         </button>
 
         <label className="col-span-2 flex h-11 min-w-0 items-center rounded-lg border border-[var(--cs-border)] bg-white px-3">
@@ -135,6 +144,11 @@ export function BookingsListToolbar(props: BookingsListToolbarProps) {
 
       {showFilters ? (
         <div className="grid grid-cols-2 gap-3 rounded-xl border border-[var(--cs-border-soft)] bg-[var(--cs-surface-warm)] p-3 shadow-sm">
+          <FilterSelect label="Record source" name="referenceSource" value={props.referenceSource}>
+            <option value="all">All</option>
+            <option value="cradlehub">CradleHub</option>
+            <option value="master_sheet">Master Sheet</option>
+          </FilterSelect>
           <FilterSelect label="Status" name="status" value={props.status}>
             <option value="">All statuses</option>
             <option value="pending">Pending</option>
@@ -174,14 +188,21 @@ export function BookingsListToolbar(props: BookingsListToolbarProps) {
             <FilterSelect label="Branch" name="branch" value={props.branch}>
               <option value="">All branches</option>
               {props.branches.map((branch) => (
-                <option key={branch.id} value={branch.id}>{branch.name}</option>
+                <option key={branch.id} value={branch.id}>
+                  {branch.name}
+                </option>
               ))}
             </FilterSelect>
           ) : null}
 
           <div className="col-span-2 flex justify-end gap-2 border-t border-[var(--cs-border-soft)] pt-3">
             <Link
-              href={clearFiltersHref(props.basePath, props.date, props.quickFilter, props.preservedQuery)}
+              href={clearFiltersHref(
+                props.basePath,
+                props.date,
+                props.quickFilter,
+                props.preservedQuery
+              )}
               className="inline-flex h-9 items-center rounded-lg px-3 text-sm font-semibold text-[var(--cs-text-secondary)] hover:bg-white"
             >
               Clear filters

@@ -17,6 +17,7 @@ import {
 } from "lucide-react";
 import { BookingsTable } from "./bookings-table";
 import { BookingsDesktopWorkspace } from "./bookings-desktop-workspace";
+import { SheetBookingReferenceCard } from "./sheet-booking-reference-row";
 import type {
   BookingActionFn,
   Branch,
@@ -32,17 +33,21 @@ import {
   ContextChip,
   ToolbarShell,
 } from "@/components/features/attendance/attendance-ui";
-import { isBookingClosedForCrm, isCrmPendingBookingStatus } from "@/lib/bookings/crm-booking-status";
+import {
+  isBookingClosedForCrm,
+  isCrmPendingBookingStatus,
+} from "@/lib/bookings/crm-booking-status";
 import { cn } from "@/lib/utils";
 import type { BookingQuickFilter } from "@/lib/bookings/bookings-workspace-filters";
+import {
+  filterSheetBookings,
+  withPossibleMatch,
+} from "@/lib/integrations/google-sheets/sheet-native-match";
+import type { SheetNativeReferencesState } from "@/lib/integrations/google-sheets/sheet-native-types";
 
 export type { Branch, WorkspaceBookingRow, WorkspaceContext } from "./booking-workspace-types";
 
-export type BookingWorkspaceTab =
-  | "needs-action"
-  | "upcoming"
-  | "active"
-  | "completed";
+export type BookingWorkspaceTab = "needs-action" | "upcoming" | "active" | "completed";
 
 type ActionFn = BookingActionFn;
 
@@ -54,6 +59,7 @@ type BookingsWorkspaceProps = {
   date: string;
   statusFilter?: string;
   typeFilter?: string;
+  referenceSource?: "all" | "cradlehub" | "master_sheet";
   deliveryFilter?: string;
   paymentFilter?: string;
   assignmentFilter?: string;
@@ -63,6 +69,8 @@ type BookingsWorkspaceProps = {
   initialQuickFilter?: BookingQuickFilter;
   initialPage?: number;
   bookings: WorkspaceBookingRow[];
+  sheetState?: SheetNativeReferencesState;
+  sheetLoading?: boolean;
   waitlistRows?: WaitlistRow[];
   cashSummary?: DailyCashSummaryData | null;
   statusAction?: ActionFn;
@@ -128,12 +136,10 @@ function hasFollowUpMetadata(booking: WorkspaceBookingRow): boolean {
 function bookingNeedsAction(booking: WorkspaceBookingRow): boolean {
   return (
     !isBookingClosedForCrm(booking.status) &&
-    (
-      isCrmPendingBookingStatus(booking.status) ||
+    (isCrmPendingBookingStatus(booking.status) ||
       hasPaymentIssue(booking) ||
       hasAssignmentIssue(booking) ||
-      hasFollowUpMetadata(booking)
-    )
+      hasFollowUpMetadata(booking))
   );
 }
 
@@ -156,10 +162,13 @@ function bookingMatchesTab(booking: WorkspaceBookingRow, tab: BookingWorkspaceTa
     case "needs-action":
       return bookingNeedsAction(booking);
     case "upcoming":
-      return !isClosed && !isActive && !bookingNeedsAction(booking) && (
-        booking.status === "confirmed" ||
-        booking.status === "scheduled" ||
-        isNotStartedProgress(progress)
+      return (
+        !isClosed &&
+        !isActive &&
+        !bookingNeedsAction(booking) &&
+        (booking.status === "confirmed" ||
+          booking.status === "scheduled" ||
+          isNotStartedProgress(progress))
       );
     case "active":
       return !isClosed && isActive;
@@ -168,7 +177,9 @@ function bookingMatchesTab(booking: WorkspaceBookingRow, tab: BookingWorkspaceTa
   }
 }
 
-function deriveTabForBooking(booking: WorkspaceBookingRow | undefined): BookingWorkspaceTab | undefined {
+function deriveTabForBooking(
+  booking: WorkspaceBookingRow | undefined
+): BookingWorkspaceTab | undefined {
   if (!booking) return undefined;
   return WORKFLOW_TABS.find((tab) => bookingMatchesTab(booking, tab.key))?.key;
 }
@@ -188,9 +199,8 @@ function applySecondaryFilters(
       if (!statusMatches) return false;
     }
     if (typeFilter) {
-      const typeMatches = typeFilter === "home_service"
-        ? isHomeServiceBooking(booking)
-        : booking.type === typeFilter;
+      const typeMatches =
+        typeFilter === "home_service" ? isHomeServiceBooking(booking) : booking.type === typeFilter;
       if (!typeMatches) return false;
     }
     if (branchFilter && booking.branch_id !== branchFilter) return false;
@@ -268,9 +278,7 @@ function WorkflowTabBar({
             <span
               className={cn(
                 "inline-flex min-w-5 justify-center rounded-full px-1.5 py-0.5 text-[10px] font-bold tabular-nums",
-                isActive
-                  ? "bg-muted text-foreground"
-                  : "bg-muted/70 text-muted-foreground"
+                isActive ? "bg-muted text-foreground" : "bg-muted/70 text-muted-foreground"
               )}
             >
               {tab.count}
@@ -290,6 +298,7 @@ export function BookingsWorkspace({
   date,
   statusFilter,
   typeFilter,
+  referenceSource = "all",
   deliveryFilter,
   paymentFilter,
   assignmentFilter,
@@ -299,21 +308,28 @@ export function BookingsWorkspace({
   initialQuickFilter = "all",
   initialPage,
   bookings,
+  sheetState,
+  sheetLoading,
   statusAction,
   paymentAction,
   initialSelectedId,
   confirmPaymentAction,
   onBookingsChanged,
 }: BookingsWorkspaceProps) {
-  const [isDesktop, setIsDesktop] = useState<boolean | null>(
-    () => workspaceContext === "crm" ? null : false
+  const [isDesktop, setIsDesktop] = useState<boolean | null>(() =>
+    workspaceContext === "crm" ? null : false
   );
   const basePath = `/${workspaceContext === "owner" ? "owner" : workspaceContext === "manager" ? "manager" : "crm"}/bookings`;
   const dispatchHref = basePath.replace(/\/bookings$/, "/dispatch");
   const [activeTab, setActiveTab] = useState<BookingWorkspaceTab>(
-    () => initialTab ?? deriveTabForBooking(bookings.find((booking) => booking.id === initialSelectedId)) ?? "needs-action"
+    () =>
+      initialTab ??
+      deriveTabForBooking(bookings.find((booking) => booking.id === initialSelectedId)) ??
+      "needs-action"
   );
-  const [showFilters, setShowFilters] = useState(Boolean(statusFilter || typeFilter || branchFilter));
+  const [showFilters, setShowFilters] = useState(
+    Boolean(statusFilter || typeFilter || branchFilter || referenceSource !== "all")
+  );
   const tabItems = useMemo(
     () =>
       WORKFLOW_TABS.map((tab) => ({
@@ -338,7 +354,21 @@ export function BookingsWorkspace({
   });
   const isOwner = workspaceContext === "owner";
   const isCrm = workspaceContext === "crm";
-  const hasFilters = Boolean(statusFilter || typeFilter || branchFilter || search);
+  const hasFilters = Boolean(
+    statusFilter || typeFilter || branchFilter || search || referenceSource !== "all"
+  );
+  const sheetExcludedByCanonicalFilter = Boolean(
+    statusFilter || typeFilter || deliveryFilter || paymentFilter || assignmentFilter
+  );
+  const mobileSheetReferences = useMemo(() => {
+    if (
+      referenceSource === "cradlehub" ||
+      sheetExcludedByCanonicalFilter ||
+      sheetState?.status !== "available"
+    )
+      return [];
+    return filterSheetBookings(withPossibleMatch(sheetState.bookings, bookings), search);
+  }, [bookings, referenceSource, search, sheetExcludedByCanonicalFilter, sheetState]);
   const needsActionCount = tabItems.find((tab) => tab.key === "needs-action")?.count ?? 0;
 
   useEffect(() => {
@@ -367,7 +397,13 @@ export function BookingsWorkspace({
   }
 
   if (isDesktop === null) {
-    return <div className="min-h-[690px] animate-pulse rounded-xl border border-[var(--cs-border-soft)] bg-white" aria-label="Loading bookings workspace" aria-busy="true" />;
+    return (
+      <div
+        className="min-h-[690px] animate-pulse rounded-xl border border-[var(--cs-border-soft)] bg-white"
+        aria-label="Loading bookings workspace"
+        aria-busy="true"
+      />
+    );
   }
 
   if (isDesktop) {
@@ -379,6 +415,7 @@ export function BookingsWorkspace({
         date={date}
         statusFilter={statusFilter}
         sourceFilter={typeFilter}
+        referenceSource={referenceSource}
         deliveryFilter={deliveryFilter}
         paymentFilter={paymentFilter}
         assignmentFilter={assignmentFilter}
@@ -387,6 +424,8 @@ export function BookingsWorkspace({
         initialQuickFilter={initialQuickFilter}
         initialPage={initialPage}
         bookings={bookings}
+        sheetState={sheetState}
+        sheetLoading={sheetLoading}
         statusAction={statusAction}
         paymentAction={paymentAction}
         initialSelectedId={initialSelectedId}
@@ -401,30 +440,20 @@ export function BookingsWorkspace({
       <header className="grid gap-4 rounded-lg border border-border bg-card p-5 shadow-sm">
         <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
           <div className="min-w-0">
-            <h1 className="m-0 text-2xl font-bold tracking-normal text-foreground">
-              Bookings
-            </h1>
+            <h1 className="m-0 text-2xl font-bold tracking-normal text-foreground">Bookings</h1>
             <p className="mt-1 max-w-3xl text-sm text-muted-foreground">
-              Manage booking triage, customer follow-up, payment review, resource assignment, and service progress.
+              Manage booking triage, customer follow-up, payment review, resource assignment, and
+              service progress.
             </p>
           </div>
 
           <div className="flex flex-wrap items-center gap-2">
-            <Button
-              type="button"
-              variant="outline"
-              size="lg"
-              onClick={() => onBookingsChanged?.()}
-            >
+            <Button type="button" variant="outline" size="lg" onClick={() => onBookingsChanged?.()}>
               <RefreshCw data-icon="inline-start" />
               Refresh
             </Button>
             {isCrm ? (
-              <OpenAdministrativeBookingButton
-                mode="standard_future"
-                date={date}
-                size="lg"
-              >
+              <OpenAdministrativeBookingButton mode="standard_future" date={date} size="lg">
                 <Plus data-icon="inline-start" />
                 New Booking
               </OpenAdministrativeBookingButton>
@@ -433,18 +462,30 @@ export function BookingsWorkspace({
         </div>
 
         <div className="flex flex-wrap items-center gap-2">
-          <ContextChip ariaLabel={`Bookings date: ${dateLabel}`} icon={<CalendarDays className="size-4" />}>
+          <ContextChip
+            ariaLabel={`Bookings date: ${dateLabel}`}
+            icon={<CalendarDays className="size-4" />}
+          >
             {dateLabel}
           </ContextChip>
           {branchName && !isOwner ? (
-            <ContextChip ariaLabel={`Bookings branch: ${branchName}`} icon={<Building2 className="size-4" />}>
+            <ContextChip
+              ariaLabel={`Bookings branch: ${branchName}`}
+              icon={<Building2 className="size-4" />}
+            >
               {branchName}
             </ContextChip>
           ) : null}
-          <ContextChip ariaLabel={`Bookings loaded: ${bookings.length}`} icon={<ClipboardList className="size-4" />}>
+          <ContextChip
+            ariaLabel={`Bookings loaded: ${bookings.length}`}
+            icon={<ClipboardList className="size-4" />}
+          >
             {bookings.length} booking{bookings.length !== 1 ? "s" : ""}
           </ContextChip>
-          <ContextChip ariaLabel={`Bookings needing action: ${needsActionCount}`} icon={<AlertCircle className="size-4" />}>
+          <ContextChip
+            ariaLabel={`Bookings needing action: ${needsActionCount}`}
+            icon={<AlertCircle className="size-4" />}
+          >
             {needsActionCount} need action
           </ContextChip>
         </div>
@@ -452,6 +493,9 @@ export function BookingsWorkspace({
 
       <form method="get" className="grid gap-3">
         <input type="hidden" name="tab" value={activeTab} />
+        {!showFilters && referenceSource !== "all" ? (
+          <input type="hidden" name="referenceSource" value={referenceSource} />
+        ) : null}
         <ToolbarShell
           fieldsClassName="grid-cols-1 gap-3 xl:grid-cols-[minmax(220px,1fr)_minmax(0,auto)] xl:items-end"
           actions={
@@ -513,6 +557,22 @@ export function BookingsWorkspace({
                 className="h-10 w-full rounded-lg border border-border bg-background px-3 text-sm font-semibold text-foreground shadow-sm outline-none transition focus:border-emerald-800"
               />
             </label>
+            {isCrm ? (
+              <label className="grid min-w-0 gap-1">
+                <span className="text-[0.68rem] font-bold uppercase tracking-wide text-muted-foreground">
+                  Record source
+                </span>
+                <select
+                  name="referenceSource"
+                  defaultValue={referenceSource}
+                  className="h-10 w-full rounded-lg border border-border bg-background px-3 text-sm font-semibold text-foreground"
+                >
+                  <option value="all">All</option>
+                  <option value="cradlehub">CradleHub</option>
+                  <option value="master_sheet">Master Sheet</option>
+                </select>
+              </label>
+            ) : null}
             {isOwner && branches && branches.length > 0 ? (
               <label className="grid min-w-0 gap-1">
                 <span className="text-[0.68rem] font-bold uppercase tracking-wide text-muted-foreground">
@@ -525,7 +585,9 @@ export function BookingsWorkspace({
                 >
                   <option value="">All Branches</option>
                   {branches.map((branch) => (
-                    <option key={branch.id} value={branch.id}>{branch.name}</option>
+                    <option key={branch.id} value={branch.id}>
+                      {branch.name}
+                    </option>
                   ))}
                 </select>
               </label>
@@ -551,32 +613,73 @@ export function BookingsWorkspace({
       </form>
 
       <div className="text-xs text-[var(--cs-text-muted)]">
-        {visibleBookings.length} booking{visibleBookings.length !== 1 ? "s" : ""} in {tabItems.find((tab) => tab.key === activeTab)?.label.toLowerCase()} for {dateLabel}
+        {visibleBookings.length} booking{visibleBookings.length !== 1 ? "s" : ""} in{" "}
+        {tabItems.find((tab) => tab.key === activeTab)?.label.toLowerCase()} for {dateLabel}
       </div>
 
-      {WORKFLOW_TABS.map((tab) => (
-        <AttendanceTabPanel
-          key={tab.key}
-          id={bookingTabPanelId(tab.key)}
-          labelledBy={bookingTabId(tab.key)}
-          active={activeTab === tab.key}
-        >
-          {activeTab === tab.key ? (
-            <BookingsTable
-              bookings={visibleBookings}
-              allBookings={bookings}
-              viewerRole={viewerRole}
-              dispatchHref={dispatchHref}
-              search={search}
-              statusAction={statusAction}
-              paymentAction={paymentAction}
-              initialSelectedId={initialSelectedId}
-              confirmPaymentAction={confirmPaymentAction}
-              onBookingsChanged={onBookingsChanged}
-            />
-          ) : null}
-        </AttendanceTabPanel>
-      ))}
+      {referenceSource !== "master_sheet"
+        ? WORKFLOW_TABS.map((tab) => (
+            <AttendanceTabPanel
+              key={tab.key}
+              id={bookingTabPanelId(tab.key)}
+              labelledBy={bookingTabId(tab.key)}
+              active={activeTab === tab.key}
+            >
+              {activeTab === tab.key ? (
+                <BookingsTable
+                  bookings={visibleBookings}
+                  allBookings={bookings}
+                  viewerRole={viewerRole}
+                  dispatchHref={dispatchHref}
+                  search={search}
+                  statusAction={statusAction}
+                  paymentAction={paymentAction}
+                  initialSelectedId={initialSelectedId}
+                  confirmPaymentAction={confirmPaymentAction}
+                  onBookingsChanged={onBookingsChanged}
+                />
+              ) : null}
+            </AttendanceTabPanel>
+          ))
+        : null}
+
+      {isCrm && referenceSource !== "cradlehub" ? (
+        <section className="grid gap-3" aria-label="Master Sheet booking references">
+          <div>
+            <h2 className="text-base font-bold text-foreground">Master Sheet booking references</h2>
+            <p className="text-xs text-muted-foreground">
+              External, read only · outside canonical workflow counts
+            </p>
+          </div>
+          {sheetExcludedByCanonicalFilter ? (
+            <p className="text-sm text-muted-foreground">
+              Master Sheet references are excluded by canonical booking filters.
+            </p>
+          ) : sheetLoading ? (
+            <p className="text-sm text-muted-foreground">Loading Master Sheet references…</p>
+          ) : sheetState?.status === "unavailable" ? (
+            <p className="text-sm text-muted-foreground">
+              Master Sheet references temporarily unavailable.
+            </p>
+          ) : sheetState?.status === "outside_loaded_window" ? (
+            <p className="text-sm text-muted-foreground">
+              References are available for the current and previous week only.
+            </p>
+          ) : sheetState?.status === "forbidden" ? (
+            <p className="text-sm text-muted-foreground">
+              References are not available for this branch.
+            </p>
+          ) : mobileSheetReferences.length === 0 ? (
+            <p className="text-sm text-muted-foreground">
+              No Master Sheet references for this date and search.
+            </p>
+          ) : (
+            mobileSheetReferences.map((reference) => (
+              <SheetBookingReferenceCard key={reference.source.sourceKey} reference={reference} />
+            ))
+          )}
+        </section>
+      ) : null}
     </div>
   );
 }

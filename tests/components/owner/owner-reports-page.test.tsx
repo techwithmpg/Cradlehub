@@ -4,7 +4,7 @@ import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/re
 import { SWRConfig } from "swr";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { OwnerReportsPage } from "@/components/features/owner/reports/owner-reports-page";
-import type { OwnerReportsData } from "@/app/(dashboard)/owner/bookings/actions";
+import type { OwnerReportsData } from "@/lib/owner/reports";
 
 let currentSearchParams = new URLSearchParams("preset=last7");
 const getReports = vi.fn();
@@ -14,17 +14,26 @@ vi.mock("next/navigation", () => ({
 }));
 vi.mock("@/app/(dashboard)/owner/bookings/actions", () => ({
   getOwnerReportsDataAction: (request: unknown) => getReports(request),
+  getOwnerReportSheetEvidenceAction: async () => ({
+    status: "no_source",
+    scopeNote: "No source configured",
+  }),
 }));
 vi.mock("@/components/features/dashboard/page-header", () => ({ PageHeader: () => null }));
-vi.mock("@/components/features/dashboard/daily-cash-summary", () => ({ DailyCashSummary: () => null }));
-vi.mock("@/components/features/owner/reports/revenue-by-branch-card", () => ({ RevenueByBranchCard: () => null }));
-vi.mock("@/components/features/owner/reports/staff-productivity-card", () => ({ StaffProductivityCard: () => null }));
-vi.mock("@/components/features/owner/reports/booking-trend-card", () => ({ BookingTrendCard: () => null }));
-vi.mock("@/components/features/owner/reports/reports-empty-state", () => ({ ReportsEmptyState: () => null }));
-vi.mock("@/components/features/owner/reports/report-kpi-cards", () => ({
-  ReportKpiCards: ({ revenueData }: { revenueData: Array<{ name?: string }> }) => (
-    <div data-testid="report-data">{revenueData[0]?.name}</div>
-  ),
+vi.mock("@/components/features/dashboard/daily-cash-summary", () => ({
+  DailyCashSummary: () => null,
+}));
+vi.mock("@/components/features/owner/reports/revenue-by-branch-card", () => ({
+  RevenueByBranchCard: () => null,
+}));
+vi.mock("@/components/features/owner/reports/staff-productivity-card", () => ({
+  StaffProductivityCard: () => null,
+}));
+vi.mock("@/components/features/owner/reports/booking-trend-card", () => ({
+  BookingTrendCard: () => null,
+}));
+vi.mock("@/components/features/owner/reports/reports-empty-state", () => ({
+  ReportsEmptyState: () => null,
 }));
 
 function reportData(marker: string, preset: string): OwnerReportsData {
@@ -43,7 +52,9 @@ function reportData(marker: string, preset: string): OwnerReportsData {
 
 function deferred<T>() {
   let resolve!: (value: T) => void;
-  const promise = new Promise<T>((next) => { resolve = next; });
+  const promise = new Promise<T>((next) => {
+    resolve = next;
+  });
   return { promise, resolve };
 }
 
@@ -75,12 +86,10 @@ describe("OwnerReportsPage retained data", () => {
       </SWRConfig>
     );
 
-    expect(screen.getByTestId("report-data").textContent).toBe("last-seven-data");
+    expect(screen.getAllByText("last-seven-data").length).toBeGreaterThan(0);
     expect(screen.getByText("Updating report data…")).toBeTruthy();
 
     nextRequest.resolve({ success: true, data: reportData("last-thirty-data", "last30") });
-    await waitFor(() =>
-      expect(screen.getByTestId("report-data").textContent).toBe("last-thirty-data")
-    );
+    await waitFor(() => expect(screen.getAllByText("last-thirty-data").length).toBeGreaterThan(0));
   });
 });

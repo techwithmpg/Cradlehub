@@ -40,6 +40,7 @@ import {
   resolveCrmNavKeyFromRole,
   resolveWorkspaceKeyFromPath,
   resolveWorkspaceKeyFromRole,
+  visibleNavItems,
   type NavGroup,
   type NavItem,
 } from "./nav-config";
@@ -304,6 +305,7 @@ function NavPendingIndicator({ isActive, isSystem }: { isActive: boolean; isSyst
 
 type SidebarProps = {
   role: string;
+  canReviewMasterSheet?: boolean;
   fullName: string;
   nickname?: string | null;
   avatarUrl?: string | null;
@@ -319,6 +321,7 @@ type SidebarContentProps = SidebarProps & {
 
 function SidebarContent({
   role,
+  canReviewMasterSheet = false,
   fullName,
   nickname,
   avatarUrl,
@@ -500,7 +503,7 @@ function SidebarContent({
                 ))}
               </div>
             ))
-          : (nav.items ?? []).map((item: NavItem) => (
+          : visibleNavItems(nav.items ?? [], canReviewMasterSheet).map((item: NavItem) => (
               <NavLink
                 key={item.href}
                 item={item}
@@ -627,16 +630,19 @@ function SidebarContent({
   );
 }
 
-export function Sidebar({ role, fullName, nickname, avatarUrl, branchName }: SidebarProps) {
+export function Sidebar({
+  role,
+  canReviewMasterSheet,
+  fullName,
+  nickname,
+  avatarUrl,
+  branchName,
+}: SidebarProps) {
   const pathname = usePathname();
   // Canonical Staff PWA owns its own mobile/desktop navigation.
   // Do not overlay the legacy dashboard sidebar or hamburger on /staff/*.
-  const isCanonicalStaffPwa =
-    pathname === "/staff" || pathname.startsWith("/staff/");
+  const isCanonicalStaffPwa = pathname === "/staff" || pathname.startsWith("/staff/");
 
-  if (isCanonicalStaffPwa) {
-    return null;
-  }
   const searchParams = useSearchParams();
   const search = searchParams.toString();
   const [open, setOpen] = useState(false);
@@ -655,6 +661,10 @@ export function Sidebar({ role, fullName, nickname, avatarUrl, branchName }: Sid
   const isStaffPortalRoute = pathname.startsWith("/staff-portal");
   const isDriverRoute = pathname.startsWith("/driver");
 
+  if (isCanonicalStaffPwa) {
+    return null;
+  }
+
   return (
     <>
       {/* Desktop */}
@@ -664,6 +674,7 @@ export function Sidebar({ role, fullName, nickname, avatarUrl, branchName }: Sid
       >
         <SidebarContent
           role={role}
+          canReviewMasterSheet={canReviewMasterSheet}
           fullName={fullName}
           nickname={nickname}
           avatarUrl={avatarUrl}
@@ -726,6 +737,7 @@ export function Sidebar({ role, fullName, nickname, avatarUrl, branchName }: Sid
             </button>
             <SidebarContent
               role={role}
+              canReviewMasterSheet={canReviewMasterSheet}
               fullName={fullName}
               nickname={nickname}
               avatarUrl={avatarUrl}

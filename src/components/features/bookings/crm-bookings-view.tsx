@@ -10,12 +10,17 @@
 import useSWR from "swr";
 import { useEffect } from "react";
 import { useSearchParams } from "next/navigation";
-import { BookingsWorkspace, type BookingWorkspaceTab, type WorkspaceBookingRow } from "./bookings-workspace";
+import {
+  BookingsWorkspace,
+  type BookingWorkspaceTab,
+  type WorkspaceBookingRow,
+} from "./bookings-workspace";
 import type { DailyCashSummaryData } from "@/components/features/dashboard/daily-cash-summary";
 import type { WaitlistRow } from "@/components/features/crm/customers/waitlist-followup-table";
 import { resolveBookingQuickFilter } from "@/lib/bookings/bookings-workspace-filters";
 import { BOOKINGS_CHANGED_EVENT } from "@/lib/bookings/bookings-client-events";
 import { useWorkspaceReactivationRefresh } from "@/components/features/dashboard/use-workspace-visibility";
+import { useSheetNativeReferences } from "@/components/features/crm/master-sheet/use-sheet-native-references";
 import {
   unwrapWorkspaceSWRKey,
   useWorkspaceSWRKey,
@@ -92,6 +97,11 @@ export function CrmBookingsView({
   const deliveryFilter = searchParams.get("delivery") ?? undefined;
   const paymentFilter = searchParams.get("payment") ?? undefined;
   const assignmentFilter = searchParams.get("assignment") ?? undefined;
+  const referenceSourceParam = searchParams.get("referenceSource");
+  const referenceSource =
+    referenceSourceParam === "cradlehub" || referenceSourceParam === "master_sheet"
+      ? referenceSourceParam
+      : "all";
   const search = searchParams.get("search") ?? undefined;
   const page = Number(searchParams.get("page") ?? "1");
 
@@ -111,6 +121,10 @@ export function CrmBookingsView({
     revalidateOnFocus: false,
     revalidateOnReconnect: false,
   });
+  const { state: sheetState, isLoading: sheetLoading } = useSheetNativeReferences(
+    date,
+    referenceSource !== "cradlehub"
+  );
 
   const payload = data ?? initialData;
   const initialTab = tab ?? tabFromStatus(statusFilter);
@@ -119,7 +133,9 @@ export function CrmBookingsView({
   });
 
   useEffect(() => {
-    const refresh = () => { void refreshBookings().catch(() => undefined); };
+    const refresh = () => {
+      void refreshBookings().catch(() => undefined);
+    };
     window.addEventListener(BOOKINGS_CHANGED_EVENT, refresh);
     return () => window.removeEventListener(BOOKINGS_CHANGED_EVENT, refresh);
   }, [refreshBookings]);
@@ -132,6 +148,7 @@ export function CrmBookingsView({
       date={payload.date}
       statusFilter={statusFilter}
       typeFilter={typeFilter}
+      referenceSource={referenceSource}
       deliveryFilter={deliveryFilter}
       paymentFilter={paymentFilter}
       assignmentFilter={assignmentFilter}
@@ -140,6 +157,8 @@ export function CrmBookingsView({
       initialQuickFilter={resolvedQuickFilter.quickFilter}
       initialPage={Number.isFinite(page) && page > 0 ? Math.floor(page) : 1}
       bookings={payload.bookings}
+      sheetState={sheetState}
+      sheetLoading={sheetLoading}
       waitlistRows={payload.waitlistRows ?? []}
       cashSummary={payload.cashSummary}
       paymentAction={paymentAction}

@@ -1,6 +1,6 @@
-'use client';
+"use client";
 
-import React, { useState } from 'react';
+import React, { useState } from "react";
 import {
   ArrowUp,
   ArrowDown,
@@ -13,12 +13,11 @@ import {
   ChevronLeft,
   ChevronRight,
   Filter,
-} from 'lucide-react';
-import { CashFlowKpiCard } from './cash-flow-kpi-card';
-import type {
-  LedgerKpiSummary,
-  LedgerRecordItem,
-} from '@/lib/cash-flow/cash-flow-types';
+} from "lucide-react";
+import { CashFlowKpiCard } from "./cash-flow-kpi-card";
+import { useSheetNativeReferences } from "@/components/features/crm/master-sheet/use-sheet-native-references";
+import type { SheetTransactionReference } from "@/lib/integrations/google-sheets/sheet-native-types";
+import type { LedgerKpiSummary, LedgerRecordItem } from "@/lib/cash-flow/cash-flow-types";
 
 interface LedgerTabProps {
   kpis: LedgerKpiSummary;
@@ -27,20 +26,32 @@ interface LedgerTabProps {
   businessDate: string;
 }
 
-export function LedgerTab({
-  kpis,
-  records,
-  businessDate,
-}: LedgerTabProps) {
-  const [searchTerm, setSearchTerm] = useState('');
-  const [methodFilter, setMethodFilter] = useState('all');
-  const [categoryFilter, setCategoryFilter] = useState('all');
-  const [statusFilter, setStatusFilter] = useState('all');
+type LedgerPresentationRow =
+  | { kind: "canonical"; record: LedgerRecordItem; date: string; sortMinute: number | null }
+  | { kind: "sheet"; evidence: SheetTransactionReference; date: string; sortMinute: number | null };
+
+function minuteOf(text: string): number | null {
+  const match = text.match(/(\d{1,2}):(\d{2})\s*(AM|PM)?$/i);
+  if (!match) return null;
+  const hour = Number(match[1]);
+  const minute = Number(match[2]);
+  if (minute > 59 || hour > (match[3] ? 12 : 23)) return null;
+  return match[3]
+    ? ((hour % 12) + (match[3].toUpperCase() === "PM" ? 12 : 0)) * 60 + minute
+    : hour * 60 + minute;
+}
+
+export function LedgerTab({ kpis, records, businessDate }: LedgerTabProps) {
+  const [searchTerm, setSearchTerm] = useState("");
+  const [methodFilter, setMethodFilter] = useState("all");
+  const [categoryFilter, setCategoryFilter] = useState("all");
+  const [statusFilter, setStatusFilter] = useState("all");
   const [pageSize, setPageSize] = useState(12);
   const [currentPage, setCurrentPage] = useState(1);
+  const { state: sheetState, isLoading: sheetLoading } = useSheetNativeReferences(businessDate);
 
   const formatPeso = (val: number) =>
-    `₱${val.toLocaleString('en-PH', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+    `₱${val.toLocaleString("en-PH", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 
   // Filter records in memory for immediate interactive responsiveness
   const filtered = records.filter((r) => {
@@ -52,20 +63,51 @@ export function LedgerTab({
         r.category.toLowerCase().includes(q);
       if (!match) return false;
     }
-    if (methodFilter !== 'all' && r.method.toLowerCase() !== methodFilter.toLowerCase()) {
+    if (methodFilter !== "all" && r.method.toLowerCase() !== methodFilter.toLowerCase()) {
       return false;
     }
-    if (categoryFilter !== 'all' && r.category.toLowerCase() !== categoryFilter.toLowerCase()) {
+    if (categoryFilter !== "all" && r.category.toLowerCase() !== categoryFilter.toLowerCase()) {
       return false;
     }
-    if (statusFilter !== 'all' && r.status.toLowerCase() !== statusFilter.toLowerCase()) {
+    if (statusFilter !== "all" && r.status.toLowerCase() !== statusFilter.toLowerCase()) {
       return false;
     }
     return true;
   });
 
-  const totalPages = Math.max(1, Math.ceil(filtered.length / pageSize));
-  const displayedRecords = filtered.slice(
+  const sheetRows: LedgerPresentationRow[] = (
+    sheetState?.status === "available" ? sheetState.payments : []
+  )
+    .filter((e) => {
+      if (statusFilter !== "all" || (categoryFilter !== "all" && categoryFilter !== "booking"))
+        return false;
+      if (methodFilter !== "all" && e.channel.toLowerCase() !== methodFilter.toLowerCase())
+        return false;
+      const q = searchTerm.trim().toLowerCase();
+      return (
+        !q ||
+        `${e.customerDisplay ?? ""} ${e.source.sheetName} ${e.channel}`.toLowerCase().includes(q)
+      );
+    })
+    .map((evidence) => ({
+      kind: "sheet",
+      evidence,
+      date: evidence.businessDate,
+      sortMinute: evidence.sortMinute,
+    }));
+  const presentationRows: LedgerPresentationRow[] = [
+    ...filtered.map(
+      (record): LedgerPresentationRow => ({
+        kind: "canonical",
+        record,
+        date: record.dateTime.slice(0, 10),
+        sortMinute: minuteOf(record.dateTime),
+      })
+    ),
+    ...sheetRows,
+  ].sort((a, b) => b.date.localeCompare(a.date) || (b.sortMinute ?? -1) - (a.sortMinute ?? -1));
+  const totalPages = Math.max(1, Math.ceil(presentationRows.length / pageSize));
+  const displayedRecords = presentationRows.slice(
     (currentPage - 1) * pageSize,
     currentPage * pageSize
   );
@@ -122,7 +164,23 @@ export function LedgerTab({
           <div>
             <h2 className="text-base font-bold text-[#1E1916]">Ledger</h2>
             <p className="text-xs text-[#9C8878]">
-              Financial movements and booking snapshots needing review. {filtered.length} records found.
+              Financial movements, booking snapshots, and external evidence.{" "}
+              {presentationRows.length} visible rows.
+            </p>
+            <p className="text-xs text-[#6B5D52]">
+              Master Sheet rows are read only and excluded from inflow, outflow, net, drawer, and
+              reconciliation.
+            </p>
+            <p className="text-xs text-[#6B5D52]" aria-live="polite">
+              {sheetLoading
+                ? "Loading Master Sheet evidence…"
+                : sheetState?.status === "outside_loaded_window"
+                  ? "Master Sheet evidence is outside the loaded weekly window."
+                  : sheetState?.status === "unavailable"
+                    ? "Master Sheet evidence unavailable."
+                    : sheetState?.status === "forbidden"
+                      ? "No Master Sheet source available for this branch."
+                      : ""}
             </p>
           </div>
 
@@ -228,7 +286,7 @@ export function LedgerTab({
         </div>
 
         {/* Ledger Table */}
-        {filtered.length === 0 ? (
+        {presentationRows.length === 0 ? (
           <div className="py-16 text-center">
             <Filter className="w-8 h-8 text-[#9C8878] mx-auto mb-2 opacity-50" />
             <p className="text-sm font-semibold text-[#1E1916]">No matching ledger records</p>
@@ -249,65 +307,111 @@ export function LedgerTab({
                   <th className="py-2.5 px-3 text-right font-semibold">INFLOW</th>
                   <th className="py-2.5 px-3 text-right font-semibold">OUTFLOW</th>
                   <th className="py-2.5 px-3 text-right font-semibold">NET EFFECT</th>
+                  <th className="py-2.5 px-3 text-right font-semibold">EVIDENCE AMOUNT</th>
                   <th className="py-2.5 px-3 text-center font-semibold">STATUS</th>
                   <th className="py-2.5 pl-3 text-right font-semibold">MENU</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-[#F0ECE5]">
-                {displayedRecords.map((item) => (
-                  <tr key={item.id} className="hover:bg-[#FAF8F5] transition-colors">
-                    <td className="py-3 pr-3 text-[#6B5D52] font-medium whitespace-nowrap">
-                      {item.dateTime}
-                    </td>
-                    <td className="py-3 px-3 font-mono font-semibold text-[#1E1916]">
-                      {item.reference}
-                    </td>
-                    <td className="py-3 px-3 text-[#1E1916] font-medium">
-                      {item.customerSource}
-                    </td>
-                    <td className="py-3 px-3">
-                      <span className="inline-flex items-center px-2 py-0.5 rounded text-[11px] font-medium bg-[#F0EDE8] text-[#3A3028]">
-                        {item.category}
-                      </span>
-                    </td>
-                    <td className="py-3 px-3 text-[#1E1916] font-medium">
-                      {item.method}
-                    </td>
-                    <td className="py-3 px-3 text-right font-semibold text-emerald-700 tabular-nums">
-                      {item.inflow !== null ? formatPeso(item.inflow) : '—'}
-                    </td>
-                    <td className="py-3 px-3 text-right font-semibold text-rose-700 tabular-nums">
-                      {item.outflow !== null ? `-${formatPeso(item.outflow)}` : '—'}
-                    </td>
-                    <td
-                      className={`py-3 px-3 text-right font-bold tabular-nums ${
-                        item.netEffect >= 0 ? 'text-[#1E1916]' : 'text-rose-700'
-                      }`}
+                {displayedRecords.map((row) =>
+                  row.kind === "sheet" ? (
+                    <tr
+                      key={`sheet-${row.evidence.evidenceKey}`}
+                      className="bg-amber-50/40"
+                      data-source="master-sheet"
                     >
-                      {item.isReconciliationOnly
-                        ? '—'
-                        : item.netEffect < 0
-                          ? `-${formatPeso(Math.abs(item.netEffect))}`
-                          : formatPeso(item.netEffect)}
-                    </td>
-                    <td className="py-3 px-3 text-center">
-                      <span
-                        className={`inline-block px-2 py-0.5 rounded-full text-[10px] font-semibold ${
-                          item.status.toLowerCase() === 'paid'
-                            ? 'bg-[#EEF8F2] text-[#1A4A2A]'
-                            : 'bg-[#FFFBEB] text-[#92400E]'
-                        }`}
-                      >
-                        {item.status}
-                      </span>
-                    </td>
-                    <td className="py-3 pl-3 text-right">
-                      <button className="p-1 rounded hover:bg-[#EAE4DC] text-[#9C8878] hover:text-[#1E1916]">
-                        <MoreHorizontal className="w-4 h-4" />
-                      </button>
-                    </td>
-                  </tr>
-                ))}
+                      <td className="py-3 pr-3 whitespace-nowrap">
+                        {businessDate} {row.evidence.timeText ?? "Time unknown"}
+                      </td>
+                      <td className="py-3 px-3">—</td>
+                      <td className="py-3 px-3">
+                        <span className="font-semibold">
+                          {row.evidence.customerDisplay ?? "Customer unknown"}
+                        </span>
+                        <div className="text-[10px] text-stone-600">
+                          {row.evidence.source.sheetName}, rows {row.evidence.source.startRow}–
+                          {row.evidence.source.endRow} · {row.evidence.branchLabel} (provisional)
+                        </div>
+                      </td>
+                      <td className="py-3 px-3">Sheet payment evidence</td>
+                      <td className="py-3 px-3">{row.evidence.channel}</td>
+                      <td className="py-3 px-3 text-right">—</td>
+                      <td className="py-3 px-3 text-right">—</td>
+                      <td className="py-3 px-3 text-right">—</td>
+                      <td className="py-3 px-3 text-right font-semibold">
+                        {row.evidence.amount === null || row.evidence.ambiguous
+                          ? "Amount unknown"
+                          : formatPeso(row.evidence.amount)}
+                      </td>
+                      <td className="py-3 px-3 text-center">
+                        <span className="rounded bg-amber-100 px-1 text-[10px] font-bold">
+                          MASTER SHEET
+                        </span>{" "}
+                        <span className="rounded bg-slate-100 px-1 text-[10px] font-bold">
+                          READ ONLY
+                        </span>
+                      </td>
+                      <td className="py-3 pl-3 text-right">—</td>
+                    </tr>
+                  ) : (
+                    (() => {
+                      const item = row.record;
+                      return (
+                        <tr key={item.id} className="hover:bg-[#FAF8F5] transition-colors">
+                          <td className="py-3 pr-3 text-[#6B5D52] font-medium whitespace-nowrap">
+                            {item.dateTime}
+                          </td>
+                          <td className="py-3 px-3 font-mono font-semibold text-[#1E1916]">
+                            {item.reference}
+                          </td>
+                          <td className="py-3 px-3 text-[#1E1916] font-medium">
+                            {item.customerSource}
+                          </td>
+                          <td className="py-3 px-3">
+                            <span className="inline-flex items-center px-2 py-0.5 rounded text-[11px] font-medium bg-[#F0EDE8] text-[#3A3028]">
+                              {item.category}
+                            </span>
+                          </td>
+                          <td className="py-3 px-3 text-[#1E1916] font-medium">{item.method}</td>
+                          <td className="py-3 px-3 text-right font-semibold text-emerald-700 tabular-nums">
+                            {item.inflow !== null ? formatPeso(item.inflow) : "—"}
+                          </td>
+                          <td className="py-3 px-3 text-right font-semibold text-rose-700 tabular-nums">
+                            {item.outflow !== null ? `-${formatPeso(item.outflow)}` : "—"}
+                          </td>
+                          <td
+                            className={`py-3 px-3 text-right font-bold tabular-nums ${
+                              item.netEffect >= 0 ? "text-[#1E1916]" : "text-rose-700"
+                            }`}
+                          >
+                            {item.isReconciliationOnly
+                              ? "—"
+                              : item.netEffect < 0
+                                ? `-${formatPeso(Math.abs(item.netEffect))}`
+                                : formatPeso(item.netEffect)}
+                          </td>
+                          <td className="py-3 px-3 text-right">—</td>
+                          <td className="py-3 px-3 text-center">
+                            <span
+                              className={`inline-block px-2 py-0.5 rounded-full text-[10px] font-semibold ${
+                                item.status.toLowerCase() === "paid"
+                                  ? "bg-[#EEF8F2] text-[#1A4A2A]"
+                                  : "bg-[#FFFBEB] text-[#92400E]"
+                              }`}
+                            >
+                              {item.status}
+                            </span>
+                          </td>
+                          <td className="py-3 pl-3 text-right">
+                            <button className="p-1 rounded hover:bg-[#EAE4DC] text-[#9C8878] hover:text-[#1E1916]">
+                              <MoreHorizontal className="w-4 h-4" />
+                            </button>
+                          </td>
+                        </tr>
+                      );
+                    })()
+                  )
+                )}
               </tbody>
             </table>
           </div>
@@ -316,8 +420,9 @@ export function LedgerTab({
         {/* Pagination Footer */}
         <div className="mt-4 pt-3 border-t border-[#F0ECE5] flex flex-col sm:flex-row items-center justify-between gap-3 text-xs text-[#6B5D52]">
           <div>
-            Showing {(currentPage - 1) * pageSize + (filtered.length > 0 ? 1 : 0)}–
-            {Math.min(currentPage * pageSize, filtered.length)} of {filtered.length} records
+            Showing {(currentPage - 1) * pageSize + (presentationRows.length > 0 ? 1 : 0)}–
+            {Math.min(currentPage * pageSize, presentationRows.length)} of {presentationRows.length}{" "}
+            rows
           </div>
 
           <div className="flex items-center gap-2">
@@ -350,8 +455,8 @@ export function LedgerTab({
                   onClick={() => setCurrentPage(p)}
                   className={`w-7 h-7 rounded-md text-xs font-semibold ${
                     currentPage === p
-                      ? 'bg-[#1B4D3E] text-white'
-                      : 'border border-[#EAE4DC] text-[#1E1916] hover:bg-[#FAF8F5]'
+                      ? "bg-[#1B4D3E] text-white"
+                      : "border border-[#EAE4DC] text-[#1E1916] hover:bg-[#FAF8F5]"
                   }`}
                 >
                   {p}

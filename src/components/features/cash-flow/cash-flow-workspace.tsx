@@ -22,7 +22,12 @@ interface CashFlowWorkspaceProps {
   reconciliationHref?: string | null;
 }
 
-export function CashFlowWorkspace({ initialData, initialTab = "today", initialEntryMode = null, reconciliationHref = "/crm/reconciliation" }: CashFlowWorkspaceProps) {
+export function CashFlowWorkspace({
+  initialData,
+  initialTab = "today",
+  initialEntryMode = null,
+  reconciliationHref = "/crm/reconciliation",
+}: CashFlowWorkspaceProps) {
   const router = useRouter();
   const [activeTab, setActiveTab] = useState<CashFlowTab>(initialTab);
 
@@ -33,7 +38,9 @@ export function CashFlowWorkspace({ initialData, initialTab = "today", initialEn
   const [isCloseDrawerModalOpen, setIsCloseDrawerModalOpen] = useState(false);
   const [selectedSession, setSelectedSession] = useState<CashSessionSummary | null>(null);
   const [targetOrderId, setTargetOrderId] = useState<string | undefined>(undefined);
-  const [entryModalMode, setEntryModalMode] = useState<FinancialEntryMode>(initialEntryMode ?? "customer_payment");
+  const [entryModalMode, setEntryModalMode] = useState<FinancialEntryMode>(
+    initialEntryMode ?? "customer_payment"
+  );
 
   const activeSession = initialData.cashSessions?.activeSessions?.[0] ?? null;
 
@@ -178,16 +185,33 @@ export function CashFlowWorkspace({ initialData, initialTab = "today", initialEn
               </div>
               <div>
                 <div className="flex items-center gap-2">
-                  <span className="text-sm font-bold text-[#1E1916]">{activeSession.cashDrawerName}</span>
+                  <span className="text-sm font-bold text-[#1E1916]">
+                    {activeSession.cashDrawerName}
+                  </span>
                   <span className="inline-flex items-center gap-1 rounded-full border border-emerald-300 bg-emerald-50 px-2 py-0.5 text-[10px] font-bold text-emerald-800 uppercase">
                     <span className="h-1.5 w-1.5 rounded-full bg-emerald-500" />
                     Open
                   </span>
                 </div>
                 <div className="flex flex-wrap items-center gap-x-4 gap-y-1 mt-1 text-xs text-[#6B5D52]">
-                  <span>Opening Float: <strong className="text-[#1E1916]">{formatPeso(activeSession.openingFloat)}</strong></span>
-                  <span>Expected Cash: <strong className="text-[#163E32]">{formatPeso(activeSession.expectedCash)}</strong></span>
-                  <span>Current Custodian: <strong className="text-[#1E1916]">{activeSession.currentCustodianName || activeSession.openedByName || "Staff"}</strong></span>
+                  <span>
+                    Opening Float:{" "}
+                    <strong className="text-[#1E1916]">
+                      {formatPeso(activeSession.openingFloat)}
+                    </strong>
+                  </span>
+                  <span>
+                    Expected Cash:{" "}
+                    <strong className="text-[#163E32]">
+                      {formatPeso(activeSession.expectedCash)}
+                    </strong>
+                  </span>
+                  <span>
+                    Current Custodian:{" "}
+                    <strong className="text-[#1E1916]">
+                      {activeSession.currentCustodianName || activeSession.openedByName || "Staff"}
+                    </strong>
+                  </span>
                 </div>
               </div>
             </div>
@@ -235,7 +259,8 @@ export function CashFlowWorkspace({ initialData, initialTab = "today", initialEn
               <div>
                 <div className="flex items-center gap-2">
                   <span className="text-sm font-bold text-[#1E1916]">
-                    {initialData.cashSessions?.availableDrawers?.[0]?.name || "Front Desk Cash Drawer"}
+                    {initialData.cashSessions?.availableDrawers?.[0]?.name ||
+                      "Front Desk Cash Drawer"}
                   </span>
                   <span className="inline-flex items-center gap-1 rounded-full border border-amber-300 bg-amber-50 px-2 py-0.5 text-[10px] font-bold text-amber-900 uppercase">
                     <span className="h-1.5 w-1.5 rounded-full bg-amber-500" />
@@ -243,7 +268,8 @@ export function CashFlowWorkspace({ initialData, initialTab = "today", initialEn
                   </span>
                 </div>
                 <p className="mt-0.5 text-xs text-[#6B5D52]">
-                  No active cash drawer session for this branch. Open drawer to start receiving cash.
+                  No active cash drawer session for this branch. Open drawer to start receiving
+                  cash.
                 </p>
               </div>
             </div>
@@ -388,12 +414,14 @@ export function CashFlowWorkspace({ initialData, initialTab = "today", initialEn
         )}
 
         {activeTab === "ledger" && (
-          <LedgerTab
-            kpis={initialData.ledger.kpis}
-            records={initialData.ledger.records}
-            totalRecords={initialData.ledger.totalRecords}
-            businessDate={initialData.businessDate}
-          />
+          <div className="space-y-4">
+            <LedgerTab
+              kpis={initialData.ledger.kpis}
+              records={initialData.ledger.records}
+              totalRecords={initialData.ledger.totalRecords}
+              businessDate={initialData.businessDate}
+            />
+          </div>
         )}
 
         {activeTab === "day-close" && (

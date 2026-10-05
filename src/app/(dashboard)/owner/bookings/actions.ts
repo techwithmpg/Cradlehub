@@ -16,67 +16,15 @@ import { updateBookingPaymentSchema } from "@/lib/validations/booking";
 import { getBookingPaymentGate } from "@/lib/bookings/payment-gate";
 import { recordBookingPaymentChange } from "@/lib/bookings/payment-transaction";
 import { getCrossbranchCashSummary } from "@/lib/queries/analytics";
-
-export type OwnerReportsRequest = {
-  preset?: string;
-  from?: string;
-  to?: string;
-};
-
-export type OwnerReportsData = {
-  preset: string;
-  from: string;
-  to: string;
-  dateRangeLabel: string;
-  generatedAt: string;
-  revenueData: Awaited<ReturnType<typeof getRevenueByBranch>>;
-  staffData: Awaited<ReturnType<typeof getBookingsPerTherapist>>;
-  trendData: Awaited<ReturnType<typeof getBookingTrend>>;
-  cashSummary: Awaited<ReturnType<typeof getCrossbranchCashSummary>>;
-};
-
-export type OwnerReportsResult =
-  | { success: true; data: OwnerReportsData }
-  | { success: false; error: string };
-
-const REPORT_PRESETS = new Set(["today", "last7", "last30", "thisMonth"]);
-const ISO_DATE = /^\d{4}-\d{2}-\d{2}$/;
-
-function reportRange(request: OwnerReportsRequest) {
-  const preset = REPORT_PRESETS.has(request.preset ?? "") ? request.preset! : "last7";
-  if (request.from && request.to && ISO_DATE.test(request.from) && ISO_DATE.test(request.to)) {
-    return { preset, from: request.from, to: request.to };
-  }
-
-  const now = new Date();
-  const to = now.toISOString().split("T")[0]!;
-  const start = new Date(now);
-  if (preset === "last7") start.setDate(start.getDate() - 7);
-  else if (preset === "last30") start.setDate(start.getDate() - 30);
-  else if (preset === "thisMonth") start.setDate(1);
-  const from = preset === "today" ? to : start.toISOString().split("T")[0]!;
-  return { preset, from, to };
-}
-
-function reportDateRangeLabel(from: string, to: string) {
-  if (from === to) {
-    return new Date(`${from}T00:00:00`).toLocaleDateString("en-PH", {
-      weekday: "long",
-      month: "long",
-      day: "numeric",
-    });
-  }
-  const start = new Date(`${from}T00:00:00`).toLocaleDateString("en-PH", {
-    month: "short",
-    day: "numeric",
-  });
-  const end = new Date(`${to}T00:00:00`).toLocaleDateString("en-PH", {
-    month: "short",
-    day: "numeric",
-    year: "numeric",
-  });
-  return `${start} – ${end}`;
-}
+import { fetchOwnerReportsData } from "@/lib/queries/owner-reports";
+import type {
+  OwnerReportsRequest,
+  OwnerReportsResult,
+  MasterSheetEvidenceSummary,
+} from "@/lib/owner/reports";
+import { projectOwnerSheetEvidence } from "@/lib/owner/sheet-report-projection";
+import { loadMasterSheetReview } from "@/lib/integrations/google-sheets/sheet-review-service";
+import { resolveConfiguredWorkbookSources } from "@/lib/integrations/google-sheets/workbook-source-map";
 
 // ── Auth: owner only ──────────────────────────────────────────────────────
 async function requireOwner() {
@@ -219,42 +167,112 @@ export async function getOwnerReportsDataAction(
   const ctx = await requireOwner();
   if (!ctx) return { success: false, error: "Unauthorized" };
 
-  const { preset, from, to } = reportRange(request);
-  const trendDays =
-    preset === "today"
-      ? 0
-      : preset === "last30"
-        ? 30
-        : preset === "thisMonth"
-          ? Math.max(0, new Date().getDate() - 1)
-          : 7;
-
   try {
-    const [revenueData, staffData, trendData, cashSummary] = await Promise.all([
-      getRevenueByBranch(from, to),
-      getBookingsPerTherapist(from, to),
-      getBookingTrend(trendDays),
-      getCrossbranchCashSummary(from, to),
-    ]);
-
+    const data = await fetchOwnerReportsData(request);
     return {
       success: true,
-      data: {
-        preset,
-        from,
-        to,
-        dateRangeLabel: reportDateRangeLabel(from, to),
-        generatedAt: new Date().toISOString(),
-        revenueData,
-        staffData,
-        trendData,
-        cashSummary,
-      },
+      data,
     };
   } catch (error) {
     console.error("[owner/reports] analytics load failed", error);
     return { success: false, error: "Unable to load report data. Please try again." };
   }
+}
+
+// Independent resource: Google latency or failure never holds up canonical reports.
+export async function getOwnerReportSheetEvidenceAction(scope: {
+  branchId: string;
+  from: string;
+  to: string;
+}): Promise<MasterSheetEvidenceSummary> {
+  const ctx = await requireOwner();
+  if (!ctx) throw new Error("Unauthorized");
+  const validDate = (value: string) =>
+    /^\d{4}-\d{2}-\d{2}$/.test(value) &&
+    !Number.isNaN(Date.parse(`${value}T00:00:00.000Z`)) &&
+    new Date(`${value}T00:00:00.000Z`).toISOString().slice(0, 10) === value;
+  if (!validDate(scope.from) || !validDate(scope.to) || scope.from > scope.to)
+    throw new Error("Invalid report range");
+  const { data: branches, error } = await ctx.supabase
+    .from("branches")
+    .select("id, name")
+    .eq("is_active", true);
+  if (error) throw new Error("Unable to resolve report branch");
+  if (scope.branchId !== "all" && !(branches ?? []).some((b) => b.id === scope.branchId)) {
+    throw new Error("Invalid report branch");
+  }
+  const sources = resolveConfiguredWorkbookSources(branches ?? []);
+  const selectedSources = sources.filter(
+    (source) => scope.branchId === "all" || scope.branchId === source.branchId
+  );
+  if (selectedSources.length === 0) return projectOwnerSheetEvidence(null, null, scope);
+  const started = performance.now();
+  const projectedSources = await Promise.all(
+    selectedSources.map(async (source) =>
+      projectOwnerSheetEvidence(
+        await loadMasterSheetReview({ workbookId: source.workbookId }),
+        source,
+        scope
+      )
+    )
+  );
+  const first = projectedSources[0]!;
+  const projected: MasterSheetEvidenceSummary =
+    projectedSources.length === 1
+      ? first
+      : {
+          ...first,
+          status: projectedSources.some((item) => item.status === "available")
+            ? "available"
+            : "unavailable",
+          coverage: projectedSources.every((item) => item.coverage === "FULL_COVERAGE")
+            ? "FULL_COVERAGE"
+            : "PARTIAL_COVERAGE",
+          coverageFrom: projectedSources
+            .map((item) => item.coverageFrom)
+            .filter((value): value is string => Boolean(value))
+            .sort()[0],
+          coverageTo: projectedSources
+            .map((item) => item.coverageTo)
+            .filter((value): value is string => Boolean(value))
+            .sort()
+            .at(-1),
+          sourceWorkbook: projectedSources
+            .map((item) => item.sourceWorkbook)
+            .filter(Boolean)
+            .join(", "),
+          mappedBranch: projectedSources
+            .map((item) => item.mappedBranch)
+            .filter(Boolean)
+            .join(", "),
+          scopeNote: projectedSources.some((item) => item.status !== "available")
+            ? "One or more configured Master Sheet sources are unavailable; evidence amounts are incomplete."
+            : scope.branchId === "all" && selectedSources.length < (branches ?? []).length
+              ? "External evidence covers configured branches only; All Branches canonical scope is broader."
+              : "External evidence covers the configured provisional source mappings.",
+          totalRecords: projectedSources.reduce((sum, item) => sum + item.totalRecords, 0),
+          visitCount: projectedSources.reduce((sum, item) => sum + item.visitCount, 0),
+          dutyCount: projectedSources.reduce((sum, item) => sum + item.dutyCount, 0),
+          needsReviewCount: projectedSources.reduce((sum, item) => sum + item.needsReviewCount, 0),
+          evidenceAmount: projectedSources.reduce((sum, item) => sum + item.evidenceAmount, 0),
+          amountKnownCount: projectedSources.reduce(
+            (sum, item) => sum + (item.amountKnownCount ?? 0),
+            0
+          ),
+          amountUnknownCount: projectedSources.reduce(
+            (sum, item) => sum + (item.amountUnknownCount ?? 0),
+            0
+          ),
+          recentVisits: projectedSources.flatMap((item) => item.recentVisits ?? []),
+          recentReviews: projectedSources.flatMap((item) => item.recentReviews ?? []),
+          sources: projectedSources.flatMap((item) => item.sources ?? []),
+        };
+  console.info("[owner/reports] sheet evidence projection", {
+    status: projected.status,
+    coverage: projected.coverage,
+    projectionAndReadMs: Math.round(performance.now() - started),
+  });
+  return projected;
 }
 
 // ── Payment-aware booking list for the new shared workspace ──────────────
