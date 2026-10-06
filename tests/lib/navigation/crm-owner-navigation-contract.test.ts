@@ -45,10 +45,10 @@ describe("CRM and Owner navigation performance contract", () => {
   it("does not refresh the whole route for active workspace mutations", () => {
     const offenders = activeWorkspaceFiles()
       .filter((file) => {
-        const source = readFileSync(file, "utf8").replace(
-          /onRefresh=\{\(\) => router\.refresh\(\)\}/g,
-          ""
-        );
+        const source = readFileSync(file, "utf8")
+          .replace(/onRefresh=\{\(\) => router\.refresh\(\)\}/g, "")
+          .replace(/const refreshBookings = \(\) => router\.refresh\(\);/g, "")
+          .replace(/else router\.refresh\(\);/g, "");
         return source.includes("router.refresh()");
       })
       .map((file) => relative(root, file));

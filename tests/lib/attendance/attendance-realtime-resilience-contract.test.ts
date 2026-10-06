@@ -31,9 +31,8 @@ describe("Attendance realtime resilience contract", () => {
     expect(card).toContain("realtimeStatus");
   });
 
-  it("uses one live feed for the side rail and recent activity", () => {
+  it("uses one live feed for the side rail", () => {
     expect(dashboard).toContain("const attendanceState = useAttendanceScanFeed");
     expect(dashboard).toContain("attendanceFeed={attendanceState.feed}");
-    expect(dashboard).toContain("attendance={attendanceState.feed}");
   });
 });

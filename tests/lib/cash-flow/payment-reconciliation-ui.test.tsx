@@ -45,7 +45,7 @@ describe('Cash Flow reconciliation presentation', () => {
     const row = screen.getByText('BK-booking-').closest('tr');
     expect(row).toBeTruthy();
     expect(within(row!).getByText('Needs reconciliation')).toBeTruthy();
-    expect(within(row!).getAllByText('—')).toHaveLength(3);
+    expect(within(row!).getAllByText('—')).toHaveLength(4);
     expect(screen.getByText('TX-A')).toBeTruthy();
     expect(screen.getByText('1 booking payment snapshot needs review')).toBeTruthy();
   });

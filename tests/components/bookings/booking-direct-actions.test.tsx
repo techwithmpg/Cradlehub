@@ -72,7 +72,7 @@ describe("desktop booking direct actions", () => {
       />
     );
 
-    fireEvent.click(screen.getByRole("button", { name: "Mark Booking Confirmed" }));
+    fireEvent.click(screen.getByRole("button", { name: "Confirm Booking" }));
 
     await waitFor(() => {
       expect(actionMocks.confirm).toHaveBeenCalledWith({ bookingId: booking.id });

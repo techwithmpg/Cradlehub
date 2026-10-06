@@ -72,7 +72,7 @@ const schedule = {
   date: "2026-10-11",
   startTime: "11:00",
   note: "Later appointment",
-  homeServiceAddress: "New address",
+  homeServiceAddress: "Old address",
   homeServiceAccessNote: "Side gate",
 };
 const cancellation = { cancellationReason: "customer_requested", note: "Requested by customer" };
@@ -446,7 +446,7 @@ describe("general Bookings mutations", () => {
         expect(db.writes[0]!.values).toMatchObject({
           metadata: {
             home_service_address: {
-              full_address: "New address",
+              full_address: "Old address",
               access_note: "Side gate",
               lat: 10,
               lng: 122,
@@ -466,6 +466,43 @@ describe("general Bookings mutations", () => {
       expect(response.headers.get("Cache-Control")).toBe("no-store");
     }
   );
+  it("reschedules home_service with updated destination coordinates when provided", async () => {
+    booking().type = "home_service";
+    booking().delivery_type = "home_service";
+    const response = await reschedule(
+      request({
+        ...schedule,
+        homeServiceAddress: "Updated Location",
+        homeServicePlaceId: "place-new-123",
+        homeServiceFormattedAddress: "Updated Location",
+        homeServiceLat: 14.55,
+        homeServiceLng: 121.05,
+      }),
+      route
+    );
+    expect(response.status).toBe(200);
+    expect(db.writes[0]!.values).toMatchObject({
+      metadata: {
+        home_service_address: {
+          full_address: "Updated Location",
+          lat: 14.55,
+          lng: 121.05,
+          place_id: "place-new-123",
+        },
+      },
+    });
+  });
+  it("rejects changed text address without destination coordinates to protect staff routing", async () => {
+    booking().type = "home_service";
+    booking().delivery_type = "home_service";
+    const response = await reschedule(
+      request({ ...schedule, homeServiceAddress: "Changed Text Without GPS" }),
+      route
+    );
+    expect(response.status).toBe(409);
+    const body = await response.json();
+    expect(body.message).toContain("Select the updated address from the Google suggestions");
+  });
   it("enforces existing resource availability for in-spa rescheduling", async () => {
     booking().type = "walkin";
     booking().delivery_type = "in_spa";
@@ -548,7 +585,7 @@ describe("hosted wrappers still execute the shared domains", () => {
 describe("schedule exception and failure regressions", () => {
   function openException() {
     booking().metadata = createOpenStaffScheduleException(
-      { keep: "preserved", home_service_address: { lat: 10, lng: 122 } },
+      { keep: "preserved", home_service_address: { full_address: "Old address", lat: 10, lng: 122 } },
       {
         reasonCode: "selected_staff_off_day",
         selectedStaffId: old,

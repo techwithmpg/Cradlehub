@@ -8,6 +8,8 @@ import {
   createOnlineBookingMultiSchema,
 } from "@/lib/validations/booking";
 
+const futureDate = new Date(Date.now() + 86_400_000).toISOString().slice(0, 10);
+
 describe("Front-desk CRM booking time normalization", () => {
   it.each([
     ["7 PM", "19:00:00"],
@@ -36,7 +38,7 @@ describe("Front-desk CRM booking time normalization", () => {
     const publicSingle = createOnlineBookingSchema.safeParse({
       branchId: "1ea3ce31-6ead-49e0-9ff4-43501d5cf20d",
       serviceId: "2ea3ce31-6ead-49e0-9ff4-43501d5cf20e",
-      date: "2026-10-01",
+      date: futureDate,
       startTime: "7 PM",
       fullName: "Jane Doe",
       phone: "09171234567",
@@ -49,7 +51,7 @@ describe("Front-desk CRM booking time normalization", () => {
     const publicMulti = createOnlineBookingMultiSchema.safeParse({
       branchId: "1ea3ce31-6ead-49e0-9ff4-43501d5cf20d",
       serviceIds: ["2ea3ce31-6ead-49e0-9ff4-43501d5cf20e"],
-      date: "2026-10-01",
+      date: futureDate,
       startTime: "7 PM",
       fullName: "Jane Doe",
       phone: "09171234567",
@@ -64,7 +66,7 @@ describe("Front-desk CRM booking time normalization", () => {
     const publicSingle = createOnlineBookingSchema.safeParse({
       branchId: "1ea3ce31-6ead-49e0-9ff4-43501d5cf20d",
       serviceId: "2ea3ce31-6ead-49e0-9ff4-43501d5cf20e",
-      date: "2026-10-01",
+      date: futureDate,
       startTime: "19:00",
       fullName: "Jane Doe",
       phone: "09171234567",
@@ -81,7 +83,7 @@ describe("Front-desk CRM booking time normalization", () => {
       {
         branchId: "1ea3ce31-6ead-49e0-9ff4-43501d5cf20d",
         serviceIds: ["2ea3ce31-6ead-49e0-9ff4-43501d5cf20e"],
-        date: "2026-10-01",
+        date: futureDate,
         startTime: "7 PM",
         fullName: "Jane Doe",
         phone: "09171234567",
@@ -110,7 +112,7 @@ describe("Front-desk CRM booking time normalization", () => {
       {
         branchId: "1ea3ce31-6ead-49e0-9ff4-43501d5cf20d",
         serviceIds: ["2ea3ce31-6ead-49e0-9ff4-43501d5cf20e"],
-        date: "2026-10-01",
+        date: futureDate,
         startTime: "garbage",
         fullName: "Jane Doe",
         phone: "09171234567",
