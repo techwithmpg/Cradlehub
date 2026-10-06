@@ -3,7 +3,7 @@ vi.mock("server-only", () => ({}));
 vi.mock("next/cache", () => ({ revalidatePath: vi.fn(), revalidateTag: vi.fn() }));
 vi.mock("next/headers", () => ({ cookies: vi.fn(async () => ({ get: vi.fn() })) }));
 const state = vi.hoisted(() => ({
-  staff: null as any, booking: null as any, dispatch: vi.fn(), rpc: vi.fn(),
+  staff: null as any, booking: null as any, dispatch: vi.fn(), rpc: vi.fn(), adminRpc: vi.fn(),
   date: vi.fn(), from: vi.fn(),
 }));
 vi.mock("@/lib/supabase/server", () => ({ createClient: async () => ({
@@ -11,6 +11,7 @@ vi.mock("@/lib/supabase/server", () => ({ createClient: async () => ({
   from: state.from, rpc: state.rpc,
 }) }));
 vi.mock("@/lib/queries/dispatch-queries", () => ({ getDispatchData: state.dispatch }));
+vi.mock("@/lib/supabase/admin", () => ({ createAdminClient: () => ({ rpc: state.adminRpc }) }));
 vi.mock("@/lib/staff-pwa/provider-date", () => ({ getProviderBusinessDate: state.date }));
 import { getMyDriverJobsAction, getMyDriverAllJobsAction, getMyDriverJobByIdAction, updateBookingProgressAction } from "@/app/(dashboard)/staff-portal/actions";
 
@@ -28,6 +29,7 @@ beforeEach(() => {
   state.date.mockResolvedValue("2026-09-12");
   state.dispatch.mockResolvedValue({ items: [], stats: { totalToday: 0 } });
   state.rpc.mockResolvedValue({ data: null, error: null });
+  state.adminRpc.mockResolvedValue({ data: null, error: null });
 });
 
 describe("Driver server boundary", () => {
@@ -62,28 +64,29 @@ describe("Driver server boundary", () => {
   it.each(["session_started", "completed", "checked_in", "no_show"])("Driver cannot advance %s even if also booking.staff_id", async nextStatus => {
     state.booking.staff_id = "driver";
     const result = await updateBookingProgressAction({ bookingId: "job", nextStatus: nextStatus as any });
-    expect(result.ok).toBe(false); expect(state.rpc).not.toHaveBeenCalled();
+    expect(result.ok).toBe(false); expect(state.adminRpc).not.toHaveBeenCalled();
   });
   it.each([{ branch_id: "other" }, { driver_id: "other" }, { delivery_type: "in_spa", type: "home_service" }])("denies mismatched authority %j", async change => {
     Object.assign(state.booking, change);
     expect((await updateBookingProgressAction({ bookingId: "job", nextStatus: "travel_started" })).ok).toBe(false);
-    expect(state.rpc).not.toHaveBeenCalled();
+    expect(state.adminRpc).not.toHaveBeenCalled();
   });
   it("permits online Home Service travel through existing RPC", async () => {
     state.booking.payment_status = "unpaid";
     state.booking.metadata = { dispatch: { status: "scheduled" } };
     expect((await updateBookingProgressAction({ bookingId: "job", nextStatus: "travel_started" })).ok).toBe(true);
-    expect(state.rpc).toHaveBeenCalledWith("update_booking_progress", { p_booking_id: "job", p_next_status: "travel_started" });
-    expect(state.rpc).toHaveBeenCalledTimes(1);
+    expect(state.adminRpc).toHaveBeenCalledWith("update_booking_progress", { p_booking_id: "job", p_next_status: "travel_started" });
+    expect(state.adminRpc).toHaveBeenCalledTimes(1);
+    expect(state.rpc).not.toHaveBeenCalled();
   });
   it("permits assigned driver arrival without a release step", async () => {
     state.booking.booking_progress_status = "travel_started";
     state.booking.payment_status = "unpaid";
     expect((await updateBookingProgressAction({ bookingId: "job", nextStatus: "arrived" })).ok).toBe(true);
-    expect(state.rpc).toHaveBeenCalledWith("update_booking_progress", { p_booking_id: "job", p_next_status: "arrived" });
+    expect(state.adminRpc).toHaveBeenCalledWith("update_booking_progress", { p_booking_id: "job", p_next_status: "arrived" });
   });
   it("preserves rejected server transition without success", async () => {
-    state.rpc.mockResolvedValue({ data: null, error: { message: "Assignment changed" } });
+    state.adminRpc.mockResolvedValue({ data: null, error: { message: "Assignment changed" } });
     expect(await updateBookingProgressAction({ bookingId: "job", nextStatus: "travel_started" })).toMatchObject({ ok: false, message: "Assignment changed" });
   });
 });

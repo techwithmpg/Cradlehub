@@ -1038,7 +1038,8 @@ export async function updateBookingProgressAction({
     }
     requiresTimestampRead = false;
   } else {
-    const result = await supabase.rpc("update_booking_progress", {
+    // The privileged RPC is reachable only after the staff and booking checks above.
+    const result = await createAdminClient().rpc("update_booking_progress", {
       p_booking_id: bookingId,
       p_next_status: nextStatus,
     });
