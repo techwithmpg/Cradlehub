@@ -585,7 +585,10 @@ describe("hosted wrappers still execute the shared domains", () => {
 describe("schedule exception and failure regressions", () => {
   function openException() {
     booking().metadata = createOpenStaffScheduleException(
-      { keep: "preserved", home_service_address: { full_address: "Old address", lat: 10, lng: 122 } },
+      {
+        keep: "preserved",
+        home_service_address: { full_address: "Old address", lat: 10, lng: 122 },
+      },
       {
         reasonCode: "selected_staff_off_day",
         selectedStaffId: old,

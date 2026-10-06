@@ -75,9 +75,7 @@ describe("Front-desk CRM booking time normalization", () => {
   });
 
   it("proves executeInhouseBookingCreation normalizes 7 PM and passes schema validation", async () => {
-    const { executeInhouseBookingCreation } = await import(
-      "@/lib/bookings/inhouse-booking-engine"
-    );
+    const { executeInhouseBookingCreation } = await import("@/lib/bookings/inhouse-booking-engine");
 
     const result = await executeInhouseBookingCreation(
       {
@@ -104,9 +102,7 @@ describe("Front-desk CRM booking time normalization", () => {
   });
 
   it("proves executeInhouseBookingCreation rejects garbage time at validation layer", async () => {
-    const { executeInhouseBookingCreation } = await import(
-      "@/lib/bookings/inhouse-booking-engine"
-    );
+    const { executeInhouseBookingCreation } = await import("@/lib/bookings/inhouse-booking-engine");
 
     const result = await executeInhouseBookingCreation(
       {

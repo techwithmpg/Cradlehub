@@ -109,11 +109,7 @@ describe("desktop booking direct actions", () => {
 
   it("records Confirm Later directly and keeps the booking pending", async () => {
     render(
-      <SelectedBookingQuickActions
-        booking={booking}
-        viewerRole="crm"
-        onOpenReschedule={vi.fn()}
-      />
+      <SelectedBookingQuickActions booking={booking} viewerRole="crm" onOpenReschedule={vi.fn()} />
     );
 
     fireEvent.click(screen.getByRole("button", { name: "Open more booking actions" }));
@@ -145,11 +141,7 @@ describe("desktop booking direct actions", () => {
 
   it("opens the focused cancellation dialog from the compact action row", async () => {
     render(
-      <SelectedBookingQuickActions
-        booking={booking}
-        viewerRole="crm"
-        onOpenReschedule={vi.fn()}
-      />
+      <SelectedBookingQuickActions booking={booking} viewerRole="crm" onOpenReschedule={vi.fn()} />
     );
 
     fireEvent.click(screen.getByRole("button", { name: "Cancel" }));
@@ -172,13 +164,17 @@ describe("focused cancellation dialog", () => {
     );
 
     fireEvent.click(screen.getByRole("button", { name: "Cancel Booking" }));
-    expect((await screen.findByRole("alert")).textContent).toContain("Select a cancellation reason.");
+    expect((await screen.findByRole("alert")).textContent).toContain(
+      "Select a cancellation reason."
+    );
     expect(actionMocks.followup).not.toHaveBeenCalled();
 
     fireEvent.change(screen.getByRole("combobox", { name: /Reason/i }), {
       target: { value: "scheduling_conflict" },
     });
-    fireEvent.change(screen.getByLabelText(/Note/i), { target: { value: "Customer asked for another day." } });
+    fireEvent.change(screen.getByLabelText(/Note/i), {
+      target: { value: "Customer asked for another day." },
+    });
     fireEvent.click(screen.getByRole("button", { name: "Cancel Booking" }));
 
     await waitFor(() => {

@@ -43,8 +43,16 @@ describe("runFollowUpRules", () => {
     };
 
     const rules: FollowUpRule[] = [
-      { id: "rule_a", name: "Rule A", run: async () => ({ ruleId: "rule_a", triggered: 2, errors: 0 }) },
-      { id: "rule_b", name: "Rule B", run: async () => ({ ruleId: "rule_b", triggered: 0, errors: 1 }) },
+      {
+        id: "rule_a",
+        name: "Rule A",
+        run: async () => ({ ruleId: "rule_a", triggered: 2, errors: 0 }),
+      },
+      {
+        id: "rule_b",
+        name: "Rule B",
+        run: async () => ({ ruleId: "rule_b", triggered: 0, errors: 1 }),
+      },
     ];
 
     const results = await runFollowUpRules(rules, ctx);
