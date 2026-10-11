@@ -1,6 +1,7 @@
 import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it } from "vitest";
 import { ScheduleBookingBlock } from "@/components/features/schedule/schedule-booking-block";
+import BookingSuccessPage from "@/app/(public)/book/success/page";
 import type { DailyScheduleBooking } from "@/lib/queries/schedule";
 
 const booking: DailyScheduleBooking = {
@@ -25,6 +26,13 @@ const timelineRange = {
 };
 
 describe("Schedule online request status", () => {
+  it("tells the customer the request awaits front desk confirmation", () => {
+    const successPage = renderToStaticMarkup(<BookingSuccessPage />);
+    expect(successPage).toContain("Your Booking Request Was Received");
+    expect(successPage).toContain("Our front desk will review");
+    expect(successPage).toContain("confirm your appointment details");
+  });
+
   it("renders a pending request distinctly from confirmed work", () => {
     const pending = renderToStaticMarkup(
       <ScheduleBookingBlock
