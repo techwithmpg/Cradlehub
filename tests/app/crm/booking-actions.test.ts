@@ -9,12 +9,14 @@ const mocks = vi.hoisted(() => ({
   resolveNotificationsForEntity: vi.fn(),
   logError: vi.fn(),
   revalidateOperationalBookingSurfaces: vi.fn(),
+  isDevAuthBypassEnabled: vi.fn(() => false),
+  recordBookingPaymentChange: vi.fn(),
 }));
 
 vi.mock("@/lib/supabase/server", () => ({ createClient: mocks.createClient }));
 vi.mock("@/lib/supabase/admin", () => ({ createAdminClient: mocks.createAdminClient }));
 vi.mock("@/lib/dev-bypass", () => ({
-  isDevAuthBypassEnabled: () => false,
+  isDevAuthBypassEnabled: mocks.isDevAuthBypassEnabled,
   getDevBypassLayoutStaff: vi.fn(),
 }));
 vi.mock("@/lib/notifications/create", () => ({
@@ -28,7 +30,7 @@ vi.mock("@/lib/bookings/revalidate-booking-surfaces", () => ({
   revalidateOperationalBookingSurfaces: mocks.revalidateOperationalBookingSurfaces,
 }));
 vi.mock("@/lib/bookings/payment-transaction", () => ({
-  recordBookingPaymentChange: vi.fn(),
+  recordBookingPaymentChange: mocks.recordBookingPaymentChange,
 }));
 vi.mock("@/lib/bookings/staff-schedule-exception-signals", () => ({
   resolveStaffScheduleExceptionSignals: vi.fn(),
@@ -82,6 +84,8 @@ function queryBuilder({
 }
 
 type SetupOptions = {
+  staffData?: Record<string, unknown> | null;
+  authUserId?: string | null;
   baseData?: Record<string, unknown> | null;
   baseError?: unknown;
   details?: Record<string, unknown> | null;
@@ -128,7 +132,10 @@ function setup(options: SetupOptions = {}) {
 
   const staffQuery = queryBuilder({
     maybeSingle: {
-      data: { id: STAFF_ID, branch_id: BRANCH_ID, system_role: "crm" },
+      data:
+        options.staffData === undefined
+          ? { id: STAFF_ID, branch_id: BRANCH_ID, system_role: "crm" }
+          : options.staffData,
       error: null,
     },
   });
@@ -136,7 +143,11 @@ function setup(options: SetupOptions = {}) {
     maybeSingle: { data: baseData, error: options.baseError ?? null },
   });
   const client = {
-    auth: { getUser: vi.fn(async () => ({ data: { user: { id: AUTH_USER_ID } } })) },
+    auth: {
+      getUser: vi.fn(async () => ({
+        data: { user: options.authUserId === null ? null : { id: options.authUserId ?? AUTH_USER_ID } },
+      })),
+    },
     from: vi.fn((table: string) => (table === "staff" ? staffQuery : baseQuery)),
   };
 
@@ -176,6 +187,7 @@ function setup(options: SetupOptions = {}) {
 
 beforeEach(() => {
   vi.clearAllMocks();
+  mocks.isDevAuthBypassEnabled.mockReturnValue(false);
   mocks.createNotification.mockResolvedValue(undefined);
   mocks.resolveNotificationsForEntity.mockResolvedValue(undefined);
 });
@@ -183,6 +195,24 @@ beforeEach(() => {
 afterEach(() => vi.restoreAllMocks());
 
 describe("CRM booking action identifier and lookup boundary", () => {
+  it("requires an authenticated real CRM staff member for confirmation", async () => {
+    const unauthenticated = setup({ authUserId: null });
+    expect(await markBookingConfirmedAction({ bookingId: BOOKING_ID })).toEqual({
+      success: false,
+      error: "Unauthorized",
+    });
+    expect(unauthenticated.admin.rpc).not.toHaveBeenCalled();
+
+    vi.clearAllMocks();
+    const noStaff = setup({ staffData: null });
+    mocks.isDevAuthBypassEnabled.mockReturnValue(true);
+    expect(await markBookingConfirmedAction({ bookingId: BOOKING_ID })).toEqual({
+      success: false,
+      error: "Unauthorized",
+    });
+    expect(noStaff.admin.rpc).not.toHaveBeenCalled();
+  });
+
   it("rejects undefined and malformed booking identifiers before querying", async () => {
     // Auth runs before domain validation: getCrmActionsContext() calls createClient() before
     // confirmCrmBooking() validates the booking ID. Provide a valid CRM context so that
@@ -257,6 +287,7 @@ describe("CRM booking action identifier and lookup boundary", () => {
       p_branch_id: BRANCH_ID,
     });
     expect(updateQuery.update).not.toHaveBeenCalled();
+    expect(mocks.recordBookingPaymentChange).not.toHaveBeenCalled();
   });
 
   it("treats a replayed online confirmation as success without line updates", async () => {

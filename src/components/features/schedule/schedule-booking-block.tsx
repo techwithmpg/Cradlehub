@@ -19,6 +19,7 @@ const STATUS_BG: Record<string, string> = {
   cancelled: "#F5F5F5",
   no_show: "#FFF3E0",
   pending: "#FFF8E1",
+  pending_crm_confirmation: "#FFF8E1",
 };
 
 const STATUS_BORDER: Record<string, string> = {
@@ -28,6 +29,7 @@ const STATUS_BORDER: Record<string, string> = {
   cancelled: "#BDBDBD",
   no_show: "#FF9800",
   pending: "#F59E0B",
+  pending_crm_confirmation: "#F59E0B",
 };
 
 const STATUS_TEXT: Record<string, string> = {
@@ -37,6 +39,7 @@ const STATUS_TEXT: Record<string, string> = {
   cancelled: "#616161",
   no_show: "#E65100",
   pending: "#B45309",
+  pending_crm_confirmation: "#B45309",
 };
 
 type BookingBlockProps = {
@@ -72,6 +75,10 @@ export function ScheduleBookingBlock({
   const bg = STATUS_BG[booking.status] ?? "#F5F5F5";
   const border = STATUS_BORDER[booking.status] ?? "#BDBDBD";
   const text = STATUS_TEXT[booking.status] ?? "#424242";
+  const statusLabel =
+    booking.status === "pending_crm_confirmation"
+      ? "pending CRM confirmation"
+      : booking.status.replace(/_/g, " ");
 
   return (
     <button
@@ -112,7 +119,7 @@ export function ScheduleBookingBlock({
         e.currentTarget.style.zIndex = isSelected ? "10" : "3";
         onHoverLeave?.();
       }}
-      aria-label={`Booking: ${booking.service} for ${booking.customer}`}
+      aria-label={`Booking: ${booking.service} for ${booking.customer}. Status: ${statusLabel}`}
       aria-pressed={isSelected}
     >
       <div

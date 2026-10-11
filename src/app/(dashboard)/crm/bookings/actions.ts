@@ -46,14 +46,14 @@ import { confirmBookingPaymentSchema } from "@/lib/validations/booking";
 import type { Database } from "@/types/supabase";
 import { z } from "zod";
 
-async function getCrmActionsContext() {
+async function getCrmActionsContext(allowDevBypass = true) {
   const supabase = await createClient();
   const {
     data: { user },
   } = await supabase.auth.getUser();
   if (!user) return null;
 
-  if (isDevAuthBypassEnabled()) {
+  if (allowDevBypass && isDevAuthBypassEnabled()) {
     const mock = getDevBypassLayoutStaff();
     return {
       supabase,
@@ -154,7 +154,7 @@ function buildRoomBookingSummary(booking: CrmBookingActionRow) {
 export async function markBookingConfirmedAction(
   rawInput: unknown
 ): Promise<{ success: boolean; error?: string }> {
-  const ctx = await getCrmActionsContext();
+  const ctx = await getCrmActionsContext(false);
   if (!ctx) return { success: false, error: "Unauthorized" };
   return confirmCrmBooking(ctx, rawInput);
 }
