@@ -325,7 +325,7 @@ function getStaffBranchName(staff: StaffPortalStaff): string | null {
 }
 
 // ── Resolve authenticated staff record ────────────────────────────────────
-async function getMyStaffRecord(): Promise<StaffPortalStaff | null> {
+async function getMyStaffRecord(allowDevBypass = true): Promise<StaffPortalStaff | null> {
   const supabase = await createClient();
   const {
     data: { user },
@@ -374,7 +374,7 @@ async function getMyStaffRecord(): Promise<StaffPortalStaff | null> {
 
   // Dev bypass: return a mock staff record so the portal renders
   // with empty data instead of crashing with "Unauthorized".
-  if (!me && isDevAuthBypassEnabled()) {
+  if (!me && allowDevBypass && isDevAuthBypassEnabled()) {
     return getDevBypassStaffRecord();
   }
 
@@ -845,7 +845,7 @@ export async function updateBookingProgressAction({
   nextStatus: BookingProgressStatus;
 }): Promise<BookingProgressResult> {
   const supabase = await createClient();
-  const me = await getMyStaffRecord();
+  const me = await getMyStaffRecord(false);
   if (!me) {
     return {
       ok: false,
@@ -877,6 +877,16 @@ export async function updateBookingProgressAction({
   const isManager = ["owner", "manager", "assistant_manager", "store_manager"].includes(role);
   const canManageOperationalProgress = canManageBookings(role);
   const isDriver = resolveStaffPwaOperationalGroup(me.system_role, me.staff_type) === "driver";
+
+  // This single-tenant workspace permits owner oversight across branches.
+  // Every other role must operate within its own branch, even when assigned.
+  if (role !== "owner" && (!me.branch_id || booking.branch_id !== me.branch_id)) {
+    return {
+      ok: false,
+      code: "PERMISSION_DENIED",
+      message: "This booking is outside your branch.",
+    };
+  }
 
   // Categorize the requested action
   const therapistActions: BookingProgressStatus[] = ["session_started", "completed"];
