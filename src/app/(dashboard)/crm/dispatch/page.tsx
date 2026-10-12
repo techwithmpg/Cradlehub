@@ -7,6 +7,7 @@ import { getDispatchData } from "@/lib/queries/dispatch-queries";
 import { logInfo } from "@/lib/logger";
 import { getFrontDeskContext } from "@/lib/queries/crm-context";
 import { getBranchBusinessDate } from "@/lib/engine/slot-time";
+import { RetainedWorkspaceModule } from "@/components/features/dashboard/retained-workspace-provider";
 
 export const metadata: Metadata = { title: "Home Service Operations — CRM" };
 
@@ -23,12 +24,14 @@ export default async function CrmDispatchPage() {
   });
 
   return (
-    <CrmOperationalPageShell
-      title="Home Service Operations"
-      description="Monitor home-service bookings, assignments, customer locations, and travel progress."
-      context={`${branchName} · ${today} · ${role} view`}
-    >
-      <HomeServiceDispatchWorkspace role="crm" data={data} showHeader={false} />
-    </CrmOperationalPageShell>
+    <RetainedWorkspaceModule moduleId="crm-dispatch">
+      <CrmOperationalPageShell
+        title="Home Service Operations"
+        description="Monitor home-service bookings, assignments, customer locations, and travel progress."
+        context={`${branchName} · ${today} · ${role} view`}
+      >
+        <HomeServiceDispatchWorkspace role="crm" data={data} showHeader={false} />
+      </CrmOperationalPageShell>
+    </RetainedWorkspaceModule>
   );
 }
