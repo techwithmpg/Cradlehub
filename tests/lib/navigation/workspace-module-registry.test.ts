@@ -171,5 +171,6 @@ describe("retained workspace registry", () => {
     expect(resolveWorkspaceModule("owner", "/owner/schedule")?.moduleId).toBe("owner-schedule");
     expect(resolveWorkspaceModule("owner", "/owner/attendance")?.moduleId).toBe("owner-attendance");
     expect(resolveWorkspaceModule("owner", "/owner/cash-flow")?.moduleId).toBe("owner-cash-flow");
+    expect(resolveWorkspaceModule("owner", "/owner/dispatch")?.moduleId).toBe("owner-dispatch");
   });
 });
