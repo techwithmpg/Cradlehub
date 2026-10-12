@@ -40,6 +40,10 @@ export default async function CrmCustomersPage({
   let waitlistRows: WaitlistRow[] = [];
   let totalPages = 1;
 
+  // Stats are independent from the selected segment. Start them before the
+  // segment query so navigation does not pay two serial database waits.
+  const statsPromise = getCrmStats(branchId);
+
   // Fetch tab-specific data
   if (tab === "all") {
     const result = await getCustomersPage({ branchId, search, page, pageSize: 25 });
@@ -61,7 +65,7 @@ export default async function CrmCustomersPage({
   }
 
   // Base stats
-  const stats = await getCrmStats(branchId);
+  const stats = await statsPromise;
 
   // Compute KPI data
   const kpiData: KpiData = {
