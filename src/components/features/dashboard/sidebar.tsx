@@ -281,6 +281,17 @@ function NavLink({
 
 function NavPendingIndicator({ isActive, isSystem }: { isActive: boolean; isSystem: boolean }) {
   const { pending } = useLinkStatus();
+  const [showPending, setShowPending] = useState(false);
+
+  useEffect(() => {
+    if (!pending) {
+      setShowPending(false);
+      return;
+    }
+
+    const timer = window.setTimeout(() => setShowPending(true), 180);
+    return () => window.clearTimeout(timer);
+  }, [pending]);
 
   return (
     <span
@@ -294,8 +305,8 @@ function NavPendingIndicator({ isActive, isSystem }: { isActive: boolean; isSyst
         flexShrink: 0,
       }}
     >
-      {pending ? (
-        <span className="size-1.5 animate-pulse rounded-full bg-current" />
+      {showPending ? (
+        <span className="size-1.5 rounded-full bg-current" />
       ) : isActive && !isSystem ? (
         <ChevronRight size={12} strokeWidth={2} style={{ color: "var(--cs-sidebar-muted)" }} />
       ) : null}
