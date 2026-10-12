@@ -40,7 +40,8 @@ describe("Owner Cash Flow route", () => {
     const page = await OwnerCashFlowPage({ searchParams: Promise.resolve({
       branchId: "branch-2", date: "2026-09-30", tab: "ledger", entry: "expense",
     }) });
-    const workspace = page.props.children[1];
+    const content = page.props.children;
+    const workspace = content.props.children[1];
 
     expect(cashFlowData).toHaveBeenCalledWith(
       "branch-2", "Second Spa", "2026-09-30", expect.objectContaining({ tab: "ledger" })
@@ -67,14 +68,15 @@ describe("Owner Cash Flow route", () => {
   it("does not query financial data when no branch exists", async () => {
     branches.mockResolvedValue([]);
     const page = await OwnerCashFlowPage({ searchParams: Promise.resolve({}) });
-    expect(page.type).toBe("section");
+    expect(page.props.children.type).toBe("section");
     expect(cashFlowData).not.toHaveBeenCalled();
   });
 
   it("keeps branch selection available when required financial data cannot load", async () => {
     cashFlowData.mockRejectedValue(new CashFlowRequiredDataError("financial_accounts"));
     const page = await OwnerCashFlowPage({ searchParams: Promise.resolve({}) });
-    expect(page.props.children[0].type).toBe("form");
-    expect(page.props.children[1].props.role).toBe("alert");
+    const content = page.props.children;
+    expect(content.props.children[0].type).toBe("form");
+    expect(content.props.children[1].props.role).toBe("alert");
   });
 });
