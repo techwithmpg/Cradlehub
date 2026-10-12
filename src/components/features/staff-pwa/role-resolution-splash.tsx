@@ -29,14 +29,11 @@ export function StaffRoleResolutionSplash({
           className="absolute inset-0 animate-pulse rounded-full border border-[#C8A96B]/25"
         />
 
-        <div
-          aria-hidden="true"
-          className="absolute inset-2 rounded-full bg-[#C8A96B]/10 blur-xl"
-        />
+        <div aria-hidden="true" className="absolute inset-2 rounded-full bg-[#C8A96B]/10 blur-xl" />
 
         <div className="relative grid h-20 w-20 place-items-center overflow-hidden rounded-[24px] border border-[#C8A96B]/25 bg-[#0D241B] shadow-[0_18px_42px_rgba(0,0,0,0.24)]">
           <Image
-            src="/images/brand/cradle-wellness-living-mark.png"
+            src="/staff-pwa-gold-emblem.png"
             alt=""
             width={64}
             height={64}
@@ -55,17 +52,13 @@ export function StaffRoleResolutionSplash({
       </div>
 
       <div className="mt-8 flex items-center gap-2.5 text-sm font-medium text-[#F7F3EB]/80">
-        <Loader2
-          className="h-4 w-4 animate-spin text-[#C8A96B]"
-          aria-hidden="true"
-        />
+        <Loader2 className="h-4 w-4 animate-spin text-[#C8A96B]" aria-hidden="true" />
 
         <span>{statusText}</span>
       </div>
 
       <p className="mt-2 max-w-[270px] text-xs leading-5 text-[#F7F3EB]/50">
-        Verifying your secure session and opening the
-        correct workspace.
+        Verifying your secure session and opening the correct workspace.
       </p>
     </div>
   );
