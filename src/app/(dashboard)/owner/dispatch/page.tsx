@@ -2,7 +2,10 @@ export const dynamic = "force-dynamic";
 
 import type { Metadata } from "next";
 import { redirect } from "next/navigation";
-import { createClient } from "@/lib/supabase/server";
+import { getCurrentUserWorkspaceAccess } from "@/lib/auth/get-user-workspace-access";
+import { getWorkspaceSwitchDestination, hasWorkspaceAccess } from "@/lib/auth/workspace-access";
+import { getLayoutStaffContext } from "@/lib/queries/staff-context";
+import { RetainedWorkspaceModule } from "@/components/features/dashboard/retained-workspace-provider";
 import { HomeServiceDispatchWorkspace } from "@/components/features/dispatch/dispatch-workspace";
 import { getDispatchData } from "@/lib/queries/dispatch-queries";
 import { logInfo } from "@/lib/logger";
@@ -10,19 +13,17 @@ import { logInfo } from "@/lib/logger";
 export const metadata: Metadata = { title: "Home Service Operations — Owner" };
 
 export default async function OwnerDispatchPage() {
-  const supabase = await createClient();
-  const { data: { user } } = await supabase.auth.getUser();
-  if (!user) redirect("/login");
+  const [access, ctx] = await Promise.all([
+    getCurrentUserWorkspaceAccess(),
+    getLayoutStaffContext(),
+  ]);
+  if (!access) redirect("/login");
+  if (!hasWorkspaceAccess(access.workspaces, "owner")) {
+    redirect(getWorkspaceSwitchDestination(access.workspaces));
+  }
 
-  const { data: me } = await supabase
-    .from("staff")
-    .select("id, system_role, branch_id")
-    .eq("auth_user_id", user.id)
-    .eq("is_active", true)
-    .maybeSingle();
-
-  if (!me || me.system_role !== "owner") redirect("/login");
-  if (!me.branch_id) redirect("/login");
+  const me = ctx?.me;
+  if (!me || me.system_role !== "owner" || !me.branch_id) redirect("/login");
 
   const today = new Date().toISOString().split("T")[0]!;
   const data = await getDispatchData({ branchId: me.branch_id, date: today });
@@ -34,5 +35,9 @@ export default async function OwnerDispatchPage() {
     count: data.items.length,
   });
 
-  return <HomeServiceDispatchWorkspace role="owner" data={data} />;
+  return (
+    <RetainedWorkspaceModule moduleId="owner-dispatch">
+      <HomeServiceDispatchWorkspace role="owner" data={data} />
+    </RetainedWorkspaceModule>
+  );
 }
