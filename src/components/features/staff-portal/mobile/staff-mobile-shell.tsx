@@ -24,22 +24,17 @@ export function StaffMobileShell({
 
   const content = isScan ? (
     <div className="min-h-dvh bg-[var(--cs-bg)] md:contents md:bg-transparent">{children}</div>
-  ) : profile === "utility" ? (
+  ) : (
     <StaffCanvas className="min-h-full pb-[calc(88px+env(safe-area-inset-bottom))] md:contents md:pb-0">
       {children}
       <StaffMobileBottomNav profile={profile} />
     </StaffCanvas>
-  ) : (
-    <div className="min-h-dvh bg-[var(--cs-bg)] pb-[calc(84px+env(safe-area-inset-bottom))] md:contents md:bg-transparent md:pb-0">
-      {children}
-      <StaffMobileBottomNav profile={profile} />
-    </div>
   );
 
   return (
     <MobileNavigationProgressProvider>
       <MobileRouteProgress />
-      {profile === "utility" && identity ? (
+      {identity ? (
         <StaffSafeMemoryProvider identity={identity}>{content}</StaffSafeMemoryProvider>
       ) : (
         content

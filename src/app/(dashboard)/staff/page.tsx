@@ -6,11 +6,12 @@ import {
   resolveStaffOperationalRole,
   resolveNavigationProfile,
 } from "@/components/features/staff-pwa/role-navigation";
-import { GeneralStaffMobileHome } from "@/components/features/staff-portal/basic/general-staff-mobile-home";
+import { CrmMobileHome } from "@/components/features/staff-pwa/crm/crm-mobile-home";
 import { TherapistMobileHome } from "@/components/features/staff-portal/therapist/therapist-mobile-home";
 import { TherapistHeader } from "@/components/features/staff-portal/therapist/therapist-header";
 import { getProviderWorkspaceRuntime } from "@/lib/staff-pwa/provider-runtime";
 import { getStaffWork } from "@/lib/staff-pwa/work-runtime";
+import { getCrmMobileRuntime } from "@/lib/staff-pwa/crm-runtime";
 import StaffTodayPage from "../staff-portal/page";
 
 export default async function StaffPage() {
@@ -73,18 +74,14 @@ export default async function StaffPage() {
     }
 
     if (profile === "crm_general") {
-      const [attendanceData, work] = await Promise.all([
+      const [attendanceData, work, runtime] = await Promise.all([
         getPureAttendanceSnapshot(30).catch(() => null),
         getStaffWork(),
+        getCrmMobileRuntime().catch(() => null),
       ]);
 
       return (
-        <GeneralStaffMobileHome
-          staff={staff}
-          profile="crm_general"
-          work={work}
-          attendanceData={attendanceData}
-        />
+        <CrmMobileHome staff={staff} runtime={runtime} work={work} attendance={attendanceData} />
       );
     }
   }

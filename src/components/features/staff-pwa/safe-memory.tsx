@@ -14,7 +14,9 @@ export type SafeSnapshot = {
     | "utilityRooms"
     | "driverToday"
     | "driverTrips"
-    | "driverMap";
+    | "driverMap"
+    | "crmToday"
+    | "crmWork";
   label: string;
   counts: readonly { label: string; value: number }[];
   updatedAt: number;
@@ -31,6 +33,7 @@ type CacheValue = {
       | "utilityTaskFilter"
       | "utilityRoomFilter"
       | "driverTripsFilter"
+      | "crmWorkFilter"
   ) => string | null;
   writePreference: (
     key:
@@ -38,7 +41,8 @@ type CacheValue = {
       | "progressTab"
       | "utilityTaskFilter"
       | "utilityRoomFilter"
-      | "driverTripsFilter",
+      | "driverTripsFilter"
+      | "crmWorkFilter",
     value: string
   ) => void;
 };
@@ -65,7 +69,8 @@ export function StaffSafeMemoryProvider({
         | "progressTab"
         | "utilityTaskFilter"
         | "utilityRoomFilter"
-        | "driverTripsFilter",
+        | "driverTripsFilter"
+        | "crmWorkFilter",
         string
       >
     >;
@@ -120,6 +125,7 @@ export function StaffSafeMemoryProvider({
         | "utilityTaskFilter"
         | "utilityRoomFilter"
         | "driverTripsFilter"
+        | "crmWorkFilter"
     ) => (entry.identity === identity ? (entry.preferences[key] ?? null) : null),
     [entry, identity]
   );
@@ -130,7 +136,8 @@ export function StaffSafeMemoryProvider({
         | "progressTab"
         | "utilityTaskFilter"
         | "utilityRoomFilter"
-        | "driverTripsFilter",
+        | "driverTripsFilter"
+        | "crmWorkFilter",
       value: string
     ) => {
       setEntry((previous) => ({

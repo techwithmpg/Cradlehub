@@ -19,10 +19,7 @@ import { resolveStaffOperationalRole } from "@/components/features/staff-pwa/rol
 async function staffLogoutAction() {
   "use server";
 
-  const [
-    { createClient },
-    { redirect },
-  ] = await Promise.all([
+  const [{ createClient }, { redirect }] = await Promise.all([
     import("@/lib/supabase/server"),
     import("next/navigation"),
   ]);
@@ -60,9 +57,7 @@ type BasicStaffMoreMenuProps = {
   isCanonical?: boolean;
 };
 
-export function getBasicStaffMoreSections(
-  isCanonical: boolean
-): MenuSection[] {
+export function getBasicStaffMoreSections(isCanonical: boolean): MenuSection[] {
   return [
     {
       title: "Account",
@@ -71,36 +66,28 @@ export function getBasicStaffMoreSections(
           kind: "link",
           label: "Profile",
           description: "View and edit your profile",
-          href: isCanonical
-            ? "/staff/profile"
-            : "/staff-portal/profile",
+          href: isCanonical ? "/staff/profile" : "/staff-portal/profile",
           icon: User,
         },
         {
           kind: "link",
           label: "My Attendance",
           description: "View clock history and review status",
-          href: isCanonical
-            ? "/staff/attendance"
-            : "/staff-portal/attendance",
+          href: isCanonical ? "/staff/attendance" : "/staff-portal/attendance",
           icon: ClipboardCheck,
         },
         {
           kind: "link",
           label: "Notifications",
           description: "Manage your notifications",
-          href: isCanonical
-            ? "/staff/notices"
-            : "/staff-portal/notifications",
+          href: isCanonical ? "/staff/notices" : "/staff-portal/notifications",
           icon: Bell,
         },
         {
           kind: "link",
           label: "Settings",
           description: "App preferences",
-          href: isCanonical
-            ? "/staff/notices"
-            : "/staff-portal/notifications",
+          href: isCanonical ? "/staff/notices" : "/staff-portal/notifications",
           icon: Settings,
           disabled: true,
         },
@@ -113,9 +100,7 @@ export function getBasicStaffMoreSections(
           kind: "link",
           label: "Help & Support",
           description: "Get help and contact support",
-          href: isCanonical
-            ? "/staff/notices"
-            : "/staff-portal/notifications",
+          href: isCanonical ? "/staff/notices" : "/staff-portal/notifications",
           icon: HelpCircle,
           disabled: true,
         },
@@ -123,9 +108,7 @@ export function getBasicStaffMoreSections(
           kind: "link",
           label: "Privacy Policy",
           description: "Read our privacy policy",
-          href: isCanonical
-            ? "/staff/notices"
-            : "/staff-portal/notifications",
+          href: isCanonical ? "/staff/notices" : "/staff-portal/notifications",
           icon: Shield,
           disabled: true,
         },
@@ -149,19 +132,10 @@ type DisplayItem = {
   disabled?: boolean;
 };
 
-export async function BasicStaffMoreMenu({
-  isCanonical = false,
-}: BasicStaffMoreMenuProps) {
-  const {
-    getGeneralStaffRuntimeData,
-  } = await import(
-    "@/lib/staff-pwa/general-staff-runtime"
-  );
+export async function BasicStaffMoreMenu({ isCanonical = false }: BasicStaffMoreMenuProps) {
+  const { getGeneralStaffRuntimeData } = await import("@/lib/staff-pwa/general-staff-runtime");
 
-  const {
-    staff,
-    attendanceData,
-  } = await getGeneralStaffRuntimeData();
+  const { staff, attendanceData } = await getGeneralStaffRuntimeData();
 
   const opRole = staff
     ? resolveStaffOperationalRole({
@@ -172,13 +146,9 @@ export async function BasicStaffMoreMenu({
 
   const isUtility = opRole === "utility";
 
-  const displayName = staff
-    ? getStaffDisplayName(staff)
-    : "Staff Member";
+  const displayName = staff ? getStaffDisplayName(staff) : "Staff Member";
 
-  const roleLabel = isUtility
-    ? "Utility"
-    : "CRM Staff";
+  const roleLabel = isUtility ? "Utility" : "CRM Staff";
 
   const noticesHref =
     isCanonical && isUtility
@@ -198,17 +168,13 @@ export async function BasicStaffMoreMenu({
     {
       label: "My Profile",
       description: "Personal information",
-      href: isCanonical
-        ? "/staff/profile"
-        : "/staff-portal/profile",
+      href: isCanonical ? "/staff/profile" : "/staff-portal/profile",
       icon: User,
     },
     {
       label: "Attendance",
       description: "Clock history and review status",
-      href: isCanonical
-        ? "/staff/attendance"
-        : "/staff-portal/attendance",
+      href: isCanonical ? "/staff/attendance" : "/staff-portal/attendance",
       icon: ClipboardCheck,
       status: attendanceStatus,
     },
@@ -218,35 +184,37 @@ export async function BasicStaffMoreMenu({
       href: noticesHref,
       icon: Bell,
     },
-    {
-      label: "Device / Scan Status",
-      description: "Scanner configuration",
-      icon: Smartphone,
-      disabled: true,
-      status: "Managed",
-    },
-    {
-      label: "Help & Support",
-      description: "Support resources",
-      icon: HelpCircle,
-      disabled: true,
-      status: "Soon",
-    },
-    {
-      label: "About CradleHub",
-      description: "Staff workspace information",
-      icon: Info,
-      disabled: true,
-      status: "Soon",
-    },
+    ...(!isCanonical
+      ? [
+          {
+            label: "Device / Scan Status",
+            description: "Scanner configuration",
+            icon: Smartphone,
+            disabled: true,
+            status: "Managed",
+          },
+          {
+            label: "Help & Support",
+            description: "Support resources",
+            icon: HelpCircle,
+            disabled: true,
+            status: "Soon",
+          },
+          {
+            label: "About CradleHub",
+            description: "Staff workspace information",
+            icon: Info,
+            disabled: true,
+            status: "Soon",
+          },
+        ]
+      : []),
   ];
 
   return (
-    <div className="min-h-dvh bg-[#F7F3EB]">
+    <div className={isCanonical ? "" : "min-h-dvh bg-[#F7F3EB]"}>
       <main className="mx-auto max-w-[480px] px-4 pb-6 pt-4">
-        <h1 className="mb-4 text-[25px] font-bold tracking-[-0.035em] text-[#14283A]">
-          More
-        </h1>
+        <h1 className="mb-4 text-[25px] font-bold tracking-[-0.035em] text-[#14283A]">More</h1>
 
         <section className="relative overflow-hidden rounded-[22px] bg-[linear-gradient(135deg,#1A7056_0%,#0D4D3A_100%)] px-4 py-4 text-white shadow-[0_10px_28px_rgba(13,77,58,0.18)]">
           <div className="absolute -right-8 -top-10 size-36 rounded-full bg-white/5" />
@@ -261,13 +229,9 @@ export async function BasicStaffMoreMenu({
             />
 
             <div className="min-w-0">
-              <div className="truncate text-[20px] font-bold tracking-[-0.02em]">
-                {displayName}
-              </div>
+              <div className="truncate text-[20px] font-bold tracking-[-0.02em]">{displayName}</div>
 
-              <div className="mt-0.5 text-[13px] text-white/80">
-                {roleLabel}
-              </div>
+              <div className="mt-0.5 text-[13px] text-white/80">{roleLabel}</div>
 
               <span className="mt-2 inline-flex rounded-full bg-white/12 px-2.5 py-1 text-[10px] font-semibold text-white/90">
                 Staff Workspace
@@ -293,9 +257,7 @@ export async function BasicStaffMoreMenu({
                 </div>
 
                 <div className="min-w-0 flex-1">
-                  <div className="text-[13.5px] font-semibold text-[#223548]">
-                    {item.label}
-                  </div>
+                  <div className="text-[13.5px] font-semibold text-[#223548]">{item.label}</div>
 
                   <div className="mt-0.5 truncate text-[10.5px] text-[#7C8794]">
                     {item.description}
@@ -309,41 +271,28 @@ export async function BasicStaffMoreMenu({
                 ) : null}
 
                 {!item.disabled ? (
-                  <ChevronRight
-                    size={17}
-                    className="shrink-0 text-[#758190]"
-                  />
+                  <ChevronRight size={17} className="shrink-0 text-[#758190]" />
                 ) : null}
               </div>
             );
 
             return (
               <div key={item.label}>
-                {index > 0 ? (
-                  <div className="ml-16 h-px bg-[#EEEAE4]" />
-                ) : null}
+                {index > 0 ? <div className="ml-16 h-px bg-[#EEEAE4]" /> : null}
 
                 {item.href && !item.disabled ? (
-                  <Link
-                    href={item.href}
-                    className="block"
-                  >
+                  <Link href={item.href} className="block">
                     {content}
                   </Link>
                 ) : (
-                  <div aria-disabled={item.disabled}>
-                    {content}
-                  </div>
+                  <div aria-disabled={item.disabled}>{content}</div>
                 )}
               </div>
             );
           })}
         </section>
 
-        <form
-          action={staffLogoutAction}
-          className="mt-4"
-        >
+        <form action={staffLogoutAction} className="mt-4">
           <button
             type="submit"
             className="flex min-h-14 w-full items-center justify-center gap-2 rounded-[18px] border border-[#F3CACA] bg-[#FFF1F1] text-[14px] font-bold text-[#D63737] active:scale-[0.99]"

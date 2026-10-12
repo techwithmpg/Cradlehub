@@ -96,7 +96,14 @@ export default async function StaffLayout({ children }: { children: ReactNode })
         </StaffMobileShell>
       );
     } else {
-      content = <StaffMobileShell profile="crm_general">{children}</StaffMobileShell>;
+      content = (
+        <StaffMobileShell
+          profile="crm_general"
+          identity={`${authContext?.user.id ?? ""}:${staff.id}:${staff.system_role}:${staff.staff_type ?? ""}:${staff.branch_id ?? ""}`}
+        >
+          {children}
+        </StaffMobileShell>
+      );
     }
   }
 
