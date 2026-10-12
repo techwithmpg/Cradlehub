@@ -258,12 +258,14 @@ describe("RetainedWorkspaceProvider", () => {
       ["/crm/schedule", "Schedule"],
       ["/crm/attendance", "Attendance"],
       ["/crm/customers", "Customers"],
+      ["/crm/cash-flow", "Cash Flow"],
+      ["/crm/dispatch", "Home Service"],
     ] as const) {
       act(() => notifyWorkspaceNavigation(nextPath));
       pathname = nextPath;
       view.rerender(renderWorkspace(<StatefulModule name={name} />));
     }
-    expect(document.querySelectorAll("[data-retained-workspace-module]")).toHaveLength(4);
+    expect(document.querySelectorAll("[data-retained-workspace-module]")).toHaveLength(6);
     expect(document.querySelector('[data-retained-workspace-module="crm-work-queue"]')).toBeNull();
   });
 });
