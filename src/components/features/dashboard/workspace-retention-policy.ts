@@ -15,7 +15,8 @@ export type RetainedModuleId =
   | "owner-bookings"
   | "owner-schedule"
   | "owner-attendance"
-  | "owner-cash-flow";
+  | "owner-cash-flow"
+  | "owner-dispatch";
 
 export type WorkspaceModuleDescriptor = {
   workspace: RetainedWorkspace;
@@ -204,6 +205,15 @@ const MODULE_POLICIES: readonly ModulePolicy[] = [
     staleTimeMs: 15_000,
     cost: "high",
   },
+  {
+    workspace: "owner",
+    moduleId: "owner-dispatch",
+    normalizedRoute: "/owner/dispatch",
+    exact: true,
+    stableSearchParams: [],
+    staleTimeMs: 10_000,
+    cost: "high",
+  },
 ] as const;
 
 function stableSearchState(
@@ -255,5 +265,5 @@ export function retainedModuleKey(scopeKey: string, descriptor: WorkspaceModuleD
 export function affectedModulesForBookingChange(workspace: RetainedWorkspace): RetainedModuleId[] {
   return workspace === "crm"
     ? ["crm-work-queue", "crm-bookings", "crm-schedule", "crm-cash-flow", "crm-dispatch"]
-    : ["owner-overview", "owner-reports", "owner-bookings", "owner-schedule", "owner-cash-flow"];
+    : ["owner-overview", "owner-reports", "owner-bookings", "owner-schedule", "owner-cash-flow", "owner-dispatch"];
 }
