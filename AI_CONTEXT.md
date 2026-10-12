@@ -1,5 +1,7 @@
 # CradleHub AI Context
 
+> **2026-10-12 latest Staff PWA owner authorization:** The owner authorized the shared native Staff PWA foundation and Provider-first implementation from accepted `origin/main` `3f8f4067c4c9e0e3e2122b97d4d0694fac0dbb20` on `stage/staff-pwa-native-foundation-provider`, including correction of the reported post-login out-of-scope browser bar. See [the current review handoff](docs/pwa/PWA-NATIVE-FOUNDATION-PROVIDER-HANDOFF.md). This branch is review evidence with **CORRECTION REQUIRED** release verification; no merge, production deployment, database mutation, or next-role implementation is authorized. Historical stage text below remains historical evidence where it conflicts with this newer explicit owner instruction.
+
 ## Identity
 
 - Project: CradleHub
