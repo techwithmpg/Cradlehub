@@ -9,6 +9,7 @@ import {
   ownerUpdateBookingPaymentAction,
 } from "@/app/(dashboard)/owner/bookings/actions";
 import { getBranchBusinessDate } from "@/lib/engine/slot-time";
+import { RetainedWorkspaceModule } from "@/components/features/dashboard/retained-workspace-provider";
 
 async function getOwnerContext() {
   const supabase = await createClient();
@@ -64,38 +65,42 @@ export default async function OwnerSchedulePage({
 
   if (branches.length === 0) {
     return (
-      <div
-        className="cs-card"
-        style={{
-          padding: "3rem 1.5rem",
-          textAlign: "center",
-          color: "var(--cs-text-muted)",
-          fontSize: "0.875rem",
-        }}
-      >
-        <div style={{ fontSize: 28, marginBottom: 12 }}>🏢</div>
-        <div style={{ fontWeight: 600, color: "var(--cs-text)", marginBottom: 4 }}>
-          No branches configured
+      <RetainedWorkspaceModule moduleId="owner-schedule">
+        <div
+          className="cs-card"
+          style={{
+            padding: "3rem 1.5rem",
+            textAlign: "center",
+            color: "var(--cs-text-muted)",
+            fontSize: "0.875rem",
+          }}
+        >
+          <div style={{ fontSize: 28, marginBottom: 12 }}>🏢</div>
+          <div style={{ fontWeight: 600, color: "var(--cs-text)", marginBottom: 4 }}>
+            No branches configured
+          </div>
+          <div>Create a branch first to view schedules.</div>
         </div>
-        <div>Create a branch first to view schedules.</div>
-      </div>
+      </RetainedWorkspaceModule>
     );
   }
 
   return (
-    <ScheduleWorkspace
-      workspaceContext="owner"
-      viewerRole="owner"
-      branchId={selectedBranchId}
-      branchName={selectedBranch?.name ?? ""}
-      date={selectedDate}
-      branches={branches}
-      staffRows={scheduleRows}
-      branchResources={resourcesResult.data ?? []}
-      stats={stats}
-      viewBookingsHref="/owner/bookings"
-      statusAction={ownerUpdateBookingStatusAction}
-      paymentAction={ownerUpdateBookingPaymentAction}
-    />
+    <RetainedWorkspaceModule moduleId="owner-schedule">
+      <ScheduleWorkspace
+        workspaceContext="owner"
+        viewerRole="owner"
+        branchId={selectedBranchId}
+        branchName={selectedBranch?.name ?? ""}
+        date={selectedDate}
+        branches={branches}
+        staffRows={scheduleRows}
+        branchResources={resourcesResult.data ?? []}
+        stats={stats}
+        viewBookingsHref="/owner/bookings"
+        statusAction={ownerUpdateBookingStatusAction}
+        paymentAction={ownerUpdateBookingPaymentAction}
+      />
+    </RetainedWorkspaceModule>
   );
 }
