@@ -24,13 +24,10 @@ export default async function CrmLayout({
 }: {
   children: React.ReactNode;
 }) {
-  // Both helpers remain authoritative server-side checks. They are independent
-  // and React-cache their own work within the request, so resolve them together
-  // instead of adding their latency serially on every CRM navigation.
-  const [ctx, frontDesk] = await Promise.all([
-    getLayoutStaffContext(),
-    getFrontDeskContext(),
-  ]);
+  // Front Desk context already performs the authoritative authenticated
+  // workspace/branch resolution and exposes the user id needed below.
+  // Reuse it instead of repeating the layout staff lookup on every CRM route.
+  const frontDesk = await getFrontDeskContext();
   const branchId = frontDesk.branchId;
   const branchName = frontDesk.branchName;
   const coachAvailability = getAgentCoachAvailability({
