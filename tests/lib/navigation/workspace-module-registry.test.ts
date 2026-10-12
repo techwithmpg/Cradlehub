@@ -138,4 +138,38 @@ describe("retained workspace registry", () => {
       second && retainedModuleKey(SCOPE, second)
     );
   });
+
+  it("isolates retained Owner operational state by selected branch", () => {
+    const mainFirst = resolveWorkspaceModule(
+      "owner",
+      "/owner/schedule",
+      "branchId=main&date=2026-10-12"
+    );
+    const mainLater = resolveWorkspaceModule(
+      "owner",
+      "/owner/schedule",
+      "branchId=main&date=2026-10-13"
+    );
+    const smBranch = resolveWorkspaceModule(
+      "owner",
+      "/owner/schedule",
+      "branchId=sm&date=2026-10-12"
+    );
+
+    expect(mainFirst?.retentionScopeState).toBe("branchId=main");
+    expect(mainFirst && retainedModuleKey("owner-user:owner:all-branches", mainFirst)).toBe(
+      mainLater && retainedModuleKey("owner-user:owner:all-branches", mainLater)
+    );
+    expect(mainFirst && retainedModuleKey("owner-user:owner:all-branches", mainFirst)).not.toBe(
+      smBranch && retainedModuleKey("owner-user:owner:all-branches", smBranch)
+    );
+  });
+
+  it("recognizes the expanded hot operational module set", () => {
+    expect(resolveWorkspaceModule("crm", "/crm/cash-flow")?.moduleId).toBe("crm-cash-flow");
+    expect(resolveWorkspaceModule("crm", "/crm/dispatch")?.moduleId).toBe("crm-dispatch");
+    expect(resolveWorkspaceModule("owner", "/owner/schedule")?.moduleId).toBe("owner-schedule");
+    expect(resolveWorkspaceModule("owner", "/owner/attendance")?.moduleId).toBe("owner-attendance");
+    expect(resolveWorkspaceModule("owner", "/owner/cash-flow")?.moduleId).toBe("owner-cash-flow");
+  });
 });
