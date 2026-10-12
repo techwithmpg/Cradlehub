@@ -10,6 +10,7 @@ import { getAttendanceWorkspaceData } from "@/lib/attendance/queries";
 import { loadOwnerAttendanceBranch } from "@/lib/attendance/owner-attendance-branch";
 import { parseAttendanceTab } from "@/lib/attendance/tabs";
 import { getRequestOrigin } from "@/lib/http/request-origin";
+import { RetainedWorkspaceModule } from "@/components/features/dashboard/retained-workspace-provider";
 
 export default async function OwnerAttendancePage({
   searchParams,
@@ -42,30 +43,32 @@ export default async function OwnerAttendancePage({
     : null;
 
   return (
-    <section>
-      {error || !data ? (
-        <Alert variant="destructive">
-          <AlertTitle>Could not load attendance</AlertTitle>
-          <AlertDescription>{error ?? "Unknown error."}</AlertDescription>
-        </Alert>
-      ) : (
-        <AttendanceWorkspace
-          key={activeTab}
-          data={data}
-          activeTab={activeTab}
-          initialNowMs={data.serverNowMs}
-          initialRecordFilters={filterResult?.filters}
-          routeBasePath="/owner/attendance"
-          routeBranchId={branchResult.branch?.id}
-          flash={{
-            status: oneAttendanceParam(params.status),
-            message:
-              oneAttendanceParam(params.message) ?? branchResult.warning ?? filterResult?.warning,
-            activationUrl: oneAttendanceParam(params.activationUrl),
-            expiresAt: oneAttendanceParam(params.expiresAt),
-          }}
-        />
-      )}
-    </section>
+    <RetainedWorkspaceModule moduleId="owner-attendance">
+      <section>
+        {error || !data ? (
+          <Alert variant="destructive">
+            <AlertTitle>Could not load attendance</AlertTitle>
+            <AlertDescription>{error ?? "Unknown error."}</AlertDescription>
+          </Alert>
+        ) : (
+          <AttendanceWorkspace
+            key={activeTab}
+            data={data}
+            activeTab={activeTab}
+            initialNowMs={data.serverNowMs}
+            initialRecordFilters={filterResult?.filters}
+            routeBasePath="/owner/attendance"
+            routeBranchId={branchResult.branch?.id}
+            flash={{
+              status: oneAttendanceParam(params.status),
+              message:
+                oneAttendanceParam(params.message) ?? branchResult.warning ?? filterResult?.warning,
+              activationUrl: oneAttendanceParam(params.activationUrl),
+              expiresAt: oneAttendanceParam(params.expiresAt),
+            }}
+          />
+        )}
+      </section>
+    </RetainedWorkspaceModule>
   );
 }
