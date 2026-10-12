@@ -5,7 +5,7 @@ import type { ReactNode } from "react";
 import { useRouter } from "next/navigation";
 
 export type SafeSnapshot = {
-  screen: "today" | "schedule" | "progress";
+  screen: "today" | "schedule" | "progress" | "utilityHome" | "utilityTasks" | "utilityRooms";
   label: string;
   counts: readonly { label: string; value: number }[];
   updatedAt: number;
@@ -15,8 +15,13 @@ type CacheValue = {
   read: (screen: SafeSnapshot["screen"]) => SafeSnapshot | null;
   write: (snapshot: Omit<SafeSnapshot, "updatedAt">) => void;
   invalidate: (screens: readonly SafeSnapshot["screen"][]) => void;
-  readPreference: (key: "scheduleDate" | "progressTab") => string | null;
-  writePreference: (key: "scheduleDate" | "progressTab", value: string) => void;
+  readPreference: (
+    key: "scheduleDate" | "progressTab" | "utilityTaskFilter" | "utilityRoomFilter"
+  ) => string | null;
+  writePreference: (
+    key: "scheduleDate" | "progressTab" | "utilityTaskFilter" | "utilityRoomFilter",
+    value: string
+  ) => void;
 };
 
 const Context = createContext<CacheValue | null>(null);
@@ -35,7 +40,9 @@ export function StaffSafeMemoryProvider({
   const [entry, setEntry] = useState<{
     identity: string;
     snapshots: Partial<Record<SafeSnapshot["screen"], SafeSnapshot>>;
-    preferences: Partial<Record<"scheduleDate" | "progressTab", string>>;
+    preferences: Partial<
+      Record<"scheduleDate" | "progressTab" | "utilityTaskFilter" | "utilityRoomFilter", string>
+    >;
   }>({ identity, snapshots: {}, preferences: {} });
   const read = useCallback(
     (screen: SafeSnapshot["screen"]) => {
@@ -80,12 +87,15 @@ export function StaffSafeMemoryProvider({
   );
 
   const readPreference = useCallback(
-    (key: "scheduleDate" | "progressTab") =>
+    (key: "scheduleDate" | "progressTab" | "utilityTaskFilter" | "utilityRoomFilter") =>
       entry.identity === identity ? (entry.preferences[key] ?? null) : null,
     [entry, identity]
   );
   const writePreference = useCallback(
-    (key: "scheduleDate" | "progressTab", value: string) => {
+    (
+      key: "scheduleDate" | "progressTab" | "utilityTaskFilter" | "utilityRoomFilter",
+      value: string
+    ) => {
       setEntry((previous) => ({
         identity,
         snapshots: previous.identity === identity ? previous.snapshots : {},

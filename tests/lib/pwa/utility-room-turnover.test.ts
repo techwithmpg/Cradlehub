@@ -24,6 +24,9 @@ const mockServicesSelect = vi.fn();
 const mockWorkflowTasksSelect = vi.fn();
 const mockWorkflowTasksUpdate = vi.fn();
 const mockWorkflowTasksInsert = vi.fn();
+const mockWorkflowTasksEq = vi.fn();
+const mockWorkflowTasksGte = vi.fn();
+const mockWorkflowTasksLimit = vi.fn();
 
 let updateCasRowsOverride: any[] | (() => any[]) | null = null;
 let insertErrorOverride: any | null = null;
@@ -49,12 +52,22 @@ function createChain(resolver: () => Promise<any>, customActions?: Record<string
       mockUpsertSpy(payload);
       return chain;
     },
-    eq: () => chain,
+    eq: (...args: unknown[]) => {
+      customActions?.eq?.(...args);
+      return chain;
+    },
     neq: () => chain,
     in: () => chain,
+    gte: (...args: unknown[]) => {
+      customActions?.gte?.(...args);
+      return chain;
+    },
     not: () => chain,
     order: () => chain,
-    limit: () => chain,
+    limit: (...args: unknown[]) => {
+      customActions?.limit?.(...args);
+      return chain;
+    },
     maybeSingle: () => resolver(),
     single: () => resolver(),
     then: (resolve: any, reject: any) => resolver().then(resolve, reject),
@@ -82,21 +95,33 @@ const mockAdminClient = {
     }
     if (table === "workflow_tasks") {
       return createChain(mockWorkflowTasksSelect, {
+        eq: mockWorkflowTasksEq,
+        gte: mockWorkflowTasksGte,
+        limit: mockWorkflowTasksLimit,
         insert: (payload: any) => {
           mockWorkflowTasksInsert(payload);
           const insertChain: any = {
             select: () => insertChain,
             single: () => {
-              if (insertErrorOverride) return Promise.resolve({ data: null, error: insertErrorOverride });
+              if (insertErrorOverride)
+                return Promise.resolve({ data: null, error: insertErrorOverride });
               return Promise.resolve({ data: { id: taskId, ...payload }, error: null });
             },
             maybeSingle: () => {
-              if (insertErrorOverride) return Promise.resolve({ data: null, error: insertErrorOverride });
+              if (insertErrorOverride)
+                return Promise.resolve({ data: null, error: insertErrorOverride });
               return Promise.resolve({ data: { id: taskId, ...payload }, error: null });
             },
             then: (resolve: any, reject: any) => {
-              if (insertErrorOverride) return Promise.resolve({ data: null, error: insertErrorOverride }).then(resolve, reject);
-              return Promise.resolve({ data: { id: taskId, ...payload }, error: null }).then(resolve, reject);
+              if (insertErrorOverride)
+                return Promise.resolve({ data: null, error: insertErrorOverride }).then(
+                  resolve,
+                  reject
+                );
+              return Promise.resolve({ data: { id: taskId, ...payload }, error: null }).then(
+                resolve,
+                reject
+              );
             },
           };
           return insertChain;
@@ -112,8 +137,8 @@ const mockAdminClient = {
                 typeof updateCasRowsOverride === "function"
                   ? updateCasRowsOverride()
                   : updateCasRowsOverride !== null
-                  ? updateCasRowsOverride
-                  : [{ id: taskId, ...payload }];
+                    ? updateCasRowsOverride
+                    : [{ id: taskId, ...payload }];
               return Promise.resolve({ data: rows[0] ?? null, error: null });
             },
             single: () => {
@@ -121,8 +146,8 @@ const mockAdminClient = {
                 typeof updateCasRowsOverride === "function"
                   ? updateCasRowsOverride()
                   : updateCasRowsOverride !== null
-                  ? updateCasRowsOverride
-                  : [{ id: taskId, ...payload }];
+                    ? updateCasRowsOverride
+                    : [{ id: taskId, ...payload }];
               return Promise.resolve({ data: rows[0] ?? null, error: null });
             },
             then: (resolve: any, reject: any) => {
@@ -130,8 +155,8 @@ const mockAdminClient = {
                 typeof updateCasRowsOverride === "function"
                   ? updateCasRowsOverride()
                   : updateCasRowsOverride !== null
-                  ? updateCasRowsOverride
-                  : [{ id: taskId, ...payload }];
+                    ? updateCasRowsOverride
+                    : [{ id: taskId, ...payload }];
               return Promise.resolve({ data: rows, error: null }).then(resolve, reject);
             },
           };
@@ -430,7 +455,10 @@ describe("W1B: Utility Room Turnover Integrity, Concurrency & Recovery", () => {
 
     // Step 1: Initial active task select returns null (racing thread hasn't committed yet)
     // Step 2: INSERT encounters 23505 unique violation
-    insertErrorOverride = { code: "23505", message: "duplicate key value violates unique constraint" };
+    insertErrorOverride = {
+      code: "23505",
+      message: "duplicate key value violates unique constraint",
+    };
 
     // Step 3: Re-query active task finds the concurrent task created by the racing thread
     mockWorkflowTasksSelect
@@ -853,6 +881,65 @@ describe("W1B: Utility Room Turnover Integrity, Concurrency & Recovery", () => {
     expect(runtime?.turnoverItems[0]?.customerName).toBeNull(); // Zero PII preserved
   });
 
+  it("12b. Utility runtime separates active work from bounded recent ready history", async () => {
+    mockGetUser.mockResolvedValue({ data: { user: { id: userId } }, error: null });
+    mockStaffSelect.mockResolvedValue({
+      data: {
+        id: staffId,
+        full_name: "Utility Employee",
+        nickname: null,
+        avatar_url: null,
+        branch_id: branchId,
+        system_role: "utility",
+        staff_type: "utility",
+      },
+      error: null,
+    });
+    mockWorkflowTasksSelect
+      .mockResolvedValueOnce({
+        data: [
+          {
+            id: taskId,
+            entity_id: resourceId,
+            status: "in_progress",
+            assigned_to_staff_id: staffId,
+            created_at: "2026-10-12T09:00:00Z",
+            metadata: { room_name: "Treatment Room 1", service_name: "Massage" },
+          },
+        ],
+        error: null,
+      })
+      .mockResolvedValueOnce({
+        data: [
+          {
+            id: "completed-task",
+            entity_id: resourceId,
+            status: "completed",
+            assigned_to_staff_id: staffId,
+            created_at: "2026-10-12T08:00:00Z",
+            completed_at: "2026-10-12T10:00:00Z",
+            metadata: { room_name: "Treatment Room 1" },
+          },
+        ],
+        error: null,
+      });
+    mockBranchResourcesSelect.mockResolvedValue({
+      data: [{ id: resourceId, name: "Treatment Room 1", type: "room" }],
+      error: null,
+    });
+
+    const runtime = await getUtilityWorkspaceRuntime();
+    expect(runtime?.turnoverItems.map((item) => item.status)).toEqual(["in_progress"]);
+    expect(runtime?.turnoverItems[0]?.assignedToStaffId).toBe(staffId);
+    expect(runtime?.recentCompletedItems.map((item) => item.status)).toEqual(["completed"]);
+    expect(runtime?.recentCompletedItems[0]?.completedAt).toBe("2026-10-12T10:00:00Z");
+    expect(runtime?.recentCompletedItems[0]?.customerName).toBeNull();
+    expect(mockWorkflowTasksEq).toHaveBeenCalledWith("branch_id", branchId);
+    expect(mockWorkflowTasksEq).toHaveBeenCalledWith("status", "completed");
+    expect(mockWorkflowTasksGte).toHaveBeenCalledWith("completed_at", expect.any(String));
+    expect(mockWorkflowTasksLimit).toHaveBeenCalledWith(30);
+  });
+
   // ───────────────────────────────────────────────────────────────────────────
   // 13. Service completion turnover failure is surfaced truthfully
   // ───────────────────────────────────────────────────────────────────────────
@@ -1026,9 +1113,7 @@ describe("W1B: Utility Room Turnover Integrity, Concurrency & Recovery", () => {
     });
 
     // Must throw, never silently returning false (which would imply room is ready)
-    await expect(isResourceInActiveTurnover(resourceId)).rejects.toThrow(
-      "database unreachable"
-    );
+    await expect(isResourceInActiveTurnover(resourceId)).rejects.toThrow("database unreachable");
 
     // Re-exported engine helper behaves identically
     await expect(engineIsResourceInActiveTurnover(resourceId)).rejects.toThrow(

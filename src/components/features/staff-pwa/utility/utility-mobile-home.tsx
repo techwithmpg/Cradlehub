@@ -1,212 +1,170 @@
 import Link from "next/link";
-import {
-  Bell,
-  CheckCircle2,
-  ChevronRight,
-  Clock3,
-  DoorOpen,
-  Leaf,
-  QrCode,
-  Sparkles,
-} from "lucide-react";
+import { Bell, ChevronRight, ClipboardList, DoorOpen, QrCode, Sparkles } from "lucide-react";
 import { UserAvatar } from "@/components/shared/user-avatar";
-import type { UtilityWorkspaceRuntime } from "@/lib/staff-pwa/utility-runtime";
+import {
+  StaffCard,
+  StaffEmptyState,
+  StaffFeedback,
+  StaffScreen,
+  StaffStatTile,
+  StaffStatusChip,
+} from "@/components/features/staff-pwa/native-foundation";
+import { StaffSnapshotRecorder } from "@/components/features/staff-pwa/safe-memory";
+import type {
+  UtilityRoomTurnoverItem,
+  UtilityWorkspaceRuntime,
+} from "@/lib/staff-pwa/utility-runtime";
 
-type Props = {
-  runtime: UtilityWorkspaceRuntime;
-};
-
-function displayName(
-  staff: UtilityWorkspaceRuntime["staff"]
-) {
-  return (
-    staff.nickname?.trim() ||
-    staff.full_name?.trim() ||
-    "Utility Staff"
-  );
+function statusLabel(item: UtilityRoomTurnoverItem) {
+  return item.status === "in_progress" ? "In progress" : "Waiting";
 }
 
-function dutyLabel(
-  runtime: UtilityWorkspaceRuntime
-) {
-  if (
-    runtime.attendanceData?.currentClockState ===
-    "clocked_in"
-  ) {
-    return "On Duty";
-  }
-
-  if (
-    runtime.attendanceData?.currentClockState ===
-    "clocked_out"
-  ) {
-    return "Shift Complete";
-  }
-
-  return "Off Duty";
-}
-
-export function UtilityMobileHome({
-  runtime,
-}: Props) {
-  const name = displayName(runtime.staff);
+export function UtilityMobileHome({ runtime }: { runtime: UtilityWorkspaceRuntime }) {
+  const name = runtime.staff.nickname?.trim() || runtime.staff.full_name?.trim() || "Utility staff";
   const firstName = name.split(" ")[0] ?? name;
-
-  const activeCount = runtime.turnoverItems.length;
+  const waiting = runtime.turnoverItems.filter((item) => item.status === "open").length;
+  const inProgress = runtime.turnoverItems.length - waiting;
+  const recentReady = runtime.recentCompletedItems.length;
+  const dateLabel = new Intl.DateTimeFormat("en-PH", {
+    weekday: "short",
+    month: "short",
+    day: "numeric",
+    timeZone: runtime.attendanceData?.todayState.timezone ?? "Asia/Manila",
+  }).format(new Date());
 
   return (
-    <div className="min-h-full bg-[#F7F3EB] text-[#142334]">
-      <header className="sticky top-0 z-30 border-b border-[#EDE6DD] bg-[#FBFAF6]/95 backdrop-blur-xl">
-        <div className="mx-auto flex h-[58px] max-w-[480px] items-center justify-between px-3.5">
-          <div className="flex items-center gap-2.5">
-            <div className="grid size-9 place-items-center rounded-xl bg-[#E7F2E9] text-[#176747]">
-              <Sparkles size={19} />
-            </div>
-
-            <div>
-              <div className="text-[16px] font-bold leading-none tracking-[-0.025em] text-[#102A26]">
-                CradleHub
-              </div>
-
-              <div className="mt-1 text-[8.5px] font-semibold uppercase tracking-[0.14em] text-[#8D7563]">
-                Utility Operations
-              </div>
+    <StaffScreen>
+      {!runtime.queueError && !runtime.historyError ? (
+        <StaffSnapshotRecorder
+          snapshot={{
+            screen: "utilityHome",
+            label: "Utility home",
+            counts: [
+              { label: "Waiting", value: waiting },
+              { label: "In progress", value: inProgress },
+              { label: "Recent ready", value: recentReady },
+            ],
+          }}
+        />
+      ) : null}
+      <header className="relative overflow-hidden rounded-[24px] bg-[linear-gradient(145deg,#174332,#092c20)] px-5 pb-5 pt-4 text-white shadow-[0_12px_25px_rgba(13,53,35,0.2)]">
+        <div
+          className="absolute -right-10 -top-14 size-36 rounded-full border border-white/10"
+          aria-hidden="true"
+        />
+        <div className="relative flex items-center justify-between gap-3">
+          <div className="flex min-w-0 items-center gap-3">
+            <UserAvatar
+              name={name}
+              imageUrl={runtime.staff.avatar_url}
+              size="sm"
+              className="size-11 border-2 border-[#d6bf85]"
+            />
+            <div className="min-w-0">
+              <div className="truncate text-xs text-white/80">Utility workspace</div>
+              <div className="truncate text-base font-semibold">{name}</div>
             </div>
           </div>
-
-          <div className="flex items-center gap-1.5">
-            <Link
-              href="/staff/utility/notices"
-              aria-label="Notices"
-              className="grid size-9 place-items-center rounded-full text-[#314658] active:bg-[#F1EEE8]"
-            >
-              <Bell size={18} />
-            </Link>
-
-            <Link
-              href="/staff/utility/more"
-              aria-label="Profile"
-            >
-              <UserAvatar
-                name={name}
-                imageUrl={runtime.staff.avatar_url}
-                size="sm"
-                className="size-9 border-2 border-white shadow-sm ring-1 ring-[#E4DED5]"
-              />
-            </Link>
-          </div>
+          <Link
+            href="/staff/utility/notices"
+            aria-label="Notices"
+            className="grid min-h-12 min-w-12 place-items-center rounded-full bg-white/10 focus-visible:outline-2 focus-visible:outline-[#c8a96b]"
+          >
+            <Bell size={20} aria-hidden="true" />
+          </Link>
+        </div>
+        <div className="relative mt-6">
+          <p className="text-xs text-[#dfca92]">{dateLabel}</p>
+          <h1 className="mt-1 text-[26px] font-semibold leading-tight tracking-[-0.04em]">
+            Good day, {firstName}
+          </h1>
+          <p className="mt-1 text-xs text-white/80">Room turnover at your branch</p>
         </div>
       </header>
 
-      <main className="mx-auto flex max-w-[480px] flex-col gap-3 px-3.5 pb-3 pt-3">
-        <section className="flex items-center justify-between gap-3 px-1 py-1">
-          <div className="min-w-0">
-            <h1 className="truncate text-[21px] font-bold tracking-[-0.035em] text-[#132536]">
-              Good day, {firstName}
-            </h1>
+      <div className="mt-4 grid grid-cols-3 gap-2">
+        <StaffStatTile value={runtime.queueError ? "—" : waiting} label="Waiting" />
+        <StaffStatTile value={runtime.queueError ? "—" : inProgress} label="In progress" />
+        <StaffStatTile value={runtime.historyError ? "—" : recentReady} label="Recent ready" />
+      </div>
 
-            <p className="mt-0.5 text-[11px] text-[#718092]">
-              Keep rooms clean, ready and moving.
-            </p>
-          </div>
+      {runtime.historyError ? (
+        <StaffFeedback error className="mt-4">
+          Recent ready rooms could not be loaded.
+        </StaffFeedback>
+      ) : null}
 
-          <div className="shrink-0 rounded-full bg-[#E4F5E8] px-2.5 py-1.5 text-[10px] font-bold text-[#126A49]">
-            {dutyLabel(runtime)}
-          </div>
-        </section>
-
-        <section className="rounded-[20px] border border-[#E9E4DC] bg-white p-3.5 shadow-[0_5px_20px_rgba(30,41,59,0.045)]">
-          <div className="flex items-center gap-3">
-            <div className="grid size-10 shrink-0 place-items-center rounded-full bg-[#EAF5ED] text-[#0D6548]">
-              <Clock3 size={18} />
-            </div>
-
-            <div className="min-w-0 flex-1">
-              <div className="text-[10px] font-semibold uppercase tracking-[0.06em] text-[#819087]">
-                Attendance
-              </div>
-
-              <div className="mt-0.5 truncate text-[13px] font-bold text-[#263B4D]">
-                {runtime.attendanceData?.scheduleLabel ??
-                  "Schedule unavailable"}
-              </div>
-            </div>
-
+      {runtime.queueError ? (
+        <StaffFeedback error className="mt-4">
+          Room turnover data is unavailable. Refresh when your connection returns.
+        </StaffFeedback>
+      ) : (
+        <>
+          <Link
+            href="/staff/utility/work"
+            className="mt-4 flex min-h-12 items-center justify-center gap-2 rounded-2xl bg-[#163a2b] px-4 text-sm font-semibold text-white shadow-[0_6px_14px_rgba(22,58,43,0.2)] focus-visible:outline-2 focus-visible:outline-[#c8a96b]"
+          >
+            <ClipboardList size={18} aria-hidden="true" />
+            View turnover tasks
+            <ChevronRight size={18} aria-hidden="true" />
+          </Link>
+          <div className="mt-6 flex items-center justify-between gap-3">
+            <h2 className="text-base font-semibold text-[#163a2b]">Current rooms</h2>
             <Link
-              href="/staff/attendance"
-              className="shrink-0 rounded-full bg-[#F4F7F4] px-2.5 py-1.5 text-[9.5px] font-bold text-[#315747]"
+              href="/staff/utility/rooms"
+              className="inline-flex min-h-12 items-center gap-1 text-xs font-semibold text-[#19563c]"
             >
-              View
+              View rooms <ChevronRight size={15} />
             </Link>
           </div>
-
-          <Link
-            href="/staff/scan"
-            className="mt-3 flex min-h-10 items-center justify-center gap-1.5 rounded-[12px] bg-[#0D6548] px-3 text-[11px] font-bold text-white"
-          >
-            <QrCode size={14} />
-            Scan Attendance
-          </Link>
-        </section>
-
-        <Link
-          href="/staff/utility/work"
-          className="block rounded-[20px] border border-[#E9E4DC] bg-white p-4 shadow-[0_5px_20px_rgba(30,41,59,0.045)]"
-        >
-          <div className="flex items-start gap-3">
-            <div className="grid size-11 shrink-0 place-items-center rounded-full bg-[#F7EFE0] text-[#8A6028]">
-              <DoorOpen size={20} />
-            </div>
-
-            <div className="min-w-0 flex-1">
-              <div className="flex items-center justify-between gap-2">
-                <h2 className="text-[14px] font-bold text-[#24394B]">
-                  Rooms to Prepare
-                </h2>
-
-                <span className="rounded-full bg-[#FFF2D9] px-2 py-1 text-[9.5px] font-bold text-[#8A6028]">
-                  {activeCount}
-                </span>
-              </div>
-
-              <p className="mt-1 text-[10.5px] leading-4 text-[#788697]">
-                Completed onsite services with assigned rooms
-                appear here automatically.
-              </p>
-            </div>
-
-            <ChevronRight
-              size={17}
-              className="mt-1 shrink-0 text-[#788594]"
+          {runtime.turnoverItems.length === 0 ? (
+            <StaffEmptyState
+              icon={<Sparkles size={20} />}
+              title="No rooms waiting"
+              description="New turnover tasks appear after an onsite service finishes."
             />
-          </div>
+          ) : (
+            <StaffCard className="overflow-hidden">
+              {runtime.turnoverItems.slice(0, 4).map((item) => (
+                <Link
+                  key={item.taskId}
+                  href={`/staff/utility/work/${item.taskId}`}
+                  className="flex min-h-16 items-center gap-3 border-b border-[#eee8dd] px-4 py-3 last:border-0 focus-visible:outline-2 focus-visible:outline-[#c8a96b]"
+                >
+                  <span className="grid size-11 shrink-0 place-items-center rounded-2xl bg-[#f3e9d6] text-[#76501a]">
+                    <DoorOpen size={21} />
+                  </span>
+                  <span className="min-w-0 flex-1">
+                    <span className="block truncate text-sm font-semibold">{item.roomName}</span>
+                    <span className="block truncate text-xs text-[#65746b]">
+                      {item.serviceName}
+                    </span>
+                  </span>
+                  <StaffStatusChip tone={item.status === "open" ? "gold" : "green"}>
+                    {statusLabel(item)}
+                  </StaffStatusChip>
+                </Link>
+              ))}
+            </StaffCard>
+          )}
+        </>
+      )}
+
+      <StaffCard className="mt-5 flex items-center gap-3 p-4">
+        <QrCode size={22} className="shrink-0 text-[#19563c]" aria-hidden="true" />
+        <div className="min-w-0 flex-1">
+          <div className="text-sm font-semibold">Attendance scan</div>
+          <p className="text-xs text-[#65746b]">
+            Use the existing Staff QR scanner for attendance.
+          </p>
+        </div>
+        <Link
+          href="/staff/scan"
+          className="inline-flex min-h-12 items-center rounded-xl px-3 text-xs font-semibold text-[#19563c]"
+        >
+          Open
         </Link>
-
-        {activeCount === 0 ? (
-          <section className="flex items-center gap-3 rounded-[18px] border border-[#DFE9E1] bg-[#F3F8F4] p-3.5">
-            <div className="grid size-9 place-items-center rounded-full bg-white text-[#24714F]">
-              <CheckCircle2 size={17} />
-            </div>
-
-            <div>
-              <div className="text-[12px] font-bold text-[#285240]">
-                No rooms waiting
-              </div>
-
-              <div className="mt-0.5 text-[10px] text-[#678073]">
-                Newly completed onsite rooms will appear automatically.
-              </div>
-            </div>
-          </section>
-        ) : null}
-
-        {runtime.queueError ? (
-          <section className="rounded-[16px] border border-[#F1D8C4] bg-[#FFF8F1] px-3.5 py-3 text-[10.5px] leading-4 text-[#805A3A]">
-            Room turnover information could not be loaded.
-            Attendance and Scan remain available.
-          </section>
-        ) : null}
-      </main>
-    </div>
+      </StaffCard>
+    </StaffScreen>
   );
 }

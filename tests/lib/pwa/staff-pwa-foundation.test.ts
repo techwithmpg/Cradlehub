@@ -104,16 +104,16 @@ describe("PWA-C5: Staff Foundation Navigation & Role Mapping", () => {
     expect(CRM_GENERAL_NAV_ITEMS[4]?.href).toBe("/staff/more");
   });
 
-  it("verifies Utility profile keeps canonical Work navigation available", () => {
+  it("verifies Utility profile exposes supported native destinations", () => {
     const labels = UTILITY_NAV_ITEMS.map((item) => item.label);
-    expect(labels).toEqual(["Today", "Work", "Scan", "Notices", "More"]);
+    expect(labels).toEqual(["Home", "Tasks", "Scan", "Rooms", "More"]);
     expect(UTILITY_NAV_ITEMS[0]?.href).toBe("/staff/utility");
 
     const workItem = UTILITY_NAV_ITEMS[1];
     expect(workItem?.key).toBe("work");
     expect(workItem?.disabled).toBe(false);
     expect(workItem?.href).toBe("/staff/utility/work");
-    expect(UTILITY_NAV_ITEMS[3]?.href).toBe("/staff/utility/notices");
+    expect(UTILITY_NAV_ITEMS[3]?.href).toBe("/staff/utility/rooms");
     expect(UTILITY_NAV_ITEMS[4]?.href).toBe("/staff/utility/more");
   });
 

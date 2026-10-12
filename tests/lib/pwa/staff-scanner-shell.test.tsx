@@ -1,19 +1,42 @@
 // @vitest-environment jsdom
 import React from "react";
 import { readFileSync } from "node:fs";
-import { cleanup, render, screen } from "@testing-library/react";
+import { cleanup, fireEvent, render, screen } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 vi.mock("server-only", () => ({}));
 import { TherapistMobileShell } from "@/components/features/staff-portal/therapist/therapist-mobile-shell";
 import { DriverMobileShell } from "@/components/features/staff-portal/driver/driver-mobile-shell";
 import { StaffMobileShell } from "@/components/features/staff-portal/mobile/staff-mobile-shell";
+import { useStaffSafeMemory } from "@/components/features/staff-pwa/safe-memory";
 import {
   resolveStaffOperationalRole,
   resolveNavigationProfile,
 } from "@/components/features/staff-pwa/role-navigation";
 
 let mockPathname = "/staff";
+
+function UtilityMemoryProbe() {
+  const memory = useStaffSafeMemory();
+  return (
+    <>
+      <output data-testid="utility-memory">
+        {memory?.read("utilityHome")?.counts[0]?.value ?? "empty"}
+      </output>
+      <button
+        onClick={() =>
+          memory?.write({
+            screen: "utilityHome",
+            label: "Utility home",
+            counts: [{ label: "Waiting", value: 2 }],
+          })
+        }
+      >
+        Remember
+      </button>
+    </>
+  );
+}
 
 vi.mock("next/navigation", () => ({
   usePathname: () => mockPathname,
@@ -149,6 +172,31 @@ describe("W1A: Scanner Shell Isolation & Foundation", () => {
     expect(screen.getByTestId("crm-scanner")).toBeDefined();
     expect(crmContainer.querySelector("nav")).toBeNull();
     expect(crmContainer.querySelector(".min-h-dvh")?.className).not.toContain("pb-[calc(84px");
+  });
+
+  it("keeps Utility safe memory across in-shell pathname changes", () => {
+    mockPathname = "/staff/utility";
+    const view = render(
+      <StaffMobileShell profile="utility" identity="user-a:utility-a:branch-a">
+        <UtilityMemoryProbe />
+      </StaffMobileShell>
+    );
+    fireEvent.click(screen.getByRole("button", { name: "Remember" }));
+    expect(screen.getByTestId("utility-memory").textContent).toBe("2");
+    mockPathname = "/staff/scan";
+    view.rerender(
+      <StaffMobileShell profile="utility" identity="user-a:utility-a:branch-a">
+        <div>Scanner</div>
+      </StaffMobileShell>
+    );
+    expect(screen.queryByRole("navigation")).toBeNull();
+    mockPathname = "/staff/utility";
+    view.rerender(
+      <StaffMobileShell profile="utility" identity="user-a:utility-a:branch-a">
+        <UtilityMemoryProbe />
+      </StaffMobileShell>
+    );
+    expect(screen.getByTestId("utility-memory").textContent).toBe("2");
   });
 
   it("6. resolves role-correct return href for scanner back navigation", () => {

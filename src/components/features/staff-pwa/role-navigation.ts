@@ -3,6 +3,7 @@ import {
   Bell,
   CalendarDays,
   ClipboardList,
+  DoorOpen,
   MapPin,
   MoreHorizontal,
   QrCode,
@@ -22,8 +23,7 @@ import { canonicalizeSystemRole, isFrontDeskRole, isServiceStaffType } from "@/c
  *    Today · Work · Scan · Notices · More
  *
  * 3. Utility:
- *    Today · Work · Scan · Notices · More
- *    (Work is retained as blocked/read-only notice)
+ *    Home · Tasks · Scan · Rooms · More
  *
  * 4. Driver:
  *    Today · Trips · Scan · Map · More
@@ -100,13 +100,13 @@ export const CRM_GENERAL_NAV_ITEMS: StaffNavItem[] = [
 export const UTILITY_NAV_ITEMS: StaffNavItem[] = [
   {
     key: "today",
-    label: "Today",
+    label: "Home",
     href: "/staff/utility",
     icon: Sun,
   },
   {
     key: "work",
-    label: "Work",
+    label: "Tasks",
     href: "/staff/utility/work",
     icon: ClipboardList,
     disabled: false,
@@ -119,10 +119,10 @@ export const UTILITY_NAV_ITEMS: StaffNavItem[] = [
     isScan: true,
   },
   {
-    key: "notices",
-    label: "Notices",
-    href: "/staff/utility/notices",
-    icon: Bell,
+    key: "rooms",
+    label: "Rooms",
+    href: "/staff/utility/rooms",
+    icon: DoorOpen,
   },
   {
     key: "more",

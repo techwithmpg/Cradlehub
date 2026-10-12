@@ -83,7 +83,14 @@ export default async function StaffLayout({ children }: { children: ReactNode })
         </TherapistMobileShell>
       );
     } else if (profile === "utility") {
-      content = <StaffMobileShell profile="utility">{children}</StaffMobileShell>;
+      content = (
+        <StaffMobileShell
+          profile="utility"
+          identity={`${authContext?.user.id ?? ""}:${staff.id}:${staff.system_role}:${staff.staff_type ?? ""}:${staff.branch_id ?? ""}`}
+        >
+          {children}
+        </StaffMobileShell>
+      );
     } else {
       content = <StaffMobileShell profile="crm_general">{children}</StaffMobileShell>;
     }

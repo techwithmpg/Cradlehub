@@ -8,9 +8,7 @@ import {
   type UtilityActionResult,
 } from "@/lib/staff-pwa/utility-turnover";
 
-export async function startRoomCleaningAction(
-  taskId: string
-): Promise<UtilityActionResult> {
+export async function startRoomCleaningAction(taskId: string): Promise<UtilityActionResult> {
   const supabase = await createClient();
   const {
     data: { user },
@@ -32,14 +30,14 @@ export async function startRoomCleaningAction(
   if (result.ok) {
     revalidatePath("/staff/utility");
     revalidatePath("/staff/utility/work");
+    revalidatePath("/staff/utility/rooms");
+    revalidatePath(`/staff/utility/work/${taskId}`);
   }
 
   return result;
 }
 
-export async function markRoomReadyAction(
-  taskId: string
-): Promise<UtilityActionResult> {
+export async function markRoomReadyAction(taskId: string): Promise<UtilityActionResult> {
   const supabase = await createClient();
   const {
     data: { user },
@@ -61,6 +59,8 @@ export async function markRoomReadyAction(
   if (result.ok) {
     revalidatePath("/staff/utility");
     revalidatePath("/staff/utility/work");
+    revalidatePath("/staff/utility/rooms");
+    revalidatePath(`/staff/utility/work/${taskId}`);
   }
 
   return result;
