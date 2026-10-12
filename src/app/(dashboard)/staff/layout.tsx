@@ -35,21 +35,24 @@ export const metadata: Metadata = {
     statusBarStyle: "black-translucent",
   },
   icons: {
+    icon: [
+      {
+        url: "/staff-pwa-icon-48-gold.png",
+        sizes: "48x48",
+        type: "image/png",
+      },
+    ],
     apple: [
       {
-        url: "/staff-manifest-icon-192.png",
-        sizes: "192x192",
+        url: "/staff-pwa-apple-touch-icon-180-gold.png",
+        sizes: "180x180",
         type: "image/png",
       },
     ],
   },
 };
 
-export default async function StaffLayout({
-  children,
-}: {
-  children: ReactNode;
-}) {
+export default async function StaffLayout({ children }: { children: ReactNode }) {
   const profileResult = await getMyProfileAction().catch(() => null);
   const staff = profileResult && "staff" in profileResult ? profileResult.staff : null;
   let content: ReactNode = children;
@@ -62,7 +65,11 @@ export default async function StaffLayout({
     const profile = resolveNavigationProfile(opRole);
 
     if (profile === "driver") {
-      content = <DriverMobileShell staff={staff} mode="canonical">{children}</DriverMobileShell>;
+      content = (
+        <DriverMobileShell staff={staff} mode="canonical">
+          {children}
+        </DriverMobileShell>
+      );
     } else if (profile === "provider") {
       content = <TherapistMobileShell>{children}</TherapistMobileShell>;
     } else if (profile === "utility") {

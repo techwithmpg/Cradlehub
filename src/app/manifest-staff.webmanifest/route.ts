@@ -12,21 +12,33 @@ export function GET() {
     display_override: ["standalone"],
     prefer_related_applications: false,
     orientation: "portrait",
-    background_color: "#F7F3EB",
+    background_color: "#163A2B",
     theme_color: "#163A2B",
     categories: ["business", "productivity", "utilities"],
     icons: [
       {
-        src: "/staff-manifest-icon-192.png",
+        src: "/staff-pwa-icon-192-gold.png",
         sizes: "192x192",
         type: "image/png",
-        purpose: "any maskable",
+        purpose: "any",
       },
       {
-        src: "/staff-manifest-icon-512.png",
+        src: "/staff-pwa-icon-512-gold.png",
         sizes: "512x512",
         type: "image/png",
-        purpose: "any maskable",
+        purpose: "any",
+      },
+      {
+        src: "/staff-pwa-icon-maskable-192-gold.png",
+        sizes: "192x192",
+        type: "image/png",
+        purpose: "maskable",
+      },
+      {
+        src: "/staff-pwa-icon-maskable-512-gold.png",
+        sizes: "512x512",
+        type: "image/png",
+        purpose: "maskable",
       },
     ],
   };

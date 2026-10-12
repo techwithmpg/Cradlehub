@@ -13,51 +13,49 @@ import { GET as getStaffManifest } from "@/app/manifest-staff.webmanifest/route"
 describe("PWA-C5: Staff Foundation Navigation & Role Mapping", () => {
   it("resolves all 7 staff roles to the correct operational role", () => {
     // 1. Therapist
-    expect(
-      resolveStaffOperationalRole({ system_role: "staff", staff_type: "therapist" })
-    ).toBe("therapist");
+    expect(resolveStaffOperationalRole({ system_role: "staff", staff_type: "therapist" })).toBe(
+      "therapist"
+    );
 
     // 2. Nail Tech
-    expect(
-      resolveStaffOperationalRole({ system_role: "staff", staff_type: "nail_tech" })
-    ).toBe("nail_tech");
+    expect(resolveStaffOperationalRole({ system_role: "staff", staff_type: "nail_tech" })).toBe(
+      "nail_tech"
+    );
 
     // 3. Aesthetician / Facialist
-    expect(
-      resolveStaffOperationalRole({ system_role: "staff", staff_type: "aesthetician" })
-    ).toBe("aesthetician");
-    expect(
-      resolveStaffOperationalRole({ system_role: "staff", staff_type: "facialist" })
-    ).toBe("aesthetician");
+    expect(resolveStaffOperationalRole({ system_role: "staff", staff_type: "aesthetician" })).toBe(
+      "aesthetician"
+    );
+    expect(resolveStaffOperationalRole({ system_role: "staff", staff_type: "facialist" })).toBe(
+      "aesthetician"
+    );
 
     // 4. Salon Head
-    expect(
-      resolveStaffOperationalRole({ system_role: "staff", staff_type: "salon_head" })
-    ).toBe("salon_head");
+    expect(resolveStaffOperationalRole({ system_role: "staff", staff_type: "salon_head" })).toBe(
+      "salon_head"
+    );
 
     // 5. CRM / General Staff
-    expect(
-      resolveStaffOperationalRole({ system_role: "front_desk", staff_type: null })
-    ).toBe("crm_general");
-    expect(
-      resolveStaffOperationalRole({ system_role: "crm", staff_type: null })
-    ).toBe("crm_general");
+    expect(resolveStaffOperationalRole({ system_role: "front_desk", staff_type: null })).toBe(
+      "crm_general"
+    );
+    expect(resolveStaffOperationalRole({ system_role: "crm", staff_type: null })).toBe(
+      "crm_general"
+    );
 
     // 6. Utility
-    expect(
-      resolveStaffOperationalRole({ system_role: "utility", staff_type: "utility" })
-    ).toBe("utility");
-    expect(
-      resolveStaffOperationalRole({ system_role: "staff", staff_type: "utility" })
-    ).toBe("utility");
+    expect(resolveStaffOperationalRole({ system_role: "utility", staff_type: "utility" })).toBe(
+      "utility"
+    );
+    expect(resolveStaffOperationalRole({ system_role: "staff", staff_type: "utility" })).toBe(
+      "utility"
+    );
 
     // 7. Driver
-    expect(
-      resolveStaffOperationalRole({ system_role: "driver", staff_type: null })
-    ).toBe("driver");
-    expect(
-      resolveStaffOperationalRole({ system_role: "staff", staff_type: "driver" })
-    ).toBe("driver");
+    expect(resolveStaffOperationalRole({ system_role: "driver", staff_type: null })).toBe("driver");
+    expect(resolveStaffOperationalRole({ system_role: "staff", staff_type: "driver" })).toBe(
+      "driver"
+    );
   });
 
   it("maps operational roles to the 4 canonical navigation profiles", () => {
@@ -144,14 +142,36 @@ describe("PWA-C5: Staff Web App Manifest Contract", () => {
     expect(manifest.start_url).toBe("/staff/");
     expect(manifest.scope).toBe("/staff/");
     expect(manifest.display).toBe("standalone");
-    expect(manifest.background_color).toBe("#F7F3EB");
+    expect(manifest.background_color).toBe("#163A2B");
     expect(manifest.theme_color).toBe("#163A2B");
 
     // Icons check: must reference dedicated staff icons, preserving shared icons
     expect(Array.isArray(manifest.icons)).toBe(true);
     expect(manifest.icons.length).toBeGreaterThanOrEqual(2);
-    expect(manifest.icons.some((icon: { src: string; sizes: string }) => icon.src === "/staff-manifest-icon-192.png" && icon.sizes === "192x192")).toBe(true);
-    expect(manifest.icons.some((icon: { src: string; sizes: string }) => icon.src === "/staff-manifest-icon-512.png" && icon.sizes === "512x512")).toBe(true);
+    expect(manifest.icons).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          src: "/staff-pwa-icon-192-gold.png",
+          sizes: "192x192",
+          purpose: "any",
+        }),
+        expect.objectContaining({
+          src: "/staff-pwa-icon-512-gold.png",
+          sizes: "512x512",
+          purpose: "any",
+        }),
+        expect.objectContaining({
+          src: "/staff-pwa-icon-maskable-192-gold.png",
+          sizes: "192x192",
+          purpose: "maskable",
+        }),
+        expect.objectContaining({
+          src: "/staff-pwa-icon-maskable-512-gold.png",
+          sizes: "512x512",
+          purpose: "maskable",
+        }),
+      ])
+    );
     expect(manifest.description).toContain("Team Workspace");
   });
 });
@@ -164,6 +184,7 @@ describe("PWA-C5: Role-Resolution Splash Contract", () => {
     expect(splashSource).toContain("Cradle Hub");
     expect(splashSource).toContain("Team Workspace");
     expect(splashSource).toContain("Opening your workspace…");
+    expect(splashSource).toContain("/staff-pwa-gold-emblem.png");
   });
 });
 
@@ -213,10 +234,15 @@ describe("PWA-C5: Security Boundaries & Authorization Contracts", () => {
   });
 
   it("verifies canAccessWorkspacePath authorizes canonical /staff routes for appropriate roles and rejects Manager/Owner/Marketing", async () => {
-    const { canAccessWorkspacePath, buildWorkspaceAccessFromStaffProfile } = await import("@/lib/auth/workspace-access");
+    const { canAccessWorkspacePath, buildWorkspaceAccessFromStaffProfile } =
+      await import("@/lib/auth/workspace-access");
 
     // 1. Provider / therapist (staff + therapist)
-    const therapistWs = buildWorkspaceAccessFromStaffProfile({ id: "1", system_role: "staff", staff_type: "therapist" });
+    const therapistWs = buildWorkspaceAccessFromStaffProfile({
+      id: "1",
+      system_role: "staff",
+      staff_type: "therapist",
+    });
     expect(canAccessWorkspacePath("/staff", "staff", therapistWs, "therapist")).toBe(true);
     expect(canAccessWorkspacePath("/staff/scan", "staff", therapistWs, "therapist")).toBe(true);
     expect(canAccessWorkspacePath("/scan", "staff", therapistWs, "therapist")).toBe(true);
@@ -227,7 +253,11 @@ describe("PWA-C5: Security Boundaries & Authorization Contracts", () => {
     expect(canAccessWorkspacePath("/staff/work", "staff", therapistWs, "therapist")).toBe(false);
 
     // 2. Driver
-    const driverWs = buildWorkspaceAccessFromStaffProfile({ id: "2", system_role: "driver", staff_type: null });
+    const driverWs = buildWorkspaceAccessFromStaffProfile({
+      id: "2",
+      system_role: "driver",
+      staff_type: null,
+    });
     expect(canAccessWorkspacePath("/staff", "driver", driverWs, null)).toBe(true);
     expect(canAccessWorkspacePath("/staff/driver", "driver", driverWs, null)).toBe(true);
     expect(canAccessWorkspacePath("/driver", "driver", driverWs, null)).toBe(true);
@@ -237,7 +267,11 @@ describe("PWA-C5: Security Boundaries & Authorization Contracts", () => {
     expect(canAccessWorkspacePath("/staff-portal", "driver", driverWs, null)).toBe(false);
 
     // 3. Utility
-    const utilityWs = buildWorkspaceAccessFromStaffProfile({ id: "3", system_role: "utility", staff_type: "utility" });
+    const utilityWs = buildWorkspaceAccessFromStaffProfile({
+      id: "3",
+      system_role: "utility",
+      staff_type: "utility",
+    });
     expect(canAccessWorkspacePath("/staff", "utility", utilityWs, "utility")).toBe(true);
     expect(canAccessWorkspacePath("/staff/utility", "utility", utilityWs, "utility")).toBe(true);
     expect(canAccessWorkspacePath("/utility", "utility", utilityWs, "utility")).toBe(true);
@@ -247,7 +281,11 @@ describe("PWA-C5: Security Boundaries & Authorization Contracts", () => {
     expect(canAccessWorkspacePath("/staff-portal", "utility", utilityWs, "utility")).toBe(false);
 
     // 4. Front Desk / CRM
-    const crmWs = buildWorkspaceAccessFromStaffProfile({ id: "4", system_role: "front_desk", staff_type: null });
+    const crmWs = buildWorkspaceAccessFromStaffProfile({
+      id: "4",
+      system_role: "front_desk",
+      staff_type: null,
+    });
     expect(canAccessWorkspacePath("/staff", "front_desk", crmWs, null)).toBe(true);
     expect(canAccessWorkspacePath("/staff/scan", "front_desk", crmWs, null)).toBe(true);
     expect(canAccessWorkspacePath("/scan", "front_desk", crmWs, null)).toBe(true);
@@ -255,7 +293,11 @@ describe("PWA-C5: Security Boundaries & Authorization Contracts", () => {
     expect(canAccessWorkspacePath("/staff/driver", "front_desk", crmWs, null)).toBe(false);
 
     // 5. REJECTION: Owner must NOT access Staff-PWA operational boundary
-    const ownerWs = buildWorkspaceAccessFromStaffProfile({ id: "5", system_role: "owner", staff_type: null });
+    const ownerWs = buildWorkspaceAccessFromStaffProfile({
+      id: "5",
+      system_role: "owner",
+      staff_type: null,
+    });
     expect(canAccessWorkspacePath("/staff", "owner", ownerWs, null)).toBe(false);
     expect(canAccessWorkspacePath("/staff/scan", "owner", ownerWs, null)).toBe(false);
     expect(canAccessWorkspacePath("/scan", "owner", ownerWs, null)).toBe(false);
@@ -264,14 +306,22 @@ describe("PWA-C5: Security Boundaries & Authorization Contracts", () => {
     expect(canAccessWorkspacePath("/owner", "owner", ownerWs, null)).toBe(true);
 
     // 6. REJECTION: Manager must NOT access Staff-PWA operational boundary
-    const managerWs = buildWorkspaceAccessFromStaffProfile({ id: "6", system_role: "manager", staff_type: null });
+    const managerWs = buildWorkspaceAccessFromStaffProfile({
+      id: "6",
+      system_role: "manager",
+      staff_type: null,
+    });
     expect(canAccessWorkspacePath("/staff", "manager", managerWs, null)).toBe(false);
     expect(canAccessWorkspacePath("/staff/scan", "manager", managerWs, null)).toBe(false);
     expect(canAccessWorkspacePath("/scan", "manager", managerWs, null)).toBe(false);
     expect(canAccessWorkspacePath("/manager", "manager", managerWs, null)).toBe(true);
 
     // 7. REJECTION: Digital Marketer must NOT access Staff-PWA operational boundary
-    const marketerWs = buildWorkspaceAccessFromStaffProfile({ id: "7", system_role: "digital_marketer", staff_type: null });
+    const marketerWs = buildWorkspaceAccessFromStaffProfile({
+      id: "7",
+      system_role: "digital_marketer",
+      staff_type: null,
+    });
     expect(canAccessWorkspacePath("/staff", "digital_marketer", marketerWs, null)).toBe(false);
     expect(canAccessWorkspacePath("/staff/scan", "digital_marketer", marketerWs, null)).toBe(false);
     expect(canAccessWorkspacePath("/scan", "digital_marketer", marketerWs, null)).toBe(false);
@@ -281,7 +331,9 @@ describe("PWA-C5: Security Boundaries & Authorization Contracts", () => {
   it("verifies proxy passes staff_type to canAccessWorkspacePath", async () => {
     const fs = await import("fs");
     const proxySource = fs.readFileSync("src/proxy.ts", "utf8");
-    expect(proxySource).toContain("canAccessWorkspacePath(pathname, systemRole, workspaces, staffRecord.staff_type)");
+    expect(proxySource).toContain(
+      "canAccessWorkspacePath(pathname, systemRole, workspaces, staffRecord.staff_type)"
+    );
   });
 
   it("verifies StaffAppShell does not fall back to therapist silently", async () => {
@@ -338,9 +390,8 @@ describe("PWA-C5: Security Boundaries & Authorization Contracts", () => {
 
 describe("PWA-C5: Canonical Staff Runtime Scope Containment", () => {
   it("verifies Driver canonical bottom nav never emits /driver, /staff-portal, or legacy /scan", async () => {
-    const { getDriverBottomNavItems } = await import(
-      "@/components/features/staff-portal/driver/driver-mobile-bottom-nav"
-    );
+    const { getDriverBottomNavItems } =
+      await import("@/components/features/staff-portal/driver/driver-mobile-bottom-nav");
     const canonicalItems = getDriverBottomNavItems("canonical");
 
     expect(canonicalItems.length).toBe(5);
@@ -359,9 +410,8 @@ describe("PWA-C5: Canonical Staff Runtime Scope Containment", () => {
   });
 
   it("verifies canonical Driver More does not emit legacy Staff Portal destinations", async () => {
-    const { getDriverMoreSections } = await import(
-      "@/components/features/staff-portal/driver/driver-more-menu"
-    );
+    const { getDriverMoreSections } =
+      await import("@/components/features/staff-portal/driver/driver-more-menu");
     const canonicalSections = getDriverMoreSections(true);
 
     for (const section of canonicalSections) {
@@ -375,9 +425,8 @@ describe("PWA-C5: Canonical Staff Runtime Scope Containment", () => {
   });
 
   it("verifies canonical Provider More remains within approved /staff/ routes or honest seams", async () => {
-    const { getTherapistMoreSections } = await import(
-      "@/components/features/staff-portal/therapist/therapist-more-menu"
-    );
+    const { getTherapistMoreSections } =
+      await import("@/components/features/staff-portal/therapist/therapist-more-menu");
     const canonicalSections = getTherapistMoreSections(true);
 
     for (const section of canonicalSections) {
@@ -391,9 +440,8 @@ describe("PWA-C5: Canonical Staff Runtime Scope Containment", () => {
   });
 
   it("verifies canonical CRM/general More remains within approved /staff/ routes or honest seams", async () => {
-    const { getBasicStaffMoreSections } = await import(
-      "@/components/features/staff-portal/basic/basic-staff-more-menu"
-    );
+    const { getBasicStaffMoreSections } =
+      await import("@/components/features/staff-portal/basic/basic-staff-more-menu");
     const canonicalSections = getBasicStaffMoreSections(true);
 
     for (const section of canonicalSections) {
@@ -408,7 +456,10 @@ describe("PWA-C5: Canonical Staff Runtime Scope Containment", () => {
 
   it("verifies Utility Today contains no speculative task-module promises and never links to /staff-portal", async () => {
     const fs = await import("fs");
-    const utilityTodaySource = fs.readFileSync("src/app/(dashboard)/staff/utility/page.tsx", "utf8");
+    const utilityTodaySource = fs.readFileSync(
+      "src/app/(dashboard)/staff/utility/page.tsx",
+      "utf8"
+    );
 
     // Must not contain speculative modules
     expect(utilityTodaySource).not.toContain("Room Preparation Checklist");
@@ -468,9 +519,8 @@ describe("PWA-C5: Runtime Role-Resolution Split Prevention", () => {
   it("verifies getStaffPortalMode aligns with canonical operational resolver for service_head, service_staff, and facialist", async () => {
     const { getStaffPortalMode } = await import("@/lib/staff/get-staff-portal-mode");
     const { resolveStaffPwaOperationalGroup } = await import("@/lib/auth/workspace-access");
-    const { resolveStaffOperationalRole, resolveNavigationProfile } = await import(
-      "@/components/features/staff-pwa/role-navigation"
-    );
+    const { resolveStaffOperationalRole, resolveNavigationProfile } =
+      await import("@/components/features/staff-pwa/role-navigation");
 
     const providerCases = [
       { system_role: "service_head", staff_type: null },
@@ -483,7 +533,10 @@ describe("PWA-C5: Runtime Role-Resolution Split Prevention", () => {
     ];
 
     for (const testCase of providerCases) {
-      const serverGroup = resolveStaffPwaOperationalGroup(testCase.system_role, testCase.staff_type);
+      const serverGroup = resolveStaffPwaOperationalGroup(
+        testCase.system_role,
+        testCase.staff_type
+      );
       const uiRole = resolveStaffOperationalRole(testCase);
       const uiProfile = resolveNavigationProfile(uiRole);
       const portalMode = getStaffPortalMode(testCase);
@@ -496,10 +549,10 @@ describe("PWA-C5: Runtime Role-Resolution Split Prevention", () => {
   });
 
   it("verifies canonical Today, Schedule, and More choose Provider runtime profile for service_head and service_staff", async () => {
-    const { getStaffPortalMode, isBasicStaffMode } = await import("@/lib/staff/get-staff-portal-mode");
-    const { resolveStaffOperationalRole, resolveNavigationProfile } = await import(
-      "@/components/features/staff-pwa/role-navigation"
-    );
+    const { getStaffPortalMode, isBasicStaffMode } =
+      await import("@/lib/staff/get-staff-portal-mode");
+    const { resolveStaffOperationalRole, resolveNavigationProfile } =
+      await import("@/components/features/staff-pwa/role-navigation");
 
     const roles: Array<{ system_role: string; staff_type: string | null }> = [
       { system_role: "service_head", staff_type: null },
@@ -521,9 +574,8 @@ describe("PWA-C5: Runtime Role-Resolution Split Prevention", () => {
 
   it("verifies Manager, Owner, and Marketer roles are completely excluded from Staff PWA operational roles", async () => {
     const { resolveStaffPwaOperationalGroup } = await import("@/lib/auth/workspace-access");
-    const { resolveStaffOperationalRole, resolveNavigationProfile } = await import(
-      "@/components/features/staff-pwa/role-navigation"
-    );
+    const { resolveStaffOperationalRole, resolveNavigationProfile } =
+      await import("@/components/features/staff-pwa/role-navigation");
 
     const nonStaffRoles = [
       { system_role: "owner", staff_type: null },
@@ -535,7 +587,10 @@ describe("PWA-C5: Runtime Role-Resolution Split Prevention", () => {
     ];
 
     for (const testCase of nonStaffRoles) {
-      const serverGroup = resolveStaffPwaOperationalGroup(testCase.system_role, testCase.staff_type);
+      const serverGroup = resolveStaffPwaOperationalGroup(
+        testCase.system_role,
+        testCase.staff_type
+      );
       const uiRole = resolveStaffOperationalRole(testCase);
       const uiProfile = resolveNavigationProfile(uiRole);
 
@@ -549,7 +604,10 @@ describe("PWA-C5: Runtime Role-Resolution Split Prevention", () => {
 describe("PWA-C6: Staff Navigation Document Navigation Contract", () => {
   it("enforces central Scan navigation uses standard anchor to force same-origin document navigation to /staff/scan", async () => {
     const fs = await import("fs");
-    const bottomNavSource = fs.readFileSync("src/components/features/staff-pwa/bottom-nav.tsx", "utf8");
+    const bottomNavSource = fs.readFileSync(
+      "src/components/features/staff-pwa/bottom-nav.tsx",
+      "utf8"
+    );
     // Central Scan action must use raw <a> to bypass Next client navigation and load Permissions-Policy
     expect(bottomNavSource).toMatch(/<a\s+href=\{item\.href\}\s+aria-label="Scan QR code"/);
     // Other navigation destinations must continue using Next.js Link
