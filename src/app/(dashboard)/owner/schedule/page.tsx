@@ -9,21 +9,19 @@ import {
   ownerUpdateBookingPaymentAction,
 } from "@/app/(dashboard)/owner/bookings/actions";
 import { getBranchBusinessDate } from "@/lib/engine/slot-time";
+import { getCurrentUserWorkspaceAccess } from "@/lib/auth/get-user-workspace-access";
+import {
+  getWorkspaceSwitchDestination,
+  hasWorkspaceAccess,
+} from "@/lib/auth/workspace-access";
 import { RetainedWorkspaceModule } from "@/components/features/dashboard/retained-workspace-provider";
 
 async function getOwnerContext() {
-  const supabase = await createClient();
-  const { data: { user } } = await supabase.auth.getUser();
-  if (!user) redirect("/login");
-
-  const { data: me } = await supabase
-    .from("staff")
-    .select("system_role")
-    .eq("auth_user_id", user.id)
-    .eq("is_active", true)
-    .maybeSingle();
-
-  if (!me || me.system_role !== "owner") redirect("/login");
+  const access = await getCurrentUserWorkspaceAccess();
+  if (!access) redirect("/login");
+  if (!hasWorkspaceAccess(access.workspaces, "owner")) {
+    redirect(getWorkspaceSwitchDestination(access.workspaces));
+  }
 }
 
 export default async function OwnerSchedulePage({
