@@ -43,8 +43,10 @@ type ModulePolicy = Omit<
 };
 
 export const WORKSPACE_RETENTION_LIMITS: Record<RetainedWorkspace, number> = {
-  crm: 6,
-  owner: 5,
+  // Keep the accepted bounded-memory limits until runtime memory/latency
+  // measurements justify retaining additional high-cost modules at once.
+  crm: 4,
+  owner: 3,
 };
 
 const MODULE_POLICIES: readonly ModulePolicy[] = [
