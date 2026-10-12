@@ -13,7 +13,6 @@ import { AgentCoachProvider } from "@/components/agent/agent-context-provider";
 import { CoachBubble } from "@/components/agent/coach-bubble";
 import { InlineTip } from "@/components/agent/inline-tip";
 import { AdministrativeBookingModalProvider } from "@/components/features/bookings/administrative-booking-modal-provider";
-import { getLayoutStaffContext } from "@/lib/queries/staff-context";
 import { getQuickBookingContext } from "@/lib/queries/quick-booking-options";
 import { getAgentCoachAvailability } from "@/lib/agents/config";
 import { RetainedWorkspaceProvider } from "@/components/features/dashboard/retained-workspace-provider";
@@ -38,12 +37,12 @@ export default async function CrmLayout({
     workspace: "crm",
     role: frontDesk.role,
   });
-  const canShowCoach = coachAvailability.available && ctx?.user.id && branchId;
+  const canShowCoach = coachAvailability.available && Boolean(frontDesk.userId) && Boolean(branchId);
   const bookingContext = branchId ? await getQuickBookingContext(branchId) : null;
-  const retainedChildren = branchId && ctx?.user.id ? (
+  const retainedChildren = branchId ? (
     <RetainedWorkspaceProvider
       workspace="crm"
-      userId={ctx.user.id}
+      userId={frontDesk.userId}
       role={frontDesk.role}
       branchId={branchId}
       enabled={isRetainedWorkspaceEnabled("crm")}
@@ -80,7 +79,7 @@ export default async function CrmLayout({
           role={frontDesk.role}
           branchId={branchId}
           branchName={branchName}
-          userId={ctx.user.id}
+          userId={frontDesk.userId}
         >
           {workspaceContent}
           <CoachBubble />
