@@ -25,8 +25,13 @@ export default async function CrmLayout({
 }: {
   children: React.ReactNode;
 }) {
-  const ctx = await getLayoutStaffContext();
-  const frontDesk = await getFrontDeskContext();
+  // Both helpers remain authoritative server-side checks. They are independent
+  // and React-cache their own work within the request, so resolve them together
+  // instead of adding their latency serially on every CRM navigation.
+  const [ctx, frontDesk] = await Promise.all([
+    getLayoutStaffContext(),
+    getFrontDeskContext(),
+  ]);
   const branchId = frontDesk.branchId;
   const branchName = frontDesk.branchName;
   const coachAvailability = getAgentCoachAvailability({
