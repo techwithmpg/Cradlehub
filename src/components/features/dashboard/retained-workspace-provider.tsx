@@ -97,8 +97,21 @@ export function RetainedWorkspaceModule({
       aria-label="Loading workspace module"
       className="grid gap-3 px-3 py-3 md:px-0 md:py-0"
     >
-      <div className="h-20 animate-pulse rounded-2xl border border-[var(--cs-border-soft)] bg-[var(--cs-surface)]" />
-      <div className="h-48 animate-pulse rounded-2xl border border-[var(--cs-border-soft)] bg-[var(--cs-surface)]" />
+      <div className="flex items-center justify-between gap-3">
+        <div className="h-6 w-40 rounded-lg bg-[var(--cs-border-soft)]" />
+        <div className="h-8 w-24 rounded-xl border border-[var(--cs-border-soft)] bg-[var(--cs-surface)]" />
+      </div>
+      <div className="grid gap-3 md:grid-cols-3">
+        <div className="h-24 rounded-2xl border border-[var(--cs-border-soft)] bg-[var(--cs-surface)]" />
+        <div className="h-24 rounded-2xl border border-[var(--cs-border-soft)] bg-[var(--cs-surface)]" />
+        <div className="h-24 rounded-2xl border border-[var(--cs-border-soft)] bg-[var(--cs-surface)]" />
+      </div>
+      <div className="grid gap-2 rounded-2xl border border-[var(--cs-border-soft)] bg-[var(--cs-surface)] p-4">
+        <div className="h-4 w-1/3 rounded-md bg-[var(--cs-border-soft)]" />
+        <div className="h-10 rounded-xl bg-[var(--cs-bg)]" />
+        <div className="h-10 rounded-xl bg-[var(--cs-bg)]" />
+        <div className="h-10 rounded-xl bg-[var(--cs-bg)]" />
+      </div>
     </div>
   );
 }
@@ -167,6 +180,17 @@ function RetainedModuleFrame({
     setUnsavedChanges,
   ]);
   const showRefreshing = active && (entry.isRefreshing || pendingRefresh);
+  const [showRefreshStatus, setShowRefreshStatus] = useState(false);
+
+  useEffect(() => {
+    if (!showRefreshing) {
+      setShowRefreshStatus(false);
+      return;
+    }
+
+    const timer = window.setTimeout(() => setShowRefreshStatus(true), 220);
+    return () => window.clearTimeout(timer);
+  }, [showRefreshing]);
 
   return (
     <Activity mode={active ? "visible" : "hidden"} name={entry.moduleId}>
@@ -180,13 +204,13 @@ function RetainedModuleFrame({
           inert={!active}
           style={{ position: "relative" }}
         >
-          {showRefreshing ? (
+          {showRefreshStatus ? (
             <div
               role="status"
               aria-live="polite"
               className="pointer-events-none absolute right-3 top-2 z-20 rounded-full border border-[var(--cs-border)] bg-[var(--cs-surface)] px-2.5 py-1 text-[11px] text-[var(--cs-text-muted)] shadow-sm"
             >
-              Refreshing…
+              Updating…
             </div>
           ) : null}
           {entry.node}
