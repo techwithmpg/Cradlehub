@@ -88,6 +88,27 @@ function renderWorkspace(child: React.ReactNode, userId = "user-1") {
   );
 }
 
+function renderOwnerWorkspace(child: React.ReactNode) {
+  const descriptor = resolveWorkspaceModule("owner", pathname, search);
+  return (
+    <main data-testid="workspace-main">
+      <RetainedWorkspaceProvider
+        workspace="owner"
+        userId="owner-1"
+        role="owner"
+        branchId="all-branches"
+        enabled
+      >
+        {descriptor ? (
+          <RetainedWorkspaceModule moduleId={descriptor.moduleId}>
+            {child}
+          </RetainedWorkspaceModule>
+        ) : child}
+      </RetainedWorkspaceProvider>
+    </main>
+  );
+}
+
 beforeEach(() => {
   pathname = "/crm/today";
   search = new URLSearchParams();
@@ -237,6 +258,33 @@ describe("RetainedWorkspaceProvider", () => {
 
     fireEvent.click(screen.getByRole("link", { name: "Return to Work Queue" }));
     expect(routerPush).toHaveBeenCalledWith("/crm/today?filter=exceptions");
+  });
+
+  it("restores the most recently selected Owner branch when a bare module link is used", async () => {
+    pathname = "/owner/schedule";
+    search = new URLSearchParams();
+    const view = render(renderOwnerWorkspace(<StatefulModule name="Owner Schedule Default" />));
+
+    search = new URLSearchParams("branchId=sm&date=2026-10-12");
+    view.rerender(renderOwnerWorkspace(<StatefulModule name="Owner Schedule SM" />));
+    await waitFor(() => expect(screen.getByText("Owner Schedule SM")).toBeTruthy());
+
+    pathname = "/owner/bookings";
+    search = new URLSearchParams();
+    view.rerender(
+      renderOwnerWorkspace(
+        <>
+          <StatefulModule name="Owner Bookings" />
+          <Link href="/owner/schedule">Return to Schedule</Link>
+        </>
+      )
+    );
+    await waitFor(() => screen.getByRole("link", { name: "Return to Schedule" }));
+
+    fireEvent.click(screen.getByRole("link", { name: "Return to Schedule" }));
+    expect(routerPush).toHaveBeenCalledWith(
+      "/owner/schedule?branchId=sm&date=2026-10-12"
+    );
   });
 
   it("restores module scroll and keeps the mounted count within the CRM LRU limit", async () => {
