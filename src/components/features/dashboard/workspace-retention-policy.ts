@@ -8,23 +8,38 @@ export type RetainedModuleId =
   | "crm-schedule"
   | "crm-attendance"
   | "crm-customers"
+  | "crm-cash-flow"
+  | "crm-dispatch"
   | "owner-overview"
   | "owner-reports"
-  | "owner-bookings";
+  | "owner-bookings"
+  | "owner-schedule"
+  | "owner-attendance"
+  | "owner-cash-flow";
 
 export type WorkspaceModuleDescriptor = {
   workspace: RetainedWorkspace;
   moduleId: RetainedModuleId;
   normalizedRoute: string;
   stableSearchState: string;
+  /**
+   * Search state that changes the authoritative operational scope of a module.
+   * Unlike ordinary filters, scope state is part of the retained instance key
+   * so Owner branch changes can never reveal another branch's retained UI.
+   */
+  retentionScopeState: string;
   staleTimeMs: number;
   cost: WorkspaceRetentionCost;
 };
 
-type ModulePolicy = Omit<WorkspaceModuleDescriptor, "workspace" | "stableSearchState"> & {
+type ModulePolicy = Omit<
+  WorkspaceModuleDescriptor,
+  "workspace" | "stableSearchState" | "retentionScopeState"
+> & {
   workspace: RetainedWorkspace;
   exact?: boolean;
   stableSearchParams: readonly string[];
+  scopeSearchParams?: readonly string[];
 };
 
 export const WORKSPACE_RETENTION_LIMITS: Record<RetainedWorkspace, number> = {
@@ -90,11 +105,40 @@ const MODULE_POLICIES: readonly ModulePolicy[] = [
     cost: "medium",
   },
   {
+    workspace: "crm",
+    moduleId: "crm-cash-flow",
+    normalizedRoute: "/crm/cash-flow",
+    exact: true,
+    stableSearchParams: [
+      "date",
+      "tab",
+      "search",
+      "category",
+      "method",
+      "status",
+      "page",
+      "entry",
+      "handover",
+    ],
+    staleTimeMs: 15_000,
+    cost: "medium",
+  },
+  {
+    workspace: "crm",
+    moduleId: "crm-dispatch",
+    normalizedRoute: "/crm/dispatch",
+    exact: true,
+    stableSearchParams: [],
+    staleTimeMs: 10_000,
+    cost: "high",
+  },
+  {
     workspace: "owner",
     moduleId: "owner-overview",
     normalizedRoute: "/owner",
     exact: true,
     stableSearchParams: ["branch", "date"],
+    scopeSearchParams: ["branch"],
     staleTimeMs: 45_000,
     cost: "medium",
   },
@@ -103,7 +147,8 @@ const MODULE_POLICIES: readonly ModulePolicy[] = [
     moduleId: "owner-reports",
     normalizedRoute: "/owner/reports",
     exact: true,
-    stableSearchParams: ["preset", "from", "to"],
+    stableSearchParams: ["preset", "from", "to", "branchId", "view"],
+    scopeSearchParams: ["branchId"],
     staleTimeMs: 180_000,
     cost: "high",
   },
@@ -113,8 +158,49 @@ const MODULE_POLICIES: readonly ModulePolicy[] = [
     normalizedRoute: "/owner/bookings",
     exact: true,
     stableSearchParams: ["date", "branch", "status", "type", "search", "bookingId"],
+    scopeSearchParams: ["branch"],
     staleTimeMs: 25_000,
     cost: "medium",
+  },
+  {
+    workspace: "owner",
+    moduleId: "owner-schedule",
+    normalizedRoute: "/owner/schedule",
+    exact: true,
+    stableSearchParams: ["branchId", "date", "tab"],
+    scopeSearchParams: ["branchId"],
+    staleTimeMs: 30_000,
+    cost: "high",
+  },
+  {
+    workspace: "owner",
+    moduleId: "owner-attendance",
+    normalizedRoute: "/owner/attendance",
+    exact: true,
+    stableSearchParams: ["branchId", "tab", "date", "staff", "status", "page"],
+    scopeSearchParams: ["branchId"],
+    staleTimeMs: 12_000,
+    cost: "high",
+  },
+  {
+    workspace: "owner",
+    moduleId: "owner-cash-flow",
+    normalizedRoute: "/owner/cash-flow",
+    exact: true,
+    stableSearchParams: [
+      "branchId",
+      "date",
+      "tab",
+      "search",
+      "category",
+      "method",
+      "status",
+      "page",
+      "entry",
+    ],
+    scopeSearchParams: ["branchId"],
+    staleTimeMs: 15_000,
+    cost: "high",
   },
 ] as const;
 
@@ -149,19 +235,23 @@ export function resolveWorkspaceModule(
     moduleId: policy.moduleId,
     normalizedRoute: policy.normalizedRoute,
     stableSearchState: stableSearchState(params, policy.stableSearchParams),
+    retentionScopeState: stableSearchState(params, policy.scopeSearchParams ?? []),
     staleTimeMs: policy.staleTimeMs,
     cost: policy.cost,
   };
 }
 
 export function retainedModuleKey(scopeKey: string, descriptor: WorkspaceModuleDescriptor): string {
-  // Search state is restoration metadata, not a second mounted copy. Keeping
-  // one instance per module prevents high-frequency filters from consuming LRU slots.
-  return `${scopeKey}:${descriptor.workspace}:${descriptor.moduleId}`;
+  const base = `${scopeKey}:${descriptor.workspace}:${descriptor.moduleId}`;
+  // Ordinary filters are restoration metadata, not a second mounted copy.
+  // Operational scope (currently Owner branch selection) must be isolated.
+  return descriptor.retentionScopeState
+    ? `${base}:${descriptor.retentionScopeState}`
+    : base;
 }
 
 export function affectedModulesForBookingChange(workspace: RetainedWorkspace): RetainedModuleId[] {
   return workspace === "crm"
-    ? ["crm-work-queue", "crm-bookings", "crm-schedule"]
-    : ["owner-overview", "owner-reports", "owner-bookings"];
+    ? ["crm-work-queue", "crm-bookings", "crm-schedule", "crm-cash-flow", "crm-dispatch"]
+    : ["owner-overview", "owner-reports", "owner-bookings", "owner-schedule", "owner-cash-flow"];
 }
