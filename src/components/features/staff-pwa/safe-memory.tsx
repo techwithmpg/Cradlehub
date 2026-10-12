@@ -5,7 +5,16 @@ import type { ReactNode } from "react";
 import { useRouter } from "next/navigation";
 
 export type SafeSnapshot = {
-  screen: "today" | "schedule" | "progress" | "utilityHome" | "utilityTasks" | "utilityRooms";
+  screen:
+    | "today"
+    | "schedule"
+    | "progress"
+    | "utilityHome"
+    | "utilityTasks"
+    | "utilityRooms"
+    | "driverToday"
+    | "driverTrips"
+    | "driverMap";
   label: string;
   counts: readonly { label: string; value: number }[];
   updatedAt: number;
@@ -16,10 +25,20 @@ type CacheValue = {
   write: (snapshot: Omit<SafeSnapshot, "updatedAt">) => void;
   invalidate: (screens: readonly SafeSnapshot["screen"][]) => void;
   readPreference: (
-    key: "scheduleDate" | "progressTab" | "utilityTaskFilter" | "utilityRoomFilter"
+    key:
+      | "scheduleDate"
+      | "progressTab"
+      | "utilityTaskFilter"
+      | "utilityRoomFilter"
+      | "driverTripsFilter"
   ) => string | null;
   writePreference: (
-    key: "scheduleDate" | "progressTab" | "utilityTaskFilter" | "utilityRoomFilter",
+    key:
+      | "scheduleDate"
+      | "progressTab"
+      | "utilityTaskFilter"
+      | "utilityRoomFilter"
+      | "driverTripsFilter",
     value: string
   ) => void;
 };
@@ -41,7 +60,14 @@ export function StaffSafeMemoryProvider({
     identity: string;
     snapshots: Partial<Record<SafeSnapshot["screen"], SafeSnapshot>>;
     preferences: Partial<
-      Record<"scheduleDate" | "progressTab" | "utilityTaskFilter" | "utilityRoomFilter", string>
+      Record<
+        | "scheduleDate"
+        | "progressTab"
+        | "utilityTaskFilter"
+        | "utilityRoomFilter"
+        | "driverTripsFilter",
+        string
+      >
     >;
   }>({ identity, snapshots: {}, preferences: {} });
   const read = useCallback(
@@ -87,13 +113,24 @@ export function StaffSafeMemoryProvider({
   );
 
   const readPreference = useCallback(
-    (key: "scheduleDate" | "progressTab" | "utilityTaskFilter" | "utilityRoomFilter") =>
-      entry.identity === identity ? (entry.preferences[key] ?? null) : null,
+    (
+      key:
+        | "scheduleDate"
+        | "progressTab"
+        | "utilityTaskFilter"
+        | "utilityRoomFilter"
+        | "driverTripsFilter"
+    ) => (entry.identity === identity ? (entry.preferences[key] ?? null) : null),
     [entry, identity]
   );
   const writePreference = useCallback(
     (
-      key: "scheduleDate" | "progressTab" | "utilityTaskFilter" | "utilityRoomFilter",
+      key:
+        | "scheduleDate"
+        | "progressTab"
+        | "utilityTaskFilter"
+        | "utilityRoomFilter"
+        | "driverTripsFilter",
       value: string
     ) => {
       setEntry((previous) => ({

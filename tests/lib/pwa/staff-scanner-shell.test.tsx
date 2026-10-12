@@ -38,6 +38,28 @@ function UtilityMemoryProbe() {
   );
 }
 
+function DriverMemoryProbe() {
+  const memory = useStaffSafeMemory();
+  return (
+    <>
+      <output data-testid="driver-memory">
+        {memory?.read("driverToday")?.counts[0]?.value ?? "empty"}
+      </output>
+      <button
+        onClick={() =>
+          memory?.write({
+            screen: "driverToday",
+            label: "Driver today",
+            counts: [{ label: "Trips", value: 3 }],
+          })
+        }
+      >
+        Remember driver
+      </button>
+    </>
+  );
+}
+
 vi.mock("next/navigation", () => ({
   usePathname: () => mockPathname,
   useRouter: () => ({ push: vi.fn(), replace: vi.fn(), refresh: vi.fn() }),
@@ -144,8 +166,34 @@ describe("W1A: Scanner Shell Isolation & Foundation", () => {
 
     expect(screen.getByTestId("driver-today")).toBeDefined();
     expect(container.querySelector("nav")).not.toBeNull();
-    const contentWrapper = container.querySelector(".min-h-dvh");
-    expect(contentWrapper?.className).toContain("pb-[calc(84px+env(safe-area-inset-bottom))]");
+    const contentWrapper = container.querySelector(".min-h-full");
+    expect(contentWrapper?.className).toContain("pb-[calc(88px+env(safe-area-inset-bottom))]");
+  });
+
+  it("clears Driver summary memory when the authenticated identity changes", () => {
+    mockPathname = "/staff/driver";
+    const staff = {
+      id: "driver-1",
+      full_name: "Juan Driver",
+      nickname: "Juan",
+      branch_id: "branch-1",
+      system_role: "driver",
+      staff_type: "driver",
+      tier: null,
+    };
+    const { rerender } = render(
+      <DriverMobileShell staff={staff} mode="canonical" identity="user-a:driver-1:branch-1">
+        <DriverMemoryProbe />
+      </DriverMobileShell>
+    );
+    fireEvent.click(screen.getByRole("button", { name: "Remember driver" }));
+    expect(screen.getByTestId("driver-memory").textContent).toBe("3");
+    rerender(
+      <DriverMobileShell staff={staff} mode="canonical" identity="user-b:driver-2:branch-2">
+        <DriverMemoryProbe />
+      </DriverMobileShell>
+    );
+    expect(screen.getByTestId("driver-memory").textContent).toBe("empty");
   });
 
   it("5. StaffMobileShell suppresses bottom navigation on /staff/scan for utility and crm", () => {

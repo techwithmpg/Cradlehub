@@ -1,9 +1,23 @@
 import { getMyDriverJobByIdAction } from "../../../../staff-portal/actions";
-import { DriverJobDetailsPage } from "@/components/features/staff-portal/driver/driver-job-details-page";
+import { DriverNativeDetail } from "@/components/features/staff-pwa/driver/driver-native-detail";
 
-export default async function StaffDriverTripPage({ params }: { params: Promise<{ bookingId: string }> }) {
+export default async function StaffDriverTripPage({
+  params,
+}: {
+  params: Promise<{ bookingId: string }>;
+}) {
   const { bookingId } = await params;
   const result = await getMyDriverJobByIdAction(bookingId);
-  if ("error" in result) return <p role="alert" className="p-6">{result.error}</p>;
-  return <DriverJobDetailsPage job={result.job} backHref="/staff/driver/trips" />;
+  if ("error" in result)
+    return (
+      <p role="alert" className="p-6">
+        {result.error}
+      </p>
+    );
+  return (
+    <DriverNativeDetail
+      key={`${result.job.id}:${result.job.bookingProgressStatus}`}
+      job={result.job}
+    />
+  );
 }

@@ -14,19 +14,25 @@ export default function StaffLoading() {
   const pathname = usePathname();
   const { isOffline } = useNetworkStatus();
   const cache = useStaffSafeMemory();
-  const screen: SafeSnapshot["screen"] | null = pathname?.startsWith("/staff/utility/rooms")
-    ? "utilityRooms"
-    : pathname?.startsWith("/staff/utility/work")
-      ? "utilityTasks"
-      : pathname === "/staff/utility" || pathname === "/staff/utility/"
-        ? "utilityHome"
-        : pathname?.startsWith("/staff/schedule")
-          ? "schedule"
-          : pathname?.startsWith("/staff/progress")
-            ? "progress"
-            : pathname === "/staff" || pathname === "/staff/"
-              ? "today"
-              : null;
+  const screen: SafeSnapshot["screen"] | null = pathname?.startsWith("/staff/driver/trips")
+    ? "driverTrips"
+    : pathname?.startsWith("/staff/driver/map")
+      ? "driverMap"
+      : pathname === "/staff/driver" || pathname === "/staff/driver/"
+        ? "driverToday"
+        : pathname?.startsWith("/staff/utility/rooms")
+          ? "utilityRooms"
+          : pathname?.startsWith("/staff/utility/work")
+            ? "utilityTasks"
+            : pathname === "/staff/utility" || pathname === "/staff/utility/"
+              ? "utilityHome"
+              : pathname?.startsWith("/staff/schedule")
+                ? "schedule"
+                : pathname?.startsWith("/staff/progress")
+                  ? "progress"
+                  : pathname === "/staff" || pathname === "/staff/"
+                    ? "today"
+                    : null;
   const snapshot = screen ? cache?.read(screen) : null;
   const freshness = snapshot
     ? `${isOffline ? "Offline" : "Updating"} · Last updated ${new Date(snapshot.updatedAt).toLocaleTimeString([], { hour: "numeric", minute: "2-digit" })}`

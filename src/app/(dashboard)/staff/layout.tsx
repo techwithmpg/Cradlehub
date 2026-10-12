@@ -69,7 +69,11 @@ export default async function StaffLayout({ children }: { children: ReactNode })
 
     if (profile === "driver") {
       content = (
-        <DriverMobileShell staff={staff} mode="canonical">
+        <DriverMobileShell
+          staff={staff}
+          mode="canonical"
+          identity={`${authContext?.user.id ?? ""}:${staff.id}:${staff.system_role}:${staff.staff_type ?? ""}:${staff.branch_id ?? ""}`}
+        >
           {children}
         </DriverMobileShell>
       );
