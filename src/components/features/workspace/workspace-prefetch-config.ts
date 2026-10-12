@@ -112,6 +112,13 @@ export const STAFF_PORTAL_PREFETCH: WorkspacePrefetchConfig = {
   hover: ["/staff-portal/dispatch", "/staff-portal/stats"],
 };
 
+// Canonical Staff PWA tabs only. Scanner stays a deliberate document navigation.
+export const STAFF_PWA_PROVIDER_PREFETCH: WorkspacePrefetchConfig = {
+  immediate: [],
+  idle: ["/staff/schedule", "/staff/progress", "/staff/more"],
+  hover: [],
+};
+
 // ── Driver ────────────────────────────────────────────────────────────────────
 
 export const DRIVER_PREFETCH: WorkspacePrefetchConfig = {

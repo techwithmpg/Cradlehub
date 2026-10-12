@@ -15,6 +15,7 @@ export function StaffBottomNav({
 
   function isItemActive(item: StaffNavItem): boolean {
     if (activeKey) return activeKey === item.key;
+    if (item.href === "/staff/") return pathname === "/staff" || pathname === "/staff/";
 
     const rootPaths = [
       "/staff",
@@ -46,11 +47,7 @@ export function StaffBottomNav({
           if (item.isScan) {
             const scanContent = (
               <span className="flex h-16 w-16 flex-col items-center justify-center rounded-full bg-[#0D5C43] text-white shadow-[0_10px_26px_rgba(13,92,67,0.30)] ring-4 ring-[#F7F3EB] transition-transform duration-150 active:scale-95">
-                <Icon
-                  size={24}
-                  className="text-white"
-                  aria-hidden="true"
-                />
+                <Icon size={24} className="text-white" aria-hidden="true" />
                 <span className="mt-0.5 text-[10px] font-bold uppercase tracking-[0.08em] text-white">
                   {item.label}
                 </span>
@@ -112,25 +109,17 @@ export function StaffBottomNav({
               aria-current={active ? "page" : undefined}
               className={cn(
                 "relative flex h-full flex-col items-center justify-center rounded-xl pb-1 pt-2 transition active:scale-95 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#163A2B]",
-                active
-                  ? "text-[#0D5C43]"
-                  : "text-[#61728A] hover:text-[#1E293B]"
+                active ? "text-[#0D5C43]" : "text-[#61728A] hover:text-[#1E293B]"
               )}
             >
               <div className="flex h-7 w-7 items-center justify-center">
-                <Icon
-                  size={21}
-                  className={cn(active && "scale-105")}
-                  aria-hidden="true"
-                />
+                <Icon size={21} className={cn(active && "scale-105")} aria-hidden="true" />
               </div>
 
               <span
                 className={cn(
                   "mt-1 text-[10.5px] leading-none",
-                  active
-                    ? "font-bold text-[#0D5C43]"
-                    : "font-medium text-[#61728A]"
+                  active ? "font-bold text-[#0D5C43]" : "font-medium text-[#61728A]"
                 )}
               >
                 {item.label}

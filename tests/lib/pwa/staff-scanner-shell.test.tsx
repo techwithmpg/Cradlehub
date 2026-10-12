@@ -69,8 +69,8 @@ describe("W1A: Scanner Shell Isolation & Foundation", () => {
     expect(screen.getByTestId("therapist-today")).toBeDefined();
     // Bottom navigation must be present on standard routes
     expect(container.querySelector("nav")).not.toBeNull();
-    const contentWrapper = container.querySelector(".min-h-dvh");
-    expect(contentWrapper?.className).toContain("pb-[calc(112px+env(safe-area-inset-bottom))]");
+    const contentWrapper = container.querySelector(".min-h-full");
+    expect(contentWrapper?.className).toContain("pb-[calc(88px+env(safe-area-inset-bottom))]");
   });
 
   it("3. DriverMobileShell suppresses bottom navigation, sheet, and padding on /staff/scan", () => {
@@ -156,33 +156,58 @@ describe("W1A: Scanner Shell Isolation & Foundation", () => {
     const driverRole = resolveStaffOperationalRole({ system_role: "driver", staff_type: null });
     const driverProfile = resolveNavigationProfile(driverRole);
     const driverReturnHref =
-      driverProfile === "driver" ? "/staff/driver" : driverProfile === "utility" ? "/staff/utility" : "/staff";
+      driverProfile === "driver"
+        ? "/staff/driver"
+        : driverProfile === "utility"
+          ? "/staff/utility"
+          : "/staff";
     expect(driverReturnHref).toBe("/staff/driver");
 
     // Utility -> /staff/utility
-    const utilityRole = resolveStaffOperationalRole({ system_role: "utility", staff_type: "utility" });
+    const utilityRole = resolveStaffOperationalRole({
+      system_role: "utility",
+      staff_type: "utility",
+    });
     const utilityProfile = resolveNavigationProfile(utilityRole);
     const utilityReturnHref =
-      utilityProfile === "driver" ? "/staff/driver" : utilityProfile === "utility" ? "/staff/utility" : "/staff";
+      utilityProfile === "driver"
+        ? "/staff/driver"
+        : utilityProfile === "utility"
+          ? "/staff/utility"
+          : "/staff";
     expect(utilityReturnHref).toBe("/staff/utility");
 
     // Therapist / Provider -> /staff
-    const therapistRole = resolveStaffOperationalRole({ system_role: "staff", staff_type: "therapist" });
+    const therapistRole = resolveStaffOperationalRole({
+      system_role: "staff",
+      staff_type: "therapist",
+    });
     const providerProfile = resolveNavigationProfile(therapistRole);
     const providerReturnHref =
-      providerProfile === "driver" ? "/staff/driver" : providerProfile === "utility" ? "/staff/utility" : "/staff";
+      providerProfile === "driver"
+        ? "/staff/driver"
+        : providerProfile === "utility"
+          ? "/staff/utility"
+          : "/staff";
     expect(providerReturnHref).toBe("/staff");
 
     // CRM / General -> /staff
     const crmRole = resolveStaffOperationalRole({ system_role: "crm", staff_type: null });
     const crmProfile = resolveNavigationProfile(crmRole);
     const crmReturnHref =
-      crmProfile === "driver" ? "/staff/driver" : crmProfile === "utility" ? "/staff/utility" : "/staff";
+      crmProfile === "driver"
+        ? "/staff/driver"
+        : crmProfile === "utility"
+          ? "/staff/utility"
+          : "/staff";
     expect(crmReturnHref).toBe("/staff");
   });
 
   it("7. preserves C6 full-document navigation for central Scan button", () => {
-    const bottomNavSource = readFileSync("src/components/features/staff-pwa/bottom-nav.tsx", "utf8");
+    const bottomNavSource = readFileSync(
+      "src/components/features/staff-pwa/bottom-nav.tsx",
+      "utf8"
+    );
     // Scan must use native anchor <a> to guarantee same-origin document reload and camera Permissions-Policy
     expect(bottomNavSource).toMatch(/<a\s+href=\{item\.href\}\s+aria-label="Scan QR code"/);
   });

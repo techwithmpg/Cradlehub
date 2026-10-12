@@ -23,13 +23,19 @@ import { UserAvatar } from "@/components/shared/user-avatar";
 import { getStaffDisplayName } from "@/lib/staff/display-name";
 import { STAFF_TYPE_LABELS } from "@/constants/staff";
 import type { StaffPortalStaff } from "@/components/features/staff-portal/types";
+import {
+  StaffCard,
+  StaffScreen,
+  StaffScreenHeader,
+  StaffStatusChip,
+} from "@/components/features/staff-pwa/native-foundation";
 
-async function therapistLogoutAction() {
+async function therapistLogoutAction(formData: FormData) {
   "use server";
 
   const supabase = await createClient();
   await supabase.auth.signOut();
-  redirect("/login");
+  redirect(formData.get("staffPwa") === "1" ? "/staff/login" : "/login");
 }
 
 type TherapistMoreMenuProps = {
@@ -45,7 +51,6 @@ type MenuItem = {
   status?: string;
   disabled?: boolean;
 };
-
 
 type TherapistMoreLinkRow = {
   kind: "link";
@@ -63,9 +68,7 @@ type TherapistMoreLogoutRow = {
   icon: ElementType;
 };
 
-type TherapistMoreSectionItem =
-  | TherapistMoreLinkRow
-  | TherapistMoreLogoutRow;
+type TherapistMoreSectionItem = TherapistMoreLinkRow | TherapistMoreLogoutRow;
 
 type TherapistMoreSection = {
   title: string;
@@ -79,9 +82,7 @@ type TherapistMoreSection = {
  * The redesigned More UI does not have to render this structure directly,
  * but accepted PWA foundation consumers/tests still rely on the contract.
  */
-export function getTherapistMoreSections(
-  isCanonical: boolean
-): TherapistMoreSection[] {
+export function getTherapistMoreSections(isCanonical: boolean): TherapistMoreSection[] {
   return [
     {
       title: "Account",
@@ -173,18 +174,12 @@ export function getTherapistMoreSections(
   ];
 }
 
-export function TherapistMoreMenu({
-  isCanonical = false,
-  staff = null,
-}: TherapistMoreMenuProps) {
+export function TherapistMoreMenu({ isCanonical = false, staff = null }: TherapistMoreMenuProps) {
   const displayName = staff ? getStaffDisplayName(staff) : "Staff Member";
 
-  const roleLabel =
-    staff?.staff_type
-      ? STAFF_TYPE_LABELS[
-          staff.staff_type as keyof typeof STAFF_TYPE_LABELS
-        ] ?? "Therapist"
-      : "Therapist";
+  const roleLabel = staff?.staff_type
+    ? (STAFF_TYPE_LABELS[staff.staff_type as keyof typeof STAFF_TYPE_LABELS] ?? "Therapist")
+    : "Therapist";
 
   const items: MenuItem[] = [
     {
@@ -235,13 +230,11 @@ export function TherapistMoreMenu({
   ];
 
   return (
-    <div className="min-h-dvh bg-[#F7F3EB]">
-      <main className="mx-auto max-w-[480px] px-4 pb-6 pt-4">
-        <h1 className="mb-4 text-[25px] font-bold tracking-[-0.035em] text-[#14283A]">
-          More
-        </h1>
+    <div className="bg-[#F7F3EB]">
+      <StaffScreen>
+        <StaffScreenHeader title="More" subtitle="Your profile and workspace" />
 
-        <section className="relative overflow-hidden rounded-[22px] bg-[linear-gradient(135deg,#1A7056_0%,#0D4D3A_100%)] px-4 py-4 text-white shadow-[0_10px_28px_rgba(13,77,58,0.18)]">
+        <section className="relative overflow-hidden rounded-[22px] bg-[linear-gradient(145deg,#163A2B,#092B1F)] px-4 py-4 text-white shadow-[0_10px_28px_rgba(13,77,58,0.18)]">
           <div className="absolute -right-8 -top-10 size-36 rounded-full bg-white/5" />
           <div className="absolute -bottom-12 right-8 size-28 rounded-full bg-white/5" />
 
@@ -254,20 +247,16 @@ export function TherapistMoreMenu({
             />
 
             <div className="min-w-0">
-              <div className="truncate text-[20px] font-bold tracking-[-0.02em]">
-                {displayName}
-              </div>
-              <div className="mt-0.5 text-[13px] text-white/80">
-                {roleLabel}
-              </div>
-              <span className="mt-2 inline-flex rounded-full bg-white/12 px-2.5 py-1 text-[10px] font-semibold text-white/90">
+              <div className="truncate text-[20px] font-bold tracking-[-0.02em]">{displayName}</div>
+              <div className="mt-0.5 text-[13px] text-white/80">{roleLabel}</div>
+              <span className="mt-2 inline-flex rounded-full bg-[#C8A96B]/20 px-2.5 py-1 text-[10px] font-semibold text-[#F1D99B]">
                 Staff Workspace
               </span>
             </div>
           </div>
         </section>
 
-        <section className="mt-4 overflow-hidden rounded-[20px] border border-[#E9E4DC] bg-white shadow-[0_5px_20px_rgba(30,41,59,0.045)]">
+        <StaffCard className="mt-4 overflow-hidden">
           {items.map((item, index) => {
             const Icon = item.icon;
 
@@ -275,8 +264,8 @@ export function TherapistMoreMenu({
               <div
                 className={
                   item.disabled
-                    ? "flex min-h-[65px] items-center gap-3 px-4 opacity-55"
-                    : "flex min-h-[65px] items-center gap-3 px-4 transition active:bg-[#FAF8F4]"
+                    ? "flex min-h-[58px] items-center gap-3 px-4 opacity-55"
+                    : "flex min-h-[58px] items-center gap-3 px-4 transition active:bg-[#F5F0E6]"
                 }
               >
                 <div className="grid size-9 shrink-0 place-items-center rounded-[11px] bg-[#F5F3EF] text-[#1F394A]">
@@ -284,19 +273,13 @@ export function TherapistMoreMenu({
                 </div>
 
                 <div className="min-w-0 flex-1">
-                  <div className="text-[13.5px] font-semibold text-[#223548]">
-                    {item.label}
-                  </div>
+                  <div className="text-[13.5px] font-semibold text-[#223548]">{item.label}</div>
                   <div className="mt-0.5 truncate text-[10.5px] text-[#7C8794]">
                     {item.description}
                   </div>
                 </div>
 
-                {item.status ? (
-                  <span className="rounded-full bg-[#E8F6EB] px-2 py-1 text-[9.5px] font-bold text-[#18704D]">
-                    {item.status}
-                  </span>
-                ) : null}
+                {item.status ? <StaffStatusChip>{item.status}</StaffStatusChip> : null}
 
                 {!item.disabled ? (
                   <ChevronRight size={17} className="shrink-0 text-[#758190]" />
@@ -306,9 +289,7 @@ export function TherapistMoreMenu({
 
             return (
               <div key={item.label}>
-                {index > 0 ? (
-                  <div className="ml-16 h-px bg-[#EEEAE4]" />
-                ) : null}
+                {index > 0 ? <div className="ml-16 h-px bg-[#EEEAE4]" /> : null}
 
                 {item.href && !item.disabled ? (
                   <Link href={item.href} className="block">
@@ -320,9 +301,10 @@ export function TherapistMoreMenu({
               </div>
             );
           })}
-        </section>
+        </StaffCard>
 
         <form action={therapistLogoutAction} className="mt-4">
+          {isCanonical ? <input type="hidden" name="staffPwa" value="1" /> : null}
           <button
             type="submit"
             className="flex min-h-14 w-full items-center justify-center gap-2 rounded-[18px] border border-[#F3CACA] bg-[#FFF1F1] text-[14px] font-bold text-[#D63737] transition active:scale-[0.99]"
@@ -333,14 +315,10 @@ export function TherapistMoreMenu({
         </form>
 
         <div className="mt-4 rounded-[18px] bg-[#EEF5E9] px-4 py-4 text-center">
-          <div className="text-[13px] font-semibold text-[#315B45]">
-            Care people. Better days.
-          </div>
-          <div className="mt-1 text-[10px] text-[#718075]">
-            Simple tools for a focused workday.
-          </div>
+          <div className="text-[13px] font-semibold text-[#315B45]">Care people. Better days.</div>
+          <div className="mt-1 text-[10px] text-[#718075]">Simple tools for a focused workday.</div>
         </div>
-      </main>
+      </StaffScreen>
     </div>
   );
 }

@@ -3,19 +3,18 @@
 import { useMemo, useState } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import {
-  ChevronLeft,
-  ChevronRight,
-  Clock3,
-  Home,
-  MapPin,
-  Stethoscope,
-} from "lucide-react";
+import { ChevronLeft, ChevronRight, Clock3, Home, MapPin, Stethoscope } from "lucide-react";
 import { formatWeekRange } from "@/lib/staff-portal/week";
-import type {
-  StaffWeekDay,
-  StaffWeekNavigation,
-} from "@/lib/staff-portal/week";
+import {
+  StaffSnapshotRecorder,
+  useStaffSafeMemory,
+} from "@/components/features/staff-pwa/safe-memory";
+import {
+  StaffCard,
+  StaffScreenHeader,
+  StaffStatusChip,
+} from "@/components/features/staff-pwa/native-foundation";
+import type { StaffWeekDay, StaffWeekNavigation } from "@/lib/staff-portal/week";
 
 type TherapistScheduleListProps = {
   nav: StaffWeekNavigation;
@@ -28,11 +27,9 @@ function appointmentStatusLabel(status: string): string | null {
   return null;
 }
 
-export function TherapistScheduleList({
-  nav,
-  days,
-}: TherapistScheduleListProps) {
+export function TherapistScheduleList({ nav, days }: TherapistScheduleListProps) {
   const pathname = usePathname();
+  const memory = useStaffSafeMemory();
 
   const initialDate =
     days.find((day) => day.isToday)?.date ??
@@ -40,7 +37,10 @@ export function TherapistScheduleList({
     days[0]?.date ??
     "";
 
-  const [selectedDate, setSelectedDate] = useState(initialDate);
+  const [selectedDate, setSelectedDate] = useState(() => {
+    const remembered = memory?.readPreference("scheduleDate");
+    return remembered && days.some((day) => day.date === remembered) ? remembered : initialDate;
+  });
 
   const selectedDay = useMemo(
     () => days.find((day) => day.date === selectedDate) ?? days[0] ?? null,
@@ -49,9 +49,10 @@ export function TherapistScheduleList({
 
   const rangeLabel = formatWeekRange(nav.fromDate, nav.toDate);
 
-  const basePath = pathname?.startsWith("/staff")
-    ? "/staff/schedule"
-    : "/staff-portal/schedule";
+  const basePath =
+    pathname === "/staff" || pathname?.startsWith("/staff/")
+      ? "/staff/schedule"
+      : "/staff-portal/schedule";
 
   const previousHref = `${basePath}?weekStart=${nav.previousWeekStart}`;
   const nextHref = `${basePath}?weekStart=${nav.nextWeekStart}`;
@@ -65,24 +66,30 @@ export function TherapistScheduleList({
     : "";
 
   return (
-    <div className="min-h-dvh bg-[#F7F3EB]">
-      <div className="sticky top-0 z-30 border-b border-[#EAE4DC] bg-[#FBFAF6]/95 px-4 pb-3 pt-4 backdrop-blur-xl">
+    <div className="bg-[#F7F3EB]">
+      <StaffSnapshotRecorder
+        snapshot={{
+          screen: "schedule",
+          label: "Schedule",
+          counts: [
+            {
+              label: "This week",
+              value: days.reduce((total, day) => total + day.appointmentCount, 0),
+            },
+            { label: "Selected day", value: selectedDay?.appointmentCount ?? 0 },
+          ],
+        }}
+      />
+      <div className="px-4 pb-2 pt-4">
         <div className="mx-auto max-w-[480px]">
           <div className="flex items-center justify-between gap-3">
-            <div>
-              <h1 className="text-[26px] font-bold tracking-[-0.035em] text-[#14283A]">
-                Schedule
-              </h1>
-              <p className="mt-0.5 text-[12px] text-[#7A685F]">
-                {rangeLabel}
-              </p>
-            </div>
+            <StaffScreenHeader title="My Schedule" subtitle={rangeLabel} />
 
             <div className="flex gap-2">
               <Link
                 href={previousHref}
                 aria-label="Previous week"
-                className="grid size-10 place-items-center rounded-full border border-[#E5DED5] bg-white text-[#2B3D50] shadow-sm active:scale-95"
+                className="grid size-12 place-items-center rounded-full bg-[#fcfaf5] text-[#163a2b] shadow-[3px_3px_8px_#e7e1d6,-3px_-3px_8px_#fffdf7] active:scale-95"
               >
                 <ChevronLeft size={18} />
               </Link>
@@ -90,14 +97,14 @@ export function TherapistScheduleList({
               <Link
                 href={nextHref}
                 aria-label="Next week"
-                className="grid size-10 place-items-center rounded-full border border-[#E5DED5] bg-white text-[#2B3D50] shadow-sm active:scale-95"
+                className="grid size-12 place-items-center rounded-full bg-[#fcfaf5] text-[#163a2b] shadow-[3px_3px_8px_#e7e1d6,-3px_-3px_8px_#fffdf7] active:scale-95"
               >
                 <ChevronRight size={18} />
               </Link>
             </div>
           </div>
 
-          <div className="mt-4 grid grid-cols-7 gap-1">
+          <div className="grid grid-cols-7 gap-1 rounded-[18px] bg-[#f0eadd] p-1 shadow-[inset_3px_3px_8px_#e7e1d6,inset_-3px_-3px_8px_#fffdf7]">
             {days.map((day) => {
               const selected = day.date === selectedDay?.date;
 
@@ -105,11 +112,14 @@ export function TherapistScheduleList({
                 <button
                   key={day.date}
                   type="button"
-                  onClick={() => setSelectedDate(day.date)}
+                  onClick={() => {
+                    setSelectedDate(day.date);
+                    memory?.writePreference("scheduleDate", day.date);
+                  }}
                   className={
                     selected
-                      ? "flex min-h-[58px] flex-col items-center justify-center rounded-[15px] bg-[#0D6548] text-white shadow-[0_7px_18px_rgba(13,101,72,0.18)]"
-                      : "flex min-h-[58px] flex-col items-center justify-center rounded-[15px] text-[#35485B] active:bg-white"
+                      ? "flex min-h-[56px] flex-col items-center justify-center rounded-[14px] bg-[#163a2b] text-white shadow-[0_4px_10px_rgba(22,58,43,0.2)]"
+                      : "flex min-h-[56px] flex-col items-center justify-center rounded-[14px] text-[#35485B] active:bg-white"
                   }
                 >
                   <span
@@ -124,9 +134,7 @@ export function TherapistScheduleList({
                     {day.dayNameShort}
                   </span>
 
-                  <span className="mt-1 text-[17px] font-bold">
-                    {day.dayOfMonth}
-                  </span>
+                  <span className="mt-1 text-[17px] font-bold">{day.dayOfMonth}</span>
                 </button>
               );
             })}
@@ -134,14 +142,12 @@ export function TherapistScheduleList({
         </div>
       </div>
 
-      <main className="mx-auto max-w-[480px] px-4 pb-5 pt-4">
+      <div className="mx-auto max-w-[480px] px-4 pb-5 pt-3">
         {selectedDay ? (
           <>
             <div className="mb-3 flex items-end justify-between gap-3">
               <div>
-                <div className="text-[16px] font-bold text-[#1D3043]">
-                  {selectedDateLabel}
-                </div>
+                <div className="text-[16px] font-bold text-[#1D3043]">{selectedDateLabel}</div>
                 <div className="mt-0.5 text-[11px] text-[#7B8795]">
                   {selectedDay.appointmentCount} service
                   {selectedDay.appointmentCount === 1 ? "" : "s"}
@@ -160,17 +166,15 @@ export function TherapistScheduleList({
             </div>
 
             {selectedDay.isDayOff ? (
-              <div className="rounded-[22px] border border-[#EAE5DD] bg-white px-5 py-6 text-center shadow-[0_5px_20px_rgba(30,41,59,0.04)]">
-                <div className="text-[15px] font-bold text-[#26394B]">
-                  Day off
-                </div>
+              <StaffCard className="px-5 py-6 text-center">
+                <div className="text-[15px] font-bold text-[#26394B]">Day off</div>
                 <div className="mt-1 text-[12px] text-[#7B8795]">
                   No scheduled shift for this day.
                 </div>
-              </div>
+              </StaffCard>
             ) : (
               <div className="relative">
-                <div className="absolute bottom-5 left-[95px] top-5 w-px bg-[#C7DCD1]" />
+                <div className="absolute bottom-5 left-[95px] top-5 w-px bg-[#D9DDCF]" />
 
                 <div className="space-y-2">
                   {selectedDay.workHoursLabel ? (
@@ -201,12 +205,9 @@ export function TherapistScheduleList({
                   ) : null}
 
                   {selectedDay.appointments.map((appointment) => {
-                    const homeService =
-                      appointment.bookingType === "home_service";
+                    const homeService = appointment.bookingType === "home_service";
 
-                    const stateLabel = appointmentStatusLabel(
-                      appointment.status
-                    );
+                    const stateLabel = appointmentStatusLabel(appointment.status);
 
                     return (
                       <div
@@ -220,8 +221,8 @@ export function TherapistScheduleList({
                         <div
                           className={
                             homeService
-                              ? "relative rounded-[17px] border border-[#F0DFC1] bg-[#FFF8EA] px-4 py-3"
-                              : "relative rounded-[17px] border border-[#ECE7DF] bg-white px-4 py-3"
+                              ? "relative rounded-[17px] border border-[#F0DFC1] bg-[#FFF8EA] px-4 py-3 shadow-[3px_3px_10px_#e7e1d6,-3px_-3px_10px_#fffdf7]"
+                              : "relative rounded-[17px] border border-white/80 bg-[#fcfaf5] px-4 py-3 shadow-[3px_3px_10px_#e7e1d6,-3px_-3px_10px_#fffdf7]"
                           }
                         >
                           <span
@@ -240,11 +241,7 @@ export function TherapistScheduleList({
                                   : "grid size-9 shrink-0 place-items-center rounded-full bg-[#EDF5F0] text-[#0D6548]"
                               }
                             >
-                              {homeService ? (
-                                <Home size={17} />
-                              ) : (
-                                <Stethoscope size={17} />
-                              )}
+                              {homeService ? <Home size={17} /> : <Stethoscope size={17} />}
                             </div>
 
                             <div className="min-w-0 flex-1">
@@ -254,9 +251,7 @@ export function TherapistScheduleList({
                                 </div>
 
                                 {stateLabel ? (
-                                  <span className="shrink-0 rounded-full bg-[#E5F5E9] px-2 py-0.5 text-[9.5px] font-bold text-[#16734C]">
-                                    {stateLabel}
-                                  </span>
+                                  <StaffStatusChip>{stateLabel}</StaffStatusChip>
                                 ) : null}
                               </div>
 
@@ -272,19 +267,13 @@ export function TherapistScheduleList({
                                 </div>
                               ) : null}
                             </div>
-
-                            <ChevronRight
-                              size={16}
-                              className="mt-2 shrink-0 text-[#718096]"
-                            />
                           </div>
                         </div>
                       </div>
                     );
                   })}
 
-                  {selectedDay.appointments.length === 0 &&
-                  !selectedDay.workHoursLabel ? (
+                  {selectedDay.appointments.length === 0 && !selectedDay.workHoursLabel ? (
                     <div className="rounded-[20px] border border-[#EAE5DD] bg-white px-4 py-5 text-center text-[12px] text-[#7B8795]">
                       Nothing scheduled for this day.
                     </div>
@@ -294,7 +283,7 @@ export function TherapistScheduleList({
             )}
           </>
         ) : null}
-      </main>
+      </div>
     </div>
   );
 }

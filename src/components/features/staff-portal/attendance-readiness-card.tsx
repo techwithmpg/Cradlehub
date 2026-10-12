@@ -13,6 +13,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import type { StaffAttendancePhoneState } from "@/lib/attendance/device-registration";
 import type { StaffAttendanceData } from "@/lib/staff-portal/attendance";
+import { staffPwaAttendanceHref } from "@/lib/staff-pwa/attendance-href";
 
 function CheckRow({
   icon: Icon,
@@ -52,9 +53,11 @@ function CheckRow({
 export function AttendanceReadinessCard({
   data,
   phoneState,
+  canonical = false,
 }: {
   data: StaffAttendanceData;
   phoneState: StaffAttendancePhoneState | null;
+  canonical?: boolean;
 }) {
   const phoneReady = Boolean(phoneState?.registeredDevice);
   const branchIssue = data.issues.some((issue) => issue.kind === "branch");
@@ -125,7 +128,13 @@ export function AttendanceReadinessCard({
             </p>
             <p className="mt-2 font-medium">Scan only once. Do not refresh or scan repeatedly.</p>
             <Button asChild className="mt-3" size="sm">
-              <Link href="/staff-portal/profile#attendance-phone">
+              <Link
+                href={
+                  canonical
+                    ? "/staff/profile#attendance-phone"
+                    : "/staff-portal/profile#attendance-phone"
+                }
+              >
                 Open phone instructions
                 <ChevronRight data-icon="inline-end" />
               </Link>
@@ -152,7 +161,11 @@ export function AttendanceReadinessCard({
                   ) : null}
                 </div>
                 <Button asChild size="sm" variant="outline">
-                  <Link href={issue.actionHref}>{issue.actionLabel}</Link>
+                  <Link
+                    href={canonical ? staffPwaAttendanceHref(issue.actionHref) : issue.actionHref}
+                  >
+                    {issue.actionLabel}
+                  </Link>
                 </Button>
               </div>
             ))}

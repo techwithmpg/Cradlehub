@@ -14,32 +14,52 @@ type TherapistHeaderProps = {
 
 export function TherapistHeader({ staff }: TherapistHeaderProps) {
   const pathname = usePathname();
-  const isCanonical = pathname?.startsWith("/staff") ?? false;
-  const notificationsHref = isCanonical
-    ? "/staff/notices"
-    : "/staff-portal/notifications";
+  const isCanonical = pathname === "/staff" || pathname?.startsWith("/staff/") || false;
+  const notificationsHref = isCanonical ? "/staff/notices" : "/staff-portal/notifications";
   const profileHref = isCanonical ? "/staff/more" : "/staff-portal/profile";
 
   const typeLabel =
-    STAFF_TYPE_LABELS[
-      staff.staff_type as keyof typeof STAFF_TYPE_LABELS
-    ] ?? "Therapist";
+    STAFF_TYPE_LABELS[staff.staff_type as keyof typeof STAFF_TYPE_LABELS] ?? "Therapist";
 
   const displayName = getStaffDisplayName(staff);
 
   return (
-    <header className="sticky top-0 z-30 border-b border-[#EEE8DF] bg-[#FBFAF6]/95 backdrop-blur-xl">
+    <header
+      className={
+        isCanonical
+          ? "sticky top-0 z-30 bg-[linear-gradient(145deg,#163A2B,#08291E)] text-white"
+          : "sticky top-0 z-30 border-b border-[#EEE8DF] bg-[#FBFAF6]/95 backdrop-blur-xl"
+      }
+    >
       <div className="mx-auto flex max-w-[480px] items-center justify-between px-4 py-3">
         <div className="flex items-center gap-2.5">
-          <div className="grid size-9 place-items-center rounded-xl bg-[#EAF5ED] text-[#0D5C43]">
+          <div
+            className={
+              isCanonical
+                ? "grid size-10 place-items-center rounded-xl bg-[#C8A96B]/15 text-[#E8C781]"
+                : "grid size-9 place-items-center rounded-xl bg-[#EAF5ED] text-[#0D5C43]"
+            }
+          >
             <Leaf size={21} strokeWidth={2.2} />
           </div>
 
           <div>
-            <div className="text-[17px] font-bold leading-none tracking-[-0.025em] text-[#102A26]">
+            <div
+              className={
+                isCanonical
+                  ? "text-[17px] font-bold leading-none tracking-[-0.025em] text-white"
+                  : "text-[17px] font-bold leading-none tracking-[-0.025em] text-[#102A26]"
+              }
+            >
               CradleHub
             </div>
-            <div className="mt-1 text-[9px] font-semibold uppercase tracking-[0.16em] text-[#8D7563]">
+            <div
+              className={
+                isCanonical
+                  ? "mt-1 text-[9px] font-semibold uppercase tracking-[0.16em] text-[#D5BC83]"
+                  : "mt-1 text-[9px] font-semibold uppercase tracking-[0.16em] text-[#8D7563]"
+              }
+            >
               Staff · {typeLabel}
             </div>
           </div>
@@ -49,7 +69,11 @@ export function TherapistHeader({ staff }: TherapistHeaderProps) {
           <Link
             href={notificationsHref}
             aria-label="Notifications"
-            className="grid size-10 place-items-center rounded-full text-[#26384A] transition hover:bg-[#F2EEE8] active:scale-95"
+            className={
+              isCanonical
+                ? "grid size-12 place-items-center rounded-full text-white transition active:scale-95"
+                : "grid size-10 place-items-center rounded-full text-[#26384A] transition hover:bg-[#F2EEE8] active:scale-95"
+            }
           >
             <Bell size={19} strokeWidth={1.9} />
           </Link>
@@ -57,13 +81,17 @@ export function TherapistHeader({ staff }: TherapistHeaderProps) {
           <Link
             href={profileHref}
             aria-label="Profile"
-            className="rounded-full active:scale-95"
+            className="grid size-12 place-items-center rounded-full active:scale-95"
           >
             <UserAvatar
               name={displayName}
               imageUrl={staff.avatar_url}
               size="sm"
-              className="size-10 border-2 border-white shadow-sm ring-1 ring-[#E4DED5]"
+              className={
+                isCanonical
+                  ? "size-10 border-2 border-[#D5BC83] shadow-sm"
+                  : "size-10 border-2 border-white shadow-sm ring-1 ring-[#E4DED5]"
+              }
             />
           </Link>
         </div>

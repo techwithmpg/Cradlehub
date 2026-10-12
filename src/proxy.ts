@@ -26,8 +26,24 @@ const PROTECTED_PREFIXES = [
 
 export async function proxy(request: NextRequest) {
   const { pathname } = request.nextUrl;
+  // The installed Staff app must enter and remain under its accepted /staff/ scope.
+  // Keep the repository's existing slashless URL behavior for every other path.
+  if (pathname === "/staff") {
+    return NextResponse.redirect(new URL(`/staff/${request.nextUrl.search}`, request.url), 308);
+  }
+  if (pathname !== "/" && pathname !== "/staff/" && pathname.endsWith("/")) {
+    const url = new URL(request.url);
+    url.pathname = pathname.slice(0, -1);
+    return NextResponse.redirect(url, 308);
+  }
+
+  request.headers.delete("x-cradle-staff-pwa-route");
+  const isStaffPwaRoute = pathname === "/staff/" || pathname.startsWith("/staff/");
+  if (isStaffPwaRoute) request.headers.set("x-cradle-staff-pwa-route", "1");
   const devBypass = isDevAuthBypassEnabled();
-  const isProtected = PROTECTED_PREFIXES.some((prefix) => pathname === prefix || pathname.startsWith(`${prefix}/`));
+  const isProtected = PROTECTED_PREFIXES.some(
+    (prefix) => pathname === prefix || pathname.startsWith(`${prefix}/`)
+  );
 
   // API routes are never in the protected dashboard prefixes and manage their
   // own auth via the request-scoped Supabase client. Skip the session refresh
@@ -50,7 +66,7 @@ export async function proxy(request: NextRequest) {
   const response = await updateSession(request);
 
   // Only enforce auth on dashboard routes
-  if (!isProtected) return response;
+  if (!isProtected || pathname === "/staff/login") return response;
 
   // Verify user is authenticated
   const supabase = createServerClient(
@@ -69,7 +85,7 @@ export async function proxy(request: NextRequest) {
   } = await supabase.auth.getUser();
 
   if (!user) {
-    return NextResponse.redirect(new URL("/login", request.url));
+    return NextResponse.redirect(new URL(isStaffPwaRoute ? "/staff/login" : "/login", request.url));
   }
 
   // Dev-only bypass: let authenticated developers open all protected modules
@@ -110,4 +126,3 @@ export async function proxy(request: NextRequest) {
 export const config = {
   matcher: ["/((?!_next/static|_next/image|favicon.ico|.*\\.(?:svg|png|jpg|jpeg|gif|webp)$).*)"],
 };
-

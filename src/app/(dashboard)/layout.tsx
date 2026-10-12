@@ -1,4 +1,5 @@
 import { redirect } from "next/navigation";
+import { headers } from "next/headers";
 import { Sidebar } from "@/components/features/dashboard/sidebar";
 import { Header } from "@/components/features/dashboard/header";
 import { OfflineBanner } from "@/components/shared/offline-banner";
@@ -15,14 +16,15 @@ import { canViewMasterSheetReview } from "@/lib/auth/crm-permissions";
 
 export default async function DashboardLayout({ children }: { children: React.ReactNode }) {
   const ctx = await getLayoutStaffContext();
-  if (!ctx) redirect("/login");
+  const staffPwaRoute = (await headers()).get("x-cradle-staff-pwa-route") === "1";
+  if (!ctx) redirect(staffPwaRoute ? "/staff/login" : "/login");
 
   const { me } = ctx;
 
   // Dev bypass: if no staff record but dev mode is on, use a mock staff profile.
   const resolvedMe = me ?? (isDevAuthBypassEnabled() ? getDevBypassLayoutStaff() : null);
 
-  if (!resolvedMe) redirect("/login");
+  if (!resolvedMe) redirect(staffPwaRoute ? "/staff/login" : "/login");
 
   const workspaces = await getUserWorkspaceAccess(ctx.user.id).catch(() => []);
 

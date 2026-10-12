@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { staffPwaAttendanceHref } from "@/lib/staff-pwa/attendance-href";
 import { AlertCircle, CalendarDays, CheckCircle2, Clock3, ShieldCheck } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -41,7 +42,13 @@ function metricSummary(record: StaffAttendanceHistoryRecord): string {
   return metrics.join(" · ") || "On record";
 }
 
-export function StaffAttendanceHistory({ data }: { data: StaffAttendanceData }) {
+export function StaffAttendanceHistory({
+  data,
+  canonical = false,
+}: {
+  data: StaffAttendanceData;
+  canonical?: boolean;
+}) {
   const today = data.currentRecord;
   return (
     <div className="space-y-5">
@@ -83,7 +90,11 @@ export function StaffAttendanceHistory({ data }: { data: StaffAttendanceData }) 
                   className="justify-self-start"
                   variant={issue.staffCanComplete ? "default" : "outline"}
                 >
-                  <Link href={issue.actionHref}>{issue.actionLabel}</Link>
+                  <Link
+                    href={canonical ? staffPwaAttendanceHref(issue.actionHref) : issue.actionHref}
+                  >
+                    {issue.actionLabel}
+                  </Link>
                 </Button>
               </section>
             ))}

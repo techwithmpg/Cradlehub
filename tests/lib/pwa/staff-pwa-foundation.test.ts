@@ -89,7 +89,7 @@ describe("PWA-C5: Staff Foundation Navigation & Role Mapping", () => {
   it("verifies Provider profile destinations", () => {
     const labels = PROVIDER_NAV_ITEMS.map((item) => item.label);
     expect(labels).toEqual(["Today", "Schedule", "Scan", "Progress", "More"]);
-    expect(PROVIDER_NAV_ITEMS[0]?.href).toBe("/staff");
+    expect(PROVIDER_NAV_ITEMS[0]?.href).toBe("/staff/");
     expect(PROVIDER_NAV_ITEMS[1]?.href).toBe("/staff/schedule");
     expect(PROVIDER_NAV_ITEMS[3]?.href).toBe("/staff/progress");
     expect(PROVIDER_NAV_ITEMS[4]?.href).toBe("/staff/more");
@@ -98,7 +98,7 @@ describe("PWA-C5: Staff Foundation Navigation & Role Mapping", () => {
   it("verifies CRM / General profile destinations", () => {
     const labels = CRM_GENERAL_NAV_ITEMS.map((item) => item.label);
     expect(labels).toEqual(["Today", "Work", "Scan", "Notices", "More"]);
-    expect(CRM_GENERAL_NAV_ITEMS[0]?.href).toBe("/staff");
+    expect(CRM_GENERAL_NAV_ITEMS[0]?.href).toBe("/staff/");
     expect(CRM_GENERAL_NAV_ITEMS[1]?.href).toBe("/staff/work");
     expect(CRM_GENERAL_NAV_ITEMS[3]?.href).toBe("/staff/notices");
     expect(CRM_GENERAL_NAV_ITEMS[4]?.href).toBe("/staff/more");

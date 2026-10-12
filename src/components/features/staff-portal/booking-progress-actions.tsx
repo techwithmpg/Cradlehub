@@ -18,6 +18,7 @@ import { PremiumSuccessToast } from "@/components/shared/motion/premium-success-
 import { PremiumInlineSpinner } from "@/components/shared/motion/premium-inline-spinner";
 import { LivePulseIndicator } from "@/components/shared/motion/live-pulse-indicator";
 import { MotionStatusDot } from "@/components/shared/motion/motion-status-dot";
+import { invalidateStaffSafeMemory } from "@/components/features/staff-pwa/safe-memory";
 
 const ACTION_CONFIG: Record<
   BookingProgressStatus,
@@ -182,6 +183,11 @@ export function BookingProgressActions({ booking, onSuccess }: BookingProgressAc
         });
         setTimeout(() => setActionFeedback({ type: "idle", title: "" }), 4000);
       } else {
+        invalidateStaffSafeMemory(
+          status === "completed" || status === "no_show"
+            ? ["today", "progress", "schedule"]
+            : ["today", "progress"]
+        );
         setActionFeedback({
           type: "success",
           title: feedback.successTitle,
@@ -236,10 +242,10 @@ export function BookingProgressActions({ booking, onSuccess }: BookingProgressAc
           const dotState = isDone
             ? "done"
             : isCurrent
-            ? "active"
-            : currentStatus === "no_show"
-            ? "warning"
-            : "pending";
+              ? "active"
+              : currentStatus === "no_show"
+                ? "warning"
+                : "pending";
           return (
             <div key={stage} style={{ display: "flex", alignItems: "center", gap: 4 }}>
               <MotionStatusDot state={dotState} />
@@ -310,7 +316,7 @@ export function BookingProgressActions({ booking, onSuccess }: BookingProgressAc
               color: "#fff",
               transition:
                 "transform var(--cs-duration) var(--cs-ease), opacity var(--cs-duration) var(--cs-ease)",
-              minHeight: 40,
+              minHeight: 48,
               width: "100%",
             }}
           >
@@ -351,7 +357,7 @@ export function BookingProgressActions({ booking, onSuccess }: BookingProgressAc
                 color: "var(--cs-text-muted)",
                 transition:
                   "transform var(--cs-duration) var(--cs-ease), opacity var(--cs-duration) var(--cs-ease)",
-                minHeight: 40,
+                minHeight: 48,
                 width: "100%",
               }}
             >
@@ -386,13 +392,9 @@ export function BookingProgressActions({ booking, onSuccess }: BookingProgressAc
             fontSize: 12,
             fontWeight: 600,
             color:
-              currentStatus === "no_show"
-                ? "var(--cs-warning-text)"
-                : "var(--cs-success-text)",
+              currentStatus === "no_show" ? "var(--cs-warning-text)" : "var(--cs-success-text)",
             backgroundColor:
-              currentStatus === "no_show"
-                ? "var(--cs-warning-bg)"
-                : "var(--cs-success-bg)",
+              currentStatus === "no_show" ? "var(--cs-warning-bg)" : "var(--cs-success-bg)",
             padding: "6px 12px",
             borderRadius: "var(--cs-r-sm)",
             display: "inline-flex",

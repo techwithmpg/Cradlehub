@@ -9,16 +9,8 @@ import {
   Sun,
   Truck,
 } from "lucide-react";
-import type {
-  NavigationProfile,
-  StaffNavItem,
-  StaffOperationalRole,
-} from "./types";
-import {
-  canonicalizeSystemRole,
-  isFrontDeskRole,
-  isServiceStaffType,
-} from "@/constants/staff";
+import type { NavigationProfile, StaffNavItem, StaffOperationalRole } from "./types";
+import { canonicalizeSystemRole, isFrontDeskRole, isServiceStaffType } from "@/constants/staff";
 
 /**
  * 4 Frozen Navigation Profiles across 7 Staff Roles (PWA-C4 Section 4 & 5):
@@ -41,7 +33,7 @@ export const PROVIDER_NAV_ITEMS: StaffNavItem[] = [
   {
     key: "today",
     label: "Today",
-    href: "/staff",
+    href: "/staff/",
     icon: Sun,
   },
   {
@@ -75,7 +67,7 @@ export const CRM_GENERAL_NAV_ITEMS: StaffNavItem[] = [
   {
     key: "today",
     label: "Today",
-    href: "/staff",
+    href: "/staff/",
     icon: Sun,
   },
   {
@@ -211,12 +203,7 @@ export function resolveStaffOperationalRole(staff: {
   if (canonicalRole === "service_staff") return "therapist";
 
   // 4. CRM / General Staff (front desk, csr)
-  if (
-    canonicalRole === "crm" ||
-    isFrontDeskRole(role) ||
-    role === "front_desk" ||
-    type === "csr"
-  ) {
+  if (canonicalRole === "crm" || isFrontDeskRole(role) || role === "front_desk" || type === "csr") {
     return "crm_general";
   }
 
@@ -255,9 +242,7 @@ export function resolveNavigationProfile(
   }
 }
 
-export function getNavigationItemsForProfile(
-  profile: NavigationProfile
-): StaffNavItem[] {
+export function getNavigationItemsForProfile(profile: NavigationProfile): StaffNavItem[] {
   switch (profile) {
     case "provider":
       return PROVIDER_NAV_ITEMS;
