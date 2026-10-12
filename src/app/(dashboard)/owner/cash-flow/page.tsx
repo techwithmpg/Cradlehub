@@ -8,6 +8,7 @@ import { CashFlowRequiredDataError } from "@/lib/cash-flow/cash-flow-errors";
 import { getCashFlowData } from "@/lib/cash-flow/cash-flow-queries";
 import { getBranchBusinessDate } from "@/lib/engine/slot-time";
 import { getAllBranches } from "@/lib/queries/branches";
+import { RetainedWorkspaceModule } from "@/components/features/dashboard/retained-workspace-provider";
 
 type SearchParams = { [key: string]: string | string[] | undefined };
 
@@ -25,11 +26,13 @@ export default async function OwnerCashFlowPage({
   const [params, branches] = await Promise.all([searchParams, getAllBranches()]);
   if (branches.length === 0) {
     return (
-      <section className="cs-card p-6" role="status">
-        <h1 className="text-xl font-semibold">Cash Flow</h1>
-        <p className="mt-2 text-sm">Configure an active branch to view financial activity.</p>
-        <Link className="mt-3 inline-block underline" href="/owner/branches">Manage branches</Link>
-      </section>
+      <RetainedWorkspaceModule moduleId="owner-cash-flow">
+        <section className="cs-card p-6" role="status">
+          <h1 className="text-xl font-semibold">Cash Flow</h1>
+          <p className="mt-2 text-sm">Configure an active branch to view financial activity.</p>
+          <Link className="mt-3 inline-block underline" href="/owner/branches">Manage branches</Link>
+        </section>
+      </RetainedWorkspaceModule>
     );
   }
 
@@ -81,28 +84,32 @@ export default async function OwnerCashFlowPage({
   } catch (error) {
     if (!(error instanceof CashFlowRequiredDataError)) throw error;
     return (
-      <div className="min-w-0">
-        {branchControls}
-        <section role="alert" className="rounded-xl border border-amber-200 bg-amber-50 p-6">
-          <h1 className="text-xl font-semibold text-amber-950">Cash Flow is unavailable</h1>
-          <p className="mt-2 text-sm text-amber-900">
-            Required financial data could not be loaded. Ask an administrator to check the Cash Flow database setup.
-          </p>
-        </section>
-      </div>
+      <RetainedWorkspaceModule moduleId="owner-cash-flow">
+        <div className="min-w-0">
+          {branchControls}
+          <section role="alert" className="rounded-xl border border-amber-200 bg-amber-50 p-6">
+            <h1 className="text-xl font-semibold text-amber-950">Cash Flow is unavailable</h1>
+            <p className="mt-2 text-sm text-amber-900">
+              Required financial data could not be loaded. Ask an administrator to check the Cash Flow database setup.
+            </p>
+          </section>
+        </div>
+      </RetainedWorkspaceModule>
     );
   }
 
   return (
-    <div className="min-w-0">
-      {branchControls}
-      <CashFlowWorkspace
-        key={`${branch.id}:${selectedDate}`}
-        initialData={cashFlowData}
-        initialTab={initialTab}
-        initialEntryMode={initialEntryMode}
-        reconciliationHref={null}
-      />
-    </div>
+    <RetainedWorkspaceModule moduleId="owner-cash-flow">
+      <div className="min-w-0">
+        {branchControls}
+        <CashFlowWorkspace
+          key={`${branch.id}:${selectedDate}`}
+          initialData={cashFlowData}
+          initialTab={initialTab}
+          initialEntryMode={initialEntryMode}
+          reconciliationHref={null}
+        />
+      </div>
+    </RetainedWorkspaceModule>
   );
 }
