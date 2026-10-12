@@ -32,10 +32,19 @@ describe("Attendance launch configuration", () => {
 });
 
 describe("Retained workspace rollout", () => {
-  it("defaults safely to CRM-first and keeps Owner opt-in", () => {
-    expect(getRetainedWorkspaceRollout({})).toBe("crm");
+  it("defaults to retained CRM and Owner workspaces", () => {
+    expect(getRetainedWorkspaceRollout({})).toBe("all");
     expect(isRetainedWorkspaceEnabled("crm", {})).toBe(true);
-    expect(isRetainedWorkspaceEnabled("owner", {})).toBe(false);
+    expect(isRetainedWorkspaceEnabled("owner", {})).toBe(true);
+  });
+
+  it("keeps invalid rollout values fail-safe at CRM-only", () => {
+    expect(getRetainedWorkspaceRollout({
+      NEXT_PUBLIC_RETAINED_WORKSPACES: "unexpected",
+    })).toBe("crm");
+    expect(isRetainedWorkspaceEnabled("owner", {
+      NEXT_PUBLIC_RETAINED_WORKSPACES: "unexpected",
+    })).toBe(false);
   });
 
   it("supports full rollout and immediate rollback", () => {
