@@ -1,6 +1,10 @@
 import { redirect } from "next/navigation";
-import { createClient } from "@/lib/supabase/server";
 import { isDevAuthBypassEnabled } from "@/lib/dev-bypass";
+import { getCurrentUserWorkspaceAccess } from "@/lib/auth/get-user-workspace-access";
+import {
+  getWorkspaceSwitchDestination,
+  hasWorkspaceAccess,
+} from "@/lib/auth/workspace-access";
 import { getAllBranches } from "@/lib/queries/branches";
 import { OwnerBookingsView } from "@/components/features/bookings/owner-bookings-view";
 import {
@@ -10,19 +14,15 @@ import type { WorkspaceBookingRow } from "@/components/features/bookings/booking
 import { RetainedWorkspaceModule } from "@/components/features/dashboard/retained-workspace-provider";
 
 async function requireOwnerContext() {
-  const supabase = await createClient();
-  const { data: { user } } = await supabase.auth.getUser();
-  if (!user && !isDevAuthBypassEnabled()) redirect("/login");
-  if (!user) return;
+  const access = await getCurrentUserWorkspaceAccess();
+  if (!access) {
+    if (isDevAuthBypassEnabled()) return;
+    redirect("/login");
+  }
 
-  const { data: me } = await supabase
-    .from("staff")
-    .select("system_role")
-    .eq("auth_user_id", user.id)
-    .eq("is_active", true)
-    .maybeSingle();
-
-  if (me?.system_role !== "owner") redirect("/login");
+  if (!hasWorkspaceAccess(access.workspaces, "owner")) {
+    redirect(getWorkspaceSwitchDestination(access.workspaces));
+  }
 }
 
 export default async function OwnerBookingsPage({
