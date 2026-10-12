@@ -1,6 +1,9 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
-import { CashFlowWorkspace, type CashFlowTab } from "@/components/features/cash-flow/cash-flow-workspace";
+import {
+  CashFlowWorkspace,
+  type CashFlowTab,
+} from "@/components/features/cash-flow/cash-flow-workspace";
 import type { FinancialEntryMode } from "@/components/features/cash-flow/record-financial-entry-modal";
 import { getCurrentUserWorkspaceAccess } from "@/lib/auth/get-user-workspace-access";
 import { getWorkspaceSwitchDestination, hasWorkspaceAccess } from "@/lib/auth/workspace-access";
@@ -30,7 +33,9 @@ export default async function OwnerCashFlowPage({
         <section className="cs-card p-6" role="status">
           <h1 className="text-xl font-semibold">Cash Flow</h1>
           <p className="mt-2 text-sm">Configure an active branch to view financial activity.</p>
-          <Link className="mt-3 inline-block underline" href="/owner/branches">Manage branches</Link>
+          <Link className="mt-3 inline-block underline" href="/owner/branches">
+            Manage branches
+          </Link>
         </section>
       </RetainedWorkspaceModule>
     );
@@ -39,18 +44,23 @@ export default async function OwnerCashFlowPage({
   const requestedBranchId = typeof params.branchId === "string" ? params.branchId : "";
   const branch = branches.find((item) => item.id === requestedBranchId) ?? branches[0]!;
   const today = getBranchBusinessDate();
-  const selectedDate = typeof params.date === "string" && /^\d{4}-\d{2}-\d{2}$/.test(params.date)
-    ? params.date
-    : today;
+  const selectedDate =
+    typeof params.date === "string" && /^\d{4}-\d{2}-\d{2}$/.test(params.date)
+      ? params.date
+      : today;
   const requestedTab = params.tab;
   const initialTab: CashFlowTab =
     requestedTab === "ledger" || requestedTab === "day-close" || requestedTab === "history"
       ? requestedTab
       : "today";
   const initialEntryMode: FinancialEntryMode | null =
-    params.entry === "payment" ? "customer_payment"
-      : params.entry === "expense" ? "expense"
-        : params.entry === "cash-operations" ? "other_entry" : null;
+    params.entry === "payment"
+      ? "customer_payment"
+      : params.entry === "expense"
+        ? "expense"
+        : params.entry === "cash-operations"
+          ? "other_entry"
+          : null;
 
   const filters = {
     tab: initialTab,
@@ -62,19 +72,40 @@ export default async function OwnerCashFlowPage({
   };
 
   const branchControls = (
-    <form method="get" className="flex flex-wrap items-end gap-3 border-b border-[var(--cs-border)] bg-[var(--cs-surface)] p-4">
+    <form
+      method="get"
+      className="flex flex-wrap items-end gap-3 border-b border-[var(--cs-border)] bg-[var(--cs-surface)] p-4"
+    >
       <label className="grid gap-1 text-xs font-semibold text-[var(--cs-text)]">
         Branch
-        <select name="branchId" defaultValue={branch.id} className="h-10 min-w-44 rounded-lg border border-[var(--cs-border)] bg-[var(--cs-surface)] px-3 text-sm">
-          {branches.map((item) => <option key={item.id} value={item.id}>{item.name}</option>)}
+        <select
+          name="branchId"
+          defaultValue={branch.id}
+          className="h-10 min-w-44 rounded-lg border border-[var(--cs-border)] bg-[var(--cs-surface)] px-3 text-sm"
+        >
+          {branches.map((item) => (
+            <option key={item.id} value={item.id}>
+              {item.name}
+            </option>
+          ))}
         </select>
       </label>
       <label className="grid gap-1 text-xs font-semibold text-[var(--cs-text)]">
         Business date
-        <input type="date" name="date" defaultValue={selectedDate} className="h-10 rounded-lg border border-[var(--cs-border)] bg-[var(--cs-surface)] px-3 text-sm" />
+        <input
+          type="date"
+          name="date"
+          defaultValue={selectedDate}
+          className="h-10 rounded-lg border border-[var(--cs-border)] bg-[var(--cs-surface)] px-3 text-sm"
+        />
       </label>
       <input type="hidden" name="tab" value={initialTab} />
-      <button type="submit" className="h-10 rounded-lg bg-[#163E32] px-4 text-sm font-semibold text-white">View Cash Flow</button>
+      <button
+        type="submit"
+        className="h-10 rounded-lg bg-[#163E32] px-4 text-sm font-semibold text-white"
+      >
+        View Cash Flow
+      </button>
     </form>
   );
 
@@ -90,7 +121,8 @@ export default async function OwnerCashFlowPage({
           <section role="alert" className="rounded-xl border border-amber-200 bg-amber-50 p-6">
             <h1 className="text-xl font-semibold text-amber-950">Cash Flow is unavailable</h1>
             <p className="mt-2 text-sm text-amber-900">
-              Required financial data could not be loaded. Ask an administrator to check the Cash Flow database setup.
+              Required financial data could not be loaded. Ask an administrator to check the Cash
+              Flow database setup.
             </p>
           </section>
         </div>

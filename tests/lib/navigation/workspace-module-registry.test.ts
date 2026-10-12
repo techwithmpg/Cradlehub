@@ -71,10 +71,7 @@ describe("retained workspace registry", () => {
     state = activate(state, "/crm/bookings", 2);
     state = activate(state, "/crm/schedule", 3);
 
-    expect(state.entries.map((entry) => entry.moduleId)).toEqual([
-      "crm-bookings",
-      "crm-schedule",
-    ]);
+    expect(state.entries.map((entry) => entry.moduleId)).toEqual(["crm-bookings", "crm-schedule"]);
     expect(Object.values(state.restoration).map((entry) => entry.moduleId)).toContain(
       "crm-work-queue"
     );
@@ -86,9 +83,7 @@ describe("retained workspace registry", () => {
       previousScrollTop: 0,
     });
     expect(state.activeKey).toBe(workQueueKey);
-    expect(state.entries.find((entry) => entry.key === workQueueKey)?.node).toBe(
-      "/crm/today"
-    );
+    expect(state.entries.find((entry) => entry.key === workQueueKey)?.node).toBe("/crm/today");
     expect(state.entries).toHaveLength(2);
   });
 

@@ -19,11 +19,7 @@ import { RetainedWorkspaceProvider } from "@/components/features/dashboard/retai
 import { isRetainedWorkspaceEnabled } from "@/lib/config/mvp-flags";
 import { getFrontDeskContext } from "@/lib/queries/crm-context";
 
-export default async function CrmLayout({
-  children,
-}: {
-  children: React.ReactNode;
-}) {
+export default async function CrmLayout({ children }: { children: React.ReactNode }) {
   // Front Desk context already performs the authoritative authenticated
   // workspace/branch resolution and exposes the user id needed below.
   // Reuse it instead of repeating the layout staff lookup on every CRM route.
@@ -34,7 +30,8 @@ export default async function CrmLayout({
     workspace: "crm",
     role: frontDesk.role,
   });
-  const canShowCoach = coachAvailability.available && Boolean(frontDesk.userId) && Boolean(branchId);
+  const canShowCoach =
+    coachAvailability.available && Boolean(frontDesk.userId) && Boolean(branchId);
   const bookingContext = branchId ? await getQuickBookingContext(branchId) : null;
   const retainedChildren = branchId ? (
     <RetainedWorkspaceProvider
@@ -49,21 +46,22 @@ export default async function CrmLayout({
   ) : (
     children
   );
-  const workspaceContent = branchId && bookingContext ? (
-    <AdministrativeBookingModalProvider
-      key={branchId}
-      branchId={branchId}
-      branchName={branchName}
-      bookingRules={bookingContext.bookingRules}
-      services={bookingContext.services}
-      staff={bookingContext.staff}
-      resources={bookingContext.resources}
-    >
-      {retainedChildren}
-    </AdministrativeBookingModalProvider>
-  ) : (
-    retainedChildren
-  );
+  const workspaceContent =
+    branchId && bookingContext ? (
+      <AdministrativeBookingModalProvider
+        key={branchId}
+        branchId={branchId}
+        branchName={branchName}
+        bookingRules={bookingContext.bookingRules}
+        services={bookingContext.services}
+        staff={bookingContext.staff}
+        resources={bookingContext.resources}
+      >
+        {retainedChildren}
+      </AdministrativeBookingModalProvider>
+    ) : (
+      retainedChildren
+    );
 
   return (
     <>

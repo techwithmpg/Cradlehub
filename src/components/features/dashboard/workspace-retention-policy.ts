@@ -216,10 +216,7 @@ const MODULE_POLICIES: readonly ModulePolicy[] = [
   },
 ] as const;
 
-function stableSearchState(
-  search: URLSearchParams,
-  allowedParams: readonly string[]
-): string {
+function stableSearchState(search: URLSearchParams, allowedParams: readonly string[]): string {
   const stable = new URLSearchParams();
   for (const key of [...allowedParams].sort()) {
     for (const value of search.getAll(key)) stable.append(key, value);
@@ -237,7 +234,8 @@ export function resolveWorkspaceModule(
     if (candidate.workspace !== workspace) return false;
     return candidate.exact
       ? pathname === candidate.normalizedRoute
-      : pathname === candidate.normalizedRoute || pathname.startsWith(`${candidate.normalizedRoute}/`);
+      : pathname === candidate.normalizedRoute ||
+          pathname.startsWith(`${candidate.normalizedRoute}/`);
   });
   if (!policy) return null;
 
@@ -257,13 +255,18 @@ export function retainedModuleKey(scopeKey: string, descriptor: WorkspaceModuleD
   const base = `${scopeKey}:${descriptor.workspace}:${descriptor.moduleId}`;
   // Ordinary filters are restoration metadata, not a second mounted copy.
   // Operational scope (currently Owner branch selection) must be isolated.
-  return descriptor.retentionScopeState
-    ? `${base}:${descriptor.retentionScopeState}`
-    : base;
+  return descriptor.retentionScopeState ? `${base}:${descriptor.retentionScopeState}` : base;
 }
 
 export function affectedModulesForBookingChange(workspace: RetainedWorkspace): RetainedModuleId[] {
   return workspace === "crm"
     ? ["crm-work-queue", "crm-bookings", "crm-schedule", "crm-cash-flow", "crm-dispatch"]
-    : ["owner-overview", "owner-reports", "owner-bookings", "owner-schedule", "owner-cash-flow", "owner-dispatch"];
+    : [
+        "owner-overview",
+        "owner-reports",
+        "owner-bookings",
+        "owner-schedule",
+        "owner-cash-flow",
+        "owner-dispatch",
+      ];
 }

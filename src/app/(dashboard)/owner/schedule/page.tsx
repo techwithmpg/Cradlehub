@@ -10,10 +10,7 @@ import {
 } from "@/app/(dashboard)/owner/bookings/actions";
 import { getBranchBusinessDate } from "@/lib/engine/slot-time";
 import { getCurrentUserWorkspaceAccess } from "@/lib/auth/get-user-workspace-access";
-import {
-  getWorkspaceSwitchDestination,
-  hasWorkspaceAccess,
-} from "@/lib/auth/workspace-access";
+import { getWorkspaceSwitchDestination, hasWorkspaceAccess } from "@/lib/auth/workspace-access";
 import { RetainedWorkspaceModule } from "@/components/features/dashboard/retained-workspace-provider";
 
 async function getOwnerContext() {
@@ -38,7 +35,7 @@ export default async function OwnerSchedulePage({
   const selectedBranchId =
     params.branchId && branches.some((b) => b.id === params.branchId)
       ? params.branchId
-      : branches[0]?.id ?? "";
+      : (branches[0]?.id ?? "");
 
   const selectedDate = params.date ?? today;
   const selectedBranch = branches.find((b) => b.id === selectedBranchId);
@@ -50,7 +47,14 @@ export default async function OwnerSchedulePage({
       : Promise.resolve([]),
     selectedBranchId
       ? getManagerDashboardStats(selectedBranchId, selectedDate)
-      : Promise.resolve({ total: 0, confirmed: 0, in_progress: 0, completed: 0, cancelled: 0, no_show: 0 }),
+      : Promise.resolve({
+          total: 0,
+          confirmed: 0,
+          in_progress: 0,
+          completed: 0,
+          cancelled: 0,
+          no_show: 0,
+        }),
     selectedBranchId
       ? supabase
           .from("branch_resources")

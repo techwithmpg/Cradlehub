@@ -62,8 +62,9 @@ type RetainedWorkspaceRegistration = {
   isRegistered: (moduleId: RetainedWorkspaceEntry["moduleId"]) => boolean;
 };
 
-const RetainedWorkspaceRegistrationContext =
-  createContext<RetainedWorkspaceRegistration | null>(null);
+const RetainedWorkspaceRegistrationContext = createContext<RetainedWorkspaceRegistration | null>(
+  null
+);
 
 /**
  * Marks the serializable page subtree that belongs in the persistent host.
@@ -147,49 +148,57 @@ function RetainedModuleFrame({
   const markClean = useCallback(() => {
     dispatch({ type: "mark-clean", key: entry.key, at: Date.now() });
   }, [dispatch, entry.key]);
-  const setRefreshing = useCallback((refreshing: boolean) => {
-    dispatch({ type: "set-refreshing", key: entry.key, refreshing });
-  }, [dispatch, entry.key]);
-  const setUnsavedChanges = useCallback((unsaved: boolean) => {
-    dispatch({ type: "set-unsaved", key: entry.key, unsaved });
-  }, [dispatch, entry.key]);
-  const lifecycle = useMemo<WorkspaceModuleLifecycleValue>(() => ({
-    isActive: active,
-    isRetained: true,
-    isDirty: entry.dirty,
-    isStale: entry.lastActivatedAt - entry.lastRefreshedAt >= entry.staleTimeMs,
-    isRefreshing: entry.isRefreshing,
-    hasUnsavedChanges: entry.hasUnsavedChanges,
-    becameActiveAt: entry.becameActiveAt,
-    markDirty,
-    markClean,
-    setRefreshing,
-    setUnsavedChanges,
-  }), [
-    active,
-    entry.becameActiveAt,
-    entry.dirty,
-    entry.hasUnsavedChanges,
-    entry.isRefreshing,
-    entry.lastActivatedAt,
-    entry.lastRefreshedAt,
-    entry.staleTimeMs,
-    markClean,
-    markDirty,
-    setRefreshing,
-    setUnsavedChanges,
-  ]);
+  const setRefreshing = useCallback(
+    (refreshing: boolean) => {
+      dispatch({ type: "set-refreshing", key: entry.key, refreshing });
+    },
+    [dispatch, entry.key]
+  );
+  const setUnsavedChanges = useCallback(
+    (unsaved: boolean) => {
+      dispatch({ type: "set-unsaved", key: entry.key, unsaved });
+    },
+    [dispatch, entry.key]
+  );
+  const lifecycle = useMemo<WorkspaceModuleLifecycleValue>(
+    () => ({
+      isActive: active,
+      isRetained: true,
+      isDirty: entry.dirty,
+      isStale: entry.lastActivatedAt - entry.lastRefreshedAt >= entry.staleTimeMs,
+      isRefreshing: entry.isRefreshing,
+      hasUnsavedChanges: entry.hasUnsavedChanges,
+      becameActiveAt: entry.becameActiveAt,
+      markDirty,
+      markClean,
+      setRefreshing,
+      setUnsavedChanges,
+    }),
+    [
+      active,
+      entry.becameActiveAt,
+      entry.dirty,
+      entry.hasUnsavedChanges,
+      entry.isRefreshing,
+      entry.lastActivatedAt,
+      entry.lastRefreshedAt,
+      entry.staleTimeMs,
+      markClean,
+      markDirty,
+      setRefreshing,
+      setUnsavedChanges,
+    ]
+  );
   const showRefreshing = active && (entry.isRefreshing || pendingRefresh);
   const [showRefreshStatus, setShowRefreshStatus] = useState(false);
 
   useEffect(() => {
-    if (!showRefreshing) {
-      setShowRefreshStatus(false);
-      return;
-    }
-
+    if (!showRefreshing) return;
     const timer = window.setTimeout(() => setShowRefreshStatus(true), 220);
-    return () => window.clearTimeout(timer);
+    return () => {
+      window.clearTimeout(timer);
+      setShowRefreshStatus(false);
+    };
   }, [showRefreshing]);
 
   return (
@@ -204,7 +213,7 @@ function RetainedModuleFrame({
           inert={!active}
           style={{ position: "relative" }}
         >
-          {showRefreshStatus ? (
+          {showRefreshing && showRefreshStatus ? (
             <div
               role="status"
               aria-live="polite"
@@ -249,22 +258,25 @@ function ScopedRetainedWorkspace({
     registryRef.current = registry;
   }, [registry]);
 
-  const register = useCallback<RetainedWorkspaceRegistration["register"]>((moduleId, node) => {
-    if (!descriptor || !moduleKey || descriptor.moduleId !== moduleId) return;
-    const activeEntry = registryRef.current.entries.find(
-      (entry) => entry.key === registryRef.current.activeKey
-    );
-    dispatch({
-      type: "activate-server",
-      key: moduleKey,
-      descriptor,
-      role,
-      branchId,
-      node,
-      at: Date.now(),
-      previousScrollTop: activeEntry?.scrollTop ?? workspaceScrollTop(),
-    });
-  }, [branchId, descriptor, moduleKey, role]);
+  const register = useCallback<RetainedWorkspaceRegistration["register"]>(
+    (moduleId, node) => {
+      if (!descriptor || !moduleKey || descriptor.moduleId !== moduleId) return;
+      const activeEntry = registryRef.current.entries.find(
+        (entry) => entry.key === registryRef.current.activeKey
+      );
+      dispatch({
+        type: "activate-server",
+        key: moduleKey,
+        descriptor,
+        role,
+        branchId,
+        node,
+        at: Date.now(),
+        previousScrollTop: activeEntry?.scrollTop ?? workspaceScrollTop(),
+      });
+    },
+    [branchId, descriptor, moduleKey, role]
+  );
   const registration = useMemo<RetainedWorkspaceRegistration>(
     () => ({
       register,
@@ -297,63 +309,68 @@ function ScopedRetainedWorkspace({
     }
   }, [descriptor, moduleKey]);
 
-  const restoreRetainedSearch = useCallback((href: string): string => {
-    const url = new URL(href, window.location.origin);
-    if (url.origin !== window.location.origin || url.search) return href;
-    const target = resolveWorkspaceModule(workspace, url.pathname, url.searchParams);
-    if (!target) return href;
-    const key = retainedModuleKey(scopeKey, target);
-    const direct = registryRef.current.entries.find((entry) => entry.key === key)
-      ?? registryRef.current.restoration[key];
-    const mountedMatch = [...registryRef.current.entries]
-      .reverse()
-      .find((entry) => entry.moduleId === target.moduleId);
-    const restoredMatch = Object.values(registryRef.current.restoration)
-      .filter((entry) => entry.moduleId === target.moduleId)
-      .sort((left, right) => right.lastActivatedAt - left.lastActivatedAt)[0];
-    const retained = target.retentionScopeState
-      ? direct
-      : mountedMatch ?? restoredMatch;
-    if (!retained?.stableSearchState) return href;
-    url.search = retained.stableSearchState;
-    return `${url.pathname}${url.search}${url.hash}`;
-  }, [scopeKey, workspace]);
+  const restoreRetainedSearch = useCallback(
+    (href: string): string => {
+      const url = new URL(href, window.location.origin);
+      if (url.origin !== window.location.origin || url.search) return href;
+      const target = resolveWorkspaceModule(workspace, url.pathname, url.searchParams);
+      if (!target) return href;
+      const key = retainedModuleKey(scopeKey, target);
+      const direct =
+        registryRef.current.entries.find((entry) => entry.key === key) ??
+        registryRef.current.restoration[key];
+      const mountedMatch = [...registryRef.current.entries]
+        .reverse()
+        .find((entry) => entry.moduleId === target.moduleId);
+      const restoredMatch = Object.values(registryRef.current.restoration)
+        .filter((entry) => entry.moduleId === target.moduleId)
+        .sort((left, right) => right.lastActivatedAt - left.lastActivatedAt)[0];
+      const retained = target.retentionScopeState ? direct : (mountedMatch ?? restoredMatch);
+      if (!retained?.stableSearchState) return href;
+      url.search = retained.stableSearchState;
+      return `${url.pathname}${url.search}${url.hash}`;
+    },
+    [scopeKey, workspace]
+  );
 
-  const activateRetainedUrl = useCallback((href: string) => {
-    const url = new URL(href, window.location.origin);
-    if (url.origin !== window.location.origin || !url.pathname.startsWith(`/${workspace}`)) {
-      return;
-    }
-    const currentKey = registryRef.current.activeKey;
-    if (currentKey) {
-      dispatch({
-        type: "save-scroll",
-        key: currentKey,
-        scrollTop: workspaceScrollTop(),
-      });
-    }
-    const target = resolveWorkspaceModule(workspace, url.pathname, url.searchParams);
-    if (!target) return;
-    const key = retainedModuleKey(scopeKey, target);
-    if (registryRef.current.entries.some((entry) => entry.key === key)) {
-      dispatch({
-        type: "activate-retained",
-        key,
-        at: Date.now(),
-        previousScrollTop: workspaceScrollTop(),
-      });
-    } else if (registryRef.current.restoration[key]) {
-      dispatch({
-        type: "restore-evicted",
-        key,
-        at: Date.now(),
-        previousScrollTop: workspaceScrollTop(),
-      });
-    } else {
-      return;
-    }
-    setPendingNavigation({ key, pathname: url.pathname, search: url.searchParams.toString() });
-  }, [scopeKey, workspace]);
+  const activateRetainedUrl = useCallback(
+    (href: string) => {
+      const url = new URL(href, window.location.origin);
+      if (url.origin !== window.location.origin || !url.pathname.startsWith(`/${workspace}`)) {
+        return;
+      }
+      const currentKey = registryRef.current.activeKey;
+      if (currentKey) {
+        dispatch({
+          type: "save-scroll",
+          key: currentKey,
+          scrollTop: workspaceScrollTop(),
+        });
+      }
+      const target = resolveWorkspaceModule(workspace, url.pathname, url.searchParams);
+      if (!target) return;
+      const key = retainedModuleKey(scopeKey, target);
+      if (registryRef.current.entries.some((entry) => entry.key === key)) {
+        dispatch({
+          type: "activate-retained",
+          key,
+          at: Date.now(),
+          previousScrollTop: workspaceScrollTop(),
+        });
+      } else if (registryRef.current.restoration[key]) {
+        dispatch({
+          type: "restore-evicted",
+          key,
+          at: Date.now(),
+          previousScrollTop: workspaceScrollTop(),
+        });
+      } else {
+        return;
+      }
+      setPendingNavigation({ key, pathname: url.pathname, search: url.searchParams.toString() });
+    },
+    [scopeKey, workspace]
+  );
 
   useEffect(() => {
     const onNavigation = (event: Event) => {
@@ -442,29 +459,33 @@ function ScopedRetainedWorkspace({
     );
   }, [unsavedModuleIds]);
 
-  useEffect(() => () => {
-    window.dispatchEvent(
-      new CustomEvent<WorkspaceRetentionStateDetail>(WORKSPACE_RETENTION_STATE_EVENT, {
-        detail: { unsavedModuleIds: [] },
-      })
-    );
-  }, []);
+  useEffect(
+    () => () => {
+      window.dispatchEvent(
+        new CustomEvent<WorkspaceRetentionStateDetail>(WORKSPACE_RETENTION_STATE_EVENT, {
+          detail: { unsavedModuleIds: [] },
+        })
+      );
+    },
+    []
+  );
 
-  useEffect(() => () => {
-    // Leaving this authenticated workspace (logout, role/branch change, or
-    // permission boundary) must not leave operational data in the shared SWR
-    // cache for a subsequent identity in the same browser runtime.
-    for (const key of swrCache.keys()) swrCache.delete(key);
-  }, [swrCache]);
+  useEffect(
+    () => () => {
+      // Leaving this authenticated workspace (logout, role/branch change, or
+      // permission boundary) must not leave operational data in the shared SWR
+      // cache for a subsequent identity in the same browser runtime.
+      for (const key of swrCache.keys()) swrCache.delete(key);
+    },
+    [swrCache]
+  );
 
   const effectivePendingNavigation =
     pendingNavigation?.pathname === pathname && pendingNavigation.search === search
       ? null
       : pendingNavigation;
   const actualActiveKey =
-    moduleKey && registry.entries.some((entry) => entry.key === moduleKey)
-      ? moduleKey
-      : null;
+    moduleKey && registry.entries.some((entry) => entry.key === moduleKey) ? moduleKey : null;
   const activeKey = effectivePendingNavigation?.key ?? actualActiveKey;
   const previousActiveKey = useRef<string | null>(null);
   useLayoutEffect(() => {

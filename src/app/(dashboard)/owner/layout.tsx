@@ -32,19 +32,20 @@ export default async function OwnerLayout({ children }: { children: ReactNode })
     role: me?.system_role,
   });
   const canShowCoach = coachAvailability.available && ctx?.user.id && me?.branch_id;
-  const retainedChildren = ctx?.user.id && me?.system_role ? (
-    <RetainedWorkspaceProvider
-      workspace="owner"
-      userId={ctx.user.id}
-      role={me.system_role}
-      branchId={me.branch_id ?? "all-branches"}
-      enabled={isRetainedWorkspaceEnabled("owner")}
-    >
-      {children}
-    </RetainedWorkspaceProvider>
-  ) : (
-    children
-  );
+  const retainedChildren =
+    ctx?.user.id && me?.system_role ? (
+      <RetainedWorkspaceProvider
+        workspace="owner"
+        userId={ctx.user.id}
+        role={me.system_role}
+        branchId={me.branch_id ?? "all-branches"}
+        enabled={isRetainedWorkspaceEnabled("owner")}
+      >
+        {children}
+      </RetainedWorkspaceProvider>
+    ) : (
+      children
+    );
 
   return (
     <>
@@ -54,7 +55,11 @@ export default async function OwnerLayout({ children }: { children: ReactNode })
           workspace="owner"
           role={me.system_role}
           branchId={me.branch_id}
-          branchName={Array.isArray(me.branches) ? me.branches[0]?.name ?? "Your Branch" : (me.branches as { name: string } | null)?.name ?? "Your Branch"}
+          branchName={
+            Array.isArray(me.branches)
+              ? (me.branches[0]?.name ?? "Your Branch")
+              : ((me.branches as { name: string } | null)?.name ?? "Your Branch")
+          }
           userId={ctx.user.id}
         >
           {retainedChildren}

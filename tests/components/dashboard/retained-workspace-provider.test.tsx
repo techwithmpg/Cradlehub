@@ -56,13 +56,7 @@ function StatefulModule({ name }: { name: string }) {
   );
 }
 
-function RefreshModule({
-  name,
-  refresh,
-}: {
-  name: string;
-  refresh: () => Promise<void>;
-}) {
+function RefreshModule({ name, refresh }: { name: string; refresh: () => Promise<void> }) {
   useWorkspaceReactivationRefresh(refresh);
   return <h1>{name}</h1>;
 }
@@ -79,10 +73,10 @@ function renderWorkspace(child: React.ReactNode, userId = "user-1") {
         enabled
       >
         {descriptor ? (
-          <RetainedWorkspaceModule moduleId={descriptor.moduleId}>
-            {child}
-          </RetainedWorkspaceModule>
-        ) : child}
+          <RetainedWorkspaceModule moduleId={descriptor.moduleId}>{child}</RetainedWorkspaceModule>
+        ) : (
+          child
+        )}
       </RetainedWorkspaceProvider>
     </main>
   );
@@ -100,10 +94,10 @@ function renderOwnerWorkspace(child: React.ReactNode) {
         enabled
       >
         {descriptor ? (
-          <RetainedWorkspaceModule moduleId={descriptor.moduleId}>
-            {child}
-          </RetainedWorkspaceModule>
-        ) : child}
+          <RetainedWorkspaceModule moduleId={descriptor.moduleId}>{child}</RetainedWorkspaceModule>
+        ) : (
+          child
+        )}
       </RetainedWorkspaceProvider>
     </main>
   );
@@ -134,9 +128,9 @@ describe("RetainedWorkspaceProvider", () => {
     view.rerender(renderWorkspace(<StatefulModule name="Bookings" />));
     await waitFor(() => expect(lifecycle.cleaned).toHaveBeenCalledWith("Work Queue"));
 
-    const hiddenWorkQueue = screen.getByText("Work Queue").closest(
-      "[data-retained-workspace-module]"
-    );
+    const hiddenWorkQueue = screen
+      .getByText("Work Queue")
+      .closest("[data-retained-workspace-module]");
     expect(hiddenWorkQueue?.hasAttribute("hidden")).toBe(true);
     expect(hiddenWorkQueue?.getAttribute("aria-hidden")).toBe("true");
     expect(hiddenWorkQueue?.hasAttribute("inert")).toBe(true);
@@ -144,11 +138,11 @@ describe("RetainedWorkspaceProvider", () => {
     pathname = "/crm/today";
     view.rerender(renderWorkspace(<StatefulModule name="Work Queue" />));
     expect(screen.getByRole("button", { name: "selection 1" })).toBeTruthy();
-    expect(
-      document.querySelector('[data-retained-module-bootstrap="crm-work-queue"]')
-    ).toBeNull();
+    expect(document.querySelector('[data-retained-module-bootstrap="crm-work-queue"]')).toBeNull();
     await waitFor(() => {
-      expect(lifecycle.mounted.mock.calls.filter(([name]) => name === "Work Queue")).toHaveLength(2);
+      expect(lifecycle.mounted.mock.calls.filter(([name]) => name === "Work Queue")).toHaveLength(
+        2
+      );
     });
   });
 
@@ -190,9 +184,7 @@ describe("RetainedWorkspaceProvider", () => {
         <div>signed out</div>
       </RetainedWorkspaceProvider>
     );
-    await waitFor(() =>
-      expect(observedSWRCache?.get("/sensitive-retained-test")).toBeUndefined()
-    );
+    await waitFor(() => expect(observedSWRCache?.get("/sensitive-retained-test")).toBeUndefined());
   });
 
   it("falls back to ordinary route rendering when the rollout flag is disabled", () => {
@@ -240,6 +232,26 @@ describe("RetainedWorkspaceProvider", () => {
     expect(refreshWorkQueue).not.toHaveBeenCalled();
   });
 
+  it("refreshes a stale retained module once while keeping its content visible", async () => {
+    const now = vi.spyOn(Date, "now").mockReturnValue(1_000);
+    try {
+      const refreshWorkQueue = vi.fn().mockResolvedValue(undefined);
+      const view = render(
+        renderWorkspace(<RefreshModule name="Work Queue" refresh={refreshWorkQueue} />)
+      );
+
+      pathname = "/crm/bookings";
+      view.rerender(renderWorkspace(<StatefulModule name="Bookings" />));
+      now.mockReturnValue(20_000);
+
+      act(() => notifyWorkspaceNavigation("/crm/today"));
+      expect(screen.getByRole("heading", { name: "Work Queue" })).toBeTruthy();
+      await waitFor(() => expect(refreshWorkQueue).toHaveBeenCalledTimes(1));
+    } finally {
+      now.mockRestore();
+    }
+  });
+
   it("reopens a retained module with its last canonical query state", async () => {
     search = new URLSearchParams("filter=exceptions");
     const view = render(renderWorkspace(<StatefulModule name="Work Queue" />));
@@ -282,9 +294,27 @@ describe("RetainedWorkspaceProvider", () => {
     await waitFor(() => screen.getByRole("link", { name: "Return to Schedule" }));
 
     fireEvent.click(screen.getByRole("link", { name: "Return to Schedule" }));
-    expect(routerPush).toHaveBeenCalledWith(
-      "/owner/schedule?branchId=sm&date=2026-10-12"
-    );
+    expect(routerPush).toHaveBeenCalledWith("/owner/schedule?branchId=sm&date=2026-10-12");
+  });
+
+  it("never displays one Owner branch's retained schedule under another branch", () => {
+    pathname = "/owner/schedule";
+    search = new URLSearchParams("branchId=main");
+    const view = render(renderOwnerWorkspace(<StatefulModule name="Main Schedule" />));
+    fireEvent.click(screen.getByRole("button", { name: "selection 0" }));
+
+    search = new URLSearchParams("branchId=sm");
+    view.rerender(renderOwnerWorkspace(<StatefulModule name="SM Schedule" />));
+    const visible = Array.from(
+      document.querySelectorAll<HTMLElement>("[data-retained-workspace-module]")
+    ).filter((frame) => !frame.hasAttribute("hidden"));
+    expect(visible).toHaveLength(1);
+    expect(visible[0]?.textContent).toContain("SM Schedule");
+    expect(visible[0]?.textContent).not.toContain("Main Schedule");
+
+    search = new URLSearchParams("branchId=main");
+    view.rerender(renderOwnerWorkspace(<StatefulModule name="Main Schedule" />));
+    expect(screen.getByRole("button", { name: "selection 1" })).toBeTruthy();
   });
 
   it("restores module scroll and keeps the mounted count within the CRM LRU limit", async () => {
