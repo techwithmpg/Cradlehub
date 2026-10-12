@@ -123,6 +123,9 @@ describe("RetainedWorkspaceProvider", () => {
     pathname = "/crm/today";
     view.rerender(renderWorkspace(<StatefulModule name="Work Queue" />));
     expect(screen.getByRole("button", { name: "selection 1" })).toBeTruthy();
+    expect(
+      document.querySelector('[data-retained-module-bootstrap="crm-work-queue"]')
+    ).toBeNull();
     await waitFor(() => {
       expect(lifecycle.mounted.mock.calls.filter(([name]) => name === "Work Queue")).toHaveLength(2);
     });
