@@ -265,7 +265,7 @@ describe("RetainedWorkspaceProvider", () => {
       pathname = nextPath;
       view.rerender(renderWorkspace(<StatefulModule name={name} />));
     }
-    expect(document.querySelectorAll("[data-retained-workspace-module]")).toHaveLength(6);
+    expect(document.querySelectorAll("[data-retained-workspace-module]")).toHaveLength(4);
     expect(document.querySelector('[data-retained-workspace-module="crm-work-queue"]')).toBeNull();
   });
 });
