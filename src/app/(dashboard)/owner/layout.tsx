@@ -14,15 +14,18 @@ import { RetainedWorkspaceProvider } from "@/components/features/dashboard/retai
 import { isRetainedWorkspaceEnabled } from "@/lib/config/mvp-flags";
 
 export default async function OwnerLayout({ children }: { children: ReactNode }) {
-  const access = await getCurrentUserWorkspaceAccess();
+  // Resolve the two independent authenticated layout contexts concurrently.
+  // Authorization remains server-side; this only removes avoidable serial wait.
+  const [access, ctx] = await Promise.all([
+    getCurrentUserWorkspaceAccess(),
+    getLayoutStaffContext(),
+  ]);
 
   if (!access) redirect("/login");
 
   if (!hasWorkspaceAccess(access.workspaces, "owner")) {
     redirect(getWorkspaceSwitchDestination(access.workspaces));
   }
-
-  const ctx = await getLayoutStaffContext();
   const me = ctx?.me ?? (isDevAuthBypassEnabled() ? getDevBypassLayoutStaff() : null);
   const coachAvailability = getAgentCoachAvailability({
     workspace: "owner",
