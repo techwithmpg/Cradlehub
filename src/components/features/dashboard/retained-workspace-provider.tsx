@@ -305,16 +305,14 @@ function ScopedRetainedWorkspace({
     const key = retainedModuleKey(scopeKey, target);
     const direct = registryRef.current.entries.find((entry) => entry.key === key)
       ?? registryRef.current.restoration[key];
-    const retained = direct ?? (
-      target.retentionScopeState
-        ? undefined
-        : [
-            ...registryRef.current.entries,
-            ...Object.values(registryRef.current.restoration),
-          ]
-            .filter((entry) => entry.moduleId === target.moduleId)
-            .sort((left, right) => right.lastActivatedAt - left.lastActivatedAt)[0]
-    );
+    const retained = target.retentionScopeState
+      ? direct
+      : [
+          ...registryRef.current.entries,
+          ...Object.values(registryRef.current.restoration),
+        ]
+          .filter((entry) => entry.moduleId === target.moduleId)
+          .sort((left, right) => right.lastActivatedAt - left.lastActivatedAt)[0];
     if (!retained?.stableSearchState) return href;
     url.search = retained.stableSearchState;
     return `${url.pathname}${url.search}${url.hash}`;
