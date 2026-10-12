@@ -43,8 +43,8 @@ type ModulePolicy = Omit<
 };
 
 export const WORKSPACE_RETENTION_LIMITS: Record<RetainedWorkspace, number> = {
-  crm: 4,
-  owner: 3,
+  crm: 6,
+  owner: 5,
 };
 
 const MODULE_POLICIES: readonly ModulePolicy[] = [
