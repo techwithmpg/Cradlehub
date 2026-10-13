@@ -60,9 +60,7 @@ async function ensureRoomTurnoverTask(
   const admin = createAdminClient();
   const dedupeKey = `room_turnover:${params.branchId}:${params.resource.id}`;
   const completedAt =
-    params.booking.session_completed_at ??
-    params.booking.completed_at ??
-    new Date().toISOString();
+    params.booking.session_completed_at ?? params.booking.completed_at ?? new Date().toISOString();
 
   // 1. Check for an ACTIVE task for this resource matching canonical scope
   const { data: existingActive, error: selectError } = await admin
@@ -150,7 +148,8 @@ async function ensureRoomTurnoverTask(
       });
       return {
         ok: false,
-        error: "Active turnover state changed concurrently during reconciliation. Synchronization failed.",
+        error:
+          "Active turnover state changed concurrently during reconciliation. Synchronization failed.",
       };
     }
 
@@ -283,9 +282,7 @@ export async function triggerUtilityRoomTurnoverOnServiceCompletion(params: {
   }
 
   // 3. Verify delivery type is onsite / in_spa (home_service excluded)
-  const isOnsite =
-    booking.type !== "home_service" &&
-    booking.delivery_type !== "home_service";
+  const isOnsite = booking.type !== "home_service" && booking.delivery_type !== "home_service";
 
   if (!isOnsite) {
     return { ok: true, skipped: true, skippedReason: "HOME_SERVICE_EXCLUDED" };
@@ -392,10 +389,12 @@ export async function startRoomCleaning(params: {
   }
 
   // 2. Verify canonical utility operational role
-  if (
-    resolveStaffPwaOperationalGroup(staff.system_role, staff.staff_type) !== "utility"
-  ) {
-    return { ok: false, code: "NOT_UTILITY_ROLE", error: "Only Utility staff can claim cleaning tasks." };
+  if (resolveStaffPwaOperationalGroup(staff.system_role, staff.staff_type) !== "utility") {
+    return {
+      ok: false,
+      code: "NOT_UTILITY_ROLE",
+      error: "Only Utility staff can claim cleaning tasks.",
+    };
   }
 
   // 3. Load workflow task
@@ -415,12 +414,20 @@ export async function startRoomCleaning(params: {
     task.task_type !== "room_turnover" ||
     task.entity_type !== "branch_resource"
   ) {
-    return { ok: false, code: "INVALID_TASK_TYPE", error: "Task is not a valid room turnover task." };
+    return {
+      ok: false,
+      code: "INVALID_TASK_TYPE",
+      error: "Task is not a valid room turnover task.",
+    };
   }
 
   // 5. Verify branch match on task
   if (!staff.branch_id || task.branch_id !== staff.branch_id) {
-    return { ok: false, code: "CROSS_BRANCH_FORBIDDEN", error: "Cannot access tasks from another branch." };
+    return {
+      ok: false,
+      code: "CROSS_BRANCH_FORBIDDEN",
+      error: "Cannot access tasks from another branch.",
+    };
   }
 
   // 6. Verify resource authoritatively (Blocker D)
@@ -431,7 +438,11 @@ export async function startRoomCleaning(params: {
     .maybeSingle();
 
   if (resError || !resource) {
-    return { ok: false, code: "RESOURCE_NOT_FOUND", error: "Associated room resource was not found." };
+    return {
+      ok: false,
+      code: "RESOURCE_NOT_FOUND",
+      error: "Associated room resource was not found.",
+    };
   }
 
   if (resource.branch_id !== task.branch_id || resource.branch_id !== staff.branch_id) {
@@ -443,14 +454,33 @@ export async function startRoomCleaning(params: {
   }
 
   // 7. Lifecycle check on read state
-  if (task.status === "completed" || task.status === "cancelled") {
-    return { ok: false, code: "ALREADY_COMPLETED", error: "This turnover task is already completed." };
+  if (task.status === "cancelled") {
+    return { ok: false, code: "TASK_CANCELLED", error: "This turnover task was cancelled." };
+  }
+  if (task.status === "completed") {
+    return {
+      ok: false,
+      code: "ALREADY_COMPLETED",
+      error: "This turnover task is already completed.",
+    };
   }
   if (task.status === "in_progress") {
     if (task.assigned_to_staff_id === staff.id) {
       return { ok: true, status: "in_progress", alreadyStarted: true };
     }
-    return { ok: false, code: "ALREADY_CLAIMED", error: "Task has already been claimed by another staff member." };
+    return {
+      ok: false,
+      code: "ALREADY_CLAIMED",
+      error: "Task has already been claimed by another staff member.",
+    };
+  }
+
+  if (task.status !== "open") {
+    return { ok: false, code: "CONFLICT", error: "Turnover task is not open." };
+  }
+
+  if (task.assigned_to_staff_id && task.assigned_to_staff_id !== staff.id) {
+    return { ok: false, code: "ALREADY_CLAIMED", error: "Task is assigned to another cleaner." };
   }
 
   // 8. Atomic Compare-And-Set: UPDATE only if status is currently 'open'
@@ -460,7 +490,7 @@ export async function startRoomCleaning(params: {
       ? (task.metadata as Record<string, unknown>)
       : {};
 
-  const { data: updatedRows, error: updateError } = await admin
+  let claim = admin
     .from("workflow_tasks")
     .update({
       status: "in_progress",
@@ -475,7 +505,14 @@ export async function startRoomCleaning(params: {
     .eq("id", task.id)
     .eq("status", "open")
     .eq("branch_id", staff.branch_id)
-    .select();
+    .eq("workspace_scope", "utility")
+    .eq("task_type", "room_turnover")
+    .eq("entity_type", "branch_resource")
+    .eq("entity_id", task.entity_id);
+  claim = task.assigned_to_staff_id
+    ? claim.eq("assigned_to_staff_id", staff.id)
+    : claim.is("assigned_to_staff_id", null);
+  const { data: updatedRows, error: updateError } = await claim.select();
 
   if (updateError) {
     logError("utility_turnover.start_failed", { taskId: task.id, error: updateError });
@@ -496,19 +533,51 @@ export async function startRoomCleaning(params: {
   // 8. If 0 rows updated, inspect authoritative state to return truthful conflict/idempotent result
   const { data: freshTask } = await admin
     .from("workflow_tasks")
-    .select("status, assigned_to_staff_id")
+    .select(
+      "status, assigned_to_staff_id, branch_id, workspace_scope, task_type, entity_type, entity_id"
+    )
     .eq("id", task.id)
     .maybeSingle();
+
+  if (freshTask && freshTask.branch_id !== staff.branch_id) {
+    return {
+      ok: false,
+      code: "CROSS_BRANCH_FORBIDDEN",
+      error: "Cannot access tasks from another branch.",
+    };
+  }
+
+  if (
+    freshTask &&
+    (freshTask.workspace_scope !== "utility" ||
+      freshTask.task_type !== "room_turnover" ||
+      freshTask.entity_type !== "branch_resource" ||
+      freshTask.entity_id !== task.entity_id)
+  ) {
+    return {
+      ok: false,
+      code: "INVALID_TASK_TYPE",
+      error: "Turnover task identity changed concurrently.",
+    };
+  }
 
   if (freshTask?.status === "in_progress") {
     if (freshTask.assigned_to_staff_id === staff.id) {
       return { ok: true, status: "in_progress", alreadyStarted: true };
     }
-    return { ok: false, code: "ALREADY_CLAIMED", error: "Another cleaner has already started cleaning this room." };
+    return {
+      ok: false,
+      code: "ALREADY_CLAIMED",
+      error: "Another cleaner has already started cleaning this room.",
+    };
   }
 
   if (freshTask?.status === "completed") {
-    return { ok: false, code: "ALREADY_COMPLETED", error: "This room turnover has already been completed." };
+    return {
+      ok: false,
+      code: "ALREADY_COMPLETED",
+      error: "This room turnover has already been completed.",
+    };
   }
 
   if (freshTask?.status === "cancelled") {
@@ -543,10 +612,12 @@ export async function markRoomReady(params: {
   }
 
   // 2. Verify canonical utility operational role
-  if (
-    resolveStaffPwaOperationalGroup(staff.system_role, staff.staff_type) !== "utility"
-  ) {
-    return { ok: false, code: "NOT_UTILITY_ROLE", error: "Only Utility staff can mark rooms ready." };
+  if (resolveStaffPwaOperationalGroup(staff.system_role, staff.staff_type) !== "utility") {
+    return {
+      ok: false,
+      code: "NOT_UTILITY_ROLE",
+      error: "Only Utility staff can mark rooms ready.",
+    };
   }
 
   // 3. Load workflow task
@@ -566,12 +637,20 @@ export async function markRoomReady(params: {
     task.task_type !== "room_turnover" ||
     task.entity_type !== "branch_resource"
   ) {
-    return { ok: false, code: "INVALID_TASK_TYPE", error: "Task is not a valid room turnover task." };
+    return {
+      ok: false,
+      code: "INVALID_TASK_TYPE",
+      error: "Task is not a valid room turnover task.",
+    };
   }
 
   // 5. Verify branch match on task
   if (!staff.branch_id || task.branch_id !== staff.branch_id) {
-    return { ok: false, code: "CROSS_BRANCH_FORBIDDEN", error: "Cannot access tasks from another branch." };
+    return {
+      ok: false,
+      code: "CROSS_BRANCH_FORBIDDEN",
+      error: "Cannot access tasks from another branch.",
+    };
   }
 
   // 6. Verify resource authoritatively (Blocker D)
@@ -582,7 +661,11 @@ export async function markRoomReady(params: {
     .maybeSingle();
 
   if (resError || !resource) {
-    return { ok: false, code: "RESOURCE_NOT_FOUND", error: "Associated room resource was not found." };
+    return {
+      ok: false,
+      code: "RESOURCE_NOT_FOUND",
+      error: "Associated room resource was not found.",
+    };
   }
 
   if (resource.branch_id !== task.branch_id || resource.branch_id !== staff.branch_id) {
@@ -603,11 +686,30 @@ export async function markRoomReady(params: {
   }
 
   if (task.status === "completed") {
-    return { ok: true, status: "completed", alreadyCompleted: true };
+    if (task.assigned_to_staff_id === staff.id) {
+      return { ok: true, status: "completed", alreadyCompleted: true };
+    }
+    return {
+      ok: false,
+      code: "NOT_TASK_OWNER",
+      error: "Only the assigned cleaner can complete this task.",
+    };
   }
 
   if (task.status === "cancelled") {
     return { ok: false, code: "TASK_CANCELLED", error: "This turnover task was cancelled." };
+  }
+
+  if (task.status !== "in_progress") {
+    return { ok: false, code: "CONFLICT", error: "Turnover task is not in progress." };
+  }
+
+  if (task.assigned_to_staff_id !== staff.id) {
+    return {
+      ok: false,
+      code: "NOT_TASK_OWNER",
+      error: "Only the assigned cleaner can complete this task.",
+    };
   }
 
   // 8. Atomic Compare-And-Set: UPDATE only if status is currently 'in_progress'
@@ -633,6 +735,11 @@ export async function markRoomReady(params: {
     .eq("id", task.id)
     .eq("status", "in_progress")
     .eq("branch_id", staff.branch_id)
+    .eq("assigned_to_staff_id", staff.id)
+    .eq("workspace_scope", "utility")
+    .eq("task_type", "room_turnover")
+    .eq("entity_type", "branch_resource")
+    .eq("entity_id", task.entity_id)
     .select();
 
   if (updateError) {
@@ -643,7 +750,9 @@ export async function markRoomReady(params: {
   // If row was updated, compare-and-set succeeded
   if (updatedRows && updatedRows.length > 0) {
     // Resolve any associated workspace notification
-    await resolveNotificationsForEntity("branch_resource", task.entity_id, "utility").catch(() => {});
+    await resolveNotificationsForEntity("branch_resource", task.entity_id, "utility").catch(
+      () => {}
+    );
 
     logBusinessEvent("utility_turnover.completed", {
       taskId: task.id,
@@ -658,12 +767,43 @@ export async function markRoomReady(params: {
   // 9. If 0 rows updated, inspect authoritative state
   const { data: freshTask } = await admin
     .from("workflow_tasks")
-    .select("status")
+    .select(
+      "status, assigned_to_staff_id, branch_id, workspace_scope, task_type, entity_type, entity_id"
+    )
     .eq("id", task.id)
     .maybeSingle();
 
+  if (freshTask && freshTask.branch_id !== staff.branch_id) {
+    return {
+      ok: false,
+      code: "CROSS_BRANCH_FORBIDDEN",
+      error: "Cannot access tasks from another branch.",
+    };
+  }
+
+  if (
+    freshTask &&
+    (freshTask.workspace_scope !== "utility" ||
+      freshTask.task_type !== "room_turnover" ||
+      freshTask.entity_type !== "branch_resource" ||
+      freshTask.entity_id !== task.entity_id)
+  ) {
+    return {
+      ok: false,
+      code: "INVALID_TASK_TYPE",
+      error: "Turnover task identity changed concurrently.",
+    };
+  }
+
   if (freshTask?.status === "completed") {
-    return { ok: true, status: "completed", alreadyCompleted: true };
+    if (freshTask.assigned_to_staff_id === staff.id) {
+      return { ok: true, status: "completed", alreadyCompleted: true };
+    }
+    return {
+      ok: false,
+      code: "NOT_TASK_OWNER",
+      error: "Task ownership changed before completion.",
+    };
   }
 
   if (freshTask?.status === "open") {
@@ -676,6 +816,14 @@ export async function markRoomReady(params: {
 
   if (freshTask?.status === "cancelled") {
     return { ok: false, code: "TASK_CANCELLED", error: "This turnover task was cancelled." };
+  }
+
+  if (freshTask?.status === "in_progress" && freshTask.assigned_to_staff_id !== staff.id) {
+    return {
+      ok: false,
+      code: "NOT_TASK_OWNER",
+      error: "Task ownership changed before completion.",
+    };
   }
 
   return { ok: false, code: "CONFLICT", error: "Turnover task state changed concurrently." };

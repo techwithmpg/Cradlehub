@@ -6,21 +6,18 @@ import {
   resolveStaffOperationalRole,
   resolveNavigationProfile,
 } from "@/components/features/staff-pwa/role-navigation";
-import { GeneralStaffMobileHome } from "@/components/features/staff-portal/basic/general-staff-mobile-home";
+import { CrmMobileHome } from "@/components/features/staff-pwa/crm/crm-mobile-home";
 import { TherapistMobileHome } from "@/components/features/staff-portal/therapist/therapist-mobile-home";
 import { TherapistHeader } from "@/components/features/staff-portal/therapist/therapist-header";
 import { getProviderWorkspaceRuntime } from "@/lib/staff-pwa/provider-runtime";
 import { getStaffWork } from "@/lib/staff-pwa/work-runtime";
+import { getCrmMobileRuntime } from "@/lib/staff-pwa/crm-runtime";
 import StaffTodayPage from "../staff-portal/page";
 
 export default async function StaffPage() {
-  const profileResult =
-    await getMyProfileAction().catch(() => null);
+  const profileResult = await getMyProfileAction().catch(() => null);
 
-  const staff =
-    profileResult && "staff" in profileResult
-      ? profileResult.staff
-      : null;
+  const staff = profileResult && "staff" in profileResult ? profileResult.staff : null;
 
   if (staff) {
     const opRole = resolveStaffOperationalRole({
@@ -46,7 +43,7 @@ export default async function StaffPage() {
       }
 
       if (runtimeResult && !runtimeResult.ok && runtimeResult.code === "UNAUTHORIZED") {
-        redirect("/login");
+        redirect("/staff/login");
       }
 
       return (
@@ -59,9 +56,7 @@ export default async function StaffPage() {
                   <AlertCircle size={20} className="text-[#B42318]" />
                 </div>
                 <div className="min-w-0 flex-1">
-                  <div className="text-[12px] font-medium text-[#7D241E]">
-                    Provider Workspace
-                  </div>
+                  <div className="text-[12px] font-medium text-[#7D241E]">Provider Workspace</div>
                   <div className="mt-0.5 text-[16px] font-bold text-[#912018]">
                     Workspace unavailable
                   </div>
@@ -79,17 +74,14 @@ export default async function StaffPage() {
     }
 
     if (profile === "crm_general") {
-      const [attendanceData, work] = await Promise.all([
-        getPureAttendanceSnapshot(30).catch(() => null), getStaffWork(),
+      const [attendanceData, work, runtime] = await Promise.all([
+        getPureAttendanceSnapshot(30).catch(() => null),
+        getStaffWork(),
+        getCrmMobileRuntime().catch(() => null),
       ]);
 
       return (
-        <GeneralStaffMobileHome
-          staff={staff}
-          profile="crm_general"
-          work={work}
-          attendanceData={attendanceData}
-        />
+        <CrmMobileHome staff={staff} runtime={runtime} work={work} attendance={attendanceData} />
       );
     }
   }

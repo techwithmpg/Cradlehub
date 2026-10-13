@@ -13,8 +13,7 @@ export const metadata = {
 
 export default async function StaffScanPage() {
   const profileResult = await getMyProfileAction().catch(() => null);
-  const staff =
-    profileResult && "staff" in profileResult ? profileResult.staff : null;
+  const staff = profileResult && "staff" in profileResult ? profileResult.staff : null;
 
   if (!staff) {
     return <StaffRoleResolutionSplash />;
@@ -27,11 +26,7 @@ export default async function StaffScanPage() {
   const profile = resolveNavigationProfile(opRole);
 
   const returnHref =
-    profile === "driver"
-      ? "/staff/driver"
-      : profile === "utility"
-        ? "/staff/utility"
-        : "/staff";
+    profile === "driver" ? "/staff/driver" : profile === "utility" ? "/staff/utility" : "/staff/";
 
   return (
     <StaffAppShell

@@ -9,11 +9,12 @@
 import type { Metadata } from "next";
 import type { ReactNode } from "react";
 import { WorkspaceRoutePrefetcher } from "@/components/features/workspace/workspace-route-prefetcher";
-import { STAFF_PORTAL_PREFETCH } from "@/components/features/workspace/workspace-prefetch-config";
+import { STAFF_PWA_PROVIDER_PREFETCH } from "@/components/features/workspace/workspace-prefetch-config";
 import { DriverMobileShell } from "@/components/features/staff-portal/driver/driver-mobile-shell";
 import { StaffMobileShell } from "@/components/features/staff-portal/mobile/staff-mobile-shell";
 import { TherapistMobileShell } from "@/components/features/staff-portal/therapist/therapist-mobile-shell";
 import { getMyProfileAction } from "../staff-portal/actions";
+import { getLayoutStaffContext } from "@/lib/queries/staff-context";
 import {
   resolveStaffOperationalRole,
   resolveNavigationProfile,
@@ -53,9 +54,11 @@ export const metadata: Metadata = {
 };
 
 export default async function StaffLayout({ children }: { children: ReactNode }) {
+  const authContext = await getLayoutStaffContext();
   const profileResult = await getMyProfileAction().catch(() => null);
   const staff = profileResult && "staff" in profileResult ? profileResult.staff : null;
   let content: ReactNode = children;
+  let prefetchProviderTabs = false;
 
   if (staff) {
     const opRole = resolveStaffOperationalRole({
@@ -66,22 +69,49 @@ export default async function StaffLayout({ children }: { children: ReactNode })
 
     if (profile === "driver") {
       content = (
-        <DriverMobileShell staff={staff} mode="canonical">
+        <DriverMobileShell
+          staff={staff}
+          mode="canonical"
+          identity={`${authContext?.user.id ?? ""}:${staff.id}:${staff.system_role}:${staff.staff_type ?? ""}:${staff.branch_id ?? ""}`}
+        >
           {children}
         </DriverMobileShell>
       );
     } else if (profile === "provider") {
-      content = <TherapistMobileShell>{children}</TherapistMobileShell>;
+      prefetchProviderTabs = true;
+      content = (
+        <TherapistMobileShell
+          identity={`${authContext?.user.id ?? ""}:${staff.id}:${staff.system_role}:${staff.staff_type ?? ""}:${staff.branch_id ?? ""}`}
+        >
+          {children}
+        </TherapistMobileShell>
+      );
     } else if (profile === "utility") {
-      content = <StaffMobileShell profile="utility">{children}</StaffMobileShell>;
+      content = (
+        <StaffMobileShell
+          profile="utility"
+          identity={`${authContext?.user.id ?? ""}:${staff.id}:${staff.system_role}:${staff.staff_type ?? ""}:${staff.branch_id ?? ""}`}
+        >
+          {children}
+        </StaffMobileShell>
+      );
     } else {
-      content = <StaffMobileShell profile="crm_general">{children}</StaffMobileShell>;
+      content = (
+        <StaffMobileShell
+          profile="crm_general"
+          identity={`${authContext?.user.id ?? ""}:${staff.id}:${staff.system_role}:${staff.staff_type ?? ""}:${staff.branch_id ?? ""}`}
+        >
+          {children}
+        </StaffMobileShell>
+      );
     }
   }
 
   return (
     <>
-      <WorkspaceRoutePrefetcher config={STAFF_PORTAL_PREFETCH} />
+      {prefetchProviderTabs ? (
+        <WorkspaceRoutePrefetcher config={STAFF_PWA_PROVIDER_PREFETCH} />
+      ) : null}
       <StaffConnectivityBanner />
       <StaffServiceWorkerRegistration />
       <StaffInstallPrompt />

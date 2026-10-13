@@ -73,9 +73,13 @@ function loadGoogleIdentityScript(): Promise<void> {
 
     if (existing) {
       existing.addEventListener("load", () => resolve(), { once: true });
-      existing.addEventListener("error", () => reject(new Error("Google Identity Services failed to load.")), {
-        once: true,
-      });
+      existing.addEventListener(
+        "error",
+        () => reject(new Error("Google Identity Services failed to load.")),
+        {
+          once: true,
+        }
+      );
       return;
     }
 
@@ -85,9 +89,13 @@ function loadGoogleIdentityScript(): Promise<void> {
     script.async = true;
     script.defer = true;
     script.addEventListener("load", () => resolve(), { once: true });
-    script.addEventListener("error", () => reject(new Error("Google Identity Services failed to load.")), {
-      once: true,
-    });
+    script.addEventListener(
+      "error",
+      () => reject(new Error("Google Identity Services failed to load.")),
+      {
+        once: true,
+      }
+    );
     document.head.appendChild(script);
   });
 
@@ -102,11 +110,13 @@ function getButtonWidth(container: HTMLElement): number {
 type GooglePersonalizedSignInProps = {
   clientId: string;
   onError: (message: string | null) => void;
+  staffPwa?: boolean;
 };
 
 export function GooglePersonalizedSignIn({
   clientId,
   onError,
+  staffPwa = false,
 }: GooglePersonalizedSignInProps) {
   const router = useRouter();
   const containerRef = useRef<HTMLDivElement | null>(null);
@@ -146,7 +156,7 @@ export function GooglePersonalizedSignIn({
 
         window.localStorage.setItem(LAST_AUTH_METHOD_KEY, "google");
 
-        const result = await completeGoogleLoginAction();
+        const result = await completeGoogleLoginAction(staffPwa);
         if (!result.ok) {
           throw new Error(result.error);
         }
@@ -162,7 +172,7 @@ export function GooglePersonalizedSignIn({
         }
       }
     },
-    [onError, router]
+    [onError, router, staffPwa]
   );
 
   useEffect(() => {

@@ -24,6 +24,11 @@ const mockServicesSelect = vi.fn();
 const mockWorkflowTasksSelect = vi.fn();
 const mockWorkflowTasksUpdate = vi.fn();
 const mockWorkflowTasksInsert = vi.fn();
+const mockWorkflowTasksEq = vi.fn();
+const mockWorkflowTasksUpdateEq = vi.fn();
+const mockWorkflowTasksUpdateIs = vi.fn();
+const mockWorkflowTasksGte = vi.fn();
+const mockWorkflowTasksLimit = vi.fn();
 
 let updateCasRowsOverride: any[] | (() => any[]) | null = null;
 let insertErrorOverride: any | null = null;
@@ -49,12 +54,22 @@ function createChain(resolver: () => Promise<any>, customActions?: Record<string
       mockUpsertSpy(payload);
       return chain;
     },
-    eq: () => chain,
+    eq: (...args: unknown[]) => {
+      customActions?.eq?.(...args);
+      return chain;
+    },
     neq: () => chain,
     in: () => chain,
+    gte: (...args: unknown[]) => {
+      customActions?.gte?.(...args);
+      return chain;
+    },
     not: () => chain,
     order: () => chain,
-    limit: () => chain,
+    limit: (...args: unknown[]) => {
+      customActions?.limit?.(...args);
+      return chain;
+    },
     maybeSingle: () => resolver(),
     single: () => resolver(),
     then: (resolve: any, reject: any) => resolver().then(resolve, reject),
@@ -82,21 +97,33 @@ const mockAdminClient = {
     }
     if (table === "workflow_tasks") {
       return createChain(mockWorkflowTasksSelect, {
+        eq: mockWorkflowTasksEq,
+        gte: mockWorkflowTasksGte,
+        limit: mockWorkflowTasksLimit,
         insert: (payload: any) => {
           mockWorkflowTasksInsert(payload);
           const insertChain: any = {
             select: () => insertChain,
             single: () => {
-              if (insertErrorOverride) return Promise.resolve({ data: null, error: insertErrorOverride });
+              if (insertErrorOverride)
+                return Promise.resolve({ data: null, error: insertErrorOverride });
               return Promise.resolve({ data: { id: taskId, ...payload }, error: null });
             },
             maybeSingle: () => {
-              if (insertErrorOverride) return Promise.resolve({ data: null, error: insertErrorOverride });
+              if (insertErrorOverride)
+                return Promise.resolve({ data: null, error: insertErrorOverride });
               return Promise.resolve({ data: { id: taskId, ...payload }, error: null });
             },
             then: (resolve: any, reject: any) => {
-              if (insertErrorOverride) return Promise.resolve({ data: null, error: insertErrorOverride }).then(resolve, reject);
-              return Promise.resolve({ data: { id: taskId, ...payload }, error: null }).then(resolve, reject);
+              if (insertErrorOverride)
+                return Promise.resolve({ data: null, error: insertErrorOverride }).then(
+                  resolve,
+                  reject
+                );
+              return Promise.resolve({ data: { id: taskId, ...payload }, error: null }).then(
+                resolve,
+                reject
+              );
             },
           };
           return insertChain;
@@ -104,7 +131,14 @@ const mockAdminClient = {
         update: (payload: any) => {
           mockWorkflowTasksUpdate(payload);
           const updateChain: any = {
-            eq: () => updateChain,
+            eq: (...args: unknown[]) => {
+              mockWorkflowTasksUpdateEq(...args);
+              return updateChain;
+            },
+            is: (...args: unknown[]) => {
+              mockWorkflowTasksUpdateIs(...args);
+              return updateChain;
+            },
             in: () => updateChain,
             select: () => updateChain,
             maybeSingle: () => {
@@ -112,8 +146,8 @@ const mockAdminClient = {
                 typeof updateCasRowsOverride === "function"
                   ? updateCasRowsOverride()
                   : updateCasRowsOverride !== null
-                  ? updateCasRowsOverride
-                  : [{ id: taskId, ...payload }];
+                    ? updateCasRowsOverride
+                    : [{ id: taskId, ...payload }];
               return Promise.resolve({ data: rows[0] ?? null, error: null });
             },
             single: () => {
@@ -121,8 +155,8 @@ const mockAdminClient = {
                 typeof updateCasRowsOverride === "function"
                   ? updateCasRowsOverride()
                   : updateCasRowsOverride !== null
-                  ? updateCasRowsOverride
-                  : [{ id: taskId, ...payload }];
+                    ? updateCasRowsOverride
+                    : [{ id: taskId, ...payload }];
               return Promise.resolve({ data: rows[0] ?? null, error: null });
             },
             then: (resolve: any, reject: any) => {
@@ -130,8 +164,8 @@ const mockAdminClient = {
                 typeof updateCasRowsOverride === "function"
                   ? updateCasRowsOverride()
                   : updateCasRowsOverride !== null
-                  ? updateCasRowsOverride
-                  : [{ id: taskId, ...payload }];
+                    ? updateCasRowsOverride
+                    : [{ id: taskId, ...payload }];
               return Promise.resolve({ data: rows, error: null }).then(resolve, reject);
             },
           };
@@ -430,7 +464,10 @@ describe("W1B: Utility Room Turnover Integrity, Concurrency & Recovery", () => {
 
     // Step 1: Initial active task select returns null (racing thread hasn't committed yet)
     // Step 2: INSERT encounters 23505 unique violation
-    insertErrorOverride = { code: "23505", message: "duplicate key value violates unique constraint" };
+    insertErrorOverride = {
+      code: "23505",
+      message: "duplicate key value violates unique constraint",
+    };
 
     // Step 3: Re-query active task finds the concurrent task created by the racing thread
     mockWorkflowTasksSelect
@@ -575,7 +612,12 @@ describe("W1B: Utility Room Turnover Integrity, Concurrency & Recovery", () => {
       data: {
         id: taskId,
         status: "completed",
+        branch_id: branchId,
         assigned_to_staff_id: cleaner2StaffId,
+        workspace_scope: "utility",
+        task_type: "room_turnover",
+        entity_type: "branch_resource",
+        entity_id: resourceId,
       },
       error: null,
     });
@@ -656,6 +698,7 @@ describe("W1B: Utility Room Turnover Integrity, Concurrency & Recovery", () => {
         entity_type: "branch_resource",
         entity_id: resourceId,
         status: "in_progress",
+        assigned_to_staff_id: staffId,
         metadata: { room_name: "Treatment Room 1" },
       },
       error: null,
@@ -670,6 +713,145 @@ describe("W1B: Utility Room Turnover Integrity, Concurrency & Recovery", () => {
         completed_by_staff_id: staffId,
       })
     );
+    expect(mockWorkflowTasksUpdateEq).toHaveBeenCalledWith("assigned_to_staff_id", staffId);
+  });
+
+  function arrangeReadyTask(
+    options: {
+      staffBranch?: string;
+      taskBranch?: string;
+      owner?: string | null;
+      status?: string;
+      freshStatus?: string;
+      freshOwner?: string | null;
+      freshBranch?: string;
+      freshTaskType?: string;
+    } = {}
+  ) {
+    mockStaffSelect.mockResolvedValue({
+      data: {
+        id: staffId,
+        full_name: "Utility Staff",
+        branch_id: options.staffBranch ?? branchId,
+        system_role: "utility",
+        staff_type: "utility",
+        is_active: true,
+      },
+      error: null,
+    });
+    mockBranchResourcesSelect.mockResolvedValue({
+      data: { id: resourceId, branch_id: options.taskBranch ?? branchId, is_active: true },
+      error: null,
+    });
+    mockWorkflowTasksSelect.mockResolvedValueOnce({
+      data: {
+        id: taskId,
+        branch_id: options.taskBranch ?? branchId,
+        workspace_scope: "utility",
+        task_type: "room_turnover",
+        entity_type: "branch_resource",
+        entity_id: resourceId,
+        status: options.status ?? "in_progress",
+        assigned_to_staff_id: options.owner === undefined ? staffId : options.owner,
+        metadata: {},
+      },
+      error: null,
+    });
+    if (options.freshStatus) {
+      mockWorkflowTasksSelect.mockResolvedValueOnce({
+        data: {
+          status: options.freshStatus,
+          assigned_to_staff_id: options.freshOwner === undefined ? staffId : options.freshOwner,
+          branch_id: options.freshBranch ?? options.taskBranch ?? branchId,
+          workspace_scope: "utility",
+          task_type: options.freshTaskType ?? "room_turnover",
+          entity_type: "branch_resource",
+          entity_id: resourceId,
+        },
+        error: null,
+      });
+    }
+  }
+
+  it("8b. same-branch teammate cannot complete another cleaner's task", async () => {
+    arrangeReadyTask({ owner: cleaner2StaffId });
+    const result = await markRoomReady({ taskId, actorUserId: userId });
+    expect(result).toMatchObject({ ok: false, code: "NOT_TASK_OWNER" });
+    expect(mockWorkflowTasksUpdate).not.toHaveBeenCalled();
+  });
+
+  it("8c. another branch cannot complete the task", async () => {
+    arrangeReadyTask({ staffBranch: otherBranchId });
+    const result = await markRoomReady({ taskId, actorUserId: userId });
+    expect(result).toMatchObject({ ok: false, code: "CROSS_BRANCH_FORBIDDEN" });
+    expect(mockWorkflowTasksUpdate).not.toHaveBeenCalled();
+  });
+
+  it("8d. ownership changing between read and CAS fails closed", async () => {
+    arrangeReadyTask({ freshStatus: "in_progress", freshOwner: cleaner2StaffId });
+    updateCasRowsOverride = [];
+    const result = await markRoomReady({ taskId, actorUserId: userId });
+    expect(result).toMatchObject({ ok: false, code: "NOT_TASK_OWNER" });
+    expect(mockWorkflowTasksUpdateEq).toHaveBeenCalledWith("assigned_to_staff_id", staffId);
+  });
+
+  it("8d2. branch changing between read and CAS fails closed", async () => {
+    arrangeReadyTask({ freshStatus: "completed", freshBranch: otherBranchId });
+    updateCasRowsOverride = [];
+    expect(await markRoomReady({ taskId, actorUserId: userId })).toMatchObject({
+      ok: false,
+      code: "CROSS_BRANCH_FORBIDDEN",
+    });
+  });
+
+  it("8d3. task identity changing between read and CAS fails closed", async () => {
+    arrangeReadyTask({ freshStatus: "completed", freshTaskType: "other_task" });
+    updateCasRowsOverride = [];
+    expect(await markRoomReady({ taskId, actorUserId: userId })).toMatchObject({
+      ok: false,
+      code: "INVALID_TASK_TYPE",
+    });
+  });
+
+  it("8e. only the original owner receives idempotent completed truth", async () => {
+    arrangeReadyTask({ status: "completed" });
+    expect(await markRoomReady({ taskId, actorUserId: userId })).toMatchObject({
+      ok: true,
+      status: "completed",
+      alreadyCompleted: true,
+    });
+    expect(mockWorkflowTasksUpdate).not.toHaveBeenCalled();
+  });
+
+  it("8f. another cleaner cannot claim idempotent completion", async () => {
+    arrangeReadyTask({ status: "completed", owner: cleaner2StaffId });
+    expect(await markRoomReady({ taskId, actorUserId: userId })).toMatchObject({
+      ok: false,
+      code: "NOT_TASK_OWNER",
+    });
+  });
+
+  it("8g. cancelled turnover cannot be completed", async () => {
+    arrangeReadyTask({ status: "cancelled" });
+    expect(await markRoomReady({ taskId, actorUserId: userId })).toMatchObject({
+      ok: false,
+      code: "TASK_CANCELLED",
+    });
+    expect(mockWorkflowTasksUpdate).not.toHaveBeenCalled();
+  });
+
+  it("8h. a preassigned open task cannot be claimed by another cleaner", async () => {
+    arrangeReadyTask({ status: "open", owner: cleaner2StaffId });
+    const result = await startRoomCleaning({ taskId, actorUserId: userId });
+    expect(result).toMatchObject({ ok: false, code: "ALREADY_CLAIMED" });
+    expect(mockWorkflowTasksUpdate).not.toHaveBeenCalled();
+  });
+
+  it("8i. unassigned open task claim compares null ownership atomically", async () => {
+    arrangeReadyTask({ status: "open", owner: null });
+    const result = await startRoomCleaning({ taskId, actorUserId: userId });
+    expect(result).toMatchObject({ ok: true, status: "in_progress" });
+    expect(mockWorkflowTasksUpdateIs).toHaveBeenCalledWith("assigned_to_staff_id", null);
   });
 
   // ───────────────────────────────────────────────────────────────────────────
@@ -853,6 +1035,65 @@ describe("W1B: Utility Room Turnover Integrity, Concurrency & Recovery", () => {
     expect(runtime?.turnoverItems[0]?.customerName).toBeNull(); // Zero PII preserved
   });
 
+  it("12b. Utility runtime separates active work from bounded recent ready history", async () => {
+    mockGetUser.mockResolvedValue({ data: { user: { id: userId } }, error: null });
+    mockStaffSelect.mockResolvedValue({
+      data: {
+        id: staffId,
+        full_name: "Utility Employee",
+        nickname: null,
+        avatar_url: null,
+        branch_id: branchId,
+        system_role: "utility",
+        staff_type: "utility",
+      },
+      error: null,
+    });
+    mockWorkflowTasksSelect
+      .mockResolvedValueOnce({
+        data: [
+          {
+            id: taskId,
+            entity_id: resourceId,
+            status: "in_progress",
+            assigned_to_staff_id: staffId,
+            created_at: "2026-10-12T09:00:00Z",
+            metadata: { room_name: "Treatment Room 1", service_name: "Massage" },
+          },
+        ],
+        error: null,
+      })
+      .mockResolvedValueOnce({
+        data: [
+          {
+            id: "completed-task",
+            entity_id: resourceId,
+            status: "completed",
+            assigned_to_staff_id: staffId,
+            created_at: "2026-10-12T08:00:00Z",
+            completed_at: "2026-10-12T10:00:00Z",
+            metadata: { room_name: "Treatment Room 1" },
+          },
+        ],
+        error: null,
+      });
+    mockBranchResourcesSelect.mockResolvedValue({
+      data: [{ id: resourceId, name: "Treatment Room 1", type: "room" }],
+      error: null,
+    });
+
+    const runtime = await getUtilityWorkspaceRuntime();
+    expect(runtime?.turnoverItems.map((item) => item.status)).toEqual(["in_progress"]);
+    expect(runtime?.turnoverItems[0]?.assignedToStaffId).toBe(staffId);
+    expect(runtime?.recentCompletedItems.map((item) => item.status)).toEqual(["completed"]);
+    expect(runtime?.recentCompletedItems[0]?.completedAt).toBe("2026-10-12T10:00:00Z");
+    expect(runtime?.recentCompletedItems[0]?.customerName).toBeNull();
+    expect(mockWorkflowTasksEq).toHaveBeenCalledWith("branch_id", branchId);
+    expect(mockWorkflowTasksEq).toHaveBeenCalledWith("status", "completed");
+    expect(mockWorkflowTasksGte).toHaveBeenCalledWith("completed_at", expect.any(String));
+    expect(mockWorkflowTasksLimit).toHaveBeenCalledWith(30);
+  });
+
   // ───────────────────────────────────────────────────────────────────────────
   // 13. Service completion turnover failure is surfaced truthfully
   // ───────────────────────────────────────────────────────────────────────────
@@ -1026,9 +1267,7 @@ describe("W1B: Utility Room Turnover Integrity, Concurrency & Recovery", () => {
     });
 
     // Must throw, never silently returning false (which would imply room is ready)
-    await expect(isResourceInActiveTurnover(resourceId)).rejects.toThrow(
-      "database unreachable"
-    );
+    await expect(isResourceInActiveTurnover(resourceId)).rejects.toThrow("database unreachable");
 
     // Re-exported engine helper behaves identically
     await expect(engineIsResourceInActiveTurnover(resourceId)).rejects.toThrow(

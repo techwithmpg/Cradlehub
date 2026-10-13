@@ -1,19 +1,64 @@
 // @vitest-environment jsdom
 import React from "react";
 import { readFileSync } from "node:fs";
-import { cleanup, render, screen } from "@testing-library/react";
+import { cleanup, fireEvent, render, screen } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 vi.mock("server-only", () => ({}));
 import { TherapistMobileShell } from "@/components/features/staff-portal/therapist/therapist-mobile-shell";
 import { DriverMobileShell } from "@/components/features/staff-portal/driver/driver-mobile-shell";
 import { StaffMobileShell } from "@/components/features/staff-portal/mobile/staff-mobile-shell";
+import { useStaffSafeMemory } from "@/components/features/staff-pwa/safe-memory";
 import {
   resolveStaffOperationalRole,
   resolveNavigationProfile,
 } from "@/components/features/staff-pwa/role-navigation";
 
 let mockPathname = "/staff";
+
+function UtilityMemoryProbe() {
+  const memory = useStaffSafeMemory();
+  return (
+    <>
+      <output data-testid="utility-memory">
+        {memory?.read("utilityHome")?.counts[0]?.value ?? "empty"}
+      </output>
+      <button
+        onClick={() =>
+          memory?.write({
+            screen: "utilityHome",
+            label: "Utility home",
+            counts: [{ label: "Waiting", value: 2 }],
+          })
+        }
+      >
+        Remember
+      </button>
+    </>
+  );
+}
+
+function DriverMemoryProbe() {
+  const memory = useStaffSafeMemory();
+  return (
+    <>
+      <output data-testid="driver-memory">
+        {memory?.read("driverToday")?.counts[0]?.value ?? "empty"}
+      </output>
+      <button
+        onClick={() =>
+          memory?.write({
+            screen: "driverToday",
+            label: "Driver today",
+            counts: [{ label: "Trips", value: 3 }],
+          })
+        }
+      >
+        Remember driver
+      </button>
+    </>
+  );
+}
 
 vi.mock("next/navigation", () => ({
   usePathname: () => mockPathname,
@@ -69,8 +114,8 @@ describe("W1A: Scanner Shell Isolation & Foundation", () => {
     expect(screen.getByTestId("therapist-today")).toBeDefined();
     // Bottom navigation must be present on standard routes
     expect(container.querySelector("nav")).not.toBeNull();
-    const contentWrapper = container.querySelector(".min-h-dvh");
-    expect(contentWrapper?.className).toContain("pb-[calc(112px+env(safe-area-inset-bottom))]");
+    const contentWrapper = container.querySelector(".min-h-full");
+    expect(contentWrapper?.className).toContain("pb-[calc(88px+env(safe-area-inset-bottom))]");
   });
 
   it("3. DriverMobileShell suppresses bottom navigation, sheet, and padding on /staff/scan", () => {
@@ -121,8 +166,34 @@ describe("W1A: Scanner Shell Isolation & Foundation", () => {
 
     expect(screen.getByTestId("driver-today")).toBeDefined();
     expect(container.querySelector("nav")).not.toBeNull();
-    const contentWrapper = container.querySelector(".min-h-dvh");
-    expect(contentWrapper?.className).toContain("pb-[calc(84px+env(safe-area-inset-bottom))]");
+    const contentWrapper = container.querySelector(".min-h-full");
+    expect(contentWrapper?.className).toContain("pb-[calc(88px+env(safe-area-inset-bottom))]");
+  });
+
+  it("clears Driver summary memory when the authenticated identity changes", () => {
+    mockPathname = "/staff/driver";
+    const staff = {
+      id: "driver-1",
+      full_name: "Juan Driver",
+      nickname: "Juan",
+      branch_id: "branch-1",
+      system_role: "driver",
+      staff_type: "driver",
+      tier: null,
+    };
+    const { rerender } = render(
+      <DriverMobileShell staff={staff} mode="canonical" identity="user-a:driver-1:branch-1">
+        <DriverMemoryProbe />
+      </DriverMobileShell>
+    );
+    fireEvent.click(screen.getByRole("button", { name: "Remember driver" }));
+    expect(screen.getByTestId("driver-memory").textContent).toBe("3");
+    rerender(
+      <DriverMobileShell staff={staff} mode="canonical" identity="user-b:driver-2:branch-2">
+        <DriverMemoryProbe />
+      </DriverMobileShell>
+    );
+    expect(screen.getByTestId("driver-memory").textContent).toBe("empty");
   });
 
   it("5. StaffMobileShell suppresses bottom navigation on /staff/scan for utility and crm", () => {
@@ -151,38 +222,88 @@ describe("W1A: Scanner Shell Isolation & Foundation", () => {
     expect(crmContainer.querySelector(".min-h-dvh")?.className).not.toContain("pb-[calc(84px");
   });
 
+  it("keeps Utility safe memory across in-shell pathname changes", () => {
+    mockPathname = "/staff/utility";
+    const view = render(
+      <StaffMobileShell profile="utility" identity="user-a:utility-a:branch-a">
+        <UtilityMemoryProbe />
+      </StaffMobileShell>
+    );
+    fireEvent.click(screen.getByRole("button", { name: "Remember" }));
+    expect(screen.getByTestId("utility-memory").textContent).toBe("2");
+    mockPathname = "/staff/scan";
+    view.rerender(
+      <StaffMobileShell profile="utility" identity="user-a:utility-a:branch-a">
+        <div>Scanner</div>
+      </StaffMobileShell>
+    );
+    expect(screen.queryByRole("navigation")).toBeNull();
+    mockPathname = "/staff/utility";
+    view.rerender(
+      <StaffMobileShell profile="utility" identity="user-a:utility-a:branch-a">
+        <UtilityMemoryProbe />
+      </StaffMobileShell>
+    );
+    expect(screen.getByTestId("utility-memory").textContent).toBe("2");
+  });
+
   it("6. resolves role-correct return href for scanner back navigation", () => {
     // Driver -> /staff/driver
     const driverRole = resolveStaffOperationalRole({ system_role: "driver", staff_type: null });
     const driverProfile = resolveNavigationProfile(driverRole);
     const driverReturnHref =
-      driverProfile === "driver" ? "/staff/driver" : driverProfile === "utility" ? "/staff/utility" : "/staff";
+      driverProfile === "driver"
+        ? "/staff/driver"
+        : driverProfile === "utility"
+          ? "/staff/utility"
+          : "/staff";
     expect(driverReturnHref).toBe("/staff/driver");
 
     // Utility -> /staff/utility
-    const utilityRole = resolveStaffOperationalRole({ system_role: "utility", staff_type: "utility" });
+    const utilityRole = resolveStaffOperationalRole({
+      system_role: "utility",
+      staff_type: "utility",
+    });
     const utilityProfile = resolveNavigationProfile(utilityRole);
     const utilityReturnHref =
-      utilityProfile === "driver" ? "/staff/driver" : utilityProfile === "utility" ? "/staff/utility" : "/staff";
+      utilityProfile === "driver"
+        ? "/staff/driver"
+        : utilityProfile === "utility"
+          ? "/staff/utility"
+          : "/staff";
     expect(utilityReturnHref).toBe("/staff/utility");
 
     // Therapist / Provider -> /staff
-    const therapistRole = resolveStaffOperationalRole({ system_role: "staff", staff_type: "therapist" });
+    const therapistRole = resolveStaffOperationalRole({
+      system_role: "staff",
+      staff_type: "therapist",
+    });
     const providerProfile = resolveNavigationProfile(therapistRole);
     const providerReturnHref =
-      providerProfile === "driver" ? "/staff/driver" : providerProfile === "utility" ? "/staff/utility" : "/staff";
+      providerProfile === "driver"
+        ? "/staff/driver"
+        : providerProfile === "utility"
+          ? "/staff/utility"
+          : "/staff";
     expect(providerReturnHref).toBe("/staff");
 
     // CRM / General -> /staff
     const crmRole = resolveStaffOperationalRole({ system_role: "crm", staff_type: null });
     const crmProfile = resolveNavigationProfile(crmRole);
     const crmReturnHref =
-      crmProfile === "driver" ? "/staff/driver" : crmProfile === "utility" ? "/staff/utility" : "/staff";
+      crmProfile === "driver"
+        ? "/staff/driver"
+        : crmProfile === "utility"
+          ? "/staff/utility"
+          : "/staff";
     expect(crmReturnHref).toBe("/staff");
   });
 
   it("7. preserves C6 full-document navigation for central Scan button", () => {
-    const bottomNavSource = readFileSync("src/components/features/staff-pwa/bottom-nav.tsx", "utf8");
+    const bottomNavSource = readFileSync(
+      "src/components/features/staff-pwa/bottom-nav.tsx",
+      "utf8"
+    );
     // Scan must use native anchor <a> to guarantee same-origin document reload and camera Permissions-Policy
     expect(bottomNavSource).toMatch(/<a\s+href=\{item\.href\}\s+aria-label="Scan QR code"/);
   });

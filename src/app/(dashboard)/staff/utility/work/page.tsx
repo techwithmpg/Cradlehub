@@ -6,23 +6,13 @@ export const metadata = {
 };
 
 export default async function UtilityWorkPage() {
-  const {
-    getUtilityWorkspaceRuntime,
-  } = await import(
-    "@/lib/staff-pwa/utility-runtime"
-  );
+  const { getUtilityWorkspaceRuntime } = await import("@/lib/staff-pwa/utility-runtime");
 
-  const today =
-    new Date().toISOString().slice(0, 10);
-
-  const runtime =
-    await getUtilityWorkspaceRuntime(today);
+  const runtime = await getUtilityWorkspaceRuntime();
 
   if (!runtime) {
     redirect("/staff");
   }
 
-  return (
-    <UtilityWorkList runtime={runtime} />
-  );
+  return <UtilityWorkList runtime={runtime} />;
 }

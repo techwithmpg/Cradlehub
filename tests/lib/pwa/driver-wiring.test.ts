@@ -215,9 +215,10 @@ describe("Booking progress server boundary", () => {
     expect(
       await updateBookingProgressAction({ bookingId: "job", nextStatus: "travel_started" })
     ).toMatchObject({ ok: true });
-    expect(state.adminRpc).toHaveBeenCalledExactlyOnceWith("update_booking_progress", {
+    expect(state.adminRpc).toHaveBeenCalledExactlyOnceWith("advance_staff_booking_progress", {
       p_booking_id: "job",
       p_next_status: "travel_started",
+      p_actor_staff_id: "driver",
     });
     expect(state.rpc).not.toHaveBeenCalled();
   });
@@ -226,9 +227,10 @@ describe("Booking progress server boundary", () => {
     expect(
       await updateBookingProgressAction({ bookingId: "job", nextStatus: "arrived" })
     ).toMatchObject({ ok: true });
-    expect(state.adminRpc).toHaveBeenCalledWith("update_booking_progress", {
+    expect(state.adminRpc).toHaveBeenCalledWith("advance_staff_booking_progress", {
       p_booking_id: "job",
       p_next_status: "arrived",
+      p_actor_staff_id: "driver",
     });
   });
   it("permits branch CRM check-in for a confirmed in-spa booking", async () => {
@@ -237,9 +239,99 @@ describe("Booking progress server boundary", () => {
     expect(
       await updateBookingProgressAction({ bookingId: "job", nextStatus: "checked_in" })
     ).toMatchObject({ ok: true });
-    expect(state.adminRpc).toHaveBeenCalledWith("update_booking_progress", {
+    expect(state.adminRpc).toHaveBeenCalledWith("advance_staff_booking_progress", {
       p_booking_id: "job",
       p_next_status: "checked_in",
+      p_actor_staff_id: "driver",
+    });
+  });
+  it.each([
+    { current: "not_started", next: "travel_started", delivery: "home_service" },
+    { current: "travel_started", next: "arrived", delivery: "home_service" },
+    { current: "not_started", next: "checked_in", delivery: "in_spa" },
+    { current: "not_started", next: "no_show", delivery: "in_spa" },
+    { current: "checked_in", next: "no_show", delivery: "in_spa" },
+  ] as const)(
+    "routes assigned Provider $current → $next through the actor guard",
+    async ({ current, next, delivery }) => {
+      state.staff = { ...state.staff!, id: "provider", staff_type: "therapist" };
+      state.booking = {
+        ...state.booking!,
+        booking_progress_status: current,
+        delivery_type: delivery,
+      };
+
+      expect(
+        await updateBookingProgressAction({ bookingId: "job", nextStatus: next })
+      ).toMatchObject({ ok: true });
+      expect(state.adminRpc).toHaveBeenCalledExactlyOnceWith("advance_staff_booking_progress", {
+        p_booking_id: "job",
+        p_next_status: next,
+        p_actor_staff_id: "provider",
+      });
+      expect(state.adminRpc).not.toHaveBeenCalledWith("update_booking_progress", expect.anything());
+    }
+  );
+  it("routes branch CRM no-show through the actor guard", async () => {
+    state.staff = { ...state.staff!, system_role: "crm", staff_type: null };
+    state.booking!.delivery_type = "in_spa";
+    expect(
+      await updateBookingProgressAction({ bookingId: "job", nextStatus: "no_show" })
+    ).toMatchObject({ ok: true });
+    expect(state.adminRpc).toHaveBeenCalledExactlyOnceWith("advance_staff_booking_progress", {
+      p_booking_id: "job",
+      p_next_status: "no_show",
+      p_actor_staff_id: "driver",
+    });
+  });
+  it.each(["travel_started", "checked_in", "no_show"] as const)(
+    "denies unassigned Provider %s before privileged execution",
+    async (nextStatus) => {
+      state.staff = { ...state.staff!, staff_type: "therapist" };
+      state.booking!.delivery_type = nextStatus === "travel_started" ? "home_service" : "in_spa";
+      expect(await updateBookingProgressAction({ bookingId: "job", nextStatus })).toMatchObject({
+        ok: false,
+        code: "PERMISSION_DENIED",
+      });
+      expect(state.adminRpc).not.toHaveBeenCalled();
+    }
+  );
+  it.each(["utility", "staff"])("denies %s booking progress even when assigned", async (role) => {
+    state.staff = {
+      ...state.staff!,
+      system_role: role,
+      staff_type: role === "utility" ? "utility" : null,
+    };
+    state.booking!.staff_id = "driver";
+    for (const nextStatus of ["travel_started", "checked_in", "no_show"] as const) {
+      state.booking!.delivery_type = nextStatus === "travel_started" ? "home_service" : "in_spa";
+      expect(await updateBookingProgressAction({ bookingId: "job", nextStatus })).toMatchObject({
+        ok: false,
+        code: "PERMISSION_DENIED",
+      });
+    }
+    expect(state.adminRpc).not.toHaveBeenCalled();
+  });
+  it.each([
+    "Provider reassignment",
+    "Driver reassignment",
+    "branch change",
+    "progress state race",
+    "cancelled booking",
+    "completed booking",
+  ])("propagates the database rejection for a %s after pre-read", async (race) => {
+    state.adminRpc.mockResolvedValueOnce({ data: null, error: { message: race } });
+    expect(
+      await updateBookingProgressAction({ bookingId: "job", nextStatus: "travel_started" })
+    ).toMatchObject({
+      ok: false,
+      code: "DATABASE_ERROR",
+      message: race,
+    });
+    expect(state.adminRpc).toHaveBeenCalledExactlyOnceWith("advance_staff_booking_progress", {
+      p_booking_id: "job",
+      p_next_status: "travel_started",
+      p_actor_staff_id: "driver",
     });
   });
   it("rejects an invalid state transition before calling the privileged RPC", async () => {

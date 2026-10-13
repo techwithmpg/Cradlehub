@@ -6,16 +6,12 @@ export function canAccessCanonicalUtility(
   role: string | null | undefined,
   staffType?: string | null | undefined
 ): boolean {
-  return (
-    resolveStaffPwaOperationalGroup(
-      role,
-      staffType
-    ) === "utility"
-  );
+  return resolveStaffPwaOperationalGroup(role, staffType) === "utility";
 }
 
 const UTILITY_DESTINATIONS = [
   "/staff/utility/work",
+  "/staff/utility/rooms",
   "/staff/scan",
   "/staff/utility/notices",
   "/staff/utility/more",
@@ -24,32 +20,17 @@ const UTILITY_DESTINATIONS = [
 export default async function CanonicalUtilityPage() {
   void UTILITY_DESTINATIONS;
 
-  const {
-    getUtilityWorkspaceRuntime,
-  } = await import(
-    "@/lib/staff-pwa/utility-runtime"
-  );
+  const { getUtilityWorkspaceRuntime } = await import("@/lib/staff-pwa/utility-runtime");
 
-  const today =
-    new Date().toISOString().slice(0, 10);
-
-  const runtime =
-    await getUtilityWorkspaceRuntime(today);
+  const runtime = await getUtilityWorkspaceRuntime({ includeAttendance: true });
 
   if (!runtime) {
     redirect("/staff");
   }
 
-  if (
-    !canAccessCanonicalUtility(
-      runtime.staff.system_role,
-      runtime.staff.staff_type
-    )
-  ) {
+  if (!canAccessCanonicalUtility(runtime.staff.system_role, runtime.staff.staff_type)) {
     redirect("/staff");
   }
 
-  return (
-    <UtilityMobileHome runtime={runtime} />
-  );
+  return <UtilityMobileHome runtime={runtime} />;
 }

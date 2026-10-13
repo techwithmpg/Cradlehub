@@ -18,7 +18,6 @@ import {
   type ProviderRuntimeErrors,
   type ProviderRuntimeResult,
   type ProviderScheduleSummary,
-  type ProviderWorkspaceRuntime,
   type ResolvedShift,
   type ProviderPrimaryWork,
 } from "./provider-model";
@@ -37,9 +36,7 @@ export async function getProviderWorkspaceRuntime(
 ): Promise<ProviderRuntimeResult> {
   const profileResult = await getMyProfileAction().catch(() => null);
   const me =
-    profileResult && !("error" in profileResult)
-      ? (profileResult.staff as StaffPortalStaff)
-      : null;
+    profileResult && !("error" in profileResult) ? (profileResult.staff as StaffPortalStaff) : null;
 
   if (!me) {
     return {
@@ -49,10 +46,7 @@ export async function getProviderWorkspaceRuntime(
     };
   }
 
-  const operationalGroup = resolveStaffPwaOperationalGroup(
-    me.system_role,
-    me.staff_type
-  );
+  const operationalGroup = resolveStaffPwaOperationalGroup(me.system_role, me.staff_type);
 
   if (operationalGroup !== "provider") {
     return {
@@ -67,9 +61,7 @@ export async function getProviderWorkspaceRuntime(
     targetDate = date ?? (await getProviderBusinessDate(me.branch_id, now));
   } catch (err) {
     const errorMsg =
-      err instanceof Error
-        ? err.message
-        : "Failed to resolve operational business date";
+      err instanceof Error ? err.message : "Failed to resolve operational business date";
     return {
       ok: false,
       error: errorMsg,
@@ -150,9 +142,7 @@ export async function getProviderWorkspaceRuntime(
     }
   } else {
     const errMsg =
-      todayOutcome.reason instanceof Error
-        ? todayOutcome.reason.message
-        : "Failed to load work";
+      todayOutcome.reason instanceof Error ? todayOutcome.reason.message : "Failed to load work";
     errors.work = errMsg;
     primaryWork = {
       kind: "load_error",
@@ -180,12 +170,8 @@ export async function getProviderWorkspaceRuntime(
       (b) => b.status === "completed" || b.booking_progress_status === "completed"
     ).length,
     activeToday: bookings.filter(isOperationallyActive).length,
-    upcomingToday: bookings.filter(
-      (b) => !isClosedBooking(b) && !isOperationallyActive(b)
-    ).length,
-    homeServicesToday: bookings.filter(
-      (b) => b.delivery_type === "home_service"
-    ).length,
+    upcomingToday: bookings.filter((b) => !isClosedBooking(b) && !isOperationallyActive(b)).length,
+    homeServicesToday: bookings.filter((b) => b.delivery_type === "home_service").length,
   };
 
   const hasErrors = Object.keys(errors).length > 0;
@@ -194,6 +180,7 @@ export async function getProviderWorkspaceRuntime(
     ok: true,
     runtime: {
       staff: me,
+      businessDate: targetDate,
       attendance,
       shift,
       primaryWork,

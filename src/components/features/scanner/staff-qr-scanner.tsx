@@ -2,15 +2,7 @@
 
 import { useCallback, useEffect, useRef } from "react";
 import { useRouter } from "next/navigation";
-import {
-  Camera,
-  CameraOff,
-  Loader2,
-  QrCode,
-  RefreshCw,
-  ShieldAlert,
-  XCircle,
-} from "lucide-react";
+import { Camera, CameraOff, Loader2, QrCode, RefreshCw, ShieldAlert, XCircle } from "lucide-react";
 import { useStaffScanner } from "./use-staff-scanner";
 import type { ScannerState } from "./use-staff-scanner";
 import { resolveStaffScanTargetAction } from "@/app/(dashboard)/staff/scan/actions";
@@ -38,8 +30,8 @@ function CornerMarker({
   const h = horizontal === "left" ? "left-3" : "right-3";
   return (
     <>
-      <span aria-hidden="true" className={`absolute h-5 w-0.5 bg-[#163A2B] ${v} ${h}`} />
-      <span aria-hidden="true" className={`absolute h-0.5 w-5 bg-[#163A2B] ${v} ${h}`} />
+      <span aria-hidden="true" className={`absolute h-6 w-0.5 bg-[#E8C781] ${v} ${h}`} />
+      <span aria-hidden="true" className={`absolute h-0.5 w-6 bg-[#E8C781] ${v} ${h}`} />
     </>
   );
 }
@@ -48,10 +40,10 @@ function IdleOverlay({ state }: { state: ScannerState }) {
   if (state === "permission_request") {
     return (
       <div className="flex flex-col items-center gap-3">
-        <span className="flex h-16 w-16 items-center justify-center rounded-2xl bg-[#163A2B]/10">
-          <Camera size={36} className="text-[#163A2B]" aria-hidden="true" />
+        <span className="flex h-16 w-16 items-center justify-center rounded-2xl bg-white/10">
+          <Camera size={36} className="text-[#E8C781]" aria-hidden="true" />
         </span>
-        <span className="px-4 text-center text-xs font-semibold text-[#1E293B]">
+        <span className="px-4 text-center text-xs font-semibold text-white">
           Requesting camera access…
         </span>
       </div>
@@ -75,8 +67,8 @@ function IdleOverlay({ state }: { state: ScannerState }) {
     return <XCircle size={48} className="text-red-400" aria-hidden="true" />;
   }
   return (
-    <span className="flex h-16 w-16 items-center justify-center rounded-2xl bg-[#163A2B]/10">
-      <QrCode size={36} className="text-[#163A2B]" aria-hidden="true" />
+    <span className="flex h-16 w-16 items-center justify-center rounded-2xl bg-white/10">
+      <QrCode size={36} className="text-[#E8C781]" aria-hidden="true" />
     </span>
   );
 }
@@ -94,17 +86,14 @@ function Viewfinder({
   const isLive = liveStates.includes(state);
 
   const borderColor =
-    state === "invalid" || state === "rejected"
-        ? "border-red-400"
-        : "border-[#C8A96B]";
+    state === "invalid" || state === "rejected" ? "border-red-400" : "border-[#C8A96B]";
 
   return (
     <div
-      className={`relative mx-auto flex h-64 w-64 items-center justify-center overflow-hidden rounded-3xl border-2 ${borderColor} shadow-sm transition-colors duration-300`}
+      className={`relative mx-auto flex h-[min(52dvh,430px)] w-full max-w-[360px] items-center justify-center overflow-hidden rounded-3xl border-2 bg-[radial-gradient(circle_at_center,#31523d,#10271e_75%)] ${borderColor} shadow-[0_16px_40px_rgba(10,35,22,0.23)] transition-colors duration-200 motion-reduce:transition-none`}
       role="img"
       aria-label="QR code viewfinder"
     >
-      {/* eslint-disable-next-line jsx-a11y/media-has-caption */}
       <video
         ref={videoRef}
         className={`absolute inset-0 h-full w-full object-cover transition-opacity duration-200 ${isLive ? "opacity-100" : "opacity-0"}`}
@@ -153,11 +142,7 @@ function Viewfinder({
 
 function StatusMessage({ state }: { state: ScannerState }) {
   if (state === "permission_request") {
-    return (
-      <p className="text-center text-sm font-medium text-[#475569]">
-        Starting camera…
-      </p>
-    );
+    return <p className="text-center text-sm font-medium text-[#475569]">Starting camera…</p>;
   }
   if (state === "scanning") {
     return (
@@ -168,13 +153,13 @@ function StatusMessage({ state }: { state: ScannerState }) {
   }
   if (state === "code_detected" || state === "processing") {
     return (
-      <p className="text-center text-sm font-medium text-[#475569]">
-        Code detected — processing…
-      </p>
+      <p className="text-center text-sm font-medium text-[#475569]">Code detected — processing…</p>
     );
   }
   if (state === "paused") {
-    return <p className="text-center text-sm text-[#475569]">Camera paused. Tap Scan again to resume.</p>;
+    return (
+      <p className="text-center text-sm text-[#475569]">Camera paused. Tap Scan again to resume.</p>
+    );
   }
   if (state === "permission_denied") {
     return (
@@ -227,9 +212,7 @@ function StatusMessage({ state }: { state: ScannerState }) {
     );
   }
   return (
-    <p className="text-center text-sm text-[#475569]">
-      Point your camera at a CradleHub QR code
-    </p>
+    <p className="text-center text-sm text-[#475569]">Point your camera at a CradleHub QR code</p>
   );
 }
 
@@ -257,14 +240,14 @@ function Actions({
             {state === "permission_request"
               ? "Starting camera…"
               : state === "scanning"
-              ? "Scanning in progress"
-              : "Processing code…"}
+                ? "Scanning in progress"
+                : "Processing code…"}
           </div>
         </div>
         <a
           id="staff-scanner-return"
           href={returnHref}
-          className="flex h-11 w-full items-center justify-center gap-2 rounded-xl border border-[#EAE4DC] bg-white text-sm font-semibold text-[#163A2B] shadow-xs transition hover:bg-[#F7F3EB] active:scale-95"
+          className="flex h-12 w-full items-center justify-center gap-2 rounded-xl border border-[#EAE4DC] bg-white text-sm font-semibold text-[#163A2B] shadow-xs transition hover:bg-[#F7F3EB] active:scale-95"
         >
           Return to Workspace
         </a>
@@ -287,7 +270,7 @@ function Actions({
       <a
         id="staff-scanner-return"
         href={returnHref}
-        className="flex h-11 w-full items-center justify-center gap-2 rounded-xl border border-[#EAE4DC] bg-white text-sm font-semibold text-[#163A2B] shadow-xs transition hover:bg-[#F7F3EB] active:scale-95"
+        className="flex h-12 w-full items-center justify-center gap-2 rounded-xl border border-[#EAE4DC] bg-white text-sm font-semibold text-[#163A2B] shadow-xs transition hover:bg-[#F7F3EB] active:scale-95"
       >
         Return to Workspace
       </a>
@@ -325,7 +308,10 @@ export function StaffQrScanner({ returnHref }: StaffQrScannerProps) {
   const mountedRef = useRef(true);
   useEffect(() => {
     mountedRef.current = true;
-    return () => { mountedRef.current = false; requestRef.current = null; };
+    return () => {
+      mountedRef.current = false;
+      requestRef.current = null;
+    };
   }, []);
 
   const handleDecode = useCallback(
@@ -354,21 +340,21 @@ export function StaffQrScanner({ returnHref }: StaffQrScannerProps) {
     [router]
   );
 
-  const { state, videoRef, canvasRef, scanAgain, setState } =
-    useStaffScanner({ onDecode: handleDecode, autoStart: true });
+  const { state, videoRef, canvasRef, scanAgain, setState } = useStaffScanner({
+    onDecode: handleDecode,
+    autoStart: true,
+  });
 
-  // Keep the ref current after each render
-  setStateRef.current = setState;
+  // Decode callbacks run after mount; keep their setter reference current in an effect.
+  useEffect(() => {
+    setStateRef.current = setState;
+  }, [setState]);
 
   return (
     <div className="flex flex-col gap-5 py-4">
       <Viewfinder state={state} videoRef={videoRef} canvasRef={canvasRef} />
       <StatusMessage state={state} />
-      <Actions
-        state={state}
-        onScanAgain={scanAgain}
-        returnHref={returnHref}
-      />
+      <Actions state={state} onScanAgain={scanAgain} returnHref={returnHref} />
       <p className="mt-auto text-center text-[11px] text-[#64748B]">
         🔒 Camera active only while scanning · Camera images are not saved
       </p>

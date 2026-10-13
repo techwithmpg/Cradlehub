@@ -4,6 +4,7 @@ import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { Navigation } from "lucide-react";
 import { updateBookingProgressAction } from "@/app/(dashboard)/staff-portal/actions";
+import { invalidateStaffSafeMemory } from "@/components/features/staff-pwa/safe-memory";
 
 type DriverStartTravelButtonProps = {
   bookingId: string;
@@ -25,29 +26,31 @@ export function DriverStartTravelButton({
       setError(null);
 
       try {
-      const result = await updateBookingProgressAction({
-        bookingId,
-        nextStatus: "travel_started",
-      });
+        const result = await updateBookingProgressAction({
+          bookingId,
+          nextStatus: "travel_started",
+        });
 
-      if (!result.ok) {
-        setError(result.message ?? "Travel could not be started.");
-        return;
-      }
+        if (!result.ok) {
+          setError(result.message ?? "Travel could not be started.");
+          return;
+        }
 
-      /*
-       * Server authority succeeded first.
-       * Now hand off to the operating system / Google Maps.
-       *
-       * Android normally opens the Maps app when associated.
-       * Browser directions remain the fallback.
-       */
-      if (navigationUrl) {
-        window.location.assign(navigationUrl);
-        return;
-      }
+        invalidateStaffSafeMemory(["driverToday", "driverTrips", "driverMap"]);
 
-      router.refresh();
+        /*
+         * Server authority succeeded first.
+         * Now hand off to the operating system / Google Maps.
+         *
+         * Android normally opens the Maps app when associated.
+         * Browser directions remain the fallback.
+         */
+        if (navigationUrl) {
+          window.location.assign(navigationUrl);
+          return;
+        }
+
+        router.refresh();
       } catch {
         setError("Travel could not be confirmed. Refresh before retrying.");
       }

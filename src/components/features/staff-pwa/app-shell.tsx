@@ -73,7 +73,7 @@ export function StaffAppShell({
         })
       : null);
 
-  const navProfile = profileOverride ?? (resolveNavigationProfile(operationalRole) ?? "crm_general");
+  const navProfile = profileOverride ?? resolveNavigationProfile(operationalRole) ?? "crm_general";
   const navItems = customNavItems ?? getNavigationItemsForProfile(navProfile);
 
   const displayName = staff?.nickname || staff?.full_name || "Staff";
@@ -94,7 +94,7 @@ export function StaffAppShell({
 
   return (
     <div
-      className="min-h-dvh w-full bg-[#F7F3EB] text-[#1E293B] antialiased"
+      className={`${hideNav ? "min-h-full" : "min-h-dvh"} w-full bg-[#F7F3EB] text-[#1E293B] antialiased`}
       style={{
         // Define scoped CSS variables for child components
         ["--pwa-bg" as string]: "#F7F3EB",
@@ -141,11 +141,7 @@ export function StaffAppShell({
 
       {/* Bottom Navigation */}
       {!hideNav ? (
-        <StaffBottomNav
-          items={navItems}
-          activeKey={activeNavKey}
-          onScanClick={onScanClick}
-        />
+        <StaffBottomNav items={navItems} activeKey={activeNavKey} onScanClick={onScanClick} />
       ) : null}
     </div>
   );

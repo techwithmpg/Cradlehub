@@ -876,7 +876,9 @@ export async function updateBookingProgressAction({
   const role = canonicalizeSystemRole(me.system_role);
   const isManager = ["owner", "manager", "assistant_manager", "store_manager"].includes(role);
   const canManageOperationalProgress = canManageBookings(role);
-  const isDriver = resolveStaffPwaOperationalGroup(me.system_role, me.staff_type) === "driver";
+  const operationalGroup = resolveStaffPwaOperationalGroup(me.system_role, me.staff_type);
+  const isDriver = operationalGroup === "driver";
+  const isAssignedProvider = operationalGroup === "provider" && isAssignedStaff;
 
   // This single-tenant workspace permits owner oversight across branches.
   // Every other role must operate within its own branch, even when assigned.
@@ -922,7 +924,7 @@ export async function updateBookingProgressAction({
     };
   }
 
-  if (isDriverAction && !isAssignedStaff && !isManager && !(isDriver && isAssignedDriver)) {
+  if (isDriverAction && !isAssignedProvider && !isManager && !(isDriver && isAssignedDriver)) {
     return {
       ok: false,
       code: "PERMISSION_DENIED",
@@ -930,7 +932,7 @@ export async function updateBookingProgressAction({
     };
   }
 
-  if (isCsrAction && !canManageOperationalProgress && !isAssignedStaff) {
+  if (isCsrAction && !canManageOperationalProgress && !isAssignedProvider) {
     return {
       ok: false,
       code: "PERMISSION_DENIED",
@@ -1048,10 +1050,12 @@ export async function updateBookingProgressAction({
     }
     requiresTimestampRead = false;
   } else {
-    // The privileged RPC is reachable only after the staff and booking checks above.
-    const result = await createAdminClient().rpc("update_booking_progress", {
+    // Early checks provide useful errors. The RPC repeats role, assignment,
+    // branch, lifecycle and transition checks while holding the row locks.
+    const result = await createAdminClient().rpc("advance_staff_booking_progress", {
       p_booking_id: bookingId,
       p_next_status: nextStatus,
+      p_actor_staff_id: me.id,
     });
     rpcError = result.error;
   }

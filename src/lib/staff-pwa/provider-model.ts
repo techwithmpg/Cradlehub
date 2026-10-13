@@ -2,10 +2,7 @@ import type {
   StaffPortalBooking,
   StaffPortalStaff,
 } from "@/components/features/staff-portal/types";
-import type {
-  TodayOverrideInfo,
-  TodayScheduleInfo,
-} from "@/app/(dashboard)/staff-portal/actions";
+import type { TodayOverrideInfo, TodayScheduleInfo } from "@/app/(dashboard)/staff-portal/actions";
 import type { StaffAttendanceData } from "@/lib/staff-portal/attendance";
 
 export type ResolvedShift =
@@ -90,6 +87,7 @@ export type ProviderRuntimeErrors = {
 
 export type ProviderWorkspaceRuntime = {
   staff: StaffPortalStaff;
+  businessDate: string;
   attendance: StaffAttendanceData | null;
   shift: ResolvedShift;
   primaryWork: ProviderPrimaryWork;
@@ -124,12 +122,9 @@ export function isClosedBooking(booking: StaffPortalBooking): boolean {
 export function isOperationallyActive(booking: StaffPortalBooking): boolean {
   return (
     booking.status === "in_progress" ||
-    [
-      "checked_in",
-      "travel_started",
-      "arrived",
-      "session_started",
-    ].includes(booking.booking_progress_status)
+    ["checked_in", "travel_started", "arrived", "session_started"].includes(
+      booking.booking_progress_status
+    )
   );
 }
 
@@ -195,9 +190,7 @@ export function resolveProviderShift(
  * 3. Next assigned service (earliest upcoming open service)
  * 4. Clear / no immediate work
  */
-export function resolveProviderPrimaryWork(
-  bookings: StaffPortalBooking[]
-): ProviderPrimaryWork {
+export function resolveProviderPrimaryWork(bookings: StaffPortalBooking[]): ProviderPrimaryWork {
   const open = bookings.filter((b) => !isClosedBooking(b));
 
   // 1. Active Home Service

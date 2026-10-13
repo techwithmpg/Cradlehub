@@ -1,6 +1,9 @@
 import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
+  // Proxy preserves /staff/ (the accepted manifest start URL) while retaining
+  // slashless redirects for every other route.
+  skipTrailingSlashRedirect: true,
   serverExternalPackages: ["sharp"],
   outputFileTracingIncludes: {
     "/*": [

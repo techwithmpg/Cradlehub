@@ -1,25 +1,17 @@
 "use client";
 
-import {
-  Clock3,
-  Home,
-  MapPin,
-  Stethoscope,
-  UserRound,
-} from "lucide-react";
+import { CheckCircle2, Clock3, Home, MapPin, Stethoscope, UserRound } from "lucide-react";
 import { formatTime } from "@/lib/utils";
 import { BookingProgressActions } from "@/components/features/staff-portal/booking-progress-actions";
 import type { StaffPortalBooking } from "@/components/features/staff-portal/types";
+import { StaffCard, StaffStatusChip } from "@/components/features/staff-pwa/native-foundation";
 
 function firstRelation<T>(value: T | T[] | null): T | null {
   if (!value) return null;
   return Array.isArray(value) ? (value[0] ?? null) : value;
 }
 
-function progressLabel(
-  progressStatus: string,
-  bookingStatus: string
-): string {
+function progressLabel(progressStatus: string, bookingStatus: string): string {
   if (bookingStatus === "no_show") return "No Show";
 
   switch (progressStatus) {
@@ -56,13 +48,27 @@ export function TherapistServiceProgressCard({
     (booking.metadata?.home_address as string | undefined) ??
     null;
 
-  const label = progressLabel(
-    booking.booking_progress_status,
-    booking.status
-  );
+  const label = progressLabel(booking.booking_progress_status, booking.status);
+  const completedAt = booking.session_completed_at ?? booking.completed_at;
+  const startAt = booking.session_started_at ?? booking.checked_in_at;
+  const durationMinutes =
+    startAt && completedAt
+      ? Math.max(
+          0,
+          Math.round((new Date(completedAt).getTime() - new Date(startAt).getTime()) / 60000)
+        )
+      : null;
+  const formatTimestamp = (value: string) =>
+    new Date(value).toLocaleTimeString("en-PH", { hour: "numeric", minute: "2-digit" });
 
   return (
-    <article className="overflow-hidden rounded-[22px] border border-[#EAE5DD] bg-white shadow-[0_7px_24px_rgba(30,41,59,0.055)]">
+    <StaffCard as="article" className="overflow-hidden">
+      {!showControls && booking.booking_progress_status === "completed" ? (
+        <div className="flex items-center gap-2 bg-[#163a2b] px-4 py-2.5 text-xs font-semibold text-white">
+          <CheckCircle2 size={17} className="text-[#d9ba73]" />
+          Service completed
+        </div>
+      ) : null}
       <div className="p-4">
         <div className="flex items-start gap-3">
           <div
@@ -88,9 +94,7 @@ export function TherapistServiceProgressCard({
                 ) : null}
               </div>
 
-              <span className="rounded-full bg-[#E3F5E8] px-2.5 py-1 text-[10px] font-bold text-[#16734C]">
-                {label}
-              </span>
+              <StaffStatusChip>{label}</StaffStatusChip>
             </div>
 
             <div className="mt-3 space-y-1.5 text-[12px] text-[#536477]">
@@ -131,11 +135,38 @@ export function TherapistServiceProgressCard({
         </div>
       </div>
 
+      {!showControls &&
+      booking.booking_progress_status === "completed" &&
+      (booking.checked_in_at || completedAt) ? (
+        <div className="mx-4 mb-4 grid grid-cols-3 gap-2 rounded-[15px] bg-[#f3eee3] p-3 text-center text-[10px] text-[#65746b]">
+          <div>
+            <div className="font-bold text-[#163a2b]">
+              {booking.checked_in_at ? formatTimestamp(booking.checked_in_at) : "—"}
+            </div>
+            Check-in
+          </div>
+          <div>
+            <div className="font-bold text-[#163a2b]">
+              {completedAt ? formatTimestamp(completedAt) : "—"}
+            </div>
+            Completed
+          </div>
+          <div>
+            <div className="font-bold text-[#163a2b]">
+              {durationMinutes !== null && Number.isFinite(durationMinutes)
+                ? `${durationMinutes} min`
+                : "—"}
+            </div>
+            Duration
+          </div>
+        </div>
+      ) : null}
+
       {showControls ? (
         <div className="border-t border-[#EEE9E2] bg-[#FCFBF8] px-4 py-3">
           <BookingProgressActions booking={booking} />
         </div>
       ) : null}
-    </article>
+    </StaffCard>
   );
 }

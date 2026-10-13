@@ -2,25 +2,11 @@
 
 import Image from "next/image";
 import Link from "next/link";
-import {
-  useActionState,
-  useCallback,
-  useState,
-} from "react";
-import {
-  AlertCircle,
-  CheckCircle2,
-  Loader2,
-  Lock,
-  Mail,
-  ShieldCheck,
-} from "lucide-react";
+import { useActionState, useCallback, useState } from "react";
+import { AlertCircle, CheckCircle2, Loader2, Lock, Mail, ShieldCheck } from "lucide-react";
 import { PasswordInput } from "@/components/shared/password-input";
 import { GooglePersonalizedSignIn } from "./google-personalized-sign-in";
-import {
-  loginAction,
-  type LoginState,
-} from "./actions";
+import { loginAction, type LoginState } from "./actions";
 import { PASSWORD_UPDATED_LOGIN_MESSAGE } from "./messages";
 import styles from "./login-branding.module.css";
 
@@ -42,53 +28,36 @@ function CompactDivider() {
 
 export function LoginForm({
   passwordUpdated,
+  staffPwa = false,
 }: {
   passwordUpdated: boolean;
+  staffPwa?: boolean;
 }) {
-  const [
-    state,
-    formAction,
-    pending,
-  ] = useActionState(
-    loginAction,
-    initialState
-  );
+  const [state, formAction, pending] = useActionState(loginAction, initialState);
 
-  const [
-    googleError,
-    setGoogleError,
-  ] = useState<string | null>(null);
+  const [googleError, setGoogleError] = useState<string | null>(null);
 
-  const googleClientId =
-    process.env
-      .NEXT_PUBLIC_GOOGLE_CLIENT_ID
-      ?.trim();
+  const googleClientId = process.env.NEXT_PUBLIC_GOOGLE_CLIENT_ID?.trim();
 
-  const visibleError =
-    googleError ?? state.error;
+  const visibleError = googleError ?? state.error;
 
-  const clearGoogleError =
-    useCallback(
-      () => setGoogleError(null),
-      []
-    );
+  const clearGoogleError = useCallback(() => setGoogleError(null), []);
 
   return (
     <main className={styles.screen}>
       <div className={styles.shell}>
-
         {/* =========================
             MOBILE BRAND HEADER
         ========================== */}
 
-        <div
-          className={`${styles.mobileBrand} mb-3 flex items-center justify-center gap-3`}
-        >
-          <div
-            className={`${styles.logoTile} size-[52px] rounded-[16px]`}
-          >
+        <div className={`${styles.mobileBrand} mb-3 flex items-center justify-center gap-3`}>
+          <div className={`${styles.logoTile} size-[52px] rounded-[16px]`}>
             <Image
-              src="/images/brand/cradle-wellness-living-mark.png"
+              src={
+                staffPwa
+                  ? "/staff-pwa-icon-48-gold.png"
+                  : "/images/brand/cradle-wellness-living-mark.png"
+              }
               alt=""
               width={44}
               height={44}
@@ -103,7 +72,7 @@ export function LoginForm({
             </div>
 
             <div className="mt-1 text-[9px] font-semibold uppercase tracking-[0.16em] text-[#9A805E]">
-              Team Workspace
+              {staffPwa ? "Staff app" : "Team Workspace"}
             </div>
           </div>
         </div>
@@ -112,9 +81,7 @@ export function LoginForm({
             DESKTOP BRAND HERO
         ========================== */}
 
-        <section
-          className={styles.desktopHero}
-        >
+        <section className={styles.desktopHero}>
           <div
             className={`${styles.desktopLogo} ${styles.logoTile} grid size-[112px] rounded-[32px]`}
           >
@@ -137,8 +104,8 @@ export function LoginForm({
           </h1>
 
           <p className="mt-4 max-w-[390px] text-[14px] leading-6 text-[#66776E]">
-            Secure access to your operational workspace,
-            schedules, attendance and daily responsibilities.
+            Secure access to your operational workspace, schedules, attendance and daily
+            responsibilities.
           </p>
 
           <div className="mt-6 inline-flex items-center gap-2 rounded-full border border-[#D9E2DA] bg-white/60 px-3.5 py-2 text-[11px] font-semibold text-[#476052]">
@@ -169,26 +136,18 @@ export function LoginForm({
               <div className="flex items-start gap-2 rounded-xl border border-[#CFE8D7] bg-[#EFF8F1] px-3 py-2.5 text-[11px] text-[#28633A]">
                 <CheckCircle2 className="mt-px size-3.5 shrink-0" />
 
-                <span>
-                  {PASSWORD_UPDATED_LOGIN_MESSAGE}
-                </span>
+                <span>{PASSWORD_UPDATED_LOGIN_MESSAGE}</span>
               </div>
             ) : null}
 
             {visibleError ? (
               <div
                 className="flex items-start gap-2 rounded-xl border border-[#EDCCCC] bg-[#F8EEEE] px-3 py-2.5 text-[11px] text-[#5A1A1A]"
-                role={
-                  googleError
-                    ? "alert"
-                    : undefined
-                }
+                role={googleError ? "alert" : undefined}
               >
                 <AlertCircle className="mt-px size-3.5 shrink-0" />
 
-                <span>
-                  {visibleError}
-                </span>
+                <span>{visibleError}</span>
               </div>
             ) : null}
 
@@ -197,6 +156,7 @@ export function LoginForm({
                 <GooglePersonalizedSignIn
                   clientId={googleClientId}
                   onError={setGoogleError}
+                  staffPwa={staffPwa}
                 />
 
                 <CompactDivider />
@@ -206,13 +166,10 @@ export function LoginForm({
             <form
               action={formAction}
               className="flex flex-col gap-3"
-              onFocusCapture={
-                clearGoogleError
-              }
-              onSubmit={
-                clearGoogleError
-              }
+              onFocusCapture={clearGoogleError}
+              onSubmit={clearGoogleError}
             >
+              {staffPwa ? <input type="hidden" name="staffPwa" value="1" /> : null}
               <div className="flex flex-col gap-1">
                 <label
                   htmlFor="email"
@@ -231,14 +188,12 @@ export function LoginForm({
                     inputMode="email"
                     autoComplete="email"
                     placeholder="you@cradlespa.com"
-                    className={`auth-input h-11 rounded-xl${state.fieldErrors?.email ? " is-error" : ""}`}
+                    className={`auth-input h-12 rounded-xl${state.fieldErrors?.email ? " is-error" : ""}`}
                   />
                 </div>
 
                 {state.fieldErrors?.email ? (
-                  <p className="text-[10px] text-[#8A5A5A]">
-                    {state.fieldErrors.email}
-                  </p>
+                  <p className="text-[10px] text-[#8A5A5A]">{state.fieldErrors.email}</p>
                 ) : null}
               </div>
 
@@ -255,27 +210,24 @@ export function LoginForm({
                   name="password"
                   autoComplete="current-password"
                   placeholder="••••••••"
-                  leadingIcon={
-                    <Lock
-                      className="size-4"
-                      aria-hidden="true"
-                    />
-                  }
+                  leadingIcon={<Lock className="size-4" aria-hidden="true" />}
                   toggleTabIndex={-1}
-                  className={`auth-input h-11 rounded-xl${state.fieldErrors?.password ? " is-error" : ""}`}
+                  className={`auth-input h-12 rounded-xl${state.fieldErrors?.password ? " is-error" : ""}`}
                 />
 
                 {state.fieldErrors?.password ? (
-                  <p className="text-[10px] text-[#8A5A5A]">
-                    {state.fieldErrors.password}
-                  </p>
+                  <p className="text-[10px] text-[#8A5A5A]">{state.fieldErrors.password}</p>
                 ) : null}
               </div>
 
               <button
                 type="submit"
                 disabled={pending}
-                className="cs-btn cs-btn-primary mt-0.5 h-11 w-full justify-center rounded-xl text-[13px] font-semibold shadow-[0_6px_18px_rgba(22,58,43,0.15)]"
+                className={
+                  staffPwa
+                    ? "mt-0.5 flex h-12 w-full items-center justify-center gap-2 rounded-xl bg-[#163A2B] text-[13px] font-semibold text-white shadow-[0_6px_18px_rgba(22,58,43,0.2)] transition active:scale-[0.99] disabled:opacity-60"
+                    : "cs-btn cs-btn-primary mt-0.5 h-12 w-full justify-center rounded-xl text-[13px] font-semibold shadow-[0_6px_18px_rgba(22,58,43,0.15)]"
+                }
               >
                 {pending ? (
                   <>
@@ -289,7 +241,7 @@ export function LoginForm({
 
               <Link
                 href="/forgot-password"
-                className="flex min-h-9 items-center justify-center text-[11.5px] font-medium text-[#846B49] transition hover:text-[#5B4A40]"
+                className="flex min-h-12 items-center justify-center text-[11.5px] font-medium text-[#846B49] transition hover:text-[#5B4A40]"
               >
                 Forgot password?
               </Link>

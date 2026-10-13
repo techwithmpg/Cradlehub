@@ -3,22 +3,15 @@ import {
   Bell,
   CalendarDays,
   ClipboardList,
+  DoorOpen,
   MapPin,
   MoreHorizontal,
   QrCode,
   Sun,
   Truck,
 } from "lucide-react";
-import type {
-  NavigationProfile,
-  StaffNavItem,
-  StaffOperationalRole,
-} from "./types";
-import {
-  canonicalizeSystemRole,
-  isFrontDeskRole,
-  isServiceStaffType,
-} from "@/constants/staff";
+import type { NavigationProfile, StaffNavItem, StaffOperationalRole } from "./types";
+import { canonicalizeSystemRole, isFrontDeskRole, isServiceStaffType } from "@/constants/staff";
 
 /**
  * 4 Frozen Navigation Profiles across 7 Staff Roles (PWA-C4 Section 4 & 5):
@@ -30,8 +23,7 @@ import {
  *    Today · Work · Scan · Notices · More
  *
  * 3. Utility:
- *    Today · Work · Scan · Notices · More
- *    (Work is retained as blocked/read-only notice)
+ *    Home · Tasks · Scan · Rooms · More
  *
  * 4. Driver:
  *    Today · Trips · Scan · Map · More
@@ -41,7 +33,7 @@ export const PROVIDER_NAV_ITEMS: StaffNavItem[] = [
   {
     key: "today",
     label: "Today",
-    href: "/staff",
+    href: "/staff/",
     icon: Sun,
   },
   {
@@ -75,7 +67,7 @@ export const CRM_GENERAL_NAV_ITEMS: StaffNavItem[] = [
   {
     key: "today",
     label: "Today",
-    href: "/staff",
+    href: "/staff/",
     icon: Sun,
   },
   {
@@ -108,13 +100,13 @@ export const CRM_GENERAL_NAV_ITEMS: StaffNavItem[] = [
 export const UTILITY_NAV_ITEMS: StaffNavItem[] = [
   {
     key: "today",
-    label: "Today",
+    label: "Home",
     href: "/staff/utility",
     icon: Sun,
   },
   {
     key: "work",
-    label: "Work",
+    label: "Tasks",
     href: "/staff/utility/work",
     icon: ClipboardList,
     disabled: false,
@@ -127,10 +119,10 @@ export const UTILITY_NAV_ITEMS: StaffNavItem[] = [
     isScan: true,
   },
   {
-    key: "notices",
-    label: "Notices",
-    href: "/staff/utility/notices",
-    icon: Bell,
+    key: "rooms",
+    label: "Rooms",
+    href: "/staff/utility/rooms",
+    icon: DoorOpen,
   },
   {
     key: "more",
@@ -211,12 +203,7 @@ export function resolveStaffOperationalRole(staff: {
   if (canonicalRole === "service_staff") return "therapist";
 
   // 4. CRM / General Staff (front desk, csr)
-  if (
-    canonicalRole === "crm" ||
-    isFrontDeskRole(role) ||
-    role === "front_desk" ||
-    type === "csr"
-  ) {
+  if (canonicalRole === "crm" || isFrontDeskRole(role) || role === "front_desk" || type === "csr") {
     return "crm_general";
   }
 
@@ -255,9 +242,7 @@ export function resolveNavigationProfile(
   }
 }
 
-export function getNavigationItemsForProfile(
-  profile: NavigationProfile
-): StaffNavItem[] {
+export function getNavigationItemsForProfile(profile: NavigationProfile): StaffNavItem[] {
   switch (profile) {
     case "provider":
       return PROVIDER_NAV_ITEMS;

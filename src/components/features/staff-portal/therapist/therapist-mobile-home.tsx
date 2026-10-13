@@ -1,24 +1,14 @@
 "use client";
 
 import Link from "next/link";
-import {
-  Activity,
-  ChevronRight,
-  Clock3,
-  Home,
-  MapPin,
-  Stethoscope,
-} from "lucide-react";
+import { Activity, ChevronRight, Clock3, Home, MapPin, Stethoscope } from "lucide-react";
 import { formatTime } from "@/lib/utils";
 import { getStaffDisplayName } from "@/lib/staff/display-name";
 import type {
   StaffPortalBooking,
   StaffPortalStaff,
 } from "@/components/features/staff-portal/types";
-import type {
-  TodayOverrideInfo,
-  TodayScheduleInfo,
-} from "@/app/(dashboard)/staff-portal/actions";
+import type { TodayOverrideInfo, TodayScheduleInfo } from "@/app/(dashboard)/staff-portal/actions";
 import type { StaffAttendanceData } from "@/lib/staff-portal/attendance";
 import {
   resolveProviderPrimaryWork,
@@ -30,9 +20,12 @@ import {
 import { BookingProgressActions } from "@/components/features/staff-portal/booking-progress-actions";
 import { TherapistHeader } from "./therapist-header";
 import {
-  getTherapistShiftStatus,
-  type TherapistShiftStatus,
-} from "./therapist-greeting-card";
+  StaffCard,
+  StaffStatTile,
+  StaffStatusChip,
+} from "@/components/features/staff-pwa/native-foundation";
+import { StaffSnapshotRecorder } from "@/components/features/staff-pwa/safe-memory";
+import { getTherapistShiftStatus, type TherapistShiftStatus } from "./therapist-greeting-card";
 
 type TherapistMobileHomeProps = {
   staff?: StaffPortalStaff;
@@ -53,44 +46,6 @@ function getGreeting(): string {
   if (hour < 12) return "Good morning";
   if (hour < 17) return "Good afternoon";
   return "Good evening";
-}
-
-function shiftTypeLabel(value: string): string {
-  if (value === "opening") return "Opening Shift";
-  if (value === "closing") return "Closing Shift";
-  return "Regular Shift";
-}
-
-function resolveShift(
-  schedule: TodayScheduleInfo | null,
-  override: TodayOverrideInfo | null
-): ResolvedShift {
-  if (override?.is_day_off) return { kind: "day_off" };
-
-  if (override && !override.is_day_off) {
-    const start = override.start_time ?? schedule?.start_time ?? null;
-    const end = override.end_time ?? schedule?.end_time ?? null;
-
-    if (start && end) {
-      return {
-        kind: "shift",
-        startTime: start,
-        endTime: end,
-        label: schedule ? shiftTypeLabel(schedule.shift_type) : "Regular Shift",
-      };
-    }
-  }
-
-  if (schedule) {
-    return {
-      kind: "shift",
-      startTime: schedule.start_time,
-      endTime: schedule.end_time,
-      label: shiftTypeLabel(schedule.shift_type),
-    };
-  }
-
-  return { kind: "none" };
 }
 
 function formatMinutes(total: number): string {
@@ -128,45 +83,10 @@ function isClosedBooking(booking: StaffPortalBooking): boolean {
 function isOperationallyActive(booking: StaffPortalBooking): boolean {
   return (
     booking.status === "in_progress" ||
-    [
-      "checked_in",
-      "travel_started",
-      "arrived",
-      "session_started",
-    ].includes(booking.booking_progress_status)
+    ["checked_in", "travel_started", "arrived", "session_started"].includes(
+      booking.booking_progress_status
+    )
   );
-}
-
-function findPrimaryService(
-  bookings: StaffPortalBooking[]
-): StaffPortalBooking | null {
-  const open = bookings.filter((booking) => !isClosedBooking(booking));
-
-  const homeActive = open.find(
-    (booking) =>
-      booking.delivery_type === "home_service" &&
-      isOperationallyActive(booking)
-  );
-
-  if (homeActive) return homeActive;
-
-  const onsiteActive = open.find(
-    (booking) =>
-      booking.delivery_type !== "home_service" &&
-      isOperationallyActive(booking)
-  );
-
-  if (onsiteActive) return onsiteActive;
-
-  const upcoming = [...open].sort((a, b) =>
-    a.start_time.localeCompare(b.start_time)
-  );
-
-  const nextHome = upcoming.find(
-    (booking) => booking.delivery_type === "home_service"
-  );
-
-  return nextHome ?? upcoming[0] ?? null;
 }
 
 function serviceStateLabel(booking: StaffPortalBooking): string {
@@ -222,19 +142,10 @@ function AttendanceCard({
 
   const latestTime =
     attendanceData.currentClockState === "clocked_out"
-      ? formatAttendanceTime(
-          record?.checkedOutAt,
-          attendanceData.todayState.timezone
-        )
-      : formatAttendanceTime(
-          record?.checkedInAt,
-          attendanceData.todayState.timezone
-        );
+      ? formatAttendanceTime(record?.checkedOutAt, attendanceData.todayState.timezone)
+      : formatAttendanceTime(record?.checkedInAt, attendanceData.todayState.timezone);
 
-  const worked =
-    record && record.workedMinutes > 0
-      ? formatMinutes(record.workedMinutes)
-      : "—";
+  const worked = record && record.workedMinutes > 0 ? formatMinutes(record.workedMinutes) : "—";
 
   return (
     <section className="rounded-[22px] border border-[#EAE5DD] bg-white px-4 py-3.5 shadow-[0_6px_24px_rgba(30,41,59,0.05)]">
@@ -244,13 +155,9 @@ function AttendanceCard({
         </div>
 
         <div className="min-w-0 flex-1">
-          <div className="text-[12px] font-medium text-[#68778A]">
-            Today&apos;s Attendance
-          </div>
+          <div className="text-[12px] font-medium text-[#68778A]">Today&apos;s Attendance</div>
           <div className="mt-0.5 flex flex-wrap items-baseline gap-x-2">
-            <span className="text-[15px] font-bold text-[#163A2B]">
-              {clockText}
-            </span>
+            <span className="text-[15px] font-bold text-[#163A2B]">{clockText}</span>
             <span className="text-[12px] font-semibold text-[#19915A]">
               {latestTime !== "—" ? `at ${latestTime}` : ""}
             </span>
@@ -263,9 +170,7 @@ function AttendanceCard({
       <div className="mt-3 grid grid-cols-3 divide-x divide-[#E9E4DC] border-t border-[#EEE9E2] pt-3">
         <div className="pr-3">
           <div className="text-[10.5px] text-[#778396]">Hours worked</div>
-          <div className="mt-1 text-[15px] font-bold tabular-nums text-[#142334]">
-            {worked}
-          </div>
+          <div className="mt-1 text-[15px] font-bold tabular-nums text-[#142334]">{worked}</div>
         </div>
 
         <div className="px-3">
@@ -290,11 +195,7 @@ function AttendanceCard({
   );
 }
 
-function PrimaryServiceCard({
-  work,
-}: {
-  work: ProviderPrimaryWork;
-}) {
+function PrimaryServiceCard({ work }: { work: ProviderPrimaryWork }) {
   if (work.kind === "load_error") {
     return (
       <section className="rounded-[22px] border border-[#F1D2CE] bg-[#FFF8F7] px-4 py-4 shadow-[0_6px_24px_rgba(180,35,24,0.06)]">
@@ -339,9 +240,7 @@ function PrimaryServiceCard({
           </div>
 
           <div>
-            <div className="text-[15px] font-bold text-[#142334]">
-              No assigned service
-            </div>
+            <div className="text-[15px] font-bold text-[#142334]">No assigned service</div>
             <div className="mt-1 text-[12px] leading-5 text-[#708092]">
               Your next assigned service will appear here.
             </div>
@@ -404,11 +303,7 @@ function PrimaryServiceCard({
       </div>
 
       <div className="mt-3 space-y-2 text-[13px] text-[#42556A]">
-        {customer ? (
-          <div className="font-semibold text-[#25384B]">
-            {customer.full_name}
-          </div>
-        ) : null}
+        {customer ? <div className="font-semibold text-[#25384B]">{customer.full_name}</div> : null}
 
         <div className="flex items-center gap-2">
           <Clock3 size={15} className="text-[#64768A]" />
@@ -416,9 +311,7 @@ function PrimaryServiceCard({
             {formatTime(booking.start_time)} – {formatTime(booking.end_time)}
           </span>
           {service?.duration_minutes ? (
-            <span className="text-[#7B8795]">
-              · {service.duration_minutes} min
-            </span>
+            <span className="text-[#7B8795]">· {service.duration_minutes} min</span>
           ) : null}
         </div>
 
@@ -474,34 +367,59 @@ export function TherapistMobileHome({
   const currentSchedule = runtime?.todaySchedule ?? todaySchedule;
   const currentOverride = runtime?.todayOverride ?? todayOverride;
   const currentAttendance = runtime?.attendance ?? attendanceData;
-  const shift =
-    runtime?.shift ?? resolveProviderShift(currentSchedule, currentOverride);
-  const primaryWork =
-    runtime?.primaryWork ?? resolveProviderPrimaryWork(currentBookings);
+  const shift = runtime?.shift ?? resolveProviderShift(currentSchedule, currentOverride);
+  const primaryWork = runtime?.primaryWork ?? resolveProviderPrimaryWork(currentBookings);
   const primaryService = primaryWork.booking;
+  const nextAppointment =
+    [...currentBookings]
+      .filter(
+        (booking) =>
+          !isClosedBooking(booking) &&
+          !isOperationallyActive(booking) &&
+          booking.id !== primaryService?.id
+      )
+      .sort((a, b) => a.start_time.localeCompare(b.start_time))[0] ?? null;
+  const summary = runtime?.progressSummary;
+  const businessDateLabel = runtime?.businessDate
+    ? new Date(`${runtime.businessDate}T12:00:00`).toLocaleDateString("en-PH", {
+        weekday: "long",
+        month: "short",
+        day: "numeric",
+        year: "numeric",
+      })
+    : null;
 
   const displayName = getStaffDisplayName(currentStaff);
   const firstName = displayName.split(" ")[0] ?? displayName;
 
-  const status = getTherapistShiftStatus(
-    currentBookings,
-    currentSchedule,
-    currentOverride
-  );
-
+  const status = getTherapistShiftStatus(currentBookings, currentSchedule, currentOverride);
 
   return (
-    <div className="min-h-dvh bg-[#F7F3EB] text-[#142334]">
+    <div className="text-[#20342c]">
+      {summary && !runtime?.errors?.work ? (
+        <StaffSnapshotRecorder
+          snapshot={{
+            screen: "today",
+            label: "Today",
+            counts: [
+              { label: "Bookings", value: runtime.scheduleSummary.totalAssigned },
+              { label: "Completed", value: summary.completedToday },
+              { label: "In Service", value: summary.activeToday },
+              { label: "Upcoming", value: summary.upcomingToday },
+            ],
+          }}
+        />
+      ) : null}
       <TherapistHeader staff={currentStaff} />
 
       <main className="mx-auto flex w-full max-w-[480px] flex-col gap-3 px-3.5 pb-5 pt-3">
         <section className="flex items-center justify-between gap-3 px-1 py-1">
           <div className="min-w-0">
-            <h1 className="truncate text-[22px] font-bold tracking-[-0.035em] text-[#132536]">
+            <h1 className="truncate text-[22px] font-bold tracking-[-0.035em] text-[#163a2b]">
               {getGreeting()}, {firstName}
             </h1>
-            <p className="mt-0.5 text-[12px] text-[#6B7A8B]">
-              Ready for a focused workday.
+            <p className="mt-0.5 text-[12px] text-[#65746b]">
+              {businessDateLabel ?? "Today’s work"}
             </p>
           </div>
 
@@ -510,6 +428,15 @@ export function TherapistMobileHome({
             {dutyLabel(status, runtime?.errors)}
           </div>
         </section>
+
+        {summary && !runtime?.errors?.work ? (
+          <StaffCard className="grid grid-cols-4 gap-1.5 p-2.5">
+            <StaffStatTile value={runtime.scheduleSummary.totalAssigned} label="Bookings" />
+            <StaffStatTile value={summary.completedToday} label="Completed" />
+            <StaffStatTile value={summary.activeToday} label="In Service" />
+            <StaffStatTile value={summary.upcomingToday} label="Upcoming" />
+          </StaffCard>
+        ) : null}
 
         {runtime?.errors?.attendance ? (
           <section className="rounded-[22px] border border-[#F1D2CE] bg-[#FFF8F7] px-4 py-3.5 shadow-[0_6px_24px_rgba(180,35,24,0.05)]">
@@ -539,6 +466,26 @@ export function TherapistMobileHome({
 
         <PrimaryServiceCard work={primaryWork} />
 
+        {nextAppointment ? (
+          <Link href="/staff/schedule" className="block">
+            <StaffCard className="flex min-h-16 items-center gap-3 px-4 py-3 active:scale-[0.99]">
+              <div className="min-w-0 flex-1">
+                <div className="text-[11px] font-semibold uppercase tracking-[0.08em] text-[#7b6845]">
+                  Next appointment
+                </div>
+                <div className="mt-1 truncate text-[14px] font-bold text-[#163a2b]">
+                  {firstRelation(nextAppointment.services)?.name ?? "Service"}
+                </div>
+                <div className="mt-0.5 text-xs text-[#65746b]">
+                  {formatTime(nextAppointment.start_time)} – {formatTime(nextAppointment.end_time)}
+                </div>
+              </div>
+              <StaffStatusChip>Upcoming</StaffStatusChip>
+              <ChevronRight size={17} className="shrink-0 text-[#65746b]" />
+            </StaffCard>
+          </Link>
+        ) : null}
+
         {shift.kind === "load_error" || runtime?.errors?.schedule ? (
           <section className="flex items-center gap-3 rounded-[18px] border border-[#F1D2CE] bg-[#FFF8F7] px-4 py-3 shadow-[0_4px_18px_rgba(180,35,24,0.04)]">
             <div className="grid size-10 shrink-0 place-items-center rounded-full bg-[#FCE8E6] text-[#B42318]">
@@ -546,15 +493,9 @@ export function TherapistMobileHome({
             </div>
 
             <div className="min-w-0 flex-1">
-              <div className="text-[11px] font-semibold text-[#7D241E]">
-                My Shift Today
-              </div>
-              <div className="mt-0.5 text-[15px] font-bold text-[#912018]">
-                Shift unavailable
-              </div>
-              <div className="mt-0.5 text-[11px] text-[#A6372E]">
-                Could not load shift schedule
-              </div>
+              <div className="text-[11px] font-semibold text-[#7D241E]">My Shift Today</div>
+              <div className="mt-0.5 text-[15px] font-bold text-[#912018]">Shift unavailable</div>
+              <div className="mt-0.5 text-[11px] text-[#A6372E]">Could not load shift schedule</div>
             </div>
           </section>
         ) : shift.kind === "shift" ? (
@@ -567,21 +508,16 @@ export function TherapistMobileHome({
             </div>
 
             <div className="min-w-0 flex-1">
-              <div className="text-[11px] font-semibold text-[#7A695C]">
-                My Shift Today
-              </div>
+              <div className="text-[11px] font-semibold text-[#7A695C]">My Shift Today</div>
               <div className="mt-0.5 text-[15px] font-bold tabular-nums text-[#1D3043]">
                 {formatTime(shift.startTime)} – {formatTime(shift.endTime)}
               </div>
-              <div className="mt-0.5 text-[11px] text-[#778396]">
-                {shift.label}
-              </div>
+              <div className="mt-0.5 text-[11px] text-[#778396]">{shift.label}</div>
             </div>
 
             <ChevronRight size={18} className="text-[#738093]" />
           </Link>
         ) : null}
-
       </main>
     </div>
   );
