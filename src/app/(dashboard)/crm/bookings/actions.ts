@@ -74,12 +74,16 @@ async function getCrmActionsContext(allowDevBypass = true) {
     .maybeSingle();
 
   const role = me ? canonicalizeSystemRole(me.system_role) : null;
-  if (!me || !role || !canAccessCrmWorkspace(role) || (!me.branch_id && role !== "owner")) return null;
-  const ownerBranch = role === "owner"
-    ? await resolveOwnerFrontDeskBranch(user.id, me.branch_id)
-    : null;
+  if (!me || !role || !canAccessCrmWorkspace(role) || (!me.branch_id && role !== "owner"))
+    return null;
+  const ownerBranch =
+    role === "owner" ? await resolveOwnerFrontDeskBranch(user.id, me.branch_id) : null;
   if (role === "owner" && !ownerBranch) return null;
-  return { supabase, authUserId: user.id, me: { ...me, branch_id: ownerBranch?.id ?? me.branch_id!, system_role: role } };
+  return {
+    supabase,
+    authUserId: user.id,
+    me: { ...me, branch_id: ownerBranch?.id ?? me.branch_id!, system_role: role },
+  };
 }
 
 const resolveStaffScheduleExceptionSchema = bookingIdSchema.extend({
@@ -153,7 +157,7 @@ function buildRoomBookingSummary(booking: CrmBookingActionRow) {
 
 export async function markBookingConfirmedAction(
   rawInput: unknown
-): Promise<{ success: boolean; error?: string }> {
+): Promise<BookingOperationResult> {
   const ctx = await getCrmActionsContext(false);
   if (!ctx) return { success: false, error: "Unauthorized" };
   return confirmCrmBooking(ctx, rawInput);
@@ -165,11 +169,14 @@ export async function confirmHomeServiceHandoffAction(
   const ctx = await getCrmActionsContext();
   if (!ctx) return { success: false, error: "Unauthorized" };
   const initial = await confirmHomeServiceHandoff(ctx, rawInput);
-  if (initial.success || initial.error !== "Assign a driver before Confirm & Dispatch.") return initial;
+  if (initial.success || initial.error !== "Assign a driver before Confirm & Dispatch.")
+    return initial;
 
   const parsed = bookingIdSchema.safeParse(rawInput);
   if (!parsed.success) return initial;
-  const recommendations = await getDriverRecommendationsAction({ bookingId: parsed.data.bookingId });
+  const recommendations = await getDriverRecommendationsAction({
+    bookingId: parsed.data.bookingId,
+  });
   if (!recommendations.success) return initial;
   const driverId = automaticDriverCandidate(null, recommendations.data.drivers);
   if (!driverId) return initial;
@@ -187,7 +194,10 @@ export async function confirmHomeServiceHandoffAction(
       { onlyIfUnassigned: true }
     );
   } catch (error) {
-    logError("home_service.auto_driver_assignment_failed", { bookingId: parsed.data.bookingId, error });
+    logError("home_service.auto_driver_assignment_failed", {
+      bookingId: parsed.data.bookingId,
+      error,
+    });
   }
   return confirmHomeServiceHandoff(ctx, rawInput);
 }
@@ -458,8 +468,17 @@ export async function confirmBookingPaymentAction(
   if (!ctx) return { success: false, error: "Unauthorized" };
   const { supabase, me } = ctx;
 
-  const { bookingId, paymentMethod, paymentReference, amountPaid, note,
-    financialAccountId, payments, idempotencyKey, businessDate } = parsed.data;
+  const {
+    bookingId,
+    paymentMethod,
+    paymentReference,
+    amountPaid,
+    note,
+    financialAccountId,
+    payments,
+    idempotencyKey,
+    businessDate,
+  } = parsed.data;
 
   // Load booking — try with hold_expires_at first, fall back if column absent
   type BookingRow = {

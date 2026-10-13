@@ -6,6 +6,11 @@ import { parseLiveEta } from "@/lib/bookings/ops-warnings";
 import { getStaffAdminName } from "@/lib/staff/display-name";
 import { formatTime12h } from "@/lib/utils/time-format";
 import type { DispatchAlert, DispatchStatus } from "@/features/dispatch/types";
+import { CRM_OPERATIONAL_BOOKING_STATUSES } from "@/lib/bookings/crm-booking-status";
+import {
+  UPCOMING_BOOKING_STATUSES,
+  upcomingBookingEndDate,
+} from "@/lib/bookings/upcoming-bookings";
 
 export interface RealDispatchItem {
   id: string;
@@ -304,6 +309,7 @@ export interface GetDispatchDataArgs {
   dateTo?: string;
   bookingId?: string;
   scope?: "dated" | "active_map";
+  upcoming?: boolean;
 }
 
 export async function getDispatchData(args: GetDispatchDataArgs): Promise<DispatchData> {
@@ -338,14 +344,18 @@ export async function getDispatchData(args: GetDispatchDataArgs): Promise<Dispat
          branches ( name, latitude, longitude, maps_embed_url )`
       )
       .eq("branch_id", args.branchId)
-      .eq("delivery_type", "home_service")
-      .order("start_time", { ascending: true });
+      .eq("delivery_type", "home_service");
 
     if (args.scope === "active_map") {
       query = query
-        .not("status", "in", "(cancelled,no_show,completed)")
+        .in("status", [...CRM_OPERATIONAL_BOOKING_STATUSES])
         .or("booking_progress_status.is.null,booking_progress_status.not.in.(completed,no_show)");
     } else if (args.bookingId) query = query.eq("id", args.bookingId);
+    else if (args.upcoming)
+      query = query
+        .gt("booking_date", args.date)
+        .lte("booking_date", upcomingBookingEndDate(args.date))
+        .in("status", [...UPCOMING_BOOKING_STATUSES]);
     else if (args.dateFrom && args.dateTo)
       query = query
         .gte("booking_date", args.dateFrom)
@@ -361,10 +371,11 @@ export async function getDispatchData(args: GetDispatchDataArgs): Promise<Dispat
       query = query.eq("staff_id", args.staffId);
     }
 
+    query = query.order("booking_date").order("start_time");
     const paginate = args.scope === "active_map" || (args.throwOnError && args.role !== "driver");
     const { data: firstPage, error: bookingsError } = await (paginate
       ? query.order("id").range(0, 499)
-      : query.order("booking_date").limit(args.role === "driver" ? 100 : 50));
+      : query.order("booking_date").limit(args.upcoming || args.role === "driver" ? 100 : 50));
     const rawBookings = [...(firstPage ?? [])];
     if (paginate && !bookingsError && firstPage?.length === 500) {
       for (let offset = 500; ; offset += 500) {
@@ -380,7 +391,14 @@ export async function getDispatchData(args: GetDispatchDataArgs): Promise<Dispat
       return empty;
     }
 
-    if (!rawBookings || rawBookings.length === 0) {
+    if (args.upcoming) {
+      for (let index = rawBookings.length - 1; index >= 0; index--) {
+        if (["completed", "no_show"].includes(rawBookings[index]?.booking_progress_status ?? ""))
+          rawBookings.splice(index, 1);
+      }
+    }
+
+    if (rawBookings.length === 0) {
       return empty;
     }
 

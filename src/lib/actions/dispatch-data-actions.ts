@@ -5,7 +5,7 @@ import { getDispatchData, type DispatchData } from "@/lib/queries/dispatch-queri
 
 export async function refreshDispatchDataAction(
   date: string,
-  scope: "dated" | "active_map" = "dated"
+  options?: { scope?: "dated" | "active_map"; upcoming?: boolean; bookingId?: string }
 ): Promise<{ success: true; data: DispatchData } | { success: false; error: string }> {
   if (!/^\d{4}-\d{2}-\d{2}$/.test(date)) {
     return { success: false, error: "Dispatch date is invalid." };
@@ -17,7 +17,14 @@ export async function refreshDispatchDataAction(
   try {
     return {
       success: true,
-      data: await getDispatchData({ branchId: context.branchId, date, scope }),
+      data: await getDispatchData({
+        branchId: context.branchId,
+        date,
+        scope: options?.scope,
+        upcoming: options?.upcoming,
+        bookingId: options?.bookingId,
+        throwOnError: true,
+      }),
     };
   } catch (error) {
     return {

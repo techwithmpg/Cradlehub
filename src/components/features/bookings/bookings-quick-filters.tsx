@@ -4,7 +4,7 @@ import { cn } from "@/lib/utils";
 type QuickFilterItem = {
   key: BookingQuickFilter;
   label: string;
-  count: number;
+  count?: number;
 };
 
 export function BookingsQuickFilters({
@@ -37,7 +37,8 @@ export function BookingsQuickFilters({
                 : "text-[var(--cs-text-secondary)] hover:text-[var(--cs-text)]"
             )}
           >
-            {item.label} <span className="tabular-nums">{item.count}</span>
+            {item.label}{" "}
+            {item.count === undefined ? null : <span className="tabular-nums">{item.count}</span>}
           </button>
         );
       })}

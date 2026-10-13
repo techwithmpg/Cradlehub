@@ -124,7 +124,15 @@ export function matchesCradleFlowSearch(booking: CradleFlowBooking, rawQuery: st
   ].some((value) => value?.toLocaleLowerCase("en-PH").includes(query));
 }
 
-export function getCradleFlowPrimaryLabel(booking: CradleFlowBooking): string {
+export function getCradleFlowPrimaryLabel(
+  booking: CradleFlowBooking,
+  businessDate?: string
+): string {
+  if (businessDate && booking.booking_date > businessDate) {
+    return booking.type === "home_service" || booking.delivery_type === "home_service"
+      ? "Open Home Service"
+      : "View Booking";
+  }
   const stage = getCradleFlowStage(booking);
   if (stage === "in_service") return "Complete Service";
   if (stage === "ready_to_pay") return "Collect Payment";
@@ -137,6 +145,14 @@ export function getCradleFlowPrimaryLabel(booking: CradleFlowBooking): string {
   }
   if (booking.booking_progress_status === "checked_in") return "Start Service";
   return "Check In";
+}
+
+export function futureCradleFlowHref(
+  booking: Pick<CradleFlowBooking, "id" | "type" | "delivery_type">
+): string {
+  return booking.type === "home_service" || booking.delivery_type === "home_service"
+    ? `/crm/dispatch?bookingId=${encodeURIComponent(booking.id)}`
+    : `/crm/bookings?tab=upcoming&bookingId=${encodeURIComponent(booking.id)}`;
 }
 
 export function formatCradleFlowMoney(value: number): string {

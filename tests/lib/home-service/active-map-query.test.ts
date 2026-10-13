@@ -47,6 +47,10 @@ const db = {
         call.filters.push(["neq", ...args]);
         return query;
       },
+      gt: (...args: unknown[]) => {
+        call.filters.push(["gt", ...args]);
+        return query;
+      },
       not: (...args: unknown[]) => {
         call.filters.push(["not", ...args]);
         return query;
@@ -85,10 +89,12 @@ const db = {
                     return row.booking_date !== value;
                   if (method === "gte" && column === "booking_date")
                     return row.booking_date >= String(value);
+                  if (method === "gt" && column === "booking_date")
+                    return row.booking_date > String(value);
                   if (method === "lte" && column === "booking_date")
                     return row.booking_date <= String(value);
-                  if (method === "not" && column === "status")
-                    return !["completed", "cancelled", "no_show"].includes(row.status);
+                  if (method === "in" && column === "status")
+                    return (value as string[]).includes(row.status);
                   if (
                     method === "or" &&
                     column ===
@@ -137,9 +143,15 @@ beforeEach(() => {
     row("overdue", "2026-10-12"),
     row("today", "2026-10-13"),
     row("future", "2026-10-16"),
+    row("pending", "2026-10-16", { status: "pending" }),
+    row("pending-payment", "2026-10-16", { status: "pending_payment" }),
+    row("pending-crm", "2026-10-16", { status: "pending_crm_confirmation" }),
+    row("in-progress", "2026-10-16", { status: "in_progress" }),
     row("completed", "2026-10-13", { status: "completed" }),
     row("cancelled", "2026-10-13", { status: "cancelled" }),
     row("no-show", "2026-10-13", { status: "no_show" }),
+    row("expired", "2026-10-13", { status: "expired" }),
+    row("progress-completed", "2026-10-13", { booking_progress_status: "completed" }),
     row("progress-no-show", "2026-10-13", { booking_progress_status: "no_show" }),
     row("other-branch", "2026-10-16", { branch_id: "other" }),
   ];
@@ -152,7 +164,15 @@ describe("active Home Service map query", () => {
       date: "2026-10-13",
       scope: "active_map",
     });
-    expect(result.items.map((item) => item.id)).toEqual(["overdue", "today", "future"]);
+    expect(result.items.map((item) => item.id)).toEqual([
+      "overdue",
+      "today",
+      "future",
+      "pending",
+      "pending-payment",
+      "pending-crm",
+      "in-progress",
+    ]);
     expect(result.items.find((item) => item.id === "future")).toMatchObject({
       lat: 14.6,
       lng: 121,
@@ -160,6 +180,11 @@ describe("active Home Service map query", () => {
     });
     const bookingCall = state.calls.find((call) => call.table === "bookings")!;
     expect(bookingCall.filters).toContainEqual(["eq", "branch_id", "main"]);
+    expect(bookingCall.filters).toContainEqual([
+      "in",
+      "status",
+      ["pending", "pending_payment", "pending_crm_confirmation", "confirmed", "in_progress"],
+    ]);
     expect(
       bookingCall.filters.some(([method, column]) => method === "eq" && column === "booking_date")
     ).toBe(false);

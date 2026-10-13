@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import { useSearchParams } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import { BookingsListToolbar } from "./bookings-list-toolbar";
 import { BookingsQuickFilters } from "./bookings-quick-filters";
 import { BookingsDesktopList } from "./bookings-desktop-list";
@@ -66,6 +66,7 @@ type DesktopWorkspaceProps = {
   viewerRole: string;
   branches?: Branch[];
   date: string;
+  businessDate?: string;
   statusFilter?: string;
   sourceFilter?: string;
   referenceSource?: "all" | "cradlehub" | "master_sheet";
@@ -89,6 +90,7 @@ type DesktopWorkspaceProps = {
 };
 
 export function BookingsDesktopWorkspace(props: DesktopWorkspaceProps) {
+  const router = useRouter();
   const searchParams = useSearchParams();
   const [quickFilter, setQuickFilter] = useState(props.initialQuickFilter);
   const visibleBookings = useMemo(() => {
@@ -104,7 +106,8 @@ export function BookingsDesktopWorkspace(props: DesktopWorkspaceProps) {
       assignment: props.assignmentFilter,
       branchId: props.branchFilter,
     });
-    return sortBookingsRecentFirst(searchBookings(exactFiltered, props.search));
+    const searched = searchBookings(exactFiltered, props.search);
+    return quickFilter === "upcoming" ? searched : sortBookingsRecentFirst(searched);
   }, [
     props.assignmentFilter,
     props.bookings,
@@ -184,19 +187,34 @@ export function BookingsDesktopWorkspace(props: DesktopWorkspaceProps) {
         visibleBookings[0] ??
         null);
   const quickItems = [
-    { key: "all" as const, label: "All bookings", count: props.bookings.length },
+    {
+      key: "all" as const,
+      label: "All bookings",
+      count: quickFilter === "upcoming" ? undefined : props.bookings.length,
+    },
     {
       key: "needs-attention" as const,
       label: "Needs attention",
-      count: props.bookings.filter((booking) =>
-        bookingMatchesQuickFilter(booking, "needs-attention")
-      ).length,
+      count:
+        quickFilter === "upcoming"
+          ? undefined
+          : props.bookings.filter((booking) =>
+              bookingMatchesQuickFilter(booking, "needs-attention")
+            ).length,
     },
     {
       key: "active-now" as const,
       label: "Active now",
-      count: props.bookings.filter((booking) => bookingMatchesQuickFilter(booking, "active-now"))
-        .length,
+      count:
+        quickFilter === "upcoming"
+          ? undefined
+          : props.bookings.filter((booking) => bookingMatchesQuickFilter(booking, "active-now"))
+              .length,
+    },
+    {
+      key: "upcoming" as const,
+      label: "Upcoming",
+      count: quickFilter === "upcoming" ? props.bookings.length : undefined,
     },
   ];
   const basePath = `/${props.workspaceContext === "owner" ? "owner" : props.workspaceContext === "manager" ? "manager" : "crm"}/bookings`;
@@ -208,7 +226,7 @@ export function BookingsDesktopWorkspace(props: DesktopWorkspaceProps) {
     params.set("tab", nextFilter);
     params.delete("page");
     const query = params.toString();
-    window.history.replaceState(null, "", `${window.location.pathname}${query ? `?${query}` : ""}`);
+    router.push(`${window.location.pathname}${query ? `?${query}` : ""}`);
   }
 
   function changed() {
@@ -238,7 +256,9 @@ export function BookingsDesktopWorkspace(props: DesktopWorkspaceProps) {
                 Bookings
               </h1>
               <p className="mt-1 text-sm text-[var(--cs-text-secondary)]">
-                Manage and action bookings
+                {quickFilter === "upcoming"
+                  ? "Upcoming bookings across the next 14 days"
+                  : "Manage and action bookings"}
               </p>
             </div>
             <span className="rounded-lg border border-[var(--cs-border)] bg-white px-3 py-2 text-sm font-bold text-[var(--cs-text)]">
@@ -266,6 +286,7 @@ export function BookingsDesktopWorkspace(props: DesktopWorkspaceProps) {
           <BookingsListToolbar
             basePath={basePath}
             date={props.date}
+            upcoming={quickFilter === "upcoming"}
             quickFilter={quickFilter}
             search={props.search}
             status={props.statusFilter}
@@ -316,6 +337,7 @@ export function BookingsDesktopWorkspace(props: DesktopWorkspaceProps) {
             selectedId={selected?.id ?? null}
             selectedSheetKey={selectedSheetKey}
             initialPage={props.initialPage}
+            chronological={quickFilter === "upcoming"}
             onSelect={(booking) => {
               setSelectedSheetKey(null);
               setSelectedId(booking.id);

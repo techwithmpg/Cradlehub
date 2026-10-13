@@ -1,7 +1,4 @@
-import {
-  getCradleFlowStage,
-  type CradleFlowBooking,
-} from "@/lib/crm/cradle-flow";
+import { getCradleFlowStage, type CradleFlowBooking } from "@/lib/crm/cradle-flow";
 
 export type CradleFlowFilter =
   | "all"
@@ -11,6 +8,7 @@ export type CradleFlowFilter =
   | "in_service"
   | "ready_to_pay"
   | "home_service"
+  | "upcoming"
   | "completed";
 
 export const CRADLE_FLOW_FILTERS: { key: CradleFlowFilter; label: string }[] = [
@@ -21,6 +19,7 @@ export const CRADLE_FLOW_FILTERS: { key: CradleFlowFilter; label: string }[] = [
   { key: "in_service", label: "In Service" },
   { key: "ready_to_pay", label: "Ready to Pay" },
   { key: "home_service", label: "Home Service" },
+  { key: "upcoming", label: "Upcoming" },
   { key: "completed", label: "Completed" },
 ];
 
@@ -73,27 +72,48 @@ export function getCradleFlowAttention(booking: CradleFlowBooking): string[] {
 
 export function matchesCradleFlowFilter(
   booking: CradleFlowBooking,
-  filter: CradleFlowFilter
+  filter: CradleFlowFilter,
+  businessDate?: string
 ): boolean {
   const stage = getCradleFlowStage(booking);
   if (!stage) return false;
+  const future = Boolean(businessDate && booking.booking_date > businessDate);
+  if (future) {
+    if (filter === "upcoming") return true;
+    if (filter === "needs_action")
+      return (
+        ["pending", "pending_payment", "pending_crm_confirmation"].includes(booking.status) ||
+        getCradleFlowAttention(booking).length > 0
+      );
+    return false;
+  }
   switch (filter) {
-    case "all": return true;
-    case "needs_action": return getCradleFlowAttention(booking).length > 0;
-    case "not_arrived": return stage === "waiting" && !isArrived(booking);
-    case "waiting_arrived": return stage === "waiting" && isArrived(booking);
-    case "in_service": return stage === "in_service";
-    case "ready_to_pay": return stage === "ready_to_pay";
-    case "home_service": return isHomeServiceVisit(booking);
-    case "completed": return stage === "completed";
+    case "all":
+      return true;
+    case "upcoming":
+      return false;
+    case "needs_action":
+      return getCradleFlowAttention(booking).length > 0;
+    case "not_arrived":
+      return stage === "waiting" && !isArrived(booking);
+    case "waiting_arrived":
+      return stage === "waiting" && isArrived(booking);
+    case "in_service":
+      return stage === "in_service";
+    case "ready_to_pay":
+      return stage === "ready_to_pay";
+    case "home_service":
+      return isHomeServiceVisit(booking);
+    case "completed":
+      return stage === "completed";
   }
 }
 
-export function getCradleFlowDisplayCounts(bookings: CradleFlowBooking[]) {
+export function getCradleFlowDisplayCounts(bookings: CradleFlowBooking[], businessDate?: string) {
   return Object.fromEntries(
     CRADLE_FLOW_FILTERS.map(({ key }) => [
       key,
-      bookings.filter((booking) => matchesCradleFlowFilter(booking, key)).length,
+      bookings.filter((booking) => matchesCradleFlowFilter(booking, key, businessDate)).length,
     ])
   ) as Record<CradleFlowFilter, number>;
 }

@@ -24,6 +24,7 @@ import {
   X,
 } from "lucide-react";
 import { toast } from "sonner";
+import { getBranchBusinessDate } from "@/lib/engine/slot-time";
 import { PaymentStatusBadge } from "@/components/features/dashboard/payment-status-badge";
 import { PaymentMethodBadge } from "@/components/features/dashboard/payment-method-badge";
 import { BookingActionMenu } from "@/components/features/dashboard/booking-action-menu";
@@ -38,7 +39,10 @@ import { cn, formatTime, formatCurrency } from "@/lib/utils";
 import { AssignmentRecommendationPanel } from "@/components/features/assignments/assignment-recommendation-panel";
 import { getAssignmentRecommendationsAction } from "@/lib/actions/assignment-recommendations";
 import { assignBookingDriverAction } from "@/lib/actions/driver-actions";
-import { editBookingAction, updateBookingStatusAction } from "@/app/(dashboard)/manager/bookings/actions";
+import {
+  editBookingAction,
+  updateBookingStatusAction,
+} from "@/app/(dashboard)/manager/bookings/actions";
 import {
   crmStartServiceAction,
   crmCompleteServiceAction,
@@ -133,17 +137,23 @@ function customerInitials(name: string | null | undefined): string {
   const parts = name.trim().split(/\s+/).filter(Boolean);
   if (parts.length === 0) return "CH";
   const first = parts[0]?.[0] ?? "";
-  const second = parts.length > 1 ? parts[parts.length - 1]?.[0] ?? "" : "";
+  const second = parts.length > 1 ? (parts[parts.length - 1]?.[0] ?? "") : "";
   return `${first}${second}`.toUpperCase() || "CH";
 }
 
-function getOperationalStatus(booking: WorkspaceBookingRow): { label: string; tone: "pending" | "confirmed" | "waiting" | "service" | "completed" | "neutral" | "danger" } {
+function getOperationalStatus(booking: WorkspaceBookingRow): {
+  label: string;
+  tone: "pending" | "confirmed" | "waiting" | "service" | "completed" | "neutral" | "danger";
+} {
   const progress = booking.booking_progress_status ?? null;
   if (isCrmPendingBookingStatus(booking.status)) return { label: "Pending Call", tone: "pending" };
   if (booking.status === "cancelled") return { label: "Cancelled", tone: "danger" };
-  if (booking.status === "no_show" || progress === "no_show") return { label: "No Show", tone: "danger" };
-  if (booking.status === "completed" || progress === "completed") return { label: "Completed", tone: "completed" };
-  if (booking.status === "in_progress" || progress === "session_started") return { label: "In Service", tone: "service" };
+  if (booking.status === "no_show" || progress === "no_show")
+    return { label: "No Show", tone: "danger" };
+  if (booking.status === "completed" || progress === "completed")
+    return { label: "Completed", tone: "completed" };
+  if (booking.status === "in_progress" || progress === "session_started")
+    return { label: "In Service", tone: "service" };
   if (progress === "travel_started") return { label: "Travel Started", tone: "service" };
   if (progress === "arrived") return { label: "Arrived", tone: "waiting" };
   if (progress === "checked_in") return { label: "Checked In", tone: "waiting" };
@@ -157,7 +167,8 @@ function getNextActionLabel(booking: WorkspaceBookingRow): string {
   if (isClosedOperationalBooking(booking)) return "Review summary";
   if (isCrmPendingBookingStatus(booking.status)) return "Call to confirm";
   if (isHomeService) {
-    if (booking.status === "confirmed" && isNotStartedProgress(progress)) return "Coordinate dispatch";
+    if (booking.status === "confirmed" && isNotStartedProgress(progress))
+      return "Coordinate dispatch";
     if (progress === "travel_started") return "Track travel";
     if (progress === "arrived") return "Start service";
   }
@@ -190,7 +201,12 @@ function statusToneClass(tone: ReturnType<typeof getOperationalStatus>["tone"]):
 function OperationalStatusPill({ booking }: { booking: WorkspaceBookingRow }) {
   const status = getOperationalStatus(booking);
   return (
-    <span className={cn("inline-flex items-center rounded-full border px-2.5 py-1 text-[11px] font-semibold capitalize", statusToneClass(status.tone))}>
+    <span
+      className={cn(
+        "inline-flex items-center rounded-full border px-2.5 py-1 text-[11px] font-semibold capitalize",
+        statusToneClass(status.tone)
+      )}
+    >
       {status.label}
     </span>
   );
@@ -342,6 +358,10 @@ function PrimaryRowAction({
     return <PrimaryTableButton onClick={onSelect}>View Record</PrimaryTableButton>;
   }
 
+  if (booking.booking_date > getBranchBusinessDate() && !isHomeService) {
+    return <PrimaryTableButton onClick={onSelect}>View Booking</PrimaryTableButton>;
+  }
+
   if (!isHomeService && booking.status === "confirmed" && isNotStartedProgress(progress)) {
     return <PrimaryTableButton onClick={onOpenArrival}>Mark Arrived</PrimaryTableButton>;
   }
@@ -359,7 +379,13 @@ function PrimaryRowAction({
   }
 
   if (isHomeService && booking.status === "confirmed" && isNotStartedProgress(progress)) {
-    return <PrimaryTableButton onClick={() => router.push("/crm/dispatch")}>Open Dispatch</PrimaryTableButton>;
+    return (
+      <PrimaryTableButton
+        onClick={() => router.push(`/crm/dispatch?bookingId=${encodeURIComponent(booking.id)}`)}
+      >
+        Open Dispatch
+      </PrimaryTableButton>
+    );
   }
 
   if (isActive) {
@@ -423,7 +449,12 @@ export function BookingsTable({
   const shouldOpenRoomAssignment = searchParams.get("openRoomAssignment") === "1";
   const initialRoomBooking =
     shouldOpenRoomAssignment && requestedBookingId
-      ? filtered.find((booking) => booking.id === requestedBookingId && canUseRoomAssignment(booking) && !booking.resource_id) ?? null
+      ? (filtered.find(
+          (booking) =>
+            booking.id === requestedBookingId &&
+            canUseRoomAssignment(booking) &&
+            !booking.resource_id
+        ) ?? null)
       : null;
 
   const [selectedId, setSelectedId] = useState<string | null>(() => initialSelectedId ?? null);
@@ -498,9 +529,7 @@ export function BookingsTable({
       <EmptyState
         title="No bookings"
         detail={
-          search
-            ? "No bookings match your search."
-            : "No bookings match the selected filters."
+          search ? "No bookings match your search." : "No bookings match the selected filters."
         }
         icon={<CalendarClock className="size-4" />}
       />
@@ -567,127 +596,149 @@ export function BookingsTable({
           }
           className="min-w-0"
         >
-
           <div className="bw-table-wrap overflow-x-auto">
-          <table className="bw-table">
-            <thead>
-              <tr>
-                <th className="bw-th bw-col-time">Time</th>
-                <th className="bw-th bw-col-customer">Customer</th>
-                <th className="bw-th bw-col-service">Service</th>
-                <th className="bw-th bw-col-assignment">Assignment</th>
-                <th className="bw-th bw-col-status">Status</th>
-                <th className="bw-th bw-col-primary">Primary Action</th>
-                <th className="bw-th bw-col-actions" aria-label="Actions" />
-              </tr>
-            </thead>
-            <tbody>
-              {pageBookings.map((booking) => {
-                const customer = readFirst(booking.customers);
-                const service = readFirst(booking.services);
-                const resource = readFirst(booking.branch_resources);
-                const staff = readFirst(booking.staff);
-                const staffName = staff ? getStaffAdminName(staff) : "Unassigned";
-                const isSelected = booking.id === selected?.id;
-                const shortId = booking.id.slice(0, 8).toUpperCase();
-                const assignmentLabel = [
-                  staffName,
-                  resource?.name ?? (isHomeServiceBooking(booking) ? "Home service" : "Room TBD"),
-                ].filter(Boolean).join(" · ");
+            <table className="bw-table">
+              <thead>
+                <tr>
+                  <th className="bw-th bw-col-time">Time</th>
+                  <th className="bw-th bw-col-customer">Customer</th>
+                  <th className="bw-th bw-col-service">Service</th>
+                  <th className="bw-th bw-col-assignment">Assignment</th>
+                  <th className="bw-th bw-col-status">Status</th>
+                  <th className="bw-th bw-col-primary">Primary Action</th>
+                  <th className="bw-th bw-col-actions" aria-label="Actions" />
+                </tr>
+              </thead>
+              <tbody>
+                {pageBookings.map((booking) => {
+                  const customer = readFirst(booking.customers);
+                  const service = readFirst(booking.services);
+                  const resource = readFirst(booking.branch_resources);
+                  const staff = readFirst(booking.staff);
+                  const staffName = staff ? getStaffAdminName(staff) : "Unassigned";
+                  const isSelected = booking.id === selected?.id;
+                  const shortId = booking.id.slice(0, 8).toUpperCase();
+                  const assignmentLabel = [
+                    staffName,
+                    resource?.name ?? (isHomeServiceBooking(booking) ? "Home service" : "Room TBD"),
+                  ]
+                    .filter(Boolean)
+                    .join(" · ");
 
-                return (
-                  <tr
-                    key={booking.id}
-                    className={`bw-row${isSelected ? " bw-row-selected" : ""}`}
-                    onClick={() => setSelectedId(booking.id)}
-                    onKeyDown={(event) => {
-                      if (event.key !== "Enter" && event.key !== " ") return;
-                      event.preventDefault();
-                      setSelectedId(booking.id);
-                    }}
-                    tabIndex={0}
-                    aria-label={`Select booking ${shortId}`}
-                    aria-selected={isSelected}
-                  >
-                    <td className="bw-td bw-col-time">
-                      <div className="text-sm font-semibold text-[var(--cs-text)]">
-                        {formatTime(booking.start_time)}
-                      </div>
-                      <div className="text-[11px] text-[var(--cs-text-muted)]">
-                        {formatBookingDate(booking.booking_date)}
-                      </div>
-                    </td>
+                  return (
+                    <tr
+                      key={booking.id}
+                      className={`bw-row${isSelected ? " bw-row-selected" : ""}`}
+                      onClick={() => setSelectedId(booking.id)}
+                      onKeyDown={(event) => {
+                        if (event.key !== "Enter" && event.key !== " ") return;
+                        event.preventDefault();
+                        setSelectedId(booking.id);
+                      }}
+                      tabIndex={0}
+                      aria-label={`Select booking ${shortId}`}
+                      aria-selected={isSelected}
+                    >
+                      <td className="bw-td bw-col-time">
+                        <div className="text-sm font-semibold text-[var(--cs-text)]">
+                          {formatTime(booking.start_time)}
+                        </div>
+                        <div className="text-[11px] text-[var(--cs-text-muted)]">
+                          {formatBookingDate(booking.booking_date)}
+                        </div>
+                      </td>
 
-                    <td className="bw-td bw-col-customer">
-                      <div className="flex min-w-0 items-center gap-3">
-                        <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-[var(--cs-sand-mist)] text-xs font-bold text-[var(--cs-sand-dark)]">
-                          {customerInitials(customer?.full_name)}
-                        </span>
-                        <div className="min-w-0">
-                          <div className="bw-truncate text-sm font-semibold text-[var(--cs-text)]" title={customer?.full_name ?? undefined}>
-                            {customer?.full_name ?? "Customer"}
-                          </div>
-                          <div className="bw-truncate text-[11px] text-[var(--cs-text-muted)]" title={customer?.phone ?? shortId}>
-                            {customer?.phone ?? `#${shortId}`}
+                      <td className="bw-td bw-col-customer">
+                        <div className="flex min-w-0 items-center gap-3">
+                          <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-[var(--cs-sand-mist)] text-xs font-bold text-[var(--cs-sand-dark)]">
+                            {customerInitials(customer?.full_name)}
+                          </span>
+                          <div className="min-w-0">
+                            <div
+                              className="bw-truncate text-sm font-semibold text-[var(--cs-text)]"
+                              title={customer?.full_name ?? undefined}
+                            >
+                              {customer?.full_name ?? "Customer"}
+                            </div>
+                            <div
+                              className="bw-truncate text-[11px] text-[var(--cs-text-muted)]"
+                              title={customer?.phone ?? shortId}
+                            >
+                              {customer?.phone ?? `#${shortId}`}
+                            </div>
                           </div>
                         </div>
-                      </div>
-                    </td>
+                      </td>
 
-                    <td className="bw-td bw-col-service">
-                      <div className="bw-truncate text-sm font-medium text-[var(--cs-text)]" title={service?.name ?? undefined}>
-                        {service?.name ?? "Service"}
-                      </div>
-                      <div className="mt-1">
-                        <SourcePill booking={booking} />
-                      </div>
-                    </td>
+                      <td className="bw-td bw-col-service">
+                        <div
+                          className="bw-truncate text-sm font-medium text-[var(--cs-text)]"
+                          title={service?.name ?? undefined}
+                        >
+                          {service?.name ?? "Service"}
+                        </div>
+                        <div className="mt-1">
+                          <SourcePill booking={booking} />
+                        </div>
+                      </td>
 
-                    <td className="bw-td bw-col-assignment">
-                      <div className="bw-truncate text-sm font-medium text-[var(--cs-text)]" title={assignmentLabel}>
-                        {staffName}
-                      </div>
-                      <div className="bw-truncate text-[11px] text-[var(--cs-text-muted)]">
-                        {resource?.name ?? (isHomeServiceBooking(booking) ? "Home service" : "Room TBD")}
-                      </div>
-                    </td>
+                      <td className="bw-td bw-col-assignment">
+                        <div
+                          className="bw-truncate text-sm font-medium text-[var(--cs-text)]"
+                          title={assignmentLabel}
+                        >
+                          {staffName}
+                        </div>
+                        <div className="bw-truncate text-[11px] text-[var(--cs-text-muted)]">
+                          {resource?.name ??
+                            (isHomeServiceBooking(booking) ? "Home service" : "Room TBD")}
+                        </div>
+                      </td>
 
-                    <td className="bw-td bw-col-status">
-                      <div className="flex flex-col items-start gap-1.5">
-                        <OperationalStatusPill booking={booking} />
-                        {getOpenStaffScheduleException(booking.metadata) ? (
-                          <StaffReviewPill />
-                        ) : null}
-                      </div>
-                    </td>
+                      <td className="bw-td bw-col-status">
+                        <div className="flex flex-col items-start gap-1.5">
+                          <OperationalStatusPill booking={booking} />
+                          {getOpenStaffScheduleException(booking.metadata) ? (
+                            <StaffReviewPill />
+                          ) : null}
+                        </div>
+                      </td>
 
-                    <td className="bw-td bw-col-primary" onClick={(event) => event.stopPropagation()}>
-                      <PrimaryRowAction
-                        booking={booking}
-                        paymentAction={paymentAction}
-                        onSelect={() => setSelectedId(booking.id)}
-                        onOpenFollowup={(initialResult) => setModalState({ type: "followup", booking, initialResult })}
-                        onOpenArrival={() => setModalState({ type: "arrival", booking })}
-                        onOpenRoomAssignment={() => setModalState({ type: "room", booking })}
-                        onBookingsChanged={handleBookingsChanged}
-                      />
-                    </td>
+                      <td
+                        className="bw-td bw-col-primary"
+                        onClick={(event) => event.stopPropagation()}
+                      >
+                        <PrimaryRowAction
+                          booking={booking}
+                          paymentAction={paymentAction}
+                          onSelect={() => setSelectedId(booking.id)}
+                          onOpenFollowup={(initialResult) =>
+                            setModalState({ type: "followup", booking, initialResult })
+                          }
+                          onOpenArrival={() => setModalState({ type: "arrival", booking })}
+                          onOpenRoomAssignment={() => setModalState({ type: "room", booking })}
+                          onBookingsChanged={handleBookingsChanged}
+                        />
+                      </td>
 
-                    <td className="bw-td bw-col-actions" onClick={(event) => event.stopPropagation()}>
-                      <BookingActionMenu
-                        bookingId={booking.id}
-                        currentStatus={booking.status}
-                        userRole={viewerRole}
-                        statusAction={statusAction}
-                        triggerVariant="icon"
-                        triggerAriaLabel={`Open more actions for booking ${shortId}`}
-                      />
-                    </td>
-                  </tr>
-                );
-              })}
-            </tbody>
-          </table>
+                      <td
+                        className="bw-td bw-col-actions"
+                        onClick={(event) => event.stopPropagation()}
+                      >
+                        <BookingActionMenu
+                          bookingId={booking.id}
+                          currentStatus={booking.status}
+                          userRole={viewerRole}
+                          statusAction={statusAction}
+                          triggerVariant="icon"
+                          triggerAriaLabel={`Open more actions for booking ${shortId}`}
+                        />
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
           </div>
 
           <div className="bw-mobile-list gap-2 p-3">
@@ -704,7 +755,9 @@ export function BookingsTable({
                   onClick={() => setSelectedId(booking.id)}
                   className={cn(
                     "rounded-lg border bg-[var(--cs-surface)] p-3 text-left shadow-[var(--cs-shadow-xs)]",
-                    isSelected ? "border-[var(--cs-sand)] bg-[var(--cs-sand-tint)]" : "border-[var(--cs-border-soft)]"
+                    isSelected
+                      ? "border-[var(--cs-sand)] bg-[var(--cs-sand-tint)]"
+                      : "border-[var(--cs-border-soft)]"
                   )}
                 >
                   <div className="flex items-start justify-between gap-3">
@@ -721,9 +774,7 @@ export function BookingsTable({
                   <div className="mt-3 flex flex-wrap items-center gap-2">
                     <SourcePill booking={booking} />
                     <PaymentStatusBadge status={booking.payment_status} />
-                    {getOpenStaffScheduleException(booking.metadata) ? (
-                      <StaffReviewPill />
-                    ) : null}
+                    {getOpenStaffScheduleException(booking.metadata) ? <StaffReviewPill /> : null}
                     {price > 0 ? (
                       <span className="rounded-full bg-[var(--cs-surface-warm)] px-2.5 py-1 text-[11px] font-semibold text-[var(--cs-text-secondary)]">
                         {formatCurrency(price)}
@@ -740,11 +791,17 @@ export function BookingsTable({
 
           <div className="bw-pagination">
             <div className="text-xs text-[var(--cs-text-muted)]">
-              Showing {startIndex + 1} to {endIndex} of {filtered.length} booking{filtered.length !== 1 ? "s" : ""}
+              Showing {startIndex + 1} to {endIndex} of {filtered.length} booking
+              {filtered.length !== 1 ? "s" : ""}
             </div>
 
             <div className="bw-page-controls" aria-label="Booking pagination">
-              <button type="button" className="bw-page-button" onClick={() => goToPage(safePageIndex - 1)} disabled={safePageIndex === 0}>
+              <button
+                type="button"
+                className="bw-page-button"
+                onClick={() => goToPage(safePageIndex - 1)}
+                disabled={safePageIndex === 0}
+              >
                 Previous
               </button>
               {pageIndexes.map((index) => (
@@ -758,7 +815,12 @@ export function BookingsTable({
                   {index + 1}
                 </button>
               ))}
-              <button type="button" className="bw-page-button" onClick={() => goToPage(safePageIndex + 1)} disabled={safePageIndex >= totalPages - 1}>
+              <button
+                type="button"
+                className="bw-page-button"
+                onClick={() => goToPage(safePageIndex + 1)}
+                disabled={safePageIndex >= totalPages - 1}
+              >
                 Next
               </button>
             </div>
@@ -772,7 +834,9 @@ export function BookingsTable({
                 className="h-[30px] rounded-lg border border-[var(--cs-border)] bg-[var(--cs-surface)] px-2 text-[var(--cs-text)] outline-none"
               >
                 {ROWS_PER_PAGE_OPTIONS.map((option) => (
-                  <option key={option} value={option}>{option}</option>
+                  <option key={option} value={option}>
+                    {option}
+                  </option>
                 ))}
               </select>
             </label>
@@ -799,16 +863,17 @@ export function BookingsTable({
               onBookingsChanged={handleBookingsChanged}
             />
           ) : (
-            <EmptyState
-              title="No booking selected"
-              detail="Select a booking to view details."
-            />
+            <EmptyState title="No booking selected" detail="Select a booking to view details." />
           )}
         </div>
       </div>
 
       <BookingFollowupModal
-        key={modalState?.type === "followup" ? `${modalState.booking.id}-${modalState.initialResult}` : "followup-closed"}
+        key={
+          modalState?.type === "followup"
+            ? `${modalState.booking.id}-${modalState.initialResult}`
+            : "followup-closed"
+        }
         open={modalState?.type === "followup"}
         booking={modalState?.type === "followup" ? modalState.booking : null}
         initialResult={modalState?.type === "followup" ? modalState.initialResult : "confirmed"}
@@ -895,22 +960,24 @@ function BookingDetailsPanel({
   const scheduleException = getOpenStaffScheduleException(booking.metadata);
 
   // Effective fields: optimistic values take precedence until server data arrives.
-  const effectiveStatus           = sessionOverride?.status                   ?? booking.status;
-  const effectiveProgressStatus   = sessionOverride?.booking_progress_status  ?? booking.booking_progress_status;
-  const effectiveSessionStartedAt = sessionOverride?.session_started_at       ?? booking.session_started_at;
+  const effectiveStatus = sessionOverride?.status ?? booking.status;
+  const effectiveProgressStatus =
+    sessionOverride?.booking_progress_status ?? booking.booking_progress_status;
+  const effectiveSessionStartedAt =
+    sessionOverride?.session_started_at ?? booking.session_started_at;
 
   const customer = readFirst(booking.customers);
-  const service  = readFirst(booking.services);
-  const staff    = readFirst(booking.staff);
+  const service = readFirst(booking.services);
+  const staff = readFirst(booking.staff);
   const staffName = staff ? getStaffAdminName(staff) : "Unassigned";
-  const branch   = readFirst(booking.branches);
+  const branch = readFirst(booking.branches);
   const resource = readFirst(booking.branch_resources);
-  const price    = readPricePaid(booking.metadata);
-  const balance  = price > 0 ? Math.max(0, price - booking.amount_paid) : 0;
-  const notes    = (booking.metadata as Record<string, unknown> | null)?.["customer_notes"];
+  const price = readPricePaid(booking.metadata);
+  const balance = price > 0 ? Math.max(0, price - booking.amount_paid) : 0;
+  const notes = (booking.metadata as Record<string, unknown> | null)?.["customer_notes"];
   const displayNote = noteOverride ?? (typeof notes === "string" ? notes : "");
   const durationMinutes = service?.duration_minutes;
-  const addOns   = readAddOns(booking.metadata);
+  const addOns = readAddOns(booking.metadata);
   const isHomeService = isHomeServiceBooking(booking);
   const roomLabel = resource?.name ?? (isHomeService ? "Home service" : "Room TBD");
   const recommendationState = getSelectedBookingRecommendationState({
@@ -929,9 +996,9 @@ function BookingDetailsPanel({
   const progress = effectiveProgressStatus ?? null;
 
   // Active service requires BOTH a status flag AND session_started_at.
-  const isServiceActive = (
-    effectiveStatus === "in_progress" || progress === "session_started"
-  ) && Boolean(effectiveSessionStartedAt);
+  const isServiceActive =
+    (effectiveStatus === "in_progress" || progress === "session_started") &&
+    Boolean(effectiveSessionStartedAt);
 
   // ── Mutation helpers ──────────────────────────────────────────────────────
 
@@ -951,7 +1018,6 @@ function BookingDetailsPanel({
     });
   }
 
-
   // Intercepts 'in_progress' from CrmNextActionsPanel so its Start Service
   // button also sets all three session fields (not just status).
   async function wrappedStatusAction(input: unknown) {
@@ -960,9 +1026,9 @@ function BookingDetailsPanel({
       const result = await crmStartServiceAction({ bookingId: typed.bookingId });
       if (result.success) {
         setSessionOverride({
-          status:                  "in_progress",
+          status: "in_progress",
           booking_progress_status: "session_started",
-          session_started_at:      new Date().toISOString(),
+          session_started_at: new Date().toISOString(),
         });
       }
       return result;
@@ -977,24 +1043,23 @@ function BookingDetailsPanel({
 
       <HybridSelectedBookingCard
         booking={{
-          id:                      booking.id,
-          booking_code:            `#${booking.id.slice(0, 8).toUpperCase()}`,
-          customer_name:           customer?.full_name,
-          service_name:            service?.name,
-          staff_name:              staffName,
-          resource_name:           roomLabel,
-          booking_date:            booking.booking_date,
-          start_time:              booking.start_time,
-          end_time:                booking.end_time,
-          status:                  effectiveStatus,
+          id: booking.id,
+          booking_code: `#${booking.id.slice(0, 8).toUpperCase()}`,
+          customer_name: customer?.full_name,
+          service_name: service?.name,
+          staff_name: staffName,
+          resource_name: roomLabel,
+          booking_date: booking.booking_date,
+          start_time: booking.start_time,
+          end_time: booking.end_time,
+          status: effectiveStatus,
           booking_progress_status: effectiveProgressStatus,
-          session_started_at:      effectiveSessionStartedAt,
-          session_due_at:          booking.session_due_at,
-          session_duration_minutes_snapshot:
-            booking.session_duration_minutes_snapshot,
-          session_completed_at:    booking.session_completed_at,
-          service_duration:        durationMinutes,
-          type:                    booking.type,
+          session_started_at: effectiveSessionStartedAt,
+          session_due_at: booking.session_due_at,
+          session_duration_minutes_snapshot: booking.session_duration_minutes_snapshot,
+          session_completed_at: booking.session_completed_at,
+          service_duration: durationMinutes,
+          type: booking.type,
         }}
       />
 
@@ -1143,9 +1208,7 @@ function StaffScheduleExceptionPanel({
 }) {
   const [isPending, startTransition] = useTransition();
 
-  function resolve(
-    resolution: "kept_selected_staff" | "marked_resolved"
-  ) {
+  function resolve(resolution: "kept_selected_staff" | "marked_resolved") {
     startTransition(async () => {
       const result = await resolveStaffScheduleExceptionAction({
         bookingId: booking.id,
@@ -1156,9 +1219,7 @@ function StaffScheduleExceptionPanel({
         return;
       }
       toast.success(
-        resolution === "kept_selected_staff"
-          ? "Selected staff kept."
-          : "Staff review resolved."
+        resolution === "kept_selected_staff" ? "Selected staff kept." : "Staff review resolved."
       );
       onKeepOrResolve?.();
     });
@@ -1169,17 +1230,10 @@ function StaffScheduleExceptionPanel({
       <div className="flex items-start gap-2">
         <AlertTriangle className="mt-0.5 shrink-0 text-amber-700" size={17} />
         <div className="min-w-0">
-          <p className="text-sm font-bold text-amber-950">
-            Staff schedule exception
-          </p>
-          <p className="mt-1 text-xs font-semibold text-amber-800">
-            {exception.reasonLabel}
-          </p>
+          <p className="text-sm font-bold text-amber-950">Staff schedule exception</p>
+          <p className="mt-1 text-xs font-semibold text-amber-800">{exception.reasonLabel}</p>
           <p className="mt-2 text-sm leading-5 text-amber-950/80">
-            {getStaffScheduleExceptionMessage(
-              exception.reasonCode,
-              exception.selectedStaffName
-            )}
+            {getStaffScheduleExceptionMessage(exception.reasonCode, exception.selectedStaffName)}
           </p>
         </div>
       </div>
@@ -1268,10 +1322,9 @@ function RecommendationSummaryPanel({
   onExpandedChange: (expanded: boolean) => void;
   onBookingsChanged?: () => void;
 }) {
-  const label = [
-    state.needsTherapist ? "therapist" : null,
-    state.needsDriver ? "driver" : null,
-  ].filter(Boolean).join(" and ");
+  const label = [state.needsTherapist ? "therapist" : null, state.needsDriver ? "driver" : null]
+    .filter(Boolean)
+    .join(" and ");
 
   return (
     <CompactPanel label="Staff Assignment">
@@ -1450,10 +1503,12 @@ function NoteSummaryPanel({
             <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg border border-[var(--cs-border-soft)] bg-[var(--cs-surface)] text-[var(--cs-text-muted)]">
               <FileText size={16} />
             </span>
-            <p className={cn(
-              "min-w-0 truncate text-sm",
-              hasNote ? "text-[var(--cs-text)]" : "text-[var(--cs-text-muted)]"
-            )}>
+            <p
+              className={cn(
+                "min-w-0 truncate text-sm",
+                hasNote ? "text-[var(--cs-text)]" : "text-[var(--cs-text-muted)]"
+              )}
+            >
               {hasNote ? note : "No note added."}
             </p>
           </div>
@@ -1490,11 +1545,27 @@ function FullDetailsDisclosure({
     { key: "branch", label: "Branch", value: branchName ?? "Branch TBD" },
     { key: "booking_type", label: "Booking Type", value: bookingType },
     { key: "source", label: "Source", value: source },
-    { key: "payment_reference", label: "Payment Reference", value: booking.payment_reference ?? "None" },
-    { key: "created_at", label: "Created", value: formatDateTimeLabel(booking.created_at) ?? "Not recorded" },
-    { key: "updated_at", label: "Updated", value: formatDateTimeLabel(booking.updated_at) ?? "Not recorded" },
+    {
+      key: "payment_reference",
+      label: "Payment Reference",
+      value: booking.payment_reference ?? "None",
+    },
+    {
+      key: "created_at",
+      label: "Created",
+      value: formatDateTimeLabel(booking.created_at) ?? "Not recorded",
+    },
+    {
+      key: "updated_at",
+      label: "Updated",
+      value: formatDateTimeLabel(booking.updated_at) ?? "Not recorded",
+    },
     booking.travel_buffer_mins != null && booking.travel_buffer_mins > 0
-      ? { key: "travel_buffer", label: "Travel Buffer", value: `+${booking.travel_buffer_mins} min` }
+      ? {
+          key: "travel_buffer",
+          label: "Travel Buffer",
+          value: `+${booking.travel_buffer_mins} min`,
+        }
       : null,
     addOns ? { key: "addons", label: "Add-ons", value: addOns } : null,
   ].filter((row): row is { key: string; label: string; value: string } => Boolean(row));
@@ -1511,7 +1582,10 @@ function FullDetailsDisclosure({
         {visibleRows.map((row) => (
           <div key={row.key} className="min-w-0">
             <div className="text-[11px] font-medium text-[var(--cs-text-muted)]">{row.label}</div>
-            <div className="mt-0.5 truncate text-sm font-semibold text-[var(--cs-text)]" title={row.value}>
+            <div
+              className="mt-0.5 truncate text-sm font-semibold text-[var(--cs-text)]"
+              title={row.value}
+            >
               {row.value}
             </div>
           </div>
@@ -1653,13 +1727,7 @@ function SelectedMoreActionsPanel({
   );
 }
 
-function CompactPanel({
-  label,
-  children,
-}: {
-  label: string;
-  children: React.ReactNode;
-}) {
+function CompactPanel({ label, children }: { label: string; children: React.ReactNode }) {
   return (
     <section className="rounded-lg border border-[var(--cs-border-soft)] bg-[var(--cs-surface)] p-3">
       <div className="mb-3 text-[11px] font-bold uppercase tracking-wide text-[var(--cs-text-muted)]">
@@ -1693,7 +1761,9 @@ function BookingRecommendationSection({
   const isHomeService = Boolean(
     booking.type === "home_service" ||
     booking.delivery_type === "home_service" ||
-    (booking.metadata && (booking.metadata.delivery_type === "home_service" || booking.metadata.type === "home_service"))
+    (booking.metadata &&
+      (booking.metadata.delivery_type === "home_service" ||
+        booking.metadata.type === "home_service"))
   );
   const staff = readFirst(booking.staff);
   const driver = readFirst(booking.driver);
@@ -1703,7 +1773,11 @@ function BookingRecommendationSection({
 
   return (
     <div>
-      {isHomeService ? <p className="mb-2 text-sm font-semibold">Driver: {driver?.full_name ?? (booking.driver_id ? "Assigned driver" : "Not assigned")}</p> : null}
+      {isHomeService ? (
+        <p className="mb-2 text-sm font-semibold">
+          Driver: {driver?.full_name ?? (booking.driver_id ? "Assigned driver" : "Not assigned")}
+        </p>
+      ) : null}
       <AssignmentRecommendationPanel
         key={booking.id}
         bookingId={booking.id}
@@ -1893,12 +1967,14 @@ export function CrmNextActionsPanel({
       ) : null}
 
       {feedback ? (
-        <div className={cn(
-          "mt-3 rounded-xl border px-3 py-2 text-xs font-semibold",
-          feedback.includes("Could not")
-            ? "border-[var(--cs-error-bg)] bg-[var(--cs-error-bg)] text-[var(--cs-error-text)]"
-            : "border-[var(--cs-sand-mist)] bg-[var(--cs-sand-tint)] text-[var(--cs-sand-dark)]"
-        )}>
+        <div
+          className={cn(
+            "mt-3 rounded-xl border px-3 py-2 text-xs font-semibold",
+            feedback.includes("Could not")
+              ? "border-[var(--cs-error-bg)] bg-[var(--cs-error-bg)] text-[var(--cs-error-text)]"
+              : "border-[var(--cs-sand-mist)] bg-[var(--cs-sand-tint)] text-[var(--cs-sand-dark)]"
+          )}
+        >
           {feedback}
         </div>
       ) : null}
@@ -1968,10 +2044,10 @@ function getSelectedActionIcon(actionId: SelectedBookingActionId): React.ReactNo
 }
 
 const CONFIRM_PAYMENT_METHODS = [
-  { value: "cash",  label: "Cash" },
+  { value: "cash", label: "Cash" },
   { value: "gcash", label: "GCash" },
-  { value: "maya",  label: "Maya" },
-  { value: "card",  label: "Card" },
+  { value: "maya", label: "Maya" },
+  { value: "card", label: "Card" },
   { value: "other", label: "Other" },
 ] as const;
 
@@ -1992,8 +2068,7 @@ function PaymentConfirmationPanel({
 
   const now = new Date();
   const holdExpired =
-    !booking.hold_expires_at ||
-    new Date(booking.hold_expires_at).getTime() <= now.getTime();
+    !booking.hold_expires_at || new Date(booking.hold_expires_at).getTime() <= now.getTime();
 
   const holdExpiresLabel = (() => {
     if (!booking.hold_expires_at) return null;
@@ -2007,10 +2082,10 @@ function PaymentConfirmationPanel({
     setFeedback(null);
     startTransition(async () => {
       const result = await confirmPaymentAction({
-        bookingId:        booking.id,
+        bookingId: booking.id,
         paymentMethod,
         paymentReference: paymentReference.trim() || undefined,
-        note:             note.trim() || undefined,
+        note: note.trim() || undefined,
       });
       if (result.success) {
         setFeedback({ ok: true, message: "Payment confirmed. Booking is now active." });
@@ -2022,15 +2097,21 @@ function PaymentConfirmationPanel({
   }
 
   return (
-    <div className={cn(
-      "rounded-lg border bg-[var(--cs-surface)] p-3",
-      holdExpired ? "border-[var(--cs-error-bg)]" : "border-[var(--cs-sand-mist)]"
-    )}>
+    <div
+      className={cn(
+        "rounded-lg border bg-[var(--cs-surface)] p-3",
+        holdExpired ? "border-[var(--cs-error-bg)]" : "border-[var(--cs-sand-mist)]"
+      )}
+    >
       <div className="flex items-start gap-2">
-        <span className={cn(
-          "flex h-8 w-8 shrink-0 items-center justify-center rounded-xl",
-          holdExpired ? "bg-[var(--cs-error-bg)] text-[var(--cs-error-text)]" : "bg-[var(--cs-sand-mist)] text-[var(--cs-sand-dark)]"
-        )}>
+        <span
+          className={cn(
+            "flex h-8 w-8 shrink-0 items-center justify-center rounded-xl",
+            holdExpired
+              ? "bg-[var(--cs-error-bg)] text-[var(--cs-error-text)]"
+              : "bg-[var(--cs-sand-mist)] text-[var(--cs-sand-dark)]"
+          )}
+        >
           <ReceiptText size={15} />
         </span>
         <div className="min-w-0">
@@ -2038,10 +2119,12 @@ function PaymentConfirmationPanel({
             Payment Confirmation
           </div>
           {holdExpiresLabel ? (
-            <div className={cn(
-              "mt-1 text-xs font-semibold",
-              holdExpired ? "text-[var(--cs-error-text)]" : "text-[var(--cs-sand-dark)]"
-            )}>
+            <div
+              className={cn(
+                "mt-1 text-xs font-semibold",
+                holdExpired ? "text-[var(--cs-error-text)]" : "text-[var(--cs-sand-dark)]"
+              )}
+            >
               {holdExpiresLabel}
             </div>
           ) : null}
@@ -2058,13 +2141,17 @@ function PaymentConfirmationPanel({
             className={confirmControlClass}
           >
             {CONFIRM_PAYMENT_METHODS.map((m) => (
-              <option key={m.value} value={m.value}>{m.label}</option>
+              <option key={m.value} value={m.value}>
+                {m.label}
+              </option>
             ))}
           </select>
         </label>
 
         <label className="grid gap-1 text-xs font-medium text-[var(--cs-text-muted)]">
-          <span>Reference / receipt no. <span className="font-normal opacity-70">(optional)</span></span>
+          <span>
+            Reference / receipt no. <span className="font-normal opacity-70">(optional)</span>
+          </span>
           <input
             type="text"
             value={paymentReference}
@@ -2076,7 +2163,9 @@ function PaymentConfirmationPanel({
         </label>
 
         <label className="grid gap-1 text-xs font-medium text-[var(--cs-text-muted)]">
-          <span>Note <span className="font-normal opacity-70">(optional)</span></span>
+          <span>
+            Note <span className="font-normal opacity-70">(optional)</span>
+          </span>
           <textarea
             value={note}
             onChange={(e) => setNote(e.target.value)}
@@ -2088,12 +2177,14 @@ function PaymentConfirmationPanel({
         </label>
 
         {feedback ? (
-          <div className={cn(
-            "rounded-xl border px-3 py-2 text-xs font-semibold",
-            feedback.ok
-              ? "border-[var(--cs-success-bg)] bg-[var(--cs-success-bg)] text-[var(--cs-success-text)]"
-              : "border-[var(--cs-error-bg)] bg-[var(--cs-error-bg)] text-[var(--cs-error-text)]"
-          )}>
+          <div
+            className={cn(
+              "rounded-xl border px-3 py-2 text-xs font-semibold",
+              feedback.ok
+                ? "border-[var(--cs-success-bg)] bg-[var(--cs-success-bg)] text-[var(--cs-success-text)]"
+                : "border-[var(--cs-error-bg)] bg-[var(--cs-error-bg)] text-[var(--cs-error-text)]"
+            )}
+          >
             {feedback.message}
           </div>
         ) : null}

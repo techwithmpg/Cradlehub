@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useSearchParams } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import { useEffect, useMemo, useState, type KeyboardEvent } from "react";
 import {
   Activity,
@@ -64,6 +64,7 @@ type BookingsWorkspaceProps = {
   branchName?: string;
   branches?: Branch[];
   date: string;
+  businessDate?: string;
   statusFilter?: string;
   typeFilter?: string;
   referenceSource?: "all" | "cradlehub" | "master_sheet";
@@ -305,6 +306,7 @@ export function BookingsWorkspace({
   branchName,
   branches,
   date,
+  businessDate,
   statusFilter,
   typeFilter,
   referenceSource = "all",
@@ -328,10 +330,12 @@ export function BookingsWorkspace({
   onBookingsChanged,
 }: BookingsWorkspaceProps) {
   const searchParams = useSearchParams();
+  const router = useRouter();
   const [isDesktop, setIsDesktop] = useState<boolean | null>(() =>
     workspaceContext === "crm" ? null : false
   );
   const basePath = `/${workspaceContext === "owner" ? "owner" : workspaceContext === "manager" ? "manager" : "crm"}/bookings`;
+  const isCrm = workspaceContext === "crm";
   const dispatchHref = basePath.replace(/\/bookings$/, "/dispatch");
   const [activeTab, setActiveTab] = useState<BookingWorkspaceTab>(
     () =>
@@ -347,20 +351,28 @@ export function BookingsWorkspace({
       WORKFLOW_TABS.map((tab) => ({
         key: tab.key,
         label: tab.label,
-        count: bookings.filter((booking) => bookingMatchesTab(booking, tab.key)).length,
+        count:
+          tab.key === "upcoming" && isCrm && initialQuickFilter === "upcoming"
+            ? bookings.length
+            : bookings.filter((booking) => bookingMatchesTab(booking, tab.key)).length,
       })),
-    [bookings]
+    [bookings, initialQuickFilter, isCrm]
   );
   const tabBookings = useMemo(
-    () => bookings.filter((booking) => bookingMatchesTab(booking, activeTab)),
-    [activeTab, bookings]
+    () =>
+      isCrm && initialQuickFilter === "upcoming"
+        ? bookings
+        : bookings.filter((booking) => bookingMatchesTab(booking, activeTab)),
+    [activeTab, bookings, initialQuickFilter, isCrm]
   );
   const visibleBookings = useMemo(
     () =>
-      sortBookingsRecentFirst(
-        applySecondaryFilters(tabBookings, statusFilter, typeFilter, branchFilter)
-      ),
-    [branchFilter, statusFilter, tabBookings, typeFilter]
+      initialQuickFilter === "upcoming"
+        ? applySecondaryFilters(tabBookings, statusFilter, typeFilter, branchFilter)
+        : sortBookingsRecentFirst(
+            applySecondaryFilters(tabBookings, statusFilter, typeFilter, branchFilter)
+          ),
+    [branchFilter, statusFilter, tabBookings, typeFilter, initialQuickFilter]
   );
   const dateLabel = new Date(`${date}T00:00:00`).toLocaleDateString("en-PH", {
     weekday: "long",
@@ -368,7 +380,6 @@ export function BookingsWorkspace({
     day: "numeric",
   });
   const isOwner = workspaceContext === "owner";
-  const isCrm = workspaceContext === "crm";
   const hasFilters = Boolean(
     statusFilter || typeFilter || branchFilter || search || referenceSource === "master_sheet"
   );
@@ -410,7 +421,15 @@ export function BookingsWorkspace({
     params.delete("highlight");
     params.delete("openRoomAssignment");
     const query = params.toString();
-    window.history.replaceState(null, "", `${window.location.pathname}${query ? `?${query}` : ""}`);
+    if (isCrm && (nextTab === "upcoming" || initialQuickFilter === "upcoming")) {
+      router.push(`${window.location.pathname}${query ? `?${query}` : ""}`);
+    } else {
+      window.history.replaceState(
+        null,
+        "",
+        `${window.location.pathname}${query ? `?${query}` : ""}`
+      );
+    }
   }
 
   if (isDesktop === null) {
@@ -426,10 +445,12 @@ export function BookingsWorkspace({
   if (isDesktop) {
     return (
       <BookingsDesktopWorkspace
+        key={`${initialQuickFilter}:${initialSelectedId ?? ""}`}
         workspaceContext={workspaceContext}
         viewerRole={viewerRole}
         branches={branches}
         date={date}
+        businessDate={businessDate}
         statusFilter={statusFilter}
         sourceFilter={typeFilter}
         referenceSource={referenceSource}
@@ -461,8 +482,9 @@ export function BookingsWorkspace({
           <div className="min-w-0">
             <h1 className="m-0 text-2xl font-bold tracking-normal text-foreground">Bookings</h1>
             <p className="mt-1 max-w-3xl text-sm text-muted-foreground">
-              Manage booking triage, customer follow-up, payment review, resource assignment, and
-              service progress.
+              {isCrm && initialQuickFilter === "upcoming"
+                ? "Upcoming bookings across the next 14 days."
+                : "Manage booking triage, customer follow-up, payment review, resource assignment, and service progress."}
             </p>
           </div>
 
@@ -610,17 +632,24 @@ export function BookingsWorkspace({
               </>
             }
           >
-            <label className="grid min-w-0 gap-1">
-              <span className="text-[0.68rem] font-bold uppercase tracking-wide text-muted-foreground">
-                Date
-              </span>
-              <input
-                type="date"
-                name="date"
-                defaultValue={date}
-                className="h-10 w-full rounded-lg border border-border bg-background px-3 text-sm font-semibold text-foreground shadow-sm outline-none transition focus:border-emerald-800"
-              />
-            </label>
+            {isCrm && initialQuickFilter === "upcoming" ? (
+              <div className="flex items-center text-sm font-semibold">
+                Upcoming · multiple dates
+              </div>
+            ) : (
+              <label className="grid min-w-0 gap-1">
+                <span className="text-[0.68rem] font-bold uppercase tracking-wide text-muted-foreground">
+                  Date
+                </span>
+                <input
+                  type="date"
+                  name="date"
+                  key={date}
+                  defaultValue={date}
+                  className="h-10 w-full rounded-lg border border-border bg-background px-3 text-sm font-semibold text-foreground shadow-sm outline-none transition focus:border-emerald-800"
+                />
+              </label>
+            )}
             {isOwner && branches && branches.length > 0 ? (
               <label className="grid min-w-0 gap-1">
                 <span className="text-[0.68rem] font-bold uppercase tracking-wide text-muted-foreground">
@@ -665,7 +694,10 @@ export function BookingsWorkspace({
       {referenceSource !== "master_sheet" ? (
         <div className="text-xs text-[var(--cs-text-muted)]">
           {visibleBookings.length} booking{visibleBookings.length !== 1 ? "s" : ""} in{" "}
-          {tabItems.find((tab) => tab.key === activeTab)?.label.toLowerCase()} for {dateLabel}
+          {tabItems.find((tab) => tab.key === activeTab)?.label.toLowerCase()}
+          {isCrm && initialQuickFilter === "upcoming"
+            ? " across the next 14 days"
+            : ` for ${dateLabel}`}
         </div>
       ) : null}
 

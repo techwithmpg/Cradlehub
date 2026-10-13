@@ -14,7 +14,11 @@ import {
   notifyBookingsChanged,
 } from "@/lib/bookings/bookings-client-events";
 import type { FinancialEntryMode } from "@/components/features/cash-flow/record-financial-entry-modal";
-import { getCradleFlowStage, type CradleFlowBooking } from "@/lib/crm/cradle-flow";
+import {
+  futureCradleFlowHref,
+  getCradleFlowStage,
+  type CradleFlowBooking,
+} from "@/lib/crm/cradle-flow";
 import type { AttendanceScanFeedData, RecentAttendanceScan } from "@/lib/attendance/types";
 import type { CrmTodaySnapshot } from "@/lib/queries/crm-today";
 import type { ReadinessIssue, ReadinessStatus } from "@/types/readiness";
@@ -82,7 +86,14 @@ export function CradleFlowDashboard(props: CradleFlowDashboardProps) {
     maxItems: 6,
   });
 
-  const counts = useMemo(() => getCradleFlowDisplayCounts(bookings), [bookings]);
+  const counts = useMemo(
+    () => getCradleFlowDisplayCounts(bookings, props.attendanceScanDate),
+    [bookings, props.attendanceScanDate]
+  );
+  const todayBookings = useMemo(
+    () => bookings.filter((booking) => booking.booking_date === props.attendanceScanDate),
+    [bookings, props.attendanceScanDate]
+  );
   const pendingBooking =
     bookings.find((booking) => ["pending", "pending_crm_confirmation"].includes(booking.status)) ??
     null;
@@ -114,6 +125,10 @@ export function CradleFlowDashboard(props: CradleFlowDashboardProps) {
   }
 
   function runPrimary(booking: CradleFlowBooking) {
+    if (booking.booking_date > props.attendanceScanDate) {
+      router.push(futureCradleFlowHref(booking));
+      return;
+    }
     const stage = getCradleFlowStage(booking);
     setSelected(booking);
     if (stage === "in_service") return setDialog("complete");
@@ -133,7 +148,7 @@ export function CradleFlowDashboard(props: CradleFlowDashboardProps) {
       booking.status === "confirmed" &&
       (booking.type === "home_service" || booking.delivery_type === "home_service")
     ) {
-      router.push("/crm/dispatch");
+      router.push(`/crm/dispatch?bookingId=${encodeURIComponent(booking.id)}`);
       return;
     }
     startAction(async () => {
@@ -155,6 +170,7 @@ export function CradleFlowDashboard(props: CradleFlowDashboardProps) {
         return;
       }
       notifyBookingsChanged();
+      if (booking.booking_date > props.attendanceScanDate) setFilter("upcoming");
       toast.success("Booking updated");
     });
   }
@@ -184,6 +200,7 @@ export function CradleFlowDashboard(props: CradleFlowDashboardProps) {
         >
           <CradleFlowWorkflow
             bookings={bookings}
+            businessDate={props.attendanceScanDate}
             staffAvailable={props.snapshot.staffReadiness.availableNow}
             pendingFollowUps={props.actionNotifications.length}
             onOpen={openBooking}
@@ -203,7 +220,7 @@ export function CradleFlowDashboard(props: CradleFlowDashboardProps) {
             attendanceRefreshing={attendanceState.isValidating}
             attendanceRefreshError={attendanceState.error}
             onAttendanceRefresh={attendanceState.refreshFeed}
-            bookings={bookings}
+            bookings={todayBookings}
             payment={props.snapshot.payment}
             collected={collected}
             readyToPayCount={counts.ready_to_pay}
@@ -219,6 +236,7 @@ export function CradleFlowDashboard(props: CradleFlowDashboardProps) {
       </div>
       <CradleFlowDialogs
         selected={selectedBooking}
+        businessDate={props.attendanceScanDate}
         dialog={dialog}
         setDialog={setDialog}
         paymentAction={props.paymentAction}
@@ -256,6 +274,7 @@ export function CradleFlowDashboard(props: CradleFlowDashboardProps) {
 
 type DialogProps = {
   selected: CradleFlowBooking | null;
+  businessDate: string;
   dialog: ActiveDialog;
   setDialog: (dialog: ActiveDialog) => void;
   paymentAction?: MutationAction;
@@ -279,6 +298,7 @@ function CradleFlowDialogs(props: DialogProps) {
     <>
       <CradleFlowBookingDialog
         booking={props.selected}
+        businessDate={props.businessDate}
         open={props.dialog === "details"}
         onOpenChange={(open) => props.setDialog(open ? "details" : null)}
         onPrimary={props.runPrimary}

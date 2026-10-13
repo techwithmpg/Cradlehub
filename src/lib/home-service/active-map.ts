@@ -1,8 +1,9 @@
 import type { RealDispatchItem } from "@/lib/queries/dispatch-queries";
+import { isCrmOperationalBookingStatus } from "@/lib/bookings/crm-booking-status";
 
 export function isOpenHomeServiceBooking(item: RealDispatchItem): boolean {
   return (
-    !["cancelled", "no_show", "completed"].includes(item.bookingStatus) &&
+    isCrmOperationalBookingStatus(item.bookingStatus) &&
     !["completed", "no_show"].includes(item.bookingProgressStatus)
   );
 }

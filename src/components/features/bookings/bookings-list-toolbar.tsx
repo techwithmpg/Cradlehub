@@ -17,6 +17,7 @@ type PreservedQuery = {
 type BookingsListToolbarProps = {
   basePath: string;
   date: string;
+  upcoming?: boolean;
   quickFilter: BookingQuickFilter;
   search?: string;
   status?: string;
@@ -109,16 +110,23 @@ export function BookingsListToolbar(props: BookingsListToolbarProps) {
       ) : null}
 
       <div className="grid grid-cols-[minmax(0,1fr)_auto] gap-3">
-        <label className="relative flex h-11 items-center rounded-lg border border-[var(--cs-border)] bg-white px-3">
-          <CalendarDays className="mr-2 size-4 text-[var(--cs-text-secondary)]" />
-          <span className="sr-only">Selected date</span>
-          <input
-            type="date"
-            name="date"
-            defaultValue={props.date}
-            className="min-w-0 flex-1 bg-transparent text-sm font-medium text-[var(--cs-text)] outline-none"
-          />
-        </label>
+        {props.upcoming ? (
+          <div className="flex h-11 items-center rounded-lg border border-[var(--cs-border)] bg-white px-3 text-sm font-semibold text-[var(--cs-text)]">
+            Upcoming · next 14 days
+          </div>
+        ) : (
+          <label className="relative flex h-11 items-center rounded-lg border border-[var(--cs-border)] bg-white px-3">
+            <CalendarDays className="mr-2 size-4 text-[var(--cs-text-secondary)]" />
+            <span className="sr-only">Selected date</span>
+            <input
+              type="date"
+              name="date"
+              key={props.date}
+              defaultValue={props.date}
+              className="min-w-0 flex-1 bg-transparent text-sm font-medium text-[var(--cs-text)] outline-none"
+            />
+          </label>
+        )}
 
         <button
           type="button"

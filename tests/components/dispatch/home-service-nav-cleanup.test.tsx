@@ -6,6 +6,7 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import { CrmOperationalPageShell } from "@/components/features/crm/operational/crm-operational-page-shell";
 import { HomeServiceDispatchWorkspace } from "@/components/features/dispatch/dispatch-workspace";
 import type { DispatchData } from "@/lib/queries/dispatch-queries";
+import { refreshDispatchDataAction } from "@/lib/actions/dispatch-data-actions";
 
 // Mock child components that might make network calls
 vi.mock("@/components/features/dispatch/dispatch-flow-tab", () => ({
@@ -114,5 +115,16 @@ describe("Home Service Operations Navigation Cleanup", () => {
     expect(liveOpsTab.getAttribute("aria-selected")).toBe("false");
     await waitFor(() => expect(screen.getByTestId("dispatch-map-content")).toBeDefined());
     expect(screen.queryByTestId("dispatch-flow-content")).toBeNull();
+  });
+
+  it("keeps global Full Map available from the Upcoming list", async () => {
+    const data = createMockDispatchData();
+    render(<HomeServiceDispatchWorkspace role="crm" data={data} upcoming showHeader={false} />);
+
+    fireEvent.click(screen.getByRole("tab", { name: "Full Map" }));
+    await waitFor(() => expect(screen.getByTestId("dispatch-map-content")).toBeDefined());
+    expect(refreshDispatchDataAction).toHaveBeenCalledWith("2026-10-06", {
+      scope: "active_map",
+    });
   });
 });
