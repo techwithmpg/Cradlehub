@@ -7777,7 +7777,7 @@ export type Database = {
         Args: { p_booking_id: string; p_next_status: string }
         Returns: undefined
       }
-      advance_staff_driver_trip: {
+      advance_staff_booking_progress: {
         Args: { p_booking_id: string; p_next_status: string; p_actor_staff_id: string }
         Returns: undefined
       }
