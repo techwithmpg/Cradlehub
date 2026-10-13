@@ -8,42 +8,67 @@ import {
 
 describe("Attendance launch configuration", () => {
   it("enables enforcement only for an explicit enabled value", () => {
-    expect(isAttendanceEnforcementEnabled({
-      NEXT_PUBLIC_ATTENDANCE_ENFORCEMENT_ENABLED: "true",
-    })).toBe(true);
-    expect(isAttendanceEnforcementEnabled({
-      NEXT_PUBLIC_ATTENDANCE_ENFORCEMENT_ENABLED: "1",
-    })).toBe(true);
+    expect(
+      isAttendanceEnforcementEnabled({
+        NEXT_PUBLIC_ATTENDANCE_ENFORCEMENT_ENABLED: "true",
+      })
+    ).toBe(true);
+    expect(
+      isAttendanceEnforcementEnabled({
+        NEXT_PUBLIC_ATTENDANCE_ENFORCEMENT_ENABLED: "1",
+      })
+    ).toBe(true);
   });
 
   it("keeps enforcement paused when disabled or missing", () => {
-    expect(isAttendanceEnforcementEnabled({
-      NEXT_PUBLIC_ATTENDANCE_ENFORCEMENT_ENABLED: "false",
-    })).toBe(false);
+    expect(
+      isAttendanceEnforcementEnabled({
+        NEXT_PUBLIC_ATTENDANCE_ENFORCEMENT_ENABLED: "false",
+      })
+    ).toBe(false);
     expect(isAttendanceEnforcementEnabled({})).toBe(false);
   });
 
   it("allows scanning to be explicitly disabled", () => {
-    expect(isAttendanceScanningEnabled({
-      NEXT_PUBLIC_ATTENDANCE_SCANNING_ENABLED: "false",
-    })).toBe(false);
+    expect(
+      isAttendanceScanningEnabled({
+        NEXT_PUBLIC_ATTENDANCE_SCANNING_ENABLED: "false",
+      })
+    ).toBe(false);
     expect(isAttendanceScanningEnabled({})).toBe(true);
   });
 });
 
 describe("Retained workspace rollout", () => {
-  it("defaults safely to CRM-first and keeps Owner opt-in", () => {
-    expect(getRetainedWorkspaceRollout({})).toBe("crm");
+  it("defaults to retained CRM and Owner workspaces", () => {
+    expect(getRetainedWorkspaceRollout({})).toBe("all");
     expect(isRetainedWorkspaceEnabled("crm", {})).toBe(true);
-    expect(isRetainedWorkspaceEnabled("owner", {})).toBe(false);
+    expect(isRetainedWorkspaceEnabled("owner", {})).toBe(true);
+  });
+
+  it("keeps invalid rollout values fail-safe at CRM-only", () => {
+    expect(
+      getRetainedWorkspaceRollout({
+        NEXT_PUBLIC_RETAINED_WORKSPACES: "unexpected",
+      })
+    ).toBe("crm");
+    expect(
+      isRetainedWorkspaceEnabled("owner", {
+        NEXT_PUBLIC_RETAINED_WORKSPACES: "unexpected",
+      })
+    ).toBe(false);
   });
 
   it("supports full rollout and immediate rollback", () => {
-    expect(isRetainedWorkspaceEnabled("owner", {
-      NEXT_PUBLIC_RETAINED_WORKSPACES: "all",
-    })).toBe(true);
-    expect(isRetainedWorkspaceEnabled("crm", {
-      NEXT_PUBLIC_RETAINED_WORKSPACES: "off",
-    })).toBe(false);
+    expect(
+      isRetainedWorkspaceEnabled("owner", {
+        NEXT_PUBLIC_RETAINED_WORKSPACES: "all",
+      })
+    ).toBe(true);
+    expect(
+      isRetainedWorkspaceEnabled("crm", {
+        NEXT_PUBLIC_RETAINED_WORKSPACES: "off",
+      })
+    ).toBe(false);
   });
 });

@@ -9,20 +9,16 @@ import {
   ownerUpdateBookingPaymentAction,
 } from "@/app/(dashboard)/owner/bookings/actions";
 import { getBranchBusinessDate } from "@/lib/engine/slot-time";
+import { getCurrentUserWorkspaceAccess } from "@/lib/auth/get-user-workspace-access";
+import { getWorkspaceSwitchDestination, hasWorkspaceAccess } from "@/lib/auth/workspace-access";
+import { RetainedWorkspaceModule } from "@/components/features/dashboard/retained-workspace-provider";
 
 async function getOwnerContext() {
-  const supabase = await createClient();
-  const { data: { user } } = await supabase.auth.getUser();
-  if (!user) redirect("/login");
-
-  const { data: me } = await supabase
-    .from("staff")
-    .select("system_role")
-    .eq("auth_user_id", user.id)
-    .eq("is_active", true)
-    .maybeSingle();
-
-  if (!me || me.system_role !== "owner") redirect("/login");
+  const access = await getCurrentUserWorkspaceAccess();
+  if (!access) redirect("/login");
+  if (!hasWorkspaceAccess(access.workspaces, "owner")) {
+    redirect(getWorkspaceSwitchDestination(access.workspaces));
+  }
 }
 
 export default async function OwnerSchedulePage({
@@ -39,7 +35,7 @@ export default async function OwnerSchedulePage({
   const selectedBranchId =
     params.branchId && branches.some((b) => b.id === params.branchId)
       ? params.branchId
-      : branches[0]?.id ?? "";
+      : (branches[0]?.id ?? "");
 
   const selectedDate = params.date ?? today;
   const selectedBranch = branches.find((b) => b.id === selectedBranchId);
@@ -51,7 +47,14 @@ export default async function OwnerSchedulePage({
       : Promise.resolve([]),
     selectedBranchId
       ? getManagerDashboardStats(selectedBranchId, selectedDate)
-      : Promise.resolve({ total: 0, confirmed: 0, in_progress: 0, completed: 0, cancelled: 0, no_show: 0 }),
+      : Promise.resolve({
+          total: 0,
+          confirmed: 0,
+          in_progress: 0,
+          completed: 0,
+          cancelled: 0,
+          no_show: 0,
+        }),
     selectedBranchId
       ? supabase
           .from("branch_resources")
@@ -64,38 +67,42 @@ export default async function OwnerSchedulePage({
 
   if (branches.length === 0) {
     return (
-      <div
-        className="cs-card"
-        style={{
-          padding: "3rem 1.5rem",
-          textAlign: "center",
-          color: "var(--cs-text-muted)",
-          fontSize: "0.875rem",
-        }}
-      >
-        <div style={{ fontSize: 28, marginBottom: 12 }}>🏢</div>
-        <div style={{ fontWeight: 600, color: "var(--cs-text)", marginBottom: 4 }}>
-          No branches configured
+      <RetainedWorkspaceModule moduleId="owner-schedule">
+        <div
+          className="cs-card"
+          style={{
+            padding: "3rem 1.5rem",
+            textAlign: "center",
+            color: "var(--cs-text-muted)",
+            fontSize: "0.875rem",
+          }}
+        >
+          <div style={{ fontSize: 28, marginBottom: 12 }}>🏢</div>
+          <div style={{ fontWeight: 600, color: "var(--cs-text)", marginBottom: 4 }}>
+            No branches configured
+          </div>
+          <div>Create a branch first to view schedules.</div>
         </div>
-        <div>Create a branch first to view schedules.</div>
-      </div>
+      </RetainedWorkspaceModule>
     );
   }
 
   return (
-    <ScheduleWorkspace
-      workspaceContext="owner"
-      viewerRole="owner"
-      branchId={selectedBranchId}
-      branchName={selectedBranch?.name ?? ""}
-      date={selectedDate}
-      branches={branches}
-      staffRows={scheduleRows}
-      branchResources={resourcesResult.data ?? []}
-      stats={stats}
-      viewBookingsHref="/owner/bookings"
-      statusAction={ownerUpdateBookingStatusAction}
-      paymentAction={ownerUpdateBookingPaymentAction}
-    />
+    <RetainedWorkspaceModule moduleId="owner-schedule">
+      <ScheduleWorkspace
+        workspaceContext="owner"
+        viewerRole="owner"
+        branchId={selectedBranchId}
+        branchName={selectedBranch?.name ?? ""}
+        date={selectedDate}
+        branches={branches}
+        staffRows={scheduleRows}
+        branchResources={resourcesResult.data ?? []}
+        stats={stats}
+        viewBookingsHref="/owner/bookings"
+        statusAction={ownerUpdateBookingStatusAction}
+        paymentAction={ownerUpdateBookingPaymentAction}
+      />
+    </RetainedWorkspaceModule>
   );
 }

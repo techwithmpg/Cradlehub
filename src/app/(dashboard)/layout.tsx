@@ -26,12 +26,15 @@ export default async function DashboardLayout({ children }: { children: React.Re
 
   if (!resolvedMe) redirect(staffPwaRoute ? "/staff/login" : "/login");
 
-  const workspaces = await getUserWorkspaceAccess(ctx.user.id).catch(() => []);
-
-  // Fetch CRM readiness for the header indicator (failure-safe).
+  // Workspace access and readiness are independent once identity/branch are
+  // resolved. Overlap them so every module navigation does not pay two serial
+  // server waits before the shared shell can render.
   const branchId = resolvedMe.branch_id ?? null;
   const displayName = getStaffDisplayName(resolvedMe);
-  const readiness = branchId ? await getCrmReadinessCached(branchId).catch(() => null) : null;
+  const [workspaces, readiness] = await Promise.all([
+    getUserWorkspaceAccess(ctx.user.id).catch(() => []),
+    branchId ? getCrmReadinessCached(branchId).catch(() => null) : Promise.resolve(null),
+  ]);
 
   return (
     <div

@@ -39,15 +39,17 @@ export function isAttendanceScanningEnabled(
 }
 
 /**
- * Retained workspaces roll out CRM-first. The value is intentionally public:
- * it controls client interaction behavior and is not an authorization gate.
- * Unknown values fail safely to CRM-only, while `off` remains an immediate
- * deployment rollback path.
+ * Retained workspaces are enabled for CRM and Owner by default. The value is
+ * intentionally public: it controls client interaction behavior and is not an
+ * authorization gate. An explicit `crm` value rolls Owner retention back
+ * without disabling CRM; `off` remains the immediate full rollback path.
+ * Unknown non-empty values fail safely to CRM-only.
  */
 export function getRetainedWorkspaceRollout(
   env: RetainedWorkspaceConfig = process.env as RetainedWorkspaceConfig
 ): RetainedWorkspaceRollout {
   const value = env.NEXT_PUBLIC_RETAINED_WORKSPACES?.trim().toLowerCase();
+  if (!value) return "all";
   if (value === "off" || value === "crm" || value === "all") return value;
   return "crm";
 }

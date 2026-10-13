@@ -14,34 +14,38 @@ import { RetainedWorkspaceProvider } from "@/components/features/dashboard/retai
 import { isRetainedWorkspaceEnabled } from "@/lib/config/mvp-flags";
 
 export default async function OwnerLayout({ children }: { children: ReactNode }) {
-  const access = await getCurrentUserWorkspaceAccess();
+  // Resolve the two independent authenticated layout contexts concurrently.
+  // Authorization remains server-side; this only removes avoidable serial wait.
+  const [access, ctx] = await Promise.all([
+    getCurrentUserWorkspaceAccess(),
+    getLayoutStaffContext(),
+  ]);
 
   if (!access) redirect("/login");
 
   if (!hasWorkspaceAccess(access.workspaces, "owner")) {
     redirect(getWorkspaceSwitchDestination(access.workspaces));
   }
-
-  const ctx = await getLayoutStaffContext();
   const me = ctx?.me ?? (isDevAuthBypassEnabled() ? getDevBypassLayoutStaff() : null);
   const coachAvailability = getAgentCoachAvailability({
     workspace: "owner",
     role: me?.system_role,
   });
   const canShowCoach = coachAvailability.available && ctx?.user.id && me?.branch_id;
-  const retainedChildren = ctx?.user.id && me?.system_role ? (
-    <RetainedWorkspaceProvider
-      workspace="owner"
-      userId={ctx.user.id}
-      role={me.system_role}
-      branchId={me.branch_id ?? "all-branches"}
-      enabled={isRetainedWorkspaceEnabled("owner")}
-    >
-      {children}
-    </RetainedWorkspaceProvider>
-  ) : (
-    children
-  );
+  const retainedChildren =
+    ctx?.user.id && me?.system_role ? (
+      <RetainedWorkspaceProvider
+        workspace="owner"
+        userId={ctx.user.id}
+        role={me.system_role}
+        branchId={me.branch_id ?? "all-branches"}
+        enabled={isRetainedWorkspaceEnabled("owner")}
+      >
+        {children}
+      </RetainedWorkspaceProvider>
+    ) : (
+      children
+    );
 
   return (
     <>
@@ -51,7 +55,11 @@ export default async function OwnerLayout({ children }: { children: ReactNode })
           workspace="owner"
           role={me.system_role}
           branchId={me.branch_id}
-          branchName={Array.isArray(me.branches) ? me.branches[0]?.name ?? "Your Branch" : (me.branches as { name: string } | null)?.name ?? "Your Branch"}
+          branchName={
+            Array.isArray(me.branches)
+              ? (me.branches[0]?.name ?? "Your Branch")
+              : ((me.branches as { name: string } | null)?.name ?? "Your Branch")
+          }
           userId={ctx.user.id}
         >
           {retainedChildren}

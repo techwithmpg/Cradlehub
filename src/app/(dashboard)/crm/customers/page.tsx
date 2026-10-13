@@ -11,7 +11,12 @@ import type { CustomerTab } from "@/components/features/crm/customers/customer-s
 import type { CustomerListItem } from "@/components/features/crm/customers/lib/customer-segments";
 import type { WaitlistRow } from "@/components/features/crm/customers/waitlist-followup-table";
 import type { KpiData } from "@/components/features/crm/customers/customer-kpi-row";
-import { isThisMonth, isToday, isThisWeek, daysSinceDate } from "@/components/features/crm/customers/lib/customer-segments";
+import {
+  isThisMonth,
+  isToday,
+  isThisWeek,
+  daysSinceDate,
+} from "@/components/features/crm/customers/lib/customer-segments";
 import { RetainedWorkspaceModule } from "@/components/features/dashboard/retained-workspace-provider";
 
 const VALID_TABS: CustomerTab[] = ["all", "repeat", "lapsed", "followup"];
@@ -40,6 +45,10 @@ export default async function CrmCustomersPage({
   let waitlistRows: WaitlistRow[] = [];
   let totalPages = 1;
 
+  // Stats are independent from the selected segment. Start them before the
+  // segment query so navigation does not pay two serial database waits.
+  const statsPromise = getCrmStats(branchId);
+
   // Fetch tab-specific data
   if (tab === "all") {
     const result = await getCustomersPage({ branchId, search, page, pageSize: 25 });
@@ -61,7 +70,7 @@ export default async function CrmCustomersPage({
   }
 
   // Base stats
-  const stats = await getCrmStats(branchId);
+  const stats = await statsPromise;
 
   // Compute KPI data
   const kpiData: KpiData = {
@@ -75,26 +84,43 @@ export default async function CrmCustomersPage({
   if (tab === "repeat") {
     const totalVisitsRepeat = repeatCustomers.reduce((s, c) => s + (c.total_bookings ?? 0), 0);
     kpiData.repeatClients = repeatCustomers.length;
-    kpiData.avgVisits = repeatCustomers.length > 0 ? Math.round((totalVisitsRepeat / repeatCustomers.length) * 10) / 10 : 0;
+    kpiData.avgVisits =
+      repeatCustomers.length > 0
+        ? Math.round((totalVisitsRepeat / repeatCustomers.length) * 10) / 10
+        : 0;
     kpiData.mostBookedService = null; // Would need bookings data per customer
-    kpiData.returningThisMonth = repeatCustomers.filter((c) => c.last_booking_date && isThisMonth(c.last_booking_date)).length;
+    kpiData.returningThisMonth = repeatCustomers.filter(
+      (c) => c.last_booking_date && isThisMonth(c.last_booking_date)
+    ).length;
     kpiData.avgSpend = null;
   }
 
   if (tab === "lapsed") {
     kpiData.lapsedClients = lapsedCustomers.length;
-    kpiData.inactive30Plus = lapsedCustomers.filter((c) => c.last_booking_date && daysSinceDate(c.last_booking_date) >= 30).length;
-    kpiData.inactive60Plus = lapsedCustomers.filter((c) => c.last_booking_date && daysSinceDate(c.last_booking_date) >= 60).length;
+    kpiData.inactive30Plus = lapsedCustomers.filter(
+      (c) => c.last_booking_date && daysSinceDate(c.last_booking_date) >= 30
+    ).length;
+    kpiData.inactive60Plus = lapsedCustomers.filter(
+      (c) => c.last_booking_date && daysSinceDate(c.last_booking_date) >= 60
+    ).length;
     kpiData.followUpsNeeded = lapsedCustomers.length;
     kpiData.recoveryBookings = null;
   }
 
   if (tab === "followup") {
     kpiData.onWaitlist = waitlistRows.filter((r) => r.status === "waiting").length;
-    kpiData.followUpToday = waitlistRows.filter((r) => r.preferred_date && isToday(r.preferred_date)).length;
-    kpiData.thisWeek = waitlistRows.filter((r) => r.preferred_date && isThisWeek(r.preferred_date)).length;
-    kpiData.convertedThisMonth = waitlistRows.filter((r) => r.status === "converted" && isThisMonth(r.created_at)).length;
-    kpiData.highPriority = waitlistRows.filter((r) => r.status === "waiting" && daysSinceDate(r.created_at) > 3).length;
+    kpiData.followUpToday = waitlistRows.filter(
+      (r) => r.preferred_date && isToday(r.preferred_date)
+    ).length;
+    kpiData.thisWeek = waitlistRows.filter(
+      (r) => r.preferred_date && isThisWeek(r.preferred_date)
+    ).length;
+    kpiData.convertedThisMonth = waitlistRows.filter(
+      (r) => r.status === "converted" && isThisMonth(r.created_at)
+    ).length;
+    kpiData.highPriority = waitlistRows.filter(
+      (r) => r.status === "waiting" && daysSinceDate(r.created_at) > 3
+    ).length;
   }
 
   return (

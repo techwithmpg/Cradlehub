@@ -8,6 +8,7 @@ import {
 } from "@/components/features/cash-flow/cash-flow-workspace";
 import type { FinancialEntryMode } from "@/components/features/cash-flow/record-financial-entry-modal";
 import { createClient } from "@/lib/supabase/server";
+import { RetainedWorkspaceModule } from "@/components/features/dashboard/retained-workspace-provider";
 
 export default async function CrmCashFlowPage({
   searchParams,
@@ -62,23 +63,27 @@ export default async function CrmCashFlowPage({
     if (!(error instanceof CashFlowRequiredDataError)) throw error;
 
     return (
-      <section role="alert" className="rounded-xl border border-amber-200 bg-amber-50 p-6">
-        <h1 className="text-xl font-semibold text-amber-950">Cash Flow is unavailable</h1>
-        <p className="mt-2 text-sm text-amber-900">
-          Required financial data could not be loaded. Ask an administrator to check the Cash Flow
-          database setup.
-        </p>
-      </section>
+      <RetainedWorkspaceModule moduleId="crm-cash-flow">
+        <section role="alert" className="rounded-xl border border-amber-200 bg-amber-50 p-6">
+          <h1 className="text-xl font-semibold text-amber-950">Cash Flow is unavailable</h1>
+          <p className="mt-2 text-sm text-amber-900">
+            Required financial data could not be loaded. Ask an administrator to check the Cash Flow
+            database setup.
+          </p>
+        </section>
+      </RetainedWorkspaceModule>
     );
   }
 
   return (
-    <CashFlowWorkspace
-      initialData={cashFlowData}
-      initialTab={initialTab}
-      initialEntryMode={initialEntryMode}
-      handoverSessionId={incomingStaffId ? requestedHandover : null}
-      incomingStaffId={incomingStaffId}
-    />
+    <RetainedWorkspaceModule moduleId="crm-cash-flow">
+      <CashFlowWorkspace
+        initialData={cashFlowData}
+        initialTab={initialTab}
+        initialEntryMode={initialEntryMode}
+        handoverSessionId={incomingStaffId ? requestedHandover : null}
+        incomingStaffId={incomingStaffId}
+      />
+    </RetainedWorkspaceModule>
   );
 }

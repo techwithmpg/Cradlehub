@@ -6,7 +6,9 @@ const { access, allowed, branches, cashFlowData, businessDate, redirect } = vi.h
   branches: vi.fn(),
   cashFlowData: vi.fn(),
   businessDate: vi.fn(),
-  redirect: vi.fn((path: string) => { throw new Error(`redirect:${path}`); }),
+  redirect: vi.fn((path: string) => {
+    throw new Error(`redirect:${path}`);
+  }),
 }));
 
 vi.mock("server-only", () => ({}));
@@ -37,13 +39,22 @@ describe("Owner Cash Flow route", () => {
   });
 
   it("loads the selected owner branch and reuses the Cash Flow workspace", async () => {
-    const page = await OwnerCashFlowPage({ searchParams: Promise.resolve({
-      branchId: "branch-2", date: "2026-09-30", tab: "ledger", entry: "expense",
-    }) });
-    const workspace = page.props.children[1];
+    const page = await OwnerCashFlowPage({
+      searchParams: Promise.resolve({
+        branchId: "branch-2",
+        date: "2026-09-30",
+        tab: "ledger",
+        entry: "expense",
+      }),
+    });
+    const content = page.props.children;
+    const workspace = content.props.children[1];
 
     expect(cashFlowData).toHaveBeenCalledWith(
-      "branch-2", "Second Spa", "2026-09-30", expect.objectContaining({ tab: "ledger" })
+      "branch-2",
+      "Second Spa",
+      "2026-09-30",
+      expect.objectContaining({ tab: "ledger" })
     );
     expect(workspace.props.initialTab).toBe("ledger");
     expect(workspace.props.initialEntryMode).toBe("expense");
@@ -53,28 +64,33 @@ describe("Owner Cash Flow route", () => {
   it("rejects an unlisted branch selection and uses an active branch", async () => {
     await OwnerCashFlowPage({ searchParams: Promise.resolve({ branchId: "other-branch" }) });
     expect(cashFlowData).toHaveBeenCalledWith(
-      "branch-1", "Main Spa", "2026-10-01", expect.any(Object)
+      "branch-1",
+      "Main Spa",
+      "2026-10-01",
+      expect.any(Object)
     );
   });
 
   it("does not query financial data without owner access", async () => {
     allowed.mockReturnValue(false);
-    await expect(OwnerCashFlowPage({ searchParams: Promise.resolve({}) }))
-      .rejects.toThrow("redirect:/select-workspace");
+    await expect(OwnerCashFlowPage({ searchParams: Promise.resolve({}) })).rejects.toThrow(
+      "redirect:/select-workspace"
+    );
     expect(cashFlowData).not.toHaveBeenCalled();
   });
 
   it("does not query financial data when no branch exists", async () => {
     branches.mockResolvedValue([]);
     const page = await OwnerCashFlowPage({ searchParams: Promise.resolve({}) });
-    expect(page.type).toBe("section");
+    expect(page.props.children.type).toBe("section");
     expect(cashFlowData).not.toHaveBeenCalled();
   });
 
   it("keeps branch selection available when required financial data cannot load", async () => {
     cashFlowData.mockRejectedValue(new CashFlowRequiredDataError("financial_accounts"));
     const page = await OwnerCashFlowPage({ searchParams: Promise.resolve({}) });
-    expect(page.props.children[0].type).toBe("form");
-    expect(page.props.children[1].props.role).toBe("alert");
+    const content = page.props.children;
+    expect(content.props.children[0].type).toBe("form");
+    expect(content.props.children[1].props.role).toBe("alert");
   });
 });
