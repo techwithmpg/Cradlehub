@@ -12,7 +12,7 @@ export default async function StaffDriverMapPage() {
   const result = (await getMyDriverJobsAction()) as JobsResult;
 
   if ("error" in result) {
-    if (result.error === "Unauthorized") redirect("/login");
+    if (result.error === "Unauthorized") redirect("/staff/login");
     return (
       <p role="alert" className="p-6">
         Route unavailable. {result.error}

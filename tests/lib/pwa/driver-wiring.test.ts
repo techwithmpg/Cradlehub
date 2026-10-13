@@ -215,9 +215,10 @@ describe("Booking progress server boundary", () => {
     expect(
       await updateBookingProgressAction({ bookingId: "job", nextStatus: "travel_started" })
     ).toMatchObject({ ok: true });
-    expect(state.adminRpc).toHaveBeenCalledExactlyOnceWith("update_booking_progress", {
+    expect(state.adminRpc).toHaveBeenCalledExactlyOnceWith("advance_staff_driver_trip", {
       p_booking_id: "job",
       p_next_status: "travel_started",
+      p_actor_staff_id: "driver",
     });
     expect(state.rpc).not.toHaveBeenCalled();
   });
@@ -226,9 +227,10 @@ describe("Booking progress server boundary", () => {
     expect(
       await updateBookingProgressAction({ bookingId: "job", nextStatus: "arrived" })
     ).toMatchObject({ ok: true });
-    expect(state.adminRpc).toHaveBeenCalledWith("update_booking_progress", {
+    expect(state.adminRpc).toHaveBeenCalledWith("advance_staff_driver_trip", {
       p_booking_id: "job",
       p_next_status: "arrived",
+      p_actor_staff_id: "driver",
     });
   });
   it("permits branch CRM check-in for a confirmed in-spa booking", async () => {

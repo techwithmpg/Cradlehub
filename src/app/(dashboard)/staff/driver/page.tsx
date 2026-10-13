@@ -11,7 +11,7 @@ export default async function StaffDriverTodayPage() {
 
   if ("error" in driverResult) {
     if (driverResult.error === "Unauthorized") {
-      redirect("/login");
+      redirect("/staff/login");
     }
 
     return (

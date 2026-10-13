@@ -336,6 +336,83 @@ describe("PWA-C5: Security Boundaries & Authorization Contracts", () => {
     );
   });
 
+  it("rejects direct cross-role Staff URLs for every operational group and excluded identity", async () => {
+    const { canAccessWorkspacePath, buildWorkspaceAccessFromStaffProfile } =
+      await import("@/lib/auth/workspace-access");
+    const cases = [
+      {
+        role: "staff",
+        type: "therapist",
+        allow: ["/staff/", "/staff/schedule", "/staff/progress", "/staff/more", "/staff/scan"],
+        deny: ["/staff/utility/work/task-1", "/staff/driver/trips/job-1", "/staff/work"],
+      },
+      {
+        role: "utility",
+        type: "utility",
+        allow: [
+          "/staff/utility",
+          "/staff/utility/work/task-1",
+          "/staff/utility/rooms",
+          "/staff/utility/more",
+          "/staff/scan",
+        ],
+        deny: ["/staff/progress", "/staff/driver/trips/job-1", "/staff/work"],
+      },
+      {
+        role: "driver",
+        type: "driver",
+        allow: [
+          "/staff/driver",
+          "/staff/driver/trips/job-1",
+          "/staff/driver/map",
+          "/staff/driver/more",
+          "/staff/scan",
+        ],
+        deny: ["/staff/progress", "/staff/utility/work/task-1", "/staff/work"],
+      },
+      {
+        role: "crm",
+        type: "csr",
+        allow: ["/staff/", "/staff/work", "/staff/notices", "/staff/more", "/staff/scan"],
+        deny: ["/staff/progress", "/staff/utility/work/task-1", "/staff/driver/trips/job-1"],
+      },
+    ] as const;
+    for (const row of cases) {
+      const grants = buildWorkspaceAccessFromStaffProfile({
+        id: row.role,
+        system_role: row.role,
+        staff_type: row.type,
+      });
+      for (const path of row.allow)
+        expect(canAccessWorkspacePath(path, row.role, grants, row.type), path).toBe(true);
+      for (const path of row.deny)
+        expect(canAccessWorkspacePath(path, row.role, grants, row.type), path).toBe(false);
+    }
+    for (const role of [
+      "owner",
+      "manager",
+      "assistant_manager",
+      "store_manager",
+      "digital_marketer",
+    ]) {
+      const grants = buildWorkspaceAccessFromStaffProfile({
+        id: role,
+        system_role: role,
+        staff_type: null,
+      });
+      for (const path of [
+        "/staff/",
+        "/staff/scan",
+        "/staff/work",
+        "/staff/progress",
+        "/staff/utility/work/task-1",
+        "/staff/driver/trips/job-1",
+      ]) {
+        expect(canAccessWorkspacePath(path, role, grants, null), `${role}: ${path}`).toBe(false);
+      }
+    }
+  });
+
   it("verifies StaffAppShell does not fall back to therapist silently", async () => {
     const fs = await import("fs");
     const shellSource = fs.readFileSync("src/components/features/staff-pwa/app-shell.tsx", "utf8");
@@ -367,6 +444,8 @@ describe("PWA-C5: Security Boundaries & Authorization Contracts", () => {
       { role: "crm", staff_type: null },
       { role: "front_desk", staff_type: null },
       { role: "csr", staff_type: null },
+      { role: "csr_head", staff_type: null },
+      { role: "csr_staff", staff_type: null },
       { role: "staff", staff_type: null },
       { role: "staff", staff_type: "csr" },
       // Excluded / Non-Staff-PWA roles

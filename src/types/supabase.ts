@@ -7777,6 +7777,10 @@ export type Database = {
         Args: { p_booking_id: string; p_next_status: string }
         Returns: undefined
       }
+      advance_staff_driver_trip: {
+        Args: { p_booking_id: string; p_next_status: string; p_actor_staff_id: string }
+        Returns: undefined
+      }
       upsert_customer: {
         Args: { p_email?: string; p_full_name: string; p_phone: string }
         Returns: string

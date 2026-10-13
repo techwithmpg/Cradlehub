@@ -103,7 +103,7 @@ export async function proxy(request: NextRequest) {
 
   if (staffError) {
     logError("proxy.staff_lookup_failed", { pathname, userId: user.id, error: staffError });
-    return NextResponse.redirect(new URL("/login", request.url));
+    return NextResponse.redirect(new URL(isStaffPwaRoute ? "/staff/login" : "/login", request.url));
   }
 
   if (!staffRecord) {

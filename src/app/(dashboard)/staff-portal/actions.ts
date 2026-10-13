@@ -1049,10 +1049,17 @@ export async function updateBookingProgressAction({
     requiresTimestampRead = false;
   } else {
     // The privileged RPC is reachable only after the staff and booking checks above.
-    const result = await createAdminClient().rpc("update_booking_progress", {
-      p_booking_id: bookingId,
-      p_next_status: nextStatus,
-    });
+    const result =
+      isDriver && isDriverAction
+        ? await createAdminClient().rpc("advance_staff_driver_trip", {
+            p_booking_id: bookingId,
+            p_next_status: nextStatus,
+            p_actor_staff_id: me.id,
+          })
+        : await createAdminClient().rpc("update_booking_progress", {
+            p_booking_id: bookingId,
+            p_next_status: nextStatus,
+          });
     rpcError = result.error;
   }
 

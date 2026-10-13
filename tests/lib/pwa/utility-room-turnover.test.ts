@@ -25,6 +25,8 @@ const mockWorkflowTasksSelect = vi.fn();
 const mockWorkflowTasksUpdate = vi.fn();
 const mockWorkflowTasksInsert = vi.fn();
 const mockWorkflowTasksEq = vi.fn();
+const mockWorkflowTasksUpdateEq = vi.fn();
+const mockWorkflowTasksUpdateIs = vi.fn();
 const mockWorkflowTasksGte = vi.fn();
 const mockWorkflowTasksLimit = vi.fn();
 
@@ -129,7 +131,14 @@ const mockAdminClient = {
         update: (payload: any) => {
           mockWorkflowTasksUpdate(payload);
           const updateChain: any = {
-            eq: () => updateChain,
+            eq: (...args: unknown[]) => {
+              mockWorkflowTasksUpdateEq(...args);
+              return updateChain;
+            },
+            is: (...args: unknown[]) => {
+              mockWorkflowTasksUpdateIs(...args);
+              return updateChain;
+            },
             in: () => updateChain,
             select: () => updateChain,
             maybeSingle: () => {
@@ -603,7 +612,12 @@ describe("W1B: Utility Room Turnover Integrity, Concurrency & Recovery", () => {
       data: {
         id: taskId,
         status: "completed",
+        branch_id: branchId,
         assigned_to_staff_id: cleaner2StaffId,
+        workspace_scope: "utility",
+        task_type: "room_turnover",
+        entity_type: "branch_resource",
+        entity_id: resourceId,
       },
       error: null,
     });
@@ -684,6 +698,7 @@ describe("W1B: Utility Room Turnover Integrity, Concurrency & Recovery", () => {
         entity_type: "branch_resource",
         entity_id: resourceId,
         status: "in_progress",
+        assigned_to_staff_id: staffId,
         metadata: { room_name: "Treatment Room 1" },
       },
       error: null,
@@ -698,6 +713,145 @@ describe("W1B: Utility Room Turnover Integrity, Concurrency & Recovery", () => {
         completed_by_staff_id: staffId,
       })
     );
+    expect(mockWorkflowTasksUpdateEq).toHaveBeenCalledWith("assigned_to_staff_id", staffId);
+  });
+
+  function arrangeReadyTask(
+    options: {
+      staffBranch?: string;
+      taskBranch?: string;
+      owner?: string | null;
+      status?: string;
+      freshStatus?: string;
+      freshOwner?: string | null;
+      freshBranch?: string;
+      freshTaskType?: string;
+    } = {}
+  ) {
+    mockStaffSelect.mockResolvedValue({
+      data: {
+        id: staffId,
+        full_name: "Utility Staff",
+        branch_id: options.staffBranch ?? branchId,
+        system_role: "utility",
+        staff_type: "utility",
+        is_active: true,
+      },
+      error: null,
+    });
+    mockBranchResourcesSelect.mockResolvedValue({
+      data: { id: resourceId, branch_id: options.taskBranch ?? branchId, is_active: true },
+      error: null,
+    });
+    mockWorkflowTasksSelect.mockResolvedValueOnce({
+      data: {
+        id: taskId,
+        branch_id: options.taskBranch ?? branchId,
+        workspace_scope: "utility",
+        task_type: "room_turnover",
+        entity_type: "branch_resource",
+        entity_id: resourceId,
+        status: options.status ?? "in_progress",
+        assigned_to_staff_id: options.owner === undefined ? staffId : options.owner,
+        metadata: {},
+      },
+      error: null,
+    });
+    if (options.freshStatus) {
+      mockWorkflowTasksSelect.mockResolvedValueOnce({
+        data: {
+          status: options.freshStatus,
+          assigned_to_staff_id: options.freshOwner === undefined ? staffId : options.freshOwner,
+          branch_id: options.freshBranch ?? options.taskBranch ?? branchId,
+          workspace_scope: "utility",
+          task_type: options.freshTaskType ?? "room_turnover",
+          entity_type: "branch_resource",
+          entity_id: resourceId,
+        },
+        error: null,
+      });
+    }
+  }
+
+  it("8b. same-branch teammate cannot complete another cleaner's task", async () => {
+    arrangeReadyTask({ owner: cleaner2StaffId });
+    const result = await markRoomReady({ taskId, actorUserId: userId });
+    expect(result).toMatchObject({ ok: false, code: "NOT_TASK_OWNER" });
+    expect(mockWorkflowTasksUpdate).not.toHaveBeenCalled();
+  });
+
+  it("8c. another branch cannot complete the task", async () => {
+    arrangeReadyTask({ staffBranch: otherBranchId });
+    const result = await markRoomReady({ taskId, actorUserId: userId });
+    expect(result).toMatchObject({ ok: false, code: "CROSS_BRANCH_FORBIDDEN" });
+    expect(mockWorkflowTasksUpdate).not.toHaveBeenCalled();
+  });
+
+  it("8d. ownership changing between read and CAS fails closed", async () => {
+    arrangeReadyTask({ freshStatus: "in_progress", freshOwner: cleaner2StaffId });
+    updateCasRowsOverride = [];
+    const result = await markRoomReady({ taskId, actorUserId: userId });
+    expect(result).toMatchObject({ ok: false, code: "NOT_TASK_OWNER" });
+    expect(mockWorkflowTasksUpdateEq).toHaveBeenCalledWith("assigned_to_staff_id", staffId);
+  });
+
+  it("8d2. branch changing between read and CAS fails closed", async () => {
+    arrangeReadyTask({ freshStatus: "completed", freshBranch: otherBranchId });
+    updateCasRowsOverride = [];
+    expect(await markRoomReady({ taskId, actorUserId: userId })).toMatchObject({
+      ok: false,
+      code: "CROSS_BRANCH_FORBIDDEN",
+    });
+  });
+
+  it("8d3. task identity changing between read and CAS fails closed", async () => {
+    arrangeReadyTask({ freshStatus: "completed", freshTaskType: "other_task" });
+    updateCasRowsOverride = [];
+    expect(await markRoomReady({ taskId, actorUserId: userId })).toMatchObject({
+      ok: false,
+      code: "INVALID_TASK_TYPE",
+    });
+  });
+
+  it("8e. only the original owner receives idempotent completed truth", async () => {
+    arrangeReadyTask({ status: "completed" });
+    expect(await markRoomReady({ taskId, actorUserId: userId })).toMatchObject({
+      ok: true,
+      status: "completed",
+      alreadyCompleted: true,
+    });
+    expect(mockWorkflowTasksUpdate).not.toHaveBeenCalled();
+  });
+
+  it("8f. another cleaner cannot claim idempotent completion", async () => {
+    arrangeReadyTask({ status: "completed", owner: cleaner2StaffId });
+    expect(await markRoomReady({ taskId, actorUserId: userId })).toMatchObject({
+      ok: false,
+      code: "NOT_TASK_OWNER",
+    });
+  });
+
+  it("8g. cancelled turnover cannot be completed", async () => {
+    arrangeReadyTask({ status: "cancelled" });
+    expect(await markRoomReady({ taskId, actorUserId: userId })).toMatchObject({
+      ok: false,
+      code: "TASK_CANCELLED",
+    });
+    expect(mockWorkflowTasksUpdate).not.toHaveBeenCalled();
+  });
+
+  it("8h. a preassigned open task cannot be claimed by another cleaner", async () => {
+    arrangeReadyTask({ status: "open", owner: cleaner2StaffId });
+    const result = await startRoomCleaning({ taskId, actorUserId: userId });
+    expect(result).toMatchObject({ ok: false, code: "ALREADY_CLAIMED" });
+    expect(mockWorkflowTasksUpdate).not.toHaveBeenCalled();
+  });
+
+  it("8i. unassigned open task claim compares null ownership atomically", async () => {
+    arrangeReadyTask({ status: "open", owner: null });
+    const result = await startRoomCleaning({ taskId, actorUserId: userId });
+    expect(result).toMatchObject({ ok: true, status: "in_progress" });
+    expect(mockWorkflowTasksUpdateIs).toHaveBeenCalledWith("assigned_to_staff_id", null);
   });
 
   // ───────────────────────────────────────────────────────────────────────────
