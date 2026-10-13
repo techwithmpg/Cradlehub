@@ -6,9 +6,7 @@ import {
 } from "@/lib/bookings/bookings-workspace-filters";
 import type { WorkspaceBookingRow } from "@/components/features/bookings/booking-workspace-types";
 
-function booking(
-  overrides: Partial<WorkspaceBookingRow> = {}
-): WorkspaceBookingRow {
+function booking(overrides: Partial<WorkspaceBookingRow> = {}): WorkspaceBookingRow {
   return {
     id: "booking-1",
     booking_date: "2026-07-14",
@@ -36,7 +34,7 @@ describe("booking workspace quick filters", () => {
       quickFilter: "active-now",
     });
     expect(resolveBookingQuickFilter("upcoming")).toEqual({
-      quickFilter: "all",
+      quickFilter: "upcoming",
     });
     expect(resolveBookingQuickFilter("completed")).toEqual({
       quickFilter: "all",
@@ -56,12 +54,9 @@ describe("booking workspace quick filters", () => {
     ];
 
     expect(rows.filter((row) => bookingMatchesQuickFilter(row, "all"))).toHaveLength(6);
-    expect(rows.filter((row) => bookingMatchesQuickFilter(row, "active-now")).map((row) => row.id)).toEqual([
-      "checked",
-      "travel",
-      "arrived",
-      "session",
-    ]);
+    expect(
+      rows.filter((row) => bookingMatchesQuickFilter(row, "active-now")).map((row) => row.id)
+    ).toEqual(["checked", "travel", "arrived", "session"]);
   });
 
   it("recognizes only real actionable signals as Needs attention", () => {
@@ -103,10 +98,31 @@ describe("booking workspace quick filters", () => {
 
   it("applies supported status, source, location, payment, and assignment filters", () => {
     const rows = [
-      booking({ id: "target", booking_progress_status: "checked_in", payment_status: "pending", resource_id: null }),
-      booking({ id: "wrong-source", type: "walkin", booking_progress_status: "checked_in", payment_status: "pending", resource_id: null }),
-      booking({ id: "wrong-payment", booking_progress_status: "checked_in", payment_status: "paid", resource_id: null }),
-      booking({ id: "wrong-room", booking_progress_status: "checked_in", payment_status: "pending", resource_id: "room-2" }),
+      booking({
+        id: "target",
+        booking_progress_status: "checked_in",
+        payment_status: "pending",
+        resource_id: null,
+      }),
+      booking({
+        id: "wrong-source",
+        type: "walkin",
+        booking_progress_status: "checked_in",
+        payment_status: "pending",
+        resource_id: null,
+      }),
+      booking({
+        id: "wrong-payment",
+        booking_progress_status: "checked_in",
+        payment_status: "paid",
+        resource_id: null,
+      }),
+      booking({
+        id: "wrong-room",
+        booking_progress_status: "checked_in",
+        payment_status: "pending",
+        resource_id: "room-2",
+      }),
     ];
 
     expect(

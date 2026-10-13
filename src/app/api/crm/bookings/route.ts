@@ -1,6 +1,10 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getCrmApiContext } from "@/lib/api/get-api-context";
-import { getCrmBookingsCommandCenterRows, getDailyPaymentSummary } from "@/lib/queries/bookings";
+import {
+  getCrmBookingsCommandCenterRows,
+  getCrmUpcomingBookings,
+  getDailyPaymentSummary,
+} from "@/lib/queries/bookings";
 import { createClient } from "@/lib/supabase/server";
 import { getWaitlistAction } from "@/app/(dashboard)/crm/waitlist/actions";
 import { logError } from "@/lib/logger";
@@ -16,6 +20,7 @@ export async function GET(req: NextRequest) {
   const { searchParams } = req.nextUrl;
   const today = getBranchBusinessDate();
   const date = searchParams.get("date") ?? today;
+  const upcoming = searchParams.get("tab") === "upcoming";
   const bookingId = searchParams.get("bookingId") ?? searchParams.get("highlight");
   try {
     // If a bookingId was provided but no date, look up the booking's date
@@ -26,12 +31,15 @@ export async function GET(req: NextRequest) {
         .from("bookings")
         .select("booking_date")
         .eq("id", bookingId)
+        .eq("branch_id", ctx.branchId)
         .maybeSingle();
       if (ref?.booking_date) resolvedDate = ref.booking_date;
     }
 
     const [bookings, cashSummary, waitlistResult] = await Promise.all([
-      getCrmBookingsCommandCenterRows(ctx.branchId, resolvedDate),
+      upcoming
+        ? getCrmUpcomingBookings(ctx.branchId, today)
+        : getCrmBookingsCommandCenterRows(ctx.branchId, resolvedDate),
       getDailyPaymentSummary(ctx.branchId, resolvedDate),
       getWaitlistAction(ctx.branchId),
     ]);
@@ -42,6 +50,7 @@ export async function GET(req: NextRequest) {
         branchName: ctx.branchName,
         role: ctx.role,
         date: resolvedDate,
+        businessDate: today,
         bookings,
         waitlistRows: waitlistResult.ok ? waitlistResult.data : [],
         cashSummary,

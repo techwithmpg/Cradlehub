@@ -35,6 +35,7 @@ type BookingsApiPayload = {
   branchName: string;
   role: string;
   date: string;
+  businessDate: string;
   bookings: WorkspaceBookingRow[];
   waitlistRows: WaitlistRow[];
   cashSummary: DailyCashSummaryData | null;
@@ -105,12 +106,13 @@ export function CrmBookingsView({
   // Build the API URL with the current params
   const apiUrl = (() => {
     const params = new URLSearchParams({ date });
+    if (resolvedQuickFilter.quickFilter === "upcoming") params.set("tab", "upcoming");
     if (bookingId) params.set("bookingId", bookingId);
     return `/api/crm/bookings?${params.toString()}`;
   })();
   const swrKey = useWorkspaceSWRKey(apiUrl);
 
-  const { data, mutate } = useSWR<BookingsApiPayload>(swrKey, fetcher, {
+  const { data, error, mutate } = useSWR<BookingsApiPayload>(swrKey, fetcher, {
     fallbackData: initialData,
     keepPreviousData: true,
     dedupingInterval: 30_000,
@@ -138,33 +140,44 @@ export function CrmBookingsView({
   }, [refreshBookings]);
 
   return (
-    <BookingsWorkspace
-      key={referenceSource}
-      workspaceContext="crm"
-      viewerRole={payload.role}
-      branchName={payload.branchName}
-      date={payload.date}
-      statusFilter={statusFilter}
-      typeFilter={typeFilter}
-      referenceSource={referenceSource}
-      deliveryFilter={deliveryFilter}
-      paymentFilter={paymentFilter}
-      assignmentFilter={assignmentFilter}
-      search={search}
-      initialTab={initialTab}
-      initialQuickFilter={resolvedQuickFilter.quickFilter}
-      initialPage={Number.isFinite(page) && page > 0 ? Math.floor(page) : 1}
-      bookings={payload.bookings}
-      sheetState={sheetState}
-      sheetLoading={sheetLoading}
-      waitlistRows={payload.waitlistRows ?? []}
-      cashSummary={payload.cashSummary}
-      paymentAction={paymentAction}
-      initialSelectedId={bookingId}
-      confirmPaymentAction={confirmPaymentAction}
-      onBookingsChanged={() => {
-        void refreshBookings().catch(() => undefined);
-      }}
-    />
+    <>
+      {error ? (
+        <p
+          role="alert"
+          className="rounded-lg border border-red-200 bg-red-50 p-3 text-sm text-red-800"
+        >
+          Bookings could not refresh. Showing the last loaded data.
+        </p>
+      ) : null}
+      <BookingsWorkspace
+        key={`${referenceSource}:${rawTab ?? ""}:${bookingId ?? ""}`}
+        workspaceContext="crm"
+        viewerRole={payload.role}
+        branchName={payload.branchName}
+        date={payload.date}
+        businessDate={payload.businessDate}
+        statusFilter={statusFilter}
+        typeFilter={typeFilter}
+        referenceSource={referenceSource}
+        deliveryFilter={deliveryFilter}
+        paymentFilter={paymentFilter}
+        assignmentFilter={assignmentFilter}
+        search={search}
+        initialTab={initialTab}
+        initialQuickFilter={resolvedQuickFilter.quickFilter}
+        initialPage={Number.isFinite(page) && page > 0 ? Math.floor(page) : 1}
+        bookings={payload.bookings}
+        sheetState={sheetState}
+        sheetLoading={sheetLoading}
+        waitlistRows={payload.waitlistRows ?? []}
+        cashSummary={payload.cashSummary}
+        paymentAction={paymentAction}
+        initialSelectedId={bookingId}
+        confirmPaymentAction={confirmPaymentAction}
+        onBookingsChanged={() => {
+          void refreshBookings().catch(() => undefined);
+        }}
+      />
+    </>
   );
 }

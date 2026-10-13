@@ -6,6 +6,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { formatTime12h } from "@/lib/utils/time-format";
 import type { DispatchData, RealDispatchItem } from "@/lib/queries/dispatch-queries";
+import { formatBranchYmd } from "@/lib/engine/slot-time";
 
 type BadgeVariant = "default" | "secondary" | "destructive" | "outline";
 
@@ -82,10 +83,12 @@ function VisitCard({
   item,
   selected,
   onSelect,
+  upcoming = false,
 }: {
   item: RealDispatchItem;
   selected: boolean;
   onSelect: () => void;
+  upcoming?: boolean;
 }) {
   const badge = statusBadge(item.dispatchStatus);
   const hasDriver = Boolean(item.driverId);
@@ -107,6 +110,14 @@ function VisitCard({
         <div className="min-w-0">
           <div className="flex flex-wrap items-center gap-2">
             <span className="text-base font-bold text-[var(--cs-text)]">
+              {upcoming
+                ? formatBranchYmd(item.bookingDate, {
+                    month: "short",
+                    day: "numeric",
+                    year: "numeric",
+                  })
+                : null}
+              {upcoming ? " · " : null}
               {formatTime12h(item.startTime)}
             </span>
 
@@ -304,13 +315,17 @@ function ProgressLine({ complete, label }: { complete: boolean; label: string })
   );
 }
 
-function EmptyState() {
+function EmptyState({ upcoming }: { upcoming: boolean }) {
   return (
     <div className="rounded-2xl border border-dashed border-[var(--cs-border)] bg-[var(--cs-surface)] p-10 text-center">
-      <h3 className="font-bold text-[var(--cs-text)]">No home-service visits today</h3>
+      <h3 className="font-bold text-[var(--cs-text)]">
+        {upcoming ? "No upcoming Home Service visits" : "No home-service visits today"}
+      </h3>
 
       <p className="mt-1 text-sm text-[var(--cs-text-muted)]">
-        Today&apos;s Home Service bookings will appear here automatically.
+        {upcoming
+          ? "Future Home Service bookings in the planning window will appear here."
+          : "Today's Home Service bookings will appear here automatically."}
       </p>
     </div>
   );
@@ -318,12 +333,16 @@ function EmptyState() {
 
 export function DispatchFlowTab({
   data,
+  upcoming = false,
+  selectedBookingId,
 }: {
   data: DispatchData;
   role: string;
   onChanged: () => void;
+  upcoming?: boolean;
+  selectedBookingId?: string;
 }) {
-  const [selectedId, setSelectedId] = useState<string | null>(null);
+  const [selectedId, setSelectedId] = useState<string | null>(selectedBookingId ?? null);
 
   const activeSelectedId =
     selectedId && data.items.some((item) => item.id === selectedId)
@@ -331,7 +350,11 @@ export function DispatchFlowTab({
       : (data.items[0]?.id ?? null);
 
   const sortedItems = useMemo(
-    () => [...data.items].sort((a, b) => a.startTime.localeCompare(b.startTime)),
+    () =>
+      [...data.items].sort(
+        (a, b) =>
+          a.bookingDate.localeCompare(b.bookingDate) || a.startTime.localeCompare(b.startTime)
+      ),
     [data.items]
   );
 
@@ -339,7 +362,7 @@ export function DispatchFlowTab({
     sortedItems.find((item) => item.id === activeSelectedId) ?? sortedItems[0] ?? null;
 
   if (sortedItems.length === 0) {
-    return <EmptyState />;
+    return <EmptyState upcoming={upcoming} />;
   }
 
   return (
@@ -347,10 +370,14 @@ export function DispatchFlowTab({
       <div className="rounded-2xl border border-[var(--cs-border)] bg-[var(--cs-surface)] p-5 shadow-sm">
         <div className="mb-4 flex items-center justify-between gap-3 border-b border-[var(--cs-border)] pb-4">
           <div>
-            <h2 className="text-xl font-bold text-[var(--cs-text)]">Today&apos;s Home Visits</h2>
+            <h2 className="text-xl font-bold text-[var(--cs-text)]">
+              {upcoming ? "Upcoming Home Visits" : "Today's Home Visits"}
+            </h2>
 
             <p className="mt-1 text-sm text-[var(--cs-text-muted)]">
-              Live operational status for today&apos;s Home Service visits.
+              {upcoming
+                ? "Future Home Service bookings by scheduled date."
+                : "Live operational status for today's Home Service visits."}
             </p>
           </div>
 
@@ -366,6 +393,7 @@ export function DispatchFlowTab({
               key={item.id}
               item={item}
               selected={selected?.id === item.id}
+              upcoming={upcoming}
               onSelect={() => setSelectedId(item.id)}
             />
           ))}

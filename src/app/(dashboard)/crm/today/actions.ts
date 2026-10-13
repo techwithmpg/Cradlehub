@@ -2,10 +2,11 @@
 
 import { updateBookingStatusAction } from "@/app/(dashboard)/manager/bookings/actions";
 import { markBookingConfirmedAction } from "@/app/(dashboard)/crm/bookings/actions";
+import type { BookingOperationResult } from "@/lib/bookings/crm-booking-operations";
 
 export async function updateWorkQueueBookingStatusAction(
   rawInput: unknown
-): Promise<{ success: boolean; error?: string }> {
+): Promise<BookingOperationResult> {
   const input = rawInput as { bookingId?: unknown; status?: unknown; notes?: unknown } | null;
 
   if (input?.status === "confirmed") {

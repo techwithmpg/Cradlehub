@@ -1,6 +1,8 @@
 "use client";
 
 import { useState, useTransition } from "react";
+import { useRouter } from "next/navigation";
+import { getBranchBusinessDate } from "@/lib/engine/slot-time";
 import { toast } from "sonner";
 import {
   AdminDialog,
@@ -10,7 +12,10 @@ import {
 } from "@/components/shared/overlays";
 import { WorkspaceNotice } from "@/components/features/attendance/attendance-ui";
 import { Button } from "@/components/ui/button";
-import { markBookingConfirmedAction, recordBookingFollowupAction } from "@/app/(dashboard)/crm/bookings/actions";
+import {
+  markBookingConfirmedAction,
+  recordBookingFollowupAction,
+} from "@/app/(dashboard)/crm/bookings/actions";
 import { formatTime } from "@/lib/utils";
 import type { WorkspaceBookingRow } from "./bookings-workspace";
 
@@ -27,12 +32,21 @@ type BookingFollowupModalProps = {
   onRescheduleRequested?: (booking: WorkspaceBookingRow) => void;
 };
 
-const RESULT_OPTIONS: Array<{ value: BookingFollowupResult; label: string; description: string }> = [
-  { value: "confirmed", label: "Confirmed", description: "Customer agreed to the appointment." },
-  { value: "no_answer", label: "No Answer", description: "Keep this booking in follow-up." },
-  { value: "reschedule", label: "Reschedule", description: "Record that the booking needs a new time." },
-  { value: "cancel", label: "Cancel", description: "Cancel this booking after recording the reason." },
-];
+const RESULT_OPTIONS: Array<{ value: BookingFollowupResult; label: string; description: string }> =
+  [
+    { value: "confirmed", label: "Confirmed", description: "Customer agreed to the appointment." },
+    { value: "no_answer", label: "No Answer", description: "Keep this booking in follow-up." },
+    {
+      value: "reschedule",
+      label: "Reschedule",
+      description: "Record that the booking needs a new time.",
+    },
+    {
+      value: "cancel",
+      label: "Cancel",
+      description: "Cancel this booking after recording the reason.",
+    },
+  ];
 
 function first<T>(value: OneOrMany<T>): T | null {
   if (!value) return null;
@@ -48,7 +62,8 @@ function formatDate(date: string): string {
 }
 
 function sourceLabel(booking: WorkspaceBookingRow): string {
-  if (booking.delivery_type === "home_service" || booking.type === "home_service") return "Home Service";
+  if (booking.delivery_type === "home_service" || booking.type === "home_service")
+    return "Home Service";
   if (booking.type === "online") return "Online";
   if (booking.type === "walkin") return "Walk-in";
   return booking.type ?? "Booking";
@@ -76,6 +91,7 @@ export function BookingFollowupModal({
   onSuccess,
   onRescheduleRequested,
 }: BookingFollowupModalProps) {
+  const router = useRouter();
   const [result, setResult] = useState<BookingFollowupResult>(initialResult);
   const [note, setNote] = useState("");
   const [followUpAt, setFollowUpAt] = useState("");
@@ -109,10 +125,18 @@ export function BookingFollowupModal({
           note: note.trim() || undefined,
         });
         if (!confirmed.success) {
-          setFeedback({ ok: false, message: safeFollowupError(confirmed.error, "Could not confirm booking.") });
+          setFeedback({
+            ok: false,
+            message: safeFollowupError(confirmed.error, "Could not confirm booking."),
+          });
           return;
         }
         closeAfterSuccess("Booking confirmed.");
+        if (confirmed.bookingDate && confirmed.bookingDate > getBranchBusinessDate()) {
+          router.push(
+            `/crm/bookings?tab=upcoming&bookingId=${encodeURIComponent(confirmed.bookingId ?? currentBooking.id)}`
+          );
+        }
         return;
       }
 
@@ -123,7 +147,10 @@ export function BookingFollowupModal({
           note: note.trim(),
         });
         if (!cancelled.success) {
-          setFeedback({ ok: false, message: safeFollowupError(cancelled.error, "Could not cancel booking.") });
+          setFeedback({
+            ok: false,
+            message: safeFollowupError(cancelled.error, "Could not cancel booking."),
+          });
           return;
         }
         closeAfterSuccess("Booking cancelled.");
@@ -137,7 +164,10 @@ export function BookingFollowupModal({
         followUpAt: followUpAt.trim() || undefined,
       });
       if (!followup.success) {
-        setFeedback({ ok: false, message: safeFollowupError(followup.error, "Could not save follow-up.") });
+        setFeedback({
+          ok: false,
+          message: safeFollowupError(followup.error, "Could not save follow-up."),
+        });
         return;
       }
       if (nextResult === "reschedule") {
@@ -147,7 +177,9 @@ export function BookingFollowupModal({
         onRescheduleRequested?.(currentBooking);
         return;
       }
-      closeAfterSuccess(nextResult === "no_answer" ? "No-answer follow-up saved." : "Follow-up note saved.");
+      closeAfterSuccess(
+        nextResult === "no_answer" ? "No-answer follow-up saved." : "Follow-up note saved."
+      );
     });
   }
 
@@ -169,7 +201,10 @@ export function BookingFollowupModal({
             <div className="grid gap-3 sm:grid-cols-2">
               <SummaryItem label="Customer" value={customer?.full_name ?? "Customer"} />
               <SummaryItem label="Service" value={service?.name ?? "Service"} />
-              <SummaryItem label="Date / Time" value={`${formatDate(currentBooking.booking_date)} at ${formatTime(currentBooking.start_time)}`} />
+              <SummaryItem
+                label="Date / Time"
+                value={`${formatDate(currentBooking.booking_date)} at ${formatTime(currentBooking.start_time)}`}
+              />
               <SummaryItem label="Branch" value={branch?.name ?? "Branch"} />
               <SummaryItem label="Source" value={sourceLabel(currentBooking)} />
               {customer?.phone ? <SummaryItem label="Phone" value={customer.phone} /> : null}
@@ -194,7 +229,9 @@ export function BookingFollowupModal({
                   ].join(" ")}
                 >
                   <div className="text-sm font-semibold text-[var(--cs-text)]">{option.label}</div>
-                  <div className="mt-1 text-xs leading-5 text-[var(--cs-text-muted)]">{option.description}</div>
+                  <div className="mt-1 text-xs leading-5 text-[var(--cs-text-muted)]">
+                    {option.description}
+                  </div>
                 </button>
               );
             })}
@@ -239,11 +276,21 @@ export function BookingFollowupModal({
         </div>
       </AdminOverlayBody>
       <AdminOverlayFooter className="flex flex-col gap-2 bg-[var(--cs-surface)] sm:flex-row sm:items-center sm:justify-between">
-        <Button type="button" variant="outline" disabled={isPending} onClick={() => onOpenChange(false)}>
+        <Button
+          type="button"
+          variant="outline"
+          disabled={isPending}
+          onClick={() => onOpenChange(false)}
+        >
           Cancel
         </Button>
         <div className="flex flex-col gap-2 sm:flex-row">
-          <Button type="button" variant="secondary" disabled={isPending} onClick={() => handleSave("confirm_later")}>
+          <Button
+            type="button"
+            variant="secondary"
+            disabled={isPending}
+            onClick={() => handleSave("confirm_later")}
+          >
             {isPending ? "Saving..." : "Confirm Later"}
           </Button>
           <Button type="button" disabled={isPending} onClick={() => handleSave()}>
@@ -258,7 +305,9 @@ export function BookingFollowupModal({
 function SummaryItem({ label, value }: { label: string; value: string }) {
   return (
     <div className="min-w-0">
-      <div className="text-[0.65rem] font-bold uppercase tracking-wide text-[var(--cs-text-muted)]">{label}</div>
+      <div className="text-[0.65rem] font-bold uppercase tracking-wide text-[var(--cs-text-muted)]">
+        {label}
+      </div>
       <div className="mt-1 truncate text-sm font-medium text-[var(--cs-text)]" title={value}>
         {value}
       </div>

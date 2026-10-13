@@ -124,7 +124,17 @@ export function matchesCradleFlowSearch(booking: CradleFlowBooking, rawQuery: st
   ].some((value) => value?.toLocaleLowerCase("en-PH").includes(query));
 }
 
-export function getCradleFlowPrimaryLabel(booking: CradleFlowBooking): string {
+export function getCradleFlowPrimaryLabel(
+  booking: CradleFlowBooking,
+  businessDate?: string
+): string {
+  if (businessDate && booking.booking_date > businessDate) {
+    if (["pending", "pending_payment", "pending_crm_confirmation"].includes(booking.status))
+      return "Confirm Booking";
+    return booking.type === "home_service" || booking.delivery_type === "home_service"
+      ? "Open Home Service"
+      : "View Booking";
+  }
   const stage = getCradleFlowStage(booking);
   if (stage === "in_service") return "Complete Service";
   if (stage === "ready_to_pay") return "Collect Payment";

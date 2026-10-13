@@ -68,7 +68,9 @@ describe("Cradle Flow display organization", () => {
     expect(getCradleFlowAttention(homeVisit)).toContain("Home Service location review");
     expect(getCradleFlowAttention(homeVisit)).not.toContain("Room not assigned");
     expect(getCradleFlowAttention(paymentDue)).toContain("Payment due");
-    expect(getCradleFlowDisplayCounts([ordinary, missingRoom, homeVisit, paymentDue])).toMatchObject({
+    expect(
+      getCradleFlowDisplayCounts([ordinary, missingRoom, homeVisit, paymentDue])
+    ).toMatchObject({
       needs_action: 3,
       home_service: 1,
       ready_to_pay: 1,
@@ -79,5 +81,23 @@ describe("Cradle Flow display organization", () => {
     const closed = visit({ status: "cancelled" });
     expect(getCradleFlowDisplayCounts([closed]).all).toBe(0);
     expect(matchesCradleFlowFilter(closed, "needs_action")).toBe(false);
+  });
+
+  it("keeps confirmed future work in Upcoming while preserving today's capsules", () => {
+    const today = visit({ id: "today", booking_date: "2026-10-13" });
+    const futurePending = visit({ id: "pending", booking_date: "2026-10-16", status: "pending" });
+    const futureConfirmed = visit({
+      id: "confirmed",
+      booking_date: "2026-10-16",
+      status: "confirmed",
+      delivery_type: "home_service",
+    });
+    const counts = getCradleFlowDisplayCounts(
+      [today, futurePending, futureConfirmed],
+      "2026-10-13"
+    );
+    expect(counts).toMatchObject({ all: 1, upcoming: 2, needs_action: 1, home_service: 0 });
+    expect(matchesCradleFlowFilter(futureConfirmed, "upcoming", "2026-10-13")).toBe(true);
+    expect(matchesCradleFlowFilter(futureConfirmed, "not_arrived", "2026-10-13")).toBe(false);
   });
 });
