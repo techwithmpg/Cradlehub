@@ -34,6 +34,7 @@ export function BookingsDesktopList({
   selectedId,
   selectedSheetKey,
   initialPage = 1,
+  chronological = false,
   onSelect,
   onSelectSheet,
 }: {
@@ -42,6 +43,7 @@ export function BookingsDesktopList({
   selectedId: string | null;
   selectedSheetKey?: string | null;
   initialPage?: number;
+  chronological?: boolean;
   onSelect: (booking: WorkspaceBookingRow) => void;
   onSelectSheet?: (reference: SheetBookingReference) => void;
 }) {
@@ -52,7 +54,7 @@ export function BookingsDesktopList({
       | { kind: "canonical"; booking: WorkspaceBookingRow; minute: number | null }
       | { kind: "sheet"; reference: SheetBookingReference; minute: number | null }
     > = [
-      ...sortBookingsRecentFirst(bookings).map((booking) => {
+      ...(chronological ? bookings : sortBookingsRecentFirst(bookings)).map((booking) => {
         const match = booking.start_time.match(/^(\d{1,2}):(\d{2})/);
         return {
           kind: "canonical" as const,
@@ -67,7 +69,7 @@ export function BookingsDesktopList({
       })),
     ];
     return combined;
-  }, [bookings, sheetReferences]);
+  }, [bookings, sheetReferences, chronological]);
   const totalPages = Math.max(1, Math.ceil(rows.length / rowsPerPage));
   const safePageIndex = Math.min(pageIndex, totalPages - 1);
   const startIndex = safePageIndex * rowsPerPage;
@@ -123,6 +125,7 @@ export function BookingsDesktopList({
                   key={row.booking.id}
                   booking={row.booking}
                   selected={row.booking.id === selectedId}
+                  upcoming={chronological}
                   onSelect={() => onSelect(row.booking)}
                 />
               ) : (

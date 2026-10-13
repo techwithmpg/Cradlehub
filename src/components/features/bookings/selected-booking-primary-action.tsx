@@ -1,6 +1,7 @@
 "use client";
 
 import { useRouter } from "next/navigation";
+import { getBranchBusinessDate } from "@/lib/engine/slot-time";
 import { useState, useTransition } from "react";
 import { CheckCircle2, Home, Phone } from "lucide-react";
 import { toast } from "sonner";
@@ -55,6 +56,11 @@ export function SelectedBookingPrimaryAction({
         }
         toast.success("Booking confirmed.");
         onChanged?.();
+        if (result.bookingDate && result.bookingDate > getBranchBusinessDate()) {
+          router.push(
+            `/crm/bookings?tab=upcoming&bookingId=${encodeURIComponent(result.bookingId ?? booking.id)}`
+          );
+        }
       });
       return;
     }
@@ -70,11 +76,11 @@ export function SelectedBookingPrimaryAction({
     if (actionId === "mark_arrived") return onOpenArrival();
     if (actionId === "assign_room" || actionId === "change_room") return onOpenRoom();
     if (actionId === "open_dispatch") {
-      router.push(dispatchHref ?? "/crm/dispatch");
+      router.push(`${dispatchHref ?? "/crm/dispatch"}?bookingId=${encodeURIComponent(booking.id)}`);
       return;
     }
     if (actionId === "track_dispatch") {
-      router.push(dispatchHref ?? "/crm/dispatch");
+      router.push(`${dispatchHref ?? "/crm/dispatch"}?bookingId=${encodeURIComponent(booking.id)}`);
       return;
     }
     if (actionId === "review_record") {
@@ -97,6 +103,11 @@ export function SelectedBookingPrimaryAction({
   }
 
   if (plan.mode === "active_service" || !plan.primary) return null;
+  if (
+    booking.booking_date > getBranchBusinessDate() &&
+    ["mark_arrived", "start_service"].includes(plan.primary.id)
+  )
+    return null;
   const Icon =
     plan.primary.id === "open_dispatch" || plan.primary.id === "track_dispatch"
       ? Home

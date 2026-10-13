@@ -7,6 +7,10 @@ import {
   isBookingClosedForCrm,
   isCrmPendingBookingStatus,
 } from "@/lib/bookings/crm-booking-status";
+import {
+  UPCOMING_BOOKING_STATUSES,
+  upcomingBookingEndDate,
+} from "@/lib/bookings/upcoming-bookings";
 
 // Full booking with all related data
 const BOOKING_SELECT = `
@@ -519,25 +523,58 @@ export async function getTodaysSchedule(
 export async function getCrmPendingBookingQueue(
   branchId: string,
   fromDate: string,
-  client?: SupabaseJsClient<Database>
+  client?: SupabaseJsClient<Database>,
+  toDate?: string
 ) {
   const supabase = client ?? (await createClient());
   return loadBookingRows(supabase, TODAY_SCHEDULE_SELECT_VARIANTS, async (select) => {
-    const result = await supabase
+    let query = supabase
       .from("bookings")
       .select(select)
       .eq("branch_id", branchId)
       .in("status", [...CRM_PENDING_BOOKING_STATUSES])
-      .gte("booking_date", fromDate)
-      .order("booking_date")
-      .order("start_time")
-      .limit(100);
+      .gte("booking_date", fromDate);
+    if (toDate) query = query.lte("booking_date", toDate);
+    const result = await query.order("booking_date").order("start_time").limit(100);
     return result as QueryResult<TodayScheduleRow>;
   });
 }
 
 export async function getCrmBookingsCommandCenterRows(branchId: string, date: string) {
   return getTodaysSchedule(branchId, date);
+}
+
+export async function getCrmUpcomingBookings(
+  branchId: string,
+  businessDate: string,
+  client?: SupabaseJsClient<Database>
+) {
+  const supabase = client ?? (await createClient());
+  return loadBookingRows(supabase, TODAY_SCHEDULE_SELECT_VARIANTS, async (select) => {
+    const rows: TodayScheduleRow[] = [];
+    for (let offset = 0; ; offset += 500) {
+      const result = await supabase
+        .from("bookings")
+        .select(select)
+        .eq("branch_id", branchId)
+        .gt("booking_date", businessDate)
+        .lte("booking_date", upcomingBookingEndDate(businessDate))
+        .in("status", [...UPCOMING_BOOKING_STATUSES])
+        .order("booking_date")
+        .order("start_time")
+        .order("id")
+        .range(offset, offset + 499);
+      if (result.error) return result as QueryResult<TodayScheduleRow>;
+      rows.push(...((result.data ?? []) as unknown as TodayScheduleRow[]));
+      if (!result.data || result.data.length < 500) break;
+    }
+    return {
+      data: rows.filter(
+        (row) => !["completed", "no_show"].includes(String(row.booking_progress_status ?? ""))
+      ),
+      error: null,
+    };
+  });
 }
 
 // ── Daily payment summary for a branch ───────────────────────────────────
@@ -558,7 +595,7 @@ export async function getDailyPaymentSummary(branchId: string, date: string) {
     : withPaymentDefaults((result.data ?? []) as DailyPaymentRow[]);
 
   const activeRows = rows.filter((r) => !isBookingClosedForCrm(r.status));
-  const orderIds = [...new Set(activeRows.flatMap((r) => r.order_id ? [r.order_id] : []))];
+  const orderIds = [...new Set(activeRows.flatMap((r) => (r.order_id ? [r.order_id] : [])))];
   const orderStates = new Map<string, { total: number; paid: number; status: string }>();
   const canonicalMethodTotals: Record<string, number> = {};
   if (orderIds.length > 0) {
@@ -566,32 +603,38 @@ export async function getDailyPaymentSummary(branchId: string, date: string) {
       { data: summaries, error: summaryError },
       { data: orders, error: ordersError },
       { data: payments, error: paymentsError },
-    ] =
-      await Promise.all([
-        supabase.from("v_booking_order_financial_summaries")
-          .select("order_id, total_payable, net_allocated, payment_state")
-          .in("order_id", orderIds),
-        supabase.from("booking_orders").select("id, metadata").in("id", orderIds),
-        supabase.from("financial_transactions")
-          .select("source_id, financial_account_movements(amount, payment_method)")
-          .eq("source_type", "booking_order")
-          .eq("status", "posted")
-          .in("source_id", orderIds),
-      ]);
+    ] = await Promise.all([
+      supabase
+        .from("v_booking_order_financial_summaries")
+        .select("order_id, total_payable, net_allocated, payment_state")
+        .in("order_id", orderIds),
+      supabase.from("booking_orders").select("id, metadata").in("id", orderIds),
+      supabase
+        .from("financial_transactions")
+        .select("source_id, financial_account_movements(amount, payment_method)")
+        .eq("source_type", "booking_order")
+        .eq("status", "posted")
+        .in("source_id", orderIds),
+    ]);
     if (summaryError || ordersError || paymentsError) {
       throw new Error("Could not load order payment summaries.");
     }
-    const quotes = new Map((orders ?? []).map((order) => [
-      order.id, Number((order.metadata as Record<string, unknown> | null)?.total_amount) || 0,
-    ]));
+    const quotes = new Map(
+      (orders ?? []).map((order) => [
+        order.id,
+        Number((order.metadata as Record<string, unknown> | null)?.total_amount) || 0,
+      ])
+    );
     for (const summary of summaries ?? []) {
       if (!summary.order_id) continue;
       const payable = Number(summary.total_payable) || 0;
       orderStates.set(summary.order_id, {
         total: payable > 0 ? payable : (quotes.get(summary.order_id) ?? 0),
         paid: Number(summary.net_allocated) || 0,
-        status: payable > 0 || (quotes.get(summary.order_id) ?? 0) === 0
-          ? (summary.payment_state ?? "unpaid") : "unpaid",
+        status:
+          payable > 0 || (quotes.get(summary.order_id) ?? 0) === 0
+            ? (summary.payment_state ?? "unpaid")
+            : "unpaid",
       });
     }
     for (const payment of payments ?? []) {
@@ -642,9 +685,7 @@ export async function getDailyPaymentSummary(branchId: string, date: string) {
   for (const [method, amount] of Object.entries(canonicalMethodTotals)) {
     byMethod[method] = (byMethod[method] ?? 0) + amount;
   }
-  for (const r of activeRows.filter((row) =>
-    !row.order_id && Number(row.amount_paid ?? 0) > 0
-  )) {
+  for (const r of activeRows.filter((row) => !row.order_id && Number(row.amount_paid ?? 0) > 0)) {
     const m = r.payment_method ?? "other";
     byMethod[m] = (byMethod[m] ?? 0) + Number(r.amount_paid ?? 0);
   }

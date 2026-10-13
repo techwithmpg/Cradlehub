@@ -1,4 +1,8 @@
-import { getCrmBookingsCommandCenterRows, getDailyPaymentSummary } from "@/lib/queries/bookings";
+import {
+  getCrmBookingsCommandCenterRows,
+  getCrmUpcomingBookings,
+  getDailyPaymentSummary,
+} from "@/lib/queries/bookings";
 import { getFrontDeskContext } from "@/lib/queries/crm-context";
 import { CrmBookingsView } from "@/components/features/bookings/crm-bookings-view";
 import type { WorkspaceBookingRow } from "@/components/features/bookings/bookings-workspace";
@@ -31,7 +35,8 @@ export default async function CrmBookingsPage({
 }) {
   const { branchId, branchName, role } = await getFrontDeskContext();
   const params = await searchParams;
-  const today  = getBranchBusinessDate();
+  const today = getBranchBusinessDate();
+  const upcoming = params.tab === "upcoming";
 
   // When navigating from a notification link, resolve the booking's date
   const bookingId = params.bookingId ?? params.highlight;
@@ -43,12 +48,15 @@ export default async function CrmBookingsPage({
       .from("bookings")
       .select("booking_date, branch_id")
       .eq("id", bookingId)
+      .eq("branch_id", branchId)
       .maybeSingle();
     if (ref?.booking_date && ref.branch_id === branchId) date = ref.booking_date;
   }
 
   const [bookings, cashSummary, waitlistResult] = await Promise.all([
-    getCrmBookingsCommandCenterRows(branchId, date),
+    upcoming
+      ? getCrmUpcomingBookings(branchId, today)
+      : getCrmBookingsCommandCenterRows(branchId, date),
     getDailyPaymentSummary(branchId, date),
     getWaitlistAction(branchId),
   ]);
@@ -58,6 +66,7 @@ export default async function CrmBookingsPage({
     branchName,
     role,
     date,
+    businessDate: today,
     // Cast: getTodaysSchedule returns metadata as unknown; WorkspaceBookingRow
     // expects Record<string,unknown>|null|undefined. The values are compatible.
     bookings: bookings as WorkspaceBookingRow[],
