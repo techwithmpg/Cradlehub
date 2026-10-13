@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import { useSearchParams } from "next/navigation";
 import { useEffect, useMemo, useState, type KeyboardEvent } from "react";
 import {
   Activity,
@@ -19,6 +20,7 @@ import { BookingsTable } from "./bookings-table";
 import { BookingsDesktopWorkspace } from "./bookings-desktop-workspace";
 import { SheetBookingReferenceCard } from "./sheet-booking-reference-row";
 import { BookingSourceSwitch } from "./booking-source-switch";
+import { SheetFreshnessControl } from "./sheet-freshness-control";
 import {
   sortBookingsRecentFirst,
   sortSheetReferencesRecentFirst,
@@ -76,6 +78,8 @@ type BookingsWorkspaceProps = {
   bookings: WorkspaceBookingRow[];
   sheetState?: SheetNativeReferencesState;
   sheetLoading?: boolean;
+  sheetRefreshing?: boolean;
+  onSheetRefresh?: () => void;
   waitlistRows?: WaitlistRow[];
   cashSummary?: DailyCashSummaryData | null;
   statusAction?: ActionFn;
@@ -315,12 +319,15 @@ export function BookingsWorkspace({
   bookings,
   sheetState,
   sheetLoading,
+  sheetRefreshing,
+  onSheetRefresh,
   statusAction,
   paymentAction,
   initialSelectedId,
   confirmPaymentAction,
   onBookingsChanged,
 }: BookingsWorkspaceProps) {
+  const searchParams = useSearchParams();
   const [isDesktop, setIsDesktop] = useState<boolean | null>(() =>
     workspaceContext === "crm" ? null : false
   );
@@ -436,6 +443,8 @@ export function BookingsWorkspace({
         bookings={bookings}
         sheetState={sheetState}
         sheetLoading={sheetLoading}
+        sheetRefreshing={sheetRefreshing}
+        onSheetRefresh={onSheetRefresh}
         statusAction={statusAction}
         paymentAction={paymentAction}
         initialSelectedId={initialSelectedId}
@@ -491,6 +500,13 @@ export function BookingsWorkspace({
               source={referenceSource === "master_sheet" ? "master_sheet" : "cradlehub"}
             />
           ) : null}
+          {referenceSource === "master_sheet" ? (
+            <SheetFreshnessControl
+              state={sheetState}
+              refreshing={sheetRefreshing}
+              onRefresh={onSheetRefresh}
+            />
+          ) : null}
           {referenceSource !== "master_sheet" ? (
             <ContextChip
               ariaLabel={`Bookings loaded: ${bookings.length}`}
@@ -524,6 +540,18 @@ export function BookingsWorkspace({
       </header>
 
       <form method="get" className="grid gap-3">
+        {referenceSource === "master_sheet" ? (
+          <>
+            <input type="hidden" name="referenceSource" value="master_sheet" />
+            {searchParams.get("cradlehubDate") ? (
+              <input
+                type="hidden"
+                name="cradlehubDate"
+                value={searchParams.get("cradlehubDate")!}
+              />
+            ) : null}
+          </>
+        ) : null}
         {referenceSource !== "master_sheet" ? (
           <input type="hidden" name="tab" value={activeTab} />
         ) : null}
@@ -593,9 +621,6 @@ export function BookingsWorkspace({
                 className="h-10 w-full rounded-lg border border-border bg-background px-3 text-sm font-semibold text-foreground shadow-sm outline-none transition focus:border-emerald-800"
               />
             </label>
-            {showFilters ? (
-              <input type="hidden" name="referenceSource" value={referenceSource} />
-            ) : null}
             {isOwner && branches && branches.length > 0 ? (
               <label className="grid min-w-0 gap-1">
                 <span className="text-[0.68rem] font-bold uppercase tracking-wide text-muted-foreground">

@@ -1,9 +1,6 @@
 "use client";
 
-import {
-  useEffect,
-  useMemo,
-  useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import useSWR from "swr";
 import {
   CalendarDays,
@@ -64,11 +61,11 @@ function DispatchMetric({
               : "text-[var(--cs-text)] bg-[var(--cs-surface)] border-[var(--cs-border)]";
 
   return (
-    <div className={`flex items-center justify-between rounded-2xl border px-4 py-3 shadow-sm ${toneClass}`}>
+    <div
+      className={`flex items-center justify-between rounded-2xl border px-4 py-3 shadow-sm ${toneClass}`}
+    >
       <div className="flex items-center gap-3">
-        <div className="flex size-9 items-center justify-center rounded-xl bg-white/70">
-          {icon}
-        </div>
+        <div className="flex size-9 items-center justify-center rounded-xl bg-white/70">{icon}</div>
         <span className="text-sm font-semibold">{label}</span>
       </div>
       <span className="text-2xl font-bold">{value}</span>
@@ -96,20 +93,38 @@ export function HomeServiceDispatchWorkspace({
     }
   );
   const [activeTab, setActiveTab] = useState<TabId>("flow");
+  const {
+    data: mapData,
+    error: mapError,
+    mutate: mutateMap,
+  } = useSWR(
+    activeTab === "map" ? ["dispatch-active-map", initialData.today] : null,
+    async () => {
+      const result = await refreshDispatchDataAction(initialData.today, "active_map");
+      if (!result.success) throw new Error(result.error);
+      return result.data;
+    },
+    { revalidateOnFocus: false }
+  );
   const activeTabIndex = TABS.findIndex((tab) => tab.id === activeTab);
 
   useEffect(() => {
-    const revalidate = () => void mutate();
+    const revalidate = () => {
+      void mutate();
+      if (activeTab === "map") void mutateMap();
+    };
     window.addEventListener(BOOKINGS_CHANGED_EVENT, revalidate);
     return () => window.removeEventListener(BOOKINGS_CHANGED_EVENT, revalidate);
-  }, [mutate]);
+  }, [activeTab, mutate, mutateMap]);
 
   function handleTabKeyDown(event: React.KeyboardEvent<HTMLDivElement>) {
     const lastIndex = TABS.length - 1;
     let nextIndex = activeTabIndex;
 
-    if (event.key === "ArrowRight") nextIndex = activeTabIndex === lastIndex ? 0 : activeTabIndex + 1;
-    else if (event.key === "ArrowLeft") nextIndex = activeTabIndex === 0 ? lastIndex : activeTabIndex - 1;
+    if (event.key === "ArrowRight")
+      nextIndex = activeTabIndex === lastIndex ? 0 : activeTabIndex + 1;
+    else if (event.key === "ArrowLeft")
+      nextIndex = activeTabIndex === 0 ? lastIndex : activeTabIndex - 1;
     else if (event.key === "Home") nextIndex = 0;
     else if (event.key === "End") nextIndex = lastIndex;
     else return;
@@ -121,9 +136,7 @@ export function HomeServiceDispatchWorkspace({
 
   const metrics = useMemo(() => {
     const count = (status: string) =>
-      data.items.filter(
-        (item) => statusText(item.dispatchStatus) === status
-      ).length;
+      data.items.filter((item) => statusText(item.dispatchStatus) === status).length;
 
     const scheduled = count("awaiting_driver");
     const awaitingTravel = count("ready");
@@ -152,7 +165,8 @@ export function HomeServiceDispatchWorkspace({
               Home Service Operations
             </h1>
             <p className="mt-1 max-w-3xl text-sm text-[var(--cs-text-secondary)]">
-              Monitor today&apos;s home-service visits, travel progress, staff, and customer locations.
+              Monitor today&apos;s home-service visits, travel progress, staff, and customer
+              locations.
             </p>
           </div>
 
@@ -250,7 +264,17 @@ export function HomeServiceDispatchWorkspace({
         labelledBy="dispatch-tab-map"
         active={activeTab === "map"}
       >
-        {activeTab === "map" ? <DispatchLiveMapTab data={data} /> : null}
+        {activeTab === "map" ? (
+          mapData ? (
+            <DispatchLiveMapTab data={mapData} />
+          ) : (
+            <p role="status">
+              {mapError
+                ? "Active Home Service locations are temporarily unavailable."
+                : "Loading active Home Service locations…"}
+            </p>
+          )
+        ) : null}
       </AttendanceTabPanel>
     </section>
   );

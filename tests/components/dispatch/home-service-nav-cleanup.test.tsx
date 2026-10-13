@@ -1,7 +1,7 @@
 /** @vitest-environment jsdom */
 
 import React from "react";
-import { cleanup, fireEvent, render, screen } from "@testing-library/react";
+import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { CrmOperationalPageShell } from "@/components/features/crm/operational/crm-operational-page-shell";
 import { HomeServiceDispatchWorkspace } from "@/components/features/dispatch/dispatch-workspace";
@@ -19,7 +19,21 @@ vi.mock("@/components/features/dispatch/dispatch-live-map-tab", () => ({
 }));
 
 vi.mock("@/lib/actions/dispatch-data-actions", () => ({
-  refreshDispatchDataAction: vi.fn().mockResolvedValue({ success: true }),
+  refreshDispatchDataAction: vi.fn().mockResolvedValue({
+    success: true,
+    data: {
+      today: "2026-10-06",
+      items: [],
+      alerts: [],
+      stats: {
+        totalToday: 0,
+        awaitingDispatch: 0,
+        activeTrips: 0,
+        completedToday: 0,
+        cancelledToday: 0,
+      },
+    },
+  }),
 }));
 
 function createMockDispatchData(): DispatchData {
@@ -76,7 +90,7 @@ describe("Home Service Operations Navigation Cleanup", () => {
     expect(screen.getByTestId("dispatch-flow-content")).toBeDefined();
   });
 
-  it("switches to Full Map view smoothly when clicking Full Map tab", () => {
+  it("switches to Full Map view smoothly when clicking Full Map tab", async () => {
     const data = createMockDispatchData();
 
     render(
@@ -98,7 +112,7 @@ describe("Home Service Operations Navigation Cleanup", () => {
     // Verify tab states update
     expect(fullMapTab.getAttribute("aria-selected")).toBe("true");
     expect(liveOpsTab.getAttribute("aria-selected")).toBe("false");
-    expect(screen.getByTestId("dispatch-map-content")).toBeDefined();
+    await waitFor(() => expect(screen.getByTestId("dispatch-map-content")).toBeDefined());
     expect(screen.queryByTestId("dispatch-flow-content")).toBeNull();
   });
 });

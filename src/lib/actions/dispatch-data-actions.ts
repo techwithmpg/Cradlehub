@@ -4,7 +4,8 @@ import { getAttendanceActionContext } from "@/lib/attendance/queries";
 import { getDispatchData, type DispatchData } from "@/lib/queries/dispatch-queries";
 
 export async function refreshDispatchDataAction(
-  date: string
+  date: string,
+  scope: "dated" | "active_map" = "dated"
 ): Promise<{ success: true; data: DispatchData } | { success: false; error: string }> {
   if (!/^\d{4}-\d{2}-\d{2}$/.test(date)) {
     return { success: false, error: "Dispatch date is invalid." };
@@ -16,7 +17,7 @@ export async function refreshDispatchDataAction(
   try {
     return {
       success: true,
-      data: await getDispatchData({ branchId: context.branchId, date }),
+      data: await getDispatchData({ branchId: context.branchId, date, scope }),
     };
   } catch (error) {
     return {

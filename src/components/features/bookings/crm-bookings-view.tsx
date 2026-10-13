@@ -118,10 +118,12 @@ export function CrmBookingsView({
     revalidateOnFocus: false,
     revalidateOnReconnect: false,
   });
-  const { state: sheetState, isLoading: sheetLoading } = useSheetNativeReferences(
-    date,
-    referenceSource !== "cradlehub"
-  );
+  const {
+    state: sheetState,
+    isLoading: sheetLoading,
+    isRefreshing: sheetRefreshing,
+    refresh: refreshSheet,
+  } = useSheetNativeReferences(date, referenceSource === "master_sheet", true);
 
   const payload = data ?? initialData;
   const initialTab = tab ?? tabFromStatus(statusFilter);
@@ -157,6 +159,8 @@ export function CrmBookingsView({
       bookings={payload.bookings}
       sheetState={sheetState}
       sheetLoading={sheetLoading}
+      sheetRefreshing={sheetRefreshing}
+      onSheetRefresh={() => void refreshSheet()}
       waitlistRows={payload.waitlistRows ?? []}
       cashSummary={payload.cashSummary}
       paymentAction={paymentAction}

@@ -6,6 +6,7 @@ import { BookingsListToolbar } from "./bookings-list-toolbar";
 import { BookingsQuickFilters } from "./bookings-quick-filters";
 import { BookingsDesktopList } from "./bookings-desktop-list";
 import { BookingSourceSwitch } from "./booking-source-switch";
+import { SheetFreshnessControl } from "./sheet-freshness-control";
 import {
   sortBookingsRecentFirst,
   sortSheetReferencesRecentFirst,
@@ -78,6 +79,8 @@ type DesktopWorkspaceProps = {
   bookings: WorkspaceBookingRow[];
   sheetState?: SheetNativeReferencesState;
   sheetLoading?: boolean;
+  sheetRefreshing?: boolean;
+  onSheetRefresh?: () => void;
   statusAction?: BookingActionFn;
   paymentAction?: BookingActionFn;
   initialSelectedId?: string;
@@ -251,6 +254,13 @@ export function BookingsDesktopWorkspace(props: DesktopWorkspaceProps) {
               <BookingSourceSwitch
                 source={props.referenceSource === "master_sheet" ? "master_sheet" : "cradlehub"}
               />
+              {props.referenceSource === "master_sheet" ? (
+                <SheetFreshnessControl
+                  state={props.sheetState}
+                  refreshing={props.sheetRefreshing}
+                  onRefresh={props.onSheetRefresh}
+                />
+              ) : null}
             </div>
           ) : null}
           <BookingsListToolbar
@@ -267,6 +277,7 @@ export function BookingsDesktopWorkspace(props: DesktopWorkspaceProps) {
             branch={props.branchFilter}
             branches={props.branches}
             preservedQuery={{
+              cradlehubDate: searchParams.get("cradlehubDate") ?? undefined,
               bookingId: searchParams.get("bookingId") ?? undefined,
               branchId: searchParams.get("branchId") ?? undefined,
               highlight: searchParams.get("highlight") ?? undefined,

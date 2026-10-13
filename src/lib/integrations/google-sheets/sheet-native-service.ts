@@ -4,7 +4,8 @@ import { createClient } from "@/lib/supabase/server";
 import { canViewMasterSheetReview } from "@/lib/auth/crm-permissions";
 import { getFrontDeskContext } from "@/lib/queries/crm-context";
 import { logInfo } from "@/lib/logger";
-import { businessDateInManila, addDays } from "./sheet-week";
+import { businessDateInManila, isInNativeSheetWindow } from "./sheet-week";
+export { isInNativeSheetWindow } from "./sheet-week";
 import { hasMasterSheetReviewAccess } from "./sheet-review-service";
 import {
   createGoogleSheetsReader,
@@ -32,16 +33,6 @@ async function getActiveBranches(): Promise<ActiveBranch[] | null> {
   const supabase = await createClient();
   const { data, error } = await supabase.from("branches").select("id, name").eq("is_active", true);
   return error ? null : (data ?? []);
-}
-
-/** Only the current and previous business weeks can be projected natively. */
-export function isInNativeSheetWindow(date: string, today: string): boolean {
-  if (!/^\d{4}-\d{2}-\d{2}$/.test(date) || Number.isNaN(Date.parse(`${date}T00:00:00Z`)))
-    return false;
-  if (new Date(`${date}T00:00:00Z`).toISOString().slice(0, 10) !== date) return false;
-  const day = new Date(`${today}T00:00:00Z`).getUTCDay();
-  const currentStart = addDays(today, -((day - 5 + 7) % 7));
-  return date >= addDays(currentStart, -7) && date <= addDays(currentStart, 6);
 }
 
 /** Optional Sheet resource: every failure is isolated from canonical CRM loaders. */

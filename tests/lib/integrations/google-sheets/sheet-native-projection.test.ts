@@ -148,6 +148,34 @@ describe("provisional workbook mapping", () => {
 });
 
 describe("native read-only Sheet DTOs", () => {
+  it("projects October 13 activity from the loaded October 9–15 tab", () => {
+    const octoberTab: SheetProjection = {
+      ...current,
+      sheetName: "OCT 9-15, 2026",
+      visits: current.visits.map((visit) => ({
+        ...visit,
+        businessDate: "2026-10-13",
+        source: { ...visit.source, sheetName: "OCT 9-15, 2026" },
+      })),
+    };
+    const result = projectNativeReferences(
+      { status: "available", current: octoberTab, previous },
+      mapping,
+      "2026-10-13",
+      "2026-10-13T11:00:00.000Z"
+    );
+    expect(result.status).toBe("available");
+    if (result.status === "available") {
+      expect(result.bookings).toHaveLength(1);
+      expect(result.bookings[0]).toMatchObject({
+        sourceType: "MASTER_SHEET",
+        readOnly: true,
+        canonicalLink: "UNLINKED",
+        businessDate: "2026-10-13",
+      });
+      expect(result.payments.length).toBeGreaterThan(0);
+    }
+  });
   it("keeps booking and payment evidence external, minimized, and separate", () => {
     const result = projectNativeReferences(
       { status: "available", current, previous },

@@ -303,6 +303,7 @@ export interface GetDispatchDataArgs {
   dateFrom?: string;
   dateTo?: string;
   bookingId?: string;
+  scope?: "dated" | "active_map";
 }
 
 export async function getDispatchData(args: GetDispatchDataArgs): Promise<DispatchData> {
@@ -340,7 +341,11 @@ export async function getDispatchData(args: GetDispatchDataArgs): Promise<Dispat
       .eq("delivery_type", "home_service")
       .order("start_time", { ascending: true });
 
-    if (args.bookingId) query = query.eq("id", args.bookingId);
+    if (args.scope === "active_map") {
+      query = query
+        .not("status", "in", "(cancelled,no_show,completed)")
+        .or("booking_progress_status.is.null,booking_progress_status.not.in.(completed,no_show)");
+    } else if (args.bookingId) query = query.eq("id", args.bookingId);
     else if (args.dateFrom && args.dateTo)
       query = query
         .gte("booking_date", args.dateFrom)
@@ -356,17 +361,12 @@ export async function getDispatchData(args: GetDispatchDataArgs): Promise<Dispat
       query = query.eq("staff_id", args.staffId);
     }
 
-    const { data: firstPage, error: bookingsError } = await (args.throwOnError &&
-    args.role !== "driver"
+    const paginate = args.scope === "active_map" || (args.throwOnError && args.role !== "driver");
+    const { data: firstPage, error: bookingsError } = await (paginate
       ? query.order("id").range(0, 499)
       : query.order("booking_date").limit(args.role === "driver" ? 100 : 50));
     const rawBookings = [...(firstPage ?? [])];
-    if (
-      args.throwOnError &&
-      args.role !== "driver" &&
-      !bookingsError &&
-      firstPage?.length === 500
-    ) {
+    if (paginate && !bookingsError && firstPage?.length === 500) {
       for (let offset = 500; ; offset += 500) {
         const { data: page, error } = await query.range(offset, offset + 499);
         if (error) throw error;
@@ -376,7 +376,7 @@ export async function getDispatchData(args: GetDispatchDataArgs): Promise<Dispat
     }
 
     if (bookingsError) {
-      if (args.throwOnError) throw bookingsError;
+      if (args.throwOnError || args.scope === "active_map") throw bookingsError;
       return empty;
     }
 
@@ -435,8 +435,9 @@ export async function getDispatchData(args: GetDispatchDataArgs): Promise<Dispat
           : bookingIds.length > 0
             ? supabase
                 .from("staff_location_snapshots")
-                .select("booking_id, lat, lng, recorded_at")
+                .select("booking_id, staff_id, lat, lng, recorded_at")
                 .in("booking_id", bookingIds)
+                .eq("branch_id", args.branchId)
                 .order("recorded_at", { ascending: false })
             : Promise.resolve({
                 data: [] as {
@@ -463,13 +464,29 @@ export async function getDispatchData(args: GetDispatchDataArgs): Promise<Dispat
       driverNameMap.set(driver.id, getStaffAdminName(driver));
     }
 
+    const driverByBooking = new Map(rawBookings.map((booking) => [booking.id, booking.driver_id]));
     const locationMap = new Map<string, { lat: number; lng: number; recorded_at: string }>();
     for (const snapshot of snapshotsRes.data ?? []) {
       if (!snapshot.booking_id || locationMap.has(snapshot.booking_id)) continue;
+      if (
+        args.scope === "active_map" &&
+        (!("staff_id" in snapshot) ||
+          snapshot.staff_id !== driverByBooking.get(snapshot.booking_id))
+      )
+        continue;
+      const lat = Number(snapshot.lat);
+      const lng = Number(snapshot.lng);
+      if (
+        !Number.isFinite(lat) ||
+        !Number.isFinite(lng) ||
+        Math.abs(lat) > 90 ||
+        Math.abs(lng) > 180
+      )
+        continue;
 
       locationMap.set(snapshot.booking_id, {
-        lat: Number(snapshot.lat),
-        lng: Number(snapshot.lng),
+        lat,
+        lng,
         recorded_at: snapshot.recorded_at,
       });
     }
@@ -563,7 +580,7 @@ export async function getDispatchData(args: GetDispatchDataArgs): Promise<Dispat
       today: args.date,
     };
   } catch (error) {
-    if (args.throwOnError) throw error;
+    if (args.throwOnError || args.scope === "active_map") throw error;
     return empty;
   }
 }

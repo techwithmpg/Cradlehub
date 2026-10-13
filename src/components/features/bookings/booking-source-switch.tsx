@@ -2,6 +2,17 @@
 
 import Link from "next/link";
 import { usePathname, useSearchParams } from "next/navigation";
+import {
+  businessDateInManila,
+  isInNativeSheetWindow,
+} from "@/lib/integrations/google-sheets/sheet-week";
+
+export function sourceSwitchDates(date: string, today: string, savedCradlehubDate?: string | null) {
+  return {
+    sheetDate: isInNativeSheetWindow(date, today) ? date : today,
+    cradlehubDate: savedCradlehubDate ?? date,
+  };
+}
 
 export function BookingSourceSwitch({ source }: { source: "cradlehub" | "master_sheet" }) {
   const pathname = usePathname();
@@ -11,6 +22,18 @@ export function BookingSourceSwitch({ source }: { source: "cradlehub" | "master_
     for (const key of ["date", "search", "branch"]) {
       const value = searchParams.get(key);
       if (value) params.set(key, value);
+    }
+    const date = searchParams.get("date") ?? businessDateInManila(new Date());
+    const dates = sourceSwitchDates(
+      date,
+      businessDateInManila(new Date()),
+      searchParams.get("cradlehubDate")
+    );
+    if (next === "master_sheet") {
+      params.set("date", dates.sheetDate);
+      params.set("cradlehubDate", dates.cradlehubDate);
+    } else {
+      params.set("date", dates.cradlehubDate);
     }
     params.set("referenceSource", next);
     return `${pathname}?${params.toString()}`;

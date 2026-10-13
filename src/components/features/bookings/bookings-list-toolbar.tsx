@@ -7,6 +7,7 @@ import type { Branch } from "./booking-workspace-types";
 import type { BookingQuickFilter } from "@/lib/bookings/bookings-workspace-filters";
 
 type PreservedQuery = {
+  cradlehubDate?: string;
   bookingId?: string;
   branchId?: string;
   highlight?: string;
