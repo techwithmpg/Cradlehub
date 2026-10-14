@@ -46,11 +46,12 @@ Findings by layer:
 
 ## E. Changes and boundaries
 
-| File                                     | Before → after                                                                                                                                               | Authorization, cache, realtime impact                                                                                                         |
-| ---------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------ | --------------------------------------------------------------------------------------------------------------------------------------------- |
-| `src/app/(dashboard)/crm/layout.tsx`     | Called `getLayoutStaffContext` and then `getFrontDeskContext`; now uses the latter's authorized `userId` for coach and retained provider.                    | Front Desk authorization and branch selection remain in `getFrontDeskContext`; no browser authority or cache key changed. No realtime change. |
-| `src/app/(dashboard)/crm/today/page.tsx` | Awaited duty before nine independent reads, then awaited resource, tracking, and driver-name lookups serially; now runs each independent group concurrently. | Same arguments, branch IDs, queries, result handling, and authoritative server data. No mutation, cache, or realtime change.                  |
-| This handoff                             | Records source baseline, gates, issue, and review limits.                                                                                                    | No runtime effect.                                                                                                                            |
+| File                                          | Before → after                                                                                                                                               | Authorization, cache, realtime impact                                                                                                         |
+| --------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------ | --------------------------------------------------------------------------------------------------------------------------------------------- |
+| `src/app/(dashboard)/crm/layout.tsx`          | Called `getLayoutStaffContext` and then `getFrontDeskContext`; now uses the latter's authorized `userId` for coach and retained provider.                    | Front Desk authorization and branch selection remain in `getFrontDeskContext`; no browser authority or cache key changed. No realtime change. |
+| `src/app/(dashboard)/crm/today/page.tsx`      | Awaited duty before nine independent reads, then awaited resource, tracking, and driver-name lookups serially; now runs each independent group concurrently. | Same arguments, branch IDs, queries, result handling, and authoritative server data. No mutation, cache, or realtime change.                  |
+| `tests/app/crm/today-parallel-reads.test.tsx` | Verifies the schedule read starts while a deferred Front Desk duty response is pending.                                                                      | Mocked local test only; no runtime or data effect.                                                                                            |
+| This handoff                                  | Records source baseline, gates, issue, and review limits.                                                                                                    | No runtime effect.                                                                                                                            |
 
 ## F. Performance evidence
 
@@ -62,6 +63,7 @@ Static critical-path evidence only: the Today initial read group has one fewer s
 - `pnpm lint` — FAIL with 77 errors and 32 warnings in untouched Staff PWA, test, and other files. None were reported in the two changed source files.
 - `pnpm type-check` — PASS on serial rerun. First concurrent run reported a tracked file missing; the file was present and the rerun passed.
 - `pnpm test --run tests/lib/crm/c01-today-readiness.test.ts tests/lib/crm/work-queue-payment-order.test.ts tests/lib/crm/owner-front-desk-chooser.test.tsx` — PASS, 4 files and 11 tests.
+- `pnpm test --run tests/app/crm/today-parallel-reads.test.tsx` — PASS, 1 file and 1 test; verifies the corrected request ordering.
 - `pnpm exec vitest run --exclude '**/.claude/**'` — 325 files and 2,582 tests passed; 3 tests failed in untouched `tests/app/crm/booking-actions.test.ts`, which expects `{ success: true }` while the accepted action returns additional booking fields. Two tests skipped.
 - `pnpm build` — PASS with Next.js 16.2.4.
 - `git diff --check` — PASS.
