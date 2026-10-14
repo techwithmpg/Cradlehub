@@ -1,4 +1,8 @@
-import { getCrmPendingBookingQueue, getTodaysSchedule } from "@/lib/queries/bookings";
+import {
+  getCrmPendingBookingQueue,
+  getCrmUpcomingBookings,
+  getTodaysSchedule,
+} from "@/lib/queries/bookings";
 import { getStaffAdminName } from "@/lib/staff/display-name";
 import { getActionRequiredNotificationsAction } from "@/lib/notifications/queries";
 import { getCrmTodaySnapshot } from "@/lib/queries/crm-today";
@@ -16,6 +20,7 @@ import { updateBookingPaymentAction } from "@/app/(dashboard)/manager/bookings/a
 import { SYSTEM_ROLE_LABELS, canonicalizeSystemRole } from "@/constants/staff";
 import { updateWorkQueueBookingStatusAction } from "./actions";
 import { getBranchBusinessDate } from "@/lib/engine/slot-time";
+import { upcomingBookingEndDate } from "@/lib/bookings/upcoming-bookings";
 import {
   createAttendanceScanFeedFallback,
   getRecentAttendanceScanFeed,
@@ -57,6 +62,8 @@ type BookingRow = {
   customers: Relation<CustomerRel>;
   services: Relation<ServiceRel>;
   staff: Relation<StaffRel>;
+  driver_id?: string | null;
+  driver?: Relation<StaffRel>;
   branch_resources: Relation<ResourceRel>;
 };
 
@@ -85,6 +92,7 @@ export default async function CrmTodayPage({
   const [
     rawBookings,
     pendingQueue,
+    upcomingBookings,
     snapshot,
     actionNotifications,
     readiness,
@@ -93,7 +101,8 @@ export default async function CrmTodayPage({
     attendanceScanFeed,
   ] = await Promise.all([
     getTodaysSchedule(branchId, today),
-    getCrmPendingBookingQueue(branchId, today),
+    getCrmPendingBookingQueue(branchId, today, undefined, upcomingBookingEndDate(today)),
+    getCrmUpcomingBookings(branchId, today),
     getCrmTodaySnapshot({ branchId, date: today }),
     getActionRequiredNotificationsAction(3),
     getCrmReadinessCached(branchId).catch(() => null),
@@ -124,6 +133,9 @@ export default async function CrmTodayPage({
     if (!bookingsById.has(booking.id)) {
       bookingsById.set(booking.id, booking);
     }
+  }
+  for (const booking of upcomingBookings as BookingRow[]) {
+    if (!bookingsById.has(booking.id)) bookingsById.set(booking.id, booking);
   }
 
   const bookings = Array.from(bookingsById.values()).sort((a, b) => {
@@ -253,9 +265,11 @@ export default async function CrmTodayPage({
       needs_staff_schedule_review: Boolean(staffScheduleException),
       staff_schedule_exception_label: staffScheduleException?.reasonLabel ?? null,
       staff_schedule_exception_reason: staffScheduleException?.reasonCode ?? null,
-      driver_id: driverIdMap[b.id] ?? null,
-      driver_name: driverIdMap[b.id] ? (driverNameMap[driverIdMap[b.id]!] ?? null) : null,
-      no_driver_warning: isHomeService && !driverIdMap[b.id],
+      driver_id: driverIdMap[b.id] ?? b.driver_id ?? null,
+      driver_name:
+        first(b.driver)?.full_name ??
+        (driverIdMap[b.id] ? (driverNameMap[driverIdMap[b.id]!] ?? null) : null),
+      no_driver_warning: isHomeService && !(driverIdMap[b.id] ?? b.driver_id),
       last_location_at: locationMap[b.id]?.recorded_at ?? null,
       tracking_token: trackingMap[b.id]?.token ?? null,
       tracking_url: trackingMap[b.id]?.url ?? null,

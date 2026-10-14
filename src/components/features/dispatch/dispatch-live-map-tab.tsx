@@ -16,6 +16,11 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { formatTime12h } from "@/lib/utils/time-format";
 import type { DispatchData, RealDispatchItem } from "@/lib/queries/dispatch-queries";
+import {
+  eligibleCustomerDestinations,
+  hasCustomerGps,
+  isOpenHomeServiceBooking,
+} from "@/lib/home-service/active-map";
 
 type LatLngLiteral = {
   lat: number;
@@ -86,18 +91,6 @@ type StaffMarker = {
   label: string;
 };
 
-function isOpenHomeServiceBooking(item: RealDispatchItem): boolean {
-  return !["cancelled", "no_show", "completed"].includes(item.bookingStatus);
-}
-
-function hasCustomerGps(item: RealDispatchItem): boolean {
-  return (
-    typeof item.lat === "number" &&
-    Number.isFinite(item.lat) &&
-    typeof item.lng === "number" &&
-    Number.isFinite(item.lng)
-  );
-}
 function hasStaffGps(item: RealDispatchItem): boolean {
   return Boolean(item.currentLocation);
 }
@@ -247,11 +240,7 @@ function BookingSummaryCard({
         </div>
 
         <div className="flex items-center gap-1.5">
-          {staffGpsReady ? (
-            <CheckCircle2 size={13} className="text-blue-600" />
-          ) : (
-            <Car size={13} />
-          )}
+          {staffGpsReady ? <CheckCircle2 size={13} className="text-blue-600" /> : <Car size={13} />}
           <span>{staffGpsReady ? "Driver/staff GPS live" : "No live driver GPS yet"}</span>
         </div>
       </div>
@@ -261,10 +250,12 @@ function BookingSummaryCard({
 
 function MapCanvas({
   bookings,
+  businessDate,
   selectedId,
   onSelect,
 }: {
   bookings: RealDispatchItem[];
+  businessDate: string;
   selectedId: string | null;
   onSelect: (bookingId: string) => void;
 }) {
@@ -276,17 +267,15 @@ function MapCanvas({
 
   const customerMarkers: CustomerMarker[] = useMemo(
     () =>
-      bookings
-        .filter(hasCustomerGps)
-        .map((booking, index) => ({
-          booking,
-          position: {
-            lat: booking.lat as number,
-            lng: booking.lng as number,
-          },
-          label: String(index + 1),
-        })),
-    [bookings]
+      eligibleCustomerDestinations(bookings, businessDate).map((booking, index) => ({
+        booking,
+        position: {
+          lat: booking.lat as number,
+          lng: booking.lng as number,
+        },
+        label: String(index + 1),
+      })),
+    [bookings, businessDate]
   );
 
   const staffMarkers: StaffMarker[] = useMemo(
@@ -413,7 +402,9 @@ function MapCanvas({
   }, [apiKey, customerMarkers, staffMarkers, onSelect]);
 
   const selectedBooking = bookings.find((booking) => booking.id === selectedId) ?? null;
-  const selectedRouteUrl = selectedBooking ? buildRouteUrl(selectedBooking) : "https://www.google.com/maps";
+  const selectedRouteUrl = selectedBooking
+    ? buildRouteUrl(selectedBooking)
+    : "https://www.google.com/maps";
 
   return (
     <div className="relative h-[calc(100vh-235px)] min-h-[620px] overflow-hidden rounded-3xl border border-[var(--cs-border)] bg-[var(--cs-surface)] shadow-sm">
@@ -456,7 +447,9 @@ function MapCanvas({
         <div className="absolute bottom-5 right-5 w-[320px] rounded-2xl border border-white/80 bg-white/95 p-4 shadow-xl backdrop-blur">
           <div className="flex items-start justify-between gap-3">
             <div className="min-w-0">
-              <p className="font-mono text-xs text-[var(--cs-text-muted)]">{selectedBooking.number}</p>
+              <p className="font-mono text-xs text-[var(--cs-text-muted)]">
+                {selectedBooking.number}
+              </p>
               <h3 className="mt-1 truncate text-base font-bold text-[var(--cs-text)]">
                 {selectedBooking.customerName}
               </h3>
@@ -464,7 +457,10 @@ function MapCanvas({
                 {selectedBooking.serviceName} · {formatTime12h(selectedBooking.startTime)}
               </p>
             </div>
-            <Badge variant="outline" className={`shrink-0 text-[0.68rem] ${statusClass(selectedBooking)}`}>
+            <Badge
+              variant="outline"
+              className={`shrink-0 text-[0.68rem] ${statusClass(selectedBooking)}`}
+            >
               {statusLabel(selectedBooking)}
             </Badge>
           </div>
@@ -499,7 +495,10 @@ function MapCanvas({
 
 export function DispatchLiveMapTab({ data }: { data: DispatchData }) {
   const [query, setQuery] = useState("");
-  const openBookings = useMemo(() => data.items.filter(isOpenHomeServiceBooking), [data.items]);
+  const openBookings = useMemo(
+    () => data.items.filter((item) => isOpenHomeServiceBooking(item, data.today)),
+    [data.items, data.today]
+  );
 
   const filteredBookings = useMemo(() => {
     const normalized = query.trim().toLowerCase();
@@ -537,9 +536,11 @@ export function DispatchLiveMapTab({ data }: { data: DispatchData }) {
     return (
       <div className="flex min-h-[520px] flex-col items-center justify-center rounded-3xl border border-dashed border-[var(--cs-border)] bg-[var(--cs-surface)] p-10 text-center">
         <MapPin className="mb-3 text-[var(--cs-text-muted)]" size={34} />
-        <h3 className="font-bold text-[var(--cs-text)]">No home-service bookings to map</h3>
+        <h3 className="font-bold text-[var(--cs-text)]">
+          No active Home Service locations to map.
+        </h3>
         <p className="mt-1 max-w-md text-sm text-[var(--cs-text-muted)]">
-          Home-service bookings will appear here when customer GPS coordinates are saved.
+          There are no open Home Service bookings for this branch.
         </p>
       </div>
     );
@@ -547,6 +548,14 @@ export function DispatchLiveMapTab({ data }: { data: DispatchData }) {
 
   return (
     <section className="space-y-4">
+      {openBookings.some((item) => !hasCustomerGps(item)) ? (
+        <p
+          role="status"
+          className="rounded-lg border border-amber-200 bg-amber-50 px-4 py-2 text-sm text-amber-900"
+        >
+          Home Service bookings are active, but some customer locations still need GPS.
+        </p>
+      ) : null}
       <div className="flex flex-col gap-3 xl:flex-row xl:items-end xl:justify-between">
         <div>
           <h2 className="text-xl font-bold text-[var(--cs-text)]">Live Home-Service Map</h2>
@@ -615,6 +624,7 @@ export function DispatchLiveMapTab({ data }: { data: DispatchData }) {
 
         <MapCanvas
           bookings={filteredBookings}
+          businessDate={data.today}
           selectedId={selectedId}
           onSelect={handleMapSelect}
         />

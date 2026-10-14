@@ -1,12 +1,11 @@
 import type { WorkspaceBookingRow } from "@/components/features/bookings/booking-workspace-types";
-import { isBookingClosedForCrm, isCrmPendingBookingStatus } from "@/lib/bookings/crm-booking-status";
+import {
+  isBookingClosedForCrm,
+  isCrmPendingBookingStatus,
+} from "@/lib/bookings/crm-booking-status";
 import { getOpenStaffScheduleException } from "@/lib/bookings/staff-schedule-exception";
 
-export const BOOKING_QUICK_FILTERS = [
-  "all",
-  "needs-attention",
-  "active-now",
-] as const;
+export const BOOKING_QUICK_FILTERS = ["all", "needs-attention", "active-now", "upcoming"] as const;
 
 export type BookingQuickFilter = (typeof BOOKING_QUICK_FILTERS)[number];
 
@@ -28,9 +27,7 @@ export function isHomeServiceBooking(booking: WorkspaceBookingRow): boolean {
   );
 }
 
-export function isBookingOperationallyClosed(
-  booking: WorkspaceBookingRow
-): boolean {
+export function isBookingOperationallyClosed(booking: WorkspaceBookingRow): boolean {
   const progress = booking.booking_progress_status ?? null;
   return (
     isBookingClosedForCrm(booking.status) ||
@@ -56,9 +53,7 @@ export function isBookingActiveNow(booking: WorkspaceBookingRow): boolean {
 }
 
 function hasPendingPayment(booking: WorkspaceBookingRow): boolean {
-  return ["unpaid", "pending", "pending_payment"].includes(
-    booking.payment_status ?? "unpaid"
-  );
+  return ["unpaid", "pending", "pending_payment"].includes(booking.payment_status ?? "unpaid");
 }
 
 function hasFollowUpRequired(booking: WorkspaceBookingRow): boolean {
@@ -67,11 +62,7 @@ function hasFollowUpRequired(booking: WorkspaceBookingRow): boolean {
     return false;
   }
   const result = (followup as { result?: unknown }).result;
-  return (
-    result === "no_answer" ||
-    result === "reschedule" ||
-    result === "confirm_later"
-  );
+  return result === "no_answer" || result === "reschedule" || result === "confirm_later";
 }
 
 export function bookingNeedsAttention(booking: WorkspaceBookingRow): boolean {
@@ -79,9 +70,7 @@ export function bookingNeedsAttention(booking: WorkspaceBookingRow): boolean {
 
   const missingStaff = !firstRelation(booking.staff);
   const missingRoom =
-    booking.status === "confirmed" &&
-    !isHomeServiceBooking(booking) &&
-    !booking.resource_id;
+    booking.status === "confirmed" && !isHomeServiceBooking(booking) && !booking.resource_id;
   const hasAssignmentWarning =
     booking.metadata?.staff_assignment_review_required === true ||
     Boolean(getOpenStaffScheduleException(booking.metadata));
@@ -102,6 +91,7 @@ export function bookingMatchesQuickFilter(
 ): boolean {
   if (quickFilter === "needs-attention") return bookingNeedsAttention(booking);
   if (quickFilter === "active-now") return isBookingActiveNow(booking);
+  if (quickFilter === "upcoming") return true;
   return true;
 }
 
@@ -114,6 +104,7 @@ export function resolveBookingQuickFilter(
   if (raw === "active-now" || raw === "active") {
     return { quickFilter: "active-now" };
   }
+  if (raw === "upcoming") return { quickFilter: "upcoming" };
   if (raw === "completed") {
     return { quickFilter: "all", legacyStatusFilter: "completed" };
   }

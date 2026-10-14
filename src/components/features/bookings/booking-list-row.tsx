@@ -11,6 +11,7 @@ import { getOpenStaffScheduleException } from "@/lib/bookings/staff-schedule-exc
 import { isHomeServiceBooking } from "@/lib/bookings/bookings-workspace-filters";
 import { getRequiredResourceType } from "@/lib/schedule/live-schedule-conflicts";
 import { cn, formatTime } from "@/lib/utils";
+import { formatBranchYmd } from "@/lib/engine/slot-time";
 
 export function getBookingListIssueLabel(booking: WorkspaceBookingRow): string | null {
   if (isBookingClosedForCrm(booking.status)) return null;
@@ -66,10 +67,12 @@ export function BookingListRow({
   booking,
   selected,
   onSelect,
+  upcoming = false,
 }: {
   booking: WorkspaceBookingRow;
   selected: boolean;
   onSelect: () => void;
+  upcoming?: boolean;
 }) {
   const customer = firstBookingRelation(booking.customers);
   const duration = getBookingDurationMinutes(booking);
@@ -92,9 +95,27 @@ export function BookingListRow({
         "focus-visible:bg-amber-50/80 focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-emerald-800"
       )}
     >
-      <td className={cn("border-b border-[var(--cs-border-soft)] py-4 pr-2 pl-4 align-middle", selected ? "border-l-4 border-l-emerald-800" : "border-l-4 border-l-transparent")}>
-        <div className="whitespace-nowrap text-sm font-bold text-[var(--cs-text)]">{formatTime(booking.start_time)}</div>
-        <div className="mt-1 whitespace-nowrap text-xs text-[var(--cs-text-muted)]">{duration > 0 ? `${duration} min` : "Duration TBD"}</div>
+      <td
+        className={cn(
+          "border-b border-[var(--cs-border-soft)] py-4 pr-2 pl-4 align-middle",
+          selected ? "border-l-4 border-l-emerald-800" : "border-l-4 border-l-transparent"
+        )}
+      >
+        <div className="whitespace-nowrap text-sm font-bold text-[var(--cs-text)]">
+          {formatTime(booking.start_time)}
+        </div>
+        {upcoming ? (
+          <div className="mt-1 text-xs text-[var(--cs-text-muted)]">
+            {formatBranchYmd(booking.booking_date, {
+              month: "short",
+              day: "numeric",
+              year: "numeric",
+            })}
+          </div>
+        ) : null}
+        <div className="mt-1 whitespace-nowrap text-xs text-[var(--cs-text-muted)]">
+          {duration > 0 ? `${duration} min` : "Duration TBD"}
+        </div>
       </td>
       <td className="min-w-0 border-b border-[var(--cs-border-soft)] px-2 py-4 align-middle">
         <div className="flex min-w-0 items-center gap-2.5">
@@ -102,12 +123,31 @@ export function BookingListRow({
             {getBookingCustomerInitials(customer?.full_name)}
           </span>
           <div className="min-w-0">
-            <div className={cn("truncate text-sm text-[var(--cs-text)]", selected ? "font-bold" : "font-semibold")} title={customer?.full_name ?? undefined}>
+            <div
+              className={cn(
+                "truncate text-sm text-[var(--cs-text)]",
+                selected ? "font-bold" : "font-semibold"
+              )}
+              title={customer?.full_name ?? undefined}
+            >
               {customer?.full_name ?? "Customer"}
             </div>
-            <div className="mt-1 truncate text-xs text-[var(--cs-text-muted)]" title={customer?.phone ?? undefined}>
+            <div
+              className="mt-1 truncate text-xs text-[var(--cs-text-muted)]"
+              title={customer?.phone ?? undefined}
+            >
               {customer?.phone ?? `#${booking.id.slice(0, 8).toUpperCase()}`}
             </div>
+            {upcoming ? (
+              <div className="mt-1 truncate text-xs text-[var(--cs-text-muted)]">
+                {firstBookingRelation(booking.services)?.name ?? "Service"} ·{" "}
+                {isHomeServiceBooking(booking) ? "Home Service" : "In spa"} ·{" "}
+                {firstBookingRelation(booking.staff)?.full_name ?? "Staff unassigned"}
+                {isHomeServiceBooking(booking)
+                  ? ` · Driver: ${firstBookingRelation(booking.driver)?.full_name ?? "Not assigned"}`
+                  : ` · Room: ${firstBookingRelation(booking.branch_resources)?.name ?? "Not assigned"}`}
+              </div>
+            ) : null}
           </div>
         </div>
       </td>

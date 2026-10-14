@@ -11,10 +11,7 @@ import {
   type CradleFlowFilter,
 } from "./cradle-flow-display";
 import { useAdministrativeBookingModal } from "@/components/features/bookings/administrative-booking-modal-provider";
-import {
-  matchesCradleFlowSearch,
-  type CradleFlowBooking,
-} from "@/lib/crm/cradle-flow";
+import { matchesCradleFlowSearch, type CradleFlowBooking } from "@/lib/crm/cradle-flow";
 import { cn } from "@/lib/utils";
 
 function EmptyContextCard({
@@ -48,6 +45,7 @@ function EmptyContextCard({
 
 export function CradleFlowWorkflow({
   bookings,
+  businessDate,
   staffAvailable,
   pendingFollowUps,
   onOpen,
@@ -58,6 +56,7 @@ export function CradleFlowWorkflow({
   onFilterChange,
 }: {
   bookings: CradleFlowBooking[];
+  businessDate: string;
   staffAvailable: number;
   pendingFollowUps: number;
   onOpen: (booking: CradleFlowBooking) => void;
@@ -69,15 +68,19 @@ export function CradleFlowWorkflow({
 }) {
   const { openBookingModal } = useAdministrativeBookingModal();
   const [query, setQuery] = useState("");
-  const counts = useMemo(() => getCradleFlowDisplayCounts(bookings), [bookings]);
-  const upcomingCount = counts.not_arrived + counts.waiting_arrived;
+  const counts = useMemo(
+    () => getCradleFlowDisplayCounts(bookings, businessDate),
+    [bookings, businessDate]
+  );
+  const upcomingCount = counts.upcoming;
   const visible = useMemo(
     () =>
       bookings.filter(
         (booking) =>
-          matchesCradleFlowFilter(booking, filter) && matchesCradleFlowSearch(booking, query)
+          matchesCradleFlowFilter(booking, filter, businessDate) &&
+          matchesCradleFlowSearch(booking, query)
       ),
-    [bookings, query, filter]
+    [bookings, query, filter, businessDate]
   );
 
   return (
@@ -86,7 +89,8 @@ export function CradleFlowWorkflow({
         <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
           <div>
             <h2 className="text-base font-extrabold text-[var(--cs-text)]">
-              Active Service Workflow <span className="font-medium text-[var(--cs-text-muted)]">({counts.all})</span>
+              Active Service Workflow{" "}
+              <span className="font-medium text-[var(--cs-text-muted)]">({counts.all})</span>
             </h2>
             <p className="mt-0.5 text-xs text-[var(--cs-text-muted)]">
               Manage today’s customer visits and service flow.
@@ -104,11 +108,7 @@ export function CradleFlowWorkflow({
           </label>
         </div>
 
-        <div
-          className="mt-3 flex flex-wrap gap-1.5"
-          role="tablist"
-          aria-label="Service status"
-        >
+        <div className="mt-3 flex flex-wrap gap-1.5" role="tablist" aria-label="Service status">
           {CRADLE_FLOW_FILTERS.map((item) => {
             const count = counts[item.key];
             return (
@@ -144,6 +144,7 @@ export function CradleFlowWorkflow({
               <CradleFlowTicket
                 key={booking.id}
                 booking={booking}
+                businessDate={businessDate}
                 onOpen={onOpen}
                 onPrimary={onPrimary}
                 onAssignRoom={onAssignRoom}

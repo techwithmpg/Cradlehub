@@ -39,6 +39,9 @@ export type BookingOperationResult = {
   success: boolean;
   error?: string;
   code?: string;
+  bookingId?: string;
+  bookingDate?: string;
+  deliveryType?: string | null;
   releasedNow?: boolean;
   releaseAt?: string;
   turnoverSyncStatus?: "synced" | "failed" | "skipped";
@@ -1808,10 +1811,21 @@ export async function confirmCrmBooking(
     }
     revalidateOperationalBookingSurfaces(booking.branch_id);
     if (isHomeServiceBooking(booking)) revalidatePath("/crm/dispatch");
-    return { success: true };
+    return {
+      success: true,
+      bookingId: booking.id,
+      bookingDate: booking.booking_date,
+      deliveryType: booking.delivery_type,
+    };
   }
 
-  if (booking.status === "confirmed") return { success: true };
+  if (booking.status === "confirmed")
+    return {
+      success: true,
+      bookingId: booking.id,
+      bookingDate: booking.booking_date,
+      deliveryType: booking.delivery_type,
+    };
 
   const currentProgress = normalizeProgress(booking.booking_progress_status);
   const updatePayload: Database["public"]["Tables"]["bookings"]["Update"] = {
@@ -1868,7 +1882,12 @@ export async function confirmCrmBooking(
   });
 
   revalidateOperationalBookingSurfaces(booking.branch_id);
-  return { success: true };
+  return {
+    success: true,
+    bookingId: booking.id,
+    bookingDate: booking.booking_date,
+    deliveryType: booking.delivery_type,
+  };
 }
 
 export async function markCrmBookingArrived(
