@@ -7,6 +7,8 @@ import { getStaffAdminName } from "@/lib/staff/display-name";
 import { formatTime12h } from "@/lib/utils/time-format";
 import type { DispatchAlert, DispatchStatus } from "@/features/dispatch/types";
 import { CRM_OPERATIONAL_BOOKING_STATUSES } from "@/lib/bookings/crm-booking-status";
+import { activeMapRelevanceFilter, isOpenHomeServiceBooking } from "@/lib/home-service/active-map";
+import { getBranchBusinessDate } from "@/lib/engine/slot-time";
 import {
   UPCOMING_BOOKING_STATUSES,
   upcomingBookingEndDate,
@@ -313,11 +315,12 @@ export interface GetDispatchDataArgs {
 }
 
 export async function getDispatchData(args: GetDispatchDataArgs): Promise<DispatchData> {
+  const businessDate = args.scope === "active_map" ? getBranchBusinessDate() : args.date;
   const empty: DispatchData = {
     items: [],
     stats: computeStats([]),
     alerts: [],
-    today: args.date,
+    today: businessDate,
   };
 
   try {
@@ -349,7 +352,8 @@ export async function getDispatchData(args: GetDispatchDataArgs): Promise<Dispat
     if (args.scope === "active_map") {
       query = query
         .in("status", [...CRM_OPERATIONAL_BOOKING_STATUSES])
-        .or("booking_progress_status.is.null,booking_progress_status.not.in.(completed,no_show)");
+        .or("booking_progress_status.is.null,booking_progress_status.not.in.(completed,no_show)")
+        .or(activeMapRelevanceFilter(businessDate));
     } else if (args.bookingId) query = query.eq("id", args.bookingId);
     else if (args.upcoming)
       query = query
@@ -391,7 +395,24 @@ export async function getDispatchData(args: GetDispatchDataArgs): Promise<Dispat
       return empty;
     }
 
-    if (args.upcoming) {
+    if (args.scope === "active_map") {
+      for (let index = rawBookings.length - 1; index >= 0; index--) {
+        const booking = rawBookings[index];
+        if (!booking) continue;
+        if (
+          !isOpenHomeServiceBooking(
+            {
+              bookingDate: booking.booking_date,
+              bookingStatus: booking.status,
+              bookingProgressStatus: booking.booking_progress_status,
+            },
+            businessDate
+          )
+        ) {
+          rawBookings.splice(index, 1);
+        }
+      }
+    } else if (args.upcoming) {
       for (let index = rawBookings.length - 1; index >= 0; index--) {
         if (["completed", "no_show"].includes(rawBookings[index]?.booking_progress_status ?? ""))
           rawBookings.splice(index, 1);
@@ -595,7 +616,7 @@ export async function getDispatchData(args: GetDispatchDataArgs): Promise<Dispat
       items,
       stats: computeStats(items),
       alerts: computeAlerts(items),
-      today: args.date,
+      today: businessDate,
     };
   } catch (error) {
     if (args.throwOnError || args.scope === "active_map") throw error;

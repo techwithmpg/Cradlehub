@@ -250,10 +250,12 @@ function BookingSummaryCard({
 
 function MapCanvas({
   bookings,
+  businessDate,
   selectedId,
   onSelect,
 }: {
   bookings: RealDispatchItem[];
+  businessDate: string;
   selectedId: string | null;
   onSelect: (bookingId: string) => void;
 }) {
@@ -265,7 +267,7 @@ function MapCanvas({
 
   const customerMarkers: CustomerMarker[] = useMemo(
     () =>
-      eligibleCustomerDestinations(bookings).map((booking, index) => ({
+      eligibleCustomerDestinations(bookings, businessDate).map((booking, index) => ({
         booking,
         position: {
           lat: booking.lat as number,
@@ -273,7 +275,7 @@ function MapCanvas({
         },
         label: String(index + 1),
       })),
-    [bookings]
+    [bookings, businessDate]
   );
 
   const staffMarkers: StaffMarker[] = useMemo(
@@ -493,7 +495,10 @@ function MapCanvas({
 
 export function DispatchLiveMapTab({ data }: { data: DispatchData }) {
   const [query, setQuery] = useState("");
-  const openBookings = useMemo(() => data.items.filter(isOpenHomeServiceBooking), [data.items]);
+  const openBookings = useMemo(
+    () => data.items.filter((item) => isOpenHomeServiceBooking(item, data.today)),
+    [data.items, data.today]
+  );
 
   const filteredBookings = useMemo(() => {
     const normalized = query.trim().toLowerCase();
@@ -617,7 +622,12 @@ export function DispatchLiveMapTab({ data }: { data: DispatchData }) {
           </div>
         </aside>
 
-        <MapCanvas bookings={filteredBookings} selectedId={selectedId} onSelect={handleMapSelect} />
+        <MapCanvas
+          bookings={filteredBookings}
+          businessDate={data.today}
+          selectedId={selectedId}
+          onSelect={handleMapSelect}
+        />
       </div>
     </section>
   );
