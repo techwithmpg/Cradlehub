@@ -83,13 +83,8 @@ export default async function CrmTodayPage({
   const { branchId, branchName, role } = context;
   const today = getBranchBusinessDate();
   const params = await searchParams;
-  const duty = await getFrontDeskDutyContext(
-    context,
-    today,
-    typeof params.handover === "string" ? params.handover : undefined
-  );
-
   const [
+    duty,
     rawBookings,
     pendingQueue,
     upcomingBookings,
@@ -100,6 +95,11 @@ export default async function CrmTodayPage({
     locationMap,
     attendanceScanFeed,
   ] = await Promise.all([
+    getFrontDeskDutyContext(
+      context,
+      today,
+      typeof params.handover === "string" ? params.handover : undefined
+    ),
     getTodaysSchedule(branchId, today),
     getCrmPendingBookingQueue(branchId, today, undefined, upcomingBookingEndDate(today)),
     getCrmUpcomingBookings(branchId, today),
@@ -183,8 +183,9 @@ export default async function CrmTodayPage({
   const resourceIds = [
     ...new Set(bookings.map((booking) => booking.resource_id).filter(Boolean) as string[]),
   ];
-  const resourceNameMap = new Map<string, string>();
-  if (resourceIds.length > 0) {
+  const resourceNamesPromise = (async () => {
+    const resourceNameMap = new Map<string, string>();
+    if (resourceIds.length === 0) return resourceNameMap;
     const supabase = createAdminClient();
     const { data: resources } = await supabase
       .from("branch_resources")
@@ -193,14 +194,18 @@ export default async function CrmTodayPage({
     for (const resource of resources ?? []) {
       resourceNameMap.set(resource.id, resource.name);
     }
-  }
+    return resourceNameMap;
+  })();
 
   const hsBookingIds = bookings
     .filter((b) => b.type === "home_service" || b.delivery_type === "home_service")
     .map((b) => b.id);
-  const trackingMap = await getActiveTrackingTokensForBookings(hsBookingIds);
   const driverIds = [...new Set(Object.values(driverIdMap).filter(Boolean) as string[])];
-  const driverNameMap = await getDriverNamesByIds(driverIds);
+  const [resourceNameMap, trackingMap, driverNameMap] = await Promise.all([
+    resourceNamesPromise,
+    getActiveTrackingTokensForBookings(hsBookingIds),
+    getDriverNamesByIds(driverIds),
+  ]);
 
   // Build queue data for the interactive panel
   const queueData = bookings.map((b) => {
