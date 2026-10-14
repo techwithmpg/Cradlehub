@@ -211,6 +211,7 @@ function RecordFinancialEntryForm({
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [successMessage, setSuccessMessage] = useState<string | null>(null);
   const paymentAttemptRef = React.useRef<{ signature: string; key: string } | null>(null);
+  const paymentSubmittingRef = React.useRef(false);
 
   // Fallbacks for categories and staff
   const effectiveCategories = useMemo(() => {
@@ -523,6 +524,7 @@ function RecordFinancialEntryForm({
   const isOrderFullyPaid = selectedOrder ? selectedOrder.remainingBalance <= 0 : false;
 
   const handleSubmit = async () => {
+    if (paymentSubmittingRef.current || successMessage) return;
     if (!selectedOrder) {
       setErrorMessage('Please select a booking or order to record payment.');
       return;
@@ -565,6 +567,7 @@ function RecordFinancialEntryForm({
       return;
     }
 
+    paymentSubmittingRef.current = true;
     setIsSubmitting(true);
     setErrorMessage(null);
 
@@ -617,6 +620,7 @@ function RecordFinancialEntryForm({
     } catch (err: unknown) {
       setErrorMessage(err instanceof Error ? err.message : 'An unexpected error occurred');
     } finally {
+      paymentSubmittingRef.current = false;
       setIsSubmitting(false);
     }
   };
@@ -2596,6 +2600,7 @@ function RecordFinancialEntryForm({
               onClick={handleSubmit}
               disabled={
                 isSubmitting ||
+                Boolean(successMessage) ||
                 isSelectedOrderClosed ||
                 isOrderFullyPaid ||
                 !selectedOrder ||
@@ -2606,7 +2611,7 @@ function RecordFinancialEntryForm({
               className="px-5 py-2 bg-[#163E32] hover:bg-[#1B4D3E] text-white text-xs font-semibold rounded-xl shadow-2xs transition disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-1.5"
             >
               {isSubmitting && <Loader2 className="w-3.5 h-3.5 animate-spin" />}
-              <span>Record Entry</span>
+              <span>{isSubmitting ? 'Processing…' : successMessage ? 'Payment recorded' : 'Record Entry'}</span>
             </button>
           )}
 

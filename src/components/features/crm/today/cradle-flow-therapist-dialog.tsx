@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useRef, useState } from "react";
 import { toast } from "sonner";
 import {
   AdminDialog,
@@ -25,11 +25,13 @@ export function CradleFlowTherapistDialog({
   onAssigned: () => void;
 }) {
   const [saving, setSaving] = useState(false);
+  const savingRef = useRef(false);
   const [error, setError] = useState<string | null>(null);
   if (!booking) return null;
 
   async function assign(staffId: string, overrideReason?: string) {
-    if (!booking || saving) return;
+    if (!booking || savingRef.current) return;
+    savingRef.current = true;
     setSaving(true);
     setError(null);
     try {
@@ -48,6 +50,7 @@ export function CradleFlowTherapistDialog({
     } catch (failure) {
       setError(failure instanceof Error ? failure.message : "Could not assign therapist.");
     } finally {
+      savingRef.current = false;
       setSaving(false);
     }
   }
@@ -55,7 +58,9 @@ export function CradleFlowTherapistDialog({
   return (
     <AdminDialog
       open={open}
-      onOpenChange={(next) => { if (!saving) onOpenChange(next); }}
+      onOpenChange={(next) => {
+        if (!saving) onOpenChange(next);
+      }}
       placement="center"
       size="lg"
       ariaLabel="Therapist assignment"
@@ -66,13 +71,25 @@ export function CradleFlowTherapistDialog({
       />
       <AdminOverlayBody className="grid gap-3">
         {error ? (
-          <p role="alert" className="rounded-lg border border-red-200 bg-red-50 p-3 text-sm text-red-900">{error}</p>
+          <p
+            role="alert"
+            className="rounded-lg border border-red-200 bg-red-50 p-3 text-sm text-red-900"
+          >
+            {error}
+          </p>
+        ) : null}
+        {saving ? (
+          <p role="status" className="text-sm font-semibold text-[var(--cs-text-secondary)]">
+            Assigning therapist…
+          </p>
         ) : null}
         <div className={saving ? "pointer-events-none opacity-60" : ""} aria-busy={saving}>
           <AssignmentRecommendationPanel
             bookingId={booking.id}
             fetchRecommendations={getAssignmentRecommendationsAction}
-            onAssignTherapist={(staffId, overrideReason) => { void assign(staffId, overrideReason); }}
+            onAssignTherapist={(staffId, overrideReason) => {
+              void assign(staffId, overrideReason);
+            }}
             currentTherapistId={booking.staff_id ?? null}
             showTherapists
             showDrivers={false}
@@ -80,7 +97,12 @@ export function CradleFlowTherapistDialog({
         </div>
       </AdminOverlayBody>
       <AdminOverlayFooter className="flex justify-end">
-        <button type="button" onClick={() => onOpenChange(false)} disabled={saving} className="cs-btn cs-btn-secondary h-10 rounded-lg px-4">
+        <button
+          type="button"
+          onClick={() => onOpenChange(false)}
+          disabled={saving}
+          className="cs-btn cs-btn-secondary h-10 rounded-lg px-4"
+        >
           Close
         </button>
       </AdminOverlayFooter>

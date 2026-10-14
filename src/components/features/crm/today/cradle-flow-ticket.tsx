@@ -28,6 +28,7 @@ export function CradleFlowTicket({
   onPrimary,
   onAssignRoom,
   onAssignTherapist,
+  primaryPending = false,
 }: {
   booking: CradleFlowBooking;
   businessDate: string;
@@ -35,6 +36,7 @@ export function CradleFlowTicket({
   onPrimary: (booking: CradleFlowBooking) => void;
   onAssignRoom: (booking: CradleFlowBooking) => void;
   onAssignTherapist: (booking: CradleFlowBooking) => void;
+  primaryPending?: boolean;
 }) {
   const stage = getCradleFlowStage(booking);
   const homeService = isHomeServiceVisit(booking);
@@ -142,9 +144,19 @@ export function CradleFlowTicket({
         <button
           type="button"
           onClick={() => onPrimary(booking)}
-          className="inline-flex min-h-9 items-center justify-center rounded-lg bg-[#164b36] px-3 text-[11px] font-bold text-white transition hover:bg-[#0e3d2b] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-emerald-700"
+          disabled={primaryPending}
+          aria-busy={primaryPending}
+          className="inline-flex min-h-9 items-center justify-center rounded-lg bg-[#164b36] px-3 text-[11px] font-bold text-white transition hover:bg-[#0e3d2b] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-emerald-700 disabled:opacity-60"
         >
-          {getCradleFlowPrimaryLabel(booking, businessDate)}
+          {primaryPending
+            ? booking.status === "pending" ||
+              booking.status === "pending_payment" ||
+              booking.status === "pending_crm_confirmation"
+              ? "Confirming…"
+              : booking.booking_progress_status === "checked_in"
+                ? "Starting…"
+                : "Checking in…"
+            : getCradleFlowPrimaryLabel(booking, businessDate)}
         </button>
         {missingRoom ? (
           <button

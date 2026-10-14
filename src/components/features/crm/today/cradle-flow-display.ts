@@ -1,4 +1,8 @@
-import { getCradleFlowStage, type CradleFlowBooking } from "@/lib/crm/cradle-flow";
+import {
+  getCradleFlowStage,
+  isPaymentOverdue,
+  type CradleFlowBooking,
+} from "@/lib/crm/cradle-flow";
 
 export type CradleFlowFilter =
   | "all"
@@ -46,7 +50,7 @@ export function getCradleFlowDisplayStatus(booking: CradleFlowBooking): string {
   return isArrived(booking) ? "Arrived · Ready to Start" : "Booked · Not Arrived";
 }
 
-export function getCradleFlowAttention(booking: CradleFlowBooking): string[] {
+export function getCradleFlowAttention(booking: CradleFlowBooking, now = new Date()): string[] {
   const stage = getCradleFlowStage(booking);
   if (!stage || stage === "completed") return [];
 
@@ -66,7 +70,7 @@ export function getCradleFlowAttention(booking: CradleFlowBooking): string[] {
     if (booking.no_driver_warning) issues.push("Home Service driver needed");
     if (booking.dispatch_warning) issues.push("Home Service dispatch review");
   }
-  if (stage === "ready_to_pay") issues.push("Payment due");
+  if (isPaymentOverdue(booking, now)) issues.push("Payment Overdue");
   return issues;
 }
 
@@ -80,11 +84,7 @@ export function matchesCradleFlowFilter(
   const future = Boolean(businessDate && booking.booking_date > businessDate);
   if (future) {
     if (filter === "upcoming") return true;
-    if (filter === "needs_action")
-      return (
-        ["pending", "pending_payment", "pending_crm_confirmation"].includes(booking.status) ||
-        getCradleFlowAttention(booking).length > 0
-      );
+    if (filter === "needs_action") return getCradleFlowAttention(booking).length > 0;
     return false;
   }
   switch (filter) {

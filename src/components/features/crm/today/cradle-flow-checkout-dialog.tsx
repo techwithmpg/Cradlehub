@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState, useTransition } from "react";
+import { useMemo, useRef, useState, useTransition } from "react";
 import Link from "next/link";
 import { Banknote, CheckCircle2 } from "lucide-react";
 import { toast } from "sonner";
@@ -42,6 +42,7 @@ export function CradleFlowCheckoutDialog({
   const [reference, setReference] = useState("");
   const [reason, setReason] = useState("");
   const [isPending, startTransition] = useTransition();
+  const submittingRef = useRef(false);
   const received = Number(amount || 0);
   const paymentApplied = Math.min(balance, Math.max(0, received));
   const finalSettlement = paymentApplied >= balance;
@@ -57,25 +58,32 @@ export function CradleFlowCheckoutDialog({
   }, [balance, finalSettlement, paymentAction, reason, received]);
 
   function submit() {
-    if (!booking || !paymentAction || error) return;
+    if (!booking || !paymentAction || error || submittingRef.current) return;
+    submittingRef.current = true;
     const cumulativeAmount = previouslyPaid + paymentApplied;
     startTransition(async () => {
-      const result = await paymentAction({
-        bookingId: booking.id,
-        paymentMethod: method,
-        paymentStatus: finalSettlement ? "paid" : "pending",
-        amountPaid: cumulativeAmount,
-        paymentReference: reference.trim() || undefined,
-        paymentPurpose: finalSettlement ? "final_settlement" : "partial",
-        reason: finalSettlement ? undefined : reason.trim(),
-      });
-      if (!result.success) {
-        toast.error(result.error ?? "Payment could not be saved.");
-        return;
+      try {
+        const result = await paymentAction({
+          bookingId: booking.id,
+          paymentMethod: method,
+          paymentStatus: finalSettlement ? "paid" : "pending",
+          amountPaid: cumulativeAmount,
+          paymentReference: reference.trim() || undefined,
+          paymentPurpose: finalSettlement ? "final_settlement" : "partial",
+          reason: finalSettlement ? undefined : reason.trim(),
+        });
+        if (!result.success) {
+          toast.error(result.error ?? "Payment could not be saved.");
+          return;
+        }
+        onPaid(booking, cumulativeAmount, method);
+        onOpenChange(false);
+        toast.success(finalSettlement ? "Payment complete" : "Partial payment saved");
+      } catch (failure) {
+        toast.error(failure instanceof Error ? failure.message : "Payment could not be saved.");
+      } finally {
+        submittingRef.current = false;
       }
-      onPaid(booking, cumulativeAmount, method);
-      onOpenChange(false);
-      toast.success(finalSettlement ? "Payment complete" : "Partial payment saved");
     });
   }
 
@@ -84,22 +92,42 @@ export function CradleFlowCheckoutDialog({
     const orderPaid = Number(booking.order_amount_paid ?? 0);
     const orderTotal = Number(booking.order_total_amount ?? 0);
     return (
-      <AdminDialog open={open} onOpenChange={onOpenChange} placement="center" size="md" ariaLabel="Order checkout">
-        <AdminOverlayHeader title="Order payment" description={booking.customer_name ?? "Customer"} />
+      <AdminDialog
+        open={open}
+        onOpenChange={onOpenChange}
+        placement="center"
+        size="md"
+        ariaLabel="Order checkout"
+      >
+        <AdminOverlayHeader
+          title="Order payment"
+          description={booking.customer_name ?? "Customer"}
+        />
         <AdminOverlayBody className="grid gap-3 text-sm">
           <p>Payment for this service belongs to its booking order.</p>
           <p>
-            Order status: {booking.order_payment_status ?? "unpaid"} ·
-            {" "}{formatCradleFlowMoney(orderPaid)} paid
-            {orderTotal > 0 ? ` · ${formatCradleFlowMoney(Math.max(0, orderTotal - orderPaid))} due` : ""}
+            Order status: {booking.order_payment_status ?? "unpaid"} ·{" "}
+            {formatCradleFlowMoney(orderPaid)} paid
+            {orderTotal > 0
+              ? ` · ${formatCradleFlowMoney(Math.max(0, orderTotal - orderPaid))} due`
+              : ""}
           </p>
-          <p>Record the order payment in Cash Flow to keep its balance and service lines together.</p>
+          <p>
+            Record the order payment in Cash Flow to keep its balance and service lines together.
+          </p>
         </AdminOverlayBody>
         <AdminOverlayFooter className="flex justify-end gap-2">
-          <button type="button" onClick={() => onOpenChange(false)} className="cs-btn cs-btn-secondary h-10 rounded-lg px-4">
+          <button
+            type="button"
+            onClick={() => onOpenChange(false)}
+            className="cs-btn cs-btn-secondary h-10 rounded-lg px-4"
+          >
             Close
           </button>
-          <Link href="/crm/cash-flow" className="inline-flex h-10 items-center rounded-lg bg-[#164b36] px-4 text-sm font-bold text-white">
+          <Link
+            href="/crm/cash-flow"
+            className="inline-flex h-10 items-center rounded-lg bg-[#164b36] px-4 text-sm font-bold text-white"
+          >
             Open Cash Flow
           </Link>
         </AdminOverlayFooter>
@@ -209,7 +237,11 @@ export function CradleFlowCheckoutDialog({
           className="inline-flex h-10 items-center gap-2 rounded-lg bg-[#164b36] px-4 text-sm font-bold text-white disabled:opacity-50"
         >
           {finalSettlement ? <CheckCircle2 className="size-4" /> : <Banknote className="size-4" />}
-          {isPending ? "Saving…" : finalSettlement ? "Complete Payment" : "Save Partial Payment"}
+          {isPending
+            ? "Processing…"
+            : finalSettlement
+              ? "Complete Payment"
+              : "Save Partial Payment"}
         </button>
       </AdminOverlayFooter>
     </AdminDialog>

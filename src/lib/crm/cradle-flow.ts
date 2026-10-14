@@ -52,6 +52,43 @@ export function getCradleFlowBalance(booking: CradleFlowPaymentView): number {
   return Math.max(0, total - getCradleFlowAmountPaid(booking));
 }
 
+export function isPaymentOverdue(
+  booking: {
+    booking_date: string;
+    end_time?: string | null;
+    session_due_at?: string | null;
+    status: string;
+    booking_progress_status?: string | null;
+    session_started_at?: string | null;
+    session_completed_at?: string | null;
+  } & CradleFlowPaymentView,
+  now = new Date()
+): boolean {
+  const serviceStartedOrCompleted =
+    booking.status === "in_progress" ||
+    booking.status === "completed" ||
+    booking.booking_progress_status === "session_started" ||
+    booking.booking_progress_status === "completed" ||
+    Boolean(booking.session_started_at || booking.session_completed_at);
+  const balance = getCradleFlowBalance(booking);
+  if (
+    !serviceStartedOrCompleted ||
+    getCradleFlowPaymentStatus(booking) === "paid" ||
+    !Number.isFinite(balance) ||
+    balance <= 0
+  )
+    return false;
+
+  // The recorded session deadline takes precedence over the scheduled end.
+  // Branch schedules use Asia/Manila, which has a fixed UTC+08:00 offset.
+  const expectedEnd =
+    booking.session_due_at ||
+    (booking.end_time ? `${booking.booking_date}T${booking.end_time}+08:00` : null);
+  if (!expectedEnd) return false;
+  const deadline = Date.parse(expectedEnd);
+  return Number.isFinite(deadline) && now.getTime() > deadline;
+}
+
 export const CRADLE_FLOW_STAGES: Array<{
   key: CradleFlowStage;
   label: string;

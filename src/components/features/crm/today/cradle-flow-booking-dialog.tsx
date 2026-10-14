@@ -67,6 +67,7 @@ export function CradleFlowBookingDialog({
   open,
   onOpenChange,
   onPrimary,
+  primaryPending = false,
   onAssignRoom,
   onAssignTherapist,
 }: {
@@ -75,6 +76,7 @@ export function CradleFlowBookingDialog({
   open: boolean;
   onOpenChange: (open: boolean) => void;
   onPrimary: (booking: CradleFlowBooking) => void;
+  primaryPending?: boolean;
   onAssignRoom: (booking: CradleFlowBooking) => void;
   onAssignTherapist: (booking: CradleFlowBooking) => void;
 }) {
@@ -347,13 +349,20 @@ export function CradleFlowBookingDialog({
           {stage ? (
             <button
               type="button"
-              onClick={() => {
-                if (!homeService) onOpenChange(false);
-                onPrimary(booking);
-              }}
-              className="h-10 rounded-lg bg-[#164b36] px-4 text-sm font-bold text-white"
+              onClick={() => onPrimary(booking)}
+              disabled={primaryPending}
+              aria-busy={primaryPending}
+              className="h-10 rounded-lg bg-[#164b36] px-4 text-sm font-bold text-white disabled:opacity-60"
             >
-              {getCradleFlowPrimaryLabel(booking, businessDate)}
+              {primaryPending
+                ? booking.status === "pending" ||
+                  booking.status === "pending_payment" ||
+                  booking.status === "pending_crm_confirmation"
+                  ? "Confirming…"
+                  : booking.booking_progress_status === "checked_in"
+                    ? "Starting…"
+                    : "Checking in…"
+                : getCradleFlowPrimaryLabel(booking, businessDate)}
             </button>
           ) : null}
         </div>

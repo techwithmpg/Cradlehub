@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useTransition } from "react";
+import { useRef, useState, useTransition } from "react";
 import Link from "next/link";
 import useSWR from "swr";
 import { toast } from "sonner";
@@ -59,11 +59,10 @@ export function RoomAssignmentModal({
   const [selectedResourceId, setSelectedResourceId] = useState("");
   const [feedback, setFeedback] = useState<string | null>(null);
   const [isPending, startTransition] = useTransition();
+  const submittingRef = useRef(false);
 
   const bookingId = booking?.id ?? "";
-  const roomOptionsKey = useWorkspaceSWRKey(
-    ["room-assignment-options", bookingId] as const
-  );
+  const roomOptionsKey = useWorkspaceSWRKey(["room-assignment-options", bookingId] as const);
   const { data, isLoading, mutate } = useSWR(
     open && bookingId ? roomOptionsKey : null,
     fetchOptions,
@@ -80,30 +79,39 @@ export function RoomAssignmentModal({
   const errorMessage = data && !data.success ? data.error : null;
   const effectiveResourceId =
     selectedResourceId || options?.currentResourceId || options?.recommendedResourceId || "";
-  const selectedOption = options?.resources.find((resource) => resource.id === effectiveResourceId) ?? null;
+  const selectedOption =
+    options?.resources.find((resource) => resource.id === effectiveResourceId) ?? null;
   const recommended = options?.resources.find((resource) => resource.isRecommended) ?? null;
   const hasAvailableRoom = options?.resources.some((resource) => resource.isAvailable) ?? false;
 
   function handleAssign() {
+    if (submittingRef.current) return;
     if (!effectiveResourceId) {
       setFeedback("Choose a room before saving.");
       return;
     }
 
+    submittingRef.current = true;
     setFeedback(null);
     startTransition(async () => {
-      const result = await assignBookingRoomAction({
-        bookingId: currentBooking.id,
-        resourceId: effectiveResourceId,
-      });
-      if (!result.success) {
-        setFeedback(result.error ?? "Could not assign room.");
-        void mutate();
-        return;
+      try {
+        const result = await assignBookingRoomAction({
+          bookingId: currentBooking.id,
+          resourceId: effectiveResourceId,
+        });
+        if (!result.success) {
+          setFeedback(result.error ?? "Could not assign room.");
+          void mutate();
+          return;
+        }
+        toast.success("Room assigned successfully.");
+        onAssigned();
+        onOpenChange(false);
+      } catch (error) {
+        setFeedback(error instanceof Error ? error.message : "Could not assign room.");
+      } finally {
+        submittingRef.current = false;
       }
-      toast.success("Room assigned successfully.");
-      onAssigned();
-      onOpenChange(false);
     });
   }
 
@@ -122,21 +130,13 @@ export function RoomAssignmentModal({
       <AdminOverlayBody className="bg-[var(--cs-surface-warm)]">
         <div className="space-y-4">
           {isLoading ? (
-            <WorkspaceNotice tone="info">
-              Loading room options...
-            </WorkspaceNotice>
+            <WorkspaceNotice tone="info">Loading room options...</WorkspaceNotice>
           ) : null}
 
-          {errorMessage ? (
-            <WorkspaceNotice tone="error">
-              {errorMessage}
-            </WorkspaceNotice>
-          ) : null}
+          {errorMessage ? <WorkspaceNotice tone="error">{errorMessage}</WorkspaceNotice> : null}
 
           {notApplicable ? (
-            <WorkspaceNotice tone="info">
-              {notApplicable.message}
-            </WorkspaceNotice>
+            <WorkspaceNotice tone="info">{notApplicable.message}</WorkspaceNotice>
           ) : null}
 
           {options ? (
@@ -159,14 +159,17 @@ export function RoomAssignmentModal({
                 </div>
                 {recommended ? (
                   <div className="mt-2 flex flex-wrap items-center gap-2">
-                    <span className="text-sm font-semibold text-[var(--cs-text)]">{recommended.name}</span>
+                    <span className="text-sm font-semibold text-[var(--cs-text)]">
+                      {recommended.name}
+                    </span>
                     <span className="rounded-full bg-[var(--cs-sand-mist)] px-2 py-0.5 text-[11px] font-semibold text-[var(--cs-sand)]">
                       {recommended.reason}
                     </span>
                   </div>
                 ) : (
                   <p className="mt-2 text-sm text-[var(--cs-text-muted)]">
-                    No room is available right now. You can keep the customer waiting or adjust room setup.
+                    No room is available right now. You can keep the customer waiting or adjust room
+                    setup.
                   </p>
                 )}
               </div>
@@ -204,25 +207,32 @@ export function RoomAssignmentModal({
 
               {!hasAvailableRoom ? (
                 <WorkspaceNotice tone="warning">
-                  No room is available right now. You can keep the customer waiting or adjust room setup.
+                  No room is available right now. You can keep the customer waiting or adjust room
+                  setup.
                 </WorkspaceNotice>
               ) : null}
 
-              {feedback ? (
-                <WorkspaceNotice tone="error">
-                  {feedback}
-                </WorkspaceNotice>
-              ) : null}
+              {feedback ? <WorkspaceNotice tone="error">{feedback}</WorkspaceNotice> : null}
             </>
           ) : null}
         </div>
       </AdminOverlayBody>
       <AdminOverlayFooter className="flex flex-col gap-2 bg-[var(--cs-surface)] sm:flex-row sm:items-center sm:justify-between">
-        <Button type="button" variant="outline" disabled={isPending} onClick={() => onOpenChange(false)}>
+        <Button
+          type="button"
+          variant="outline"
+          disabled={isPending}
+          onClick={() => onOpenChange(false)}
+        >
           Cancel
         </Button>
         <div className="flex flex-col gap-2 sm:flex-row">
-          <Button type="button" variant="secondary" disabled={isPending} onClick={() => onOpenChange(false)}>
+          <Button
+            type="button"
+            variant="secondary"
+            disabled={isPending}
+            onClick={() => onOpenChange(false)}
+          >
             Keep Waiting
           </Button>
           <Button
@@ -230,7 +240,7 @@ export function RoomAssignmentModal({
             disabled={isPending || !options || !selectedOption?.isAvailable}
             onClick={handleAssign}
           >
-            {isPending ? "Saving..." : isChanging ? "Save Room Change" : "Assign Room"}
+            {isPending ? "Assigning…" : isChanging ? "Save Room Change" : "Assign Room"}
           </Button>
         </div>
       </AdminOverlayFooter>
@@ -267,7 +277,11 @@ function RoomOptionButton({
         {resource.isRecommended ? <Badge label="Recommended" /> : null}
       </div>
       <div className="mt-1 text-xs leading-5 text-[var(--cs-text-muted)]">
-        {[resource.type, resource.capacity != null ? `Capacity ${resource.capacity}` : null, resource.reason]
+        {[
+          resource.type,
+          resource.capacity != null ? `Capacity ${resource.capacity}` : null,
+          resource.reason,
+        ]
           .filter(Boolean)
           .join(" / ")}
       </div>
@@ -286,7 +300,9 @@ function Badge({ label }: { label: string }) {
 function SummaryItem({ label, value }: { label: string; value: string }) {
   return (
     <div className="min-w-0">
-      <div className="text-[0.65rem] font-bold uppercase tracking-wide text-[var(--cs-text-muted)]">{label}</div>
+      <div className="text-[0.65rem] font-bold uppercase tracking-wide text-[var(--cs-text-muted)]">
+        {label}
+      </div>
       <div className="mt-1 truncate text-sm font-medium text-[var(--cs-text)]" title={value}>
         {value}
       </div>

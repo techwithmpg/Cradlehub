@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState, useTransition } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 import {
@@ -78,6 +78,8 @@ export function CradleFlowDashboard(props: CradleFlowDashboardProps) {
     null
   );
   const [isActing, startAction] = useTransition();
+  const activeBookingRef = useRef<string | null>(null);
+  const [activeBookingId, setActiveBookingId] = useState<string | null>(null);
   const attendanceState = useAttendanceScanFeed({
     workspace: "crm",
     selectedDate: props.attendanceScanDate,
@@ -125,6 +127,7 @@ export function CradleFlowDashboard(props: CradleFlowDashboardProps) {
   }
 
   function runPrimary(booking: CradleFlowBooking) {
+    if (activeBookingRef.current) return;
     if (booking.booking_date > props.attendanceScanDate) {
       router.push(futureCradleFlowHref(booking));
       return;
@@ -133,6 +136,7 @@ export function CradleFlowDashboard(props: CradleFlowDashboardProps) {
     setSelected(booking);
     if (stage === "in_service") return setDialog("complete");
     if (stage === "ready_to_pay") {
+      setDialog(null);
       setFinancialRequest({
         mode: "customer_payment",
         orderId: booking.order_id ?? booking.id,
@@ -151,27 +155,34 @@ export function CradleFlowDashboard(props: CradleFlowDashboardProps) {
       router.push(`/crm/dispatch?bookingId=${encodeURIComponent(booking.id)}`);
       return;
     }
+    activeBookingRef.current = booking.id;
+    setActiveBookingId(booking.id);
     startAction(async () => {
-      let result: { success: boolean; error?: string };
-      if (["pending", "pending_payment", "pending_crm_confirmation"].includes(booking.status)) {
-        result = props.statusAction
-          ? await props.statusAction({ bookingId: booking.id, status: "confirmed" })
-          : { success: false, error: "Confirmation action is unavailable." };
-      } else if (booking.booking_progress_status === "checked_in") {
-        result = await crmStartServiceAction({ bookingId: booking.id });
-      } else {
-        result = await markBookingArrivedAction({ bookingId: booking.id });
-        if (result.success) {
-          if (!booking.resource_id) openRoomAssignment(booking);
+      try {
+        let result: { success: boolean; error?: string };
+        if (["pending", "pending_payment", "pending_crm_confirmation"].includes(booking.status)) {
+          result = props.statusAction
+            ? await props.statusAction({ bookingId: booking.id, status: "confirmed" })
+            : { success: false, error: "Confirmation action is unavailable." };
+        } else if (booking.booking_progress_status === "checked_in") {
+          result = await crmStartServiceAction({ bookingId: booking.id });
+        } else {
+          result = await markBookingArrivedAction({ bookingId: booking.id });
+          if (result.success && !booking.resource_id) openRoomAssignment(booking);
         }
+        if (!result.success) {
+          toast.error(result.error ?? "Action could not be completed.");
+          return;
+        }
+        setDialog(null);
+        notifyBookingsChanged();
+        toast.success("Booking updated");
+      } catch (error) {
+        toast.error(error instanceof Error ? error.message : "Action could not be completed.");
+      } finally {
+        activeBookingRef.current = null;
+        setActiveBookingId(null);
       }
-      if (!result.success) {
-        toast.error(result.error ?? "Action could not be completed.");
-        return;
-      }
-      notifyBookingsChanged();
-      if (booking.booking_date > props.attendanceScanDate) setFilter("upcoming");
-      toast.success("Booking updated");
     });
   }
 
@@ -207,6 +218,7 @@ export function CradleFlowDashboard(props: CradleFlowDashboardProps) {
             onPrimary={runPrimary}
             onAssignRoom={openRoomAssignment}
             onAssignTherapist={openTherapistAssignment}
+            activeBookingId={activeBookingId}
             filter={filter}
             onFilterChange={setFilter}
           />
@@ -249,6 +261,7 @@ export function CradleFlowDashboard(props: CradleFlowDashboardProps) {
         readinessIssues={props.readinessIssues}
         payment={props.snapshot.payment}
         runPrimary={runPrimary}
+        activeBookingId={activeBookingId}
         assignment={assignment}
         setAssignment={setAssignment}
         onAssignRoom={openRoomAssignment}
@@ -287,6 +300,7 @@ type DialogProps = {
   readinessIssues: ReadinessIssue[];
   payment: CrmTodaySnapshot["payment"];
   runPrimary: (booking: CradleFlowBooking) => void;
+  activeBookingId: string | null;
   assignment: "room" | "therapist" | null;
   setAssignment: (assignment: "room" | "therapist" | null) => void;
   onAssignRoom: (booking: CradleFlowBooking) => void;
@@ -302,6 +316,7 @@ function CradleFlowDialogs(props: DialogProps) {
         open={props.dialog === "details"}
         onOpenChange={(open) => props.setDialog(open ? "details" : null)}
         onPrimary={props.runPrimary}
+        primaryPending={props.activeBookingId === props.selected?.id}
         onAssignRoom={props.onAssignRoom}
         onAssignTherapist={props.onAssignTherapist}
       />

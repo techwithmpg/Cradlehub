@@ -13,7 +13,6 @@ import { AgentCoachProvider } from "@/components/agent/agent-context-provider";
 import { CoachBubble } from "@/components/agent/coach-bubble";
 import { InlineTip } from "@/components/agent/inline-tip";
 import { AdministrativeBookingModalProvider } from "@/components/features/bookings/administrative-booking-modal-provider";
-import { getQuickBookingContext } from "@/lib/queries/quick-booking-options";
 import { getAgentCoachAvailability } from "@/lib/agents/config";
 import { RetainedWorkspaceProvider } from "@/components/features/dashboard/retained-workspace-provider";
 import { isRetainedWorkspaceEnabled } from "@/lib/config/mvp-flags";
@@ -28,7 +27,6 @@ export default async function CrmLayout({ children }: { children: React.ReactNod
     role: frontDesk.role,
   });
   const canShowCoach = coachAvailability.available && frontDesk.userId && branchId;
-  const bookingContext = branchId ? await getQuickBookingContext(branchId) : null;
   const retainedChildren =
     branchId && frontDesk.userId ? (
       <RetainedWorkspaceProvider
@@ -43,22 +41,13 @@ export default async function CrmLayout({ children }: { children: React.ReactNod
     ) : (
       children
     );
-  const workspaceContent =
-    branchId && bookingContext ? (
-      <AdministrativeBookingModalProvider
-        key={branchId}
-        branchId={branchId}
-        branchName={branchName}
-        bookingRules={bookingContext.bookingRules}
-        services={bookingContext.services}
-        staff={bookingContext.staff}
-        resources={bookingContext.resources}
-      >
-        {retainedChildren}
-      </AdministrativeBookingModalProvider>
-    ) : (
-      retainedChildren
-    );
+  const workspaceContent = branchId ? (
+    <AdministrativeBookingModalProvider key={branchId} branchId={branchId} branchName={branchName}>
+      {retainedChildren}
+    </AdministrativeBookingModalProvider>
+  ) : (
+    retainedChildren
+  );
 
   return (
     <>

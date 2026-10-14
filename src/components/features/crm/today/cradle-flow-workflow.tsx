@@ -52,6 +52,7 @@ export function CradleFlowWorkflow({
   onPrimary,
   onAssignRoom,
   onAssignTherapist,
+  activeBookingId,
   filter,
   onFilterChange,
 }: {
@@ -63,6 +64,7 @@ export function CradleFlowWorkflow({
   onPrimary: (booking: CradleFlowBooking) => void;
   onAssignRoom: (booking: CradleFlowBooking) => void;
   onAssignTherapist: (booking: CradleFlowBooking) => void;
+  activeBookingId: string | null;
   filter: CradleFlowFilter;
   onFilterChange: (filter: CradleFlowFilter) => void;
 }) {
@@ -149,6 +151,7 @@ export function CradleFlowWorkflow({
                 onPrimary={onPrimary}
                 onAssignRoom={onAssignRoom}
                 onAssignTherapist={onAssignTherapist}
+                primaryPending={activeBookingId === booking.id}
               />
             ))}
           </div>
