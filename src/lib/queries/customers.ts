@@ -262,7 +262,7 @@ export async function getCustomersPage(params: {
   return toPaginatedResult({ data: (data ?? []) as CustomerPageRow[], count, page, pageSize });
 }
 
-export async function lookupCustomerByPhone(phone: string) {
+export async function lookupCustomerByPhone(phone: string, branchId: string) {
   const supabase = await createClient();
   const { data } = await supabase
     .from("customers")
@@ -271,5 +271,14 @@ export async function lookupCustomerByPhone(phone: string) {
     )
     .eq("phone", phone.replace(/\s/g, ""))
     .maybeSingle();
-  return data ?? null;
+  if (!data) return null;
+  const { data: branchBooking, error } = await supabase
+    .from("bookings")
+    .select("id")
+    .eq("branch_id", branchId)
+    .eq("customer_id", data.id)
+    .limit(1)
+    .maybeSingle();
+  if (error) throw new Error("Customer branch could not be verified.");
+  return branchBooking ? data : null;
 }

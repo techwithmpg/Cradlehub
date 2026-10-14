@@ -12,6 +12,7 @@ const mocks = vi.hoisted(() => ({
     name: string;
   } | null,
   searchCustomers: vi.fn(),
+  lookupCustomerByPhone: vi.fn(),
   resolveOwnerFrontDeskBranch: vi.fn(),
   staffLookup: vi.fn(),
 }));
@@ -30,12 +31,16 @@ vi.mock("@/lib/supabase/server", () => ({
     },
   }),
 }));
-vi.mock("@/lib/queries/customers", () => ({ searchCustomers: mocks.searchCustomers }));
+vi.mock("@/lib/queries/customers", () => ({
+  searchCustomers: mocks.searchCustomers,
+  lookupCustomerByPhone: mocks.lookupCustomerByPhone,
+}));
 vi.mock("@/lib/queries/front-desk-branch", () => ({
   resolveOwnerFrontDeskBranch: mocks.resolveOwnerFrontDeskBranch,
 }));
 
 import { GET } from "@/app/api/customers/search/route";
+import { GET as lookupGET } from "@/app/api/customers/lookup/route";
 
 function request(extra = "") {
   return new NextRequest(`https://cradlehub.test/api/customers/search?q=Ana${extra}`);
@@ -46,10 +51,46 @@ beforeEach(() => {
   mocks.staff = { system_role: "owner", branch_id: "main" };
   mocks.selectedBranch = { id: "sm", name: "SM Branch" };
   mocks.searchCustomers.mockReset().mockResolvedValue([{ id: "customer-sm" }]);
+  mocks.lookupCustomerByPhone.mockReset().mockResolvedValue({ id: "customer-sm" });
   mocks.resolveOwnerFrontDeskBranch
     .mockReset()
     .mockImplementation(async () => mocks.selectedBranch);
   mocks.staffLookup.mockReset().mockImplementation(async () => ({ data: mocks.staff }));
+});
+
+describe("direct customer phone lookup API", () => {
+  it("uses the selected Owner branch and ignores a browser branch override", async () => {
+    const response = await lookupGET(
+      new NextRequest("https://cradlehub.test/api/customers/lookup?phone=09123456789&branchId=main")
+    );
+    expect(response.status).toBe(200);
+    expect(mocks.lookupCustomerByPhone).toHaveBeenCalledWith("09123456789", "sm");
+
+    mocks.selectedBranch = { id: "main", name: "Main Spa" };
+    await lookupGET(
+      new NextRequest("https://cradlehub.test/api/customers/lookup?phone=09123456789&branchId=sm")
+    );
+    expect(mocks.lookupCustomerByPhone).toHaveBeenLastCalledWith("09123456789", "main");
+  });
+
+  it("keeps branch staff scoped and fails closed without a selected branch", async () => {
+    mocks.staff = { system_role: "manager", branch_id: "main" };
+    await lookupGET(
+      new NextRequest("https://cradlehub.test/api/customers/lookup?phone=09123456789")
+    );
+    expect(mocks.lookupCustomerByPhone).toHaveBeenCalledWith("09123456789", "main");
+
+    mocks.staff = { system_role: "owner", branch_id: "main" };
+    mocks.selectedBranch = null;
+    expect(
+      (
+        await lookupGET(
+          new NextRequest("https://cradlehub.test/api/customers/lookup?phone=09123456789")
+        )
+      ).status
+    ).toBe(403);
+    expect(mocks.lookupCustomerByPhone).toHaveBeenCalledTimes(1);
+  });
 });
 
 describe("direct CRM customer search API", () => {
