@@ -1,4 +1,8 @@
-import { QuickBookingForm, type QuickBookingCustomerOption, type QuickBookingMode } from "@/components/features/bookings/quick-booking-form";
+import {
+  QuickBookingForm,
+  type QuickBookingCustomerOption,
+  type QuickBookingMode,
+} from "@/components/features/bookings/quick-booking-form";
 import { getFrontDeskContext } from "@/lib/queries/crm-context";
 import {
   getQuickBookingContext,
@@ -25,8 +29,11 @@ function normalizeQuickBookingMode(params: SearchParams): QuickBookingMode {
   return "walkin";
 }
 
-async function getCustomerPrefill(customerId: string | undefined): Promise<QuickBookingCustomerOption | null> {
-  return getQuickBookingCustomerPrefill(customerId);
+async function getCustomerPrefill(
+  customerId: string | undefined,
+  branchId: string
+): Promise<QuickBookingCustomerOption | null> {
+  return getQuickBookingCustomerPrefill(customerId, branchId);
 }
 
 export default async function CrmBookingWizardPage({
@@ -37,7 +44,7 @@ export default async function CrmBookingWizardPage({
   const params = await searchParams;
   const { branchId, branchName } = await getFrontDeskContext();
   const [customerPrefill, bookingContext] = await Promise.all([
-    getCustomerPrefill(params.customerId),
+    getCustomerPrefill(params.customerId, branchId),
     getQuickBookingContext(branchId),
   ]);
 

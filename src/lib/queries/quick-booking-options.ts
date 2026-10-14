@@ -54,11 +54,22 @@ function firstRelation<T>(value: T | T[] | null | undefined): T | null {
 }
 
 export async function getQuickBookingCustomerPrefill(
-  customerId: string | undefined
+  customerId: string | undefined,
+  branchId: string
 ): Promise<QuickBookingCustomerOption | null> {
   if (!customerId) return null;
 
   const admin = createAdminClient();
+  const { data: branchBooking, error: bookingError } = await admin
+    .from("bookings")
+    .select("id")
+    .eq("customer_id", customerId)
+    .eq("branch_id", branchId)
+    .limit(1)
+    .maybeSingle();
+  if (bookingError) throw new Error("Customer branch could not be verified.");
+  if (!branchBooking) return null;
+
   const { data } = await admin
     .from("customers")
     .select("id, full_name, phone, email")
@@ -84,7 +95,9 @@ export async function getQuickBookingOptions(branchId: string): Promise<{
     getBranchServiceCatalog(branchId, { audience: "crm" }),
     admin
       .from("staff")
-      .select("id, full_name, nickname, is_active, staff_type, system_role, archived_at, merged_into_staff_id, staff_services(service_id)")
+      .select(
+        "id, full_name, nickname, is_active, staff_type, system_role, archived_at, merged_into_staff_id, staff_services(service_id)"
+      )
       .eq("branch_id", branchId)
       .eq("is_active", true)
       .is("archived_at", null)
