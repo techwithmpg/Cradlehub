@@ -89,6 +89,27 @@ afterEach(() => {
 });
 
 describe("Quick Booking customer name autocomplete", () => {
+  it("reveals guest details progressively and submits attendee service associations", async () => {
+    render(<QuickBookingForm {...props} initialName="Malcolm Owner" initialPhone="09171234567"
+      services={[...props.services, { id: "svc-2", name: "Facial", price: 700,
+        durationMinutes: 90, availableInSpa: true, availableHomeService: false }]} />);
+    expect(screen.queryByText("Guest 2")).toBeNull();
+    fireEvent.click(screen.getByRole("button", { name: "+ Add guest" }));
+    expect(screen.getAllByText("Guest 1 — Malcolm Owner").length).toBeGreaterThan(0);
+    fireEvent.change(screen.getByPlaceholderText("Guest name"), { target: { value: "Anna Guest" } });
+    fireEvent.click(screen.getByRole("button", { name: /Search in-spa services/i }));
+    fireEvent.click(screen.getByText("Facial"));
+    fireEvent.click(screen.getByRole("button", { name: /schedule booking/i }));
+    await waitFor(() => expect(mocks.createBooking).toHaveBeenCalledOnce());
+    expect(mocks.createBooking.mock.calls[0]?.[0]).toMatchObject({
+      bookingFor: "me_and_others", serviceIds: ["svc-1", "svc-2"], resourceId: undefined,
+      attendees: [
+        { name: "Malcolm Owner", isOrganizer: true, serviceIds: ["svc-1"] },
+        { name: "Anna Guest", isOrganizer: false, serviceIds: ["svc-2"] },
+      ],
+    });
+  });
+
   it("searches under the single name field, masks matches, and reuses the global ID at SM", async () => {
     render(<QuickBookingForm {...props} />);
     const name = screen.getByRole("combobox", { name: "Customer name" }) as HTMLInputElement;

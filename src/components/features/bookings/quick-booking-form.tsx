@@ -36,6 +36,7 @@ import {
 } from "@/components/features/bookings/quick-booking-service-selector";
 import { WorkspaceNotice } from "@/components/features/attendance/attendance-ui";
 import type { BranchBookingRules } from "@/lib/validations/booking-rules";
+import type { BookingOrderAttendeeInput } from "@/lib/bookings/booking-order-contract";
 
 export type QuickBookingMode = "walkin" | "phone" | "standard_future" | "home_service";
 
@@ -347,6 +348,14 @@ export function QuickBookingForm({
   const [selectedServiceIds, setSelectedServiceIds] = useState<string[]>(() =>
     initialServiceId ? [initialServiceId] : []
   );
+  const [firstAttendeeId] = useState(() => crypto.randomUUID());
+  const [additionalGuests, setAdditionalGuests] = useState<BookingOrderAttendeeInput[]>([]);
+  const groupBooking = additionalGuests.length > 0;
+  const attendeeDrafts: BookingOrderAttendeeInput[] = [
+    { id: firstAttendeeId, name: fullName.trim(), isOrganizer: true, serviceIds: selectedServiceIds },
+    ...additionalGuests,
+  ];
+  const allSelectedServiceIds = [...new Set(attendeeDrafts.flatMap((attendee) => attendee.serviceIds))];
   const [serviceModeNotice, setServiceModeNotice] = useState("");
   const [date, setDate] = useState(initialDateValue);
   const [time, setTime] = useState(initialTimeValue);
@@ -409,6 +418,10 @@ export function QuickBookingForm({
     0
   );
   const totalPrice = selectedServices.reduce((sum, service) => sum + service.price, 0);
+  const groupServices = groupBooking
+    ? attendeeDrafts.flatMap((attendee) => attendee.serviceIds.map((id) => services.find((service) => service.id === id)).filter((service): service is QuickBookingServiceOption => Boolean(service)))
+    : selectedServices;
+  const groupTotalPrice = groupServices.reduce((sum, service) => sum + service.price, 0);
   const serviceSummaryLabel =
     selectedServiceCount === 0
       ? "Not selected"
@@ -474,6 +487,7 @@ export function QuickBookingForm({
       email !== (initialCustomer?.email ?? "") ||
       selectedServiceIds.length !== initialSelectedServiceIds.length ||
       selectedServiceIds.some((id, index) => id !== initialSelectedServiceIds[index]) ||
+      additionalGuests.length > 0 ||
       date !== initialDateValue ||
       time !== initialTimeValue ||
       notes !== "" ||
@@ -512,6 +526,7 @@ export function QuickBookingForm({
       resourceId,
       selectedCustomer,
       selectedServiceIds,
+      additionalGuests,
       seededCustomerQuery,
       staffId,
       time,
@@ -778,6 +793,12 @@ export function QuickBookingForm({
     setFieldErrors({});
     setFormError("");
     setSelectedServiceIds(validServiceIds);
+    setAdditionalGuests((current) => current.map((guest) => ({ ...guest,
+      serviceIds: guest.serviceIds.filter((id) => {
+        const service = services.find((item) => item.id === id);
+        return service ? serviceAvailableForMode(service, nextMode) : false;
+      }),
+    })));
     if (removedCount > 0) {
       setServiceModeNotice(
         validServiceIds.length === 0
@@ -804,6 +825,15 @@ export function QuickBookingForm({
   function handleServiceSelectionChange(nextServiceIds: string[]) {
     setSelectedServiceIds(nextServiceIds);
     setServiceModeNotice("");
+    setFieldErrors((current) => ({ ...current, service: undefined }));
+  }
+
+  function addGuest() {
+    if (additionalGuests.length >= 3) return;
+    setAdditionalGuests((current) => [...current, {
+      id: crypto.randomUUID(), name: "", isOrganizer: false, serviceIds: [],
+    }]);
+    setResourceId("");
     setFieldErrors((current) => ({ ...current, service: undefined }));
   }
 
@@ -902,6 +932,9 @@ export function QuickBookingForm({
     } else if (selectedServiceIds.length > 5) {
       nextErrors.service = "You can select up to 5 services per booking.";
     }
+    if (additionalGuests.some((guest) => !guest.name?.trim() || guest.name.trim().length < 2 || guest.serviceIds.length === 0)) {
+      nextErrors.service = "Enter each guest's name and select at least one service for each guest.";
+    }
     if (!date) nextErrors.date = "Choose a valid date and time.";
     if (!time) nextErrors.time = "Choose a valid date and time.";
     if (isHomeService) {
@@ -987,25 +1020,25 @@ export function QuickBookingForm({
     setFormError("");
     if (Object.values(nextErrors).some(Boolean)) return;
 
-    setSlotChecking(true);
-    let availability: CrmAvailabilityResponse;
-    try {
-      availability = await fetchCrmAvailability(date, time, staffId || null);
-    } catch {
+    if (!groupBooking) {
+      setSlotChecking(true);
+      let availability: CrmAvailabilityResponse;
+      try {
+        availability = await fetchCrmAvailability(date, time, staffId || null);
+      } catch {
+        setSlotChecking(false);
+        const message = "Unable to check CRM availability. Choose another time or try again.";
+        setFieldErrors((current) => ({ ...current, time: message }));
+        setFormError(message);
+        return;
+      }
       setSlotChecking(false);
-      const message = "Unable to check CRM availability. Choose another time or try again.";
-      setFieldErrors((current) => ({ ...current, time: message }));
-      setFormError(message);
-      return;
-    }
-
-    setSlotChecking(false);
-
-    if (!availability.available) {
-      const message = availability.message ?? NO_SCHEDULED_THERAPIST_MESSAGE;
-      setFieldErrors((current) => ({ ...current, time: message }));
-      setFormError(message);
-      return;
+      if (!availability.available) {
+        const message = availability.message ?? NO_SCHEDULED_THERAPIST_MESSAGE;
+        setFieldErrors((current) => ({ ...current, time: message }));
+        setFormError(message);
+        return;
+      }
     }
 
     setIsSaving(true);
@@ -1013,9 +1046,13 @@ export function QuickBookingForm({
       const bookingInput = {
         branchId,
         customerId: selectedCustomer?.id,
-        serviceIds: selectedServiceIds,
+        serviceIds: groupBooking ? allSelectedServiceIds : selectedServiceIds,
+        ...(groupBooking && { bookingFor: "me_and_others" as const, attendees: attendeeDrafts.map((attendee) => ({
+          id: attendee.id, name: attendee.name?.trim() ?? "", isOrganizer: attendee.isOrganizer ?? false,
+          serviceIds: attendee.serviceIds,
+        })) }),
         staffId: staffId || undefined,
-        resourceId: isHomeService ? undefined : resourceId || undefined,
+        resourceId: isHomeService || groupBooking ? undefined : resourceId || undefined,
         date,
         startTime: normalizeTime(time),
         type: isHomeService ? "home_service" : "walkin",
@@ -1361,6 +1398,9 @@ export function QuickBookingForm({
                 ) : null}
 
                 <div className="md:col-span-2">
+                  {groupBooking ? (
+                    <p className="mb-2 text-sm font-semibold text-[var(--cs-text)]">Guest 1 — {fullName.trim() || "Customer"}</p>
+                  ) : null}
                   <QuickBookingServiceSelector
                     services={eligibleServices}
                     selectedServiceIds={selectedServiceIds}
@@ -1373,6 +1413,30 @@ export function QuickBookingForm({
                     <p className="mt-1.5 rounded-lg bg-[var(--cs-warning-bg)] px-3 py-1.5 text-xs font-medium text-[var(--cs-warning-text)]">
                       {serviceModeNotice}
                     </p>
+                  ) : null}
+                  {additionalGuests.map((guest, index) => (
+                    <div key={guest.id} className="mt-3 rounded-xl border border-[var(--cs-border)] p-3">
+                      <div className="mb-2 flex items-center justify-between gap-2">
+                        <p className="text-sm font-semibold text-[var(--cs-text)]">Guest {index + 2}</p>
+                        <button type="button" className="text-xs text-[var(--cs-sand-dark)]" disabled={isSaving}
+                          onClick={() => setAdditionalGuests((current) => current.filter((item) => item.id !== guest.id))}>Remove</button>
+                      </div>
+                      <label className="mb-3 block text-xs font-semibold text-[var(--cs-text)]">
+                        Guest name
+                        <input className={inputClassName(false)} value={guest.name ?? ""} maxLength={100}
+                          onChange={(event) => setAdditionalGuests((current) => current.map((item) =>
+                            item.id === guest.id ? { ...item, name: event.target.value } : item))}
+                          disabled={isSaving} placeholder="Guest name" />
+                      </label>
+                      <QuickBookingServiceSelector services={eligibleServices} selectedServiceIds={guest.serviceIds}
+                        onChange={(serviceIds) => setAdditionalGuests((current) => current.map((item) =>
+                          item.id === guest.id ? { ...item, serviceIds } : item))}
+                        isHomeService={isHomeService} disabled={isSaving} />
+                    </div>
+                  ))}
+                  {additionalGuests.length < 3 ? (
+                    <button type="button" onClick={addGuest} disabled={isSaving}
+                      className="mt-2 text-xs font-semibold text-[var(--cs-sand-dark)]">+ Add guest</button>
                   ) : null}
                 </div>
               </div>
@@ -1483,13 +1547,14 @@ export function QuickBookingForm({
                   therapistAvailabilityStatus !== "loading" &&
                   therapistAvailabilityStatus !== "error" ? (
                     <p className="mt-1 text-[11px] leading-4 text-[var(--cs-text-muted)]">
-                      All qualified staff scheduled for this day are shown. Checked-in staff are
-                      recommended first; attendance does not hide a scheduled provider.
+                      {groupBooking
+                        ? "Preferred for Guest 1; other guests receive qualified therapists automatically."
+                        : "All qualified staff scheduled for this day are shown. Checked-in staff are recommended first; attendance does not hide a scheduled provider."}
                     </p>
                   ) : null}
                 </div>
 
-                {!isHomeService ? (
+                {!isHomeService && !groupBooking ? (
                   <div>
                     <FieldLabel icon={<MapPin size={15} />} label="Room" optional />
                     <select
@@ -1506,6 +1571,8 @@ export function QuickBookingForm({
                       ))}
                     </select>
                   </div>
+                ) : groupBooking && !isHomeService ? (
+                  <p className="self-end text-xs text-[var(--cs-text-muted)]">Rooms are assigned per guest automatically.</p>
                 ) : null}
               </div>
 
@@ -1712,9 +1779,22 @@ export function QuickBookingForm({
 
             <div className="mt-3 space-y-3">
               <SummaryRow label="Customer" value={fullName || "Not selected"} />
-              <SummaryServices services={selectedServices} />
-              <SummaryRow label="Service total" value={serviceSummaryLabel} />
-              {effectiveProviderAvailability?.serviceEndTime ? (
+              {groupBooking ? (
+                <>
+                  <SummaryRow label="Guests" value={String(attendeeDrafts.length)} />
+                  <SummaryRow label="Services" value={String(groupServices.length)} />
+                  {attendeeDrafts.map((attendee, index) => (
+                    <div key={attendee.id} className="rounded-lg border border-[var(--cs-border-soft)] p-2 text-xs">
+                      <p className="font-semibold">Guest {index + 1} — {attendee.name || "Name needed"}</p>
+                      <p className="text-[var(--cs-text-muted)]">{attendee.serviceIds.map((id) => services.find((service) => service.id === id)?.name ?? "Service").join(", ") || "Select services"}</p>
+                    </div>
+                  ))}
+                  <SummaryRow label="Service total" value={formatCurrency(groupTotalPrice)} />
+                </>
+              ) : (
+                <><SummaryServices services={selectedServices} /><SummaryRow label="Service total" value={serviceSummaryLabel} /></>
+              )}
+              {!groupBooking && effectiveProviderAvailability?.serviceEndTime ? (
                 <SummaryRow
                   label="Appointment"
                   value={`${formatBookingClock(time)}–${formatBookingClock(
@@ -1725,7 +1805,7 @@ export function QuickBookingForm({
               <SummaryRow
                 label="Therapist"
                 value={
-                  selectedStaff
+                  groupBooking ? "Assigned per guest" : selectedStaff
                     ? selectedStaff.nickname || selectedStaff.name
                     : effectiveProviderAvailability
                       ? `First available · ${
@@ -1735,7 +1815,7 @@ export function QuickBookingForm({
                       : "First available"
                 }
               />
-              {effectiveProviderAvailability?.scheduleStartTime &&
+              {!groupBooking && effectiveProviderAvailability?.scheduleStartTime &&
               effectiveProviderAvailability.scheduleEndTime ? (
                 <SummaryRow
                   label="Therapist schedule"
@@ -1744,7 +1824,7 @@ export function QuickBookingForm({
                   )}–${formatBookingClock(effectiveProviderAvailability.scheduleEndTime)}`}
                 />
               ) : null}
-              {(effectiveProviderAvailability?.overtimeMinutes ?? 0) > 0 ? (
+              {!groupBooking && (effectiveProviderAvailability?.overtimeMinutes ?? 0) > 0 ? (
                 <SummaryNote
                   text={`Ends ${formatServiceDuration(
                     effectiveProviderAvailability?.overtimeMinutes ?? 0
@@ -1752,7 +1832,7 @@ export function QuickBookingForm({
                   tone="warning"
                 />
               ) : null}
-              {isHomeService &&
+              {!groupBooking && isHomeService &&
               effectiveProviderAvailability?.operationalStartTime &&
               effectiveProviderAvailability.operationalEndTime ? (
                 <SummaryRow
@@ -1765,7 +1845,7 @@ export function QuickBookingForm({
               {!isHomeService ? (
                 <SummaryRow
                   label="Room"
-                  value={selectedResource ? selectedResource.name : "First available"}
+                  value={groupBooking ? "Assigned per guest" : selectedResource ? selectedResource.name : "First available"}
                 />
               ) : (
                 <>
@@ -1785,7 +1865,7 @@ export function QuickBookingForm({
                       />
                       <SummaryRow
                         label="Total"
-                        value={formatCurrency(totalPrice + homeServiceDistanceQuote.travelFee)}
+                        value={formatCurrency((groupBooking ? groupTotalPrice : totalPrice) + homeServiceDistanceQuote.travelFee)}
                       />
                     </>
                   ) : (

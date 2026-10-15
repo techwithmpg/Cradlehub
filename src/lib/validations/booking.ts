@@ -97,7 +97,14 @@ export const createInhouseBookingMultiSchema = z
     idempotencyKey: uuid.optional(),
     branchId: uuid.optional(), // defaults to operator's branch when omitted
     customerId: uuid.optional(),
-    serviceIds: z.array(uuid).min(1, "Select a service.").max(5, "Maximum 5 services per booking"),
+    serviceIds: z.array(uuid).min(1, "Select a service.").max(20, "Maximum 20 services per booking"),
+    bookingFor: z.enum(["me", "me_and_others", "someone_else"]).optional(),
+    attendees: z.array(z.object({
+      id: uuid,
+      name: z.string().trim().min(2, "Enter each guest's name.").max(100),
+      isOrganizer: z.boolean(),
+      serviceIds: z.array(uuid).min(1, "Select a service for each guest.").max(5),
+    }).strict()).min(1).max(4).optional(),
     staffId: uuid.optional(), // undefined = auto-assign by seniority
     resourceId: uuid.optional().nullable(),
     date: anyDate,
@@ -151,6 +158,27 @@ export const createInhouseBookingMultiSchema = z
       .optional(),
   })
   .superRefine((data, ctx) => {
+    if (data.attendees) {
+      const attendeeIds = data.attendees.map((attendee) => attendee.id);
+      if (new Set(attendeeIds).size !== attendeeIds.length) {
+        ctx.addIssue({ code: "custom", message: "Each guest must have a distinct ID.", path: ["attendees"] });
+      }
+      if (data.attendees.filter((attendee) => attendee.isOrganizer).length !== 1 || !data.attendees[0]?.isOrganizer) {
+        ctx.addIssue({ code: "custom", message: "The first guest must be the organizer.", path: ["attendees"] });
+      }
+      if (data.attendees[0]?.name.toLocaleLowerCase() !== data.fullName.trim().toLocaleLowerCase()) {
+        ctx.addIssue({ code: "custom", message: "The organizer name must match the customer.", path: ["attendees", 0, "name"] });
+      }
+      const union = new Set(data.attendees.flatMap((attendee) => attendee.serviceIds));
+      if (union.size !== new Set(data.serviceIds).size || [...union].some((id) => !data.serviceIds.includes(id))) {
+        ctx.addIssue({ code: "custom", message: "Guest services must match the selected services.", path: ["serviceIds"] });
+      }
+      if (data.attendees.length > 1 && data.bookingFor !== "me_and_others") {
+        ctx.addIssue({ code: "custom", message: "Choose booking for me and others when adding guests.", path: ["bookingFor"] });
+      }
+    } else if (data.serviceIds.length > 5) {
+      ctx.addIssue({ code: "custom", message: "Maximum 5 services per booking", path: ["serviceIds"] });
+    }
     const deliveryType =
       data.deliveryType ?? (data.type === "home_service" ? "home_service" : "in_spa");
 

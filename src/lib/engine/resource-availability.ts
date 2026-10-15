@@ -117,6 +117,54 @@ export async function autoAssignBookingResource(params: {
   return null;
 }
 
+/** Reserve capacity across concurrent attendees before the atomic insert. */
+export async function allocateResourcesForAttendees(params: {
+  branchId: string;
+  date: string;
+  windows: Array<{ startTime: string; endTime: string }>;
+}): Promise<Array<string | null> | null> {
+  const supabase = createAdminClient();
+  const { data: resources, error: resourceError } = await supabase
+    .from("branch_resources")
+    .select("id, capacity")
+    .eq("branch_id", params.branchId)
+    .eq("is_active", true)
+    .order("sort_order", { ascending: true })
+    .order("name", { ascending: true });
+  if (resourceError) throw resourceError;
+  if (!resources?.length) return params.windows.map(() => null);
+
+  const { data: bookings, error: bookingError } = await supabase
+    .from("bookings")
+    .select("id, resource_id, start_time, end_time, status, hold_expires_at")
+    .eq("branch_id", params.branchId)
+    .eq("booking_date", params.date)
+    .not("resource_id", "is", "null");
+  if (bookingError) throw bookingError;
+
+  const now = new Date();
+  const reservations: Array<{ resourceId: string; start: number; end: number }> = [];
+  const assigned: Array<string | null> = [];
+  for (const window of params.windows) {
+    const start = timeToMinutes(window.startTime);
+    const end = timeToMinutes(window.endTime);
+    const resource = resources.find((candidate) => {
+      const existing = ((bookings ?? []) as BookingResourceRow[]).filter((booking) =>
+        booking.resource_id === candidate.id && bookingBlocksAvailability(booking, now) &&
+        rangesOverlap(start, end, timeToMinutes(booking.start_time), timeToMinutes(booking.end_time))
+      ).length;
+      const inRequest = reservations.filter((reservation) =>
+        reservation.resourceId === candidate.id && rangesOverlap(start, end, reservation.start, reservation.end)
+      ).length;
+      return existing + inRequest < candidate.capacity;
+    });
+    if (!resource) return null;
+    reservations.push({ resourceId: resource.id, start, end });
+    assigned.push(resource.id);
+  }
+  return assigned;
+}
+
 /**
  * Checks if a physical resource currently has an active (open or in_progress) room turnover task.
  * Never fails open on database error: throws rather than silently assuming ready.

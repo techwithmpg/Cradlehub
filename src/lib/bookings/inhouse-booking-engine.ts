@@ -1,4 +1,5 @@
 import "server-only";
+import { createHash } from "node:crypto";
 
 import { createAdminClient } from "@/lib/supabase/admin";
 import type { Json } from "@/types/supabase";
@@ -20,7 +21,8 @@ import {
   type HomeServiceDistanceQuote,
 } from "@/lib/home-service/distance-service";
 import { buildGoogleMapsSearchUrl } from "@/lib/maps/google-maps";
-import { isResourceAvailable, autoAssignBookingResource } from "@/lib/engine/resource-availability";
+import { isResourceAvailable, autoAssignBookingResource, allocateResourcesForAttendees } from "@/lib/engine/resource-availability";
+import { assignTherapistsForOrder } from "@/lib/engine/availability";
 import { AppError, SlotUnavailableError } from "@/types/errors";
 import { createNotification } from "@/lib/notifications/create";
 import { logError, logBusinessEvent } from "@/lib/logger";
@@ -30,7 +32,7 @@ import { isConsultationOnlyService } from "@/lib/bookings/consultation-only-serv
 import { validateBranchServiceEligibility } from "@/lib/services/service-catalog";
 
 export type CreateInhouseBookingResult =
-  | { ok: true; bookingId: string; warning?: string }
+  | { ok: true; bookingId: string; orderId?: string; orderNumber?: string; serviceLineIds?: string[]; attendeeIds?: string[]; serviceCount?: number; attendeeCount?: number; warning?: string }
   | { ok: false; code: string; message: string };
 
 export type InhouseBookingOperator = {
@@ -113,6 +115,13 @@ export async function executeInhouseBookingCreation(
   }
 
   const d: CreateInhouseBookingMultiInput = parsed.data;
+  const attendees = d.attendees ?? [{
+    id: crypto.randomUUID(), name: d.fullName, isOrganizer: true, serviceIds: d.serviceIds,
+  }];
+  const groupBooking = attendees.length > 1;
+  const groupInputHash = groupBooking ? createHash("sha256").update(JSON.stringify(d)).digest("hex") : null;
+  const allServiceIds = [...new Set(attendees.flatMap((attendee) => attendee.serviceIds))];
+  const orderedServiceIds = attendees.flatMap((attendee) => attendee.serviceIds);
   const deliveryType = d.deliveryType ?? (d.type === "home_service" ? "home_service" : "in_spa");
   const crmBookingMode =
     d.crmBookingMode ?? (deliveryType === "home_service" ? "home_service" : "walkin");
@@ -189,7 +198,7 @@ export async function executeInhouseBookingCreation(
   const logContext = {
     branchId: resolvedBranchId,
     staffId: d.staffId ?? "auto",
-    serviceIds: d.serviceIds,
+    serviceIds: allServiceIds,
     bookingDate: d.date,
     startTime,
     operatorId: staff?.id ?? (isDevBypass ? "dev-bypass" : operator.authUserId),
@@ -197,6 +206,40 @@ export async function executeInhouseBookingCreation(
   };
 
   try {
+    if (groupBooking && d.idempotencyKey) {
+      const replayClient = createAdminClient();
+      const { data: existingOrder, error: replayError } = await replayClient
+        .from("booking_orders")
+        .select("id, order_number, metadata")
+        .eq("idempotency_key", d.idempotencyKey)
+        .eq("branch_id", resolvedBranchId)
+        .maybeSingle();
+      if (replayError) throw replayError;
+      if (existingOrder) {
+        const metadata = existingOrder.metadata as Record<string, unknown> | null;
+        if (metadata?.crm_input_hash !== groupInputHash) {
+          return { ok: false, code: "IDEMPOTENCY_CONFLICT", message: "This booking request key was already used for different details." };
+        }
+        const [attendeeRows, bookingRows] = await Promise.all([
+          replayClient.from("booking_attendees").select("id, sequence").eq("booking_order_id", existingOrder.id),
+          replayClient.from("bookings").select("id, attendee_id, line_sequence").eq("order_id", existingOrder.id),
+        ]);
+        if (attendeeRows.error || bookingRows.error) throw attendeeRows.error ?? bookingRows.error;
+        const sortedAttendees = [...(attendeeRows.data ?? [])].sort((a, b) => a.sequence - b.sequence);
+        const sequenceById = new Map(sortedAttendees.map((row) => [row.id, row.sequence]));
+        const serviceLineIds = [...(bookingRows.data ?? [])].sort((a, b) =>
+          (sequenceById.get(a.attendee_id ?? "") ?? 0) - (sequenceById.get(b.attendee_id ?? "") ?? 0) ||
+          (a.line_sequence ?? 0) - (b.line_sequence ?? 0)
+        ).map((row) => row.id);
+        if (serviceLineIds.length !== orderedServiceIds.length || sortedAttendees.length !== attendees.length) {
+          throw new Error("Group booking replay rows are incomplete");
+        }
+        return { ok: true, bookingId: serviceLineIds[0]!, orderId: existingOrder.id,
+          orderNumber: existingOrder.order_number, serviceLineIds,
+          attendeeIds: sortedAttendees.map((row) => row.id),
+          serviceCount: serviceLineIds.length, attendeeCount: sortedAttendees.length };
+      }
+    }
     const rulesCheck = await validateBookingAgainstBranchRules({
       branchId: resolvedBranchId,
       bookingType: d.type,
@@ -214,7 +257,7 @@ export async function executeInhouseBookingCreation(
 
     const serviceEligibility = await validateBranchServiceEligibility({
       branchId: resolvedBranchId,
-      serviceIds: d.serviceIds,
+      serviceIds: allServiceIds,
       audience: "crm",
       deliveryMode: deliveryType,
       useAdminClient: true,
@@ -232,7 +275,7 @@ export async function executeInhouseBookingCreation(
     const { data: consultationServices, error: consultationError } = await consultationClient
       .from("services")
       .select("name, metadata, service_categories(name)")
-      .in("id", d.serviceIds);
+      .in("id", allServiceIds);
     if (consultationError) throw consultationError;
     const requiresManualArrangement = (consultationServices ?? []).some((service) => {
       const categoryValue = service.service_categories;
@@ -254,60 +297,65 @@ export async function executeInhouseBookingCreation(
 
     const admin = createAdminClient();
 
-    const exactAvailability = await resolveExactCrmBookingTime({
-      branchId: resolvedBranchId,
-      serviceIds: d.serviceIds,
-      date: d.date,
-      startTime,
-      bookingMode: crmBookingMode,
-      deliveryType,
-      staffId: d.staffId,
-      travelBufferMins:
-        deliveryType === "home_service"
-          ? (d.travelBufferMins ?? rulesCheck.rules.travelBufferMins)
-          : 0,
-    });
-
-    if (!exactAvailability.available) {
-      return {
-        ok: false,
-        code:
-          exactAvailability.reasonCode === "no_schedule_for_time"
-            ? "NO_SCHEDULE_AT_START"
-            : "EXACT_TIME_UNAVAILABLE",
-        message:
-          exactAvailability.message ??
-          "No qualified therapist can start at the selected exact time.",
-      };
+    let attendeeStaffIds: string[];
+    let selectedExactProvider: Awaited<ReturnType<typeof resolveExactCrmBookingTime>>["providers"][number] | undefined;
+    let availabilityWarning: string | undefined;
+    if (groupBooking) {
+      const assignments = await assignTherapistsForOrder({
+        branchId: resolvedBranchId,
+        attendees: attendees.map((attendee) => ({ id: attendee.id, serviceIds: attendee.serviceIds })),
+        date: d.date,
+        startTime,
+        deliveryMode: deliveryType,
+        preferredStaffId: d.staffId,
+        requireStaffServiceAssignment: true,
+      });
+      attendeeStaffIds = attendees.map((attendee) => {
+        const assignment = assignments.find((item) => item.attendeeId === attendee.id);
+        if (!assignment) throw new SlotUnavailableError();
+        return assignment.staffId;
+      });
+      availabilityWarning = requiresManualArrangement
+        ? "Manual arrangement required: confirm every participant, provider, room, and time before finalizing."
+        : undefined;
+    } else {
+      const exactAvailability = await resolveExactCrmBookingTime({
+        branchId: resolvedBranchId,
+        serviceIds: d.serviceIds,
+        date: d.date,
+        startTime,
+        bookingMode: crmBookingMode,
+        deliveryType,
+        staffId: d.staffId,
+        travelBufferMins:
+          deliveryType === "home_service"
+            ? (d.travelBufferMins ?? rulesCheck.rules.travelBufferMins)
+            : 0,
+      });
+      if (!exactAvailability.available) {
+        return {
+          ok: false,
+          code: exactAvailability.reasonCode === "no_schedule_for_time"
+            ? "NO_SCHEDULE_AT_START" : "EXACT_TIME_UNAVAILABLE",
+          message: exactAvailability.message ?? "No qualified therapist can start at the selected exact time.",
+        };
+      }
+      selectedExactProvider = d.staffId
+        ? exactAvailability.providers.find((provider) => provider.staffId === d.staffId && provider.selectable)
+        : exactAvailability.providers.find((provider) => provider.selectable);
+      if (!selectedExactProvider) {
+        return { ok: false, code: "EXACT_TIME_UNAVAILABLE", message: "No qualified therapist can start at the selected exact time." };
+      }
+      attendeeStaffIds = [selectedExactProvider.staffId];
+      availabilityWarning = Array.from(new Set([
+        requiresManualArrangement
+          ? "Manual arrangement required: the selected provider is only the coordinator; confirm every participant, provider, room, and time before finalizing."
+          : null,
+        exactAvailability.warning,
+        selectedExactProvider.warning,
+      ].filter((warning): warning is string => Boolean(warning)))).join(" ") || undefined;
     }
-
-    const selectedExactProvider = d.staffId
-      ? exactAvailability.providers.find(
-          (provider) => provider.staffId === d.staffId && provider.selectable
-        )
-      : exactAvailability.providers.find((provider) => provider.selectable);
-
-    if (!selectedExactProvider) {
-      return {
-        ok: false,
-        code: "EXACT_TIME_UNAVAILABLE",
-        message: "No qualified therapist can start at the selected exact time.",
-      };
-    }
-
-    const resolvedStaffId = selectedExactProvider.staffId;
-    const availabilityWarning =
-      Array.from(
-        new Set(
-          [
-            requiresManualArrangement
-              ? "Manual arrangement required: the selected provider is only the coordinator; confirm every participant, provider, room, and time before finalizing."
-              : null,
-            exactAvailability.warning,
-            selectedExactProvider.warning,
-          ].filter((warning): warning is string => Boolean(warning))
-        )
-      ).join(" ") || undefined;
+    const resolvedStaffId = attendeeStaffIds[0]!;
 
     let resolvedResourceId = d.resourceId ?? null;
 
@@ -316,13 +364,13 @@ export async function executeInhouseBookingCreation(
       admin
         .from("services")
         .select("id, duration_minutes, buffer_before, buffer_after")
-        .in("id", d.serviceIds),
+        .in("id", allServiceIds),
       admin
         .from("branch_services")
         .select("service_id, custom_duration_minutes")
         .eq("branch_id", resolvedBranchId)
         .eq("is_active", true)
-        .in("service_id", d.serviceIds),
+        .in("service_id", allServiceIds),
     ]);
 
     if (combinedServicesResult.error || combinedOverridesResult.error) {
@@ -339,15 +387,15 @@ export async function executeInhouseBookingCreation(
         row.custom_duration_minutes,
       ])
     );
-    const totalMinutesCombined = (combinedServicesResult.data ?? []).reduce(
-      (sum, service) =>
-        sum +
-        Number(combinedDurationByServiceId.get(service.id) ?? service.duration_minutes) +
-        Number(service.buffer_before) +
-        Number(service.buffer_after),
-      0
-    );
-    const combinedEndTime = computeEndTimeLocal(startTime, totalMinutesCombined);
+    const durationServiceById = new Map((combinedServicesResult.data ?? []).map((service) => [service.id, service]));
+    const attendeeDurations = attendees.map((attendee) => attendee.serviceIds.reduce((sum, id) => {
+      const service = durationServiceById.get(id);
+      return sum + (service
+        ? Number(combinedDurationByServiceId.get(id) ?? service.duration_minutes) + Number(service.buffer_before) + Number(service.buffer_after)
+        : 0);
+    }, 0));
+    const combinedEndTime = computeEndTimeLocal(startTime, Math.max(...attendeeDurations));
+    const attendeeEndTimes = attendeeDurations.map((minutes) => computeEndTimeLocal(startTime, minutes));
     if (!combinedEndTime) {
       return {
         ok: false,
@@ -357,8 +405,23 @@ export async function executeInhouseBookingCreation(
       };
     }
 
-    // ── Auto-assign room if not provided ──────────────────────────────────
-    if (deliveryType !== "home_service" && !resolvedResourceId && combinedEndTime) {
+    // The single-person room path remains unchanged; groups reserve capacity per attendee.
+    let attendeeResourceIds: Array<string | null> = attendees.map(() => null);
+    if (groupBooking && deliveryType !== "home_service") {
+      if (d.resourceId) {
+        return { ok: false, code: "RESOURCE_INVALID", message: "Use automatic room assignment when booking multiple guests." };
+      }
+      const allocated = await allocateResourcesForAttendees({
+        branchId: resolvedBranchId,
+        date: d.date,
+        windows: attendeeEndTimes.map((endTime) => ({ startTime, endTime: endTime ?? startTime })),
+      });
+      if (!allocated) {
+        return { ok: false, code: "RESOURCE_UNAVAILABLE", message: "Not enough rooms are available for all guests." };
+      }
+      attendeeResourceIds = allocated;
+    }
+    if (!groupBooking && deliveryType !== "home_service" && !resolvedResourceId && combinedEndTime) {
       resolvedResourceId = await autoAssignBookingResource({
         branchId: resolvedBranchId,
         date: d.date,
@@ -390,7 +453,7 @@ export async function executeInhouseBookingCreation(
     }
 
     // Verify a manually selected room belongs to this branch and is active.
-    if (d.resourceId) {
+    if (!groupBooking && d.resourceId) {
       const { data: selectedResource, error: selectedResourceError } = await admin
         .from("branch_resources")
         .select("id")
@@ -409,7 +472,7 @@ export async function executeInhouseBookingCreation(
     }
 
     // Verify resource availability if provided manually
-    if (d.resourceId && combinedEndTime) {
+    if (!groupBooking && d.resourceId && combinedEndTime) {
       const isAvailable = await isResourceAvailable({
         resourceId: d.resourceId,
         date: d.date,
@@ -428,6 +491,7 @@ export async function executeInhouseBookingCreation(
         };
       }
     }
+    if (!groupBooking) attendeeResourceIds = [resolvedResourceId];
 
     let resolvedCustomerId = d.customerId ?? null;
     if (resolvedCustomerId) {
@@ -477,7 +541,7 @@ export async function executeInhouseBookingCreation(
     const { data: servicesData, error: servicesError } = await admin
       .from("services")
       .select("id, name, price, duration_minutes, buffer_before, buffer_after")
-      .in("id", d.serviceIds)
+      .in("id", allServiceIds)
       .eq("is_active", true);
 
     if (servicesError) {
@@ -492,10 +556,10 @@ export async function executeInhouseBookingCreation(
 
     const services = (servicesData ?? []) as ServiceRow[];
     const servicesById = new Map(services.map((s) => [s.id, s]));
-    if (servicesById.size !== new Set(d.serviceIds).size) {
+    if (servicesById.size !== allServiceIds.length) {
       console.error("[CRM_BOOKING] service inactive", {
         ...logContext,
-        requested: d.serviceIds,
+        requested: allServiceIds,
         found: services.map((s) => s.id),
       });
       return {
@@ -509,7 +573,7 @@ export async function executeInhouseBookingCreation(
       .from("branch_services")
       .select("service_id, custom_price, custom_duration_minutes")
       .eq("branch_id", resolvedBranchId)
-      .in("service_id", d.serviceIds)
+      .in("service_id", allServiceIds)
       .eq("is_active", true);
 
     if (branchOverridesError) {
@@ -529,7 +593,7 @@ export async function executeInhouseBookingCreation(
       (branchOverrides ?? []).map((row) => [row.service_id, row])
     );
 
-    if (overrideByServiceId.size !== new Set(d.serviceIds).size) {
+    if (overrideByServiceId.size !== allServiceIds.length) {
       return {
         ok: false,
         code: "SERVICE_NOT_CONFIGURED_FOR_BRANCH",
@@ -538,7 +602,7 @@ export async function executeInhouseBookingCreation(
     }
 
     const servicePriceById = new Map(
-      d.serviceIds.map((serviceId) => {
+      allServiceIds.map((serviceId) => {
         const service = servicesById.get(serviceId);
         const price = Number(
           overrideByServiceId.get(serviceId)?.custom_price ?? service?.price ?? 0
@@ -547,7 +611,7 @@ export async function executeInhouseBookingCreation(
       })
     );
     const serviceSubtotal = phpCents(
-      d.serviceIds.reduce((sum, serviceId) => sum + (servicePriceById.get(serviceId) ?? 0), 0)
+      orderedServiceIds.reduce((sum, serviceId) => sum + (servicePriceById.get(serviceId) ?? 0), 0)
     );
 
     // Build home service address data from the selected Google place.
@@ -643,9 +707,9 @@ export async function executeInhouseBookingCreation(
     }
 
     const serviceLines: Array<Record<string, unknown>> = [];
-    let currentStart = startTime;
-
-    for (const [serviceIndex, serviceId] of d.serviceIds.entries()) {
+    for (const [attendeeIndex, attendee] of attendees.entries()) {
+      let currentStart = startTime;
+      for (const [serviceIndex, serviceId] of attendee.serviceIds.entries()) {
       const service = servicesById.get(serviceId);
       if (!service) {
         // Should never happen due to earlier check
@@ -677,7 +741,7 @@ export async function executeInhouseBookingCreation(
             serviceSubtotal,
             serviceLinePrice: servicePrice,
             quote: homeServiceQuote,
-            travelFeeAppliedToBooking: serviceIndex === 0,
+            travelFeeAppliedToBooking: attendeeIndex === 0 && serviceIndex === 0,
           })
         : null;
       const metadata = {
@@ -687,7 +751,7 @@ export async function executeInhouseBookingCreation(
         customer_notes: d.notes ?? null,
         crm_booking_mode: crmBookingMode,
         source: "crm_quick_booking",
-        exact_time_resolution: {
+        ...(selectedExactProvider && { exact_time_resolution: {
           schedule_start_time: selectedExactProvider.scheduleStartTime,
           schedule_end_time: selectedExactProvider.scheduleEndTime,
           service_end_time: selectedExactProvider.serviceEndTime,
@@ -697,7 +761,7 @@ export async function executeInhouseBookingCreation(
           operational_overtime_minutes: selectedExactProvider.operationalOvertimeMinutes,
           operational_starts_before_shift: selectedExactProvider.operationalStartsBeforeShift,
           policy: "start_inside_schedule_finish_after_allowed",
-        },
+        } }),
         payment_received: false,
         ...(hsAddressData && { home_service_address: hsAddressData }),
         ...(homeServiceQuote && {
@@ -719,10 +783,11 @@ export async function executeInhouseBookingCreation(
       };
 
       serviceLines.push({
-        attendee_sequence: 1,
+        attendee_sequence: attendeeIndex + 1,
         line_sequence: serviceIndex + 1,
         service_id: serviceId,
-        staff_id: resolvedStaffId,
+        staff_id: attendeeStaffIds[attendeeIndex],
+        ...(groupBooking && { resource_id: attendeeResourceIds[attendeeIndex] }),
         start_time: currentStart,
         end_time: endTime,
         travel_buffer_mins:
@@ -733,6 +798,7 @@ export async function executeInhouseBookingCreation(
       });
 
       currentStart = endTime;
+      }
     }
 
     const orderMetadata = {
@@ -742,6 +808,9 @@ export async function executeInhouseBookingCreation(
       crm_booking_mode: crmBookingMode,
       source: "crm_quick_booking",
       payment_received: paymentReceived,
+      ...(groupBooking && { booking_for: d.bookingFor, total_attendees: attendees.length,
+        total_services: serviceLines.length, total_duration_minutes: Math.max(...attendeeDurations),
+        crm_input_hash: groupInputHash }),
     };
     const rpcArgs = {
       p_actor_auth_user_id: operator.authUserId,
@@ -755,17 +824,15 @@ export async function executeInhouseBookingCreation(
         payment_preference: "pay_at_spa",
         metadata: orderMetadata,
       },
-      p_attendees: [
-        {
-          sequence: 1,
-          display_name: d.fullName,
-          customer_id: resolvedCustomerId,
-        },
-      ],
+      p_attendees: attendees.map((attendee, index) => ({
+        sequence: index + 1,
+        display_name: attendee.name,
+        customer_id: attendee.isOrganizer ? resolvedCustomerId : null,
+      })),
       p_service_lines: serviceLines,
       p_options: {
         type: d.type,
-        resource_id: resolvedResourceId,
+        resource_id: groupBooking ? null : resolvedResourceId,
         mark_arrived: d.markArrived ?? false,
         payment_received: paymentReceived,
         payment_method: paymentReceived ? d.paymentMethod : null,
@@ -787,7 +854,7 @@ export async function executeInhouseBookingCreation(
           name: string,
           args: typeof rpcArgs
         ) => Promise<{
-          data: { service_line_ids?: string[]; idempotency_status?: string } | null;
+          data: { service_line_ids?: string[]; attendee_ids?: string[]; order_id?: string; order_number?: string; idempotency_status?: string } | null;
           error: { message: string; code?: string } | null;
         }>;
       }
@@ -821,7 +888,7 @@ export async function executeInhouseBookingCreation(
     const isReplay = atomicData.idempotency_status === "replayed";
 
     const isHomeService = deliveryType === "home_service";
-    const serviceNames = d.serviceIds
+    const serviceNames = orderedServiceIds
       .map((id) => servicesById.get(id)?.name ?? "")
       .filter(Boolean)
       .join(", ");
@@ -847,6 +914,29 @@ export async function executeInhouseBookingCreation(
           }),
           // No CRM payment_pending notification for in-house bookings — payment is already recorded.
         ];
+
+    if (!isReplay && groupBooking) {
+      let firstLineIndex = attendees[0]!.serviceIds.length;
+      for (let index = 1; index < attendees.length; index += 1) {
+        const attendee = attendees[index]!;
+        const attendeeBookingId = insertedIds[firstLineIndex]!;
+        notificationJobs.push(createNotification({
+          branchId: resolvedBranchId,
+          targetWorkspace: "staff",
+          recipientStaffId: attendeeStaffIds[index],
+          type: isHomeService ? "home_service_assigned" : "booking_assigned",
+          title: isHomeService ? `Home Service booking — ${attendee.name}` : `New booking — ${attendee.name}`,
+          body: `${attendee.name} has a confirmed ${isHomeService ? "Home Service " : ""}booking on ${d.date} at ${startTime}.`,
+          entityType: "booking",
+          entityId: attendeeBookingId,
+          actionHref: "/staff-portal/schedule",
+          priority: isHomeService ? "high" : "normal",
+          requiresAction: isHomeService,
+          dedupeKey: `booking:${attendeeBookingId}:staff_assignment`,
+        }));
+        firstLineIndex += attendee.serviceIds.length;
+      }
+    }
 
     if (!isReplay && isHomeService && dispatchData.needs_location_review === true) {
       notificationJobs.push(
@@ -900,7 +990,7 @@ export async function executeInhouseBookingCreation(
       bookingId: insertedIds[0],
       customerId: resolvedCustomerId,
       staffId: resolvedStaffId,
-      serviceIds: d.serviceIds,
+      serviceIds: orderedServiceIds,
       bookingType: d.type,
       deliveryType,
       actorId: staff?.id ?? (isDevBypass ? "dev-bypass" : operator.authUserId),
@@ -917,7 +1007,12 @@ export async function executeInhouseBookingCreation(
       );
     }
 
-    return { ok: true, bookingId: insertedIds[0]!, warning: availabilityWarning };
+    return {
+      ok: true, bookingId: insertedIds[0]!, orderId: atomicData.order_id,
+      orderNumber: atomicData.order_number, serviceLineIds: insertedIds,
+      attendeeIds: atomicData.attendee_ids, serviceCount: insertedIds.length,
+      attendeeCount: attendees.length, warning: availabilityWarning,
+    };
   } catch (error) {
     console.error("[CRM_BOOKING] caught error", { ...logContext, error });
 
