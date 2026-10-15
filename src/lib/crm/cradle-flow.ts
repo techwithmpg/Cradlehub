@@ -5,6 +5,25 @@ export type CradleFlowStage = "waiting" | "in_service" | "ready_to_pay" | "compl
 export type CradleFlowBooking = ControlBooking & {
   booking_date: string;
   order_id?: string | null;
+  attendee_id?: string | null;
+  booking_attendees?:
+    | { id: string; sequence: number; display_name: string | null; customer_id: string | null }
+    | { id: string; sequence: number; display_name: string | null; customer_id: string | null }[]
+    | null;
+  booking_orders?:
+    | {
+        id: string;
+        order_number: string;
+        organizer_customer_id: string;
+        metadata: Record<string, unknown> | null;
+      }
+    | {
+        id: string;
+        order_number: string;
+        organizer_customer_id: string;
+        metadata: Record<string, unknown> | null;
+      }[]
+    | null;
   order_payment_status?: string | null;
   order_amount_paid?: number | null;
   order_total_amount?: number | null;

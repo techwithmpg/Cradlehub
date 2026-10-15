@@ -3,6 +3,15 @@ import {
   isPaymentOverdue,
   type CradleFlowBooking,
 } from "@/lib/crm/cradle-flow";
+import {
+  groupBookingsByOrder,
+  matchesBookingGroupSearch,
+} from "@/lib/bookings/group-bookings-by-order";
+import {
+  getCradleFlowAmountPaid,
+  getCradleFlowBalance,
+  getCradleFlowPaymentStatus,
+} from "@/lib/crm/cradle-flow";
 
 export type CradleFlowFilter =
   | "all"
@@ -74,6 +83,71 @@ export function getCradleFlowAttention(booking: CradleFlowBooking, now = new Dat
   return issues;
 }
 
+export function groupCradleFlowBookings(bookings: readonly CradleFlowBooking[]) {
+  return groupBookingsByOrder(bookings, {
+    organizerName: (line) => line.customer_name ?? "Unnamed customer",
+    payment: (line) => ({
+      total: line.order_id ? (line.order_total_amount ?? null) : Number(line.price_paid ?? 0),
+      paid: getCradleFlowAmountPaid(line),
+      due: line.order_id && line.order_total_amount == null ? null : getCradleFlowBalance(line),
+      status: getCradleFlowPaymentStatus(line),
+    }),
+    attention: (line) => getCradleFlowAttention(line),
+  }).map((group) => ({
+    ...group,
+    attentionSummary: group.attentionSummary.map((issue) =>
+      issue.replace(/^\d+ Payment Overdue$/, "Payment Overdue")
+    ),
+  }));
+}
+
+export type CradleFlowGroup = ReturnType<typeof groupCradleFlowBookings>[number];
+
+export function matchesCradleFlowGroupSearch(group: CradleFlowGroup, query: string): boolean {
+  return matchesBookingGroupSearch(group, query, (line) => [
+    line.customer_phone,
+    line.service_name,
+    line.staff_name,
+    line.resource_name,
+    line.hs_address,
+    line.payment_reference,
+  ]);
+}
+
+export function matchesCradleFlowGroupFilter(
+  group: CradleFlowGroup,
+  filter: CradleFlowFilter,
+  businessDate?: string
+): boolean {
+  const applicable = group.lines.filter((line) => getCradleFlowStage(line) !== null);
+  if (applicable.length === 0) return false;
+  const future = Boolean(businessDate && group.bookingDate > businessDate);
+  if (future)
+    return (
+      filter === "upcoming" || (filter === "needs_action" && group.attentionSummary.length > 0)
+    );
+  switch (filter) {
+    case "all":
+      return true;
+    case "upcoming":
+      return false;
+    case "needs_action":
+      return group.attentionSummary.length > 0;
+    case "in_service":
+      return group.stage === "in_service";
+    case "ready_to_pay":
+      return group.stage === "ready_to_pay";
+    case "completed":
+      return group.stage === "completed";
+    case "home_service":
+      return applicable.some(isHomeServiceVisit);
+    case "not_arrived":
+      return group.stage === "waiting" && applicable.every((line) => !isArrived(line));
+    case "waiting_arrived":
+      return group.stage === "waiting" && applicable.some(isArrived);
+  }
+}
+
 export function matchesCradleFlowFilter(
   booking: CradleFlowBooking,
   filter: CradleFlowFilter,
@@ -110,10 +184,11 @@ export function matchesCradleFlowFilter(
 }
 
 export function getCradleFlowDisplayCounts(bookings: CradleFlowBooking[], businessDate?: string) {
+  const groups = groupCradleFlowBookings(bookings);
   return Object.fromEntries(
     CRADLE_FLOW_FILTERS.map(({ key }) => [
       key,
-      bookings.filter((booking) => matchesCradleFlowFilter(booking, key, businessDate)).length,
+      groups.filter((group) => matchesCradleFlowGroupFilter(group, key, businessDate)).length,
     ])
   ) as Record<CradleFlowFilter, number>;
 }

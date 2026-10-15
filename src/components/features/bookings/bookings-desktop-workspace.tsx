@@ -24,7 +24,8 @@ import type { BookingQuickFilter } from "@/lib/bookings/bookings-workspace-filte
 import { applyBookingListFilters } from "@/lib/bookings/booking-list-exact-filters";
 import { bookingMatchesQuickFilter } from "@/lib/bookings/bookings-workspace-filters";
 import { firstBookingRelation } from "@/lib/bookings/booking-display";
-import { getStaffAdminName } from "@/lib/staff/display-name";
+import { groupCrmBookings, matchesCrmBookingGroupSearch } from "@/lib/bookings/crm-booking-groups";
+import { findBookingGroup } from "@/lib/bookings/group-bookings-by-order";
 import {
   filterSheetBookings,
   withPossibleMatch,
@@ -32,25 +33,6 @@ import {
 import type { SheetNativeReferencesState } from "@/lib/integrations/google-sheets/sheet-native-types";
 
 const NO_SELECTION = "__no_booking_selected__";
-
-function searchBookings(bookings: WorkspaceBookingRow[], search?: string): WorkspaceBookingRow[] {
-  const term = search?.trim().toLowerCase();
-  if (!term) return bookings;
-  return bookings.filter((booking) => {
-    const customer = firstBookingRelation(booking.customers);
-    const staff = firstBookingRelation(booking.staff);
-    const service = firstBookingRelation(booking.services);
-    return [
-      booking.id,
-      customer?.full_name,
-      customer?.phone,
-      staff ? getStaffAdminName(staff) : null,
-      service?.name,
-    ]
-      .filter((value): value is string => Boolean(value))
-      .some((value) => value.toLowerCase().includes(term));
-  });
-}
 
 function replaceSelectionQuery(bookingId: string | null) {
   const params = new URLSearchParams(window.location.search);
@@ -93,24 +75,46 @@ export function BookingsDesktopWorkspace(props: DesktopWorkspaceProps) {
   const router = useRouter();
   const searchParams = useSearchParams();
   const [quickFilter, setQuickFilter] = useState(props.initialQuickFilter);
-  const visibleBookings = useMemo(() => {
+  const allGroups = useMemo(
+    () => groupCrmBookings(props.bookings, props.workspaceContext === "crm"),
+    [props.bookings, props.workspaceContext]
+  );
+  const visibleGroups = useMemo(() => {
     if (props.referenceSource === "master_sheet") return [];
-    const quickFiltered = props.bookings.filter((booking) =>
-      bookingMatchesQuickFilter(booking, quickFilter)
-    );
-    const exactFiltered = applyBookingListFilters(quickFiltered, {
-      status: props.statusFilter,
-      source: props.sourceFilter,
-      delivery: props.deliveryFilter,
-      payment: props.paymentFilter,
-      assignment: props.assignmentFilter,
-      branchId: props.branchFilter,
+    const filtered = allGroups.filter((group) => {
+      if (quickFilter === "needs-attention" && group.attentionSummary.length === 0) return false;
+      if (
+        quickFilter === "active-now" &&
+        !group.lines.some((line) => bookingMatchesQuickFilter(line, "active-now"))
+      )
+        return false;
+      if (props.statusFilter === "in_service" && group.stage !== "in_service") return false;
+      if (props.statusFilter === "completed" && group.stage !== "completed") return false;
+      if (props.paymentFilter && group.orderId && group.payment.status !== props.paymentFilter)
+        return false;
+      const filters = {
+        status: ["in_service", "completed"].includes(props.statusFilter ?? "")
+          ? undefined
+          : props.statusFilter,
+        source: props.sourceFilter,
+        delivery: props.deliveryFilter,
+        payment: group.orderId ? undefined : props.paymentFilter,
+        assignment: props.assignmentFilter,
+        branchId: props.branchFilter,
+      };
+      return (
+        applyBookingListFilters(group.lines, filters).length > 0 &&
+        matchesCrmBookingGroupSearch(group, props.search ?? "")
+      );
     });
-    const searched = searchBookings(exactFiltered, props.search);
-    return quickFilter === "upcoming" ? searched : sortBookingsRecentFirst(searched);
+    if (quickFilter === "upcoming") return filtered;
+    const byPrimaryId = new Map(filtered.map((group) => [group.primaryBookingId, group]));
+    return sortBookingsRecentFirst(filtered.map((group) => group.lines[0]!)).map(
+      (line) => byPrimaryId.get(line.id)!
+    );
   }, [
+    allGroups,
     props.assignmentFilter,
-    props.bookings,
     props.branchFilter,
     props.deliveryFilter,
     props.paymentFilter,
@@ -162,10 +166,13 @@ export function BookingsDesktopWorkspace(props: DesktopWorkspaceProps) {
         null)
       : null;
   const [selectedId, setSelectedId] = useState<string>(() => {
-    if (requestedId && visibleBookings.some((booking) => booking.id === requestedId))
-      return requestedId;
-    return visibleBookings[0]?.id ?? NO_SELECTION;
+    return (
+      findBookingGroup(visibleGroups, requestedId)?.displayId ??
+      visibleGroups[0]?.displayId ??
+      NO_SELECTION
+    );
   });
+  const [selectedLineId, setSelectedLineId] = useState<string | null>(requestedId ?? null);
   const [selectedSheetKey, setSelectedSheetKey] = useState<string | null>(null);
   const selectedSheet =
     sheetReferences.find((reference) => reference.source.sourceKey === selectedSheetKey) ?? null;
@@ -180,17 +187,19 @@ export function BookingsDesktopWorkspace(props: DesktopWorkspaceProps) {
     window.history.replaceState(null, "", `${window.location.pathname}?${params.toString()}`);
   }, [searchParams]);
 
-  const selected =
+  const selectedGroup =
     selectedSheet || props.referenceSource === "master_sheet" || selectedId === NO_SELECTION
       ? null
-      : (visibleBookings.find((booking) => booking.id === selectedId) ??
-        visibleBookings[0] ??
-        null);
+      : (findBookingGroup(visibleGroups, selectedId) ?? visibleGroups[0] ?? null);
+  const selected =
+    selectedGroup?.lines.find((line) => line.id === selectedLineId) ??
+    selectedGroup?.lines[0] ??
+    null;
   const quickItems = [
     {
       key: "all" as const,
       label: "All bookings",
-      count: quickFilter === "upcoming" ? undefined : props.bookings.length,
+      count: quickFilter === "upcoming" ? undefined : allGroups.length,
     },
     {
       key: "needs-attention" as const,
@@ -198,9 +207,7 @@ export function BookingsDesktopWorkspace(props: DesktopWorkspaceProps) {
       count:
         quickFilter === "upcoming"
           ? undefined
-          : props.bookings.filter((booking) =>
-              bookingMatchesQuickFilter(booking, "needs-attention")
-            ).length,
+          : allGroups.filter((group) => group.attentionSummary.length > 0).length,
     },
     {
       key: "active-now" as const,
@@ -208,13 +215,14 @@ export function BookingsDesktopWorkspace(props: DesktopWorkspaceProps) {
       count:
         quickFilter === "upcoming"
           ? undefined
-          : props.bookings.filter((booking) => bookingMatchesQuickFilter(booking, "active-now"))
-              .length,
+          : allGroups.filter((group) =>
+              group.lines.some((line) => bookingMatchesQuickFilter(line, "active-now"))
+            ).length,
     },
     {
       key: "upcoming" as const,
       label: "Upcoming",
-      count: quickFilter === "upcoming" ? props.bookings.length : undefined,
+      count: quickFilter === "upcoming" ? allGroups.length : undefined,
     },
   ];
   const basePath = `/${props.workspaceContext === "owner" ? "owner" : props.workspaceContext === "manager" ? "manager" : "crm"}/bookings`;
@@ -266,7 +274,7 @@ export function BookingsDesktopWorkspace(props: DesktopWorkspaceProps) {
                 ? props.sheetState?.status === "available"
                   ? `${sheetReferences.length} Master Sheet references`
                   : "Master Sheet · read only"
-                : `${props.bookings.length} bookings`}
+                : `${allGroups.length} bookings`}
             </span>
           </header>
           {props.workspaceContext === "crm" ? (
@@ -332,16 +340,24 @@ export function BookingsDesktopWorkspace(props: DesktopWorkspaceProps) {
                             : null}
           </div>
           <BookingsDesktopList
-            bookings={visibleBookings}
+            bookings={[]}
+            displayGroups={visibleGroups}
             sheetReferences={sheetReferences}
-            selectedId={selected?.id ?? null}
+            selectedId={selectedGroup?.displayId ?? null}
             selectedSheetKey={selectedSheetKey}
             initialPage={props.initialPage}
             chronological={quickFilter === "upcoming"}
             onSelect={(booking) => {
               setSelectedSheetKey(null);
-              setSelectedId(booking.id);
+              setSelectedId(findBookingGroup(visibleGroups, booking.id)?.displayId ?? booking.id);
+              setSelectedLineId(booking.id);
               replaceSelectionQuery(booking.id);
+            }}
+            onSelectGroup={(group) => {
+              setSelectedSheetKey(null);
+              setSelectedId(group.displayId);
+              setSelectedLineId(group.primaryBookingId);
+              replaceSelectionQuery(group.primaryBookingId);
             }}
             onSelectSheet={(reference) => {
               setSelectedId(NO_SELECTION);
@@ -360,6 +376,11 @@ export function BookingsDesktopWorkspace(props: DesktopWorkspaceProps) {
           <SelectedBookingCommandPane
             key={`${selected.id}-${firstBookingRelation(selected.staff)?.id ?? "none"}-${selected.session_started_at ?? "none"}-${selected.booking_progress_status ?? "none"}`}
             booking={selected}
+            group={selectedGroup && selectedGroup.orderId ? selectedGroup : undefined}
+            onSelectLine={(lineId) => {
+              setSelectedLineId(lineId);
+              replaceSelectionQuery(lineId);
+            }}
             viewerRole={props.viewerRole}
             dispatchHref={dispatchHref}
             statusAction={props.statusAction}

@@ -11,6 +11,7 @@ import {
 } from "@/lib/crm/cradle-flow";
 import { getCradleFlowDisplayStatus, isHomeServiceVisit } from "./cradle-flow-display";
 import { formatBranchYmd } from "@/lib/engine/slot-time";
+import type { CradleFlowGroup } from "./cradle-flow-display";
 
 function formatTime(value: string | null | undefined): string {
   if (!value) return "—";
@@ -23,21 +24,90 @@ function formatTime(value: string | null | undefined): string {
 
 export function CradleFlowTicket({
   booking,
+  group,
   businessDate,
   onOpen,
+  onOpenGroup,
   onPrimary,
   onAssignRoom,
   onAssignTherapist,
   primaryPending = false,
 }: {
   booking: CradleFlowBooking;
+  group?: CradleFlowGroup;
   businessDate: string;
   onOpen: (booking: CradleFlowBooking) => void;
+  onOpenGroup?: (group: CradleFlowGroup) => void;
   onPrimary: (booking: CradleFlowBooking) => void;
   onAssignRoom: (booking: CradleFlowBooking) => void;
   onAssignTherapist: (booking: CradleFlowBooking) => void;
   primaryPending?: boolean;
 }) {
+  if (group && group.orderId && group.serviceCount > 1) {
+    const stageLabel = {
+      waiting: "Waiting",
+      in_service: "In Service",
+      ready_to_pay: "Ready to Pay",
+      completed: "Completed",
+    }[group.stage];
+    return (
+      <article className="grid gap-3 rounded-lg border border-[var(--cs-border-soft)] bg-[var(--cs-surface)] px-4 py-3 shadow-[var(--cs-shadow-xs)] lg:grid-cols-[5rem_minmax(0,1fr)_10rem_auto] lg:items-center">
+        <div className="text-sm font-extrabold tabular-nums">{formatTime(group.startTime)}</div>
+        <div className="min-w-0">
+          <div className="flex flex-wrap items-center gap-2">
+            <button
+              type="button"
+              className="truncate text-left text-sm font-extrabold hover:underline"
+              onClick={() => onOpenGroup?.(group)}
+            >
+              {group.organizerName}
+            </button>
+            {group.guestCount > 1 ? (
+              <span className="rounded-full bg-[var(--cs-sand-mist)] px-2 py-0.5 text-[10px] font-bold uppercase">
+                Group · {group.guestCount} guests
+              </span>
+            ) : null}
+            <span className="rounded-full bg-[var(--cs-surface-warm)] px-2 py-0.5 text-[10px] font-bold">
+              {stageLabel}
+            </span>
+          </div>
+          <div className="mt-1 text-xs text-[var(--cs-text-muted)]">
+            Order {group.orderNumber ?? group.orderId.slice(0, 8)} · {group.serviceCount} services ·{" "}
+            {group.elapsedMinutes === null ? "Duration TBD" : `${group.elapsedMinutes} min`}
+          </div>
+          <div className="mt-1 text-xs text-[var(--cs-text-secondary)]">
+            Therapists: Assigned per guest · Rooms: Assigned per guest
+          </div>
+          {group.attentionSummary.length > 0 ? (
+            <div className="mt-1 text-xs text-amber-800">{group.attentionSummary.join(" · ")}</div>
+          ) : null}
+        </div>
+        <div className="text-xs tabular-nums">
+          <div className="font-extrabold">
+            {group.payment.total === null
+              ? "Total unavailable"
+              : `${formatCradleFlowMoney(group.payment.total)} order total`}
+          </div>
+          <div className="mt-1 text-[var(--cs-text-muted)]">
+            {group.payment.paid === null
+              ? "Paid unavailable"
+              : `${formatCradleFlowMoney(group.payment.paid)} paid`}{" "}
+            ·{" "}
+            {group.payment.due === null
+              ? "Due unavailable"
+              : `${formatCradleFlowMoney(group.payment.due)} due`}
+          </div>
+        </div>
+        <button
+          type="button"
+          onClick={() => onOpenGroup?.(group)}
+          className="min-h-9 rounded-lg bg-[#164b36] px-3 text-xs font-bold text-white"
+        >
+          Open Group
+        </button>
+      </article>
+    );
+  }
   const stage = getCradleFlowStage(booking);
   const homeService = isHomeServiceVisit(booking);
   const missingRoom = !homeService && !booking.resource_id && stage === "waiting";

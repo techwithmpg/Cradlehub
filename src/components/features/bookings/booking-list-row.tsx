@@ -12,6 +12,7 @@ import { isHomeServiceBooking } from "@/lib/bookings/bookings-workspace-filters"
 import { getRequiredResourceType } from "@/lib/schedule/live-schedule-conflicts";
 import { cn, formatTime } from "@/lib/utils";
 import { formatBranchYmd } from "@/lib/engine/slot-time";
+import type { CrmBookingGroup } from "@/lib/bookings/crm-booking-groups";
 
 export function getBookingListIssueLabel(booking: WorkspaceBookingRow): string | null {
   if (isBookingClosedForCrm(booking.status)) return null;
@@ -160,6 +161,89 @@ export function BookingListRow({
             </span>
           ) : null}
         </div>
+      </td>
+    </tr>
+  );
+}
+
+export function BookingOrderListRow({
+  group,
+  selected,
+  onSelect,
+  upcoming = false,
+}: {
+  group: CrmBookingGroup;
+  selected: boolean;
+  onSelect: () => void;
+  upcoming?: boolean;
+}) {
+  if (!group.orderId)
+    return (
+      <BookingListRow
+        booking={group.lines[0]!}
+        selected={selected}
+        onSelect={onSelect}
+        upcoming={upcoming}
+      />
+    );
+  const stageLabel = {
+    waiting: "Waiting",
+    in_service: "In Service",
+    ready_to_pay: "Ready to Pay",
+    completed: "Completed",
+  }[group.stage];
+  return (
+    <tr
+      tabIndex={0}
+      aria-selected={selected}
+      aria-label={`Select order for ${group.organizerName} at ${formatTime(group.startTime)}`}
+      onClick={onSelect}
+      onKeyDown={(event) => {
+        if (event.key === "Enter" || event.key === " ") {
+          event.preventDefault();
+          onSelect();
+        }
+      }}
+      className={cn(
+        "cursor-pointer outline-none transition-colors focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-emerald-800",
+        selected ? "bg-amber-50/80" : "bg-white hover:bg-[var(--cs-surface-warm)]"
+      )}
+    >
+      <td className="border-b border-[var(--cs-border-soft)] py-4 pr-2 pl-4 align-middle">
+        <div className="whitespace-nowrap text-sm font-bold">{formatTime(group.startTime)}</div>
+        {upcoming ? (
+          <div className="mt-1 text-xs text-[var(--cs-text-muted)]">
+            {formatBranchYmd(group.bookingDate, {
+              month: "short",
+              day: "numeric",
+              year: "numeric",
+            })}
+          </div>
+        ) : null}
+        <div className="mt-1 text-xs text-[var(--cs-text-muted)]">
+          {group.elapsedMinutes === null ? "Duration TBD" : `${group.elapsedMinutes} min`}
+        </div>
+      </td>
+      <td className="min-w-0 border-b border-[var(--cs-border-soft)] px-2 py-4 align-middle">
+        <div className="truncate text-sm font-semibold">{group.organizerName}</div>
+        <div className="mt-1 text-xs text-[var(--cs-text-muted)]">
+          {group.guestCount > 1 ? `Group · ${group.guestCount} guests · ` : ""}
+          {group.serviceCount} service{group.serviceCount === 1 ? "" : "s"}
+        </div>
+        <div className="mt-1 truncate text-xs text-[var(--cs-text-muted)]">
+          {group.orderNumber ? `Order ${group.orderNumber}` : `Order ${group.orderId.slice(0, 8)}`}
+        </div>
+      </td>
+      <td className="border-b border-[var(--cs-border-soft)] px-2 py-4 align-middle">
+        <span className="rounded-full bg-[var(--cs-surface-warm)] px-2 py-1 text-xs font-semibold">
+          {stageLabel}
+        </span>
+        {group.attentionSummary.length > 0 ? (
+          <AlertTriangle
+            className="ml-2 inline size-4 text-amber-700"
+            aria-label={group.attentionSummary.join(", ")}
+          />
+        ) : null}
       </td>
     </tr>
   );

@@ -2,7 +2,8 @@
 
 import { Fragment, useMemo, useState } from "react";
 import { ChevronLeft, ChevronRight } from "lucide-react";
-import { BookingListRow } from "./booking-list-row";
+import { BookingListRow, BookingOrderListRow } from "./booking-list-row";
+import type { CrmBookingGroup } from "@/lib/bookings/crm-booking-groups";
 import { SheetBookingReferenceRow } from "./sheet-booking-reference-row";
 import type { WorkspaceBookingRow } from "./booking-workspace-types";
 import type { SheetBookingReference } from "@/lib/integrations/google-sheets/sheet-native-types";
@@ -30,38 +31,57 @@ function updatePageQuery(pageIndex: number) {
 
 export function BookingsDesktopList({
   bookings,
+  displayGroups,
   sheetReferences = [],
   selectedId,
   selectedSheetKey,
   initialPage = 1,
   chronological = false,
   onSelect,
+  onSelectGroup,
   onSelectSheet,
 }: {
   bookings: WorkspaceBookingRow[];
+  displayGroups?: CrmBookingGroup[];
   sheetReferences?: SheetBookingReference[];
   selectedId: string | null;
   selectedSheetKey?: string | null;
   initialPage?: number;
   chronological?: boolean;
   onSelect: (booking: WorkspaceBookingRow) => void;
+  onSelectGroup?: (group: CrmBookingGroup) => void;
   onSelectSheet?: (reference: SheetBookingReference) => void;
 }) {
   const [rowsPerPage, setRowsPerPage] = useState<number>(10);
   const [pageIndex, setPageIndex] = useState(() => Math.max(0, initialPage - 1));
   const rows = useMemo(() => {
     const combined: Array<
-      | { kind: "canonical"; booking: WorkspaceBookingRow; minute: number | null }
+      | {
+          kind: "canonical";
+          booking: WorkspaceBookingRow;
+          group?: CrmBookingGroup;
+          minute: number | null;
+        }
       | { kind: "sheet"; reference: SheetBookingReference; minute: number | null }
     > = [
-      ...(chronological ? bookings : sortBookingsRecentFirst(bookings)).map((booking) => {
-        const match = booking.start_time.match(/^(\d{1,2}):(\d{2})/);
-        return {
-          kind: "canonical" as const,
-          booking,
-          minute: match ? Number(match[1]) * 60 + Number(match[2]) : null,
-        };
-      }),
+      ...(displayGroups
+        ? displayGroups.map((group) => {
+            const match = group.startTime.match(/^(\d{1,2}):(\d{2})/);
+            return {
+              kind: "canonical" as const,
+              booking: group.lines[0]!,
+              group,
+              minute: match ? Number(match[1]) * 60 + Number(match[2]) : null,
+            };
+          })
+        : (chronological ? bookings : sortBookingsRecentFirst(bookings)).map((booking) => {
+            const match = booking.start_time.match(/^(\d{1,2}):(\d{2})/);
+            return {
+              kind: "canonical" as const,
+              booking,
+              minute: match ? Number(match[1]) * 60 + Number(match[2]) : null,
+            };
+          })),
       ...sortSheetReferencesRecentFirst(sheetReferences).map((reference) => ({
         kind: "sheet" as const,
         reference,
@@ -69,7 +89,7 @@ export function BookingsDesktopList({
       })),
     ];
     return combined;
-  }, [bookings, sheetReferences, chronological]);
+  }, [bookings, displayGroups, sheetReferences, chronological]);
   const totalPages = Math.max(1, Math.ceil(rows.length / rowsPerPage));
   const safePageIndex = Math.min(pageIndex, totalPages - 1);
   const startIndex = safePageIndex * rowsPerPage;
@@ -121,13 +141,23 @@ export function BookingsDesktopList({
           <tbody>
             {pageRows.map((row, index) =>
               row.kind === "canonical" ? (
-                <BookingListRow
-                  key={row.booking.id}
-                  booking={row.booking}
-                  selected={row.booking.id === selectedId}
-                  upcoming={chronological}
-                  onSelect={() => onSelect(row.booking)}
-                />
+                row.group ? (
+                  <BookingOrderListRow
+                    key={row.group.displayId}
+                    group={row.group}
+                    selected={row.group.displayId === selectedId}
+                    upcoming={chronological}
+                    onSelect={() => onSelectGroup?.(row.group!)}
+                  />
+                ) : (
+                  <BookingListRow
+                    key={row.booking.id}
+                    booking={row.booking}
+                    selected={row.booking.id === selectedId}
+                    upcoming={chronological}
+                    onSelect={() => onSelect(row.booking)}
+                  />
+                )
               ) : (
                 <Fragment key={`sheet:${row.reference.source.sourceKey}`}>
                   {row.minute === null && (index === 0 || pageRows[index - 1]?.minute !== null) ? (
@@ -154,8 +184,9 @@ export function BookingsDesktopList({
 
       <footer className="flex flex-wrap items-center justify-between gap-3 border-t border-[var(--cs-border-soft)] bg-white px-4 py-3">
         <span className="text-xs text-[var(--cs-text-muted)]">
-          Showing {startIndex + 1} to {endIndex} of {rows.length} records ({bookings.length}{" "}
-          CradleHub, {sheetReferences.length} Master Sheet)
+          Showing {startIndex + 1} to {endIndex} of {rows.length} records (
+          {displayGroups?.length ?? bookings.length} CradleHub, {sheetReferences.length} Master
+          Sheet)
         </span>
         <nav className="flex items-center gap-2" aria-label="Booking pagination">
           <button

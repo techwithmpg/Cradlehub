@@ -34,7 +34,12 @@ import {
   type CradleFlowFinancialEntryRequest,
 } from "./cradle-flow-financial-entry";
 import { CradleFlowTherapistDialog } from "./cradle-flow-therapist-dialog";
-import { getCradleFlowDisplayCounts, type CradleFlowFilter } from "./cradle-flow-display";
+import {
+  getCradleFlowDisplayCounts,
+  type CradleFlowFilter,
+  type CradleFlowGroup,
+} from "./cradle-flow-display";
+import { CradleFlowGroupDialog } from "./cradle-flow-group-dialog";
 import { CradleFlowSideRail } from "./cradle-flow-side-rail";
 import {
   CradleFlowAttendanceDialog,
@@ -66,6 +71,7 @@ export function CradleFlowDashboard(props: CradleFlowDashboardProps) {
   const router = useRouter();
   const bookings = props.queueData;
   const [selected, setSelected] = useState<CradleFlowBooking | null>(null);
+  const [selectedGroup, setSelectedGroup] = useState<CradleFlowGroup | null>(null);
   const selectedBooking = bookings.find((booking) => booking.id === selected?.id) ?? selected;
   const [dialog, setDialog] = useState<ActiveDialog>(null);
   const [assignment, setAssignment] = useState<"room" | "therapist" | null>(null);
@@ -114,6 +120,10 @@ export function CradleFlowDashboard(props: CradleFlowDashboardProps) {
   function openBooking(booking: CradleFlowBooking) {
     setSelected(booking);
     setDialog("details");
+  }
+
+  function openGroup(group: CradleFlowGroup) {
+    setSelectedGroup(group);
   }
 
   function openRoomAssignment(booking: CradleFlowBooking) {
@@ -215,6 +225,7 @@ export function CradleFlowDashboard(props: CradleFlowDashboardProps) {
             staffAvailable={props.snapshot.staffReadiness.availableNow}
             pendingFollowUps={props.actionNotifications.length}
             onOpen={openBooking}
+            onOpenGroup={openGroup}
             onPrimary={runPrimary}
             onAssignRoom={openRoomAssignment}
             onAssignTherapist={openTherapistAssignment}
@@ -240,6 +251,7 @@ export function CradleFlowDashboard(props: CradleFlowDashboardProps) {
             onAttendanceSelect={setAttendance}
             onReviewReadiness={() => setReadinessOpen(true)}
             onOpenBooking={openBooking}
+            onOpenGroup={openGroup}
             onShowNeedsAction={() => setFilter("needs_action")}
             onShowReadyToPay={() => setFilter("ready_to_pay")}
             onViewTotals={() => setTotalsOpen(true)}
@@ -266,6 +278,17 @@ export function CradleFlowDashboard(props: CradleFlowDashboardProps) {
         setAssignment={setAssignment}
         onAssignRoom={openRoomAssignment}
         onAssignTherapist={openTherapistAssignment}
+      />
+      <CradleFlowGroupDialog
+        group={selectedGroup}
+        open={Boolean(selectedGroup)}
+        onOpenChange={(open) => {
+          if (!open) setSelectedGroup(null);
+        }}
+        onOpenLine={(line) => {
+          setSelectedGroup(null);
+          openBooking(line);
+        }}
       />
       {financialRequest ? (
         <CradleFlowFinancialEntry

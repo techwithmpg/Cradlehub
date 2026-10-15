@@ -1,6 +1,7 @@
 import {
   getCrmPendingBookingQueue,
   getCrmUpcomingBookings,
+  getCrmOrderServiceLines,
   getTodaysSchedule,
 } from "@/lib/queries/bookings";
 import { getStaffAdminName } from "@/lib/staff/display-name";
@@ -39,6 +40,19 @@ type ResourceRel = { name: string };
 type BookingRow = {
   id: string;
   order_id?: string | null;
+  attendee_id?: string | null;
+  booking_attendees?: Relation<{
+    id: string;
+    sequence: number;
+    display_name: string | null;
+    customer_id: string | null;
+  }>;
+  booking_orders?: Relation<{
+    id: string;
+    order_number: string;
+    organizer_customer_id: string;
+    metadata: Record<string, unknown> | null;
+  }>;
   branch_id: string;
   booking_date: string;
   start_time: string;
@@ -125,6 +139,16 @@ export default async function CrmTodayPage({
     ),
   ]);
 
+  const futureOrderIds = [
+    ...new Set(
+      [...pendingQueue, ...upcomingBookings].flatMap((row) =>
+        row.booking_date > today && row.order_id ? [row.order_id] : []
+      )
+    ),
+  ];
+  const futureOrderLines =
+    futureOrderIds.length > 0 ? await getCrmOrderServiceLines(branchId, futureOrderIds) : [];
+
   const bookingsById = new Map<string, BookingRow>();
   for (const booking of rawBookings as BookingRow[]) {
     bookingsById.set(booking.id, booking);
@@ -135,6 +159,9 @@ export default async function CrmTodayPage({
     }
   }
   for (const booking of upcomingBookings as BookingRow[]) {
+    if (!bookingsById.has(booking.id)) bookingsById.set(booking.id, booking);
+  }
+  for (const booking of futureOrderLines as BookingRow[]) {
     if (!bookingsById.has(booking.id)) bookingsById.set(booking.id, booking);
   }
 
@@ -227,6 +254,9 @@ export default async function CrmTodayPage({
     return {
       id: b.id,
       order_id: b.order_id ?? null,
+      attendee_id: b.attendee_id ?? null,
+      booking_attendees: b.booking_attendees ?? null,
+      booking_orders: b.booking_orders ?? null,
       order_payment_status: b.order_id ? (orderStates.get(b.order_id)?.status ?? null) : null,
       order_amount_paid: b.order_id ? (orderStates.get(b.order_id)?.paid ?? null) : null,
       order_total_amount: b.order_id ? (orderStates.get(b.order_id)?.total ?? null) : null,

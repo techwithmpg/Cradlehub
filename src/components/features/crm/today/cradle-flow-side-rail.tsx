@@ -8,7 +8,7 @@ import type { AttendanceScanFeedData, RecentAttendanceScan } from "@/lib/attenda
 import type { CradleFlowBooking } from "@/lib/crm/cradle-flow";
 import type { CrmTodayPayment } from "@/lib/queries/crm-today";
 import type { ReadinessIssue } from "@/types/readiness";
-import { getCradleFlowAttention } from "./cradle-flow-display";
+import { groupCradleFlowBookings, type CradleFlowGroup } from "./cradle-flow-display";
 import { CradleFlowMoneySummary } from "./cradle-flow-lower-panels";
 
 function RailPanel({
@@ -74,6 +74,7 @@ export function CradleFlowSideRail({
   onAttendanceSelect,
   onReviewReadiness,
   onOpenBooking,
+  onOpenGroup,
   onShowNeedsAction,
   onShowReadyToPay,
   onViewTotals,
@@ -93,16 +94,21 @@ export function CradleFlowSideRail({
   onAttendanceSelect: (scan: RecentAttendanceScan) => void;
   onReviewReadiness: () => void;
   onOpenBooking: (booking: CradleFlowBooking) => void;
+  onOpenGroup?: (group: CradleFlowGroup) => void;
   onShowNeedsAction: () => void;
   onShowReadyToPay: () => void;
   onViewTotals: () => void;
 }) {
-  const bookingAttention = bookings.flatMap((booking) =>
-    getCradleFlowAttention(booking).map((title) => ({
-      key: `${booking.id}-${title}`,
+  const groups = groupCradleFlowBookings(bookings);
+  const bookingAttention = groups.flatMap((group) =>
+    group.attentionSummary.map((title) => ({
+      key: `${group.displayId}-${title}`,
       title,
-      detail: booking.customer_name ?? `Booking ${booking.id.slice(0, 8)}`,
-      onClick: () => onOpenBooking(booking),
+      detail: group.organizerName,
+      onClick: () =>
+        group.orderId && group.serviceCount > 1
+          ? onOpenGroup?.(group)
+          : onOpenBooking(group.lines[0]!),
     }))
   );
   const readinessAttention = readinessIssues
@@ -151,7 +157,7 @@ export function CradleFlowSideRail({
               className="text-[11px] font-bold text-blue-700 hover:underline"
             >
               {bookingAttention.length
-                ? `View visits (${bookings.filter((booking) => getCradleFlowAttention(booking).length > 0).length})`
+                ? `View visits (${groups.filter((group) => group.attentionSummary.length > 0).length})`
                 : `Review checks (${readinessAttention.length})`}
             </button>
           ) : null

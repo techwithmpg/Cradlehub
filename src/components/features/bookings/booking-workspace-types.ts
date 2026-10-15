@@ -4,6 +4,11 @@ export type OneOrMany<T> = T | T[] | null;
 
 export type WorkspaceBookingRow = {
   id: string;
+  order_id?: string | null;
+  order_payment_status?: string | null;
+  order_amount_paid?: number | null;
+  order_total_amount?: number | null;
+  attendee_id?: string | null;
   branch_id?: string | null;
   booking_date: string;
   start_time: string;
@@ -31,6 +36,18 @@ export type WorkspaceBookingRow = {
   payment_reference?: string | null;
   amount_paid: number;
   hold_expires_at?: string | null;
+  booking_attendees?: OneOrMany<{
+    id: string;
+    sequence: number;
+    display_name: string | null;
+    customer_id: string | null;
+  }>;
+  booking_orders?: OneOrMany<{
+    id: string;
+    order_number: string;
+    organizer_customer_id: string;
+    metadata: Record<string, unknown> | null;
+  }>;
   branches?: OneOrMany<{ id?: string; name: string }>;
   services?: OneOrMany<{
     id?: string;
@@ -61,6 +78,4 @@ export type WorkspaceBookingRow = {
 
 export type Branch = { id: string; name: string };
 
-export type BookingActionFn = (
-  input: unknown
-) => Promise<{ success: boolean; error?: string }>;
+export type BookingActionFn = (input: unknown) => Promise<{ success: boolean; error?: string }>;

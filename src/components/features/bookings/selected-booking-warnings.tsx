@@ -43,6 +43,7 @@ function WarningStrip({
 
 export function SelectedBookingWarnings({
   booking,
+  grouped = false,
   onOpenRoom,
   onOpenPayment,
   onOpenStaff,
@@ -50,6 +51,7 @@ export function SelectedBookingWarnings({
   onChanged,
 }: {
   booking: WorkspaceBookingRow;
+  grouped?: boolean;
   onOpenRoom: () => void;
   onOpenPayment: () => void;
   onOpenStaff: () => void;
@@ -60,9 +62,11 @@ export function SelectedBookingWarnings({
   const [isResolving, startTransition] = useTransition();
   const exception = getOpenStaffScheduleException(booking.metadata);
   const missingRoom = booking.booking_progress_status === "checked_in" && !booking.resource_id;
-  const pendingPayment = ["unpaid", "pending", "pending_payment"].includes(booking.payment_status);
+  const pendingPayment =
+    !grouped && ["unpaid", "pending", "pending_payment"].includes(booking.payment_status);
   const pricePaid = Number(booking.metadata?.price_paid);
   const paymentOverdue =
+    !grouped &&
     Number.isFinite(pricePaid) &&
     isPaymentOverdue({
       ...booking,
