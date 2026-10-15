@@ -43,25 +43,29 @@ beforeEach(() => {
 });
 
 describe("Quick Booking customer prefill callers", () => {
-  it("uses the server-selected branch in the modal action after a branch switch", async () => {
+  it("requires Front Desk context but prefills global identity after a branch switch", async () => {
     expect(await getAdministrativeBookingCustomerPrefillAction({ customerId })).toEqual({
       ok: true,
       customer: null,
     });
-    expect(mocks.getQuickBookingCustomerPrefill).toHaveBeenLastCalledWith(customerId, "sm");
+    expect(mocks.getFrontDeskContext).toHaveBeenCalledOnce();
+    expect(mocks.getQuickBookingCustomerPrefill).toHaveBeenLastCalledWith(customerId);
 
     mocks.branchId = "main";
     await getAdministrativeBookingCustomerPrefillAction({ customerId });
-    expect(mocks.getQuickBookingCustomerPrefill).toHaveBeenLastCalledWith(customerId, "main");
+    expect(mocks.getFrontDeskContext).toHaveBeenCalledTimes(2);
+    expect(mocks.getQuickBookingCustomerPrefill).toHaveBeenLastCalledWith(customerId);
   });
 
-  it("uses the server-selected branch on the direct Quick Booking page", async () => {
+  it("uses global identity on the direct page while options follow the selected branch", async () => {
     await CrmBookingWizardPage({ searchParams: Promise.resolve({ customerId }) });
-    expect(mocks.getQuickBookingCustomerPrefill).toHaveBeenCalledWith(customerId, "sm");
+    expect(mocks.getQuickBookingCustomerPrefill).toHaveBeenCalledWith(customerId);
+    expect(mocks.getQuickBookingContext).toHaveBeenCalledWith("sm");
 
     mocks.branchId = "main";
     await CrmBookingWizardPage({ searchParams: Promise.resolve({ customerId }) });
-    expect(mocks.getQuickBookingCustomerPrefill).toHaveBeenLastCalledWith(customerId, "main");
+    expect(mocks.getQuickBookingCustomerPrefill).toHaveBeenLastCalledWith(customerId);
+    expect(mocks.getQuickBookingContext).toHaveBeenLastCalledWith("main");
   });
 
   it("loads deferred modal options for the current server-selected branch", async () => {
@@ -71,5 +75,13 @@ describe("Quick Booking customer prefill callers", () => {
     mocks.branchId = "main";
     expect(await getAdministrativeBookingOptionsAction()).toMatchObject({ branchId: "main" });
     expect(mocks.getQuickBookingContext).toHaveBeenLastCalledWith("main");
+  });
+
+  it("does not read privileged identity if Front Desk authorization fails", async () => {
+    mocks.getFrontDeskContext.mockRejectedValueOnce(new Error("unauthorized"));
+    expect(await getAdministrativeBookingCustomerPrefillAction({ customerId })).toMatchObject({
+      ok: false,
+    });
+    expect(mocks.getQuickBookingCustomerPrefill).not.toHaveBeenCalled();
   });
 });

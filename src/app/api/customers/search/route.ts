@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
-import { searchCustomers } from "@/lib/queries/customers";
+import { searchCustomerIdentities } from "@/lib/queries/customers";
 import { canonicalizeSystemRole } from "@/constants/staff";
 import { canAccessCrmWorkspace } from "@/lib/auth/crm-permissions";
 import { resolveOwnerFrontDeskBranch } from "@/lib/queries/front-desk-branch";
@@ -27,7 +27,7 @@ export async function GET(request: NextRequest) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
-  const q = request.nextUrl.searchParams.get("q") ?? "";
+  const q = (request.nextUrl.searchParams.get("q") ?? "").trim();
   if (q.length < 2) {
     return NextResponse.json({ customers: [] });
   }
@@ -38,6 +38,6 @@ export async function GET(request: NextRequest) {
   if (!branchId || (role === "owner" && !ownerBranch)) {
     return NextResponse.json({ error: "Front Desk branch unavailable" }, { status: 403 });
   }
-  const customers = await searchCustomers(q, branchId);
+  const customers = await searchCustomerIdentities(q);
   return NextResponse.json({ customers });
 }

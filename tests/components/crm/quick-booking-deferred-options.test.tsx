@@ -82,4 +82,25 @@ describe("deferred Quick Booking options", () => {
     expect(screen.queryByText("Booking form for sm")).toBeNull();
     expect(screen.getByRole("button", { name: "Retry" })).toBeTruthy();
   });
+
+  it("does not reuse SM booking options while switching to Main", async () => {
+    let resolveMain!: (value: unknown) => void;
+    mocks.loadOptions
+      .mockResolvedValueOnce({ branchId: "sm", options: { bookingRules: {}, services: [], staff: [], resources: [] } })
+      .mockReturnValueOnce(new Promise((resolve) => { resolveMain = resolve; }));
+    const view = render(
+      <AdministrativeBookingModalProvider branchId="sm" branchName="SM Branch"><Entry /></AdministrativeBookingModalProvider>
+    );
+    await waitFor(() => expect(mocks.loadOptions).toHaveBeenCalledTimes(1));
+    fireEvent.click(screen.getByRole("button", { name: "New booking" }));
+    expect(await screen.findByText("Booking form for sm")).toBeTruthy();
+
+    view.rerender(
+      <AdministrativeBookingModalProvider branchId="main" branchName="Main Spa"><Entry /></AdministrativeBookingModalProvider>
+    );
+    expect(screen.queryByText("Booking form for sm")).toBeNull();
+    expect(screen.getByText("Loading booking options…")).toBeTruthy();
+    resolveMain({ branchId: "main", options: { bookingRules: {}, services: [], staff: [], resources: [] } });
+    expect(await screen.findByText("Booking form for main")).toBeTruthy();
+  });
 });

@@ -1,63 +1,57 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const mocks = vi.hoisted(() => ({
-  booking: { id: "booking-sm" } as { id: string } | null,
-  bookingError: null as Error | null,
-  customer: { id: "customer-1", full_name: "Ana", phone: "123", email: null },
+  customer: { id: "customer-main", full_name: "Ana", phone: "09123456789", email: null } as
+    | object
+    | null,
+  error: null as Error | null,
   from: vi.fn(),
-  filters: [] as Array<[string, string, string]>,
+  selected: "",
 }));
 
 vi.mock("server-only", () => ({}));
 vi.mock("@/lib/supabase/admin", () => ({
-  createAdminClient: () => ({
-    from: mocks.from,
-  }),
+  createAdminClient: () => ({ from: mocks.from }),
 }));
 
 import { getQuickBookingCustomerPrefill } from "@/lib/queries/quick-booking-options";
 
 beforeEach(() => {
-  mocks.booking = { id: "booking-sm" };
-  mocks.bookingError = null;
-  mocks.filters = [];
+  mocks.customer = { id: "customer-main", full_name: "Ana", phone: "09123456789", email: null };
+  mocks.error = null;
+  mocks.selected = "";
   mocks.from.mockReset().mockImplementation((table: string) => {
     const query = {
-      select: () => query,
-      eq: (column: string, value: string) => {
-        mocks.filters.push([table, column, value]);
+      select: (fields: string) => {
+        mocks.selected = fields;
         return query;
       },
-      limit: () => query,
-      maybeSingle: async () =>
-        table === "bookings"
-          ? { data: mocks.booking, error: mocks.bookingError }
-          : { data: mocks.customer, error: null },
+      eq: () => query,
+      maybeSingle: async () => ({ data: mocks.customer, error: mocks.error }),
     };
+    expect(table).toBe("customers");
     return query;
   });
 });
 
-describe("Quick Booking customer prefill branch boundary", () => {
-  it("reads customer details only after finding a booking in the selected branch", async () => {
-    const result = await getQuickBookingCustomerPrefill("customer-1", "sm");
-    expect(result).toEqual({ id: "customer-1", fullName: "Ana", phone: "123", email: null });
-    expect(mocks.filters).toContainEqual(["bookings", "customer_id", "customer-1"]);
-    expect(mocks.filters).toContainEqual(["bookings", "branch_id", "sm"]);
-    expect(mocks.from).toHaveBeenCalledWith("customers");
+describe("Quick Booking global identity prefill", () => {
+  it("loads only identity fields without reading another branch's bookings", async () => {
+    expect(await getQuickBookingCustomerPrefill("customer-main")).toEqual({
+      id: "customer-main",
+      fullName: "Ana",
+      phone: "09123456789",
+      email: null,
+    });
+    expect(mocks.selected).toBe("id, full_name, phone, email");
+    expect(mocks.from).toHaveBeenCalledTimes(1);
   });
 
-  it("does not expose a customer from another branch", async () => {
-    mocks.booking = null;
-    expect(await getQuickBookingCustomerPrefill("customer-1", "sm")).toBeNull();
-    expect(mocks.from).not.toHaveBeenCalledWith("customers");
-  });
-
-  it("fails closed if branch membership cannot be verified", async () => {
-    mocks.bookingError = new Error("lookup failed");
-    await expect(getQuickBookingCustomerPrefill("customer-1", "sm")).rejects.toThrow(
-      "Customer branch could not be verified."
+  it("returns null for a missing customer and fails on query errors", async () => {
+    mocks.customer = null;
+    expect(await getQuickBookingCustomerPrefill("missing")).toBeNull();
+    mocks.error = new Error("failure");
+    await expect(getQuickBookingCustomerPrefill("missing")).rejects.toThrow(
+      "Customer identity could not be loaded."
     );
-    expect(mocks.from).not.toHaveBeenCalledWith("customers");
   });
 });

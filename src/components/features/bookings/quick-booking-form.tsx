@@ -18,6 +18,7 @@ import { toast } from "sonner";
 import { notifyBookingsChanged } from "@/lib/bookings/bookings-client-events";
 import { getBranchWalkInDefaults, parseBookingTime } from "@/lib/bookings/booking-clock-time";
 import { createInhouseBookingMultiAction } from "@/lib/actions/inhouse-booking";
+import { getAdministrativeBookingCustomerPrefillAction } from "@/lib/actions/administrative-booking";
 import { getAttendanceQueueSuggestionAction } from "@/lib/actions/attendance-queue";
 import {
   getBarangayFromGooglePlace,
@@ -106,9 +107,10 @@ type QuickBookingFormProps = {
 type CustomerSearchRow = {
   id: string;
   full_name: string;
-  phone: string;
-  email: string | null;
+  phone_suffix: string;
 };
+
+type CustomerSuggestion = { id: string; fullName: string; phoneSuffix: string };
 
 type SlotRow = {
   staff_id: string;
@@ -325,14 +327,20 @@ export function QuickBookingForm({
   const [initialTimeValue] = useState(() =>
     initialTime ? initialTime.slice(0, 5) : nextQuarterTime()
   );
-  const seededCustomerQuery = initialCustomer?.fullName || initialName || initialPhone || "";
+  const seededCustomerQuery = initialCustomer?.fullName || initialName || "";
   const [mode, setMode] = useState<QuickBookingMode>(initialMode);
   const [selectedCustomer, setSelectedCustomer] = useState<QuickBookingCustomerOption | null>(
     initialCustomer
   );
   const [customerQuery, setCustomerQuery] = useState(seededCustomerQuery);
-  const [customerResults, setCustomerResults] = useState<QuickBookingCustomerOption[]>([]);
+  const [customerResults, setCustomerResults] = useState<CustomerSuggestion[]>([]);
   const [searchingCustomers, setSearchingCustomers] = useState(false);
+  const [customerSearchOpen, setCustomerSearchOpen] = useState(false);
+  const [customerSearchError, setCustomerSearchError] = useState("");
+  const [customerSearchRetry, setCustomerSearchRetry] = useState(0);
+  const [activeCustomerIndex, setActiveCustomerIndex] = useState(-1);
+  const [loadingCustomerIdentity, setLoadingCustomerIdentity] = useState(false);
+  const selectionGeneration = useRef(0);
   const [fullName, setFullName] = useState(initialCustomer?.fullName ?? initialName);
   const [phone, setPhone] = useState(initialCustomer?.phone ?? initialPhone);
   const [email, setEmail] = useState(initialCustomer?.email ?? "");
@@ -357,9 +365,7 @@ export function QuickBookingForm({
     useState<HomeServiceDistanceQuote | null>(null);
   const [paymentReceived, setPaymentReceived] = useState(false);
   const submissionKey = useRef<{ fingerprint: string; key: string } | null>(null);
-  const [paymentMethod, setPaymentMethod] = useState<
-    "cash" | "gcash" | "maya" | "card" | ""
-  >("");
+  const [paymentMethod, setPaymentMethod] = useState<"cash" | "gcash" | "maya" | "card" | "">("");
   const [staffId, setStaffId] = useState(initialStaffId);
   const [resourceId, setResourceId] = useState("");
   const [moreOpen, setMoreOpen] = useState(false);
@@ -672,36 +678,45 @@ export function QuickBookingForm({
     }
 
     const controller = new AbortController();
+    let active = true;
     const id = window.setTimeout(() => {
-      setSearchingCustomers(true);
       fetch(`/api/customers/search?q=${encodeURIComponent(query)}`, {
         credentials: "same-origin",
         signal: controller.signal,
       })
-        .then((response) => (response.ok ? response.json() : { customers: [] }))
+        .then((response) => {
+          if (!response.ok) throw new Error("Customer search unavailable.");
+          return response.json();
+        })
         .then((data: { customers?: CustomerSearchRow[] }) => {
+          if (!active) return;
           setCustomerResults(
             (data.customers ?? []).map((customer) => ({
               id: customer.id,
               fullName: customer.full_name,
-              phone: customer.phone,
-              email: customer.email,
+              phoneSuffix: customer.phone_suffix,
             }))
           );
+          setCustomerSearchError("");
+          setActiveCustomerIndex(-1);
         })
         .catch((error) => {
-          if (!(error instanceof DOMException && error.name === "AbortError")) {
+          if (active && !(error instanceof DOMException && error.name === "AbortError")) {
             setCustomerResults([]);
+            setCustomerSearchError("Customer search unavailable. Try again.");
           }
         })
-        .finally(() => setSearchingCustomers(false));
-    }, 200);
+        .finally(() => {
+          if (active) setSearchingCustomers(false);
+        });
+    }, 250);
 
     return () => {
+      active = false;
       window.clearTimeout(id);
       controller.abort();
     };
-  }, [customerQuery, selectedCustomer]);
+  }, [customerQuery, selectedCustomer, customerSearchRetry]);
 
   useEffect(() => {
     if (!isHomeService || !homeServicePlace) return;
@@ -792,28 +807,66 @@ export function QuickBookingForm({
     setFieldErrors((current) => ({ ...current, service: undefined }));
   }
 
-  function selectCustomer(customer: QuickBookingCustomerOption) {
-    setSelectedCustomer(customer);
-    setCustomerQuery(customer.fullName);
-    setFullName(customer.fullName);
-    setPhone(customer.phone);
-    setEmail(customer.email ?? "");
-    setCustomerResults([]);
-    setFieldErrors((current) => ({
-      ...current,
-      customer: undefined,
-      fullName: undefined,
-      phone: undefined,
-    }));
+  async function selectCustomer(customer: CustomerSuggestion) {
+    const generation = ++selectionGeneration.current;
+    setSearchingCustomers(false);
+    setLoadingCustomerIdentity(true);
+    setCustomerSearchOpen(false);
+    setActiveCustomerIndex(-1);
+    setCustomerSearchError("");
+    try {
+      const result = await getAdministrativeBookingCustomerPrefillAction({
+        customerId: customer.id,
+      });
+      if (generation !== selectionGeneration.current) return;
+      if (!result.ok || !result.customer || result.customer.id !== customer.id) {
+        setCustomerSearchError("Customer could not be loaded. Try selecting again.");
+        setCustomerSearchOpen(true);
+        return;
+      }
+      const identity = result.customer;
+      setSelectedCustomer(identity);
+      setCustomerQuery(identity.fullName);
+      setFullName(identity.fullName);
+      setPhone(identity.phone);
+      setEmail(identity.email ?? "");
+      setCustomerResults([]);
+      setFieldErrors((current) => ({
+        ...current,
+        customer: undefined,
+        fullName: undefined,
+        phone: undefined,
+      }));
+    } catch {
+      if (generation === selectionGeneration.current) {
+        setCustomerSearchError("Customer could not be loaded. Try selecting again.");
+        setCustomerSearchOpen(true);
+      }
+    } finally {
+      if (generation === selectionGeneration.current) setLoadingCustomerIdentity(false);
+    }
+  }
+
+  function chooseNewCustomerName() {
+    ++selectionGeneration.current;
+    setSelectedCustomer(null);
+    setCustomerSearchOpen(false);
+    setActiveCustomerIndex(-1);
+    setCustomerSearchError("");
+    setLoadingCustomerIdentity(false);
+    setSearchingCustomers(false);
   }
 
   function clearSelectedCustomer() {
+    ++selectionGeneration.current;
     setSelectedCustomer(null);
-    setCustomerQuery("");
-    setFullName("");
     setPhone("");
     setEmail("");
     setCustomerResults([]);
+    setCustomerSearchOpen(true);
+    setActiveCustomerIndex(-1);
+    setSearchingCustomers(customerQuery.trim().length >= 2);
+    setCustomerSearchRetry((current) => current + 1);
   }
 
   function handleHomeServicePlaceSelect(result: PlaceSelectResult | null) {
@@ -927,7 +980,7 @@ export function QuickBookingForm({
   }
 
   async function submit() {
-    if (isSaving || slotChecking) return;
+    if (isSaving || slotChecking || loadingCustomerIdentity) return;
 
     const nextErrors = validate();
     setFieldErrors(nextErrors);
@@ -1097,32 +1150,93 @@ export function QuickBookingForm({
               </div>
 
               <div className="grid gap-3 md:grid-cols-2">
-                <div className="md:col-span-2">
-                  <FieldLabel icon={<User size={15} />} label="Customer" />
+                <div className="relative md:col-span-2">
+                  <FieldLabel icon={<User size={15} />} label="Customer name" />
                   <div className="relative">
                     <Search className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-[var(--cs-text-muted)]" />
                     <input
                       id={`${formId}-customer`}
-                      type="search"
+                      type="text"
+                      role="combobox"
+                      aria-label="Customer name"
+                      aria-autocomplete="list"
+                      aria-expanded={
+                        customerSearchOpen && customerQuery.trim().length >= 2 && !selectedCustomer
+                      }
+                      aria-controls={`${formId}-customer-options`}
+                      aria-activedescendant={
+                        activeCustomerIndex >= 0
+                          ? `${formId}-customer-option-${activeCustomerIndex}`
+                          : undefined
+                      }
                       value={customerQuery}
                       onChange={(event) => {
                         const nextQuery = event.target.value;
+                        ++selectionGeneration.current;
                         setCustomerQuery(nextQuery);
-                        if (selectedCustomer) setSelectedCustomer(null);
+                        setFullName(nextQuery);
+                        setCustomerSearchOpen(nextQuery.trim().length >= 2);
+                        setActiveCustomerIndex(-1);
+                        setCustomerSearchError("");
+                        if (selectedCustomer) {
+                          setSelectedCustomer(null);
+                          setPhone("");
+                          setEmail("");
+                        }
                         if (nextQuery.trim().length < 2) {
                           setCustomerResults([]);
                           setSearchingCustomers(false);
+                        } else {
+                          setCustomerResults([]);
+                          setSearchingCustomers(true);
                         }
                       }}
-                      disabled={isSaving}
-                      placeholder="Search name or phone number"
-                      className={cn(inputClassName(Boolean(fieldErrors.customer)), "pl-9")}
+                      onFocus={() => {
+                        if (!selectedCustomer && customerQuery.trim().length >= 2)
+                          setCustomerSearchOpen(true);
+                      }}
+                      onBlur={() => {
+                        setCustomerSearchOpen(false);
+                        setActiveCustomerIndex(-1);
+                      }}
+                      onKeyDown={(event) => {
+                        if (event.key === "Escape") {
+                          setCustomerSearchOpen(false);
+                          setActiveCustomerIndex(-1);
+                        } else if (
+                          customerSearchOpen &&
+                          (event.key === "ArrowDown" || event.key === "ArrowUp")
+                        ) {
+                          event.preventDefault();
+                          const count = customerResults.length + 1;
+                          setActiveCustomerIndex((current) =>
+                            event.key === "ArrowDown"
+                              ? (current + 1) % count
+                              : (current - 1 + count) % count
+                          );
+                        } else if (
+                          customerSearchOpen &&
+                          event.key === "Enter" &&
+                          activeCustomerIndex >= 0
+                        ) {
+                          event.preventDefault();
+                          if (activeCustomerIndex < customerResults.length) {
+                            const highlighted = customerResults[activeCustomerIndex];
+                            if (highlighted) void selectCustomer(highlighted);
+                          } else {
+                            chooseNewCustomerName();
+                          }
+                        }
+                      }}
+                      disabled={isSaving || loadingCustomerIdentity}
+                      placeholder="Enter name or find an existing customer"
+                      className={cn(inputClassName(Boolean(fieldErrors.fullName)), "pl-9")}
                     />
-                    {searchingCustomers ? (
+                    {searchingCustomers || loadingCustomerIdentity ? (
                       <Loader2 className="absolute right-3 top-1/2 size-4 -translate-y-1/2 animate-spin text-[var(--cs-text-muted)]" />
                     ) : null}
                   </div>
-                  <FieldError message={fieldErrors.customer} />
+                  <FieldError message={fieldErrors.fullName ?? fieldErrors.customer} />
 
                   {selectedCustomer ? (
                     <div className="mt-2 flex items-center gap-3 rounded-xl border border-[var(--cs-border-soft)] bg-[var(--cs-surface-warm)] px-3 py-2">
@@ -1134,7 +1248,7 @@ export function QuickBookingForm({
                           {selectedCustomer.fullName}
                         </span>
                         <span className="block truncate text-xs text-[var(--cs-text-muted)]">
-                          {selectedCustomer.phone}
+                          Existing customer selected
                         </span>
                       </span>
                       <button
@@ -1146,21 +1260,66 @@ export function QuickBookingForm({
                         Change
                       </button>
                     </div>
-                  ) : customerResults.length > 0 ? (
-                    <div className="absolute z-40 mt-2 max-h-40 w-[calc(100%-2rem)] overflow-y-auto rounded-xl border border-[var(--cs-border-soft)] bg-[var(--cs-surface)] p-1 shadow-xl sm:w-[calc(100%-2.5rem)]">
-                      {customerResults.map((customer) => (
+                  ) : customerSearchOpen && customerQuery.trim().length >= 2 ? (
+                    <div
+                      id={`${formId}-customer-options`}
+                      role="listbox"
+                      aria-label="Possible customers"
+                      onMouseDown={(event) => event.preventDefault()}
+                      className="absolute left-0 right-0 z-40 mt-2 max-h-48 overflow-y-auto rounded-xl border border-[var(--cs-border-soft)] bg-[var(--cs-surface)] p-1 shadow-xl"
+                    >
+                      <p className="px-3 py-1 text-xs font-semibold text-[var(--cs-text-muted)]">
+                        Possible customers
+                      </p>
+                      {searchingCustomers ? (
+                        <p className="px-3 py-2 text-xs text-[var(--cs-text-muted)]">
+                          Searching customers…
+                        </p>
+                      ) : null}
+                      {customerSearchError ? (
+                        <div className="flex items-center justify-between gap-2 px-3 py-2 text-xs text-[var(--cs-error-text)]">
+                          <span role="alert">{customerSearchError}</span>
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setCustomerSearchError("");
+                              setSearchingCustomers(true);
+                              setCustomerSearchRetry((current) => current + 1);
+                            }}
+                            className="font-semibold underline"
+                          >
+                            Retry
+                          </button>
+                        </div>
+                      ) : null}
+                      {!searchingCustomers &&
+                      !customerSearchError &&
+                      customerResults.length === 0 ? (
+                        <p className="px-3 py-2 text-xs text-[var(--cs-text-muted)]">
+                          No matching customer found.
+                        </p>
+                      ) : null}
+                      {customerResults.map((customer, index) => (
                         <button
                           key={customer.id}
+                          id={`${formId}-customer-option-${index}`}
+                          role="option"
+                          aria-selected={activeCustomerIndex === index}
                           type="button"
-                          onClick={() => selectCustomer(customer)}
-                          className="flex w-full items-center justify-between gap-3 rounded-lg px-3 py-2 text-left hover:bg-[var(--cs-surface-warm)]"
+                          onClick={() => void selectCustomer(customer)}
+                          className={cn(
+                            "flex w-full items-center justify-between gap-3 rounded-lg px-3 py-2 text-left hover:bg-[var(--cs-surface-warm)]",
+                            activeCustomerIndex === index && "bg-[var(--cs-surface-warm)]"
+                          )}
                         >
                           <span className="min-w-0">
                             <span className="block truncate text-sm font-medium text-[var(--cs-text)]">
                               {customer.fullName}
                             </span>
                             <span className="block truncate text-xs text-[var(--cs-text-muted)]">
-                              {customer.phone}
+                              {customer.phoneSuffix
+                                ? `•••• ${customer.phoneSuffix}`
+                                : "Phone unavailable"}
                             </span>
                           </span>
                           <span className="text-xs font-semibold text-[var(--cs-sand-dark)]">
@@ -1168,37 +1327,37 @@ export function QuickBookingForm({
                           </span>
                         </button>
                       ))}
+                      <button
+                        id={`${formId}-customer-option-${customerResults.length}`}
+                        role="option"
+                        aria-selected={activeCustomerIndex === customerResults.length}
+                        type="button"
+                        onClick={chooseNewCustomerName}
+                        className={cn(
+                          "w-full rounded-lg px-3 py-2 text-left text-xs font-semibold text-[var(--cs-sand-dark)] hover:bg-[var(--cs-surface-warm)]",
+                          activeCustomerIndex === customerResults.length &&
+                            "bg-[var(--cs-surface-warm)]"
+                        )}
+                      >
+                        + Use new customer “{customerQuery.trim()}”
+                      </button>
                     </div>
                   ) : null}
                 </div>
 
                 {!selectedCustomer ? (
-                  <>
-                    <div>
-                      <FieldLabel label="Customer name" />
-                      <input
-                        type="text"
-                        value={fullName}
-                        onChange={(event) => setFullName(event.target.value)}
-                        disabled={isSaving}
-                        placeholder="Customer name"
-                        className={inputClassName(Boolean(fieldErrors.fullName))}
-                      />
-                      <FieldError message={fieldErrors.fullName} />
-                    </div>
-                    <div>
-                      <FieldLabel label="Phone" />
-                      <input
-                        type="tel"
-                        value={phone}
-                        onChange={(event) => setPhone(event.target.value)}
-                        disabled={isSaving}
-                        placeholder="Phone number"
-                        className={inputClassName(Boolean(fieldErrors.phone))}
-                      />
-                      <FieldError message={fieldErrors.phone} />
-                    </div>
-                  </>
+                  <div className="md:col-span-2">
+                    <FieldLabel label="Phone" />
+                    <input
+                      type="tel"
+                      value={phone}
+                      onChange={(event) => setPhone(event.target.value)}
+                      disabled={isSaving}
+                      placeholder="Phone number"
+                      className={inputClassName(Boolean(fieldErrors.phone))}
+                    />
+                    <FieldError message={fieldErrors.phone} />
+                  </div>
                 ) : null}
 
                 <div className="md:col-span-2">
@@ -1672,7 +1831,7 @@ export function QuickBookingForm({
             <button
               type="button"
               onClick={submit}
-              disabled={isSaving || slotChecking}
+              disabled={isSaving || slotChecking || loadingCustomerIdentity}
               className="cs-btn h-10 rounded-xl bg-[var(--cs-crm-text)] px-5 text-[var(--cs-text-inverse)] shadow-[var(--cs-shadow-sm)] hover:bg-[var(--cs-success-text)] disabled:cursor-not-allowed disabled:opacity-60"
             >
               {isSaving || slotChecking ? (

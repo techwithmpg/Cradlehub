@@ -1,65 +1,54 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const mocks = vi.hoisted(() => ({
-  branchId: "sm",
-  customerId: "customer-sm",
-  selectedBranch: "",
-  selectedCustomer: "",
-  bookingFound: true,
+  from: vi.fn(),
+  phone: "",
+  customer: { id: "customer-main", full_name: "Ana", phone: "09123456789", email: null } as
+    | object
+    | null,
+  select: vi.fn(),
 }));
 
 vi.mock("server-only", () => ({}));
-vi.mock("@/lib/supabase/server", () => ({
-  createClient: async () => ({
-    from: (table: string) => {
-      if (table === "customers") {
-        const query = {
-          select: () => query,
-          eq: () => query,
-          maybeSingle: async () => ({
-            data: { id: mocks.customerId, full_name: "Customer", phone: "09123456789" },
-          }),
-        };
-        return query;
-      }
-      const query = {
-        select: () => query,
-        eq: (field: string, value: string) => {
-          if (field === "branch_id") mocks.selectedBranch = value;
-          if (field === "customer_id") mocks.selectedCustomer = value;
-          return query;
-        },
-        limit: () => query,
-        maybeSingle: async () => ({
-          data:
-            mocks.bookingFound && mocks.selectedBranch === mocks.branchId
-              ? { id: "booking-1" }
-              : null,
-          error: null,
-        }),
-      };
-      return query;
-    },
-  }),
+vi.mock("@/lib/supabase/admin", () => ({
+  createAdminClient: () => ({ from: mocks.from }),
 }));
 
 import { lookupCustomerByPhone } from "@/lib/queries/customers";
 
 beforeEach(() => {
-  mocks.branchId = "sm";
-  mocks.selectedBranch = "";
-  mocks.selectedCustomer = "";
-  mocks.bookingFound = true;
+  mocks.phone = "";
+  mocks.customer = { id: "customer-main", full_name: "Ana", phone: "09123456789", email: null };
+  mocks.select.mockReset();
+  mocks.from.mockReset().mockImplementation((table: string) => {
+    const query = {
+      select: (fields: string) => {
+        mocks.select(fields);
+        return query;
+      },
+      eq: (_field: string, value: string) => {
+        mocks.phone = value;
+        return query;
+      },
+      maybeSingle: async () => ({ data: mocks.customer, error: null }),
+    };
+    expect(table).toBe("customers");
+    return query;
+  });
 });
 
-describe("customer phone lookup branch scope", () => {
-  it("returns details only when the customer has a booking in the authorized branch", async () => {
-    expect(await lookupCustomerByPhone("0912 345 6789", "sm")).toMatchObject({ id: "customer-sm" });
-    expect(mocks.selectedBranch).toBe("sm");
-    expect(mocks.selectedCustomer).toBe("customer-sm");
+describe("exact phone identity lookup", () => {
+  it("finds a customer without checking current-branch bookings", async () => {
+    expect(await lookupCustomerByPhone("0912 345 6789")).toMatchObject({ id: "customer-main" });
+    expect(mocks.phone).toBe("09123456789");
+    expect(mocks.select).toHaveBeenCalledWith("id, full_name, phone, email");
+    expect(mocks.from).toHaveBeenCalledTimes(1);
+  });
 
-    expect(await lookupCustomerByPhone("0912 345 6789", "main")).toBeNull();
-    mocks.bookingFound = false;
-    expect(await lookupCustomerByPhone("0912 345 6789", "sm")).toBeNull();
+  it("rejects an insufficient phone and returns no unknown identity", async () => {
+    expect(await lookupCustomerByPhone("123")).toBeNull();
+    expect(mocks.from).not.toHaveBeenCalled();
+    mocks.customer = null;
+    expect(await lookupCustomerByPhone("09123456789")).toBeNull();
   });
 });

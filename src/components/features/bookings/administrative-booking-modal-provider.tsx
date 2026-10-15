@@ -90,7 +90,13 @@ export function AdministrativeBookingModalProvider({
   branchId,
   branchName,
 }: AdministrativeBookingModalProviderProps) {
-  const [bookingContext, setBookingContext] = useState<BookingContext | null>(null);
+  const [loadedBookingContext, setLoadedBookingContext] = useState<{
+    branchId: string;
+    options: BookingContext;
+  } | null>(null);
+  const bookingContext = loadedBookingContext?.branchId === branchId
+    ? loadedBookingContext.options
+    : null;
   const [optionsError, setOptionsError] = useState<string | null>(null);
   const [optionsRetryKey, setOptionsRetryKey] = useState(0);
   const [request, setRequest] = useState<AdministrativeBookingModalRequest | null>(null);
@@ -110,7 +116,7 @@ export function AdministrativeBookingModalProvider({
           setOptionsError("Front Desk branch changed. Refresh this page to continue.");
           return;
         }
-        setBookingContext(result.options);
+        setLoadedBookingContext({ branchId: result.branchId, options: result.options });
         setOptionsError(null);
       })
       .catch(() => {

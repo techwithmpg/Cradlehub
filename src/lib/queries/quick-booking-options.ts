@@ -54,28 +54,18 @@ function firstRelation<T>(value: T | T[] | null | undefined): T | null {
 }
 
 export async function getQuickBookingCustomerPrefill(
-  customerId: string | undefined,
-  branchId: string
+  customerId: string | undefined
 ): Promise<QuickBookingCustomerOption | null> {
   if (!customerId) return null;
 
   const admin = createAdminClient();
-  const { data: branchBooking, error: bookingError } = await admin
-    .from("bookings")
-    .select("id")
-    .eq("customer_id", customerId)
-    .eq("branch_id", branchId)
-    .limit(1)
-    .maybeSingle();
-  if (bookingError) throw new Error("Customer branch could not be verified.");
-  if (!branchBooking) return null;
-
-  const { data } = await admin
+  const { data, error } = await admin
     .from("customers")
     .select("id, full_name, phone, email")
     .eq("id", customerId)
     .maybeSingle();
 
+  if (error) throw new Error("Customer identity could not be loaded.");
   if (!data) return null;
   return {
     id: data.id,

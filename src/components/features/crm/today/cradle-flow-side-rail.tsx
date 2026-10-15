@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { AlertTriangle, CalendarDays, ClipboardPlus } from "lucide-react";
+import { AlertTriangle, CalendarDays, ClipboardPlus, WalletCards } from "lucide-react";
 import { AttendanceScanFeedPanel } from "@/components/features/attendance/attendance-scan-feed-card";
 import type { AttendanceRealtimeStatus } from "@/components/features/attendance/use-attendance-scan-realtime";
 import type { AttendanceScanFeedData, RecentAttendanceScan } from "@/lib/attendance/types";
@@ -196,6 +196,12 @@ export function CradleFlowSideRail({
             title="View today’s schedule"
             helper="See bookings and rooms"
             icon={<CalendarDays className="size-4" />}
+          />
+          <RailLink
+            href="/crm/cash-flow"
+            title="Open Cash Flow"
+            helper="Collections and daily records"
+            icon={<WalletCards className="size-4" />}
           />
         </div>
       </RailPanel>

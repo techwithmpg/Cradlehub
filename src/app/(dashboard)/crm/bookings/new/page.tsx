@@ -30,10 +30,9 @@ function normalizeQuickBookingMode(params: SearchParams): QuickBookingMode {
 }
 
 async function getCustomerPrefill(
-  customerId: string | undefined,
-  branchId: string
+  customerId: string | undefined
 ): Promise<QuickBookingCustomerOption | null> {
-  return getQuickBookingCustomerPrefill(customerId, branchId);
+  return getQuickBookingCustomerPrefill(customerId);
 }
 
 export default async function CrmBookingWizardPage({
@@ -44,7 +43,7 @@ export default async function CrmBookingWizardPage({
   const params = await searchParams;
   const { branchId, branchName } = await getFrontDeskContext();
   const [customerPrefill, bookingContext] = await Promise.all([
-    getCustomerPrefill(params.customerId, branchId),
+    getCustomerPrefill(params.customerId),
     getQuickBookingContext(branchId),
   ]);
 

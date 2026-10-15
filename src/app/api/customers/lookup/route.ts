@@ -37,6 +37,6 @@ export async function GET(request: NextRequest) {
   if (!branchId || (role === "owner" && !ownerBranch)) {
     return NextResponse.json({ error: "Front Desk branch unavailable" }, { status: 403 });
   }
-  const customer = await lookupCustomerByPhone(phone, branchId);
+  const customer = await lookupCustomerByPhone(phone);
   return NextResponse.json({ customer });
 }

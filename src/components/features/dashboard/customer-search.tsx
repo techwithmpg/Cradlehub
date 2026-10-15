@@ -6,10 +6,7 @@ import { useRouter } from "next/navigation";
 type Customer = {
   id: string;
   full_name: string;
-  phone: string;
-  email?: string | null;
-  total_bookings: number;
-  last_booking_date: string | null;
+  phone_suffix: string;
 };
 
 type SearchResponse = {
@@ -172,12 +169,7 @@ export function CustomerSearch() {
                     {customer.full_name}
                   </div>
                   <div style={{ fontSize: "0.75rem", color: "var(--cs-text-muted)" }}>
-                    {customer.phone}
-                    {customer.total_bookings > 0 && (
-                      <span style={{ marginLeft: 8 }}>
-                        {customer.total_bookings} visit{customer.total_bookings !== 1 ? "s" : ""}
-                      </span>
-                    )}
+                    {customer.phone_suffix ? `•••• ${customer.phone_suffix}` : "Phone unavailable"}
                   </div>
                 </div>
                 <div style={{ fontSize: 16, color: "var(--cs-text-muted)" }}>›</div>

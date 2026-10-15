@@ -31,8 +31,8 @@ export async function getAdministrativeBookingCustomerPrefillAction(
   }
 
   try {
-    const context = await getFrontDeskContext();
-    const customer = await getQuickBookingCustomerPrefill(parsed.data.customerId, context.branchId);
+    await getFrontDeskContext();
+    const customer = await getQuickBookingCustomerPrefill(parsed.data.customerId);
     return { ok: true, customer };
   } catch (error) {
     console.error("[administrative-booking] customer prefill failed", {

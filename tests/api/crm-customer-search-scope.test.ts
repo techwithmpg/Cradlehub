@@ -11,7 +11,7 @@ const mocks = vi.hoisted(() => ({
     id: string;
     name: string;
   } | null,
-  searchCustomers: vi.fn(),
+  searchCustomerIdentities: vi.fn(),
   lookupCustomerByPhone: vi.fn(),
   resolveOwnerFrontDeskBranch: vi.fn(),
   staffLookup: vi.fn(),
@@ -32,7 +32,7 @@ vi.mock("@/lib/supabase/server", () => ({
   }),
 }));
 vi.mock("@/lib/queries/customers", () => ({
-  searchCustomers: mocks.searchCustomers,
+  searchCustomerIdentities: mocks.searchCustomerIdentities,
   lookupCustomerByPhone: mocks.lookupCustomerByPhone,
 }));
 vi.mock("@/lib/queries/front-desk-branch", () => ({
@@ -50,7 +50,7 @@ beforeEach(() => {
   mocks.userId = "owner-1";
   mocks.staff = { system_role: "owner", branch_id: "main" };
   mocks.selectedBranch = { id: "sm", name: "SM Branch" };
-  mocks.searchCustomers.mockReset().mockResolvedValue([{ id: "customer-sm" }]);
+  mocks.searchCustomerIdentities.mockReset().mockResolvedValue([{ id: "customer-main", full_name: "Ana", phone_suffix: "6789" }]);
   mocks.lookupCustomerByPhone.mockReset().mockResolvedValue({ id: "customer-sm" });
   mocks.resolveOwnerFrontDeskBranch
     .mockReset()
@@ -64,13 +64,13 @@ describe("direct customer phone lookup API", () => {
       new NextRequest("https://cradlehub.test/api/customers/lookup?phone=09123456789&branchId=main")
     );
     expect(response.status).toBe(200);
-    expect(mocks.lookupCustomerByPhone).toHaveBeenCalledWith("09123456789", "sm");
+    expect(mocks.lookupCustomerByPhone).toHaveBeenCalledWith("09123456789");
 
     mocks.selectedBranch = { id: "main", name: "Main Spa" };
     await lookupGET(
       new NextRequest("https://cradlehub.test/api/customers/lookup?phone=09123456789&branchId=sm")
     );
-    expect(mocks.lookupCustomerByPhone).toHaveBeenLastCalledWith("09123456789", "main");
+    expect(mocks.lookupCustomerByPhone).toHaveBeenLastCalledWith("09123456789");
   });
 
   it("keeps branch staff scoped and fails closed without a selected branch", async () => {
@@ -78,7 +78,7 @@ describe("direct customer phone lookup API", () => {
     await lookupGET(
       new NextRequest("https://cradlehub.test/api/customers/lookup?phone=09123456789")
     );
-    expect(mocks.lookupCustomerByPhone).toHaveBeenCalledWith("09123456789", "main");
+    expect(mocks.lookupCustomerByPhone).toHaveBeenCalledWith("09123456789");
 
     mocks.staff = { system_role: "owner", branch_id: "main" };
     mocks.selectedBranch = null;
@@ -94,16 +94,16 @@ describe("direct customer phone lookup API", () => {
 });
 
 describe("direct CRM customer search API", () => {
-  it("uses the Owner's server-selected branch and ignores a browser branch override", async () => {
+  it("allows global identity after resolving Owner context and ignores a browser branch override", async () => {
     const response = await GET(request("&branchId=main"));
     expect(response.status).toBe(200);
-    expect(await response.json()).toEqual({ customers: [{ id: "customer-sm" }] });
+    expect(await response.json()).toEqual({ customers: [{ id: "customer-main", full_name: "Ana", phone_suffix: "6789" }] });
     expect(mocks.resolveOwnerFrontDeskBranch).toHaveBeenCalledWith("owner-1", "main");
-    expect(mocks.searchCustomers).toHaveBeenCalledWith("Ana", "sm");
+    expect(mocks.searchCustomerIdentities).toHaveBeenCalledWith("Ana");
 
     mocks.selectedBranch = { id: "main", name: "Main Spa" };
     await GET(request("&branchId=sm"));
-    expect(mocks.searchCustomers).toHaveBeenLastCalledWith("Ana", "main");
+    expect(mocks.searchCustomerIdentities).toHaveBeenLastCalledWith("Ana");
   });
 
   it("keeps non-Owner staff on their assigned branch", async () => {
@@ -111,17 +111,17 @@ describe("direct CRM customer search API", () => {
     const response = await GET(request("&branchId=sm"));
     expect(response.status).toBe(200);
     expect(mocks.resolveOwnerFrontDeskBranch).not.toHaveBeenCalled();
-    expect(mocks.searchCustomers).toHaveBeenCalledWith("Ana", "main");
+    expect(mocks.searchCustomerIdentities).toHaveBeenCalledWith("Ana");
   });
 
   it("fails closed when identity or an Owner-selected branch is unavailable", async () => {
     mocks.userId = null;
     expect((await GET(request())).status).toBe(401);
-    expect(mocks.searchCustomers).not.toHaveBeenCalled();
+    expect(mocks.searchCustomerIdentities).not.toHaveBeenCalled();
 
     mocks.userId = "owner-1";
     mocks.selectedBranch = null;
     expect((await GET(request())).status).toBe(403);
-    expect(mocks.searchCustomers).not.toHaveBeenCalled();
+    expect(mocks.searchCustomerIdentities).not.toHaveBeenCalled();
   });
 });

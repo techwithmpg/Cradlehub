@@ -46,6 +46,22 @@ export async function createInhouseBookingMultiAction(
   const staffRole = staff ? canonicalizeSystemRole(staff.system_role) : null;
   const isDevBypass = isDevAuthBypassEnabled();
 
+  if (!isDevBypass && staffRole === "owner") {
+    const { resolveOwnerFrontDeskBranch } = await import("@/lib/queries/front-desk-branch");
+    const selectedBranch = await resolveOwnerFrontDeskBranch(user.id, staff?.branch_id ?? null);
+    const requestedBranch =
+      rawInput && typeof rawInput === "object" && "branchId" in rawInput
+        ? (rawInput as { branchId?: unknown }).branchId
+        : undefined;
+    if (!selectedBranch || requestedBranch !== selectedBranch.id) {
+      return {
+        ok: false,
+        code: "CRM_BRANCH_FORBIDDEN",
+        message: "Front Desk branch changed. Refresh and try again.",
+      };
+    }
+  }
+
   const operator: InhouseBookingOperator = {
     authUserId: user.id,
     staff,
