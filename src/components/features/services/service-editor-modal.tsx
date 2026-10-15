@@ -5,6 +5,7 @@ import Image from "next/image";
 import { Loader2, UploadCloud } from "lucide-react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
+import { Switch } from "@/components/ui/switch";
 import { MARKETING_MEDIA_CONTRACTS } from "@/lib/marketing/media-contracts";
 import { resolveServiceImage } from "@/lib/service-images";
 import { saveOwnerServiceCatalogAction } from "@/app/(dashboard)/owner/services/actions";
@@ -20,7 +21,7 @@ type Props = {
   onSaved: () => void;
 };
 
-const inputClass = "h-10 w-full rounded-md border border-[var(--cs-border)] bg-[var(--cs-surface)] px-3 text-sm text-[var(--cs-text)] outline-none focus:border-[var(--cs-sand)]";
+const inputClass = "h-10 w-full min-w-0 rounded-md border border-[var(--cs-border)] bg-[var(--cs-surface)] px-3 text-sm text-[var(--cs-text)] outline-none focus:border-[var(--cs-sand)]";
 const labelClass = "mb-1.5 block text-xs font-semibold text-[var(--cs-text)]";
 const servicePhoto = MARKETING_MEDIA_CONTRACTS.SERVICE_PHOTO;
 
@@ -114,16 +115,16 @@ export function ServiceEditorModal({ open, service, branches, categories, onClos
 
   return (
     <Dialog open={open} onOpenChange={(next) => { if (!next && !pending) onClose(); }}>
-      <DialogContent className="flex max-h-[calc(100vh-2rem)] w-[min(920px,calc(100vw-2rem))] max-w-none flex-col gap-0 overflow-hidden border border-[var(--cs-border)] bg-[var(--cs-surface)] p-0 shadow-2xl" showCloseButton={!pending}>
+      <DialogContent className="flex max-h-[90dvh] w-[min(920px,92vw)] max-w-[92vw] flex-col gap-0 overflow-hidden border border-[var(--cs-border)] bg-[var(--cs-surface)] p-0 shadow-2xl sm:max-w-[min(920px,92vw)]" showCloseButton={!pending}>
         <DialogHeader className="border-b border-[var(--cs-border)] px-5 py-4">
           <DialogTitle className="text-xl font-semibold text-[var(--cs-text)]">{service ? "Edit Service" : "Add New Service"}</DialogTitle>
         </DialogHeader>
         <form onSubmit={submit} className="flex min-h-0 flex-1 flex-col">
-          <div className="grid min-h-0 flex-1 overflow-y-auto md:grid-cols-[1.15fr_0.85fr]">
-            <div className="space-y-5 border-b border-[var(--cs-border)] p-5 md:border-b-0 md:border-r">
+          <div className="grid min-h-0 flex-1 overflow-x-hidden overflow-y-auto lg:grid-cols-[minmax(0,1.7fr)_minmax(0,1fr)]">
+            <div className="min-w-0 space-y-5 border-b border-[var(--cs-border)] p-5 lg:border-b-0 lg:border-r">
               <section>
                 <h3 className="mb-3 text-sm font-semibold text-[var(--cs-text)]">1. Basic Information</h3>
-                <div className="grid gap-3 sm:grid-cols-2">
+                <div className="grid gap-3 sm:grid-cols-[minmax(0,3fr)_minmax(0,2fr)]">
                   <label className={labelClass}>Service Name <span className="text-red-600">*</span>
                     <input className={`${inputClass} mt-1.5`} value={name} onChange={(e) => setName(e.target.value)} required minLength={2} maxLength={100} placeholder="e.g. Swedish Massage" />
                   </label>
@@ -167,7 +168,7 @@ export function ServiceEditorModal({ open, service, branches, categories, onClos
                 </div>}
               </section>
             </div>
-            <div className="space-y-5 p-5">
+            <div className="min-w-0 space-y-5 p-5">
               <section>
                 <h3 className="mb-3 text-sm font-semibold text-[var(--cs-text)]">3. Service Image</h3>
                 <input ref={fileInput} type="file" accept="image/jpeg,image/png,image/webp" className="sr-only" aria-label="Choose service image" onChange={(e) => chooseFile(e.target.files?.[0] ?? null)} />
@@ -186,14 +187,20 @@ export function ServiceEditorModal({ open, service, branches, categories, onClos
               </section>
               <section>
                 <h3 className="mb-3 text-sm font-semibold text-[var(--cs-text)]">5. Visibility &amp; Status</h3>
-                <label className="mb-3 flex gap-2 text-sm"><input type="checkbox" checked={active} onChange={(e) => setActive(e.target.checked)} /><span><strong>Active</strong><span className="block text-xs text-[var(--cs-text-muted)]">Service can be booked operationally.</span></span></label>
-                <label className="flex gap-2 text-sm"><input type="checkbox" checked={visible} onChange={(e) => setVisible(e.target.checked)} /><span><strong>Visible to customers</strong><span className="block text-xs text-[var(--cs-text-muted)]">Show on public services and booking where offered.</span></span></label>
+                <div className="mb-3 flex items-start gap-3 text-sm">
+                  <Switch id="service-active" checked={active} onCheckedChange={setActive} aria-labelledby="service-active-label" aria-describedby="service-active-help" />
+                  <div className="min-w-0"><label id="service-active-label" htmlFor="service-active" className="cursor-pointer font-semibold">Active</label><p id="service-active-help" className="text-xs text-[var(--cs-text-muted)]">Service can be booked operationally.</p></div>
+                </div>
+                <div className="flex items-start gap-3 text-sm">
+                  <Switch id="service-visible" checked={visible} onCheckedChange={setVisible} aria-labelledby="service-visible-label" aria-describedby="service-visible-help" />
+                  <div className="min-w-0"><label id="service-visible-label" htmlFor="service-visible" className="cursor-pointer font-semibold">Visible to customers</label><p id="service-visible-help" className="text-xs text-[var(--cs-text-muted)]">Show on public services and booking where offered.</p></div>
+                </div>
               </section>
             </div>
           </div>
-          <div className="flex items-center justify-between gap-3 border-t border-[var(--cs-border)] px-5 py-3">
-            <p role="alert" className="max-w-[65%] text-xs text-red-700">{error}</p>
-            <div className="ml-auto flex gap-2"><Button type="button" variant="outline" disabled={pending} onClick={onClose}>Cancel</Button><Button type="submit" disabled={pending} style={{ backgroundColor: "var(--cs-sand)", color: "#fff" }}>{pending && <Loader2 className="h-4 w-4 animate-spin" />}{pending ? (service ? "Saving…" : "Creating…") : (service ? "Save Changes" : "Create Service")}</Button></div>
+          <div className="flex shrink-0 flex-col gap-2 border-t border-[var(--cs-border)] px-5 py-3 sm:flex-row sm:items-center sm:justify-between">
+            <p role="alert" className="min-w-0 text-xs text-red-700">{error}</p>
+            <div className="ml-auto flex shrink-0 gap-2"><Button type="button" variant="outline" disabled={pending} onClick={onClose}>Cancel</Button><Button type="submit" disabled={pending} style={{ backgroundColor: "var(--cs-sand)", color: "#fff" }}>{pending && <Loader2 className="h-4 w-4 animate-spin" />}{pending ? (service ? "Saving…" : "Creating…") : (service ? "Save Changes" : "Create Service")}</Button></div>
           </div>
         </form>
       </DialogContent>

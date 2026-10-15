@@ -9,7 +9,7 @@ const state = vi.hoisted(() => ({ save: vi.fn() }));
 vi.mock("@/app/(dashboard)/owner/services/actions", () => ({ saveOwnerServiceCatalogAction: state.save }));
 vi.mock("@/components/ui/dialog", () => ({
   Dialog: ({ children }: { children: React.ReactNode }) => <div>{children}</div>,
-  DialogContent: ({ children }: { children: React.ReactNode }) => <div>{children}</div>,
+  DialogContent: ({ children, className }: { children: React.ReactNode; className: string }) => <div role="dialog" className={className}>{children}</div>,
   DialogHeader: ({ children }: { children: React.ReactNode }) => <div>{children}</div>,
   DialogTitle: ({ children }: { children: React.ReactNode }) => <h2>{children}</h2>,
 }));
@@ -40,6 +40,7 @@ describe("Owner service modal", () => {
     fireEvent.click(screen.getByRole("button", { name: /upload service image/i }));
     expect(click).toHaveBeenCalledOnce();
     expect(state.save).not.toHaveBeenCalled();
+    expect(screen.queryByText(/Asset Library/i)).toBeNull();
 
     const file = new File(["image"], "photo.webp", { type: "image/webp" });
     fireEvent.change(picker, { target: { files: [file] } });
@@ -86,9 +87,15 @@ describe("Owner service modal", () => {
     render(<ServiceEditorModal open service={service}
       branches={[{ id: branchId, name: "Main Spa" }, { id: "branch-two", name: "SM Branch" }]}
       categories={[{ id: categoryId, name: "Massage" }]} onClose={onClose} onSaved={vi.fn()} />);
+    expect(screen.getByRole("heading", { name: "Edit Service" })).toBeTruthy();
+    for (const heading of ["1. Basic Information", "2. Duration & Pricing", "3. Service Image", "4. Branch Availability", "5. Visibility & Status"]) {
+      expect(screen.getByRole("heading", { name: heading })).toBeTruthy();
+    }
     expect((screen.getByPlaceholderText("e.g. Swedish Massage") as HTMLInputElement).value).toBe("Swedish Massage");
     expect(screen.getByRole("img").getAttribute("src")).toBe("https://example.com/service.webp");
     expect((screen.getByRole("radio", { name: /Extendable/i }) as HTMLInputElement).checked).toBe(true);
+    expect(screen.getByRole("switch", { name: "Active" }).getAttribute("aria-checked")).toBe("true");
+    expect(screen.getByRole("switch", { name: "Visible to customers" }).getAttribute("aria-checked")).toBe("true");
     const picker = screen.getByLabelText("Choose service image") as HTMLInputElement;
     const click = vi.spyOn(picker, "click");
     fireEvent.click(screen.getByRole("button", { name: /Change Image/i }));
@@ -96,5 +103,33 @@ describe("Owner service modal", () => {
     fireEvent.click(screen.getByRole("button", { name: "Cancel" }));
     expect(onClose).toHaveBeenCalledOnce();
     expect(state.save).not.toHaveBeenCalled();
+  });
+
+  it("shares the five-section layout and uses accessible switches for service states", async () => {
+    state.save.mockResolvedValue({ success: true, serviceId: "new-service-id" });
+    render(<ServiceEditorModal open service={null} branches={[{ id: branchId, name: "Main Spa" }]}
+      categories={[{ id: categoryId, name: "Massage" }]} onClose={vi.fn()} onSaved={vi.fn()} />);
+    for (const heading of ["1. Basic Information", "2. Duration & Pricing", "3. Service Image", "4. Branch Availability", "5. Visibility & Status"]) {
+      expect(screen.getByRole("heading", { name: heading })).toBeTruthy();
+    }
+    expect(screen.getByRole("dialog").className).toContain("sm:max-w-[min(920px,92vw)]");
+    expect(screen.getByRole("switch", { name: "Active" }).getAttribute("aria-checked")).toBe("true");
+    expect(screen.getByRole("switch", { name: "Visible to customers" }).getAttribute("aria-checked")).toBe("true");
+    fireEvent.click(screen.getByRole("switch", { name: "Active" }));
+    fireEvent.click(screen.getByRole("switch", { name: "Visible to customers" }));
+    expect(screen.getByRole("switch", { name: "Active" }).getAttribute("aria-checked")).toBe("false");
+    expect(screen.getByRole("switch", { name: "Visible to customers" }).getAttribute("aria-checked")).toBe("false");
+    expect((screen.getByRole("radio", { name: /Fixed duration/i }) as HTMLInputElement).checked).toBe(true);
+    expect(screen.queryByText("Extension Settings")).toBeNull();
+    fireEvent.click(screen.getByRole("radio", { name: /Extendable/i }));
+    expect(screen.getByText("Extension Settings")).toBeTruthy();
+    expect(screen.getByText("Preview Prices")).toBeTruthy();
+    fireEvent.change(screen.getByPlaceholderText("e.g. Swedish Massage"), { target: { value: "Swedish Massage" } });
+    fireEvent.change(screen.getByRole("combobox"), { target: { value: categoryId } });
+    fireEvent.submit(screen.getByRole("button", { name: "Create Service" }).closest("form")!);
+    await waitFor(() => expect(state.save).toHaveBeenCalledOnce());
+    expect(JSON.parse(String((state.save.mock.calls[0]![0] as FormData).get("catalog")))).toMatchObject({
+      isActive: false, isPublicVisible: false, durationPolicy: "extendable",
+    });
   });
 });
