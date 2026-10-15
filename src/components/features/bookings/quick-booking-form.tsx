@@ -103,6 +103,7 @@ type QuickBookingFormProps = {
     isHomeService: boolean;
   }) => void;
   onDirtyChange?: (dirty: boolean) => void;
+  onGroupBookingChange?: (groupBooking: boolean) => void;
 };
 
 type CustomerSearchRow = {
@@ -321,6 +322,7 @@ export function QuickBookingForm({
   onCancel,
   onSuccess,
   onDirtyChange,
+  onGroupBookingChange,
 }: QuickBookingFormProps) {
   const router = useRouter();
   const formId = useId();
@@ -350,12 +352,18 @@ export function QuickBookingForm({
   );
   const [firstAttendeeId] = useState(() => crypto.randomUUID());
   const [additionalGuests, setAdditionalGuests] = useState<BookingOrderAttendeeInput[]>([]);
+  const [activeGuestId, setActiveGuestId] = useState(firstAttendeeId);
   const groupBooking = additionalGuests.length > 0;
+  const organizerDraft: BookingOrderAttendeeInput = {
+    id: firstAttendeeId, name: fullName.trim(), isOrganizer: true, serviceIds: selectedServiceIds,
+  };
   const attendeeDrafts: BookingOrderAttendeeInput[] = [
-    { id: firstAttendeeId, name: fullName.trim(), isOrganizer: true, serviceIds: selectedServiceIds },
+    organizerDraft,
     ...additionalGuests,
   ];
   const allSelectedServiceIds = [...new Set(attendeeDrafts.flatMap((attendee) => attendee.serviceIds))];
+  const activeGuest = attendeeDrafts.find((attendee) => attendee.id === activeGuestId) ?? organizerDraft;
+  const activeGuestIsOrganizer = activeGuest.id === firstAttendeeId;
   const [serviceModeNotice, setServiceModeNotice] = useState("");
   const [date, setDate] = useState(initialDateValue);
   const [time, setTime] = useState(initialTimeValue);
@@ -536,6 +544,10 @@ export function QuickBookingForm({
   useEffect(() => {
     onDirtyChange?.(dirty);
   }, [dirty, onDirtyChange]);
+
+  useEffect(() => {
+    onGroupBookingChange?.(groupBooking);
+  }, [groupBooking, onGroupBookingChange]);
 
   useEffect(() => {
     const controller = new AbortController();
@@ -830,10 +842,18 @@ export function QuickBookingForm({
 
   function addGuest() {
     if (additionalGuests.length >= 3) return;
+    const id = crypto.randomUUID();
     setAdditionalGuests((current) => [...current, {
-      id: crypto.randomUUID(), name: "", isOrganizer: false, serviceIds: [],
+      id, name: "", isOrganizer: false, serviceIds: [],
     }]);
+    setActiveGuestId(id);
     setResourceId("");
+    setFieldErrors((current) => ({ ...current, service: undefined }));
+  }
+
+  function removeGuest(id: string) {
+    setAdditionalGuests((current) => current.filter((guest) => guest.id !== id));
+    if (activeGuestId === id) setActiveGuestId(firstAttendeeId);
     setFieldErrors((current) => ({ ...current, service: undefined }));
   }
 
@@ -1018,7 +1038,14 @@ export function QuickBookingForm({
     const nextErrors = validate();
     setFieldErrors(nextErrors);
     setFormError("");
-    if (Object.values(nextErrors).some(Boolean)) return;
+    if (Object.values(nextErrors).some(Boolean)) {
+      const incompleteGuest = additionalGuests.find((guest) =>
+        !guest.name?.trim() || guest.name.trim().length < 2 || guest.serviceIds.length === 0
+      );
+      if (incompleteGuest) setActiveGuestId(incompleteGuest.id);
+      else if (nextErrors.service) setActiveGuestId(firstAttendeeId);
+      return;
+    }
 
     if (!groupBooking) {
       setSlotChecking(true);
@@ -1135,10 +1162,13 @@ export function QuickBookingForm({
           <p className="mt-0.5 text-sm text-[var(--cs-text-secondary)]">{branchName}</p>
         </header>
 
-        <div className="flex min-h-0 flex-1 flex-col overflow-y-auto lg:grid lg:grid-cols-[minmax(0,1fr)_340px] lg:overflow-hidden">
+        <div className={cn(
+          "flex min-h-0 flex-1 flex-col overflow-y-auto lg:grid lg:overflow-hidden",
+          groupBooking ? "lg:grid-cols-[minmax(0,1fr)_400px]" : "lg:grid-cols-[minmax(0,1fr)_340px]"
+        )}>
           <div className="min-w-0 px-4 py-3 sm:px-5 lg:min-h-0 lg:overflow-y-auto">
             <div className="grid gap-3">
-              <div>
+              {!groupBooking ? <div>
                 <FieldLabel icon={<Sparkles size={15} />} label="Booking mode" />
                 <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
                   {MODES.map((item) => {
@@ -1184,7 +1214,7 @@ export function QuickBookingForm({
                     );
                   })}
                 </div>
-              </div>
+              </div> : null}
 
               <div className="grid gap-3 md:grid-cols-2">
                 <div className="relative md:col-span-2">
@@ -1399,50 +1429,111 @@ export function QuickBookingForm({
 
                 <div className="md:col-span-2">
                   {groupBooking ? (
-                    <p className="mb-2 text-sm font-semibold text-[var(--cs-text)]">Guest 1 — {fullName.trim() || "Customer"}</p>
-                  ) : null}
-                  <QuickBookingServiceSelector
-                    services={eligibleServices}
-                    selectedServiceIds={selectedServiceIds}
-                    onChange={handleServiceSelectionChange}
-                    isHomeService={isHomeService}
-                    disabled={isSaving}
-                    error={fieldErrors.service}
-                  />
-                  {serviceModeNotice ? (
-                    <p className="mt-1.5 rounded-lg bg-[var(--cs-warning-bg)] px-3 py-1.5 text-xs font-medium text-[var(--cs-warning-text)]">
-                      {serviceModeNotice}
-                    </p>
-                  ) : null}
-                  {additionalGuests.map((guest, index) => (
-                    <div key={guest.id} className="mt-3 rounded-xl border border-[var(--cs-border)] p-3">
-                      <div className="mb-2 flex items-center justify-between gap-2">
-                        <p className="text-sm font-semibold text-[var(--cs-text)]">Guest {index + 2}</p>
-                        <button type="button" className="text-xs text-[var(--cs-sand-dark)]" disabled={isSaving}
-                          onClick={() => setAdditionalGuests((current) => current.filter((item) => item.id !== guest.id))}>Remove</button>
+                    <section aria-label="Guest Sessions">
+                      <div className="mb-3 flex items-center justify-between gap-3">
+                        <div>
+                          <h2 className="text-base font-semibold text-[var(--cs-text)]">Guest Sessions</h2>
+                          <p className="text-xs text-[var(--cs-text-muted)]">Add guests and assign services.</p>
+                        </div>
+                        <button type="button" onClick={addGuest} disabled={isSaving || additionalGuests.length >= 3}
+                          className="cs-btn cs-btn-secondary h-9 shrink-0 rounded-xl px-3 text-xs disabled:opacity-50">
+                          + Add Guest
+                        </button>
                       </div>
-                      <label className="mb-3 block text-xs font-semibold text-[var(--cs-text)]">
-                        Guest name
-                        <input className={inputClassName(false)} value={guest.name ?? ""} maxLength={100}
-                          onChange={(event) => setAdditionalGuests((current) => current.map((item) =>
-                            item.id === guest.id ? { ...item, name: event.target.value } : item))}
-                          disabled={isSaving} placeholder="Guest name" />
-                      </label>
-                      <QuickBookingServiceSelector services={eligibleServices} selectedServiceIds={guest.serviceIds}
-                        onChange={(serviceIds) => setAdditionalGuests((current) => current.map((item) =>
-                          item.id === guest.id ? { ...item, serviceIds } : item))}
-                        isHomeService={isHomeService} disabled={isSaving} />
-                    </div>
-                  ))}
-                  {additionalGuests.length < 3 ? (
-                    <button type="button" onClick={addGuest} disabled={isSaving}
-                      className="mt-2 text-xs font-semibold text-[var(--cs-sand-dark)]">+ Add guest</button>
-                  ) : null}
+                      <div role="tablist" aria-label="Guest sessions"
+                        className="mb-3 flex min-w-0 flex-nowrap gap-2 overflow-x-auto pb-1">
+                        {attendeeDrafts.map((attendee, index) => {
+                          const isActive = activeGuest.id === attendee.id;
+                          const label = attendee.name?.trim() || `Guest ${index + 1}`;
+                          const count = attendee.serviceIds.length;
+                          return (
+                            <div key={attendee.id} className={cn(
+                              "flex min-w-[112px] flex-1 items-center rounded-xl border px-2.5 py-2",
+                              isActive
+                                ? "border-[var(--cs-sand-dark)] bg-[var(--cs-sand-mist)]"
+                                : "border-[var(--cs-border)] bg-[var(--cs-surface-warm)]"
+                            )}>
+                              <button id={`${formId}-guest-tab-${index}`} type="button" role="tab"
+                                aria-selected={isActive} aria-controls={`${formId}-guest-editor`}
+                                onClick={() => setActiveGuestId(attendee.id)}
+                                className="min-w-0 flex-1 text-left" disabled={isSaving}>
+                                <span className="block truncate text-xs font-semibold text-[var(--cs-text)]">{label}</span>
+                                <span className="block truncate text-[11px] text-[var(--cs-text-muted)]">
+                                  {count ? `${count} service${count === 1 ? "" : "s"}` : "Choose service"}
+                                </span>
+                              </button>
+                              {index > 0 ? (
+                                <button type="button" onClick={() => removeGuest(attendee.id)} disabled={isSaving}
+                                  className="ml-1 shrink-0 px-1 text-base text-[var(--cs-sand-dark)]"
+                                  aria-label={`Remove ${label}`}>×</button>
+                              ) : null}
+                            </div>
+                          );
+                        })}
+                        <button type="button" onClick={addGuest} disabled={isSaving || additionalGuests.length >= 3}
+                          className="min-w-[88px] shrink-0 rounded-xl border border-dashed border-[var(--cs-border-strong)] px-3 py-2 text-xs font-semibold text-[var(--cs-sand-dark)] disabled:opacity-50">
+                          + Add
+                        </button>
+                      </div>
+                      <div id={`${formId}-guest-editor`} role="tabpanel"
+                        aria-labelledby={`${formId}-guest-tab-${attendeeDrafts.findIndex((guest) => guest.id === activeGuest.id)}`}
+                        className="rounded-2xl border border-[var(--cs-border)] bg-[var(--cs-surface)] p-4">
+                        <label className="block text-sm font-semibold text-[var(--cs-text)]" htmlFor={`${formId}-guest-name`}>
+                          Guest name
+                        </label>
+                        <div className="relative mt-1.5 mb-4">
+                          <input id={`${formId}-guest-name`} className={cn(inputClassName(false), activeGuestIsOrganizer && "pr-28")}
+                            value={activeGuestIsOrganizer ? `${fullName.trim()} (You)` : activeGuest.name ?? ""}
+                            readOnly={activeGuestIsOrganizer} maxLength={100}
+                            onChange={(event) => {
+                              if (activeGuestIsOrganizer) return;
+                              setAdditionalGuests((current) => current.map((guest) => guest.id === activeGuest.id
+                                ? { ...guest, name: event.target.value } : guest));
+                              setFieldErrors((current) => ({ ...current, service: undefined }));
+                            }}
+                            disabled={isSaving} placeholder="Guest name" />
+                          {activeGuestIsOrganizer ? (
+                            <span className="pointer-events-none absolute right-2 top-1/2 -translate-y-1/2 rounded-full bg-[var(--cs-sand-mist)] px-2 py-1 text-[10px] font-semibold text-[var(--cs-sand-dark)]">
+                              Primary Guest
+                            </span>
+                          ) : null}
+                        </div>
+                        <QuickBookingServiceSelector key={activeGuest.id} services={eligibleServices}
+                          selectedServiceIds={activeGuest.serviceIds}
+                          onChange={activeGuestIsOrganizer ? handleServiceSelectionChange : (serviceIds) => {
+                            setAdditionalGuests((current) => current.map((guest) => guest.id === activeGuest.id
+                              ? { ...guest, serviceIds } : guest));
+                            setFieldErrors((current) => ({ ...current, service: undefined }));
+                          }}
+                          isHomeService={isHomeService} disabled={isSaving}
+                          error={fieldErrors.service && (activeGuestIsOrganizer ||
+                            (!activeGuest.name?.trim() || activeGuest.serviceIds.length === 0)) ? fieldErrors.service : undefined} />
+                        {serviceModeNotice ? (
+                          <p className="mt-1.5 rounded-lg bg-[var(--cs-warning-bg)] px-3 py-1.5 text-xs font-medium text-[var(--cs-warning-text)]">
+                            {serviceModeNotice}
+                          </p>
+                        ) : null}
+                      </div>
+                    </section>
+                  ) : (
+                    <>
+                      <QuickBookingServiceSelector services={eligibleServices}
+                        selectedServiceIds={selectedServiceIds} onChange={handleServiceSelectionChange}
+                        isHomeService={isHomeService} disabled={isSaving} error={fieldErrors.service} />
+                      {serviceModeNotice ? (
+                        <p className="mt-1.5 rounded-lg bg-[var(--cs-warning-bg)] px-3 py-1.5 text-xs font-medium text-[var(--cs-warning-text)]">
+                          {serviceModeNotice}
+                        </p>
+                      ) : null}
+                      <button type="button" onClick={addGuest} disabled={isSaving}
+                        className="mt-2 text-xs font-semibold text-[var(--cs-sand-dark)]">+ Add guest</button>
+                    </>
+                  )}
                 </div>
               </div>
 
               <div
-                className={cn("grid gap-3", isHomeService ? "md:grid-cols-3" : "md:grid-cols-4")}
+                className={cn("grid gap-3", isHomeService || groupBooking ? "md:grid-cols-3" : "md:grid-cols-4")}
               >
                 <div>
                   <FieldLabel icon={<CalendarDays size={15} />} label="Date" />
@@ -1571,10 +1662,12 @@ export function QuickBookingForm({
                       ))}
                     </select>
                   </div>
-                ) : groupBooking && !isHomeService ? (
-                  <p className="self-end text-xs text-[var(--cs-text-muted)]">Rooms are assigned per guest automatically.</p>
                 ) : null}
               </div>
+
+              {groupBooking && !isHomeService ? (
+                <p className="text-xs text-[var(--cs-text-muted)]">Rooms are assigned per guest automatically.</p>
+              ) : null}
 
               {therapistAvailabilityStatus === "loading" ? (
                 <p className="-mt-1 flex items-center gap-1.5 text-xs text-[var(--cs-text-muted)]">
@@ -1708,6 +1801,17 @@ export function QuickBookingForm({
 
               {moreOpen ? (
                 <div className="grid gap-3 rounded-xl border border-[var(--cs-border-soft)] bg-[var(--cs-surface-warm)] p-3 md:grid-cols-2">
+                  {groupBooking ? (
+                    <div className="md:col-span-2">
+                      <FieldLabel icon={<Sparkles size={15} />} label="Booking mode" />
+                      <select value={mode} onChange={(event) => changeMode(event.target.value as QuickBookingMode)}
+                        disabled={isSaving} className={selectClassName(false)}>
+                        {MODES.map((item) => (
+                          <option key={item.value} value={item.value}>{item.label}</option>
+                        ))}
+                      </select>
+                    </div>
+                  ) : null}
                   <div>
                     <FieldLabel label="Email" optional />
                     <input
@@ -1782,13 +1886,27 @@ export function QuickBookingForm({
               {groupBooking ? (
                 <>
                   <SummaryRow label="Guests" value={String(attendeeDrafts.length)} />
-                  <SummaryRow label="Services" value={String(groupServices.length)} />
-                  {attendeeDrafts.map((attendee, index) => (
-                    <div key={attendee.id} className="rounded-lg border border-[var(--cs-border-soft)] p-2 text-xs">
-                      <p className="font-semibold">Guest {index + 1} — {attendee.name || "Name needed"}</p>
-                      <p className="text-[var(--cs-text-muted)]">{attendee.serviceIds.map((id) => services.find((service) => service.id === id)?.name ?? "Service").join(", ") || "Select services"}</p>
+                  <div className="border-t border-[var(--cs-border-soft)] pt-2">
+                    <div className="text-xs font-semibold uppercase text-[var(--cs-text-muted)]">Services</div>
+                    <div className="mt-1 text-sm font-medium text-[var(--cs-text)]">{groupServices.length}</div>
+                    <div className="mt-2 space-y-2">
+                      {attendeeDrafts.map((attendee, index) => (
+                        <div key={attendee.id} className="rounded-xl border border-[var(--cs-border-soft)] bg-[var(--cs-surface)] p-2.5 text-xs">
+                          <p className="truncate font-semibold text-[var(--cs-text)]">
+                            {attendee.name?.trim() || `Guest ${index + 1}`}{index === 0 ? " (You)" : ""}
+                          </p>
+                          {attendee.serviceIds.length > 0 ? attendee.serviceIds.map((id) => {
+                            const service = services.find((item) => item.id === id);
+                            return (
+                              <p key={id} className="mt-1 text-[var(--cs-text-muted)]">
+                                {service?.name ?? "Service"}{service ? ` · ${formatServiceDuration(service.durationMinutes)} · ${formatCurrency(service.price)}` : ""}
+                              </p>
+                            );
+                          }) : <p className="mt-1 text-[var(--cs-text-muted)]">Choose service</p>}
+                        </div>
+                      ))}
                     </div>
-                  ))}
+                  </div>
                   <SummaryRow label="Service total" value={formatCurrency(groupTotalPrice)} />
                 </>
               ) : (

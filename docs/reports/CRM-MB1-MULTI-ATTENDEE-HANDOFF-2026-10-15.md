@@ -31,3 +31,9 @@
 - Table changes: none. Forward migration: `20261015105000_crm_mb1_attendee_line_resources.sql`, function-only.
 - The migration was not applied to any database. No live transactional migration test or production verification was performed.
 - Before release, classify a LOCAL or TEST target, apply this forward migration there, and verify actual atomic creation, room conflicts, payment rollback and replay. Then obtain independent review and the applicable owner gate. Production migration, merge, push, deployment and duration-extension work are not authorized by this handoff.
+
+## Approved multi-attendee visual correction
+
+- The owner supplied `Modern Spa Booking Modal with Compact Guest Sessions.png` as the canonical multi-attendee composition. The group mode now places customer search and selection above a single-row Guest Sessions tab strip, renders one active guest editor, then Date/Time/Therapist, payment and optional details above the fixed footer. The primary guest retains a read-only Guest name field tied to the organizer/customer identity.
+- Guest pills share the row and shrink as more guests are added, with horizontal overflow as the fallback. The group summary rail shows customer, guest count, service cards grouped by guest, service total, therapist and room assignment per guest, and payment. The modal widens only in group mode; the single-attendee layout keeps its previous dimensions and controls.
+- The booking payload, server allocation, atomic wrapper, and payment path were not changed by this visual correction. Focused CRM caller and component tests passed (3 files, 14 tests), as did type-check, targeted ESLint, and `git diff --check`. A local desktop fixture render was visually checked with CRM availability stubbed; no live database or booking submission was exercised.
