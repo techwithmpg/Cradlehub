@@ -1,31 +1,17 @@
 "use client";
 
 import { ServiceCard } from "./service-card";
-
-type ServiceCategory = {
-  id: string;
-  name: string | null;
-  display_order: number | null;
-};
-
-type Service = {
-  id: string;
-  name: string;
-  description: string | null;
-  duration_minutes: number;
-  price: number;
-  is_active: boolean;
-  service_categories: ServiceCategory | null;
-};
+import type { OwnerService, OwnerServiceBranch } from "./owner-service-types";
 
 type Props = {
   categoryName: string;
-  services: Service[];
+  services: OwnerService[];
+  branches: OwnerServiceBranch[];
+  onEdit: (service: OwnerService) => void;
   onToggle?: (serviceId: string, nextValue: boolean) => void;
-  onDeleted?: (serviceId: string) => void;
 };
 
-export function ServiceCategorySection({ categoryName, services, onToggle, onDeleted }: Props) {
+export function ServiceCategorySection({ categoryName, services, branches, onEdit, onToggle }: Props) {
   if (services.length === 0) return null;
 
   return (
@@ -75,8 +61,9 @@ export function ServiceCategorySection({ categoryName, services, onToggle, onDel
           <ServiceCard
             key={service.id}
             service={service}
+            branches={branches}
+            onEdit={onEdit}
             onToggle={onToggle}
-            onDeleted={onDeleted}
           />
         ))}
       </div>

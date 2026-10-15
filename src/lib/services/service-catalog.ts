@@ -63,6 +63,7 @@ const BRANCH_SERVICES_MODERN_SELECT = `
     name,
     description,
     is_active,
+    is_public_visible,
     duration_minutes,
     price,
     metadata,
@@ -96,6 +97,7 @@ const BRANCH_SERVICES_CORE_SELECT = `
     name,
     description,
     is_active,
+    is_public_visible,
     duration_minutes,
     price,
     metadata,
@@ -124,6 +126,7 @@ const BRANCH_SERVICES_LEGACY_SELECT = `
     name,
     description,
     is_active,
+    is_public_visible,
     duration_minutes,
     price,
     metadata,
@@ -149,6 +152,7 @@ const BRANCH_SERVICES_MINIMAL_SELECT = `
     name,
     description,
     is_active,
+    is_public_visible,
     duration_minutes,
     price,
     metadata,
@@ -290,6 +294,7 @@ export async function getBranchServiceCatalog(
   return rows.filter((row) => {
     const service = firstService(row);
     if (!service?.is_active) return false;
+    if (audience === "public" && !service.is_public_visible) return false;
     if (!options.includeInactiveBranchRows && !row.is_active) return false;
     if (!isVisibleForAudience(row.visibility, audience)) return false;
     if (
@@ -382,7 +387,7 @@ export async function validateBranchServiceEligibility(input: {
     getBranchBookingRulesOrDefault(input.branchId),
     client
       .from("services")
-      .select("id, is_active")
+      .select("id, is_active, is_public_visible")
       .in("id", uniqueServiceIds),
     queryBranchServices(client, input.branchId, true),
   ]);
@@ -390,7 +395,7 @@ export async function validateBranchServiceEligibility(input: {
   if (servicesResult.error) throw new Error(servicesResult.error.message);
 
   const servicesById = new Map(
-    ((servicesResult.data ?? []) as Array<{ id: string; is_active: boolean | null }>).map(
+    ((servicesResult.data ?? []) as Array<{ id: string; is_active: boolean | null; is_public_visible: boolean | null }>).map(
       (service) => [service.id, service]
     )
   );

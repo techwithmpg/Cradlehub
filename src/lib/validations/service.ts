@@ -54,3 +54,37 @@ export const setBranchServiceSchema = z.object({
   isActive:    z.boolean().default(true),
 });
 export type SetBranchServiceInput = z.infer<typeof setBranchServiceSchema>;
+
+export const ownerServiceCatalogSchema = z.object({
+  serviceId: uuid.optional(),
+  categoryId: uuid,
+  name: z.string().trim().min(2).max(100),
+  description: z.string().trim().max(1000),
+  durationMinutes: z.number().int().min(15).max(480),
+  price: z.number().finite().min(0).max(9999999),
+  isActive: z.boolean(),
+  isPublicVisible: z.boolean(),
+  durationPolicy: z.enum(["fixed", "extendable"]),
+  extensionIncrementMinutes: z.number().int().positive().max(480).nullable(),
+  extensionPrice: z.number().finite().min(0).max(9999999).nullable(),
+  maximumDurationMinutes: z.number().int().max(1440).nullable(),
+  imageAlt: z.string().trim().max(220),
+  allBranches: z.boolean(),
+  branchIds: z.array(uuid),
+}).superRefine((value, context) => {
+  if (!value.allBranches && value.branchIds.length === 0) {
+    context.addIssue({ code: "custom", path: ["branchIds"], message: "Choose at least one branch." });
+  }
+  if (value.durationPolicy === "fixed") {
+    if (value.extensionIncrementMinutes !== null || value.extensionPrice !== null || value.maximumDurationMinutes !== null) {
+      context.addIssue({ code: "custom", path: ["durationPolicy"], message: "Fixed services cannot have extension settings." });
+    }
+    return;
+  }
+  const step = value.extensionIncrementMinutes;
+  const max = value.maximumDurationMinutes;
+  if (step === null || value.extensionPrice === null || max === null || max <= value.durationMinutes || (max - value.durationMinutes) % step !== 0) {
+    context.addIssue({ code: "custom", path: ["maximumDurationMinutes"], message: "Set a valid increment, price, and maximum duration aligned with the base duration." });
+  }
+});
+export type OwnerServiceCatalogInput = z.infer<typeof ownerServiceCatalogSchema>;

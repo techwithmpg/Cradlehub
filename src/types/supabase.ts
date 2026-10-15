@@ -4114,10 +4114,15 @@ export type Database = {
           created_at: string
           description: string | null
           duration_minutes: number
+          duration_policy: string
+          extension_increment_minutes: number | null
+          extension_price: number | null
           id: string
           image_alt: string | null
           image_url: string | null
           is_active: boolean
+          is_public_visible: boolean
+          maximum_duration_minutes: number | null
           metadata: Json
           name: string
           price: number
@@ -4130,10 +4135,15 @@ export type Database = {
           created_at?: string
           description?: string | null
           duration_minutes: number
+          duration_policy?: string
+          extension_increment_minutes?: number | null
+          extension_price?: number | null
           id?: string
           image_alt?: string | null
           image_url?: string | null
           is_active?: boolean
+          is_public_visible?: boolean
+          maximum_duration_minutes?: number | null
           metadata?: Json
           name: string
           price: number
@@ -4146,10 +4156,15 @@ export type Database = {
           created_at?: string
           description?: string | null
           duration_minutes?: number
+          duration_policy?: string
+          extension_increment_minutes?: number | null
+          extension_price?: number | null
           id?: string
           image_alt?: string | null
           image_url?: string | null
           is_active?: boolean
+          is_public_visible?: boolean
+          maximum_duration_minutes?: number | null
           metadata?: Json
           name?: string
           price?: number
@@ -7444,6 +7459,15 @@ export type Database = {
           isOneToOne: false
           isSetofReturn: true
         }
+      }
+      save_owner_service_catalog: {
+        Args: {
+          p_service_id: string | null
+          p_catalog: Json
+          p_all_branches: boolean
+          p_branch_ids: string[]
+        }
+        Returns: string
       }
       replace_staff_service_capabilities: {
         Args: { p_service_ids?: string[]; p_target_staff_id: string }

@@ -18,7 +18,7 @@ type BranchServiceFlags = Pick<
   | "booking_visibility"
 >;
 
-type ServiceActiveFlag = { is_active?: boolean | null } | null | undefined;
+type ServiceActiveFlag = { is_active?: boolean | null; is_public_visible?: boolean | null } | null | undefined;
 
 export function normalizeServiceVisibility(input: {
   visibility?: string | null;
@@ -116,6 +116,7 @@ export function validateBranchServiceEligibility(input: {
   const reasons: BranchServiceEligibilityReason[] = [];
 
   if (input.service?.is_active !== true) reasons.push("global_inactive");
+  if (input.audience === "public" && input.service?.is_public_visible === false) reasons.push("not_visible_to_audience");
   if (!input.branchService) reasons.push("branch_missing");
   else if (!input.branchService.is_active) reasons.push("branch_inactive");
 

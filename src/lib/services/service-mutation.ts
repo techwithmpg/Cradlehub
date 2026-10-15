@@ -53,7 +53,7 @@ export async function writeCanonicalService(
   presentation?: ServicePresentationUpdate
 ): Promise<{ success: boolean; error?: string }> {
   const payload: ServiceUpdate = { ...update };
-  if (presentation || update.price !== undefined) {
+  if (presentation || update.price !== undefined || update.duration_minutes !== undefined) {
     const { data: existing, error } = await supabase
       .from("services")
       .select("metadata")
@@ -67,6 +67,7 @@ export async function writeCanonicalService(
         ? { ...(existing.metadata as Record<string, Json>) }
         : {};
     if (update.price !== undefined) delete metadata.price_label;
+    if (update.duration_minutes !== undefined) delete metadata.duration_text;
     if (presentation?.shortDescription !== undefined)
       metadata.public_short_description = presentation.shortDescription;
     if (presentation?.badges !== undefined) metadata.service_badges = presentation.badges;
