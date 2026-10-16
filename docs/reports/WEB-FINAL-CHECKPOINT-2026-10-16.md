@@ -103,3 +103,14 @@ Checkpoint in progress. No release verdict yet.
 - `pnpm vitest run tests/lib/attendance/a01-new-business-day-provisional-close.test.ts tests/lib/attendance/crm-closing-policy-migration.test.ts`: 2 files / 22 tests PASS.
 - Mocked execution and static migration contracts; no production scan or row mutation performed.
 - New HEAD: the commit containing this section (see final commit table).
+
+### Dispatch database-read safety — accepted narrow port
+
+- Previous HEAD: `be1ab03d1c27f608762113c0b0fb9d28c3cffe36`.
+- Source intent: `da270c88e4b59fe4e74ba63532774c015ab4f367`.
+- Baseline test: 1 failed / 4 passed; a database timeout incorrectly resolved to `conflict: none`.
+- Only the read error guard is ported. Later coordinate-based location behavior is preserved. Both callers (`online-booking.ts`, `inhouse-booking-engine.ts`) await inside their error boundary before booking creation, so the exception prevents submission.
+- `pnpm vitest run tests/lib/bookings/dispatch-conflict.test.ts tests/lib/home-service`: 9 files / 108 tests PASS.
+- Files: `src/lib/bookings/dispatch-conflict.ts`, `tests/lib/bookings/dispatch-conflict.test.ts`, this report.
+- Historical payment/reconciliation changes are superseded by `recordBookingPaymentChange` / `post_booking_payment_atomic` and canonical reconciliation expected-movement/branch/role checks; no stale monetary gate ported.
+- New HEAD: containing commit, recorded in final table. Mocked tests only; no production dispatch/booking/payment performed.

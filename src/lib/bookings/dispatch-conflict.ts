@@ -101,12 +101,18 @@ export async function checkHomeServiceDispatchConflict({
 
   const admin = createAdminClient();
 
-  const { data: existing } = await admin
+  const { data: existing, error } = await admin
     .from("bookings")
     .select("id, start_time, end_time, metadata, status, hold_expires_at")
     .eq("branch_id", branchId)
     .eq("booking_date", bookingDate)
     .eq("delivery_type", "home_service");
+
+  if (error) {
+    throw new Error(
+      `Failed to query existing home service bookings for dispatch conflict check: ${error.message}`
+    );
+  }
 
   const now = new Date();
   const rows = ((existing ?? []) as HomeServiceBookingRow[]).filter(
