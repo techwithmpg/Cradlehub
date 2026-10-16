@@ -1,6 +1,6 @@
 "use client";
 
-import { useTransition } from "react";
+import { useRef, useTransition } from "react";
 import { CheckCircle2, Clock3 } from "lucide-react";
 import { toast } from "sonner";
 import {
@@ -33,22 +33,31 @@ export function CradleFlowCompleteDialog({
   onCompleted: (booking: CradleFlowBooking, completedAt: string) => void;
 }) {
   const [isPending, startTransition] = useTransition();
+  const submittingRef = useRef(false);
   if (!booking) return null;
   const currentBooking = booking;
 
   function complete() {
+    if (submittingRef.current) return;
+    submittingRef.current = true;
     startTransition(async () => {
-      const result = await crmCompleteServiceAction({ bookingId: currentBooking.id });
-      if (!result.success) {
-        toast.error(result.error ?? "Could not complete service.");
-        return;
+      try {
+        const result = await crmCompleteServiceAction({ bookingId: currentBooking.id });
+        if (!result.success) {
+          toast.error(result.error ?? "Could not complete service.");
+          return;
+        }
+        const completedAt = new Date().toISOString();
+        onCompleted(currentBooking, completedAt);
+        onOpenChange(false);
+        toast.success("Service completed", {
+          description: "The booking is now ready for payment.",
+        });
+      } catch (error) {
+        toast.error(error instanceof Error ? error.message : "Could not complete service.");
+      } finally {
+        submittingRef.current = false;
       }
-      const completedAt = new Date().toISOString();
-      onCompleted(currentBooking, completedAt);
-      onOpenChange(false);
-      toast.success("Service completed", {
-        description: "The booking is now ready for payment.",
-      });
     });
   }
 

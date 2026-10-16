@@ -16,6 +16,9 @@ type Props = {
   categories: { id: string; name: string }[];
   categoryFilter: string | null;
   onCategoryFilterChange: (value: string | null) => void;
+  branches: { id: string; name: string }[];
+  branchFilter: string | null;
+  onBranchFilterChange: (value: string | null) => void;
 };
 
 const FILTERS: { value: ServiceFilter; label: string }[] = [
@@ -35,6 +38,9 @@ export function ServicesToolbar({
   categories,
   categoryFilter,
   onCategoryFilterChange,
+  branches,
+  branchFilter,
+  onBranchFilterChange,
 }: Props) {
   return (
     <div
@@ -103,6 +109,16 @@ export function ServicesToolbar({
           ))}
         </select>
       )}
+
+      <select
+        aria-label="Filter by branch"
+        value={branchFilter ?? ""}
+        onChange={(event) => onBranchFilterChange(event.target.value || null)}
+        style={{ height: 36, padding: "0 1.5rem 0 0.625rem", borderRadius: 6, border: "1px solid var(--cs-border)", backgroundColor: "var(--cs-surface)", color: "var(--cs-text)", fontSize: "0.8125rem", cursor: "pointer" }}
+      >
+        <option value="">All branches</option>
+        {branches.map((branch) => <option key={branch.id} value={branch.id}>{branch.name}</option>)}
+      </select>
 
       {/* Status filter */}
       <div style={{ display: "flex", alignItems: "center", gap: 6 }}>

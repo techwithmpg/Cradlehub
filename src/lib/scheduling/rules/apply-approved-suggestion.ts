@@ -1,4 +1,5 @@
 import { createClient } from "@/lib/supabase/server";
+import { createAdminClient } from "@/lib/supabase/admin";
 import { notifyStaffBlockApplied } from "./notify-affected-staff";
 import type { ApplySuggestionResult, ScheduleSuggestion } from "../types";
 
@@ -147,12 +148,23 @@ export async function applyApprovedSuggestion(
         if (!bookingId || !newStaffId) {
           throw new Error("Missing booking_id or new_staff_id for reassign_booking.");
         }
-        const { error: bookingErr } = await supabase
+        const admin = createAdminClient();
+        const { data: targetStaff, error: staffErr } = await admin
+          .from("staff")
+          .select("id")
+          .eq("id", newStaffId)
+          .eq("branch_id", branchId)
+          .eq("is_active", true)
+          .maybeSingle();
+        if (staffErr || !targetStaff) throw new Error("Suggested therapist is not active in this branch.");
+        const { data: updated, error: bookingErr } = await admin
           .from("bookings")
-          .update({ staff_id: newStaffId })
-          .eq("id", bookingId);
+          .update({ staff_id: newStaffId, therapist_selection_source: "system_assigned" })
+          .eq("id", bookingId)
+          .eq("branch_id", branchId)
+          .select("id");
 
-        if (bookingErr) throw bookingErr;
+        if (bookingErr || !updated?.length) throw bookingErr ?? new Error("Suggested booking was not found in this branch.");
         break;
       }
 

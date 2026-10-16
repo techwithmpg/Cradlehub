@@ -9,6 +9,7 @@ type QuickBookingServiceSelectorProps = {
   services: QuickBookingServiceOption[];
   selectedServiceIds: string[];
   onChange: (serviceIds: string[]) => void;
+  onAdjust?: (service: QuickBookingServiceOption) => void;
   isHomeService: boolean;
   disabled?: boolean;
   error?: string;
@@ -31,6 +32,7 @@ export function QuickBookingServiceSelector({
   services,
   selectedServiceIds,
   onChange,
+  onAdjust,
   isHomeService,
   disabled = false,
   error,
@@ -227,6 +229,21 @@ export function QuickBookingServiceSelector({
         <span aria-hidden="true">·</span>
         <span>{formatCurrency(totalPrice)}</span>
       </div>
+      {selectedServices.some((service) => service.durationPolicy === "extendable") ? (
+        <div className="mt-2 space-y-1.5">
+          {selectedServices.filter((service) => service.durationPolicy === "extendable").map((service) => (
+            <button key={service.id} type="button" disabled={disabled} onClick={() => onAdjust?.(service)}
+              className="flex min-h-11 w-full items-center justify-between gap-2 rounded-xl border border-[var(--cs-border)] bg-[var(--cs-surface)] px-3 py-2 text-left text-xs hover:border-[var(--cs-sand-dark)] disabled:opacity-60">
+              <span className="min-w-0 truncate font-semibold">{service.name}</span>
+              <span className="shrink-0 text-[var(--cs-sand-dark)]">
+                {service.durationAdjusted
+                  ? `${formatServiceDuration(service.durationMinutes)} · ${formatCurrency(service.price)}`
+                  : `${formatServiceDuration(service.durationMinutes)}+ · From ${formatCurrency(service.price)}`} · Adjust ›
+              </span>
+            </button>
+          ))}
+        </div>
+      ) : null}
 
       {open ? (
         <div className="absolute left-0 right-0 z-50 mt-2 overflow-hidden rounded-2xl border border-[var(--cs-border-soft)] bg-[var(--cs-surface)] shadow-xl">

@@ -245,7 +245,7 @@ describe("CRM booking action identifier and lookup boundary", () => {
     const { baseQuery, updateQuery } = setup();
     const result = await markBookingConfirmedAction({ bookingId: BOOKING_ID });
 
-    expect(result).toEqual({ success: true });
+    expect(result).toEqual({ success: true, bookingId: BOOKING_ID, bookingDate: "2026-07-14", deliveryType: "in_spa" });
     expect(baseQuery.select).toHaveBeenCalledWith(
       "id, branch_id, status, booking_progress_status, customer_id"
     );
@@ -280,7 +280,9 @@ describe("CRM booking action identifier and lookup boundary", () => {
       },
     });
 
-    expect(await markBookingConfirmedAction({ bookingId: BOOKING_ID })).toEqual({ success: true });
+    expect(await markBookingConfirmedAction({ bookingId: BOOKING_ID })).toEqual({
+      success: true, bookingId: BOOKING_ID, bookingDate: "2026-07-14", deliveryType: "home_service",
+    });
     expect(admin.rpc).toHaveBeenCalledTimes(1);
     expect(admin.rpc).toHaveBeenCalledWith("confirm_online_booking_order_atomic", {
       p_booking_id: BOOKING_ID,
@@ -304,7 +306,9 @@ describe("CRM booking action identifier and lookup boundary", () => {
       confirmRpcResult: { data: { ok: true, changed_ids: [] }, error: null },
     });
 
-    expect(await markBookingConfirmedAction({ bookingId: BOOKING_ID })).toEqual({ success: true });
+    expect(await markBookingConfirmedAction({ bookingId: BOOKING_ID })).toEqual({
+      success: true, bookingId: BOOKING_ID, bookingDate: undefined, deliveryType: "in_spa",
+    });
     expect(admin.rpc).toHaveBeenCalledTimes(1);
     expect(updateQuery.update).not.toHaveBeenCalled();
   });

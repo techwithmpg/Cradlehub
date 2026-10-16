@@ -20,7 +20,7 @@ describe("canonical service mutation", () => {
     const supabase = {
       from: () => ({
         select: () => ({
-          eq: () => ({ single: async () => ({ data: { metadata: { booking_rule: "keep", price_label: "₱900" } }, error: null }) }),
+          eq: () => ({ single: async () => ({ data: { metadata: { booking_rule: "keep", price_label: "₱900", duration_text: "60 min" } }, error: null }) }),
         }),
         update: (value: Record<string, unknown>) => {
           payload = value;
@@ -28,7 +28,7 @@ describe("canonical service mutation", () => {
         },
       }),
     };
-    const result = await writeCanonicalService(supabase as never, "service-1", { price: 1200 }, {
+    const result = await writeCanonicalService(supabase as never, "service-1", { price: 1200, duration_minutes: 90 }, {
       description: "New description",
       imageUrl: "/service.webp",
       imageAlt: "Therapist providing treatment",
@@ -39,6 +39,7 @@ describe("canonical service mutation", () => {
     expect(result.success).toBe(true);
     expect(payload).toEqual({
       price: 1200,
+      duration_minutes: 90,
       description: "New description",
       image_url: "/service.webp",
       image_alt: "Therapist providing treatment",

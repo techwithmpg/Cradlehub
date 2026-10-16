@@ -15,6 +15,8 @@ import Image from "next/image";
 import Link from "next/link";
 import { Calendar } from "@/components/ui/calendar";
 import { Skeleton } from "@/components/ui/skeleton";
+import { ServiceDurationSelector } from "@/components/shared/service-duration-selector";
+import type { ServiceLineQuote } from "@/lib/services/service-line-quote";
 import {
   BookingServicePicker,
   type BookingWizardService,
@@ -43,12 +45,17 @@ import {
   Gift,
   Plus,
   AlertCircle,
+  Car,
 } from "lucide-react";
 import { toast } from "sonner";
-import { createOnlineBookingMultiAction } from "@/lib/actions/online-booking";
+import {
+  createOnlineBookingMultiAction,
+  getPublicHomeServiceQuoteAction,
+} from "@/lib/actions/online-booking";
 import { createInhouseBookingMultiAction } from "@/lib/actions/inhouse-booking";
 import { validateBookingDraft } from "@/lib/bookings/booking-wizard-validation";
 import type { BookingForChoice, BookingPaymentChoice } from "@/lib/bookings/booking-order-contract";
+import type { HomeServiceDistanceQuote } from "@/lib/home-service/distance-service";
 import {
   PlacesAutocomplete,
   type GoogleAddressComponent,
@@ -135,6 +142,8 @@ type BookingContextService = {
   name: string;
   description?: string | null;
   durationMinutes: number;
+  durationPolicy?: "fixed" | "extendable";
+  quoteVersion?: string;
   price: number;
   categoryId?: string | null;
   categoryName?: string | null;
@@ -458,6 +467,8 @@ export function BookingWizard({
   // Selections
   const [selectedBranch, setSelectedBranch] = useState<Branch | null>(null);
   const [selectedServices, setSelectedServices] = useState<Service[]>([]);
+  const [lineQuotes, setLineQuotes] = useState<Record<string, ServiceLineQuote>>({});
+  const [adjustingService, setAdjustingService] = useState<{ service: Service; attendeeId: string } | null>(null);
   const [selectedDate, setSelectedDate] = useState<Date | undefined>(undefined);
   const [selectedSlot, setSelectedSlot] = useState<Slot | null>(null);
   const [selectedStaff, setSelectedStaff] = useState<"auto" | string>(DEFAULT_STAFF_PREFERENCE);
@@ -509,6 +520,9 @@ export function BookingWizard({
   });
   const [formError, setFormError] = useState("");
   const [placesStatus, setPlacesStatus] = useState<PlacesAutocompleteStatus>("idle");
+  const [hsQuote, setHsQuote] = useState<HomeServiceDistanceQuote | null>(null);
+  const [hsQuoteLoading, setHsQuoteLoading] = useState(false);
+  const [hsQuoteError, setHsQuoteError] = useState("");
 
   // Computed
   const activeAttendee = useMemo(
@@ -522,6 +536,11 @@ export function BookingWizard({
     }
     return selectedServices;
   }, [bookingFor, activeAttendee, services, selectedServices]);
+  const activeQuotedServices = useMemo(() => activeServicesForPicker.map((service) => {
+    const quote = lineQuotes[`${activeAttendeeId}:${service.id}`];
+    return quote ? { ...service, durationMinutes: quote.selectedDurationMinutes, price: quote.calculatedPrice,
+      durationAdjusted: quote.selectedDurationMinutes !== service.durationMinutes } : service;
+  }), [activeServicesForPicker, activeAttendeeId, lineQuotes]);
 
   const allSelectedServiceIds = useMemo(() => {
     if (bookingFor === "me_and_others") {
@@ -540,14 +559,14 @@ export function BookingWizard({
         ...attendees.map((att) =>
           att.serviceIds.reduce((sum, sId) => {
             const svc = services.find((s) => s.id === sId);
-            return sum + (svc?.durationMinutes ?? 0);
+            return sum + (lineQuotes[`${att.id}:${sId}`]?.selectedDurationMinutes ?? svc?.durationMinutes ?? 0);
           }, 0)
         ),
         0
       );
     }
-    return selectedServices.reduce((s, svc) => s + svc.durationMinutes, 0);
-  }, [bookingFor, attendees, services, selectedServices]);
+    return selectedServices.reduce((s, svc) => s + (lineQuotes[`att-1:${svc.id}`]?.selectedDurationMinutes ?? svc.durationMinutes), 0);
+  }, [bookingFor, attendees, services, selectedServices, lineQuotes]);
 
   const totalPrice = useMemo(() => {
     if (bookingFor === "me_and_others") {
@@ -556,13 +575,13 @@ export function BookingWizard({
           total +
           att.serviceIds.reduce((sum, sId) => {
             const svc = services.find((s) => s.id === sId);
-            return sum + (svc?.price ?? 0);
+            return sum + (lineQuotes[`${att.id}:${sId}`]?.calculatedPrice ?? svc?.price ?? 0);
           }, 0)
         );
       }, 0);
     }
-    return selectedServices.reduce((s, svc) => s + svc.price, 0);
-  }, [bookingFor, attendees, services, selectedServices]);
+    return selectedServices.reduce((s, svc) => s + (lineQuotes[`att-1:${svc.id}`]?.calculatedPrice ?? svc.price), 0);
+  }, [bookingFor, attendees, services, selectedServices, lineQuotes]);
 
   const selectedServiceIds = allSelectedServiceIds;
   const selectedVisitType = useMemo(
@@ -574,6 +593,59 @@ export function BookingWizard({
     [bookingRules, selectedVisitType]
   );
   const isHomeService = visitType === "home_service";
+
+  useEffect(() => {
+    if (
+      visitType !== "home_service" ||
+      !selectedBranch?.id ||
+      form.hsLat === null ||
+      form.hsLng === null
+    ) {
+      queueMicrotask(() => {
+        setHsQuote(null);
+        setHsQuoteLoading(false);
+        setHsQuoteError("");
+      });
+      return;
+    }
+
+    let active = true;
+    queueMicrotask(() => {
+      setHsQuoteLoading(true);
+      setHsQuoteError("");
+    });
+
+    getPublicHomeServiceQuoteAction({
+      branchId: selectedBranch.id,
+      lat: form.hsLat,
+      lng: form.hsLng,
+    })
+      .then((res) => {
+        if (!active) return;
+        if (res.ok) {
+          setHsQuote(res.quote);
+          setHsQuoteError("");
+        } else {
+          setHsQuote(null);
+          setHsQuoteError(res.message);
+        }
+      })
+      .catch(() => {
+        if (!active) return;
+        setHsQuote(null);
+        setHsQuoteError(
+          "We couldn't calculate the transportation fee right now. Please try again or contact the branch."
+        );
+      })
+      .finally(() => {
+        if (active) setHsQuoteLoading(false);
+      });
+
+    return () => {
+      active = false;
+    };
+  }, [visitType, selectedBranch?.id, form.hsLat, form.hsLng]);
+
   const steps = useMemo(() => getSteps(isHomeService), [isHomeService]);
   const visibleSteps =
     mode === "public" ? steps.filter((item) => item.name !== "therapist") : steps;
@@ -672,6 +744,8 @@ export function BookingWizard({
             name: s.name,
             description: s.description,
             durationMinutes: s.durationMinutes,
+            durationPolicy: s.durationPolicy,
+            quoteVersion: s.quoteVersion,
             price: s.price,
             categoryId: s.categoryId ?? null,
             categoryName: s.categoryName ?? "Wellness",
@@ -754,11 +828,19 @@ export function BookingWizard({
           name: a.name,
           isOrganizer: a.isOrganizer,
           serviceIds: a.serviceIds,
+          serviceLines: a.serviceIds.map((serviceId) => ({ serviceId,
+            requestedDurationMinutes: lineQuotes[`${a.id}:${serviceId}`]?.selectedDurationMinutes,
+            expectedQuoteVersion: lineQuotes[`${a.id}:${serviceId}`]?.quoteVersion ?? services.find((service) => service.id === serviceId)?.quoteVersion })),
         }));
       params.set("attendees", JSON.stringify(attendeePayload));
       params.set("serviceIds", allSelectedServiceIds.join(","));
     } else {
       params.set("serviceIds", selectedServices.map((s) => s.id).join(","));
+      params.set("serviceLines", JSON.stringify(selectedServices.map((service) => ({
+        serviceId: service.id,
+        requestedDurationMinutes: lineQuotes[`att-1:${service.id}`]?.selectedDurationMinutes,
+        expectedQuoteVersion: lineQuotes[`att-1:${service.id}`]?.quoteVersion ?? service.quoteVersion,
+      }))));
     }
 
     fetch(`/api/booking/available-slots?${params.toString()}`)
@@ -793,10 +875,17 @@ export function BookingWizard({
     bookingFor,
     attendees,
     allSelectedServiceIds,
+    lineQuotes,
+    services,
   ]);
 
   const toggleService = useCallback(
     (svc: Service) => {
+      setLineQuotes((current) => {
+        const next = { ...current };
+        delete next[`${bookingFor === "me_and_others" ? activeAttendeeId : "att-1"}:${svc.id}`];
+        return next;
+      });
       if (bookingFor === "me_and_others") {
         setAttendees((prev) =>
           prev.map((att) => {
@@ -915,6 +1004,7 @@ export function BookingWizard({
 
   const handleRemoveAttendee = useCallback(
     (idToRemove: string) => {
+      setLineQuotes((current) => Object.fromEntries(Object.entries(current).filter(([key]) => !key.startsWith(`${idToRemove}:`))));
       setAttendees((prev) => {
         if (prev.length <= 1) return prev;
         const filtered = prev.filter((a) => a.id !== idToRemove);
@@ -937,6 +1027,7 @@ export function BookingWizard({
   const handleVisitTypeSelect = useCallback(
     (nextVisitType: VisitType) => {
       if (!isVisitTypeEnabled(nextVisitType, bookingRules)) return;
+      setLineQuotes({});
       setBookingType(getBookingTypeForVisitType(nextVisitType, mode));
       // Clear services that aren't eligible for the new visit type
       setSelectedServices((prev) =>
@@ -1029,6 +1120,12 @@ export function BookingWizard({
       return;
     }
 
+    if (visitType === "home_service" && hsQuoteError) {
+      setFormError(hsQuoteError);
+      toast.error("Transportation Error", { description: hsQuoteError });
+      return;
+    }
+
     isSubmittingRef.current = true;
     setSubmitting(true);
     setFormError("");
@@ -1062,6 +1159,9 @@ export function BookingWizard({
               name: a.name.trim() || (a.isOrganizer ? form.fullName || "Organizer" : "Guest"),
               isOrganizer: a.isOrganizer,
               serviceIds: a.serviceIds,
+              serviceLines: a.serviceIds.map((serviceId) => ({ serviceId,
+                requestedDurationMinutes: lineQuotes[`${a.id}:${serviceId}`]?.selectedDurationMinutes,
+                expectedQuoteVersion: lineQuotes[`${a.id}:${serviceId}`]?.quoteVersion ?? services.find((service) => service.id === serviceId)?.quoteVersion })),
             }))
           : bookingFor === "someone_else"
             ? [
@@ -1070,6 +1170,9 @@ export function BookingWizard({
                   name: recipientName.trim() || "Guest",
                   isOrganizer: false,
                   serviceIds: selectedServices.map((s) => s.id),
+                  serviceLines: selectedServices.map((service) => ({ serviceId: service.id,
+                    requestedDurationMinutes: lineQuotes[`att-1:${service.id}`]?.selectedDurationMinutes,
+                    expectedQuoteVersion: lineQuotes[`att-1:${service.id}`]?.quoteVersion ?? service.quoteVersion })),
                 },
               ]
             : [
@@ -1078,6 +1181,9 @@ export function BookingWizard({
                   name: form.fullName.trim() || "Guest",
                   isOrganizer: true,
                   serviceIds: selectedServices.map((s) => s.id),
+                  serviceLines: selectedServices.map((service) => ({ serviceId: service.id,
+                    requestedDurationMinutes: lineQuotes[`att-1:${service.id}`]?.selectedDurationMinutes,
+                    expectedQuoteVersion: lineQuotes[`att-1:${service.id}`]?.quoteVersion ?? service.quoteVersion })),
                 },
               ];
 
@@ -1109,6 +1215,9 @@ export function BookingWizard({
           ? await createInhouseBookingMultiAction({
               branchId: payload.branchId,
               serviceIds: selectedServices.map((s) => s.id),
+              serviceLines: selectedServices.map((service) => ({ serviceId: service.id,
+                requestedDurationMinutes: lineQuotes[`att-1:${service.id}`]?.selectedDurationMinutes,
+                expectedQuoteVersion: lineQuotes[`att-1:${service.id}`]?.quoteVersion ?? service.quoteVersion })),
               staffId: payload.staffId,
               date: payload.date,
               startTime: payload.startTime,
@@ -1184,6 +1293,8 @@ export function BookingWizard({
   }, [
     selectedBranch,
     selectedServices,
+    lineQuotes,
+    services,
     allSelectedServiceIds,
     bookingFor,
     recipientName,
@@ -1201,6 +1312,7 @@ export function BookingWizard({
     isOffline,
     submitting,
     step,
+    hsQuoteError,
   ]);
 
   const preciseHomeServiceLocationSelected = isPreciseHomeServiceLocation(form);
@@ -1245,22 +1357,31 @@ export function BookingWizard({
                       paymentChoice !== "pay_now" ||
                       form.paymentMethod.trim().length > 0)
                   : false;
-  const canClickContinue = currentStepName === "location" || canProceed;
+  const canClickContinue =
+    currentStepName === "location"
+      ? locationValid && (!preciseLocationRequired || (!hsQuoteLoading && !hsQuoteError && !!hsQuote))
+      : canProceed;
   const mobileProgressIndex = getMobileProgressIndex(currentStepName);
 
   const handleContinue = useCallback(() => {
-    if (currentStepName === "location" && !locationValid) {
-      setFormError(
-        preciseLocationRequired
-          ? PRECISE_LOCATION_ERROR
-          : "Please select a location zone before continuing."
-      );
-      return;
+    if (currentStepName === "location") {
+      if (!locationValid) {
+        setFormError(
+          preciseLocationRequired
+            ? PRECISE_LOCATION_ERROR
+            : "Please select a location zone before continuing."
+        );
+        return;
+      }
+      if (hsQuoteError) {
+        setFormError(hsQuoteError);
+        return;
+      }
     }
 
     setFormError("");
     setStep((current) => current + (mode === "public" && currentStepName === "date_time" ? 2 : 1));
-  }, [currentStepName, locationValid, mode, preciseLocationRequired]);
+  }, [currentStepName, locationValid, mode, preciseLocationRequired, hsQuoteError]);
 
   return (
     <div
@@ -1495,8 +1616,21 @@ export function BookingWizard({
                   <BookingServicePicker
                     services={eligibleServices}
                     loading={loadingServices}
-                    selected={activeServicesForPicker}
+                    selected={activeQuotedServices}
                     onToggle={toggleService}
+                    inlineDuration={mode === "public"}
+                    branchId={selectedBranch?.id}
+                    attendeeId={activeAttendeeId}
+                    lineQuotes={lineQuotes}
+                    onSelectQuote={(service, quote) => {
+                      setLineQuotes((current) => ({ ...current, [`${activeAttendeeId}:${service.id}`]: quote }));
+                      setSelectedSlot(null);
+                      setSelectedStaff(DEFAULT_STAFF_PREFERENCE);
+                      setRawSlots([]);
+                      setSlots([]);
+                      setAvailabilityMessage("Duration changed. Choose an available time again.");
+                    }}
+                    onAdjust={mode === "inhouse" ? (service) => setAdjustingService({ service, attendeeId: activeAttendeeId }) : undefined}
                     heading={
                       mode === "public"
                         ? bookingFor === "me_and_others"
@@ -1513,6 +1647,23 @@ export function BookingWizard({
                     visitType={visitType}
                     theme={mode === "public" ? "warm" : "default"}
                   />
+                  {mode === "inhouse" && selectedBranch && adjustingService ? (
+                    <ServiceDurationSelector open={Boolean(adjustingService)}
+                      onOpenChange={(open) => { if (!open) setAdjustingService(null); }}
+                      branchId={selectedBranch.id} serviceId={adjustingService.service.id}
+                      serviceName={adjustingService.service.name}
+                      currentDurationMinutes={lineQuotes[`${adjustingService.attendeeId}:${adjustingService.service.id}`]?.selectedDurationMinutes ?? adjustingService.service.durationMinutes}
+                      audience="crm"
+                      deliveryMode={visitType}
+                      onApply={(quote) => {
+                        setLineQuotes((current) => ({ ...current, [`${adjustingService.attendeeId}:${adjustingService.service.id}`]: quote }));
+                        setSelectedSlot(null);
+                        setSelectedStaff(DEFAULT_STAFF_PREFERENCE);
+                        setRawSlots([]);
+                        setSlots([]);
+                        setAvailabilityMessage("Duration changed. Choose an available time again.");
+                      }} />
+                  ) : null}
                 </div>
               )}
               {currentStepName === "location" && (
@@ -1529,6 +1680,9 @@ export function BookingWizard({
                   preciseLocationRequired={mode === "public"}
                   mode={mode}
                   error={formError}
+                  homeServiceQuote={hsQuote}
+                  homeServiceQuoteLoading={hsQuoteLoading}
+                  homeServiceQuoteError={hsQuoteError}
                 />
               )}
               {currentStepName === "date_time" && (
@@ -1602,13 +1756,17 @@ export function BookingWizard({
                   recipientName={recipientName}
                   attendees={attendees}
                   services={allSelectedServices}
+                  lineQuotes={lineQuotes}
                   selectedBranch={selectedBranch}
                   selectedDate={selectedDate}
                   selectedSlot={selectedSlot}
                   visitType={visitType}
                   hsAddress={form.hsFormattedAddress || form.hsAddress}
                   paymentChoice={paymentChoice}
-                  totalPrice={totalPrice}
+                  totalPrice={
+                    totalPrice +
+                    (visitType === "home_service" && hsQuote ? hsQuote.travelFee : 0)
+                  }
                   mode={mode}
                   staffPreferenceNeedsConfirmation={success.staffPreferenceNeedsConfirmation}
                 />
@@ -1694,6 +1852,7 @@ export function BookingWizard({
                 <BookingSummary
                   branch={selectedBranch}
                   services={allSelectedServices}
+                  lineQuotes={lineQuotes}
                   totalDuration={totalDuration}
                   totalPrice={totalPrice}
                   selectedDate={selectedDate}
@@ -1706,6 +1865,8 @@ export function BookingWizard({
                   bookingFor={bookingFor}
                   recipientName={recipientName}
                   attendees={attendees}
+                  homeServiceQuote={hsQuote}
+                  homeServiceQuoteLoading={hsQuoteLoading}
                 />
               </div>
             )}
@@ -1786,6 +1947,7 @@ function TherapistSummaryItem({
 function BookingSummary({
   branch,
   services,
+  lineQuotes,
   totalDuration,
   totalPrice,
   selectedDate,
@@ -1798,9 +1960,12 @@ function BookingSummary({
   bookingFor,
   recipientName,
   attendees,
+  homeServiceQuote,
+  homeServiceQuoteLoading,
 }: {
   branch: Branch | null;
   services: Service[];
+  lineQuotes: Record<string, ServiceLineQuote>;
   totalDuration: number;
   totalPrice: number;
   selectedDate: Date | undefined;
@@ -1813,6 +1978,8 @@ function BookingSummary({
   bookingFor?: BookingForChoice;
   recipientName?: string;
   attendees?: WizardAttendee[];
+  homeServiceQuote?: HomeServiceDistanceQuote | null;
+  homeServiceQuoteLoading?: boolean;
 }) {
   const selectedStaffOption =
     selectedStaff === "auto"
@@ -1872,6 +2039,22 @@ function BookingSummary({
                 {formatTime(availability.startTime)} - {formatTime(availability.endTime)}
               </p>
             </TherapistSummaryItem>
+            {visitType === "home_service" && (
+              <TherapistSummaryItem icon={Car} label="Transportation">
+                {homeServiceQuote ? (
+                  <p>
+                    {formatCurrency(homeServiceQuote.travelFee)}
+                    <span className="ml-1 text-[12px] font-normal text-[#F6EBD6]/65">
+                      · {homeServiceQuote.drivingDistanceKm.toFixed(1)} km
+                    </span>
+                  </p>
+                ) : homeServiceQuoteLoading ? (
+                  <span className="text-[12px] text-[#D4B57A]/80">Calculating...</span>
+                ) : (
+                  <span className="font-medium text-[#F6EBD6]/45">Location required</span>
+                )}
+              </TherapistSummaryItem>
+            )}
             <TherapistSummaryItem
               icon={Sparkles}
               label={services.length === 1 ? "Service" : "Services"}
@@ -1880,12 +2063,28 @@ function BookingSummary({
                 <span className="font-medium text-[#F6EBD6]/45">Not selected</span>
               ) : (
                 <>
-                  {services.map((s) => (
-                    <p key={s.id}>{s.name}</p>
-                  ))}
-                  <p className="mt-2 text-[12px] font-semibold" style={WARM_LABEL_STYLE}>
-                    {totalDuration} min · {formatCurrency(totalPrice)}
-                  </p>
+                  {bookingFor === "me_and_others" && attendees
+                    ? attendees.flatMap((attendee) => attendee.serviceIds.map((serviceId) => {
+                        const service = services.find((candidate) => candidate.id === serviceId);
+                        if (!service) return null;
+                        const quote = lineQuotes[`${attendee.id}:${serviceId}`];
+                        return <p key={`${attendee.id}:${serviceId}`}>{attendee.name}: {service.name} · {quote?.selectedDurationMinutes ?? service.durationMinutes} min · {formatCurrency(quote?.calculatedPrice ?? service.price)}</p>;
+                      }))
+                    : services.map((service) => {
+                        const quote = lineQuotes[`att-1:${service.id}`];
+                        return <p key={service.id}>{service.name} · {quote?.selectedDurationMinutes ?? service.durationMinutes} min · {formatCurrency(quote?.calculatedPrice ?? service.price)}</p>;
+                      })}
+                  {(bookingFor === "me_and_others" || services.length > 1) ? (
+                    <p className="mt-2 text-[12px] font-semibold" style={WARM_LABEL_STYLE}>
+                      {totalDuration} min · {formatCurrency(totalPrice)}
+                    </p>
+                  ) : null}
+                  {services.length > 0 && visitType === "home_service" && homeServiceQuote && (
+                    <div className="mt-2 pt-2 border-t border-[#D4B57A]/16 text-[13px] font-semibold flex justify-between" style={WARM_LABEL_STYLE}>
+                      <span>Total with Transport</span>
+                      <span className="text-[#F6EBD6]">{formatCurrency(totalPrice + homeServiceQuote.travelFee)}</span>
+                    </div>
+                  )}
                 </>
               )}
             </TherapistSummaryItem>
@@ -1963,6 +2162,20 @@ function BookingSummary({
           sub={`${formatTime(availability.startTime)} - ${formatTime(availability.endTime)}`}
         />
 
+        {visitType === "home_service" && (
+          <SummaryRow
+            icon={Car}
+            label="Transportation"
+            value={
+              homeServiceQuote
+                ? `${formatCurrency(homeServiceQuote.travelFee)} · ${homeServiceQuote.drivingDistanceKm.toFixed(1)} km`
+                : homeServiceQuoteLoading
+                  ? "Calculating..."
+                  : "Location required"
+            }
+          />
+        )}
+
         {/* Services list */}
         <div className="flex items-start gap-3">
           <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg border border-[#D4B57A]/25 bg-[#05241D]/70">
@@ -1978,14 +2191,22 @@ function BookingSummary({
               </p>
             ) : (
               <>
-                {services.map((s) => (
-                  <p key={s.id} className="text-[13px] font-medium mt-0.5" style={WARM_BODY_STYLE}>
-                    {s.name}
+                {bookingFor === "me_and_others" && attendees
+                  ? attendees.flatMap((attendee) => attendee.serviceIds.map((serviceId) => {
+                      const service = services.find((candidate) => candidate.id === serviceId);
+                      if (!service) return null;
+                      const quote = lineQuotes[`${attendee.id}:${serviceId}`];
+                      return <p key={`${attendee.id}:${serviceId}`} className="text-[13px] font-medium mt-0.5" style={WARM_BODY_STYLE}>{attendee.name}: {service.name} · {quote?.selectedDurationMinutes ?? service.durationMinutes} min · {formatCurrency(quote?.calculatedPrice ?? service.price)}</p>;
+                    }))
+                  : services.map((service) => {
+                      const quote = lineQuotes[`att-1:${service.id}`];
+                      return <p key={service.id} className="text-[13px] font-medium mt-0.5" style={WARM_BODY_STYLE}>{service.name} · {quote?.selectedDurationMinutes ?? service.durationMinutes} min · {formatCurrency(quote?.calculatedPrice ?? service.price)}</p>;
+                    })}
+                {(bookingFor === "me_and_others" || services.length > 1) ? (
+                  <p className="text-[11px] mt-1.5 font-medium" style={WARM_LABEL_STYLE}>
+                    {totalDuration} min · {formatCurrency(totalPrice)}
                   </p>
-                ))}
-                <p className="text-[11px] mt-1.5 font-medium" style={WARM_LABEL_STYLE}>
-                  {totalDuration} min · {formatCurrency(totalPrice)}
-                </p>
+                ) : null}
               </>
             )}
           </div>
@@ -2004,6 +2225,17 @@ function BookingSummary({
           placeholder="Not selected"
           sub={staffSubLabel}
         />
+
+        {services.length > 0 && (
+          <div className="pt-3 border-t border-[#D4B57A]/16 flex justify-between items-center text-[13px] font-semibold">
+            <span style={WARM_LABEL_STYLE}>
+              {visitType === "home_service" && homeServiceQuote ? "Total (with Transport)" : "Total"}
+            </span>
+            <span className="text-[15px]" style={WARM_HEADING_STYLE}>
+              {formatCurrency(totalPrice + (visitType === "home_service" && homeServiceQuote ? homeServiceQuote.travelFee : 0))}
+            </span>
+          </div>
+        )}
       </div>
     </div>
   );
@@ -3045,6 +3277,9 @@ function StepLocation({
   preciseLocationRequired,
   mode,
   error,
+  homeServiceQuote,
+  homeServiceQuoteLoading,
+  homeServiceQuoteError,
 }: {
   form: DetailsForm;
   onChange: (f: DetailsForm) => void;
@@ -3053,6 +3288,9 @@ function StepLocation({
   preciseLocationRequired: boolean;
   mode: BookingWizardMode;
   error: string;
+  homeServiceQuote?: HomeServiceDistanceQuote | null;
+  homeServiceQuoteLoading?: boolean;
+  homeServiceQuoteError?: string;
 }) {
   const preciseLocationSelected = isPreciseHomeServiceLocation(form);
   const hasTypedAddress = form.hsAddress.trim().length > 0;
@@ -3140,6 +3378,28 @@ function StepLocation({
                 <p className="mt-0.5 text-[13px] leading-5 text-[#F6EBD6]">
                   {form.hsFormattedAddress}
                 </p>
+                {homeServiceQuoteLoading && (
+                  <div className="mt-2 flex items-center gap-2 text-[12px] text-[#D4B57A]/80">
+                    <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                    <span>Calculating transportation fee...</span>
+                  </div>
+                )}
+                {homeServiceQuote && (
+                  <div className="mt-2 inline-flex items-center gap-2 rounded-lg border border-[#D4B57A]/30 bg-[#031B16]/60 px-2.5 py-1 text-[12px] font-medium text-[#F6EBD6]">
+                    <Car className="h-3.5 w-3.5 text-[#D4B57A]" />
+                    <span>Transportation: {formatCurrency(homeServiceQuote.travelFee)}</span>
+                    <span className="text-[#D4B57A]/60">·</span>
+                    <span className="text-[#F6EBD6]/70">{homeServiceQuote.drivingDistanceKm.toFixed(1)} km</span>
+                  </div>
+                )}
+                {homeServiceQuoteError && (
+                  <div className="mt-2 rounded-lg border border-red-300/30 bg-red-950/40 px-3 py-2 text-[12px] text-red-200">
+                    <div className="flex items-center gap-2 font-medium">
+                      <AlertCircle className="h-4 w-4 shrink-0 text-red-400" />
+                      <span>{homeServiceQuoteError}</span>
+                    </div>
+                  </div>
+                )}
               </div>
               <button
                 type="button"
@@ -3806,6 +4066,7 @@ function StepSuccess({
   recipientName,
   attendees,
   services,
+  lineQuotes,
   selectedBranch,
   selectedDate,
   selectedSlot,
@@ -3822,6 +4083,7 @@ function StepSuccess({
   recipientName?: string;
   attendees?: WizardAttendee[];
   services: Service[];
+  lineQuotes: Record<string, ServiceLineQuote>;
   selectedBranch: Branch | null;
   selectedDate?: Date | null;
   selectedSlot: Slot | null;
@@ -3958,7 +4220,7 @@ function StepSuccess({
                           className="inline-flex items-center gap-1 text-[11px] bg-[#0D2B20] text-[#F6EBD6]/85 px-2 py-0.5 rounded-md border border-[#D4B57A]/15"
                         >
                           <Check className="h-3 w-3 text-[#D4B57A]" />
-                          {s.name}
+                          {s.name} · {lineQuotes[`${att.id}:${s.id}`]?.selectedDurationMinutes ?? s.durationMinutes} min · {formatCurrency(lineQuotes[`${att.id}:${s.id}`]?.calculatedPrice ?? s.price)}
                         </span>
                       ))}
                     </div>
@@ -3974,7 +4236,7 @@ function StepSuccess({
                     <Check className="h-3.5 w-3.5 text-[#D4B57A]" />
                     <span className="text-[#F6EBD6] font-medium">{s.name}</span>
                   </div>
-                  <span className="text-[#D4B57A]/85">{formatCurrency(s.price)}</span>
+                  <span className="text-[#D4B57A]/85">{lineQuotes[`att-1:${s.id}`]?.selectedDurationMinutes ?? s.durationMinutes} min · {formatCurrency(lineQuotes[`att-1:${s.id}`]?.calculatedPrice ?? s.price)}</span>
                 </div>
               ))}
             </div>

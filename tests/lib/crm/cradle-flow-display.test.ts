@@ -65,13 +65,19 @@ describe("Cradle Flow display organization", () => {
       id: "visit-4",
       status: "completed",
       booking_progress_status: "completed",
+      session_due_at: "2026-09-30T03:00:00Z",
     });
 
     expect(getCradleFlowAttention(ordinary)).toEqual([]);
     expect(getCradleFlowAttention(missingRoom)).toContain("Room not assigned");
     expect(getCradleFlowAttention(homeVisit)).toContain("Home Service location review");
     expect(getCradleFlowAttention(homeVisit)).not.toContain("Room not assigned");
-    expect(getCradleFlowAttention(paymentDue)).toContain("Payment due");
+    expect(getCradleFlowAttention(paymentDue, new Date("2026-09-30T02:59:00Z"))).not.toContain(
+      "Payment Overdue"
+    );
+    expect(getCradleFlowAttention(paymentDue, new Date("2026-09-30T03:01:00Z"))).toContain(
+      "Payment Overdue"
+    );
     expect(
       getCradleFlowDisplayCounts([ordinary, missingRoom, homeVisit, paymentDue])
     ).toMatchObject({
@@ -79,6 +85,36 @@ describe("Cradle Flow display organization", () => {
       home_service: 1,
       ready_to_pay: 1,
     });
+  });
+
+  it("keeps ordinary unpaid visits clear and only warns when an elapsed service deadline still has a balance", () => {
+    const expectedEnd = "2026-09-30T03:00:00Z";
+    const beforeEnd = new Date("2026-09-30T02:59:00Z");
+    const afterEnd = new Date("2026-09-30T03:01:00Z");
+    const booked = visit({ session_due_at: expectedEnd, payment_status: "pay_on_site" });
+    const active = visit({
+      status: "in_progress",
+      booking_progress_status: "session_started",
+      session_due_at: expectedEnd,
+    });
+    const settled = visit({
+      status: "completed",
+      booking_progress_status: "completed",
+      session_due_at: expectedEnd,
+      payment_status: "paid",
+      amount_paid: 850,
+    });
+    const overdue = visit({
+      status: "in_progress",
+      booking_progress_status: "session_started",
+      session_due_at: expectedEnd,
+      amount_paid: 100,
+    });
+
+    expect(getCradleFlowAttention(booked, afterEnd)).toEqual([]);
+    expect(getCradleFlowAttention(active, beforeEnd)).toEqual([]);
+    expect(getCradleFlowAttention(settled, afterEnd)).toEqual([]);
+    expect(getCradleFlowAttention(overdue, afterEnd)).toEqual(["Payment Overdue"]);
   });
 
   it("excludes closed bookings from workflow counts", () => {

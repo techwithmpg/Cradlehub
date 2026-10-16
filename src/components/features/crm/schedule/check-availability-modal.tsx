@@ -46,9 +46,7 @@ function formatDisplayTime(time: string): string {
 
 function sortSlots(slots: Slot[]): Slot[] {
   return [...slots].sort(
-    (a, b) =>
-      a.slot_time.localeCompare(b.slot_time) ||
-      a.staff_name.localeCompare(b.staff_name)
+    (a, b) => a.slot_time.localeCompare(b.slot_time) || a.staff_name.localeCompare(b.staff_name)
   );
 }
 
@@ -70,7 +68,7 @@ function CheckAvailabilityModalContent({
   initialStaffId,
   initialTime,
 }: Props) {
-  const { branchId, branchName, services, staff, openBookingModal } =
+  const { branchId, branchName, services, staff, optionsReady, optionsError, openBookingModal } =
     useAdministrativeBookingModal();
   const [visitType, setVisitType] = useState<AvailabilityVisitType>("in_spa");
   const [serviceId, setServiceId] = useState("");
@@ -78,9 +76,7 @@ function CheckAvailabilityModalContent({
   const [time, setTime] = useState(initialTime?.slice(0, 5) ?? "");
   const [preferredStaffId, setPreferredStaffId] = useState(initialStaffId ?? "");
   const [slots, setSlots] = useState<Slot[]>([]);
-  const [selectedSlot, setSelectedSlot] = useState<{ staffId: string; time: string } | null>(
-    null
-  );
+  const [selectedSlot, setSelectedSlot] = useState<{ staffId: string; time: string } | null>(null);
   const [hasChecked, setHasChecked] = useState(false);
   const [isChecking, setIsChecking] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -106,29 +102,23 @@ function CheckAvailabilityModalContent({
   const selectedPreferredStaffId = eligibleStaff.some((member) => member.id === preferredStaffId)
     ? preferredStaffId
     : "";
-  const availableSlots = useMemo(
-    () => sortSlots(slots.filter((slot) => slot.available)),
-    [slots]
-  );
+  const availableSlots = useMemo(() => sortSlots(slots.filter((slot) => slot.available)), [slots]);
   const exactTimeSlots = useMemo(
     () =>
-      time
-        ? availableSlots.filter((slot) => slot.slot_time.startsWith(time))
-        : availableSlots,
+      time ? availableSlots.filter((slot) => slot.slot_time.startsWith(time)) : availableSlots,
     [availableSlots, time]
   );
-  const preferredStaffName =
-    selectedPreferredStaffId
-      ? eligibleStaff.find((member) => member.id === selectedPreferredStaffId)?.nickname ||
-        eligibleStaff.find((member) => member.id === selectedPreferredStaffId)?.name ||
-        "Selected staff"
-      : null;
+  const preferredStaffName = selectedPreferredStaffId
+    ? eligibleStaff.find((member) => member.id === selectedPreferredStaffId)?.nickname ||
+      eligibleStaff.find((member) => member.id === selectedPreferredStaffId)?.name ||
+      "Selected staff"
+    : null;
   const selectedSlotDetails = selectedSlot
-    ? availableSlots.find(
+    ? (availableSlots.find(
         (slot) =>
           slot.staff_id === selectedSlot.staffId &&
           slot.slot_time.startsWith(selectedSlot.time.slice(0, 5))
-      ) ?? null
+      ) ?? null)
     : null;
 
   async function checkAvailability() {
@@ -167,18 +157,17 @@ function CheckAvailabilityModalContent({
         selectedPreferredStaffId && time
           ? nextAvailable.find(
               (slot) =>
-                slot.staff_id === selectedPreferredStaffId &&
-                slot.slot_time.startsWith(time)
+                slot.staff_id === selectedPreferredStaffId && slot.slot_time.startsWith(time)
             )
           : null;
-      const exactAny = time
-        ? nextAvailable.find((slot) => slot.slot_time.startsWith(time))
-        : null;
+      const exactAny = time ? nextAvailable.find((slot) => slot.slot_time.startsWith(time)) : null;
       const preferredAny = selectedPreferredStaffId
         ? nextAvailable.find((slot) => slot.staff_id === selectedPreferredStaffId)
         : null;
       const first = exactPreferred ?? exactAny ?? preferredAny ?? nextAvailable[0] ?? null;
-      setSelectedSlot(first ? { staffId: first.staff_id, time: first.slot_time.slice(0, 5) } : null);
+      setSelectedSlot(
+        first ? { staffId: first.staff_id, time: first.slot_time.slice(0, 5) } : null
+      );
     } catch (caught) {
       setSlots([]);
       setError(caught instanceof Error ? caught.message : "Could not load availability.");
@@ -219,6 +208,14 @@ function CheckAvailabilityModalContent({
       />
 
       <AdminOverlayBody className="space-y-4 bg-[var(--cs-surface-warm)]">
+        {!optionsReady ? (
+          <p
+            role={optionsError ? "alert" : "status"}
+            className="text-sm text-[var(--cs-text-secondary)]"
+          >
+            {optionsError ?? "Loading booking options…"}
+          </p>
+        ) : null}
         <div className="grid gap-3 md:grid-cols-2">
           <div className="md:col-span-2">
             <div className="grid grid-cols-2 gap-1 rounded-xl border border-[var(--cs-border-soft)] bg-[var(--cs-surface)] p-1">

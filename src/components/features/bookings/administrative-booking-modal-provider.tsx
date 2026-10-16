@@ -28,8 +28,11 @@ import {
   type QuickBookingServiceOption,
   type QuickBookingStaffOption,
 } from "@/components/features/bookings/quick-booking-form";
-import { getAdministrativeBookingCustomerPrefillAction } from "@/lib/actions/administrative-booking";
-import type { BranchBookingRules } from "@/lib/validations/booking-rules";
+import {
+  getAdministrativeBookingCustomerPrefillAction,
+  getAdministrativeBookingOptionsAction,
+} from "@/lib/actions/administrative-booking";
+import type { getQuickBookingContext } from "@/lib/queries/quick-booking-options";
 import { cn } from "@/lib/utils";
 
 export type AdministrativeBookingMode =
@@ -60,24 +63,16 @@ type AdministrativeBookingModalContextValue = {
   services: QuickBookingServiceOption[];
   staff: QuickBookingStaffOption[];
   resources: QuickBookingResourceOption[];
+  optionsReady: boolean;
+  optionsError: string | null;
 };
+
+type BookingContext = Awaited<ReturnType<typeof getQuickBookingContext>>;
 
 type AdministrativeBookingModalProviderProps = {
   children: ReactNode;
   branchId: string;
   branchName: string;
-  bookingRules: Pick<
-    BranchBookingRules,
-    | "inSpaStartTime"
-    | "inSpaEndTime"
-    | "homeServiceEnabled"
-    | "homeServiceStartTime"
-    | "homeServiceEndTime"
-    | "maxAdvanceBookingDays"
-  >;
-  services: QuickBookingServiceOption[];
-  staff: QuickBookingStaffOption[];
-  resources: QuickBookingResourceOption[];
 };
 
 const AdministrativeBookingModalContext =
@@ -94,23 +89,50 @@ export function AdministrativeBookingModalProvider({
   children,
   branchId,
   branchName,
-  bookingRules,
-  services,
-  staff,
-  resources,
 }: AdministrativeBookingModalProviderProps) {
+  const [loadedBookingContext, setLoadedBookingContext] = useState<{
+    branchId: string;
+    options: BookingContext;
+  } | null>(null);
+  const bookingContext = loadedBookingContext?.branchId === branchId
+    ? loadedBookingContext.options
+    : null;
+  const [optionsError, setOptionsError] = useState<string | null>(null);
+  const [optionsRetryKey, setOptionsRetryKey] = useState(0);
   const [request, setRequest] = useState<AdministrativeBookingModalRequest | null>(null);
   const [modalKey, setModalKey] = useState(0);
   const [dirty, setDirty] = useState(false);
+  const [groupBooking, setGroupBooking] = useState(false);
   const [confirmOpen, setConfirmOpen] = useState(false);
   const [customerPrefill, setCustomerPrefill] = useState<QuickBookingCustomerOption | null>(null);
   const [customerError, setCustomerError] = useState<string | null>(null);
   const [loadingCustomer, setLoadingCustomer] = useState(false);
 
+  useEffect(() => {
+    let active = true;
+    void getAdministrativeBookingOptionsAction()
+      .then((result) => {
+        if (!active) return;
+        if (result.branchId !== branchId) {
+          setOptionsError("Front Desk branch changed. Refresh this page to continue.");
+          return;
+        }
+        setLoadedBookingContext({ branchId: result.branchId, options: result.options });
+        setOptionsError(null);
+      })
+      .catch(() => {
+        if (active) setOptionsError("Booking options could not be loaded.");
+      });
+    return () => {
+      active = false;
+    };
+  }, [branchId, optionsRetryKey]);
+
   const openBookingModal = useCallback((nextRequest: AdministrativeBookingModalRequest = {}) => {
     setRequest(nextRequest);
     setModalKey((current) => current + 1);
     setDirty(false);
+    setGroupBooking(false);
     setConfirmOpen(false);
     setCustomerPrefill(null);
     setCustomerError(null);
@@ -120,6 +142,7 @@ export function AdministrativeBookingModalProvider({
   const closeBookingModal = useCallback(() => {
     setRequest(null);
     setDirty(false);
+    setGroupBooking(false);
     setConfirmOpen(false);
     setCustomerPrefill(null);
     setCustomerError(null);
@@ -140,11 +163,13 @@ export function AdministrativeBookingModalProvider({
       closeBookingModal: requestClose,
       branchId,
       branchName,
-      services,
-      staff,
-      resources,
+      services: bookingContext?.services ?? [],
+      staff: bookingContext?.staff ?? [],
+      resources: bookingContext?.resources ?? [],
+      optionsReady: bookingContext !== null,
+      optionsError,
     }),
-    [branchId, branchName, openBookingModal, requestClose, resources, services, staff]
+    [branchId, branchName, bookingContext, openBookingModal, optionsError, requestClose]
   );
 
   useEffect(() => {
@@ -191,20 +216,42 @@ export function AdministrativeBookingModalProvider({
         size="xl"
         placement="center"
         ariaLabel="New booking"
-        className="top-0 left-0 h-[100dvh] max-h-[100dvh] w-full max-w-full translate-x-0 translate-y-0 rounded-none border-0 bg-[var(--cs-surface)] sm:top-1/2 sm:left-1/2 sm:-translate-x-1/2 sm:-translate-y-1/2 sm:h-[min(94dvh,900px)] sm:max-h-[min(94dvh,900px)] sm:w-[min(1180px,calc(100vw-32px))] sm:max-w-[min(1180px,calc(100vw-32px))] sm:rounded-2xl sm:border"
+        className={cn(
+          "top-0 left-0 h-[100dvh] max-h-[100dvh] w-full max-w-full translate-x-0 translate-y-0 rounded-none border-0 bg-[var(--cs-surface)] sm:top-1/2 sm:left-1/2 sm:-translate-x-1/2 sm:-translate-y-1/2 sm:rounded-2xl sm:border",
+          groupBooking
+            ? "sm:h-[min(94dvh,1010px)] sm:max-h-[min(94dvh,1010px)] sm:w-[min(1392px,calc(100vw-32px))] sm:max-w-[min(1392px,calc(100vw-32px))]"
+            : "sm:h-[min(94dvh,900px)] sm:max-h-[min(94dvh,900px)] sm:w-[min(1180px,calc(100vw-32px))] sm:max-w-[min(1180px,calc(100vw-32px))]"
+        )}
       >
         <AdminOverlayBody padded={false} className="overflow-hidden bg-[var(--cs-bg)]">
-          {loadingCustomer ? (
+          {!bookingContext || loadingCustomer ? (
             <div className="flex min-h-[360px] items-center justify-center gap-2 text-sm font-semibold text-[var(--cs-text-muted)]">
-              <Loader2 className="size-4 animate-spin" />
-              Loading customer...
+              {optionsError ? (
+                <div className="grid justify-items-center gap-3">
+                  <p role="alert">{optionsError}</p>
+                  <Button
+                    type="button"
+                    onClick={() => {
+                      setOptionsError(null);
+                      setOptionsRetryKey((key) => key + 1);
+                    }}
+                  >
+                    Retry
+                  </Button>
+                </div>
+              ) : (
+                <>
+                  <Loader2 className="size-4 animate-spin" />
+                  {!bookingContext ? "Loading booking options…" : "Loading customer…"}
+                </>
+              )}
             </div>
           ) : (
             <QuickBookingForm
               key={modalKey}
               branchId={branchId}
               branchName={branchName}
-              bookingRules={bookingRules}
+              bookingRules={bookingContext.bookingRules}
               initialMode={quickMode}
               initialCustomer={customerPrefill}
               initialName={request?.name ?? ""}
@@ -213,11 +260,12 @@ export function AdministrativeBookingModalProvider({
               initialStaffId={request?.staffId}
               initialDate={request?.date}
               initialTime={request?.time}
-              services={services}
-              staff={staff}
-              resources={resources}
+              services={bookingContext.services}
+              staff={bookingContext.staff}
+              resources={bookingContext.resources}
               successBehavior="stay"
               onDirtyChange={setDirty}
+              onGroupBookingChange={setGroupBooking}
               onCancel={requestClose}
               onSuccess={(result) => {
                 closeBookingModal();

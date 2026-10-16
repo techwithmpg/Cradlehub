@@ -9,6 +9,7 @@ import { assignBookingTherapistAction } from "@/app/(dashboard)/crm/bookings/act
 import { assignBookingDriverAction } from "@/lib/actions/driver-actions";
 import { getAssignmentRecommendationsAction } from "@/lib/actions/assignment-recommendations";
 import { notifyBookingsChanged } from "@/lib/bookings/bookings-client-events";
+import { TherapistProvenanceBadge } from "@/components/features/bookings/therapist-provenance-badge";
 import {
   AdminDialog,
   AdminOverlayBody,
@@ -49,14 +50,14 @@ function readMetadataNumber(value: unknown): number | null {
   return null;
 }
 
-function Detail({ label, value, icon }: { label: string; value: string; icon?: React.ReactNode }) {
+function Detail({ label, value, icon, badge }: { label: string; value: string; icon?: React.ReactNode; badge?: React.ReactNode }) {
   return (
     <div className="rounded-lg border border-[var(--cs-border-soft)] bg-[var(--cs-surface-warm)] p-3">
       <div className="flex items-center gap-1.5 text-[10px] font-bold uppercase tracking-wide text-[var(--cs-text-muted)]">
         {icon}
         {label}
       </div>
-      <div className="mt-1 text-sm font-semibold text-[var(--cs-text)]">{value}</div>
+      <div className="mt-1 text-sm font-semibold text-[var(--cs-text)]">{value}{badge}</div>
     </div>
   );
 }
@@ -67,6 +68,7 @@ export function CradleFlowBookingDialog({
   open,
   onOpenChange,
   onPrimary,
+  primaryPending = false,
   onAssignRoom,
   onAssignTherapist,
 }: {
@@ -75,6 +77,7 @@ export function CradleFlowBookingDialog({
   open: boolean;
   onOpenChange: (open: boolean) => void;
   onPrimary: (booking: CradleFlowBooking) => void;
+  primaryPending?: boolean;
   onAssignRoom: (booking: CradleFlowBooking) => void;
   onAssignTherapist: (booking: CradleFlowBooking) => void;
 }) {
@@ -158,6 +161,7 @@ export function CradleFlowBookingDialog({
           <Detail
             label="Therapist"
             value={booking.staff_name ?? "Needs assignment"}
+            badge={<TherapistProvenanceBadge booking={booking} />}
             icon={<UserRound className="size-3" />}
           />
           {homeService ? (
@@ -347,13 +351,20 @@ export function CradleFlowBookingDialog({
           {stage ? (
             <button
               type="button"
-              onClick={() => {
-                if (!homeService) onOpenChange(false);
-                onPrimary(booking);
-              }}
-              className="h-10 rounded-lg bg-[#164b36] px-4 text-sm font-bold text-white"
+              onClick={() => onPrimary(booking)}
+              disabled={primaryPending}
+              aria-busy={primaryPending}
+              className="h-10 rounded-lg bg-[#164b36] px-4 text-sm font-bold text-white disabled:opacity-60"
             >
-              {getCradleFlowPrimaryLabel(booking, businessDate)}
+              {primaryPending
+                ? booking.status === "pending" ||
+                  booking.status === "pending_payment" ||
+                  booking.status === "pending_crm_confirmation"
+                  ? "Confirming…"
+                  : booking.booking_progress_status === "checked_in"
+                    ? "Starting…"
+                    : "Checking in…"
+                : getCradleFlowPrimaryLabel(booking, businessDate)}
             </button>
           ) : null}
         </div>

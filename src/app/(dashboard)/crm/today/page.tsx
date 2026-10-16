@@ -1,6 +1,7 @@
 import {
   getCrmPendingBookingQueue,
   getCrmUpcomingBookings,
+  getCrmOrderServiceLines,
   getTodaysSchedule,
 } from "@/lib/queries/bookings";
 import { getStaffAdminName } from "@/lib/staff/display-name";
@@ -38,7 +39,22 @@ type ResourceRel = { name: string };
 
 type BookingRow = {
   id: string;
+  requested_staff_id?: string | null;
+  therapist_selection_source?: string | null;
   order_id?: string | null;
+  attendee_id?: string | null;
+  booking_attendees?: Relation<{
+    id: string;
+    sequence: number;
+    display_name: string | null;
+    customer_id: string | null;
+  }>;
+  booking_orders?: Relation<{
+    id: string;
+    order_number: string;
+    organizer_customer_id: string;
+    metadata: Record<string, unknown> | null;
+  }>;
   branch_id: string;
   booking_date: string;
   start_time: string;
@@ -83,13 +99,8 @@ export default async function CrmTodayPage({
   const { branchId, branchName, role } = context;
   const today = getBranchBusinessDate();
   const params = await searchParams;
-  const duty = await getFrontDeskDutyContext(
-    context,
-    today,
-    typeof params.handover === "string" ? params.handover : undefined
-  );
-
   const [
+    duty,
     rawBookings,
     pendingQueue,
     upcomingBookings,
@@ -100,6 +111,11 @@ export default async function CrmTodayPage({
     locationMap,
     attendanceScanFeed,
   ] = await Promise.all([
+    getFrontDeskDutyContext(
+      context,
+      today,
+      typeof params.handover === "string" ? params.handover : undefined
+    ),
     getTodaysSchedule(branchId, today),
     getCrmPendingBookingQueue(branchId, today, undefined, upcomingBookingEndDate(today)),
     getCrmUpcomingBookings(branchId, today),
@@ -125,6 +141,16 @@ export default async function CrmTodayPage({
     ),
   ]);
 
+  const futureOrderIds = [
+    ...new Set(
+      [...pendingQueue, ...upcomingBookings].flatMap((row) =>
+        row.booking_date > today && row.order_id ? [row.order_id] : []
+      )
+    ),
+  ];
+  const futureOrderLines =
+    futureOrderIds.length > 0 ? await getCrmOrderServiceLines(branchId, futureOrderIds) : [];
+
   const bookingsById = new Map<string, BookingRow>();
   for (const booking of rawBookings as BookingRow[]) {
     bookingsById.set(booking.id, booking);
@@ -135,6 +161,9 @@ export default async function CrmTodayPage({
     }
   }
   for (const booking of upcomingBookings as BookingRow[]) {
+    if (!bookingsById.has(booking.id)) bookingsById.set(booking.id, booking);
+  }
+  for (const booking of futureOrderLines as BookingRow[]) {
     if (!bookingsById.has(booking.id)) bookingsById.set(booking.id, booking);
   }
 
@@ -183,8 +212,9 @@ export default async function CrmTodayPage({
   const resourceIds = [
     ...new Set(bookings.map((booking) => booking.resource_id).filter(Boolean) as string[]),
   ];
-  const resourceNameMap = new Map<string, string>();
-  if (resourceIds.length > 0) {
+  const resourceNamesPromise = (async () => {
+    const resourceNameMap = new Map<string, string>();
+    if (resourceIds.length === 0) return resourceNameMap;
     const supabase = createAdminClient();
     const { data: resources } = await supabase
       .from("branch_resources")
@@ -193,14 +223,18 @@ export default async function CrmTodayPage({
     for (const resource of resources ?? []) {
       resourceNameMap.set(resource.id, resource.name);
     }
-  }
+    return resourceNameMap;
+  })();
 
   const hsBookingIds = bookings
     .filter((b) => b.type === "home_service" || b.delivery_type === "home_service")
     .map((b) => b.id);
-  const trackingMap = await getActiveTrackingTokensForBookings(hsBookingIds);
   const driverIds = [...new Set(Object.values(driverIdMap).filter(Boolean) as string[])];
-  const driverNameMap = await getDriverNamesByIds(driverIds);
+  const [resourceNameMap, trackingMap, driverNameMap] = await Promise.all([
+    resourceNamesPromise,
+    getActiveTrackingTokensForBookings(hsBookingIds),
+    getDriverNamesByIds(driverIds),
+  ]);
 
   // Build queue data for the interactive panel
   const queueData = bookings.map((b) => {
@@ -222,6 +256,9 @@ export default async function CrmTodayPage({
     return {
       id: b.id,
       order_id: b.order_id ?? null,
+      attendee_id: b.attendee_id ?? null,
+      booking_attendees: b.booking_attendees ?? null,
+      booking_orders: b.booking_orders ?? null,
       order_payment_status: b.order_id ? (orderStates.get(b.order_id)?.status ?? null) : null,
       order_amount_paid: b.order_id ? (orderStates.get(b.order_id)?.paid ?? null) : null,
       order_total_amount: b.order_id ? (orderStates.get(b.order_id)?.total ?? null) : null,
@@ -243,6 +280,8 @@ export default async function CrmTodayPage({
       service_duration: first(b.services)?.duration_minutes ?? null,
       staff_name: first(b.staff) ? getStaffAdminName(first(b.staff)!) : null,
       staff_id: first(b.staff)?.id ?? null,
+      requested_staff_id: b.requested_staff_id ?? null,
+      therapist_selection_source: b.therapist_selection_source ?? "legacy_unknown",
       resource_name: b.resource_id
         ? (resourceNameMap.get(b.resource_id) ?? first(b.branch_resources)?.name ?? null)
         : (first(b.branch_resources)?.name ?? null),

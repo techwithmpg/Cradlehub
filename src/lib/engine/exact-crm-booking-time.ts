@@ -349,6 +349,7 @@ function reasonForStaff(params: {
 export async function resolveExactCrmBookingTime(params: {
   branchId: string;
   serviceIds: string[];
+  selectedDurationMinutes?: number[];
   date: string;
   startTime: string;
   bookingMode: ExactCrmBookingMode;
@@ -479,7 +480,7 @@ export async function resolveExactCrmBookingTime(params: {
   const totalBlockMinutes = serviceRows.reduce(
     (sum, service) =>
       sum +
-      Number(customDurationByServiceId.get(service.id) ?? service.duration_minutes) +
+      Number(params.selectedDurationMinutes?.[params.serviceIds.indexOf(service.id)] ?? customDurationByServiceId.get(service.id) ?? service.duration_minutes) +
       Number(service.buffer_before) +
       Number(service.buffer_after),
     0

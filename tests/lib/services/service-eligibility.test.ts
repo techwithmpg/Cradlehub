@@ -133,4 +133,16 @@ describe("service eligibility", () => {
       })
     ).toEqual({ ok: false, reasons: ["delivery_mode_unavailable"] });
   });
+
+  it("keeps global customer visibility separate from CRM availability", () => {
+    const hiddenFromCustomers = { is_active: true, is_public_visible: false };
+    expect(validateBranchServiceEligibility({
+      service: hiddenFromCustomers, branchService: branchService(),
+      audience: "public", deliveryMode: "in_spa", rules: { homeServiceEnabled: false },
+    })).toEqual({ ok: false, reasons: ["not_visible_to_audience"] });
+    expect(validateBranchServiceEligibility({
+      service: hiddenFromCustomers, branchService: branchService(),
+      audience: "crm", deliveryMode: "in_spa", rules: { homeServiceEnabled: false },
+    })).toEqual({ ok: true });
+  });
 });

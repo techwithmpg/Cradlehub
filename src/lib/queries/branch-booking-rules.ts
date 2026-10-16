@@ -23,6 +23,7 @@ import {
 type BranchBookingRulesRow =
   Database["public"]["Tables"]["branch_booking_rules"]["Row"];
 type BranchBookingRulesRowWithDistance = BranchBookingRulesRow & {
+  home_service_base_fee?: number | string | null;
   home_service_free_km?: number | string | null;
   home_service_extra_km_fee?: number | string | null;
 };
@@ -95,7 +96,12 @@ function mapRowToRules(row: BranchBookingRulesRowWithDistance): BranchBookingRul
     travelBufferMins: row.travel_buffer_mins,
     maxAdvanceBookingDays: row.max_advance_booking_days,
     homeServiceDriverCapacity: row.home_service_driver_capacity ?? 1,
-    homeServiceFreeKm: Number(row.home_service_free_km ?? DEFAULT_BRANCH_BOOKING_RULES.homeServiceFreeKm),
+    homeServiceBaseFee: Number(
+      row.home_service_base_fee ?? DEFAULT_BRANCH_BOOKING_RULES.homeServiceBaseFee
+    ),
+    homeServiceFreeKm: Number(
+      row.home_service_free_km ?? DEFAULT_BRANCH_BOOKING_RULES.homeServiceFreeKm
+    ),
     homeServiceExtraKmFee: Number(
       row.home_service_extra_km_fee ?? DEFAULT_BRANCH_BOOKING_RULES.homeServiceExtraKmFee
     ),
@@ -199,6 +205,9 @@ export async function updateBranchBookingRules(
         travel_buffer_mins: input.travelBufferMins,
         max_advance_booking_days: input.maxAdvanceBookingDays,
         home_service_driver_capacity: input.homeServiceDriverCapacity,
+        home_service_base_fee: input.homeServiceBaseFee,
+        home_service_free_km: input.homeServiceFreeKm,
+        home_service_extra_km_fee: input.homeServiceExtraKmFee,
       },
       { onConflict: "branch_id" }
     )

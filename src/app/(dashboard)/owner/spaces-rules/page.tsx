@@ -77,6 +77,7 @@ export default async function OwnerSpacesRulesPage({
           travelBufferMins: 30,
           maxAdvanceBookingDays: 30,
           homeServiceDriverCapacity: 1,
+          homeServiceBaseFee: 100,
           homeServiceFreeKm: 5,
           homeServiceExtraKmFee: 100,
         }),

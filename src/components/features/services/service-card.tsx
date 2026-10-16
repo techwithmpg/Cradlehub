@@ -1,64 +1,25 @@
 "use client";
 
-import { useState, useTransition } from "react";
-import Link from "next/link";
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu";
+import { useState } from "react";
 import { ServiceImageThumbnail } from "./service-image-thumbnail";
 import { ServiceStatusToggle } from "./service-status-toggle";
-import { deleteServiceAction } from "@/app/(dashboard)/owner/services/actions";
 import { formatCurrency } from "@/lib/utils";
-import { MoreHorizontal, Pencil, Trash2, EyeOff, Eye } from "lucide-react";
-
-type ServiceCategory = {
-  id: string;
-  name: string | null;
-  display_order: number | null;
-};
-
-type Service = {
-  id: string;
-  name: string;
-  description: string | null;
-  duration_minutes: number;
-  price: number;
-  is_active: boolean;
-  service_categories: ServiceCategory | null;
-};
+import { Pencil, EyeOff, Eye } from "lucide-react";
+import type { OwnerService, OwnerServiceBranch } from "./owner-service-types";
+import { serviceBranchSummary } from "@/lib/services/owner-service-workspace";
 
 type Props = {
-  service: Service;
+  service: OwnerService;
+  branches: OwnerServiceBranch[];
+  onEdit: (service: OwnerService) => void;
   onToggle?: (serviceId: string, nextValue: boolean) => void;
-  onDeleted?: (serviceId: string) => void;
 };
 
-export function ServiceCard({ service, onToggle, onDeleted }: Props) {
-  const [isPending, startTransition] = useTransition();
+export function ServiceCard({ service, branches, onEdit, onToggle }: Props) {
   const [isHovered, setIsHovered] = useState(false);
 
   const categoryName = service.service_categories?.name ?? "Uncategorized";
   const isInactive = !service.is_active;
-
-  function handleDelete() {
-    const confirmed = window.confirm(
-      `Delete "${service.name}"? This cannot be undone.`
-    );
-    if (!confirmed) return;
-
-    startTransition(async () => {
-      const result = await deleteServiceAction({ serviceId: service.id });
-      if (!result.ok) {
-        if (process.env.NODE_ENV === "development") console.error("[DELETE_SERVICE_FAILED]", result.message);
-        alert("Could not delete service. Please try again.");
-        return;
-      }
-      onDeleted?.(service.id);
-    });
-  }
 
   return (
     <div
@@ -80,7 +41,7 @@ export function ServiceCard({ service, onToggle, onDeleted }: Props) {
       }}
     >
       {/* Image */}
-      <ServiceImageThumbnail serviceName={service.name} />
+      <ServiceImageThumbnail serviceId={service.id} serviceName={service.name} imageUrl={service.image_url} imageAlt={service.image_alt} />
 
       {/* Content */}
       <div style={{ padding: "0.875rem", display: "flex", flexDirection: "column", gap: "0.5rem", flex: 1 }}>
@@ -111,6 +72,11 @@ export function ServiceCard({ service, onToggle, onDeleted }: Props) {
           >
             {isInactive ? "Inactive" : "Active"}
           </span>
+        </div>
+
+        <div style={{ fontSize: "0.75rem", color: "var(--cs-text-muted)" }}>
+          {serviceBranchSummary(service, branches)}
+          <span style={{ marginLeft: 8 }}>· {service.duration_policy === "extendable" ? "Extendable" : "Fixed"}</span>
         </div>
 
         {/* Description */}
@@ -186,10 +152,10 @@ export function ServiceCard({ service, onToggle, onDeleted }: Props) {
         >
           <div>
             <div style={{ fontSize: "0.8125rem", fontWeight: 500, color: "var(--cs-text)" }}>
-              {isInactive ? (
+              {!service.is_public_visible ? (
                 <span style={{ display: "flex", alignItems: "center", gap: 4 }}>
                   <EyeOff className="h-3.5 w-3.5" style={{ color: "var(--cs-text-muted)" }} />
-                  Hidden from booking
+                  Hidden from customers
                 </span>
               ) : (
                 <span style={{ display: "flex", alignItems: "center", gap: 4 }}>
@@ -200,6 +166,7 @@ export function ServiceCard({ service, onToggle, onDeleted }: Props) {
             </div>
           </div>
           <ServiceStatusToggle
+            key={`${service.id}-${service.is_active}`}
             serviceId={service.id}
             serviceName={service.name}
             isActive={service.is_active}
@@ -219,39 +186,15 @@ export function ServiceCard({ service, onToggle, onDeleted }: Props) {
             marginTop: "auto",
           }}
         >
-          <Link
-            href={`/owner/services/${service.id}`}
+          <button
+            type="button"
+            onClick={() => onEdit(service)}
             className="cs-btn cs-btn-ghost cs-btn-sm"
             style={{ display: "inline-flex", alignItems: "center", gap: 4 }}
           >
             <Pencil className="h-3.5 w-3.5" />
             Edit
-          </Link>
-
-          <DropdownMenu>
-            <DropdownMenuTrigger
-              render={
-                <button
-                  type="button"
-                  disabled={isPending}
-                  className="cs-btn cs-btn-ghost cs-btn-sm"
-                  style={{ padding: "4px 6px" }}
-                >
-                  <MoreHorizontal className="h-4 w-4" />
-                </button>
-              }
-            />
-            <DropdownMenuContent align="end">
-              <DropdownMenuItem
-                onClick={handleDelete}
-                disabled={isPending}
-                style={{ color: "#DC2626", cursor: "pointer" }}
-              >
-                <Trash2 className="h-4 w-4 mr-2" />
-                Delete
-              </DropdownMenuItem>
-            </DropdownMenuContent>
-          </DropdownMenu>
+          </button>
         </div>
       </div>
     </div>

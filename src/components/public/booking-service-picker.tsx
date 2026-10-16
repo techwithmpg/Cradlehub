@@ -4,7 +4,9 @@ import { useMemo, useState } from "react";
 import { Check, Plus } from "lucide-react";
 
 import { ServiceImage } from "@/components/public/service-image";
+import { InlineServiceDurationSlider } from "@/components/public/inline-service-duration-slider";
 import { Skeleton } from "@/components/ui/skeleton";
+import type { ServiceLineQuote } from "@/lib/services/service-line-quote";
 import type { VisitType } from "@/lib/bookings/visit-type-availability";
 import { resolveServiceImage } from "@/lib/service-images";
 
@@ -21,6 +23,9 @@ export type BookingWizardService = {
   name: string;
   description?: string | null;
   durationMinutes: number;
+  durationPolicy?: "fixed" | "extendable";
+  quoteVersion?: string;
+  durationAdjusted?: boolean;
   price: number;
   categoryId?: string | null;
   categoryName?: string;
@@ -45,6 +50,12 @@ type BookingServicePickerProps = {
   loading: boolean;
   selected: BookingWizardService[];
   onToggle: (service: BookingWizardService) => void;
+  onAdjust?: (service: BookingWizardService) => void;
+  inlineDuration?: boolean;
+  branchId?: string;
+  attendeeId?: string;
+  lineQuotes?: Record<string, ServiceLineQuote>;
+  onSelectQuote?: (service: BookingWizardService, quote: ServiceLineQuote) => void;
   heading?: string;
   totalDuration: number;
   totalPrice: number;
@@ -255,6 +266,12 @@ export function BookingServicePicker({
   loading,
   selected,
   onToggle,
+  onAdjust,
+  inlineDuration = false,
+  branchId,
+  attendeeId = "att-1",
+  lineQuotes = {},
+  onSelectQuote,
   heading = "Select services",
   totalDuration,
   totalPrice,
@@ -268,6 +285,8 @@ export function BookingServicePicker({
     categories[0] ??
     null;
   const selectedIds = new Set(selected.map((service) => service.id));
+  const hasInlineDuration = inlineDuration && Boolean(branchId) &&
+    selected.some((service) => service.durationPolicy === "extendable");
   const skeletonClassName = theme === "warm" ? WARM_SKELETON_CLS : "";
 
   if (loading) {
@@ -346,16 +365,18 @@ export function BookingServicePicker({
       {/* Selection summary strip */}
       {selected.length > 0 && (
         <div
-          className={`mb-3 flex shrink-0 items-center justify-between gap-3 rounded-xl px-3 py-2.5 md:mb-4 md:gap-4 md:px-4 md:py-3 ${WARM_GLASS_CARD}`}
+          className={`mb-3 flex shrink-0 items-center justify-between gap-3 rounded-xl px-3 py-2.5 md:mb-4 md:gap-4 md:px-4 md:py-3 ${hasInlineDuration ? "flex-wrap" : ""} ${WARM_GLASS_CARD}`}
         >
           <div className="min-w-0">
             <p className="text-[11px] font-semibold uppercase tracking-wide" style={WARM_LABEL_STYLE}>
               {selected.length} {selected.length === 1 ? "service" : "services"} selected
             </p>
-            <p className="mt-0.5 truncate text-[13px] font-medium" style={WARM_BODY_STYLE}>
-              {selected.map((s) => s.name).slice(0, 2).join(", ")}
-              {selected.length > 2 && ` +${selected.length - 2} more`}
-            </p>
+            {!hasInlineDuration || selected.length === 1 ? (
+              <p className="mt-0.5 truncate text-[13px] font-medium" style={WARM_BODY_STYLE}>
+                {selected.map((s) => s.name).slice(0, 2).join(", ")}
+                {selected.length > 2 && ` +${selected.length - 2} more`}
+              </p>
+            ) : null}
           </div>
           <div className="shrink-0 text-right">
             <p className="text-[11px] font-medium" style={WARM_MUTED_STYLE}>{totalDuration} min</p>
@@ -363,8 +384,43 @@ export function BookingServicePicker({
               {formatCurrency(totalPrice)}
             </p>
           </div>
+          {hasInlineDuration ? (
+            <div className="w-full">
+              {selected.map((service) => (
+                <div key={`${attendeeId}:${service.id}`} className={selected.length > 1 ? "mt-2 border-t border-[#D4B57A]/20 pt-2" : ""}>
+                  {selected.length > 1 ? (
+                    <div className="flex items-center justify-between gap-3 text-[12px] text-[#F6EBD6]">
+                      <span className="min-w-0 truncate">{service.name}</span>
+                      <span className="shrink-0 text-[#D4B57A]">{service.durationMinutes} min · {formatCurrency(service.price)}</span>
+                    </div>
+                  ) : null}
+                  {service.durationPolicy === "extendable" ? (
+                    <InlineServiceDurationSlider branchId={branchId!} serviceId={service.id}
+                      serviceName={service.name} baseQuoteVersion={service.quoteVersion}
+                      selectedQuote={lineQuotes[`${attendeeId}:${service.id}`]}
+                      currentDurationMinutes={service.durationMinutes} deliveryMode={visitType}
+                      onSelectQuote={(quote) => onSelectQuote?.(service, quote)} />
+                  ) : null}
+                </div>
+              ))}
+            </div>
+          ) : null}
         </div>
       )}
+
+      {!inlineDuration && selected.some((service) => service.durationPolicy === "extendable") ? (
+        <div className="mb-4 space-y-2">
+          {selected.filter((service) => service.durationPolicy === "extendable").map((service) => (
+            <button key={service.id} type="button" onClick={() => onAdjust?.(service)}
+              className={`flex min-h-12 w-full items-center justify-between gap-3 rounded-xl px-3 py-2 text-left text-sm text-[#F6EBD6] ${WARM_GLASS_CARD}`}>
+              <span className="min-w-0 truncate font-semibold">{service.name}</span>
+              <span className="shrink-0 text-xs text-[#D4B57A]">
+                {service.durationAdjusted ? `${service.durationMinutes} min · ${formatCurrency(service.price)}` : `${service.durationMinutes} min+ · From ${formatCurrency(service.price)}`} · Adjust ›
+              </span>
+            </button>
+          ))}
+        </div>
+      ) : null}
 
       {/* ── Mobile layout ─────────────────────────────────────────────────────── */}
       <div className="w-full max-w-full md:hidden">

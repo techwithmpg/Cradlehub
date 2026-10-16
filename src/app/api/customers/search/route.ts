@@ -1,8 +1,9 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
-import { searchCustomers } from "@/lib/queries/customers";
+import { searchCustomerIdentities } from "@/lib/queries/customers";
 import { canonicalizeSystemRole } from "@/constants/staff";
 import { canAccessCrmWorkspace } from "@/lib/auth/crm-permissions";
+import { resolveOwnerFrontDeskBranch } from "@/lib/queries/front-desk-branch";
 
 export async function GET(request: NextRequest) {
   const supabase = await createClient();
@@ -18,19 +19,25 @@ export async function GET(request: NextRequest) {
     .from("staff")
     .select("system_role, branch_id")
     .eq("auth_user_id", user.id)
-    .single();
+    .eq("is_active", true)
+    .maybeSingle();
 
   const role = me ? canonicalizeSystemRole(me.system_role) : null;
   if (!me || !role || !canAccessCrmWorkspace(role)) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
-  const q = request.nextUrl.searchParams.get("q") ?? "";
+  const q = (request.nextUrl.searchParams.get("q") ?? "").trim();
   if (q.length < 2) {
     return NextResponse.json({ customers: [] });
   }
 
-  const branchId = role === "owner" ? null : me.branch_id;
-  const customers = await searchCustomers(q, branchId);
+  const ownerBranch =
+    role === "owner" ? await resolveOwnerFrontDeskBranch(user.id, me.branch_id) : null;
+  const branchId = ownerBranch?.id ?? me.branch_id;
+  if (!branchId || (role === "owner" && !ownerBranch)) {
+    return NextResponse.json({ error: "Front Desk branch unavailable" }, { status: 403 });
+  }
+  const customers = await searchCustomerIdentities(q);
   return NextResponse.json({ customers });
 }

@@ -4,6 +4,8 @@ import { getBranchBookingRulesOrDefault } from "@/lib/queries/branch-booking-rul
 import { getBranchServiceCatalog } from "@/lib/services/service-catalog";
 import { canActAsBookingServiceProvider } from "@/lib/staff/service-providers";
 import { createAdminClient } from "@/lib/supabase/admin";
+import { calculateServiceLineQuote } from "@/lib/services/service-line-quote";
+import { quoteVersionFor } from "@/lib/services/resolve-service-line-quote";
 import type {
   QuickBookingCustomerOption,
   QuickBookingResourceOption,
@@ -18,6 +20,10 @@ type ServiceRelation =
       is_active?: boolean;
       price?: number | string | null;
       duration_minutes?: number | null;
+      duration_policy?: string | null;
+      extension_increment_minutes?: number | null;
+      extension_price?: number | null;
+      maximum_duration_minutes?: number | null;
     }
   | Array<{
       id?: string;
@@ -25,6 +31,10 @@ type ServiceRelation =
       is_active?: boolean;
       price?: number | string | null;
       duration_minutes?: number | null;
+      duration_policy?: string | null;
+      extension_increment_minutes?: number | null;
+      extension_price?: number | null;
+      maximum_duration_minutes?: number | null;
     }>
   | null;
 
@@ -59,12 +69,13 @@ export async function getQuickBookingCustomerPrefill(
   if (!customerId) return null;
 
   const admin = createAdminClient();
-  const { data } = await admin
+  const { data, error } = await admin
     .from("customers")
     .select("id, full_name, phone, email")
     .eq("id", customerId)
     .maybeSingle();
 
+  if (error) throw new Error("Customer identity could not be loaded.");
   if (!data) return null;
   return {
     id: data.id,
@@ -84,7 +95,9 @@ export async function getQuickBookingOptions(branchId: string): Promise<{
     getBranchServiceCatalog(branchId, { audience: "crm" }),
     admin
       .from("staff")
-      .select("id, full_name, nickname, is_active, staff_type, system_role, archived_at, merged_into_staff_id, staff_services(service_id)")
+      .select(
+        "id, full_name, nickname, is_active, staff_type, system_role, archived_at, merged_into_staff_id, staff_services(service_id)"
+      )
       .eq("branch_id", branchId)
       .eq("is_active", true)
       .is("archived_at", null)
@@ -100,14 +113,31 @@ export async function getQuickBookingOptions(branchId: string): Promise<{
   ]);
 
   const services = (branchServices as BranchServiceRow[])
-    .map((row) => {
+    .map((row): QuickBookingServiceOption | null => {
       const service = firstRelation(row.services);
       if (!service?.id || !service.name || service.is_active === false) return null;
+      let quoteVersion: string | undefined;
+      if (service.duration_policy === "fixed" || service.duration_policy === "extendable") {
+        try {
+          const quote = calculateServiceLineQuote({
+            service: { id: service.id, duration_policy: service.duration_policy,
+              duration_minutes: Number(service.duration_minutes), price: service.price ?? 0,
+              extension_increment_minutes: service.extension_increment_minutes ?? null,
+              extension_price: service.extension_price ?? null,
+              maximum_duration_minutes: service.maximum_duration_minutes ?? null },
+            branch: { custom_duration_minutes: row.custom_duration_minutes ?? null,
+              custom_price: row.custom_price ?? null },
+          });
+          quoteVersion = quoteVersionFor(branchId, quote);
+        } catch { /* The quote endpoint will report the configuration error. */ }
+      }
       return {
         id: service.id,
         name: service.name,
         price: Number(row.custom_price ?? service.price ?? 0),
         durationMinutes: Number(row.custom_duration_minutes ?? service.duration_minutes ?? 0),
+        durationPolicy: service.duration_policy === "extendable" ? "extendable" as const : "fixed" as const,
+        quoteVersion,
         availableInSpa: row.available_in_spa ?? true,
         availableHomeService: row.available_home_service ?? false,
       };

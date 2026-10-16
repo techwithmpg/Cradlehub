@@ -63,7 +63,12 @@ const BRANCH_SERVICES_MODERN_SELECT = `
     name,
     description,
     is_active,
+    is_public_visible,
     duration_minutes,
+    duration_policy,
+    extension_increment_minutes,
+    extension_price,
+    maximum_duration_minutes,
     price,
     metadata,
     buffer_before,
@@ -96,6 +101,7 @@ const BRANCH_SERVICES_CORE_SELECT = `
     name,
     description,
     is_active,
+    is_public_visible,
     duration_minutes,
     price,
     metadata,
@@ -124,6 +130,7 @@ const BRANCH_SERVICES_LEGACY_SELECT = `
     name,
     description,
     is_active,
+    is_public_visible,
     duration_minutes,
     price,
     metadata,
@@ -149,6 +156,7 @@ const BRANCH_SERVICES_MINIMAL_SELECT = `
     name,
     description,
     is_active,
+    is_public_visible,
     duration_minutes,
     price,
     metadata,
@@ -180,7 +188,11 @@ function isMissingBranchServiceColumnError(message: string): boolean {
       lower.includes("available_in_spa") ||
       lower.includes("available_home_service") ||
       lower.includes("image_url") ||
-      lower.includes("image_alt")) &&
+      lower.includes("image_alt") ||
+      lower.includes("duration_policy") ||
+      lower.includes("extension_increment_minutes") ||
+      lower.includes("extension_price") ||
+      lower.includes("maximum_duration_minutes")) &&
     (lower.includes("does not exist") ||
       lower.includes("schema cache") ||
       lower.includes("could not find"))
@@ -290,6 +302,7 @@ export async function getBranchServiceCatalog(
   return rows.filter((row) => {
     const service = firstService(row);
     if (!service?.is_active) return false;
+    if (audience === "public" && !service.is_public_visible) return false;
     if (!options.includeInactiveBranchRows && !row.is_active) return false;
     if (!isVisibleForAudience(row.visibility, audience)) return false;
     if (
@@ -382,7 +395,7 @@ export async function validateBranchServiceEligibility(input: {
     getBranchBookingRulesOrDefault(input.branchId),
     client
       .from("services")
-      .select("id, is_active")
+      .select("id, is_active, is_public_visible")
       .in("id", uniqueServiceIds),
     queryBranchServices(client, input.branchId, true),
   ]);
@@ -390,7 +403,7 @@ export async function validateBranchServiceEligibility(input: {
   if (servicesResult.error) throw new Error(servicesResult.error.message);
 
   const servicesById = new Map(
-    ((servicesResult.data ?? []) as Array<{ id: string; is_active: boolean | null }>).map(
+    ((servicesResult.data ?? []) as Array<{ id: string; is_active: boolean | null; is_public_visible: boolean | null }>).map(
       (service) => [service.id, service]
     )
   );

@@ -20,6 +20,7 @@ type ServiceWithCategory = ServiceRow & {
 type BranchServiceCatalogRow = Pick<
   Database["public"]["Tables"]["branch_services"]["Row"],
   | "service_id"
+  | "branch_id"
   | "is_active"
   | "custom_price"
   | "available_in_spa"
@@ -31,6 +32,7 @@ type BranchServiceCatalogRow = Pick<
 type LegacyBranchServiceCatalogRow = Pick<
   Database["public"]["Tables"]["branch_services"]["Row"],
   | "service_id"
+  | "branch_id"
   | "is_active"
   | "custom_price"
   | "available_in_spa"
@@ -140,7 +142,7 @@ export async function getAllCategories() {
 }
 
 export async function getAllServices() {
-  return getMasterServiceCatalog();
+  return (await getMasterServiceCatalog()).filter((service) => service.is_public_visible);
 }
 
 export async function getAllServicesForOwner() {
@@ -160,20 +162,24 @@ export async function getServiceById(serviceId: string) {
 
 export async function getPublicServiceCatalog(): Promise<PublicCatalogService[]> {
   const supabase = await createClient();
-  const [servicesResult, branchServicesResult] = await Promise.all([
+  const [servicesResult, branchServicesResult, branchesResult] = await Promise.all([
     supabase
       .from("services")
       .select(`*, service_categories ( id, name, display_order )`)
       .eq("is_active", true)
+      .eq("is_public_visible", true)
       .order("service_categories(display_order), name"),
     supabase
       .from("branch_services")
       .select(
-        "service_id, is_active, custom_price, available_in_spa, available_home_service, visibility"
+        "service_id, branch_id, is_active, custom_price, available_in_spa, available_home_service, visibility"
       ),
+    supabase.from("branches").select("id").eq("is_active", true),
   ]);
 
   if (servicesResult.error) throw new Error(servicesResult.error.message);
+  if (branchesResult.error) throw new Error(branchesResult.error.message);
+  const activeBranchIds = new Set((branchesResult.data ?? []).map((branch) => branch.id));
 
   let branchServicesData = (branchServicesResult.data ?? []) as BranchServiceCatalogRow[];
   if (branchServicesResult.error) {
@@ -184,7 +190,7 @@ export async function getPublicServiceCatalog(): Promise<PublicCatalogService[]>
     const legacy = await supabase
       .from("branch_services")
       .select(
-        "service_id, is_active, custom_price, available_in_spa, available_home_service, booking_visibility"
+        "service_id, branch_id, is_active, custom_price, available_in_spa, available_home_service, booking_visibility"
       );
 
     if (!legacy.error) {
@@ -199,11 +205,11 @@ export async function getPublicServiceCatalog(): Promise<PublicCatalogService[]>
     } else {
       const fallback = await supabase
         .from("branch_services")
-        .select("service_id, is_active, custom_price");
+        .select("service_id, branch_id, is_active, custom_price");
 
       if (fallback.error) throw new Error(fallback.error.message);
 
-      branchServicesData = ((fallback.data ?? []) as Array<Pick<LegacyBranchServiceCatalogRow, "service_id" | "is_active" | "custom_price">>).map(
+      branchServicesData = ((fallback.data ?? []) as Array<Pick<LegacyBranchServiceCatalogRow, "service_id" | "branch_id" | "is_active" | "custom_price">>).map(
         (row) => ({
           ...row,
           available_in_spa: true,
@@ -216,6 +222,7 @@ export async function getPublicServiceCatalog(): Promise<PublicCatalogService[]>
 
   const branchRowsByService = new Map<string, BranchServiceCatalogRow[]>();
   for (const row of branchServicesData) {
+    if (!activeBranchIds.has(row.branch_id)) continue;
     row.visibility = normalizeServiceVisibility({
       visibility: row.visibility,
       bookingVisibility: row.booking_visibility,

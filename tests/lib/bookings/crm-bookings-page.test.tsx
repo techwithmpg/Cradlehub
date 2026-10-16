@@ -5,6 +5,7 @@ const mocks = vi.hoisted(() => ({
   admin: vi.fn(),
   schedule: vi.fn(),
   upcoming: vi.fn(),
+  orderLines: vi.fn(),
   cash: vi.fn(),
 }));
 
@@ -14,6 +15,7 @@ vi.mock("@/lib/supabase/admin", () => ({ createAdminClient: mocks.admin }));
 vi.mock("@/lib/queries/bookings", () => ({
   getCrmBookingsCommandCenterRows: mocks.schedule,
   getCrmUpcomingBookings: mocks.upcoming,
+  getCrmOrderServiceLines: mocks.orderLines,
   getDailyPaymentSummary: mocks.cash,
 }));
 vi.mock("@/lib/engine/slot-time", () => ({
@@ -55,6 +57,7 @@ describe("CRM Bookings date context", () => {
     mocks.context.mockResolvedValue({ branchId: "branch-a", branchName: "Main", role: "crm" });
     mocks.schedule.mockResolvedValue([]);
     mocks.upcoming.mockResolvedValue([]);
+    mocks.orderLines.mockResolvedValue([]);
     mocks.cash.mockResolvedValue(null);
   });
 
@@ -82,6 +85,46 @@ describe("CRM Bookings date context", () => {
     });
     expect(mocks.upcoming).toHaveBeenCalledWith("branch-a", "2026-10-13");
     expect(mocks.schedule).not.toHaveBeenCalled();
+  });
+
+  it("loads every sibling for an upcoming order and uses parent financial values", async () => {
+    mocks.upcoming.mockResolvedValue([
+      { id: "line-1", order_id: "order-1", booking_date: "2026-10-16", status: "confirmed" },
+    ]);
+    mocks.orderLines.mockResolvedValue([
+      { id: "line-1", order_id: "order-1", booking_date: "2026-10-16", status: "confirmed" },
+      { id: "line-2", order_id: "order-1", booking_date: "2026-10-16", status: "completed" },
+    ]);
+    mocks.admin.mockReturnValue({
+      from: vi.fn((table: string) => {
+        const query = {
+          select: vi.fn(),
+          in: vi.fn(async () =>
+            table === "booking_orders"
+              ? { data: [{ id: "order-1", metadata: { total_amount: 2400 } }], error: null }
+              : {
+                  data: [
+                    {
+                      order_id: "order-1",
+                      total_payable: 2400,
+                      net_allocated: 800,
+                      payment_state: "partial",
+                    },
+                  ],
+                  error: null,
+                }
+          ),
+        };
+        query.select.mockReturnValue(query);
+        return query;
+      }),
+    });
+    const page = await CrmBookingsPage({ searchParams: Promise.resolve({ tab: "upcoming" }) });
+    expect(mocks.orderLines).toHaveBeenCalledWith("branch-a", ["order-1"]);
+    expect(page.props.children.props.initialData.bookings).toEqual([
+      expect.objectContaining({ id: "line-1", order_total_amount: 2400, order_amount_paid: 800 }),
+      expect.objectContaining({ id: "line-2", order_total_amount: 2400, order_amount_paid: 800 }),
+    ]);
   });
 
   it("keeps an exact future deep link visible beyond the Upcoming window", async () => {

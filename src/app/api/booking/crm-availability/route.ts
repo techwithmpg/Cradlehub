@@ -8,10 +8,13 @@ import { getAvailableSlotsMulti } from "@/lib/engine/availability";
 import { resolveExactCrmBookingTime } from "@/lib/engine/exact-crm-booking-time";
 import { validateBranchServiceEligibility } from "@/lib/services/service-catalog";
 import { createClient } from "@/lib/supabase/server";
+import { serviceLineRequestSchema } from "@/lib/validations/booking";
+import { resolveBookingLineQuotes } from "@/lib/services/resolve-booking-line-quotes";
 
 const crmAvailabilitySchema = z.object({
   branchId: z.guid("Invalid branch ID"),
   serviceIds: z.array(z.guid("Invalid service ID")).min(1).max(5),
+  serviceLines: z.array(serviceLineRequestSchema).max(5).optional(),
   date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
   time: z.string().regex(/^\d{2}:\d{2}(:\d{2})?$/),
   staffId: z.guid("Invalid staff ID").optional(),
@@ -111,10 +114,18 @@ export async function POST(request: NextRequest) {
     const canSeeDebug =
       process.env.NODE_ENV !== "production" ||
       ["owner", "manager", "assistant_manager", "store_manager"].includes(access.role);
+    const selectedDurationMinutes = (await resolveBookingLineQuotes({
+      branchId: parsed.data.branchId,
+      serviceIds: parsed.data.serviceIds,
+      serviceLines: parsed.data.serviceLines,
+      audience: "crm",
+      deliveryMode: parsed.data.deliveryType,
+    })).map((quote) => quote.selectedDurationMinutes);
     const [exactAvailability, slots] = await Promise.all([
       resolveExactCrmBookingTime({
         branchId: parsed.data.branchId,
         serviceIds: parsed.data.serviceIds,
+        selectedDurationMinutes,
         date: parsed.data.date,
         startTime: parsedTime.value.canonicalTime,
         staffId: parsed.data.staffId,
@@ -125,6 +136,7 @@ export async function POST(request: NextRequest) {
       getAvailableSlotsMulti({
         branchId: parsed.data.branchId,
         serviceIds: parsed.data.serviceIds,
+        selectedDurationMinutes,
         date: parsed.data.date,
         deliveryMode: parsed.data.deliveryType,
         requireStaffServiceAssignment: parsed.data.deliveryType === "home_service",

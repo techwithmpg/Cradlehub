@@ -1,59 +1,37 @@
-import Link from "next/link";
-import { PageHeader } from "@/components/features/dashboard/page-header";
-import { EmptyState } from "@/components/features/dashboard/empty-state";
 import { ServicesPageClient } from "@/components/features/services/services-page-client";
 import { getAllCategories, getAllServicesForOwner } from "@/lib/queries/services";
-import { Button } from "@/components/ui/button";
+import { getAllBranches } from "@/lib/queries/branches";
+import { createClient } from "@/lib/supabase/server";
+import type { OwnerService } from "@/components/features/services/owner-service-types";
 
 export default async function ServicesPage() {
-  const [categories, services] = await Promise.all([
+  const [categories, services, branches] = await Promise.all([
     getAllCategories(),
     getAllServicesForOwner(),
+    getAllBranches(),
   ]);
-
-  const activeCount = services.filter((s) => s.is_active).length;
-  const inactiveCount = services.length - activeCount;
-
-  return (
-    <div>
-      <PageHeader
-        title="Services"
-        description={`${services.length} services across ${categories.length} categories · ${activeCount} active · ${inactiveCount} inactive`}
-        action={
-          <Button
-            asChild
-            size="sm"
-            style={{
-              backgroundColor: "var(--cs-sand)",
-              color: "#fff",
-              border: "none",
-            }}
-          >
-            <Link href="/owner/services/new">+ New Service</Link>
-          </Button>
-        }
-      />
-
-      {services.length === 0 ? (
-        <EmptyState
-          title="No services yet"
-          description="Create your first service category and service."
-          action={
-            <Button
-              asChild
-              style={{
-                backgroundColor: "var(--cs-sand)",
-                color: "#fff",
-                border: "none",
-              }}
-            >
-              <Link href="/owner/services/new">Create Service</Link>
-            </Button>
-          }
-        />
-      ) : (
-        <ServicesPageClient services={services as never} />
-      )}
-    </div>
-  );
+  const supabase = await createClient();
+  const { data: offerings, error } = services.length > 0
+    ? await supabase.from("branch_services")
+      .select("service_id, branch_id, is_active")
+      .in("service_id", services.map((service) => service.id))
+    : { data: [], error: null };
+  if (error) throw new Error(error.message);
+  const activeBranchIds = new Set(branches.map((branch) => branch.id));
+  const offeredByService = new Map<string, string[]>();
+  for (const row of offerings ?? []) {
+    if (!row.is_active || !activeBranchIds.has(row.branch_id)) continue;
+    const offered = offeredByService.get(row.service_id) ?? [];
+    offered.push(row.branch_id);
+    offeredByService.set(row.service_id, offered);
+  }
+  const ownerServices = services.map((service) => ({
+    ...service,
+    offeredBranchIds: offeredByService.get(service.id) ?? [],
+  })) as OwnerService[];
+  return <ServicesPageClient
+    services={ownerServices}
+    categories={categories.map(({ id, name }) => ({ id, name }))}
+    branches={branches.map(({ id, name }) => ({ id, name }))}
+  />;
 }

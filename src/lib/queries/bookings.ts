@@ -14,7 +14,9 @@ import {
 
 // Full booking with all related data
 const BOOKING_SELECT = `
-  id, order_id, branch_id, booking_date, start_time, end_time, type, delivery_type, status,
+  id, order_id, attendee_id, branch_id, staff_id, requested_staff_id, therapist_selection_source, booking_date, start_time, end_time, type, delivery_type, status,
+  booking_attendees!attendee_id ( id, sequence, display_name, customer_id ),
+  booking_orders!order_id ( id, order_number, organizer_customer_id, metadata ),
   travel_buffer_mins, metadata, created_at, updated_at,
   resource_id, driver_id,
   branches   ( id, name ),
@@ -25,7 +27,9 @@ const BOOKING_SELECT = `
 `;
 
 const BOOKING_SELECT_CORE = `
-  id, order_id, branch_id, booking_date, start_time, end_time, type, delivery_type, status,
+  id, order_id, attendee_id, branch_id, staff_id, requested_staff_id, therapist_selection_source, booking_date, start_time, end_time, type, delivery_type, status,
+  booking_attendees!attendee_id ( id, sequence, display_name, customer_id ),
+  booking_orders!order_id ( id, order_number, organizer_customer_id, metadata ),
   travel_buffer_mins, metadata, created_at, updated_at, driver_id,
   branches   ( id, name ),
   services   ( id, name, duration_minutes ),
@@ -35,7 +39,9 @@ const BOOKING_SELECT_CORE = `
 `;
 
 const BOOKING_SELECT_WITH_PAYMENTS = `
-  id, order_id, branch_id, booking_date, start_time, end_time, type, delivery_type, status,
+  id, order_id, attendee_id, branch_id, staff_id, requested_staff_id, therapist_selection_source, booking_date, start_time, end_time, type, delivery_type, status,
+  booking_attendees!attendee_id ( id, sequence, display_name, customer_id ),
+  booking_orders!order_id ( id, order_number, organizer_customer_id, metadata ),
   travel_buffer_mins, metadata, created_at, updated_at,
   payment_method, payment_status, payment_reference, amount_paid,
   resource_id, driver_id,
@@ -47,7 +53,9 @@ const BOOKING_SELECT_WITH_PAYMENTS = `
 `;
 
 const BOOKING_SELECT_WITH_PAYMENTS_NO_RESOURCE = `
-  id, order_id, branch_id, booking_date, start_time, end_time, type, delivery_type, status,
+  id, order_id, attendee_id, branch_id, staff_id, requested_staff_id, therapist_selection_source, booking_date, start_time, end_time, type, delivery_type, status,
+  booking_attendees!attendee_id ( id, sequence, display_name, customer_id ),
+  booking_orders!order_id ( id, order_number, organizer_customer_id, metadata ),
   travel_buffer_mins, metadata, created_at, updated_at,
   payment_method, payment_status, payment_reference, amount_paid, driver_id,
   branches   ( id, name ),
@@ -58,7 +66,9 @@ const BOOKING_SELECT_WITH_PAYMENTS_NO_RESOURCE = `
 `;
 
 const TODAY_SCHEDULE_SELECT = `
-  id, order_id, branch_id, booking_date, start_time, end_time, type, delivery_type, status,
+  id, order_id, attendee_id, branch_id, staff_id, requested_staff_id, therapist_selection_source, booking_date, start_time, end_time, type, delivery_type, status,
+  booking_attendees!attendee_id ( id, sequence, display_name, customer_id ),
+  booking_orders!order_id ( id, order_number, organizer_customer_id, metadata ),
   travel_buffer_mins, metadata, created_at, updated_at, driver_id,
   resource_id,
   services  ( id, name, duration_minutes, metadata ),
@@ -68,7 +78,9 @@ const TODAY_SCHEDULE_SELECT = `
 `;
 
 const TODAY_SCHEDULE_SELECT_CORE = `
-  id, order_id, branch_id, booking_date, start_time, end_time, type, delivery_type, status,
+  id, order_id, attendee_id, branch_id, staff_id, requested_staff_id, therapist_selection_source, booking_date, start_time, end_time, type, delivery_type, status,
+  booking_attendees!attendee_id ( id, sequence, display_name, customer_id ),
+  booking_orders!order_id ( id, order_number, organizer_customer_id, metadata ),
   travel_buffer_mins, metadata, created_at, updated_at, driver_id,
   services  ( id, name, duration_minutes, metadata ),
   staff!staff_id ( id, full_name, nickname, tier ),
@@ -77,7 +89,9 @@ const TODAY_SCHEDULE_SELECT_CORE = `
 `;
 
 const TODAY_SCHEDULE_SELECT_WITH_PAYMENTS = `
-  id, order_id, branch_id, booking_date, start_time, end_time, type, delivery_type, status,
+  id, order_id, attendee_id, branch_id, staff_id, requested_staff_id, therapist_selection_source, booking_date, start_time, end_time, type, delivery_type, status,
+  booking_attendees!attendee_id ( id, sequence, display_name, customer_id ),
+  booking_orders!order_id ( id, order_number, organizer_customer_id, metadata ),
   travel_buffer_mins, metadata, created_at, updated_at, driver_id,
   payment_method, payment_status, payment_reference, amount_paid,
   hold_expires_at,
@@ -91,7 +105,9 @@ const TODAY_SCHEDULE_SELECT_WITH_PAYMENTS = `
 `;
 
 const TODAY_SCHEDULE_SELECT_WITH_PAYMENTS_NO_RESOURCE = `
-  id, order_id, branch_id, booking_date, start_time, end_time, type, delivery_type, status,
+  id, order_id, attendee_id, branch_id, staff_id, requested_staff_id, therapist_selection_source, booking_date, start_time, end_time, type, delivery_type, status,
+  booking_attendees!attendee_id ( id, sequence, display_name, customer_id ),
+  booking_orders!order_id ( id, order_number, organizer_customer_id, metadata ),
   travel_buffer_mins, metadata, created_at, updated_at, driver_id,
   payment_method, payment_status, payment_reference, amount_paid,
   hold_expires_at,
@@ -151,8 +167,27 @@ type CustomerRelation = OneOrMany<{
   phone?: string | null;
   email?: string | null;
 }>;
+type AttendeeRelation = OneOrMany<{
+  id: string;
+  sequence: number;
+  display_name: string | null;
+  customer_id: string | null;
+}>;
+type OrderRelation = OneOrMany<{
+  id: string;
+  order_number: string;
+  organizer_customer_id: string;
+  metadata: Record<string, unknown> | null;
+}>;
 type BookingFullRow = {
   id: string;
+  staff_id?: string | null;
+  requested_staff_id?: string | null;
+  therapist_selection_source?: string | null;
+  order_id: string | null;
+  attendee_id: string | null;
+  booking_attendees: AttendeeRelation;
+  booking_orders: OrderRelation;
   branch_id: string;
   booking_date: string;
   start_time: string;
@@ -175,6 +210,13 @@ type BookingFullRow = {
 } & MaybePaymentFields;
 type TodayScheduleRow = {
   id: string;
+  staff_id?: string | null;
+  requested_staff_id?: string | null;
+  therapist_selection_source?: string | null;
+  order_id: string | null;
+  attendee_id: string | null;
+  booking_attendees: AttendeeRelation;
+  booking_orders: OrderRelation;
   branch_id: string;
   booking_date: string;
   start_time: string;
@@ -288,7 +330,15 @@ function isMissingResourceColumn(error: QueryError | null): boolean {
 }
 
 function canRetryWithOlderBookingSchema(error: QueryError | null): boolean {
-  return isMissingPaymentColumns(error) || isMissingResourceColumn(error);
+  return isMissingPaymentColumns(error) || isMissingResourceColumn(error) || isMissingProvenanceColumns(error);
+}
+
+function isMissingProvenanceColumns(error: QueryError | null): boolean {
+  return Boolean(error && /requested_staff_id|therapist_selection_source/i.test(error.message));
+}
+
+function withoutProvenance(select: string): string {
+  return select.replace(/\b(?:requested_staff_id|therapist_selection_source)\s*,\s*/g, "");
 }
 
 function withPaymentDefaults<T extends object>(
@@ -336,7 +386,8 @@ async function loadBookingRows<T extends object>(
   let lastError: QueryError | null = null;
 
   for (const variant of variants) {
-    const result = await query(variant.select);
+    let result = await query(variant.select);
+    if (isMissingProvenanceColumns(result.error)) result = await query(withoutProvenance(variant.select));
 
     if (!result.error) {
       return attachBranchResources(
@@ -363,7 +414,8 @@ async function loadBookingRow<T extends object>(
   let lastError: QueryError | null = null;
 
   for (const variant of variants) {
-    const result = await query(variant.select);
+    let result = await query(variant.select);
+    if (isMissingProvenanceColumns(result.error)) result = await query(withoutProvenance(variant.select));
 
     if (!result.error) {
       const [booking] = await attachBranchResources(
@@ -542,6 +594,37 @@ export async function getCrmPendingBookingQueue(
 
 export async function getCrmBookingsCommandCenterRows(branchId: string, date: string) {
   return getTodaysSchedule(branchId, date);
+}
+
+/** Complete order details for an already branch-scoped CRM list. */
+export async function getCrmOrderServiceLines(
+  branchId: string,
+  orderIds: string[],
+  client?: SupabaseJsClient<Database>
+) {
+  if (orderIds.length === 0) return [];
+  const supabase = client ?? (await createClient());
+  const rows: Awaited<ReturnType<typeof getTodaysSchedule>> = [];
+  const ids = [...new Set(orderIds)];
+  for (let offset = 0; offset < ids.length; offset += 100) {
+    const chunk = ids.slice(offset, offset + 100);
+    const loaded = await loadBookingRows(
+      supabase,
+      TODAY_SCHEDULE_SELECT_VARIANTS,
+      async (select) => {
+        const result = await supabase
+          .from("bookings")
+          .select(select)
+          .eq("branch_id", branchId)
+          .in("order_id", chunk)
+          .order("booking_date")
+          .order("start_time");
+        return result as QueryResult<TodayScheduleRow>;
+      }
+    );
+    rows.push(...loaded);
+  }
+  return rows;
 }
 
 export async function getCrmUpcomingBookings(

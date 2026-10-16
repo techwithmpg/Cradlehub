@@ -24,13 +24,11 @@ import "./globals.css";
 const dmSans = DM_Sans({
   subsets: ["latin"],
   variable: "--font-dm-sans",
-  weight: ["300", "400", "500", "600"],
 });
 
 const playfair = Playfair_Display({
   subsets: ["latin"],
   variable: "--font-playfair",
-  weight: ["400", "500", "600", "700"],
 });
 
 const cormorant = Cormorant_Garamond({
@@ -43,7 +41,6 @@ const cormorant = Cormorant_Garamond({
 const manrope = Manrope({
   subsets: ["latin"],
   variable: "--font-manrope",
-  weight: ["400", "500", "600", "700"],
 });
 
 import {

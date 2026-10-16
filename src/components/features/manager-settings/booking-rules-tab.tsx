@@ -37,6 +37,10 @@ export function BookingRulesTab({ rules }: { rules: BranchBookingRules }) {
   const [driverCapacity, setDriverCapacity] = useState(
     rules.homeServiceDriverCapacity
   );
+  const [baseFee, setBaseFee] = useState(rules.homeServiceBaseFee ?? 100);
+  const [includedKm, setIncludedKm] = useState(rules.homeServiceFreeKm ?? 1);
+  const [perKmFee, setPerKmFee] = useState(rules.homeServiceExtraKmFee ?? 40);
+
   const [state, formAction, pending] = useActionState(
     async (
       _prev: BranchRulesState,
@@ -65,6 +69,21 @@ export function BookingRulesTab({ rules }: { rules: BranchBookingRules }) {
           formData,
           "homeServiceDriverCapacity",
           rules.homeServiceDriverCapacity
+        ),
+        homeServiceBaseFee: numberFromForm(
+          formData,
+          "homeServiceBaseFee",
+          rules.homeServiceBaseFee ?? 100
+        ),
+        homeServiceFreeKm: numberFromForm(
+          formData,
+          "homeServiceFreeKm",
+          rules.homeServiceFreeKm ?? 1
+        ),
+        homeServiceExtraKmFee: numberFromForm(
+          formData,
+          "homeServiceExtraKmFee",
+          rules.homeServiceExtraKmFee ?? 40
         ),
       });
 
@@ -231,6 +250,52 @@ export function BookingRulesTab({ rules }: { rules: BranchBookingRules }) {
                 defaultValue={String(rules.homeServiceDriverCapacity)}
                 helperText="Maximum concurrent home-service trips this branch can dispatch."
               />
+            </div>
+
+            <div className="border-t border-[var(--cs-border)] pt-4 space-y-3">
+              <div className="text-xs font-semibold text-[var(--cs-text-muted)] uppercase tracking-wider">
+                Home Service Transportation
+              </div>
+              <div className="grid gap-4 sm:grid-cols-3">
+                <TextInputField
+                  label="Base transportation fee"
+                  name="homeServiceBaseFee"
+                  type="number"
+                  min={0}
+                  max={50000}
+                  defaultValue={String(baseFee)}
+                  helperText="₱ (includes initial distance)"
+                  onChange={(e) => setBaseFee(Number(e.target.value) || 0)}
+                />
+                <TextInputField
+                  label="Included distance"
+                  name="homeServiceFreeKm"
+                  type="number"
+                  min={0}
+                  max={100}
+                  step="any"
+                  defaultValue={String(includedKm)}
+                  helperText="Covered by base fee (km)"
+                  onChange={(e) => setIncludedKm(Number(e.target.value) || 0)}
+                />
+                <TextInputField
+                  label="Additional fee per kilometer"
+                  name="homeServiceExtraKmFee"
+                  type="number"
+                  min={0}
+                  max={10000}
+                  step="any"
+                  defaultValue={String(perKmFee)}
+                  helperText="₱ per extra km"
+                  onChange={(e) => setPerKmFee(Number(e.target.value) || 0)}
+                />
+              </div>
+              <div className="rounded-md bg-[var(--cs-surface-subtle,#F9FAFB)] p-2.5 text-xs text-[var(--cs-text-secondary)] flex flex-wrap gap-4 items-center border border-[var(--cs-border)]">
+                <span className="font-semibold text-[var(--cs-text)]">Fare preview:</span>
+                <span>1 km · ₱{Math.round(baseFee + perKmFee * Math.max(0, 1 - includedKm))}</span>
+                <span>3 km · ₱{Math.round(baseFee + perKmFee * Math.max(0, 3 - includedKm))}</span>
+                <span>5 km · ₱{Math.round(baseFee + perKmFee * Math.max(0, 5 - includedKm))}</span>
+              </div>
             </div>
 
             {driverCapacityWarning ? (

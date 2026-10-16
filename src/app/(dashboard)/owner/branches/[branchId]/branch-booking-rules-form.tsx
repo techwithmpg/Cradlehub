@@ -1,6 +1,6 @@
 "use client";
 
-import { useActionState } from "react";
+import { useActionState, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -28,6 +28,10 @@ export function BranchBookingRulesForm({
 }: {
   rules: BranchBookingRules;
 }) {
+  const [baseFee, setBaseFee] = useState(rules.homeServiceBaseFee ?? 100);
+  const [includedKm, setIncludedKm] = useState(rules.homeServiceFreeKm ?? 1);
+  const [perKmFee, setPerKmFee] = useState(rules.homeServiceExtraKmFee ?? 40);
+
   const [state, formAction, pending] = useActionState(
     async (_prev: BranchRulesState, formData: FormData): Promise<BranchRulesState> => {
       const result = await updateBranchBookingRulesAction({
@@ -51,6 +55,21 @@ export function BranchBookingRulesForm({
           formData,
           "homeServiceDriverCapacity",
           rules.homeServiceDriverCapacity
+        ),
+        homeServiceBaseFee: numberFromForm(
+          formData,
+          "homeServiceBaseFee",
+          rules.homeServiceBaseFee ?? 100
+        ),
+        homeServiceFreeKm: numberFromForm(
+          formData,
+          "homeServiceFreeKm",
+          rules.homeServiceFreeKm ?? 1
+        ),
+        homeServiceExtraKmFee: numberFromForm(
+          formData,
+          "homeServiceExtraKmFee",
+          rules.homeServiceExtraKmFee ?? 40
         ),
       });
 
@@ -197,6 +216,80 @@ export function BranchBookingRulesForm({
             />
           </div>
 
+          <div
+            style={{
+              marginTop: "0.5rem",
+              paddingTop: "0.875rem",
+              borderTop: "1px solid var(--cs-border)",
+            }}
+          >
+            <div
+              style={{
+                fontSize: "0.75rem",
+                fontWeight: 600,
+                color: "var(--cs-text-muted)",
+                textTransform: "uppercase",
+                letterSpacing: "0.05em",
+                marginBottom: "0.75rem",
+              }}
+            >
+              Home Service Transportation
+            </div>
+            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: "0.875rem" }}>
+              <EditField
+                label="Base transportation fee"
+                name="homeServiceBaseFee"
+                type="number"
+                min={0}
+                max={50000}
+                defaultValue={String(baseFee)}
+                helperText="₱ (includes initial distance)"
+                onChange={(e) => setBaseFee(Number(e.target.value) || 0)}
+              />
+              <EditField
+                label="Included distance"
+                name="homeServiceFreeKm"
+                type="number"
+                min={0}
+                max={100}
+                step="any"
+                defaultValue={String(includedKm)}
+                helperText="Covered by base fee (km)"
+                onChange={(e) => setIncludedKm(Number(e.target.value) || 0)}
+              />
+              <EditField
+                label="Additional fee per kilometer"
+                name="homeServiceExtraKmFee"
+                type="number"
+                min={0}
+                max={10000}
+                step="any"
+                defaultValue={String(perKmFee)}
+                helperText="₱ per extra km"
+                onChange={(e) => setPerKmFee(Number(e.target.value) || 0)}
+              />
+            </div>
+            <div
+              style={{
+                marginTop: "0.625rem",
+                padding: "0.5rem 0.75rem",
+                backgroundColor: "var(--cs-surface-subtle, #F9FAFB)",
+                borderRadius: 6,
+                fontSize: "0.75rem",
+                color: "var(--cs-text-secondary, #4B5563)",
+                display: "flex",
+                flexWrap: "wrap",
+                gap: "1.25rem",
+                alignItems: "center",
+              }}
+            >
+              <span style={{ fontWeight: 600, color: "var(--cs-text)" }}>Fare preview:</span>
+              <span>1 km · ₱{Math.round(baseFee + perKmFee * Math.max(0, 1 - includedKm))}</span>
+              <span>3 km · ₱{Math.round(baseFee + perKmFee * Math.max(0, 3 - includedKm))}</span>
+              <span>5 km · ₱{Math.round(baseFee + perKmFee * Math.max(0, 5 - includedKm))}</span>
+            </div>
+          </div>
+
           <Button
             type="submit"
             disabled={pending}
@@ -223,7 +316,9 @@ function EditField({
   type = "text",
   min,
   max,
+  step,
   helperText,
+  onChange,
 }: {
   label: string;
   name: string;
@@ -231,7 +326,9 @@ function EditField({
   type?: "text" | "time" | "number";
   min?: number;
   max?: number;
+  step?: string | number;
   helperText?: string;
+  onChange?: (e: React.ChangeEvent<HTMLInputElement>) => void;
 }) {
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: "0.375rem" }}>
@@ -244,7 +341,9 @@ function EditField({
         type={type}
         min={min}
         max={max}
+        step={step}
         defaultValue={defaultValue}
+        onChange={onChange}
         style={{ fontSize: "0.875rem" }}
       />
       {helperText && (

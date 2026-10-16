@@ -9,6 +9,7 @@ import { isBookingOperationallyClosed } from "@/lib/bookings/bookings-workspace-
 
 export function SelectedBookingOverview({
   booking,
+  grouped = false,
   viewerRole,
   paymentAction,
   confirmPaymentAction,
@@ -21,6 +22,7 @@ export function SelectedBookingOverview({
   onChanged,
 }: {
   booking: WorkspaceBookingRow;
+  grouped?: boolean;
   viewerRole: string;
   paymentAction?: BookingActionFn;
   confirmPaymentAction?: BookingActionFn;
@@ -35,10 +37,33 @@ export function SelectedBookingOverview({
   const canEditBooking = canUpdateBooking(viewerRole) && !isBookingOperationallyClosed(booking);
   return (
     <div className="grid gap-3">
-      <SelectedBookingWarnings booking={booking} onOpenRoom={onOpenRoom} onOpenPayment={() => onPaymentExpandedChange(true)} onOpenStaff={() => onStaffExpandedChange(true)} onOpenReschedule={onOpenReschedule} onChanged={onChanged} />
+      <SelectedBookingWarnings
+        booking={booking}
+        grouped={grouped}
+        onOpenRoom={onOpenRoom}
+        onOpenPayment={() => onPaymentExpandedChange(true)}
+        onOpenStaff={() => onStaffExpandedChange(true)}
+        onOpenReschedule={onOpenReschedule}
+        onChanged={onChanged}
+      />
       <div className="overflow-visible rounded-xl border border-[var(--cs-border-soft)] bg-white">
-        <SelectedBookingStaffRow booking={booking} canEdit={canEditBooking} expanded={staffExpanded} onExpandedChange={onStaffExpandedChange} onChanged={onChanged} />
-        <SelectedBookingPaymentRow booking={booking} paymentAction={paymentAction} confirmPaymentAction={confirmPaymentAction} expanded={paymentExpanded} onExpandedChange={onPaymentExpandedChange} onChanged={onChanged} />
+        <SelectedBookingStaffRow
+          booking={booking}
+          canEdit={canEditBooking}
+          expanded={staffExpanded}
+          onExpandedChange={onStaffExpandedChange}
+          onChanged={onChanged}
+        />
+        {!grouped ? (
+          <SelectedBookingPaymentRow
+            booking={booking}
+            paymentAction={paymentAction}
+            confirmPaymentAction={confirmPaymentAction}
+            expanded={paymentExpanded}
+            onExpandedChange={onPaymentExpandedChange}
+            onChanged={onChanged}
+          />
+        ) : null}
         <SelectedBookingNoteRow booking={booking} canEdit={canEditBooking} onChanged={onChanged} />
         <SelectedBookingCustomerRow booking={booking} />
       </div>

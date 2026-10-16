@@ -1,9 +1,10 @@
 import { createClient } from "@/lib/supabase/server";
+import { createAdminClient } from "@/lib/supabase/admin";
 import { normalizePagination, toPaginatedResult } from "@/lib/queries/pagination";
 import type { PaginatedResult } from "@/lib/queries/pagination";
 
 // Returns distinct customer IDs that have at least one booking at the given branch.
-// Used for branch-scoping all CRM customer queries (customers table has no branch_id).
+// Used for branch-scoping operational CRM customer views (customers table has no branch_id).
 async function branchCustomerIds(
   supabase: Awaited<ReturnType<typeof createClient>>,
   branchId: string
@@ -42,6 +43,30 @@ export async function searchCustomers(query: string, branchId?: string | null) {
   const { data, error } = await (ids ? q.in("id", ids) : q);
   if (error) throw new Error(error.message);
   return data ?? [];
+}
+
+// Identity discovery is deliberately separate from branch-scoped CRM customer lists.
+// Call only after the route has authenticated a CRM user and resolved Front Desk context.
+export async function searchCustomerIdentities(query: string) {
+  const term = query.trim().slice(0, 80);
+  if (term.length < 2) return [];
+  const admin = createAdminClient();
+  const phoneTerm = term.replace(/\D/g, "");
+  const byPhone = phoneTerm.length >= 7 && /^[+\d\s()-]+$/.test(term);
+  const search = admin
+    .from("customers")
+    .select("id, full_name, phone")
+    .order("full_name", { ascending: true })
+    .limit(10);
+  const { data, error } = byPhone
+    ? await search.ilike("phone", `${phoneTerm}%`)
+    : await search.ilike("full_name", `%${term.replace(/[%_]/g, "\\$&")}%`);
+  if (error) throw new Error("Customer identity search failed.");
+  return (data ?? []).map((customer) => ({
+    id: customer.id,
+    full_name: customer.full_name,
+    phone_suffix: customer.phone?.replace(/\D/g, "").slice(-4) ?? "",
+  }));
 }
 
 export async function getCustomerById(customerId: string) {
@@ -263,13 +288,14 @@ export async function getCustomersPage(params: {
 }
 
 export async function lookupCustomerByPhone(phone: string) {
-  const supabase = await createClient();
-  const { data } = await supabase
+  const normalized = phone.replace(/\s/g, "");
+  if (normalized.replace(/\D/g, "").length < 7) return null;
+  const admin = createAdminClient();
+  const { data, error } = await admin
     .from("customers")
-    .select(
-      "id, full_name, phone, email, total_bookings, last_booking_date, preferred_staff_id"
-    )
-    .eq("phone", phone.replace(/\s/g, ""))
+    .select("id, full_name, phone, email")
+    .eq("phone", normalized)
     .maybeSingle();
+  if (error) throw new Error("Customer phone lookup failed.");
   return data ?? null;
 }

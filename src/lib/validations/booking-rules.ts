@@ -1,8 +1,9 @@
 import { z } from "zod";
-export {
+import {
   DEFAULT_BRANCH_BOOKING_RULES,
   type BranchBookingRules,
 } from "@/lib/bookings/booking-rules-config";
+export { DEFAULT_BRANCH_BOOKING_RULES, type BranchBookingRules };
 
 const uuid = z.guid("Invalid branch ID");
 const timeString = z
@@ -38,6 +39,21 @@ export const branchBookingRulesSchema = z
       .int()
       .min(0, "Driver capacity cannot be negative")
       .max(20, "Driver capacity cannot exceed 20"),
+    homeServiceBaseFee: z.coerce
+      .number()
+      .min(0, "Base transportation fee cannot be negative")
+      .max(50000, "Base transportation fee cannot exceed 50,000")
+      .default(DEFAULT_BRANCH_BOOKING_RULES.homeServiceBaseFee),
+    homeServiceFreeKm: z.coerce
+      .number()
+      .min(0, "Included distance cannot be negative")
+      .max(100, "Included distance cannot exceed 100 km")
+      .default(DEFAULT_BRANCH_BOOKING_RULES.homeServiceFreeKm),
+    homeServiceExtraKmFee: z.coerce
+      .number()
+      .min(0, "Additional fee per kilometer cannot be negative")
+      .max(10000, "Additional fee per kilometer cannot exceed 10,000")
+      .default(DEFAULT_BRANCH_BOOKING_RULES.homeServiceExtraKmFee),
   })
   .superRefine((value, ctx) => {
     if (timeToMinutes(value.inSpaStartTime) >= timeToMinutes(value.inSpaEndTime)) {

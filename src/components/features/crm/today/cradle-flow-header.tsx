@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState, useTransition } from "react";
-import { AlertTriangle, RefreshCw } from "lucide-react";
+import { AlertTriangle, CheckCircle2, RefreshCw } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 function formatManilaNow(date: Date): string {
@@ -70,7 +70,11 @@ export function CradleFlowHeader({
               : "border-[var(--cs-border)] bg-[var(--cs-surface)] text-[var(--cs-text-secondary)]"
           )}
         >
-          <AlertTriangle className="size-3.5" />
+          {warningCount > 0 ? (
+            <AlertTriangle className="size-3.5" />
+          ) : (
+            <CheckCircle2 className="size-3.5" />
+          )}
           {warningCount > 0 ? `${warningCount} warning${warningCount === 1 ? "" : "s"}` : "Ready"}
         </button>
         <button

@@ -1,4 +1,8 @@
-import { QuickBookingForm, type QuickBookingCustomerOption, type QuickBookingMode } from "@/components/features/bookings/quick-booking-form";
+import {
+  QuickBookingForm,
+  type QuickBookingCustomerOption,
+  type QuickBookingMode,
+} from "@/components/features/bookings/quick-booking-form";
 import { getFrontDeskContext } from "@/lib/queries/crm-context";
 import {
   getQuickBookingContext,
@@ -25,7 +29,9 @@ function normalizeQuickBookingMode(params: SearchParams): QuickBookingMode {
   return "walkin";
 }
 
-async function getCustomerPrefill(customerId: string | undefined): Promise<QuickBookingCustomerOption | null> {
+async function getCustomerPrefill(
+  customerId: string | undefined
+): Promise<QuickBookingCustomerOption | null> {
   return getQuickBookingCustomerPrefill(customerId);
 }
 

@@ -7,11 +7,14 @@ import { CradleFlowTicket } from "./cradle-flow-ticket";
 import {
   CRADLE_FLOW_FILTERS,
   getCradleFlowDisplayCounts,
-  matchesCradleFlowFilter,
+  groupCradleFlowBookings,
+  matchesCradleFlowGroupFilter,
+  matchesCradleFlowGroupSearch,
+  type CradleFlowGroup,
   type CradleFlowFilter,
 } from "./cradle-flow-display";
 import { useAdministrativeBookingModal } from "@/components/features/bookings/administrative-booking-modal-provider";
-import { matchesCradleFlowSearch, type CradleFlowBooking } from "@/lib/crm/cradle-flow";
+import { type CradleFlowBooking } from "@/lib/crm/cradle-flow";
 import { cn } from "@/lib/utils";
 
 function EmptyContextCard({
@@ -49,9 +52,11 @@ export function CradleFlowWorkflow({
   staffAvailable,
   pendingFollowUps,
   onOpen,
+  onOpenGroup,
   onPrimary,
   onAssignRoom,
   onAssignTherapist,
+  activeBookingId,
   filter,
   onFilterChange,
 }: {
@@ -60,14 +65,17 @@ export function CradleFlowWorkflow({
   staffAvailable: number;
   pendingFollowUps: number;
   onOpen: (booking: CradleFlowBooking) => void;
+  onOpenGroup?: (group: CradleFlowGroup) => void;
   onPrimary: (booking: CradleFlowBooking) => void;
   onAssignRoom: (booking: CradleFlowBooking) => void;
   onAssignTherapist: (booking: CradleFlowBooking) => void;
+  activeBookingId: string | null;
   filter: CradleFlowFilter;
   onFilterChange: (filter: CradleFlowFilter) => void;
 }) {
   const { openBookingModal } = useAdministrativeBookingModal();
   const [query, setQuery] = useState("");
+  const groups = useMemo(() => groupCradleFlowBookings(bookings), [bookings]);
   const counts = useMemo(
     () => getCradleFlowDisplayCounts(bookings, businessDate),
     [bookings, businessDate]
@@ -75,12 +83,12 @@ export function CradleFlowWorkflow({
   const upcomingCount = counts.upcoming;
   const visible = useMemo(
     () =>
-      bookings.filter(
-        (booking) =>
-          matchesCradleFlowFilter(booking, filter, businessDate) &&
-          matchesCradleFlowSearch(booking, query)
+      groups.filter(
+        (group) =>
+          matchesCradleFlowGroupFilter(group, filter, businessDate) &&
+          matchesCradleFlowGroupSearch(group, query)
       ),
-    [bookings, query, filter, businessDate]
+    [groups, query, filter, businessDate]
   );
 
   return (
@@ -140,15 +148,18 @@ export function CradleFlowWorkflow({
       <div className="min-h-72 p-2 sm:p-3">
         {visible.length > 0 ? (
           <div className="grid gap-2">
-            {visible.map((booking) => (
+            {visible.map((group) => (
               <CradleFlowTicket
-                key={booking.id}
-                booking={booking}
+                key={group.displayId}
+                booking={group.lines[0]!}
+                group={group}
                 businessDate={businessDate}
                 onOpen={onOpen}
+                onOpenGroup={onOpenGroup}
                 onPrimary={onPrimary}
                 onAssignRoom={onAssignRoom}
                 onAssignTherapist={onAssignTherapist}
+                primaryPending={activeBookingId === group.primaryBookingId}
               />
             ))}
           </div>

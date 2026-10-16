@@ -229,13 +229,44 @@ async function getServiceTimings(
 
 function totalBlockMinutes(
   serviceIds: string[],
-  serviceTimings: Map<string, ServiceTiming>
+  serviceTimings: Map<string, ServiceTiming>,
+  selectedDurations?: number[]
 ): number {
-  return serviceIds.reduce((sum, serviceId) => {
+  return serviceIds.reduce((sum, serviceId, index) => {
     const timing = serviceTimings.get(serviceId);
     if (!timing) return sum;
-    return sum + timing.durationMinutes + timing.bufferBefore + timing.bufferAfter;
+    return sum + (selectedDurations?.[index] ?? timing.durationMinutes) + timing.bufferBefore + timing.bufferAfter;
   }, 0);
+}
+
+async function filterSlotsForFullBookingWindow(input: {
+  supabase: AdminClient;
+  date: string;
+  slots: AvailabilitySlot[];
+  blockMinutes: number;
+}): Promise<AvailabilitySlot[]> {
+  const staffIds = Array.from(new Set(input.slots.map((slot) => slot.staff_id)));
+  if (staffIds.length === 0) return input.slots;
+  const { data, error } = await input.supabase.from("bookings")
+    .select("staff_id, start_time, end_time, status, hold_expires_at")
+    .eq("booking_date", input.date).in("staff_id", staffIds);
+  if (error) throw new Error(`Could not verify full booking window: ${error.message}`);
+  const now = new Date();
+  const blocked = new Map<string, Array<{ start: number; end: number }>>();
+  for (const booking of (data ?? []) as BlockingBookingRow[]) {
+    if (!bookingBlocksAvailability(booking, now)) continue;
+    const windows = blocked.get(booking.staff_id) ?? [];
+    windows.push({ start: timeToMinutes(booking.start_time), end: timeToMinutes(booking.end_time) });
+    blocked.set(booking.staff_id, windows);
+  }
+  return input.slots.map((slot) => {
+    if (!slot.available) return slot;
+    const start = timeToMinutes(slot.slot_time);
+    const end = start + input.blockMinutes;
+    const conflict = (blocked.get(slot.staff_id) ?? []).some((window) =>
+      rangesOverlap(start, end, window.start, window.end));
+    return { ...slot, available: end < 24 * 60 && !conflict };
+  });
 }
 
 /**
@@ -499,6 +530,7 @@ export async function getAvailableSlots(params: {
   deliveryMode?: ServiceDeliveryMode;
   requireStaffServiceAssignment?: boolean;
   allowStaffTypeFallbackAlongsideAssignments?: boolean;
+  selectedDurationMinutes?: number;
 }): Promise<AvailabilitySlot[]> {
   const today = getBranchBusinessDate();
   if (params.date < today) return [];
@@ -514,7 +546,8 @@ export async function getAvailableSlots(params: {
 
   const supabase = createAdminClient();
   const serviceTimings = await getServiceTimings(supabase, params.branchId, [params.serviceId]);
-  const blockMinutes = totalBlockMinutes([params.serviceId], serviceTimings);
+  const blockMinutes = totalBlockMinutes([params.serviceId], serviceTimings,
+    params.selectedDurationMinutes === undefined ? undefined : [params.selectedDurationMinutes]);
 
   const rpcArgs = {
     p_branch_id: params.branchId,
@@ -546,6 +579,9 @@ export async function getAvailableSlots(params: {
     slots = slotGroups.flat();
   }
 
+  if (params.selectedDurationMinutes !== undefined) {
+    slots = await filterSlotsForFullBookingWindow({ supabase, date: params.date, slots, blockMinutes });
+  }
   slots = await filterSlotsToWorkingWindows({
     supabase,
     date: params.date,
@@ -584,12 +620,14 @@ export async function assignTherapistBySeniority(params: {
   date: string;
   startTime: string;
   requireStaffServiceAssignment?: boolean;
+  selectedDurationMinutes?: number;
 }): Promise<string> {
   const slots = await getAvailableSlots({
     branchId: params.branchId,
     serviceId: params.serviceId,
     date: params.date,
     requireStaffServiceAssignment: params.requireStaffServiceAssignment,
+    selectedDurationMinutes: params.selectedDurationMinutes,
     // No staffId — returns all staff
   });
 
@@ -623,6 +661,7 @@ export async function getAvailableSlotsMulti(params: {
   deliveryMode?: ServiceDeliveryMode;
   requireStaffServiceAssignment?: boolean;
   allowStaffTypeFallbackAlongsideAssignments?: boolean;
+  selectedDurationMinutes?: number[];
 }): Promise<AvailabilitySlot[]> {
   const { branchId, serviceIds, date } = params;
 
@@ -635,6 +674,7 @@ export async function getAvailableSlotsMulti(params: {
       deliveryMode: params.deliveryMode,
       requireStaffServiceAssignment: params.requireStaffServiceAssignment,
       allowStaffTypeFallbackAlongsideAssignments: params.allowStaffTypeFallbackAlongsideAssignments,
+      selectedDurationMinutes: params.selectedDurationMinutes?.[0],
     });
   }
 
@@ -649,7 +689,7 @@ export async function getAvailableSlotsMulti(params: {
 
   const supabase = createAdminClient();
   const serviceTimings = await getServiceTimings(supabase, branchId, serviceIds);
-  const totalMinutes = totalBlockMinutes(serviceIds, serviceTimings);
+  const totalMinutes = totalBlockMinutes(serviceIds, serviceTimings, params.selectedDurationMinutes);
 
   // 1. Total effective duration across all services
   if (totalMinutes <= 0) return [];
@@ -667,11 +707,12 @@ export async function getAvailableSlotsMulti(params: {
 
   // 3. Fetch existing bookings for the day to validate full combined window
   const staffIds = Array.from(new Set(baseSlots.map((slot) => slot.staff_id)));
-  const { data: dayBookings } = await supabase
+  const { data: dayBookings, error: dayBookingsError } = await supabase
     .from("bookings")
     .select("staff_id, start_time, end_time, status, hold_expires_at")
     .eq("booking_date", date)
     .in("staff_id", staffIds);
+  if (dayBookingsError) throw new Error(`Could not verify full booking window: ${dayBookingsError.message}`);
 
   const bookingsByStaff = new Map<string, Array<{ start: number; end: number }>>();
   const now = new Date();
@@ -766,6 +807,7 @@ export async function assignTherapistBySeniorityMulti(params: {
   startTime: string;
   deliveryMode?: ServiceDeliveryMode;
   requireStaffServiceAssignment?: boolean;
+  selectedDurationMinutes?: number[];
 }): Promise<string> {
   const assignment = await assignTherapistBySeniorityMultiDetailed(params);
   return assignment.staffId;
@@ -780,6 +822,7 @@ export async function assignTherapistBySeniorityMultiDetailed(params: {
   preferCheckedIn?: boolean;
   requireStaffServiceAssignment?: boolean;
   allowStaffTypeFallbackAlongsideAssignments?: boolean;
+  selectedDurationMinutes?: number[];
 }): Promise<{ staffId: string; warning?: string }> {
   const slots = await getAvailableSlotsMulti({
     branchId: params.branchId,
@@ -788,6 +831,7 @@ export async function assignTherapistBySeniorityMultiDetailed(params: {
     deliveryMode: params.deliveryMode,
     requireStaffServiceAssignment: params.requireStaffServiceAssignment,
     allowStaffTypeFallbackAlongsideAssignments: params.allowStaffTypeFallbackAlongsideAssignments,
+    selectedDurationMinutes: params.selectedDurationMinutes,
   });
 
   const candidates = slots.filter(
@@ -916,6 +960,7 @@ export async function assertMultiServiceSlotAvailable(params: {
 export type OrderAttendeeRequirement = {
   id?: string;
   serviceIds: string[];
+  selectedDurationMinutes?: number[];
 };
 
 export function findDistinctStaffAssignment(
@@ -966,6 +1011,7 @@ export async function getAvailableSlotsForOrder(params: {
       requireStaffServiceAssignment: params.requireStaffServiceAssignment,
       allowStaffTypeFallbackAlongsideAssignments:
         params.allowStaffTypeFallbackAlongsideAssignments,
+      selectedDurationMinutes: attendees[0]!.selectedDurationMinutes,
     });
   }
 
@@ -980,6 +1026,7 @@ export async function getAvailableSlotsForOrder(params: {
         requireStaffServiceAssignment: params.requireStaffServiceAssignment,
         allowStaffTypeFallbackAlongsideAssignments:
           params.allowStaffTypeFallbackAlongsideAssignments,
+        selectedDurationMinutes: attendee.selectedDurationMinutes,
       })
     )
   );
@@ -1042,7 +1089,7 @@ export async function getAvailableSlotsForOrder(params: {
  */
 export async function assignTherapistsForOrder(params: {
   branchId: string;
-  attendees: Array<{ id?: string; serviceIds: string[] }>;
+  attendees: Array<{ id?: string; serviceIds: string[]; selectedDurationMinutes?: number[] }>;
   date: string;
   startTime: string;
   deliveryMode?: ServiceDeliveryMode;
@@ -1064,6 +1111,7 @@ export async function assignTherapistsForOrder(params: {
         date,
         deliveryMode,
         requireStaffServiceAssignment: params.requireStaffServiceAssignment ?? true,
+        selectedDurationMinutes: attendee.selectedDurationMinutes,
       });
 
       const candidates = slots.filter(

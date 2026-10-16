@@ -1317,7 +1317,9 @@ export type Database = {
           payment_reference: string | null
           payment_status: string
           resource_id: string | null
+          requested_staff_id: string | null
           service_id: string
+          therapist_selection_source: string
           session_auto_completed_at: string | null
           session_completed_at: string | null
           session_completed_by: string | null
@@ -1368,7 +1370,9 @@ export type Database = {
           payment_reference?: string | null
           payment_status?: string
           resource_id?: string | null
+          requested_staff_id?: string | null
           service_id: string
+          therapist_selection_source?: string
           session_auto_completed_at?: string | null
           session_completed_at?: string | null
           session_completed_by?: string | null
@@ -1419,7 +1423,9 @@ export type Database = {
           payment_reference?: string | null
           payment_status?: string
           resource_id?: string | null
+          requested_staff_id?: string | null
           service_id?: string
+          therapist_selection_source?: string
           session_auto_completed_at?: string | null
           session_completed_at?: string | null
           session_completed_by?: string | null
@@ -1491,6 +1497,13 @@ export type Database = {
             columns: ["resource_id"]
             isOneToOne: false
             referencedRelation: "branch_resources"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "bookings_requested_staff_id_fkey"
+            columns: ["requested_staff_id"]
+            isOneToOne: false
+            referencedRelation: "staff"
             referencedColumns: ["id"]
           },
           {
@@ -1576,6 +1589,7 @@ export type Database = {
         Row: {
           branch_id: string
           created_at: string
+          home_service_base_fee: number
           home_service_driver_capacity: number
           home_service_enabled: boolean
           home_service_end_time: string
@@ -1592,6 +1606,7 @@ export type Database = {
         Insert: {
           branch_id: string
           created_at?: string
+          home_service_base_fee?: number
           home_service_driver_capacity?: number
           home_service_enabled?: boolean
           home_service_end_time?: string
@@ -1608,6 +1623,7 @@ export type Database = {
         Update: {
           branch_id?: string
           created_at?: string
+          home_service_base_fee?: number
           home_service_driver_capacity?: number
           home_service_enabled?: boolean
           home_service_end_time?: string
@@ -4114,10 +4130,15 @@ export type Database = {
           created_at: string
           description: string | null
           duration_minutes: number
+          duration_policy: string
+          extension_increment_minutes: number | null
+          extension_price: number | null
           id: string
           image_alt: string | null
           image_url: string | null
           is_active: boolean
+          is_public_visible: boolean
+          maximum_duration_minutes: number | null
           metadata: Json
           name: string
           price: number
@@ -4130,10 +4151,15 @@ export type Database = {
           created_at?: string
           description?: string | null
           duration_minutes: number
+          duration_policy?: string
+          extension_increment_minutes?: number | null
+          extension_price?: number | null
           id?: string
           image_alt?: string | null
           image_url?: string | null
           is_active?: boolean
+          is_public_visible?: boolean
+          maximum_duration_minutes?: number | null
           metadata?: Json
           name: string
           price: number
@@ -4146,10 +4172,15 @@ export type Database = {
           created_at?: string
           description?: string | null
           duration_minutes?: number
+          duration_policy?: string
+          extension_increment_minutes?: number | null
+          extension_price?: number | null
           id?: string
           image_alt?: string | null
           image_url?: string | null
           is_active?: boolean
+          is_public_visible?: boolean
+          maximum_duration_minutes?: number | null
           metadata?: Json
           name?: string
           price?: number
@@ -7444,6 +7475,15 @@ export type Database = {
           isOneToOne: false
           isSetofReturn: true
         }
+      }
+      save_owner_service_catalog: {
+        Args: {
+          p_service_id: string | null
+          p_catalog: Json
+          p_all_branches: boolean
+          p_branch_ids: string[]
+        }
+        Returns: string
       }
       replace_staff_service_capabilities: {
         Args: { p_service_ids?: string[]; p_target_staff_id: string }

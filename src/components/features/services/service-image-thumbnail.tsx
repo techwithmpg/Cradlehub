@@ -2,25 +2,17 @@
 
 import Image from "next/image";
 import { ImageIcon } from "lucide-react";
-import { SPA_IMAGES } from "@/constants/spa-images";
-
-function resolveServiceImage(serviceName: string): string | null {
-  const lower = serviceName.toLowerCase();
-  if (lower.includes("swedish")) return SPA_IMAGES.swedish;
-  if (lower.includes("deep tissue")) return SPA_IMAGES.deepTissue;
-  if (lower.includes("aroma")) return SPA_IMAGES.aromatherapy;
-  if (lower.includes("hot stone")) return SPA_IMAGES.hotStone;
-  if (lower.includes("reflexology") || lower.includes("foot")) return SPA_IMAGES.reflexology;
-  if (lower.includes("couple")) return SPA_IMAGES.couples;
-  return null;
-}
+import { resolveServiceImage } from "@/lib/service-images";
 
 type Props = {
+  serviceId?: string;
   serviceName: string;
+  imageUrl?: string | null;
+  imageAlt?: string | null;
 };
 
-export function ServiceImageThumbnail({ serviceName }: Props) {
-  const imageUrl = resolveServiceImage(serviceName);
+export function ServiceImageThumbnail({ serviceId, serviceName, imageUrl, imageAlt }: Props) {
+  const image = resolveServiceImage({ id: serviceId, name: serviceName, imageUrl, imageAlt });
 
   return (
     <div
@@ -32,10 +24,10 @@ export function ServiceImageThumbnail({ serviceName }: Props) {
         backgroundColor: "var(--cs-surface-warm)",
       }}
     >
-      {imageUrl ? (
+      {image.imageUrl ? (
         <Image
-          src={imageUrl}
-          alt={serviceName}
+          src={image.imageUrl}
+          alt={image.imageAlt}
           fill
           sizes="(max-width: 640px) 100vw, (max-width: 1280px) 50vw, 33vw"
           style={{ objectFit: "cover" }}
