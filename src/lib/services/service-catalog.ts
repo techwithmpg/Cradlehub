@@ -65,6 +65,10 @@ const BRANCH_SERVICES_MODERN_SELECT = `
     is_active,
     is_public_visible,
     duration_minutes,
+    duration_policy,
+    extension_increment_minutes,
+    extension_price,
+    maximum_duration_minutes,
     price,
     metadata,
     buffer_before,
@@ -184,7 +188,11 @@ function isMissingBranchServiceColumnError(message: string): boolean {
       lower.includes("available_in_spa") ||
       lower.includes("available_home_service") ||
       lower.includes("image_url") ||
-      lower.includes("image_alt")) &&
+      lower.includes("image_alt") ||
+      lower.includes("duration_policy") ||
+      lower.includes("extension_increment_minutes") ||
+      lower.includes("extension_price") ||
+      lower.includes("maximum_duration_minutes")) &&
     (lower.includes("does not exist") ||
       lower.includes("schema cache") ||
       lower.includes("could not find"))

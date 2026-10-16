@@ -34,6 +34,8 @@ import {
   QuickBookingServiceSelector,
   formatServiceDuration,
 } from "@/components/features/bookings/quick-booking-service-selector";
+import { ServiceDurationSelector } from "@/components/shared/service-duration-selector";
+import type { ServiceLineQuote } from "@/lib/services/service-line-quote";
 import { WorkspaceNotice } from "@/components/features/attendance/attendance-ui";
 import type { BranchBookingRules } from "@/lib/validations/booking-rules";
 import type { BookingOrderAttendeeInput } from "@/lib/bookings/booking-order-contract";
@@ -45,6 +47,9 @@ export type QuickBookingServiceOption = {
   name: string;
   price: number;
   durationMinutes: number;
+  durationPolicy?: "fixed" | "extendable";
+  quoteVersion?: string;
+  durationAdjusted?: boolean;
   availableInSpa: boolean;
   availableHomeService: boolean;
 };
@@ -273,6 +278,7 @@ function mapServerErrorToFields(message: string): FieldErrors {
 async function requestCrmAvailability(params: {
   branchId: string;
   serviceIds: string[];
+  serviceLines?: Array<{ serviceId: string; requestedDurationMinutes?: number; expectedQuoteVersion?: string }>;
   date: string;
   time: string;
   staffId?: string;
@@ -288,6 +294,7 @@ async function requestCrmAvailability(params: {
     body: JSON.stringify({
       branchId: params.branchId,
       serviceIds: params.serviceIds,
+      serviceLines: params.serviceLines,
       date: params.date,
       time: normalizeTime(params.time),
       staffId: params.staffId || undefined,
@@ -350,6 +357,8 @@ export function QuickBookingForm({
   const [selectedServiceIds, setSelectedServiceIds] = useState<string[]>(() =>
     initialServiceId ? [initialServiceId] : []
   );
+  const [lineQuotes, setLineQuotes] = useState<Record<string, ServiceLineQuote>>({});
+  const [adjustingService, setAdjustingService] = useState<{ service: QuickBookingServiceOption; guestId: string } | null>(null);
   const [firstAttendeeId] = useState(() => crypto.randomUUID());
   const [additionalGuests, setAdditionalGuests] = useState<BookingOrderAttendeeInput[]>([]);
   const [activeGuestId, setActiveGuestId] = useState(firstAttendeeId);
@@ -421,15 +430,21 @@ export function QuickBookingForm({
         .filter((service): service is QuickBookingServiceOption => Boolean(service)),
     [selectedServiceIds, services]
   );
+  const quotedService = (guestId: string, service: QuickBookingServiceOption): QuickBookingServiceOption => {
+    const quote = lineQuotes[`${guestId}:${service.id}`];
+    return quote ? { ...service, durationMinutes: quote.selectedDurationMinutes, price: quote.calculatedPrice,
+      durationAdjusted: quote.selectedDurationMinutes !== service.durationMinutes } : service;
+  };
+  const selectedQuotedServices = selectedServices.map((service) => quotedService(firstAttendeeId, service));
   const selectedServiceCount = selectedServices.length;
-  const totalDurationMinutes = selectedServices.reduce(
+  const totalDurationMinutes = selectedQuotedServices.reduce(
     (sum, service) => sum + service.durationMinutes,
     0
   );
-  const totalPrice = selectedServices.reduce((sum, service) => sum + service.price, 0);
+  const totalPrice = selectedQuotedServices.reduce((sum, service) => sum + service.price, 0);
   const groupServices = groupBooking
-    ? attendeeDrafts.flatMap((attendee) => attendee.serviceIds.map((id) => services.find((service) => service.id === id)).filter((service): service is QuickBookingServiceOption => Boolean(service)))
-    : selectedServices;
+    ? attendeeDrafts.flatMap((attendee) => attendee.serviceIds.map((id) => services.find((service) => service.id === id)).filter((service): service is QuickBookingServiceOption => Boolean(service)).map((service) => quotedService(attendee.id, service)))
+    : selectedQuotedServices;
   const groupTotalPrice = groupServices.reduce((sum, service) => sum + service.price, 0);
   const serviceSummaryLabel =
     selectedServiceCount === 0
@@ -497,6 +512,7 @@ export function QuickBookingForm({
       selectedServiceIds.length !== initialSelectedServiceIds.length ||
       selectedServiceIds.some((id, index) => id !== initialSelectedServiceIds[index]) ||
       additionalGuests.length > 0 ||
+      Object.keys(lineQuotes).length > 0 ||
       date !== initialDateValue ||
       time !== initialTimeValue ||
       notes !== "" ||
@@ -537,6 +553,7 @@ export function QuickBookingForm({
       selectedCustomer,
       selectedServiceIds,
       additionalGuests,
+      lineQuotes,
       seededCustomerQuery,
       staffId,
       customerRequestedTherapist,
@@ -571,6 +588,9 @@ export function QuickBookingForm({
       requestCrmAvailability({
         branchId,
         serviceIds: selectedServiceIds,
+        serviceLines: selectedServiceIds.map((serviceId) => ({ serviceId,
+          requestedDurationMinutes: lineQuotes[`${firstAttendeeId}:${serviceId}`]?.selectedDurationMinutes,
+          expectedQuoteVersion: lineQuotes[`${firstAttendeeId}:${serviceId}`]?.quoteVersion ?? services.find((service) => service.id === serviceId)?.quoteVersion })),
         date,
         time,
         bookingMode: mode,
@@ -664,6 +684,9 @@ export function QuickBookingForm({
     staffId,
     therapistPrerequisitesReady,
     time,
+    lineQuotes,
+    firstAttendeeId,
+    services,
   ]);
 
   // Fetch attendance queue hint when date or services change.
@@ -805,6 +828,7 @@ export function QuickBookingForm({
     });
     const removedCount = selectedServiceIds.length - validServiceIds.length;
     setMode(nextMode);
+    setLineQuotes({});
     setFieldErrors({});
     setFormError("");
     setSelectedServiceIds(validServiceIds);
@@ -838,6 +862,8 @@ export function QuickBookingForm({
   }
 
   function handleServiceSelectionChange(nextServiceIds: string[]) {
+    setLineQuotes((current) => Object.fromEntries(Object.entries(current).filter(([key]) =>
+      !key.startsWith(`${firstAttendeeId}:`) || nextServiceIds.includes(key.slice(firstAttendeeId.length + 1)) )));
     setSelectedServiceIds(nextServiceIds);
     setServiceModeNotice("");
     setFieldErrors((current) => ({ ...current, service: undefined }));
@@ -855,6 +881,7 @@ export function QuickBookingForm({
   }
 
   function removeGuest(id: string) {
+    setLineQuotes((current) => Object.fromEntries(Object.entries(current).filter(([key]) => !key.startsWith(`${id}:`))));
     setAdditionalGuests((current) => current.filter((guest) => guest.id !== id));
     if (activeGuestId === id) setActiveGuestId(firstAttendeeId);
     setFieldErrors((current) => ({ ...current, service: undefined }));
@@ -1027,6 +1054,9 @@ export function QuickBookingForm({
     return requestCrmAvailability({
       branchId,
       serviceIds: selectedServiceIds,
+      serviceLines: selectedServiceIds.map((serviceId) => ({ serviceId,
+        requestedDurationMinutes: lineQuotes[`${firstAttendeeId}:${serviceId}`]?.selectedDurationMinutes,
+        expectedQuoteVersion: lineQuotes[`${firstAttendeeId}:${serviceId}`]?.quoteVersion ?? services.find((service) => service.id === serviceId)?.quoteVersion })),
       date: availabilityDate,
       time: availabilityTime,
       staffId: candidateStaffId || undefined,
@@ -1077,9 +1107,16 @@ export function QuickBookingForm({
         branchId,
         customerId: selectedCustomer?.id,
         serviceIds: groupBooking ? allSelectedServiceIds : selectedServiceIds,
+        ...(!groupBooking && { serviceLines: selectedServiceIds.map((serviceId) => ({
+          serviceId, requestedDurationMinutes: lineQuotes[`${firstAttendeeId}:${serviceId}`]?.selectedDurationMinutes,
+          expectedQuoteVersion: lineQuotes[`${firstAttendeeId}:${serviceId}`]?.quoteVersion ?? services.find((service) => service.id === serviceId)?.quoteVersion,
+        })) }),
         ...(groupBooking && { bookingFor: "me_and_others" as const, attendees: attendeeDrafts.map((attendee) => ({
           id: attendee.id, name: attendee.name?.trim() ?? "", isOrganizer: attendee.isOrganizer ?? false,
           serviceIds: attendee.serviceIds,
+          serviceLines: attendee.serviceIds.map((serviceId) => ({ serviceId,
+            requestedDurationMinutes: lineQuotes[`${attendee.id}:${serviceId}`]?.selectedDurationMinutes,
+            expectedQuoteVersion: lineQuotes[`${attendee.id}:${serviceId}`]?.quoteVersion ?? services.find((service) => service.id === serviceId)?.quoteVersion })),
         })) }),
         staffId: staffId || undefined,
         customerRequestedTherapist: Boolean(staffId && customerRequestedTherapist),
@@ -1502,9 +1539,12 @@ export function QuickBookingForm({
                             </span>
                           ) : null}
                         </div>
-                        <QuickBookingServiceSelector key={activeGuest.id} services={eligibleServices}
+                        <QuickBookingServiceSelector key={activeGuest.id} services={eligibleServices.map((service) => quotedService(activeGuest.id, service))}
                           selectedServiceIds={activeGuest.serviceIds}
+                          onAdjust={(service) => setAdjustingService({ service, guestId: activeGuest.id })}
                           onChange={activeGuestIsOrganizer ? handleServiceSelectionChange : (serviceIds) => {
+                            setLineQuotes((current) => Object.fromEntries(Object.entries(current).filter(([key]) =>
+                              !key.startsWith(`${activeGuest.id}:`) || serviceIds.includes(key.slice(activeGuest.id.length + 1)))));
                             setAdditionalGuests((current) => current.map((guest) => guest.id === activeGuest.id
                               ? { ...guest, serviceIds } : guest));
                             setFieldErrors((current) => ({ ...current, service: undefined }));
@@ -1521,8 +1561,9 @@ export function QuickBookingForm({
                     </section>
                   ) : (
                     <>
-                      <QuickBookingServiceSelector services={eligibleServices}
+                      <QuickBookingServiceSelector services={eligibleServices.map((service) => quotedService(firstAttendeeId, service))}
                         selectedServiceIds={selectedServiceIds} onChange={handleServiceSelectionChange}
+                        onAdjust={(service) => setAdjustingService({ service, guestId: firstAttendeeId })}
                         isHomeService={isHomeService} disabled={isSaving} error={fieldErrors.service} />
                       {serviceModeNotice ? (
                         <p className="mt-1.5 rounded-lg bg-[var(--cs-warning-bg)] px-3 py-1.5 text-xs font-medium text-[var(--cs-warning-text)]">
@@ -1914,7 +1955,8 @@ export function QuickBookingForm({
                             {attendee.name?.trim() || `Guest ${index + 1}`}{index === 0 ? " (You)" : ""}
                           </p>
                           {attendee.serviceIds.length > 0 ? attendee.serviceIds.map((id) => {
-                            const service = services.find((item) => item.id === id);
+                            const rawService = services.find((item) => item.id === id);
+                            const service = rawService ? quotedService(attendee.id, rawService) : undefined;
                             return (
                               <p key={id} className="mt-1 text-[var(--cs-text-muted)]">
                                 {service?.name ?? "Service"}{service ? ` · ${formatServiceDuration(service.durationMinutes)} · ${formatCurrency(service.price)}` : ""}
@@ -1928,7 +1970,7 @@ export function QuickBookingForm({
                   <SummaryRow label="Service total" value={formatCurrency(groupTotalPrice)} />
                 </>
               ) : (
-                <><SummaryServices services={selectedServices} /><SummaryRow label="Service total" value={serviceSummaryLabel} /></>
+                <><SummaryServices services={selectedQuotedServices} /><SummaryRow label="Service total" value={serviceSummaryLabel} /></>
               )}
               {!groupBooking && effectiveProviderAvailability?.serviceEndTime ? (
                 <SummaryRow
@@ -2068,6 +2110,22 @@ export function QuickBookingForm({
           </div>
         </footer>
       </section>
+      {adjustingService ? (
+        <ServiceDurationSelector open={Boolean(adjustingService)}
+          onOpenChange={(open) => { if (!open) setAdjustingService(null); }}
+          branchId={branchId} serviceId={adjustingService.service.id}
+          serviceName={adjustingService.service.name}
+          currentDurationMinutes={lineQuotes[`${adjustingService.guestId}:${adjustingService.service.id}`]?.selectedDurationMinutes ?? adjustingService.service.durationMinutes}
+          audience="crm" deliveryMode={isHomeService ? "home_service" : "in_spa"}
+          onApply={(quote) => {
+            setLineQuotes((current) => ({ ...current, [`${adjustingService.guestId}:${adjustingService.service.id}`]: quote }));
+            setResourceId("");
+            setAvailableStaffIds([]);
+            setProviderAvailability([]);
+            setTherapistAvailabilityStatus("loading");
+            setFormError("Duration changed. Review availability before saving.");
+          }} />
+      ) : null}
     </div>
   );
 }

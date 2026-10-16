@@ -31,6 +31,8 @@ import { canAccessCrmWorkspace } from "@/lib/auth/crm-permissions";
 import { isConsultationOnlyService } from "@/lib/bookings/consultation-only-service";
 import { bookingCreationProvenance } from "@/lib/bookings/therapist-provenance";
 import { validateBranchServiceEligibility } from "@/lib/services/service-catalog";
+import { resolveBookingLineQuotes } from "@/lib/services/resolve-booking-line-quotes";
+import { ServiceLineQuoteError, toServiceLineCommercialSnapshot } from "@/lib/services/service-line-quote";
 
 export type CreateInhouseBookingResult =
   | { ok: true; bookingId: string; orderId?: string; orderNumber?: string; serviceLineIds?: string[]; attendeeIds?: string[]; serviceCount?: number; attendeeCount?: number; warning?: string }
@@ -299,6 +301,16 @@ export async function executeInhouseBookingCreation(
       };
     }
 
+    const attendeeQuotes = await Promise.all(attendees.map((attendee, index) =>
+      resolveBookingLineQuotes({
+        branchId: resolvedBranchId,
+        serviceIds: attendee.serviceIds,
+        serviceLines: d.attendees?.[index]?.serviceLines ?? (d.attendees ? undefined : d.serviceLines),
+        audience: "crm",
+        deliveryMode: deliveryType,
+      })
+    ));
+
     const admin = createAdminClient();
 
     let attendeeStaffIds: string[];
@@ -307,7 +319,8 @@ export async function executeInhouseBookingCreation(
     if (groupBooking) {
       const assignments = await assignTherapistsForOrder({
         branchId: resolvedBranchId,
-        attendees: attendees.map((attendee) => ({ id: attendee.id, serviceIds: attendee.serviceIds })),
+        attendees: attendees.map((attendee, index) => ({ id: attendee.id, serviceIds: attendee.serviceIds,
+          selectedDurationMinutes: attendeeQuotes[index]!.map((quote) => quote.selectedDurationMinutes) })),
         date: d.date,
         startTime,
         deliveryMode: deliveryType,
@@ -326,6 +339,7 @@ export async function executeInhouseBookingCreation(
       const exactAvailability = await resolveExactCrmBookingTime({
         branchId: resolvedBranchId,
         serviceIds: d.serviceIds,
+        selectedDurationMinutes: attendeeQuotes[0]!.map((quote) => quote.selectedDurationMinutes),
         date: d.date,
         startTime,
         bookingMode: crmBookingMode,
@@ -385,17 +399,11 @@ export async function executeInhouseBookingCreation(
       };
     }
 
-    const combinedDurationByServiceId = new Map(
-      (combinedOverridesResult.data ?? []).map((row) => [
-        row.service_id,
-        row.custom_duration_minutes,
-      ])
-    );
     const durationServiceById = new Map((combinedServicesResult.data ?? []).map((service) => [service.id, service]));
-    const attendeeDurations = attendees.map((attendee) => attendee.serviceIds.reduce((sum, id) => {
+    const attendeeDurations = attendees.map((attendee, attendeeIndex) => attendee.serviceIds.reduce((sum, id, lineIndex) => {
       const service = durationServiceById.get(id);
       return sum + (service
-        ? Number(combinedDurationByServiceId.get(id) ?? service.duration_minutes) + Number(service.buffer_before) + Number(service.buffer_after)
+        ? attendeeQuotes[attendeeIndex]![lineIndex]!.selectedDurationMinutes + Number(service.buffer_before) + Number(service.buffer_after)
         : 0);
     }, 0));
     const combinedEndTime = computeEndTimeLocal(startTime, Math.max(...attendeeDurations));
@@ -605,18 +613,7 @@ export async function executeInhouseBookingCreation(
       };
     }
 
-    const servicePriceById = new Map(
-      allServiceIds.map((serviceId) => {
-        const service = servicesById.get(serviceId);
-        const price = Number(
-          overrideByServiceId.get(serviceId)?.custom_price ?? service?.price ?? 0
-        );
-        return [serviceId, price] as const;
-      })
-    );
-    const serviceSubtotal = phpCents(
-      orderedServiceIds.reduce((sum, serviceId) => sum + (servicePriceById.get(serviceId) ?? 0), 0)
-    );
+    const serviceSubtotal = phpCents(attendeeQuotes.flat().reduce((sum, quote) => sum + quote.calculatedPrice, 0));
 
     // Build home service address data from the selected Google place.
     let hsAddressData: { [key: string]: Json | undefined } | null = null;
@@ -725,9 +722,8 @@ export async function executeInhouseBookingCreation(
         };
       }
 
-      const effectiveDurationMinutes = Number(
-        overrideByServiceId.get(service.id)?.custom_duration_minutes ?? service.duration_minutes
-      );
+      const quote = attendeeQuotes[attendeeIndex]![serviceIndex]!;
+      const effectiveDurationMinutes = quote.selectedDurationMinutes;
       const totalMinutes =
         effectiveDurationMinutes + Number(service.buffer_before) + Number(service.buffer_after);
       const endTime = computeEndTimeLocal(currentStart, totalMinutes);
@@ -739,7 +735,7 @@ export async function executeInhouseBookingCreation(
         };
       }
 
-      const servicePrice = servicePriceById.get(service.id) ?? Number(service.price);
+      const servicePrice = quote.calculatedPrice;
       const pricingBreakdown = homeServiceQuote
         ? buildHomeServicePricingBreakdown({
             serviceSubtotal,
@@ -752,6 +748,7 @@ export async function executeInhouseBookingCreation(
         price_paid: phpCents(servicePrice),
         service_name: service.name,
         duration_minutes: effectiveDurationMinutes,
+        commercial_snapshot: toServiceLineCommercialSnapshot(quote),
         customer_notes: d.notes ?? null,
         crm_booking_mode: crmBookingMode,
         source: "crm_quick_booking",
@@ -1025,6 +1022,9 @@ export async function executeInhouseBookingCreation(
       attendeeCount: attendees.length, warning: availabilityWarning,
     };
   } catch (error) {
+    if (error instanceof ServiceLineQuoteError) {
+      return { ok: false, code: error.code, message: "Service duration configuration needs review. Refresh and review the selected services." };
+    }
     console.error("[CRM_BOOKING] caught error", { ...logContext, error });
 
     if (

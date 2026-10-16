@@ -15,6 +15,8 @@ import Image from "next/image";
 import Link from "next/link";
 import { Calendar } from "@/components/ui/calendar";
 import { Skeleton } from "@/components/ui/skeleton";
+import { ServiceDurationSelector } from "@/components/shared/service-duration-selector";
+import type { ServiceLineQuote } from "@/lib/services/service-line-quote";
 import {
   BookingServicePicker,
   type BookingWizardService,
@@ -135,6 +137,8 @@ type BookingContextService = {
   name: string;
   description?: string | null;
   durationMinutes: number;
+  durationPolicy?: "fixed" | "extendable";
+  quoteVersion?: string;
   price: number;
   categoryId?: string | null;
   categoryName?: string | null;
@@ -458,6 +462,8 @@ export function BookingWizard({
   // Selections
   const [selectedBranch, setSelectedBranch] = useState<Branch | null>(null);
   const [selectedServices, setSelectedServices] = useState<Service[]>([]);
+  const [lineQuotes, setLineQuotes] = useState<Record<string, ServiceLineQuote>>({});
+  const [adjustingService, setAdjustingService] = useState<{ service: Service; attendeeId: string } | null>(null);
   const [selectedDate, setSelectedDate] = useState<Date | undefined>(undefined);
   const [selectedSlot, setSelectedSlot] = useState<Slot | null>(null);
   const [selectedStaff, setSelectedStaff] = useState<"auto" | string>(DEFAULT_STAFF_PREFERENCE);
@@ -522,6 +528,11 @@ export function BookingWizard({
     }
     return selectedServices;
   }, [bookingFor, activeAttendee, services, selectedServices]);
+  const activeQuotedServices = useMemo(() => activeServicesForPicker.map((service) => {
+    const quote = lineQuotes[`${activeAttendeeId}:${service.id}`];
+    return quote ? { ...service, durationMinutes: quote.selectedDurationMinutes, price: quote.calculatedPrice,
+      durationAdjusted: quote.selectedDurationMinutes !== service.durationMinutes } : service;
+  }), [activeServicesForPicker, activeAttendeeId, lineQuotes]);
 
   const allSelectedServiceIds = useMemo(() => {
     if (bookingFor === "me_and_others") {
@@ -540,14 +551,14 @@ export function BookingWizard({
         ...attendees.map((att) =>
           att.serviceIds.reduce((sum, sId) => {
             const svc = services.find((s) => s.id === sId);
-            return sum + (svc?.durationMinutes ?? 0);
+            return sum + (lineQuotes[`${att.id}:${sId}`]?.selectedDurationMinutes ?? svc?.durationMinutes ?? 0);
           }, 0)
         ),
         0
       );
     }
-    return selectedServices.reduce((s, svc) => s + svc.durationMinutes, 0);
-  }, [bookingFor, attendees, services, selectedServices]);
+    return selectedServices.reduce((s, svc) => s + (lineQuotes[`att-1:${svc.id}`]?.selectedDurationMinutes ?? svc.durationMinutes), 0);
+  }, [bookingFor, attendees, services, selectedServices, lineQuotes]);
 
   const totalPrice = useMemo(() => {
     if (bookingFor === "me_and_others") {
@@ -556,13 +567,13 @@ export function BookingWizard({
           total +
           att.serviceIds.reduce((sum, sId) => {
             const svc = services.find((s) => s.id === sId);
-            return sum + (svc?.price ?? 0);
+            return sum + (lineQuotes[`${att.id}:${sId}`]?.calculatedPrice ?? svc?.price ?? 0);
           }, 0)
         );
       }, 0);
     }
-    return selectedServices.reduce((s, svc) => s + svc.price, 0);
-  }, [bookingFor, attendees, services, selectedServices]);
+    return selectedServices.reduce((s, svc) => s + (lineQuotes[`att-1:${svc.id}`]?.calculatedPrice ?? svc.price), 0);
+  }, [bookingFor, attendees, services, selectedServices, lineQuotes]);
 
   const selectedServiceIds = allSelectedServiceIds;
   const selectedVisitType = useMemo(
@@ -672,6 +683,8 @@ export function BookingWizard({
             name: s.name,
             description: s.description,
             durationMinutes: s.durationMinutes,
+            durationPolicy: s.durationPolicy,
+            quoteVersion: s.quoteVersion,
             price: s.price,
             categoryId: s.categoryId ?? null,
             categoryName: s.categoryName ?? "Wellness",
@@ -754,11 +767,19 @@ export function BookingWizard({
           name: a.name,
           isOrganizer: a.isOrganizer,
           serviceIds: a.serviceIds,
+          serviceLines: a.serviceIds.map((serviceId) => ({ serviceId,
+            requestedDurationMinutes: lineQuotes[`${a.id}:${serviceId}`]?.selectedDurationMinutes,
+            expectedQuoteVersion: lineQuotes[`${a.id}:${serviceId}`]?.quoteVersion ?? services.find((service) => service.id === serviceId)?.quoteVersion })),
         }));
       params.set("attendees", JSON.stringify(attendeePayload));
       params.set("serviceIds", allSelectedServiceIds.join(","));
     } else {
       params.set("serviceIds", selectedServices.map((s) => s.id).join(","));
+      params.set("serviceLines", JSON.stringify(selectedServices.map((service) => ({
+        serviceId: service.id,
+        requestedDurationMinutes: lineQuotes[`att-1:${service.id}`]?.selectedDurationMinutes,
+        expectedQuoteVersion: lineQuotes[`att-1:${service.id}`]?.quoteVersion ?? service.quoteVersion,
+      }))));
     }
 
     fetch(`/api/booking/available-slots?${params.toString()}`)
@@ -793,10 +814,17 @@ export function BookingWizard({
     bookingFor,
     attendees,
     allSelectedServiceIds,
+    lineQuotes,
+    services,
   ]);
 
   const toggleService = useCallback(
     (svc: Service) => {
+      setLineQuotes((current) => {
+        const next = { ...current };
+        delete next[`${bookingFor === "me_and_others" ? activeAttendeeId : "att-1"}:${svc.id}`];
+        return next;
+      });
       if (bookingFor === "me_and_others") {
         setAttendees((prev) =>
           prev.map((att) => {
@@ -915,6 +943,7 @@ export function BookingWizard({
 
   const handleRemoveAttendee = useCallback(
     (idToRemove: string) => {
+      setLineQuotes((current) => Object.fromEntries(Object.entries(current).filter(([key]) => !key.startsWith(`${idToRemove}:`))));
       setAttendees((prev) => {
         if (prev.length <= 1) return prev;
         const filtered = prev.filter((a) => a.id !== idToRemove);
@@ -937,6 +966,7 @@ export function BookingWizard({
   const handleVisitTypeSelect = useCallback(
     (nextVisitType: VisitType) => {
       if (!isVisitTypeEnabled(nextVisitType, bookingRules)) return;
+      setLineQuotes({});
       setBookingType(getBookingTypeForVisitType(nextVisitType, mode));
       // Clear services that aren't eligible for the new visit type
       setSelectedServices((prev) =>
@@ -1062,6 +1092,9 @@ export function BookingWizard({
               name: a.name.trim() || (a.isOrganizer ? form.fullName || "Organizer" : "Guest"),
               isOrganizer: a.isOrganizer,
               serviceIds: a.serviceIds,
+              serviceLines: a.serviceIds.map((serviceId) => ({ serviceId,
+                requestedDurationMinutes: lineQuotes[`${a.id}:${serviceId}`]?.selectedDurationMinutes,
+                expectedQuoteVersion: lineQuotes[`${a.id}:${serviceId}`]?.quoteVersion ?? services.find((service) => service.id === serviceId)?.quoteVersion })),
             }))
           : bookingFor === "someone_else"
             ? [
@@ -1070,6 +1103,9 @@ export function BookingWizard({
                   name: recipientName.trim() || "Guest",
                   isOrganizer: false,
                   serviceIds: selectedServices.map((s) => s.id),
+                  serviceLines: selectedServices.map((service) => ({ serviceId: service.id,
+                    requestedDurationMinutes: lineQuotes[`att-1:${service.id}`]?.selectedDurationMinutes,
+                    expectedQuoteVersion: lineQuotes[`att-1:${service.id}`]?.quoteVersion ?? service.quoteVersion })),
                 },
               ]
             : [
@@ -1078,6 +1114,9 @@ export function BookingWizard({
                   name: form.fullName.trim() || "Guest",
                   isOrganizer: true,
                   serviceIds: selectedServices.map((s) => s.id),
+                  serviceLines: selectedServices.map((service) => ({ serviceId: service.id,
+                    requestedDurationMinutes: lineQuotes[`att-1:${service.id}`]?.selectedDurationMinutes,
+                    expectedQuoteVersion: lineQuotes[`att-1:${service.id}`]?.quoteVersion ?? service.quoteVersion })),
                 },
               ];
 
@@ -1109,6 +1148,9 @@ export function BookingWizard({
           ? await createInhouseBookingMultiAction({
               branchId: payload.branchId,
               serviceIds: selectedServices.map((s) => s.id),
+              serviceLines: selectedServices.map((service) => ({ serviceId: service.id,
+                requestedDurationMinutes: lineQuotes[`att-1:${service.id}`]?.selectedDurationMinutes,
+                expectedQuoteVersion: lineQuotes[`att-1:${service.id}`]?.quoteVersion ?? service.quoteVersion })),
               staffId: payload.staffId,
               date: payload.date,
               startTime: payload.startTime,
@@ -1184,6 +1226,8 @@ export function BookingWizard({
   }, [
     selectedBranch,
     selectedServices,
+    lineQuotes,
+    services,
     allSelectedServiceIds,
     bookingFor,
     recipientName,
@@ -1495,8 +1539,9 @@ export function BookingWizard({
                   <BookingServicePicker
                     services={eligibleServices}
                     loading={loadingServices}
-                    selected={activeServicesForPicker}
+                    selected={activeQuotedServices}
                     onToggle={toggleService}
+                    onAdjust={(service) => setAdjustingService({ service, attendeeId: activeAttendeeId })}
                     heading={
                       mode === "public"
                         ? bookingFor === "me_and_others"
@@ -1513,6 +1558,23 @@ export function BookingWizard({
                     visitType={visitType}
                     theme={mode === "public" ? "warm" : "default"}
                   />
+                  {selectedBranch && adjustingService ? (
+                    <ServiceDurationSelector open={Boolean(adjustingService)}
+                      onOpenChange={(open) => { if (!open) setAdjustingService(null); }}
+                      branchId={selectedBranch.id} serviceId={adjustingService.service.id}
+                      serviceName={adjustingService.service.name}
+                      currentDurationMinutes={lineQuotes[`${adjustingService.attendeeId}:${adjustingService.service.id}`]?.selectedDurationMinutes ?? adjustingService.service.durationMinutes}
+                      audience={mode === "public" ? "public" : "crm"}
+                      deliveryMode={visitType}
+                      onApply={(quote) => {
+                        setLineQuotes((current) => ({ ...current, [`${adjustingService.attendeeId}:${adjustingService.service.id}`]: quote }));
+                        setSelectedSlot(null);
+                        setSelectedStaff(DEFAULT_STAFF_PREFERENCE);
+                        setRawSlots([]);
+                        setSlots([]);
+                        setAvailabilityMessage("Duration changed. Choose an available time again.");
+                      }} />
+                  ) : null}
                 </div>
               )}
               {currentStepName === "location" && (
@@ -1602,6 +1664,7 @@ export function BookingWizard({
                   recipientName={recipientName}
                   attendees={attendees}
                   services={allSelectedServices}
+                  lineQuotes={lineQuotes}
                   selectedBranch={selectedBranch}
                   selectedDate={selectedDate}
                   selectedSlot={selectedSlot}
@@ -1694,6 +1757,7 @@ export function BookingWizard({
                 <BookingSummary
                   branch={selectedBranch}
                   services={allSelectedServices}
+                  lineQuotes={lineQuotes}
                   totalDuration={totalDuration}
                   totalPrice={totalPrice}
                   selectedDate={selectedDate}
@@ -1786,6 +1850,7 @@ function TherapistSummaryItem({
 function BookingSummary({
   branch,
   services,
+  lineQuotes,
   totalDuration,
   totalPrice,
   selectedDate,
@@ -1801,6 +1866,7 @@ function BookingSummary({
 }: {
   branch: Branch | null;
   services: Service[];
+  lineQuotes: Record<string, ServiceLineQuote>;
   totalDuration: number;
   totalPrice: number;
   selectedDate: Date | undefined;
@@ -1880,9 +1946,17 @@ function BookingSummary({
                 <span className="font-medium text-[#F6EBD6]/45">Not selected</span>
               ) : (
                 <>
-                  {services.map((s) => (
-                    <p key={s.id}>{s.name}</p>
-                  ))}
+                  {bookingFor === "me_and_others" && attendees
+                    ? attendees.flatMap((attendee) => attendee.serviceIds.map((serviceId) => {
+                        const service = services.find((candidate) => candidate.id === serviceId);
+                        if (!service) return null;
+                        const quote = lineQuotes[`${attendee.id}:${serviceId}`];
+                        return <p key={`${attendee.id}:${serviceId}`}>{attendee.name}: {service.name} · {quote?.selectedDurationMinutes ?? service.durationMinutes} min · {formatCurrency(quote?.calculatedPrice ?? service.price)}</p>;
+                      }))
+                    : services.map((service) => {
+                        const quote = lineQuotes[`att-1:${service.id}`];
+                        return <p key={service.id}>{service.name} · {quote?.selectedDurationMinutes ?? service.durationMinutes} min · {formatCurrency(quote?.calculatedPrice ?? service.price)}</p>;
+                      })}
                   <p className="mt-2 text-[12px] font-semibold" style={WARM_LABEL_STYLE}>
                     {totalDuration} min · {formatCurrency(totalPrice)}
                   </p>
@@ -1978,11 +2052,17 @@ function BookingSummary({
               </p>
             ) : (
               <>
-                {services.map((s) => (
-                  <p key={s.id} className="text-[13px] font-medium mt-0.5" style={WARM_BODY_STYLE}>
-                    {s.name}
-                  </p>
-                ))}
+                {bookingFor === "me_and_others" && attendees
+                  ? attendees.flatMap((attendee) => attendee.serviceIds.map((serviceId) => {
+                      const service = services.find((candidate) => candidate.id === serviceId);
+                      if (!service) return null;
+                      const quote = lineQuotes[`${attendee.id}:${serviceId}`];
+                      return <p key={`${attendee.id}:${serviceId}`} className="text-[13px] font-medium mt-0.5" style={WARM_BODY_STYLE}>{attendee.name}: {service.name} · {quote?.selectedDurationMinutes ?? service.durationMinutes} min · {formatCurrency(quote?.calculatedPrice ?? service.price)}</p>;
+                    }))
+                  : services.map((service) => {
+                      const quote = lineQuotes[`att-1:${service.id}`];
+                      return <p key={service.id} className="text-[13px] font-medium mt-0.5" style={WARM_BODY_STYLE}>{service.name} · {quote?.selectedDurationMinutes ?? service.durationMinutes} min · {formatCurrency(quote?.calculatedPrice ?? service.price)}</p>;
+                    })}
                 <p className="text-[11px] mt-1.5 font-medium" style={WARM_LABEL_STYLE}>
                   {totalDuration} min · {formatCurrency(totalPrice)}
                 </p>
@@ -3806,6 +3886,7 @@ function StepSuccess({
   recipientName,
   attendees,
   services,
+  lineQuotes,
   selectedBranch,
   selectedDate,
   selectedSlot,
@@ -3822,6 +3903,7 @@ function StepSuccess({
   recipientName?: string;
   attendees?: WizardAttendee[];
   services: Service[];
+  lineQuotes: Record<string, ServiceLineQuote>;
   selectedBranch: Branch | null;
   selectedDate?: Date | null;
   selectedSlot: Slot | null;
@@ -3958,7 +4040,7 @@ function StepSuccess({
                           className="inline-flex items-center gap-1 text-[11px] bg-[#0D2B20] text-[#F6EBD6]/85 px-2 py-0.5 rounded-md border border-[#D4B57A]/15"
                         >
                           <Check className="h-3 w-3 text-[#D4B57A]" />
-                          {s.name}
+                          {s.name} · {lineQuotes[`${att.id}:${s.id}`]?.selectedDurationMinutes ?? s.durationMinutes} min · {formatCurrency(lineQuotes[`${att.id}:${s.id}`]?.calculatedPrice ?? s.price)}
                         </span>
                       ))}
                     </div>
@@ -3974,7 +4056,7 @@ function StepSuccess({
                     <Check className="h-3.5 w-3.5 text-[#D4B57A]" />
                     <span className="text-[#F6EBD6] font-medium">{s.name}</span>
                   </div>
-                  <span className="text-[#D4B57A]/85">{formatCurrency(s.price)}</span>
+                  <span className="text-[#D4B57A]/85">{lineQuotes[`att-1:${s.id}`]?.selectedDurationMinutes ?? s.durationMinutes} min · {formatCurrency(lineQuotes[`att-1:${s.id}`]?.calculatedPrice ?? s.price)}</span>
                 </div>
               ))}
             </div>

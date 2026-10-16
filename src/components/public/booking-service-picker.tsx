@@ -21,6 +21,9 @@ export type BookingWizardService = {
   name: string;
   description?: string | null;
   durationMinutes: number;
+  durationPolicy?: "fixed" | "extendable";
+  quoteVersion?: string;
+  durationAdjusted?: boolean;
   price: number;
   categoryId?: string | null;
   categoryName?: string;
@@ -45,6 +48,7 @@ type BookingServicePickerProps = {
   loading: boolean;
   selected: BookingWizardService[];
   onToggle: (service: BookingWizardService) => void;
+  onAdjust?: (service: BookingWizardService) => void;
   heading?: string;
   totalDuration: number;
   totalPrice: number;
@@ -255,6 +259,7 @@ export function BookingServicePicker({
   loading,
   selected,
   onToggle,
+  onAdjust,
   heading = "Select services",
   totalDuration,
   totalPrice,
@@ -365,6 +370,20 @@ export function BookingServicePicker({
           </div>
         </div>
       )}
+
+      {selected.some((service) => service.durationPolicy === "extendable") ? (
+        <div className="mb-4 space-y-2">
+          {selected.filter((service) => service.durationPolicy === "extendable").map((service) => (
+            <button key={service.id} type="button" onClick={() => onAdjust?.(service)}
+              className={`flex min-h-12 w-full items-center justify-between gap-3 rounded-xl px-3 py-2 text-left text-sm text-[#F6EBD6] ${WARM_GLASS_CARD}`}>
+              <span className="min-w-0 truncate font-semibold">{service.name}</span>
+              <span className="shrink-0 text-xs text-[#D4B57A]">
+                {service.durationAdjusted ? `${service.durationMinutes} min · ${formatCurrency(service.price)}` : `${service.durationMinutes} min+ · From ${formatCurrency(service.price)}`} · Adjust ›
+              </span>
+            </button>
+          ))}
+        </div>
+      ) : null}
 
       {/* ── Mobile layout ─────────────────────────────────────────────────────── */}
       <div className="w-full max-w-full md:hidden">

@@ -10,6 +10,8 @@ import { createClient } from "@/lib/supabase/server";
 import { canAccessCrmWorkspace } from "@/lib/auth/crm-permissions";
 import type { Database, Json } from "@/types/supabase";
 import { isConsultationOnlyService } from "@/lib/bookings/consultation-only-service";
+import { calculateServiceLineQuote } from "@/lib/services/service-line-quote";
+import { quoteVersionFor } from "@/lib/services/resolve-service-line-quote";
 
 // Force this route to always run dynamically — prevents any edge/CDN caching
 // that would serve stale service data after a CRM home-service toggle.
@@ -27,6 +29,10 @@ type ServiceRow = Pick<
   | "description"
   | "is_active"
   | "duration_minutes"
+  | "duration_policy"
+  | "extension_increment_minutes"
+  | "extension_price"
+  | "maximum_duration_minutes"
   | "price"
 > & {
   metadata?: Json | null;
@@ -167,6 +173,20 @@ export async function GET(request: NextRequest) {
         imageUrl: record.custom_image_url ?? service.image_url,
         imageAlt: service.image_alt,
       });
+      let quoteVersion: string | undefined;
+      if (service.duration_policy === "fixed" || service.duration_policy === "extendable") {
+        try {
+          quoteVersion = quoteVersionFor(selectedBranchId, calculateServiceLineQuote({
+            service: { id: service.id, duration_policy: service.duration_policy,
+              duration_minutes: service.duration_minutes, price: service.price,
+              extension_increment_minutes: service.extension_increment_minutes,
+              extension_price: service.extension_price,
+              maximum_duration_minutes: service.maximum_duration_minutes },
+            branch: { custom_duration_minutes: record.custom_duration_minutes ?? null,
+              custom_price: record.custom_price ?? null },
+          }));
+        } catch { /* Invalid offerings are rejected when quoted. */ }
+      }
 
       return {
         branchServiceId: record.id,
@@ -174,6 +194,8 @@ export async function GET(request: NextRequest) {
         name: service.name,
         description: service.description,
         durationMinutes: record.custom_duration_minutes ?? service.duration_minutes,
+        durationPolicy: service.duration_policy === "extendable" ? "extendable" : "fixed",
+        quoteVersion,
         price: Number(record.custom_price ?? service.price),
         categoryId: category?.id ?? null,
         categoryName: category?.name ?? "Wellness",

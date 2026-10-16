@@ -25,6 +25,12 @@ const onlineBookingDate = z
 
 const anyDate = z.string().regex(/^\d{4}-\d{2}-\d{2}$/, "Date must be YYYY-MM-DD");
 const timeStr = z.string().regex(/^\d{2}:\d{2}(:\d{2})?$/, "Time must be HH:MM");
+export const serviceLineRequestSchema = z.object({
+  serviceId: uuid,
+  requestedDurationMinutes: z.number().int().positive().optional(),
+  expectedQuoteVersion: z.string().regex(/^[0-9a-f]{64}$/).optional(),
+}).strict();
+export type ServiceLineRequest = z.infer<typeof serviceLineRequestSchema>;
 export const PRECISE_HOME_SERVICE_LOCATION_MESSAGE =
   "Please select your address from the Google suggestions so our therapist and driver can find you accurately.";
 export const CRM_PRECISE_HOME_SERVICE_LOCATION_MESSAGE =
@@ -60,6 +66,8 @@ export const createOnlineBookingSchema = z
     website: z.string().max(0, "Unable to submit this request").optional(),
     branchId: uuid,
     serviceId: uuid,
+    requestedDurationMinutes: z.number().int().positive().optional(),
+    expectedQuoteVersion: z.string().regex(/^[0-9a-f]{64}$/).optional(),
     staffId: uuid.optional(), // undefined = "any therapist"
     date: onlineBookingDate,
     startTime: timeStr,
@@ -98,12 +106,14 @@ export const createInhouseBookingMultiSchema = z
     branchId: uuid.optional(), // defaults to operator's branch when omitted
     customerId: uuid.optional(),
     serviceIds: z.array(uuid).min(1, "Select a service.").max(20, "Maximum 20 services per booking"),
+    serviceLines: z.array(serviceLineRequestSchema).max(20).optional(),
     bookingFor: z.enum(["me", "me_and_others", "someone_else"]).optional(),
     attendees: z.array(z.object({
       id: uuid,
       name: z.string().trim().min(2, "Enter each guest's name.").max(100),
       isOrganizer: z.boolean(),
       serviceIds: z.array(uuid).min(1, "Select a service for each guest.").max(5),
+      serviceLines: z.array(serviceLineRequestSchema).max(5).optional(),
     }).strict()).min(1).max(4).optional(),
     staffId: uuid.optional(), // undefined = auto-assign by seniority
     customerRequestedTherapist: z.boolean().optional(),
@@ -271,6 +281,7 @@ export const bookingAttendeeInputSchema = z.object({
     .array(uuid)
     .min(1, "Select at least one service")
     .max(5, "Maximum 5 services per guest"),
+  serviceLines: z.array(serviceLineRequestSchema).max(5).optional(),
   notes: z.string().max(500).optional(),
 });
 export type BookingAttendeeInput = z.infer<typeof bookingAttendeeInputSchema>;
@@ -284,6 +295,7 @@ export const createOnlineBookingMultiSchema = z
       .array(uuid)
       .min(1, "Select at least one service")
       .max(25, "Maximum 25 services per booking order"),
+    serviceLines: z.array(serviceLineRequestSchema).max(25).optional(),
     staffId: uuid.optional(),
     idempotencyKey: z.string().uuid("Invalid idempotency key").optional(),
     date: onlineBookingDate,
@@ -340,6 +352,7 @@ export const getAvailableSlotsSchema = z.object({
   serviceId: uuid,
   staffId: uuid.optional(),
   date: anyDate,
+  requestedDurationMinutes: z.coerce.number().int().positive().optional(),
 });
 export type GetAvailableSlotsInput = z.infer<typeof getAvailableSlotsSchema>;
 

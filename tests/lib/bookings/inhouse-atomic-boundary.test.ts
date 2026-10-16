@@ -17,6 +17,28 @@ vi.mock("@/lib/queries/branch-booking-rules", () => ({
 vi.mock("@/lib/services/service-catalog", () => ({
   validateBranchServiceEligibility: vi.fn().mockResolvedValue({ ok: true }),
 }));
+vi.mock("@/lib/services/resolve-booking-line-quotes", () => ({
+  resolveBookingLineQuotes: vi.fn().mockImplementation(async ({ serviceIds, serviceLines }: {
+    serviceIds: string[];
+    serviceLines?: Array<{ requestedDurationMinutes?: number }>;
+  }) => serviceIds.map((id, index) => {
+    const baseDuration = id === "cccccccc-cccc-4ccc-8ccc-cccccccccccc" ? 30
+      : id === "dddddddd-dddd-4ddd-8ddd-dddddddddddd" ? 90 : 60;
+    const basePrice = id === "cccccccc-cccc-4ccc-8ccc-cccccccccccc" ? 200
+      : id === "dddddddd-dddd-4ddd-8ddd-dddddddddddd" ? 700 : 500;
+    const selectedDurationMinutes = serviceLines?.[index]?.requestedDurationMinutes ?? baseDuration;
+    return {
+      serviceId: id, durationPolicy: selectedDurationMinutes === baseDuration ? "fixed" : "extendable",
+      baseDurationMinutes: baseDuration, selectedDurationMinutes, basePrice,
+      extensionIncrementMinutes: selectedDurationMinutes === baseDuration ? null : 30,
+      extensionPrice: selectedDurationMinutes === baseDuration ? null : 350,
+      maximumDurationMinutes: selectedDurationMinutes === baseDuration ? null : 180,
+      extensionUnits: (selectedDurationMinutes - baseDuration) / 30,
+      calculatedPrice: basePrice + ((selectedDurationMinutes - baseDuration) / 30) * 350,
+      quoteVersion: "fixture-version",
+    };
+  })),
+}));
 vi.mock("@/lib/bookings/consultation-only-service", () => ({
   isConsultationOnlyService: vi.fn().mockReturnValue(false),
 }));
@@ -291,6 +313,30 @@ describe("in-house server to atomic database boundary", () => {
     expect(args.p_service_lines.map((line: { end_time: string }) => line.end_time))
       .toEqual(["11:00:00", "11:35:00", "11:30:00"]);
     expect(args.p_order.metadata.total_duration_minutes).toBe(95);
+  });
+
+  it("persists an extended guest line once and schedules guest chains independently", async () => {
+    rpc.mockResolvedValueOnce({ data: { service_line_ids: ["line-1", "line-2", "line-3"] }, error: null });
+    const input = { ...group, attendees: [
+      { ...group.attendees[0], serviceLines: [
+        { serviceId, requestedDurationMinutes: 120, expectedQuoteVersion: "a".repeat(64) },
+        { serviceId: serviceB },
+      ] },
+      { ...group.attendees[1], serviceLines: [{ serviceId: serviceC }] },
+    ] };
+    expect((await executeInhouseBookingCreation(input, operator)).ok).toBe(true);
+    const args = rpc.mock.calls[0]?.[1];
+    expect(args.p_service_lines.map((line: { end_time: string }) => line.end_time))
+      .toEqual(["12:00:00", "12:30:00", "11:30:00"]);
+    expect(args.p_service_lines[0].metadata).toMatchObject({
+      price_paid: 1200, duration_minutes: 120,
+      commercial_snapshot: { selected_duration_minutes: 120, calculated_price: 1200 },
+    });
+    expect(args.p_order.metadata).toMatchObject({ total_amount: 2100, total_duration_minutes: 150 });
+    expect(allocateResourcesForAttendees).toHaveBeenCalledWith(expect.objectContaining({ windows: [
+      { startTime: "10:00:00", endTime: "12:30:00" },
+      { startTime: "10:00:00", endTime: "11:30:00" },
+    ] }));
   });
 
   it("enforces CRM branch authority for group creation before any database write", async () => {

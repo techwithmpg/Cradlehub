@@ -15,7 +15,7 @@ import {
   assignTherapistBySeniorityMulti,
   assignTherapistsForOrder,
 } from "@/lib/engine/availability";
-import { computeEndTime } from "@/lib/engine/booking-time";
+import { computeEndTimeForResolvedDuration } from "@/lib/engine/booking-time";
 import { buildBookingSnapshot } from "@/lib/engine/snapshot";
 import {
   validateBookingAgainstBranchRules,
@@ -40,6 +40,9 @@ import {
   isConsultationOnlyService,
 } from "@/lib/bookings/consultation-only-service";
 import { validateBranchServiceEligibility } from "@/lib/services/service-catalog";
+import { resolveServiceLineQuote } from "@/lib/services/resolve-service-line-quote";
+import { resolveBookingLineQuotes } from "@/lib/services/resolve-booking-line-quotes";
+import { ServiceLineQuoteError, toServiceLineCommercialSnapshot } from "@/lib/services/service-line-quote";
 import {
   buildAtomicBookingOrderPayload,
   mapAtomicBookingRpcError,
@@ -251,7 +254,17 @@ export async function createOnlineBookingAction(
       };
     }
 
-    const endTime = await computeEndTime(d.startTime, d.serviceId);
+    const quote = await resolveServiceLineQuote({ branchId: d.branchId, serviceId: d.serviceId,
+      requestedDurationMinutes: d.requestedDurationMinutes, audience: "public", deliveryMode: deliveryType });
+    if (d.expectedQuoteVersion && d.expectedQuoteVersion !== quote.quoteVersion) {
+      throw new ServiceLineQuoteError("SERVICE_QUOTE_CHANGED");
+    }
+    const { data: timingService, error: timingError } = await supabase.from("services")
+      .select("buffer_before, buffer_after").eq("id", d.serviceId).single();
+    if (timingError || !timingService) throw timingError ?? new Error("Service timing unavailable");
+    const endTime = computeEndTimeForResolvedDuration({ startTime: d.startTime,
+      selectedDurationMinutes: quote.selectedDurationMinutes,
+      bufferBeforeMinutes: timingService.buffer_before, bufferAfterMinutes: timingService.buffer_after });
     let resolvedStaffId: string;
     let selectedStaffException: {
       reason: StaffScheduleExceptionReasonCode;
@@ -264,6 +277,7 @@ export async function createOnlineBookingAction(
         date: d.date,
         startTime: d.startTime,
         requireStaffServiceAssignment: true,
+        selectedDurationMinutes: quote.selectedDurationMinutes,
       });
     } else {
       const selectedStaff = await evaluateOnlineSelectedStaff({
@@ -290,8 +304,8 @@ export async function createOnlineBookingAction(
       .eq("id", d.serviceId)
       .maybeSingle();
     const serviceName = notificationService?.name ?? "Service";
-    const servicePrice = notificationService?.price ?? 0;
-    const serviceDuration = notificationService?.duration_minutes ?? 60;
+    const servicePrice = quote.calculatedPrice;
+    const serviceDuration = quote.selectedDurationMinutes;
 
     const baseMetadata = await buildBookingSnapshot(d.branchId, d.serviceId, d.notes);
     const orderId = crypto.randomUUID();
@@ -351,7 +365,9 @@ export async function createOnlineBookingAction(
       groupBookingIds: [],
     });
 
-    const combinedMetadata = { ...baseMetadata, ...orderMetadata };
+    const combinedMetadata = { ...baseMetadata, ...orderMetadata,
+      price_paid: quote.calculatedPrice, duration_minutes: quote.selectedDurationMinutes,
+      commercial_snapshot: toServiceLineCommercialSnapshot(quote) };
 
     const metadata = selectedStaffException
       ? createOpenStaffScheduleException(combinedMetadata, {
@@ -516,6 +532,9 @@ export async function createOnlineBookingAction(
       ...(scheduleException ? { staffPreferenceNeedsConfirmation: true } : {}),
     };
   } catch (err) {
+    if (err instanceof ServiceLineQuoteError) {
+      return { ok: false, code: err.code, message: "Service duration or price changed. Please review your services and try again." };
+    }
     if (err instanceof SlotUnavailableError) {
       return {
         ok: false,
@@ -710,6 +729,15 @@ export async function createOnlineBookingMultiAction(
     const servicesMap = new Map<string, DbServiceRow>(
       (dbServices as unknown as DbServiceRow[]).map((s) => [s.id, s])
     );
+    const attendeeQuotes = await Promise.all(attendees.map((attendee, index) =>
+      resolveBookingLineQuotes({
+        branchId: d.branchId,
+        serviceIds: attendee.serviceIds,
+        serviceLines: d.attendees?.[index]?.serviceLines ?? (d.attendees ? undefined : d.serviceLines),
+        audience: "public",
+        deliveryMode: deliveryType,
+      })
+    ));
 
     // Staff assignment: single attendee vs multiple concurrent attendees
     let attendeeStaffAssignments: Array<{ attendeeId?: string; staffId: string }>;
@@ -721,8 +749,11 @@ export async function createOnlineBookingMultiAction(
     if (attendees.length === 1) {
       const attendeeServiceIds = attendees[0]!.serviceIds;
       let selectedRangeEnd = d.startTime;
-      for (const serviceId of attendeeServiceIds) {
-        selectedRangeEnd = await computeEndTime(selectedRangeEnd, serviceId);
+      for (const [index, serviceId] of attendeeServiceIds.entries()) {
+        const service = servicesMap.get(serviceId)!;
+        selectedRangeEnd = computeEndTimeForResolvedDuration({ startTime: selectedRangeEnd,
+          selectedDurationMinutes: attendeeQuotes[0]![index]!.selectedDurationMinutes,
+          bufferBeforeMinutes: service.buffer_before, bufferAfterMinutes: service.buffer_after });
       }
 
       let resolvedStaffId: string;
@@ -734,6 +765,7 @@ export async function createOnlineBookingMultiAction(
           startTime: d.startTime,
           deliveryMode: deliveryType,
           requireStaffServiceAssignment: true,
+          selectedDurationMinutes: attendeeQuotes[0]!.map((quote) => quote.selectedDurationMinutes),
         });
       } else {
         const selectedStaff = await evaluateOnlineSelectedStaff({
@@ -757,7 +789,8 @@ export async function createOnlineBookingMultiAction(
     } else {
       attendeeStaffAssignments = await assignTherapistsForOrder({
         branchId: d.branchId,
-        attendees: attendees.map((a) => ({ id: a.id, serviceIds: a.serviceIds })),
+        attendees: attendees.map((a, index) => ({ id: a.id, serviceIds: a.serviceIds,
+          selectedDurationMinutes: attendeeQuotes[index]!.map((quote) => quote.selectedDurationMinutes) })),
         date: d.date,
         startTime: d.startTime,
         deliveryMode: deliveryType,
@@ -860,10 +893,10 @@ export async function createOnlineBookingMultiAction(
 
       // Compute total order elapsed duration for dispatch check
       const maxAttendeeMinutes = Math.max(
-        ...attendees.map((att) =>
-          att.serviceIds.reduce((sum, sId) => {
+        ...attendees.map((att, attendeeIndex) =>
+          att.serviceIds.reduce((sum, sId, lineIndex) => {
             const svc = servicesMap.get(sId);
-            return sum + (svc ? svc.duration_minutes + svc.buffer_before + svc.buffer_after : 60);
+            return sum + (svc ? attendeeQuotes[attendeeIndex]![lineIndex]!.selectedDurationMinutes + svc.buffer_before + svc.buffer_after : 60);
           }, 0)
         ),
         0
@@ -907,15 +940,12 @@ export async function createOnlineBookingMultiAction(
     }
 
     // Build aggregate metrics and canonical atomic payload
-    const subtotalAmount = attendees.reduce((total, att) => {
-      return (
-        total + att.serviceIds.reduce((sum, sId) => sum + (servicesMap.get(sId)?.price ?? 0), 0)
-      );
-    }, 0);
+    const subtotalAmount = Math.round(attendeeQuotes.flat().reduce((cents, quote) =>
+      cents + Math.round(quote.calculatedPrice * 100), 0)) / 100;
     const totalAmount = subtotalAmount + homeServiceFee;
 
-    const attendeeDurations = attendees.map((att) =>
-      att.serviceIds.reduce((sum, sId) => sum + (servicesMap.get(sId)?.duration_minutes ?? 60), 0)
+    const attendeeDurations = attendeeQuotes.map((quotes) =>
+      quotes.reduce((sum, quote) => sum + quote.selectedDurationMinutes, 0)
     );
     const totalDurationMinutes = Math.max(...attendeeDurations, 0);
 
@@ -958,9 +988,13 @@ export async function createOnlineBookingMultiAction(
         const serviceId = attendee.serviceIds[sIdx]!;
         const serviceInfo = servicesMap.get(serviceId);
         const serviceName = serviceInfo?.name ?? "Service";
-        const servicePrice = serviceInfo?.price ?? 0;
-        const serviceDuration = serviceInfo?.duration_minutes ?? 60;
-        const endTime = await computeEndTime(currentStartTime, serviceId);
+        const quote = attendeeQuotes[aIdx]![sIdx]!;
+        const servicePrice = quote.calculatedPrice;
+        const serviceDuration = quote.selectedDurationMinutes;
+        const endTime = computeEndTimeForResolvedDuration({ startTime: currentStartTime,
+          selectedDurationMinutes: serviceDuration,
+          bufferBeforeMinutes: serviceInfo?.buffer_before ?? 0,
+          bufferAfterMinutes: serviceInfo?.buffer_after ?? 0 });
 
         const baseSnapshot = await buildBookingSnapshot(d.branchId, serviceId, d.notes);
         const deliveryMetadata = hsAddressData
@@ -972,6 +1006,8 @@ export async function createOnlineBookingMultiAction(
           service_name: serviceName,
           price: servicePrice,
           duration_minutes: serviceDuration,
+          price_paid: servicePrice,
+          commercial_snapshot: toServiceLineCommercialSnapshot(quote),
           delivery_type: deliveryType,
         };
 
@@ -1229,6 +1265,9 @@ export async function createOnlineBookingMultiAction(
       ...(insertedScheduleExceptions.length > 0 ? { staffPreferenceNeedsConfirmation: true } : {}),
     };
   } catch (err) {
+    if (err instanceof ServiceLineQuoteError) {
+      return { ok: false, code: err.code, message: "Service duration or price changed. Please review your services and try again." };
+    }
     if (err instanceof SlotUnavailableError) {
       return {
         ok: false,

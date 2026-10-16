@@ -8,6 +8,9 @@ import {
 } from "@/lib/engine/availability";
 import { validateBranchServiceEligibility } from "@/lib/services/service-catalog";
 import { logError } from "@/lib/logger";
+import { resolveBookingLineQuotes } from "@/lib/services/resolve-booking-line-quotes";
+import { resolveServiceLineQuote } from "@/lib/services/resolve-service-line-quote";
+import { serviceLineRequestSchema } from "@/lib/validations/booking";
 
 const uuid = z.guid("Invalid ID");
 const anyDate = z.string().regex(/^\d{4}-\d{2}-\d{2}$/, "Date must be YYYY-MM-DD");
@@ -15,6 +18,7 @@ const anyDate = z.string().regex(/^\d{4}-\d{2}-\d{2}$/, "Date must be YYYY-MM-DD
 const multiSlotsSchema = z.object({
   branchId:   uuid,
   serviceIds: z.array(uuid).min(1).max(25),
+  serviceLines: z.array(serviceLineRequestSchema).max(25).optional(),
   date:       anyDate,
   deliveryType: z.enum(["in_spa", "home_service"]).optional(),
 });
@@ -27,6 +31,7 @@ const attendeeOrderSlotsSchema = z.object({
     z.object({
       id: z.string().optional(),
       serviceIds: z.array(uuid).min(1).max(5),
+      serviceLines: z.array(serviceLineRequestSchema).max(5).optional(),
     })
   ).min(1).max(10),
 });
@@ -82,7 +87,17 @@ export async function GET(request: NextRequest) {
 
       const slots = await getAvailableSlotsForOrder({
         branchId: parsed.data.branchId,
-        attendees: parsed.data.attendees,
+        attendees: await Promise.all(parsed.data.attendees.map(async (attendee) => ({
+          id: attendee.id,
+          serviceIds: attendee.serviceIds,
+          selectedDurationMinutes: (await resolveBookingLineQuotes({
+            branchId: parsed.data.branchId,
+            serviceIds: attendee.serviceIds,
+            serviceLines: attendee.serviceLines,
+            audience: "public",
+            deliveryMode: deliveryType,
+          })).map((quote) => quote.selectedDurationMinutes),
+        }))),
         date: parsed.data.date,
         deliveryMode: deliveryType,
         requireStaffServiceAssignment: true,
@@ -99,9 +114,18 @@ export async function GET(request: NextRequest) {
 
   // ── Multi-service path ──────────────────────────────────────────────────────
   if (serviceIdsParam) {
+    let serviceLines: unknown;
+    try {
+      serviceLines = searchParams.get("serviceLines")
+        ? JSON.parse(searchParams.get("serviceLines")!)
+        : undefined;
+    } catch {
+      return NextResponse.json({ error: "Invalid parameters" }, { status: 400 });
+    }
     const raw = {
       branchId:   searchParams.get("branchId") ?? undefined,
       serviceIds: serviceIdsParam.split(",").filter(Boolean),
+      serviceLines,
       date:       searchParams.get("date") ?? undefined,
       deliveryType: searchParams.get("deliveryType") ?? undefined,
     };
@@ -141,6 +165,13 @@ export async function GET(request: NextRequest) {
         date: parsed.data.date,
         deliveryMode: deliveryType,
         requireStaffServiceAssignment: true,
+        selectedDurationMinutes: (await resolveBookingLineQuotes({
+          branchId: parsed.data.branchId,
+          serviceIds: parsed.data.serviceIds,
+          serviceLines: parsed.data.serviceLines,
+          audience: "public",
+          deliveryMode: deliveryType,
+        })).map((quote) => quote.selectedDurationMinutes),
       });
       return NextResponse.json({ slots });
     } catch (error) {
@@ -156,6 +187,7 @@ export async function GET(request: NextRequest) {
     serviceId: searchParams.get("serviceId") ?? undefined,
     staffId:   searchParams.get("staffId")   ?? undefined,
     date:      searchParams.get("date")      ?? undefined,
+    requestedDurationMinutes: searchParams.get("requestedDurationMinutes") ?? searchParams.get("selectedDurationMinutes") ?? undefined,
   };
 
   const parsed = getAvailableSlotsSchema.safeParse(raw);
@@ -189,10 +221,23 @@ export async function GET(request: NextRequest) {
       );
     }
 
+    let selectedDurationMinutes: number | undefined;
+    if (parsed.data.requestedDurationMinutes) {
+      const quote = await resolveServiceLineQuote({
+        branchId: parsed.data.branchId,
+        serviceId: parsed.data.serviceId,
+        requestedDurationMinutes: parsed.data.requestedDurationMinutes,
+        audience: "public",
+        deliveryMode: deliveryType,
+      });
+      selectedDurationMinutes = quote.selectedDurationMinutes;
+    }
+
     const slots = await getAvailableSlots({
       ...parsed.data,
       deliveryMode: deliveryType,
       requireStaffServiceAssignment: true,
+      selectedDurationMinutes,
     });
     return NextResponse.json({ slots });
   } catch (error) {
