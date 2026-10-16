@@ -4,12 +4,16 @@ import { useId, useMemo, useRef, useState } from "react";
 import { Check, ChevronDown, PlusCircle, Search, Sparkles, Trash2, X } from "lucide-react";
 import { cn, formatCurrency } from "@/lib/utils";
 import type { QuickBookingServiceOption } from "@/components/features/bookings/quick-booking-form";
+import type { ServiceLineQuote } from "@/lib/services/service-line-quote";
+import { InlineServiceDurationDropdown } from "@/components/features/bookings/inline-service-duration-dropdown";
 
 type QuickBookingServiceSelectorProps = {
   services: QuickBookingServiceOption[];
   selectedServiceIds: string[];
   onChange: (serviceIds: string[]) => void;
   onAdjust?: (service: QuickBookingServiceOption) => void;
+  onSelectQuote?: (service: QuickBookingServiceOption, quote: ServiceLineQuote) => void;
+  branchId?: string;
   isHomeService: boolean;
   disabled?: boolean;
   error?: string;
@@ -33,6 +37,8 @@ export function QuickBookingServiceSelector({
   selectedServiceIds,
   onChange,
   onAdjust,
+  onSelectQuote,
+  branchId,
   isHomeService,
   disabled = false,
   error,
@@ -339,10 +345,18 @@ export function QuickBookingServiceSelector({
 
                   {/* Duration Trigger or Badge */}
                   <div className="shrink-0">
-                    {service.durationPolicy === "extendable" ? (
+                    {service.durationPolicy === "extendable" && branchId ? (
+                      <InlineServiceDurationDropdown
+                        branchId={branchId}
+                        service={service}
+                        deliveryMode={isHomeService ? "home_service" : "in_spa"}
+                        disabled={disabled}
+                        onSelectQuote={(quote) => onSelectQuote?.(service, quote)}
+                      />
+                    ) : service.durationPolicy === "extendable" && onAdjust ? (
                       <button
                         type="button"
-                        onClick={() => onAdjust?.(service)}
+                        onClick={() => onAdjust(service)}
                         disabled={disabled}
                         className="inline-flex h-7 items-center gap-1 rounded-lg border border-[var(--cs-border)] bg-[var(--cs-surface-warm)] px-2 text-xs font-semibold text-[var(--cs-text)] transition hover:border-[#7A583E] hover:bg-[#F7F4F0] disabled:opacity-60"
                         title="Adjust duration"
