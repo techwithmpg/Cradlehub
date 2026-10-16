@@ -2,24 +2,33 @@ import "server-only";
 
 import { createAdminClient } from "@/lib/supabase/admin";
 import {
-  calculateExtraDistanceKm,
-  calculateHomeServiceTravelFee,
-  haversineDistanceKm,
+  calculateHomeServiceTravelFeeBreakdown,
   type Coordinates,
+  type HomeServiceTransportSnapshot,
 } from "@/lib/home-service/distance-fee";
 import { calculateDrivingDistanceKm } from "@/lib/maps/google-maps";
 
-export type HomeServiceDistanceSource = "google_driving" | "haversine_estimate";
+export type { HomeServiceTransportSnapshot } from "@/lib/home-service/distance-fee";
+
+export type HomeServiceDistanceSource = "google_driving";
 
 export type HomeServiceDistanceQuote = {
   branchId: string;
   branchName: string;
   distanceKm: number;
+  drivingDistanceKm: number;
   distanceSource: HomeServiceDistanceSource;
+  baseFee: number;
+  includedKm: number;
+  perKmFee: number;
+  billableDistanceKm: number;
+  rawFee: number;
+  travelFee: number;
+  transportSnapshot: HomeServiceTransportSnapshot;
+  // Backward compatibility fields
   freeKm: number;
   extraKm: number;
   feePerExtraKm: number;
-  travelFee: number;
   warning?: string;
 };
 
@@ -33,12 +42,21 @@ type BranchDistanceRow = {
 };
 
 type BranchDistanceRulesRow = {
+  home_service_base_fee?: number | string | null;
   home_service_free_km?: number | string | null;
   home_service_extra_km_fee?: number | string | null;
 };
 
-export const DEFAULT_HOME_SERVICE_FREE_KM = 5;
-export const DEFAULT_HOME_SERVICE_EXTRA_KM_FEE = 100;
+export const DEFAULT_HOME_SERVICE_BASE_FEE = 100;
+export const DEFAULT_HOME_SERVICE_INCLUDED_KM = 1;
+export const DEFAULT_HOME_SERVICE_PER_KM_FEE = 40;
+
+// Legacy aliases
+export const DEFAULT_HOME_SERVICE_FREE_KM = DEFAULT_HOME_SERVICE_INCLUDED_KM;
+export const DEFAULT_HOME_SERVICE_EXTRA_KM_FEE = DEFAULT_HOME_SERVICE_PER_KM_FEE;
+
+export const HOME_SERVICE_DISTANCE_UNAVAILABLE_MESSAGE =
+  "We couldn't calculate the transportation fee right now. Please try again or contact the branch.";
 
 function numberOrNull(value: number | string | null | undefined): number | null {
   if (typeof value === "number") return Number.isFinite(value) ? value : null;
@@ -72,11 +90,30 @@ function resolveBranchCoordinates(branch: BranchDistanceRow): Coordinates | null
 export async function calculateHomeServiceDistanceQuote(params: {
   branchId: string;
   destination: Coordinates;
+  client?: unknown;
 }): Promise<
   | { ok: true; quote: HomeServiceDistanceQuote }
-  | { ok: false; code: "BRANCH_NOT_FOUND" | "BRANCH_LOCATION_MISSING"; message: string }
+  | {
+      ok: false;
+      code: "BRANCH_NOT_FOUND" | "BRANCH_LOCATION_MISSING" | "HOME_SERVICE_DISTANCE_UNAVAILABLE";
+      message: string;
+    }
 > {
-  const admin = createAdminClient();
+  if (
+    !params.destination ||
+    typeof params.destination.lat !== "number" ||
+    !Number.isFinite(params.destination.lat) ||
+    typeof params.destination.lng !== "number" ||
+    !Number.isFinite(params.destination.lng)
+  ) {
+    return {
+      ok: false,
+      code: "HOME_SERVICE_DISTANCE_UNAVAILABLE",
+      message: HOME_SERVICE_DISTANCE_UNAVAILABLE_MESSAGE,
+    };
+  }
+
+  const admin = (params.client as ReturnType<typeof createAdminClient> | undefined) ?? createAdminClient();
   const [{ data: branchData, error: branchError }, { data: rulesData }] = await Promise.all([
     admin
       .from("branches")
@@ -101,15 +138,9 @@ export async function calculateHomeServiceDistanceQuote(params: {
     return {
       ok: false,
       code: "BRANCH_LOCATION_MISSING",
-      message:
-        "Branch location coordinates are not configured. Update the selected branch service address before calculating Home Service distance.",
+      message: HOME_SERVICE_DISTANCE_UNAVAILABLE_MESSAGE,
     };
   }
-
-  const rules = (rulesData ?? {}) as BranchDistanceRulesRow;
-  const freeKm = numberOrNull(rules.home_service_free_km) ?? DEFAULT_HOME_SERVICE_FREE_KM;
-  const feePerExtraKm =
-    numberOrNull(rules.home_service_extra_km_fee) ?? DEFAULT_HOME_SERVICE_EXTRA_KM_FEE;
 
   const googleDistanceKm = await calculateDrivingDistanceKm(
     origin.lat,
@@ -117,27 +148,55 @@ export async function calculateHomeServiceDistanceQuote(params: {
     params.destination.lat,
     params.destination.lng
   );
-  const distanceSource: HomeServiceDistanceSource =
-    googleDistanceKm === null ? "haversine_estimate" : "google_driving";
-  const distanceKm = googleDistanceKm ?? haversineDistanceKm(origin, params.destination);
-  const extraKm = calculateExtraDistanceKm(distanceKm, freeKm);
-  const travelFee = calculateHomeServiceTravelFee(distanceKm, freeKm, feePerExtraKm);
+
+  // Financial distance authority MUST be Google Routes driving distance. Fail closed if unavailable.
+  if (googleDistanceKm === null) {
+    return {
+      ok: false,
+      code: "HOME_SERVICE_DISTANCE_UNAVAILABLE",
+      message: HOME_SERVICE_DISTANCE_UNAVAILABLE_MESSAGE,
+    };
+  }
+
+  const rules = (rulesData ?? {}) as BranchDistanceRulesRow;
+  const baseFee = numberOrNull(rules.home_service_base_fee) ?? DEFAULT_HOME_SERVICE_BASE_FEE;
+  const includedKm = numberOrNull(rules.home_service_free_km) ?? DEFAULT_HOME_SERVICE_INCLUDED_KM;
+  const perKmFee =
+    numberOrNull(rules.home_service_extra_km_fee) ?? DEFAULT_HOME_SERVICE_PER_KM_FEE;
+
+  if (baseFee < 0 || includedKm < 0 || perKmFee < 0) {
+    return {
+      ok: false,
+      code: "HOME_SERVICE_DISTANCE_UNAVAILABLE",
+      message: HOME_SERVICE_DISTANCE_UNAVAILABLE_MESSAGE,
+    };
+  }
+
+  const breakdown = calculateHomeServiceTravelFeeBreakdown({
+    drivingDistanceKm: googleDistanceKm,
+    baseFee,
+    includedKm,
+    perKmFee,
+  });
 
   return {
     ok: true,
     quote: {
       branchId: branch.id,
       branchName: branch.name,
-      distanceKm,
-      distanceSource,
-      freeKm,
-      extraKm,
-      feePerExtraKm,
-      travelFee,
-      warning:
-        distanceSource === "haversine_estimate"
-          ? "Distance is estimated. Please confirm before booking."
-          : undefined,
+      distanceKm: googleDistanceKm,
+      drivingDistanceKm: googleDistanceKm,
+      distanceSource: "google_driving",
+      baseFee,
+      includedKm,
+      perKmFee,
+      billableDistanceKm: breakdown.billableDistanceKm,
+      rawFee: breakdown.rawFee,
+      travelFee: breakdown.finalFee,
+      transportSnapshot: breakdown.snapshot,
+      freeKm: includedKm,
+      extraKm: breakdown.billableDistanceKm,
+      feePerExtraKm: perKmFee,
     },
   };
 }
@@ -153,10 +212,17 @@ export function buildHomeServicePricingBreakdown(params: {
     service_line_price: params.serviceLinePrice,
     home_service_distance_km: params.quote.distanceKm,
     home_service_distance_source: params.quote.distanceSource,
-    home_service_free_km: params.quote.freeKm,
-    home_service_extra_km: params.quote.extraKm,
-    home_service_extra_km_fee: params.quote.feePerExtraKm,
+    home_service_base_fee: params.quote.baseFee,
+    home_service_included_km: params.quote.includedKm,
+    home_service_per_km_fee: params.quote.perKmFee,
+    home_service_billable_distance_km: params.quote.billableDistanceKm,
+    home_service_raw_fee: params.quote.rawFee,
+    home_service_calculated_fee: params.quote.travelFee,
+    home_service_free_km: params.quote.includedKm,
+    home_service_extra_km: params.quote.billableDistanceKm,
+    home_service_extra_km_fee: params.quote.perKmFee,
     home_service_travel_fee: params.quote.travelFee,
+    home_service_transport: params.quote.transportSnapshot,
     travel_fee_applied_to_booking: params.travelFeeAppliedToBooking,
     total: params.serviceSubtotal + params.quote.travelFee,
   };

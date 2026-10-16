@@ -45,7 +45,9 @@ export function TextInputField({
   type = "text",
   min,
   max,
+  step,
   helperText,
+  onChange,
 }: {
   label: string;
   name: string;
@@ -53,7 +55,9 @@ export function TextInputField({
   type?: "text" | "time" | "number";
   min?: number;
   max?: number;
+  step?: string | number;
   helperText?: string;
+  onChange?: (e: React.ChangeEvent<HTMLInputElement>) => void;
 }) {
   const id = `manager-settings-${name}`;
 
@@ -65,7 +69,9 @@ export function TextInputField({
         type={type}
         min={min}
         max={max}
+        step={step}
         defaultValue={defaultValue}
+        onChange={onChange}
         className="h-10 border-[var(--cs-border)] bg-[var(--cs-surface)] text-sm"
       />
     </FieldRow>

@@ -55,9 +55,9 @@ import {
   type BookingOrderAttendee,
 } from "@/lib/bookings/booking-order-contract";
 import {
-  calculateHomeServiceTravelFee,
-  haversineDistanceKm,
-} from "@/lib/home-service/distance-fee";
+  calculateHomeServiceDistanceQuote,
+  type HomeServiceDistanceQuote,
+} from "@/lib/home-service/distance-service";
 
 async function containsConsultationOnlyService(
   supabase: ReturnType<typeof createAdminClient>,
@@ -841,12 +841,8 @@ export async function createOnlineBookingMultiAction(
       dispatch_warning: null,
     };
     let homeServiceFee = 0;
+    let homeServiceQuote: HomeServiceDistanceQuote | null = null;
 
-    const { data: branchRow } = await supabase
-      .from("branches")
-      .select("id, name, latitude, longitude, home_service_free_km, home_service_extra_km_fee")
-      .eq("id", d.branchId)
-      .maybeSingle();
 
     if (deliveryType === "home_service") {
       const homeServiceLat = d.homeServiceLat as number;
@@ -876,20 +872,26 @@ export async function createOnlineBookingMultiAction(
         source: "google_places",
       } satisfies { [key: string]: Json | undefined };
 
-      // Compute canonical Home Service travel fee if coordinates exist
-      if (typeof branchRow?.latitude === "number" && typeof branchRow?.longitude === "number") {
-        try {
-          const distanceKm = haversineDistanceKm(
-            { lat: branchRow.latitude, lng: branchRow.longitude },
-            { lat: homeServiceLat, lng: homeServiceLng }
-          );
-          const freeKm = branchRow.home_service_free_km ?? 5;
-          const feePerExtraKm = branchRow.home_service_extra_km_fee ?? 50;
-          homeServiceFee = calculateHomeServiceTravelFee(distanceKm, freeKm, feePerExtraKm);
-        } catch {
-          homeServiceFee = 0;
-        }
+      // Compute authoritative Google driving distance and travel fee
+      const distanceResult = await calculateHomeServiceDistanceQuote({
+        branchId: d.branchId,
+        destination: { lat: homeServiceLat, lng: homeServiceLng },
+      });
+
+      if (!distanceResult.ok) {
+        return {
+          ok: false,
+          code: distanceResult.code,
+          message:
+            distanceResult.code === "BRANCH_LOCATION_MISSING" ||
+            distanceResult.code === "HOME_SERVICE_DISTANCE_UNAVAILABLE"
+              ? "We couldn't calculate the transportation fee right now. Please try again or contact the branch."
+              : distanceResult.message,
+        };
       }
+
+      homeServiceQuote = distanceResult.quote;
+      homeServiceFee = homeServiceQuote.travelFee;
 
       // Compute total order elapsed duration for dispatch check
       const maxAttendeeMinutes = Math.max(
@@ -1009,6 +1011,14 @@ export async function createOnlineBookingMultiAction(
           price_paid: servicePrice,
           commercial_snapshot: toServiceLineCommercialSnapshot(quote),
           delivery_type: deliveryType,
+          ...(homeServiceQuote
+            ? {
+                home_service_transport: homeServiceQuote.transportSnapshot,
+                home_service_distance_km: homeServiceQuote.distanceKm,
+                home_service_distance_source: homeServiceQuote.distanceSource,
+                home_service_travel_fee: homeServiceQuote.travelFee,
+              }
+            : {}),
         };
 
         const finalLineMeta =
@@ -1071,6 +1081,9 @@ export async function createOnlineBookingMultiAction(
         email: d.email || null,
         notes: d.notes || null,
       },
+      ...(homeServiceQuote
+        ? { home_service_transport: homeServiceQuote.transportSnapshot }
+        : {}),
       ...(hsAddressData ? { home_service_address: hsAddressData, dispatch: dispatchData } : {}),
     };
 
@@ -1282,4 +1295,32 @@ export async function createOnlineBookingMultiAction(
       message: "Something went wrong. Please try again.",
     };
   }
+}
+
+export async function getPublicHomeServiceQuoteAction(params: {
+  branchId: string;
+  lat: number;
+  lng: number;
+}): Promise<
+  | { ok: true; quote: HomeServiceDistanceQuote }
+  | { ok: false; code: string; message: string }
+> {
+  if (
+    !params.branchId ||
+    typeof params.lat !== "number" ||
+    !Number.isFinite(params.lat) ||
+    typeof params.lng !== "number" ||
+    !Number.isFinite(params.lng)
+  ) {
+    return {
+      ok: false,
+      code: "INVALID_PARAMETERS",
+      message: "Valid branch and coordinates are required.",
+    };
+  }
+
+  return calculateHomeServiceDistanceQuote({
+    branchId: params.branchId,
+    destination: { lat: params.lat, lng: params.lng },
+  });
 }

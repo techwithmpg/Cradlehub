@@ -45,12 +45,17 @@ import {
   Gift,
   Plus,
   AlertCircle,
+  Car,
 } from "lucide-react";
 import { toast } from "sonner";
-import { createOnlineBookingMultiAction } from "@/lib/actions/online-booking";
+import {
+  createOnlineBookingMultiAction,
+  getPublicHomeServiceQuoteAction,
+} from "@/lib/actions/online-booking";
 import { createInhouseBookingMultiAction } from "@/lib/actions/inhouse-booking";
 import { validateBookingDraft } from "@/lib/bookings/booking-wizard-validation";
 import type { BookingForChoice, BookingPaymentChoice } from "@/lib/bookings/booking-order-contract";
+import type { HomeServiceDistanceQuote } from "@/lib/home-service/distance-service";
 import {
   PlacesAutocomplete,
   type GoogleAddressComponent,
@@ -515,6 +520,9 @@ export function BookingWizard({
   });
   const [formError, setFormError] = useState("");
   const [placesStatus, setPlacesStatus] = useState<PlacesAutocompleteStatus>("idle");
+  const [hsQuote, setHsQuote] = useState<HomeServiceDistanceQuote | null>(null);
+  const [hsQuoteLoading, setHsQuoteLoading] = useState(false);
+  const [hsQuoteError, setHsQuoteError] = useState("");
 
   // Computed
   const activeAttendee = useMemo(
@@ -585,6 +593,59 @@ export function BookingWizard({
     [bookingRules, selectedVisitType]
   );
   const isHomeService = visitType === "home_service";
+
+  useEffect(() => {
+    if (
+      visitType !== "home_service" ||
+      !selectedBranch?.id ||
+      form.hsLat === null ||
+      form.hsLng === null
+    ) {
+      queueMicrotask(() => {
+        setHsQuote(null);
+        setHsQuoteLoading(false);
+        setHsQuoteError("");
+      });
+      return;
+    }
+
+    let active = true;
+    queueMicrotask(() => {
+      setHsQuoteLoading(true);
+      setHsQuoteError("");
+    });
+
+    getPublicHomeServiceQuoteAction({
+      branchId: selectedBranch.id,
+      lat: form.hsLat,
+      lng: form.hsLng,
+    })
+      .then((res) => {
+        if (!active) return;
+        if (res.ok) {
+          setHsQuote(res.quote);
+          setHsQuoteError("");
+        } else {
+          setHsQuote(null);
+          setHsQuoteError(res.message);
+        }
+      })
+      .catch(() => {
+        if (!active) return;
+        setHsQuote(null);
+        setHsQuoteError(
+          "We couldn't calculate the transportation fee right now. Please try again or contact the branch."
+        );
+      })
+      .finally(() => {
+        if (active) setHsQuoteLoading(false);
+      });
+
+    return () => {
+      active = false;
+    };
+  }, [visitType, selectedBranch?.id, form.hsLat, form.hsLng]);
+
   const steps = useMemo(() => getSteps(isHomeService), [isHomeService]);
   const visibleSteps =
     mode === "public" ? steps.filter((item) => item.name !== "therapist") : steps;
@@ -1059,6 +1120,12 @@ export function BookingWizard({
       return;
     }
 
+    if (visitType === "home_service" && hsQuoteError) {
+      setFormError(hsQuoteError);
+      toast.error("Transportation Error", { description: hsQuoteError });
+      return;
+    }
+
     isSubmittingRef.current = true;
     setSubmitting(true);
     setFormError("");
@@ -1245,6 +1312,7 @@ export function BookingWizard({
     isOffline,
     submitting,
     step,
+    hsQuoteError,
   ]);
 
   const preciseHomeServiceLocationSelected = isPreciseHomeServiceLocation(form);
@@ -1289,22 +1357,31 @@ export function BookingWizard({
                       paymentChoice !== "pay_now" ||
                       form.paymentMethod.trim().length > 0)
                   : false;
-  const canClickContinue = currentStepName === "location" || canProceed;
+  const canClickContinue =
+    currentStepName === "location"
+      ? locationValid && (!preciseLocationRequired || (!hsQuoteLoading && !hsQuoteError && !!hsQuote))
+      : canProceed;
   const mobileProgressIndex = getMobileProgressIndex(currentStepName);
 
   const handleContinue = useCallback(() => {
-    if (currentStepName === "location" && !locationValid) {
-      setFormError(
-        preciseLocationRequired
-          ? PRECISE_LOCATION_ERROR
-          : "Please select a location zone before continuing."
-      );
-      return;
+    if (currentStepName === "location") {
+      if (!locationValid) {
+        setFormError(
+          preciseLocationRequired
+            ? PRECISE_LOCATION_ERROR
+            : "Please select a location zone before continuing."
+        );
+        return;
+      }
+      if (hsQuoteError) {
+        setFormError(hsQuoteError);
+        return;
+      }
     }
 
     setFormError("");
     setStep((current) => current + (mode === "public" && currentStepName === "date_time" ? 2 : 1));
-  }, [currentStepName, locationValid, mode, preciseLocationRequired]);
+  }, [currentStepName, locationValid, mode, preciseLocationRequired, hsQuoteError]);
 
   return (
     <div
@@ -1603,6 +1680,9 @@ export function BookingWizard({
                   preciseLocationRequired={mode === "public"}
                   mode={mode}
                   error={formError}
+                  homeServiceQuote={hsQuote}
+                  homeServiceQuoteLoading={hsQuoteLoading}
+                  homeServiceQuoteError={hsQuoteError}
                 />
               )}
               {currentStepName === "date_time" && (
@@ -1683,7 +1763,10 @@ export function BookingWizard({
                   visitType={visitType}
                   hsAddress={form.hsFormattedAddress || form.hsAddress}
                   paymentChoice={paymentChoice}
-                  totalPrice={totalPrice}
+                  totalPrice={
+                    totalPrice +
+                    (visitType === "home_service" && hsQuote ? hsQuote.travelFee : 0)
+                  }
                   mode={mode}
                   staffPreferenceNeedsConfirmation={success.staffPreferenceNeedsConfirmation}
                 />
@@ -1782,6 +1865,8 @@ export function BookingWizard({
                   bookingFor={bookingFor}
                   recipientName={recipientName}
                   attendees={attendees}
+                  homeServiceQuote={hsQuote}
+                  homeServiceQuoteLoading={hsQuoteLoading}
                 />
               </div>
             )}
@@ -1875,6 +1960,8 @@ function BookingSummary({
   bookingFor,
   recipientName,
   attendees,
+  homeServiceQuote,
+  homeServiceQuoteLoading,
 }: {
   branch: Branch | null;
   services: Service[];
@@ -1891,6 +1978,8 @@ function BookingSummary({
   bookingFor?: BookingForChoice;
   recipientName?: string;
   attendees?: WizardAttendee[];
+  homeServiceQuote?: HomeServiceDistanceQuote | null;
+  homeServiceQuoteLoading?: boolean;
 }) {
   const selectedStaffOption =
     selectedStaff === "auto"
@@ -1950,6 +2039,22 @@ function BookingSummary({
                 {formatTime(availability.startTime)} - {formatTime(availability.endTime)}
               </p>
             </TherapistSummaryItem>
+            {visitType === "home_service" && (
+              <TherapistSummaryItem icon={Car} label="Transportation">
+                {homeServiceQuote ? (
+                  <p>
+                    {formatCurrency(homeServiceQuote.travelFee)}
+                    <span className="ml-1 text-[12px] font-normal text-[#F6EBD6]/65">
+                      · {homeServiceQuote.drivingDistanceKm.toFixed(1)} km
+                    </span>
+                  </p>
+                ) : homeServiceQuoteLoading ? (
+                  <span className="text-[12px] text-[#D4B57A]/80">Calculating...</span>
+                ) : (
+                  <span className="font-medium text-[#F6EBD6]/45">Location required</span>
+                )}
+              </TherapistSummaryItem>
+            )}
             <TherapistSummaryItem
               icon={Sparkles}
               label={services.length === 1 ? "Service" : "Services"}
@@ -1974,6 +2079,12 @@ function BookingSummary({
                       {totalDuration} min · {formatCurrency(totalPrice)}
                     </p>
                   ) : null}
+                  {services.length > 0 && visitType === "home_service" && homeServiceQuote && (
+                    <div className="mt-2 pt-2 border-t border-[#D4B57A]/16 text-[13px] font-semibold flex justify-between" style={WARM_LABEL_STYLE}>
+                      <span>Total with Transport</span>
+                      <span className="text-[#F6EBD6]">{formatCurrency(totalPrice + homeServiceQuote.travelFee)}</span>
+                    </div>
+                  )}
                 </>
               )}
             </TherapistSummaryItem>
@@ -2051,6 +2162,20 @@ function BookingSummary({
           sub={`${formatTime(availability.startTime)} - ${formatTime(availability.endTime)}`}
         />
 
+        {visitType === "home_service" && (
+          <SummaryRow
+            icon={Car}
+            label="Transportation"
+            value={
+              homeServiceQuote
+                ? `${formatCurrency(homeServiceQuote.travelFee)} · ${homeServiceQuote.drivingDistanceKm.toFixed(1)} km`
+                : homeServiceQuoteLoading
+                  ? "Calculating..."
+                  : "Location required"
+            }
+          />
+        )}
+
         {/* Services list */}
         <div className="flex items-start gap-3">
           <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg border border-[#D4B57A]/25 bg-[#05241D]/70">
@@ -2100,6 +2225,17 @@ function BookingSummary({
           placeholder="Not selected"
           sub={staffSubLabel}
         />
+
+        {services.length > 0 && (
+          <div className="pt-3 border-t border-[#D4B57A]/16 flex justify-between items-center text-[13px] font-semibold">
+            <span style={WARM_LABEL_STYLE}>
+              {visitType === "home_service" && homeServiceQuote ? "Total (with Transport)" : "Total"}
+            </span>
+            <span className="text-[15px]" style={WARM_HEADING_STYLE}>
+              {formatCurrency(totalPrice + (visitType === "home_service" && homeServiceQuote ? homeServiceQuote.travelFee : 0))}
+            </span>
+          </div>
+        )}
       </div>
     </div>
   );
@@ -3141,6 +3277,9 @@ function StepLocation({
   preciseLocationRequired,
   mode,
   error,
+  homeServiceQuote,
+  homeServiceQuoteLoading,
+  homeServiceQuoteError,
 }: {
   form: DetailsForm;
   onChange: (f: DetailsForm) => void;
@@ -3149,6 +3288,9 @@ function StepLocation({
   preciseLocationRequired: boolean;
   mode: BookingWizardMode;
   error: string;
+  homeServiceQuote?: HomeServiceDistanceQuote | null;
+  homeServiceQuoteLoading?: boolean;
+  homeServiceQuoteError?: string;
 }) {
   const preciseLocationSelected = isPreciseHomeServiceLocation(form);
   const hasTypedAddress = form.hsAddress.trim().length > 0;
@@ -3236,6 +3378,28 @@ function StepLocation({
                 <p className="mt-0.5 text-[13px] leading-5 text-[#F6EBD6]">
                   {form.hsFormattedAddress}
                 </p>
+                {homeServiceQuoteLoading && (
+                  <div className="mt-2 flex items-center gap-2 text-[12px] text-[#D4B57A]/80">
+                    <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                    <span>Calculating transportation fee...</span>
+                  </div>
+                )}
+                {homeServiceQuote && (
+                  <div className="mt-2 inline-flex items-center gap-2 rounded-lg border border-[#D4B57A]/30 bg-[#031B16]/60 px-2.5 py-1 text-[12px] font-medium text-[#F6EBD6]">
+                    <Car className="h-3.5 w-3.5 text-[#D4B57A]" />
+                    <span>Transportation: {formatCurrency(homeServiceQuote.travelFee)}</span>
+                    <span className="text-[#D4B57A]/60">·</span>
+                    <span className="text-[#F6EBD6]/70">{homeServiceQuote.drivingDistanceKm.toFixed(1)} km</span>
+                  </div>
+                )}
+                {homeServiceQuoteError && (
+                  <div className="mt-2 rounded-lg border border-red-300/30 bg-red-950/40 px-3 py-2 text-[12px] text-red-200">
+                    <div className="flex items-center gap-2 font-medium">
+                      <AlertCircle className="h-4 w-4 shrink-0 text-red-400" />
+                      <span>{homeServiceQuoteError}</span>
+                    </div>
+                  </div>
+                )}
               </div>
               <button
                 type="button"

@@ -7,8 +7,9 @@ export const DEFAULT_BRANCH_BOOKING_RULES = {
   travelBufferMins: 30,
   maxAdvanceBookingDays: 30,
   homeServiceDriverCapacity: 1,
-  homeServiceFreeKm: 5,
-  homeServiceExtraKmFee: 100,
+  homeServiceBaseFee: 100,
+  homeServiceFreeKm: 1,
+  homeServiceExtraKmFee: 40,
 } as const;
 
 export type BranchBookingRules = {
@@ -22,6 +23,7 @@ export type BranchBookingRules = {
   travelBufferMins: number;
   maxAdvanceBookingDays: number;
   homeServiceDriverCapacity: number;
+  homeServiceBaseFee: number;
   homeServiceFreeKm: number;
   homeServiceExtraKmFee: number;
   createdAt?: string;

@@ -778,6 +778,7 @@ export async function executeInhouseBookingCreation(
           home_service_place_id: d.homeServicePlaceId ?? null,
           home_service_address_components: d.homeServiceAddressComponents ?? null,
           home_service_access_note: d.homeServiceAccessNote?.trim() || null,
+          home_service_transport: homeServiceQuote.transportSnapshot,
           pricing_breakdown: pricingBreakdown,
         }),
         ...(hsAddressData && { dispatch: dispatchData }),
@@ -813,6 +814,9 @@ export async function executeInhouseBookingCreation(
       total_amount: phpCents(serviceSubtotal + (homeServiceQuote?.travelFee ?? 0)),
       subtotal_amount: serviceSubtotal,
       home_service_fee: phpCents(homeServiceQuote?.travelFee ?? 0),
+      ...(homeServiceQuote
+        ? { home_service_transport: homeServiceQuote.transportSnapshot }
+        : {}),
       crm_booking_mode: crmBookingMode,
       source: "crm_quick_booking",
       payment_received: paymentReceived,
