@@ -234,10 +234,10 @@ function DryRunReport({ summary }: { summary: DryRunSummary }) {
         </div>
 
         <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-4">
-          <Metric label="Bookings" value={summary.moduleRouting.bookings} />
-          <Metric label="Cash Flow" value={summary.moduleRouting.cash_flow} />
-          <Metric label="Schedule" value={summary.moduleRouting.schedule} />
-          <Metric label="Home Service" value={summary.moduleRouting.home_service} />
+          <Metric label="Bookings" value={summary.moduleRouting.bookings ?? 0} />
+          <Metric label="Cash Flow" value={summary.moduleRouting.cash_flow ?? 0} />
+          <Metric label="Schedule" value={summary.moduleRouting.schedule ?? 0} />
+          <Metric label="Home Service" value={summary.moduleRouting.home_service ?? 0} />
         </div>
       </section>
 

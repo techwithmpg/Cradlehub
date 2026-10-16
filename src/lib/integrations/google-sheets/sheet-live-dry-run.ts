@@ -1,5 +1,6 @@
 import "server-only";
 import { readGoogleSheetRange, readGoogleSheetMergeRanges } from "./sheet-reader";
+import { readGoogleSheetContactsContext } from "./sheet-contact-context";
 import { buildSheetIngestionDryRun, summarizeSheetDryRun } from "./sheet-dry-run";
 import type { SheetContext, SheetContextNeeds } from "./sheet-resolution-context";
 
@@ -36,13 +37,27 @@ export async function readSheetIngestionDryRun(input: {
     throw new Error(
       "The approved row bound was reached; confirm a larger read range before processing."
     );
+  const contactsStart = performance.now();
+  const contacts = input.loadContext ? await readGoogleSheetContactsContext() : [];
+  const contactsReadMs = performance.now() - contactsStart;
+
   const run = await buildSheetIngestionDryRun({
     spreadsheetId: values.value.spreadsheetId,
     sheetName: input.sheetName,
     rawValues: values.value.values,
     merges: merges.value.merges,
-    loadContext: input.loadContext,
+    loadContext: input.loadContext
+      ? async (needs) => {
+          const context = await input.loadContext!(needs);
+
+          return {
+            ...context,
+            contacts,
+          };
+        }
+      : undefined,
   });
+  run.timings.contactsRead = contactsReadMs;
   run.timings.sheetRead = values.ms;
   run.timings.mergeMetadataRead = merges.ms;
   run.timings.total = performance.now() - start;

@@ -261,6 +261,17 @@ export async function buildSheetIngestionDryRun(input: SheetDryRunInput) {
     schema,
     contextStatus: context.status,
     contextTarget: context.target,
+    contextCounts: {
+      staff: context.staff.length,
+      services: context.services.length,
+      customers: context.customers.length,
+      contacts: context.contacts.length,
+      aliases: context.aliases.length,
+      deliveryPolicyApproved: Boolean(
+        context.deliveryPolicy?.approvedBy &&
+        !Number.isNaN(Date.parse(context.deliveryPolicy.approvedAt))
+      ),
+    },
     restorationCounts: {
       attendant: normalized.restorations.filter((r) => r.sourceColumn === 3).length,
       client: normalized.restorations.filter((r) => r.sourceColumn === 4).length,
@@ -320,7 +331,11 @@ export function summarizeSheetDryRun(run: SheetIngestionDryRun) {
         run.rows.filter((row) => row.plan.projections.some((p) => p.module === module)).length,
       ])
     ),
-    context: { status: run.contextStatus, target: run.contextTarget },
+    context: {
+      status: run.contextStatus,
+      target: run.contextTarget,
+      ...run.contextCounts,
+    },
     resolution: {
       staff: count(serviceRows, (row) =>
         row.resolution.staff.method === "unavailable"
