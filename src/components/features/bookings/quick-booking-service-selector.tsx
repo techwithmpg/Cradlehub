@@ -141,7 +141,7 @@ export function QuickBookingServiceSelector({
               onChange={(e) => setQuery(e.target.value)}
               disabled={disabled}
               placeholder="Search services…"
-              className="h-10 w-full rounded-xl border border-[var(--cs-border)] bg-[var(--cs-surface)] pl-9 pr-16 text-xs text-[var(--cs-text)] outline-none placeholder:text-[var(--cs-text-muted)] focus:border-[var(--cs-sand-dark)] focus:ring-1 focus:ring-[var(--cs-sand-dark)]"
+              className="h-9 w-full rounded-xl border border-[var(--cs-border)] bg-[var(--cs-surface)] pl-9 pr-16 text-xs text-[var(--cs-text)] outline-none placeholder:text-[var(--cs-text-muted)] focus:border-[var(--cs-sand-dark)] focus:ring-1 focus:ring-[var(--cs-sand-dark)]"
             />
 
             {/* Accessible button for search trigger compatibility */}
@@ -177,7 +177,7 @@ export function QuickBookingServiceSelector({
                 type="button"
                 onClick={() => setSelectedCategoryId(null)}
                 className={cn(
-                  "h-7 shrink-0 rounded-full px-3 text-xs font-semibold transition",
+                  "h-6.5 shrink-0 rounded-full px-2.5 text-[11px] font-semibold transition",
                   selectedCategoryId === null
                     ? "bg-[#7A583E] text-white shadow-xs"
                     : "border border-[var(--cs-border)] bg-[var(--cs-surface-warm)] text-[var(--cs-text-secondary)] hover:bg-[var(--cs-sand-mist)]"
@@ -193,7 +193,7 @@ export function QuickBookingServiceSelector({
                     type="button"
                     onClick={() => setSelectedCategoryId(isActive ? null : category.id)}
                     className={cn(
-                      "h-7 shrink-0 rounded-full px-3 text-xs font-semibold transition",
+                      "h-6.5 shrink-0 rounded-full px-2.5 text-[11px] font-semibold transition",
                       isActive
                         ? "bg-[#7A583E] text-white shadow-xs"
                         : "border border-[var(--cs-border)] bg-[var(--cs-surface-warm)] text-[var(--cs-text-secondary)] hover:bg-[var(--cs-sand-mist)]"
@@ -207,7 +207,7 @@ export function QuickBookingServiceSelector({
           ) : null}
 
           {/* Service Cards Grid (2 columns on sm+, single column on xs) */}
-          <div className="grid max-h-[340px] grid-cols-1 gap-2 overflow-y-auto pr-1 sm:grid-cols-2">
+          <div className="grid max-h-[220px] grid-cols-1 gap-2 overflow-y-auto pr-1 sm:grid-cols-2">
             {filteredServices.length > 0 ? (
               filteredServices.map((service) => {
                 const isSelected = selectedServiceIds.includes(service.id);
@@ -220,7 +220,7 @@ export function QuickBookingServiceSelector({
                     onClick={() => toggleService(service.id)}
                     disabled={disabled || atLimit}
                     className={cn(
-                      "group flex items-center gap-2.5 rounded-xl border p-2 text-left transition",
+                      "group flex items-center gap-2 rounded-xl border p-2 text-left transition",
                       isSelected
                         ? "border-[#7A583E] bg-[#F7F4F0] ring-1 ring-[#7A583E]/40"
                         : "border-[var(--cs-border)] bg-[var(--cs-surface)] hover:border-[var(--cs-sand-dark)] hover:bg-[var(--cs-surface-warm)]",
@@ -235,12 +235,12 @@ export function QuickBookingServiceSelector({
                       <img
                         src={service.imageUrl}
                         alt=""
-                        className="size-12 shrink-0 rounded-lg object-cover"
+                        className="size-10 shrink-0 rounded-lg object-cover"
                         loading="lazy"
                       />
                     ) : (
-                      <div className="grid size-12 shrink-0 place-items-center rounded-lg bg-[var(--cs-sand-mist)] text-[var(--cs-sand-dark)]">
-                        <Sparkles size={18} />
+                      <div className="grid size-10 shrink-0 place-items-center rounded-lg bg-[var(--cs-sand-mist)] text-[var(--cs-sand-dark)]">
+                        <Sparkles size={16} />
                       </div>
                     )}
 
@@ -303,12 +303,12 @@ export function QuickBookingServiceSelector({
           </div>
 
           {/* Selected Services Card List */}
-          <div className="max-h-[340px] space-y-2 overflow-y-auto pr-1">
+          <div className="max-h-[220px] space-y-2 overflow-y-auto pr-1">
             {selectedServices.length > 0 ? (
               selectedServices.map((service) => (
                 <div
                   key={service.id}
-                  className="flex items-center gap-2.5 rounded-xl border border-[var(--cs-border)] bg-[var(--cs-surface)] p-2.5 shadow-xs"
+                  className="flex items-center gap-2 rounded-xl border border-[var(--cs-border)] bg-[var(--cs-surface)] p-2 shadow-xs"
                 >
                   {/* Thumbnail */}
                   {service.imageUrl ? (
@@ -316,11 +316,11 @@ export function QuickBookingServiceSelector({
                     <img
                       src={service.imageUrl}
                       alt=""
-                      className="size-11 shrink-0 rounded-lg object-cover"
+                      className="size-10 shrink-0 rounded-lg object-cover"
                       loading="lazy"
                     />
                   ) : (
-                    <div className="grid size-11 shrink-0 place-items-center rounded-lg bg-[var(--cs-sand-mist)] text-[var(--cs-sand-dark)]">
+                    <div className="grid size-10 shrink-0 place-items-center rounded-lg bg-[var(--cs-sand-mist)] text-[var(--cs-sand-dark)]">
                       <Sparkles size={16} />
                     </div>
                   )}

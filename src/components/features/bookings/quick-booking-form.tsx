@@ -10,10 +10,12 @@ import {
   Loader2,
   MapPin,
   Phone,
+  Plus,
   Search,
   Sparkles,
   Trash2,
   User,
+  Users,
   X,
 } from "lucide-react";
 import { toast } from "sonner";
@@ -1357,226 +1359,386 @@ export function QuickBookingForm({
               </div>
             </div>
 
-            <div className="grid gap-3 sm:grid-cols-[minmax(0,1.8fr)_minmax(0,1fr)]">
-              <div className="relative min-w-0">
-                <FieldLabel icon={<User size={14} />} label="Customer" />
-                <div className="relative">
-                  <Search className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-[var(--cs-text-muted)]" />
-                  <input
-                    id={`${formId}-customer`}
-                    type="text"
-                    role="combobox"
-                    aria-label="Customer name"
-                    aria-autocomplete="list"
-                    aria-expanded={
-                      customerSearchOpen && customerQuery.trim().length >= 2 && !selectedCustomer
-                    }
-                    aria-controls={`${formId}-customer-options`}
-                    aria-activedescendant={
-                      activeCustomerIndex >= 0
-                        ? `${formId}-customer-option-${activeCustomerIndex}`
-                        : undefined
-                    }
-                    value={customerQuery}
-                    onChange={(event) => {
-                      const nextQuery = event.target.value;
-                      ++selectionGeneration.current;
-                      setCustomerQuery(nextQuery);
-                      setFullName(nextQuery);
-                      setCustomerSearchOpen(nextQuery.trim().length >= 2);
-                      setActiveCustomerIndex(-1);
-                      setCustomerSearchError("");
-                      if (selectedCustomer) {
-                        setSelectedCustomer(null);
-                        setPhone("");
-                        setEmail("");
+            {/* Customer Details and Guest Sessions — Shared Two-Column Row */}
+            <div className="grid gap-4 md:grid-cols-[minmax(0,54%)_minmax(0,46%)] items-start">
+              {/* LEFT COLUMN — CUSTOMER DETAILS (~54%) */}
+              <div className="space-y-3 min-w-0">
+                <div className="flex items-center gap-1.5 text-xs font-bold text-[var(--cs-text)]">
+                  <User size={14} className="text-[#7A583E]" />
+                  <span>Customer details</span>
+                </div>
+
+                <div className="relative min-w-0">
+                  <FieldLabel icon={<User size={14} />} label="Customer" />
+                  <div className="relative">
+                    <Search className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-[var(--cs-text-muted)]" />
+                    <input
+                      id={`${formId}-customer`}
+                      type="text"
+                      role="combobox"
+                      aria-label="Customer name"
+                      aria-autocomplete="list"
+                      aria-expanded={
+                        customerSearchOpen && customerQuery.trim().length >= 2 && !selectedCustomer
                       }
-                      if (nextQuery.trim().length < 2) {
-                        setCustomerResults([]);
-                        setSearchingCustomers(false);
-                      } else {
-                        setCustomerResults([]);
-                        setSearchingCustomers(true);
+                      aria-controls={`${formId}-customer-options`}
+                      aria-activedescendant={
+                        activeCustomerIndex >= 0
+                          ? `${formId}-customer-option-${activeCustomerIndex}`
+                          : undefined
                       }
-                    }}
-                    onFocus={() => {
-                      if (!selectedCustomer && customerQuery.trim().length >= 2)
-                        setCustomerSearchOpen(true);
-                    }}
-                    onBlur={() => {
-                      setCustomerSearchOpen(false);
-                      setActiveCustomerIndex(-1);
-                    }}
-                    onKeyDown={(event) => {
-                      if (event.key === "Escape") {
+                      value={customerQuery}
+                      onChange={(event) => {
+                        const nextQuery = event.target.value;
+                        ++selectionGeneration.current;
+                        setCustomerQuery(nextQuery);
+                        setFullName(nextQuery);
+                        setCustomerSearchOpen(nextQuery.trim().length >= 2);
+                        setActiveCustomerIndex(-1);
+                        setCustomerSearchError("");
+                        if (selectedCustomer) {
+                          setSelectedCustomer(null);
+                          setPhone("");
+                          setEmail("");
+                        }
+                        if (nextQuery.trim().length < 2) {
+                          setCustomerResults([]);
+                          setSearchingCustomers(false);
+                        } else {
+                          setCustomerResults([]);
+                          setSearchingCustomers(true);
+                        }
+                      }}
+                      onFocus={() => {
+                        if (!selectedCustomer && customerQuery.trim().length >= 2)
+                          setCustomerSearchOpen(true);
+                      }}
+                      onBlur={() => {
                         setCustomerSearchOpen(false);
                         setActiveCustomerIndex(-1);
-                      } else if (
-                        customerSearchOpen &&
-                        (event.key === "ArrowDown" || event.key === "ArrowUp")
-                      ) {
-                        event.preventDefault();
-                        const count = customerResults.length + 1;
-                        setActiveCustomerIndex((current) =>
-                          event.key === "ArrowDown"
-                            ? (current + 1) % count
-                            : (current - 1 + count) % count
-                        );
-                      } else if (
-                        customerSearchOpen &&
-                        event.key === "Enter" &&
-                        activeCustomerIndex >= 0
-                      ) {
-                        event.preventDefault();
-                        if (activeCustomerIndex < customerResults.length) {
-                          const highlighted = customerResults[activeCustomerIndex];
-                          if (highlighted) void selectCustomer(highlighted);
-                        } else {
-                          chooseNewCustomerName();
+                      }}
+                      onKeyDown={(event) => {
+                        if (event.key === "Escape") {
+                          setCustomerSearchOpen(false);
+                          setActiveCustomerIndex(-1);
+                        } else if (
+                          customerSearchOpen &&
+                          (event.key === "ArrowDown" || event.key === "ArrowUp")
+                        ) {
+                          event.preventDefault();
+                          const count = customerResults.length + 1;
+                          setActiveCustomerIndex((current) =>
+                            event.key === "ArrowDown"
+                              ? (current + 1) % count
+                              : (current - 1 + count) % count
+                          );
+                        } else if (
+                          customerSearchOpen &&
+                          event.key === "Enter" &&
+                          activeCustomerIndex >= 0
+                        ) {
+                          event.preventDefault();
+                          if (activeCustomerIndex < customerResults.length) {
+                            const highlighted = customerResults[activeCustomerIndex];
+                            if (highlighted) void selectCustomer(highlighted);
+                          } else {
+                            chooseNewCustomerName();
+                          }
                         }
-                      }
-                    }}
-                    disabled={isSaving || loadingCustomerIdentity}
-                    placeholder="Enter name or find an existing customer"
-                    className={cn(inputClassName(Boolean(fieldErrors.fullName)), "pl-9")}
-                  />
-                  {searchingCustomers || loadingCustomerIdentity ? (
-                    <Loader2 className="absolute right-3 top-1/2 size-4 -translate-y-1/2 animate-spin text-[var(--cs-text-muted)]" />
-                  ) : null}
-                </div>
-                <FieldError message={fieldErrors.fullName ?? fieldErrors.customer} />
-
-                {selectedCustomer ? (
-                  <div className="mt-2 flex items-center gap-3 rounded-xl border border-[var(--cs-border-soft)] bg-[var(--cs-surface-warm)] px-3 py-2">
-                    <span className="grid size-8 shrink-0 place-items-center rounded-full bg-[var(--cs-sand-mist)] text-xs font-semibold text-[var(--cs-sand-dark)]">
-                      {selectedCustomer.fullName.slice(0, 2).toUpperCase()}
-                    </span>
-                    <span className="min-w-0 flex-1">
-                      <span className="block truncate text-sm font-semibold text-[var(--cs-text)]">
-                        {selectedCustomer.fullName}
-                      </span>
-                      <span className="block truncate text-xs text-[var(--cs-text-muted)]">
-                        Existing customer selected
-                      </span>
-                    </span>
-                    <button
-                      type="button"
-                      onClick={clearSelectedCustomer}
-                      disabled={isSaving}
-                      className="cs-btn cs-btn-secondary h-8 rounded-lg px-3 text-xs"
-                    >
-                      Change
-                    </button>
+                      }}
+                      disabled={isSaving || loadingCustomerIdentity}
+                      placeholder="Enter name or find an existing customer"
+                      className={cn(inputClassName(Boolean(fieldErrors.fullName)), "pl-9")}
+                    />
+                    {searchingCustomers || loadingCustomerIdentity ? (
+                      <Loader2 className="absolute right-3 top-1/2 size-4 -translate-y-1/2 animate-spin text-[var(--cs-text-muted)]" />
+                    ) : null}
                   </div>
-                ) : customerSearchOpen && customerQuery.trim().length >= 2 ? (
-                  <div
-                    id={`${formId}-customer-options`}
-                    role="listbox"
-                    aria-label="Possible customers"
-                    onMouseDown={(event) => event.preventDefault()}
-                    className="absolute left-0 right-0 z-40 mt-2 max-h-48 overflow-y-auto rounded-xl border border-[var(--cs-border-soft)] bg-[var(--cs-surface)] p-1 shadow-xl"
-                  >
-                    <p className="px-3 py-1 text-xs font-semibold text-[var(--cs-text-muted)]">
-                      Possible customers
-                    </p>
-                    {searchingCustomers ? (
-                      <p className="px-3 py-2 text-xs text-[var(--cs-text-muted)]">
-                        Searching customers…
-                      </p>
-                    ) : null}
-                    {customerSearchError ? (
-                      <div className="flex items-center justify-between gap-2 px-3 py-2 text-xs text-[var(--cs-error-text)]">
-                        <span role="alert">{customerSearchError}</span>
-                        <button
-                          type="button"
-                          onClick={() => {
-                            setCustomerSearchError("");
-                            setSearchingCustomers(true);
-                            setCustomerSearchRetry((current) => current + 1);
-                          }}
-                          className="font-semibold underline"
-                        >
-                          Retry
-                        </button>
-                      </div>
-                    ) : null}
-                    {!searchingCustomers && !customerSearchError && customerResults.length === 0 ? (
-                      <p className="px-3 py-2 text-xs text-[var(--cs-text-muted)]">
-                        No matching customer found.
-                      </p>
-                    ) : null}
-                    {customerResults.map((customer, index) => (
+                  <FieldError message={fieldErrors.fullName ?? fieldErrors.customer} />
+
+                  {selectedCustomer ? (
+                    <div className="mt-2 flex items-center gap-3 rounded-xl border border-[var(--cs-border-soft)] bg-[var(--cs-surface-warm)] px-3 py-2">
+                      <span className="grid size-8 shrink-0 place-items-center rounded-full bg-[var(--cs-sand-mist)] text-xs font-semibold text-[var(--cs-sand-dark)]">
+                        {selectedCustomer.fullName.slice(0, 2).toUpperCase()}
+                      </span>
+                      <span className="min-w-0 flex-1">
+                        <span className="block truncate text-sm font-semibold text-[var(--cs-text)]">
+                          {selectedCustomer.fullName}
+                        </span>
+                        <span className="block truncate text-xs text-[var(--cs-text-muted)]">
+                          Existing customer selected
+                        </span>
+                      </span>
                       <button
-                        key={customer.id}
-                        id={`${formId}-customer-option-${index}`}
-                        role="option"
-                        aria-selected={activeCustomerIndex === index}
                         type="button"
-                        onClick={() => void selectCustomer(customer)}
+                        onClick={clearSelectedCustomer}
+                        disabled={isSaving}
+                        className="cs-btn cs-btn-secondary h-8 rounded-lg px-3 text-xs"
+                      >
+                        Change
+                      </button>
+                    </div>
+                  ) : customerSearchOpen && customerQuery.trim().length >= 2 ? (
+                    <div
+                      id={`${formId}-customer-options`}
+                      role="listbox"
+                      aria-label="Possible customers"
+                      onMouseDown={(event) => event.preventDefault()}
+                      className="absolute left-0 right-0 z-40 mt-2 max-h-48 overflow-y-auto rounded-xl border border-[var(--cs-border-soft)] bg-[var(--cs-surface)] p-1 shadow-xl"
+                    >
+                      <p className="px-3 py-1 text-xs font-semibold text-[var(--cs-text-muted)]">
+                        Possible customers
+                      </p>
+                      {searchingCustomers ? (
+                        <p className="px-3 py-2 text-xs text-[var(--cs-text-muted)]">
+                          Searching customers…
+                        </p>
+                      ) : null}
+                      {customerSearchError ? (
+                        <div className="flex items-center justify-between gap-2 px-3 py-2 text-xs text-[var(--cs-error-text)]">
+                          <span role="alert">{customerSearchError}</span>
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setCustomerSearchError("");
+                              setSearchingCustomers(true);
+                              setCustomerSearchRetry((current) => current + 1);
+                            }}
+                            className="font-semibold underline"
+                          >
+                            Retry
+                          </button>
+                        </div>
+                      ) : null}
+                      {!searchingCustomers &&
+                      !customerSearchError &&
+                      customerResults.length === 0 ? (
+                        <p className="px-3 py-2 text-xs text-[var(--cs-text-muted)]">
+                          No matching customer found.
+                        </p>
+                      ) : null}
+                      {customerResults.map((customer, index) => (
+                        <button
+                          key={customer.id}
+                          id={`${formId}-customer-option-${index}`}
+                          role="option"
+                          aria-selected={activeCustomerIndex === index}
+                          type="button"
+                          onClick={() => void selectCustomer(customer)}
+                          className={cn(
+                            "flex w-full items-center justify-between gap-3 rounded-lg px-3 py-2 text-left hover:bg-[var(--cs-surface-warm)]",
+                            activeCustomerIndex === index && "bg-[var(--cs-surface-warm)]"
+                          )}
+                        >
+                          <span className="min-w-0">
+                            <span className="block truncate text-sm font-medium text-[var(--cs-text)]">
+                              {customer.fullName}
+                            </span>
+                            <span className="block truncate text-xs text-[var(--cs-text-muted)]">
+                              {customer.phoneSuffix
+                                ? `•••• ${customer.phoneSuffix}`
+                                : "Phone unavailable"}
+                            </span>
+                          </span>
+                          <span className="text-xs font-semibold text-[var(--cs-sand-dark)]">
+                            Select
+                          </span>
+                        </button>
+                      ))}
+                      <button
+                        id={`${formId}-customer-option-${customerResults.length}`}
+                        role="option"
+                        aria-selected={activeCustomerIndex === customerResults.length}
+                        type="button"
+                        onClick={chooseNewCustomerName}
                         className={cn(
-                          "flex w-full items-center justify-between gap-3 rounded-lg px-3 py-2 text-left hover:bg-[var(--cs-surface-warm)]",
-                          activeCustomerIndex === index && "bg-[var(--cs-surface-warm)]"
+                          "w-full rounded-lg px-3 py-2 text-left text-xs font-semibold text-[var(--cs-sand-dark)] hover:bg-[var(--cs-surface-warm)]",
+                          activeCustomerIndex === customerResults.length &&
+                            "bg-[var(--cs-surface-warm)]"
                         )}
                       >
-                        <span className="min-w-0">
-                          <span className="block truncate text-sm font-medium text-[var(--cs-text)]">
-                            {customer.fullName}
-                          </span>
-                          <span className="block truncate text-xs text-[var(--cs-text-muted)]">
-                            {customer.phoneSuffix
-                              ? `•••• ${customer.phoneSuffix}`
-                              : "Phone unavailable"}
-                          </span>
-                        </span>
-                        <span className="text-xs font-semibold text-[var(--cs-sand-dark)]">
-                          Select
-                        </span>
+                        + Use new customer “{customerQuery.trim()}”
                       </button>
-                    ))}
-                    <button
-                      id={`${formId}-customer-option-${customerResults.length}`}
-                      role="option"
-                      aria-selected={activeCustomerIndex === customerResults.length}
-                      type="button"
-                      onClick={chooseNewCustomerName}
+                    </div>
+                  ) : null}
+                </div>
+
+                {/* Phone */}
+                <div className="min-w-0">
+                  <FieldLabel icon={<Phone size={14} />} label="Phone" />
+                  <div className="relative">
+                    <Phone className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-[var(--cs-text-muted)]" />
+                    <input
+                      id={`${formId}-phone`}
+                      type="tel"
+                      aria-label="Phone"
+                      value={phone}
+                      onChange={(event) => setPhone(event.target.value)}
+                      disabled={isSaving || Boolean(selectedCustomer)}
+                      placeholder="Phone number"
                       className={cn(
-                        "w-full rounded-lg px-3 py-2 text-left text-xs font-semibold text-[var(--cs-sand-dark)] hover:bg-[var(--cs-surface-warm)]",
-                        activeCustomerIndex === customerResults.length &&
-                          "bg-[var(--cs-surface-warm)]"
+                        inputClassName(Boolean(fieldErrors.phone)),
+                        "pl-9",
+                        selectedCustomer && "cursor-not-allowed bg-[var(--cs-surface-warm)]"
                       )}
-                    >
-                      + Use new customer “{customerQuery.trim()}”
-                    </button>
+                    />
+                  </div>
+                  <FieldError message={fieldErrors.phone} />
+                </div>
+
+                {/* Location (Home Service ONLY) */}
+                {isHomeService ? (
+                  <div className="min-w-0 space-y-1.5">
+                    <div className="flex items-center justify-between gap-2">
+                      <FieldLabel icon={<MapPin size={14} />} label="Location" />
+                      {homeServiceDistanceQuote ? (
+                        <span className="text-[11px] font-semibold text-[var(--cs-sand-dark)]">
+                          {formatDistanceKm(homeServiceDistanceQuote.distanceKm)} ·{" "}
+                          {formatCurrency(homeServiceDistanceQuote.travelFee)} travel
+                        </span>
+                      ) : null}
+                    </div>
+                    <PlacesAutocomplete
+                      value={homeServiceAddress}
+                      onChange={setHomeServiceAddress}
+                      onPlaceSelect={handleHomeServicePlaceSelect}
+                      onStatusChange={setPlacesStatus}
+                      placeholder="Enter service address"
+                      theme="default"
+                    />
+                    <FieldError message={fieldErrors.homeServiceAddress} />
+                    {placesStatus === "loading" || homeServiceDistanceStatus === "loading" ? (
+                      <p className="flex items-center gap-1.5 text-xs text-[var(--cs-text-muted)]">
+                        <Loader2 size={12} className="animate-spin" /> Calculating location and
+                        travel fee…
+                      </p>
+                    ) : placesStatus === "missing_key" ? (
+                      <p className="text-xs font-medium text-[var(--cs-error-text)]">
+                        Google address search is not configured.
+                      </p>
+                    ) : placesStatus === "failed" ||
+                      placesStatus === "place_missing_coordinates" ? (
+                      <p className="text-xs font-medium text-[var(--cs-error-text)]">
+                        Address coordinates could not be loaded. Select another result.
+                      </p>
+                    ) : homeServiceDistanceStatus === "error" ? (
+                      <p className="text-xs font-medium text-[var(--cs-warning-text)]">
+                        {homeServiceDistanceError || "Distance could not be calculated."}
+                      </p>
+                    ) : homeServiceAddress && !homeServicePlace ? (
+                      <p className="text-xs text-[var(--cs-text-muted)]">
+                        {CRM_PRECISE_HOME_SERVICE_LOCATION_MESSAGE}
+                      </p>
+                    ) : null}
                   </div>
                 ) : null}
               </div>
 
-              {/* Phone Input (~35%) */}
-              <div className="min-w-0">
-                <FieldLabel icon={<Phone size={14} />} label="Phone" />
-                <div className="relative">
-                  <Phone className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-[var(--cs-text-muted)]" />
-                  <input
-                    id={`${formId}-phone`}
-                    type="tel"
-                    aria-label="Phone"
-                    value={phone}
-                    onChange={(event) => setPhone(event.target.value)}
-                    disabled={isSaving || Boolean(selectedCustomer)}
-                    placeholder="Phone number"
-                    className={cn(
-                      inputClassName(Boolean(fieldErrors.phone)),
-                      "pl-9",
-                      selectedCustomer && "cursor-not-allowed bg-[var(--cs-surface-warm)]"
-                    )}
-                  />
+              {/* RIGHT COLUMN — GUEST SESSIONS (~46%) */}
+              <div className="space-y-2 min-w-0">
+                <div>
+                  <div className="flex items-center gap-1.5 text-xs font-bold text-[var(--cs-text)]">
+                    <Users size={14} className="text-[#7A583E]" />
+                    <span>Guest Sessions</span>
+                  </div>
+                  <p className="text-[11px] text-[var(--cs-text-muted)]">
+                    Add guests and assign services.
+                  </p>
                 </div>
-                <FieldError message={fieldErrors.phone} />
+
+                {/* 2x2 Fixed Grid */}
+                <div
+                  role={groupBooking ? "tablist" : undefined}
+                  aria-label={groupBooking ? "Guest sessions" : undefined}
+                  className="grid grid-cols-2 gap-2 min-h-[96px]"
+                >
+                  {attendeeDrafts.map((attendee, index) => {
+                    const isActive = activeGuest.id === attendee.id;
+                    const label = attendee.name?.trim() || `Guest ${index + 1}`;
+                    const count = attendee.serviceIds.length;
+                    return (
+                      <div
+                        key={attendee.id}
+                        className={cn(
+                          "flex items-center gap-2 rounded-xl border p-2 text-left transition h-[44px]",
+                          isActive
+                            ? "border-[#7A583E] bg-[#F7F4F0] ring-1 ring-[#7A583E]/40"
+                            : "border-[var(--cs-border)] bg-[var(--cs-surface)] hover:bg-[var(--cs-surface-warm)]"
+                        )}
+                      >
+                        <button
+                          id={`${formId}-guest-tab-${index}`}
+                          type="button"
+                          role={groupBooking ? "tab" : undefined}
+                          aria-selected={groupBooking ? isActive : undefined}
+                          aria-controls={`${formId}-guest-editor`}
+                          onClick={() => setActiveGuestId(attendee.id)}
+                          disabled={isSaving}
+                          className="flex min-w-0 flex-1 items-center gap-2 text-left"
+                        >
+                          <span
+                            className={cn(
+                              "grid size-7 shrink-0 place-items-center rounded-lg text-xs font-bold",
+                              isActive
+                                ? "bg-[#7A583E] text-white"
+                                : "bg-[var(--cs-surface-warm)] text-[var(--cs-text-secondary)]"
+                            )}
+                          >
+                            <User size={13} />
+                          </span>
+                          <span className="min-w-0 flex-1">
+                            <span className="block truncate text-xs font-bold text-[var(--cs-text)]">
+                              {label}
+                            </span>
+                            <span className="block truncate text-[11px] text-[var(--cs-text-muted)]">
+                              {count
+                                ? `${count} service${count === 1 ? "" : "s"}`
+                                : "Choose service"}
+                            </span>
+                          </span>
+                        </button>
+                        {index > 0 ? (
+                          <button
+                            type="button"
+                            onClick={() => removeGuest(attendee.id)}
+                            disabled={isSaving}
+                            className="ml-0.5 shrink-0 px-1 text-sm font-semibold text-[var(--cs-sand-dark)] hover:text-red-600"
+                            aria-label={`Remove ${label}`}
+                          >
+                            ×
+                          </button>
+                        ) : null}
+                      </div>
+                    );
+                  })}
+                </div>
+
+                {/* Add Guest Button below grid */}
+                <div className="relative">
+                  <button
+                    type="button"
+                    onClick={addGuest}
+                    disabled={isSaving || additionalGuests.length >= 3}
+                    className="flex h-8 w-full items-center justify-center gap-1.5 rounded-xl border border-[var(--cs-border)] bg-[var(--cs-surface)] text-xs font-semibold text-[var(--cs-text)] hover:bg-[var(--cs-surface-warm)] disabled:cursor-not-allowed disabled:opacity-50 transition"
+                  >
+                    <Plus size={14} className="text-[#7A583E]" />
+                    <span>+ Add Guest</span>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={addGuest}
+                    disabled={isSaving || additionalGuests.length >= 3}
+                    aria-label="+ Add"
+                    className="sr-only"
+                  >
+                    + Add
+                  </button>
+                </div>
               </div>
             </div>
 
             {/* Guests & Services Workspace */}
-            <div className="space-y-3">
+            <div className="space-y-2.5">
               <div className="flex items-center justify-between gap-3">
                 <div>
                   <h2 className="text-sm font-bold text-[var(--cs-text)]">Guests & Services</h2>
@@ -1584,138 +1746,33 @@ export function QuickBookingForm({
                     Add guests and assign services.
                   </p>
                 </div>
-                {!groupBooking ? (
-                  <button
-                    type="button"
-                    onClick={addGuest}
-                    disabled={isSaving}
-                    className="cs-btn cs-btn-secondary h-8 shrink-0 rounded-xl px-3 text-xs font-semibold text-[var(--cs-sand-dark)] hover:text-[var(--cs-text)] disabled:opacity-50"
-                  >
-                    + Add guest
-                  </button>
-                ) : (
-                  <button
-                    type="button"
-                    onClick={addGuest}
-                    disabled={isSaving || additionalGuests.length >= 3}
-                    className="cs-btn cs-btn-secondary h-8 shrink-0 rounded-xl px-3 text-xs font-semibold text-[var(--cs-sand-dark)] hover:text-[var(--cs-text)] disabled:opacity-50"
-                  >
-                    + Add Guest
-                  </button>
-                )}
+                <button
+                  type="button"
+                  onClick={addGuest}
+                  disabled={isSaving || additionalGuests.length >= 3}
+                  className="cs-btn cs-btn-secondary h-7 shrink-0 rounded-lg px-2.5 text-xs font-semibold text-[var(--cs-sand-dark)] hover:text-[var(--cs-text)] disabled:opacity-50"
+                >
+                  + Add guest
+                </button>
               </div>
 
-              {groupBooking ? (
-                <section aria-label="Guest Sessions" className="space-y-3">
-                  {/* Compact Horizontal Guest Tabs Strip */}
-                  <div
-                    role="tablist"
-                    aria-label="Guest sessions"
-                    className="flex min-w-0 flex-nowrap items-center gap-2 overflow-x-auto pb-1"
-                  >
-                    {attendeeDrafts.map((attendee, index) => {
-                      const isActive = activeGuest.id === attendee.id;
-                      const label = attendee.name?.trim() || `Guest ${index + 1}`;
-                      const count = attendee.serviceIds.length;
-                      return (
-                        <div
-                          key={attendee.id}
-                          className={cn(
-                            "flex min-w-[130px] shrink-0 items-center gap-2 rounded-xl border p-2 text-left transition",
-                            isActive
-                              ? "border-[#7A583E] bg-[#F7F4F0] ring-1 ring-[#7A583E]/40"
-                              : "border-[var(--cs-border)] bg-[var(--cs-surface)] hover:bg-[var(--cs-surface-warm)]"
-                          )}
-                        >
-                          <button
-                            id={`${formId}-guest-tab-${index}`}
-                            type="button"
-                            role="tab"
-                            aria-selected={isActive}
-                            aria-controls={`${formId}-guest-editor`}
-                            onClick={() => setActiveGuestId(attendee.id)}
-                            disabled={isSaving}
-                            className="flex min-w-0 flex-1 items-center gap-2 text-left"
-                          >
-                            <span
-                              className={cn(
-                                "grid size-7 shrink-0 place-items-center rounded-lg text-xs font-bold",
-                                isActive
-                                  ? "bg-[#7A583E] text-white"
-                                  : "bg-[var(--cs-surface-warm)] text-[var(--cs-text-secondary)]"
-                              )}
-                            >
-                              <User size={14} />
-                            </span>
-                            <span className="min-w-0 flex-1">
-                              <span className="block truncate text-xs font-bold text-[var(--cs-text)]">
-                                {label}
-                              </span>
-                              <span className="block truncate text-[11px] text-[var(--cs-text-muted)]">
-                                {count
-                                  ? `${count} service${count === 1 ? "" : "s"}`
-                                  : "Choose service"}
-                              </span>
-                            </span>
-                          </button>
-                          {index > 0 ? (
-                            <button
-                              type="button"
-                              onClick={() => removeGuest(attendee.id)}
-                              disabled={isSaving}
-                              className="ml-0.5 shrink-0 px-1 text-sm font-semibold text-[var(--cs-sand-dark)] hover:text-red-600"
-                              aria-label={`Remove ${label}`}
-                            >
-                              ×
-                            </button>
-                          ) : null}
-                        </div>
-                      );
-                    })}
-
-                    <button
-                      type="button"
-                      onClick={addGuest}
-                      disabled={isSaving || additionalGuests.length >= 3}
-                      className="flex h-11 shrink-0 items-center gap-1 rounded-xl border border-dashed border-[var(--cs-border-strong)] px-3 text-xs font-bold text-[var(--cs-sand-dark)] hover:border-[var(--cs-sand-dark)] hover:bg-[var(--cs-surface-warm)] disabled:cursor-not-allowed disabled:opacity-50"
-                    >
-                      + Add
-                    </button>
-                  </div>
-
-                  {/* Active Guest Editor */}
-                  <div
-                    id={`${formId}-guest-editor`}
-                    role="tabpanel"
-                    aria-labelledby={`${formId}-guest-tab-${attendeeDrafts.findIndex((guest) => guest.id === activeGuest.id)}`}
-                    className="space-y-3 rounded-2xl border border-[var(--cs-border)] bg-[var(--cs-surface)] p-3.5 sm:p-4"
-                  >
-                    <div className="flex items-center justify-between gap-2">
-                      <div className="flex items-center gap-2">
-                        <User size={16} className="text-[#7A583E]" />
-                        <span className="text-sm font-bold text-[var(--cs-text)]">
-                          {activeGuest.name?.trim() ||
-                            `Guest ${attendeeDrafts.findIndex((g) => g.id === activeGuest.id) + 1}`}
-                        </span>
-                      </div>
-                      {!activeGuestIsOrganizer ? (
-                        <button
-                          type="button"
-                          onClick={() => removeGuest(activeGuest.id)}
-                          disabled={isSaving}
-                          className="inline-flex items-center gap-1 text-xs font-semibold text-[#8C2828] hover:underline"
-                        >
-                          <Trash2 size={12} />
-                          Remove guest
-                        </button>
-                      ) : null}
-                    </div>
-
-                    <div className="relative">
+              <div
+                id={`${formId}-guest-editor`}
+                role={groupBooking ? "tabpanel" : undefined}
+                aria-labelledby={
+                  groupBooking
+                    ? `${formId}-guest-tab-${attendeeDrafts.findIndex((guest) => guest.id === activeGuest.id)}`
+                    : undefined
+                }
+                className="space-y-2.5 rounded-2xl border border-[var(--cs-border)] bg-[var(--cs-surface)] p-3"
+              >
+                {groupBooking ? (
+                  <div className="flex items-center gap-2">
+                    <div className="relative flex-1">
                       <label htmlFor={`${formId}-guest-name`} className="sr-only">
                         Guest name
                       </label>
-                      <User className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-[var(--cs-text-muted)]" />
+                      <User className="pointer-events-none absolute left-3 top-1/2 size-3.5 -translate-y-1/2 text-[var(--cs-text-muted)]" />
                       <input
                         id={`${formId}-guest-name`}
                         aria-label="Guest name"
@@ -1741,7 +1798,7 @@ export function QuickBookingForm({
                         placeholder="Guest name (optional)"
                         className={cn(
                           inputClassName(false),
-                          "pl-9",
+                          "h-8 text-xs pl-8",
                           activeGuestIsOrganizer &&
                             "bg-[var(--cs-surface-warm)] text-[var(--cs-text)]"
                         )}
@@ -1752,118 +1809,111 @@ export function QuickBookingForm({
                         </span>
                       ) : null}
                     </div>
-
-                    <QuickBookingServiceSelector
-                      key={activeGuest.id}
-                      services={eligibleServices.map((service) =>
-                        quotedService(activeGuest.id, service)
-                      )}
-                      selectedServiceIds={activeGuest.serviceIds}
-                      onAdjust={(service) =>
-                        setAdjustingService({ service, guestId: activeGuest.id })
-                      }
-                      onChange={
-                        activeGuestIsOrganizer
-                          ? handleServiceSelectionChange
-                          : (serviceIds) => {
-                              setLineQuotes((current) =>
-                                Object.fromEntries(
-                                  Object.entries(current).filter(
-                                    ([key]) =>
-                                      !key.startsWith(`${activeGuest.id}:`) ||
-                                      serviceIds.includes(key.slice(activeGuest.id.length + 1))
-                                  )
-                                )
-                              );
-                              setAdditionalGuests((current) =>
-                                current.map((guest) =>
-                                  guest.id === activeGuest.id ? { ...guest, serviceIds } : guest
-                                )
-                              );
-                              setFieldErrors((current) => ({ ...current, service: undefined }));
-                            }
-                      }
-                      isHomeService={isHomeService}
-                      disabled={isSaving}
-                      error={
-                        fieldErrors.service &&
-                        (activeGuestIsOrganizer ||
-                          !activeGuest.name?.trim() ||
-                          activeGuest.serviceIds.length === 0)
-                          ? fieldErrors.service
-                          : undefined
-                      }
-                    />
-                    {serviceModeNotice ? (
-                      <p className="rounded-lg bg-[var(--cs-warning-bg)] px-3 py-1.5 text-xs font-medium text-[var(--cs-warning-text)]">
-                        {serviceModeNotice}
-                      </p>
+                    {!activeGuestIsOrganizer ? (
+                      <button
+                        type="button"
+                        onClick={() => removeGuest(activeGuest.id)}
+                        disabled={isSaving}
+                        className="inline-flex h-8 items-center gap-1 px-2 text-xs font-semibold text-[#8C2828] hover:underline"
+                      >
+                        <Trash2 size={12} />
+                        Remove
+                      </button>
                     ) : null}
                   </div>
-                </section>
-              ) : (
-                <div className="rounded-2xl border border-[var(--cs-border)] bg-[var(--cs-surface)] p-3.5 sm:p-4">
-                  <QuickBookingServiceSelector
-                    services={eligibleServices.map((service) =>
-                      quotedService(firstAttendeeId, service)
-                    )}
-                    selectedServiceIds={selectedServiceIds}
-                    onChange={handleServiceSelectionChange}
-                    onAdjust={(service) =>
-                      setAdjustingService({ service, guestId: firstAttendeeId })
-                    }
-                    isHomeService={isHomeService}
-                    disabled={isSaving}
-                    error={fieldErrors.service}
-                  />
-                  {serviceModeNotice ? (
-                    <p className="mt-2 rounded-lg bg-[var(--cs-warning-bg)] px-3 py-1.5 text-xs font-medium text-[var(--cs-warning-text)]">
-                      {serviceModeNotice}
-                    </p>
-                  ) : null}
-                </div>
-              )}
+                ) : null}
+
+                <QuickBookingServiceSelector
+                  key={activeGuest.id}
+                  services={eligibleServices.map((service) =>
+                    quotedService(activeGuest.id, service)
+                  )}
+                  selectedServiceIds={groupBooking ? activeGuest.serviceIds : selectedServiceIds}
+                  onAdjust={(service) => setAdjustingService({ service, guestId: activeGuest.id })}
+                  onChange={
+                    !groupBooking || activeGuestIsOrganizer
+                      ? handleServiceSelectionChange
+                      : (serviceIds) => {
+                          setLineQuotes((current) =>
+                            Object.fromEntries(
+                              Object.entries(current).filter(
+                                ([key]) =>
+                                  !key.startsWith(`${activeGuest.id}:`) ||
+                                  serviceIds.includes(key.slice(activeGuest.id.length + 1))
+                              )
+                            )
+                          );
+                          setAdditionalGuests((current) =>
+                            current.map((guest) =>
+                              guest.id === activeGuest.id ? { ...guest, serviceIds } : guest
+                            )
+                          );
+                          setFieldErrors((current) => ({ ...current, service: undefined }));
+                        }
+                  }
+                  isHomeService={isHomeService}
+                  disabled={isSaving}
+                  error={
+                    fieldErrors.service &&
+                    (!groupBooking ||
+                      activeGuestIsOrganizer ||
+                      !activeGuest.name?.trim() ||
+                      activeGuest.serviceIds.length === 0)
+                      ? fieldErrors.service
+                      : undefined
+                  }
+                />
+                {serviceModeNotice ? (
+                  <p className="rounded-lg bg-[var(--cs-warning-bg)] px-3 py-1.5 text-xs font-medium text-[var(--cs-warning-text)]">
+                    {serviceModeNotice}
+                  </p>
+                ) : null}
+              </div>
             </div>
 
+            {/* Scheduling Controls: Date, Time, Therapist, Room */}
             <div
               className={cn(
-                "grid gap-3",
-                isHomeService || groupBooking ? "md:grid-cols-3" : "md:grid-cols-4"
+                "grid gap-2.5",
+                groupBooking ? "grid-cols-2 sm:grid-cols-3" : "grid-cols-2 sm:grid-cols-4"
               )}
             >
               <div>
-                <FieldLabel icon={<CalendarDays size={15} />} label="Date" />
+                <FieldLabel icon={<CalendarDays size={14} />} label="Date" />
                 <input
                   type="date"
                   value={date}
                   onChange={(event) => setDate(event.target.value)}
                   disabled={isSaving}
-                  className={inputClassName(Boolean(fieldErrors.date))}
+                  className={cn(inputClassName(Boolean(fieldErrors.date)), "h-9 text-xs")}
                 />
                 <FieldError message={fieldErrors.date} />
               </div>
 
               <div>
-                <FieldLabel icon={<Clock size={15} />} label="Time" />
+                <FieldLabel icon={<Clock size={14} />} label="Time" />
                 <div className="flex gap-1.5">
                   <input
                     type="time"
                     value={time}
                     onChange={(event) => setTime(event.target.value)}
                     disabled={isSaving}
-                    className={cn(inputClassName(Boolean(fieldErrors.time)), "min-w-0 flex-1")}
+                    className={cn(
+                      inputClassName(Boolean(fieldErrors.time)),
+                      "h-9 min-w-0 flex-1 text-xs"
+                    )}
                   />
                   <button
                     type="button"
                     onClick={chooseNextAvailable}
                     disabled={isSaving || loadingNextSlot}
-                    className="cs-btn cs-btn-secondary h-10 shrink-0 rounded-xl px-2.5 text-xs"
+                    className="cs-btn cs-btn-secondary h-9 shrink-0 rounded-xl px-2.5 text-xs"
                     aria-label="Choose next available time"
                   >
                     {loadingNextSlot ? (
-                      <Loader2 size={14} className="animate-spin" />
+                      <Loader2 size={13} className="animate-spin" />
                     ) : (
-                      <Clock size={14} />
+                      <Clock size={13} />
                     )}
                   </button>
                 </div>
@@ -1871,7 +1921,7 @@ export function QuickBookingForm({
               </div>
 
               <div>
-                <FieldLabel icon={<User size={15} />} label="Therapist" optional />
+                <FieldLabel icon={<User size={14} />} label="Therapist" optional />
                 <select
                   value={staffId}
                   onChange={(event) => {
@@ -1883,7 +1933,7 @@ export function QuickBookingForm({
                     !therapistPrerequisitesReady ||
                     therapistAvailabilityStatus === "loading"
                   }
-                  className={selectClassName(false)}
+                  className={cn(selectClassName(false), "h-9 text-xs")}
                 >
                   <option value="">
                     {!therapistPrerequisitesReady
@@ -1934,7 +1984,7 @@ export function QuickBookingForm({
                   ) : null}
                 </select>
                 {staffId ? (
-                  <label className="mt-2 flex items-center gap-2 text-xs text-[var(--cs-text)]">
+                  <label className="mt-1 flex items-center gap-1.5 text-[11px] text-[var(--cs-text)]">
                     <input
                       type="checkbox"
                       checked={customerRequestedTherapist}
@@ -1944,33 +1994,37 @@ export function QuickBookingForm({
                     Customer requested this therapist
                   </label>
                 ) : null}
-                {therapistPrerequisitesReady &&
-                therapistAvailabilityStatus !== "loading" &&
-                therapistAvailabilityStatus !== "error" ? (
-                  <p className="mt-1 text-[11px] leading-4 text-[var(--cs-text-muted)]">
-                    {groupBooking
-                      ? "Preferred for Guest 1; other guests receive qualified therapists automatically."
-                      : "All qualified staff scheduled for this day are shown. Checked-in staff are recommended first; attendance does not hide a scheduled provider."}
-                  </p>
-                ) : null}
               </div>
 
-              {!isHomeService && !groupBooking ? (
+              {!groupBooking ? (
                 <div>
-                  <FieldLabel icon={<MapPin size={15} />} label="Room" optional />
-                  <select
-                    value={resourceId}
-                    onChange={(event) => setResourceId(event.target.value)}
-                    disabled={isSaving}
-                    className={selectClassName(false)}
-                  >
-                    <option value="">First available</option>
-                    {resources.map((resource) => (
-                      <option key={resource.id} value={resource.id}>
-                        {resource.name}
-                      </option>
-                    ))}
-                  </select>
+                  <FieldLabel icon={<MapPin size={14} />} label="Room" optional />
+                  {isHomeService ? (
+                    <select
+                      value=""
+                      disabled
+                      className={cn(
+                        selectClassName(false),
+                        "h-9 text-xs cursor-not-allowed opacity-80"
+                      )}
+                    >
+                      <option value="">Home Service</option>
+                    </select>
+                  ) : (
+                    <select
+                      value={resourceId}
+                      onChange={(event) => setResourceId(event.target.value)}
+                      disabled={isSaving}
+                      className={cn(selectClassName(false), "h-9 text-xs")}
+                    >
+                      <option value="">First available</option>
+                      {resources.map((resource) => (
+                        <option key={resource.id} value={resource.id}>
+                          {resource.name}
+                        </option>
+                      ))}
+                    </select>
+                  )}
                 </div>
               ) : null}
             </div>
@@ -1978,6 +2032,16 @@ export function QuickBookingForm({
             {groupBooking && !isHomeService ? (
               <p className="text-xs text-[var(--cs-text-muted)]">
                 Rooms are assigned per guest automatically.
+              </p>
+            ) : null}
+
+            {therapistPrerequisitesReady &&
+            therapistAvailabilityStatus !== "loading" &&
+            therapistAvailabilityStatus !== "error" ? (
+              <p className="-mt-1 text-[11px] leading-4 text-[var(--cs-text-muted)]">
+                {groupBooking
+                  ? "Preferred for Guest 1; other guests receive qualified therapists automatically."
+                  : "All qualified staff scheduled for this day are shown. Checked-in staff are recommended first; attendance does not hide a scheduled provider."}
               </p>
             ) : null}
 
@@ -2009,51 +2073,6 @@ export function QuickBookingForm({
                 Checked-in providers are recommended first. All qualified scheduled providers remain
                 selectable.
               </p>
-            ) : null}
-
-            {isHomeService ? (
-              <div className="rounded-xl border border-[var(--cs-border-soft)] bg-[var(--cs-surface-warm)] p-3">
-                <div className="mb-2 flex items-center justify-between gap-3">
-                  <FieldLabel icon={<Home size={15} />} label="Home-service logistics" />
-                  {homeServiceDistanceQuote ? (
-                    <span className="text-xs font-semibold text-[var(--cs-sand-dark)]">
-                      {formatDistanceKm(homeServiceDistanceQuote.distanceKm)} ·{" "}
-                      {formatCurrency(homeServiceDistanceQuote.travelFee)} travel
-                    </span>
-                  ) : null}
-                </div>
-                <PlacesAutocomplete
-                  value={homeServiceAddress}
-                  onChange={setHomeServiceAddress}
-                  onPlaceSelect={handleHomeServicePlaceSelect}
-                  onStatusChange={setPlacesStatus}
-                  placeholder="Search complete customer address"
-                  theme="default"
-                />
-                <FieldError message={fieldErrors.homeServiceAddress} />
-                {placesStatus === "loading" || homeServiceDistanceStatus === "loading" ? (
-                  <p className="mt-1.5 flex items-center gap-1.5 text-xs text-[var(--cs-text-muted)]">
-                    <Loader2 size={12} className="animate-spin" /> Calculating location and travel
-                    fee…
-                  </p>
-                ) : placesStatus === "missing_key" ? (
-                  <p className="mt-1.5 text-xs font-medium text-[var(--cs-error-text)]">
-                    Google address search is not configured.
-                  </p>
-                ) : placesStatus === "failed" || placesStatus === "place_missing_coordinates" ? (
-                  <p className="mt-1.5 text-xs font-medium text-[var(--cs-error-text)]">
-                    Address coordinates could not be loaded. Select another result.
-                  </p>
-                ) : homeServiceDistanceStatus === "error" ? (
-                  <p className="mt-1.5 text-xs font-medium text-[var(--cs-warning-text)]">
-                    {homeServiceDistanceError || "Distance could not be calculated."}
-                  </p>
-                ) : homeServiceAddress && !homeServicePlace ? (
-                  <p className="mt-1.5 text-xs text-[var(--cs-text-muted)]">
-                    {CRM_PRECISE_HOME_SERVICE_LOCATION_MESSAGE}
-                  </p>
-                ) : null}
-              </div>
             ) : null}
 
             <div className="grid items-end gap-2 md:grid-cols-[minmax(0,1fr)_auto]">
