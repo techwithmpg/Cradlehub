@@ -4,10 +4,8 @@ vi.mock("server-only", () => ({}));
 
 import {
   calculateHomeServiceTravelFee,
-  calculateHomeServiceTravelFeeBreakdown,
   createHomeServiceTransportSnapshot,
   haversineDistanceKm,
-  type HomeServiceTransportSnapshot,
 } from "@/lib/home-service/distance-fee";
 import { calculateHomeServiceDistanceQuote } from "@/lib/home-service/distance-service";
 import * as googleMaps from "@/lib/maps/google-maps";
@@ -34,20 +32,35 @@ describe("Home Service Transportation Pricing Integration Matrix", () => {
       home_service_extra_km_fee: 40,
     };
 
-    function createMockSupabase(branchOverride?: any, rulesOverride?: any) {
+    function createMockSupabase(
+      branchOverride?: unknown,
+      rulesOverride?: { data?: unknown; error?: unknown } | unknown
+    ) {
+      const isRulesResponseObject =
+        rulesOverride &&
+        typeof rulesOverride === "object" &&
+        ("data" in (rulesOverride as object) || "error" in (rulesOverride as object));
+
+      const rulesData = isRulesResponseObject
+        ? (rulesOverride as { data?: unknown }).data
+        : (rulesOverride ?? mockRulesData);
+      const rulesError = isRulesResponseObject
+        ? (rulesOverride as { error?: unknown }).error ?? null
+        : null;
+
       return {
         from: (table: string) => ({
           select: () => ({
             eq: () => ({
               eq: () => ({
                 maybeSingle: async () => ({
-                  data: table === "branches" ? (branchOverride ?? mockBranchData) : (rulesOverride ?? mockRulesData),
-                  error: null,
+                  data: table === "branches" ? (branchOverride ?? mockBranchData) : rulesData,
+                  error: table === "branches" ? null : rulesError,
                 }),
               }),
               maybeSingle: async () => ({
-                data: table === "branches" ? (branchOverride ?? mockBranchData) : (rulesOverride ?? mockRulesData),
-                error: null,
+                data: table === "branches" ? (branchOverride ?? mockBranchData) : rulesData,
+                error: table === "branches" ? null : rulesError,
               }),
             }),
           }),
@@ -159,6 +172,76 @@ describe("Home Service Transportation Pricing Integration Matrix", () => {
         branchId: "branch-main",
         destination: { lat: Number.NaN, lng: 123.0 },
         client: createMockSupabase(),
+      });
+
+      expect(res.ok).toBe(false);
+      if (res.ok) return;
+
+      expect(res.code).toBe("HOME_SERVICE_DISTANCE_UNAVAILABLE");
+    });
+
+    it("fails closed with HOME_SERVICE_DISTANCE_UNAVAILABLE when branch_booking_rules query fails with database error", async () => {
+      vi.spyOn(googleMaps, "calculateDrivingDistanceKm").mockResolvedValueOnce(3.0);
+
+      const dbErrorClient = createMockSupabase(mockBranchData, {
+        data: null,
+        error: { code: "42P01", message: "relation branch_booking_rules does not exist" },
+      });
+
+      const res = await calculateHomeServiceDistanceQuote({
+        branchId: "branch-main",
+        destination: { lat: 10.7, lng: 123.0 },
+        client: dbErrorClient,
+      });
+
+      expect(res.ok).toBe(false);
+      if (res.ok) return;
+
+      expect(res.code).toBe("HOME_SERVICE_DISTANCE_UNAVAILABLE");
+      expect(res.message).toContain("couldn't calculate the transportation fee");
+    });
+
+    it("succeeds with repository default policy when branch_booking_rules row is intentionally absent", async () => {
+      vi.spyOn(googleMaps, "calculateDrivingDistanceKm").mockResolvedValueOnce(3.0);
+
+      // Intentionally absent row: data is null, error is null
+      const absentRowClient = createMockSupabase(mockBranchData, {
+        data: null,
+        error: null,
+      });
+
+      const res = await calculateHomeServiceDistanceQuote({
+        branchId: "branch-main",
+        destination: { lat: 10.7, lng: 123.0 },
+        client: absentRowClient,
+      });
+
+      expect(res.ok).toBe(true);
+      if (!res.ok) return;
+
+      // Default policy: base=100, free=1, extra=40 -> 3km: 100 + 2*40 = 180
+      expect(res.quote.baseFee).toBe(100);
+      expect(res.quote.includedKm).toBe(1);
+      expect(res.quote.perKmFee).toBe(40);
+      expect(res.quote.travelFee).toBe(180);
+    });
+
+    it("fails closed with HOME_SERVICE_DISTANCE_UNAVAILABLE when branch_booking_rules contains invalid negative values", async () => {
+      vi.spyOn(googleMaps, "calculateDrivingDistanceKm").mockResolvedValueOnce(3.0);
+
+      const invalidRowClient = createMockSupabase(mockBranchData, {
+        data: {
+          home_service_base_fee: -100, // Invalid negative fee in database
+          home_service_free_km: 1,
+          home_service_extra_km_fee: 40,
+        },
+        error: null,
+      });
+
+      const res = await calculateHomeServiceDistanceQuote({
+        branchId: "branch-main",
+        destination: { lat: 10.7, lng: 123.0 },
+        client: invalidRowClient,
       });
 
       expect(res.ok).toBe(false);

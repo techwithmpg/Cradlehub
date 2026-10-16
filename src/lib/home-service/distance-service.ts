@@ -114,21 +114,32 @@ export async function calculateHomeServiceDistanceQuote(params: {
   }
 
   const admin = (params.client as ReturnType<typeof createAdminClient> | undefined) ?? createAdminClient();
-  const [{ data: branchData, error: branchError }, { data: rulesData }] = await Promise.all([
-    admin
-      .from("branches")
-      .select("*")
-      .eq("id", params.branchId)
-      .eq("is_active", true)
-      .maybeSingle(),
-    admin.from("branch_booking_rules").select("*").eq("branch_id", params.branchId).maybeSingle(),
-  ]);
+  const [{ data: branchData, error: branchError }, { data: rulesData, error: rulesError }] =
+    await Promise.all([
+      admin
+        .from("branches")
+        .select("*")
+        .eq("id", params.branchId)
+        .eq("is_active", true)
+        .maybeSingle(),
+      admin.from("branch_booking_rules").select("*").eq("branch_id", params.branchId).maybeSingle(),
+    ]);
 
   if (branchError || !branchData) {
     return {
       ok: false,
       code: "BRANCH_NOT_FOUND",
       message: "The selected branch could not be found.",
+    };
+  }
+
+  // If the pricing-rules query fails (database / query error), fail closed.
+  // Do NOT silently substitute runtime defaults after a database/query failure.
+  if (rulesError) {
+    return {
+      ok: false,
+      code: "HOME_SERVICE_DISTANCE_UNAVAILABLE",
+      message: HOME_SERVICE_DISTANCE_UNAVAILABLE_MESSAGE,
     };
   }
 
@@ -158,18 +169,48 @@ export async function calculateHomeServiceDistanceQuote(params: {
     };
   }
 
-  const rules = (rulesData ?? {}) as BranchDistanceRulesRow;
-  const baseFee = numberOrNull(rules.home_service_base_fee) ?? DEFAULT_HOME_SERVICE_BASE_FEE;
-  const includedKm = numberOrNull(rules.home_service_free_km) ?? DEFAULT_HOME_SERVICE_INCLUDED_KM;
-  const perKmFee =
-    numberOrNull(rules.home_service_extra_km_fee) ?? DEFAULT_HOME_SERVICE_PER_KM_FEE;
+  let baseFee = DEFAULT_HOME_SERVICE_BASE_FEE;
+  let includedKm = DEFAULT_HOME_SERVICE_INCLUDED_KM;
+  let perKmFee = DEFAULT_HOME_SERVICE_PER_KM_FEE;
 
-  if (baseFee < 0 || includedKm < 0 || perKmFee < 0) {
-    return {
-      ok: false,
-      code: "HOME_SERVICE_DISTANCE_UNAVAILABLE",
-      message: HOME_SERVICE_DISTANCE_UNAVAILABLE_MESSAGE,
-    };
+  if (rulesData) {
+    const rules = rulesData as unknown as BranchDistanceRulesRow;
+
+    if (rules.home_service_base_fee !== undefined && rules.home_service_base_fee !== null) {
+      const parsed = numberOrNull(rules.home_service_base_fee);
+      if (parsed === null || parsed < 0) {
+        return {
+          ok: false,
+          code: "HOME_SERVICE_DISTANCE_UNAVAILABLE",
+          message: HOME_SERVICE_DISTANCE_UNAVAILABLE_MESSAGE,
+        };
+      }
+      baseFee = parsed;
+    }
+
+    if (rules.home_service_free_km !== undefined && rules.home_service_free_km !== null) {
+      const parsed = numberOrNull(rules.home_service_free_km);
+      if (parsed === null || parsed < 0) {
+        return {
+          ok: false,
+          code: "HOME_SERVICE_DISTANCE_UNAVAILABLE",
+          message: HOME_SERVICE_DISTANCE_UNAVAILABLE_MESSAGE,
+        };
+      }
+      includedKm = parsed;
+    }
+
+    if (rules.home_service_extra_km_fee !== undefined && rules.home_service_extra_km_fee !== null) {
+      const parsed = numberOrNull(rules.home_service_extra_km_fee);
+      if (parsed === null || parsed < 0) {
+        return {
+          ok: false,
+          code: "HOME_SERVICE_DISTANCE_UNAVAILABLE",
+          message: HOME_SERVICE_DISTANCE_UNAVAILABLE_MESSAGE,
+        };
+      }
+      perKmFee = parsed;
+    }
   }
 
   const breakdown = calculateHomeServiceTravelFeeBreakdown({
