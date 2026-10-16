@@ -6,13 +6,15 @@ import {
   CalendarDays,
   ChevronDown,
   Clock,
-  CreditCard,
   Home,
   Loader2,
   MapPin,
+  Phone,
   Search,
   Sparkles,
+  Trash2,
   User,
+  X,
 } from "lucide-react";
 import { toast } from "sonner";
 import { notifyBookingsChanged } from "@/lib/bookings/bookings-client-events";
@@ -52,6 +54,10 @@ export type QuickBookingServiceOption = {
   durationAdjusted?: boolean;
   availableInSpa: boolean;
   availableHomeService: boolean;
+  description?: string | null;
+  imageUrl?: string | null;
+  categoryId?: string | null;
+  categoryName?: string | null;
 };
 
 export type QuickBookingStaffOption = {
@@ -278,7 +284,11 @@ function mapServerErrorToFields(message: string): FieldErrors {
 async function requestCrmAvailability(params: {
   branchId: string;
   serviceIds: string[];
-  serviceLines?: Array<{ serviceId: string; requestedDurationMinutes?: number; expectedQuoteVersion?: string }>;
+  serviceLines?: Array<{
+    serviceId: string;
+    requestedDurationMinutes?: number;
+    expectedQuoteVersion?: string;
+  }>;
   date: string;
   time: string;
   staffId?: string;
@@ -358,20 +368,26 @@ export function QuickBookingForm({
     initialServiceId ? [initialServiceId] : []
   );
   const [lineQuotes, setLineQuotes] = useState<Record<string, ServiceLineQuote>>({});
-  const [adjustingService, setAdjustingService] = useState<{ service: QuickBookingServiceOption; guestId: string } | null>(null);
+  const [adjustingService, setAdjustingService] = useState<{
+    service: QuickBookingServiceOption;
+    guestId: string;
+  } | null>(null);
   const [firstAttendeeId] = useState(() => crypto.randomUUID());
   const [additionalGuests, setAdditionalGuests] = useState<BookingOrderAttendeeInput[]>([]);
   const [activeGuestId, setActiveGuestId] = useState(firstAttendeeId);
   const groupBooking = additionalGuests.length > 0;
   const organizerDraft: BookingOrderAttendeeInput = {
-    id: firstAttendeeId, name: fullName.trim(), isOrganizer: true, serviceIds: selectedServiceIds,
+    id: firstAttendeeId,
+    name: fullName.trim(),
+    isOrganizer: true,
+    serviceIds: selectedServiceIds,
   };
-  const attendeeDrafts: BookingOrderAttendeeInput[] = [
-    organizerDraft,
-    ...additionalGuests,
+  const attendeeDrafts: BookingOrderAttendeeInput[] = [organizerDraft, ...additionalGuests];
+  const allSelectedServiceIds = [
+    ...new Set(attendeeDrafts.flatMap((attendee) => attendee.serviceIds)),
   ];
-  const allSelectedServiceIds = [...new Set(attendeeDrafts.flatMap((attendee) => attendee.serviceIds))];
-  const activeGuest = attendeeDrafts.find((attendee) => attendee.id === activeGuestId) ?? organizerDraft;
+  const activeGuest =
+    attendeeDrafts.find((attendee) => attendee.id === activeGuestId) ?? organizerDraft;
   const activeGuestIsOrganizer = activeGuest.id === firstAttendeeId;
   const [serviceModeNotice, setServiceModeNotice] = useState("");
   const [date, setDate] = useState(initialDateValue);
@@ -430,12 +446,23 @@ export function QuickBookingForm({
         .filter((service): service is QuickBookingServiceOption => Boolean(service)),
     [selectedServiceIds, services]
   );
-  const quotedService = (guestId: string, service: QuickBookingServiceOption): QuickBookingServiceOption => {
+  const quotedService = (
+    guestId: string,
+    service: QuickBookingServiceOption
+  ): QuickBookingServiceOption => {
     const quote = lineQuotes[`${guestId}:${service.id}`];
-    return quote ? { ...service, durationMinutes: quote.selectedDurationMinutes, price: quote.calculatedPrice,
-      durationAdjusted: quote.selectedDurationMinutes !== service.durationMinutes } : service;
+    return quote
+      ? {
+          ...service,
+          durationMinutes: quote.selectedDurationMinutes,
+          price: quote.calculatedPrice,
+          durationAdjusted: quote.selectedDurationMinutes !== service.durationMinutes,
+        }
+      : service;
   };
-  const selectedQuotedServices = selectedServices.map((service) => quotedService(firstAttendeeId, service));
+  const selectedQuotedServices = selectedServices.map((service) =>
+    quotedService(firstAttendeeId, service)
+  );
   const selectedServiceCount = selectedServices.length;
   const totalDurationMinutes = selectedQuotedServices.reduce(
     (sum, service) => sum + service.durationMinutes,
@@ -443,7 +470,12 @@ export function QuickBookingForm({
   );
   const totalPrice = selectedQuotedServices.reduce((sum, service) => sum + service.price, 0);
   const groupServices = groupBooking
-    ? attendeeDrafts.flatMap((attendee) => attendee.serviceIds.map((id) => services.find((service) => service.id === id)).filter((service): service is QuickBookingServiceOption => Boolean(service)).map((service) => quotedService(attendee.id, service)))
+    ? attendeeDrafts.flatMap((attendee) =>
+        attendee.serviceIds
+          .map((id) => services.find((service) => service.id === id))
+          .filter((service): service is QuickBookingServiceOption => Boolean(service))
+          .map((service) => quotedService(attendee.id, service))
+      )
     : selectedQuotedServices;
   const groupTotalPrice = groupServices.reduce((sum, service) => sum + service.price, 0);
   const serviceSummaryLabel =
@@ -588,9 +620,14 @@ export function QuickBookingForm({
       requestCrmAvailability({
         branchId,
         serviceIds: selectedServiceIds,
-        serviceLines: selectedServiceIds.map((serviceId) => ({ serviceId,
-          requestedDurationMinutes: lineQuotes[`${firstAttendeeId}:${serviceId}`]?.selectedDurationMinutes,
-          expectedQuoteVersion: lineQuotes[`${firstAttendeeId}:${serviceId}`]?.quoteVersion ?? services.find((service) => service.id === serviceId)?.quoteVersion })),
+        serviceLines: selectedServiceIds.map((serviceId) => ({
+          serviceId,
+          requestedDurationMinutes:
+            lineQuotes[`${firstAttendeeId}:${serviceId}`]?.selectedDurationMinutes,
+          expectedQuoteVersion:
+            lineQuotes[`${firstAttendeeId}:${serviceId}`]?.quoteVersion ??
+            services.find((service) => service.id === serviceId)?.quoteVersion,
+        })),
         date,
         time,
         bookingMode: mode,
@@ -832,12 +869,15 @@ export function QuickBookingForm({
     setFieldErrors({});
     setFormError("");
     setSelectedServiceIds(validServiceIds);
-    setAdditionalGuests((current) => current.map((guest) => ({ ...guest,
-      serviceIds: guest.serviceIds.filter((id) => {
-        const service = services.find((item) => item.id === id);
-        return service ? serviceAvailableForMode(service, nextMode) : false;
-      }),
-    })));
+    setAdditionalGuests((current) =>
+      current.map((guest) => ({
+        ...guest,
+        serviceIds: guest.serviceIds.filter((id) => {
+          const service = services.find((item) => item.id === id);
+          return service ? serviceAvailableForMode(service, nextMode) : false;
+        }),
+      }))
+    );
     if (removedCount > 0) {
       setServiceModeNotice(
         validServiceIds.length === 0
@@ -862,8 +902,15 @@ export function QuickBookingForm({
   }
 
   function handleServiceSelectionChange(nextServiceIds: string[]) {
-    setLineQuotes((current) => Object.fromEntries(Object.entries(current).filter(([key]) =>
-      !key.startsWith(`${firstAttendeeId}:`) || nextServiceIds.includes(key.slice(firstAttendeeId.length + 1)) )));
+    setLineQuotes((current) =>
+      Object.fromEntries(
+        Object.entries(current).filter(
+          ([key]) =>
+            !key.startsWith(`${firstAttendeeId}:`) ||
+            nextServiceIds.includes(key.slice(firstAttendeeId.length + 1))
+        )
+      )
+    );
     setSelectedServiceIds(nextServiceIds);
     setServiceModeNotice("");
     setFieldErrors((current) => ({ ...current, service: undefined }));
@@ -872,16 +919,24 @@ export function QuickBookingForm({
   function addGuest() {
     if (additionalGuests.length >= 3) return;
     const id = crypto.randomUUID();
-    setAdditionalGuests((current) => [...current, {
-      id, name: "", isOrganizer: false, serviceIds: [],
-    }]);
+    setAdditionalGuests((current) => [
+      ...current,
+      {
+        id,
+        name: "",
+        isOrganizer: false,
+        serviceIds: [],
+      },
+    ]);
     setActiveGuestId(id);
     setResourceId("");
     setFieldErrors((current) => ({ ...current, service: undefined }));
   }
 
   function removeGuest(id: string) {
-    setLineQuotes((current) => Object.fromEntries(Object.entries(current).filter(([key]) => !key.startsWith(`${id}:`))));
+    setLineQuotes((current) =>
+      Object.fromEntries(Object.entries(current).filter(([key]) => !key.startsWith(`${id}:`)))
+    );
     setAdditionalGuests((current) => current.filter((guest) => guest.id !== id));
     if (activeGuestId === id) setActiveGuestId(firstAttendeeId);
     setFieldErrors((current) => ({ ...current, service: undefined }));
@@ -982,8 +1037,14 @@ export function QuickBookingForm({
     } else if (selectedServiceIds.length > 5) {
       nextErrors.service = "You can select up to 5 services per booking.";
     }
-    if (additionalGuests.some((guest) => !guest.name?.trim() || guest.name.trim().length < 2 || guest.serviceIds.length === 0)) {
-      nextErrors.service = "Enter each guest's name and select at least one service for each guest.";
+    if (
+      additionalGuests.some(
+        (guest) =>
+          !guest.name?.trim() || guest.name.trim().length < 2 || guest.serviceIds.length === 0
+      )
+    ) {
+      nextErrors.service =
+        "Enter each guest's name and select at least one service for each guest.";
     }
     if (!date) nextErrors.date = "Choose a valid date and time.";
     if (!time) nextErrors.time = "Choose a valid date and time.";
@@ -1054,9 +1115,14 @@ export function QuickBookingForm({
     return requestCrmAvailability({
       branchId,
       serviceIds: selectedServiceIds,
-      serviceLines: selectedServiceIds.map((serviceId) => ({ serviceId,
-        requestedDurationMinutes: lineQuotes[`${firstAttendeeId}:${serviceId}`]?.selectedDurationMinutes,
-        expectedQuoteVersion: lineQuotes[`${firstAttendeeId}:${serviceId}`]?.quoteVersion ?? services.find((service) => service.id === serviceId)?.quoteVersion })),
+      serviceLines: selectedServiceIds.map((serviceId) => ({
+        serviceId,
+        requestedDurationMinutes:
+          lineQuotes[`${firstAttendeeId}:${serviceId}`]?.selectedDurationMinutes,
+        expectedQuoteVersion:
+          lineQuotes[`${firstAttendeeId}:${serviceId}`]?.quoteVersion ??
+          services.find((service) => service.id === serviceId)?.quoteVersion,
+      })),
       date: availabilityDate,
       time: availabilityTime,
       staffId: candidateStaffId || undefined,
@@ -1072,8 +1138,9 @@ export function QuickBookingForm({
     setFieldErrors(nextErrors);
     setFormError("");
     if (Object.values(nextErrors).some(Boolean)) {
-      const incompleteGuest = additionalGuests.find((guest) =>
-        !guest.name?.trim() || guest.name.trim().length < 2 || guest.serviceIds.length === 0
+      const incompleteGuest = additionalGuests.find(
+        (guest) =>
+          !guest.name?.trim() || guest.name.trim().length < 2 || guest.serviceIds.length === 0
       );
       if (incompleteGuest) setActiveGuestId(incompleteGuest.id);
       else if (nextErrors.service) setActiveGuestId(firstAttendeeId);
@@ -1107,17 +1174,33 @@ export function QuickBookingForm({
         branchId,
         customerId: selectedCustomer?.id,
         serviceIds: groupBooking ? allSelectedServiceIds : selectedServiceIds,
-        ...(!groupBooking && { serviceLines: selectedServiceIds.map((serviceId) => ({
-          serviceId, requestedDurationMinutes: lineQuotes[`${firstAttendeeId}:${serviceId}`]?.selectedDurationMinutes,
-          expectedQuoteVersion: lineQuotes[`${firstAttendeeId}:${serviceId}`]?.quoteVersion ?? services.find((service) => service.id === serviceId)?.quoteVersion,
-        })) }),
-        ...(groupBooking && { bookingFor: "me_and_others" as const, attendees: attendeeDrafts.map((attendee) => ({
-          id: attendee.id, name: attendee.name?.trim() ?? "", isOrganizer: attendee.isOrganizer ?? false,
-          serviceIds: attendee.serviceIds,
-          serviceLines: attendee.serviceIds.map((serviceId) => ({ serviceId,
-            requestedDurationMinutes: lineQuotes[`${attendee.id}:${serviceId}`]?.selectedDurationMinutes,
-            expectedQuoteVersion: lineQuotes[`${attendee.id}:${serviceId}`]?.quoteVersion ?? services.find((service) => service.id === serviceId)?.quoteVersion })),
-        })) }),
+        ...(!groupBooking && {
+          serviceLines: selectedServiceIds.map((serviceId) => ({
+            serviceId,
+            requestedDurationMinutes:
+              lineQuotes[`${firstAttendeeId}:${serviceId}`]?.selectedDurationMinutes,
+            expectedQuoteVersion:
+              lineQuotes[`${firstAttendeeId}:${serviceId}`]?.quoteVersion ??
+              services.find((service) => service.id === serviceId)?.quoteVersion,
+          })),
+        }),
+        ...(groupBooking && {
+          bookingFor: "me_and_others" as const,
+          attendees: attendeeDrafts.map((attendee) => ({
+            id: attendee.id,
+            name: attendee.name?.trim() ?? "",
+            isOrganizer: attendee.isOrganizer ?? false,
+            serviceIds: attendee.serviceIds,
+            serviceLines: attendee.serviceIds.map((serviceId) => ({
+              serviceId,
+              requestedDurationMinutes:
+                lineQuotes[`${attendee.id}:${serviceId}`]?.selectedDurationMinutes,
+              expectedQuoteVersion:
+                lineQuotes[`${attendee.id}:${serviceId}`]?.quoteVersion ??
+                services.find((service) => service.id === serviceId)?.quoteVersion,
+            })),
+          })),
+        }),
         staffId: staffId || undefined,
         customerRequestedTherapist: Boolean(staffId && customerRequestedTherapist),
         resourceId: isHomeService || groupBooking ? undefined : resourceId || undefined,
@@ -1196,732 +1279,907 @@ export function QuickBookingForm({
   return (
     <div className="crm-fade-up h-full min-h-0 bg-[var(--cs-bg)]">
       <section className="flex h-full min-h-0 flex-col overflow-hidden bg-[var(--cs-surface)]">
-        <header className="shrink-0 border-b border-[var(--cs-border-soft)] px-4 py-3 sm:px-5">
-          <h1 className="font-display text-2xl font-semibold leading-tight text-[var(--cs-text)]">
-            New Booking
-          </h1>
-          <p className="mt-0.5 text-sm text-[var(--cs-text-secondary)]">{branchName}</p>
+        <header className="flex shrink-0 items-center justify-between border-b border-[var(--cs-border-soft)] px-4 py-3 sm:px-6">
+          <div>
+            <h1 className="font-display text-xl sm:text-2xl font-bold leading-tight text-[var(--cs-text)]">
+              New Booking
+            </h1>
+            <p className="mt-0.5 text-xs text-[var(--cs-text-secondary)]">
+              Cradle Wellness Living · {branchName}
+            </p>
+          </div>
+          {onCancel ? (
+            <button
+              type="button"
+              onClick={onCancel}
+              className="grid size-8 place-items-center rounded-lg text-[var(--cs-text-muted)] transition hover:bg-[var(--cs-surface-warm)] hover:text-[var(--cs-text)]"
+              aria-label="Close dialog"
+            >
+              <X size={18} />
+            </button>
+          ) : null}
         </header>
 
-        <div className={cn(
-          "flex min-h-0 flex-1 flex-col overflow-y-auto lg:grid lg:overflow-hidden",
-          groupBooking ? "lg:grid-cols-[minmax(0,1fr)_400px]" : "lg:grid-cols-[minmax(0,1fr)_340px]"
-        )}>
-          <div className="min-w-0 px-4 py-3 sm:px-5 lg:min-h-0 lg:overflow-y-auto">
-            <div className="grid gap-3">
-              {!groupBooking ? <div>
-                <FieldLabel icon={<Sparkles size={15} />} label="Booking mode" />
-                <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
-                  {MODES.map((item) => {
-                    const ModeIcon =
-                      item.value === "walkin"
-                        ? User
-                        : item.value === "phone"
-                          ? CreditCard
-                          : item.value === "home_service"
-                            ? Home
-                            : CalendarDays;
+        <div className="flex min-h-0 flex-1 flex-col overflow-y-auto lg:grid lg:grid-cols-[minmax(0,1fr)_340px] lg:overflow-hidden">
+          <div className="min-w-0 space-y-4 px-4 py-3.5 sm:px-6 lg:min-h-0 lg:overflow-y-auto">
+            <div>
+              <FieldLabel icon={<Sparkles size={14} />} label="Booking Mode" />
+              <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
+                {MODES.map((item) => {
+                  const ModeIcon =
+                    item.value === "walkin"
+                      ? User
+                      : item.value === "phone"
+                        ? Phone
+                        : item.value === "home_service"
+                          ? Home
+                          : CalendarDays;
+                  const isSelected = mode === item.value;
 
-                    return (
-                      <button
-                        key={item.value}
-                        type="button"
-                        onClick={() => changeMode(item.value)}
-                        disabled={isSaving}
+                  return (
+                    <button
+                      key={item.value}
+                      type="button"
+                      onClick={() => changeMode(item.value)}
+                      disabled={isSaving}
+                      className={cn(
+                        "flex min-h-[56px] items-center gap-2.5 rounded-xl border p-2.5 text-left transition",
+                        isSelected
+                          ? "border-[#1B4332] bg-[#F7F9F6] text-[#1B4332] shadow-xs ring-1 ring-[#1B4332]"
+                          : "border-[var(--cs-border)] bg-[var(--cs-surface)] text-[var(--cs-text-secondary)] hover:border-[var(--cs-sand-dark)] hover:bg-[var(--cs-surface-warm)]"
+                      )}
+                      aria-pressed={isSelected}
+                    >
+                      <ModeIcon
+                        size={17}
                         className={cn(
-                          "flex min-h-14 items-center gap-2 rounded-xl border px-3 py-2 text-left transition-colors",
-                          mode === item.value
-                            ? "border-[var(--cs-sand-dark)] bg-[var(--cs-sand-mist)] text-[var(--cs-text)] shadow-[var(--cs-shadow-xs)]"
-                            : "border-[var(--cs-border)] bg-[var(--cs-surface)] text-[var(--cs-text-secondary)] hover:border-[var(--cs-border-strong)]"
+                          "shrink-0",
+                          isSelected ? "text-[#1B4332]" : "text-[var(--cs-sand-dark)]"
                         )}
-                        aria-pressed={mode === item.value}
-                      >
-                        <ModeIcon size={17} className="shrink-0 text-[var(--cs-sand-dark)]" />
-                        <span className="min-w-0">
-                          <span className="block truncate text-sm font-semibold text-[var(--cs-text)]">
-                            {item.label}
-                          </span>
-                          <span className="block truncate text-[11px] text-[var(--cs-text-muted)]">
-                            {item.value === "walkin"
-                              ? "Now · In branch"
-                              : item.value === "phone"
-                                ? "Call or message"
-                                : item.value === "home_service"
-                                  ? "We go to customer"
-                                  : "Scheduled in-spa"}
-                          </span>
+                      />
+                      <span className="min-w-0">
+                        <span className="block truncate text-xs sm:text-sm font-bold text-[var(--cs-text)]">
+                          {item.label}
                         </span>
-                      </button>
-                    );
-                  })}
-                </div>
-              </div> : null}
+                        <span className="block truncate text-[11px] text-[var(--cs-text-muted)]">
+                          {item.value === "walkin"
+                            ? "Now · In branch"
+                            : item.value === "phone"
+                              ? "Call or message"
+                              : item.value === "home_service"
+                                ? "We go to customer"
+                                : "Schedule in advance"}
+                        </span>
+                      </span>
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
 
-              <div className="grid gap-3 md:grid-cols-2">
-                <div className="relative md:col-span-2">
-                  <FieldLabel icon={<User size={15} />} label="Customer name" />
-                  <div className="relative">
-                    <Search className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-[var(--cs-text-muted)]" />
-                    <input
-                      id={`${formId}-customer`}
-                      type="text"
-                      role="combobox"
-                      aria-label="Customer name"
-                      aria-autocomplete="list"
-                      aria-expanded={
-                        customerSearchOpen && customerQuery.trim().length >= 2 && !selectedCustomer
+            <div className="grid gap-3 sm:grid-cols-[minmax(0,1.8fr)_minmax(0,1fr)]">
+              <div className="relative min-w-0">
+                <FieldLabel icon={<User size={14} />} label="Customer" />
+                <div className="relative">
+                  <Search className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-[var(--cs-text-muted)]" />
+                  <input
+                    id={`${formId}-customer`}
+                    type="text"
+                    role="combobox"
+                    aria-label="Customer name"
+                    aria-autocomplete="list"
+                    aria-expanded={
+                      customerSearchOpen && customerQuery.trim().length >= 2 && !selectedCustomer
+                    }
+                    aria-controls={`${formId}-customer-options`}
+                    aria-activedescendant={
+                      activeCustomerIndex >= 0
+                        ? `${formId}-customer-option-${activeCustomerIndex}`
+                        : undefined
+                    }
+                    value={customerQuery}
+                    onChange={(event) => {
+                      const nextQuery = event.target.value;
+                      ++selectionGeneration.current;
+                      setCustomerQuery(nextQuery);
+                      setFullName(nextQuery);
+                      setCustomerSearchOpen(nextQuery.trim().length >= 2);
+                      setActiveCustomerIndex(-1);
+                      setCustomerSearchError("");
+                      if (selectedCustomer) {
+                        setSelectedCustomer(null);
+                        setPhone("");
+                        setEmail("");
                       }
-                      aria-controls={`${formId}-customer-options`}
-                      aria-activedescendant={
-                        activeCustomerIndex >= 0
-                          ? `${formId}-customer-option-${activeCustomerIndex}`
-                          : undefined
+                      if (nextQuery.trim().length < 2) {
+                        setCustomerResults([]);
+                        setSearchingCustomers(false);
+                      } else {
+                        setCustomerResults([]);
+                        setSearchingCustomers(true);
                       }
-                      value={customerQuery}
-                      onChange={(event) => {
-                        const nextQuery = event.target.value;
-                        ++selectionGeneration.current;
-                        setCustomerQuery(nextQuery);
-                        setFullName(nextQuery);
-                        setCustomerSearchOpen(nextQuery.trim().length >= 2);
-                        setActiveCustomerIndex(-1);
-                        setCustomerSearchError("");
-                        if (selectedCustomer) {
-                          setSelectedCustomer(null);
-                          setPhone("");
-                          setEmail("");
-                        }
-                        if (nextQuery.trim().length < 2) {
-                          setCustomerResults([]);
-                          setSearchingCustomers(false);
-                        } else {
-                          setCustomerResults([]);
-                          setSearchingCustomers(true);
-                        }
-                      }}
-                      onFocus={() => {
-                        if (!selectedCustomer && customerQuery.trim().length >= 2)
-                          setCustomerSearchOpen(true);
-                      }}
-                      onBlur={() => {
+                    }}
+                    onFocus={() => {
+                      if (!selectedCustomer && customerQuery.trim().length >= 2)
+                        setCustomerSearchOpen(true);
+                    }}
+                    onBlur={() => {
+                      setCustomerSearchOpen(false);
+                      setActiveCustomerIndex(-1);
+                    }}
+                    onKeyDown={(event) => {
+                      if (event.key === "Escape") {
                         setCustomerSearchOpen(false);
                         setActiveCustomerIndex(-1);
-                      }}
-                      onKeyDown={(event) => {
-                        if (event.key === "Escape") {
-                          setCustomerSearchOpen(false);
-                          setActiveCustomerIndex(-1);
-                        } else if (
-                          customerSearchOpen &&
-                          (event.key === "ArrowDown" || event.key === "ArrowUp")
-                        ) {
-                          event.preventDefault();
-                          const count = customerResults.length + 1;
-                          setActiveCustomerIndex((current) =>
-                            event.key === "ArrowDown"
-                              ? (current + 1) % count
-                              : (current - 1 + count) % count
-                          );
-                        } else if (
-                          customerSearchOpen &&
-                          event.key === "Enter" &&
-                          activeCustomerIndex >= 0
-                        ) {
-                          event.preventDefault();
-                          if (activeCustomerIndex < customerResults.length) {
-                            const highlighted = customerResults[activeCustomerIndex];
-                            if (highlighted) void selectCustomer(highlighted);
-                          } else {
-                            chooseNewCustomerName();
-                          }
+                      } else if (
+                        customerSearchOpen &&
+                        (event.key === "ArrowDown" || event.key === "ArrowUp")
+                      ) {
+                        event.preventDefault();
+                        const count = customerResults.length + 1;
+                        setActiveCustomerIndex((current) =>
+                          event.key === "ArrowDown"
+                            ? (current + 1) % count
+                            : (current - 1 + count) % count
+                        );
+                      } else if (
+                        customerSearchOpen &&
+                        event.key === "Enter" &&
+                        activeCustomerIndex >= 0
+                      ) {
+                        event.preventDefault();
+                        if (activeCustomerIndex < customerResults.length) {
+                          const highlighted = customerResults[activeCustomerIndex];
+                          if (highlighted) void selectCustomer(highlighted);
+                        } else {
+                          chooseNewCustomerName();
                         }
-                      }}
-                      disabled={isSaving || loadingCustomerIdentity}
-                      placeholder="Enter name or find an existing customer"
-                      className={cn(inputClassName(Boolean(fieldErrors.fullName)), "pl-9")}
-                    />
-                    {searchingCustomers || loadingCustomerIdentity ? (
-                      <Loader2 className="absolute right-3 top-1/2 size-4 -translate-y-1/2 animate-spin text-[var(--cs-text-muted)]" />
-                    ) : null}
-                  </div>
-                  <FieldError message={fieldErrors.fullName ?? fieldErrors.customer} />
-
-                  {selectedCustomer ? (
-                    <div className="mt-2 flex items-center gap-3 rounded-xl border border-[var(--cs-border-soft)] bg-[var(--cs-surface-warm)] px-3 py-2">
-                      <span className="grid size-8 shrink-0 place-items-center rounded-full bg-[var(--cs-sand-mist)] text-xs font-semibold text-[var(--cs-sand-dark)]">
-                        {selectedCustomer.fullName.slice(0, 2).toUpperCase()}
-                      </span>
-                      <span className="min-w-0 flex-1">
-                        <span className="block truncate text-sm font-semibold text-[var(--cs-text)]">
-                          {selectedCustomer.fullName}
-                        </span>
-                        <span className="block truncate text-xs text-[var(--cs-text-muted)]">
-                          Existing customer selected
-                        </span>
-                      </span>
-                      <button
-                        type="button"
-                        onClick={clearSelectedCustomer}
-                        disabled={isSaving}
-                        className="cs-btn cs-btn-secondary h-8 rounded-lg px-3 text-xs"
-                      >
-                        Change
-                      </button>
-                    </div>
-                  ) : customerSearchOpen && customerQuery.trim().length >= 2 ? (
-                    <div
-                      id={`${formId}-customer-options`}
-                      role="listbox"
-                      aria-label="Possible customers"
-                      onMouseDown={(event) => event.preventDefault()}
-                      className="absolute left-0 right-0 z-40 mt-2 max-h-48 overflow-y-auto rounded-xl border border-[var(--cs-border-soft)] bg-[var(--cs-surface)] p-1 shadow-xl"
-                    >
-                      <p className="px-3 py-1 text-xs font-semibold text-[var(--cs-text-muted)]">
-                        Possible customers
-                      </p>
-                      {searchingCustomers ? (
-                        <p className="px-3 py-2 text-xs text-[var(--cs-text-muted)]">
-                          Searching customers…
-                        </p>
-                      ) : null}
-                      {customerSearchError ? (
-                        <div className="flex items-center justify-between gap-2 px-3 py-2 text-xs text-[var(--cs-error-text)]">
-                          <span role="alert">{customerSearchError}</span>
-                          <button
-                            type="button"
-                            onClick={() => {
-                              setCustomerSearchError("");
-                              setSearchingCustomers(true);
-                              setCustomerSearchRetry((current) => current + 1);
-                            }}
-                            className="font-semibold underline"
-                          >
-                            Retry
-                          </button>
-                        </div>
-                      ) : null}
-                      {!searchingCustomers &&
-                      !customerSearchError &&
-                      customerResults.length === 0 ? (
-                        <p className="px-3 py-2 text-xs text-[var(--cs-text-muted)]">
-                          No matching customer found.
-                        </p>
-                      ) : null}
-                      {customerResults.map((customer, index) => (
-                        <button
-                          key={customer.id}
-                          id={`${formId}-customer-option-${index}`}
-                          role="option"
-                          aria-selected={activeCustomerIndex === index}
-                          type="button"
-                          onClick={() => void selectCustomer(customer)}
-                          className={cn(
-                            "flex w-full items-center justify-between gap-3 rounded-lg px-3 py-2 text-left hover:bg-[var(--cs-surface-warm)]",
-                            activeCustomerIndex === index && "bg-[var(--cs-surface-warm)]"
-                          )}
-                        >
-                          <span className="min-w-0">
-                            <span className="block truncate text-sm font-medium text-[var(--cs-text)]">
-                              {customer.fullName}
-                            </span>
-                            <span className="block truncate text-xs text-[var(--cs-text-muted)]">
-                              {customer.phoneSuffix
-                                ? `•••• ${customer.phoneSuffix}`
-                                : "Phone unavailable"}
-                            </span>
-                          </span>
-                          <span className="text-xs font-semibold text-[var(--cs-sand-dark)]">
-                            Select
-                          </span>
-                        </button>
-                      ))}
-                      <button
-                        id={`${formId}-customer-option-${customerResults.length}`}
-                        role="option"
-                        aria-selected={activeCustomerIndex === customerResults.length}
-                        type="button"
-                        onClick={chooseNewCustomerName}
-                        className={cn(
-                          "w-full rounded-lg px-3 py-2 text-left text-xs font-semibold text-[var(--cs-sand-dark)] hover:bg-[var(--cs-surface-warm)]",
-                          activeCustomerIndex === customerResults.length &&
-                            "bg-[var(--cs-surface-warm)]"
-                        )}
-                      >
-                        + Use new customer “{customerQuery.trim()}”
-                      </button>
-                    </div>
+                      }
+                    }}
+                    disabled={isSaving || loadingCustomerIdentity}
+                    placeholder="Enter name or find an existing customer"
+                    className={cn(inputClassName(Boolean(fieldErrors.fullName)), "pl-9")}
+                  />
+                  {searchingCustomers || loadingCustomerIdentity ? (
+                    <Loader2 className="absolute right-3 top-1/2 size-4 -translate-y-1/2 animate-spin text-[var(--cs-text-muted)]" />
                   ) : null}
                 </div>
+                <FieldError message={fieldErrors.fullName ?? fieldErrors.customer} />
 
-                {!selectedCustomer ? (
-                  <div className="md:col-span-2">
-                    <FieldLabel label="Phone" />
-                    <input
-                      type="tel"
-                      value={phone}
-                      onChange={(event) => setPhone(event.target.value)}
-                      disabled={isSaving}
-                      placeholder="Phone number"
-                      className={inputClassName(Boolean(fieldErrors.phone))}
-                    />
-                    <FieldError message={fieldErrors.phone} />
-                  </div>
-                ) : null}
-
-                <div className="md:col-span-2">
-                  {groupBooking ? (
-                    <section aria-label="Guest Sessions">
-                      <div className="mb-3 flex items-center justify-between gap-3">
-                        <div>
-                          <h2 className="text-base font-semibold text-[var(--cs-text)]">Guest Sessions</h2>
-                          <p className="text-xs text-[var(--cs-text-muted)]">Add guests and assign services.</p>
-                        </div>
-                        <button type="button" onClick={addGuest} disabled={isSaving || additionalGuests.length >= 3}
-                          className="cs-btn cs-btn-secondary h-9 shrink-0 rounded-xl px-3 text-xs disabled:opacity-50">
-                          + Add Guest
-                        </button>
-                      </div>
-                      <div role="tablist" aria-label="Guest sessions"
-                        className="mb-3 flex min-w-0 flex-nowrap gap-2 overflow-x-auto pb-1">
-                        {attendeeDrafts.map((attendee, index) => {
-                          const isActive = activeGuest.id === attendee.id;
-                          const label = attendee.name?.trim() || `Guest ${index + 1}`;
-                          const count = attendee.serviceIds.length;
-                          return (
-                            <div key={attendee.id} className={cn(
-                              "flex min-w-[112px] flex-1 items-center rounded-xl border px-2.5 py-2",
-                              isActive
-                                ? "border-[var(--cs-sand-dark)] bg-[var(--cs-sand-mist)]"
-                                : "border-[var(--cs-border)] bg-[var(--cs-surface-warm)]"
-                            )}>
-                              <button id={`${formId}-guest-tab-${index}`} type="button" role="tab"
-                                aria-selected={isActive} aria-controls={`${formId}-guest-editor`}
-                                onClick={() => setActiveGuestId(attendee.id)}
-                                className="min-w-0 flex-1 text-left" disabled={isSaving}>
-                                <span className="block truncate text-xs font-semibold text-[var(--cs-text)]">{label}</span>
-                                <span className="block truncate text-[11px] text-[var(--cs-text-muted)]">
-                                  {count ? `${count} service${count === 1 ? "" : "s"}` : "Choose service"}
-                                </span>
-                              </button>
-                              {index > 0 ? (
-                                <button type="button" onClick={() => removeGuest(attendee.id)} disabled={isSaving}
-                                  className="ml-1 shrink-0 px-1 text-base text-[var(--cs-sand-dark)]"
-                                  aria-label={`Remove ${label}`}>×</button>
-                              ) : null}
-                            </div>
-                          );
-                        })}
-                        <button type="button" onClick={addGuest} disabled={isSaving || additionalGuests.length >= 3}
-                          className="min-w-[88px] shrink-0 rounded-xl border border-dashed border-[var(--cs-border-strong)] px-3 py-2 text-xs font-semibold text-[var(--cs-sand-dark)] disabled:opacity-50">
-                          + Add
-                        </button>
-                      </div>
-                      <div id={`${formId}-guest-editor`} role="tabpanel"
-                        aria-labelledby={`${formId}-guest-tab-${attendeeDrafts.findIndex((guest) => guest.id === activeGuest.id)}`}
-                        className="rounded-2xl border border-[var(--cs-border)] bg-[var(--cs-surface)] p-4">
-                        <label className="block text-sm font-semibold text-[var(--cs-text)]" htmlFor={`${formId}-guest-name`}>
-                          Guest name
-                        </label>
-                        <div className="relative mt-1.5 mb-4">
-                          <input id={`${formId}-guest-name`} className={cn(inputClassName(false), activeGuestIsOrganizer && "pr-28")}
-                            value={activeGuestIsOrganizer ? `${fullName.trim()} (You)` : activeGuest.name ?? ""}
-                            readOnly={activeGuestIsOrganizer} maxLength={100}
-                            onChange={(event) => {
-                              if (activeGuestIsOrganizer) return;
-                              setAdditionalGuests((current) => current.map((guest) => guest.id === activeGuest.id
-                                ? { ...guest, name: event.target.value } : guest));
-                              setFieldErrors((current) => ({ ...current, service: undefined }));
-                            }}
-                            disabled={isSaving} placeholder="Guest name" />
-                          {activeGuestIsOrganizer ? (
-                            <span className="pointer-events-none absolute right-2 top-1/2 -translate-y-1/2 rounded-full bg-[var(--cs-sand-mist)] px-2 py-1 text-[10px] font-semibold text-[var(--cs-sand-dark)]">
-                              Primary Guest
-                            </span>
-                          ) : null}
-                        </div>
-                        <QuickBookingServiceSelector key={activeGuest.id} services={eligibleServices.map((service) => quotedService(activeGuest.id, service))}
-                          selectedServiceIds={activeGuest.serviceIds}
-                          onAdjust={(service) => setAdjustingService({ service, guestId: activeGuest.id })}
-                          onChange={activeGuestIsOrganizer ? handleServiceSelectionChange : (serviceIds) => {
-                            setLineQuotes((current) => Object.fromEntries(Object.entries(current).filter(([key]) =>
-                              !key.startsWith(`${activeGuest.id}:`) || serviceIds.includes(key.slice(activeGuest.id.length + 1)))));
-                            setAdditionalGuests((current) => current.map((guest) => guest.id === activeGuest.id
-                              ? { ...guest, serviceIds } : guest));
-                            setFieldErrors((current) => ({ ...current, service: undefined }));
-                          }}
-                          isHomeService={isHomeService} disabled={isSaving}
-                          error={fieldErrors.service && (activeGuestIsOrganizer ||
-                            (!activeGuest.name?.trim() || activeGuest.serviceIds.length === 0)) ? fieldErrors.service : undefined} />
-                        {serviceModeNotice ? (
-                          <p className="mt-1.5 rounded-lg bg-[var(--cs-warning-bg)] px-3 py-1.5 text-xs font-medium text-[var(--cs-warning-text)]">
-                            {serviceModeNotice}
-                          </p>
-                        ) : null}
-                      </div>
-                    </section>
-                  ) : (
-                    <>
-                      <QuickBookingServiceSelector services={eligibleServices.map((service) => quotedService(firstAttendeeId, service))}
-                        selectedServiceIds={selectedServiceIds} onChange={handleServiceSelectionChange}
-                        onAdjust={(service) => setAdjustingService({ service, guestId: firstAttendeeId })}
-                        isHomeService={isHomeService} disabled={isSaving} error={fieldErrors.service} />
-                      {serviceModeNotice ? (
-                        <p className="mt-1.5 rounded-lg bg-[var(--cs-warning-bg)] px-3 py-1.5 text-xs font-medium text-[var(--cs-warning-text)]">
-                          {serviceModeNotice}
-                        </p>
-                      ) : null}
-                      <button type="button" onClick={addGuest} disabled={isSaving}
-                        className="mt-2 text-xs font-semibold text-[var(--cs-sand-dark)]">+ Add guest</button>
-                    </>
-                  )}
-                </div>
-              </div>
-
-              <div
-                className={cn("grid gap-3", isHomeService || groupBooking ? "md:grid-cols-3" : "md:grid-cols-4")}
-              >
-                <div>
-                  <FieldLabel icon={<CalendarDays size={15} />} label="Date" />
-                  <input
-                    type="date"
-                    value={date}
-                    onChange={(event) => setDate(event.target.value)}
-                    disabled={isSaving}
-                    className={inputClassName(Boolean(fieldErrors.date))}
-                  />
-                  <FieldError message={fieldErrors.date} />
-                </div>
-
-                <div>
-                  <FieldLabel icon={<Clock size={15} />} label="Time" />
-                  <div className="flex gap-1.5">
-                    <input
-                      type="time"
-                      value={time}
-                      onChange={(event) => setTime(event.target.value)}
-                      disabled={isSaving}
-                      className={cn(inputClassName(Boolean(fieldErrors.time)), "min-w-0 flex-1")}
-                    />
+                {selectedCustomer ? (
+                  <div className="mt-2 flex items-center gap-3 rounded-xl border border-[var(--cs-border-soft)] bg-[var(--cs-surface-warm)] px-3 py-2">
+                    <span className="grid size-8 shrink-0 place-items-center rounded-full bg-[var(--cs-sand-mist)] text-xs font-semibold text-[var(--cs-sand-dark)]">
+                      {selectedCustomer.fullName.slice(0, 2).toUpperCase()}
+                    </span>
+                    <span className="min-w-0 flex-1">
+                      <span className="block truncate text-sm font-semibold text-[var(--cs-text)]">
+                        {selectedCustomer.fullName}
+                      </span>
+                      <span className="block truncate text-xs text-[var(--cs-text-muted)]">
+                        Existing customer selected
+                      </span>
+                    </span>
                     <button
                       type="button"
-                      onClick={chooseNextAvailable}
-                      disabled={isSaving || loadingNextSlot}
-                      className="cs-btn cs-btn-secondary h-10 shrink-0 rounded-xl px-2.5 text-xs"
-                      aria-label="Choose next available time"
+                      onClick={clearSelectedCustomer}
+                      disabled={isSaving}
+                      className="cs-btn cs-btn-secondary h-8 rounded-lg px-3 text-xs"
                     >
-                      {loadingNextSlot ? (
-                        <Loader2 size={14} className="animate-spin" />
-                      ) : (
-                        <Clock size={14} />
-                      )}
+                      Change
                     </button>
                   </div>
-                  <FieldError message={fieldErrors.time} />
-                </div>
-
-                <div>
-                  <FieldLabel icon={<User size={15} />} label="Therapist" optional />
-                  <select
-                    value={staffId}
-                    onChange={(event) => {
-                      setStaffId(event.target.value);
-                      setCustomerRequestedTherapist(false);
-                    }}
-                    disabled={
-                      isSaving ||
-                      !therapistPrerequisitesReady ||
-                      therapistAvailabilityStatus === "loading"
-                    }
-                    className={selectClassName(false)}
+                ) : customerSearchOpen && customerQuery.trim().length >= 2 ? (
+                  <div
+                    id={`${formId}-customer-options`}
+                    role="listbox"
+                    aria-label="Possible customers"
+                    onMouseDown={(event) => event.preventDefault()}
+                    className="absolute left-0 right-0 z-40 mt-2 max-h-48 overflow-y-auto rounded-xl border border-[var(--cs-border-soft)] bg-[var(--cs-surface)] p-1 shadow-xl"
                   >
-                    <option value="">
-                      {!therapistPrerequisitesReady
-                        ? "Select services and time"
-                        : therapistAvailabilityStatus === "loading"
-                          ? "Checking schedules…"
-                          : therapistAvailabilityStatus === "empty"
-                            ? "No qualified provider can start at this time"
-                            : therapistAvailabilityStatus === "error"
-                              ? "Availability failed"
-                              : "First available"}
-                    </option>
-                    {recommendedProviders.length > 0 ? (
-                      <optgroup label="Recommended — checked in">
-                        {recommendedProviders.map((provider) => (
-                          <option key={provider.staffId} value={provider.staffId}>
-                            {provider.nickname
-                              ? `${provider.nickname} — ${provider.fullName}`
-                              : provider.fullName}{" "}
-                            · {provider.statusLabel}
-                          </option>
-                        ))}
-                      </optgroup>
+                    <p className="px-3 py-1 text-xs font-semibold text-[var(--cs-text-muted)]">
+                      Possible customers
+                    </p>
+                    {searchingCustomers ? (
+                      <p className="px-3 py-2 text-xs text-[var(--cs-text-muted)]">
+                        Searching customers…
+                      </p>
                     ) : null}
-                    {scheduledProviders.length > 0 ? (
-                      <optgroup label="Scheduled today">
-                        {scheduledProviders.map((provider) => (
-                          <option key={provider.staffId} value={provider.staffId}>
-                            {provider.nickname
-                              ? `${provider.nickname} — ${provider.fullName}`
-                              : provider.fullName}{" "}
-                            · {provider.statusLabel}
-                          </option>
-                        ))}
-                      </optgroup>
+                    {customerSearchError ? (
+                      <div className="flex items-center justify-between gap-2 px-3 py-2 text-xs text-[var(--cs-error-text)]">
+                        <span role="alert">{customerSearchError}</span>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setCustomerSearchError("");
+                            setSearchingCustomers(true);
+                            setCustomerSearchRetry((current) => current + 1);
+                          }}
+                          className="font-semibold underline"
+                        >
+                          Retry
+                        </button>
+                      </div>
                     ) : null}
-                    {unavailableProviders.length > 0 ? (
-                      <optgroup label="Unavailable">
-                        {unavailableProviders.map((provider) => (
-                          <option key={provider.staffId} value={provider.staffId} disabled>
-                            {provider.nickname
-                              ? `${provider.nickname} — ${provider.fullName}`
-                              : provider.fullName}{" "}
-                            · {provider.statusLabel}
-                          </option>
-                        ))}
-                      </optgroup>
+                    {!searchingCustomers && !customerSearchError && customerResults.length === 0 ? (
+                      <p className="px-3 py-2 text-xs text-[var(--cs-text-muted)]">
+                        No matching customer found.
+                      </p>
                     ) : null}
-                  </select>
-                  {staffId ? (
-                    <label className="mt-2 flex items-center gap-2 text-xs text-[var(--cs-text)]">
+                    {customerResults.map((customer, index) => (
+                      <button
+                        key={customer.id}
+                        id={`${formId}-customer-option-${index}`}
+                        role="option"
+                        aria-selected={activeCustomerIndex === index}
+                        type="button"
+                        onClick={() => void selectCustomer(customer)}
+                        className={cn(
+                          "flex w-full items-center justify-between gap-3 rounded-lg px-3 py-2 text-left hover:bg-[var(--cs-surface-warm)]",
+                          activeCustomerIndex === index && "bg-[var(--cs-surface-warm)]"
+                        )}
+                      >
+                        <span className="min-w-0">
+                          <span className="block truncate text-sm font-medium text-[var(--cs-text)]">
+                            {customer.fullName}
+                          </span>
+                          <span className="block truncate text-xs text-[var(--cs-text-muted)]">
+                            {customer.phoneSuffix
+                              ? `•••• ${customer.phoneSuffix}`
+                              : "Phone unavailable"}
+                          </span>
+                        </span>
+                        <span className="text-xs font-semibold text-[var(--cs-sand-dark)]">
+                          Select
+                        </span>
+                      </button>
+                    ))}
+                    <button
+                      id={`${formId}-customer-option-${customerResults.length}`}
+                      role="option"
+                      aria-selected={activeCustomerIndex === customerResults.length}
+                      type="button"
+                      onClick={chooseNewCustomerName}
+                      className={cn(
+                        "w-full rounded-lg px-3 py-2 text-left text-xs font-semibold text-[var(--cs-sand-dark)] hover:bg-[var(--cs-surface-warm)]",
+                        activeCustomerIndex === customerResults.length &&
+                          "bg-[var(--cs-surface-warm)]"
+                      )}
+                    >
+                      + Use new customer “{customerQuery.trim()}”
+                    </button>
+                  </div>
+                ) : null}
+              </div>
+
+              {/* Phone Input (~35%) */}
+              <div className="min-w-0">
+                <FieldLabel icon={<Phone size={14} />} label="Phone" />
+                <div className="relative">
+                  <Phone className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-[var(--cs-text-muted)]" />
+                  <input
+                    id={`${formId}-phone`}
+                    type="tel"
+                    aria-label="Phone"
+                    value={phone}
+                    onChange={(event) => setPhone(event.target.value)}
+                    disabled={isSaving || Boolean(selectedCustomer)}
+                    placeholder="Phone number"
+                    className={cn(
+                      inputClassName(Boolean(fieldErrors.phone)),
+                      "pl-9",
+                      selectedCustomer && "cursor-not-allowed bg-[var(--cs-surface-warm)]"
+                    )}
+                  />
+                </div>
+                <FieldError message={fieldErrors.phone} />
+              </div>
+            </div>
+
+            {/* Guests & Services Workspace */}
+            <div className="space-y-3">
+              <div className="flex items-center justify-between gap-3">
+                <div>
+                  <h2 className="text-sm font-bold text-[var(--cs-text)]">Guests & Services</h2>
+                  <p className="text-xs text-[var(--cs-text-muted)]">
+                    Add guests and assign services.
+                  </p>
+                </div>
+                {!groupBooking ? (
+                  <button
+                    type="button"
+                    onClick={addGuest}
+                    disabled={isSaving}
+                    className="cs-btn cs-btn-secondary h-8 shrink-0 rounded-xl px-3 text-xs font-semibold text-[var(--cs-sand-dark)] hover:text-[var(--cs-text)] disabled:opacity-50"
+                  >
+                    + Add guest
+                  </button>
+                ) : (
+                  <button
+                    type="button"
+                    onClick={addGuest}
+                    disabled={isSaving || additionalGuests.length >= 3}
+                    className="cs-btn cs-btn-secondary h-8 shrink-0 rounded-xl px-3 text-xs font-semibold text-[var(--cs-sand-dark)] hover:text-[var(--cs-text)] disabled:opacity-50"
+                  >
+                    + Add Guest
+                  </button>
+                )}
+              </div>
+
+              {groupBooking ? (
+                <section aria-label="Guest Sessions" className="space-y-3">
+                  {/* Compact Horizontal Guest Tabs Strip */}
+                  <div
+                    role="tablist"
+                    aria-label="Guest sessions"
+                    className="flex min-w-0 flex-nowrap items-center gap-2 overflow-x-auto pb-1"
+                  >
+                    {attendeeDrafts.map((attendee, index) => {
+                      const isActive = activeGuest.id === attendee.id;
+                      const label = attendee.name?.trim() || `Guest ${index + 1}`;
+                      const count = attendee.serviceIds.length;
+                      return (
+                        <div
+                          key={attendee.id}
+                          className={cn(
+                            "flex min-w-[130px] shrink-0 items-center gap-2 rounded-xl border p-2 text-left transition",
+                            isActive
+                              ? "border-[#7A583E] bg-[#F7F4F0] ring-1 ring-[#7A583E]/40"
+                              : "border-[var(--cs-border)] bg-[var(--cs-surface)] hover:bg-[var(--cs-surface-warm)]"
+                          )}
+                        >
+                          <button
+                            id={`${formId}-guest-tab-${index}`}
+                            type="button"
+                            role="tab"
+                            aria-selected={isActive}
+                            aria-controls={`${formId}-guest-editor`}
+                            onClick={() => setActiveGuestId(attendee.id)}
+                            disabled={isSaving}
+                            className="flex min-w-0 flex-1 items-center gap-2 text-left"
+                          >
+                            <span
+                              className={cn(
+                                "grid size-7 shrink-0 place-items-center rounded-lg text-xs font-bold",
+                                isActive
+                                  ? "bg-[#7A583E] text-white"
+                                  : "bg-[var(--cs-surface-warm)] text-[var(--cs-text-secondary)]"
+                              )}
+                            >
+                              <User size={14} />
+                            </span>
+                            <span className="min-w-0 flex-1">
+                              <span className="block truncate text-xs font-bold text-[var(--cs-text)]">
+                                {label}
+                              </span>
+                              <span className="block truncate text-[11px] text-[var(--cs-text-muted)]">
+                                {count
+                                  ? `${count} service${count === 1 ? "" : "s"}`
+                                  : "Choose service"}
+                              </span>
+                            </span>
+                          </button>
+                          {index > 0 ? (
+                            <button
+                              type="button"
+                              onClick={() => removeGuest(attendee.id)}
+                              disabled={isSaving}
+                              className="ml-0.5 shrink-0 px-1 text-sm font-semibold text-[var(--cs-sand-dark)] hover:text-red-600"
+                              aria-label={`Remove ${label}`}
+                            >
+                              ×
+                            </button>
+                          ) : null}
+                        </div>
+                      );
+                    })}
+
+                    <button
+                      type="button"
+                      onClick={addGuest}
+                      disabled={isSaving || additionalGuests.length >= 3}
+                      className="flex h-11 shrink-0 items-center gap-1 rounded-xl border border-dashed border-[var(--cs-border-strong)] px-3 text-xs font-bold text-[var(--cs-sand-dark)] hover:border-[var(--cs-sand-dark)] hover:bg-[var(--cs-surface-warm)] disabled:cursor-not-allowed disabled:opacity-50"
+                    >
+                      + Add
+                    </button>
+                  </div>
+
+                  {/* Active Guest Editor */}
+                  <div
+                    id={`${formId}-guest-editor`}
+                    role="tabpanel"
+                    aria-labelledby={`${formId}-guest-tab-${attendeeDrafts.findIndex((guest) => guest.id === activeGuest.id)}`}
+                    className="space-y-3 rounded-2xl border border-[var(--cs-border)] bg-[var(--cs-surface)] p-3.5 sm:p-4"
+                  >
+                    <div className="flex items-center justify-between gap-2">
+                      <div className="flex items-center gap-2">
+                        <User size={16} className="text-[#7A583E]" />
+                        <span className="text-sm font-bold text-[var(--cs-text)]">
+                          {activeGuest.name?.trim() ||
+                            `Guest ${attendeeDrafts.findIndex((g) => g.id === activeGuest.id) + 1}`}
+                        </span>
+                      </div>
+                      {!activeGuestIsOrganizer ? (
+                        <button
+                          type="button"
+                          onClick={() => removeGuest(activeGuest.id)}
+                          disabled={isSaving}
+                          className="inline-flex items-center gap-1 text-xs font-semibold text-[#8C2828] hover:underline"
+                        >
+                          <Trash2 size={12} />
+                          Remove guest
+                        </button>
+                      ) : null}
+                    </div>
+
+                    <div className="relative">
+                      <label htmlFor={`${formId}-guest-name`} className="sr-only">
+                        Guest name
+                      </label>
+                      <User className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-[var(--cs-text-muted)]" />
                       <input
-                        type="checkbox"
-                        checked={customerRequestedTherapist}
-                        onChange={(event) => setCustomerRequestedTherapist(event.target.checked)}
+                        id={`${formId}-guest-name`}
+                        aria-label="Guest name"
+                        value={
+                          activeGuestIsOrganizer
+                            ? `${fullName.trim()} (You)`
+                            : (activeGuest.name ?? "")
+                        }
+                        readOnly={activeGuestIsOrganizer}
+                        maxLength={100}
+                        onChange={(event) => {
+                          if (activeGuestIsOrganizer) return;
+                          setAdditionalGuests((current) =>
+                            current.map((guest) =>
+                              guest.id === activeGuest.id
+                                ? { ...guest, name: event.target.value }
+                                : guest
+                            )
+                          );
+                          setFieldErrors((current) => ({ ...current, service: undefined }));
+                        }}
                         disabled={isSaving}
+                        placeholder="Guest name (optional)"
+                        className={cn(
+                          inputClassName(false),
+                          "pl-9",
+                          activeGuestIsOrganizer &&
+                            "bg-[var(--cs-surface-warm)] text-[var(--cs-text)]"
+                        )}
                       />
-                      Customer requested this therapist
-                    </label>
-                  ) : null}
-                  {therapistPrerequisitesReady &&
-                  therapistAvailabilityStatus !== "loading" &&
-                  therapistAvailabilityStatus !== "error" ? (
-                    <p className="mt-1 text-[11px] leading-4 text-[var(--cs-text-muted)]">
-                      {groupBooking
-                        ? "Preferred for Guest 1; other guests receive qualified therapists automatically."
-                        : "All qualified staff scheduled for this day are shown. Checked-in staff are recommended first; attendance does not hide a scheduled provider."}
+                      {activeGuestIsOrganizer ? (
+                        <span className="pointer-events-none absolute right-2.5 top-1/2 -translate-y-1/2 rounded-full bg-[var(--cs-sand-mist)] px-2 py-0.5 text-[10px] font-bold text-[var(--cs-sand-dark)]">
+                          Primary Guest
+                        </span>
+                      ) : null}
+                    </div>
+
+                    <QuickBookingServiceSelector
+                      key={activeGuest.id}
+                      services={eligibleServices.map((service) =>
+                        quotedService(activeGuest.id, service)
+                      )}
+                      selectedServiceIds={activeGuest.serviceIds}
+                      onAdjust={(service) =>
+                        setAdjustingService({ service, guestId: activeGuest.id })
+                      }
+                      onChange={
+                        activeGuestIsOrganizer
+                          ? handleServiceSelectionChange
+                          : (serviceIds) => {
+                              setLineQuotes((current) =>
+                                Object.fromEntries(
+                                  Object.entries(current).filter(
+                                    ([key]) =>
+                                      !key.startsWith(`${activeGuest.id}:`) ||
+                                      serviceIds.includes(key.slice(activeGuest.id.length + 1))
+                                  )
+                                )
+                              );
+                              setAdditionalGuests((current) =>
+                                current.map((guest) =>
+                                  guest.id === activeGuest.id ? { ...guest, serviceIds } : guest
+                                )
+                              );
+                              setFieldErrors((current) => ({ ...current, service: undefined }));
+                            }
+                      }
+                      isHomeService={isHomeService}
+                      disabled={isSaving}
+                      error={
+                        fieldErrors.service &&
+                        (activeGuestIsOrganizer ||
+                          !activeGuest.name?.trim() ||
+                          activeGuest.serviceIds.length === 0)
+                          ? fieldErrors.service
+                          : undefined
+                      }
+                    />
+                    {serviceModeNotice ? (
+                      <p className="rounded-lg bg-[var(--cs-warning-bg)] px-3 py-1.5 text-xs font-medium text-[var(--cs-warning-text)]">
+                        {serviceModeNotice}
+                      </p>
+                    ) : null}
+                  </div>
+                </section>
+              ) : (
+                <div className="rounded-2xl border border-[var(--cs-border)] bg-[var(--cs-surface)] p-3.5 sm:p-4">
+                  <QuickBookingServiceSelector
+                    services={eligibleServices.map((service) =>
+                      quotedService(firstAttendeeId, service)
+                    )}
+                    selectedServiceIds={selectedServiceIds}
+                    onChange={handleServiceSelectionChange}
+                    onAdjust={(service) =>
+                      setAdjustingService({ service, guestId: firstAttendeeId })
+                    }
+                    isHomeService={isHomeService}
+                    disabled={isSaving}
+                    error={fieldErrors.service}
+                  />
+                  {serviceModeNotice ? (
+                    <p className="mt-2 rounded-lg bg-[var(--cs-warning-bg)] px-3 py-1.5 text-xs font-medium text-[var(--cs-warning-text)]">
+                      {serviceModeNotice}
                     </p>
                   ) : null}
                 </div>
+              )}
+            </div>
 
-                {!isHomeService && !groupBooking ? (
-                  <div>
-                    <FieldLabel icon={<MapPin size={15} />} label="Room" optional />
+            <div
+              className={cn(
+                "grid gap-3",
+                isHomeService || groupBooking ? "md:grid-cols-3" : "md:grid-cols-4"
+              )}
+            >
+              <div>
+                <FieldLabel icon={<CalendarDays size={15} />} label="Date" />
+                <input
+                  type="date"
+                  value={date}
+                  onChange={(event) => setDate(event.target.value)}
+                  disabled={isSaving}
+                  className={inputClassName(Boolean(fieldErrors.date))}
+                />
+                <FieldError message={fieldErrors.date} />
+              </div>
+
+              <div>
+                <FieldLabel icon={<Clock size={15} />} label="Time" />
+                <div className="flex gap-1.5">
+                  <input
+                    type="time"
+                    value={time}
+                    onChange={(event) => setTime(event.target.value)}
+                    disabled={isSaving}
+                    className={cn(inputClassName(Boolean(fieldErrors.time)), "min-w-0 flex-1")}
+                  />
+                  <button
+                    type="button"
+                    onClick={chooseNextAvailable}
+                    disabled={isSaving || loadingNextSlot}
+                    className="cs-btn cs-btn-secondary h-10 shrink-0 rounded-xl px-2.5 text-xs"
+                    aria-label="Choose next available time"
+                  >
+                    {loadingNextSlot ? (
+                      <Loader2 size={14} className="animate-spin" />
+                    ) : (
+                      <Clock size={14} />
+                    )}
+                  </button>
+                </div>
+                <FieldError message={fieldErrors.time} />
+              </div>
+
+              <div>
+                <FieldLabel icon={<User size={15} />} label="Therapist" optional />
+                <select
+                  value={staffId}
+                  onChange={(event) => {
+                    setStaffId(event.target.value);
+                    setCustomerRequestedTherapist(false);
+                  }}
+                  disabled={
+                    isSaving ||
+                    !therapistPrerequisitesReady ||
+                    therapistAvailabilityStatus === "loading"
+                  }
+                  className={selectClassName(false)}
+                >
+                  <option value="">
+                    {!therapistPrerequisitesReady
+                      ? "Select services and time"
+                      : therapistAvailabilityStatus === "loading"
+                        ? "Checking schedules…"
+                        : therapistAvailabilityStatus === "empty"
+                          ? "No qualified provider can start at this time"
+                          : therapistAvailabilityStatus === "error"
+                            ? "Availability failed"
+                            : "First available"}
+                  </option>
+                  {recommendedProviders.length > 0 ? (
+                    <optgroup label="Recommended — checked in">
+                      {recommendedProviders.map((provider) => (
+                        <option key={provider.staffId} value={provider.staffId}>
+                          {provider.nickname
+                            ? `${provider.nickname} — ${provider.fullName}`
+                            : provider.fullName}{" "}
+                          · {provider.statusLabel}
+                        </option>
+                      ))}
+                    </optgroup>
+                  ) : null}
+                  {scheduledProviders.length > 0 ? (
+                    <optgroup label="Scheduled today">
+                      {scheduledProviders.map((provider) => (
+                        <option key={provider.staffId} value={provider.staffId}>
+                          {provider.nickname
+                            ? `${provider.nickname} — ${provider.fullName}`
+                            : provider.fullName}{" "}
+                          · {provider.statusLabel}
+                        </option>
+                      ))}
+                    </optgroup>
+                  ) : null}
+                  {unavailableProviders.length > 0 ? (
+                    <optgroup label="Unavailable">
+                      {unavailableProviders.map((provider) => (
+                        <option key={provider.staffId} value={provider.staffId} disabled>
+                          {provider.nickname
+                            ? `${provider.nickname} — ${provider.fullName}`
+                            : provider.fullName}{" "}
+                          · {provider.statusLabel}
+                        </option>
+                      ))}
+                    </optgroup>
+                  ) : null}
+                </select>
+                {staffId ? (
+                  <label className="mt-2 flex items-center gap-2 text-xs text-[var(--cs-text)]">
+                    <input
+                      type="checkbox"
+                      checked={customerRequestedTherapist}
+                      onChange={(event) => setCustomerRequestedTherapist(event.target.checked)}
+                      disabled={isSaving}
+                    />
+                    Customer requested this therapist
+                  </label>
+                ) : null}
+                {therapistPrerequisitesReady &&
+                therapistAvailabilityStatus !== "loading" &&
+                therapistAvailabilityStatus !== "error" ? (
+                  <p className="mt-1 text-[11px] leading-4 text-[var(--cs-text-muted)]">
+                    {groupBooking
+                      ? "Preferred for Guest 1; other guests receive qualified therapists automatically."
+                      : "All qualified staff scheduled for this day are shown. Checked-in staff are recommended first; attendance does not hide a scheduled provider."}
+                  </p>
+                ) : null}
+              </div>
+
+              {!isHomeService && !groupBooking ? (
+                <div>
+                  <FieldLabel icon={<MapPin size={15} />} label="Room" optional />
+                  <select
+                    value={resourceId}
+                    onChange={(event) => setResourceId(event.target.value)}
+                    disabled={isSaving}
+                    className={selectClassName(false)}
+                  >
+                    <option value="">First available</option>
+                    {resources.map((resource) => (
+                      <option key={resource.id} value={resource.id}>
+                        {resource.name}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+              ) : null}
+            </div>
+
+            {groupBooking && !isHomeService ? (
+              <p className="text-xs text-[var(--cs-text-muted)]">
+                Rooms are assigned per guest automatically.
+              </p>
+            ) : null}
+
+            {therapistAvailabilityStatus === "loading" ? (
+              <p className="-mt-1 flex items-center gap-1.5 text-xs text-[var(--cs-text-muted)]">
+                <Loader2 size={12} className="animate-spin" /> Checking therapist schedules…
+              </p>
+            ) : therapistAvailabilityStatus === "empty" ||
+              therapistAvailabilityStatus === "error" ? (
+              <p className="-mt-1 text-xs font-medium text-[var(--cs-danger-text)]">
+                {therapistAvailabilityMessage || NO_SCHEDULED_THERAPIST_MESSAGE}
+              </p>
+            ) : effectiveProviderAvailability?.warning ? (
+              <p className="-mt-1 text-xs font-medium text-[var(--cs-sand-dark)]">
+                {effectiveProviderAvailability.warning}
+              </p>
+            ) : mode === "walkin" && eligibleAttendanceHint ? (
+              <p className="-mt-1 text-xs text-[var(--cs-sand-dark)]">
+                Attendance suggestion:{" "}
+                {eligibleAttendanceHint.nickname || eligibleAttendanceHint.fullName}
+                {eligibleAttendanceHint.checkedInAt
+                  ? ` · Clocked in ${formatAttendanceTime(eligibleAttendanceHint.checkedInAt)}`
+                  : ""}
+                . Checked-in providers are recommended first; all qualified scheduled providers
+                remain selectable.
+              </p>
+            ) : mode === "walkin" && therapistAvailabilityStatus === "ready" ? (
+              <p className="-mt-1 text-xs text-[var(--cs-text-muted)]">
+                Checked-in providers are recommended first. All qualified scheduled providers remain
+                selectable.
+              </p>
+            ) : null}
+
+            {isHomeService ? (
+              <div className="rounded-xl border border-[var(--cs-border-soft)] bg-[var(--cs-surface-warm)] p-3">
+                <div className="mb-2 flex items-center justify-between gap-3">
+                  <FieldLabel icon={<Home size={15} />} label="Home-service logistics" />
+                  {homeServiceDistanceQuote ? (
+                    <span className="text-xs font-semibold text-[var(--cs-sand-dark)]">
+                      {formatDistanceKm(homeServiceDistanceQuote.distanceKm)} ·{" "}
+                      {formatCurrency(homeServiceDistanceQuote.travelFee)} travel
+                    </span>
+                  ) : null}
+                </div>
+                <PlacesAutocomplete
+                  value={homeServiceAddress}
+                  onChange={setHomeServiceAddress}
+                  onPlaceSelect={handleHomeServicePlaceSelect}
+                  onStatusChange={setPlacesStatus}
+                  placeholder="Search complete customer address"
+                  theme="default"
+                />
+                <FieldError message={fieldErrors.homeServiceAddress} />
+                {placesStatus === "loading" || homeServiceDistanceStatus === "loading" ? (
+                  <p className="mt-1.5 flex items-center gap-1.5 text-xs text-[var(--cs-text-muted)]">
+                    <Loader2 size={12} className="animate-spin" /> Calculating location and travel
+                    fee…
+                  </p>
+                ) : placesStatus === "missing_key" ? (
+                  <p className="mt-1.5 text-xs font-medium text-[var(--cs-error-text)]">
+                    Google address search is not configured.
+                  </p>
+                ) : placesStatus === "failed" || placesStatus === "place_missing_coordinates" ? (
+                  <p className="mt-1.5 text-xs font-medium text-[var(--cs-error-text)]">
+                    Address coordinates could not be loaded. Select another result.
+                  </p>
+                ) : homeServiceDistanceStatus === "error" ? (
+                  <p className="mt-1.5 text-xs font-medium text-[var(--cs-warning-text)]">
+                    {homeServiceDistanceError || "Distance could not be calculated."}
+                  </p>
+                ) : homeServiceAddress && !homeServicePlace ? (
+                  <p className="mt-1.5 text-xs text-[var(--cs-text-muted)]">
+                    {CRM_PRECISE_HOME_SERVICE_LOCATION_MESSAGE}
+                  </p>
+                ) : null}
+              </div>
+            ) : null}
+
+            <div className="grid items-end gap-2 md:grid-cols-[minmax(0,1fr)_auto]">
+              <div className="grid gap-2 sm:grid-cols-[minmax(0,1fr)_180px]">
+                <label className="flex h-10 items-center gap-2 rounded-xl border border-[var(--cs-border)] bg-[var(--cs-surface)] px-3 text-sm text-[var(--cs-text)]">
+                  <input
+                    type="checkbox"
+                    checked={paymentReceived}
+                    onChange={(event) => {
+                      setPaymentReceived(event.target.checked);
+                      if (!event.target.checked) setPaymentMethod("");
+                      if (event.target.checked) setPaymentMethod((current) => current || "cash");
+                    }}
+                    disabled={isSaving}
+                    className="size-4 accent-[var(--cs-sand-dark)]"
+                  />
+                  Full advance payment received
+                </label>
+
+                {paymentReceived ? (
+                  <select
+                    value={paymentMethod}
+                    onChange={(event) =>
+                      setPaymentMethod(event.target.value as typeof paymentMethod)
+                    }
+                    disabled={isSaving}
+                    className={selectClassName(Boolean(fieldErrors.paymentMethod))}
+                    aria-label="Payment method"
+                  >
+                    <option value="">Payment method</option>
+                    <option value="cash">Cash</option>
+                    <option value="gcash">GCash</option>
+                    <option value="maya">Maya</option>
+                    <option value="card">Card</option>
+                  </select>
+                ) : (
+                  <div className="flex h-10 items-center rounded-xl border border-dashed border-[var(--cs-border)] px-3 text-xs text-[var(--cs-text-muted)]">
+                    Settle after service
+                  </div>
+                )}
+              </div>
+
+              <button
+                type="button"
+                onClick={() => setMoreOpen((current) => !current)}
+                className="cs-btn cs-btn-secondary h-10 rounded-xl px-3 text-xs"
+                aria-expanded={moreOpen}
+              >
+                Optional details
+                <ChevronDown
+                  size={14}
+                  className={cn("transition-transform", moreOpen ? "rotate-180" : "")}
+                />
+              </button>
+            </div>
+            <FieldError message={fieldErrors.paymentMethod} />
+
+            {moreOpen ? (
+              <div className="grid gap-3 rounded-xl border border-[var(--cs-border-soft)] bg-[var(--cs-surface-warm)] p-3 md:grid-cols-2">
+                {groupBooking ? (
+                  <div className="md:col-span-2">
+                    <FieldLabel icon={<Sparkles size={15} />} label="Booking mode" />
                     <select
-                      value={resourceId}
-                      onChange={(event) => setResourceId(event.target.value)}
+                      value={mode}
+                      onChange={(event) => changeMode(event.target.value as QuickBookingMode)}
                       disabled={isSaving}
                       className={selectClassName(false)}
                     >
-                      <option value="">First available</option>
-                      {resources.map((resource) => (
-                        <option key={resource.id} value={resource.id}>
-                          {resource.name}
+                      {MODES.map((item) => (
+                        <option key={item.value} value={item.value}>
+                          {item.label}
                         </option>
                       ))}
                     </select>
                   </div>
                 ) : null}
-              </div>
-
-              {groupBooking && !isHomeService ? (
-                <p className="text-xs text-[var(--cs-text-muted)]">Rooms are assigned per guest automatically.</p>
-              ) : null}
-
-              {therapistAvailabilityStatus === "loading" ? (
-                <p className="-mt-1 flex items-center gap-1.5 text-xs text-[var(--cs-text-muted)]">
-                  <Loader2 size={12} className="animate-spin" /> Checking therapist schedules…
-                </p>
-              ) : therapistAvailabilityStatus === "empty" ||
-                therapistAvailabilityStatus === "error" ? (
-                <p className="-mt-1 text-xs font-medium text-[var(--cs-danger-text)]">
-                  {therapistAvailabilityMessage || NO_SCHEDULED_THERAPIST_MESSAGE}
-                </p>
-              ) : effectiveProviderAvailability?.warning ? (
-                <p className="-mt-1 text-xs font-medium text-[var(--cs-sand-dark)]">
-                  {effectiveProviderAvailability.warning}
-                </p>
-              ) : mode === "walkin" && eligibleAttendanceHint ? (
-                <p className="-mt-1 text-xs text-[var(--cs-sand-dark)]">
-                  Attendance suggestion:{" "}
-                  {eligibleAttendanceHint.nickname || eligibleAttendanceHint.fullName}
-                  {eligibleAttendanceHint.checkedInAt
-                    ? ` · Clocked in ${formatAttendanceTime(eligibleAttendanceHint.checkedInAt)}`
-                    : ""}
-                  . Checked-in providers are recommended first; all qualified scheduled providers
-                  remain selectable.
-                </p>
-              ) : mode === "walkin" && therapistAvailabilityStatus === "ready" ? (
-                <p className="-mt-1 text-xs text-[var(--cs-text-muted)]">
-                  Checked-in providers are recommended first. All qualified scheduled providers
-                  remain selectable.
-                </p>
-              ) : null}
-
-              {isHomeService ? (
-                <div className="rounded-xl border border-[var(--cs-border-soft)] bg-[var(--cs-surface-warm)] p-3">
-                  <div className="mb-2 flex items-center justify-between gap-3">
-                    <FieldLabel icon={<Home size={15} />} label="Home-service logistics" />
-                    {homeServiceDistanceQuote ? (
-                      <span className="text-xs font-semibold text-[var(--cs-sand-dark)]">
-                        {formatDistanceKm(homeServiceDistanceQuote.distanceKm)} ·{" "}
-                        {formatCurrency(homeServiceDistanceQuote.travelFee)} travel
-                      </span>
-                    ) : null}
-                  </div>
-                  <PlacesAutocomplete
-                    value={homeServiceAddress}
-                    onChange={setHomeServiceAddress}
-                    onPlaceSelect={handleHomeServicePlaceSelect}
-                    onStatusChange={setPlacesStatus}
-                    placeholder="Search complete customer address"
-                    theme="default"
+                <div>
+                  <FieldLabel label="Email" optional />
+                  <input
+                    type="email"
+                    value={email}
+                    onChange={(event) => setEmail(event.target.value)}
+                    disabled={isSaving}
+                    placeholder="customer@email.com"
+                    className={inputClassName(false)}
                   />
-                  <FieldError message={fieldErrors.homeServiceAddress} />
-                  {placesStatus === "loading" || homeServiceDistanceStatus === "loading" ? (
-                    <p className="mt-1.5 flex items-center gap-1.5 text-xs text-[var(--cs-text-muted)]">
-                      <Loader2 size={12} className="animate-spin" /> Calculating location and travel
-                      fee…
-                    </p>
-                  ) : placesStatus === "missing_key" ? (
-                    <p className="mt-1.5 text-xs font-medium text-[var(--cs-error-text)]">
-                      Google address search is not configured.
-                    </p>
-                  ) : placesStatus === "failed" || placesStatus === "place_missing_coordinates" ? (
-                    <p className="mt-1.5 text-xs font-medium text-[var(--cs-error-text)]">
-                      Address coordinates could not be loaded. Select another result.
-                    </p>
-                  ) : homeServiceDistanceStatus === "error" ? (
-                    <p className="mt-1.5 text-xs font-medium text-[var(--cs-warning-text)]">
-                      {homeServiceDistanceError || "Distance could not be calculated."}
-                    </p>
-                  ) : homeServiceAddress && !homeServicePlace ? (
-                    <p className="mt-1.5 text-xs text-[var(--cs-text-muted)]">
-                      {CRM_PRECISE_HOME_SERVICE_LOCATION_MESSAGE}
-                    </p>
-                  ) : null}
                 </div>
-              ) : null}
-
-              <div className="grid items-end gap-2 md:grid-cols-[minmax(0,1fr)_auto]">
-                <div className="grid gap-2 sm:grid-cols-[minmax(0,1fr)_180px]">
-                  <label className="flex h-10 items-center gap-2 rounded-xl border border-[var(--cs-border)] bg-[var(--cs-surface)] px-3 text-sm text-[var(--cs-text)]">
-                    <input
-                      type="checkbox"
-                      checked={paymentReceived}
-                      onChange={(event) => {
-                        setPaymentReceived(event.target.checked);
-                        if (!event.target.checked) setPaymentMethod("");
-                        if (event.target.checked) setPaymentMethod((current) => current || "cash");
-                      }}
-                      disabled={isSaving}
-                      className="size-4 accent-[var(--cs-sand-dark)]"
-                    />
-                    Full advance payment received
-                  </label>
-
-                  {paymentReceived ? (
-                    <select
-                      value={paymentMethod}
-                      onChange={(event) =>
-                        setPaymentMethod(event.target.value as typeof paymentMethod)
-                      }
-                      disabled={isSaving}
-                      className={selectClassName(Boolean(fieldErrors.paymentMethod))}
-                      aria-label="Payment method"
-                    >
-                      <option value="">Payment method</option>
-                      <option value="cash">Cash</option>
-                      <option value="gcash">GCash</option>
-                      <option value="maya">Maya</option>
-                      <option value="card">Card</option>
-                    </select>
-                  ) : (
-                    <div className="flex h-10 items-center rounded-xl border border-dashed border-[var(--cs-border)] px-3 text-xs text-[var(--cs-text-muted)]">
-                      Settle after service
-                    </div>
-                  )}
-                </div>
-
-                <button
-                  type="button"
-                  onClick={() => setMoreOpen((current) => !current)}
-                  className="cs-btn cs-btn-secondary h-10 rounded-xl px-3 text-xs"
-                  aria-expanded={moreOpen}
-                >
-                  Optional details
-                  <ChevronDown
-                    size={14}
-                    className={cn("transition-transform", moreOpen ? "rotate-180" : "")}
+                <div>
+                  <FieldLabel
+                    label={isHomeService ? "Access note / direction" : "Booking notes"}
+                    optional
                   />
-                </button>
-              </div>
-              <FieldError message={fieldErrors.paymentMethod} />
-
-              {moreOpen ? (
-                <div className="grid gap-3 rounded-xl border border-[var(--cs-border-soft)] bg-[var(--cs-surface-warm)] p-3 md:grid-cols-2">
-                  {groupBooking ? (
-                    <div className="md:col-span-2">
-                      <FieldLabel icon={<Sparkles size={15} />} label="Booking mode" />
-                      <select value={mode} onChange={(event) => changeMode(event.target.value as QuickBookingMode)}
-                        disabled={isSaving} className={selectClassName(false)}>
-                        {MODES.map((item) => (
-                          <option key={item.value} value={item.value}>{item.label}</option>
-                        ))}
-                      </select>
-                    </div>
-                  ) : null}
-                  <div>
-                    <FieldLabel label="Email" optional />
-                    <input
-                      type="email"
-                      value={email}
-                      onChange={(event) => setEmail(event.target.value)}
-                      disabled={isSaving}
-                      placeholder="customer@email.com"
-                      className={inputClassName(false)}
-                    />
-                  </div>
-                  <div>
-                    <FieldLabel
-                      label={isHomeService ? "Access note / direction" : "Booking notes"}
-                      optional
-                    />
+                  <input
+                    type="text"
+                    value={isHomeService ? homeServiceAccessNote : notes}
+                    onChange={(event) =>
+                      isHomeService
+                        ? setHomeServiceAccessNote(event.target.value)
+                        : setNotes(event.target.value)
+                    }
+                    disabled={isSaving}
+                    placeholder={
+                      isHomeService
+                        ? "Gate, floor, landmark or access details"
+                        : "Optional booking note"
+                    }
+                    className={inputClassName(false)}
+                  />
+                </div>
+                {isHomeService ? (
+                  <div className="md:col-span-2">
+                    <FieldLabel label="Internal booking note" optional />
                     <input
                       type="text"
-                      value={isHomeService ? homeServiceAccessNote : notes}
-                      onChange={(event) =>
-                        isHomeService
-                          ? setHomeServiceAccessNote(event.target.value)
-                          : setNotes(event.target.value)
-                      }
+                      value={notes}
+                      onChange={(event) => setNotes(event.target.value)}
                       disabled={isSaving}
-                      placeholder={
-                        isHomeService
-                          ? "Gate, floor, landmark or access details"
-                          : "Optional booking note"
-                      }
+                      placeholder="Optional internal note"
                       className={inputClassName(false)}
                     />
                   </div>
-                  {isHomeService ? (
-                    <div className="md:col-span-2">
-                      <FieldLabel label="Internal booking note" optional />
-                      <input
-                        type="text"
-                        value={notes}
-                        onChange={(event) => setNotes(event.target.value)}
-                        disabled={isSaving}
-                        placeholder="Optional internal note"
-                        className={inputClassName(false)}
-                      />
-                    </div>
-                  ) : null}
-                </div>
-              ) : null}
+                ) : null}
+              </div>
+            ) : null}
 
-              {formError ? <WorkspaceNotice tone="error">{formError}</WorkspaceNotice> : null}
-            </div>
+            {formError ? <WorkspaceNotice tone="error">{formError}</WorkspaceNotice> : null}
           </div>
 
           <aside className="min-w-0 border-t border-[var(--cs-border-soft)] bg-[var(--cs-surface-warm)] p-4 lg:min-h-0 lg:border-l lg:border-t-0 lg:overflow-y-auto">
@@ -1946,23 +2204,40 @@ export function QuickBookingForm({
                 <>
                   <SummaryRow label="Guests" value={String(attendeeDrafts.length)} />
                   <div className="border-t border-[var(--cs-border-soft)] pt-2">
-                    <div className="text-xs font-semibold uppercase text-[var(--cs-text-muted)]">Services</div>
-                    <div className="mt-1 text-sm font-medium text-[var(--cs-text)]">{groupServices.length}</div>
+                    <div className="text-xs font-semibold uppercase text-[var(--cs-text-muted)]">
+                      Services
+                    </div>
+                    <div className="mt-1 text-sm font-medium text-[var(--cs-text)]">
+                      {groupServices.length}
+                    </div>
                     <div className="mt-2 space-y-2">
                       {attendeeDrafts.map((attendee, index) => (
-                        <div key={attendee.id} className="rounded-xl border border-[var(--cs-border-soft)] bg-[var(--cs-surface)] p-2.5 text-xs">
+                        <div
+                          key={attendee.id}
+                          className="rounded-xl border border-[var(--cs-border-soft)] bg-[var(--cs-surface)] p-2.5 text-xs"
+                        >
                           <p className="truncate font-semibold text-[var(--cs-text)]">
-                            {attendee.name?.trim() || `Guest ${index + 1}`}{index === 0 ? " (You)" : ""}
+                            {attendee.name?.trim() || `Guest ${index + 1}`}
+                            {index === 0 ? " (You)" : ""}
                           </p>
-                          {attendee.serviceIds.length > 0 ? attendee.serviceIds.map((id) => {
-                            const rawService = services.find((item) => item.id === id);
-                            const service = rawService ? quotedService(attendee.id, rawService) : undefined;
-                            return (
-                              <p key={id} className="mt-1 text-[var(--cs-text-muted)]">
-                                {service?.name ?? "Service"}{service ? ` · ${formatServiceDuration(service.durationMinutes)} · ${formatCurrency(service.price)}` : ""}
-                              </p>
-                            );
-                          }) : <p className="mt-1 text-[var(--cs-text-muted)]">Choose service</p>}
+                          {attendee.serviceIds.length > 0 ? (
+                            attendee.serviceIds.map((id) => {
+                              const rawService = services.find((item) => item.id === id);
+                              const service = rawService
+                                ? quotedService(attendee.id, rawService)
+                                : undefined;
+                              return (
+                                <p key={id} className="mt-1 text-[var(--cs-text-muted)]">
+                                  {service?.name ?? "Service"}
+                                  {service
+                                    ? ` · ${formatServiceDuration(service.durationMinutes)} · ${formatCurrency(service.price)}`
+                                    : ""}
+                                </p>
+                              );
+                            })
+                          ) : (
+                            <p className="mt-1 text-[var(--cs-text-muted)]">Choose service</p>
+                          )}
                         </div>
                       ))}
                     </div>
@@ -1970,7 +2245,10 @@ export function QuickBookingForm({
                   <SummaryRow label="Service total" value={formatCurrency(groupTotalPrice)} />
                 </>
               ) : (
-                <><SummaryServices services={selectedQuotedServices} /><SummaryRow label="Service total" value={serviceSummaryLabel} /></>
+                <>
+                  <SummaryServices services={selectedQuotedServices} />
+                  <SummaryRow label="Service total" value={serviceSummaryLabel} />
+                </>
               )}
               {!groupBooking && effectiveProviderAvailability?.serviceEndTime ? (
                 <SummaryRow
@@ -1983,17 +2261,20 @@ export function QuickBookingForm({
               <SummaryRow
                 label="Therapist"
                 value={
-                  groupBooking ? "Assigned per guest" : selectedStaff
-                    ? selectedStaff.nickname || selectedStaff.name
-                    : effectiveProviderAvailability
-                      ? `First available · ${
-                          effectiveProviderAvailability.nickname ||
-                          effectiveProviderAvailability.fullName
-                        }`
-                      : "First available"
+                  groupBooking
+                    ? "Assigned per guest"
+                    : selectedStaff
+                      ? selectedStaff.nickname || selectedStaff.name
+                      : effectiveProviderAvailability
+                        ? `First available · ${
+                            effectiveProviderAvailability.nickname ||
+                            effectiveProviderAvailability.fullName
+                          }`
+                        : "First available"
                 }
               />
-              {!groupBooking && effectiveProviderAvailability?.scheduleStartTime &&
+              {!groupBooking &&
+              effectiveProviderAvailability?.scheduleStartTime &&
               effectiveProviderAvailability.scheduleEndTime ? (
                 <SummaryRow
                   label="Therapist schedule"
@@ -2010,7 +2291,8 @@ export function QuickBookingForm({
                   tone="warning"
                 />
               ) : null}
-              {!groupBooking && isHomeService &&
+              {!groupBooking &&
+              isHomeService &&
               effectiveProviderAvailability?.operationalStartTime &&
               effectiveProviderAvailability.operationalEndTime ? (
                 <SummaryRow
@@ -2023,7 +2305,13 @@ export function QuickBookingForm({
               {!isHomeService ? (
                 <SummaryRow
                   label="Room"
-                  value={groupBooking ? "Assigned per guest" : selectedResource ? selectedResource.name : "First available"}
+                  value={
+                    groupBooking
+                      ? "Assigned per guest"
+                      : selectedResource
+                        ? selectedResource.name
+                        : "First available"
+                  }
                 />
               ) : (
                 <>
@@ -2043,7 +2331,10 @@ export function QuickBookingForm({
                       />
                       <SummaryRow
                         label="Total"
-                        value={formatCurrency((groupBooking ? groupTotalPrice : totalPrice) + homeServiceDistanceQuote.travelFee)}
+                        value={formatCurrency(
+                          (groupBooking ? groupTotalPrice : totalPrice) +
+                            homeServiceDistanceQuote.travelFee
+                        )}
                       />
                     </>
                   ) : (
@@ -2111,20 +2402,32 @@ export function QuickBookingForm({
         </footer>
       </section>
       {adjustingService ? (
-        <ServiceDurationSelector open={Boolean(adjustingService)}
-          onOpenChange={(open) => { if (!open) setAdjustingService(null); }}
-          branchId={branchId} serviceId={adjustingService.service.id}
+        <ServiceDurationSelector
+          open={Boolean(adjustingService)}
+          onOpenChange={(open) => {
+            if (!open) setAdjustingService(null);
+          }}
+          branchId={branchId}
+          serviceId={adjustingService.service.id}
           serviceName={adjustingService.service.name}
-          currentDurationMinutes={lineQuotes[`${adjustingService.guestId}:${adjustingService.service.id}`]?.selectedDurationMinutes ?? adjustingService.service.durationMinutes}
-          audience="crm" deliveryMode={isHomeService ? "home_service" : "in_spa"}
+          currentDurationMinutes={
+            lineQuotes[`${adjustingService.guestId}:${adjustingService.service.id}`]
+              ?.selectedDurationMinutes ?? adjustingService.service.durationMinutes
+          }
+          audience="crm"
+          deliveryMode={isHomeService ? "home_service" : "in_spa"}
           onApply={(quote) => {
-            setLineQuotes((current) => ({ ...current, [`${adjustingService.guestId}:${adjustingService.service.id}`]: quote }));
+            setLineQuotes((current) => ({
+              ...current,
+              [`${adjustingService.guestId}:${adjustingService.service.id}`]: quote,
+            }));
             setResourceId("");
             setAvailableStaffIds([]);
             setProviderAvailability([]);
             setTherapistAvailabilityStatus("loading");
             setFormError("Duration changed. Review availability before saving.");
-          }} />
+          }}
+        />
       ) : null}
     </div>
   );
