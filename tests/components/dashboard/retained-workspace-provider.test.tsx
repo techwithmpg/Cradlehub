@@ -13,6 +13,9 @@ import { resolveWorkspaceModule } from "@/components/features/dashboard/workspac
 import { useWorkspaceReactivationRefresh } from "@/components/features/dashboard/use-workspace-visibility";
 import { notifyWorkspaceNavigation } from "@/components/features/dashboard/workspace-navigation-events";
 import { notifyBookingsChanged } from "@/lib/bookings/bookings-client-events";
+import { emitWorkspaceDomainEvent } from "@/components/features/dashboard/workspace-domain-events";
+import { useWorkspaceGeneration } from "@/components/features/dashboard/use-workspace-generation";
+import type { WorkspaceRuntimeModuleId } from "@/components/features/dashboard/workspace-domain-events";
 
 let pathname = "/crm/today";
 let search = new URLSearchParams();
@@ -37,6 +40,11 @@ function CacheProbe() {
     cache.set("/sensitive-retained-test", { data: "retained" });
   }, [cache]);
   return <div>cache probe</div>;
+}
+
+function GenerationProbe({ moduleId }: { moduleId: WorkspaceRuntimeModuleId }) {
+  const state = useWorkspaceGeneration(moduleId);
+  return <output data-testid={moduleId}>{state.validatedGeneration}/{state.invalidationGeneration}</output>;
 }
 
 function StatefulModule({ name }: { name: string }) {
@@ -104,6 +112,38 @@ beforeEach(() => {
 afterEach(cleanup);
 
 describe("RetainedWorkspaceProvider", () => {
+  it("bridges legacy events once and scopes semantic invalidations to the matching branch and modules", () => {
+    render(<RetainedWorkspaceProvider workspace="crm" userId="user-1" role="crm" branchId="branch-1" enabled>
+      <GenerationProbe moduleId="crm-bookings" />
+      <GenerationProbe moduleId="crm-schedule" />
+      <GenerationProbe moduleId="crm-customers" />
+    </RetainedWorkspaceProvider>);
+    act(() => emitWorkspaceDomainEvent({ name: "booking.status_changed", branchId: "branch-2", payload: {} }));
+    expect(screen.getByTestId("crm-bookings").textContent).toBe("0/0");
+    act(() => emitWorkspaceDomainEvent({ name: "booking.status_changed", branchId: "branch-1", payload: { bookingId: "booking-1" } }));
+    expect(screen.getByTestId("crm-bookings").textContent).toBe("0/1");
+    expect(screen.getByTestId("crm-schedule").textContent).toBe("0/0");
+    act(() => notifyBookingsChanged());
+    expect(screen.getByTestId("crm-bookings").textContent).toBe("0/2");
+    expect(screen.getByTestId("crm-schedule").textContent).toBe("0/1");
+    expect(screen.getByTestId("crm-customers").textContent).toBe("0/0");
+  });
+
+  it.each([
+    { userId: "user-2", role: "crm", branchId: "branch-1" },
+    { userId: "user-1", role: "owner", branchId: "branch-1" },
+    { userId: "user-1", role: "crm", branchId: "branch-2" },
+  ])("destroys generation state on identity change to %j", (identity) => {
+    const child = <GenerationProbe moduleId="crm-bookings" />;
+    const view = render(<RetainedWorkspaceProvider workspace="crm" userId="user-1" role="crm" branchId="branch-1" enabled>{child}</RetainedWorkspaceProvider>);
+    act(() => notifyBookingsChanged());
+    expect(screen.getByTestId("crm-bookings").textContent).toBe("0/1");
+    view.rerender(<RetainedWorkspaceProvider workspace="crm" {...identity} enabled>{child}</RetainedWorkspaceProvider>);
+    expect(screen.getByTestId("crm-bookings").textContent).toBe("0/0");
+    act(() => notifyBookingsChanged());
+    expect(screen.getByTestId("crm-bookings").textContent).toBe("0/1");
+  });
+
   it("hides the first module, pauses its effect, and reveals the same state on return", async () => {
     const view = render(renderWorkspace(<StatefulModule name="Work Queue" />));
     fireEvent.click(screen.getByRole("button", { name: "selection 0" }));

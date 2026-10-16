@@ -1,4 +1,5 @@
 import type { ReactNode } from "react";
+import type { WorkspaceGeneration } from "./workspace-generation";
 import type {
   RetainedModuleId,
   RetainedWorkspace,
@@ -18,6 +19,8 @@ export type RetainedWorkspaceEntry = {
   becameActiveAt: number;
   lastRefreshedAt: number;
   dirty: boolean;
+  invalidationGeneration: number;
+  validatedGeneration: number;
   scrollTop: number;
   hasUnsavedChanges: boolean;
   isRefreshing: boolean;
@@ -58,6 +61,7 @@ export type WorkspaceRegistryAction =
   | { type: "set-refreshing"; key: string; refreshing: boolean }
   | { type: "set-unsaved"; key: string; unsaved: boolean }
   | { type: "save-scroll"; key: string; scrollTop: number }
+  | { type: "sync-generations"; snapshots: ReadonlyMap<string, WorkspaceGeneration> }
   | { type: "clear" };
 
 export function createWorkspaceRegistryState(limit: number): WorkspaceRegistryState {
@@ -129,7 +133,7 @@ export function reduceWorkspaceRegistry(
             lastActivatedAt: action.at,
             becameActiveAt: state.activeKey === action.key ? existing.becameActiveAt : action.at,
             lastRefreshedAt: action.at,
-            dirty: false,
+            dirty: existing.dirty,
             isRefreshing: false,
           }
         : {
@@ -141,7 +145,9 @@ export function reduceWorkspaceRegistry(
             lastActivatedAt: action.at,
             becameActiveAt: action.at,
             lastRefreshedAt: action.at,
-            dirty: false,
+            dirty: restored?.dirty ?? false,
+            invalidationGeneration: restored?.invalidationGeneration ?? 0,
+            validatedGeneration: restored?.validatedGeneration ?? 0,
             scrollTop: restored?.scrollTop ?? 0,
             hasUnsavedChanges: false,
             isRefreshing: false,
@@ -224,7 +230,7 @@ export function reduceWorkspaceRegistry(
       return {
         ...state,
         entries: state.entries.map((entry) =>
-          affected.has(entry.moduleId) ? { ...entry, dirty: true } : entry
+          affected.has(entry.moduleId) ? { ...entry, dirty: true, invalidationGeneration: entry.invalidationGeneration + 1 } : entry
         ),
       };
     }
@@ -234,7 +240,7 @@ export function reduceWorkspaceRegistry(
         ...state,
         entries: state.entries.map((entry) =>
           entry.key === action.key
-            ? { ...entry, dirty: false, lastRefreshedAt: action.at }
+            ? { ...entry, dirty: false, validatedGeneration: entry.invalidationGeneration, lastRefreshedAt: action.at }
             : entry
         ),
       };
@@ -264,6 +270,19 @@ export function reduceWorkspaceRegistry(
         entries,
         restoration: rememberEntries(state.restoration, entries),
       };
+    }
+
+    case "sync-generations": {
+      const sync = (entry: RetainedWorkspaceEntry) => {
+        const snapshot = action.snapshots.get(entry.moduleId);
+        if (!snapshot) return entry;
+        return { ...entry, dirty: snapshot.isDirty,
+          invalidationGeneration: snapshot.invalidationGeneration,
+          validatedGeneration: snapshot.validatedGeneration,
+          isRefreshing: snapshot.isRefreshing };
+      };
+      return { ...state, entries: state.entries.map(sync),
+        restoration: Object.fromEntries(Object.entries(state.restoration).map(([key, entry]) => [key, sync(entry)])) };
     }
 
     case "clear":
