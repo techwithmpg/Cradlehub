@@ -1,6 +1,6 @@
 /** @vitest-environment jsdom */
 import { cleanup, render, screen } from "@testing-library/react";
-import { afterEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import {
   BookingSourceSwitch,
   sourceSwitchDates,
@@ -13,7 +13,13 @@ vi.mock("next/navigation", () => ({
   useSearchParams: () => new URLSearchParams(route.params),
 }));
 
+beforeEach(() => {
+  vi.useFakeTimers();
+  vi.setSystemTime(new Date("2026-10-05T04:00:00Z"));
+});
+
 afterEach(() => {
+  vi.useRealTimers();
   cleanup();
   route.params = "date=2026-10-05&search=Maria&status=confirmed";
 });

@@ -114,3 +114,13 @@ Checkpoint in progress. No release verdict yet.
 - Files: `src/lib/bookings/dispatch-conflict.ts`, `tests/lib/bookings/dispatch-conflict.test.ts`, this report.
 - Historical payment/reconciliation changes are superseded by `recordBookingPaymentChange` / `post_booking_payment_atomic` and canonical reconciliation expected-movement/branch/role checks; no stale monetary gate ported.
 - New HEAD: containing commit, recorded in final table. Mocked tests only; no production dispatch/booking/payment performed.
+
+### Quality-gate test contracts — bounded correction
+
+- Previous HEAD: `5918091a0a0ff9483bd3afa00aabf23caa9626ee`.
+- Full Vitest first run: 2,802 passed, 5 failed, 2 skipped (2,809 tests). Three failing files.
+- `booking-actions.test.ts`: three pre-existing assertions expected only success; accepted main already returns bookingId/bookingDate/deliveryType. Current confirm function is unchanged vs main; tests now assert exact current fields, retaining authorization and mutation assertions.
+- `booking-source-switch.test.tsx`: unchanged main test assumed October 5 was still inside the current Sheet window. Freeze its clock at October 5; keep the existing future-date fallback cases.
+- `service-editor-modal.test.tsx`: pre-checkpoint `84d7b3f7` made positive extension price required; the test had never entered a price. Assert no invalid preview, enter 250, then verify preview and save. No product validation weakened.
+- Targeted commands: `pnpm vitest run tests/app/crm/booking-actions.test.ts tests/components/bookings/booking-source-switch.test.tsx` (17/17); `pnpm vitest run src/components/features/services/service-editor-modal.test.tsx` (4/4).
+- Files: those three test files and this report. New HEAD: containing commit, listed in final table.

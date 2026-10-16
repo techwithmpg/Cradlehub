@@ -123,6 +123,8 @@ describe("Owner service modal", () => {
     expect(screen.queryByText("Extension Settings")).toBeNull();
     fireEvent.click(screen.getByRole("radio", { name: /Extendable/i }));
     expect(screen.getByText("Extension Settings")).toBeTruthy();
+    expect(screen.queryByText("Preview Prices")).toBeNull();
+    fireEvent.change(screen.getByLabelText(/Price per increment/i), { target: { value: "250" } });
     expect(screen.getByText("Preview Prices")).toBeTruthy();
     fireEvent.change(screen.getByPlaceholderText("e.g. Swedish Massage"), { target: { value: "Swedish Massage" } });
     fireEvent.change(screen.getByRole("combobox"), { target: { value: categoryId } });
