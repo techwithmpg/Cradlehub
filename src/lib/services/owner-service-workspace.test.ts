@@ -45,6 +45,13 @@ describe("Owner service catalog contract", () => {
     expect(extensionPricePreview({ baseDuration: 60, basePrice: 800, increment: 30, extensionPrice: 350, maximumDuration: 180 }))
       .toEqual([{ duration: 60, price: 800 }, { duration: 90, price: 1150 }, { duration: 120, price: 1500 }, { duration: 150, price: 1850 }, { duration: 180, price: 2200 }]);
     expect(ownerServiceCatalogSchema.safeParse(baseInput).success).toBe(true);
+    const zeroPriceRes = ownerServiceCatalogSchema.safeParse({ ...baseInput, extensionPrice: 0 });
+    expect(zeroPriceRes.success).toBe(false);
+    if (!zeroPriceRes.success) {
+      expect(zeroPriceRes.error.issues[0]?.message).toBe("Extension price must be greater than ₱0.");
+    }
+    expect(ownerServiceCatalogSchema.safeParse({ ...baseInput, extensionPrice: -50 }).success).toBe(false);
+    expect(extensionPricePreview({ baseDuration: 60, basePrice: 800, increment: 30, extensionPrice: 0, maximumDuration: 180 })).toEqual([]);
     expect(ownerServiceCatalogSchema.safeParse({ ...baseInput, extensionIncrementMinutes: 0 }).success).toBe(false);
     expect(ownerServiceCatalogSchema.safeParse({ ...baseInput, maximumDurationMinutes: 175 }).success).toBe(false);
     expect(ownerServiceCatalogSchema.safeParse({ ...baseInput, allBranches: false, branchIds: [] }).success).toBe(false);

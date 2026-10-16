@@ -81,9 +81,16 @@ export const ownerServiceCatalogSchema = z.object({
     }
     return;
   }
+  if (value.extensionPrice === null || value.extensionPrice <= 0) {
+    context.addIssue({
+      code: "custom",
+      path: ["extensionPrice"],
+      message: "Extension price must be greater than ₱0.",
+    });
+  }
   const step = value.extensionIncrementMinutes;
   const max = value.maximumDurationMinutes;
-  if (step === null || value.extensionPrice === null || max === null || max <= value.durationMinutes || (max - value.durationMinutes) % step !== 0) {
+  if (step === null || max === null || max <= value.durationMinutes || (max - value.durationMinutes) % step !== 0) {
     context.addIssue({ code: "custom", path: ["maximumDurationMinutes"], message: "Set a valid increment, price, and maximum duration aligned with the base duration." });
   }
 });

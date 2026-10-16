@@ -53,7 +53,11 @@ function ServiceDurationSelectorContent(props: Props) {
       .then(async (response) => {
         if (!response.ok) throw new Error("Service duration configuration needs review.");
         const result = (await response.json()) as { options: ServiceLineQuote[] };
-        if (!Array.isArray(result.options) || result.options.length === 0) {
+        if (!Array.isArray(result.options) || result.options.length === 0 ||
+            result.options.some((opt, i) => i > 0 && (
+              opt.selectedDurationMinutes <= result.options[i - 1]!.selectedDurationMinutes ||
+              opt.calculatedPrice <= result.options[i - 1]!.calculatedPrice
+            ))) {
           throw new Error("Duration options are unavailable.");
         }
         setOptions(result.options);

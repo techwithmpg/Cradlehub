@@ -41,7 +41,11 @@ export function ServiceEditorModal({ open, service, branches, categories, onClos
   const [price, setPrice] = useState(String(service?.price ?? 0));
   const [durationPolicy, setDurationPolicy] = useState<"fixed" | "extendable">(service?.duration_policy === "extendable" ? "extendable" : "fixed");
   const [increment, setIncrement] = useState(String(service?.extension_increment_minutes ?? 30));
-  const [extensionPrice, setExtensionPrice] = useState(String(service?.extension_price ?? 0));
+  const [extensionPrice, setExtensionPrice] = useState(
+    service?.extension_price != null && Number(service.extension_price) > 0
+      ? String(service.extension_price)
+      : ""
+  );
   const [maximumDuration, setMaximumDuration] = useState(String(service?.maximum_duration_minutes ?? 180));
   const [active, setActive] = useState(service?.is_active ?? true);
   const [visible, setVisible] = useState(service?.is_public_visible ?? true);
@@ -89,6 +93,15 @@ export function ServiceEditorModal({ open, service, branches, categories, onClos
     submitting.current = true;
     setPending(true);
     setError(null);
+    if (durationPolicy === "extendable") {
+      const stepPriceNum = Number(extensionPrice);
+      if (!extensionPrice.trim() || !Number.isFinite(stepPriceNum) || stepPriceNum <= 0) {
+        setError("Extension price must be greater than ₱0.");
+        submitting.current = false;
+        setPending(false);
+        return;
+      }
+    }
     try {
       const formData = new FormData();
       formData.set("catalog", JSON.stringify({
@@ -157,7 +170,7 @@ export function ServiceEditorModal({ open, service, branches, categories, onClos
                   <h4 className="mb-2 text-xs font-semibold text-[var(--cs-sand)]">Extension Settings</h4>
                   <div className="grid gap-3 sm:grid-cols-2">
                     <label className={labelClass}>Increment (minutes) <span className="text-red-600">*</span><input className={`${inputClass} mt-1.5`} type="number" min={1} step={1} value={increment} onChange={(e) => setIncrement(e.target.value)} required /></label>
-                    <label className={labelClass}>Price per increment <span className="text-red-600">*</span><input className={`${inputClass} mt-1.5`} type="number" min={0} step="0.01" value={extensionPrice} onChange={(e) => setExtensionPrice(e.target.value)} required /></label>
+                    <label className={labelClass}>Price per increment <span className="text-red-600">*</span><input className={`${inputClass} mt-1.5`} type="number" min={0.01} step="0.01" value={extensionPrice} onChange={(e) => setExtensionPrice(e.target.value)} required /></label>
                     <label className={labelClass}>Maximum Duration <span className="text-red-600">*</span><input className={`${inputClass} mt-1.5`} type="number" min={baseDuration + 1} max={1440} step={1} value={maximumDuration} onChange={(e) => setMaximumDuration(e.target.value)} required /></label>
                   </div>
                   {priceRows.length > 0 && <div className="mt-3 rounded-md border border-[var(--cs-border)] bg-[var(--cs-surface)] p-3 text-xs">

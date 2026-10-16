@@ -112,6 +112,9 @@ export function calculateServiceLineQuote(input: {
     throw new ServiceLineQuoteError("SERVICE_DURATION_CONFIGURATION_INVALID");
   }
   const extensionCents = cents(service.extension_price);
+  if (extensionCents <= 0) {
+    throw new ServiceLineQuoteError("SERVICE_DURATION_CONFIGURATION_INVALID");
+  }
   const selectedDuration = input.requestedDurationMinutes ?? baseDuration;
   if (!Number.isSafeInteger(selectedDuration) || selectedDuration < baseDuration ||
       selectedDuration > max || (selectedDuration - baseDuration) % increment !== 0) {
@@ -146,6 +149,14 @@ export function serviceLineQuoteOptions(input: {
   for (let duration = base.baseDurationMinutes; duration <= base.maximumDurationMinutes!;
     duration += base.extensionIncrementMinutes!) {
     options.push(calculateServiceLineQuote({ ...input, requestedDurationMinutes: duration }));
+  }
+  for (let i = 1; i < options.length; i++) {
+    const current = options[i]!;
+    const previous = options[i - 1]!;
+    if (current.selectedDurationMinutes <= previous.selectedDurationMinutes ||
+        current.calculatedPrice <= previous.calculatedPrice) {
+      throw new ServiceLineQuoteError("SERVICE_DURATION_CONFIGURATION_INVALID");
+    }
   }
   return options;
 }

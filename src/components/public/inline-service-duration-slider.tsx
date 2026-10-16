@@ -42,7 +42,10 @@ export function InlineServiceDurationSlider(props: Props) {
             quote.serviceId !== props.serviceId || !quote.quoteVersion ||
             !Number.isSafeInteger(quote.selectedDurationMinutes) ||
             !Number.isFinite(quote.calculatedPrice) || quote.calculatedPrice < 0 ||
-            (index > 0 && quote.selectedDurationMinutes <= quotes[index - 1]!.selectedDurationMinutes))) {
+            (index > 0 && (
+              quote.selectedDurationMinutes <= quotes[index - 1]!.selectedDurationMinutes ||
+              quote.calculatedPrice <= quotes[index - 1]!.calculatedPrice
+            )))) {
         throw new Error("Duration options are temporarily unavailable.");
       }
       if (!controller.signal.aborted) setOptions(quotes);

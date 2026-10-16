@@ -121,6 +121,7 @@ describe("Service Duration Extension - Mandatory Regression Matrix", () => {
       [{ extension_increment_minutes: 0 }, "zero increment"],
       [{ extension_increment_minutes: -10 }, "negative increment"],
       [{ extension_price: null }, "null extension price"],
+      [{ extension_price: 0 }, "zero extension price"],
       [{ extension_price: -50 }, "negative extension price"],
       [{ maximum_duration_minutes: 60 }, "max equals base"],
       [{ maximum_duration_minutes: 50 }, "max less than base"],

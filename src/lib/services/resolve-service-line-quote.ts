@@ -62,6 +62,17 @@ export async function resolveServiceLineQuote(input: ServiceLineQuoteRequest): P
 
 export async function resolveServiceLineQuoteOptions(input: ServiceLineQuoteRequest): Promise<ServiceLineQuote[]> {
   const terms = await loadAuthoritativeTerms(input);
-  return serviceLineQuoteOptions(terms).map((quote) => ({ ...quote,
+  const options = serviceLineQuoteOptions(terms);
+  if (terms.service.duration_policy === "extendable") {
+    for (let i = 1; i < options.length; i++) {
+      const current = options[i]!;
+      const previous = options[i - 1]!;
+      if (current.selectedDurationMinutes <= previous.selectedDurationMinutes ||
+          current.calculatedPrice <= previous.calculatedPrice) {
+        throw new ServiceLineQuoteError("SERVICE_DURATION_CONFIGURATION_INVALID");
+      }
+    }
+  }
+  return options.map((quote) => ({ ...quote,
     quoteVersion: quoteVersionFor(input.branchId, quote) }));
 }

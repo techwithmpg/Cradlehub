@@ -45,7 +45,7 @@ export function extensionPricePreview(input: {
 }, limit = 12) {
   const { baseDuration, basePrice, increment, extensionPrice, maximumDuration } = input;
   if (![baseDuration, basePrice, increment, extensionPrice, maximumDuration].every(Number.isFinite)
-    || increment <= 0 || maximumDuration <= baseDuration
+    || extensionPrice <= 0 || increment <= 0 || maximumDuration <= baseDuration
     || (maximumDuration - baseDuration) % increment !== 0) return [];
   const count = Math.min(limit, (maximumDuration - baseDuration) / increment + 1);
   return Array.from({ length: count }, (_, index) => ({
