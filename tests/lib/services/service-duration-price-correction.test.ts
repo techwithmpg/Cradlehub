@@ -29,13 +29,13 @@ describe("Duration Slider Price Correction - Contract & Verification", () => {
   const noOverride = { custom_price: null, custom_duration_minutes: null };
 
   const validExtendableService = {
-    id: "s1000000-0000-0000-0000-000000000001",
+    id: "8bce4f5f-4392-457f-adea-1ccacf846dc6",
     duration_policy: "extendable",
     duration_minutes: 60,
     price: 500,
     extension_increment_minutes: 30,
-    extension_price: 200,
-    maximum_duration_minutes: 150,
+    extension_price: 250,
+    maximum_duration_minutes: 180,
   };
 
   const fixedService = {
@@ -49,7 +49,7 @@ describe("Duration Slider Price Correction - Contract & Verification", () => {
   };
 
   describe("1. Quote Engine Contract & Quote Ladder", () => {
-    it("generates the exact expected commercial ladder for valid extendable service", () => {
+    it("generates the exact approved commercial ladder for Angels Massage (60/500/30/250/180)", () => {
       const options = serviceLineQuoteOptions({
         service: validExtendableService,
         branch: noOverride,
@@ -57,9 +57,10 @@ describe("Duration Slider Price Correction - Contract & Verification", () => {
 
       expect(options.map((o) => ({ duration: o.selectedDurationMinutes, price: o.calculatedPrice }))).toEqual([
         { duration: 60, price: 500 },
-        { duration: 90, price: 700 },
-        { duration: 120, price: 900 },
-        { duration: 150, price: 1100 },
+        { duration: 90, price: 750 },
+        { duration: 120, price: 1000 },
+        { duration: 150, price: 1250 },
+        { duration: 180, price: 1500 },
       ]);
     });
 
@@ -169,19 +170,19 @@ describe("Duration Slider Price Correction - Contract & Verification", () => {
       // Stop 2: 90 min
       const stop2 = options.find((o) => o.selectedDurationMinutes === 90)!;
       expect(stop2.selectedDurationMinutes).toBe(90);
-      expect(stop2.calculatedPrice).toBe(700);
+      expect(stop2.calculatedPrice).toBe(750);
 
       // Stop 3: 120 min
       const stop3 = options.find((o) => o.selectedDurationMinutes === 120)!;
       expect(stop3.selectedDurationMinutes).toBe(120);
-      expect(stop3.calculatedPrice).toBe(900);
+      expect(stop3.calculatedPrice).toBe(1000);
 
       // Verify strictly increasing prices
       expect(stop2.calculatedPrice).toBeGreaterThan(stop1.calculatedPrice);
       expect(stop3.calculatedPrice).toBeGreaterThan(stop2.calculatedPrice);
     });
 
-    it("calculates multi-service totals: Massage 90 min (₱700) + Facial (₱400) = ₱1,100", () => {
+    it("calculates multi-service totals: Angels Massage 90 min (₱750) + Facial (₱400) = ₱1,150", () => {
       const massageQuote = calculateServiceLineQuote({
         service: validExtendableService,
         branch: noOverride,
@@ -192,11 +193,11 @@ describe("Duration Slider Price Correction - Contract & Verification", () => {
         branch: noOverride,
       });
 
-      expect(massageQuote.calculatedPrice).toBe(700);
+      expect(massageQuote.calculatedPrice).toBe(750);
       expect(facialQuote.calculatedPrice).toBe(400);
 
       const totalPrice = massageQuote.calculatedPrice + facialQuote.calculatedPrice;
-      expect(totalPrice).toBe(1100);
+      expect(totalPrice).toBe(1150);
     });
 
     it("calculates multi-attendee totals with independent durations", () => {
@@ -211,11 +212,11 @@ describe("Duration Slider Price Correction - Contract & Verification", () => {
         requestedDurationMinutes: 120,
       });
 
-      expect(attendee1Quote.calculatedPrice).toBe(700);
-      expect(attendee2Quote.calculatedPrice).toBe(900);
+      expect(attendee1Quote.calculatedPrice).toBe(750);
+      expect(attendee2Quote.calculatedPrice).toBe(1000);
 
       const combinedTotal = attendee1Quote.calculatedPrice + attendee2Quote.calculatedPrice;
-      expect(combinedTotal).toBe(1600);
+      expect(combinedTotal).toBe(1750);
     });
 
     it("keeps Home Service transportation pricing independent of service duration increase", () => {
@@ -226,9 +227,9 @@ describe("Duration Slider Price Correction - Contract & Verification", () => {
       });
       const transportationFee = 180;
 
-      expect(serviceQuote.calculatedPrice).toBe(900);
+      expect(serviceQuote.calculatedPrice).toBe(1000);
       const totalOrderWithHomeService = serviceQuote.calculatedPrice + transportationFee;
-      expect(totalOrderWithHomeService).toBe(1080);
+      expect(totalOrderWithHomeService).toBe(1180);
     });
   });
 
@@ -248,9 +249,9 @@ describe("Duration Slider Price Correction - Contract & Verification", () => {
         selected_duration_minutes: 90,
         base_price_snapshot: 500,
         extension_increment_minutes_snapshot: 30,
-        extension_price_snapshot: 200,
+        extension_price_snapshot: 250,
         extension_units: 1,
-        calculated_price: 700,
+        calculated_price: 750,
       });
     });
 
@@ -302,7 +303,7 @@ describe("Duration Slider Price Correction - Contract & Verification", () => {
       });
 
       expect(quote.selectedDurationMinutes).toBe(90);
-      expect(quote.calculatedPrice).toBe(700);
+      expect(quote.calculatedPrice).toBe(750);
       expect(quote.quoteVersion).toBeDefined();
 
       const options = await resolveServiceLineQuoteOptions({
@@ -312,8 +313,8 @@ describe("Duration Slider Price Correction - Contract & Verification", () => {
         deliveryMode: "in_spa",
       });
 
-      expect(options).toHaveLength(4);
-      expect(options.map((o) => o.calculatedPrice)).toEqual([500, 700, 900, 1100]);
+      expect(options).toHaveLength(5);
+      expect(options.map((o) => o.calculatedPrice)).toEqual([500, 750, 1000, 1250, 1500]);
     });
   });
 });
