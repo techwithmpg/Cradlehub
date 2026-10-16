@@ -125,12 +125,12 @@ describe("Service Duration Extension - Mandatory Regression Matrix", () => {
       [{ maximum_duration_minutes: 60 }, "max equals base"],
       [{ maximum_duration_minutes: 50 }, "max less than base"],
       [{ maximum_duration_minutes: 175 }, "max not divisible by increment from base"],
-    ])("fails closed on invalid catalog configuration: %s (%s)", (invalidConfig) => {
+    ])("fails closed on invalid catalog configuration: %s (%s)", (invalidConfig, _description) => {
       expect(() =>
         calculateServiceLineQuote({
           service: { ...extendableService, ...invalidConfig },
           branch: noOverride,
-        })
+        }), _description
       ).toThrow("SERVICE_DURATION_CONFIGURATION_INVALID");
     });
 

@@ -1541,7 +1541,19 @@ export function BookingWizard({
                     loading={loadingServices}
                     selected={activeQuotedServices}
                     onToggle={toggleService}
-                    onAdjust={(service) => setAdjustingService({ service, attendeeId: activeAttendeeId })}
+                    inlineDuration={mode === "public"}
+                    branchId={selectedBranch?.id}
+                    attendeeId={activeAttendeeId}
+                    lineQuotes={lineQuotes}
+                    onSelectQuote={(service, quote) => {
+                      setLineQuotes((current) => ({ ...current, [`${activeAttendeeId}:${service.id}`]: quote }));
+                      setSelectedSlot(null);
+                      setSelectedStaff(DEFAULT_STAFF_PREFERENCE);
+                      setRawSlots([]);
+                      setSlots([]);
+                      setAvailabilityMessage("Duration changed. Choose an available time again.");
+                    }}
+                    onAdjust={mode === "inhouse" ? (service) => setAdjustingService({ service, attendeeId: activeAttendeeId }) : undefined}
                     heading={
                       mode === "public"
                         ? bookingFor === "me_and_others"
@@ -1558,13 +1570,13 @@ export function BookingWizard({
                     visitType={visitType}
                     theme={mode === "public" ? "warm" : "default"}
                   />
-                  {selectedBranch && adjustingService ? (
+                  {mode === "inhouse" && selectedBranch && adjustingService ? (
                     <ServiceDurationSelector open={Boolean(adjustingService)}
                       onOpenChange={(open) => { if (!open) setAdjustingService(null); }}
                       branchId={selectedBranch.id} serviceId={adjustingService.service.id}
                       serviceName={adjustingService.service.name}
                       currentDurationMinutes={lineQuotes[`${adjustingService.attendeeId}:${adjustingService.service.id}`]?.selectedDurationMinutes ?? adjustingService.service.durationMinutes}
-                      audience={mode === "public" ? "public" : "crm"}
+                      audience="crm"
                       deliveryMode={visitType}
                       onApply={(quote) => {
                         setLineQuotes((current) => ({ ...current, [`${adjustingService.attendeeId}:${adjustingService.service.id}`]: quote }));
@@ -1957,9 +1969,11 @@ function BookingSummary({
                         const quote = lineQuotes[`att-1:${service.id}`];
                         return <p key={service.id}>{service.name} · {quote?.selectedDurationMinutes ?? service.durationMinutes} min · {formatCurrency(quote?.calculatedPrice ?? service.price)}</p>;
                       })}
-                  <p className="mt-2 text-[12px] font-semibold" style={WARM_LABEL_STYLE}>
-                    {totalDuration} min · {formatCurrency(totalPrice)}
-                  </p>
+                  {(bookingFor === "me_and_others" || services.length > 1) ? (
+                    <p className="mt-2 text-[12px] font-semibold" style={WARM_LABEL_STYLE}>
+                      {totalDuration} min · {formatCurrency(totalPrice)}
+                    </p>
+                  ) : null}
                 </>
               )}
             </TherapistSummaryItem>
@@ -2063,9 +2077,11 @@ function BookingSummary({
                       const quote = lineQuotes[`att-1:${service.id}`];
                       return <p key={service.id} className="text-[13px] font-medium mt-0.5" style={WARM_BODY_STYLE}>{service.name} · {quote?.selectedDurationMinutes ?? service.durationMinutes} min · {formatCurrency(quote?.calculatedPrice ?? service.price)}</p>;
                     })}
-                <p className="text-[11px] mt-1.5 font-medium" style={WARM_LABEL_STYLE}>
-                  {totalDuration} min · {formatCurrency(totalPrice)}
-                </p>
+                {(bookingFor === "me_and_others" || services.length > 1) ? (
+                  <p className="text-[11px] mt-1.5 font-medium" style={WARM_LABEL_STYLE}>
+                    {totalDuration} min · {formatCurrency(totalPrice)}
+                  </p>
+                ) : null}
               </>
             )}
           </div>
