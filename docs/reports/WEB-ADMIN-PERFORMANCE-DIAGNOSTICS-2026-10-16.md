@@ -9,287 +9,215 @@
 
 ---
 
-## 1. Executive Summary & Production Release Closure
+## 1. Executive Summary & Governance Boundaries
 
 The Owner approved the CRM and Owner administrative performance program governed by the architectural principle:
 > **Events update the smallest necessary UI immediately.**  
 > **Server truth reconciles in the background.**  
 > **Navigation reveals retained state and must not restart the entire data journey.**
 
-Per strict stage discipline, implementation (PERF-1) is **not authorized**. This document closes the production release verification for checkpoint `7ae8849c127aeeb8154d31fb64cdd10ab0dd9ad9`, records production smoke evidence, establishes empirical cold/warm navigation baselines, analyzes architectural bottlenecks, and defines the tactical event, generation, and retention model for Owner review.
+Per strict stage discipline, implementation (PERF-1) is **not authorized**. This document establishes the empirical baseline, analyzes architectural bottlenecks from static inspection and local runtime measurements, defines the tactical event and generation invalidation model, and presents a phased, gated implementation sequence for Owner review.
 
 ---
 
-## 2. Phase A: Production Smoke Verification
+## 2. Evidence Classification & Release Baseline
 
-### 2.1 Route Health & Runtime Stability
-All canonical public, CRM, and Owner endpoints were probed to verify route registration, runtime stability, and auth-boundary integrity:
+To maintain strict truthfulness, evidence is categorized into four distinct tiers:
 
-| Route | Expected Behavior | Observed HTTP Status | Result |
-| :--- | :--- | :--- | :--- |
-| `/book` | Public online booking wizard | `200 OK` (878.9ms cold SSR) | **PASS** |
-| `/crm/today` | Front Desk Work Queue (Today) | `307 Temporary Redirect` -> `/login` | **PASS** |
-| `/crm/bookings` | Bookings Command Center | `307 Temporary Redirect` -> `/login` | **PASS** |
-| `/crm/schedule` | Staff & Room Schedule Timeline | `307 Temporary Redirect` -> `/login` | **PASS** |
-| `/crm/attendance` | Staff Attendance Dashboard | `307 Temporary Redirect` -> `/login` | **PASS** |
-| `/crm/customers` | Customer Management & Segments | `307 Temporary Redirect` -> `/login` | **PASS** |
-| `/crm/dispatch` | Home Service Operations / Dispatch | `307 Temporary Redirect` -> `/login` | **PASS** |
-| `/crm/cash-flow` | Daily Cash Drawer & Ledger | `307 Temporary Redirect` -> `/login` | **PASS** |
-| `/crm/setup` | Branch Rules & Health Setup | `307 Temporary Redirect` -> `/login` | **PASS** |
-| `/owner` | Owner Executive Overview | `307 Temporary Redirect` -> `/login` | **PASS** |
-| `/owner/bookings` | Multi-Branch Bookings Review | `307 Temporary Redirect` -> `/login` | **PASS** |
-| `/owner/schedule` | Multi-Branch Schedule Operations | `307 Temporary Redirect` -> `/login` | **PASS** |
-| `/owner/attendance` | Multi-Branch Attendance & Hours | `307 Temporary Redirect` -> `/login` | **PASS** |
-| `/owner/dispatch` | Multi-Branch Home Service Fleet | `307 Temporary Redirect` -> `/login` | **PASS** |
-| `/owner/cash-flow` | Centralized Ledger & Cash Flow | `307 Temporary Redirect` -> `/login` | **PASS** |
-| `/owner/staff` | Staff Approvals & Roster | `307 Temporary Redirect` -> `/login` | **PASS** |
-| `/owner/services` | Service Catalog & Pricing Editor | `307 Temporary Redirect` -> `/login` | **PASS** |
-| `/owner/reports` | Business Intelligence & Analytics | `307 Temporary Redirect` -> `/login` | **PASS** |
+### A. Deployment Evidence (Repository-Recorded Production Evidence)
+- **Production Deployment Target:** Vercel Production Environment
+- **Recorded Deployment Status:** `READY` at SHA `7ae8849c127aeeb8154d31fb64cdd10ab0dd9ad9`.
+- **Classification:** REPOSITORY-RECORDED PRODUCTION EVIDENCE. No live deployed administrative session or deployment mutation was initiated during this diagnostics pass.
 
-### 2.2 Core Release Contracts & Integrity Verification
-Targeted regression suites executed against baseline SHA `7ae8849c127aeeb8154d31fb64cdd10ab0dd9ad9`:
+### B. Local Runtime Evidence (Local Production Build Probes)
+- **Environment:** Local Next.js 16.2.4 (Turbopack) production build running on Node.js 25.2.0 at `http://localhost:3000`.
+- **Public Endpoints:**
+  - `/book`: Responded `200 OK` (HTTP request latency: 878.9ms cold SSR).
+- **Protected Endpoints (Unauthenticated Boundary Probes):**
+  - Probed `/crm/today`, `/crm/bookings`, `/crm/schedule`, `/crm/attendance`, `/crm/customers`, `/crm/dispatch`, `/crm/cash-flow`, `/crm/setup`, `/owner`, `/owner/bookings`, `/owner/schedule`, `/owner/attendance`, `/owner/dispatch`, `/owner/cash-flow`, `/owner/staff`, `/owner/services`, `/owner/reports`.
+  - All returned `307 Temporary Redirect` -> `/login` (server response latency: 6.9ms – 49.2ms).
+- **Scope Restriction:** An unauthenticated `307 -> /login` proves strictly that the Next.js routing and middleware auth boundary responded without an uncaught server crash. **It does NOT prove that authenticated CRM or Owner operational screens rendered or functioned in deployed production.**
 
-1. **Home Service Transportation Pricing:**
-   - Contract: ₱100 base fee, 1 km included, ₱40/km thereafter.
-   - Command: `pnpm vitest run tests/lib/home-service/distance-fee.test.ts tests/lib/home-service/home-service-pricing.test.ts`
-   - Result: **65 / 65 tests passed (100%)**.
-2. **Purchased Duration Snapshot Immutability:**
-   - Contract: Enforces immutable commercial purchased duration snapshots on booking updates.
-   - Command: `pnpm vitest run tests/lib/bookings/purchased-commercial-snapshot-immutability.test.ts`
-   - Result: **14 / 14 tests passed (100%)**.
-3. **CRM Read RLS Scope:**
-   - Contract: Scopes `booking_orders` and `booking_attendees` reads to authorized branch context.
-   - Command: `pnpm vitest run tests/lib/bookings/crm-booking-order-rls-scope.test.ts`
-   - Result: **10 / 10 tests passed (100%)**.
-4. **Grouped Bookings & Order Aggregation:**
-   - Contract: Preserves parent-order aggregation and attendee service mapping.
-   - Command: `pnpm vitest run tests/lib/bookings/group-bookings-by-order.test.ts`
-   - Result: **5 / 5 tests passed (100%)**.
-5. **Duration Ladder Matrix:**
-   - Contract: Enforces strictly monotonically increasing duration and price quotations.
-   - Command: `pnpm vitest run tests/lib/services/service-duration-extension-matrix.test.ts tests/lib/services/service-duration-price-correction.test.ts`
-   - Result: **48 / 48 tests passed (100%)**.
-6. **Destructive Operational Mutations:**
-   - Real-world production cash drawer closures, live attendance clock-outs, and live payment allocations:
-   - Status: **MANUAL / OPERATIONAL VERIFICATION REQUIRED** (preserved without artificial test data creation).
+### C. Repository Test Evidence (Automated Quality Gates)
+- **Home Service Distance Transportation Pricing:** ₱100 base fee, 1 km included, ₱40/km thereafter.
+  - `pnpm vitest run tests/lib/home-service/distance-fee.test.ts tests/lib/home-service/home-service-pricing.test.ts` -> **PASS (65 / 65 tests)**.
+- **Purchased Snapshot Immutability:** Enforces immutable commercial snapshots on booking updates.
+  - `pnpm vitest run tests/lib/bookings/purchased-commercial-snapshot-immutability.test.ts` -> **PASS (14 / 14 tests)**.
+- **CRM Read RLS Scope:** Scopes `booking_orders` and `booking_attendees` reads to authorized branch context.
+  - `pnpm vitest run tests/lib/bookings/crm-booking-order-rls-scope.test.ts` -> **PASS (10 / 10 tests)**.
+- **Grouped Bookings & Order Aggregation:** Preserves parent-order aggregation and attendee mapping.
+  - `pnpm vitest run tests/lib/bookings/group-bookings-by-order.test.ts` -> **PASS (5 / 5 tests)**.
+- **Duration Ladder Matrix:** Monotonically increasing quotations and price constraints.
+  - `pnpm vitest run tests/lib/services/service-duration-extension-matrix.test.ts tests/lib/services/service-duration-price-correction.test.ts` -> **PASS (48 / 48 tests)**.
+- **Type Checking:** `pnpm tsc --noEmit` -> **PASS (0 errors)**.
+- **ESLint:** `pnpm eslint` across modified/inspected files -> **PASS (0 warnings/errors)**.
 
-**Release Verdict:** Release `7ae8849c127aeeb8154d31fb64cdd10ab0dd9ad9` closed cleanly with zero P0/P1 regressions.
+### D. Authenticated Production Browser Evidence
+- **Status:** **AUTHENTICATED BROWSER PERFORMANCE MEASUREMENT = NOT COMPLETED**
+- **Limitation:** In this offline agent environment, automated browser control (Playwright driver) cannot install due to network isolation. Live operational mutations (real cash drawer closures, live employee attendance scans, destructive payment bookings) are marked **MANUAL / OPERATIONAL VERIFICATION REQUIRED**. Zero artificial records were created.
+
+### Bounded Baseline Release Statement
+> **No P0/P1 regression was detected by the completed repository and local runtime checks. Authenticated deployed-production operational smoke was not completed and remains a limitation.**
 
 ---
 
-## 3. Phase B & C: Baseline Synchronization & Branch Creation
+## 3. Performance Timing Classification & Baseline Tables
 
-- `origin/main` verified at `7ae8849c127aeeb8154d31fb64cdd10ab0dd9ad9`.
-- Local `main` fast-forwarded from `d8afcf52` to `7ae8849c127aeeb8154d31fb64cdd10ab0dd9ad9` cleanly.
-- Diagnostic branch `stage/web-admin-performance-diagnostics` created directly from `7ae8849c127aeeb8154d31fb64cdd10ab0dd9ad9`.
-- No historical, review, or WIP branches deleted. No force-pushes performed.
+Every timing figure is explicitly labeled by its measurement source:
+- **[LOCAL HTTP MEASURED]:** Network fetch latency against the local production-build HTTP server.
+- **[SOURCE-DERIVED ESTIMATE]:** Engineering estimate based on database query depth, serial waterfalls, and payload size.
+- **[TARGET]:** Operational SLA target defined by architecture; **not a performance claim**.
 
----
+*Note: HTTP request timing cannot measure DOM paint, component mount, or perceived visual reveal.*
 
-## 4. Measurement Methodology & Limitations
+### 3.1 CRM Navigation Baseline
 
-### 4.1 Measurement Constraints
-- **Agent Sandbox Limitations:** Headless browser automation via Playwright is unavailable in this offline sandbox environment (external driver download blocked by network isolation).
-- **Measurement Grounding:** Server-side execution timings and waterfalls were measured via local Node.js network probes against the production build runtime (`next build` with Turbopack, running on Node 25.2.0). Client-side DOM mount, reconciliation, and event costs were analyzed through source inspection, React Testing Library jsdom render cycles, and SWR cache behavior.
+| Route | Local HTTP Server Probe `[LOCAL HTTP MEASURED]` | Server Query Stages `[REPOSITORY INSPECTED]` | Estimated Content Visible `[SOURCE-DERIVED ESTIMATE]` | Warm Navigation Objective `[TARGET]` | Retention Mode `[REPOSITORY VERIFIED]` | Remount Key Risks `[REPOSITORY INSPECTED]` |
+| :--- | :--- | :--- | :--- | :--- | :--- | :--- |
+| `/crm/today` | 49.2ms (307) | 5-stage waterfall | 450–750ms cold | <100ms | Retained in policy | 0 |
+| `/crm/bookings` | 12.5ms (307) | 3-stage waterfall | 350–550ms cold | <100ms | Retained in policy | 0 |
+| `/crm/schedule` | 10.7ms (307) | 2-stage parallel | 500–850ms cold | <100ms | Retained in policy | 0 (Activity cleans effects) |
+| `/crm/attendance`| 10.7ms (307) | 2-stage parallel | 300–450ms cold | <100ms | Retained in policy | 0 |
+| `/crm/customers` | 9.2ms (307) | 1-stage query | 250–400ms cold | <100ms | Retained in policy | Route-driven `?tab=` |
+| `/crm/dispatch` | 38.8ms (307) | 2-stage parallel | 450–700ms cold | <100ms | **UNRETAINED** | Full unmount on nav |
+| `/crm/staff` | 7.1ms (307) | 6 parallel heavy | 400–650ms cold | <100ms | **UNRETAINED** | Full unmount on nav |
+| `/crm/cash-flow` | 8.1ms (307) | Multi-ledger read | 350–550ms cold | <100ms | **UNRETAINED** | Full unmount on nav |
+| `/crm/setup` | 7.2ms (307) | 6 parallel heavy | 500–800ms cold | <100ms | **UNRETAINED** | Full unmount on nav |
 
----
+### 3.2 Owner Navigation Baseline
 
-## 5. Measured Navigation Performance Tables
+*Repository Fact: `isRetainedWorkspaceEnabled("owner")` evaluates to `false` by default in production. All Owner routes are currently unretained.*
 
-### 5.1 CRM Navigation Performance (Measured)
-
-| Route | Shell Visible | Content Visible (Cold) | Authoritative Settled (Cold) | Warm Return (Clean) | Warm Return (Dirty) | RSC Requests | Hidden Fetches | Remounts |
-| :--- | :--- | :--- | :--- | :--- | :--- | :--- | :--- | :--- |
-| `/crm/today` | <16ms | 380–520ms | 650–920ms | **<16ms** (retained) | 450–700ms (via `router.refresh`) | 1 cold + 1 per event | 0 | 0 |
-| `/crm/bookings` | <16ms | 320–440ms | 580–810ms | **<16ms** (retained) | 120–220ms (SWR mutate) | 1 cold | 0 | 0 |
-| `/crm/schedule` | <16ms | 450–680ms | 750–1,150ms | **<16ms** (retained) | 280–450ms (SWR mutate) | 1 cold | 0 (effects cleaned) | 0 |
-| `/crm/attendance`| <16ms | 280–390ms | 480–690ms | **<16ms** (retained) | 350–550ms | 1 cold | 0 | 0 |
-| `/crm/customers` | <16ms | 240–350ms | 420–580ms | **<16ms** (retained) | 300–450ms | 1 cold + 1 per tab | 0 | 0 |
-| `/crm/dispatch` | <16ms | 420–610ms | 680–950ms | **420–610ms** (UNRETAINED) | 680–950ms | 1 per visit | N/A | **1 per visit** |
-| `/crm/staff` | <16ms | 390–550ms | 610–840ms | **390–550ms** (UNRETAINED) | 610–840ms | 1 per visit | N/A | **1 per visit** |
-| `/crm/cash-flow` | <16ms | 350–480ms | 540–760ms | **350–480ms** (UNRETAINED) | 540–760ms | 1 per visit | N/A | **1 per visit** |
-| `/crm/setup` | <16ms | 460–690ms | 720–1,050ms | **460–690ms** (UNRETAINED) | 720–1,050ms | 1 per visit | N/A | **1 per visit** |
-
-### 5.2 Owner Navigation Performance (Measured)
-
-*Note: In Owner, `isRetainedWorkspaceEnabled("owner")` evaluates to `false` by default in production. All routes operate unretained.*
-
-| Route | Shell Visible | Content Visible (Cold) | Authoritative Settled (Cold) | Warm Return (Clean) | Warm Return (Dirty) | RSC Requests | Hidden Fetches | Remounts |
-| :--- | :--- | :--- | :--- | :--- | :--- | :--- | :--- | :--- |
-| `/owner` | <16ms | 310–430ms | 510–720ms | **310–430ms** (UNRETAINED) | 510–720ms | 1 per visit | N/A | **1 per visit** |
-| `/owner/bookings`| <16ms | 340–460ms | 560–790ms | **340–460ms** (UNRETAINED) | 560–790ms | 1 per visit | N/A | **1 per visit** |
-| `/owner/schedule`| <16ms | 480–710ms | 820–1,200ms | **480–710ms** (UNRETAINED) | 820–1,200ms | 1 per visit | N/A | **1 per visit** |
-| `/owner/attendance`|<16ms | 300–420ms | 490–680ms | **300–420ms** (UNRETAINED) | 490–680ms | 1 per visit | N/A | **1 per tab (`key`)** |
-| `/owner/dispatch`| <16ms | 410–590ms | 660–920ms | **410–590ms** (UNRETAINED) | 660–920ms | 1 per visit | N/A | **1 per visit** |
-| `/owner/cash-flow`|<16ms | 360–500ms | 580–820ms | **360–500ms** (UNRETAINED) | 580–820ms | 1 per visit | N/A | **1 per branch/date**|
-| `/owner/staff` | <16ms | 380–520ms | 590–810ms | **380–520ms** (UNRETAINED) | 590–810ms | 1 per visit | N/A | **1 per visit** |
-| `/owner/services`| <16ms | 330–450ms | 520–740ms | **330–450ms** (UNRETAINED) | 520–740ms | 1 per visit | N/A | **1 per visit** |
-| `/owner/reports` | <16ms | 520–780ms | 910–1,450ms | **520–780ms** (UNRETAINED) | 910–1,450ms | 1 per visit | N/A | **1 per visit** |
+| Route | Local HTTP Server Probe `[LOCAL HTTP MEASURED]` | Server Query Depth `[REPOSITORY INSPECTED]` | Estimated Content Visible `[SOURCE-DERIVED ESTIMATE]` | Warm Navigation Objective `[TARGET]` | Retention Mode `[VERIFIED CURRENT STATE]` | Remount Key Risks `[REPOSITORY INSPECTED]` |
+| :--- | :--- | :--- | :--- | :--- | :--- | :--- |
+| `/owner` | 8.8ms (307) | Multi-branch overview | 350–500ms cold | <100ms | **DISABLED (Unretained)** | Full unmount on nav |
+| `/owner/bookings`| 8.4ms (307) | Multi-branch bookings | 350–550ms cold | <100ms | **DISABLED (Unretained)** | Full unmount on nav |
+| `/owner/schedule`| 7.3ms (307) | Daily timeline read | 500–850ms cold | <100ms | **DISABLED (Unretained)** | Full unmount on nav |
+| `/owner/attendance`|7.3ms (307)| Category/staff rules | 300–450ms cold | <100ms | **DISABLED (Unretained)** | `key={activeTab}` (Remounts on tab) |
+| `/owner/dispatch`| 6.9ms (307) | Fleet dispatch query | 450–700ms cold | <100ms | **DISABLED (Unretained)** | Full unmount on nav |
+| `/owner/cash-flow`|7.4ms (307) | Central ledger query | 380–600ms cold | <100ms | **DISABLED (Unretained)** | `key={`${branch.id}:${date}`}` |
+| `/owner/staff` | 7.6ms (307) | Roster & onboarding | 400–600ms cold | <100ms | **DISABLED (Unretained)** | Full unmount on nav |
+| `/owner/services`| 8.2ms (307) | Full service catalog | 350–500ms cold | <100ms | **DISABLED (Unretained)** | Full unmount on nav |
+| `/owner/reports` | 7.1ms (307) | Multi-metric rollup | 600–1,100ms cold | <100ms | **DISABLED (Unretained)** | Full unmount on nav |
 
 ---
 
-## 6. Inventory of Architectural Bottlenecks
+## 4. Repository Inspection Findings (Architecture & Bottlenecks)
 
-### 6.1 `router.refresh()` Inventory (42 Total in Codebase)
-The following key locations in administrative workspaces use `router.refresh()`, triggering full monolithic RSC page re-renders rather than tactical state or cache mutations:
+### 4.1 `router.refresh()` Inventory (42 Occurrences in Repository)
+Inspection reveals routine reliance on Next.js App Router `router.refresh()`, triggering full monolithic React Server Component (RSC) re-evaluations instead of localized state or SWR mutations:
 
-1. **`src/components/features/crm/today/cradle-flow-dashboard.tsx` (Lines 111, 205, 303):**
-   - Line 111: `const refreshBookings = () => router.refresh();` on `BOOKINGS_CHANGED_EVENT`.
-   - Line 205: `onRefresh={() => router.refresh()}` on manual refresh button.
-   - Line 303: `router.refresh()` on order ticket status transitions (check-in, start service, complete).
-2. **`src/components/features/crm/availability/crm-availability-client.tsx` & `crm-availability-board.tsx` (7 occurrences):**
-   - Lines 149, 223, 232, 597, 623 in client; lines 106, 145 in board on staff shift toggles and provider assignment edits.
-3. **`src/components/features/cash-flow/cash-flow-workspace.tsx` (Lines 69, 513, 528, 539, 558):**
-   - Full page refresh on cash drawer opening/closing, expense logging, and manual payment records.
-4. **`src/components/features/services/services-page-client.tsx` (Lines 70, 79):**
-   - Full page refresh on service toggle and service profile save.
-5. **`src/components/features/staff/staff-approval-workspace.tsx` (Lines 1149, 1180):**
-   - Full page refresh on staff onboarding approval or rejection.
-6. **`src/components/features/manager-settings/` (3 occurrences):**
-   - Full page refresh on booking rules, scheduling automation, and service offered updates.
+1. **`src/components/features/crm/today/cradle-flow-dashboard.tsx` (3 calls: Lines 111, 205, 303):**
+   - Line 111: `const refreshBookings = () => router.refresh();` attached to `BOOKINGS_CHANGED_EVENT`.
+   - Line 205: Manual refresh button.
+   - Line 303: Order ticket status transitions (check-in, start service, complete).
+2. **`src/components/features/crm/availability/crm-availability-client.tsx` & `crm-availability-board.tsx` (7 calls):**
+   - Attached to shift toggle, staff presence edits, and therapist assignment adjustments.
+3. **`src/components/features/cash-flow/cash-flow-workspace.tsx` (5 calls):**
+   - Attached to cash drawer reconciliation, manual entries, and expense recordings.
+4. **`src/components/features/services/services-page-client.tsx` (2 calls):**
+   - Attached to service active toggle and service profile saves in Owner.
+5. **`src/components/features/staff/staff-approval-workspace.tsx` (2 calls):**
+   - Attached to staff onboarding approval and rejection in Owner.
+6. **`src/components/features/manager-settings/` (3 calls):**
+   - Attached to booking rules, scheduling automation, and service offered updates.
 
-### 6.2 Event Listener & Invalidation Map
-Current event wiring relies on a single coarse-grained event: `BOOKINGS_CHANGED_EVENT` (`cradlehub:bookings-changed`).
+### 4.2 Monolithic Event Invalidation Storm
+Current administrative event wiring relies almost exclusively on `BOOKINGS_CHANGED_EVENT` (`cradlehub:bookings-changed`):
+- When dispatched by any minor change (e.g. attendance flag or single order update), it triggers:
+  1. `cradle-flow-dashboard.tsx` -> `router.refresh()` (full RSC re-query of Today).
+  2. `retained-workspace-provider.tsx` -> marks `crm-work-queue`, `crm-bookings`, and `crm-schedule` dirty.
+  3. `crm-bookings-view.tsx` -> triggers SWR `refresh()`.
+  4. `owner-bookings-view.tsx` -> triggers SWR `refresh()`.
+  5. `dispatch-workspace.tsx` -> triggers `revalidate()`.
+- **Deficiency:** A single localized change triggers multiple simultaneous network round-trips across visible and background modules.
 
-```text
-[Mutation in UI / Action]
-       │
-       ▼
-window.dispatchEvent(new Event("cradlehub:bookings-changed"))
-       │
-       ├─► cradle-flow-dashboard.tsx: router.refresh() (Heavy RSC re-render of Today)
-       ├─► retained-workspace-provider.tsx: marks ["crm-work-queue", "crm-bookings", "crm-schedule"] dirty
-       ├─► crm-bookings-view.tsx: triggers SWR refresh()
-       ├─► owner-bookings-view.tsx: triggers SWR refresh()
-       └─► dispatch-workspace.tsx: triggers revalidate()
-```
+### 4.3 Server Query Dependency Waterfall on `/crm/today`
+On initial render or `router.refresh()` of `/crm/today/page.tsx`, the server executes a **5-stage sequential waterfall**:
+- **Stage 1:** `getFrontDeskContext()` + `getBranchBusinessDate()`.
+- **Stage 2:** Parallel execution of 9 queries (schedule, pending queue, upcoming bookings, today snapshot, readiness cache, duty context, notifications, attendance feed, schedule exceptions).
+- **Stage 3:** Extracts `futureOrderIds` from Stage 2 results -> awaits `getCrmOrderServiceLines()`.
+- **Stage 4:** Extracts `orderIds` from all accumulated bookings -> awaits `v_booking_order_financial_summaries` and `booking_orders.metadata`.
+- **Stage 5:** Extracts `resourceIds` -> awaits `branch_resources`, active drivers, trip locations, and tracking tokens.
 
-**Deficiency:** Any status change, customer check-in, or therapist assignment broadcasts a universal invalidation that simultaneously forces Today into an expensive RSC reload and marks multiple background modules dirty, regardless of whether their specific operational dimensions changed.
-
-### 6.3 Server/RSC Waterfall Map
-On cold visit or `router.refresh()` to `/crm/today/page.tsx`, the server executes a **5-stage sequential waterfall**:
-
-```text
-Stage 1: getFrontDeskContext() + getBranchBusinessDate()
-   │
-   ▼
-Stage 2 (Parallel Root): Promise.all([
-   getTodaysSchedule(branchId, today),
-   getCrmPendingBookingQueue(branchId),
-   getCrmUpcomingBookings(branchId, ...),
-   getCrmTodaySnapshot(branchId, today),
-   getCrmReadinessCached(branchId),
-   getFrontDeskDutyContext(branchId, today),
-   getActionRequiredNotificationsAction(branchId),
-   getRecentAttendanceScanFeed(...),
-   getOpenStaffScheduleException(branchId, today)
-])
-   │
-   ▼
-Stage 3 (Dependent Waterfall):
-   futureOrderIds = extract(pendingQueue, upcomingBookings)
-   if (futureOrderIds.length > 0) await getCrmOrderServiceLines(branchId, futureOrderIds)
-   │
-   ▼
-Stage 4 (Dependent Waterfall):
-   orderIds = extract(allBookings)
-   if (orderIds.length > 0) await Promise.all([
-      v_booking_order_financial_summaries.select(...).in("order_id", orderIds),
-      booking_orders.select("id, metadata").in("id", orderIds)
-   ])
-   │
-   ▼
-Stage 5 (Dependent Waterfall):
-   await Promise.all([
-      branch_resources.select(...).in("id", resourceIds),
-      getBranchBookingDriverIds(...),
-      getLatestLocationsForActiveHomeServiceTrips(...),
-      getActiveTrackingTokensForBookings(...)
-   ])
-```
-Total server latency before RSC streaming: **350ms–750ms** depending on database load.
-
-### 6.4 Remount Key Inventory
-Forced unmounting caused by explicit React `key` bindings:
+### 4.4 Destructive Remount Keys
 - **`src/app/(dashboard)/owner/attendance/page.tsx` line 53:**  
   `<OwnerAttendanceWorkspace key={activeTab} ... />`  
-  *Impact:* Every tab click (Today vs History vs Exceptions) completely unmounts and remounts the workspace, discarding scroll and local state.
+  *Impact:* Switching between Today, History, and Exceptions tabs completely unmounts and remounts the workspace DOM, destroying scroll and component state.
 - **`src/app/(dashboard)/owner/cash-flow/page.tsx` line 100:**  
   `<OwnerCashFlowWorkspace key={`${branch.id}:${selectedDate}`} ... />`  
-  *Impact:* Changing the selected branch or date completely unmounts the workspace tree.
-- **`src/components/features/dashboard/retained-workspace-provider.tsx` line 486:**  
-  `<ScopedRetainedWorkspace key={scopeKey} ... />` where `scopeKey = `${userId}:${role}:${branchId}``.  
-  *Impact:* In Owner layout, `branchId` was hardcoded to `me.branch_id` instead of the URL branch selector, causing either identity desynchronization or unintended full remounts.
+  *Impact:* Selecting a branch or date in Owner Cash Flow destroys and remounts the component tree.
 
-### 6.5 Retained Workspace Inventory
-- **CRM:** Retains at most 4 modules (`crm-work-queue`, `crm-bookings`, `crm-schedule`, `crm-attendance`, `crm-customers`). Excludes Dispatch, Cash Flow, Staff, Setup, Waitlist.
-- **Owner:** Retains at most 3 modules in policy (`owner-overview`, `owner-reports`, `owner-bookings`), but **completely disabled** in production because `NEXT_PUBLIC_RETAINED_WORKSPACES` defaults to `"crm"`.
+### 4.5 Route-Driven Segment Switching & Over-fetching
+- **`/crm/customers`:** Tab switches (`all`, `repeat`, `lapsed`, `followup`) navigate the route (`?tab=...`), executing server RSC fetches and re-running `getCrmStats` on every tab click.
+- **`/crm/setup` & `/crm/staff`:** Execute 6 heavy relational queries in parallel on every visit (staff, assignments, catalog, booking rules, health checks) without an SWR caching layer.
+- **Patterns to Preserve:** Schedule (`ScheduleWorkspaceShell`) and Attendance (`CrmAttendanceWorkspace`) already feature disciplined SWR integration and should serve as architectural reference patterns.
 
 ---
 
-## 7. Owner Branch-Context Lifecycle & Isolation Analysis
+## 5. Owner Branch Scope Safety & Retention Analysis
 
-When an Owner navigates between branches (e.g. `Main Branch` -> `SM Branch` -> `Main Branch`):
-1. **Layout Context Mismatch:** `src/app/(dashboard)/owner/layout.tsx` passes `branchId={me.branch_id ?? "all-branches"}` to `RetainedWorkspaceProvider`. Because `me.branch_id` is the staff profile's primary branch in Postgres, it **does not change** when the Owner chooses a different branch in the header or URL (`?branch=...`).
-2. **Cross-Branch Contamination Risk:** If retention were enabled in Owner without fixing the branch scope, SWR cache keys and retained module instances would be keyed under `me.branch_id`, risking cross-branch data retention or display leakage.
-3. **Remount & Re-fetch Behavior:** In the current unretained setup, branch switching forces a complete server-side RSC re-render of `/owner/bookings` or `/owner/reports`, taking 550ms–900ms.
-4. **Resolution Required:** SWR keys and retained workspace entries in Owner must incorporate the **active operational branch** (from URL or session), not the static profile branch.
+### Verified Current State
+- `NEXT_PUBLIC_RETAINED_WORKSPACES` defaults to `"crm"`.
+- Owner retained workspaces are **disabled by default in production**.
+
+### Latent Risk & Safety Blocker
+- In `src/app/(dashboard)/owner/layout.tsx` (lines 33–38):
+  ```tsx
+  <RetainedWorkspaceProvider
+    workspace="owner"
+    userId={ctx.user.id}
+    role={me.system_role}
+    branchId={me.branch_id ?? "all-branches"}
+    enabled={isRetainedWorkspaceEnabled("owner")}
+  >
+  ```
+- `me.branch_id` is the staff profile's primary assigned branch in Postgres. When an Owner selects a different operational branch via URL (`?branch=...`) or header dropdown, `me.branch_id` **remains static**.
+- If Owner retention were enabled without fixing this scope, SWR cache keys and retained module instances would be keyed under the profile branch rather than the active operational branch. This creates a severe latent risk of cross-branch retention or displaying stale branch data after switching.
+- **Classification:** **P1 — OWNER RETENTION ACTIVATION BLOCKER** *(not a current active production leak, because Owner retention is currently disabled, but an essential blocker before activation)*.
 
 ---
 
-## 8. The Five Slowest Administrative Interactions
+## 6. The Five Slowest Administrative Interactions (Source-Derived Estimates)
 
-1. **Owner Branch Switch (`Main` <-> `SM`):** Full page unmount, cold RSC re-render across all modules, re-querying branches, staff, bookings, and financial metrics (**850ms–1,400ms**).
-2. **Cold First Navigation to `/crm/today`:** 5-tier sequential server waterfall loading schedule, pending queue, upcoming bookings, order lines, financial summaries, and driver telemetry (**650ms–1,100ms**).
-3. **Booking Status Update in `/crm/today`:** Updating an order ticket status triggers `router.refresh()`, executing the entire 5-tier server waterfall over RSC (**600ms–950ms**).
-4. **Navigation across `/crm/setup` and `/crm/staff`:** Unretained cold mount executing 6 heavy queries (staff, assignments, catalog, booking rules, health checks) (**500ms–850ms**).
-5. **Customer Segment Switching in `/crm/customers`:** Tab clicks (`all` -> `repeat` -> `lapsed` -> `followup`) drive full route transitions and re-execute server queries rather than client segment switching (**450ms–750ms**).
+1. **Owner Operational Branch Switch (`Main` <-> `SM`):** Full layout unmount, cold RSC re-render, re-querying branches, staff, bookings, and financial metrics (**estimated 650–1,200ms**).
+2. **Cold First Navigation to `/crm/today`:** 5-tier sequential server waterfall loading schedule, pending queue, upcoming bookings, order lines, financial summaries, and telemetry (**estimated 500–950ms**).
+3. **Booking Status Update in `/crm/today`:** Order ticket status change triggers `router.refresh()`, re-executing the entire 5-tier server waterfall over RSC (**estimated 450–800ms**).
+4. **Navigation across `/crm/setup` and `/crm/staff`:** Unretained cold mount executing 6 heavy queries (staff, assignments, catalog, booking rules, health checks) (**estimated 400–750ms**).
+5. **Customer Segment Switching in `/crm/customers`:** Tab clicks (`all` -> `repeat` -> `lapsed` -> `followup`) drive full route transitions and re-execute server queries rather than client segment switching (**estimated 350–650ms**).
 
 ---
 
-## 9. Approved Target Architecture Design
+## 7. Target Architecture: Generation Invalidation & Event Model
 
-### 9.1 Generation Invalidation Model
-To guarantee that background reconciliation never blocks navigation and stale responses are deterministically ignored, we specify a two-counter generation model:
+### 7.1 Two-Counter Generation Model
+To ensure background reconciliation never blocks navigation and stale responses are deterministically discarded:
 
 $$\text{isDirty} \iff \text{invalidationGeneration} > \text{validatedGeneration}$$
 
 ```text
-State:
-  invalidationGeneration: number (tracks requested domain revision)
+Counters (per module):
+  invalidationGeneration: number (incremented when domain changes occur)
   validatedGeneration:    number (tracks latest authoritative response received)
 
-Lifecycle:
-1. Initial State:
-   invalidationGeneration = 10
-   validatedGeneration = 10
-   => Status: CLEAN
-
-2. Tactical Event Occurs (e.g., booking.status_changed):
-   invalidationGeneration = 11
-   validatedGeneration = 10
-   => Status: DIRTY
-
-3. Workspace Handling:
-   - If ACTIVE (Visible):
-       Initiate background SWR reconciliation for Generation 11.
-       Keep existing validated data rendered.
-       Display subtle floating "Refreshing…" status pill.
-       On success: validatedGeneration = 11 => CLEAN.
-   - If INACTIVE (Hidden):
-       Set invalidationGeneration = 11.
-       ZERO network requests dispatched!
-       When user returns to workspace:
-         Reveal existing data immediately (<16ms).
-         Initiate background reconciliation for Generation 11.
-
-4. Out-of-Order Stale Response Protection:
-   If a network request initiated during Generation 10 arrives AFTER
-   invalidationGeneration became 11:
-   Inspect response generation (10 < 11) => DISCARD STALE RESPONSE.
+Rules:
+1. When a tactical event fires:
+   invalidationGeneration++
+2. If module is ACTIVE (visible):
+   Initiate background SWR reconciliation for invalidationGeneration.
+   Keep existing validated data rendered (no skeleton, no blank screen).
+   Show subtle "Refreshing…" indicator.
+   On success: validatedGeneration = invalidationGeneration.
+3. If module is INACTIVE (hidden):
+   Increment invalidationGeneration only.
+   ZERO network requests dispatched while hidden.
+   On reactivate: reveal retained DOM immediately; reconcile in background.
+4. Stale Response Rejection:
+   If a response returns from generation G where G < invalidationGeneration:
+   DISCARD STALE RESPONSE immediately.
 ```
 
-### 9.2 Tactical Event-Driven Domain Mapping
+### 7.2 Tactical Event-Driven Domain Mapping
 
 | Domain Event | Source Action | Immediate Local Patch (Client) | Generation Invalidation Target | Background Reconcile Required? |
 | :--- | :--- | :--- | :--- | :--- |
@@ -303,58 +231,94 @@ Lifecycle:
 | `customer.changed` | Customer edit drawer / prefill | Update customer name / phone | `crm-customers` (+1) | Yes (background SWR) |
 | `branch_rules.changed` | Setup rules save | Update local rule state | All active branch modules (+1) | Yes (background SWR) |
 
-*Rule:* Complex financial calculations and pricing snapshots remain 100% server-authoritative. Tactical patches update only discrete deterministic UI fields.
+*Rule:* Complex pricing and financial snapshot formulas remain 100% server-authoritative. Tactical patches update only discrete, deterministic UI fields.
 
-### 9.3 Weighted Retention Budget
-
-| Workspace | Module | Cost | Default Stale Time | Retention Limit Allocation | Hidden Strategy |
-| :--- | :--- | :--- | :--- | :--- | :--- |
-| **CRM** | `crm-work-queue` | Medium | 15s | Slot 1 (Protected) | Activity hidden; 0 fetches |
-| **CRM** | `crm-bookings` | Medium | 30s | Slot 2 | Activity hidden; 0 fetches |
-| **CRM** | `crm-schedule` | High | 60s | Slot 3 | Activity hidden; disconnect Realtime/timer |
-| **CRM** | `crm-attendance` | Medium | 15s | Slot 4 | Activity hidden; 0 fetches |
-| **CRM** | `crm-customers` | Low | 180s | Slot 5 (LRU candidate) | SWR cache backed |
-| **CRM** | `crm-dispatch` | High | 20s | Excluded from DOM; SWR-retained | Maps unmounted; data retained in SWR |
-| **Owner** | `owner-overview` | Medium | 60s | Slot 1 (Protected) | Activity hidden; 0 fetches |
-| **Owner** | `owner-bookings` | Medium | 30s | Slot 2 | Activity hidden; 0 fetches |
-| **Owner** | `owner-reports` | High | 300s | Slot 3 | Activity hidden; retain chart data |
-| **Owner** | `owner-schedule` | High | 60s | Slot 4 (LRU candidate) | Disconnect Realtime; retain timeline |
+### 7.3 Retention Model: Current vs. Proposed
+- **CURRENT:** Count-limited retention (CRM limit: 4; Owner limit: 3 defined in policy, but Owner is currently disabled).
+- **PROPOSED:** Cost-aware / weighted retention.
+  - Conceptual cost model: `low = 1`, `medium = 2`, `high = 3`.
+  - Exact memory/slot budgets will not be frozen until authenticated browser memory and heap profiling are conducted under load.
 
 ---
 
-## 10. Classified Diagnostics Findings
+## 8. Classified Diagnostics Severity Table
 
-- **P0 — Critical Architectural Integrity & Cross-Branch Isolation:**
-  - Owner retention disabled in production by flag default (`"crm"` rollout).
-  - Owner branch context in `RetainedWorkspaceProvider` relies on `me.branch_id` instead of the active branch selection (`?branch=...`), creating risk of cross-branch cache bleeding if retention is activated without operational branch scoping.
-- **P1 — Primary Navigation & Latency Regressions:**
-  - 42 occurrences of `router.refresh()` triggering full monolithic server RSC round-trips instead of tactical SWR mutations.
-  - Unretained operational modules (`/crm/dispatch`, `/crm/cash-flow`, `/crm/staff`, `/crm/setup`) incurring cold round-trips on every navigation.
-  - Monolithic `BOOKINGS_CHANGED_EVENT` triggering universal re-renders across visible and hidden views.
-  - 5-tier sequential server waterfall on `/crm/today/page.tsx`.
+- **P0 — Critical Active Breaches:**
+  - *None detected.* (No active cross-branch data leaks observed in repository or local runtime).
+- **P1 — Safety Blockers & Primary Latency Drivers:**
+  - **OWNER RETENTION ACTIVATION BLOCKER:** Owner layout scopes `RetainedWorkspaceProvider` by `me.branch_id` instead of active operational branch (`?branch=...`). Must be resolved before Owner retention can be safely enabled.
+  - **Broad `router.refresh()`:** 42 occurrences triggering monolithic RSC re-renders across Today, Availability, Cash Flow, Staff, and Services.
+  - **Monolithic Invalidation Storm:** `BOOKINGS_CHANGED_EVENT` broadcasts universal invalidation across all modules.
+  - **Today 5-Stage Waterfall:** Sequential server dependency waterfall on `/crm/today/page.tsx`.
+  - **Unretained CRM Workspaces:** Dispatch, Staff, Cash Flow, and Setup incur cold unmount/remount on every visit.
 - **P2 — Unnecessary Remounts & Route Waterfalls:**
-  - React `key={activeTab}` in `/owner/attendance` and `key={`${branch.id}:${selectedDate}`}` in `/owner/cash-flow` forcing full unmounts on tab/date switching.
-  - Customer segment switching (`/crm/customers?tab=...`) driving full route transitions rather than instant client segment filters.
-  - SWR hooks in hidden components lacking uniform `isActive` gating.
+  - Destructive `key` props: `key={activeTab}` in `/owner/attendance` and `key={`${branch.id}:${selectedDate}`}` in `/owner/cash-flow`.
+  - Route-driven customer segment switching (`/crm/customers?tab=...`) driving full server re-queries.
+  - Gaps in SWR `isActive` gating in background/hidden components.
 - **P3 — Loading Experience & Cache Gaps:**
-  - Setup and Staff datasets lack client-side stale-while-revalidate caching despite low mutation frequency.
-  - Inconsistent visual feedback during background revalidations across secondary workspaces.
+  - Infrequently changing Setup and Staff datasets lack client-side stale-while-revalidate caching.
+  - Inconsistent non-blocking "Refreshing…" feedback across secondary workspaces.
 
 ---
 
-## 11. Recommended Exact Scope for PERF-1
+## 9. Revised Phased Implementation Sequence
 
-When authorized by the Owner, **PERF-1 (Tactical Runtime Foundation)** should implement:
-1. **Generation Counter Infrastructure:**
-   - Centralized `invalidationGeneration` and `validatedGeneration` tracking per module.
-   - Stale-response rejection middleware for SWR fetchers.
-2. **Tactical Event Bus & Patch Handlers:**
-   - Granular event dispatches (`booking.status_changed`, `booking.assignment_changed`, `attendance.changed`, etc.).
-   - Elimination of `router.refresh()` in `cradle-flow-dashboard` and CRM availability components in favor of tactical patches and generation-scoped SWR mutators.
-3. **Owner Branch Scoping & Rollout:**
-   - Update `RetainedWorkspaceProvider` to incorporate active operational `branchId` from URL/context into `scopeKey`.
-   - Enable retained workspace rollout for Owner (`NEXT_PUBLIC_RETAINED_WORKSPACES="all"`).
-4. **Remove Destructive Remount Keys:**
-   - Refactor `key={activeTab}` in `/owner/attendance` and `key={`${branch.id}:${selectedDate}`}` in `/owner/cash-flow` to preserve DOM and state across filter changes.
-5. **Zero Implementation in PERF-0:**
-   - No runtime code modified in this stage. Awaiting Owner review.
+To maintain architectural safety, the performance program is divided into focused, individually reviewed stages:
+
+### PERF-1A — Tactical Runtime Foundation
+- **Scope:**
+  - Define semantic invalidation event contracts.
+  - Implement per-module `invalidationGeneration` and `validatedGeneration` tracking.
+  - Establish active vs. hidden workspace lifecycle semantics (0 network requests while hidden).
+  - Implement stale-response rejection middleware.
+  - Provide scoped SWR integration helpers.
+  - Unit and component tests for foundation utilities.
+- **Restrictions:**
+  - **NO** large module conversions yet.
+  - **NO** Owner retention activation.
+  - **NO** broad `router.refresh()` removal yet.
+
+### PERF-1B — Owner Branch Scope Safety
+- **Scope:**
+  - Establish canonical active operational Owner branch identity (incorporating URL/session branch).
+  - Scope SWR keys and retained workspace identity to active operational branch.
+  - Prove `Main -> SM -> Main` branch-switch isolation through targeted tests.
+  - Implement cache purge and scope transition cleanup.
+  - Retain server authorization as the sole authority.
+- **Restrictions:**
+  - **DO NOT** enable Owner retention globally (`NEXT_PUBLIC_RETAINED_WORKSPACES="all"`) until all 8 activation gates pass.
+
+### Mandatory Gates Before Owner Retention Activation:
+1. Active operational branch identity proven.
+2. `Main -> SM -> Main` branch-switch test suite passing.
+3. Zero cross-branch cache reuse verified.
+4. Retained DOM branch isolation verified.
+5. SWR key isolation verified.
+6. Logout / role / branch cleanup verified.
+7. Authenticated browser evidence collected.
+8. Owner approval recorded.
+
+### PERF-2 — CRM Today Conversion
+- **Scope:**
+  - Canonical Today data contract.
+  - SWR retained lifecycle for Today Work Queue.
+  - Eliminate broad `router.refresh()` in `cradle-flow-dashboard.tsx`.
+  - Implement tactical booking status and assignment patches.
+  - Background reconciliation with subtle "Refreshing…" feedback.
+  - Ensure zero blank screens or layout jumps on warm refresh.
+
+### PERF-3 — Bookings
+- **Scope:**
+  - Remove unnecessary destructive remount keys.
+  - Preserve search, filter, selection, and scroll state across transitions.
+  - Implement tactical event invalidation for Bookings Command Center.
+  - Preserve server-authoritative quotation and financial logic.
+
+### PERF-4+ — Remaining Modules
+- Schedule & Attendance tactical updates.
+- Home Service Dispatch SWR retention.
+- Customer segment client-side tab switching.
+- Staff & Cash Flow optimization.
+- Owner operational module conversions (Overview, Bookings, Reports).
+- Loading UX & dialog prewarming.
+- *One independently reviewed checkpoint at a time.*
