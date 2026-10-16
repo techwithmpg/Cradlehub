@@ -92,3 +92,14 @@ Checkpoint in progress. No release verdict yet.
 - Sandbox execution initially failed with Vitest EPERM on temporary-file rename and discovered the nested audit checkout. The newly created audit worktree was moved to `E:/cradlehub-branch-audit-20261016`; rerun outside the sandbox produced the actual failure/pass evidence above. No test file was excluded to obtain the pass.
 - Limitation: mocked read-model test; no production cash mutation or runtime financial workflow exercised.
 - New HEAD: the commit containing this section (recorded in the final ordered commit table).
+
+### Attendance new business day — accepted narrow port
+
+- Previous HEAD: `6f6d9de6f13ea3bb388e528a0eb4457bb6871612`.
+- Source: `47641bf19da1afe4db9430d38343ad1c2489ca31`; source guard and its tests only.
+- Regression proof: new suite failed 3/4 before correction, including the valid current-day clock-in and ambiguous prior-row behavior.
+- A single prior-day provisional row remains untouched and reviewable while the current-day shift is evaluated. Multiple prior-day rows remain captured for review without choosing or mutating one. Same-day and stale recovery guards remain.
+- Files: `src/lib/attendance/scan-engine.ts`, `tests/lib/attendance/a01-new-business-day-provisional-close.test.ts`, `tests/lib/attendance/crm-closing-policy-migration.test.ts`, this report.
+- `pnpm vitest run tests/lib/attendance/a01-new-business-day-provisional-close.test.ts tests/lib/attendance/crm-closing-policy-migration.test.ts`: 2 files / 22 tests PASS.
+- Mocked execution and static migration contracts; no production scan or row mutation performed.
+- New HEAD: the commit containing this section (see final commit table).

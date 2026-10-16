@@ -2997,14 +2997,17 @@ async function processAttendanceScan(
     });
     return committed.result;
   }
-  if (outsideBusinessDateProvisionalClockOuts.length > 0) {
-    const checkin = outsideBusinessDateProvisionalClockOuts[0]!;
+  // A prior-business-day provisional close remains reviewable, but does not
+  // prevent an otherwise valid current-day shift from being evaluated. Multiple
+  // prior-day candidates remain ambiguous and are captured without selecting or
+  // mutating one.
+  if (outsideBusinessDateProvisionalClockOuts.length > 1) {
     const result = captured(
-      "Previous provisional clock-out requires review",
-      "The QR scan was preserved, but it is outside that Attendance business day and was not applied automatically.",
+      "Multiple previous provisional clock-outs require review",
+      "The QR scan was preserved, but multiple prior Attendance business-day records require manager review.",
       {
-        reasonCode: "provisional_clock_out_outside_business_day",
-        securityNote: "No Attendance row was changed and no new clock-in was created.",
+        reasonCode: "conflicting_provisional_clock_outs",
+        securityNote: "No provisional Attendance row was changed and no new clock-in was created.",
       }
     );
     const committed = await commit(admin, {
@@ -3013,12 +3016,11 @@ async function processAttendanceScan(
         qrPointId: point.id,
         staffId: device.staff_id,
         deviceId: device.id,
-        checkinId: checkin.id,
         scanType: "attendance",
         action: "scan_captured",
         outcome: "exception",
-        reasonCode: "provisional_clock_out_outside_business_day",
-        message: "Provisional clock-out belongs to a different Attendance business day.",
+        reasonCode: "conflicting_provisional_clock_outs",
+        message: "Multiple provisional clock-outs belong to different Attendance business days.",
         requestId: ctx.requestId,
         userAgent: ctx.userAgent,
         ipAddress: ctx.ipAddress,
@@ -3030,14 +3032,12 @@ async function processAttendanceScan(
         isTest,
       },
       result,
-      checkinId: checkin.id,
       exception: {
         exceptionType: "stale_open_checkin",
         severity: "warning",
-        message: `${staffName}'s real QR scan arrived outside the provisional Attendance business day.`,
+        message: `${staffName} has multiple provisional clock-outs awaiting review.`,
         metadata: {
           checkinIds: outsideBusinessDateProvisionalClockOuts.map((row) => row.id),
-          currentBusinessDate: branchNow.businessDate,
           ...testMetadata,
         },
         recommendedAction: "review_clock_out",
