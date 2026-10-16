@@ -124,3 +124,20 @@ Checkpoint in progress. No release verdict yet.
 - `service-editor-modal.test.tsx`: pre-checkpoint `84d7b3f7` made positive extension price required; the test had never entered a price. Assert no invalid preview, enter 250, then verify preview and save. No product validation weakened.
 - Targeted commands: `pnpm vitest run tests/app/crm/booking-actions.test.ts tests/components/bookings/booking-source-switch.test.tsx` (17/17); `pnpm vitest run src/components/features/services/service-editor-modal.test.tsx` (4/4).
 - Files: those three test files and this report. New HEAD: containing commit, listed in final table.
+
+### Purchased duration commercial snapshot immutability — forward migration
+
+- Previous HEAD: `d93c15526e3f8562797dc06c64ce6934638b3a5f`.
+- Identified defect: `apply_purchased_service_duration_snapshot` previously triggered only `BEFORE INSERT`. On `UPDATE`, commercial terms in `metadata->'commercial_snapshot'` and treatment minutes in `session_duration_minutes_snapshot` lacked immutability protection.
+- Resolution: Created forward migration `supabase/migrations/20261016223000_enforce_purchased_commercial_snapshot_immutability.sql`.
+  - Replaces trigger `trg_z_apply_purchased_service_duration_snapshot` with `BEFORE INSERT OR UPDATE ON public.bookings`.
+  - On INSERT: retains existing snapshot validation and `session_duration_minutes_snapshot` initialization.
+  - On UPDATE: strictly rejects any alteration or removal of `commercial_snapshot` (`COMMERCIAL_SNAPSHOT_IMMUTABLE`).
+  - On UPDATE: strictly rejects changing `service_id` for lines with a commercial snapshot (`COMMERCIAL_SERVICE_IMMUTABLE`).
+  - On UPDATE: restores `session_duration_minutes_snapshot` to the purchased duration, preventing timing trigger resets or direct manipulation.
+  - On UPDATE: allows all normal operational updates (status, staff reassignment, room, rescheduling, payments, notes).
+  - Historical rows: existing rows without a commercial snapshot remain untouched and update normally; retroactive injection of a commercial snapshot on update is rejected.
+- Files: `supabase/migrations/20261016223000_enforce_purchased_commercial_snapshot_immutability.sql`, `tests/lib/bookings/purchased-commercial-snapshot-immutability.test.ts`, this report.
+- Targeted tests: `pnpm vitest run tests/lib/bookings/purchased-commercial-snapshot-immutability.test.ts` (14/14 passed).
+- Production state: Forward migration committed to repository but NOT APPLIED to production (gated on release DB authorization).
+
