@@ -384,6 +384,7 @@ export function QuickBookingForm({
   const submissionKey = useRef<{ fingerprint: string; key: string } | null>(null);
   const [paymentMethod, setPaymentMethod] = useState<"cash" | "gcash" | "maya" | "card" | "">("");
   const [staffId, setStaffId] = useState(initialStaffId);
+  const [customerRequestedTherapist, setCustomerRequestedTherapist] = useState(false);
   const [resourceId, setResourceId] = useState("");
   const [moreOpen, setMoreOpen] = useState(false);
   const [attendanceHint, setAttendanceHint] = useState<{
@@ -507,6 +508,7 @@ export function QuickBookingForm({
       paymentReceived ||
       paymentMethod !== "" ||
       staffId !== initialStaffId ||
+      customerRequestedTherapist ||
       resourceId !== "",
     [
       customerQuery,
@@ -537,6 +539,7 @@ export function QuickBookingForm({
       additionalGuests,
       seededCustomerQuery,
       staffId,
+      customerRequestedTherapist,
       time,
     ]
   );
@@ -1079,6 +1082,7 @@ export function QuickBookingForm({
           serviceIds: attendee.serviceIds,
         })) }),
         staffId: staffId || undefined,
+        customerRequestedTherapist: Boolean(staffId && customerRequestedTherapist),
         resourceId: isHomeService || groupBooking ? undefined : resourceId || undefined,
         date,
         startTime: normalizeTime(time),
@@ -1578,7 +1582,10 @@ export function QuickBookingForm({
                   <FieldLabel icon={<User size={15} />} label="Therapist" optional />
                   <select
                     value={staffId}
-                    onChange={(event) => setStaffId(event.target.value)}
+                    onChange={(event) => {
+                      setStaffId(event.target.value);
+                      setCustomerRequestedTherapist(false);
+                    }}
                     disabled={
                       isSaving ||
                       !therapistPrerequisitesReady ||
@@ -1634,6 +1641,17 @@ export function QuickBookingForm({
                       </optgroup>
                     ) : null}
                   </select>
+                  {staffId ? (
+                    <label className="mt-2 flex items-center gap-2 text-xs text-[var(--cs-text)]">
+                      <input
+                        type="checkbox"
+                        checked={customerRequestedTherapist}
+                        onChange={(event) => setCustomerRequestedTherapist(event.target.checked)}
+                        disabled={isSaving}
+                      />
+                      Customer requested this therapist
+                    </label>
+                  ) : null}
                   {therapistPrerequisitesReady &&
                   therapistAvailabilityStatus !== "loading" &&
                   therapistAvailabilityStatus !== "error" ? (

@@ -7,6 +7,7 @@ import {
   AdminOverlayHeader,
 } from "@/components/shared/overlays";
 import { formatCradleFlowMoney, type CradleFlowBooking } from "@/lib/crm/cradle-flow";
+import { TherapistProvenanceBadge } from "@/components/features/bookings/therapist-provenance-badge";
 import type { CradleFlowGroup } from "./cradle-flow-display";
 
 export function CradleFlowGroupDialog({
@@ -78,7 +79,8 @@ export function CradleFlowGroupDialog({
                   {line.end_time.slice(0, 5)}
                 </div>
                 <div className="mt-1 text-xs text-[var(--cs-text-muted)]">
-                  Therapist: {line.staff_name ?? "Not assigned"} · Room:{" "}
+                  Therapist: {line.staff_name ?? "Not assigned"}
+                  <TherapistProvenanceBadge booking={line} /> · Room:{" "}
                   {line.resource_name ?? "Not assigned"}
                 </div>
                 <div className="mt-1 text-xs font-semibold text-emerald-800">

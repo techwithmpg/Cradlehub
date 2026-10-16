@@ -14,7 +14,7 @@ import {
 
 // Full booking with all related data
 const BOOKING_SELECT = `
-  id, order_id, attendee_id, branch_id, booking_date, start_time, end_time, type, delivery_type, status,
+  id, order_id, attendee_id, branch_id, staff_id, requested_staff_id, therapist_selection_source, booking_date, start_time, end_time, type, delivery_type, status,
   booking_attendees!attendee_id ( id, sequence, display_name, customer_id ),
   booking_orders!order_id ( id, order_number, organizer_customer_id, metadata ),
   travel_buffer_mins, metadata, created_at, updated_at,
@@ -27,7 +27,7 @@ const BOOKING_SELECT = `
 `;
 
 const BOOKING_SELECT_CORE = `
-  id, order_id, attendee_id, branch_id, booking_date, start_time, end_time, type, delivery_type, status,
+  id, order_id, attendee_id, branch_id, staff_id, requested_staff_id, therapist_selection_source, booking_date, start_time, end_time, type, delivery_type, status,
   booking_attendees!attendee_id ( id, sequence, display_name, customer_id ),
   booking_orders!order_id ( id, order_number, organizer_customer_id, metadata ),
   travel_buffer_mins, metadata, created_at, updated_at, driver_id,
@@ -39,7 +39,7 @@ const BOOKING_SELECT_CORE = `
 `;
 
 const BOOKING_SELECT_WITH_PAYMENTS = `
-  id, order_id, attendee_id, branch_id, booking_date, start_time, end_time, type, delivery_type, status,
+  id, order_id, attendee_id, branch_id, staff_id, requested_staff_id, therapist_selection_source, booking_date, start_time, end_time, type, delivery_type, status,
   booking_attendees!attendee_id ( id, sequence, display_name, customer_id ),
   booking_orders!order_id ( id, order_number, organizer_customer_id, metadata ),
   travel_buffer_mins, metadata, created_at, updated_at,
@@ -53,7 +53,7 @@ const BOOKING_SELECT_WITH_PAYMENTS = `
 `;
 
 const BOOKING_SELECT_WITH_PAYMENTS_NO_RESOURCE = `
-  id, order_id, attendee_id, branch_id, booking_date, start_time, end_time, type, delivery_type, status,
+  id, order_id, attendee_id, branch_id, staff_id, requested_staff_id, therapist_selection_source, booking_date, start_time, end_time, type, delivery_type, status,
   booking_attendees!attendee_id ( id, sequence, display_name, customer_id ),
   booking_orders!order_id ( id, order_number, organizer_customer_id, metadata ),
   travel_buffer_mins, metadata, created_at, updated_at,
@@ -66,7 +66,7 @@ const BOOKING_SELECT_WITH_PAYMENTS_NO_RESOURCE = `
 `;
 
 const TODAY_SCHEDULE_SELECT = `
-  id, order_id, attendee_id, branch_id, booking_date, start_time, end_time, type, delivery_type, status,
+  id, order_id, attendee_id, branch_id, staff_id, requested_staff_id, therapist_selection_source, booking_date, start_time, end_time, type, delivery_type, status,
   booking_attendees!attendee_id ( id, sequence, display_name, customer_id ),
   booking_orders!order_id ( id, order_number, organizer_customer_id, metadata ),
   travel_buffer_mins, metadata, created_at, updated_at, driver_id,
@@ -78,7 +78,7 @@ const TODAY_SCHEDULE_SELECT = `
 `;
 
 const TODAY_SCHEDULE_SELECT_CORE = `
-  id, order_id, attendee_id, branch_id, booking_date, start_time, end_time, type, delivery_type, status,
+  id, order_id, attendee_id, branch_id, staff_id, requested_staff_id, therapist_selection_source, booking_date, start_time, end_time, type, delivery_type, status,
   booking_attendees!attendee_id ( id, sequence, display_name, customer_id ),
   booking_orders!order_id ( id, order_number, organizer_customer_id, metadata ),
   travel_buffer_mins, metadata, created_at, updated_at, driver_id,
@@ -89,7 +89,7 @@ const TODAY_SCHEDULE_SELECT_CORE = `
 `;
 
 const TODAY_SCHEDULE_SELECT_WITH_PAYMENTS = `
-  id, order_id, attendee_id, branch_id, booking_date, start_time, end_time, type, delivery_type, status,
+  id, order_id, attendee_id, branch_id, staff_id, requested_staff_id, therapist_selection_source, booking_date, start_time, end_time, type, delivery_type, status,
   booking_attendees!attendee_id ( id, sequence, display_name, customer_id ),
   booking_orders!order_id ( id, order_number, organizer_customer_id, metadata ),
   travel_buffer_mins, metadata, created_at, updated_at, driver_id,
@@ -105,7 +105,7 @@ const TODAY_SCHEDULE_SELECT_WITH_PAYMENTS = `
 `;
 
 const TODAY_SCHEDULE_SELECT_WITH_PAYMENTS_NO_RESOURCE = `
-  id, order_id, attendee_id, branch_id, booking_date, start_time, end_time, type, delivery_type, status,
+  id, order_id, attendee_id, branch_id, staff_id, requested_staff_id, therapist_selection_source, booking_date, start_time, end_time, type, delivery_type, status,
   booking_attendees!attendee_id ( id, sequence, display_name, customer_id ),
   booking_orders!order_id ( id, order_number, organizer_customer_id, metadata ),
   travel_buffer_mins, metadata, created_at, updated_at, driver_id,
@@ -181,6 +181,9 @@ type OrderRelation = OneOrMany<{
 }>;
 type BookingFullRow = {
   id: string;
+  staff_id?: string | null;
+  requested_staff_id?: string | null;
+  therapist_selection_source?: string | null;
   order_id: string | null;
   attendee_id: string | null;
   booking_attendees: AttendeeRelation;
@@ -207,6 +210,9 @@ type BookingFullRow = {
 } & MaybePaymentFields;
 type TodayScheduleRow = {
   id: string;
+  staff_id?: string | null;
+  requested_staff_id?: string | null;
+  therapist_selection_source?: string | null;
   order_id: string | null;
   attendee_id: string | null;
   booking_attendees: AttendeeRelation;
@@ -324,7 +330,15 @@ function isMissingResourceColumn(error: QueryError | null): boolean {
 }
 
 function canRetryWithOlderBookingSchema(error: QueryError | null): boolean {
-  return isMissingPaymentColumns(error) || isMissingResourceColumn(error);
+  return isMissingPaymentColumns(error) || isMissingResourceColumn(error) || isMissingProvenanceColumns(error);
+}
+
+function isMissingProvenanceColumns(error: QueryError | null): boolean {
+  return Boolean(error && /requested_staff_id|therapist_selection_source/i.test(error.message));
+}
+
+function withoutProvenance(select: string): string {
+  return select.replace(/\b(?:requested_staff_id|therapist_selection_source)\s*,\s*/g, "");
 }
 
 function withPaymentDefaults<T extends object>(
@@ -372,7 +386,8 @@ async function loadBookingRows<T extends object>(
   let lastError: QueryError | null = null;
 
   for (const variant of variants) {
-    const result = await query(variant.select);
+    let result = await query(variant.select);
+    if (isMissingProvenanceColumns(result.error)) result = await query(withoutProvenance(variant.select));
 
     if (!result.error) {
       return attachBranchResources(
@@ -399,7 +414,8 @@ async function loadBookingRow<T extends object>(
   let lastError: QueryError | null = null;
 
   for (const variant of variants) {
-    const result = await query(variant.select);
+    let result = await query(variant.select);
+    if (isMissingProvenanceColumns(result.error)) result = await query(withoutProvenance(variant.select));
 
     if (!result.error) {
       const [booking] = await attachBranchResources(

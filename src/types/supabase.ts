@@ -1317,7 +1317,9 @@ export type Database = {
           payment_reference: string | null
           payment_status: string
           resource_id: string | null
+          requested_staff_id: string | null
           service_id: string
+          therapist_selection_source: string
           session_auto_completed_at: string | null
           session_completed_at: string | null
           session_completed_by: string | null
@@ -1368,7 +1370,9 @@ export type Database = {
           payment_reference?: string | null
           payment_status?: string
           resource_id?: string | null
+          requested_staff_id?: string | null
           service_id: string
+          therapist_selection_source?: string
           session_auto_completed_at?: string | null
           session_completed_at?: string | null
           session_completed_by?: string | null
@@ -1419,7 +1423,9 @@ export type Database = {
           payment_reference?: string | null
           payment_status?: string
           resource_id?: string | null
+          requested_staff_id?: string | null
           service_id?: string
+          therapist_selection_source?: string
           session_auto_completed_at?: string | null
           session_completed_at?: string | null
           session_completed_by?: string | null
@@ -1491,6 +1497,13 @@ export type Database = {
             columns: ["resource_id"]
             isOneToOne: false
             referencedRelation: "branch_resources"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "bookings_requested_staff_id_fkey"
+            columns: ["requested_staff_id"]
+            isOneToOne: false
+            referencedRelation: "staff"
             referencedColumns: ["id"]
           },
           {

@@ -39,6 +39,8 @@ type ResourceRel = { name: string };
 
 type BookingRow = {
   id: string;
+  requested_staff_id?: string | null;
+  therapist_selection_source?: string | null;
   order_id?: string | null;
   attendee_id?: string | null;
   booking_attendees?: Relation<{
@@ -278,6 +280,8 @@ export default async function CrmTodayPage({
       service_duration: first(b.services)?.duration_minutes ?? null,
       staff_name: first(b.staff) ? getStaffAdminName(first(b.staff)!) : null,
       staff_id: first(b.staff)?.id ?? null,
+      requested_staff_id: b.requested_staff_id ?? null,
+      therapist_selection_source: b.therapist_selection_source ?? "legacy_unknown",
       resource_name: b.resource_id
         ? (resourceNameMap.get(b.resource_id) ?? first(b.branch_resources)?.name ?? null)
         : (first(b.branch_resources)?.name ?? null),

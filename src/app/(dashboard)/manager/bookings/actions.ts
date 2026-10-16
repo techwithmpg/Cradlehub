@@ -366,7 +366,10 @@ export async function editBookingAction(rawInput: unknown) {
       }
 
       updates.end_time = await computeEndTime(resolvedStartTime, resolvedServiceId);
-      if (changes.staffId) updates.staff_id = changes.staffId;
+      if (changes.staffId && changes.staffId !== current.staff_id) {
+        updates.staff_id = changes.staffId;
+        updates.therapist_selection_source = "front_desk_selected";
+      }
       if (changes.serviceId) updates.service_id = changes.serviceId;
       if (changes.date) updates.booking_date = changes.date;
       if (changes.startTime) updates.start_time = changes.startTime;
@@ -445,9 +448,12 @@ export async function editBookingAction(rawInput: unknown) {
     }
   }
 
-  const _editUpdateQ = supabase.from("bookings").update(updates).eq("id", bookingId);
+  // Provenance is written only by an authorized server operation. The row was
+  // loaded through the caller's scoped session above; retain its branch guard.
+  const writeClient = updates.staff_id ? createAdminClient() : supabase;
+  const _editUpdateQ = writeClient.from("bookings").update(updates).eq("id", bookingId);
   const { data: updatedRows, error } = await (
-    me.system_role !== "owner" ? _editUpdateQ.eq("branch_id", me.branch_id) : _editUpdateQ
+    _editUpdateQ.eq("branch_id", current.branch_id)
   ).select("id, branch_id");
 
   if (error) return { success: false, error: error.message };

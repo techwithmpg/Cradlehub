@@ -13,6 +13,7 @@ import { SelectedBookingDetails } from "./selected-booking-details";
 import { SelectedBookingServiceSession } from "./selected-booking-service-session";
 import type { CrmBookingGroup } from "@/lib/bookings/crm-booking-groups";
 import { firstBookingRelation } from "@/lib/bookings/booking-display";
+import { TherapistProvenanceBadge } from "./therapist-provenance-badge";
 
 type SessionOverride = {
   status: "in_progress";
@@ -83,6 +84,10 @@ export function SelectedBookingCommandPane({
                 </span>
                 <span className="block text-[var(--cs-text-muted)]">
                   {firstBookingRelation(line.services)?.name ?? "Service"} · {line.status}
+                </span>
+                <span className="block text-[var(--cs-text-muted)]">
+                  Therapist: {firstBookingRelation(line.staff)?.full_name ?? "Not assigned"}
+                  <TherapistProvenanceBadge booking={line} />
                 </span>
               </button>
             ))}

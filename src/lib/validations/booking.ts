@@ -106,6 +106,7 @@ export const createInhouseBookingMultiSchema = z
       serviceIds: z.array(uuid).min(1, "Select a service for each guest.").max(5),
     }).strict()).min(1).max(4).optional(),
     staffId: uuid.optional(), // undefined = auto-assign by seniority
+    customerRequestedTherapist: z.boolean().optional(),
     resourceId: uuid.optional().nullable(),
     date: anyDate,
     startTime: timeStr,
@@ -158,6 +159,9 @@ export const createInhouseBookingMultiSchema = z
       .optional(),
   })
   .superRefine((data, ctx) => {
+    if (data.customerRequestedTherapist && !data.staffId) {
+      ctx.addIssue({ code: "custom", message: "Select a therapist requested by the customer.", path: ["staffId"] });
+    }
     if (data.attendees) {
       const attendeeIds = data.attendees.map((attendee) => attendee.id);
       if (new Set(attendeeIds).size !== attendeeIds.length) {

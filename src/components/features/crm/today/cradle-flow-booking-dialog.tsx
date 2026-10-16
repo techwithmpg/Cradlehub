@@ -9,6 +9,7 @@ import { assignBookingTherapistAction } from "@/app/(dashboard)/crm/bookings/act
 import { assignBookingDriverAction } from "@/lib/actions/driver-actions";
 import { getAssignmentRecommendationsAction } from "@/lib/actions/assignment-recommendations";
 import { notifyBookingsChanged } from "@/lib/bookings/bookings-client-events";
+import { TherapistProvenanceBadge } from "@/components/features/bookings/therapist-provenance-badge";
 import {
   AdminDialog,
   AdminOverlayBody,
@@ -49,14 +50,14 @@ function readMetadataNumber(value: unknown): number | null {
   return null;
 }
 
-function Detail({ label, value, icon }: { label: string; value: string; icon?: React.ReactNode }) {
+function Detail({ label, value, icon, badge }: { label: string; value: string; icon?: React.ReactNode; badge?: React.ReactNode }) {
   return (
     <div className="rounded-lg border border-[var(--cs-border-soft)] bg-[var(--cs-surface-warm)] p-3">
       <div className="flex items-center gap-1.5 text-[10px] font-bold uppercase tracking-wide text-[var(--cs-text-muted)]">
         {icon}
         {label}
       </div>
-      <div className="mt-1 text-sm font-semibold text-[var(--cs-text)]">{value}</div>
+      <div className="mt-1 text-sm font-semibold text-[var(--cs-text)]">{value}{badge}</div>
     </div>
   );
 }
@@ -160,6 +161,7 @@ export function CradleFlowBookingDialog({
           <Detail
             label="Therapist"
             value={booking.staff_name ?? "Needs assignment"}
+            badge={<TherapistProvenanceBadge booking={booking} />}
             icon={<UserRound className="size-3" />}
           />
           {homeService ? (

@@ -13,6 +13,7 @@ import { getRequiredResourceType } from "@/lib/schedule/live-schedule-conflicts"
 import { cn, formatTime } from "@/lib/utils";
 import { formatBranchYmd } from "@/lib/engine/slot-time";
 import type { CrmBookingGroup } from "@/lib/bookings/crm-booking-groups";
+import { TherapistProvenanceBadge } from "./therapist-provenance-badge";
 
 export function getBookingListIssueLabel(booking: WorkspaceBookingRow): string | null {
   if (isBookingClosedForCrm(booking.status)) return null;
@@ -144,6 +145,7 @@ export function BookingListRow({
                 {firstBookingRelation(booking.services)?.name ?? "Service"} ·{" "}
                 {isHomeServiceBooking(booking) ? "Home Service" : "In spa"} ·{" "}
                 {firstBookingRelation(booking.staff)?.full_name ?? "Staff unassigned"}
+                <TherapistProvenanceBadge booking={booking} />
                 {isHomeServiceBooking(booking)
                   ? ` · Driver: ${firstBookingRelation(booking.driver)?.full_name ?? "Not assigned"}`
                   : ` · Room: ${firstBookingRelation(booking.branch_resources)?.name ?? "Not assigned"}`}

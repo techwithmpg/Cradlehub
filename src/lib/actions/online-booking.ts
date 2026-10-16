@@ -28,6 +28,7 @@ import { createNotification } from "@/lib/notifications/create";
 import { logError, logBusinessEvent } from "@/lib/logger";
 import { revalidateOperationalBookingSurfaces } from "@/lib/bookings/revalidate-booking-surfaces";
 import { evaluateOnlineSelectedStaff } from "@/lib/bookings/online-selected-staff";
+import { bookingCreationProvenance } from "@/lib/bookings/therapist-provenance";
 import {
   createOpenStaffScheduleException,
   readStaffScheduleException,
@@ -390,6 +391,7 @@ export async function createOnlineBookingAction(
         branch_id: d.branchId,
         service_id: d.serviceId,
         staff_id: resolvedStaffId,
+        ...bookingCreationProvenance({ selectedStaffId: d.staffId, assignedStaffId: resolvedStaffId, selectedBy: "customer" }),
         customer_id: resolvedCustomerId,
         booking_date: d.date,
         start_time: d.startTime,
@@ -987,6 +989,12 @@ export async function createOnlineBookingMultiAction(
                 createdAt: new Date().toISOString(),
               })
             : lineMeta;
+
+        finalLineMeta._therapist_provenance = bookingCreationProvenance({
+          selectedStaffId: attendee.index === 0 ? d.staffId : null,
+          assignedStaffId: attendeeStaffId,
+          selectedBy: "customer",
+        });
 
         const scheduleException = readStaffScheduleException(finalLineMeta);
         if (scheduleException) {

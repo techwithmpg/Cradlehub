@@ -13,16 +13,19 @@ import {
 import { canUpdateBooking } from "@/lib/permissions";
 import { formatCurrency } from "@/lib/utils";
 import type { CrmBookingGroup } from "@/lib/bookings/crm-booking-groups";
+import { TherapistProvenanceBadge } from "./therapist-provenance-badge";
 
 function SummaryCell({
   icon,
   label,
   value,
+  badge,
   children,
 }: {
   icon: React.ReactNode;
   label: string;
   value: string;
+  badge?: React.ReactNode;
   children?: React.ReactNode;
 }) {
   return (
@@ -36,6 +39,7 @@ function SummaryCell({
         title={value}
       >
         {value}
+        {badge}
       </span>
       {children ? <div className="mt-2">{children}</div> : null}
     </div>
@@ -69,6 +73,7 @@ export function SelectedBookingSummaryBand({
         icon={<UserRound className="size-5" />}
         label="Staff"
         value={getBookingStaffName(booking)}
+        badge={<TherapistProvenanceBadge booking={booking} />}
       >
         {canEdit ? (
           <button type="button" onClick={onChangeStaff} className={actionClass}>

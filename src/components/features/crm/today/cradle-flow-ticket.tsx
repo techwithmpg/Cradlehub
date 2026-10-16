@@ -12,6 +12,7 @@ import {
 import { getCradleFlowDisplayStatus, isHomeServiceVisit } from "./cradle-flow-display";
 import { formatBranchYmd } from "@/lib/engine/slot-time";
 import type { CradleFlowGroup } from "./cradle-flow-display";
+import { TherapistProvenanceBadge } from "@/components/features/bookings/therapist-provenance-badge";
 
 function formatTime(value: string | null | undefined): string {
   if (!value) return "—";
@@ -188,6 +189,7 @@ export function CradleFlowTicket({
           <span className="inline-flex min-w-0 items-center gap-1">
             <UserRound className="size-3.5 shrink-0" aria-hidden="true" />
             Therapist: {booking.staff_name ?? "Not assigned"}
+            <TherapistProvenanceBadge booking={booking} />
           </span>
           {homeService ? <span>Driver: {booking.driver_name ?? "Not assigned"}</span> : null}
           <span className="inline-flex min-w-0 items-center gap-1">

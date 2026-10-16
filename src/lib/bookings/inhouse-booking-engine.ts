@@ -29,6 +29,7 @@ import { logError, logBusinessEvent } from "@/lib/logger";
 import { revalidateOperationalBookingSurfaces } from "@/lib/bookings/revalidate-booking-surfaces";
 import { canAccessCrmWorkspace } from "@/lib/auth/crm-permissions";
 import { isConsultationOnlyService } from "@/lib/bookings/consultation-only-service";
+import { bookingCreationProvenance } from "@/lib/bookings/therapist-provenance";
 import { validateBranchServiceEligibility } from "@/lib/services/service-catalog";
 
 export type CreateInhouseBookingResult =
@@ -115,6 +116,9 @@ export async function executeInhouseBookingCreation(
   }
 
   const d: CreateInhouseBookingMultiInput = parsed.data;
+  if (d.customerRequestedTherapist && !d.staffId) {
+    return { ok: false, code: "VALIDATION_ERROR", message: "Select a therapist requested by the customer." };
+  }
   const attendees = d.attendees ?? [{
     id: crypto.randomUUID(), name: d.fullName, isOrganizer: true, serviceIds: d.serviceIds,
   }];
@@ -794,7 +798,14 @@ export async function executeInhouseBookingCreation(
           deliveryType === "home_service"
             ? (d.travelBufferMins ?? rulesCheck.rules.travelBufferMins)
             : null,
-        metadata,
+        metadata: {
+          ...metadata,
+          _therapist_provenance: bookingCreationProvenance({
+            selectedStaffId: attendeeIndex === 0 ? d.staffId : null,
+            assignedStaffId: attendeeStaffIds[attendeeIndex]!,
+            selectedBy: d.customerRequestedTherapist ? "customer" : "front_desk",
+          }),
+        },
       });
 
       currentStart = endTime;

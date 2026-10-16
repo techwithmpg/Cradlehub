@@ -4,6 +4,9 @@ export type OneOrMany<T> = T | T[] | null;
 
 export type WorkspaceBookingRow = {
   id: string;
+  staff_id?: string | null;
+  requested_staff_id?: string | null;
+  therapist_selection_source?: string | null;
   order_id?: string | null;
   order_payment_status?: string | null;
   order_amount_paid?: number | null;

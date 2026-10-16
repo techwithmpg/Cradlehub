@@ -992,7 +992,7 @@ export async function rescheduleBooking(
     booking_date: nextDate,
     start_time: nextStartTime,
     end_time: nextEndTime,
-    ...(staffChanged && targetStaffId ? { staff_id: targetStaffId } : {}),
+    ...(staffChanged && targetStaffId ? { staff_id: targetStaffId, therapist_selection_source: "front_desk_selected" } : {}),
     metadata: updatedMetadata as Database["public"]["Tables"]["bookings"]["Update"]["metadata"],
   };
 
@@ -1256,6 +1256,7 @@ export async function assignBookingTherapist(
     .from("bookings")
     .update({
       staff_id: parsed.data.staffId,
+      therapist_selection_source: "front_desk_selected",
       metadata: nextMetadata as Database["public"]["Tables"]["bookings"]["Update"]["metadata"],
     })
     .eq("id", booking.id)
