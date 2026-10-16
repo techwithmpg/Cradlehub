@@ -141,3 +141,77 @@ Checkpoint in progress. No release verdict yet.
 - Targeted tests: `pnpm vitest run tests/lib/bookings/purchased-commercial-snapshot-immutability.test.ts` (14/14 passed).
 - Production state: Forward migration committed to repository but NOT APPLIED to production (gated on release DB authorization).
 
+### CRM booking_orders and booking_attendees read RLS — forward security migration
+
+- Previous HEAD: `392f898f42e270e38f8b411e34cb7189b67863b6`.
+- Identified security defect:
+  - Migration `20260927080000_bkg3_booking_order_atomic.sql` contained:
+    - `booking_orders_crm_read_all` (USING: `public.get_auth_role() = 'crm'`)
+    - `booking_attendees_crm_read_all` (USING: `public.get_auth_role() = 'crm'`)
+  - Application query filtering (`.eq("branch_id", ...)` in server actions) is NOT an authorization boundary. Authenticated CRM clients could query cross-branch booking orders and attendees directly through the Data API.
+- Resolution & Semantics:
+  - Created forward migration `supabase/migrations/20261016224500_scope_crm_booking_order_and_attendee_read_rls.sql`.
+  - Historical BKG3 migration left unmodified.
+  - Dropped broad `booking_orders_crm_read_all` and `booking_attendees_crm_read_all`.
+  - Created `booking_orders_crm_read_branch`:
+    `public.get_auth_role() = 'crm' AND branch_id = public.get_auth_branch_id()`
+  - Created `booking_attendees_crm_read_branch`:
+    `public.get_auth_role() = 'crm' AND EXISTS (SELECT 1 FROM public.booking_orders bo WHERE bo.id = booking_attendees.booking_order_id AND bo.branch_id = public.get_auth_branch_id())`
+  - Owner cross-branch SELECT retained intact.
+  - Manager/assistant/store-manager branch SELECT retained intact.
+  - Service-role access retained intact.
+  - Zero direct INSERT/UPDATE/DELETE granted to CRM.
+- Tests: `tests/lib/bookings/crm-booking-order-rls-scope.test.ts` (10/10 passed).
+- Production state: Forward migration committed to repository but NOT APPLIED to production (gated on release DB authorization).
+
+### Home Service transportation pricing schema — production inspection and release path
+
+- Inspection Target: Production Supabase (`lsrbwqhvzjfpiabeolkv`), table `public.branch_booking_rules`. READ-ONLY. Zero mutations.
+- Current Production Evidence:
+  - Branch `c1000000-0000-0000-0000-000000000001` (Main Branch):
+    - `home_service_enabled`: `true`
+    - `home_service_free_km`: `5`
+    - `home_service_extra_km_fee`: `100`
+    - `home_service_base_fee`: missing (column does not exist)
+  - Branch `c1000000-0000-0000-0000-000000000002` (SM Branch):
+    - `home_service_enabled`: `false`
+    - `home_service_free_km`: `5`
+    - `home_service_extra_km_fee`: `100`
+    - `home_service_base_fee`: missing (column does not exist)
+  - Total existing rows: 2 rows.
+- Analysis & Release Strategy Options:
+  - Repository migration `20261016165500_home_service_transportation_pricing.sql` adds `home_service_base_fee integer not null default 100` and executes an unconditional `UPDATE` setting `base_fee = 100, free_km = 1, extra_km_fee = 40`.
+  - Option A (Owner-authorized standard policy): If the accepted policy (₱100 base / 1 km free / ₱40 per extra km) is intended to supersede existing values across all branches, the exact 2 affected branch records are documented above and require explicit Owner authorization to apply at release.
+  - Option B (Preserve existing branch configuration): If existing branch values (5 km free / ₱100 extra km fee) must be retained, the migration update step should be amended before release to preserve existing `free_km` and `extra_km_fee` values while populating `home_service_base_fee = 100`.
+- Release Gate Decision: OWNER DECISION REQUIRED between Option A and Option B before applying migration at release. Zero production mutation performed.
+
+## Release Gate Summary
+
+- CRM booking_orders RLS: PASS
+- CRM booking_attendees RLS: PASS
+- HOME SERVICE TRANSPORT SCHEMA: OWNER DECISION REQUIRED
+- HOME SERVICE CURRENT PROD VALUES:
+  - Main Branch (`c1000000-0000-0000-0000-000000000001`): free_km = 5, extra_km_fee = 100, base_fee = missing
+  - SM Branch (`c1000000-0000-0000-0000-000000000002`): free_km = 5, extra_km_fee = 100, base_fee = missing
+- NEW SECURITY MIGRATION: `supabase/migrations/20261016224500_scope_crm_booking_order_and_attendee_read_rls.sql`
+- TRANSPORT MIGRATION: OWNER DECISION REQUIRED (Option A: apply standard 100/1/40 to 2 rows with owner approval; Option B: amend to preserve 5/100)
+- PURCHASED SNAPSHOT MIGRATION: NOT APPLIED (`20261016223000_enforce_purchased_commercial_snapshot_immutability.sql`)
+- DURATION CONSTRAINT MIGRATION: NOT APPLIED (`20261016193500_tighten_service_duration_extension_price_constraint.sql`)
+- PRODUCTION WRITES: NONE
+- REMOTE CHECKPOINT SHA: recorded on push
+- FULL VITEST: 357 passed | 2 skipped (359 test files), 2831 passed | 2 skipped (2833 tests)
+- TYPECHECK: PASS (`tsc --noEmit` clean)
+- LINT: PASS (`eslint` clean)
+- BUILD: PASS (`next build` compiled 153/153 static and dynamic routes cleanly)
+
+## Final Checkpoint Verdict
+
+**CORRECTION COMPLETED — STOP FOR OWNER REVIEW**
+
+- Branch-scoped RLS security for CRM booking orders and attendees implemented via forward migration.
+- Production inspection of branch booking rules completed; exact row values documented; release paths A & B presented for Owner determination.
+- All 4 quality gates pass.
+- No merge to `main`.
+- No production database writes or migration executions performed.
+
+
