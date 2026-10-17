@@ -17,7 +17,7 @@ export default async function OwnerAttendancePage({
   searchParams: Promise<AttendanceSearchParams>;
 }) {
   const params = await searchParams;
-  const branchResult = await loadOwnerAttendanceBranch(oneAttendanceParam(params.branchId));
+  const branchResult = await loadOwnerAttendanceBranch(params.branchId ?? null);
   const activeTab = parseAttendanceTab(params.tab);
   const headerStore = await headers();
 

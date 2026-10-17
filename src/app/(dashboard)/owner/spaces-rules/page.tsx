@@ -5,6 +5,7 @@ import { getBranchWithFullDetail } from "@/lib/queries/branches";
 import { getBranchBookingRulesOrDefault } from "@/lib/queries/branch-booking-rules";
 import { createClient } from "@/lib/supabase/server";
 import { getStaffAdminName } from "@/lib/staff/display-name";
+import { ownerScopeSearch, resolveOwnerOperationalScope } from "@/lib/owner/operational-scope";
 
 async function getOwnerContext() {
   const supabase = await createClient();
@@ -31,10 +32,8 @@ export default async function OwnerSpacesRulesPage({
   const params = await searchParams;
   const [branches] = await Promise.all([getAllBranches()]);
 
-  const selectedBranchId =
-    params.branchId && branches.some((b) => b.id === params.branchId)
-      ? params.branchId
-      : branches[0]?.id ?? "";
+  const scope = resolveOwnerOperationalScope({ pathname: "/owner/spaces-rules", searchParams: ownerScopeSearch(params), authorizedBranches: branches });
+  const selectedBranchId = scope.kind === "branch" ? scope.branchId : "";
 
   const selectedBranch = branches.find((b) => b.id === selectedBranchId);
 

@@ -66,6 +66,28 @@ beforeEach(() => {
 afterEach(cleanup);
 
 describe("OwnerReportsPage retained data", () => {
+  it("does not present stale server branch data after native-history branch switches or clearing the filter", async () => {
+    const MAIN = "11111111-1111-4111-8111-111111111111";
+    const SM = "22222222-2222-4222-8222-222222222222";
+    const initialData = { ...reportData("Main-only-data", "last7"), branchId: MAIN };
+    const pending = deferred<{ success: true; data: OwnerReportsData }>();
+    getReports.mockReturnValue(pending.promise);
+    currentSearchParams = new URLSearchParams({ branchId: MAIN });
+    const tree = () => <SWRConfig value={{ provider: () => new Map() }}>
+      <OwnerReportsPage initialData={initialData} initialRequest={{ branchId: MAIN, preset: "last7" }} />
+    </SWRConfig>;
+    const view = render(tree());
+    expect(screen.getAllByText("Main-only-data").length).toBeGreaterThan(0);
+    currentSearchParams = new URLSearchParams({ branchId: SM });
+    view.rerender(tree());
+    expect(screen.queryByText("Main-only-data")).toBeNull();
+    await waitFor(() => expect(getReports).toHaveBeenCalledWith(expect.objectContaining({ branchId: SM })));
+    currentSearchParams = new URLSearchParams();
+    view.rerender(tree());
+    expect(screen.queryByText("Main-only-data")).toBeNull();
+    await waitFor(() => expect(getReports).toHaveBeenCalledWith(expect.objectContaining({ branchId: undefined })));
+  });
+
   it("keeps previous charts visible while a history-backed filter revalidates", async () => {
     const nextRequest = deferred<{ success: true; data: OwnerReportsData }>();
     getReports.mockReturnValue(nextRequest.promise);

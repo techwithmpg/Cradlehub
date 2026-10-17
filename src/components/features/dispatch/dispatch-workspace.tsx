@@ -19,6 +19,7 @@ import { refreshDispatchDataAction } from "@/lib/actions/dispatch-data-actions";
 import { BOOKINGS_CHANGED_EVENT } from "@/lib/bookings/bookings-client-events";
 import { DispatchFlowTab } from "./dispatch-flow-tab";
 import { DispatchLiveMapTab } from "./dispatch-live-map-tab";
+import { useWorkspaceSWRKey } from "@/components/features/dashboard/workspace-swr-cache";
 
 type TabId = "flow" | "map";
 
@@ -33,6 +34,7 @@ export interface HomeServiceDispatchWorkspaceProps {
   showHeader?: boolean;
   upcoming?: boolean;
   selectedBookingId?: string;
+  ownerBranchId?: string;
 }
 
 function statusText(value: unknown): string {
@@ -82,19 +84,24 @@ export function HomeServiceDispatchWorkspace({
   showHeader = true,
   upcoming = false,
   selectedBookingId,
+  ownerBranchId,
 }: HomeServiceDispatchWorkspaceProps) {
+  const ownerKey = useWorkspaceSWRKey(["owner-dispatch", ownerBranchId, initialData.today, upcoming]);
+  const ownerMapKey = useWorkspaceSWRKey(["owner-dispatch-map", ownerBranchId, initialData.today]);
+  const ownerScope = ownerBranchId ? { expectedOwnerBranchId: ownerBranchId } : {};
   const {
     data = initialData,
     error,
     mutate,
   } = useSWR(
-    ["dispatch-workspace", initialData.today, upcoming],
+    ownerBranchId ? ownerKey : ["dispatch-workspace", initialData.today, upcoming],
     async () => {
-      const result = await refreshDispatchDataAction(initialData.today, { upcoming });
+      const result = await refreshDispatchDataAction(initialData.today, { upcoming, ...ownerScope });
       if (!result.success) throw new Error(result.error);
       if (selectedBookingId && !result.data.items.some((item) => item.id === selectedBookingId)) {
         const exact = await refreshDispatchDataAction(initialData.today, {
           bookingId: selectedBookingId,
+          ...ownerScope,
         });
         if (!exact.success) throw new Error(exact.error);
         result.data.items.push(...exact.data.items);
@@ -114,9 +121,9 @@ export function HomeServiceDispatchWorkspace({
     error: mapError,
     mutate: mutateMap,
   } = useSWR(
-    activeTab === "map" ? ["dispatch-active-map", initialData.today] : null,
+    activeTab === "map" ? (ownerBranchId ? ownerMapKey : ["dispatch-active-map", initialData.today]) : null,
     async () => {
-      const result = await refreshDispatchDataAction(initialData.today, { scope: "active_map" });
+      const result = await refreshDispatchDataAction(initialData.today, { scope: "active_map", ...ownerScope });
       if (!result.success) throw new Error(result.error);
       return result.data;
     },
