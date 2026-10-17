@@ -199,9 +199,11 @@ export function CrmStaffWorkspace(props: CrmStaffWorkspaceProps) {
         </label>
       </div>
 
+      <span id="staff-selected-section" className="sr-only">{tabs.find((tab) => tab.key === activeTab)?.label ?? "Staff Management"}</span>
+
       <AttendanceTabPanel
         id="staff-panel-applications"
-        labelledBy="staff-tab-applications"
+        labelledBy="staff-selected-section"
         active={activeTab === "applications"}
       >
         <CrmStaffApplicationsTab
@@ -215,7 +217,7 @@ export function CrmStaffWorkspace(props: CrmStaffWorkspaceProps) {
 
       <AttendanceTabPanel
         id="staff-panel-branch-corrections"
-        labelledBy="staff-tab-branch-corrections"
+        labelledBy="staff-selected-section"
         active={activeTab === "branch-corrections"}
       >
         <CrmStaffBranchCorrectionsTab
@@ -226,7 +228,7 @@ export function CrmStaffWorkspace(props: CrmStaffWorkspaceProps) {
 
       <AttendanceTabPanel
         id="staff-panel-management"
-        labelledBy="staff-tab-management"
+        labelledBy="staff-selected-section"
         active={activeTab === "management"}
       >
         <CrmStaffManagementTab
@@ -320,7 +322,7 @@ export function CrmStaffWorkspace(props: CrmStaffWorkspaceProps) {
 
       <AttendanceTabPanel
         id="staff-panel-assignments"
-        labelledBy="staff-tab-assignments"
+        labelledBy="staff-selected-section"
         active={activeTab === "assignments"}
       >
         <CrmStaffAssignmentsTab
@@ -335,7 +337,7 @@ export function CrmStaffWorkspace(props: CrmStaffWorkspaceProps) {
 
       <AttendanceTabPanel
         id="staff-panel-status"
-        labelledBy="staff-tab-status"
+        labelledBy="staff-selected-section"
         active={activeTab === "status"}
       >
         <CrmStaffStatusTab
