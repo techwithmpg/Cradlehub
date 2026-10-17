@@ -135,7 +135,7 @@ function StaffRowActions({
   basePath: string;
   workspaceContext: "owner" | "manager" | "crm";
 }) {
-  const hasEditLink = workspaceContext !== "crm";
+  const hasEditLink = workspaceContext !== "crm" && !onEditStaff;
   return (
     <DropdownMenu>
       <DropdownMenuTrigger
@@ -154,10 +154,18 @@ function StaffRowActions({
           <UserCheck className="mr-2 size-4" aria-hidden="true" />
           View in panel
         </DropdownMenuItem>
-        {workspaceContext === "crm" && onEditStaff && (
+        {onEditStaff && (
           <DropdownMenuItem onSelect={() => onEditStaff(member)}>
             <Pencil className="mr-2 size-4" aria-hidden="true" />
             Edit profile
+          </DropdownMenuItem>
+        )}
+        {workspaceContext === "owner" && onEditStaff && (
+          <DropdownMenuItem>
+            <Link href={basePath + "/" + member.id} className="flex w-full items-center gap-2">
+              <Pencil className="size-4" aria-hidden="true" />
+              Open full profile
+            </Link>
           </DropdownMenuItem>
         )}
         {hasEditLink && (

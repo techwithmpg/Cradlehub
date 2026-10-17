@@ -30,6 +30,7 @@ type StaffManagementWorkspaceProps = {
   onEditStaff?: (staff: StaffMember) => void;
   /** CRM-only: callback to open inline service capability editor */
   onManageServices?: (staff: StaffMember) => void;
+  onEditWorkSetup?: (staff: StaffMember) => void;
   /** CRM-only: callback to toggle staff active/inactive */
   onToggleActive?: (staff: StaffMember) => void;
 };
@@ -48,6 +49,7 @@ export function StaffManagementWorkspace({
   workspaceContext = "owner",
   onEditStaff,
   onManageServices,
+  onEditWorkSetup,
   onToggleActive,
 }: StaffManagementWorkspaceProps) {
   const isOwner = workspaceContext === "owner";
@@ -239,6 +241,7 @@ export function StaffManagementWorkspace({
             workspaceContext={workspaceContext}
             onEditStaff={onEditStaff}
             onManageServices={onManageServices}
+            onEditWorkSetup={onEditWorkSetup}
             onToggleActive={onToggleActive}
           />
         </div>

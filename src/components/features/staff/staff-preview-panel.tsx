@@ -45,6 +45,7 @@ type StaffPreviewPanelProps = {
   onEditStaff?: (staff: StaffMember) => void;
   /** CRM-only: open the inline service capability editor */
   onManageServices?: (staff: StaffMember) => void;
+  onEditWorkSetup?: (staff: StaffMember) => void;
   /** CRM-only: toggle active/inactive status */
   onToggleActive?: (staff: StaffMember) => void;
 };
@@ -55,6 +56,7 @@ export function StaffPreviewPanel({
   workspaceContext = "owner",
   onEditStaff,
   onManageServices,
+  onEditWorkSetup,
   onToggleActive,
 }: StaffPreviewPanelProps) {
   const isOwner = workspaceContext === "owner";
@@ -97,7 +99,7 @@ export function StaffPreviewPanel({
               }
             />
             <DropdownMenuContent align="end" className="min-w-44">
-              {!isCrm && (
+              {!isCrm && !(isOwner && onEditStaff) && (
                 <DropdownMenuItem>
                   <Link href={`${basePath}/${staff.id}`} className="flex w-full items-center gap-2">
                     <UserCog className="size-4" aria-hidden="true" />
@@ -105,16 +107,24 @@ export function StaffPreviewPanel({
                   </Link>
                 </DropdownMenuItem>
               )}
-              {isCrm && onEditStaff && (
+              {onEditStaff && (
                 <DropdownMenuItem onSelect={() => onEditStaff(staff)}>
                   <UserCog className="size-4" aria-hidden="true" />
                   Edit profile
                 </DropdownMenuItem>
               )}
-              {isCrm && onManageServices && (
+              {onManageServices && (
                 <DropdownMenuItem onSelect={() => onManageServices(staff)}>
                   <Sparkles className="size-4" aria-hidden="true" />
                   Manage services
+                </DropdownMenuItem>
+              )}
+              {isOwner && onEditStaff && (
+                <DropdownMenuItem>
+                  <Link href={basePath + "/" + staff.id} className="flex w-full items-center gap-2">
+                    <UserCog className="size-4" aria-hidden="true" />
+                    Open full profile
+                  </Link>
                 </DropdownMenuItem>
               )}
             </DropdownMenuContent>
@@ -186,13 +196,34 @@ export function StaffPreviewPanel({
                   </Link>
                 </Button>
               )}
-              <QuickAction href={`${basePath}/${staff.id}`} label={profileActionLabel} Icon={UserCog} />
-              {isOwner && (
-                <QuickAction href={`${basePath}/${staff.id}`} label="Assign Branch" Icon={MapPin} />
+              {isOwner && onEditStaff ? (
+                <Button variant="outline" size="lg" onClick={() => onEditStaff(staff)} className="justify-start border-[var(--cs-border)] bg-[var(--cs-surface)]">
+                  <UserCog className="size-4" aria-hidden="true" /> {profileActionLabel}
+                </Button>
+              ) : (
+                <QuickAction href={basePath + "/" + staff.id} label={profileActionLabel} Icon={UserCog} />
               )}
-              <QuickAction href={`${basePath}/${staff.id}`} label="Change Role" Icon={ShieldCheck} />
+              {isOwner && onManageServices && (
+                <Button variant="outline" size="lg" onClick={() => onManageServices(staff)} className="justify-start border-[var(--cs-border)] bg-[var(--cs-surface)]">
+                  <Sparkles className="size-4" aria-hidden="true" /> Manage Services
+                </Button>
+              )}
+              {isOwner && onEditWorkSetup ? (
+                <Button variant="outline" size="lg" onClick={() => onEditWorkSetup(staff)} className="justify-start border-[var(--cs-border)] bg-[var(--cs-surface)]">
+                  <MapPin className="size-4" aria-hidden="true" /> Assign Branch / Role
+                </Button>
+              ) : (
+                <>
+                  {isOwner && <QuickAction href={basePath + "/" + staff.id} label="Assign Branch" Icon={MapPin} />}
+                  <QuickAction href={basePath + "/" + staff.id} label="Change Role" Icon={ShieldCheck} />
+                </>
+              )}
               {status === "active" && (
-                <QuickAction href={`${basePath}/${staff.id}`} label="Deactivate Staff" Icon={UserRoundX} danger />
+                isOwner && onEditStaff ? (
+                  <Button variant="outline" size="lg" onClick={() => onEditStaff(staff)} className="justify-start border-[var(--cs-border)] bg-[var(--cs-surface)] text-[var(--cs-error-text)]">
+                    <UserRoundX className="size-4" aria-hidden="true" /> Deactivate Staff
+                  </Button>
+                ) : <QuickAction href={basePath + "/" + staff.id} label="Deactivate Staff" Icon={UserRoundX} danger />
               )}
             </div>
           </div>
