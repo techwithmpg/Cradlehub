@@ -25,10 +25,10 @@ type Branch = { id: string; name: string };
 type StaffTab = "applications" | "branch-corrections" | "management" | "assignments" | "status";
 
 const STAFF_TAB_KEYS: StaffTab[] = [
-  "applications",
-  "branch-corrections",
   "management",
   "assignments",
+  "applications",
+  "branch-corrections",
   "status",
 ];
 
@@ -122,6 +122,12 @@ export function CrmStaffWorkspace(props: CrmStaffWorkspaceProps) {
 
   const tabs = useMemo<{ key: StaffTab; label: string; count?: number }[]>(
     () => [
+      { key: "management", label: "Staff Management", count: workspaceAllStaff.length },
+      {
+        key: "assignments",
+        label: "Service Assignments",
+        count: providerAssignments.length,
+      },
       {
         key: "applications",
         label: "Applications",
@@ -131,12 +137,6 @@ export function CrmStaffWorkspace(props: CrmStaffWorkspaceProps) {
         key: "branch-corrections",
         label: "Branch Corrections",
         count: pendingBranchCorrectionCount,
-      },
-      { key: "management", label: "Staff Management", count: workspaceAllStaff.length },
-      {
-        key: "assignments",
-        label: "Service Assignments",
-        count: providerAssignments.length,
       },
       { key: "status", label: "Status", count: workspacePendingStaff.length },
     ],
@@ -263,6 +263,8 @@ export function CrmStaffWorkspace(props: CrmStaffWorkspaceProps) {
           reviewerSystemRole={props.reviewerSystemRole}
           onStaffServicesSaved={handleStaffServicesSaved}
           onStaffChanged={handleStaffChanged}
+          pendingApplicationsCount={props.canReviewOnboarding ? props.onboardingRequests.length : 0}
+          onReviewApplications={props.canReviewOnboarding ? () => handleTabChange("applications") : undefined}
         />
       </AttendanceTabPanel>
 

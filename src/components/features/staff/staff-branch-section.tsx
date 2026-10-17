@@ -15,6 +15,7 @@ type StaffBranchSectionProps = {
   onEditStaff?: (staff: StaffMember) => void;
   onToggleExpanded: (branchId: string) => void;
   workspaceContext?: "owner" | "manager" | "crm";
+  compact?: boolean;
 };
 
 export function StaffBranchSection({
@@ -26,13 +27,14 @@ export function StaffBranchSection({
   onEditStaff,
   onToggleExpanded,
   workspaceContext = "owner",
+  compact = false,
 }: StaffBranchSectionProps) {
   const visibleStaff = isExpanded ? group.staff : group.staff.slice(0, MAX_COLLAPSED_ROWS);
   const isTruncated = group.staff.length > MAX_COLLAPSED_ROWS;
 
   return (
-    <section className="overflow-hidden rounded-xl border border-[var(--cs-border-soft)] bg-[var(--cs-surface)]">
-      <div className="flex flex-wrap items-center justify-between gap-3 border-b border-[var(--cs-border-soft)] bg-[var(--cs-surface-warm)] px-4 py-3">
+    <section className={compact ? "overflow-hidden rounded-lg bg-[var(--cs-surface)]" : "overflow-hidden rounded-xl border border-[var(--cs-border-soft)] bg-[var(--cs-surface)]"}>
+      {!compact && <div className="flex flex-wrap items-center justify-between gap-3 border-b border-[var(--cs-border-soft)] bg-[var(--cs-surface-warm)] px-4 py-3">
         <div>
           <h2 className="m-0 text-sm font-semibold text-[var(--cs-text)]">{group.branchName}</h2>
           <p className="mt-1 text-xs text-[var(--cs-text-muted)]">{group.branchShortName} team roster</p>
@@ -40,7 +42,7 @@ export function StaffBranchSection({
         <span className="rounded-full border border-[var(--cs-border)] bg-[var(--cs-surface-warm)] px-2.5 py-1 text-xs font-medium text-[var(--cs-text-secondary)]">
           {group.staff.length} staff
         </span>
-      </div>
+      </div>}
 
       <div className="overflow-hidden">
         <table className="w-full table-fixed border-collapse text-left">

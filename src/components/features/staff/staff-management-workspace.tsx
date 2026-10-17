@@ -185,7 +185,7 @@ export function StaffManagementWorkspace({
         compact={isCrm}
       />
 
-      <div className="grid items-start gap-4 xl:grid-cols-[minmax(340px,0.82fr)_minmax(0,1.18fr)]">
+      <div className="grid items-start gap-3 xl:grid-cols-[minmax(0,1.06fr)_minmax(0,0.94fr)]">
         <section
           aria-label="Staff directory"
           className="min-w-0 overflow-hidden rounded-2xl border border-[var(--cs-border)] bg-[var(--cs-surface)] shadow-[var(--cs-shadow-xs)]"
@@ -207,7 +207,7 @@ export function StaffManagementWorkspace({
             </span>
           </div>
 
-          <div className="space-y-3 border-b border-[var(--cs-border-soft)] p-3 sm:p-4">
+          <div className="space-y-2.5 border-b border-[var(--cs-border-soft)] px-3 py-3 sm:px-4">
             <div role="group" aria-label="Filter staff by job function" className="flex gap-1.5 overflow-x-auto pb-0.5">
               {JOB_FILTERS.map((item) => {
                 const count = staffForCurrentTab.filter(item.matches).length;
@@ -253,7 +253,7 @@ export function StaffManagementWorkspace({
             </div>
           </div>
 
-          <div className="max-h-[min(68vh,900px)] space-y-3 overflow-y-auto p-3 sm:p-4">
+          <div className="max-h-[min(72vh,1000px)] space-y-2 overflow-y-auto p-2 sm:p-3">
             {groupedStaff.length > 0 ? (
               groupedStaff.map((group) => (
                 <StaffBranchSection
@@ -266,6 +266,7 @@ export function StaffManagementWorkspace({
                   onEditStaff={onEditStaff}
                   onToggleExpanded={toggleExpanded}
                   workspaceContext={workspaceContext}
+                  compact={isCrm && groupedStaff.length === 1}
                 />
               ))
             ) : (

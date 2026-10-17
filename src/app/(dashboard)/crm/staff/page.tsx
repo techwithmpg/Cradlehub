@@ -96,7 +96,7 @@ export default async function CrmStaffPage({
     if (params.tab === "management") return "management";
     if (params.tab === "assignments") return "assignments";
     if (params.tab === "status") return "status";
-    return "applications";
+    return "management";
   })();
 
   if (ctx.status === "missing_branch") {

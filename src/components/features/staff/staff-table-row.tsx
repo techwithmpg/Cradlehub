@@ -60,13 +60,13 @@ export function StaffTableRow({
         <button
           type="button"
           onClick={() => onSelectStaff(member)}
-          className="flex w-full min-w-0 items-center gap-3 rounded-lg px-1 py-1.5 text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--cs-sand)]"
+          className="flex w-full min-w-0 items-center gap-2.5 rounded-lg px-1 py-1.5 text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--cs-sand)]"
           aria-pressed={isSelected}
           aria-label={["Select", displayName].join(" ")}
         >
           <StaffAvatar member={member} label={displayName} />
           <span className="min-w-0 flex-1">
-            <span className="block truncate text-sm font-semibold text-[var(--cs-text)]">
+            <span className="block break-words text-sm font-semibold leading-snug text-[var(--cs-text)]">
               {displayName}
             </span>
             <span className="mt-0.5 block truncate text-xs text-[var(--cs-text-muted)]">
@@ -75,7 +75,7 @@ export function StaffTableRow({
           </span>
         </button>
       </td>
-      <td className="w-24 px-1 py-2 text-right align-middle">
+      <td className="w-[108px] px-1 py-2 text-right align-middle">
         <StaffStatusBadge status={status} />
         <span className="mt-1 hidden justify-end lg:flex">
           <StaffRoleBadge staff={member} />

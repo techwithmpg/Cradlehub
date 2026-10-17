@@ -2,6 +2,8 @@
 
 import { useState, useCallback, useMemo, useTransition } from "react";
 import { toast } from "sonner";
+import { ArrowRight, UserRoundCheck } from "lucide-react";
+import { Button } from "@/components/ui/button";
 import { StaffManagementWorkspace } from "@/components/features/staff/staff-management-workspace";
 import { StaffServiceEditorSheet } from "@/components/features/staff/staff-service-editor-sheet";
 import { CrmEditStaffProfileModal } from "./crm-edit-staff-profile-modal";
@@ -25,6 +27,8 @@ type Props = {
   reviewerSystemRole: string;
   onStaffServicesSaved: (staffId: string, serviceIds: string[]) => void;
   onStaffChanged: (patch: Partial<StaffMember> & { id: string }) => void;
+  pendingApplicationsCount?: number;
+  onReviewApplications?: () => void;
 };
 
 export function CrmStaffManagementTab({
@@ -37,6 +41,8 @@ export function CrmStaffManagementTab({
   reviewerSystemRole,
   onStaffServicesSaved,
   onStaffChanged,
+  pendingApplicationsCount = 0,
+  onReviewApplications,
 }: Props) {
   const [editingStaff, setEditingStaff] = useState<StaffMember | null>(null);
   const [servicesStaff, setServicesStaff] = useState<StaffMember | null>(null);
@@ -129,6 +135,19 @@ export function CrmStaffManagementTab({
 
   return (
     <>
+      {onReviewApplications && pendingApplicationsCount > 0 && (
+        <div className="flex flex-wrap items-center justify-between gap-2 rounded-xl border border-[var(--cs-border)] bg-[var(--cs-sand-tint)] px-4 py-3">
+          <div className="flex min-w-0 items-center gap-2">
+            <UserRoundCheck aria-hidden="true" className="size-4 shrink-0 text-[var(--cs-sand-dark)]" />
+            <p className="m-0 text-sm font-medium text-[var(--cs-text-secondary)]">
+              {pendingApplicationsCount} staff application{pendingApplicationsCount === 1 ? "" : "s"} awaiting review
+            </p>
+          </div>
+          <Button type="button" variant="outline" size="sm" onClick={onReviewApplications} className="border-[var(--cs-border)] bg-[var(--cs-surface)]">
+            Review applications <ArrowRight aria-hidden="true" className="size-3.5" />
+          </Button>
+        </div>
+      )}
       <StaffManagementWorkspace
         allStaff={allStaff}
         pendingStaff={pendingStaff}
