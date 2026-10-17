@@ -2,6 +2,8 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
+import { Button } from "@/components/ui/button";
+import { RefreshCw } from "lucide-react";
 import { BookingsListToolbar } from "./bookings-list-toolbar";
 import { BookingsQuickFilters } from "./bookings-quick-filters";
 import { BookingsDesktopList } from "./bookings-desktop-list";
@@ -68,13 +70,22 @@ type DesktopWorkspaceProps = {
   paymentAction?: BookingActionFn;
   initialSelectedId?: string;
   confirmPaymentAction?: BookingActionFn;
+  onRefresh?: () => void;
   onBookingsChanged?: () => void;
+  isRefreshing?: boolean;
 };
 
 export function BookingsDesktopWorkspace(props: DesktopWorkspaceProps) {
   const router = useRouter();
   const searchParams = useSearchParams();
+  const [prevInitialQuickFilter, setPrevInitialQuickFilter] = useState(props.initialQuickFilter);
   const [quickFilter, setQuickFilter] = useState(props.initialQuickFilter);
+
+  if (prevInitialQuickFilter !== props.initialQuickFilter) {
+    setPrevInitialQuickFilter(props.initialQuickFilter);
+    setQuickFilter(props.initialQuickFilter);
+  }
+
   const allGroups = useMemo(
     () => groupCrmBookings(props.bookings, props.workspaceContext === "crm"),
     [props.bookings, props.workspaceContext]
@@ -187,6 +198,19 @@ export function BookingsDesktopWorkspace(props: DesktopWorkspaceProps) {
     window.history.replaceState(null, "", `${window.location.pathname}?${params.toString()}`);
   }, [searchParams]);
 
+  const [prevRequestedId, setPrevRequestedId] = useState(requestedId);
+  if (prevRequestedId !== requestedId) {
+    setPrevRequestedId(requestedId);
+    if (requestedId && selectedLineId !== requestedId) {
+      const matchingGroup = findBookingGroup(visibleGroups, requestedId);
+      if (matchingGroup) {
+        setSelectedSheetKey(null);
+        setSelectedId(matchingGroup.displayId);
+        setSelectedLineId(requestedId);
+      }
+    }
+  }
+
   const selectedGroup =
     selectedSheet || props.referenceSource === "master_sheet" || selectedId === NO_SELECTION
       ? null
@@ -231,10 +255,19 @@ export function BookingsDesktopWorkspace(props: DesktopWorkspaceProps) {
   function selectQuickFilter(nextFilter: BookingQuickFilter) {
     setQuickFilter(nextFilter);
     const params = new URLSearchParams(window.location.search);
-    params.set("tab", nextFilter);
+    if (nextFilter === "all") {
+      params.delete("tab");
+    } else {
+      params.set("tab", nextFilter);
+    }
     params.delete("page");
     const query = params.toString();
-    router.push(`${window.location.pathname}${query ? `?${query}` : ""}`);
+    const nextUrl = `${window.location.pathname}${query ? `?${query}` : ""}`;
+    if (nextFilter === "upcoming" || quickFilter === "upcoming") {
+      router.push(nextUrl);
+    } else {
+      window.history.replaceState(null, "", nextUrl);
+    }
   }
 
   function changed() {
@@ -269,13 +302,29 @@ export function BookingsDesktopWorkspace(props: DesktopWorkspaceProps) {
                   : "Manage and action bookings"}
               </p>
             </div>
-            <span className="rounded-lg border border-[var(--cs-border)] bg-white px-3 py-2 text-sm font-bold text-[var(--cs-text)]">
-              {props.referenceSource === "master_sheet"
-                ? props.sheetState?.status === "available"
-                  ? `${sheetReferences.length} Master Sheet references`
-                  : "Master Sheet · read only"
-                : `${allGroups.length} bookings`}
-            </span>
+            <div className="flex items-center gap-2">
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                disabled={props.isRefreshing}
+                onClick={() => (props.onRefresh ?? props.onBookingsChanged)?.()}
+                className="h-9 px-3 text-xs"
+              >
+                <RefreshCw
+                  className={`size-3.5 ${props.isRefreshing ? "animate-spin" : ""}`}
+                  data-icon="inline-start"
+                />
+                {props.isRefreshing ? "Refreshing..." : "Refresh"}
+              </Button>
+              <span className="rounded-lg border border-[var(--cs-border)] bg-white px-3 py-2 text-sm font-bold text-[var(--cs-text)]">
+                {props.referenceSource === "master_sheet"
+                  ? props.sheetState?.status === "available"
+                    ? `${sheetReferences.length} Master Sheet references`
+                    : "Master Sheet · read only"
+                  : `${allGroups.length} bookings`}
+              </span>
+            </div>
           </header>
           {props.workspaceContext === "crm" ? (
             <div className="px-5 pb-3">

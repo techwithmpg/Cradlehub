@@ -137,7 +137,7 @@ export function SelectedBookingQuickActions({
             ) : null}
             {canRecordNoAnswer || canConfirmLater ? <DropdownMenuSeparator /> : null}
             <div className="px-0.5 py-0.5">
-              <BookingActionMenu bookingId={booking.id} currentStatus={booking.status} userRole={viewerRole} statusAction={statusAction} actionScope="status" triggerLabel="Change status" triggerVariant="menuItem" fullWidth emptyBehavior="disabled" onUpdate={onChanged} />
+              <BookingActionMenu bookingId={booking.id} currentStatus={booking.status} userRole={viewerRole} statusAction={statusAction} actionScope="status" triggerLabel="Change status" triggerVariant="menuItem" fullWidth emptyBehavior="disabled" />
             </div>
             {customer?.id ? (
               <DropdownMenuItem render={<Link href={`/crm/${customer.id}`} />}>

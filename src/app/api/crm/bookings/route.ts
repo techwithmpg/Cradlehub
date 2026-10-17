@@ -1,16 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getCrmApiContext } from "@/lib/api/get-api-context";
-import {
-  getCrmBookingsCommandCenterRows,
-  getCrmUpcomingBookings,
-  getDailyPaymentSummary,
-} from "@/lib/queries/bookings";
 import { createClient } from "@/lib/supabase/server";
-import { getWaitlistAction } from "@/app/(dashboard)/crm/waitlist/actions";
+import { getCrmBookingsOperationalData } from "@/lib/queries/crm-bookings-operational";
 import { logError } from "@/lib/logger";
-import { getBranchBusinessDate } from "@/lib/engine/slot-time";
-import { upcomingBookingEndDate } from "@/lib/bookings/upcoming-bookings";
-import { isCrmOperationalBookingStatus } from "@/lib/bookings/crm-booking-status";
 
 export async function GET(req: NextRequest) {
   const auth = await getCrmApiContext();
@@ -20,73 +12,31 @@ export async function GET(req: NextRequest) {
   const ctx = auth.context;
 
   const { searchParams } = req.nextUrl;
-  const today = getBranchBusinessDate();
-  const date = searchParams.get("date") ?? today;
+  const date = searchParams.get("date") ?? undefined;
   const upcoming = searchParams.get("tab") === "upcoming";
-  const bookingId = searchParams.get("bookingId") ?? searchParams.get("highlight");
+  const bookingId = searchParams.get("bookingId") ?? searchParams.get("highlight") ?? undefined;
+
   try {
-    // If a bookingId was provided but no date, look up the booking's date
-    let resolvedDate = date;
-    if (bookingId) {
-      const supabase = await createClient();
-      const { data: ref, error } = await supabase
-        .from("bookings")
-        .select("booking_date")
-        .eq("id", bookingId)
-        .eq("branch_id", ctx.branchId)
-        .maybeSingle();
-      if (error) throw error;
-      if (!ref?.booking_date)
-        return NextResponse.json(
-          { error: "Booking is unavailable for this branch." },
-          { status: 404 }
-        );
-      resolvedDate = ref.booking_date;
-    }
+    const supabase = await createClient();
+    const data = await getCrmBookingsOperationalData({
+      branchId: ctx.branchId,
+      branchName: ctx.branchName,
+      role: ctx.role,
+      date,
+      upcoming,
+      bookingId,
+      client: supabase,
+    });
 
-    const [bookings, cashSummary, waitlistResult] = await Promise.all([
-      upcoming
-        ? getCrmUpcomingBookings(ctx.branchId, today)
-        : getCrmBookingsCommandCenterRows(ctx.branchId, resolvedDate),
-      getDailyPaymentSummary(ctx.branchId, resolvedDate),
-      getWaitlistAction(ctx.branchId),
-    ]);
-    let selectedOutsideWindow = false;
-    if (upcoming && bookingId && resolvedDate > upcomingBookingEndDate(today)) {
-      const exact = (await getCrmBookingsCommandCenterRows(ctx.branchId, resolvedDate)).find(
-        (row) =>
-          row.id === bookingId &&
-          isCrmOperationalBookingStatus(row.status) &&
-          !["completed", "no_show"].includes(String(row.booking_progress_status ?? ""))
-      );
-      if (!exact)
-        return NextResponse.json(
-          { error: "Booking is unavailable for this branch." },
-          { status: 404 }
-        );
-      if (!bookings.some((row) => row.id === bookingId)) bookings.push(exact);
-      selectedOutsideWindow = true;
-    }
-
-    return NextResponse.json(
-      {
-        branchId: ctx.branchId,
-        branchName: ctx.branchName,
-        role: ctx.role,
-        date: resolvedDate,
-        businessDate: today,
-        selectedOutsideWindow,
-        bookings,
-        waitlistRows: waitlistResult.ok ? waitlistResult.data : [],
-        cashSummary,
+    return NextResponse.json(data, {
+      headers: {
+        "Cache-Control": "private, no-store",
       },
-      {
-        headers: {
-          "Cache-Control": "private, no-store",
-        },
-      }
-    );
+    });
   } catch (err) {
+    if (err instanceof Error && err.message === "Booking is unavailable for this branch.") {
+      return NextResponse.json({ error: err.message }, { status: 404 });
+    }
     logError("Failed to load CRM bookings command center", {
       error: err,
       action: "api.crm.bookings",

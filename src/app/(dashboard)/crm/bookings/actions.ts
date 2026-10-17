@@ -24,6 +24,11 @@ import {
 import { canonicalizeSystemRole } from "@/constants/staff";
 import { canAccessCrmWorkspace } from "@/lib/auth/crm-permissions";
 import { resolveOwnerFrontDeskBranch } from "@/lib/queries/front-desk-branch";
+import { getFrontDeskContext } from "@/lib/queries/crm-context";
+import {
+  getCrmBookingsOperationalData,
+  type CrmBookingsOperationalData,
+} from "@/lib/queries/crm-bookings-operational";
 import { bookingBlocksAvailability } from "@/lib/bookings/hold-status";
 import { recordBookingPaymentChange } from "@/lib/bookings/payment-transaction";
 import { revalidateOperationalBookingSurfaces } from "@/lib/bookings/revalidate-booking-surfaces";
@@ -722,4 +727,20 @@ export async function crmCompleteServiceAction(
   const ctx = await getCrmActionsContext();
   if (!ctx) return { success: false, error: "Unauthorized" };
   return completeCrmBookingService(ctx, rawInput);
+}
+
+export async function refreshCrmBookingsOperationalDataAction(params?: {
+  date?: string;
+  upcoming?: boolean;
+  bookingId?: string;
+}): Promise<CrmBookingsOperationalData> {
+  const context = await getFrontDeskContext();
+  return getCrmBookingsOperationalData({
+    branchId: context.branchId,
+    branchName: context.branchName,
+    role: context.role,
+    date: params?.date,
+    upcoming: params?.upcoming,
+    bookingId: params?.bookingId,
+  });
 }
