@@ -61,11 +61,11 @@ export function CustomersWorkspace({ initialData }: CustomersWorkspaceProps) {
   const searchParams = useSearchParams();
   const request = useMemo<CrmCustomersWorkspaceRequest>(
     () => ({
-      tab: normalizeCustomerTab(searchParams.get("tab") ?? initialData.tab),
-      page: normalizeCustomerPage(searchParams.get("page") ?? String(initialData.page)),
-      search: normalizeCustomerSearch(searchParams.get("q") ?? initialData.search),
+      tab: normalizeCustomerTab(searchParams.get("tab")),
+      page: normalizeCustomerPage(searchParams.get("page")),
+      search: normalizeCustomerSearch(searchParams.get("q")),
     }),
-    [initialData.page, initialData.search, initialData.tab, searchParams]
+    [searchParams]
   );
   const live = useLiveCrmCustomersData({ request, fallbackData: initialData });
   const data = dataMatchesRequest(live.data, request) ? live.data : undefined;
