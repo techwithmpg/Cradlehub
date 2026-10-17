@@ -13,6 +13,7 @@ type RealtimePayload = {
 type UseScheduleRealtimeParams = {
   branchId: string;
   date: string;
+  staffIds?: readonly string[];
   onInvalidate: () => void;
   onBookingChange?: (change: ScheduleRealtimeChange) => void;
   onAttendanceChange?: (change: ScheduleRealtimeChange) => void;
@@ -29,11 +30,18 @@ function toChange(payload: RealtimePayload): ScheduleRealtimeChange {
 export function useScheduleRealtime({
   branchId,
   date,
+  staffIds = [],
   onInvalidate,
   onBookingChange,
   onAttendanceChange,
 }: UseScheduleRealtimeParams) {
   const callbacksRef = useRef({ onInvalidate, onBookingChange, onAttendanceChange });
+
+  const staffScopeRef = useRef(new Set(staffIds));
+
+  useEffect(() => {
+    staffScopeRef.current = new Set(staffIds);
+  }, [staffIds]);
 
   useEffect(() => {
     callbacksRef.current = { onInvalidate, onBookingChange, onAttendanceChange };
@@ -59,6 +67,30 @@ export function useScheduleRealtime({
       if (callback) callback(toChange(payload));
       else invalidate();
     };
+    const handleStructureChange =
+      (table: "staff_schedules" | "schedule_overrides" | "blocked_times") =>
+      (payload: RealtimePayload = {}) => {
+        const row =
+          payload.new && typeof payload.new === "object"
+            ? (payload.new as Record<string, unknown>)
+            : payload.old && typeof payload.old === "object"
+              ? (payload.old as Record<string, unknown>)
+              : null;
+        const staffId = typeof row?.staff_id === "string" ? row.staff_id : null;
+        if (staffId && staffScopeRef.current.size > 0 && !staffScopeRef.current.has(staffId)) {
+          return;
+        }
+        if (table === "schedule_overrides") {
+          const overrideDate =
+            typeof row?.override_date === "string" ? row.override_date : null;
+          if (overrideDate && overrideDate !== date) return;
+        }
+        if (table === "blocked_times") {
+          const blockDate = typeof row?.block_date === "string" ? row.block_date : null;
+          if (blockDate && blockDate !== date) return;
+        }
+        invalidate();
+      };
 
     const channel = supabase
       .channel(`schedule-live-${branchId}-${date}`)
@@ -99,7 +131,7 @@ export function useScheduleRealtime({
           schema: "public",
           table: "staff_schedules",
         },
-        invalidate
+        handleStructureChange("staff_schedules")
       )
       .on(
         "postgres_changes",
@@ -108,7 +140,7 @@ export function useScheduleRealtime({
           schema: "public",
           table: "schedule_overrides",
         },
-        invalidate
+        handleStructureChange("schedule_overrides")
       )
       .on(
         "postgres_changes",
@@ -117,7 +149,7 @@ export function useScheduleRealtime({
           schema: "public",
           table: "blocked_times",
         },
-        invalidate
+        handleStructureChange("blocked_times")
       )
       .on(
         "postgres_changes",
