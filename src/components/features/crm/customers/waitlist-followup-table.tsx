@@ -25,6 +25,7 @@ export type WaitlistRow = {
 
 interface WaitlistFollowupTableProps {
   rows: WaitlistRow[];
+  onChanged?: () => void;
 }
 
 function deriveType(status: string): string {
@@ -48,11 +49,13 @@ function WaitlistActionButton({
   target,
   label,
   variant = "secondary",
+  onChanged,
 }: {
   row: WaitlistRow;
   target: string;
   label: string;
   variant?: "primary" | "secondary" | "ghost";
+  onChanged?: () => void;
 }) {
   const [isPending, startTransition] = useTransition();
 
@@ -62,6 +65,7 @@ function WaitlistActionButton({
       const result = await updateWaitlistStatusAction({ requestId: row.id, status: target as "waiting" | "contacted" | "converted" | "expired" | "cancelled" });
       if (result.ok) {
         toast.success(`${label} updated.`);
+        onChanged?.();
       } else {
         toast.error(result.error ?? "Could not update request.");
       }
@@ -82,7 +86,7 @@ function WaitlistActionButton({
   );
 }
 
-export function WaitlistFollowupTable({ rows }: WaitlistFollowupTableProps) {
+export function WaitlistFollowupTable({ rows, onChanged }: WaitlistFollowupTableProps) {
   if (rows.length === 0) {
     return (
       <EmptyState
@@ -176,7 +180,7 @@ export function WaitlistFollowupTable({ rows }: WaitlistFollowupTableProps) {
                   <div className="flex flex-wrap items-center justify-end gap-1.5">
                     {row.status === "waiting" && (
                       <>
-                        <WaitlistActionButton row={row} target="contacted" label="Follow Up" />
+                        <WaitlistActionButton onChanged={onChanged} row={row} target="contacted" label="Follow Up" />
                         <OpenAdministrativeBookingButton
                           mode={row.visit_type === "home_service" ? "home_service" : "standard_future"}
                           name={row.customer_name}
@@ -205,12 +209,12 @@ export function WaitlistFollowupTable({ rows }: WaitlistFollowupTableProps) {
                           <CalendarPlus size={12} />
                           <span className="hidden sm:inline">Book</span>
                         </OpenAdministrativeBookingButton>
-                        <WaitlistActionButton row={row} target="converted" label="Convert" />
-                        <WaitlistActionButton row={row} target="expired" label="Expire" variant="ghost" />
+                        <WaitlistActionButton onChanged={onChanged} row={row} target="converted" label="Convert" />
+                        <WaitlistActionButton onChanged={onChanged} row={row} target="expired" label="Expire" variant="ghost" />
                       </>
                     )}
                     {(row.status === "waiting" || row.status === "contacted") && (
-                      <WaitlistActionButton row={row} target="cancelled" label="Remove" variant="ghost" />
+                      <WaitlistActionButton onChanged={onChanged} row={row} target="cancelled" label="Remove" variant="ghost" />
                     )}
                   </div>
                 </td>
