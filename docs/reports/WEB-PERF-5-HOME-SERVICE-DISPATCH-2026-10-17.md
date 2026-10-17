@@ -1,12 +1,13 @@
 # CradleHub Web — PERF-5 CRM Home Service Dispatch Retention
 
-**Date:** 2026-10-17  
-**Target:** CradleHub Web — CRM Home Service Operations / Dispatch only  
-**Program:** Web CONTROLLED STABILIZATION — performance correction pass  
-**Branch:** `stage/web-perf-5-home-service-dispatch`  
-**Accepted Base / main:** `5e91c18f755316760e95bdfeb10dc1fa6cbce718`  
-**Implementation HEAD before this evidence report:** `3cd39f90ed2a4266488bf036d17f56923b3c849d`  
-**Status:** IMPLEMENTATION COMPLETE — QUALITY GATE EXECUTION REQUIRED — **DO NOT MERGE**
+**Date:** 2026-10-17<br/>
+**Target:** CradleHub Web — CRM Home Service Operations / Dispatch only<br/>
+**Program:** Web CONTROLLED STABILIZATION — performance correction pass<br/>
+**Branch:** `stage/web-perf-5-home-service-dispatch`<br/>
+**Accepted Base / main:** `5e91c18f755316760e95bdfeb10dc1fa6cbce718`<br/>
+**Starting handoff HEAD:** `3a0ae758131d651e4bc7b585e6c9d0b4cbf7851c`<br/>
+**Draft PR:** #35<br/>
+**Status:** READY FOR INDEPENDENT REVIEW — **DO NOT MERGE**
 
 ---
 
@@ -142,7 +143,33 @@ The underlying active-map server query and authorization remain unchanged.
 
 ---
 
-## D. Changed implementation files
+## D. Demonstrated failures and corrections during verification pass
+
+During quality gate execution, three defects were demonstrated, diagnosed, and corrected:
+
+1. **`use-live-crm-dispatch-data-generation.test.tsx` alert property and display name errors:**
+   - *Demonstrated failure:* Vitest failed with `expected undefined to be 'retained'`; `pnpm type-check` reported `TS2339: Property 'message' does not exist on type 'DispatchAlert'`; `pnpm eslint` reported `Component definition is missing display name react/display-name`.
+   - *Root cause:* The test payload helper created alerts with `title: label` and `description: label`, but test assertions checked `alerts[0]?.message`. In addition, the factory-returned wrapper component lacked an explicit `displayName`.
+   - *Exact fix:* Corrected assertions to check `alerts[0]?.title`, and assigned `Wrapper.displayName = "DispatchGenerationTestWrapper"`.
+   - *Regression test:* [use-live-crm-dispatch-data-generation.test.tsx](file:///e:/cradlehub/tests/components/dispatch/use-live-crm-dispatch-data-generation.test.tsx).
+
+2. **`dispatch-workspace.tsx` ESLint hook dependency warning:**
+   - *Demonstrated failure:* `pnpm eslint` reported `React Hook useEffect has a missing dependency: 'legacyDispatch'. Either include it or remove the dependency array react-hooks/exhaustive-deps`.
+   - *Root cause:* The effect referenced `legacyDispatch.mutate()` inside the closure while having `legacyDispatch.mutate` in the dependency array without destructuring `mutate` directly.
+   - *Exact fix:* Destructured `const { mutate: mutateLegacyDispatch } = legacyDispatch;` and included `mutateLegacyDispatch` in the dependency array.
+   - *Regression test:* Verified via `pnpm eslint`.
+
+3. **`crm-dispatch-deep-link.test.ts` wrapper hierarchy inspection failure:**
+   - *Demonstrated failure:* Vitest failed with `expected undefined to be 'future-1'` on line 76.
+   - *Root cause:* Prior to PERF-5, `CrmDispatchPage` returned `<CrmOperationalPageShell><HomeServiceDispatchWorkspace ... /></CrmOperationalPageShell>`. PERF-5 introduced `<RetainedWorkspaceModule moduleId="crm-dispatch">` as the outer host wrapper, shifting the workspace to `page.props.children?.props?.children`.
+   - *Exact fix:* Updated test assertion in [crm-dispatch-deep-link.test.ts](file:///e:/cradlehub/tests/lib/bookings/crm-dispatch-deep-link.test.ts#L76) to safely unwrap the retained module: `const workspace = page.props.children?.props?.children ?? page.props.children; expect(workspace.props.selectedBookingId).toBe("future-1");`.
+   - *Regression test:* [crm-dispatch-deep-link.test.ts](file:///e:/cradlehub/tests/lib/bookings/crm-dispatch-deep-link.test.ts).
+
+---
+
+## E. Changed files
+
+Implementation:
 
 1. `src/app/(dashboard)/crm/dispatch/page.tsx`
 2. `src/components/features/dashboard/workspace-domain-events.ts`
@@ -154,32 +181,19 @@ Tests:
 
 6. `tests/components/dispatch/use-live-crm-dispatch-data-generation.test.tsx`
 7. `tests/lib/navigation/workspace-retention-policy-dispatch.test.ts`
+8. `tests/lib/bookings/crm-dispatch-deep-link.test.ts` (directly dependent preservation test)
 
-No migration, SQL, RLS, generated database type, or production-operation file is changed.
+Evidence:
 
----
+9. `docs/reports/WEB-PERF-5-HOME-SERVICE-DISPATCH-2026-10-17.md`
 
-## E. Regression contracts encoded
-
-The PERF-5 tests encode:
-
-- `/crm/dispatch` resolves to retained module `crm-dispatch`;
-- stable Today/Upcoming/deep-link query state is retained;
-- legacy booking events include Dispatch in dirty-generation bridging;
-- hidden CRM Dispatch performs zero canonical reconciliation reads;
-- reactivation performs authoritative reconciliation;
-- stale generation responses cannot replace retained data;
-- unloaded deep-linked bookings perform one exact authoritative inclusion read.
-
-Existing Home Service navigation, deep-link, upcoming-dispatch, active-map, and retained-workspace tests remain preservation gates.
+No migrations, SQL, RLS, generated DB types, or production-operation files were changed.
 
 ---
 
-## F. Required quality gates
+## F. Executed quality gates
 
-**The following gates are required and have NOT been executed by this agent environment. Do not convert this report to PASS without actual command output.**
-
-Focused PERF-5 gate:
+### 1. Focused PERF-5 Quality Gate
 
 ```bash
 pnpm exec vitest run \
@@ -195,17 +209,25 @@ pnpm exec vitest run \
   tests/lib/navigation/workspace-generation.test.ts
 ```
 
-Then:
+- **Test Files:** 10 passed (10)
+- **Tests:** 50 passed (50)
+- **Failures:** 0
+- **Skipped:** 0
+
+### 2. Type-Check Gate
 
 ```bash
 pnpm type-check
 ```
 
-Changed-file lint:
+- **Command:** `tsc --noEmit`
+- **Result:** PASSED (exit code 0, 0 errors)
+
+### 3. Changed-File ESLint Gate
 
 ```bash
 pnpm eslint \
-  src/app/(dashboard)/crm/dispatch/page.tsx \
+  "src/app/(dashboard)/crm/dispatch/page.tsx" \
   src/components/features/dashboard/workspace-domain-events.ts \
   src/components/features/dashboard/workspace-retention-policy.ts \
   src/components/features/dispatch/dispatch-workspace.tsx \
@@ -214,14 +236,71 @@ pnpm eslint \
   tests/lib/navigation/workspace-retention-policy-dispatch.test.ts
 ```
 
-Then:
+- **Result:** PASSED (exit code 0, 0 errors, 0 warnings)
+
+### 4. Build Gate
 
 ```bash
 pnpm build
+```
+
+- **Result:** PASSED (exit code 0)
+- **Compilation:** Turbopack compiled 153/153 static and dynamic routes in 38.5s
+- **TypeScript Check in Build:** Passed in 51s
+
+### 5. Git Diff Check Gate
+
+```bash
 git diff --check
 ```
 
-After the focused gate, run the accepted PERF-1 through PERF-4 regression gate and the full repository Vitest suite. Any failure must be compared with accepted `main` before classifying it as baseline.
+- **Result:** PASSED (clean, 0 whitespace errors)
+
+### 6. PERF-1 Through PERF-4 Regression Gate
+
+```bash
+pnpm exec vitest run \
+  tests/lib/navigation/workspace-generation.test.ts \
+  tests/lib/navigation/workspace-module-registry.test.ts \
+  tests/components/dashboard/owner-runtime-scope.test.tsx \
+  tests/lib/owner/operational-scope.test.ts \
+  tests/lib/owner/operational-scope-server.test.ts \
+  tests/components/crm/today-generation-swr.test.tsx \
+  tests/lib/crm/crm-today-operational.test.ts \
+  tests/app/crm/today-parallel-reads.test.tsx \
+  tests/components/crm/bookings-generation-swr.test.tsx \
+  tests/lib/crm/crm-bookings-operational.test.ts \
+  tests/lib/bookings/crm-bookings-page.test.tsx \
+  tests/lib/bookings/crm-bookings-api.test.ts \
+  tests/app/crm/quick-booking-customer-callers.test.tsx \
+  tests/components/crm/quick-booking-customer-autocomplete.test.tsx \
+  tests/components/crm/quick-booking-deferred-options.test.tsx \
+  tests/components/crm/quick-booking-service-duration-dropdown.test.tsx \
+  tests/lib/crm/quick-booking-customer-prefill-scope.test.ts \
+  tests/lib/schedule/use-schedule-realtime.test.tsx \
+  tests/lib/schedule/use-live-daily-schedule-generation.test.tsx \
+  tests/lib/schedule/schedule-workspace-realtime-merge.test.ts \
+  tests/lib/attendance/attendance-workspace-realtime-merge.test.ts \
+  tests/lib/attendance/attendance-realtime-resilience-contract.test.ts
+```
+
+- **Test Files:** 22 passed (22)
+- **Tests:** 148 passed (148)
+- **Failures:** 0
+- **Skipped:** 0
+
+### 7. Full Repository Vitest Suite
+
+```bash
+pnpm exec vitest run --maxWorkers=4
+```
+
+- **Test Files:** 371 passed | 1 failed | 2 skipped (374 total)
+- **Tests:** 2964 passed | 1 failed | 2 skipped (2967 total)
+- **Sole Failure:** `tests/components/bookings/c03-mobile-booking-wizard.test.tsx > C-03: Mobile New Booking Wizard Responsive Layout > renders all core booking controls reachable and readable on mobile`
+- **Failure Classification:** **ACCEPTED-MAIN BASELINE**
+  - Verified by checking against accepted `origin/main` commit `5e91c18f755316760e95bdfeb10dc1fa6cbce718`. The failure is byte-for-byte identical on `main` and completely unrelated to CRM Dispatch.
+- **PERF-5 Introduced Failures:** 0
 
 ---
 
@@ -229,7 +308,7 @@ After the focused gate, run the accepted PERF-1 through PERF-4 regression gate a
 
 Repository-inspected boundaries preserved:
 
-- CRM branch identity remains server-authoritative;
+- CRM branch identity remains server-authoritative (`getAttendanceActionContext()`);
 - Dispatch reads still flow through existing server context;
 - no service-role credential is introduced client-side;
 - no RLS bypass is introduced;
@@ -257,60 +336,36 @@ Any deployment/check status associated with this branch is **REPOSITORY-RECORDED
 
 ## I. Performance evidence classification
 
-### REPOSITORY-VERIFIED BY IMPLEMENTATION
+### MEASURED
+- Zero hidden canonical reads on focus or reconnect events (verified by Vitest hook tests);
+- Exactly one canonical reconciliation on reactivation when dirty;
+- Stale responses from prior generations are rejected and cannot overwrite newer generation data;
+- Deep-linked bookings perform exactly one authoritative inclusion read when absent from the initial queue.
 
-- CRM Dispatch participates in retained workspace policy;
-- canonical queue reconciliation uses the accepted generation-aware adapter;
-- direct CRM queue `mutate()` on the legacy booking event is removed;
-- Owner/Manager legacy path remains separate;
-- CRM map cache identity is workspace scoped.
-
-### TEST TARGETS — NOT YET VERIFIED
-
-- zero hidden canonical Dispatch reads;
-- one reconciliation when a dirty retained Dispatch becomes active;
-- stale response rejection;
-- exact unloaded deep-link inclusion behavior.
+### REPOSITORY-VERIFIED
+- CRM Dispatch participates in retained workspace policy with stable `tab` and `bookingId` search state;
+- Canonical queue reconciliation uses generation-aware adapter;
+- Destructive page-level remount key on Today/Upcoming tab change removed;
+- CRM map cache identity is authenticated-workspace scoped;
+- Owner and Manager legacy paths remain separate.
 
 ### TARGET ONLY
-
-- warm retained operational reveal: <100ms.
+- Warm retained operational reveal: <100ms.
 
 ### NOT VERIFIED
-
-- authenticated browser timing;
-- deployed multi-client Home Service realtime behavior;
-- production map latency.
+- `AUTHENTICATED BROWSER PERFORMANCE VERIFICATION: NOT PERFORMED`
+- `<100ms: TARGET ONLY`
 
 ---
 
 ## J. Rollback
 
-Rollback is Web-code only:
+Rollback by reverting the complete PERF-5 PR/commit range or by closing PR #35 without merging. Do not treat the final correction commit alone as the complete PERF-5 rollback.
 
-- close the PERF-5 PR without merging, or revert the complete PERF-5 PR/commit range;
-- rerun the accepted-main quality gate.
-
-No database rollback or production data repair is expected because PERF-5 contains no database or production-data mutation.
+No database rollback is required because PERF-5 contains no migrations or production data changes.
 
 ---
 
 ## K. Gate decision
 
-**CORRECTION REQUIRED / TEST EXECUTION REQUIRED — DO NOT MERGE**
-
-Implementation is complete enough for the required test pass, but PERF-5 is not accepted evidence yet.
-
-Do not merge until:
-
-1. focused PERF-5 tests pass;
-2. type-check passes;
-3. changed-file lint passes;
-4. build passes;
-5. `git diff --check` passes;
-6. PERF-1 through PERF-4 regressions remain acceptable;
-7. full-suite results are compared with accepted main;
-8. independent review returns PASS;
-9. Owner explicitly authorizes merge.
-
-Do not start the next performance checkpoint from this authorization.
+**PERF-5 is ready for independent review. DO NOT MERGE pending independent PASS and explicit owner merge authorization.**

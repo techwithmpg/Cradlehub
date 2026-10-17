@@ -52,7 +52,7 @@ function deferred<T>() {
 
 function wrapperFor(store: ReturnType<typeof createWorkspaceGenerationStore>) {
   const cache = new Map();
-  return ({ children }: PropsWithChildren) => (
+  const Wrapper = ({ children }: PropsWithChildren) => (
     <SWRConfig value={{ provider: () => cache }}>
       <WorkspaceSWRScopeContext.Provider value="user-a:crm:branch-1">
         <WorkspaceGenerationContext.Provider value={store}>
@@ -61,6 +61,8 @@ function wrapperFor(store: ReturnType<typeof createWorkspaceGenerationStore>) {
       </WorkspaceSWRScopeContext.Provider>
     </SWRConfig>
   );
+  Wrapper.displayName = "DispatchGenerationTestWrapper";
+  return Wrapper;
 }
 
 beforeEach(() => {
@@ -96,13 +98,13 @@ describe("PERF-5 generation-aware CRM Dispatch reads", () => {
     });
 
     expect(refreshDispatchDataAction).not.toHaveBeenCalled();
-    expect(result.current.data?.alerts[0]?.message).toBe("retained");
+    expect(result.current.data?.alerts[0]?.title).toBe("retained");
 
     act(() => store.setActive("crm-dispatch"));
     await waitFor(() => expect(refreshDispatchDataAction).toHaveBeenCalledTimes(1));
 
     response.resolve({ success: true, data: dispatchPayload("server") });
-    await waitFor(() => expect(result.current.data?.alerts[0]?.message).toBe("server"));
+    await waitFor(() => expect(result.current.data?.alerts[0]?.title).toBe("server"));
     expect(result.current.generation.isDirty).toBe(false);
   });
 
@@ -131,10 +133,10 @@ describe("PERF-5 generation-aware CRM Dispatch reads", () => {
 
     first.resolve({ success: true, data: dispatchPayload("stale") });
     await waitFor(() => expect(refreshDispatchDataAction).toHaveBeenCalledTimes(2));
-    expect(result.current.data?.alerts[0]?.message).toBe("retained");
+    expect(result.current.data?.alerts[0]?.title).toBe("retained");
 
     second.resolve({ success: true, data: dispatchPayload("latest") });
-    await waitFor(() => expect(result.current.data?.alerts[0]?.message).toBe("latest"));
+    await waitFor(() => expect(result.current.data?.alerts[0]?.title).toBe("latest"));
     expect(result.current.generation.isDirty).toBe(false);
   });
 

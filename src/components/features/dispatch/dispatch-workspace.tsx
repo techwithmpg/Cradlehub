@@ -151,6 +151,7 @@ export function HomeServiceDispatchWorkspace({
     },
     { revalidateOnFocus: false }
   );
+  const { mutate: mutateLegacyDispatch } = legacyDispatch;
   const activeTabIndex = TABS.findIndex((tab) => tab.id === activeTab);
 
   useEffect(() => {
@@ -158,12 +159,12 @@ export function HomeServiceDispatchWorkspace({
       // CRM queue reconciliation is generation-driven by the retained workspace provider.
       // Preserve the legacy direct refresh path for Manager/Owner surfaces, which are outside
       // this PERF-5 conversion, and keep the active map current while it is visible.
-      if (!isCrmRetainedDispatch) void legacyDispatch.mutate();
+      if (!isCrmRetainedDispatch) void mutateLegacyDispatch();
       if (activeTab === "map") void mutateMap();
     };
     window.addEventListener(BOOKINGS_CHANGED_EVENT, revalidate);
     return () => window.removeEventListener(BOOKINGS_CHANGED_EVENT, revalidate);
-  }, [activeTab, isCrmRetainedDispatch, legacyDispatch.mutate, mutateMap]);
+  }, [activeTab, isCrmRetainedDispatch, mutateLegacyDispatch, mutateMap]);
 
   function handleTabKeyDown(event: React.KeyboardEvent<HTMLDivElement>) {
     const lastIndex = TABS.length - 1;
