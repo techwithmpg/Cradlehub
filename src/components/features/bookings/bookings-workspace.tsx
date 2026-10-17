@@ -88,6 +88,7 @@ type BookingsWorkspaceProps = {
   initialSelectedId?: string;
   confirmPaymentAction?: ActionFn;
   onBookingsChanged?: () => void;
+  isRefreshing?: boolean;
 };
 
 const WORKFLOW_TABS: Array<{ key: BookingWorkspaceTab; label: string }> = [
@@ -328,6 +329,7 @@ export function BookingsWorkspace({
   initialSelectedId,
   confirmPaymentAction,
   onBookingsChanged,
+  isRefreshing,
 }: BookingsWorkspaceProps) {
   const searchParams = useSearchParams();
   const router = useRouter();
@@ -445,7 +447,7 @@ export function BookingsWorkspace({
   if (isDesktop) {
     return (
       <BookingsDesktopWorkspace
-        key={`${initialQuickFilter}:${initialSelectedId ?? ""}`}
+        key={`${initialQuickFilter === "upcoming" ? "upcoming" : "daily"}:${initialSelectedId ?? ""}`}
         workspaceContext={workspaceContext}
         viewerRole={viewerRole}
         branches={branches}
@@ -471,6 +473,7 @@ export function BookingsWorkspace({
         initialSelectedId={initialSelectedId}
         confirmPaymentAction={confirmPaymentAction}
         onBookingsChanged={onBookingsChanged}
+        isRefreshing={isRefreshing}
       />
     );
   }
@@ -489,9 +492,18 @@ export function BookingsWorkspace({
           </div>
 
           <div className="flex flex-wrap items-center gap-2">
-            <Button type="button" variant="outline" size="lg" onClick={() => onBookingsChanged?.()}>
-              <RefreshCw data-icon="inline-start" />
-              Refresh
+            <Button
+              type="button"
+              variant="outline"
+              size="lg"
+              disabled={isRefreshing}
+              onClick={() => onBookingsChanged?.()}
+            >
+              <RefreshCw
+                className={isRefreshing ? "animate-spin" : undefined}
+                data-icon="inline-start"
+              />
+              {isRefreshing ? "Refreshing..." : "Refresh"}
             </Button>
             {isCrm && referenceSource !== "master_sheet" ? (
               <OpenAdministrativeBookingButton mode="standard_future" date={date} size="lg">

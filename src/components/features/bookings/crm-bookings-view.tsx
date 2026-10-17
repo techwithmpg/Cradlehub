@@ -3,57 +3,37 @@
 /**
  * CrmBookingsView
  *
- * Client shell that wraps BookingsWorkspace with SWR.
- * Uses the same cache-first pattern as other CRM data views.
+ * Client shell that wraps BookingsWorkspace with generation-aware SWR.
+ * Follows the retained workspace operational contract established in PERF-1A/PERF-2.
  */
 
-import useSWR from "swr";
-import { useEffect } from "react";
+import { useCallback } from "react";
 import { useSearchParams } from "next/navigation";
 import {
   BookingsWorkspace,
   type BookingWorkspaceTab,
-  type WorkspaceBookingRow,
 } from "./bookings-workspace";
-import type { DailyCashSummaryData } from "@/components/features/dashboard/daily-cash-summary";
-import type { WaitlistRow } from "@/components/features/crm/customers/waitlist-followup-table";
 import { resolveBookingQuickFilter } from "@/lib/bookings/bookings-workspace-filters";
 import { resolveBookingReferenceSource } from "@/lib/bookings/booking-source";
-import { BOOKINGS_CHANGED_EVENT } from "@/lib/bookings/bookings-client-events";
-import { useWorkspaceReactivationRefresh } from "@/components/features/dashboard/use-workspace-visibility";
 import { useSheetNativeReferences } from "@/components/features/crm/master-sheet/use-sheet-native-references";
-import {
-  unwrapWorkspaceSWRKey,
-  useWorkspaceSWRKey,
-  type WorkspaceScopedSWRKey,
-} from "@/components/features/dashboard/workspace-swr-cache";
+import { useGenerationAwareWorkspaceSWR } from "@/components/features/dashboard/use-workspace-generation";
+import { refreshCrmBookingsOperationalDataAction } from "@/app/(dashboard)/crm/bookings/actions";
+import type { CrmBookingsOperationalData } from "@/lib/queries/crm-bookings-operational";
 
 type ActionFn = (input: unknown) => Promise<{ success: boolean; error?: string }>;
 
-type BookingsApiPayload = {
-  branchId: string;
-  branchName: string;
-  role: string;
-  date: string;
-  businessDate: string;
-  selectedOutsideWindow?: boolean;
-  bookings: WorkspaceBookingRow[];
-  waitlistRows: WaitlistRow[];
-  cashSummary: DailyCashSummaryData | null;
-};
+type BookingsApiPayload = CrmBookingsOperationalData;
 
 type CrmBookingsViewProps = {
   initialData: BookingsApiPayload;
   paymentAction?: ActionFn;
   confirmPaymentAction?: ActionFn;
+  refreshAction?: (params?: {
+    date?: string;
+    upcoming?: boolean;
+    bookingId?: string;
+  }) => Promise<CrmBookingsOperationalData>;
 };
-
-async function fetcher(key: WorkspaceScopedSWRKey<string>): Promise<BookingsApiPayload> {
-  const url = unwrapWorkspaceSWRKey(key);
-  const res = await fetch(url, { credentials: "same-origin" });
-  if (!res.ok) throw new Error(`Bookings fetch failed: ${res.status}`);
-  return res.json() as Promise<BookingsApiPayload>;
-}
 
 function parseTab(raw: string | null): BookingWorkspaceTab | undefined {
   switch (raw) {
@@ -88,6 +68,7 @@ export function CrmBookingsView({
   initialData,
   paymentAction,
   confirmPaymentAction,
+  refreshAction = refreshCrmBookingsOperationalDataAction,
 }: CrmBookingsViewProps) {
   const searchParams = useSearchParams();
   const date = searchParams.get("date") ?? initialData.date;
@@ -95,6 +76,7 @@ export function CrmBookingsView({
   const rawTab = searchParams.get("tab");
   const tab = parseTab(rawTab);
   const resolvedQuickFilter = resolveBookingQuickFilter(rawTab);
+  const isUpcoming = resolvedQuickFilter.quickFilter === "upcoming";
   const statusFilter = searchParams.get("status") ?? resolvedQuickFilter.legacyStatusFilter;
   const typeFilter = searchParams.get("type") ?? undefined;
   const deliveryFilter = searchParams.get("delivery") ?? undefined;
@@ -104,43 +86,35 @@ export function CrmBookingsView({
   const search = searchParams.get("search") ?? undefined;
   const page = Number(searchParams.get("page") ?? "1");
 
-  // Build the API URL with the current params
-  const apiUrl = (() => {
-    const params = new URLSearchParams({ date });
-    if (resolvedQuickFilter.quickFilter === "upcoming") params.set("tab", "upcoming");
-    if (bookingId) params.set("bookingId", bookingId);
-    return `/api/crm/bookings?${params.toString()}`;
-  })();
-  const swrKey = useWorkspaceSWRKey(apiUrl);
+  // Server dataset request identity
+  const requestKey = `${date}:${isUpcoming ? "upcoming" : "daily"}:${bookingId ?? ""}`;
 
-  const { data, error, mutate } = useSWR<BookingsApiPayload>(swrKey, fetcher, {
-    fallbackData: initialData,
-    keepPreviousData: true,
-    dedupingInterval: 30_000,
-    revalidateOnMount: false,
-    revalidateOnFocus: false,
-    revalidateOnReconnect: false,
-  });
+  const fetcher = useCallback(() => {
+    return refreshAction({
+      date,
+      upcoming: isUpcoming,
+      bookingId,
+    });
+  }, [refreshAction, date, isUpcoming, bookingId]);
+
+  const { data, error, generation, revalidate } =
+    useGenerationAwareWorkspaceSWR<CrmBookingsOperationalData>(
+      "crm-bookings",
+      requestKey,
+      fetcher,
+      initialData
+    );
+
+  const payload = data ?? initialData;
+
   const {
     state: sheetState,
     isLoading: sheetLoading,
     isRefreshing: sheetRefreshing,
     refresh: refreshSheet,
-  } = useSheetNativeReferences(date, referenceSource === "master_sheet", true);
+  } = useSheetNativeReferences(payload.date, referenceSource === "master_sheet", true);
 
-  const payload = data ?? initialData;
   const initialTab = tab ?? tabFromStatus(statusFilter);
-  const refreshBookings = useWorkspaceReactivationRefresh(async () => {
-    await mutate();
-  });
-
-  useEffect(() => {
-    const refresh = () => {
-      void refreshBookings().catch(() => undefined);
-    };
-    window.addEventListener(BOOKINGS_CHANGED_EVENT, refresh);
-    return () => window.removeEventListener(BOOKINGS_CHANGED_EVENT, refresh);
-  }, [refreshBookings]);
 
   return (
     <>
@@ -153,15 +127,22 @@ export function CrmBookingsView({
         </p>
       ) : null}
       {error ? (
-        <p
+        <div
           role="alert"
-          className="rounded-lg border border-red-200 bg-red-50 p-3 text-sm text-red-800"
+          className="mb-3 flex items-center justify-between rounded-lg border border-red-200 bg-red-50 p-3 text-sm text-red-800"
         >
-          Bookings could not refresh. Showing the last loaded data.
-        </p>
+          <span>Bookings could not refresh. Showing the last loaded data.</span>
+          <button
+            type="button"
+            onClick={() => void revalidate().catch(() => undefined)}
+            className="ml-3 font-semibold underline hover:no-underline"
+          >
+            Retry
+          </button>
+        </div>
       ) : null}
       <BookingsWorkspace
-        key={`${referenceSource}:${rawTab ?? ""}:${bookingId ?? ""}`}
+        key={`${referenceSource}:${isUpcoming ? "upcoming" : "daily"}:${bookingId ?? ""}`}
         workspaceContext="crm"
         viewerRole={payload.role}
         branchName={payload.branchName}
@@ -187,8 +168,9 @@ export function CrmBookingsView({
         paymentAction={paymentAction}
         initialSelectedId={bookingId}
         confirmPaymentAction={confirmPaymentAction}
+        isRefreshing={generation.isRefreshing}
         onBookingsChanged={() => {
-          void refreshBookings().catch(() => undefined);
+          void revalidate().catch(() => undefined);
         }}
       />
     </>
