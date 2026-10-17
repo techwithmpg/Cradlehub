@@ -78,6 +78,6 @@ export function emitWorkspaceDomainEvent(event: WorkspaceDomainEvent): void {
 
 export function legacyBookingModules(workspace: RetainedWorkspace): RetainedModuleId[] {
   return workspace === "crm"
-    ? ["crm-work-queue", "crm-bookings", "crm-schedule"]
+    ? ["crm-work-queue", "crm-bookings", "crm-schedule", "crm-dispatch"]
     : ["owner-overview", "owner-reports", "owner-bookings"];
 }
