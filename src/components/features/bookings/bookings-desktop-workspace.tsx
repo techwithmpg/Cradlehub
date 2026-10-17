@@ -70,6 +70,7 @@ type DesktopWorkspaceProps = {
   paymentAction?: BookingActionFn;
   initialSelectedId?: string;
   confirmPaymentAction?: BookingActionFn;
+  onRefresh?: () => void;
   onBookingsChanged?: () => void;
   isRefreshing?: boolean;
 };
@@ -294,7 +295,7 @@ export function BookingsDesktopWorkspace(props: DesktopWorkspaceProps) {
                 variant="outline"
                 size="sm"
                 disabled={props.isRefreshing}
-                onClick={() => props.onBookingsChanged?.()}
+                onClick={() => (props.onRefresh ?? props.onBookingsChanged)?.()}
                 className="h-9 px-3 text-xs"
               >
                 <RefreshCw

@@ -128,18 +128,70 @@ const { data, error, generation, revalidate } =
 
 ---
 
-## H. EVENT / INVALIDATION FLOW
+## H. EVENT / INVALIDATION FLOW & MUTATION AUDIT
 
-1. **Mutation Event:**
-   Booking mutation action succeeds -> dispatches `BOOKINGS_CHANGED_EVENT` or domain event.
-2. **Runtime Store Invalidation:**
-   `RetainedWorkspaceProvider` receives event -> invalidates `crm-bookings` in `WorkspaceGenerationStore`.
-3. **Generation-Aware Scheduling:**
-   - If `crm-bookings` is **active**: Launches exactly one authoritative background reconciliation.
-   - If `crm-bookings` is **hidden**: Marks `isDirty = true`; executes **0 network requests**.
-   - Upon **reactivation**: Displays validated retained workspace immediately (<100ms perceived); launches exactly one authoritative reconciliation if dirty.
-4. **Elimination of Double Fetch:**
-   `CrmBookingsView` no longer attaches its own `window.addEventListener(BOOKINGS_CHANGED_EVENT)`. One effective aggregate request per invalidation.
+### 1. Separation of Manual Refresh and Mutation Invalidation
+To prevent race conditions, duplicate reconciliations, and generation invalidation churn, manual user refresh is strictly separated from mutation completion:
+
+- **Manual User Refresh Path (`onRefresh`):**
+  - Triggered exclusively by explicit user intent (clicking the desktop workspace or mobile header "Refresh" button).
+  - Directly calls scoped `revalidate()`.
+  - Retains existing visible data with a spinning indicator (`isRefreshing`).
+  - Does NOT dispatch global events, does NOT increment generation, and does NOT remount the route (`0` router calls).
+  - Triggers exactly **one** network request.
+
+- **Mutation Invalidation Path (`onBookingsChanged`):**
+  - Triggered upon completion of any booking mutation.
+  - Calls `notifyBookingsChanged()`, dispatching `BOOKINGS_CHANGED_EVENT`.
+  - `RetainedWorkspaceProvider` receives the event and invalidates `crm-bookings` in `WorkspaceGenerationStore`.
+  - If `crm-bookings` is **active**: Launches exactly **one** generation-aware reconciliation for the new generation.
+  - If `crm-bookings` is **hidden**: Marks `crm-bookings` dirty with **0 network requests**; reconciles once upon warm reactivation.
+
+### 2. Elimination of Duplicate Payment Reconciliation
+**Defect Diagnosed by Independent Review:**
+In the initial PERF-3 implementation, `CrmBookingsView` passed:
+```typescript
+onBookingsChanged={() => {
+  void revalidate().catch(() => undefined);
+}}
+```
+Simultaneously, `PaymentActionMenu` and `BookingActionMenu` executed both:
+```typescript
+onUpdate?.();
+notifyBookingsChanged();
+```
+This caused a concrete double reconciliation:
+1. `onUpdate` invoked the callback, starting a direct fetch for generation G1.
+2. `notifyBookingsChanged()` synchronously dispatched `BOOKINGS_CHANGED_EVENT`, causing `RetainedWorkspaceProvider` to invalidate `crm-bookings` and bump the store to generation G2.
+3. The G1 fetch completed but was deemed stale by `isCurrent()` protection.
+4. The dirty generation G2 then launched a second network fetch via `useEffect` in `useGenerationAwareWorkspaceSWR`.
+
+**Correction Implemented:**
+- Normalized `PaymentActionMenu` and `BookingActionMenu` callers across CRM Bookings (`bookings-table.tsx`, `selected-booking-payment-row.tsx`, `selected-booking-quick-actions.tsx`) by removing redundant `onUpdate` bindings. These menus already invoke `notifyBookingsChanged()` internally upon successful mutations.
+- Updated `CrmBookingsView` to wire `onRefresh={() => { void revalidate().catch(() => undefined); }}` for manual user refresh, and `onBookingsChanged={() => { notifyBookingsChanged(); }}` for mutation completion.
+- Result: **Exactly one authoritative generation-aware reconciliation per successful mutation.**
+
+### 3. Complete Mutation Surfaces Audit
+All Bookings mutation surfaces in CRM Bookings were audited and normalized:
+
+| Mutation Surface / Consumer | Mutation Action | Emits `BOOKINGS_CHANGED_EVENT` | Emits `WORKSPACE_DOMAIN_EVENT` | Invokes Callback | Normalized Flow & Result |
+| :--- | :--- | :--- | :--- | :--- | :--- |
+| **`PaymentActionMenu`** (Table & Side Panel) | Record/update payment | Yes (via `notifyBookingsChanged`) | No | Internal only (`onSuccess`) | **1 generation invalidation & 1 reconciliation** (removed redundant `onUpdate`) |
+| **`BookingActionMenu`** (Table & Quick Actions) | Quick status / followup | Yes (via `notifyBookingsChanged`) | No | Internal only (`onSuccess`) | **1 generation invalidation & 1 reconciliation** (removed redundant `onUpdate`) |
+| **`PaymentConfirmationPanel`** (Pending Review) | Confirm / reject payment | No | No | `onBookingsChanged` | `onBookingsChanged` -> `notifyBookingsChanged()` -> **1 reconciliation** |
+| **`CustomerArrivedModal`** | Mark arrived / check-in | No | No | `onMarkedArrived` -> `onBookingsChanged` | `onBookingsChanged` -> `notifyBookingsChanged()` -> **1 reconciliation** |
+| **`RoomAssignmentModal`** | Assign / reassign room | No | No | `onAssigned` -> `onBookingsChanged` | `onBookingsChanged` -> `notifyBookingsChanged()` -> **1 reconciliation** |
+| **`RescheduleBookingModal`** | Reschedule time/date | No | No | `onRescheduled` -> `onBookingsChanged` | `onBookingsChanged` -> `notifyBookingsChanged()` -> **1 reconciliation** |
+| **`CancelBookingDialog`** | Cancel booking | No | No | `onChanged` -> `onBookingsChanged` | `onBookingsChanged` -> `notifyBookingsChanged()` -> **1 reconciliation** |
+| **`SelectedBookingStaffRow`** | Assign therapist / driver | No | No | `onChanged` -> `onBookingsChanged` | `onBookingsChanged` -> `notifyBookingsChanged()` -> **1 reconciliation** |
+| **`SelectedBookingServiceSession`** | Complete service line | No | No | `onChanged` -> `onBookingsChanged` | `onBookingsChanged` -> `notifyBookingsChanged()` -> **1 reconciliation** |
+| **`SelectedBookingPrimaryAction`** | Confirm / start service | No | No | `onChanged` -> `onBookingsChanged` | `onBookingsChanged` -> `notifyBookingsChanged()` -> **1 reconciliation** |
+| **`SelectedBookingQuickActions`** | No answer / confirm later | No | No | `onChanged` -> `onBookingsChanged` | `onBookingsChanged` -> `notifyBookingsChanged()` -> **1 reconciliation** |
+| **`NoteSummaryPanel`** | Edit booking note | No | No | `onSaved` -> `onBookingsChanged` | `onBookingsChanged` -> `notifyBookingsChanged()` -> **1 reconciliation** |
+| **`AssignmentRecommendationPanel`** | Accept staff recommendation | No | No | `onBookingsChanged` | `onBookingsChanged` -> `notifyBookingsChanged()` -> **1 reconciliation** |
+| **`CrmNextActionsPanel`** | Execute next action | No | No | `onBookingsChanged` | `onBookingsChanged` -> `notifyBookingsChanged()` -> **1 reconciliation** |
+
+Every mutation surface now results in **one effective generation invalidation and reconciliation**. Shared `notifyBookingsChanged()` was preserved so cross-module listeners (such as CRM Today or Master Sheet indicators) remain synchronized without duplicate fetches.
 
 ---
 
@@ -225,17 +277,23 @@ Request identity is strictly normalized to server-affecting dataset parameters:
 4. `src/app/api/crm/bookings/route.ts` (MODIFIED):
    Preserved route for compatibility; delegated to `getCrmBookingsOperationalData` with branch boundary protection.
 5. `src/components/features/bookings/crm-bookings-view.tsx` (MODIFIED):
-   Migrated to `useGenerationAwareWorkspaceSWR`, removed plain SWR and duplicate event listeners, added retry banner.
+   Migrated to `useGenerationAwareWorkspaceSWR`, separated `onRefresh` (manual revalidate) from `onBookingsChanged` (`notifyBookingsChanged`), removed plain SWR and duplicate event listeners, added retry banner.
 6. `src/components/features/bookings/bookings-workspace.tsx` (MODIFIED):
-   Updated remount key to preserve local filter state; passed `isRefreshing` to desktop header.
+   Updated remount key to preserve local filter state; added `onRefresh` prop and wired manual refresh button to trigger `onRefresh`.
 7. `src/components/features/bookings/bookings-desktop-workspace.tsx` (MODIFIED):
-   Enabled instant local filter switching for same-dataset filters (`all`, `needs-attention`, `active-now`) using `window.history.replaceState`. Added desktop manual Refresh button with spinning indicator.
+   Enabled instant local filter switching for same-dataset filters (`all`, `needs-attention`, `active-now`) using `window.history.replaceState`. Added desktop manual Refresh button wired to `onRefresh` with spinning indicator.
+8. `src/components/features/bookings/bookings-table.tsx` (MODIFIED):
+   Removed redundant `onUpdate` from `PaymentActionMenu` and `BookingActionMenu` to prevent double reconciliation. Cleaned unused callbacks.
+9. `src/components/features/bookings/selected-booking-payment-row.tsx` (MODIFIED):
+   Removed redundant `onUpdate` from `PaymentActionMenu`.
+10. `src/components/features/bookings/selected-booking-quick-actions.tsx` (MODIFIED):
+    Removed redundant `onUpdate` from `BookingActionMenu`.
 
 ### Test Files
 1. `tests/lib/crm/crm-bookings-operational.test.ts` (NEW):
    6 tests verifying canonical builder, branch authorization, parity, and financial enrichment.
 2. `tests/components/crm/bookings-generation-swr.test.tsx` (NEW):
-   15 tests verifying cold load zero-fetch, active dirty reconciliation, hidden dirty zero-network, reactivation, stale response rejection, manual refresh, local filter zero-network, selection survival, safe degradation, and cache scope isolation.
+   18 tests verifying cold load zero-fetch, active dirty reconciliation, hidden dirty zero-network, reactivation, stale response rejection, manual refresh, local filter zero-network, selection survival, safe degradation, cache scope isolation, and full integration tests proving exactly one authoritative reconciliation per payment mutation and zero reconciliation on payment failure.
 
 ---
 
@@ -243,33 +301,31 @@ Request identity is strictly normalized to server-affecting dataset parameters:
 
 ### 1. Focused PERF-3 Test Suite
 ```bash
-pnpm vitest run tests/lib/crm/crm-bookings-operational.test.ts tests/components/crm/bookings-generation-swr.test.tsx tests/lib/bookings/crm-bookings-page.test.tsx tests/lib/bookings/crm-bookings-api.test.ts
+pnpm vitest run tests/components/crm/bookings-generation-swr.test.tsx tests/lib/crm/crm-bookings-operational.test.ts tests/lib/bookings/crm-bookings-page.test.tsx tests/lib/bookings/crm-bookings-api.test.ts
 ```
-**Result:** **28/28 PASSED** (4 test files, 28 tests, 100% pass rate)
+**Result:** **31/31 PASSED** (4 test files, 31 tests, 100% pass rate)
+- `tests/components/crm/bookings-generation-swr.test.tsx`: 18 passed
+- `tests/lib/crm/crm-bookings-operational.test.ts`: 6 passed
+- `tests/lib/bookings/crm-bookings-page.test.tsx`: 5 passed
+- `tests/lib/bookings/crm-bookings-api.test.ts`: 2 passed
 
 ### 2. PERF-1A & PERF-1B Regressions
 ```bash
-pnpm vitest run tests/lib/navigation/workspace-generation.test.ts tests/components/dashboard/workspace-generation-swr.test.tsx tests/components/dashboard/owner-runtime-scope.test.tsx tests/lib/crm/owner-front-desk-branch.test.ts tests/lib/crm/owner-booking-action-branch.test.ts tests/lib/crm/front-desk-context-owner.test.ts
+pnpm vitest run tests/lib/navigation/workspace-generation.test.ts tests/lib/navigation/workspace-module-registry.test.ts tests/components/dashboard/owner-runtime-scope.test.tsx tests/lib/owner/operational-scope.test.ts tests/lib/owner/operational-scope-server.test.ts
 ```
-**Result:** **36/36 PASSED** (6 test files, 36 tests, 100% pass rate)
+**Result:** **54/54 PASSED** (5 test files, 54 tests, 100% pass rate)
 
 ### 3. PERF-2 CRM Today Regressions
 ```bash
-pnpm vitest run tests/app/crm/today-parallel-reads.test.tsx tests/lib/crm/crm-today-operational.test.ts tests/components/crm/today-generation-swr.test.tsx
+pnpm vitest run tests/components/crm/today-generation-swr.test.tsx tests/lib/crm/crm-today-operational.test.ts tests/app/crm/today-parallel-reads.test.tsx
 ```
 **Result:** **17/17 PASSED** (3 test files, 17 tests, 100% pass rate)
 
-### 4. PR #29 Booking Modal Regressions
+### 4. PR #29 Quick-Booking Regressions
 ```bash
-pnpm vitest run tests/components/crm/quick-booking-customer-autocomplete.test.tsx tests/components/crm/quick-booking-service-duration-dropdown.test.tsx tests/components/crm/quick-booking-deferred-options.test.tsx tests/lib/crm/quick-booking-customer-prefill-scope.test.ts tests/app/crm/quick-booking-customer-callers.test.tsx
+pnpm vitest run tests/app/crm/quick-booking-customer-callers.test.tsx tests/components/crm/quick-booking-customer-autocomplete.test.tsx tests/components/crm/quick-booking-deferred-options.test.tsx tests/components/crm/quick-booking-service-duration-dropdown.test.tsx tests/lib/crm/quick-booking-customer-prefill-scope.test.ts
 ```
 **Result:** **22/22 PASSED** (5 test files, 22 tests, 100% pass rate)
-
-### 5. Navigation Performance Contract
-```bash
-pnpm vitest run tests/lib/navigation/crm-owner-navigation-contract.test.ts
-```
-**Result:** **4/4 PASSED** (4 tests, 100% pass rate)
 
 ---
 
@@ -278,16 +334,36 @@ pnpm vitest run tests/lib/navigation/crm-owner-navigation-contract.test.ts
 ```bash
 pnpm vitest run --maxWorkers=4
 ```
-- **Total Test Files:** 369
-- **Passed Test Files:** 367
-- **Failed Test Files:** 1 (expected baseline failure)
-- **Skipped Test Files:** 2
-- **Total Tests Passed:** 2,935+
+
+**Exact Vitest Output:**
+```
+Test Files  1 failed | 366 passed | 2 skipped (369)
+     Tests  1 failed | 2939 passed | 2 skipped (2942)
+  Duration  93.31s (transform 14.86s, setup 0ms, import 122.02s, tests 68.40s, environment 92.69s)
+ Exit Code  1
+```
+
+- **Test Files:**
+  - 366 passed
+  - 1 failed (expected baseline failure)
+  - 2 skipped (`sheet-date-structure-inspection.test.ts`, `sheet-live-adc.test.ts`)
+  - 369 TOTAL
+- **Tests:**
+  - 2939 passed
+  - 1 failed (expected baseline failure)
+  - 2 skipped
+  - 2942 TOTAL
+- **Duration:** 93.31s
+- **Exit code:** 1
 
 ### Accepted-Main Baseline Failure Verification
 - **Test File:** `tests/components/bookings/c03-mobile-booking-wizard.test.tsx`
 - **Failing Test:** `renders all core booking controls reachable and readable on mobile`
-- **Verification:** Verified identical failure on accepted base `origin/main` (`446ad81808f327934021198045140c89082129d5`). ZERO test regressions introduced by PERF-3.
+- **Error:** `TestingLibraryElementError: Unable to find an element with the text: Search and select one or more services.`
+- **Verification:**
+  1. `git diff 446ad81808f327934021198045140c89082129d5 -- tests/components/bookings/c03-mobile-booking-wizard.test.tsx` confirms test file is 100% byte-for-byte identical to accepted base `origin/main`.
+  2. `git diff 446ad81808f327934021198045140c89082129d5 -- src/components/features/bookings/quick-booking-form.tsx` confirms implementation under test is 100% byte-for-byte identical to accepted base `origin/main`.
+  3. Zero new failures exist anywhere in the repository.
 
 ---
 
@@ -303,9 +379,9 @@ pnpm type-check
 ## T. LINT
 
 ```bash
-pnpm eslint "src/lib/queries/crm-bookings-operational.ts" "src/app/(dashboard)/crm/bookings/actions.ts" "src/app/(dashboard)/crm/bookings/page.tsx" "src/app/api/crm/bookings/route.ts" "src/components/features/bookings/crm-bookings-view.tsx" "src/components/features/bookings/bookings-workspace.tsx" "src/components/features/bookings/bookings-desktop-workspace.tsx" "tests/lib/crm/crm-bookings-operational.test.ts" "tests/components/crm/bookings-generation-swr.test.tsx"
+pnpm eslint src/components/features/bookings/bookings-desktop-workspace.tsx src/components/features/bookings/bookings-table.tsx src/components/features/bookings/bookings-workspace.tsx src/components/features/bookings/crm-bookings-view.tsx src/components/features/bookings/selected-booking-payment-row.tsx src/components/features/bookings/selected-booking-quick-actions.tsx tests/components/crm/bookings-generation-swr.test.tsx
 ```
-**Result:** Exited with **code 0**. Zero lint errors, zero warnings.
+**Result:** Exited with **code 0**. Zero lint errors, zero warnings across all changed files.
 
 ---
 
@@ -316,8 +392,8 @@ pnpm build
 ```
 **Result:** `next build` (Turbopack) exited with **code 0**.
 - Compiled 153 static and dynamic routes successfully in 43s.
-- TypeScript check passed in 65s.
-- Static page generation completed in 1016ms.
+- TypeScript check passed in 66s.
+- Static page generation completed (153/153) in 1101ms.
 
 ---
 

@@ -346,7 +346,6 @@ function PrimaryRowAction({
         amountPaid={booking.amount_paid ?? 0}
         pricePaid={readPricePaid(booking.metadata)}
         paymentAction={paymentAction}
-        onUpdate={onBookingsChanged}
         triggerLabel="Review Payment"
         triggerVariant="panelSecondary"
         fullWidth
@@ -1108,7 +1107,6 @@ function BookingDetailsPanel({
           price={price}
           balance={balance}
           paymentAction={paymentAction}
-          onBookingsChanged={onBookingsChanged}
           showReview={showPaymentReview}
           onShowReviewChange={setShowPaymentReview}
         />
@@ -1151,7 +1149,6 @@ function BookingDetailsPanel({
           onOpenReschedule={() => onOpenReschedule(booking)}
           onShowPaymentReview={() => setShowPaymentReview(true)}
           onShowRecommendations={() => setShowRecommendations(true)}
-          onBookingsChanged={onBookingsChanged}
         />
       </div>
     </aside>
@@ -1358,7 +1355,6 @@ function PaymentSummaryPanel({
   price,
   balance,
   paymentAction,
-  onBookingsChanged,
   showReview,
   onShowReviewChange,
 }: {
@@ -1366,7 +1362,6 @@ function PaymentSummaryPanel({
   price: number;
   balance: number;
   paymentAction?: ActionFn;
-  onBookingsChanged?: () => void;
   showReview: boolean;
   onShowReviewChange: (show: boolean) => void;
 }) {
@@ -1408,7 +1403,6 @@ function PaymentSummaryPanel({
               amountPaid={booking.amount_paid}
               pricePaid={price}
               paymentAction={paymentAction}
-              onUpdate={onBookingsChanged}
               triggerLabel="Manage"
               triggerVariant="panelSecondary"
             />
@@ -1605,7 +1599,6 @@ function SelectedMoreActionsPanel({
   onOpenReschedule,
   onShowPaymentReview,
   onShowRecommendations,
-  onBookingsChanged,
 }: {
   booking: WorkspaceBookingRow;
   viewerRole: string;
@@ -1616,7 +1609,6 @@ function SelectedMoreActionsPanel({
   onOpenReschedule: () => void;
   onShowPaymentReview: () => void;
   onShowRecommendations: () => void;
-  onBookingsChanged?: () => void;
 }) {
   const [open, setOpen] = useState(false);
   const plan = getSelectedBookingActionPlan({
@@ -1669,7 +1661,6 @@ function SelectedMoreActionsPanel({
               triggerVariant="panelSecondary"
               fullWidth
               emptyBehavior="disabled"
-              onUpdate={onBookingsChanged}
             />
           </div>
           <button
@@ -1700,7 +1691,6 @@ function SelectedMoreActionsPanel({
               triggerLabel="Take Payment"
               triggerVariant="panelSecondary"
               fullWidth
-              onUpdate={onBookingsChanged}
             />
           </div>
           {isCrmPendingBookingStatus(booking.status) ? (

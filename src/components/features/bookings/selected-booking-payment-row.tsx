@@ -51,7 +51,7 @@ export function SelectedBookingPaymentRow({
           {isCrmPendingBookingStatus(booking.status) && confirmPaymentAction ? (
             <button type="button" onClick={() => setExpanded(!isExpanded)} className={overviewActionClass}>{isExpanded ? "Close" : "Review"}</button>
           ) : null}
-          <PaymentActionMenu bookingId={booking.id} paymentStatus={booking.payment_status} paymentMethod={booking.payment_method} amountPaid={booking.amount_paid} pricePaid={price} paymentAction={paymentAction} onUpdate={onChanged} triggerLabel="Manage" triggerVariant="panelSecondary" />
+          <PaymentActionMenu bookingId={booking.id} paymentStatus={booking.payment_status} paymentMethod={booking.payment_method} amountPaid={booking.amount_paid} pricePaid={price} paymentAction={paymentAction} triggerLabel="Manage" triggerVariant="panelSecondary" />
         </div>
       }
     >

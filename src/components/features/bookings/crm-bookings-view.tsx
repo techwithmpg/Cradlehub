@@ -18,6 +18,7 @@ import { resolveBookingReferenceSource } from "@/lib/bookings/booking-source";
 import { useSheetNativeReferences } from "@/components/features/crm/master-sheet/use-sheet-native-references";
 import { useGenerationAwareWorkspaceSWR } from "@/components/features/dashboard/use-workspace-generation";
 import { refreshCrmBookingsOperationalDataAction } from "@/app/(dashboard)/crm/bookings/actions";
+import { notifyBookingsChanged } from "@/lib/bookings/bookings-client-events";
 import type { CrmBookingsOperationalData } from "@/lib/queries/crm-bookings-operational";
 
 type ActionFn = (input: unknown) => Promise<{ success: boolean; error?: string }>;
@@ -169,8 +170,11 @@ export function CrmBookingsView({
         initialSelectedId={bookingId}
         confirmPaymentAction={confirmPaymentAction}
         isRefreshing={generation.isRefreshing}
-        onBookingsChanged={() => {
+        onRefresh={() => {
           void revalidate().catch(() => undefined);
+        }}
+        onBookingsChanged={() => {
+          notifyBookingsChanged();
         }}
       />
     </>

@@ -9,6 +9,10 @@ import { CrmBookingsView } from "@/components/features/bookings/crm-bookings-vie
 import type { CrmBookingsOperationalData } from "@/lib/queries/crm-bookings-operational";
 import type { WorkspaceBookingRow } from "@/components/features/bookings/bookings-workspace";
 import { BOOKINGS_CHANGED_EVENT } from "@/lib/bookings/bookings-client-events";
+import {
+  RetainedWorkspaceModule,
+  RetainedWorkspaceProvider,
+} from "@/components/features/dashboard/retained-workspace-provider";
 
 vi.mock("server-only", () => ({}));
 
@@ -36,6 +40,7 @@ vi.mock("@/components/features/crm/master-sheet/use-sheet-native-references", ()
 
 vi.mock("@/components/features/bookings/administrative-booking-modal-provider", () => ({
   useAdministrativeBookingModal: () => ({ openBookingModal: vi.fn() }),
+  OpenAdministrativeBookingButton: ({ children }: { children: React.ReactNode }) => <button>{children}</button>,
 }));
 
 type RefreshActionFn = (params?: {
@@ -123,6 +128,10 @@ describe("CrmBookingsView generation-aware operational lifecycle", () => {
         dispatchEvent: vi.fn(),
       })),
     });
+    window.requestAnimationFrame = (callback: FrameRequestCallback) => {
+      callback(0);
+      return 1;
+    };
   });
 
   afterEach(() => {
@@ -625,6 +634,227 @@ describe("CrmBookingsView generation-aware operational lifecycle", () => {
       expect(screen.getAllByText("Final Reconciled").length).toBeGreaterThan(0);
     });
     expect(refreshAction).toHaveBeenCalledTimes(2);
+  });
+
+  async function renderWithRetainedProvider(options?: {
+    initialData?: CrmBookingsOperationalData;
+    refreshAction?: RefreshActionFn;
+    paymentAction?: (input: unknown) => Promise<{ success: boolean; error?: string }>;
+    isMobile?: boolean;
+  }) {
+    if (options?.isMobile) {
+      Object.defineProperty(window, "matchMedia", {
+        writable: true,
+        value: vi.fn().mockImplementation((query) => ({
+          matches: false,
+          media: query,
+          onchange: null,
+          addListener: vi.fn(),
+          removeListener: vi.fn(),
+          addEventListener: vi.fn(),
+          removeEventListener: vi.fn(),
+          dispatchEvent: vi.fn(),
+        })),
+      });
+    }
+    const cache = new Map();
+    const refreshAction =
+      options?.refreshAction ??
+      vi.fn(async () => makeBookingsOperationalData());
+    const initialData =
+      options?.initialData ??
+      makeBookingsOperationalData([
+        {
+          id: "b-1",
+          order_id: null,
+          status: "confirmed",
+          payment_status: "unpaid",
+          amount_paid: 0,
+          metadata: { price_paid: 1500 },
+          customers: { id: "c-1", full_name: "Alice Unpaid", phone: "111" },
+        },
+      ]);
+    const paymentAction =
+      options?.paymentAction ?? vi.fn(async () => ({ success: true }));
+
+    const utils = render(
+      <SWRConfig value={{ provider: () => cache }}>
+        <RetainedWorkspaceProvider
+          workspace="crm"
+          userId="user-1"
+          role="crm"
+          branchId="branch-a"
+          enabled
+        >
+          <RetainedWorkspaceModule moduleId="crm-bookings">
+            <CrmBookingsView
+              initialData={initialData}
+              refreshAction={refreshAction}
+              paymentAction={paymentAction}
+            />
+          </RetainedWorkspaceModule>
+        </RetainedWorkspaceProvider>
+      </SWRConfig>
+    );
+
+    await waitFor(() => {
+      expect(screen.queryByLabelText("Loading bookings workspace")).toBeNull();
+    });
+
+    return { ...utils, refreshAction, paymentAction, initialData, cache };
+  }
+
+  it("16. integration: successful payment through PaymentActionMenu triggers exactly one authoritative Bookings reconciliation", async () => {
+    const d = deferred<CrmBookingsOperationalData>();
+    const refreshAction = vi.fn().mockReturnValue(d.promise);
+    const paymentAction = vi.fn().mockResolvedValue({ success: true });
+
+    await renderWithRetainedProvider({ refreshAction, paymentAction });
+
+    // Initial render causes zero fetch
+    expect(refreshAction).not.toHaveBeenCalled();
+    expect(screen.getAllByText("Alice Unpaid").length).toBeGreaterThan(0);
+
+    // Click the Manage payment trigger in SelectedBookingPaymentRow to open quick pay menu
+    const payTrigger = screen.getByRole("button", { name: /Manage/i });
+    fireEvent.click(payTrigger);
+
+    // Click Cash quick pay option
+    const cashOption = screen.getByRole("button", { name: "Cash" });
+    fireEvent.click(cashOption);
+
+    // Wait for paymentAction to be called
+    await waitFor(() => {
+      expect(paymentAction).toHaveBeenCalledWith(
+        expect.objectContaining({
+          bookingId: "b-1",
+          paymentMethod: "cash",
+          paymentStatus: "paid",
+        })
+      );
+    });
+
+    // Successful payment emits notifyBookingsChanged -> RetainedWorkspaceProvider invalidates crm-bookings -> exactly ONE reconciliation!
+    await waitFor(() => {
+      expect(refreshAction).toHaveBeenCalledTimes(1);
+    });
+
+    // Data remains visible while reconciliation is in flight
+    expect(screen.getAllByText("Alice Unpaid").length).toBeGreaterThan(0);
+
+    // Resolve authoritative fresh payload with paid status
+    await act(async () => {
+      d.resolve(
+        makeBookingsOperationalData([
+          {
+            id: "b-1",
+            order_id: null,
+            status: "confirmed",
+            payment_status: "paid",
+            amount_paid: 1500,
+            metadata: { price_paid: 1500 },
+            customers: { id: "c-1", full_name: "Alice Paid Authoritative", phone: "111" },
+          },
+        ])
+      );
+    });
+
+    // Authoritative data is rendered and still exactly 1 reconciliation was made (never duplicate 2)
+    await waitFor(() => {
+      expect(screen.getAllByText("Alice Paid Authoritative").length).toBeGreaterThan(0);
+    });
+    expect(refreshAction).toHaveBeenCalledTimes(1);
+  });
+
+  it("17. integration: failed payment triggers zero false state updates and zero reconciliations", async () => {
+    const refreshAction = vi.fn().mockResolvedValue(makeBookingsOperationalData());
+    const paymentAction = vi.fn().mockResolvedValue({
+      success: false,
+      error: "Card declined by terminal",
+    });
+
+    await renderWithRetainedProvider({ refreshAction, paymentAction });
+
+    expect(screen.getAllByText("Alice Unpaid").length).toBeGreaterThan(0);
+    expect(refreshAction).not.toHaveBeenCalled();
+
+    // Click Manage payment trigger
+    const payTrigger = screen.getByRole("button", { name: /Manage/i });
+    fireEvent.click(payTrigger);
+
+    // Click Card quick pay option
+    const cardOption = screen.getByRole("button", { name: "Card" });
+    fireEvent.click(cardOption);
+
+    await waitFor(() => {
+      expect(paymentAction).toHaveBeenCalledTimes(1);
+    });
+
+    // Feedback error is shown in the UI
+    await waitFor(() => {
+      expect(screen.getByText("Card declined by terminal")).toBeTruthy();
+    });
+
+    // Zero reconciliations triggered!
+    expect(refreshAction).not.toHaveBeenCalled();
+
+    // Alice Unpaid is still displayed, unchanged
+    expect(screen.getAllByText("Alice Unpaid").length).toBeGreaterThan(0);
+  });
+
+  it("18. integration: mobile table payment confirmation triggers exactly one authoritative Bookings reconciliation", async () => {
+    const d = deferred<CrmBookingsOperationalData>();
+    const refreshAction = vi.fn().mockReturnValue(d.promise);
+    const paymentAction = vi.fn().mockResolvedValue({ success: true });
+
+    await renderWithRetainedProvider({ refreshAction, paymentAction, isMobile: true });
+
+    expect(refreshAction).not.toHaveBeenCalled();
+    expect(screen.getAllByText("Alice Unpaid").length).toBeGreaterThan(0);
+
+    // In mobile table, PrimaryRowAction renders Review Payment trigger
+    const payTrigger = screen.getByRole("button", { name: /Review Payment/i });
+    fireEvent.click(payTrigger);
+
+    // Click Cash quick pay
+    const cashOption = screen.getByRole("button", { name: "Cash" });
+    fireEvent.click(cashOption);
+
+    await waitFor(() => {
+      expect(paymentAction).toHaveBeenCalledWith(
+        expect.objectContaining({
+          bookingId: "b-1",
+          paymentMethod: "cash",
+          paymentStatus: "paid",
+        })
+      );
+    });
+
+    // Exactly one reconciliation triggered via RetainedWorkspaceProvider
+    await waitFor(() => {
+      expect(refreshAction).toHaveBeenCalledTimes(1);
+    });
+
+    await act(async () => {
+      d.resolve(
+        makeBookingsOperationalData([
+          {
+            id: "b-1",
+            order_id: null,
+            status: "confirmed",
+            payment_status: "paid",
+            amount_paid: 1500,
+            metadata: { price_paid: 1500 },
+            customers: { id: "c-1", full_name: "Alice Paid Mobile", phone: "111" },
+          },
+        ])
+      );
+    });
+
+    await waitFor(() => {
+      expect(screen.getAllByText("Alice Paid Mobile").length).toBeGreaterThan(0);
+    });
+    expect(refreshAction).toHaveBeenCalledTimes(1);
   });
 });
 

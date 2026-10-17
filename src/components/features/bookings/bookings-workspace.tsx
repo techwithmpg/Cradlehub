@@ -87,6 +87,7 @@ type BookingsWorkspaceProps = {
   paymentAction?: ActionFn;
   initialSelectedId?: string;
   confirmPaymentAction?: ActionFn;
+  onRefresh?: () => void;
   onBookingsChanged?: () => void;
   isRefreshing?: boolean;
 };
@@ -328,6 +329,7 @@ export function BookingsWorkspace({
   paymentAction,
   initialSelectedId,
   confirmPaymentAction,
+  onRefresh,
   onBookingsChanged,
   isRefreshing,
 }: BookingsWorkspaceProps) {
@@ -472,6 +474,7 @@ export function BookingsWorkspace({
         paymentAction={paymentAction}
         initialSelectedId={initialSelectedId}
         confirmPaymentAction={confirmPaymentAction}
+        onRefresh={onRefresh}
         onBookingsChanged={onBookingsChanged}
         isRefreshing={isRefreshing}
       />
@@ -497,7 +500,7 @@ export function BookingsWorkspace({
               variant="outline"
               size="lg"
               disabled={isRefreshing}
-              onClick={() => onBookingsChanged?.()}
+              onClick={() => (onRefresh ?? onBookingsChanged)?.()}
             >
               <RefreshCw
                 className={isRefreshing ? "animate-spin" : undefined}
