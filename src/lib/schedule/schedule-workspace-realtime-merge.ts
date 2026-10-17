@@ -208,12 +208,25 @@ export function mergeScheduleBookingRealtimeChange(
     return { data, relevant: true, patched: false };
   }
 
+  if (
+    nextRow.service_id !== undefined &&
+    nextRow.service_id !== (existing.booking.service_id ?? null)
+  ) {
+    // Service labels/metadata are joined server data; do not show the old service under a new ID.
+    return { data, relevant: true, patched: false };
+  }
+
   const resource =
     nextRow.resource_id === undefined
       ? undefined
       : nextRow.resource_id
         ? data.branchResources.find((candidate) => candidate.id === nextRow.resource_id) ?? null
         : null;
+
+  if (nextRow.resource_id && !resource) {
+    // Resource labels/type/capacity must come from authoritative branch resource data.
+    return { data, relevant: true, patched: false };
+  }
 
   const updatedBooking: DailyScheduleBooking = {
     ...existing.booking,
