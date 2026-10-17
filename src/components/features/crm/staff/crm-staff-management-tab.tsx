@@ -12,7 +12,7 @@ import { updateStaffServicesFromCrmAction } from "@/lib/actions/crm-staff-servic
 import type { StaffMember } from "@/components/features/staff/staff-management-utils";
 import type { ServiceLite } from "@/app/(dashboard)/owner/branches/[branchId]/branch-services-panel";
 import type { ServiceAssignmentRow } from "@/lib/queries/crm-services";
-import { toCrmStaffServiceRows } from "./service-row-adapter";
+import { getCrmStaffServiceId, getCrmStaffServiceName, toCrmStaffServiceRows } from "./service-row-adapter";
 import { getStaffAdminName } from "@/lib/staff/display-name";
 
 type BranchLite = { id: string; name: string };
@@ -53,6 +53,24 @@ export function CrmStaffManagementTab({
     () => toCrmStaffServiceRows(activeServices),
     [activeServices]
   );
+
+  const serviceNamesByStaff = useMemo<Record<string, string[]>>(() => {
+    const nameById = new Map<string, string>();
+    for (const service of activeServices) {
+      const id = getCrmStaffServiceId(service);
+      const name = getCrmStaffServiceName(service);
+      if (id && name) nameById.set(id, name);
+    }
+    const result: Record<string, string[]> = {};
+    for (const row of providerAssignments) {
+      const name = nameById.get(row.service_id);
+      if (!name) continue;
+      const names = result[row.staff_id] ?? [];
+      if (!names.includes(name)) names.push(name);
+      result[row.staff_id] = names;
+    }
+    return result;
+  }, [activeServices, providerAssignments]);
 
   const getCurrentServiceIds = useCallback(
     (staffId: string): string[] =>
@@ -156,6 +174,7 @@ export function CrmStaffManagementTab({
         onEditStaff={handleEditStaff}
         onManageServices={handleManageServices}
         onToggleActive={handleToggleActive}
+        serviceNamesByStaff={providerAssignmentsError ? undefined : serviceNamesByStaff}
       />
 
       <CrmEditStaffProfileModal

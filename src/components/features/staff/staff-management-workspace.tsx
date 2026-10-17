@@ -33,6 +33,7 @@ type StaffManagementWorkspaceProps = {
   onEditWorkSetup?: (staff: StaffMember) => void;
   /** CRM-only: callback to toggle staff active/inactive */
   onToggleActive?: (staff: StaffMember) => void;
+  serviceNamesByStaff?: Record<string, string[]>;
 };
 
 const initialFilters: StaffFilters = {
@@ -64,6 +65,7 @@ export function StaffManagementWorkspace({
   onManageServices,
   onEditWorkSetup,
   onToggleActive,
+  serviceNamesByStaff,
 }: StaffManagementWorkspaceProps) {
   const isOwner = workspaceContext === "owner";
   const isCrm = workspaceContext === "crm";
@@ -277,6 +279,7 @@ export function StaffManagementWorkspace({
 
         <div className="min-w-0">
           <StaffPreviewPanel
+            key={selectedStaff?.id ?? "none"}
             staff={selectedStaff}
             onClearSelection={() => setSelectedStaffId("")}
             workspaceContext={workspaceContext}
@@ -284,6 +287,7 @@ export function StaffManagementWorkspace({
             onManageServices={onManageServices}
             onEditWorkSetup={onEditWorkSetup}
             onToggleActive={onToggleActive}
+            serviceNames={selectedStaff && serviceNamesByStaff ? serviceNamesByStaff[selectedStaff.id] ?? [] : undefined}
           />
         </div>
       </div>

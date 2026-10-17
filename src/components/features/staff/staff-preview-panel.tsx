@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import { useState } from "react";
 import Image from "next/image";
 import {
   Building2,
@@ -48,6 +49,8 @@ type StaffPreviewPanelProps = {
   onEditWorkSetup?: (staff: StaffMember) => void;
   /** CRM-only: toggle active/inactive status */
   onToggleActive?: (staff: StaffMember) => void;
+  /** Verified service names; undefined when assignments were not loaded. */
+  serviceNames?: string[];
 };
 
 export function StaffPreviewPanel({
@@ -58,7 +61,9 @@ export function StaffPreviewPanel({
   onManageServices,
   onEditWorkSetup,
   onToggleActive,
+  serviceNames,
 }: StaffPreviewPanelProps) {
+  const [profileSection, setProfileSection] = useState<"overview" | "services" | "access">("overview");
   const isOwner = workspaceContext === "owner";
   const isCrm = workspaceContext === "crm";
   const basePath = isCrm ? "#" : `/${workspaceContext}/staff`;
@@ -158,6 +163,27 @@ export function StaffPreviewPanel({
           </div>
         </div>
 
+        <div className="mt-4 flex gap-1 overflow-x-auto border-b border-[var(--cs-border-soft)]" role="tablist" aria-label="Staff profile sections">
+          {(["overview", "services", "access"] as const).map((section) => (
+            <button
+              key={section}
+              type="button"
+              role="tab"
+              aria-selected={profileSection === section}
+              onClick={() => setProfileSection(section)}
+              className={[
+                "shrink-0 border-b-2 px-3 py-2 text-sm font-medium capitalize transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--cs-sand)]",
+                profileSection === section
+                  ? "border-[var(--cs-success)] text-[var(--cs-text)]"
+                  : "border-transparent text-[var(--cs-text-muted)] hover:text-[var(--cs-text)]",
+              ].join(" ")}
+            >
+              {section}
+            </button>
+          ))}
+        </div>
+
+        {profileSection === "overview" && <>
         <div className="mt-5">
           <h3 className="m-0 text-sm font-semibold text-[var(--cs-text)]">Staff information</h3>
           <p className="mb-0 mt-1 text-xs text-[var(--cs-text-muted)]">Work details and contact information</p>
@@ -177,8 +203,6 @@ export function StaffPreviewPanel({
           <DetailRow Icon={UserCheck} label="Status" value={getStaffStatusLabel(status)} />
           <DetailRow Icon={CalendarDays} label="Joined" value={formatStaffDate(staff.created_at)} />
         </dl>
-
-        {isOwner && <StaffAccountAccessPanel key={staff.id} staffId={staff.id} />}
 
         {!isCrm && (
           <div className="mt-5 rounded-xl border border-[var(--cs-border-soft)] bg-[var(--cs-surface-warm)] p-4">
@@ -282,6 +306,66 @@ export function StaffPreviewPanel({
               )}
             </div>
           </div>
+        )}
+
+        </>}
+
+        {profileSection === "services" && (
+          <section className="mt-4 rounded-xl border border-[var(--cs-border-soft)] bg-[var(--cs-surface-warm)] p-4" aria-label="Selected staff service capabilities">
+            <div className="flex flex-wrap items-center justify-between gap-2">
+              <div>
+                <h3 className="m-0 text-sm font-semibold text-[var(--cs-text)]">Service Capabilities</h3>
+                <p className="m-0 mt-1 text-xs text-[var(--cs-text-muted)]">
+                  {serviceNames === undefined
+                    ? "Open the authorized editor to review assigned services."
+                    : `${serviceNames.length} service${serviceNames.length === 1 ? "" : "s"} assigned`}
+                </p>
+              </div>
+              {onManageServices && (
+                <Button type="button" size="sm" variant="outline" onClick={() => onManageServices(staff)} className="border-[var(--cs-border)] bg-[var(--cs-surface)]">
+                  <Sparkles className="size-4" aria-hidden="true" /> Edit services
+                </Button>
+              )}
+            </div>
+            {serviceNames && serviceNames.length > 0 ? (
+              <ul className="mt-3 grid gap-2 sm:grid-cols-2">
+                {serviceNames.map((name) => (
+                  <li key={name} className="rounded-lg border border-[var(--cs-border)] bg-[var(--cs-surface)] px-3 py-2 text-xs font-medium text-[var(--cs-text)]">
+                    {name}
+                  </li>
+                ))}
+              </ul>
+            ) : (
+              <p className="mb-0 mt-3 rounded-lg border border-dashed border-[var(--cs-border)] px-3 py-4 text-xs text-[var(--cs-text-muted)]">
+                {serviceNames ? "No services currently assigned." : "Assignments are not available in this view."}
+              </p>
+            )}
+          </section>
+        )}
+
+        {profileSection === "access" && (
+          <section className="mt-4" aria-label="Selected staff account access">
+            <div className="rounded-xl border border-[var(--cs-border-soft)] bg-[var(--cs-surface-warm)] p-4">
+              <h3 className="m-0 text-sm font-semibold text-[var(--cs-text)]">Workspace Access</h3>
+              <dl className="mt-3 grid gap-3 sm:grid-cols-2">
+                <DetailRow Icon={ShieldCheck} label="Assigned role" value={meta.badgeLabel} />
+                <DetailRow Icon={Building2} label="Assigned branch" value={branchName} />
+                <DetailRow Icon={UserCheck} label="Account status" value={getStaffStatusLabel(status)} />
+                <DetailRow Icon={UserCog} label="Staff function" value={meta.staffTypeLabel} />
+              </dl>
+              {onEditWorkSetup && (
+                <Button type="button" size="sm" variant="outline" className="mt-3 border-[var(--cs-border)] bg-[var(--cs-surface)]" onClick={() => onEditWorkSetup(staff)}>
+                  <UserCog className="size-4" aria-hidden="true" /> Edit work setup
+                </Button>
+              )}
+            </div>
+            {isOwner && <StaffAccountAccessPanel key={staff.id} staffId={staff.id} />}
+            {!isOwner && (
+              <p className="m-0 mt-3 text-xs text-[var(--cs-text-muted)]">
+                Additional account diagnostics and recovery controls are restricted to the Owner.
+              </p>
+            )}
+          </section>
         )}
       </div>
     </aside>
