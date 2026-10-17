@@ -175,6 +175,12 @@ export function StaffManagementWorkspace({
                 Direct Invite
               </Link>
             </Button>
+            <Button asChild variant="outline" size="lg" className="border-[var(--cs-border)] bg-[var(--cs-surface)] text-[var(--cs-text-secondary)]">
+              <Link href="/owner/staff/onboarding">
+                <UsersRound className="size-4" aria-hidden="true" />
+                Review Applications
+              </Link>
+            </Button>
           </div>
         )}
       </header>}
