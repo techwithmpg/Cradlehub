@@ -64,7 +64,7 @@ export function StaffPreviewPanel({
 
   if (!staff) {
     return (
-      <aside className="self-start rounded-xl border border-dashed border-[var(--cs-border-strong)] bg-[var(--cs-surface-warm)] p-6 text-center text-sm text-[var(--cs-text-muted)] xl:sticky xl:top-20">
+      <aside className="flex min-h-56 items-center justify-center rounded-2xl border border-dashed border-[var(--cs-border-strong)] bg-[var(--cs-surface)] p-8 text-center text-sm text-[var(--cs-text-muted)]">
         Select a staff member to view details.
       </aside>
     );
@@ -80,8 +80,8 @@ export function StaffPreviewPanel({
   const profileActionLabel = status === "active" ? "Edit Profile" : "Review Profile";
 
   return (
-    <aside className="self-start rounded-xl border border-[var(--cs-border)] bg-[var(--cs-surface)] shadow-[var(--cs-shadow-sm)] xl:sticky xl:top-20">
-      <div className="flex items-center justify-between gap-3 border-b border-[var(--cs-border-soft)] px-4 py-3">
+    <aside className="self-start overflow-hidden rounded-2xl border border-[var(--cs-border)] bg-[var(--cs-surface)] shadow-[var(--cs-shadow-sm)]">
+      <div className="flex items-center justify-between gap-3 border-b border-[var(--cs-border-soft)] bg-[var(--cs-surface-warm)] px-5 py-3">
         <StaffStatusBadge status={status} />
         <div className="flex items-center gap-1">
           <DropdownMenu>
@@ -130,17 +130,29 @@ export function StaffPreviewPanel({
         </div>
       </div>
 
-      <div className="p-5">
-        <div className="flex flex-col items-center text-center">
-          <ProfileAvatar staff={staff} label={displayName} />
-          <h2 className="mt-3 mb-0 text-lg font-semibold text-[var(--cs-text)]">{displayName}</h2>
-          <p className="mt-1 mb-0 text-sm text-[var(--cs-text-secondary)]">{displayPosition}</p>
-          <div className="mt-3">
-            <StaffRoleBadge staff={staff} />
+      <div className="p-4 sm:p-5">
+        <div className="rounded-xl border border-[var(--cs-border-soft)] bg-[var(--cs-success-bg)]/30 p-4 sm:p-5">
+          <div className="flex flex-wrap items-start gap-4">
+            <ProfileAvatar staff={staff} label={displayName} />
+            <div className="min-w-0 flex-1">
+              <div className="flex flex-wrap items-center gap-2">
+                <h2 className="m-0 text-xl font-bold tracking-tight text-[var(--cs-text)]">{displayName}</h2>
+                <StaffStatusBadge status={status} />
+              </div>
+              <p className="mt-1 mb-0 text-sm text-[var(--cs-text-secondary)]">{displayPosition}</p>
+              <div className="mt-3"><StaffRoleBadge staff={staff} /></div>
+              <p className="mb-0 mt-3 text-xs text-[var(--cs-text-muted)]">
+                Staff profile · {branchName}
+              </p>
+            </div>
           </div>
         </div>
 
-        <dl className="mt-5 space-y-2.5">
+        <div className="mt-5">
+          <h3 className="m-0 text-sm font-semibold text-[var(--cs-text)]">Staff information</h3>
+          <p className="mb-0 mt-1 text-xs text-[var(--cs-text-muted)]">Work details and contact information</p>
+        </div>
+        <dl className="mt-3 grid gap-x-4 gap-y-3 rounded-xl border border-[var(--cs-border-soft)] p-4 sm:grid-cols-2">
           <DetailRow Icon={Building2} label="Branch" value={branchName} />
           <DetailRow Icon={UserCheck} label="Known As" value={nickname ?? "—"} />
           <DetailRow Icon={ShieldCheck} label="Workspace Access" value={meta.badgeLabel} />
@@ -159,9 +171,9 @@ export function StaffPreviewPanel({
         {isOwner && <StaffAccountAccessPanel key={staff.id} staffId={staff.id} />}
 
         {!isCrm && (
-          <div className="mt-5 rounded-xl border border-[var(--cs-border-soft)] bg-[var(--cs-surface-warm)] p-3">
+          <div className="mt-5 rounded-xl border border-[var(--cs-border-soft)] bg-[var(--cs-surface-warm)] p-4">
             <h3 className="m-0 text-sm font-semibold text-[var(--cs-text)]">Quick Actions</h3>
-            <div className="mt-3 grid gap-2">
+            <div className="mt-3 grid gap-2 sm:grid-cols-2">
               {canApprove && (
                 <Button
                   asChild
@@ -187,9 +199,9 @@ export function StaffPreviewPanel({
         )}
 
         {hasCrmActions && (
-          <div className="mt-5 rounded-xl border border-[var(--cs-border-soft)] bg-[var(--cs-surface-warm)] p-3">
+          <div className="mt-5 rounded-xl border border-[var(--cs-border-soft)] bg-[var(--cs-surface-warm)] p-4">
             <h3 className="m-0 text-sm font-semibold text-[var(--cs-text)]">Quick Actions</h3>
-            <div className="mt-3 grid gap-2">
+            <div className="mt-3 grid gap-2 sm:grid-cols-2">
               {onEditStaff && (
                 <Button
                   variant="outline"
@@ -254,7 +266,7 @@ function ProfileAvatar({ staff, label }: { staff: StaffMember; label: string }) 
         width={80}
         height={80}
         unoptimized
-        className="size-20 rounded-full border border-[var(--cs-border)] object-cover shadow-[var(--cs-shadow-xs)]"
+        className="size-20 rounded-xl border border-[var(--cs-border)] object-cover shadow-[var(--cs-shadow-xs)]"
       />
     );
   }
@@ -262,7 +274,7 @@ function ProfileAvatar({ staff, label }: { staff: StaffMember; label: string }) 
   return (
     <span
       aria-hidden="true"
-      className="flex size-20 items-center justify-center rounded-full border border-[var(--cs-border)] bg-[var(--cs-sand-mist)] text-xl font-semibold text-[var(--cs-sand-dark)] shadow-[var(--cs-shadow-xs)]"
+      className="flex size-20 items-center justify-center rounded-xl border border-[var(--cs-border)] bg-[var(--cs-sand-mist)] text-xl font-semibold text-[var(--cs-sand-dark)] shadow-[var(--cs-shadow-xs)]"
     >
       {getInitials(label)}
     </span>
@@ -279,10 +291,12 @@ function DetailRow({
   value: string;
 }) {
   return (
-    <div className="grid grid-cols-[24px_96px_minmax(0,1fr)] items-start gap-2 text-sm">
+    <div className="grid min-w-0 grid-cols-[20px_minmax(0,1fr)] items-start gap-x-2 text-sm">
       <Icon className="mt-0.5 size-4 text-[var(--cs-text-muted)]" aria-hidden={true} />
-      <dt className="text-[var(--cs-text-muted)]">{label}</dt>
-      <dd className="m-0 min-w-0 break-words font-medium text-[var(--cs-text)]">{value}</dd>
+      <div className="min-w-0">
+        <dt className="text-xs text-[var(--cs-text-muted)]">{label}</dt>
+        <dd className="m-0 mt-0.5 min-w-0 break-words font-medium text-[var(--cs-text)]">{value}</dd>
+      </div>
     </div>
   );
 }
