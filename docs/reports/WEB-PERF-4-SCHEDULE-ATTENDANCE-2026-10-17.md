@@ -351,14 +351,24 @@ git diff --check
 ### 6. Broader Regression Gate (PERF-1A, PERF-1B, PERF-2, PERF-3)
 
 ```bash
-pnpm exec vitest run \
-  tests/lib/performance \
-  tests/lib/crm/crm-today-realtime-merge.test.ts \
-  tests/components/crm/today/crm-today-workspace-generation.test.tsx \
-  tests/components/crm/bookings/crm-bookings-workspace-generation.test.tsx \
-  tests/lib/bookings/crm-bookings-workspace-realtime-merge.test.ts \
-  tests/lib/bookings/use-bookings-workspace.test.tsx \
-  tests/lib/bookings/use-bookings-realtime.test.tsx
+pnpm vitest run \
+  tests/lib/navigation/workspace-generation.test.ts \
+  tests/lib/navigation/workspace-module-registry.test.ts \
+  tests/components/dashboard/owner-runtime-scope.test.tsx \
+  tests/lib/owner/operational-scope.test.ts \
+  tests/lib/owner/operational-scope-server.test.ts \
+  tests/components/crm/today-generation-swr.test.tsx \
+  tests/lib/crm/crm-today-operational.test.ts \
+  tests/app/crm/today-parallel-reads.test.tsx \
+  tests/components/crm/bookings-generation-swr.test.tsx \
+  tests/lib/crm/crm-bookings-operational.test.ts \
+  tests/lib/bookings/crm-bookings-page.test.tsx \
+  tests/lib/bookings/crm-bookings-api.test.ts \
+  tests/app/crm/quick-booking-customer-callers.test.tsx \
+  tests/components/crm/quick-booking-customer-autocomplete.test.tsx \
+  tests/components/crm/quick-booking-deferred-options.test.tsx \
+  tests/components/crm/quick-booking-service-duration-dropdown.test.tsx \
+  tests/lib/crm/quick-booking-customer-prefill-scope.test.ts
 ```
 
 - **Test Files:** 17 passed (17)
@@ -435,10 +445,9 @@ Unchanged:
 
 Because PERF-4 changes only Web TypeScript/React code and tests:
 
-1. Revert the PERF-4 branch/PR commits;
-2. Rerun the accepted-main quality gate;
-3. No database rollback is required;
-4. No production data repair is required from the changes in this branch.
+Rollback by reverting the complete PERF-4 PR/commit range or by closing PR #34 without merging. Do not treat the final correction commit alone as the complete PERF-4 rollback.
+
+No database rollback is required because PERF-4 contains no migrations or production data changes.
 
 ---
 
