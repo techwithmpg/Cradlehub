@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import { useState } from "react";
 import Image from "next/image";
 import {
   Building2,
@@ -45,8 +46,11 @@ type StaffPreviewPanelProps = {
   onEditStaff?: (staff: StaffMember) => void;
   /** CRM-only: open the inline service capability editor */
   onManageServices?: (staff: StaffMember) => void;
+  onEditWorkSetup?: (staff: StaffMember) => void;
   /** CRM-only: toggle active/inactive status */
   onToggleActive?: (staff: StaffMember) => void;
+  /** Verified service names; undefined when assignments were not loaded. */
+  serviceNames?: string[];
 };
 
 export function StaffPreviewPanel({
@@ -55,8 +59,11 @@ export function StaffPreviewPanel({
   workspaceContext = "owner",
   onEditStaff,
   onManageServices,
+  onEditWorkSetup,
   onToggleActive,
+  serviceNames,
 }: StaffPreviewPanelProps) {
+  const [profileSection, setProfileSection] = useState<"overview" | "services" | "access">("overview");
   const isOwner = workspaceContext === "owner";
   const isCrm = workspaceContext === "crm";
   const basePath = isCrm ? "#" : `/${workspaceContext}/staff`;
@@ -64,7 +71,7 @@ export function StaffPreviewPanel({
 
   if (!staff) {
     return (
-      <aside className="self-start rounded-xl border border-dashed border-[var(--cs-border-strong)] bg-[var(--cs-surface-warm)] p-6 text-center text-sm text-[var(--cs-text-muted)] xl:sticky xl:top-20">
+      <aside className="flex min-h-56 items-center justify-center rounded-2xl border border-dashed border-[var(--cs-border-strong)] bg-[var(--cs-surface)] p-8 text-center text-sm text-[var(--cs-text-muted)]">
         Select a staff member to view details.
       </aside>
     );
@@ -80,8 +87,8 @@ export function StaffPreviewPanel({
   const profileActionLabel = status === "active" ? "Edit Profile" : "Review Profile";
 
   return (
-    <aside className="self-start rounded-xl border border-[var(--cs-border)] bg-[var(--cs-surface)] shadow-[var(--cs-shadow-sm)] xl:sticky xl:top-20">
-      <div className="flex items-center justify-between gap-3 border-b border-[var(--cs-border-soft)] px-4 py-3">
+    <aside className="self-start overflow-hidden rounded-2xl border border-[var(--cs-border)] bg-[var(--cs-surface)] shadow-[var(--cs-shadow-sm)]">
+      <div className="flex items-center justify-between gap-3 border-b border-[var(--cs-border-soft)] bg-[var(--cs-surface-warm)] px-5 py-3">
         <StaffStatusBadge status={status} />
         <div className="flex items-center gap-1">
           <DropdownMenu>
@@ -97,7 +104,7 @@ export function StaffPreviewPanel({
               }
             />
             <DropdownMenuContent align="end" className="min-w-44">
-              {!isCrm && (
+              {!isCrm && !(isOwner && onEditStaff) && (
                 <DropdownMenuItem>
                   <Link href={`${basePath}/${staff.id}`} className="flex w-full items-center gap-2">
                     <UserCog className="size-4" aria-hidden="true" />
@@ -105,16 +112,24 @@ export function StaffPreviewPanel({
                   </Link>
                 </DropdownMenuItem>
               )}
-              {isCrm && onEditStaff && (
+              {onEditStaff && (
                 <DropdownMenuItem onSelect={() => onEditStaff(staff)}>
                   <UserCog className="size-4" aria-hidden="true" />
                   Edit profile
                 </DropdownMenuItem>
               )}
-              {isCrm && onManageServices && (
+              {onManageServices && (
                 <DropdownMenuItem onSelect={() => onManageServices(staff)}>
                   <Sparkles className="size-4" aria-hidden="true" />
                   Manage services
+                </DropdownMenuItem>
+              )}
+              {isOwner && onEditStaff && (
+                <DropdownMenuItem>
+                  <Link href={basePath + "/" + staff.id} className="flex w-full items-center gap-2">
+                    <UserCog className="size-4" aria-hidden="true" />
+                    Open full profile
+                  </Link>
                 </DropdownMenuItem>
               )}
             </DropdownMenuContent>
@@ -130,17 +145,50 @@ export function StaffPreviewPanel({
         </div>
       </div>
 
-      <div className="p-5">
-        <div className="flex flex-col items-center text-center">
-          <ProfileAvatar staff={staff} label={displayName} />
-          <h2 className="mt-3 mb-0 text-lg font-semibold text-[var(--cs-text)]">{displayName}</h2>
-          <p className="mt-1 mb-0 text-sm text-[var(--cs-text-secondary)]">{displayPosition}</p>
-          <div className="mt-3">
-            <StaffRoleBadge staff={staff} />
+      <div className="p-4 sm:p-5">
+        <div className="rounded-xl border border-[var(--cs-border-soft)] bg-[var(--cs-success-bg)]/30 p-4 sm:p-5">
+          <div className="flex flex-wrap items-start gap-4">
+            <ProfileAvatar staff={staff} label={displayName} />
+            <div className="min-w-0 flex-1">
+              <div className="flex flex-wrap items-center gap-2">
+                <h2 className="m-0 text-xl font-bold tracking-tight text-[var(--cs-text)]">{displayName}</h2>
+                <StaffStatusBadge status={status} />
+              </div>
+              <p className="mt-1 mb-0 text-sm text-[var(--cs-text-secondary)]">{displayPosition}</p>
+              <div className="mt-3"><StaffRoleBadge staff={staff} /></div>
+              <p className="mb-0 mt-3 text-xs text-[var(--cs-text-muted)]">
+                Staff profile · {branchName}
+              </p>
+            </div>
           </div>
         </div>
 
-        <dl className="mt-5 space-y-2.5">
+        <div className="mt-4 flex gap-1 overflow-x-auto border-b border-[var(--cs-border-soft)]" role="tablist" aria-label="Staff profile sections">
+          {(["overview", "services", "access"] as const).map((section) => (
+            <button
+              key={section}
+              type="button"
+              role="tab"
+              aria-selected={profileSection === section}
+              onClick={() => setProfileSection(section)}
+              className={[
+                "shrink-0 border-b-2 px-3 py-2 text-sm font-medium capitalize transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--cs-sand)]",
+                profileSection === section
+                  ? "border-[var(--cs-success)] text-[var(--cs-text)]"
+                  : "border-transparent text-[var(--cs-text-muted)] hover:text-[var(--cs-text)]",
+              ].join(" ")}
+            >
+              {section}
+            </button>
+          ))}
+        </div>
+
+        {profileSection === "overview" && <>
+        <div className="mt-5">
+          <h3 className="m-0 text-sm font-semibold text-[var(--cs-text)]">Staff information</h3>
+          <p className="mb-0 mt-1 text-xs text-[var(--cs-text-muted)]">Work details and contact information</p>
+        </div>
+        <dl className="mt-3 grid gap-x-4 gap-y-3 rounded-xl border border-[var(--cs-border-soft)] p-4 sm:grid-cols-2">
           <DetailRow Icon={Building2} label="Branch" value={branchName} />
           <DetailRow Icon={UserCheck} label="Known As" value={nickname ?? "—"} />
           <DetailRow Icon={ShieldCheck} label="Workspace Access" value={meta.badgeLabel} />
@@ -156,12 +204,10 @@ export function StaffPreviewPanel({
           <DetailRow Icon={CalendarDays} label="Joined" value={formatStaffDate(staff.created_at)} />
         </dl>
 
-        {isOwner && <StaffAccountAccessPanel key={staff.id} staffId={staff.id} />}
-
         {!isCrm && (
-          <div className="mt-5 rounded-xl border border-[var(--cs-border-soft)] bg-[var(--cs-surface-warm)] p-3">
+          <div className="mt-5 rounded-xl border border-[var(--cs-border-soft)] bg-[var(--cs-surface-warm)] p-4">
             <h3 className="m-0 text-sm font-semibold text-[var(--cs-text)]">Quick Actions</h3>
-            <div className="mt-3 grid gap-2">
+            <div className="mt-3 grid gap-2 sm:grid-cols-2">
               {canApprove && (
                 <Button
                   asChild
@@ -174,22 +220,43 @@ export function StaffPreviewPanel({
                   </Link>
                 </Button>
               )}
-              <QuickAction href={`${basePath}/${staff.id}`} label={profileActionLabel} Icon={UserCog} />
-              {isOwner && (
-                <QuickAction href={`${basePath}/${staff.id}`} label="Assign Branch" Icon={MapPin} />
+              {isOwner && onEditStaff ? (
+                <Button variant="outline" size="lg" onClick={() => onEditStaff(staff)} className="justify-start border-[var(--cs-border)] bg-[var(--cs-surface)]">
+                  <UserCog className="size-4" aria-hidden="true" /> {profileActionLabel}
+                </Button>
+              ) : (
+                <QuickAction href={basePath + "/" + staff.id} label={profileActionLabel} Icon={UserCog} />
               )}
-              <QuickAction href={`${basePath}/${staff.id}`} label="Change Role" Icon={ShieldCheck} />
+              {isOwner && onManageServices && (
+                <Button variant="outline" size="lg" onClick={() => onManageServices(staff)} className="justify-start border-[var(--cs-border)] bg-[var(--cs-surface)]">
+                  <Sparkles className="size-4" aria-hidden="true" /> Manage Services
+                </Button>
+              )}
+              {isOwner && onEditWorkSetup ? (
+                <Button variant="outline" size="lg" onClick={() => onEditWorkSetup(staff)} className="justify-start border-[var(--cs-border)] bg-[var(--cs-surface)]">
+                  <MapPin className="size-4" aria-hidden="true" /> Assign Branch / Role
+                </Button>
+              ) : (
+                <>
+                  {isOwner && <QuickAction href={basePath + "/" + staff.id} label="Assign Branch" Icon={MapPin} />}
+                  <QuickAction href={basePath + "/" + staff.id} label="Change Role" Icon={ShieldCheck} />
+                </>
+              )}
               {status === "active" && (
-                <QuickAction href={`${basePath}/${staff.id}`} label="Deactivate Staff" Icon={UserRoundX} danger />
+                isOwner && onEditStaff ? (
+                  <Button variant="outline" size="lg" onClick={() => onEditStaff(staff)} className="justify-start border-[var(--cs-border)] bg-[var(--cs-surface)] text-[var(--cs-error-text)]">
+                    <UserRoundX className="size-4" aria-hidden="true" /> Deactivate Staff
+                  </Button>
+                ) : <QuickAction href={basePath + "/" + staff.id} label="Deactivate Staff" Icon={UserRoundX} danger />
               )}
             </div>
           </div>
         )}
 
         {hasCrmActions && (
-          <div className="mt-5 rounded-xl border border-[var(--cs-border-soft)] bg-[var(--cs-surface-warm)] p-3">
+          <div className="mt-5 rounded-xl border border-[var(--cs-border-soft)] bg-[var(--cs-surface-warm)] p-4">
             <h3 className="m-0 text-sm font-semibold text-[var(--cs-text)]">Quick Actions</h3>
-            <div className="mt-3 grid gap-2">
+            <div className="mt-3 grid gap-2 sm:grid-cols-2">
               {onEditStaff && (
                 <Button
                   variant="outline"
@@ -240,6 +307,66 @@ export function StaffPreviewPanel({
             </div>
           </div>
         )}
+
+        </>}
+
+        {profileSection === "services" && (
+          <section className="mt-4 rounded-xl border border-[var(--cs-border-soft)] bg-[var(--cs-surface-warm)] p-4" aria-label="Selected staff service capabilities">
+            <div className="flex flex-wrap items-center justify-between gap-2">
+              <div>
+                <h3 className="m-0 text-sm font-semibold text-[var(--cs-text)]">Service Capabilities</h3>
+                <p className="m-0 mt-1 text-xs text-[var(--cs-text-muted)]">
+                  {serviceNames === undefined
+                    ? "Open the authorized editor to review assigned services."
+                    : `${serviceNames.length} service${serviceNames.length === 1 ? "" : "s"} assigned`}
+                </p>
+              </div>
+              {onManageServices && (
+                <Button type="button" size="sm" variant="outline" onClick={() => onManageServices(staff)} className="border-[var(--cs-border)] bg-[var(--cs-surface)]">
+                  <Sparkles className="size-4" aria-hidden="true" /> Edit services
+                </Button>
+              )}
+            </div>
+            {serviceNames && serviceNames.length > 0 ? (
+              <ul className="mt-3 grid gap-2 sm:grid-cols-2">
+                {serviceNames.map((name) => (
+                  <li key={name} className="rounded-lg border border-[var(--cs-border)] bg-[var(--cs-surface)] px-3 py-2 text-xs font-medium text-[var(--cs-text)]">
+                    {name}
+                  </li>
+                ))}
+              </ul>
+            ) : (
+              <p className="mb-0 mt-3 rounded-lg border border-dashed border-[var(--cs-border)] px-3 py-4 text-xs text-[var(--cs-text-muted)]">
+                {serviceNames ? "No services currently assigned." : "Assignments are not available in this view."}
+              </p>
+            )}
+          </section>
+        )}
+
+        {profileSection === "access" && (
+          <section className="mt-4" aria-label="Selected staff account access">
+            <div className="rounded-xl border border-[var(--cs-border-soft)] bg-[var(--cs-surface-warm)] p-4">
+              <h3 className="m-0 text-sm font-semibold text-[var(--cs-text)]">Workspace Access</h3>
+              <dl className="mt-3 grid gap-3 sm:grid-cols-2">
+                <DetailRow Icon={ShieldCheck} label="Assigned role" value={meta.badgeLabel} />
+                <DetailRow Icon={Building2} label="Assigned branch" value={branchName} />
+                <DetailRow Icon={UserCheck} label="Account status" value={getStaffStatusLabel(status)} />
+                <DetailRow Icon={UserCog} label="Staff function" value={meta.staffTypeLabel} />
+              </dl>
+              {onEditWorkSetup && (
+                <Button type="button" size="sm" variant="outline" className="mt-3 border-[var(--cs-border)] bg-[var(--cs-surface)]" onClick={() => onEditWorkSetup(staff)}>
+                  <UserCog className="size-4" aria-hidden="true" /> Edit work setup
+                </Button>
+              )}
+            </div>
+            {isOwner && <StaffAccountAccessPanel key={staff.id} staffId={staff.id} />}
+            {!isOwner && (
+              <p className="m-0 mt-3 text-xs text-[var(--cs-text-muted)]">
+                Additional account diagnostics and recovery controls are restricted to the Owner.
+              </p>
+            )}
+          </section>
+        )}
       </div>
     </aside>
   );
@@ -254,7 +381,7 @@ function ProfileAvatar({ staff, label }: { staff: StaffMember; label: string }) 
         width={80}
         height={80}
         unoptimized
-        className="size-20 rounded-full border border-[var(--cs-border)] object-cover shadow-[var(--cs-shadow-xs)]"
+        className="size-20 rounded-xl border border-[var(--cs-border)] object-cover shadow-[var(--cs-shadow-xs)]"
       />
     );
   }
@@ -262,7 +389,7 @@ function ProfileAvatar({ staff, label }: { staff: StaffMember; label: string }) 
   return (
     <span
       aria-hidden="true"
-      className="flex size-20 items-center justify-center rounded-full border border-[var(--cs-border)] bg-[var(--cs-sand-mist)] text-xl font-semibold text-[var(--cs-sand-dark)] shadow-[var(--cs-shadow-xs)]"
+      className="flex size-20 items-center justify-center rounded-xl border border-[var(--cs-border)] bg-[var(--cs-sand-mist)] text-xl font-semibold text-[var(--cs-sand-dark)] shadow-[var(--cs-shadow-xs)]"
     >
       {getInitials(label)}
     </span>
@@ -279,10 +406,12 @@ function DetailRow({
   value: string;
 }) {
   return (
-    <div className="grid grid-cols-[24px_96px_minmax(0,1fr)] items-start gap-2 text-sm">
+    <div className="grid min-w-0 grid-cols-[20px_minmax(0,1fr)] items-start gap-x-2 text-sm">
       <Icon className="mt-0.5 size-4 text-[var(--cs-text-muted)]" aria-hidden={true} />
-      <dt className="text-[var(--cs-text-muted)]">{label}</dt>
-      <dd className="m-0 min-w-0 break-words font-medium text-[var(--cs-text)]">{value}</dd>
+      <div className="min-w-0">
+        <dt className="text-xs text-[var(--cs-text-muted)]">{label}</dt>
+        <dd className="m-0 mt-0.5 min-w-0 break-words font-medium text-[var(--cs-text)]">{value}</dd>
+      </div>
     </div>
   );
 }

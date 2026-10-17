@@ -1,6 +1,6 @@
 "use client";
 
-import { Search, SlidersHorizontal, X } from "lucide-react";
+import { Search, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import type { StaffFilters } from "./staff-management-utils";
@@ -21,7 +21,7 @@ type StaffFilterBarProps = {
 };
 
 const selectClassName =
-  "h-9 w-full min-w-0 rounded-lg border border-[var(--cs-border)] bg-[var(--cs-surface)] px-3 text-sm text-[var(--cs-text)] outline-none transition focus:border-[var(--cs-sand)] focus:ring-2 focus:ring-[rgba(166,123,91,0.18)]";
+  "h-9 w-full min-w-0 rounded-lg border border-[var(--cs-border)] bg-[var(--cs-surface)] px-3 text-xs text-[var(--cs-text)] outline-none transition focus:border-[var(--cs-sand)] focus:ring-2 focus:ring-[rgba(166,123,91,0.18)]";
 
 export function StaffFilterBar({
   filters,
@@ -43,72 +43,43 @@ export function StaffFilterBar({
   }
 
   return (
-    <section
-      className="rounded-xl border border-[var(--cs-border)] bg-[var(--cs-surface)] p-3 shadow-[var(--cs-shadow-xs)]"
-      aria-label="Staff filters"
-    >
-      <div className="grid gap-2 lg:grid-cols-[minmax(220px,1fr)_180px_170px_170px_auto_auto]">
-        <div className="relative min-w-0">
-          <label htmlFor="staff-search" className="sr-only">
-            Search staff
-          </label>
-          <Search
-            className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-[var(--cs-text-muted)]"
-            aria-hidden="true"
-          />
-          <Input
-            id="staff-search"
-            value={filters.search}
-            onChange={(event) => updateFilter("search", event.target.value)}
-            placeholder="Search staff by name or phone..."
-            className="h-9 bg-[var(--cs-surface-warm)] pl-9 text-sm"
-          />
-        </div>
-
+    <section className="space-y-2" aria-label="Staff filters">
+      <div className="relative min-w-0">
+        <label htmlFor="staff-search" className="sr-only">Search staff</label>
+        <Search className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-[var(--cs-text-muted)]" aria-hidden="true" />
+        <Input
+          id="staff-search"
+          value={filters.search}
+          onChange={(event) => updateFilter("search", event.target.value)}
+          placeholder="Search staff by name or phone..."
+          className="h-9 bg-[var(--cs-surface)] pl-9 text-sm"
+        />
+      </div>
+      <div className="flex flex-wrap items-center gap-2">
         {!hideBranchFilter && (
-          <FilterSelect
-            label="Branch"
-            value={filters.branchId}
-            options={branchOptions}
-            onChange={(value) => updateFilter("branchId", value)}
-          />
+          <div className="min-w-[130px] flex-1">
+            <FilterSelect label="Branch" value={filters.branchId} options={branchOptions} onChange={(value) => updateFilter("branchId", value)} />
+          </div>
         )}
-        <FilterSelect
-          label="Workspace Access"
-          value={filters.role}
-          options={roleOptions}
-          onChange={(value) => updateFilter("role", value)}
-        />
-        <FilterSelect
-          label="Status"
-          value={filters.status}
-          options={statusOptions}
-          onChange={(value) => updateFilter("status", value)}
-        />
-
-        <Button
-          type="button"
-          variant="outline"
-          size="icon-lg"
-          onClick={onClear}
-          aria-label="Reset staff filters"
-          title="Reset staff filters"
-          className="border-[var(--cs-border)] bg-[var(--cs-surface)] text-[var(--cs-text-muted)]"
-        >
-          <SlidersHorizontal className="size-4" aria-hidden="true" />
-        </Button>
-
-        <Button
-          type="button"
-          variant="outline"
-          size="lg"
-          onClick={onClear}
-          disabled={!hasFilters}
-          className="border-[var(--cs-border)] bg-[var(--cs-surface)] text-[var(--cs-text-secondary)]"
-        >
-          <X className="size-4" aria-hidden="true" />
-          Clear
-        </Button>
+        <div className="min-w-[125px] flex-1">
+          <FilterSelect label="Workspace Access" value={filters.role} options={roleOptions} onChange={(value) => updateFilter("role", value)} />
+        </div>
+        <div className="min-w-[125px] flex-1">
+          <FilterSelect label="Status" value={filters.status} options={statusOptions} onChange={(value) => updateFilter("status", value)} />
+        </div>
+        {hasFilters && (
+          <Button
+            type="button"
+            variant="ghost"
+            size="sm"
+            onClick={onClear}
+            aria-label="Reset staff filters"
+            className="h-9 shrink-0 text-[var(--cs-text-secondary)]"
+          >
+            <X className="size-3.5" aria-hidden="true" />
+            Clear
+          </Button>
+        )}
       </div>
     </section>
   );

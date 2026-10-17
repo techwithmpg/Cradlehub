@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useMemo, useState } from "react";
-import { LinkIcon, UserPlus } from "lucide-react";
+import { LinkIcon, UserPlus, UsersRound } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { StaffBranchSection } from "./staff-branch-section";
 import { StaffEmptyList } from "./staff-empty-list";
@@ -30,8 +30,10 @@ type StaffManagementWorkspaceProps = {
   onEditStaff?: (staff: StaffMember) => void;
   /** CRM-only: callback to open inline service capability editor */
   onManageServices?: (staff: StaffMember) => void;
+  onEditWorkSetup?: (staff: StaffMember) => void;
   /** CRM-only: callback to toggle staff active/inactive */
   onToggleActive?: (staff: StaffMember) => void;
+  serviceNamesByStaff?: Record<string, string[]>;
 };
 
 const initialFilters: StaffFilters = {
@@ -41,6 +43,19 @@ const initialFilters: StaffFilters = {
   status: "all",
 };
 
+type StaffJobFilter = "all" | "therapist" | "front-desk" | "driver" | "utility";
+const JOB_FILTERS: Array<{
+  value: StaffJobFilter;
+  label: string;
+  matches: (staff: StaffMember) => boolean;
+}> = [
+  { value: "all", label: "All Staff", matches: () => true },
+  { value: "therapist", label: "Therapists", matches: (s) => s.staff_type === "therapist" },
+  { value: "front-desk", label: "Front Desk", matches: (s) => ["csr", "receptionist", "front_desk"].includes(s.staff_type ?? "") },
+  { value: "driver", label: "Drivers", matches: (s) => s.staff_type === "driver" },
+  { value: "utility", label: "Utility", matches: (s) => s.staff_type === "utility" },
+];
+
 export function StaffManagementWorkspace({
   allStaff,
   pendingStaff,
@@ -48,7 +63,9 @@ export function StaffManagementWorkspace({
   workspaceContext = "owner",
   onEditStaff,
   onManageServices,
+  onEditWorkSetup,
   onToggleActive,
+  serviceNamesByStaff,
 }: StaffManagementWorkspaceProps) {
   const isOwner = workspaceContext === "owner";
   const isCrm = workspaceContext === "crm";
@@ -56,15 +73,18 @@ export function StaffManagementWorkspace({
 
   const [activeTab, setActiveTab] = useState<StaffTab>(initialTab);
   const [filters, setFilters] = useState<StaffFilters>(initialFilters);
+  const [jobFilter, setJobFilter] = useState<StaffJobFilter>("all");
   const [selectedStaffId, setSelectedStaffId] = useState<string | null>(null);
   const [expandedBranches, setExpandedBranches] = useState<Set<string>>(() => new Set());
 
   const activeStaff = useMemo(() => allStaff.filter((member) => member.is_active), [allStaff]);
   const staffForCurrentTab = activeTab === "active" ? activeStaff : pendingStaff;
-  const filteredStaff = useMemo(
-    () => staffForCurrentTab.filter((member) => staffMatchesFilters(member, filters)),
-    [filters, staffForCurrentTab]
-  );
+  const filteredStaff = useMemo(() => {
+    const category = JOB_FILTERS.find((item) => item.value === jobFilter);
+    return staffForCurrentTab.filter(
+      (member) => staffMatchesFilters(member, filters) && (!category || category.matches(member))
+    );
+  }, [filters, staffForCurrentTab, jobFilter]);
   const groupedStaff = useMemo(() => groupStaffByBranch(filteredStaff), [filteredStaff]);
   const visibleStaff = useMemo(() => groupedStaff.flatMap((group) => group.staff), [groupedStaff]);
   const selectedStaff =
@@ -124,9 +144,9 @@ export function StaffManagementWorkspace({
 
   return (
     <div className="space-y-4">
-      <header className="flex flex-col gap-3 rounded-xl border border-[var(--cs-border)] bg-[var(--cs-surface)] px-4 py-4 shadow-[var(--cs-shadow-xs)] sm:flex-row sm:items-start sm:justify-between">
+      {!isCrm && <header className="flex flex-col gap-3 rounded-2xl border border-[var(--cs-border)] bg-[var(--cs-surface)] px-5 py-4 shadow-[var(--cs-shadow-xs)] sm:flex-row sm:items-center sm:justify-between">
         <div>
-          <h1 className="m-0 text-2xl font-semibold leading-tight text-[var(--cs-text)]">Staff</h1>
+          <h1 className="m-0 text-2xl font-bold tracking-tight text-[var(--cs-text)]">Staff Management</h1>
           <p className="mt-1 mb-0 text-sm text-[var(--cs-text-muted)]">
             {activeStaff.length} active · {awaitingCount} awaiting approval · {invitedCount} invites sent
           </p>
@@ -157,65 +177,119 @@ export function StaffManagementWorkspace({
             </Button>
           </div>
         )}
-      </header>
+      </header>}
 
       <StaffStatsCards
         activeCount={activeStaff.length}
         pendingCount={awaitingCount}
         branchCount={branchCount}
         invitesCount={invitedCount}
+        compact={isCrm}
       />
 
-      <StaffFilterBar
-        filters={filters}
-        branchOptions={branchOptions}
-        roleOptions={roleOptions}
-        statusOptions={statusOptions}
-        onFiltersChange={setFilters}
-        onClear={() => setFilters(initialFilters)}
-        hideBranchFilter={!isOwner}
-      />
+      <div className="grid items-start gap-3 xl:grid-cols-[minmax(0,1.06fr)_minmax(0,0.94fr)]">
+        <section
+          aria-label="Staff directory"
+          className="min-w-0 overflow-hidden rounded-2xl border border-[var(--cs-border)] bg-[var(--cs-surface)] shadow-[var(--cs-shadow-xs)]"
+        >
+          <div className="flex flex-wrap items-center justify-between gap-3 border-b border-[var(--cs-border-soft)] px-4 py-4 sm:px-5">
+            <div className="flex min-w-0 items-center gap-3">
+              <span className="flex size-10 shrink-0 items-center justify-center rounded-xl bg-[var(--cs-success-bg)] text-[var(--cs-success-text)]">
+                <UsersRound className="size-5" aria-hidden="true" />
+              </span>
+              <div>
+                <h2 className="m-0 text-base font-semibold text-[var(--cs-text)]">Team directory</h2>
+                <p className="m-0 mt-0.5 text-xs text-[var(--cs-text-muted)]">
+                  {isOwner ? "Across authorized branches" : "Your branch team"}
+                </p>
+              </div>
+            </div>
+            <span className="rounded-full border border-[var(--cs-border-soft)] bg-[var(--cs-surface-warm)] px-3 py-1 text-xs font-semibold text-[var(--cs-text-secondary)]">
+              {filteredStaff.length} shown
+            </span>
+          </div>
 
-      <div className="flex flex-wrap items-center justify-between gap-3">
-        <StaffTabs
-          activeTab={activeTab}
-          activeCount={activeStaff.length}
-          pendingCount={pendingStaff.length}
-          onTabChange={setActiveTab}
-        />
-        <p className="m-0 text-sm text-[var(--cs-text-muted)]">
-          Showing {filteredStaff.length} of {staffForCurrentTab.length} staff
-        </p>
-      </div>
-
-      <div className="grid items-start gap-4 xl:grid-cols-[minmax(0,1fr)_340px]">
-        <div className="min-w-0 space-y-4">
-          {groupedStaff.length > 0 ? (
-            groupedStaff.map((group) => (
-              <StaffBranchSection
-                key={group.branchId}
-                group={group}
+          <div className="space-y-2.5 border-b border-[var(--cs-border-soft)] px-3 py-3 sm:px-4">
+            <div role="group" aria-label="Filter staff by job function" className="flex gap-1.5 overflow-x-auto pb-0.5">
+              {JOB_FILTERS.map((item) => {
+                const count = staffForCurrentTab.filter(item.matches).length;
+                const active = jobFilter === item.value;
+                return (
+                  <button
+                    type="button"
+                    key={item.value}
+                    aria-pressed={active}
+                    onClick={() => setJobFilter(item.value)}
+                    className={[
+                      "inline-flex min-h-8 shrink-0 items-center gap-1.5 rounded-full border px-3 py-1 text-xs font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--cs-sand)]",
+                      active
+                        ? "border-[var(--cs-sand-dark)] bg-[var(--cs-sand-dark)] text-white"
+                        : "border-[var(--cs-border)] bg-[var(--cs-surface)] text-[var(--cs-text-secondary)] hover:bg-[var(--cs-surface-warm)]",
+                    ].join(" ")}
+                  >
+                    {item.label}
+                    <span className="text-[10px] opacity-75">{count}</span>
+                  </button>
+                );
+              })}
+            </div>
+            <StaffFilterBar
+              filters={filters}
+              branchOptions={branchOptions}
+              roleOptions={roleOptions}
+              statusOptions={statusOptions}
+              onFiltersChange={setFilters}
+              onClear={() => setFilters(initialFilters)}
+              hideBranchFilter={!isOwner}
+            />
+            <div className="flex flex-wrap items-center justify-between gap-2">
+              <StaffTabs
                 activeTab={activeTab}
-                selectedStaffId={selectedStaff?.id ?? null}
-                isExpanded={expandedBranches.has(group.branchId)}
-                onSelectStaff={(member) => setSelectedStaffId(member.id)}
-                onToggleExpanded={toggleExpanded}
-                workspaceContext={workspaceContext}
+                activeCount={activeStaff.length}
+                pendingCount={pendingStaff.length}
+                onTabChange={setActiveTab}
               />
-            ))
-          ) : (
-            <StaffEmptyList activeTab={activeTab} hasFilters={hasActiveFilters(filters)} />
-          )}
-        </div>
+              <p className="m-0 text-xs text-[var(--cs-text-muted)]">
+                {filteredStaff.length} of {staffForCurrentTab.length}
+              </p>
+            </div>
+          </div>
 
-        <StaffPreviewPanel
-          staff={selectedStaff}
-          onClearSelection={() => setSelectedStaffId("")}
-          workspaceContext={workspaceContext}
-          onEditStaff={onEditStaff}
-          onManageServices={onManageServices}
-          onToggleActive={onToggleActive}
-        />
+          <div className="max-h-[min(72vh,1000px)] space-y-2 overflow-y-auto p-2 sm:p-3">
+            {groupedStaff.length > 0 ? (
+              groupedStaff.map((group) => (
+                <StaffBranchSection
+                  key={group.branchId}
+                  group={group}
+                  activeTab={activeTab}
+                  selectedStaffId={selectedStaff?.id ?? null}
+                  isExpanded={expandedBranches.has(group.branchId)}
+                  onSelectStaff={(member) => setSelectedStaffId(member.id)}
+                  onEditStaff={onEditStaff}
+                  onToggleExpanded={toggleExpanded}
+                  workspaceContext={workspaceContext}
+                  compact={isCrm && groupedStaff.length === 1}
+                />
+              ))
+            ) : (
+              <StaffEmptyList activeTab={activeTab} hasFilters={hasActiveFilters(filters) || jobFilter !== "all"} />
+            )}
+          </div>
+        </section>
+
+        <div className="min-w-0">
+          <StaffPreviewPanel
+            key={selectedStaff?.id ?? "none"}
+            staff={selectedStaff}
+            onClearSelection={() => setSelectedStaffId("")}
+            workspaceContext={workspaceContext}
+            onEditStaff={onEditStaff}
+            onManageServices={onManageServices}
+            onEditWorkSetup={onEditWorkSetup}
+            onToggleActive={onToggleActive}
+            serviceNames={selectedStaff && serviceNamesByStaff ? serviceNamesByStaff[selectedStaff.id] ?? [] : undefined}
+          />
+        </div>
       </div>
     </div>
   );

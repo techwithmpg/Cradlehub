@@ -5,6 +5,7 @@ type StaffStatsCardsProps = {
   pendingCount: number;
   branchCount: number;
   invitesCount: number;
+  compact?: boolean;
 };
 
 const pluralize = (count: number, singular: string, plural = `${singular}s`) =>
@@ -15,6 +16,7 @@ export function StaffStatsCards({
   pendingCount,
   branchCount,
   invitesCount,
+  compact = false,
 }: StaffStatsCardsProps) {
   const cards = [
     {
@@ -48,18 +50,18 @@ export function StaffStatsCards({
       {cards.map(({ label, value, helper, Icon }) => (
         <div
           key={label}
-          className="rounded-xl border border-[var(--cs-border)] bg-[var(--cs-surface)] p-4 shadow-[var(--cs-shadow-xs)]"
+          className={["rounded-xl border border-[var(--cs-border)] bg-[var(--cs-surface)] shadow-[var(--cs-shadow-xs)]", compact ? "p-3" : "p-4"].join(" ")}
         >
           <div className="flex items-start justify-between gap-3">
             <div>
               <p className="m-0 text-xs font-medium text-[var(--cs-text-muted)]">{label}</p>
-              <p className="mt-2 text-3xl font-semibold leading-none text-[var(--cs-text)]">{value}</p>
+              <p className={["font-semibold leading-none text-[var(--cs-text)]", compact ? "mt-1 text-2xl" : "mt-2 text-3xl"].join(" ")}>{value}</p>
             </div>
             <div className="flex size-8 items-center justify-center rounded-lg bg-[var(--cs-sand-mist)] text-[var(--cs-sand-dark)]">
               <Icon className="size-4" aria-hidden="true" />
             </div>
           </div>
-          <p className="mb-0 mt-3 text-xs text-[var(--cs-text-secondary)]">{helper}</p>
+          <p className={["mb-0 text-xs text-[var(--cs-text-secondary)]", compact ? "mt-1" : "mt-3"].join(" ")}>{helper}</p>
         </div>
       ))}
     </section>
