@@ -1,5 +1,7 @@
 import { describe, expect, it, vi } from "vitest";
 
+vi.mock("server-only", () => ({}));
+
 const mocks = vi.hoisted(() => ({
   getFrontDeskContext: vi.fn(),
   getFrontDeskDutyContext: vi.fn(),

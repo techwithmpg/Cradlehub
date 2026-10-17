@@ -21,15 +21,19 @@ export function CradleFlowHeader({
   warningCount,
   onRefresh,
   onReviewWarnings,
+  isRefreshing: isRefreshingProp,
 }: {
   branchName: string;
   fallbackDateLabel: string;
   warningCount: number;
-  onRefresh: () => void;
+  onRefresh: () => void | Promise<void>;
   onReviewWarnings: () => void;
+  isRefreshing?: boolean;
 }) {
   const [nowLabel, setNowLabel] = useState(fallbackDateLabel);
-  const [isRefreshing, startRefresh] = useTransition();
+  const [isTransitioning, startRefresh] = useTransition();
+  const isRefreshing = isRefreshingProp ?? isTransitioning;
+
 
   useEffect(() => {
     const update = () => setNowLabel(formatManilaNow(new Date()));
