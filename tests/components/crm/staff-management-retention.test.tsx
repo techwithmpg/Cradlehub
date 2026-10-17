@@ -161,3 +161,30 @@ describe("modern staff roster preserves edit behavior", () => {
     expect(editLink.getAttribute("href")).toBe("/owner/staff/staff-2");
   });
 });
+
+describe("staff job-function chips", () => {
+  it("filters the existing roster without changing the role or status filters", () => {
+    const therapist = staff("staff-1", "Alpha Therapist");
+    const receptionist = { ...staff("staff-2", "Beta Receptionist"), staff_type: "csr" };
+    const view = render(
+      <StaffManagementWorkspace
+        allStaff={[therapist, receptionist]}
+        pendingStaff={[]}
+        initialTab="active"
+        workspaceContext="crm"
+      />
+    );
+
+    expect(screen.getByRole("button", { name: "Select Alpha Therapist" })).toBeTruthy();
+    expect(screen.getByRole("button", { name: "Select Beta Receptionist" })).toBeTruthy();
+
+    fireEvent.click(screen.getByRole("button", { name: /Front Desk 1/i }));
+    expect(screen.queryByRole("button", { name: "Select Alpha Therapist" })).toBeNull();
+    expect(screen.getByRole("button", { name: "Select Beta Receptionist" })).toBeTruthy();
+    expect(screen.getByRole("button", { name: /Front Desk 1/i }).getAttribute("aria-pressed")).toBe("true");
+
+    fireEvent.click(screen.getByRole("button", { name: /All Staff 2/i }));
+    expect(screen.getByRole("button", { name: "Select Alpha Therapist" })).toBeTruthy();
+    view.unmount();
+  });
+});

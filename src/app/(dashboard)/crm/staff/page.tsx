@@ -195,11 +195,26 @@ export default async function CrmStaffPage({
   });
 
   return (
-    <CrmOperationalPageShell
-      title="Staff"
-      description="Manage applications, review team roster, check service assignments, and monitor staff status."
-      context={`${ctx.branchName} · ${ctx.me.system_role}`}
-    >
+    <section className="space-y-3">
+      <header className="rounded-xl border border-[var(--cs-border)] bg-[var(--cs-surface)] px-4 py-3 shadow-[var(--cs-shadow-xs)] sm:px-5">
+        <div className="flex flex-wrap items-center justify-between gap-x-4 gap-y-2">
+          <div className="min-w-0">
+            <p className="mb-1 text-[11px] font-semibold uppercase tracking-[0.09em] text-[var(--cs-sand-dark)]">
+              Cradle Wellness Living · Front Desk
+            </p>
+            <h1 className="m-0 text-xl font-bold tracking-tight text-[var(--cs-text)] sm:text-2xl">
+              Staff Management
+            </h1>
+            <p className="mb-0 mt-1 text-xs text-[var(--cs-text-secondary)] sm:text-sm">
+              Team directory, applications, service capabilities and staff status.
+            </p>
+          </div>
+          <div className="inline-flex max-w-full items-center gap-2 rounded-lg border border-[var(--cs-border)] bg-[var(--cs-surface-warm)] px-3 py-2 text-xs font-medium text-[var(--cs-text-secondary)]">
+            <span aria-hidden="true" className="size-2 shrink-0 rounded-full bg-[var(--cs-success)]" />
+            <span className="truncate">{ctx.branchName}</span>
+          </div>
+        </div>
+      </header>
       <CrmStaffWorkspace
         initialTab={initialTab}
         branchId={branchId}
@@ -216,7 +231,7 @@ export default async function CrmStaffPage({
         reviewerBranchId={branchId}
         canReviewOnboarding={ctx.canReviewOnboarding}
       />
-    </CrmOperationalPageShell>
+    </section>
   );
 }
 

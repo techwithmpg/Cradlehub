@@ -181,12 +181,12 @@ export function CrmStaffWorkspace(props: CrmStaffWorkspaceProps) {
   );
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-3">
       <div
         role="tablist"
         aria-label="Staff sections"
         onKeyDown={handleTabKeyDown}
-        className="flex flex-wrap gap-1 overflow-x-auto rounded-2xl border border-[var(--cs-border)] bg-[var(--cs-surface)] p-1.5 shadow-[var(--cs-shadow-xs)]"
+        className="flex items-center gap-1 overflow-x-auto rounded-xl border border-[var(--cs-border)] bg-[var(--cs-surface)] p-1 shadow-[var(--cs-shadow-xs)]"
       >
         {tabs.map((tab) => {
           const active = activeTab === tab.key;
@@ -200,9 +200,9 @@ export function CrmStaffWorkspace(props: CrmStaffWorkspaceProps) {
               aria-controls={`staff-panel-${tab.key}`}
               tabIndex={active ? 0 : -1}
               onClick={() => handleTabChange(tab.key)}
-              className={`relative inline-flex min-h-10 shrink-0 items-center gap-1.5 rounded-xl border px-3.5 py-2.5 text-sm font-medium whitespace-nowrap transition-colors duration-150 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--cs-sand)] ${
+              className={`relative inline-flex min-h-9 shrink-0 items-center gap-1.5 rounded-lg border px-3 py-2 text-xs font-semibold whitespace-nowrap transition-colors duration-150 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--cs-sand)] sm:text-sm ${
                 active
-                  ? "border-[var(--cs-border)] bg-[var(--cs-success-bg)] text-[var(--cs-success-text)] shadow-[var(--cs-shadow-xs)]"
+                  ? "border-[var(--cs-border)] bg-[var(--cs-success-bg)] text-[var(--cs-success-text)]"
                   : "border-transparent text-[var(--cs-text-muted)] hover:bg-[var(--cs-surface-warm)] hover:text-[var(--cs-text)]"
               }`}
             >
