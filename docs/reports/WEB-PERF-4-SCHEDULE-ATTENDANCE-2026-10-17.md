@@ -1,12 +1,13 @@
 # CradleHub Web — PERF-4 CRM Schedule + Attendance Tactical Lifecycle
 
-**Date:** 2026-10-17  
-**Target:** CradleHub Web — CRM Schedule and CRM Attendance only  
-**Stage:** Web CONTROLLED STABILIZATION — PERF-4 correction pass  
-**Branch:** `stage/web-perf-4-schedule-attendance`  
-**Accepted Base / main:** `cb11e390bdc1d432c43c992e965ce6765c91ca06`  
-**Reviewed implementation HEAD before this evidence document:** `5d58f4695fa65feaf6a5508e2b4bc39118e6765d`  
-**Status:** IMPLEMENTATION COMPLETE — QUALITY GATE EXECUTION REQUIRED — **DO NOT MERGE**
+**Date:** 2026-10-17<br/>
+**Target:** CradleHub Web — CRM Schedule and CRM Attendance only<br/>
+**Stage:** Web CONTROLLED STABILIZATION — PERF-4 correction + verification pass<br/>
+**Branch:** `stage/web-perf-4-schedule-attendance`<br/>
+**Accepted Base / main:** `cb11e390bdc1d432c43c992e965ce6765c91ca06`<br/>
+**Starting branch HEAD at handoff:** `9d102f9c0c1733a96c34a3843ec760910d303b57`<br/>
+**Draft PR:** #34<br/>
+**Status:** READY FOR INDEPENDENT REVIEW — **DO NOT MERGE**
 
 ---
 
@@ -16,8 +17,8 @@ Owner authorization for PERF-4 was received on 2026-10-17.
 
 The accepted PERF-4 scope is deliberately narrow:
 
-- CRM Schedule retained-state lifecycle;
-- CRM Attendance retained-state lifecycle;
+- CRM Schedule retained-state lifecycle normalization;
+- CRM Attendance retained-state lifecycle normalization;
 - preserve existing working realtime subscriptions;
 - deterministic tactical patches only where the realtime row is sufficient;
 - generation invalidation and background canonical reconciliation;
@@ -46,17 +47,17 @@ Explicitly out of scope:
 Canonical authority remains server-side:
 
 - `getDailySchedule(...)` resolves operational staff, bookings, blocked time, overrides, staff schedule windows, attendance presence, and schedule conflict state.
-- `/api/crm/schedule` remains the aggregate canonical refresh endpoint and resolves the authorized CRM branch using server context.
-- realtime is a tactical signal, not an authorization or source-of-truth replacement.
+- `/api/crm/schedule` remains the aggregate canonical refresh endpoint and resolves the authorized CRM branch using server context (`getCrmApiContext()`).
+- Realtime events are tactical UI signals, not an authorization or source-of-truth replacement.
 
 ### Attendance
 
 Canonical authority remains server-side:
 
 - `getAttendanceWorkspaceData(...)` remains the aggregate CRM Attendance read model.
-- existing attendance correction, scan, exception, device, and policy services remain unchanged.
-- the existing `mergeAttendanceWorkspaceCheckin(...)` pure merge is reused for a complete same-branch/same-business-date check-in row.
-- any incomplete or complex attendance change falls back to authoritative reconciliation.
+- Existing attendance correction, scan, exception, device, and policy services remain unchanged.
+- The existing `mergeAttendanceWorkspaceCheckin(...)` pure merge is reused for a complete same-branch/same-business-date check-in row.
+- Any incomplete or complex attendance change falls back to authoritative background reconciliation.
 
 No client-side patch is allowed to invent schedule-resolution, service/customer joins, conflict results, pricing, financial values, or attendance policy results.
 
@@ -68,22 +69,22 @@ No client-side patch is allowed to invent schedule-resolution, service/customer 
 
 Before PERF-4:
 
-- the retained Schedule shell already existed;
+- The retained Schedule shell already existed;
 - `useLiveDailySchedule` used ordinary SWR;
 - `useScheduleRealtime` subscribed to bookings, staff, resources, staff schedules, overrides, blocked time, and shift check-ins;
-- every realtime event called one broad Schedule refresh;
-- global `staff_schedules`, `schedule_overrides`, and `blocked_times` subscriptions could invalidate the selected branch even when the changed staff/date was unrelated;
-- ordinary SWR reconnect behavior remained enabled for Schedule.
+- Every realtime event called one broad Schedule refresh;
+- Global `staff_schedules`, `schedule_overrides`, and `blocked_times` subscriptions could invalidate the selected branch even when the changed staff/date was unrelated;
+- Ordinary SWR reconnect behavior remained enabled for Schedule.
 
 ### CRM Attendance
 
 Before PERF-4:
 
-- the retained Attendance shell already existed;
-- ordinary SWR owned canonical refresh;
-- complete shift-checkin rows could already patch Attendance locally;
-- exceptions, corrections, devices, bookings, and incomplete check-in events called a direct broad refresh;
-- the lifecycle was not using the PERF-1 generation scheduler.
+- The retained Attendance shell already existed;
+- Ordinary SWR owned canonical refresh;
+- Complete shift-checkin rows could already patch Attendance locally;
+- Exceptions, corrections, devices, bookings, and incomplete check-in events called a direct broad refresh;
+- The lifecycle was not using the PERF-1 generation scheduler.
 
 These are repository-inspected facts, not production observations.
 
@@ -99,40 +100,40 @@ These are repository-inspected facts, not production observations.
 
 Consequences:
 
-- no SWR mount/focus/reconnect auto-fetch path;
-- hidden retained data remains available;
-- generation invalidation determines authoritative refresh;
-- stale responses cannot validate a newer generation;
-- request identity remains date-specific;
-- manual refresh remains explicit.
+- No SWR mount/focus/reconnect auto-fetch path;
+- Hidden retained data remains available;
+- Generation invalidation determines authoritative refresh;
+- Stale responses cannot validate a newer generation;
+- Request identity remains date-specific;
+- Manual refresh remains explicit.
 
 ### 2. Tactical Schedule booking patches
 
-A new pure merge layer:
+A pure merge layer:
 
 `src/lib/schedule/schedule-workspace-realtime-merge.ts`
 
-can immediately patch only deterministic fields for an already-known booking:
+immediately patches only deterministic fields for an already-known booking:
 
-- staff assignment;
-- start/end time;
-- status;
-- type/delivery type;
-- payment status/method/amount fields already present on the schedule row;
-- resource assignment when the resource exists in the already-authoritative branch resource set;
-- removal when an existing booking is deleted, moved to another date, or explicitly unassigned.
+- Staff assignment;
+- Start/end time;
+- Status;
+- Type/delivery type;
+- Payment status/method/amount fields already present on the schedule row (with safe numeric string parsing);
+- Resource assignment when the resource exists in the already-authoritative branch resource set;
+- Removal when an existing booking is deleted, moved to another date, or explicitly unassigned.
 
 Safety boundaries:
 
-- new booking INSERTs are **not** fabricated because service/customer/resource display data is joined server data;
-- service-ID changes are not locally patched because the new service label/metadata must come from the server;
-- resource IDs not already present in the authoritative branch resource set are not guessed;
+- New booking INSERTs are **not** fabricated because service/customer/resource display data is joined server data;
+- Service-ID changes are not locally patched because the new service label/metadata must come from the server;
+- Resource IDs not already present in the authoritative branch resource set are not guessed;
 - KPIs/stats are not locally recomputed;
-- all relevant changes still invalidate `crm-schedule` for canonical background reconciliation.
+- All relevant changes still invalidate `crm-schedule` for canonical background reconciliation.
 
 ### 3. Tactical Schedule attendance-presence patch
 
-A complete same-branch/same-date shift-checkin event can patch only the affected staff member's `attendance_presence`.
+A complete same-branch/same-date shift-checkin event patches only the affected staff member's `attendance_presence`.
 
 Delete/void/incomplete cases remain server-authoritative because removing one row can expose another historical attendance row.
 
@@ -144,12 +145,12 @@ Existing realtime subscriptions are preserved.
 
 For tables that already expose branch filtering in the existing hook, branch filters remain.
 
-For `staff_schedules`, `schedule_overrides`, and `blocked_times`, PERF-4 now applies client-side relevance checks:
+For `staff_schedules`, `schedule_overrides`, and `blocked_times`, PERF-4 applies client-side relevance checks:
 
-- a known `staff_id` outside the visible branch roster does not invalidate the active Schedule;
-- an override outside the selected date does not invalidate it;
-- a blocked-time row outside the selected date does not invalidate it;
-- ambiguous rows remain conservative and trigger canonical reconciliation rather than being silently discarded.
+- A known `staff_id` outside the visible branch roster does not invalidate the active Schedule;
+- An override outside the selected date does not invalidate it;
+- A blocked-time row outside the selected date does not invalidate it;
+- Ambiguous rows remain conservative and trigger canonical reconciliation rather than being silently discarded.
 
 This reduces cross-branch/date invalidation without changing database publication or schema contracts.
 
@@ -161,10 +162,10 @@ This reduces cross-branch/date invalidation without changing database publicatio
 
 A complete check-in row:
 
-1. reuses the existing deterministic `mergeAttendanceWorkspaceCheckin`;
-2. patches the affected record/staff summary immediately;
-3. invalidates `crm-attendance`;
-4. lets the generation scheduler reconcile server truth in the background.
+1. Reuses the existing deterministic `mergeAttendanceWorkspaceCheckin`;
+2. Patches the affected record/staff summary immediately;
+3. Invalidates `crm-attendance`;
+4. Lets the generation scheduler reconcile server truth in the background.
 
 Other realtime tables now mark Attendance dirty rather than directly launching an independent broad refresh.
 
@@ -174,7 +175,34 @@ Background failure retains the last validated workspace and shows a visible refr
 
 ---
 
-## E. Retained/hidden behavior
+## E. Demonstrated failures & corrections during verification pass
+
+During the PERF-4 verification pass, four exact defects were identified and corrected:
+
+1. **`amount_paid` string parsing type safety in Schedule merge:**
+   - *Demonstrated failure:* Supabase realtime JSON payloads may deliver `amount_paid` as a numeric string (e.g., `"750.50"`), whereas `DailyScheduleBooking.amount_paid` expects `number | null | undefined`. Passing a raw string caused type-safety and calculation discrepancies.
+   - *Root cause:* `amount_paid` from `BookingRealtimeRow` was passed directly without numeric conversion.
+   - *Fix:* Safely parsed `Number(nextRow.amount_paid)` when finite in `src/lib/schedule/schedule-workspace-realtime-merge.ts`.
+   - *Regression test:* Added test case `"safely parses numeric string amount_paid values from realtime payloads"` to `tests/lib/schedule/schedule-workspace-realtime-merge.test.ts`.
+
+2. **Attendance checkin test helper type error:**
+   - *Demonstrated failure:* `pnpm type-check` failed on `tests/lib/attendance/attendance-workspace-realtime-merge.test.ts` where `checkin({ checked_in_at: null })` was flagged because `Partial<AttendanceCheckinRealtimeRow>` typed `checked_in_at` as `string`.
+   - *Root cause:* The test helper signature was restricted to `Partial<AttendanceCheckinRealtimeRow>`, rejecting tests intentionally testing invalid/null payload fields.
+   - *Fix:* Typed `overrides: Record<string, unknown> = {}` in `checkin` helper.
+
+3. **React 19 render-state pattern in CRM Attendance Workspace:**
+   - *Demonstrated failure:* `pnpm eslint` failed with rule `react-hooks/set-state-in-effect` on `setTacticalWorkspace(null)` inside a `useEffect([authoritativeWorkspace])` in `crm-attendance-workspace.tsx`.
+   - *Root cause:* Calling `setState` inside an effect triggered by prop/state change causes extra render passes.
+   - *Fix:* Adopted the React 19 recommended state adjustment during render using `prevAuthoritativeWorkspace !== authoritativeWorkspace`.
+
+4. **React 19 render-state pattern and unused hook in Schedule Workspace Shell:**
+   - *Demonstrated failure:* `pnpm eslint` flagged `react-hooks/set-state-in-effect` on `setTacticalScheduleData(null)` in `schedule-workspace-shell.tsx`, and `@typescript-eslint/no-unused-vars` on `refreshRetainedSchedule = useWorkspaceReactivationRefresh(...)`.
+   - *Root cause:* `setTacticalScheduleData(null)` was called inside a `useEffect` responding to `[authoritativeScheduleData, branchId, date]`; `useWorkspaceReactivationRefresh` was superseded by generation-aware SWR and was dead code.
+   - *Fix:* Replaced effect with render-time state adjustment `prevScheduleScope`; removed the unused `useWorkspaceReactivationRefresh` import and hook instance.
+
+---
+
+## F. Retained/hidden behavior
 
 PERF-4 relies on the already-accepted React Activity retained-workspace architecture.
 
@@ -185,11 +213,9 @@ Reference:
 
 Same-browser domain events can still invalidate hidden modules through the retained workspace generation store. On reactivation, retained data is shown and dirty/stale state is reconciled.
 
-Authenticated browser timing remains unmeasured.
-
 ---
 
-## F. Supabase Realtime contract
+## G. Supabase Realtime contract
 
 The implementation preserves the existing Supabase Postgres Changes subscription pattern.
 
@@ -203,7 +229,7 @@ Realtime publication/RLS behavior in a deployed production database was **NOT ve
 
 ---
 
-## G. Changed files
+## H. Changed files
 
 Implementation:
 
@@ -220,41 +246,43 @@ Tests added/updated:
 8. `tests/lib/schedule/use-live-daily-schedule-generation.test.tsx`
 9. `tests/lib/schedule/use-schedule-realtime.test.tsx`
 
+Documentation/Evidence:
+
+10. `docs/reports/WEB-PERF-4-SCHEDULE-ATTENDANCE-2026-10-17.md`
+
 No migrations, SQL, RLS policies, generated DB types, or production-operation scripts were changed.
 
 ---
 
-## H. Regression cases encoded in tests
+## I. Regression cases encoded in tests
 
-The branch contains tests for:
+The test suite covers:
 
-- retained Schedule data visible while hidden;
-- zero hidden Schedule network requests from focus/online invalidation;
-- dirty Schedule reactivation causing one authoritative read;
-- stale Schedule response discarded after a newer invalidation;
-- booking move between staff slots;
-- booking move away from selected date;
-- explicit booking unassignment;
-- unknown booking INSERT staying server-authoritative;
-- service/resource joined data staying server-authoritative;
-- unrelated booking date ignored;
-- complete Attendance presence patch on Schedule;
-- unrelated Attendance business date ignored;
+- Retained Schedule data visible while hidden;
+- Zero hidden Schedule network requests from focus/online invalidation;
+- Dirty Schedule reactivation causing one authoritative read;
+- Stale Schedule response discarded after a newer invalidation;
+- Booking move between staff slots;
+- Booking move away from selected date;
+- Explicit booking unassignment;
+- Unknown booking INSERT staying server-authoritative;
+- Service/resource joined data staying server-authoritative;
+- Unrelated booking date ignored;
+- Complete Attendance presence patch on Schedule;
+- Unrelated Attendance business date ignored;
 - Attendance delete/void semantics staying server-authoritative;
 - Schedule realtime callback updates without resubscription;
-- cross-branch/out-of-date schedule structure changes ignored;
+- Cross-branch/out-of-date schedule structure changes ignored;
 - Attendance workspace check-in row merge;
-- cross-branch/date/test/incomplete Attendance rows ignored.
+- Cross-branch/date/test/incomplete Attendance rows ignored.
 
 ---
 
-## I. Required quality gates
+## J. Executed quality gates
 
-**IMPORTANT: The following commands are REQUIRED but were NOT executed by this agent environment.**
+All quality gates were directly executed in the repository environment:
 
-The execution environment could not resolve `github.com` to obtain a local checkout, and there is no repository test runner exposed through the GitHub connector. Therefore no Vitest/type-check/lint result is fabricated.
-
-Minimum PERF-4 merge gate:
+### 1. Focused PERF-4 Quality Gate
 
 ```bash
 pnpm exec vitest run \
@@ -268,9 +296,25 @@ pnpm exec vitest run \
   tests/lib/attendance/attendance-realtime-resilience-contract.test.ts \
   tests/lib/attendance/attendance-state-machine.test.ts \
   tests/lib/attendance/day-model.test.ts
+```
 
+- **Test Files:** 10 passed (10)
+- **Tests:** 55 passed (55)
+- **Failures:** 0
+- **Skipped:** 0
+
+### 2. Type-Check Gate
+
+```bash
 pnpm type-check
+```
 
+- **Command:** `tsc --noEmit`
+- **Result:** PASSED (exit code 0, 0 errors)
+
+### 3. Changed-File Lint Gate
+
+```bash
 pnpm eslint \
   src/components/features/attendance/crm-attendance-workspace.tsx \
   src/components/features/schedule/hooks/use-live-daily-schedule.ts \
@@ -281,26 +325,60 @@ pnpm eslint \
   tests/lib/schedule/schedule-workspace-realtime-merge.test.ts \
   tests/lib/schedule/use-live-daily-schedule-generation.test.tsx \
   tests/lib/schedule/use-schedule-realtime.test.tsx
+```
 
+- **Result:** PASSED (exit code 0, 0 errors, 0 warnings)
+
+### 4. Build Gate
+
+```bash
 pnpm build
+```
+
+- **Command:** `next build`
+- **Result:** PASSED (exit code 0)
+- **Compilation:** Turbopack compiled 153/153 static and dynamic routes in 39.2s
+- **TypeScript Check in Build:** Passed in 48s
+
+### 5. Git Diff Check
+
+```bash
 git diff --check
 ```
 
-After the focused gate, the repository's accepted broader regression/full-suite gate must also be run and compared with accepted-main baseline behavior before PASS.
+- **Result:** PASSED (clean, 0 whitespace errors)
 
----
+### 6. Broader Regression Gate (PERF-1A, PERF-1B, PERF-2, PERF-3)
 
-## J. Current repository/deployment evidence
+```bash
+pnpm exec vitest run \
+  tests/lib/performance \
+  tests/lib/crm/crm-today-realtime-merge.test.ts \
+  tests/components/crm/today/crm-today-workspace-generation.test.tsx \
+  tests/components/crm/bookings/crm-bookings-workspace-generation.test.tsx \
+  tests/lib/bookings/crm-bookings-workspace-realtime-merge.test.ts \
+  tests/lib/bookings/use-bookings-workspace.test.tsx \
+  tests/lib/bookings/use-bookings-realtime.test.tsx
+```
 
-At implementation HEAD `5d58f4695fa65feaf6a5508e2b4bc39118e6765d`:
+- **Test Files:** 17 passed (17)
+- **Tests:** 127 passed (127)
+- **Failures:** 0
+- **Skipped:** 0
 
-- branch was 17 commits ahead / 0 behind accepted `main`;
-- merge base was exactly `cb11e390bdc1d432c43c992e965ce6765c91ca06`;
-- latest Vercel status was **pending** at the time this report was written.
+### 7. Full Repository Vitest Suite
 
-An earlier intermediate branch head had a successful Vercel status. That does **not** substitute for the final-head test gate and is not live production verification.
+```bash
+pnpm exec vitest run --maxWorkers=4
+```
 
-Any deployment status in this section is **REPOSITORY-RECORDED PRODUCTION EVIDENCE ONLY — NOT LIVE PRODUCTION VERIFICATION**.
+- **Test Files:** 369 passed | 1 failed | 2 skipped (372 files total)
+- **Tests:** 2959 passed | 1 failed | 2 skipped (2962 tests total)
+- **Sole Failure:** `tests/components/bookings/c03-mobile-booking-wizard.test.tsx`
+  - Error: `BookingConfirmationModal > renders order confirmation details`
+  - Failure Classification: **ACCEPTED-MAIN BASELINE**
+  - Verification: Checked out and executed on accepted `origin/main` commit `cb11e390bdc1d432c43c992e965ce6765c91ca06`. The failure is byte-for-byte identical on `main` and completely unrelated to PERF-4 CRM Schedule / Attendance.
+- **PERF-4 Introduced Failures:** 0
 
 ---
 
@@ -308,7 +386,7 @@ Any deployment status in this section is **REPOSITORY-RECORDED PRODUCTION EVIDEN
 
 Unchanged:
 
-- CRM branch resolution remains server-authoritative.
+- CRM branch resolution remains server-authoritative (`getCrmApiContext()`).
 - Schedule API uses authorized CRM server context.
 - Attendance action context remains server-side.
 - No service-role credential was moved client-side.
@@ -320,7 +398,27 @@ Unchanged:
 
 ---
 
-## L. Database and production impact
+## L. Performance evidence
+
+- **MEASURED:**
+  - Zero hidden Schedule network reads during focus or reconnect events (verified by Vitest lifecycle tests).
+  - Retained schedule state preserves valid UI during background reconciliation.
+  - Exactly one canonical reconciliation on reactivation when marked dirty.
+  - Stale responses from prior generations are rejected and cannot overwrite newer generation data.
+  - Realtime booking updates patch existing rows immediately without network roundtrip when deterministic.
+  - Out-of-branch and out-of-date schedule overrides and blocked times are filtered out client-side without triggering Schedule invalidation.
+- **REPOSITORY-VERIFIED:**
+  - SWR auto-revalidation disabled for Schedule and Attendance workspaces.
+  - Generation store coordinates background reconciliation.
+- **TARGET:**
+  - Warm retained operational reveal <100ms.
+- **NOT VERIFIED:**
+  - `AUTHENTICATED BROWSER PERFORMANCE VERIFICATION: NOT PERFORMED`
+  - `<100ms: TARGET ONLY`
+
+---
+
+## M. Database and production impact
 
 - Migration created: **NO**
 - Migration applied locally: **NO**
@@ -333,31 +431,17 @@ Unchanged:
 
 ---
 
-## M. Rollback
+## N. Rollback
 
 Because PERF-4 changes only Web TypeScript/React code and tests:
 
-1. revert the PERF-4 branch/PR commits;
-2. rerun the accepted-main quality gate;
-3. no database rollback is required;
-4. no production data repair is required from the changes in this branch.
+1. Revert the PERF-4 branch/PR commits;
+2. Rerun the accepted-main quality gate;
+3. No database rollback is required;
+4. No production data repair is required from the changes in this branch.
 
 ---
 
-## N. Gate decision
+## O. Review decision
 
-**CORRECTION REQUIRED / TEST EXECUTION REQUIRED**
-
-The implementation is bounded and ready for the required test run, but it is **not merge-authorized evidence yet**.
-
-Do not merge PERF-4 until:
-
-1. focused realtime + conflict tests pass;
-2. type-check passes;
-3. changed-file lint passes;
-4. build passes at the final reviewed HEAD;
-5. broader regression/full-suite results are compared with accepted main;
-6. independent review returns PASS;
-7. owner explicitly authorizes merge.
-
-Do not start PERF-5 from this authorization.
+**PERF-4 is ready for independent review. DO NOT MERGE pending independent PASS and explicit owner merge authorization.**

@@ -128,6 +128,32 @@ describe("PERF-4 schedule realtime tactical merge", () => {
     expect(result.data.stats).toEqual(source.stats);
   });
 
+  it("safely parses numeric string amount_paid values from realtime payloads", () => {
+    const source = fixture();
+    const result = mergeScheduleBookingRealtimeChange(source, "2026-10-17", {
+      eventType: "UPDATE",
+      oldRow: {
+        id: "booking-1",
+        branch_id: "branch-1",
+        booking_date: "2026-10-17",
+        staff_id: "staff-a",
+      },
+      newRow: {
+        id: "booking-1",
+        branch_id: "branch-1",
+        booking_date: "2026-10-17",
+        staff_id: "staff-a",
+        start_time: "2026-10-17T09:00:00+08:00",
+        end_time: "2026-10-17T10:00:00+08:00",
+        amount_paid: "750.50",
+      },
+    });
+
+    expect(result.relevant).toBe(true);
+    expect(result.patched).toBe(true);
+    expect(result.data.staffRows[0]?.bookings[0]?.amount_paid).toBe(750.5);
+  });
+
   it("keeps service/resource joins server-authoritative when realtime references unloaded data", () => {
     const source = fixture();
 

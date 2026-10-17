@@ -71,10 +71,11 @@ export function CrmAttendanceWorkspace({
   );
   const authoritativeWorkspace = authoritativeData ?? data;
   const [tacticalWorkspace, setTacticalWorkspace] = useState<AttendanceWorkspaceData | null>(null);
-
-  useEffect(() => {
+  const [prevAuthoritativeWorkspace, setPrevAuthoritativeWorkspace] = useState(authoritativeWorkspace);
+  if (prevAuthoritativeWorkspace !== authoritativeWorkspace) {
+    setPrevAuthoritativeWorkspace(authoritativeWorkspace);
     setTacticalWorkspace(null);
-  }, [authoritativeWorkspace]);
+  }
 
   const current = tacticalWorkspace ?? authoritativeWorkspace;
   const reviewItems = useMemo(

@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useMemo, useState } from "react";
 import { useSearchParams, useRouter } from "next/navigation";
 import { ScheduleWorkspaceHeader } from "./schedule-workspace-header";
 import { ScheduleWorkspaceTabs, type ScheduleTabKey } from "./schedule-workspace-tabs";
@@ -34,7 +34,6 @@ import type { SchedulingRules } from "@/lib/scheduling/types";
 import type { Database } from "@/types/supabase";
 import type { ReadinessResult } from "@/types/readiness";
 import type { StaffScheduleItem } from "@/components/features/staff-schedule/staff-schedule-types";
-import { useWorkspaceReactivationRefresh } from "@/components/features/dashboard/use-workspace-visibility";
 import {
   mergeScheduleAttendanceRealtimeChange,
   mergeScheduleBookingRealtimeChange,
@@ -111,10 +110,19 @@ export function ScheduleWorkspaceShell({
   const authoritativeScheduleData = liveScheduleData ?? fallbackScheduleData;
   const [tacticalScheduleData, setTacticalScheduleData] =
     useState<DailyScheduleApiResponse | null>(null);
-
-  useEffect(() => {
+  const [prevScheduleScope, setPrevScheduleScope] = useState({
+    authoritativeScheduleData,
+    branchId,
+    date,
+  });
+  if (
+    prevScheduleScope.authoritativeScheduleData !== authoritativeScheduleData ||
+    prevScheduleScope.branchId !== branchId ||
+    prevScheduleScope.date !== date
+  ) {
+    setPrevScheduleScope({ authoritativeScheduleData, branchId, date });
     setTacticalScheduleData(null);
-  }, [authoritativeScheduleData, branchId, date]);
+  }
 
   const scheduleData = tacticalScheduleData ?? authoritativeScheduleData;
   const staffRows = scheduleData.staffRows;
@@ -137,11 +145,6 @@ export function ScheduleWorkspaceShell({
   const invalidateSchedule = useCallback(() => {
     generation.store?.invalidate("crm-schedule");
   }, [generation.store]);
-
-  const refreshRetainedSchedule = useWorkspaceReactivationRefresh(async () => {
-    setTacticalScheduleData(null);
-    await refreshDailySchedule();
-  });
 
   const handleScheduleChanged = useCallback(async () => {
     setTacticalScheduleData(null);

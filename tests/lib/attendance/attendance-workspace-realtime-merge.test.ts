@@ -51,7 +51,7 @@ function workspace(): AttendanceWorkspaceData {
   } as unknown as AttendanceWorkspaceData;
 }
 
-function checkin(overrides: Partial<AttendanceCheckinRealtimeRow> = {}) {
+function checkin(overrides: Record<string, unknown> = {}) {
   return {
     id: "checkin-1",
     branch_id: "branch-1",

@@ -228,6 +228,15 @@ export function mergeScheduleBookingRealtimeChange(
     return { data, relevant: true, patched: false };
   }
 
+  const parsedAmountPaid =
+    nextRow.amount_paid === undefined
+      ? undefined
+      : nextRow.amount_paid === null
+        ? null
+        : Number.isFinite(Number(nextRow.amount_paid))
+          ? Number(nextRow.amount_paid)
+          : null;
+
   const updatedBooking: DailyScheduleBooking = {
     ...existing.booking,
     start_time: nextRow.start_time,
@@ -238,7 +247,7 @@ export function mergeScheduleBookingRealtimeChange(
     ...(nextRow.delivery_type !== undefined && { delivery_type: nextRow.delivery_type }),
     ...(nextRow.payment_method !== undefined && { payment_method: nextRow.payment_method }),
     ...(nextRow.payment_status !== undefined && { payment_status: nextRow.payment_status }),
-    ...(nextRow.amount_paid !== undefined && { amount_paid: nextRow.amount_paid }),
+    ...(parsedAmountPaid !== undefined && { amount_paid: parsedAmountPaid }),
     ...(nextRow.resource_id !== undefined && {
       resource_id: nextRow.resource_id,
       resource_name: resource?.name ?? null,
