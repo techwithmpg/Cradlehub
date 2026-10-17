@@ -21,7 +21,7 @@ type StaffFilterBarProps = {
 };
 
 const selectClassName =
-  "h-9 w-full min-w-0 rounded-lg border border-[var(--cs-border)] bg-[var(--cs-surface)] px-3 text-sm text-[var(--cs-text)] outline-none transition focus:border-[var(--cs-sand)] focus:ring-2 focus:ring-[rgba(166,123,91,0.18)]";
+  "h-10 w-full min-w-0 rounded-lg border border-[var(--cs-border)] bg-[var(--cs-surface)] px-3 text-sm text-[var(--cs-text)] outline-none transition focus:border-[var(--cs-sand)] focus:ring-2 focus:ring-[rgba(166,123,91,0.18)]";
 
 export function StaffFilterBar({
   filters,
@@ -44,11 +44,11 @@ export function StaffFilterBar({
 
   return (
     <section
-      className="rounded-xl border border-[var(--cs-border)] bg-[var(--cs-surface)] p-3 shadow-[var(--cs-shadow-xs)]"
+      className="rounded-xl border border-[var(--cs-border-soft)] bg-[var(--cs-surface-warm)] p-3"
       aria-label="Staff filters"
     >
-      <div className="grid gap-2 lg:grid-cols-[minmax(220px,1fr)_180px_170px_170px_auto_auto]">
-        <div className="relative min-w-0">
+      <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
+        <div className="relative min-w-0 sm:col-span-2">
           <label htmlFor="staff-search" className="sr-only">
             Search staff
           </label>
@@ -61,7 +61,7 @@ export function StaffFilterBar({
             value={filters.search}
             onChange={(event) => updateFilter("search", event.target.value)}
             placeholder="Search staff by name or phone..."
-            className="h-9 bg-[var(--cs-surface-warm)] pl-9 text-sm"
+            className="h-10 bg-[var(--cs-surface)] pl-9 text-sm"
           />
         </div>
 
