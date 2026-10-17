@@ -198,6 +198,19 @@ export function BookingsDesktopWorkspace(props: DesktopWorkspaceProps) {
     window.history.replaceState(null, "", `${window.location.pathname}?${params.toString()}`);
   }, [searchParams]);
 
+  const [prevRequestedId, setPrevRequestedId] = useState(requestedId);
+  if (prevRequestedId !== requestedId) {
+    setPrevRequestedId(requestedId);
+    if (requestedId && selectedLineId !== requestedId) {
+      const matchingGroup = findBookingGroup(visibleGroups, requestedId);
+      if (matchingGroup) {
+        setSelectedSheetKey(null);
+        setSelectedId(matchingGroup.displayId);
+        setSelectedLineId(requestedId);
+      }
+    }
+  }
+
   const selectedGroup =
     selectedSheet || props.referenceSource === "master_sheet" || selectedId === NO_SELECTION
       ? null

@@ -103,15 +103,17 @@ Both `src/app/(dashboard)/crm/bookings/page.tsx` and `refreshCrmBookingsOperatio
 `CrmBookingsView` was migrated from plain SWR and multiple manual listeners to `useGenerationAwareWorkspaceSWR`:
 
 ```typescript
-const requestKey = `${date}:${isUpcoming ? "upcoming" : "daily"}:${bookingId ?? ""}`;
+const requestKey = `${date}:${isUpcoming ? "upcoming" : "daily"}${
+  inclusionTarget ? `:${inclusionTarget}` : ""
+}`;
 
 const fetcher = useCallback(() => {
   return refreshAction({
     date,
     upcoming: isUpcoming,
-    bookingId,
+    bookingId: inclusionTarget,
   });
-}, [refreshAction, date, isUpcoming, bookingId]);
+}, [refreshAction, date, isUpcoming, inclusionTarget]);
 
 const { data, error, generation, revalidate } =
   useGenerationAwareWorkspaceSWR<CrmBookingsOperationalData>(
@@ -195,13 +197,26 @@ Every mutation surface now results in **one effective generation invalidation an
 
 ---
 
-## I. REQUEST IDENTITY
+## I. REQUEST IDENTITY & SEMANTIC SEPARATION
 
-Request identity is strictly normalized to server-affecting dataset parameters:
-`${date}:${isUpcoming ? "upcoming" : "daily"}:${bookingId ?? ""}`
+Following independent review, authoritative request identity was cleanly decoupled from local row selection:
 
-- **Server-Affecting Changes:** Date change, switching between daily and Upcoming mode, deep-link target change -> Updates request key, triggers scoped revalidation.
-- **Local Display Changes:** Selected group/row, quick filter within daily dataset (`all`, `needs-attention`, `active-now`), search text, modal open/close -> Does NOT alter network request key; zero server fetch.
+### 1. Semantic Distinction
+- **A. Booking Selection Identity (Local Operational State):**
+  When a user selects a booking row that already exists within the loaded authoritative dataset, selection is updated strictly in local React state (`selectedId`, `selectedLineId`) and synchronized to the URL via `window.history.replaceState(...)`. It does **NOT** alter the server request identity. Row selection within the current dataset triggers **0 authoritative network requests**.
+- **B. Authoritative Dataset Inclusion Identity (Server Request Key):**
+  A `bookingId` only affects server request identity when it is required to include or resolve a booking not represented in the default operational dataset:
+  - Deep-link / notification entry to an unloaded booking (`/crm/bookings?bookingId=...`).
+  - Selected booking outside the 14-day Upcoming window (`selectedOutsideWindow: true`).
+- **Request Key Formula:**
+  `${date}:${isUpcoming ? "upcoming" : "daily"}${inclusionTarget ? `:${inclusionTarget}` : ""}`
+
+### 2. Transition Semantics
+- Normal daily dataset depends on: `date` + `mode` (`daily`).
+- Normal upcoming dataset depends on: `date` + `mode` (`upcoming`).
+- Deep-link / outside target inclusion: Appends `:${inclusionTarget}` only when an unloaded or outside-window booking is required.
+- Selecting row A -> row B -> row A in the loaded dataset: **0 request key changes, 0 authoritative reads**.
+- Deep-link navigation to unloaded booking: Exactly **1 authoritative inclusion fetch**.
 
 ---
 
@@ -218,7 +233,7 @@ Request identity is strictly normalized to server-affecting dataset parameters:
 
 - **Group & Line Selection Survival:** Group selection is keyed by stable group identity (`displayId` / primary order/booking ID) and line selection by booking ID. Background reconciliation updates group rows and lines in place without deselecting the active booking or resetting scroll.
 - **Safe Disappearance Degradation:** If a selected booking disappears (e.g. cancelled or completed and filtered out), selection degrades gracefully to the next available booking or null without throwing or binding stale details.
-- **Modal State Preservation:** Active modals (`BookingsModalStack`) maintain their state during background reconciliation.
+- **Modal State Preservation:** Active modals (`BookingsModalStack`) maintain their state during background reconciliation and row selection.
 - **Error UI:** If background reconciliation fails, last validated data remains visible, an inline retry banner appears with manual retry capability, and no blank screen or replacement skeleton is shown.
 
 ---
@@ -239,16 +254,20 @@ Request identity is strictly normalized to server-affecting dataset parameters:
 
 ---
 
-## N. REMOUNT-KEY DECISIONS
+## N. REMOUNT-KEY DECISIONS & SELECTION PRESERVATION
+
+Normal row selection no longer remounts the workspace or destroys local UI state:
 
 - **`CrmBookingsView` -> `BookingsWorkspace`:**
-  Previous: `${referenceSource}:${rawTab}:${bookingId}`
-  Updated: `${referenceSource}:${isUpcoming ? "upcoming" : "daily"}:${bookingId ?? ""}`
-  *Rationale:* Distinguishes fundamentally different datasets (daily vs. upcoming and master sheet vs. cradlehub) while preventing remounts when local tabs or quick filters change.
+  - Previous: `${referenceSource}:${rawTab}:${bookingId}`
+  - Updated: `${referenceSource}:${isUpcoming ? "upcoming" : "daily"}`
+  - *Rationale:* Completely removed `bookingId` from the workspace key. Distinguishes fundamentally different datasets (daily vs. upcoming and master sheet vs. cradlehub) while preventing remounts when local tabs, quick filters, or row selections change.
 - **`BookingsWorkspace` -> `BookingsDesktopWorkspace`:**
-  Previous: `${initialQuickFilter}:${initialSelectedId}`
-  Updated: `${initialQuickFilter === "upcoming" ? "upcoming" : "daily"}:${initialSelectedId ?? ""}`
-  *Rationale:* Preserves component state and selection across local filter transitions (`all` <-> `needs-attention` <-> `active-now`).
+  - Previous: `${initialQuickFilter}:${initialSelectedId}`
+  - Updated: `${initialQuickFilter === "upcoming" ? "upcoming" : "daily"}`
+  - *Rationale:* Completely removed `initialSelectedId` from the desktop key. Preserves component state, scroll position, and open modal state (`modalState`) across both local quick-filter switches (`all` <-> `needs-attention` <-> `active-now`) and row selection changes.
+- **External Deep-Link Selection Synchronization:**
+  - `BookingsDesktopWorkspace` uses standard React state synchronization (`prevRequestedId`) to synchronize external selection changes by stable ID without remounting or blowing away open modals.
 
 ---
 
@@ -259,8 +278,9 @@ Request identity is strictly normalized to server-affecting dataset parameters:
 | **Cold Render** | Server page reads 9 queries; client SWR mounts and triggers duplicate fetch | Server page reads canonical builder; client SWR initializes with fallback, **0 duplicate fetches** |
 | **Booking Mutation (Active)** | 2 requests (`BOOKINGS_CHANGED_EVENT` window listener + store invalidation) | **1 authoritative reconciliation** via generation-aware hook |
 | **Booking Mutation (Hidden)** | Window listener could launch network request while hidden | **0 network requests**; marked dirty |
-| **Warm Return (Hidden -> Active)** | Remounted or fired uncoordinated SWR revalidation | **Instant reveal** (<100ms); 1 background reconciliation if dirty |
+| **Warm Return (Hidden -> Active)** | Remounted or fired uncoordinated SWR revalidation | **Instant reveal** (<100ms warm reveal target); 1 background reconciliation if dirty |
 | **Quick Filter (All -> Attention)** | `router.push()` -> full route revalidation + remount | **Client-side filter** + `replaceState`, **0 network requests**, **0 remounts** |
+| **Selected Row Change (Loaded)** | `replaceState` -> `useSearchParams` -> remount + fetch | **0 network requests**, **0 remounts**, selection & modal state preserved |
 | **Manual Refresh** | Dispatched `router.refresh()` causing full route remount | Scoped `revalidate()`, **0 route remounts**, subtle spinning indicator |
 
 ---
@@ -277,11 +297,11 @@ Request identity is strictly normalized to server-affecting dataset parameters:
 4. `src/app/api/crm/bookings/route.ts` (MODIFIED):
    Preserved route for compatibility; delegated to `getCrmBookingsOperationalData` with branch boundary protection.
 5. `src/components/features/bookings/crm-bookings-view.tsx` (MODIFIED):
-   Migrated to `useGenerationAwareWorkspaceSWR`, separated `onRefresh` (manual revalidate) from `onBookingsChanged` (`notifyBookingsChanged`), removed plain SWR and duplicate event listeners, added retry banner.
+   Migrated to `useGenerationAwareWorkspaceSWR`, decoupled row selection identity from authoritative request key, separated `onRefresh` (manual revalidate) from `onBookingsChanged` (`notifyBookingsChanged`), removed plain SWR and duplicate event listeners, removed `bookingId` from workspace key, added retry banner.
 6. `src/components/features/bookings/bookings-workspace.tsx` (MODIFIED):
-   Updated remount key to preserve local filter state; added `onRefresh` prop and wired manual refresh button to trigger `onRefresh`.
+   Updated remount key to preserve local filter state and eliminate row selection remounts (`key={initialQuickFilter === "upcoming" ? "upcoming" : "daily"}`); added `onRefresh` prop and wired manual refresh button.
 7. `src/components/features/bookings/bookings-desktop-workspace.tsx` (MODIFIED):
-   Enabled instant local filter switching for same-dataset filters (`all`, `needs-attention`, `active-now`) using `window.history.replaceState`. Added desktop manual Refresh button wired to `onRefresh` with spinning indicator.
+   Enabled instant local filter switching for same-dataset filters (`all`, `needs-attention`, `active-now`) using `window.history.replaceState`. Added desktop manual Refresh button wired to `onRefresh` with spinning indicator. Synchronized external deep-link selection via React state adjustment without remounting or destroying modal state.
 8. `src/components/features/bookings/bookings-table.tsx` (MODIFIED):
    Removed redundant `onUpdate` from `PaymentActionMenu` and `BookingActionMenu` to prevent double reconciliation. Cleaned unused callbacks.
 9. `src/components/features/bookings/selected-booking-payment-row.tsx` (MODIFIED):
@@ -293,7 +313,7 @@ Request identity is strictly normalized to server-affecting dataset parameters:
 1. `tests/lib/crm/crm-bookings-operational.test.ts` (NEW):
    6 tests verifying canonical builder, branch authorization, parity, and financial enrichment.
 2. `tests/components/crm/bookings-generation-swr.test.tsx` (NEW):
-   18 tests verifying cold load zero-fetch, active dirty reconciliation, hidden dirty zero-network, reactivation, stale response rejection, manual refresh, local filter zero-network, selection survival, safe degradation, cache scope isolation, and full integration tests proving exactly one authoritative reconciliation per payment mutation and zero reconciliation on payment failure.
+   21 tests verifying cold load zero-fetch, active dirty reconciliation, hidden dirty zero-network, reactivation, stale response rejection, manual refresh, local filter zero-network, selection survival, safe degradation, cache scope isolation, payment mutation one-reconciliation, failed payment zero-reconciliation, A -> B -> A selection zero-fetch under Next.js native history synchronization, unloaded deep-link inclusion reconciliation, and modal/workspace preservation without remounting.
 
 ---
 
@@ -303,8 +323,8 @@ Request identity is strictly normalized to server-affecting dataset parameters:
 ```bash
 pnpm vitest run tests/components/crm/bookings-generation-swr.test.tsx tests/lib/crm/crm-bookings-operational.test.ts tests/lib/bookings/crm-bookings-page.test.tsx tests/lib/bookings/crm-bookings-api.test.ts
 ```
-**Result:** **31/31 PASSED** (4 test files, 31 tests, 100% pass rate)
-- `tests/components/crm/bookings-generation-swr.test.tsx`: 18 passed
+**Result:** **34/34 PASSED** (4 test files, 34 tests, 100% pass rate)
+- `tests/components/crm/bookings-generation-swr.test.tsx`: 21 passed
 - `tests/lib/crm/crm-bookings-operational.test.ts`: 6 passed
 - `tests/lib/bookings/crm-bookings-page.test.tsx`: 5 passed
 - `tests/lib/bookings/crm-bookings-api.test.ts`: 2 passed
@@ -338,8 +358,8 @@ pnpm vitest run --maxWorkers=4
 **Exact Vitest Output:**
 ```
 Test Files  1 failed | 366 passed | 2 skipped (369)
-     Tests  1 failed | 2939 passed | 2 skipped (2942)
-  Duration  93.31s (transform 14.86s, setup 0ms, import 122.02s, tests 68.40s, environment 92.69s)
+     Tests  1 failed | 2942 passed | 2 skipped (2945)
+  Duration  89.45s (transform 14.41s, setup 0ms, import 121.77s, tests 64.58s, environment 86.63s)
  Exit Code  1
 ```
 
@@ -349,11 +369,11 @@ Test Files  1 failed | 366 passed | 2 skipped (369)
   - 2 skipped (`sheet-date-structure-inspection.test.ts`, `sheet-live-adc.test.ts`)
   - 369 TOTAL
 - **Tests:**
-  - 2939 passed
+  - 2942 passed
   - 1 failed (expected baseline failure)
   - 2 skipped
-  - 2942 TOTAL
-- **Duration:** 93.31s
+  - 2945 TOTAL
+- **Duration:** 89.45s
 - **Exit code:** 1
 
 ### Accepted-Main Baseline Failure Verification
@@ -391,9 +411,9 @@ pnpm eslint src/components/features/bookings/bookings-desktop-workspace.tsx src/
 pnpm build
 ```
 **Result:** `next build` (Turbopack) exited with **code 0**.
-- Compiled 153 static and dynamic routes successfully in 43s.
-- TypeScript check passed in 66s.
-- Static page generation completed (153/153) in 1101ms.
+- Compiled 153 static and dynamic routes successfully in 40s.
+- TypeScript check passed in 65s.
+- Static page generation completed (153/153) in 1037ms.
 
 ---
 
@@ -401,14 +421,16 @@ pnpm build
 
 | Category | Metric / Scenario | Measurement / Evidence | Classification |
 | :--- | :--- | :--- | :--- |
-| **Warm Retained Reveal** | Return to `/crm/bookings` from another tab | Retained UI visible immediately (<100ms) | REPOSITORY-RECORDED TEST EVIDENCE |
+| **Warm Retained Reveal** | Return to `/crm/bookings` from another tab | Retained UI visible synchronously before reconciliation completes (<100ms warm reveal target) | TARGET / REPOSITORY-RECORDED RETENTION EVIDENCE |
 | **Hidden Dirty Bookings** | Booking mutation while Bookings tab hidden | **0 network requests** executed | REPOSITORY-RECORDED TEST EVIDENCE |
 | **Active Booking Change** | Booking mutation while Bookings tab active | Exactly **1 background reconciliation** launched | REPOSITORY-RECORDED TEST EVIDENCE |
 | **Local Desktop Quick Filter**| Switching `All` -> `Needs attention` -> `Active now` | **0 network requests**, **0 route remounts** | REPOSITORY-RECORDED TEST EVIDENCE |
-| **Selected Row Change** | Switching selection between booking rows | **0 network requests** when dataset unchanged | REPOSITORY-RECORDED TEST EVIDENCE |
+| **Selected Row Change** | Switching selection between booking rows in loaded dataset | **0 network requests**, **0 workspace remounts** (A -> B -> A verified) | REPOSITORY-RECORDED TEST EVIDENCE |
+| **Deep-Link Inclusion** | Navigation to unloaded booking ID | Exactly **1 authoritative inclusion fetch** | REPOSITORY-RECORDED TEST EVIDENCE |
 | **Upcoming Dataset Switch** | Switching from daily view to `Upcoming` | Multi-day dataset requested with `upcoming: true` | REPOSITORY-RECORDED TEST EVIDENCE |
 | **Selection Stability** | Background reconciliation finishes | Selected row & group survive by ID | REPOSITORY-RECORDED TEST EVIDENCE |
 | **Production Build** | `next build` bundle generation | 153 routes compiled, 0 errors | BUILD EVIDENCE |
+| **Authenticated Browser** | Real-device interactive trace | AUTHENTICATED BROWSER PERFORMANCE EVIDENCE — NOT PERFORMED | TARGET |
 | **Authenticated Browser** | Real-device interactive trace | AUTHENTICATED BROWSER PERFORMANCE EVIDENCE — NOT PERFORMED | TARGET |
 
 ---

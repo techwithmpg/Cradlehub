@@ -181,7 +181,23 @@ describe("CrmBookingsView generation-aware operational lifecycle", () => {
       expect(screen.queryByLabelText("Loading bookings workspace")).toBeNull();
     });
 
-    return { ...utils, store, refreshAction, initialData, cache };
+    const rerenderWithSearch = (newSearch: string) => {
+      currentSearch = newSearch;
+      return utils.rerender(
+        <SWRConfig value={{ provider: () => cache }}>
+          <WorkspaceSWRScopeContext.Provider value={scopeKey}>
+            <WorkspaceGenerationContext.Provider value={store}>
+              <CrmBookingsView
+                initialData={initialData}
+                refreshAction={refreshAction}
+              />
+            </WorkspaceGenerationContext.Provider>
+          </WorkspaceSWRScopeContext.Provider>
+        </SWRConfig>
+      );
+    };
+
+    return { ...utils, rerenderWithSearch, store, refreshAction, initialData, cache };
   }
 
   it("1. cold render: initial Bookings payload causes no immediate duplicate fetch", async () => {
@@ -855,6 +871,130 @@ describe("CrmBookingsView generation-aware operational lifecycle", () => {
       expect(screen.getAllByText("Alice Paid Mobile").length).toBeGreaterThan(0);
     });
     expect(refreshAction).toHaveBeenCalledTimes(1);
+  });
+
+  it("19. selection change inside loaded dataset triggers zero authoritative reads across A -> B -> A with searchParams synchronization", async () => {
+    const refreshAction = vi.fn().mockResolvedValue(makeBookingsOperationalData());
+    const initialData = makeBookingsOperationalData([
+      { id: "b-1", order_id: "ord-1", customers: { id: "c-1", full_name: "Alice Alpha", phone: "111" } },
+      { id: "b-2", order_id: "ord-2", customers: { id: "c-2", full_name: "Bob Beta", phone: "222" } },
+    ]);
+
+    const { rerenderWithSearch } = await renderView({ refreshAction, initialData });
+
+    // Initial load: 0 network requests
+    expect(refreshAction).not.toHaveBeenCalled();
+    expect(screen.getAllByText("Alice Alpha").length).toBeGreaterThan(0);
+    expect(screen.getAllByText("Bob Beta").length).toBeGreaterThan(0);
+
+    // 1. Select Bob Beta
+    const bobRow = screen.getByRole("row", { name: /Bob Beta/i });
+    fireEvent.click(bobRow);
+
+    // Verify Bob is selected in DOM
+    expect(bobRow.getAttribute("aria-selected")).toBe("true");
+
+    // Simulate Next.js 16 native history update: useSearchParams now returns bookingId=b-2
+    rerenderWithSearch("?bookingId=b-2");
+
+    // Assert: Bob remains selected
+    const bobRowAfterRerender = screen.getByRole("row", { name: /Bob Beta/i });
+    expect(bobRowAfterRerender.getAttribute("aria-selected")).toBe("true");
+    // Assert: refreshAction call count remains 0!
+    expect(refreshAction).not.toHaveBeenCalled();
+
+    // 2. Select Alice Alpha
+    const aliceRow = screen.getByRole("row", { name: /Alice Alpha/i });
+    fireEvent.click(aliceRow);
+
+    expect(aliceRow.getAttribute("aria-selected")).toBe("true");
+
+    // Simulate Next.js update: searchParams now returns bookingId=b-1
+    rerenderWithSearch("?bookingId=b-1");
+
+    // Assert: Alice remains selected
+    const aliceRowAfterRerender = screen.getByRole("row", { name: /Alice Alpha/i });
+    expect(aliceRowAfterRerender.getAttribute("aria-selected")).toBe("true");
+    // Assert: refreshAction call count remains 0!
+    expect(refreshAction).not.toHaveBeenCalled();
+
+    // 3. Select Bob Beta again (A -> B -> A cycle)
+    const bobRowSecondTime = screen.getByRole("row", { name: /Bob Beta/i });
+    fireEvent.click(bobRowSecondTime);
+
+    rerenderWithSearch("?bookingId=b-2");
+
+    const finalBobRow = screen.getByRole("row", { name: /Bob Beta/i });
+    expect(finalBobRow.getAttribute("aria-selected")).toBe("true");
+
+    // TOTAL AUTHORITATIVE READS ACROSS ENTIRE CYCLE = ZERO!
+    expect(refreshAction).not.toHaveBeenCalled();
+  });
+
+  it("20. direct/deep-link to an unloaded bookingId triggers authoritative inclusion reconciliation", async () => {
+    const refreshAction = vi.fn().mockResolvedValue(
+      makeBookingsOperationalData([
+        { id: "b-1", order_id: "ord-1", customers: { id: "c-1", full_name: "Alice Alpha", phone: "111" } },
+        { id: "b-2", order_id: "ord-2", customers: { id: "c-2", full_name: "Bob Beta", phone: "222" } },
+        { id: "b-unloaded", order_id: "ord-3", customers: { id: "c-3", full_name: "Charlie Unloaded", phone: "333" } },
+      ])
+    );
+    const initialData = makeBookingsOperationalData([
+      { id: "b-1", order_id: "ord-1", customers: { id: "c-1", full_name: "Alice Alpha", phone: "111" } },
+      { id: "b-2", order_id: "ord-2", customers: { id: "c-2", full_name: "Bob Beta", phone: "222" } },
+    ]);
+
+    const { rerenderWithSearch } = await renderView({ refreshAction, initialData });
+
+    expect(refreshAction).not.toHaveBeenCalled();
+
+    // Deep-link navigation to unloaded booking "b-unloaded"
+    rerenderWithSearch("?bookingId=b-unloaded");
+
+    // Authoritative inclusion fetch is launched for b-unloaded
+    await waitFor(() => {
+      expect(refreshAction).toHaveBeenCalledTimes(1);
+      expect(refreshAction).toHaveBeenCalledWith(
+        expect.objectContaining({
+          bookingId: "b-unloaded",
+        })
+      );
+    });
+
+    await waitFor(() => {
+      expect(screen.getAllByText("Charlie Unloaded").length).toBeGreaterThan(0);
+    });
+
+    // Exactly 1 fetch total
+    expect(refreshAction).toHaveBeenCalledTimes(1);
+  });
+
+  it("21. workspace and modal state survive row selection and searchParams updates without remounting", async () => {
+    const refreshAction = vi.fn().mockResolvedValue(makeBookingsOperationalData());
+    const initialData = makeBookingsOperationalData([
+      { id: "b-1", order_id: "ord-1", customers: { id: "c-1", full_name: "Alice Alpha", phone: "111" } },
+      { id: "b-2", order_id: "ord-2", customers: { id: "c-2", full_name: "Bob Beta", phone: "222" } },
+    ]);
+
+    const { rerenderWithSearch } = await renderView({ refreshAction, initialData });
+
+    // Open Reschedule modal from quick actions for the currently selected booking
+    const rescheduleButton = screen.getByRole("button", { name: /Reschedule/i });
+    fireEvent.click(rescheduleButton);
+
+    // Verify modal is open in DOM
+    expect(screen.getByRole("dialog")).toBeTruthy();
+    expect(screen.getByText("Reschedule Booking")).toBeTruthy();
+
+    // Simulate searchParams update (e.g. user selected Bob)
+    rerenderWithSearch("?bookingId=b-2");
+
+    // Assert: Modal is NOT destroyed because workspace did not remount!
+    expect(screen.getByRole("dialog")).toBeTruthy();
+    expect(screen.getByText("Reschedule Booking")).toBeTruthy();
+
+    // Zero network requests
+    expect(refreshAction).not.toHaveBeenCalled();
   });
 });
 

@@ -449,7 +449,7 @@ export function BookingsWorkspace({
   if (isDesktop) {
     return (
       <BookingsDesktopWorkspace
-        key={`${initialQuickFilter === "upcoming" ? "upcoming" : "daily"}:${initialSelectedId ?? ""}`}
+        key={initialQuickFilter === "upcoming" ? "upcoming" : "daily"}
         workspaceContext={workspaceContext}
         viewerRole={viewerRole}
         branches={branches}

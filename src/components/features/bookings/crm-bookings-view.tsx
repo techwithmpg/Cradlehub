@@ -7,7 +7,7 @@
  * Follows the retained workspace operational contract established in PERF-1A/PERF-2.
  */
 
-import { useCallback } from "react";
+import { useCallback, useState } from "react";
 import { useSearchParams } from "next/navigation";
 import {
   BookingsWorkspace,
@@ -73,7 +73,8 @@ export function CrmBookingsView({
 }: CrmBookingsViewProps) {
   const searchParams = useSearchParams();
   const date = searchParams.get("date") ?? initialData.date;
-  const bookingId = searchParams.get("bookingId") ?? searchParams.get("highlight") ?? undefined;
+  const requestedBookingId =
+    searchParams.get("bookingId") ?? searchParams.get("highlight") ?? undefined;
   const rawTab = searchParams.get("tab");
   const tab = parseTab(rawTab);
   const resolvedQuickFilter = resolveBookingQuickFilter(rawTab);
@@ -87,16 +88,62 @@ export function CrmBookingsView({
   const search = searchParams.get("search") ?? undefined;
   const page = Number(searchParams.get("page") ?? "1");
 
+  // Track the authoritative dataset inclusion target.
+  // A bookingId is an inclusion target ONLY when:
+  // 1. It is not currently present in the loaded dataset (an unloaded deep-link or notification).
+  // 2. OR the dataset was specifically loaded with an outside-window inclusion in upcoming mode.
+  // Normal row selection of already-loaded bookings is local operational state and MUST NOT
+  // alter the server request identity.
+  const [inclusionTarget, setInclusionTarget] = useState<string | undefined>(() => {
+    if (initialData.selectedOutsideWindow && isUpcoming) return requestedBookingId;
+    if (
+      requestedBookingId &&
+      !initialData.bookings.some((b) => b.id === requestedBookingId)
+    ) {
+      return requestedBookingId;
+    }
+    return undefined;
+  });
+
+  const [prevScope, setPrevScope] = useState({ date, isUpcoming });
+  const [prevInitialData, setPrevInitialData] = useState(initialData);
+
+  // If initialData changes from the server, synchronize state
+  if (prevInitialData !== initialData) {
+    setPrevInitialData(initialData);
+    if (initialData.selectedOutsideWindow && isUpcoming && requestedBookingId) {
+      if (inclusionTarget !== requestedBookingId) {
+        setInclusionTarget(requestedBookingId);
+      }
+    }
+  }
+
+  // If date or upcoming mode changes, adjust inclusionTarget
+  if (prevScope.date !== date || prevScope.isUpcoming !== isUpcoming) {
+    setPrevScope({ date, isUpcoming });
+    const currentBookings = initialData.bookings;
+    const needed =
+      requestedBookingId &&
+      !currentBookings.some((b) => b.id === requestedBookingId)
+        ? requestedBookingId
+        : undefined;
+    if (inclusionTarget !== needed) {
+      setInclusionTarget(needed);
+    }
+  }
+
   // Server dataset request identity
-  const requestKey = `${date}:${isUpcoming ? "upcoming" : "daily"}:${bookingId ?? ""}`;
+  const requestKey = `${date}:${isUpcoming ? "upcoming" : "daily"}${
+    inclusionTarget ? `:${inclusionTarget}` : ""
+  }`;
 
   const fetcher = useCallback(() => {
     return refreshAction({
       date,
       upcoming: isUpcoming,
-      bookingId,
+      bookingId: inclusionTarget,
     });
-  }, [refreshAction, date, isUpcoming, bookingId]);
+  }, [refreshAction, date, isUpcoming, inclusionTarget]);
 
   const { data, error, generation, revalidate } =
     useGenerationAwareWorkspaceSWR<CrmBookingsOperationalData>(
@@ -105,6 +152,18 @@ export function CrmBookingsView({
       fetcher,
       initialData
     );
+
+  // If user navigates via searchParams to an unloaded booking during lifecycle,
+  // set inclusionTarget to trigger authoritative inclusion.
+  const activeBookings = data?.bookings ?? initialData.bookings;
+  if (
+    requestedBookingId &&
+    !activeBookings.some((b) => b.id === requestedBookingId)
+  ) {
+    if (inclusionTarget !== requestedBookingId) {
+      setInclusionTarget(requestedBookingId);
+    }
+  }
 
   const payload = data ?? initialData;
 
@@ -143,7 +202,7 @@ export function CrmBookingsView({
         </div>
       ) : null}
       <BookingsWorkspace
-        key={`${referenceSource}:${isUpcoming ? "upcoming" : "daily"}:${bookingId ?? ""}`}
+        key={`${referenceSource}:${isUpcoming ? "upcoming" : "daily"}`}
         workspaceContext="crm"
         viewerRole={payload.role}
         branchName={payload.branchName}
@@ -167,7 +226,7 @@ export function CrmBookingsView({
         waitlistRows={payload.waitlistRows ?? []}
         cashSummary={payload.cashSummary}
         paymentAction={paymentAction}
-        initialSelectedId={bookingId}
+        initialSelectedId={requestedBookingId}
         confirmPaymentAction={confirmPaymentAction}
         isRefreshing={generation.isRefreshing}
         onRefresh={() => {
