@@ -158,4 +158,51 @@ describe("useScheduleRealtime", () => {
     expect(onBookingChange).toHaveBeenCalledTimes(1);
   });
 
+  it("ignores schedule structure events outside the visible staff/date scope", () => {
+    const onInvalidate = vi.fn();
+
+    renderHook(() =>
+      useScheduleRealtime({
+        branchId: "branch-1",
+        date: "2026-10-17",
+        staffIds: ["staff-a"],
+        onInvalidate,
+      })
+    );
+
+    mocks.onCalls
+      .find((call) => call.table === "staff_schedules")
+      ?.handler({
+        eventType: "UPDATE",
+        new: { staff_id: "staff-other" },
+        old: { staff_id: "staff-other" },
+      });
+    mocks.onCalls
+      .find((call) => call.table === "schedule_overrides")
+      ?.handler({
+        eventType: "UPDATE",
+        new: { staff_id: "staff-a", override_date: "2026-10-18" },
+        old: { staff_id: "staff-a", override_date: "2026-10-18" },
+      });
+    mocks.onCalls
+      .find((call) => call.table === "blocked_times")
+      ?.handler({
+        eventType: "INSERT",
+        new: { staff_id: "staff-a", block_date: "2026-10-18" },
+        old: {},
+      });
+
+    expect(onInvalidate).not.toHaveBeenCalled();
+
+    mocks.onCalls
+      .find((call) => call.table === "schedule_overrides")
+      ?.handler({
+        eventType: "UPDATE",
+        new: { staff_id: "staff-a", override_date: "2026-10-17" },
+        old: { staff_id: "staff-a", override_date: "2026-10-17" },
+      });
+
+    expect(onInvalidate).toHaveBeenCalledTimes(1);
+  });
+
 });
