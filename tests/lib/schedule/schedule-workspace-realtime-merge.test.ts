@@ -177,6 +177,58 @@ describe("PERF-4 schedule realtime tactical merge", () => {
     expect(result.data.staffRows[0]?.bookings).toHaveLength(0);
   });
 
+  it("removes an existing booking from the visible staff slot when it becomes unassigned", () => {
+    const source = fixture();
+    const result = mergeScheduleBookingRealtimeChange(source, "2026-10-17", {
+      eventType: "UPDATE",
+      oldRow: {
+        id: "booking-1",
+        branch_id: "branch-1",
+        booking_date: "2026-10-17",
+        staff_id: "staff-a",
+      },
+      newRow: {
+        id: "booking-1",
+        branch_id: "branch-1",
+        booking_date: "2026-10-17",
+        staff_id: null,
+        start_time: "2026-10-17T09:00:00+08:00",
+        end_time: "2026-10-17T10:00:00+08:00",
+      },
+    });
+
+    expect(result.relevant).toBe(true);
+    expect(result.patched).toBe(true);
+    expect(result.data.staffRows[0]?.bookings).toHaveLength(0);
+    expect(result.data.staffRows[1]?.bookings).toHaveLength(0);
+  });
+
+  it("ignores an attendance event for the same staff when it belongs to another business date", () => {
+    const source = fixture();
+    const result = mergeScheduleAttendanceRealtimeChange(source, "2026-10-17", {
+      eventType: "UPDATE",
+      oldRow: {
+        id: "checkin-next-day",
+        branch_id: "branch-1",
+        staff_id: "staff-a",
+        attendance_business_date: "2026-10-18",
+        shift_date: "2026-10-18",
+      },
+      newRow: {
+        id: "checkin-next-day",
+        branch_id: "branch-1",
+        staff_id: "staff-a",
+        attendance_business_date: "2026-10-18",
+        shift_date: "2026-10-18",
+        checked_in_at: "2026-10-18T08:55:00+08:00",
+        checked_out_at: null,
+        status: "checked_in",
+      },
+    });
+
+    expect(result).toEqual({ data: source, relevant: false, patched: false });
+  });
+
   it("patches only the affected staff attendance presence", () => {
     const source = fixture();
     const result = mergeScheduleAttendanceRealtimeChange(source, "2026-10-17", {
