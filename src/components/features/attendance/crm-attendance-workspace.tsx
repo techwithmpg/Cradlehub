@@ -1,8 +1,8 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useState } from "react";
-import useSWR from "swr";
 import { toast } from "sonner";
+import { useGenerationAwareWorkspaceSWR } from "@/components/features/dashboard/use-workspace-generation";
 import { refreshCrmAttendanceWorkspaceAction } from "@/app/(dashboard)/crm/attendance/actions";
 import { CrmAttendanceHeader } from "@/components/features/attendance/crm-attendance-header";
 import { CrmAttendanceNavigation } from "@/components/features/attendance/crm-attendance-navigation";
@@ -53,19 +53,31 @@ export function CrmAttendanceWorkspace({
   const [phoneStaffId, setPhoneStaffId] = useState(initialStaffId ?? null);
   const [selectedStaff, setSelectedStaff] = useState<AttendanceStaffDiagnostic | null>(null);
   const [nowMs, setNowMs] = useState(data.serverNowMs);
+  const attendanceFetcher = useCallback(async () => {
+    const result = await refreshCrmAttendanceWorkspaceAction();
+    if (!result.ok) throw new Error(result.error);
+    return result.data;
+  }, []);
   const {
-    data: current = data,
-    mutate,
-    isValidating,
-  } = useSWR(
-    ["crm-attendance-workspace", data.branchId],
-    async () => {
-      const result = await refreshCrmAttendanceWorkspaceAction();
-      if (!result.ok) throw new Error(result.error);
-      return result.data;
-    },
-    { fallbackData: data, revalidateOnFocus: false, revalidateOnMount: false }
+    data: authoritativeData,
+    error: refreshError,
+    generation,
+    revalidate,
+  } = useGenerationAwareWorkspaceSWR<AttendanceWorkspaceData>(
+    "crm-attendance",
+    "/crm/attendance",
+    attendanceFetcher,
+    data
   );
+  const authoritativeWorkspace = authoritativeData ?? data;
+  const [tacticalWorkspace, setTacticalWorkspace] = useState<AttendanceWorkspaceData | null>(null);
+  const [prevAuthoritativeWorkspace, setPrevAuthoritativeWorkspace] = useState(authoritativeWorkspace);
+  if (prevAuthoritativeWorkspace !== authoritativeWorkspace) {
+    setPrevAuthoritativeWorkspace(authoritativeWorkspace);
+    setTacticalWorkspace(null);
+  }
+
+  const current = tacticalWorkspace ?? authoritativeWorkspace;
   const reviewItems = useMemo(
     () => buildAttendanceReviewItems(current.exceptions),
     [current.exceptions]
@@ -74,24 +86,30 @@ export function CrmAttendanceWorkspace({
     () => applyCanonicalReviewToStaff(buildAttendanceStaffDiagnostics(current), reviewItems),
     [current, reviewItems]
   );
+  const invalidateAttendance = useCallback(() => {
+    generation.store?.invalidate("crm-attendance");
+  }, [generation.store]);
+
   const refresh = useCallback(() => {
-    void mutate().catch((error: unknown) =>
+    setTacticalWorkspace(null);
+    void revalidate().catch((error: unknown) =>
       toast.error(error instanceof Error ? error.message : "Attendance could not be refreshed.")
     );
-  }, [mutate]);
+  }, [revalidate]);
+
   const handleCheckinChange = useCallback(
     (row: AttendanceCheckinRealtimeRow) => {
-      void mutate(
-        (workspace) => (workspace ? mergeAttendanceWorkspaceCheckin(workspace, row) : workspace),
-        { revalidate: false }
-      );
+      const patched = mergeAttendanceWorkspaceCheckin(current, row);
+      if (patched !== current) setTacticalWorkspace(patched);
+      invalidateAttendance();
     },
-    [mutate]
+    [current, invalidateAttendance]
   );
+
   useAttendanceWorkspaceRealtime({
     branchId: current.branchId,
     onCheckinChange: handleCheckinChange,
-    onRefresh: refresh,
+    onRefresh: invalidateAttendance,
   });
   useEffect(() => {
     const timer = window.setInterval(() => setNowMs(Date.now()), 30_000);
@@ -130,7 +148,7 @@ export function CrmAttendanceWorkspace({
         timezone={current.timezone}
         businessDate={current.businessDate}
         nowMs={nowMs}
-        refreshing={isValidating}
+        refreshing={generation.isRefreshing}
         onRefresh={refresh}
       />
       {current.settings.test_mode_enabled ? (
@@ -146,6 +164,11 @@ export function CrmAttendanceWorkspace({
           {flash?.message ? (
             <WorkspaceNotice tone={flash.status === "ok" ? "success" : "error"}>
               {flash.message}
+            </WorkspaceNotice>
+          ) : null}
+          {refreshError ? (
+            <WorkspaceNotice tone="error">
+              Attendance could not refresh. Showing the last validated workspace data.
             </WorkspaceNotice>
           ) : null}
           <div

@@ -1,15 +1,15 @@
 "use client";
 
-import useSWR from "swr";
+import { useCallback } from "react";
 import type { DailyScheduleStaffRow } from "@/lib/queries/schedule";
 import type { SchedulingRules } from "@/lib/scheduling/types";
 import type { Database } from "@/types/supabase";
 import type { ReadinessResult } from "@/types/readiness";
 import {
   unwrapWorkspaceSWRKey,
-  useWorkspaceSWRKey,
   type WorkspaceScopedSWRKey,
 } from "@/components/features/dashboard/workspace-swr-cache";
+import { useGenerationAwareWorkspaceSWR } from "@/components/features/dashboard/use-workspace-generation";
 
 type ResourceRow = Database["public"]["Tables"]["branch_resources"]["Row"];
 
@@ -73,15 +73,20 @@ export function useLiveDailySchedule(params: {
   date: string;
   fallbackData: DailyScheduleApiResponse;
 }) {
-  const key = `/api/crm/schedule?date=${encodeURIComponent(params.date)}`;
-  const swrKey = useWorkspaceSWRKey(key);
+  const requestKey = `/api/crm/schedule?date=${encodeURIComponent(params.date)}`;
+  const fetcher = useCallback(() => scheduleFetcher(requestKey), [requestKey]);
+  const result = useGenerationAwareWorkspaceSWR<DailyScheduleApiResponse>(
+    "crm-schedule",
+    requestKey,
+    fetcher,
+    params.fallbackData
+  );
 
-  return useSWR<DailyScheduleApiResponse>(swrKey, scheduleFetcher, {
-    fallbackData: params.fallbackData,
-    revalidateOnMount: false,
-    revalidateOnFocus: false,
-    revalidateOnReconnect: true,
-    dedupingInterval: 1_000,
-    keepPreviousData: true,
-  });
+  return {
+    data: result.data,
+    error: result.error,
+    revalidate: result.revalidate,
+    isValidating: result.generation.isRefreshing,
+    generation: result.generation,
+  };
 }

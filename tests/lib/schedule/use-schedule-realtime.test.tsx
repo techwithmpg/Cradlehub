@@ -7,7 +7,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { createBrowserClient } from "@supabase/ssr";
 import { useScheduleRealtime } from "@/components/features/schedule/hooks/use-schedule-realtime";
 
-type RealtimeHandler = () => void;
+type RealtimeHandler = (payload?: { eventType?: string; new?: unknown; old?: unknown }) => void;
 
 const mocks = vi.hoisted(() => {
   const onCalls: Array<{ table: string; filter?: string; handler: RealtimeHandler }> = [];
@@ -95,4 +95,114 @@ describe("useScheduleRealtime", () => {
     unmount();
     expect(mocks.removeChannel).toHaveBeenCalledWith(mocks.channel);
   });
+  it("routes booking and attendance payloads to tactical callbacks without resubscribing", () => {
+    const onInvalidate = vi.fn();
+    const onBookingChange = vi.fn();
+    const onAttendanceChange = vi.fn();
+
+    const { rerender } = renderHook(
+      (props) =>
+        useScheduleRealtime({
+          branchId: "branch-1",
+          date: "2026-10-17",
+          ...props,
+        }),
+      {
+        initialProps: {
+          onInvalidate,
+          onBookingChange,
+          onAttendanceChange,
+        },
+      }
+    );
+
+    const bookingPayload = {
+      eventType: "UPDATE",
+      new: { id: "booking-1", booking_date: "2026-10-17" },
+      old: { id: "booking-1", booking_date: "2026-10-17" },
+    };
+    mocks.onCalls.find((call) => call.table === "bookings")?.handler(bookingPayload);
+
+    expect(onBookingChange).toHaveBeenCalledWith({
+      eventType: "UPDATE",
+      newRow: bookingPayload.new,
+      oldRow: bookingPayload.old,
+    });
+    expect(onInvalidate).not.toHaveBeenCalled();
+
+    const attendancePayload = {
+      eventType: "INSERT",
+      new: { id: "checkin-1", shift_date: "2026-10-17" },
+      old: {},
+    };
+    mocks.onCalls
+      .find((call) => call.table === "staff_shift_checkins")
+      ?.handler(attendancePayload);
+
+    expect(onAttendanceChange).toHaveBeenCalledWith({
+      eventType: "INSERT",
+      newRow: attendancePayload.new,
+      oldRow: attendancePayload.old,
+    });
+
+    const nextBooking = vi.fn();
+    rerender({
+      onInvalidate,
+      onBookingChange: nextBooking,
+      onAttendanceChange,
+    });
+    expect(mocks.channelSpy).toHaveBeenCalledTimes(1);
+
+    mocks.onCalls.find((call) => call.table === "bookings")?.handler(bookingPayload);
+    expect(nextBooking).toHaveBeenCalledTimes(1);
+    expect(onBookingChange).toHaveBeenCalledTimes(1);
+  });
+
+  it("ignores schedule structure events outside the visible staff/date scope", () => {
+    const onInvalidate = vi.fn();
+
+    renderHook(() =>
+      useScheduleRealtime({
+        branchId: "branch-1",
+        date: "2026-10-17",
+        staffIds: ["staff-a"],
+        onInvalidate,
+      })
+    );
+
+    mocks.onCalls
+      .find((call) => call.table === "staff_schedules")
+      ?.handler({
+        eventType: "UPDATE",
+        new: { staff_id: "staff-other" },
+        old: { staff_id: "staff-other" },
+      });
+    mocks.onCalls
+      .find((call) => call.table === "schedule_overrides")
+      ?.handler({
+        eventType: "UPDATE",
+        new: { staff_id: "staff-a", override_date: "2026-10-18" },
+        old: { staff_id: "staff-a", override_date: "2026-10-18" },
+      });
+    mocks.onCalls
+      .find((call) => call.table === "blocked_times")
+      ?.handler({
+        eventType: "INSERT",
+        new: { staff_id: "staff-a", block_date: "2026-10-18" },
+        old: {},
+      });
+
+    expect(onInvalidate).not.toHaveBeenCalled();
+
+    mocks.onCalls
+      .find((call) => call.table === "schedule_overrides")
+      ?.handler({
+        eventType: "UPDATE",
+        new: { staff_id: "staff-a", override_date: "2026-10-17" },
+        old: { staff_id: "staff-a", override_date: "2026-10-17" },
+      });
+
+    expect(onInvalidate).toHaveBeenCalledTimes(1);
+  });
+
 });

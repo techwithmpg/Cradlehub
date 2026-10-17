@@ -34,7 +34,11 @@ import type { SchedulingRules } from "@/lib/scheduling/types";
 import type { Database } from "@/types/supabase";
 import type { ReadinessResult } from "@/types/readiness";
 import type { StaffScheduleItem } from "@/components/features/staff-schedule/staff-schedule-types";
-import { useWorkspaceReactivationRefresh } from "@/components/features/dashboard/use-workspace-visibility";
+import {
+  mergeScheduleAttendanceRealtimeChange,
+  mergeScheduleBookingRealtimeChange,
+  type ScheduleRealtimeChange,
+} from "@/lib/schedule/schedule-workspace-realtime-merge";
 
 const TAB_PARAM = "tab";
 const DEFAULT_TAB: ScheduleTabKey = "daily";
@@ -95,14 +99,32 @@ export function ScheduleWorkspaceShell({
   );
   const {
     data: liveScheduleData,
-    mutate: refreshDailySchedule,
+    revalidate: refreshDailySchedule,
     isValidating,
     error: liveScheduleError,
+    generation,
   } = useLiveDailySchedule({
     date,
     fallbackData: fallbackScheduleData,
   });
-  const scheduleData = liveScheduleData ?? fallbackScheduleData;
+  const authoritativeScheduleData = liveScheduleData ?? fallbackScheduleData;
+  const [tacticalScheduleData, setTacticalScheduleData] =
+    useState<DailyScheduleApiResponse | null>(null);
+  const [prevScheduleScope, setPrevScheduleScope] = useState({
+    authoritativeScheduleData,
+    branchId,
+    date,
+  });
+  if (
+    prevScheduleScope.authoritativeScheduleData !== authoritativeScheduleData ||
+    prevScheduleScope.branchId !== branchId ||
+    prevScheduleScope.date !== date
+  ) {
+    setPrevScheduleScope({ authoritativeScheduleData, branchId, date });
+    setTacticalScheduleData(null);
+  }
+
+  const scheduleData = tacticalScheduleData ?? authoritativeScheduleData;
   const staffRows = scheduleData.staffRows;
   const validSelectedStaffId =
     selectedStaffId && staffRows.some((row) => row.staff_id === selectedStaffId)
@@ -120,19 +142,48 @@ export function ScheduleWorkspaceShell({
         ? "The live schedule could not be refreshed."
         : null;
 
-  const refreshRetainedSchedule = useWorkspaceReactivationRefresh(async () => {
-    await refreshDailySchedule();
-  });
+  const invalidateSchedule = useCallback(() => {
+    generation.store?.invalidate("crm-schedule");
+  }, [generation.store]);
+
   const handleScheduleChanged = useCallback(async () => {
-    await refreshRetainedSchedule();
-  }, [refreshRetainedSchedule]);
+    setTacticalScheduleData(null);
+    invalidateSchedule();
+    await refreshDailySchedule();
+  }, [invalidateSchedule, refreshDailySchedule]);
+
+  const handleBookingRealtime = useCallback(
+    (change: ScheduleRealtimeChange) => {
+      const result = mergeScheduleBookingRealtimeChange(scheduleData, date, change);
+      if (!result.relevant) return;
+      if (result.patched) setTacticalScheduleData(result.data);
+      invalidateSchedule();
+    },
+    [date, invalidateSchedule, scheduleData]
+  );
+
+  const handleAttendanceRealtime = useCallback(
+    (change: ScheduleRealtimeChange) => {
+      const result = mergeScheduleAttendanceRealtimeChange(scheduleData, date, change);
+      if (!result.relevant) return;
+      if (result.patched) setTacticalScheduleData(result.data);
+      invalidateSchedule();
+    },
+    [date, invalidateSchedule, scheduleData]
+  );
+
+  const scheduleStaffIds = useMemo(
+    () => scheduleData.staffRows.map((staff) => staff.staff_id),
+    [scheduleData.staffRows]
+  );
 
   useScheduleRealtime({
     branchId,
     date,
-    onInvalidate: () => {
-      void handleScheduleChanged();
-    },
+    staffIds: scheduleStaffIds,
+    onInvalidate: invalidateSchedule,
+    onBookingChange: handleBookingRealtime,
+    onAttendanceChange: handleAttendanceRealtime,
   });
 
   const setTab = useCallback(
