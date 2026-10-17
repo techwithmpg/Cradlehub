@@ -1,5 +1,3 @@
-"use client";
-
 import type {
   DailyScheduleApiResponse,
 } from "@/components/features/schedule/hooks/use-live-daily-schedule";
@@ -188,7 +186,23 @@ export function mergeScheduleBookingRealtimeChange(
     return { data, relevant: true, patched: false };
   }
 
-  const targetStaffId = nextRow.staff_id ?? existing.staffId;
+  if (nextRow.staff_id === null) {
+    return {
+      data: {
+        ...data,
+        staffRows: data.staffRows.map((staff) =>
+          staff.staff_id === existing.staffId
+            ? { ...staff, bookings: staff.bookings.filter((booking) => booking.id !== id) }
+            : staff
+        ),
+      },
+      relevant: true,
+      patched: true,
+    };
+  }
+
+  const targetStaffId =
+    nextRow.staff_id === undefined ? existing.staffId : nextRow.staff_id;
   const targetStaff = data.staffRows.find((staff) => staff.staff_id === targetStaffId);
   if (!targetStaff || !nextRow.start_time || !nextRow.end_time) {
     return { data, relevant: true, patched: false };
@@ -251,19 +265,18 @@ export function mergeScheduleAttendanceRealtimeChange(
   const id = checkinId(change);
   if (!id) return { data, relevant: false, patched: false };
 
-  const matchingStaff = data.staffRows.find(
-    (staff) =>
-      staff.staff_id === nextRow?.staff_id ||
-      staff.staff_id === oldRow?.staff_id ||
-      staff.attendance_presence?.checkin_id === id
+  const existingPresence = data.staffRows.find(
+    (staff) => staff.attendance_presence?.checkin_id === id
   );
   const relevant =
-    Boolean(matchingStaff) || checkinDateMatches(nextRow, date) || checkinDateMatches(oldRow, date);
+    Boolean(existingPresence) ||
+    checkinDateMatches(nextRow, date) ||
+    checkinDateMatches(oldRow, date);
   if (!relevant) return { data, relevant: false, patched: false };
 
   if (
     (nextRow?.branch_id && nextRow.branch_id !== data.branchId) ||
-    (oldRow?.branch_id && oldRow.branch_id !== data.branchId && !matchingStaff)
+    (oldRow?.branch_id && oldRow.branch_id !== data.branchId && !existingPresence)
   ) {
     return { data, relevant: false, patched: false };
   }
