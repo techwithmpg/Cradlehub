@@ -21,7 +21,17 @@ function dispatchPayload(label: string): DispatchData {
   return {
     today: "2026-10-17",
     items: [],
-    alerts: [{ id: label, type: "missing_driver", severity: "warning", message: label }],
+    alerts: [
+      {
+        id: label,
+        title: label,
+        description: label,
+        timeAgo: "now",
+        severity: "warning",
+        dispatchNumber: "DSP-1",
+        bookingId: "booking-1",
+      },
+    ],
     stats: {
       totalToday: 0,
       awaitingDispatch: 0,
