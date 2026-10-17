@@ -24,6 +24,7 @@ type StaffTableRowProps = {
   activeTab: StaffTab;
   isSelected: boolean;
   onSelectStaff: (staff: StaffMember) => void;
+  onEditStaff?: (staff: StaffMember) => void;
   workspaceContext?: "owner" | "manager" | "crm";
 };
 
@@ -32,6 +33,7 @@ export function StaffTableRow({
   activeTab,
   isSelected,
   onSelectStaff,
+  onEditStaff,
   workspaceContext = "owner",
 }: StaffTableRowProps) {
   const status = getStaffStatus(member);
@@ -50,57 +52,43 @@ export function StaffTableRow({
     <tr
       aria-selected={isSelected}
       className={[
-        "border-b border-[var(--cs-border-soft)] last:border-b-0",
-        isSelected ? "bg-[var(--cs-sand-tint)]" : "bg-[var(--cs-surface)]",
+        "group border-b border-[var(--cs-border-soft)] last:border-b-0 transition-colors",
+        isSelected ? "bg-[var(--cs-success-bg)]" : "bg-[var(--cs-surface)] hover:bg-[var(--cs-surface-warm)]",
       ].join(" ")}
     >
-      <td className="px-4 py-2.5 align-middle">
-        <input
-          type="checkbox"
-          checked={isSelected}
-          onChange={() => onSelectStaff(member)}
-          aria-label={`Select ${displayName}`}
-          className="size-4 rounded border-[var(--cs-border-strong)] accent-[var(--cs-sand)]"
-        />
-      </td>
-      <td className="min-w-[230px] px-3 py-2.5 align-middle">
+      <td className="min-w-0 py-2 pl-3 pr-1 align-middle">
         <button
           type="button"
           onClick={() => onSelectStaff(member)}
-          className="flex max-w-full items-center gap-3 text-left"
-          aria-current={isSelected ? "true" : undefined}
+          className="flex w-full min-w-0 items-center gap-3 rounded-lg px-1 py-1.5 text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--cs-sand)]"
+          aria-pressed={isSelected}
+          aria-label={["Select", displayName].join(" ")}
         >
           <StaffAvatar member={member} label={displayName} />
-          <span className="min-w-0">
+          <span className="min-w-0 flex-1">
             <span className="block truncate text-sm font-semibold text-[var(--cs-text)]">
               {displayName}
             </span>
             <span className="mt-0.5 block truncate text-xs text-[var(--cs-text-muted)]">
-              {subtitle}
+              {position || subtitle}
             </span>
           </span>
         </button>
       </td>
-      <td className="max-w-[190px] px-3 py-2.5 align-middle text-sm text-[var(--cs-text-secondary)]">
-        <span className="block truncate">{position}</span>
-      </td>
-      <td className="px-3 py-2.5 align-middle text-sm text-[var(--cs-text-secondary)]">
-        <span className="block truncate">
-          {member.phone && member.phone !== "0000000000" ? member.phone : "—"}
+      <td className="w-24 px-1 py-2 text-right align-middle">
+        <StaffStatusBadge status={status} />
+        <span className="mt-1 hidden justify-end lg:flex">
+          <StaffRoleBadge staff={member} />
         </span>
       </td>
-      <td className="px-3 py-2.5 align-middle">
-        <StaffStatusBadge status={status} />
-      </td>
-      <td className="px-3 py-2.5 align-middle">
-        <StaffRoleBadge staff={member} />
-      </td>
-      <td className="px-3 py-2.5 align-middle">
+      <td className="w-12 py-2 pl-1 pr-2 text-right align-middle">
         <StaffRowActions
           member={member}
           activeTab={activeTab}
           onSelectStaff={onSelectStaff}
+          onEditStaff={onEditStaff}
           basePath={basePath}
+          workspaceContext={workspaceContext}
         />
       </td>
     </tr>
@@ -136,14 +124,18 @@ function StaffRowActions({
   member,
   activeTab,
   onSelectStaff,
+  onEditStaff,
   basePath,
+  workspaceContext,
 }: {
   member: StaffMember;
   activeTab: StaffTab;
   onSelectStaff: (staff: StaffMember) => void;
+  onEditStaff?: (staff: StaffMember) => void;
   basePath: string;
+  workspaceContext: "owner" | "manager" | "crm";
 }) {
-  const hasEditLink = basePath !== "#";
+  const hasEditLink = workspaceContext !== "crm";
   return (
     <DropdownMenu>
       <DropdownMenuTrigger
@@ -162,6 +154,12 @@ function StaffRowActions({
           <UserCheck className="mr-2 size-4" aria-hidden="true" />
           View in panel
         </DropdownMenuItem>
+        {workspaceContext === "crm" && onEditStaff && (
+          <DropdownMenuItem onSelect={() => onEditStaff(member)}>
+            <Pencil className="mr-2 size-4" aria-hidden="true" />
+            Edit profile
+          </DropdownMenuItem>
+        )}
         {hasEditLink && (
           <DropdownMenuItem>
             <Link href={`${basePath}/${member.id}`} className="flex w-full items-center gap-2">
