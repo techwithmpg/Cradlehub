@@ -49,12 +49,12 @@ export function useScheduleRealtime({
     const invalidate = () => {
       callbacksRef.current.onInvalidate();
     };
-    const handleBooking = (payload: RealtimePayload) => {
+    const handleBooking = (payload: RealtimePayload = {}) => {
       const callback = callbacksRef.current.onBookingChange;
       if (callback) callback(toChange(payload));
       else invalidate();
     };
-    const handleAttendance = (payload: RealtimePayload) => {
+    const handleAttendance = (payload: RealtimePayload = {}) => {
       const callback = callbacksRef.current.onAttendanceChange;
       if (callback) callback(toChange(payload));
       else invalidate();
