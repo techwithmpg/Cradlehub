@@ -169,9 +169,15 @@ export function ScheduleWorkspaceShell({
     [date, invalidateSchedule, scheduleData]
   );
 
+  const scheduleStaffIds = useMemo(
+    () => scheduleData.staffRows.map((staff) => staff.staff_id),
+    [scheduleData.staffRows]
+  );
+
   useScheduleRealtime({
     branchId,
     date,
+    staffIds: scheduleStaffIds,
     onInvalidate: invalidateSchedule,
     onBookingChange: handleBookingRealtime,
     onAttendanceChange: handleAttendanceRealtime,
