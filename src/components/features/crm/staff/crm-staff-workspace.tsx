@@ -2,6 +2,7 @@
 
 import { useCallback, useMemo, useState } from "react";
 import { useSearchParams } from "next/navigation";
+import { ArrowLeft, ClipboardCheck, Settings2, ShieldCheck, UsersRound } from "lucide-react";
 import { AttendanceTabPanel } from "@/components/features/attendance/attendance-ui";
 import type { StaffMember } from "@/components/features/staff/staff-management-utils";
 import type {
@@ -65,6 +66,7 @@ export function CrmStaffWorkspace(props: CrmStaffWorkspaceProps) {
   const searchParams = useSearchParams();
   const rawTab = searchParams.get("tab");
   const activeTab = rawTab && isStaffTab(rawTab) ? rawTab : props.initialTab;
+  const [inlineTool, setInlineTool] = useState<Exclude<StaffTab, "management"> | null>(null);
   const [assignmentOverrides, setAssignmentOverrides] = useState<
     Record<string, string[]>
   >({});
@@ -160,67 +162,41 @@ export function CrmStaffWorkspace(props: CrmStaffWorkspaceProps) {
     }
   }, []);
 
-  const activeTabIndex = tabs.findIndex((tab) => tab.key === activeTab);
-
-  const handleTabKeyDown = useCallback(
-    (event: React.KeyboardEvent<HTMLDivElement>) => {
-      const lastIndex = tabs.length - 1;
-      let nextIndex = activeTabIndex;
-
-      if (event.key === "ArrowRight") nextIndex = activeTabIndex === lastIndex ? 0 : activeTabIndex + 1;
-      else if (event.key === "ArrowLeft") nextIndex = activeTabIndex === 0 ? lastIndex : activeTabIndex - 1;
-      else if (event.key === "Home") nextIndex = 0;
-      else if (event.key === "End") nextIndex = lastIndex;
-      else return;
-
-      event.preventDefault();
-      const nextTab = tabs[nextIndex];
-      if (nextTab) handleTabChange(nextTab.key);
-    },
-    [activeTabIndex, handleTabChange, tabs]
-  );
-
   return (
     <div className="space-y-3">
-      <div
-        role="tablist"
-        aria-label="Staff sections"
-        onKeyDown={handleTabKeyDown}
-        className="flex items-center gap-1 overflow-x-auto rounded-xl border border-[var(--cs-border)] bg-[var(--cs-surface)] p-1 shadow-[var(--cs-shadow-xs)]"
-      >
-        {tabs.map((tab) => {
-          const active = activeTab === tab.key;
-          return (
+      <div className="flex flex-wrap items-center justify-between gap-2 rounded-xl border border-[var(--cs-border)] bg-[var(--cs-surface)] px-3 py-2 shadow-[var(--cs-shadow-xs)]">
+        <div className="flex min-w-0 items-center gap-2">
+          {activeTab !== "management" && (
             <button
-              key={tab.key}
-              id={`staff-tab-${tab.key}`}
               type="button"
-              role="tab"
-              aria-selected={active}
-              aria-controls={`staff-panel-${tab.key}`}
-              tabIndex={active ? 0 : -1}
-              onClick={() => handleTabChange(tab.key)}
-              className={`relative inline-flex min-h-9 shrink-0 items-center gap-1.5 rounded-lg border px-3 py-2 text-xs font-semibold whitespace-nowrap transition-colors duration-150 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--cs-sand)] sm:text-sm ${
-                active
-                  ? "border-[var(--cs-border)] bg-[var(--cs-success-bg)] text-[var(--cs-success-text)]"
-                  : "border-transparent text-[var(--cs-text-muted)] hover:bg-[var(--cs-surface-warm)] hover:text-[var(--cs-text)]"
-              }`}
+              onClick={() => handleTabChange("management")}
+              className="inline-flex items-center gap-1 rounded-lg border border-[var(--cs-border)] px-2.5 py-1.5 text-xs font-semibold text-[var(--cs-text-secondary)] hover:bg-[var(--cs-surface-warm)]"
             >
-              {tab.label}
-              {tab.count !== undefined ? (
-                <span
-                  className={`rounded-full px-1.5 py-px text-[10px] font-semibold ${
-                    active
-                      ? "bg-[var(--cs-surface)] text-[var(--cs-success-text)]"
-                      : "bg-[var(--cs-surface-warm)] text-[var(--cs-text-muted)]"
-                  }`}
-                >
-                  {tab.count}
-                </span>
-              ) : null}
+              <ArrowLeft className="size-3.5" aria-hidden="true" /> Staff Management
             </button>
-          );
-        })}
+          )}
+          {activeTab === "management" && (
+            <span className="flex items-center gap-2 text-sm font-semibold text-[var(--cs-text)]">
+              <UsersRound className="size-4 text-[var(--cs-success-text)]" aria-hidden="true" />
+              Team workspace
+            </span>
+          )}
+        </div>
+        <label className="flex items-center gap-2 text-xs text-[var(--cs-text-muted)]">
+          <span>Other tools</span>
+          <select
+            aria-label="Open staff management tool"
+            value={activeTab}
+            onChange={(event) => handleTabChange(event.target.value)}
+            className="h-9 max-w-[220px] rounded-lg border border-[var(--cs-border)] bg-[var(--cs-surface)] px-2 text-xs font-medium text-[var(--cs-text)]"
+          >
+            {tabs.map((tab) => (
+              <option key={tab.key} value={tab.key}>
+                {tab.label}{tab.count === undefined ? "" : " (" + tab.count + ")"}
+              </option>
+            ))}
+          </select>
+        </label>
       </div>
 
       <AttendanceTabPanel
@@ -264,8 +240,82 @@ export function CrmStaffWorkspace(props: CrmStaffWorkspaceProps) {
           onStaffServicesSaved={handleStaffServicesSaved}
           onStaffChanged={handleStaffChanged}
           pendingApplicationsCount={props.canReviewOnboarding ? props.onboardingRequests.length : 0}
-          onReviewApplications={props.canReviewOnboarding ? () => handleTabChange("applications") : undefined}
+          onReviewApplications={props.canReviewOnboarding ? () => setInlineTool("applications") : undefined}
         />
+
+        <section className="mt-4 rounded-xl border border-[var(--cs-border)] bg-[var(--cs-surface)] p-3 shadow-[var(--cs-shadow-xs)]" aria-label="Staff management tools">
+          <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
+            <div>
+              <h2 className="m-0 text-sm font-semibold text-[var(--cs-text)]">Team operations</h2>
+              <p className="m-0 mt-1 text-xs text-[var(--cs-text-muted)]">Manage related work without leaving Staff Management.</p>
+            </div>
+            {inlineTool && (
+              <button type="button" onClick={() => setInlineTool(null)} className="rounded-lg px-3 py-1.5 text-xs font-medium text-[var(--cs-text-secondary)] hover:bg-[var(--cs-surface-warm)]">
+                Collapse
+              </button>
+            )}
+          </div>
+          <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-4">
+            {([
+              { key: "assignments", label: "All service assignments", count: providerAssignments.length, Icon: Settings2 },
+              { key: "applications", label: "Review applications", count: props.canReviewOnboarding ? props.onboardingRequests.length : undefined, Icon: ClipboardCheck },
+              { key: "branch-corrections", label: "Branch corrections", count: pendingBranchCorrectionCount, Icon: ShieldCheck },
+              { key: "status", label: "Team status", count: workspacePendingStaff.length, Icon: UsersRound },
+            ] as const).map(({ key, label, count, Icon }) => (
+              <button
+                key={key}
+                type="button"
+                aria-expanded={inlineTool === key}
+                aria-controls="staff-inline-operations"
+                onClick={() => setInlineTool((current) => current === key ? null : key)}
+                className={[
+                  "flex min-h-12 items-center justify-between gap-2 rounded-xl border px-3 py-2 text-left text-xs font-medium transition-colors",
+                  inlineTool === key
+                    ? "border-[var(--cs-sand)] bg-[var(--cs-sand-tint)] text-[var(--cs-text)]"
+                    : "border-[var(--cs-border-soft)] bg-[var(--cs-surface-warm)] text-[var(--cs-text-secondary)] hover:border-[var(--cs-border)]",
+                ].join(" ")}
+              >
+                <span className="flex items-center gap-2">
+                  <Icon className="size-4 shrink-0" aria-hidden="true" /> {label}
+                </span>
+                {count !== undefined && <span className="rounded-full bg-[var(--cs-surface)] px-2 py-0.5 text-[10px]">{count}</span>}
+              </button>
+            ))}
+          </div>
+          <div id="staff-inline-operations" className={inlineTool ? "mt-4" : ""}>
+            {inlineTool === "assignments" && (
+              <CrmStaffAssignmentsTab
+                branchId={props.branchId}
+                activeServices={props.activeServices}
+                providerStaff={props.providerStaff}
+                providerAssignments={providerAssignments}
+                providerAssignmentsError={props.providerAssignmentsError}
+                onStaffServicesSaved={handleStaffServicesSaved}
+              />
+            )}
+            {inlineTool === "applications" && (
+              <CrmStaffApplicationsTab
+                requests={props.onboardingRequests}
+                branches={props.branches}
+                reviewerSystemRole={props.reviewerSystemRole}
+                reviewerBranchId={props.reviewerBranchId}
+                canReviewOnboarding={props.canReviewOnboarding}
+              />
+            )}
+            {inlineTool === "branch-corrections" && (
+              <CrmStaffBranchCorrectionsTab
+                requests={workspaceBranchCorrectionRequests}
+                onResolved={handleBranchIssueResolved}
+              />
+            )}
+            {inlineTool === "status" && (
+              <CrmStaffStatusTab
+                allStaff={workspaceAllStaff}
+                pendingStaff={workspacePendingStaff}
+              />
+            )}
+          </div>
+        </section>
       </AttendanceTabPanel>
 
       <AttendanceTabPanel
