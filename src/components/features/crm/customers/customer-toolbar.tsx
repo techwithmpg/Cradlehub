@@ -1,8 +1,9 @@
 "use client";
 
-import { FormEvent, useEffect, useState } from "react";
+import { useEffect, useState } from "react";
+import type { FormEvent } from "react";
 import { Search } from "lucide-react";
-import { CustomerTab } from "./customer-segment-tabs";
+import type { CustomerTab } from "./customer-segment-tabs";
 import { normalizeCustomerSearch } from "./customer-workspace-data";
 
 interface CustomerToolbarProps {
