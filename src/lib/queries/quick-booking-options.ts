@@ -17,6 +17,8 @@ type ServiceRelation =
   | {
       id?: string;
       name?: string;
+      description?: string | null;
+      image_url?: string | null;
       is_active?: boolean;
       price?: number | string | null;
       duration_minutes?: number | null;
@@ -24,10 +26,17 @@ type ServiceRelation =
       extension_increment_minutes?: number | null;
       extension_price?: number | null;
       maximum_duration_minutes?: number | null;
+      category_id?: string | null;
+      service_categories?:
+        | { id: string; name: string }
+        | Array<{ id: string; name: string }>
+        | null;
     }
   | Array<{
       id?: string;
       name?: string;
+      description?: string | null;
+      image_url?: string | null;
       is_active?: boolean;
       price?: number | string | null;
       duration_minutes?: number | null;
@@ -35,12 +44,20 @@ type ServiceRelation =
       extension_increment_minutes?: number | null;
       extension_price?: number | null;
       maximum_duration_minutes?: number | null;
+      category_id?: string | null;
+      service_categories?:
+        | { id: string; name: string }
+        | Array<{ id: string; name: string }>
+        | null;
     }>
   | null;
 
 type BranchServiceRow = {
   custom_price?: number | string | null;
   custom_duration_minutes?: number | null;
+  custom_image_url?: string | null;
+  public_title?: string | null;
+  public_description?: string | null;
   available_in_spa?: boolean;
   available_home_service?: boolean;
   services?: ServiceRelation;
@@ -120,26 +137,40 @@ export async function getQuickBookingOptions(branchId: string): Promise<{
       if (service.duration_policy === "fixed" || service.duration_policy === "extendable") {
         try {
           const quote = calculateServiceLineQuote({
-            service: { id: service.id, duration_policy: service.duration_policy,
-              duration_minutes: Number(service.duration_minutes), price: service.price ?? 0,
+            service: {
+              id: service.id,
+              duration_policy: service.duration_policy,
+              duration_minutes: Number(service.duration_minutes),
+              price: service.price ?? 0,
               extension_increment_minutes: service.extension_increment_minutes ?? null,
               extension_price: service.extension_price ?? null,
-              maximum_duration_minutes: service.maximum_duration_minutes ?? null },
-            branch: { custom_duration_minutes: row.custom_duration_minutes ?? null,
-              custom_price: row.custom_price ?? null },
+              maximum_duration_minutes: service.maximum_duration_minutes ?? null,
+            },
+            branch: {
+              custom_duration_minutes: row.custom_duration_minutes ?? null,
+              custom_price: row.custom_price ?? null,
+            },
           });
           quoteVersion = quoteVersionFor(branchId, quote);
-        } catch { /* The quote endpoint will report the configuration error. */ }
+        } catch {
+          /* The quote endpoint will report the configuration error. */
+        }
       }
+      const categoryRel = firstRelation(service.service_categories);
       return {
         id: service.id,
         name: service.name,
         price: Number(row.custom_price ?? service.price ?? 0),
         durationMinutes: Number(row.custom_duration_minutes ?? service.duration_minutes ?? 0),
-        durationPolicy: service.duration_policy === "extendable" ? "extendable" as const : "fixed" as const,
+        durationPolicy:
+          service.duration_policy === "extendable" ? ("extendable" as const) : ("fixed" as const),
         quoteVersion,
         availableInSpa: row.available_in_spa ?? true,
         availableHomeService: row.available_home_service ?? false,
+        description: row.public_description || service.description || null,
+        imageUrl: row.custom_image_url || service.image_url || null,
+        categoryId: service.category_id || categoryRel?.id || null,
+        categoryName: categoryRel?.name || null,
       };
     })
     .filter((service): service is QuickBookingServiceOption => service !== null);

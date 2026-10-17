@@ -1,15 +1,19 @@
 "use client";
 
-import { useEffect, useMemo, useRef, useState } from "react";
-import { Check, ChevronDown, Search, X } from "lucide-react";
+import { useId, useMemo, useRef, useState } from "react";
+import { Check, ChevronDown, PlusCircle, Search, Sparkles, Trash2, X } from "lucide-react";
 import { cn, formatCurrency } from "@/lib/utils";
 import type { QuickBookingServiceOption } from "@/components/features/bookings/quick-booking-form";
+import type { ServiceLineQuote } from "@/lib/services/service-line-quote";
+import { InlineServiceDurationDropdown } from "@/components/features/bookings/inline-service-duration-dropdown";
 
 type QuickBookingServiceSelectorProps = {
   services: QuickBookingServiceOption[];
   selectedServiceIds: string[];
   onChange: (serviceIds: string[]) => void;
   onAdjust?: (service: QuickBookingServiceOption) => void;
+  onSelectQuote?: (service: QuickBookingServiceOption, quote: ServiceLineQuote) => void;
+  branchId?: string;
   isHomeService: boolean;
   disabled?: boolean;
   error?: string;
@@ -33,15 +37,17 @@ export function QuickBookingServiceSelector({
   selectedServiceIds,
   onChange,
   onAdjust,
+  onSelectQuote,
+  branchId,
   isHomeService,
   disabled = false,
   error,
   maxServices = 5,
 }: QuickBookingServiceSelectorProps) {
-  const [open, setOpen] = useState(false);
-  const [query, setQuery] = useState("");
-  const rootRef = useRef<HTMLDivElement | null>(null);
+  const searchInputId = useId();
   const searchInputRef = useRef<HTMLInputElement | null>(null);
+  const [query, setQuery] = useState("");
+  const [selectedCategoryId, setSelectedCategoryId] = useState<string | null>(null);
 
   const selectedServices = useMemo(
     () =>
@@ -51,15 +57,33 @@ export function QuickBookingServiceSelector({
     [selectedServiceIds, services]
   );
 
+  // Extract canonical categories from the loaded services list
+  const categories = useMemo(() => {
+    const map = new Map<string, string>();
+    for (const service of services) {
+      if (service.categoryId && service.categoryName) {
+        map.set(service.categoryId, service.categoryName);
+      }
+    }
+    return Array.from(map.entries()).map(([id, name]) => ({ id, name }));
+  }, [services]);
+
   const normalizedQuery = query.trim().toLowerCase();
 
-  const filteredServices = useMemo(
-    () =>
-      services.filter((service) =>
-        normalizedQuery ? service.name.toLowerCase().includes(normalizedQuery) : true
-      ),
-    [normalizedQuery, services]
-  );
+  const filteredServices = useMemo(() => {
+    return services.filter((service) => {
+      if (selectedCategoryId && service.categoryId !== selectedCategoryId) {
+        return false;
+      }
+      if (normalizedQuery) {
+        const nameMatch = service.name.toLowerCase().includes(normalizedQuery);
+        const descMatch = service.description?.toLowerCase().includes(normalizedQuery);
+        const catMatch = service.categoryName?.toLowerCase().includes(normalizedQuery);
+        return nameMatch || Boolean(descMatch) || Boolean(catMatch);
+      }
+      return true;
+    });
+  }, [services, selectedCategoryId, normalizedQuery]);
 
   const totalDurationMinutes = selectedServices.reduce(
     (sum, service) => sum + service.durationMinutes,
@@ -67,11 +91,6 @@ export function QuickBookingServiceSelector({
   );
 
   const totalPrice = selectedServices.reduce((sum, service) => sum + service.price, 0);
-
-  const selectedCountLabel =
-    selectedServices.length === 0
-      ? "Select services"
-      : `${selectedServices.length} service${selectedServices.length === 1 ? "" : "s"} selected`;
 
   function toggleService(serviceId: string) {
     if (disabled) return;
@@ -96,188 +115,109 @@ export function QuickBookingServiceSelector({
     onChange([]);
   }
 
-  useEffect(() => {
-    if (!open) return;
-
-    function handlePointerDown(event: MouseEvent) {
-      const target = event.target;
-
-      if (!(target instanceof Node)) return;
-      if (rootRef.current?.contains(target)) return;
-
-      setOpen(false);
-    }
-
-    function handleKeyDown(event: KeyboardEvent) {
-      if (event.key === "Escape") setOpen(false);
-    }
-
-    document.addEventListener("mousedown", handlePointerDown);
-    document.addEventListener("keydown", handleKeyDown);
-
-    return () => {
-      document.removeEventListener("mousedown", handlePointerDown);
-      document.removeEventListener("keydown", handleKeyDown);
-    };
-  }, [open]);
-
-  useEffect(() => {
-    if (!open) return;
-
-    const timer = window.setTimeout(() => {
-      searchInputRef.current?.focus();
-    }, 0);
-
-    return () => window.clearTimeout(timer);
-  }, [open]);
-
   return (
-    <div ref={rootRef} className="relative min-w-0">
-      <div className="mb-2 flex items-start justify-between gap-3">
-        <div className="min-w-0">
-          <p className="text-sm font-semibold text-[var(--cs-text)]">Services</p>
-          <p className="mt-0.5 text-xs leading-5 text-[var(--cs-text-muted)]">
-            Search and select one or more services.
-          </p>
-        </div>
-
-        {selectedServiceIds.length > 0 ? (
-          <button
-            type="button"
-            onClick={clearServices}
-            disabled={disabled}
-            className="shrink-0 text-xs font-semibold text-[var(--cs-sand-dark)] transition hover:text-[var(--cs-text)] disabled:cursor-not-allowed disabled:opacity-60"
-          >
-            Clear
-          </button>
-        ) : null}
-      </div>
-
-      <button
-        type="button"
-        onClick={() => {
-          if (!disabled) setOpen((current) => !current);
-        }}
-        disabled={disabled}
-        className={cn(
-          "flex min-h-12 w-full min-w-0 items-center gap-2 rounded-2xl border bg-[var(--cs-surface)] px-3 py-2 text-left shadow-[var(--cs-shadow-xs)] transition",
-          error
-            ? "border-[var(--cs-error-text)]"
-            : open
-              ? "border-[var(--cs-sand-dark)]"
-              : "border-[var(--cs-border)] hover:border-[var(--cs-border-strong)]",
-          disabled ? "cursor-not-allowed opacity-70" : ""
-        )}
-        aria-expanded={open}
-      >
-        <div className="flex min-w-0 flex-1 flex-wrap items-center gap-1.5">
-          {selectedServices.length > 0 ? (
-            selectedServices.slice(0, 3).map((service) => (
-              <span
-                key={service.id}
-                className="inline-flex max-w-[180px] items-center gap-1 rounded-full border border-[var(--cs-sand)] bg-[var(--cs-sand-mist)] px-2 py-1 text-xs font-semibold text-[var(--cs-text)]"
-                onClick={(event) => event.stopPropagation()}
-              >
-                <span className="truncate">{service.name}</span>
-                <span
-                  role="button"
-                  tabIndex={0}
-                  onClick={() => removeService(service.id)}
-                  onKeyDown={(event) => {
-                    if (event.key === "Enter" || event.key === " ") {
-                      event.preventDefault();
-                      removeService(service.id);
-                    }
-                  }}
-                  className="grid size-4 place-items-center rounded-full hover:bg-[var(--cs-surface)]"
-                  aria-label={`Remove ${service.name}`}
-                >
-                  <X size={12} />
-                </span>
-              </span>
-            ))
-          ) : (
-            <span className="text-sm text-[var(--cs-text-muted)]">
-              {isHomeService ? "Search home-service services" : "Search in-spa services"}
+    <div className="min-w-0 space-y-3">
+      {/* 2-Column Catalog Layout: Left ~55% Available, Right ~45% Selected */}
+      <div className="grid grid-cols-1 items-start gap-4 lg:grid-cols-[minmax(0,1.2fr)_minmax(0,0.8fr)]">
+        {/* Left Column: Select Services */}
+        <div className="min-w-0 space-y-2.5">
+          <div className="flex items-center justify-between gap-2">
+            <label
+              htmlFor={searchInputId}
+              className="text-xs font-semibold uppercase tracking-wider text-[var(--cs-text-muted)]"
+            >
+              Select Services
+            </label>
+            <span className="text-[11px] font-medium text-[var(--cs-text-muted)]">
+              {filteredServices.length} available
             </span>
-          )}
-
-          {selectedServices.length > 3 ? (
-            <span className="rounded-full bg-[var(--cs-surface-warm)] px-2 py-1 text-xs font-semibold text-[var(--cs-text-muted)]">
-              +{selectedServices.length - 3} more
-            </span>
-          ) : null}
-        </div>
-
-        <div className="hidden shrink-0 text-xs font-semibold text-[var(--cs-text-muted)] sm:block">
-          {selectedCountLabel}
-        </div>
-
-        <ChevronDown
-          size={16}
-          className={cn(
-            "shrink-0 text-[var(--cs-text-muted)] transition",
-            open ? "rotate-180" : ""
-          )}
-        />
-      </button>
-
-      <div className="mt-2 flex flex-wrap items-center gap-2 text-xs font-semibold text-[var(--cs-text-secondary)]">
-        <span>{selectedServices.length} service{selectedServices.length === 1 ? "" : "s"}</span>
-        <span aria-hidden="true">·</span>
-        <span>{formatServiceDuration(totalDurationMinutes)}</span>
-        <span aria-hidden="true">·</span>
-        <span>{formatCurrency(totalPrice)}</span>
-      </div>
-      {selectedServices.some((service) => service.durationPolicy === "extendable") ? (
-        <div className="mt-2 space-y-1.5">
-          {selectedServices.filter((service) => service.durationPolicy === "extendable").map((service) => (
-            <button key={service.id} type="button" disabled={disabled} onClick={() => onAdjust?.(service)}
-              className="flex min-h-11 w-full items-center justify-between gap-2 rounded-xl border border-[var(--cs-border)] bg-[var(--cs-surface)] px-3 py-2 text-left text-xs hover:border-[var(--cs-sand-dark)] disabled:opacity-60">
-              <span className="min-w-0 truncate font-semibold">{service.name}</span>
-              <span className="shrink-0 text-[var(--cs-sand-dark)]">
-                {service.durationAdjusted
-                  ? `${formatServiceDuration(service.durationMinutes)} · ${formatCurrency(service.price)}`
-                  : `${formatServiceDuration(service.durationMinutes)}+ · From ${formatCurrency(service.price)}`} · Adjust ›
-              </span>
-            </button>
-          ))}
-        </div>
-      ) : null}
-
-      {open ? (
-        <div className="absolute left-0 right-0 z-50 mt-2 overflow-hidden rounded-2xl border border-[var(--cs-border-soft)] bg-[var(--cs-surface)] shadow-xl">
-          <div className="border-b border-[var(--cs-border-soft)] p-3">
-            <div className="relative">
-              <Search className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-[var(--cs-text-muted)]" />
-              <input
-                ref={searchInputRef}
-                type="search"
-                value={query}
-                onChange={(event) => setQuery(event.target.value)}
-                disabled={disabled}
-                placeholder={isHomeService ? "Search home-service services..." : "Search in-spa services..."}
-                className="h-10 w-full rounded-xl border border-[var(--cs-border)] bg-[var(--cs-surface)] pl-9 pr-9 text-sm text-[var(--cs-text)] outline-none placeholder:text-[var(--cs-text-muted)] focus:border-[var(--cs-sand)]"
-              />
-
-              {query ? (
-                <button
-                  type="button"
-                  onClick={() => setQuery("")}
-                  className="absolute right-3 top-1/2 -translate-y-1/2 text-[var(--cs-text-muted)]"
-                  aria-label="Clear service search"
-                >
-                  <X size={15} />
-                </button>
-              ) : null}
-            </div>
           </div>
 
-          <div className="max-h-72 overflow-y-auto p-2">
+          {/* Search Input with accessible trigger */}
+          <div className="relative flex items-center">
+            <Search
+              size={15}
+              className="pointer-events-none absolute left-3 text-[var(--cs-text-muted)]"
+            />
+            <input
+              id={searchInputId}
+              ref={searchInputRef}
+              type="search"
+              value={query}
+              onChange={(e) => setQuery(e.target.value)}
+              disabled={disabled}
+              placeholder="Search services…"
+              className="h-9 w-full rounded-xl border border-[var(--cs-border)] bg-[var(--cs-surface)] pl-9 pr-16 text-xs text-[var(--cs-text)] outline-none placeholder:text-[var(--cs-text-muted)] focus:border-[var(--cs-sand-dark)] focus:ring-1 focus:ring-[var(--cs-sand-dark)]"
+            />
+
+            {/* Accessible button for search trigger compatibility */}
+            <button
+              type="button"
+              onClick={() => searchInputRef.current?.focus()}
+              aria-label={isHomeService ? "Search home-service services" : "Search in-spa services"}
+              className="sr-only"
+            >
+              {isHomeService ? "Search home-service services" : "Search in-spa services"}
+            </button>
+
+            {query ? (
+              <button
+                type="button"
+                onClick={() => setQuery("")}
+                className="absolute right-2.5 grid size-6 place-items-center rounded-md text-[var(--cs-text-muted)] hover:bg-[var(--cs-surface-warm)] hover:text-[var(--cs-text)]"
+                aria-label="Clear service search"
+              >
+                <X size={14} />
+              </button>
+            ) : null}
+          </div>
+
+          {/* Category Filter Pills */}
+          {categories.length > 0 ? (
+            <div
+              className="flex min-w-0 flex-nowrap items-center gap-1.5 overflow-x-auto pb-1 text-xs"
+              role="group"
+              aria-label="Service categories"
+            >
+              <button
+                type="button"
+                onClick={() => setSelectedCategoryId(null)}
+                className={cn(
+                  "h-6.5 shrink-0 rounded-full px-2.5 text-[11px] font-semibold transition",
+                  selectedCategoryId === null
+                    ? "bg-[#7A583E] text-white shadow-xs"
+                    : "border border-[var(--cs-border)] bg-[var(--cs-surface-warm)] text-[var(--cs-text-secondary)] hover:bg-[var(--cs-sand-mist)]"
+                )}
+              >
+                All
+              </button>
+              {categories.map((category) => {
+                const isActive = selectedCategoryId === category.id;
+                return (
+                  <button
+                    key={category.id}
+                    type="button"
+                    onClick={() => setSelectedCategoryId(isActive ? null : category.id)}
+                    className={cn(
+                      "h-6.5 shrink-0 rounded-full px-2.5 text-[11px] font-semibold transition",
+                      isActive
+                        ? "bg-[#7A583E] text-white shadow-xs"
+                        : "border border-[var(--cs-border)] bg-[var(--cs-surface-warm)] text-[var(--cs-text-secondary)] hover:bg-[var(--cs-sand-mist)]"
+                    )}
+                  >
+                    {category.name}
+                  </button>
+                );
+              })}
+            </div>
+          ) : null}
+
+          {/* Service Cards Grid (2 columns on sm+, single column on xs) */}
+          <div className="grid max-h-[220px] grid-cols-1 gap-2 overflow-y-auto pr-1 sm:grid-cols-2">
             {filteredServices.length > 0 ? (
               filteredServices.map((service) => {
-                const selected = selectedServiceIds.includes(service.id);
-                const atLimit = !selected && selectedServiceIds.length >= maxServices;
+                const isSelected = selectedServiceIds.includes(service.id);
+                const atLimit = !isSelected && selectedServiceIds.length >= maxServices;
 
                 return (
                   <button
@@ -286,56 +226,199 @@ export function QuickBookingServiceSelector({
                     onClick={() => toggleService(service.id)}
                     disabled={disabled || atLimit}
                     className={cn(
-                      "grid w-full grid-cols-[auto_minmax(0,1fr)_auto] items-center gap-3 rounded-xl px-3 py-2.5 text-left transition",
-                      selected ? "bg-[var(--cs-sand-mist)]" : "hover:bg-[var(--cs-surface-warm)]",
+                      "group flex items-center gap-2 rounded-xl border p-2 text-left transition",
+                      isSelected
+                        ? "border-[#7A583E] bg-[#F7F4F0] ring-1 ring-[#7A583E]/40"
+                        : "border-[var(--cs-border)] bg-[var(--cs-surface)] hover:border-[var(--cs-sand-dark)] hover:bg-[var(--cs-surface-warm)]",
                       atLimit ? "cursor-not-allowed opacity-50" : "",
                       disabled ? "cursor-not-allowed opacity-70" : ""
                     )}
-                    aria-pressed={selected}
+                    aria-pressed={isSelected}
                   >
-                    <span
-                      className={cn(
-                        "grid size-5 place-items-center rounded border",
-                        selected
-                          ? "border-[var(--cs-sand-dark)] bg-[var(--cs-sand)] text-[var(--cs-text)]"
-                          : "border-[var(--cs-border-strong)] text-transparent"
-                      )}
-                      aria-hidden="true"
-                    >
-                      <Check size={13} />
-                    </span>
+                    {/* Thumbnail */}
+                    {service.imageUrl ? (
+                      /* eslint-disable-next-line @next/next/no-img-element */
+                      <img
+                        src={service.imageUrl}
+                        alt=""
+                        className="size-10 shrink-0 rounded-lg object-cover"
+                        loading="lazy"
+                      />
+                    ) : (
+                      <div className="grid size-10 shrink-0 place-items-center rounded-lg bg-[var(--cs-sand-mist)] text-[var(--cs-sand-dark)]">
+                        <Sparkles size={16} />
+                      </div>
+                    )}
 
-                    <span className="min-w-0">
-                      <span className="block truncate text-sm font-semibold text-[var(--cs-text)]">
+                    {/* Service Info */}
+                    <div className="min-w-0 flex-1">
+                      <p className="truncate text-xs font-bold text-[var(--cs-text)] group-hover:text-[var(--cs-primary)]">
                         {service.name}
-                      </span>
-                      <span className="mt-0.5 block text-xs text-[var(--cs-text-muted)]">
-                        {formatServiceDuration(service.durationMinutes)}
-                      </span>
-                    </span>
+                      </p>
+                      {service.description ? (
+                        <p className="line-clamp-1 text-[11px] text-[var(--cs-text-muted)]">
+                          {service.description}
+                        </p>
+                      ) : null}
+                      <p className="mt-0.5 text-[11px] font-medium text-[var(--cs-text-secondary)]">
+                        {formatServiceDuration(service.durationMinutes)} ·{" "}
+                        {formatCurrency(service.price)}
+                      </p>
+                    </div>
 
-                    <span className="text-xs font-semibold text-[var(--cs-text-secondary)]">
-                      {formatCurrency(service.price)}
-                    </span>
+                    {/* Action Icon */}
+                    <div className="shrink-0 pl-1">
+                      {isSelected ? (
+                        <span className="grid size-6 place-items-center rounded-full bg-[#7A583E] text-white">
+                          <Check size={13} strokeWidth={2.5} />
+                        </span>
+                      ) : (
+                        <span className="grid size-6 place-items-center text-[var(--cs-sand-dark)] transition group-hover:scale-110">
+                          <PlusCircle size={18} />
+                        </span>
+                      )}
+                    </div>
                   </button>
                 );
               })
             ) : (
-              <p className="rounded-xl border border-dashed border-[var(--cs-border)] px-3 py-5 text-center text-xs text-[var(--cs-text-muted)]">
-                No services match your search.
-              </p>
+              <div className="col-span-full rounded-xl border border-dashed border-[var(--cs-border)] px-4 py-8 text-center text-xs text-[var(--cs-text-muted)]">
+                No services match your search or filter.
+              </div>
+            )}
+          </div>
+        </div>
+
+        {/* Right Column: Selected Services */}
+        <div className="min-w-0 space-y-2.5">
+          <div className="flex items-center justify-between gap-2">
+            <span className="text-xs font-semibold uppercase tracking-wider text-[var(--cs-text-muted)]">
+              Selected Services ({selectedServices.length})
+            </span>
+            {selectedServices.length > 0 ? (
+              <button
+                type="button"
+                onClick={clearServices}
+                disabled={disabled}
+                className="inline-flex items-center gap-1 text-xs font-semibold text-[#8C2828] hover:underline disabled:opacity-50"
+              >
+                <Trash2 size={12} />
+                Clear all
+              </button>
+            ) : null}
+          </div>
+
+          {/* Selected Services Card List */}
+          <div className="max-h-[220px] space-y-2 overflow-y-auto pr-1">
+            {selectedServices.length > 0 ? (
+              selectedServices.map((service) => (
+                <div
+                  key={service.id}
+                  className="flex items-center gap-2 rounded-xl border border-[var(--cs-border)] bg-[var(--cs-surface)] p-2 shadow-xs"
+                >
+                  {/* Thumbnail */}
+                  {service.imageUrl ? (
+                    /* eslint-disable-next-line @next/next/no-img-element */
+                    <img
+                      src={service.imageUrl}
+                      alt=""
+                      className="size-10 shrink-0 rounded-lg object-cover"
+                      loading="lazy"
+                    />
+                  ) : (
+                    <div className="grid size-10 shrink-0 place-items-center rounded-lg bg-[var(--cs-sand-mist)] text-[var(--cs-sand-dark)]">
+                      <Sparkles size={16} />
+                    </div>
+                  )}
+
+                  {/* Title & Desc */}
+                  <div className="min-w-0 flex-1">
+                    <p className="truncate text-xs font-bold text-[var(--cs-text)]">
+                      {service.name}
+                    </p>
+                    {service.description ? (
+                      <p className="line-clamp-1 text-[11px] text-[var(--cs-text-muted)]">
+                        {service.description}
+                      </p>
+                    ) : null}
+                  </div>
+
+                  {/* Duration Trigger or Badge */}
+                  <div className="shrink-0">
+                    {service.durationPolicy === "extendable" && branchId ? (
+                      <InlineServiceDurationDropdown
+                        branchId={branchId}
+                        service={service}
+                        deliveryMode={isHomeService ? "home_service" : "in_spa"}
+                        disabled={disabled}
+                        onSelectQuote={(quote) => onSelectQuote?.(service, quote)}
+                      />
+                    ) : service.durationPolicy === "extendable" && onAdjust ? (
+                      <button
+                        type="button"
+                        onClick={() => onAdjust(service)}
+                        disabled={disabled}
+                        className="inline-flex h-7 items-center gap-1 rounded-lg border border-[var(--cs-border)] bg-[var(--cs-surface-warm)] px-2 text-xs font-semibold text-[var(--cs-text)] transition hover:border-[#7A583E] hover:bg-[#F7F4F0] disabled:opacity-60"
+                        title="Adjust duration"
+                      >
+                        <span>{formatServiceDuration(service.durationMinutes)}</span>
+                        <ChevronDown size={12} className="text-[var(--cs-text-muted)]" />
+                      </button>
+                    ) : (
+                      <span className="inline-flex h-7 items-center rounded-lg border border-transparent bg-[var(--cs-surface-warm)] px-2 text-xs font-medium text-[var(--cs-text-secondary)]">
+                        {formatServiceDuration(service.durationMinutes)}
+                      </span>
+                    )}
+                  </div>
+
+                  {/* Authoritative Price */}
+                  <div className="shrink-0 text-right">
+                    <p className="text-xs font-bold text-[var(--cs-text)]">
+                      {formatCurrency(service.price)}
+                    </p>
+                  </div>
+
+                  {/* Remove Button */}
+                  <button
+                    type="button"
+                    onClick={() => removeService(service.id)}
+                    disabled={disabled}
+                    className="grid size-7 shrink-0 place-items-center rounded-lg text-[var(--cs-text-muted)] hover:bg-[var(--cs-surface-warm)] hover:text-red-600 disabled:opacity-50"
+                    aria-label={`Remove ${service.name}`}
+                  >
+                    <X size={14} />
+                  </button>
+                </div>
+              ))
+            ) : (
+              <div className="flex h-36 flex-col items-center justify-center rounded-xl border border-dashed border-[var(--cs-border)] p-4 text-center text-xs text-[var(--cs-text-muted)]">
+                <Sparkles size={20} className="mb-1 text-[var(--cs-sand-dark)]/60" />
+                No services selected.
+                <span className="mt-0.5 text-[11px]">Click any service on the left to add it.</span>
+              </div>
             )}
           </div>
 
-          {selectedServiceIds.length >= maxServices ? (
-            <div className="border-t border-[var(--cs-border-soft)] px-3 py-2 text-xs font-medium text-[var(--cs-warning-text)]">
-              Maximum {maxServices} services per booking.
+          {/* Subtotal Summary for Active Guest */}
+          {selectedServices.length > 0 ? (
+            <div className="flex items-center justify-between border-t border-[var(--cs-border-soft)] pt-2 text-xs font-semibold text-[var(--cs-text-secondary)]">
+              <span>
+                {selectedServices.length} service{selectedServices.length === 1 ? "" : "s"} ·{" "}
+                {formatServiceDuration(totalDurationMinutes)}
+              </span>
+              <span className="text-[var(--cs-text)]">{formatCurrency(totalPrice)}</span>
             </div>
           ) : null}
-        </div>
-      ) : null}
 
-      {error ? <p className="mt-2 text-xs font-medium text-[var(--cs-error-text)]">{error}</p> : null}
+          {selectedServiceIds.length >= maxServices ? (
+            <p className="text-xs font-medium text-[var(--cs-warning-text)]">
+              Maximum {maxServices} services per guest session.
+            </p>
+          ) : null}
+        </div>
+      </div>
+
+      {error ? <p className="text-xs font-medium text-[var(--cs-error-text)]">{error}</p> : null}
     </div>
   );
 }
