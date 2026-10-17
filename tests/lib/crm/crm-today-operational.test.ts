@@ -228,36 +228,91 @@ describe("CRM Today canonical operational builder & server action", () => {
     expect(data.queueData).toHaveLength(1);
     const item = data.queueData[0]!;
 
-    // Core booking & therapist provenance
-    expect(item.id).toBe("b-1");
-    expect(item.requested_staff_id).toBe("staff-99");
-    expect(item.therapist_selection_source).toBe("customer_selected");
-    expect(item.staff_name).toBe("Therapist Elena");
-    expect(item.customer_name).toBe("Maria Santos");
-    expect(item.customer_phone).toBe("09181234567");
+    // Verify exact 57 canonical fields in projection
+    expect(Object.keys(item)).toHaveLength(57);
 
-    // Financial & order fields
+    // 1-5: Identity & Grouping
+    expect(item.id).toBe("b-1");
+    expect(item.order_id).toBe("order-1");
+    expect(item.attendee_id).toBe("att-1");
+    expect(item.booking_attendees).toEqual(rawBooking.booking_attendees);
+    expect(item.booking_orders).toEqual(rawBooking.booking_orders);
+
+    // 6-8: Order financials
     expect(item.order_payment_status).toBe("paid");
     expect(item.order_amount_paid).toBe(1500);
     expect(item.order_total_amount).toBe(1500);
-    expect(item.price_paid).toBe(1500);
 
-    // Driver & tracking links
+    // 9-15: Schedule & Status
+    expect(item.branch_id).toBe("branch-a");
+    expect(item.booking_date).toBe("2026-10-17");
+    expect(item.start_time).toBe("14:00");
+    expect(item.end_time).toBe("15:00");
+    expect(item.status).toBe("confirmed");
+    expect(item.type).toBe("home_service");
+    expect(item.travel_buffer_mins).toBe(30);
+
+    // 16-20: Line Payment
+    expect(item.payment_status).toBe("paid");
+    expect(item.payment_method).toBe("gcash");
+    expect(item.amount_paid).toBe(1500);
+    expect(item.price_paid).toBe(1500);
+    expect(item.payment_reference).toBe("REF-12345");
+
+    // 21-26: Customer & Service & Staff
+    expect(item.customer_name).toBe("Maria Santos");
+    expect(item.customer_phone).toBe("09181234567");
+    expect(item.service_name).toBe("Signature Massage");
+    expect(item.service_duration).toBe(60);
+    expect(item.staff_name).toBe("Therapist Elena");
+    expect(item.staff_id).toBe("staff-99");
+
+    // 27-29: Provenance & Resource
+    expect(item.requested_staff_id).toBe("staff-99");
+    expect(item.therapist_selection_source).toBe("customer_selected");
+    expect(item.resource_name).toBe("Van 1 Alpha");
+
+    // 30-36: Progress Timestamps & Lifecycle
+    expect(item.booking_progress_status).toBe("waiting");
+    expect(item.checked_in_at).toBeNull();
+    expect(item.session_started_at).toBeNull();
+    expect(item.session_due_at).toBeNull();
+    expect(item.session_completed_at).toBeNull();
+    expect(item.created_at).toBe("2026-10-17T07:00:00Z");
+    expect(item.resource_id).toBe("res-1");
+
+    // 37-38: Delivery & Metadata
+    expect(item.delivery_type).toBe("home_service");
+    expect(item.metadata).toEqual(rawBooking.metadata);
+
+    // 39-44: Home Service Destination & Dispatch
+    expect(item.hs_zone).toBe("Zone 1");
+    expect(item.hs_address).toBe("123 Coral St, Pasig");
+    expect(item.hs_city).toBe("Pasig");
+    expect(item.hs_map_url).toBe("https://maps.google.com/?q=123");
+    expect(item.dispatch_warning).toBe("Heavy traffic along Ortigas");
+    expect(item.needs_location_review).toBe(false);
+
+    // 45-47: Staff Schedule Exception Review
+    expect(item.needs_staff_schedule_review).toBe(false);
+    expect(item.staff_schedule_exception_label).toBeNull();
+    expect(item.staff_schedule_exception_reason).toBeNull();
+
+    // 48-51: Driver Assignment & Realtime Coordinates
     expect(item.driver_id).toBe("driver-1");
     expect(item.driver_name).toBe("Kuya John");
-    expect(item.tracking_token).toBe("trk-token-abc");
-    expect(item.tracking_url).toBe("https://track/abc");
+    expect(item.no_driver_warning).toBe(false);
     expect(item.last_location_at).toBe("2026-10-17T13:30:00Z");
 
-    // Home service address & dispatch warnings
-    expect(item.hs_address).toBe("123 Coral St, Pasig");
-    expect(item.hs_zone).toBe("Zone 1");
-    expect(item.dispatch_warning).toBe("Heavy traffic along Ortigas");
+    // 52-54: Customer Tracking Links
+    expect(item.tracking_token).toBe("trk-token-abc");
+    expect(item.tracking_url).toBe("https://track/abc");
+    expect(item.tracking_message).toBe("Driver on the way");
+
+    // 55-57: Geometry & Live ETA
     expect(item.dest_lat).toBe(14.58);
     expect(item.dest_lng).toBe(121.06);
-
-    // Resource name
-    expect(item.resource_name).toBe("Van 1 Alpha");
+    expect(item.live_eta).toBe("13:45");
 
     // Notifications & readiness
     expect(data.actionNotifications).toHaveLength(1);
