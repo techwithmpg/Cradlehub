@@ -148,4 +148,24 @@ describe("PERF-6 CRM Customers native-history navigation", () => {
       "/crm/customers?tab=all&page=2"
     );
   });
+
+  it("tracks back/forward-style searchParam changes as the current request state", () => {
+    currentSearch = "tab=repeat";
+    const view = render(<CustomersWorkspace initialData={data({ tab: "repeat" })} />);
+
+    expect(liveHook).toHaveBeenLastCalledWith(
+      expect.objectContaining({
+        request: { tab: "repeat", page: 1, search: undefined },
+      })
+    );
+
+    currentSearch = "tab=lapsed";
+    view.rerender(<CustomersWorkspace initialData={data({ tab: "repeat" })} />);
+
+    expect(liveHook).toHaveBeenLastCalledWith(
+      expect.objectContaining({
+        request: { tab: "lapsed", page: 1, search: undefined },
+      })
+    );
+  });
 });
