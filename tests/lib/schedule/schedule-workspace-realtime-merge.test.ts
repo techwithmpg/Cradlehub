@@ -128,6 +128,55 @@ describe("PERF-4 schedule realtime tactical merge", () => {
     expect(result.data.stats).toEqual(source.stats);
   });
 
+  it("keeps service/resource joins server-authoritative when realtime references unloaded data", () => {
+    const source = fixture();
+
+    const serviceChange = mergeScheduleBookingRealtimeChange(source, "2026-10-17", {
+      eventType: "UPDATE",
+      oldRow: {
+        id: "booking-1",
+        branch_id: "branch-1",
+        booking_date: "2026-10-17",
+        staff_id: "staff-a",
+      },
+      newRow: {
+        id: "booking-1",
+        branch_id: "branch-1",
+        booking_date: "2026-10-17",
+        staff_id: "staff-a",
+        start_time: "2026-10-17T09:00:00+08:00",
+        end_time: "2026-10-17T10:00:00+08:00",
+        service_id: "service-2",
+      },
+    });
+    expect(serviceChange.relevant).toBe(true);
+    expect(serviceChange.patched).toBe(false);
+    expect(serviceChange.data).toBe(source);
+
+    const unloadedResource = mergeScheduleBookingRealtimeChange(source, "2026-10-17", {
+      eventType: "UPDATE",
+      oldRow: {
+        id: "booking-1",
+        branch_id: "branch-1",
+        booking_date: "2026-10-17",
+        staff_id: "staff-a",
+      },
+      newRow: {
+        id: "booking-1",
+        branch_id: "branch-1",
+        booking_date: "2026-10-17",
+        staff_id: "staff-a",
+        start_time: "2026-10-17T09:00:00+08:00",
+        end_time: "2026-10-17T10:00:00+08:00",
+        service_id: "service-1",
+        resource_id: "room-not-loaded",
+      },
+    });
+    expect(unloadedResource.relevant).toBe(true);
+    expect(unloadedResource.patched).toBe(false);
+    expect(unloadedResource.data).toBe(source);
+  });
+
   it("does not invent joined data for a newly inserted booking", () => {
     const source = fixture();
     const result = mergeScheduleBookingRealtimeChange(source, "2026-10-17", {
