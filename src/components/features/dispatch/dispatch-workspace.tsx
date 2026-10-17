@@ -90,6 +90,7 @@ export function HomeServiceDispatchWorkspace({
   const isCrmRetainedDispatch = role === "crm" && !ownerBranchId;
   const ownerKey = useWorkspaceSWRKey(["owner-dispatch", ownerBranchId, initialData.today, upcoming]);
   const ownerMapKey = useWorkspaceSWRKey(["owner-dispatch-map", ownerBranchId, initialData.today]);
+  const crmMapKey = useWorkspaceSWRKey(["crm-dispatch-map", initialData.today]);
   const ownerScope = ownerBranchId ? { expectedOwnerBranchId: ownerBranchId } : {};
   const crmDispatch = useLiveCrmDispatchData({
     date: initialData.today,
@@ -136,7 +137,13 @@ export function HomeServiceDispatchWorkspace({
     error: mapError,
     mutate: mutateMap,
   } = useSWR(
-    activeTab === "map" ? (ownerBranchId ? ownerMapKey : ["dispatch-active-map", initialData.today]) : null,
+    activeTab === "map"
+      ? ownerBranchId
+        ? ownerMapKey
+        : isCrmRetainedDispatch
+          ? crmMapKey
+          : ["dispatch-active-map", initialData.today]
+      : null,
     async () => {
       const result = await refreshDispatchDataAction(initialData.today, { scope: "active_map", ...ownerScope });
       if (!result.success) throw new Error(result.error);
