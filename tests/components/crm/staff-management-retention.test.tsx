@@ -4,6 +4,17 @@ import { cleanup, fireEvent, render, screen } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { StaffManagementWorkspace } from "@/components/features/staff/staff-management-workspace";
 import type { StaffMember } from "@/components/features/staff/staff-management-utils";
+import { StaffTableRow } from "@/components/features/staff/staff-table-row";
+import type { ReactNode } from "react";
+
+vi.mock("@/components/ui/dropdown-menu", () => ({
+  DropdownMenu: ({ children }: { children: ReactNode }) => <div>{children}</div>,
+  DropdownMenuTrigger: ({ render: rendered }: { render: ReactNode }) => <>{rendered}</>,
+  DropdownMenuContent: ({ children }: { children: ReactNode }) => <div>{children}</div>,
+  DropdownMenuItem: ({ children, onSelect }: { children: ReactNode; onSelect?: () => void }) => (
+    <div role="menuitem" onClick={onSelect}>{children}</div>
+  ),
+}));
 
 vi.mock("@/components/features/staff/staff-stats-cards", () => ({ StaffStatsCards: () => null }));
 vi.mock("@/components/features/staff/staff-empty-list", () => ({ StaffEmptyList: () => <div>No staff</div> }));
@@ -100,5 +111,53 @@ describe("CRM staff retained interaction state", () => {
     expect((screen.getByLabelText("Search staff") as HTMLInputElement).value).toBe("Alpha");
     expect(screen.getByRole("button", { name: "Active" }).getAttribute("aria-pressed")).toBe("true");
     expect(screen.getByTestId("selected-staff").textContent).toBe("Alpha Therapist Updated");
+  });
+});
+
+
+describe("modern staff roster preserves edit behavior", () => {
+  it("opens the existing CRM inline editor rather than an absent detail route", () => {
+    const member = staff("staff-1", "Alpha Therapist");
+    const onEditStaff = vi.fn();
+    const onSelectStaff = vi.fn();
+    render(
+      <table>
+        <tbody>
+          <StaffTableRow
+            member={member}
+            activeTab="active"
+            isSelected={false}
+            onSelectStaff={onSelectStaff}
+            onEditStaff={onEditStaff}
+            workspaceContext="crm"
+          />
+        </tbody>
+      </table>
+    );
+
+    fireEvent.click(screen.getByRole("button", { name: "Select Alpha Therapist" }));
+    expect(onSelectStaff).toHaveBeenCalledWith(member);
+    fireEvent.click(screen.getByRole("menuitem", { name: "Edit profile" }));
+    expect(onEditStaff).toHaveBeenCalledWith(member);
+    expect(screen.queryByRole("link", { name: "Edit profile" })).toBeNull();
+  });
+
+  it("preserves the Owner edit-profile detail route", () => {
+    const member = staff("staff-2", "Beta Therapist");
+    render(
+      <table>
+        <tbody>
+          <StaffTableRow
+            member={member}
+            activeTab="active"
+            isSelected={false}
+            onSelectStaff={vi.fn()}
+            workspaceContext="owner"
+          />
+        </tbody>
+      </table>
+    );
+    const editLink = screen.getByRole("link", { name: "Edit profile" });
+    expect(editLink.getAttribute("href")).toBe("/owner/staff/staff-2");
   });
 });
