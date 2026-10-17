@@ -94,7 +94,7 @@ describe("Quick Booking customer name autocomplete", () => {
       services={[...props.services, { id: "svc-2", name: "Facial", price: 700,
         durationMinutes: 90, availableInSpa: true, availableHomeService: false }]} />);
     expect(screen.queryByRole("tablist", { name: "Guest sessions" })).toBeNull();
-    fireEvent.click(screen.getByRole("button", { name: "+ Add guest" }));
+    fireEvent.click(screen.getByRole("button", { name: "+ Add Guest" }));
     expect(screen.getByRole("tablist", { name: "Guest sessions" })).toBeTruthy();
     expect(screen.getAllByLabelText("Guest name")).toHaveLength(1);
     expect(screen.getByRole("tab", { name: /Guest 2/ }).getAttribute("aria-selected")).toBe("true");
@@ -122,20 +122,21 @@ describe("Quick Booking customer name autocomplete", () => {
 
   it("keeps four guest pills in one session strip with only one active editor", () => {
     render(<QuickBookingForm {...props} initialName="Malcolm Owner" initialPhone="09171234567" />);
-    fireEvent.click(screen.getByRole("button", { name: "+ Add guest" }));
+    fireEvent.click(screen.getByRole("button", { name: "+ Add Guest" }));
     fireEvent.click(screen.getByRole("button", { name: "+ Add Guest" }));
     fireEvent.click(screen.getByRole("button", { name: "+ Add Guest" }));
 
     expect(screen.getAllByRole("tab")).toHaveLength(4);
+    expect(screen.getAllByRole("button", { name: "+ Add Guest" })).toHaveLength(1);
     expect(screen.getAllByLabelText("Guest name")).toHaveLength(1);
-    expect(screen.getByRole("button", { name: "+ Add" }).hasAttribute("disabled")).toBe(true);
+    expect(screen.getByRole("button", { name: "+ Add Guest" }).hasAttribute("disabled")).toBe(true);
     expect(screen.getByRole("tab", { name: /Guest 4/ }).getAttribute("aria-selected")).toBe("true");
 
     fireEvent.click(screen.getByRole("button", { name: "Remove Guest 4" }));
     expect(screen.getAllByRole("tab")).toHaveLength(3);
     expect(screen.getByRole("tab", { name: /Malcolm Owner/ }).getAttribute("aria-selected")).toBe("true");
     expect((screen.getByLabelText("Guest name") as HTMLInputElement).readOnly).toBe(true);
-    expect(screen.getByRole("button", { name: "+ Add" }).hasAttribute("disabled")).toBe(false);
+    expect(screen.getByRole("button", { name: "+ Add Guest" }).hasAttribute("disabled")).toBe(false);
 
     fireEvent.click(screen.getByRole("button", { name: "Optional details" }));
     expect(screen.getByText("Booking mode")).toBeTruthy();

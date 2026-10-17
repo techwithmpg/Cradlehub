@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { Check, ChevronDown, Loader2 } from "lucide-react";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { cn, formatCurrency } from "@/lib/utils";
@@ -16,13 +16,6 @@ export type InlineServiceDurationDropdownProps = {
   onSelectQuote: (quote: ServiceLineQuote) => void;
 };
 
-// Cache quotes per branch + service + deliveryMode for instant reopening
-const durationQuotesCache = new Map<string, ServiceLineQuote[]>();
-
-export function clearDurationQuotesCache() {
-  durationQuotesCache.clear();
-}
-
 export function InlineServiceDurationDropdown({
   branchId,
   service,
@@ -34,10 +27,19 @@ export function InlineServiceDurationDropdown({
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [options, setOptions] = useState<ServiceLineQuote[]>([]);
-  const cacheKey = `${branchId}:${service.id}:${deliveryMode}`;
+  const activeRequestRef = useRef<AbortController | null>(null);
+
+  useEffect(() => {
+    return () => {
+      activeRequestRef.current?.abort();
+    };
+  }, []);
 
   const fetchOptions = async () => {
     if (!branchId || !service.id) return;
+    activeRequestRef.current?.abort();
+    const controller = new AbortController();
+    activeRequestRef.current = controller;
     setLoading(true);
     setError(null);
     try {
@@ -50,6 +52,7 @@ export function InlineServiceDurationDropdown({
           audience: "crm",
           deliveryMode,
         }),
+        signal: controller.signal,
       });
 
       if (!response.ok) {
@@ -57,6 +60,7 @@ export function InlineServiceDurationDropdown({
       }
 
       const result = (await response.json()) as { options: ServiceLineQuote[] };
+      if (controller.signal.aborted) return;
       if (
         !Array.isArray(result.options) ||
         result.options.length === 0 ||
@@ -70,12 +74,15 @@ export function InlineServiceDurationDropdown({
         throw new Error("Duration options are unavailable.");
       }
 
-      durationQuotesCache.set(cacheKey, result.options);
       setOptions(result.options);
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Duration options are unavailable.");
+      if (!controller.signal.aborted) {
+        setError(err instanceof Error ? err.message : "Duration options are unavailable.");
+      }
     } finally {
-      setLoading(false);
+      if (!controller.signal.aborted) {
+        setLoading(false);
+      }
     }
   };
 
@@ -83,13 +90,12 @@ export function InlineServiceDurationDropdown({
     if (disabled) return;
     setOpen(nextOpen);
     if (nextOpen) {
-      const cached = durationQuotesCache.get(cacheKey);
-      if (cached && cached.length > 0) {
-        setOptions(cached);
-        setError(null);
-      } else {
-        void fetchOptions();
-      }
+      // Fetch fresh server-authorized options on every opening.
+      setOptions([]);
+      void fetchOptions();
+    } else {
+      activeRequestRef.current?.abort();
+      setLoading(false);
     }
   };
 

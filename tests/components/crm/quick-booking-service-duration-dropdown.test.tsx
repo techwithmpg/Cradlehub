@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 import React from "react";
-import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
-import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { act, cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { afterEach, describe, expect, it, vi } from "vitest";
 
 const mocks = vi.hoisted(() => ({
   prefill: vi.fn(),
@@ -24,8 +24,6 @@ vi.mock("@/lib/actions/attendance-queue", () => ({
 import { QuickBookingForm } from "@/components/features/bookings/quick-booking-form";
 import type { QuickBookingServiceOption } from "@/components/features/bookings/quick-booking-form";
 import type { ServiceLineQuote } from "@/lib/services/service-line-quote";
-
-import { clearDurationQuotesCache } from "@/components/features/bookings/inline-service-duration-dropdown";
 
 const branchId = "11111111-1111-4111-8111-111111111111";
 
@@ -103,13 +101,8 @@ function setupQuotesFetch(
   return fetcher;
 }
 
-beforeEach(() => {
-  clearDurationQuotesCache();
-});
-
 afterEach(() => {
   cleanup();
-  clearDurationQuotesCache();
   vi.unstubAllGlobals();
 });
 
@@ -200,6 +193,122 @@ describe("CRM Quick Booking inline service duration dropdown", () => {
     expect(screen.getAllByText(/₱900/).length).toBeGreaterThan(0);
   });
 
+  it("requests fresh server quotes whenever the dropdown reopens", async () => {
+    const fetcher = setupQuotesFetch();
+
+    render(
+      <QuickBookingForm
+        branchId={branchId}
+        branchName="Main Branch"
+        services={[massage]}
+        staff={[]}
+        resources={[]}
+        bookingRules={defaultBookingRules}
+        initialMode="walkin"
+        initialDate="2026-10-17"
+        initialTime="12:00"
+      />
+    );
+
+    fireEvent.click(screen.getByText("Swedish Massage"));
+
+    const trigger = screen.getByTitle("Adjust duration");
+    fireEvent.click(trigger);
+
+    fireEvent.click(
+      await screen.findByRole("option", { name: /1h 30m/ })
+    );
+
+    await waitFor(() => {
+      expect(trigger.textContent).toContain("1h 30m");
+    });
+
+    fireEvent.click(trigger);
+
+    await waitFor(() => {
+      const calls = fetcher.mock.calls.filter(([url]) =>
+        String(url).includes("/api/booking/service-line-quotes")
+      );
+
+      expect(calls).toHaveLength(2);
+    });
+  });
+
+  it("ignores an outdated quote response after reopening", async () => {
+    const pendingRequests: Array<(response: {
+      ok: boolean;
+      json: () => Promise<{ options: ServiceLineQuote[] }>;
+    }) => void> = [];
+
+    vi.stubGlobal("fetch", vi.fn((url: string, init?: RequestInit) => {
+      if (String(url).includes("/api/booking/service-line-quotes") && init?.body) {
+        return new Promise<{
+          ok: boolean;
+          json: () => Promise<{ options: ServiceLineQuote[] }>;
+        }>((resolve) => {
+          pendingRequests.push(resolve);
+        });
+      }
+
+      return Promise.resolve({
+        ok: true,
+        json: async () => ({ availableStaffIds: [] }),
+      });
+    }));
+
+    render(
+      <QuickBookingForm
+        branchId={branchId}
+        branchName="Main Branch"
+        services={[massage]}
+        staff={[]}
+        resources={[]}
+        bookingRules={defaultBookingRules}
+        initialMode="walkin"
+        initialDate="2026-10-17"
+        initialTime="12:00"
+      />
+    );
+
+    fireEvent.click(screen.getByText("Swedish Massage"));
+    const trigger = screen.getByTitle("Adjust duration");
+
+    fireEvent.click(trigger);
+    await waitFor(() => expect(pendingRequests).toHaveLength(1));
+
+    fireEvent.click(trigger);
+    fireEvent.click(trigger);
+    await waitFor(() => expect(pendingRequests).toHaveLength(2));
+
+    const latestQuotes = [
+      quote(massage, 60, 600, 0),
+      quote(massage, 90, 950, 1),
+      quote(massage, 120, 1400, 2),
+    ];
+
+    await act(async () => {
+      pendingRequests[1]!({
+        ok: true,
+        json: async () => ({ options: latestQuotes }),
+      });
+    });
+
+    expect(
+      screen.getByRole("option", { name: /1h 30m/ }).textContent
+    ).toContain("₱950");
+
+    await act(async () => {
+      pendingRequests[0]!({
+        ok: true,
+        json: async () => ({ options: massageQuotes }),
+      });
+    });
+
+    expect(
+      screen.getByRole("option", { name: /1h 30m/ }).textContent
+    ).toContain("₱950");
+  });
+
   it("retains separate duration selections for different guests", async () => {
     setupQuotesFetch();
 
@@ -223,7 +332,7 @@ describe("CRM Quick Booking inline service duration dropdown", () => {
     fireEvent.click(screen.getByText("Swedish Massage"));
 
     // Add Guest 2
-    fireEvent.click(screen.getByRole("button", { name: "+ Add guest" }));
+    fireEvent.click(screen.getByRole("button", { name: "+ Add Guest" }));
 
     // Guest 2 selects Swedish Massage
     fireEvent.click(screen.getByText("Swedish Massage"));

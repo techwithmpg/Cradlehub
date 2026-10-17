@@ -1736,15 +1736,6 @@ export function QuickBookingForm({
                     <Plus size={14} className="text-[#7A583E]" />
                     <span>+ Add Guest</span>
                   </button>
-                  <button
-                    type="button"
-                    onClick={addGuest}
-                    disabled={isSaving || additionalGuests.length >= 3}
-                    aria-label="+ Add"
-                    className="sr-only"
-                  >
-                    + Add
-                  </button>
                 </div>
               </div>
             </div>
@@ -1758,14 +1749,6 @@ export function QuickBookingForm({
                     Add guests and assign services.
                   </p>
                 </div>
-                <button
-                  type="button"
-                  onClick={addGuest}
-                  disabled={isSaving || additionalGuests.length >= 3}
-                  className="cs-btn cs-btn-secondary h-7 shrink-0 rounded-lg px-2.5 text-xs font-semibold text-[var(--cs-sand-dark)] hover:text-[var(--cs-text)] disabled:opacity-50"
-                >
-                  + Add guest
-                </button>
               </div>
 
               <div
