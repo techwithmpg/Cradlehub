@@ -1,3 +1,5 @@
+import { legacyBookingModules } from "./workspace-domain-events";
+
 export type RetainedWorkspace = "crm" | "owner";
 
 export type WorkspaceRetentionCost = "low" | "medium" | "high";
@@ -161,7 +163,5 @@ export function retainedModuleKey(scopeKey: string, descriptor: WorkspaceModuleD
 }
 
 export function affectedModulesForBookingChange(workspace: RetainedWorkspace): RetainedModuleId[] {
-  return workspace === "crm"
-    ? ["crm-work-queue", "crm-bookings", "crm-schedule"]
-    : ["owner-overview", "owner-reports", "owner-bookings"];
+  return legacyBookingModules(workspace);
 }

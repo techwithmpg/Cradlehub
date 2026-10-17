@@ -6,6 +6,8 @@ export type WorkspaceModuleLifecycleValue = {
   isActive: boolean;
   isRetained: boolean;
   isDirty: boolean;
+  invalidationGeneration?: number;
+  validatedGeneration?: number;
   isStale: boolean;
   isRefreshing: boolean;
   hasUnsavedChanges: boolean;
@@ -57,23 +59,31 @@ export function useWorkspaceReactivationRefresh(
     setRefreshing,
   } = lifecycle;
   const refreshRef = useRef(refresh);
+  const inFlight = useRef<Promise<void> | null>(null);
 
   useEffect(() => {
     refreshRef.current = refresh;
   }, [refresh]);
 
-  const refreshNow = useCallback(async () => {
-    setRefreshing(true);
-    try {
-      await refreshRef.current();
-      markClean();
-    } catch (error) {
-      markDirty();
-      throw error;
-    } finally {
-      setRefreshing(false);
-    }
-  }, [markClean, markDirty, setRefreshing]);
+  const refreshNow = useCallback(() => {
+    if (!isActive) return Promise.resolve();
+    if (inFlight.current) return inFlight.current;
+    const run = async () => {
+      setRefreshing(true);
+      try {
+        await refreshRef.current();
+        markClean();
+      } catch (error) {
+        markDirty();
+        throw error;
+      } finally {
+        setRefreshing(false);
+        inFlight.current = null;
+      }
+    };
+    inFlight.current = run();
+    return inFlight.current;
+  }, [isActive, markClean, markDirty, setRefreshing]);
 
   useEffect(() => {
     if (!isActive || (!isDirty && !isStale)) return;

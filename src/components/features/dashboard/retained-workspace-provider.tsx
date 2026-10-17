@@ -41,6 +41,9 @@ import {
   type WorkspaceRetentionStateDetail,
 } from "./workspace-navigation-events";
 import { WorkspaceSWRScopeContext } from "./workspace-swr-cache";
+import { createWorkspaceGenerationStore, type WorkspaceGenerationStore, type WorkspaceValidation } from "./workspace-generation";
+import { WorkspaceGenerationContext } from "./use-workspace-generation";
+import { WORKSPACE_DOMAIN_EVENT, affectedWorkspaceModules, type WorkspaceDomainEvent } from "./workspace-domain-events";
 
 type RetainedWorkspaceProviderProps = {
   workspace: RetainedWorkspace;
@@ -122,21 +125,30 @@ function RetainedModuleFrame({
   active,
   pendingRefresh,
   dispatch,
+  generations,
 }: {
   entry: RetainedWorkspaceEntry;
   active: boolean;
   pendingRefresh: boolean;
   dispatch: (action: WorkspaceRegistryAction) => void;
+  generations: WorkspaceGenerationStore;
 }) {
+  const validation = useRef<WorkspaceValidation | null>(null);
   const markDirty = useCallback(() => {
-    dispatch({ type: "mark-dirty", moduleIds: [entry.moduleId] });
-  }, [dispatch, entry.moduleId]);
+    generations.invalidate(entry.moduleId);
+  }, [generations, entry.moduleId]);
   const markClean = useCallback(() => {
-    dispatch({ type: "mark-clean", key: entry.key, at: Date.now() });
-  }, [dispatch, entry.key]);
+    if (validation.current && generations.completeValidation(entry.moduleId, validation.current)) {
+      dispatch({ type: "mark-clean", key: entry.key, at: Date.now() });
+    }
+  }, [dispatch, entry.key, entry.moduleId, generations]);
   const setRefreshing = useCallback((refreshing: boolean) => {
-    dispatch({ type: "set-refreshing", key: entry.key, refreshing });
-  }, [dispatch, entry.key]);
+    if (refreshing) validation.current = generations.beginValidation(entry.moduleId);
+    else if (validation.current) {
+      generations.failValidation(entry.moduleId, validation.current);
+      validation.current = null;
+    }
+  }, [entry.moduleId, generations]);
   const setUnsavedChanges = useCallback((unsaved: boolean) => {
     dispatch({ type: "set-unsaved", key: entry.key, unsaved });
   }, [dispatch, entry.key]);
@@ -144,6 +156,8 @@ function RetainedModuleFrame({
     isActive: active,
     isRetained: true,
     isDirty: entry.dirty,
+    invalidationGeneration: entry.invalidationGeneration,
+    validatedGeneration: entry.validatedGeneration,
     isStale: entry.lastActivatedAt - entry.lastRefreshedAt >= entry.staleTimeMs,
     isRefreshing: entry.isRefreshing,
     hasUnsavedChanges: entry.hasUnsavedChanges,
@@ -156,6 +170,8 @@ function RetainedModuleFrame({
     active,
     entry.becameActiveAt,
     entry.dirty,
+    entry.invalidationGeneration,
+    entry.validatedGeneration,
     entry.hasUnsavedChanges,
     entry.isRefreshing,
     entry.lastActivatedAt,
@@ -219,11 +235,22 @@ function ScopedRetainedWorkspace({
     WORKSPACE_RETENTION_LIMITS[workspace],
     createWorkspaceRegistryState
   );
+  const [generations] = useState(createWorkspaceGenerationStore);
   const [pendingNavigation, setPendingNavigation] = useState<PendingNavigation | null>(null);
   const registryRef = useRef(registry);
   useLayoutEffect(() => {
     registryRef.current = registry;
   }, [registry]);
+
+  useLayoutEffect(() => {
+    generations.connect();
+    const unsubscribe = generations.subscribe(() => {
+      const entries = [...registryRef.current.entries, ...Object.values(registryRef.current.restoration)];
+      dispatch({ type: "sync-generations", snapshots: new Map(entries.map((entry) =>
+        [entry.moduleId, generations.getSnapshot(entry.moduleId)])) });
+    });
+    return () => { unsubscribe(); generations.disconnect(); };
+  }, [generations]);
 
   const register = useCallback<RetainedWorkspaceRegistration["register"]>((moduleId, node) => {
     if (!descriptor || !moduleKey || descriptor.moduleId !== moduleId) return;
@@ -374,14 +401,20 @@ function ScopedRetainedWorkspace({
 
   useEffect(() => {
     const markBookingModulesDirty = () => {
-      dispatch({
-        type: "mark-dirty",
-        moduleIds: affectedModulesForBookingChange(workspace),
-      });
+      generations.invalidateMany(affectedModulesForBookingChange(workspace));
+    };
+    const onDomainEvent = (event: Event) => {
+      const detail = (event as CustomEvent<WorkspaceDomainEvent>).detail;
+      if (!detail || typeof detail.branchId !== "string" || typeof detail.name !== "string") return;
+      generations.invalidateMany(affectedWorkspaceModules(detail, { workspace, branchId, role }));
     };
     window.addEventListener(BOOKINGS_CHANGED_EVENT, markBookingModulesDirty);
-    return () => window.removeEventListener(BOOKINGS_CHANGED_EVENT, markBookingModulesDirty);
-  }, [workspace]);
+    window.addEventListener(WORKSPACE_DOMAIN_EVENT, onDomainEvent);
+    return () => {
+      window.removeEventListener(BOOKINGS_CHANGED_EVENT, markBookingModulesDirty);
+      window.removeEventListener(WORKSPACE_DOMAIN_EVENT, onDomainEvent);
+    };
+  }, [workspace, branchId, role, generations]);
 
   useEffect(() => {
     const warnForUnsavedWork = (event: BeforeUnloadEvent) => {
@@ -433,6 +466,9 @@ function ScopedRetainedWorkspace({
       ? moduleKey
       : null;
   const activeKey = effectivePendingNavigation?.key ?? actualActiveKey;
+  useLayoutEffect(() => {
+    generations.setActive(registry.entries.find((entry) => entry.key === activeKey)?.moduleId ?? null);
+  }, [activeKey, generations, registry.entries]);
   const previousActiveKey = useRef<string | null>(null);
   useLayoutEffect(() => {
     if (!activeKey || previousActiveKey.current === activeKey) return;
@@ -454,6 +490,7 @@ function ScopedRetainedWorkspace({
 
   return (
     <WorkspaceSWRScopeContext.Provider value={scopeKey}>
+      <WorkspaceGenerationContext.Provider value={generations}>
       <RetainedWorkspaceRegistrationContext.Provider value={registration}>
         {registry.entries.map((entry) => {
           const active = entry.key === activeKey;
@@ -469,11 +506,13 @@ function ScopedRetainedWorkspace({
               active={active}
               pendingRefresh={pendingRefresh}
               dispatch={dispatch}
+              generations={generations}
             />
           );
         })}
         {children}
       </RetainedWorkspaceRegistrationContext.Provider>
+      </WorkspaceGenerationContext.Provider>
     </WorkspaceSWRScopeContext.Provider>
   );
 }
@@ -483,7 +522,7 @@ export function RetainedWorkspaceProvider(props: RetainedWorkspaceProviderProps)
   const scopeKey = `${props.userId}:${props.role}:${props.branchId}`;
   return (
     <ScopedRetainedWorkspace
-      key={scopeKey}
+      key={`${props.workspace}:${scopeKey}`}
       workspace={props.workspace}
       userId={props.userId}
       role={props.role}
