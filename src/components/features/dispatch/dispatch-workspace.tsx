@@ -209,7 +209,7 @@ export function HomeServiceDispatchWorkspace({
     <section className="space-y-5 p-4 md:p-0">
       <nav aria-label="Home Service booking dates" className="flex gap-2">
         <Link
-          href="/crm/dispatch"
+          href="/crm/dispatch?tab=today"
           aria-current={!upcoming ? "page" : undefined}
           className={`rounded-lg border px-4 py-2 text-sm font-semibold ${!upcoming ? "bg-emerald-900 text-white" : "bg-white text-emerald-900"}`}
         >

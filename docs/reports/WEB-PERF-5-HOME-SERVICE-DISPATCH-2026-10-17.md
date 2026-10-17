@@ -2,12 +2,13 @@
 
 **Date:** 2026-10-17<br/>
 **Target:** CradleHub Web — CRM Home Service Operations / Dispatch only<br/>
-**Program:** Web CONTROLLED STABILIZATION — performance correction pass<br/>
+**Program:** Web CONTROLLED STABILIZATION — final correction pass<br/>
 **Branch:** `stage/web-perf-5-home-service-dispatch`<br/>
 **Accepted Base / main:** `5e91c18f755316760e95bdfeb10dc1fa6cbce718`<br/>
-**Starting handoff HEAD:** `3a0ae758131d651e4bc7b585e6c9d0b4cbf7851c`<br/>
+**Starting reviewed HEAD:** `2d325fd7a06a7357f6e900f461670188f0198841`<br/>
+**Final reviewed HEAD:** `76c6b76e7410f1fd7373e47b9d7eca037808b6c3`<br/>
 **Draft PR:** #35<br/>
-**Status:** READY FOR INDEPENDENT REVIEW — **DO NOT MERGE**
+**Status:** READY FOR FINAL INDEPENDENT REVIEW — **DO NOT MERGE**
 
 ---
 
@@ -165,6 +166,16 @@ During quality gate execution, three defects were demonstrated, diagnosed, and c
    - *Exact fix:* Updated test assertion in [crm-dispatch-deep-link.test.ts](file:///e:/cradlehub/tests/lib/bookings/crm-dispatch-deep-link.test.ts#L76) to safely unwrap the retained module: `const workspace = page.props.children?.props?.children ?? page.props.children; expect(workspace.props.selectedBookingId).toBe("future-1");`.
    - *Regression test:* [crm-dispatch-deep-link.test.ts](file:///e:/cradlehub/tests/lib/bookings/crm-dispatch-deep-link.test.ts).
 
+4. **Retained Dispatch Today link queryless navigation defect:**
+   - *Defect:* Retained Dispatch's queryless Today link (`href="/crm/dispatch"`) could be rewritten by the retained workspace provider to the previous retained tab or deep-link booking ID state (`tab=upcoming` or `bookingId=future-1`).
+   - *Root cause:* Today used `href="/crm/dispatch"`. The retained workspace provider intentionally restores prior stable search state for retained modules when an internal link contains no query string (`!url.search`). If a user visited `/crm/dispatch?tab=upcoming&bookingId=future-1` and subsequently clicked Today, the provider restored `tab=upcoming` and `bookingId=future-1`, violating the intended `Today → Upcoming → Today` navigation flow.
+   - *Fix:* In `src/components/features/dispatch/dispatch-workspace.tsx`, changed the Today navigation target from `href="/crm/dispatch"` to explicit `href="/crm/dispatch?tab=today"`. Because `?tab=today` contains an explicit search query, the provider does not rewrite it. The server already evaluates only `tab === "upcoming"` as Upcoming, so `?tab=today` continues resolving to the Today dataset without changing server rules.
+   - *Result:* Choosing Today explicitly clears `tab=upcoming` and any retained `bookingId`.
+   - *Regression evidence:* Added regression test suite in [home-service-nav-cleanup.test.tsx](file:///e:/cradlehub/tests/components/dispatch/home-service-nav-cleanup.test.tsx):
+     - `A. Today -> Upcoming -> Today`: starting at `/crm/dispatch?tab=today`, clicking Upcoming targets `/crm/dispatch?tab=upcoming`, then clicking Today targets `/crm/dispatch?tab=today` and does not become upcoming;
+     - `B. Deep link -> Today clears booking ID`: from retained state `/crm/dispatch?tab=upcoming&bookingId=future-1`, clicking Today targets `/crm/dispatch?tab=today`, does not contain `bookingId=future-1`, and does not restore `tab=upcoming` (while confirming a queryless `/crm/dispatch` link would have triggered restoration);
+     - `C. Active state`: on `?tab=today`, Today renders `aria-current="page"` and Upcoming does not; on `?tab=upcoming`, Upcoming renders `aria-current="page"` and Today does not.
+
 ---
 
 ## E. Changed files
@@ -182,10 +193,11 @@ Tests:
 6. `tests/components/dispatch/use-live-crm-dispatch-data-generation.test.tsx`
 7. `tests/lib/navigation/workspace-retention-policy-dispatch.test.ts`
 8. `tests/lib/bookings/crm-dispatch-deep-link.test.ts` (directly dependent preservation test)
+9. `tests/components/dispatch/home-service-nav-cleanup.test.tsx` (navigation & retention safety regression tests)
 
 Evidence:
 
-9. `docs/reports/WEB-PERF-5-HOME-SERVICE-DISPATCH-2026-10-17.md`
+10. `docs/reports/WEB-PERF-5-HOME-SERVICE-DISPATCH-2026-10-17.md`
 
 No migrations, SQL, RLS, generated DB types, or production-operation files were changed.
 
@@ -210,7 +222,7 @@ pnpm exec vitest run \
 ```
 
 - **Test Files:** 10 passed (10)
-- **Tests:** 50 passed (50)
+- **Tests:** 53 passed (53)
 - **Failures:** 0
 - **Skipped:** 0
 
@@ -233,7 +245,9 @@ pnpm eslint \
   src/components/features/dispatch/dispatch-workspace.tsx \
   src/components/features/dispatch/use-live-crm-dispatch-data.ts \
   tests/components/dispatch/use-live-crm-dispatch-data-generation.test.tsx \
-  tests/lib/navigation/workspace-retention-policy-dispatch.test.ts
+  tests/components/dispatch/home-service-nav-cleanup.test.tsx \
+  tests/lib/navigation/workspace-retention-policy-dispatch.test.ts \
+  tests/lib/bookings/crm-dispatch-deep-link.test.ts
 ```
 
 - **Result:** PASSED (exit code 0, 0 errors, 0 warnings)
@@ -245,8 +259,9 @@ pnpm build
 ```
 
 - **Result:** PASSED (exit code 0)
-- **Compilation:** Turbopack compiled 153/153 static and dynamic routes in 38.5s
-- **TypeScript Check in Build:** Passed in 51s
+- **Compilation:** Turbopack compiled 153/153 static and dynamic routes in 33.4s
+- **TypeScript Check in Build:** Passed in 46s
+- **Static Generation:** 153/153 pages generated in 1028ms
 
 ### 5. Git Diff Check Gate
 
@@ -296,10 +311,10 @@ pnpm exec vitest run --maxWorkers=4
 ```
 
 - **Test Files:** 371 passed | 1 failed | 2 skipped (374 total)
-- **Tests:** 2964 passed | 1 failed | 2 skipped (2967 total)
+- **Tests:** 2967 passed | 1 failed | 2 skipped (2970 total)
 - **Sole Failure:** `tests/components/bookings/c03-mobile-booking-wizard.test.tsx > C-03: Mobile New Booking Wizard Responsive Layout > renders all core booking controls reachable and readable on mobile`
 - **Failure Classification:** **ACCEPTED-MAIN BASELINE**
-  - Verified by checking against accepted `origin/main` commit `5e91c18f755316760e95bdfeb10dc1fa6cbce718`. The failure is byte-for-byte identical on `main` and completely unrelated to CRM Dispatch.
+  - Verified by checking against accepted `origin/main` commit `5e91c18f755316760e95bdfeb10dc1fa6cbce718`. The test file and component `quick-booking-form.tsx` have 0 diff against `main`, and the failure is byte-for-byte identical on `main` and completely unrelated to CRM Dispatch.
 - **PERF-5 Introduced Failures:** 0
 
 ---
@@ -368,4 +383,4 @@ No database rollback is required because PERF-5 contains no migrations or produc
 
 ## K. Gate decision
 
-**PERF-5 is ready for independent review. DO NOT MERGE pending independent PASS and explicit owner merge authorization.**
+**PERF-5 is ready for final independent review. DO NOT MERGE pending independent PASS and explicit owner merge authorization.**
