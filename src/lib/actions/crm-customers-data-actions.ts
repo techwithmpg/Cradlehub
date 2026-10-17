@@ -9,17 +9,27 @@ import {
   type CrmCustomersWorkspaceData,
 } from "@/components/features/crm/customers/customer-workspace-data";
 
-export async function refreshCrmCustomersWorkspaceAction(input: {
-  tab?: string;
-  page?: number;
-  search?: string;
-}): Promise<CrmCustomersWorkspaceData> {
+export async function refreshCrmCustomersWorkspaceAction(
+  rawInput: unknown
+): Promise<CrmCustomersWorkspaceData> {
+  const input =
+    rawInput && typeof rawInput === "object"
+      ? (rawInput as Record<string, unknown>)
+      : {};
   const { branchId } = await getCrmContext();
 
   const request = {
-    tab: normalizeCustomerTab(input.tab),
-    page: normalizeCustomerPage(String(input.page ?? 1)),
-    search: normalizeCustomerSearch(input.search),
+    tab: normalizeCustomerTab(
+      typeof input.tab === "string" ? input.tab : undefined
+    ),
+    page: normalizeCustomerPage(
+      typeof input.page === "number" || typeof input.page === "string"
+        ? String(input.page)
+        : undefined
+    ),
+    search: normalizeCustomerSearch(
+      typeof input.search === "string" ? input.search : undefined
+    ),
   };
 
   return loadCrmCustomersWorkspaceData({
