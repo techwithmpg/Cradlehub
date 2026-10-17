@@ -186,7 +186,7 @@ export function CrmStaffWorkspace(props: CrmStaffWorkspaceProps) {
         role="tablist"
         aria-label="Staff sections"
         onKeyDown={handleTabKeyDown}
-        className="flex gap-0 overflow-x-auto border-b border-[var(--cs-border-soft)]"
+        className="flex flex-wrap gap-1 overflow-x-auto rounded-2xl border border-[var(--cs-border)] bg-[var(--cs-surface)] p-1.5 shadow-[var(--cs-shadow-xs)]"
       >
         {tabs.map((tab) => {
           const active = activeTab === tab.key;
@@ -200,10 +200,10 @@ export function CrmStaffWorkspace(props: CrmStaffWorkspaceProps) {
               aria-controls={`staff-panel-${tab.key}`}
               tabIndex={active ? 0 : -1}
               onClick={() => handleTabChange(tab.key)}
-              className={`relative inline-flex shrink-0 items-center gap-1.5 px-4 py-2.5 text-sm font-medium whitespace-nowrap transition-colors duration-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--cs-sand)] ${
+              className={`relative inline-flex min-h-10 shrink-0 items-center gap-1.5 rounded-xl border px-3.5 py-2.5 text-sm font-medium whitespace-nowrap transition-colors duration-150 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--cs-sand)] ${
                 active
-                  ? "text-[var(--cs-text)] after:absolute after:bottom-0 after:left-2 after:right-2 after:h-[2px] after:rounded-full after:bg-[var(--cs-sand)]"
-                  : "text-[var(--cs-text-muted)] hover:text-[var(--cs-text-secondary)]"
+                  ? "border-[var(--cs-border)] bg-[var(--cs-success-bg)] text-[var(--cs-success-text)] shadow-[var(--cs-shadow-xs)]"
+                  : "border-transparent text-[var(--cs-text-muted)] hover:bg-[var(--cs-surface-warm)] hover:text-[var(--cs-text)]"
               }`}
             >
               {tab.label}
@@ -211,8 +211,8 @@ export function CrmStaffWorkspace(props: CrmStaffWorkspaceProps) {
                 <span
                   className={`rounded-full px-1.5 py-px text-[10px] font-semibold ${
                     active
-                      ? "bg-[var(--cs-sand-mist)] text-[var(--cs-sand)]"
-                      : "bg-[var(--cs-border)] text-[var(--cs-text-muted)]"
+                      ? "bg-[var(--cs-surface)] text-[var(--cs-success-text)]"
+                      : "bg-[var(--cs-surface-warm)] text-[var(--cs-text-muted)]"
                   }`}
                 >
                   {tab.count}
