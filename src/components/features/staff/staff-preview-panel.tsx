@@ -163,13 +163,12 @@ export function StaffPreviewPanel({
           </div>
         </div>
 
-        <div className="mt-4 flex gap-1 overflow-x-auto border-b border-[var(--cs-border-soft)]" role="tablist" aria-label="Staff profile sections">
+        <div className="mt-4 flex gap-1 overflow-x-auto border-b border-[var(--cs-border-soft)]" role="group" aria-label="Staff profile sections">
           {(["overview", "services", "access"] as const).map((section) => (
             <button
               key={section}
               type="button"
-              role="tab"
-              aria-selected={profileSection === section}
+              aria-pressed={profileSection === section}
               onClick={() => setProfileSection(section)}
               className={[
                 "shrink-0 border-b-2 px-3 py-2 text-sm font-medium capitalize transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--cs-sand)]",
