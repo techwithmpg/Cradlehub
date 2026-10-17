@@ -37,7 +37,7 @@ export function OwnerReportsPage({ initialData, initialRequest }: OwnerReportsPa
   const urlPreset = searchParams.get("preset") || initialRequest.preset || "last7";
   const urlFrom = searchParams.get("from") || initialRequest.from;
   const urlTo = searchParams.get("to") || initialRequest.to;
-  const urlBranchId = searchParams.get("branchId") || initialRequest.branchId || "all";
+  const urlBranchId = searchParams.get("branchId") || "all";
   const urlTab = (searchParams.get("view") as ReportTab) || initialRequest.tab || "overview";
 
   const [activeTab, setActiveTab] = useState<ReportTab>(urlTab);
@@ -124,15 +124,19 @@ export function OwnerReportsPage({ initialData, initialRequest }: OwnerReportsPa
     }
   );
 
-  const report = data ?? initialData;
+  // Native history branch changes keep the old server props. Never present those
+  // props (or SWR's previous data) as the newly selected branch/aggregate.
+  const requestedBranch = request.branchId ?? "all";
+  const report = data && (data.branchId ?? "all") === requestedBranch ? data
+    : (initialData.branchId ?? "all") === requestedBranch ? initialData : undefined;
   const sheetKey = useWorkspaceSWRKey([
     "owner-report-sheet",
-    report.branchId ?? "all",
-    report.from,
-    report.to,
+    report?.branchId ?? "all",
+    report?.from ?? "",
+    report?.to ?? "",
   ] as const);
   const { data: sheetEvidence, mutate: refreshSheet } = useSWR(
-    sheetKey,
+    report ? sheetKey : null,
     async (
       scopedKey: WorkspaceScopedSWRKey<readonly ["owner-report-sheet", string, string, string]>
     ) => {
@@ -141,7 +145,6 @@ export function OwnerReportsPage({ initialData, initialRequest }: OwnerReportsPa
     },
     { revalidateOnFocus: false }
   );
-  const reportWithSheet = { ...report, sheetEvidence };
 
   const refreshReports = useWorkspaceReactivationRefresh(async () => {
     await mutate();
@@ -174,6 +177,11 @@ export function OwnerReportsPage({ initialData, initialRequest }: OwnerReportsPa
     params.set("to", to);
     window.history.pushState(null, "", `/owner/reports?${params.toString()}`);
   }, []);
+
+  if (!report) return <div role={error ? "alert" : "status"} className="p-6">
+    {error ? "Unable to load reports for the selected branch." : "Loading reports for the selected branch…"}
+  </div>;
+  const reportWithSheet = { ...report, sheetEvidence };
 
   return (
     <div className="mx-auto max-w-7xl space-y-6 pb-16 pt-2">

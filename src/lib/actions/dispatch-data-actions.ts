@@ -5,7 +5,7 @@ import { getDispatchData, type DispatchData } from "@/lib/queries/dispatch-queri
 
 export async function refreshDispatchDataAction(
   date: string,
-  options?: { scope?: "dated" | "active_map"; upcoming?: boolean; bookingId?: string }
+  options?: { scope?: "dated" | "active_map"; upcoming?: boolean; bookingId?: string; expectedOwnerBranchId?: string }
 ): Promise<{ success: true; data: DispatchData } | { success: false; error: string }> {
   if (!/^\d{4}-\d{2}-\d{2}$/.test(date)) {
     return { success: false, error: "Dispatch date is invalid." };
@@ -13,6 +13,9 @@ export async function refreshDispatchDataAction(
 
   const context = await getAttendanceActionContext();
   if (!context) return { success: false, error: "Dispatch access is no longer available." };
+  if (options?.expectedOwnerBranchId && (context.role !== "owner" || context.branchId !== options.expectedOwnerBranchId)) {
+    return { success: false, error: "The Owner Front Desk branch changed. Reload Dispatch to continue." };
+  }
 
   try {
     return {

@@ -6,6 +6,7 @@ import { createClient } from "@/lib/supabase/server";
 import { HomeServiceDispatchWorkspace } from "@/components/features/dispatch/dispatch-workspace";
 import { getDispatchData } from "@/lib/queries/dispatch-queries";
 import { logInfo } from "@/lib/logger";
+import { resolveOwnerFrontDeskBranch } from "@/lib/queries/front-desk-branch";
 
 export const metadata: Metadata = { title: "Home Service Operations — Owner" };
 
@@ -22,17 +23,18 @@ export default async function OwnerDispatchPage() {
     .maybeSingle();
 
   if (!me || me.system_role !== "owner") redirect("/login");
-  if (!me.branch_id) redirect("/login");
+  const branch = await resolveOwnerFrontDeskBranch(user.id, me.branch_id);
+  if (!branch) redirect("/login");
 
   const today = new Date().toISOString().split("T")[0]!;
-  const data = await getDispatchData({ branchId: me.branch_id, date: today });
+  const data = await getDispatchData({ branchId: branch.id, date: today });
 
   logInfo("dispatch.queue.loaded", {
     role: "owner",
-    branchId: me.branch_id,
+    branchId: branch.id,
     date: today,
     count: data.items.length,
   });
 
-  return <HomeServiceDispatchWorkspace role="owner" data={data} />;
+  return <HomeServiceDispatchWorkspace role="owner" data={data} ownerBranchId={branch.id} />;
 }

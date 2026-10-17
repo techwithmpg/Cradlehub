@@ -8,6 +8,7 @@ import { CashFlowRequiredDataError } from "@/lib/cash-flow/cash-flow-errors";
 import { getCashFlowData } from "@/lib/cash-flow/cash-flow-queries";
 import { getBranchBusinessDate } from "@/lib/engine/slot-time";
 import { getAllBranches } from "@/lib/queries/branches";
+import { ownerScopeSearch, resolveOwnerOperationalScope } from "@/lib/owner/operational-scope";
 
 type SearchParams = { [key: string]: string | string[] | undefined };
 
@@ -33,8 +34,8 @@ export default async function OwnerCashFlowPage({
     );
   }
 
-  const requestedBranchId = typeof params.branchId === "string" ? params.branchId : "";
-  const branch = branches.find((item) => item.id === requestedBranchId) ?? branches[0]!;
+  const scope = resolveOwnerOperationalScope({ pathname: "/owner/cash-flow", searchParams: ownerScopeSearch(params), authorizedBranches: branches });
+  const branch = branches.find((item) => scope.kind === "branch" && item.id === scope.branchId)!;
   const today = getBranchBusinessDate();
   const selectedDate = typeof params.date === "string" && /^\d{4}-\d{2}-\d{2}$/.test(params.date)
     ? params.date

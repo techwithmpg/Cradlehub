@@ -44,6 +44,7 @@ import { WorkspaceSWRScopeContext } from "./workspace-swr-cache";
 import { createWorkspaceGenerationStore, type WorkspaceGenerationStore, type WorkspaceValidation } from "./workspace-generation";
 import { WorkspaceGenerationContext } from "./use-workspace-generation";
 import { WORKSPACE_DOMAIN_EVENT, affectedWorkspaceModules, type WorkspaceDomainEvent } from "./workspace-domain-events";
+import type { OwnerEventScope } from "@/lib/owner/operational-scope";
 
 type RetainedWorkspaceProviderProps = {
   workspace: RetainedWorkspace;
@@ -51,6 +52,8 @@ type RetainedWorkspaceProviderProps = {
   role: string;
   branchId: string;
   enabled: boolean;
+  ownerEventScope?: OwnerEventScope;
+  canRetainUrl?: (pathname: string, search: URLSearchParams) => boolean;
   children: ReactNode;
 };
 
@@ -217,6 +220,8 @@ function ScopedRetainedWorkspace({
   userId,
   role,
   branchId,
+  ownerEventScope,
+  canRetainUrl,
   children,
 }: Omit<RetainedWorkspaceProviderProps, "enabled">) {
   const pathname = usePathname();
@@ -303,6 +308,9 @@ function ScopedRetainedWorkspace({
   const restoreRetainedSearch = useCallback((href: string): string => {
     const url = new URL(href, window.location.origin);
     if (url.origin !== window.location.origin || url.search) return href;
+    // An unfiltered Owner link may intentionally mean all branches. Do not
+    // rewrite it with a retained concrete branch's previous query string.
+    if (canRetainUrl && !canRetainUrl(url.pathname, url.searchParams)) return href;
     const target = resolveWorkspaceModule(workspace, url.pathname, url.searchParams);
     if (!target) return href;
     const key = retainedModuleKey(scopeKey, target);
@@ -310,11 +318,13 @@ function ScopedRetainedWorkspace({
       ?? registryRef.current.restoration[key];
     if (!retained?.stableSearchState) return href;
     url.search = retained.stableSearchState;
+    if (canRetainUrl && !canRetainUrl(url.pathname, url.searchParams)) return href;
     return `${url.pathname}${url.search}${url.hash}`;
-  }, [scopeKey, workspace]);
+  }, [scopeKey, workspace, canRetainUrl]);
 
   const activateRetainedUrl = useCallback((href: string) => {
     const url = new URL(href, window.location.origin);
+    if (canRetainUrl && !canRetainUrl(url.pathname, url.searchParams)) return;
     if (url.origin !== window.location.origin || !url.pathname.startsWith(`/${workspace}`)) {
       return;
     }
@@ -347,7 +357,7 @@ function ScopedRetainedWorkspace({
       return;
     }
     setPendingNavigation({ key, pathname: url.pathname, search: url.searchParams.toString() });
-  }, [scopeKey, workspace]);
+  }, [scopeKey, workspace, canRetainUrl]);
 
   useEffect(() => {
     const onNavigation = (event: Event) => {
@@ -406,7 +416,7 @@ function ScopedRetainedWorkspace({
     const onDomainEvent = (event: Event) => {
       const detail = (event as CustomEvent<WorkspaceDomainEvent>).detail;
       if (!detail || typeof detail.branchId !== "string" || typeof detail.name !== "string") return;
-      generations.invalidateMany(affectedWorkspaceModules(detail, { workspace, branchId, role }));
+      generations.invalidateMany(affectedWorkspaceModules(detail, { workspace, branchId, role, ownerEventScope }));
     };
     window.addEventListener(BOOKINGS_CHANGED_EVENT, markBookingModulesDirty);
     window.addEventListener(WORKSPACE_DOMAIN_EVENT, onDomainEvent);
@@ -414,7 +424,7 @@ function ScopedRetainedWorkspace({
       window.removeEventListener(BOOKINGS_CHANGED_EVENT, markBookingModulesDirty);
       window.removeEventListener(WORKSPACE_DOMAIN_EVENT, onDomainEvent);
     };
-  }, [workspace, branchId, role, generations]);
+  }, [workspace, branchId, role, generations, ownerEventScope]);
 
   useEffect(() => {
     const warnForUnsavedWork = (event: BeforeUnloadEvent) => {
@@ -527,6 +537,8 @@ export function RetainedWorkspaceProvider(props: RetainedWorkspaceProviderProps)
       userId={props.userId}
       role={props.role}
       branchId={props.branchId}
+      ownerEventScope={props.ownerEventScope}
+      canRetainUrl={props.canRetainUrl}
     >
       {props.children}
     </ScopedRetainedWorkspace>

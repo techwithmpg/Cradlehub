@@ -25,6 +25,7 @@ import type {
 import { projectOwnerSheetEvidence } from "@/lib/owner/sheet-report-projection";
 import { loadMasterSheetReview } from "@/lib/integrations/google-sheets/sheet-review-service";
 import { resolveConfiguredWorkbookSources } from "@/lib/integrations/google-sheets/workbook-source-map";
+import { ownerScopeSearch, resolveOwnerOperationalScope } from "@/lib/owner/operational-scope";
 
 // ── Auth: owner only ──────────────────────────────────────────────────────
 async function requireOwner() {
@@ -285,9 +286,13 @@ export async function getOwnerWorkspaceBookingsAction(filters?: {
 }) {
   const ctx = await requireOwner();
   if (!ctx) return { error: "Unauthorized" as const };
+  const { getAllBranches } = await import("@/lib/queries/branches");
+  const scope = resolveOwnerOperationalScope({ pathname: "/owner/bookings",
+    searchParams: ownerScopeSearch({ branch: filters?.branchId }), authorizedBranches: await getAllBranches() });
+  if (scope.kind === "unavailable") return { error: "The selected branch is not available from this workspace." };
   const bookings = await getAllBookings({
     date: filters?.date,
-    branchId: filters?.branchId,
+    branchId: scope.kind === "branch" ? scope.branchId : undefined,
     status: filters?.status,
     type: filters?.type,
   });

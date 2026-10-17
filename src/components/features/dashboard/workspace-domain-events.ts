@@ -1,4 +1,5 @@
 import type { RetainedModuleId, RetainedWorkspace } from "./workspace-retention-policy";
+import { ownerScopeAcceptsBranchEvent, type OwnerEventScope } from "@/lib/owner/operational-scope";
 
 export const WORKSPACE_DOMAIN_EVENT = "cradlehub:workspace-domain-event";
 
@@ -60,9 +61,12 @@ export const WORKSPACE_EVENT_DEPENDENCIES = {
 
 export function affectedWorkspaceModules(
   event: WorkspaceDomainEvent,
-  scope: { workspace: RetainedWorkspace; branchId: string; role: string },
+  scope: { workspace: RetainedWorkspace; branchId: string; role: string; ownerEventScope?: OwnerEventScope },
 ): readonly WorkspaceRuntimeModuleId[] {
-  if (event.branchId !== scope.branchId || !Object.hasOwn(WORKSPACE_EVENT_DEPENDENCIES, event.name)) return [];
+  const matches = scope.workspace === "owner" && scope.ownerEventScope
+    ? ownerScopeAcceptsBranchEvent(scope.ownerEventScope, event.branchId)
+    : event.branchId === scope.branchId;
+  if (!matches || !Object.hasOwn(WORKSPACE_EVENT_DEPENDENCIES, event.name)) return [];
   // Role belongs in the caller's scope identity; this map grants no role access.
   return WORKSPACE_EVENT_DEPENDENCIES[event.name][scope.workspace];
 }

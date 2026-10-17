@@ -97,7 +97,7 @@ export function OwnerBookingsView({
       typeFilter={type}
       branchFilter={branch}
       search={search ?? initialSearch}
-      bookings={data ?? initialBookings}
+      bookings={data ?? (isInitialKey ? initialBookings : [])}
       cashSummary={null}
       statusAction={ownerUpdateBookingStatusAction}
       paymentAction={ownerUpdateBookingPaymentAction}

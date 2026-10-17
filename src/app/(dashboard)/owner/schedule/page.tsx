@@ -9,6 +9,7 @@ import {
   ownerUpdateBookingPaymentAction,
 } from "@/app/(dashboard)/owner/bookings/actions";
 import { getBranchBusinessDate } from "@/lib/engine/slot-time";
+import { ownerScopeSearch, resolveOwnerOperationalScope } from "@/lib/owner/operational-scope";
 
 async function getOwnerContext() {
   const supabase = await createClient();
@@ -36,10 +37,8 @@ export default async function OwnerSchedulePage({
   const today = getBranchBusinessDate();
   const [branches] = await Promise.all([getAllBranches()]);
 
-  const selectedBranchId =
-    params.branchId && branches.some((b) => b.id === params.branchId)
-      ? params.branchId
-      : branches[0]?.id ?? "";
+  const scope = resolveOwnerOperationalScope({ pathname: "/owner/schedule", searchParams: ownerScopeSearch(params), authorizedBranches: branches });
+  const selectedBranchId = scope.kind === "branch" ? scope.branchId : "";
 
   const selectedDate = params.date ?? today;
   const selectedBranch = branches.find((b) => b.id === selectedBranchId);

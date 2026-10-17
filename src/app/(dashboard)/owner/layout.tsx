@@ -10,7 +10,9 @@ import { getAgentCoachAvailability } from "@/lib/agents/config";
 import { AgentCoachProvider } from "@/components/agent/agent-context-provider";
 import { CoachBubble } from "@/components/agent/coach-bubble";
 import { InlineTip } from "@/components/agent/inline-tip";
-import { RetainedWorkspaceProvider } from "@/components/features/dashboard/retained-workspace-provider";
+import { OwnerRuntimeScope } from "@/components/features/dashboard/owner-runtime-scope";
+import { getOwnerScopeBranches } from "@/lib/owner/operational-scope-server";
+import { resolveOwnerFrontDeskBranch } from "@/lib/queries/front-desk-branch";
 import { isRetainedWorkspaceEnabled } from "@/lib/config/mvp-flags";
 
 export default async function OwnerLayout({ children }: { children: ReactNode }) {
@@ -29,16 +31,20 @@ export default async function OwnerLayout({ children }: { children: ReactNode })
     role: me?.system_role,
   });
   const canShowCoach = coachAvailability.available && ctx?.user.id && me?.branch_id;
+  const authorizedBranches = await getOwnerScopeBranches();
+  const dispatchBranch = ctx?.user.id && me
+    ? await resolveOwnerFrontDeskBranch(ctx.user.id, me.branch_id)
+    : null;
   const retainedChildren = ctx?.user.id && me?.system_role ? (
-    <RetainedWorkspaceProvider
-      workspace="owner"
+    <OwnerRuntimeScope
       userId={ctx.user.id}
       role={me.system_role}
-      branchId={me.branch_id ?? "all-branches"}
+      authorizedBranches={authorizedBranches}
+      dispatchBranchId={dispatchBranch?.id ?? null}
       enabled={isRetainedWorkspaceEnabled("owner")}
     >
       {children}
-    </RetainedWorkspaceProvider>
+    </OwnerRuntimeScope>
   ) : (
     children
   );
