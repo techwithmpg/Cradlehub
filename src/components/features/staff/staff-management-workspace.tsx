@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useMemo, useState } from "react";
-import { LinkIcon, UserPlus } from "lucide-react";
+import { LinkIcon, UserPlus, UsersRound } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { StaffBranchSection } from "./staff-branch-section";
 import { StaffEmptyList } from "./staff-empty-list";
@@ -124,9 +124,9 @@ export function StaffManagementWorkspace({
 
   return (
     <div className="space-y-4">
-      <header className="flex flex-col gap-3 rounded-xl border border-[var(--cs-border)] bg-[var(--cs-surface)] px-4 py-4 shadow-[var(--cs-shadow-xs)] sm:flex-row sm:items-start sm:justify-between">
+      <header className="flex flex-col gap-3 rounded-2xl border border-[var(--cs-border)] bg-[var(--cs-surface)] px-5 py-5 shadow-[var(--cs-shadow-xs)] sm:flex-row sm:items-center sm:justify-between">
         <div>
-          <h1 className="m-0 text-2xl font-semibold leading-tight text-[var(--cs-text)]">Staff</h1>
+          <h1 className="m-0 text-2xl font-bold tracking-tight text-[var(--cs-text)]">Staff</h1>
           <p className="mt-1 mb-0 text-sm text-[var(--cs-text-muted)]">
             {activeStaff.length} active · {awaitingCount} awaiting approval · {invitedCount} invites sent
           </p>
@@ -166,56 +166,82 @@ export function StaffManagementWorkspace({
         invitesCount={invitedCount}
       />
 
-      <StaffFilterBar
-        filters={filters}
-        branchOptions={branchOptions}
-        roleOptions={roleOptions}
-        statusOptions={statusOptions}
-        onFiltersChange={setFilters}
-        onClear={() => setFilters(initialFilters)}
-        hideBranchFilter={!isOwner}
-      />
+      <div className="grid items-start gap-4 xl:grid-cols-[minmax(340px,0.82fr)_minmax(0,1.18fr)]">
+        <section
+          aria-label="Staff directory"
+          className="min-w-0 overflow-hidden rounded-2xl border border-[var(--cs-border)] bg-[var(--cs-surface)] shadow-[var(--cs-shadow-xs)]"
+        >
+          <div className="flex flex-wrap items-center justify-between gap-3 border-b border-[var(--cs-border-soft)] px-4 py-4 sm:px-5">
+            <div className="flex min-w-0 items-center gap-3">
+              <span className="flex size-10 shrink-0 items-center justify-center rounded-xl bg-[var(--cs-success-bg)] text-[var(--cs-success-text)]">
+                <UsersRound className="size-5" aria-hidden="true" />
+              </span>
+              <div>
+                <h2 className="m-0 text-base font-semibold text-[var(--cs-text)]">Team directory</h2>
+                <p className="m-0 mt-0.5 text-xs text-[var(--cs-text-muted)]">
+                  {isOwner ? "Across authorized branches" : "Your branch team"}
+                </p>
+              </div>
+            </div>
+            <span className="rounded-full border border-[var(--cs-border-soft)] bg-[var(--cs-surface-warm)] px-3 py-1 text-xs font-semibold text-[var(--cs-text-secondary)]">
+              {filteredStaff.length} shown
+            </span>
+          </div>
 
-      <div className="flex flex-wrap items-center justify-between gap-3">
-        <StaffTabs
-          activeTab={activeTab}
-          activeCount={activeStaff.length}
-          pendingCount={pendingStaff.length}
-          onTabChange={setActiveTab}
-        />
-        <p className="m-0 text-sm text-[var(--cs-text-muted)]">
-          Showing {filteredStaff.length} of {staffForCurrentTab.length} staff
-        </p>
-      </div>
-
-      <div className="grid items-start gap-4 xl:grid-cols-[minmax(0,1fr)_340px]">
-        <div className="min-w-0 space-y-4">
-          {groupedStaff.length > 0 ? (
-            groupedStaff.map((group) => (
-              <StaffBranchSection
-                key={group.branchId}
-                group={group}
+          <div className="space-y-3 border-b border-[var(--cs-border-soft)] p-3 sm:p-4">
+            <StaffFilterBar
+              filters={filters}
+              branchOptions={branchOptions}
+              roleOptions={roleOptions}
+              statusOptions={statusOptions}
+              onFiltersChange={setFilters}
+              onClear={() => setFilters(initialFilters)}
+              hideBranchFilter={!isOwner}
+            />
+            <div className="flex flex-wrap items-center justify-between gap-2">
+              <StaffTabs
                 activeTab={activeTab}
-                selectedStaffId={selectedStaff?.id ?? null}
-                isExpanded={expandedBranches.has(group.branchId)}
-                onSelectStaff={(member) => setSelectedStaffId(member.id)}
-                onToggleExpanded={toggleExpanded}
-                workspaceContext={workspaceContext}
+                activeCount={activeStaff.length}
+                pendingCount={pendingStaff.length}
+                onTabChange={setActiveTab}
               />
-            ))
-          ) : (
-            <StaffEmptyList activeTab={activeTab} hasFilters={hasActiveFilters(filters)} />
-          )}
-        </div>
+              <p className="m-0 text-xs text-[var(--cs-text-muted)]">
+                {filteredStaff.length} of {staffForCurrentTab.length}
+              </p>
+            </div>
+          </div>
 
-        <StaffPreviewPanel
-          staff={selectedStaff}
-          onClearSelection={() => setSelectedStaffId("")}
-          workspaceContext={workspaceContext}
-          onEditStaff={onEditStaff}
-          onManageServices={onManageServices}
-          onToggleActive={onToggleActive}
-        />
+          <div className="max-h-[min(68vh,900px)] space-y-3 overflow-y-auto p-3 sm:p-4">
+            {groupedStaff.length > 0 ? (
+              groupedStaff.map((group) => (
+                <StaffBranchSection
+                  key={group.branchId}
+                  group={group}
+                  activeTab={activeTab}
+                  selectedStaffId={selectedStaff?.id ?? null}
+                  isExpanded={expandedBranches.has(group.branchId)}
+                  onSelectStaff={(member) => setSelectedStaffId(member.id)}
+                  onEditStaff={onEditStaff}
+                  onToggleExpanded={toggleExpanded}
+                  workspaceContext={workspaceContext}
+                />
+              ))
+            ) : (
+              <StaffEmptyList activeTab={activeTab} hasFilters={hasActiveFilters(filters)} />
+            )}
+          </div>
+        </section>
+
+        <div className="min-w-0">
+          <StaffPreviewPanel
+            staff={selectedStaff}
+            onClearSelection={() => setSelectedStaffId("")}
+            workspaceContext={workspaceContext}
+            onEditStaff={onEditStaff}
+            onManageServices={onManageServices}
+            onToggleActive={onToggleActive}
+          />
+        </div>
       </div>
     </div>
   );
