@@ -2,11 +2,26 @@
 
 import React from "react";
 import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
-import { afterEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { CrmOperationalPageShell } from "@/components/features/crm/operational/crm-operational-page-shell";
 import { HomeServiceDispatchWorkspace } from "@/components/features/dispatch/dispatch-workspace";
 import type { DispatchData } from "@/lib/queries/dispatch-queries";
 import { refreshDispatchDataAction } from "@/lib/actions/dispatch-data-actions";
+import {
+  RetainedWorkspaceModule,
+  RetainedWorkspaceProvider,
+} from "@/components/features/dashboard/retained-workspace-provider";
+import { resolveWorkspaceModule } from "@/components/features/dashboard/workspace-retention-policy";
+
+let currentPathname = "/crm/dispatch";
+let currentSearch = new URLSearchParams();
+const routerPush = vi.fn();
+
+vi.mock("next/navigation", () => ({
+  usePathname: () => currentPathname,
+  useSearchParams: () => currentSearch,
+  useRouter: () => ({ push: routerPush }),
+}));
 
 // Mock child components that might make network calls
 vi.mock("@/components/features/dispatch/dispatch-flow-tab", () => ({
@@ -126,5 +141,150 @@ describe("Home Service Operations Navigation Cleanup", () => {
     expect(refreshDispatchDataAction).toHaveBeenCalledWith("2026-10-06", {
       scope: "active_map",
     });
+  });
+});
+
+describe("CRM Dispatch Tab Navigation and Retention Safety", () => {
+  beforeEach(() => {
+    currentPathname = "/crm/dispatch";
+    currentSearch = new URLSearchParams();
+    routerPush.mockClear();
+  });
+
+  afterEach(() => {
+    cleanup();
+  });
+
+  function renderRetainedDispatch(upcoming = false, bookingId?: string) {
+    currentPathname = "/crm/dispatch";
+    currentSearch = new URLSearchParams(
+      bookingId
+        ? `tab=${upcoming ? "upcoming" : "today"}&bookingId=${bookingId}`
+        : upcoming
+        ? "tab=upcoming"
+        : "tab=today"
+    );
+    const descriptor = resolveWorkspaceModule("crm", currentPathname, currentSearch);
+    const data = createMockDispatchData();
+    return (
+      <main data-testid="workspace-main">
+        <RetainedWorkspaceProvider
+          workspace="crm"
+          userId="user-1"
+          role="crm"
+          branchId="branch-1"
+          enabled
+        >
+          {descriptor ? (
+            <RetainedWorkspaceModule moduleId={descriptor.moduleId}>
+              <HomeServiceDispatchWorkspace
+                role="crm"
+                data={data}
+                upcoming={upcoming}
+                selectedBookingId={bookingId}
+                showHeader={false}
+              />
+            </RetainedWorkspaceModule>
+          ) : (
+            <HomeServiceDispatchWorkspace
+              role="crm"
+              data={data}
+              upcoming={upcoming}
+              selectedBookingId={bookingId}
+              showHeader={false}
+            />
+          )}
+        </RetainedWorkspaceProvider>
+      </main>
+    );
+  }
+
+  it("A. Today -> Upcoming -> Today: preserves explicit target /crm/dispatch?tab=today and does not become upcoming", () => {
+    // Starting Today: /crm/dispatch?tab=today
+    const view = render(renderRetainedDispatch(false));
+
+    const upcomingLink = screen.getByRole("link", { name: "Upcoming" });
+    expect(upcomingLink.getAttribute("href")).toBe("/crm/dispatch?tab=upcoming");
+
+    // Click Upcoming -> expected target /crm/dispatch?tab=upcoming
+    fireEvent.click(upcomingLink);
+    expect(upcomingLink.getAttribute("href")).toBe("/crm/dispatch?tab=upcoming");
+
+    // View moves to Upcoming: /crm/dispatch?tab=upcoming
+    view.rerender(renderRetainedDispatch(true));
+
+    const todayLink = screen.getByRole("link", { name: "Today" });
+    expect(todayLink.getAttribute("href")).toBe("/crm/dispatch?tab=today");
+
+    // Click Today -> expected target /crm/dispatch?tab=today
+    fireEvent.click(todayLink);
+
+    // The Today target must NOT become /crm/dispatch?tab=upcoming
+    expect(todayLink.getAttribute("href")).toBe("/crm/dispatch?tab=today");
+    expect(routerPush).not.toHaveBeenCalledWith(expect.stringContaining("tab=upcoming"));
+  });
+
+  it("B. Deep link -> Today clears booking ID and does not restore tab=upcoming", () => {
+    // Start from a retained Dispatch state representing: /crm/dispatch?tab=upcoming&bookingId=future-1
+    render(renderRetainedDispatch(true, "future-1"));
+
+    const todayLink = screen.getByRole("link", { name: "Today" });
+    expect(todayLink.getAttribute("href")).toBe("/crm/dispatch?tab=today");
+
+    // Click Today
+    fireEvent.click(todayLink);
+
+    // The Today target must NOT contain bookingId=future-1 and must NOT restore tab=upcoming
+    expect(todayLink.getAttribute("href")).toBe("/crm/dispatch?tab=today");
+    expect(todayLink.getAttribute("href")).not.toContain("bookingId=future-1");
+    expect(todayLink.getAttribute("href")).not.toContain("tab=upcoming");
+    expect(routerPush).not.toHaveBeenCalledWith(expect.stringContaining("bookingId=future-1"));
+    expect(routerPush).not.toHaveBeenCalledWith(expect.stringContaining("tab=upcoming"));
+
+    // Verify defect behavior: A queryless link to /crm/dispatch WOULD have restored the query
+    const querylessLink = document.createElement("a");
+    querylessLink.href = "/crm/dispatch";
+    document.body.appendChild(querylessLink);
+    fireEvent.click(querylessLink);
+    expect(routerPush).toHaveBeenCalledWith("/crm/dispatch?bookingId=future-1&tab=upcoming");
+    document.body.removeChild(querylessLink);
+  });
+
+  it("C. Active state: renders aria-current='page' on active tab and undefined on inactive tab", () => {
+    // On ?tab=today (upcoming=false)
+    const { rerender } = render(
+      <HomeServiceDispatchWorkspace
+        role="crm"
+        data={createMockDispatchData()}
+        upcoming={false}
+        showHeader={false}
+      />
+    );
+
+    const todayLink = screen.getByRole("link", { name: "Today" });
+    const upcomingLink = screen.getByRole("link", { name: "Upcoming" });
+
+    expect(todayLink.getAttribute("href")).toBe("/crm/dispatch?tab=today");
+    expect(todayLink.getAttribute("aria-current")).toBe("page");
+    expect(upcomingLink.getAttribute("href")).toBe("/crm/dispatch?tab=upcoming");
+    expect(upcomingLink.getAttribute("aria-current")).toBeNull();
+
+    // On ?tab=upcoming (upcoming=true)
+    rerender(
+      <HomeServiceDispatchWorkspace
+        role="crm"
+        data={createMockDispatchData()}
+        upcoming={true}
+        showHeader={false}
+      />
+    );
+
+    const todayLinkUpcoming = screen.getByRole("link", { name: "Today" });
+    const upcomingLinkUpcoming = screen.getByRole("link", { name: "Upcoming" });
+
+    expect(todayLinkUpcoming.getAttribute("href")).toBe("/crm/dispatch?tab=today");
+    expect(todayLinkUpcoming.getAttribute("aria-current")).toBeNull();
+    expect(upcomingLinkUpcoming.getAttribute("href")).toBe("/crm/dispatch?tab=upcoming");
+    expect(upcomingLinkUpcoming.getAttribute("aria-current")).toBe("page");
   });
 });

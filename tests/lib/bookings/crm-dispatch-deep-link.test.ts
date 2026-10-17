@@ -73,7 +73,8 @@ describe("CRM Home Service deep link", () => {
       upcoming: true,
       throwOnError: true,
     });
-    expect(page.props.children.props.selectedBookingId).toBe("future-1");
+    const workspace = page.props.children?.props?.children ?? page.props.children;
+    expect(workspace.props.selectedBookingId).toBe("future-1");
   });
 
   it("rejects a booking outside the authorized Home Service branch set", async () => {

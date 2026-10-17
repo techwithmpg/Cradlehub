@@ -20,6 +20,7 @@ import { BOOKINGS_CHANGED_EVENT } from "@/lib/bookings/bookings-client-events";
 import { DispatchFlowTab } from "./dispatch-flow-tab";
 import { DispatchLiveMapTab } from "./dispatch-live-map-tab";
 import { useWorkspaceSWRKey } from "@/components/features/dashboard/workspace-swr-cache";
+import { useLiveCrmDispatchData } from "./use-live-crm-dispatch-data";
 
 type TabId = "flow" | "map";
 
@@ -86,15 +87,23 @@ export function HomeServiceDispatchWorkspace({
   selectedBookingId,
   ownerBranchId,
 }: HomeServiceDispatchWorkspaceProps) {
+  const isCrmRetainedDispatch = role === "crm" && !ownerBranchId;
   const ownerKey = useWorkspaceSWRKey(["owner-dispatch", ownerBranchId, initialData.today, upcoming]);
   const ownerMapKey = useWorkspaceSWRKey(["owner-dispatch-map", ownerBranchId, initialData.today]);
+  const crmMapKey = useWorkspaceSWRKey(["crm-dispatch-map", initialData.today]);
   const ownerScope = ownerBranchId ? { expectedOwnerBranchId: ownerBranchId } : {};
-  const {
-    data = initialData,
-    error,
-    mutate,
-  } = useSWR(
-    ownerBranchId ? ownerKey : ["dispatch-workspace", initialData.today, upcoming],
+  const crmDispatch = useLiveCrmDispatchData({
+    date: initialData.today,
+    upcoming,
+    selectedBookingId,
+    fallbackData: initialData,
+  });
+  const legacyDispatch = useSWR(
+    isCrmRetainedDispatch
+      ? null
+      : ownerBranchId
+        ? ownerKey
+        : ["dispatch-workspace", initialData.today, upcoming],
     async () => {
       const result = await refreshDispatchDataAction(initialData.today, { upcoming, ...ownerScope });
       if (!result.success) throw new Error(result.error);
@@ -104,7 +113,10 @@ export function HomeServiceDispatchWorkspace({
           ...ownerScope,
         });
         if (!exact.success) throw new Error(exact.error);
-        result.data.items.push(...exact.data.items);
+        return {
+          ...result.data,
+          items: [...result.data.items, ...exact.data.items],
+        };
       }
       return result.data;
     },
@@ -115,13 +127,23 @@ export function HomeServiceDispatchWorkspace({
       revalidateOnMount: false,
     }
   );
+  const data = isCrmRetainedDispatch
+    ? (crmDispatch.data ?? initialData)
+    : (legacyDispatch.data ?? initialData);
+  const error = isCrmRetainedDispatch ? crmDispatch.error : legacyDispatch.error;
   const [activeTab, setActiveTab] = useState<TabId>("flow");
   const {
     data: mapData,
     error: mapError,
     mutate: mutateMap,
   } = useSWR(
-    activeTab === "map" ? (ownerBranchId ? ownerMapKey : ["dispatch-active-map", initialData.today]) : null,
+    activeTab === "map"
+      ? ownerBranchId
+        ? ownerMapKey
+        : isCrmRetainedDispatch
+          ? crmMapKey
+          : ["dispatch-active-map", initialData.today]
+      : null,
     async () => {
       const result = await refreshDispatchDataAction(initialData.today, { scope: "active_map", ...ownerScope });
       if (!result.success) throw new Error(result.error);
@@ -129,16 +151,20 @@ export function HomeServiceDispatchWorkspace({
     },
     { revalidateOnFocus: false }
   );
+  const { mutate: mutateLegacyDispatch } = legacyDispatch;
   const activeTabIndex = TABS.findIndex((tab) => tab.id === activeTab);
 
   useEffect(() => {
     const revalidate = () => {
-      void mutate();
+      // CRM queue reconciliation is generation-driven by the retained workspace provider.
+      // Preserve the legacy direct refresh path for Manager/Owner surfaces, which are outside
+      // this PERF-5 conversion, and keep the active map current while it is visible.
+      if (!isCrmRetainedDispatch) void mutateLegacyDispatch();
       if (activeTab === "map") void mutateMap();
     };
     window.addEventListener(BOOKINGS_CHANGED_EVENT, revalidate);
     return () => window.removeEventListener(BOOKINGS_CHANGED_EVENT, revalidate);
-  }, [activeTab, mutate, mutateMap]);
+  }, [activeTab, isCrmRetainedDispatch, mutateLegacyDispatch, mutateMap]);
 
   function handleTabKeyDown(event: React.KeyboardEvent<HTMLDivElement>) {
     const lastIndex = TABS.length - 1;
@@ -183,7 +209,7 @@ export function HomeServiceDispatchWorkspace({
     <section className="space-y-5 p-4 md:p-0">
       <nav aria-label="Home Service booking dates" className="flex gap-2">
         <Link
-          href="/crm/dispatch"
+          href="/crm/dispatch?tab=today"
           aria-current={!upcoming ? "page" : undefined}
           className={`rounded-lg border px-4 py-2 text-sm font-semibold ${!upcoming ? "bg-emerald-900 text-white" : "bg-white text-emerald-900"}`}
         >
@@ -309,7 +335,10 @@ export function HomeServiceDispatchWorkspace({
             key={selectedBookingId ?? (upcoming ? "upcoming" : "today")}
             data={data}
             role={role}
-            onChanged={() => void mutate()}
+            onChanged={() => {
+              if (isCrmRetainedDispatch) crmDispatch.generation.store?.invalidate("crm-dispatch");
+              else void legacyDispatch.mutate();
+            }}
             upcoming={upcoming}
             selectedBookingId={selectedBookingId}
           />
