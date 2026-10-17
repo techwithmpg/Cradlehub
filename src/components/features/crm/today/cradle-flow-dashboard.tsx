@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useRef, useState, useTransition } from "react";
+import { useCallback, useMemo, useRef, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 import {
@@ -10,7 +10,6 @@ import {
 import { useAttendanceScanFeed } from "@/components/features/attendance/use-attendance-scan-feed";
 import { RoomAssignmentModal } from "@/components/features/bookings/room-assignment-modal";
 import {
-  BOOKINGS_CHANGED_EVENT,
   notifyBookingsChanged,
 } from "@/lib/bookings/bookings-client-events";
 import type { FinancialEntryMode } from "@/components/features/cash-flow/record-financial-entry-modal";
@@ -36,6 +35,7 @@ import {
 import { CradleFlowTherapistDialog } from "./cradle-flow-therapist-dialog";
 import {
   getCradleFlowDisplayCounts,
+  groupCradleFlowBookings,
   type CradleFlowFilter,
   type CradleFlowGroup,
 } from "./cradle-flow-display";
@@ -65,6 +65,9 @@ type CradleFlowDashboardProps = {
   readinessStatus: ReadinessStatus;
   paymentAction?: MutationAction;
   statusAction?: MutationAction;
+  onRefresh?: () => Promise<unknown> | unknown;
+  isRefreshing?: boolean;
+  refreshError?: unknown;
 };
 
 export function CradleFlowDashboard(props: CradleFlowDashboardProps) {
@@ -72,9 +75,23 @@ export function CradleFlowDashboard(props: CradleFlowDashboardProps) {
   const bookings = props.queueData;
   const [selected, setSelected] = useState<CradleFlowBooking | null>(null);
   const [selectedGroup, setSelectedGroup] = useState<CradleFlowGroup | null>(null);
-  const selectedBooking = bookings.find((booking) => booking.id === selected?.id) ?? selected;
+
+  const selectedBooking = useMemo(() => {
+    if (!selected) return null;
+    return bookings.find((booking) => booking.id === selected.id) ?? null;
+  }, [bookings, selected]);
+
+  const activeGroup = useMemo(() => {
+    if (!selectedGroup) return null;
+    const groups = groupCradleFlowBookings(bookings);
+    return groups.find((g) => g.displayId === selectedGroup.displayId) ?? null;
+  }, [bookings, selectedGroup]);
+
   const [dialog, setDialog] = useState<ActiveDialog>(null);
   const [assignment, setAssignment] = useState<"room" | "therapist" | null>(null);
+  const effectiveDialog = selectedBooking ? dialog : null;
+  const effectiveAssignment = selectedBooking ? assignment : null;
+
   const [attendance, setAttendance] = useState<RecentAttendanceScan | null>(null);
   const [readinessOpen, setReadinessOpen] = useState(false);
   const [totalsOpen, setTotalsOpen] = useState(false);
@@ -107,11 +124,16 @@ export function CradleFlowDashboard(props: CradleFlowDashboardProps) {
     null;
   const warnings = props.readinessIssues.filter((issue) => issue.severity !== "info").length;
 
-  useEffect(() => {
-    const refreshBookings = () => router.refresh();
-    window.addEventListener(BOOKINGS_CHANGED_EVENT, refreshBookings);
-    return () => window.removeEventListener(BOOKINGS_CHANGED_EVENT, refreshBookings);
-  }, [router]);
+  const { onRefresh } = props;
+  const handleHeaderRefresh = useCallback(() => {
+    if (onRefresh) {
+      void Promise.resolve(onRefresh()).catch((err) => {
+        toast.error(err instanceof Error ? err.message : "Refresh failed");
+      });
+    } else {
+      notifyBookingsChanged();
+    }
+  }, [onRefresh]);
 
   const openFinancialEntry = useCallback((mode: FinancialEntryMode) => {
     setFinancialRequest({ mode });
@@ -202,9 +224,26 @@ export function CradleFlowDashboard(props: CradleFlowDashboardProps) {
         branchName={props.branchName}
         fallbackDateLabel={props.dateLabel}
         warningCount={warnings}
-        onRefresh={() => router.refresh()}
+        isRefreshing={props.isRefreshing}
+        onRefresh={handleHeaderRefresh}
         onReviewWarnings={() => setReadinessOpen(true)}
       />
+      {props.refreshError ? (
+        <div
+          role="alert"
+          aria-live="polite"
+          className="flex items-center justify-between rounded-lg border border-amber-300 bg-amber-50 px-3 py-2 text-xs text-amber-900"
+        >
+          <span>Could not refresh live operational data. Previous validated workspace retained.</span>
+          <button
+            type="button"
+            onClick={handleHeaderRefresh}
+            className="font-bold underline hover:no-underline"
+          >
+            Retry
+          </button>
+        </div>
+      ) : null}
       <FrontDeskDutyBanner
         duty={props.duty}
         handoverConfirmed={props.handoverConfirmed}
@@ -261,7 +300,7 @@ export function CradleFlowDashboard(props: CradleFlowDashboardProps) {
       <CradleFlowDialogs
         selected={selectedBooking}
         businessDate={props.attendanceScanDate}
-        dialog={dialog}
+        dialog={effectiveDialog}
         setDialog={setDialog}
         paymentAction={props.paymentAction}
         attendance={attendance}
@@ -274,14 +313,14 @@ export function CradleFlowDashboard(props: CradleFlowDashboardProps) {
         payment={props.snapshot.payment}
         runPrimary={runPrimary}
         activeBookingId={activeBookingId}
-        assignment={assignment}
+        assignment={effectiveAssignment}
         setAssignment={setAssignment}
         onAssignRoom={openRoomAssignment}
         onAssignTherapist={openTherapistAssignment}
       />
       <CradleFlowGroupDialog
-        group={selectedGroup}
-        open={Boolean(selectedGroup)}
+        group={activeGroup}
+        open={Boolean(activeGroup)}
         onOpenChange={(open) => {
           if (!open) setSelectedGroup(null);
         }}
@@ -299,8 +338,13 @@ export function CradleFlowDashboard(props: CradleFlowDashboardProps) {
             setDialog("checkout");
           }}
           onSuccess={() => {
-            if (financialRequest.mode === "customer_payment") notifyBookingsChanged();
-            else router.refresh();
+            if (financialRequest.mode === "customer_payment") {
+              notifyBookingsChanged();
+            } else if (props.onRefresh) {
+              void Promise.resolve(props.onRefresh()).catch(() => {});
+            } else {
+              notifyBookingsChanged();
+            }
           }}
         />
       ) : null}
