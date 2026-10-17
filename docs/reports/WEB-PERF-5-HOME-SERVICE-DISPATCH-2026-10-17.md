@@ -6,7 +6,8 @@
 **Branch:** `stage/web-perf-5-home-service-dispatch`<br/>
 **Accepted Base / main:** `5e91c18f755316760e95bdfeb10dc1fa6cbce718`<br/>
 **Starting reviewed HEAD:** `2d325fd7a06a7357f6e900f461670188f0198841`<br/>
-**Final reviewed HEAD:** `76c6b76e7410f1fd7373e47b9d7eca037808b6c3`<br/>
+**Quality-gated implementation SHA:** `efb9a0f18bbed529052e606fb2eccbdadc874354`<br/>
+**Documentation reconciliation SHA:** Delivered in the subsequent documentation-only commit; the exact delivery HEAD is recorded in PR #35 and resolves with `git rev-parse stage/web-perf-5-home-service-dispatch`.<br/>
 **Draft PR:** #35<br/>
 **Status:** READY FOR FINAL INDEPENDENT REVIEW — **DO NOT MERGE**
 
