@@ -22,6 +22,9 @@ interface CashFlowWorkspaceProps {
   initialTab?: CashFlowTab;
   initialEntryMode?: FinancialEntryMode | null;
   reconciliationHref?: string | null;
+  onRefresh?: () => void | Promise<void>;
+  onConfirmedMutation?: () => void;
+  externallyRefreshing?: boolean;
 }
 
 export function CashFlowWorkspace({
@@ -31,11 +34,15 @@ export function CashFlowWorkspace({
   initialTab = "today",
   initialEntryMode = null,
   reconciliationHref = "/crm/reconciliation",
+  onRefresh,
+  onConfirmedMutation,
+  externallyRefreshing,
 }: CashFlowWorkspaceProps) {
   const router = useRouter();
   const [activeTab, setActiveTab] = useState<CashFlowTab>(initialTab);
 
-  const [isRefreshing, setIsRefreshing] = useState(false);
+  const [localRefreshing, setLocalRefreshing] = useState(false);
+  const isRefreshing = externallyRefreshing ?? localRefreshing;
   const [isRecordPaymentOpen, setIsRecordPaymentOpen] = useState(Boolean(initialEntryMode));
   const [isOpenDrawerModalOpen, setIsOpenDrawerModalOpen] = useState(false);
   const [isHandoverModalOpen, setIsHandoverModalOpen] = useState(false);
@@ -64,12 +71,25 @@ export function CashFlowWorkspace({
     setActiveTab(newTab);
   };
 
-  const handleRefresh = () => {
-    setIsRefreshing(true);
+  const handleRefresh = async () => {
+    if (onRefresh) {
+      await onRefresh();
+      return;
+    }
+
+    setLocalRefreshing(true);
     router.refresh();
     setTimeout(() => {
-      setIsRefreshing(false);
+      setLocalRefreshing(false);
     }, 600);
+  };
+
+  const handleConfirmedMutation = () => {
+    if (onConfirmedMutation) {
+      onConfirmedMutation();
+      return;
+    }
+    router.refresh();
   };
 
   const openRecordPayment = (orderId?: string) => {
@@ -510,7 +530,7 @@ export function CashFlowWorkspace({
           availableDrawers={initialData.cashSessions?.availableDrawers ?? []}
           activeSessions={initialData.cashSessions?.activeSessions ?? []}
           onSuccess={() => {
-            router.refresh();
+            handleConfirmedMutation();
           }}
         />
       )}
@@ -523,9 +543,10 @@ export function CashFlowWorkspace({
           staffOptions={initialData.staffOptions ?? []}
           preferredIncomingStaffId={incomingStaffId}
           onSuccess={(handoverId) => {
-            if (reviewSession && handoverId)
+            handleConfirmedMutation();
+            if (reviewSession && handoverId) {
               router.push(`/crm/today?handover=${encodeURIComponent(handoverId)}`);
-            else router.refresh();
+            }
           }}
         />
       )}
@@ -535,9 +556,7 @@ export function CashFlowWorkspace({
           open={isCloseDrawerModalOpen}
           onOpenChange={setIsCloseDrawerModalOpen}
           session={(selectedSession || activeSession)!}
-          onSuccess={() => {
-            router.refresh();
-          }}
+          onSuccess={handleConfirmedMutation}
         />
       )}
 
