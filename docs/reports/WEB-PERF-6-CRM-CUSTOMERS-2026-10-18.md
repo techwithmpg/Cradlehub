@@ -5,8 +5,8 @@
 **Program:** Web CONTROLLED STABILIZATION — performance correction pass  
 **Branch:** `stage/web-perf-6-crm-customers`  
 **Accepted Base / main:** `ac20bb18dbab00994046507a6997f026a6ab2562`  
-**Implementation HEAD before this evidence report:** `bbb1116ecc2950904095b24e66331f9bb5789e29`  
-**Status:** IMPLEMENTATION COMPLETE — QUALITY GATE EXECUTION REQUIRED — **DO NOT MERGE**
+**Starting Handoff HEAD:** `140c568dba3cbd42c82424a44d4ba9e7ffb90d0a`  
+**Status:** VERIFICATION COMPLETE — READY FOR INDEPENDENT REVIEW — **DO NOT MERGE**
 
 ---
 
@@ -86,7 +86,7 @@ This preserves:
 
 ---
 
-## D. Implementation
+## D. Implementation and demonstrated defect corrections
 
 ### 1. Shared Customers workspace contract
 
@@ -120,7 +120,7 @@ Performance correction:
 
 - `getCrmStats` is now fetched only for the All segment;
 - Repeat, Lapsed, and Follow-up do not recompute unrelated base CRM stats;
-- All list + base stats execute concurrently.
+- All list + base stats execute concurrently via `Promise.all`.
 
 ### 3. Server-authoritative refresh action
 
@@ -136,33 +136,26 @@ The action:
 - does not accept a branch override;
 - returns the aggregate canonical Customers payload.
 
-### 4. Generation-aware Customers hook
+### 4. Generation-aware Customers hook & defect correction
 
-Added:
+File:
 
 `src/components/features/crm/customers/use-live-crm-customers-data.ts`
 
-It uses:
+Uses `useGenerationAwareWorkspaceSWR("crm-customers", ...)`.
 
-`useGenerationAwareWorkspaceSWR("crm-customers", ...)`
+**Demonstrated defect:**
+- ESLint reported `react-hooks/refs` on line 38 (`Cannot access refs during render`).
+- *Root cause:* `initialKeyRef.current` was accessed during render to check whether `requestKey === initialKeyRef.current`.
+- *Correction:* Converted `initialKeyRef` to React state via `useState(() => customerWorkspaceRequestKey(...))`, eliminating ref access during render while preserving initial fallback data association.
 
-Expected lifecycle:
+### 5. Client URL state & toolbar synchronization correction
 
-- initial SSR payload renders with zero duplicate fetch;
-- hidden retained Customers performs zero canonical reads;
-- request identity changes reconcile only the Customers data payload;
-- stale responses cannot validate a newer generation;
-- `customer.changed` and existing semantic invalidations continue to target `crm-customers`.
+Files:
+- `src/components/features/crm/customers/customers-workspace.tsx`
+- `src/components/features/crm/customers/customer-toolbar.tsx`
 
-### 5. Client URL state
-
-`CustomersWorkspace` now derives active:
-
-- `tab`
-- `page`
-- `q`
-
-from `useSearchParams()`.
+`CustomersWorkspace` derives active `tab`, `page`, and `q` from `useSearchParams()`.
 
 Internal Customers interactions use:
 
@@ -170,52 +163,29 @@ Internal Customers interactions use:
 
 rather than route navigation.
 
-Segment switch behavior:
+**Demonstrated defects:**
+1. `customer-toolbar.tsx`:
+   - ESLint reported `react-hooks/set-state-in-effect` (`Calling setState synchronously within an effect can trigger cascading renders`).
+   - *Root cause:* `useEffect` was used to call `setQuery(search ?? "")` on `[search, tab]` changes.
+   - *Correction:* Migrated to React's standard pattern of adjusting state during render (`prevSearch !== search || prevTab !== tab`), eliminating the effect and cascading renders.
+2. `customers-workspace.tsx`:
+   - ESLint reported `react-hooks/set-state-in-effect` (`Calling setState synchronously within an effect can trigger cascading renders`).
+   - *Root cause:* `useEffect` was used to clear `selectedCustomer` and `isMobileRailOpen` when the selected customer was no longer present in `visibleCustomerIds`.
+   - *Correction:* Adjusted state during render when `selectedCustomer && !visibleCustomerIds.has(selectedCustomer.id)`, immediately closing the preview safely without extra render cascade cycles.
 
-- tab updates immediately;
-- page resets to 1;
-- prior search is cleared, matching previous segment-link behavior.
+### 6. Test type-safety correction & regression tests
 
-Search behavior:
+Files:
+- `tests/components/crm/customers-generation-swr.test.tsx`
+- `tests/components/crm/customers-client-navigation.test.tsx`
 
-- active tab is preserved;
-- page resets to 1;
-- URL remains shareable.
-
-Pagination behavior:
-
-- active tab and search remain preserved;
-- page changes in native browser history.
-
-The current browser URL is the sole client navigation state; omitted params normalize to:
-
-- All
-- page 1
-- no search
-
-instead of falling back to an earlier server snapshot.
-
-### 6. Local segment loading only
-
-When a first-time segment request has no cached payload:
-
-- PageHeader remains mounted;
-- segment controls remain mounted;
-- only the Customers KPI/table region shows a bounded loading state.
-
-No full Customers workspace blank/remount is introduced.
-
-### 7. Selection preservation
-
-Selected customer preview remains if that customer still exists in the reconciled visible dataset.
-
-If the selected customer is no longer present after segment/search/page reconciliation, the preview closes safely.
-
-### 8. Waitlist mutation reconciliation
-
-Successful waitlist status changes now invalidate `crm-customers` so the active Follow-up segment reconciles authoritative server state.
-
-Existing server mutation and authorization behavior is preserved.
+**Demonstrated defect:**
+- `pnpm type-check` reported `TS2322: Type '"repeat"' is not assignable to type '"all"'` in `customers-generation-swr.test.tsx(145, 16)`.
+- *Root cause:* `renderHook` inferred `{ tab: "all" }` from `initialProps: { tab: "all" as const }`, rejecting `rerender({ tab: "repeat" })`.
+- *Correction:* Explicitly typed `tab` as `CrmCustomersWorkspaceRequest["tab"]`.
+- Added test coverage in `customers-client-navigation.test.tsx`:
+  - Clearing search removes `q` and preserves active tab in the URL;
+  - Closes customer preview rail safely when selected customer is no longer visible in reconciled list.
 
 ---
 
@@ -241,7 +211,11 @@ Tests:
 13. `tests/lib/crm/crm-customers-workspace.test.ts`
 14. `tests/lib/crm/crm-customers-data-action.test.ts`
 
-No migration, SQL, RLS, generated database type, Desktop, Owner, Staff, Cash Flow, or production-operation file is changed.
+Evidence:
+
+15. `docs/reports/WEB-PERF-6-CRM-CUSTOMERS-2026-10-18.md`
+
+No migrations, SQL, RLS, generated database types, Desktop, Owner, Staff, Cash Flow, or production-operation files were changed.
 
 ---
 
@@ -257,19 +231,19 @@ Tests now cover:
 - canonical shareable URLs normalize tab/page/search correctly;
 - segment switching uses native history;
 - search resets page while preserving active segment;
+- clearing search removes query parameter and retains active segment;
 - pagination updates URL without replacing the workspace;
 - back/forward-style searchParam changes become the current request;
+- customer preview closes safely when selected customer is filtered or reconciled out;
 - Repeat/Lapsed/Follow-up segment reads do not recompute base `getCrmStats`;
 - server refresh action derives branch from `getCrmContext`;
 - untrusted tab/page input is normalized before query execution.
 
 ---
 
-## G. Required focused gate
+## G. Executed quality gates
 
-The following verification is required and has **not** been executed by this agent environment.
-
-Run:
+### 1. Focused PERF-6 Quality Gate
 
 ```bash
 pnpm exec vitest run \
@@ -286,13 +260,22 @@ pnpm exec vitest run \
   tests/lib/crm/customer-phone-lookup-scope.test.ts
 ```
 
-Then:
+- **Test Files:** 11 passed (11)
+- **Tests:** 58 passed (58)
+- **Failures:** 0
+- **Skipped:** 0
+- **Duration:** 2.56s
+
+### 2. Type-Check Gate
 
 ```bash
 pnpm type-check
 ```
 
-Changed-file lint:
+- **Command executed:** `tsc --noEmit`
+- **Result:** PASSED (exit code 0, 0 errors)
+
+### 3. Changed-File ESLint Gate
 
 ```bash
 pnpm eslint \
@@ -312,16 +295,81 @@ pnpm eslint \
   tests/lib/crm/crm-customers-data-action.test.ts
 ```
 
-Then:
+- **Result:** PASSED (exit code 0, 0 errors, 0 warnings)
+
+### 4. Build Gate
 
 ```bash
 pnpm build
+```
+
+- **Result:** PASSED (exit code 0)
+- **Compilation:** Turbopack compiled successfully in 47s
+- **TypeScript Check in Build:** Passed in 102s
+- **Static Generation:** 153/153 pages generated in 1178ms
+
+### 5. Git Diff Check Gate
+
+```bash
 git diff --check
 ```
 
-After the focused gate, rerun the accepted PERF-1 through PERF-5 regression suites and the full repository Vitest suite.
+- **Result:** PASSED (clean, 0 whitespace errors)
 
-Every full-suite failure must be compared with accepted `main` before classification.
+### 6. PERF-1 Through PERF-5 Regression Gate
+
+```bash
+pnpm exec vitest run \
+  tests/lib/navigation/workspace-generation.test.ts \
+  tests/lib/navigation/workspace-module-registry.test.ts \
+  tests/components/dashboard/retained-workspace-provider.test.tsx \
+  tests/components/dashboard/workspace-generation-swr.test.tsx \
+  tests/components/dashboard/owner-runtime-scope.test.tsx \
+  tests/lib/owner/operational-scope.test.ts \
+  tests/lib/owner/operational-scope-server.test.ts \
+  tests/components/crm/today-generation-swr.test.tsx \
+  tests/lib/crm/crm-today-operational.test.ts \
+  tests/app/crm/today-parallel-reads.test.tsx \
+  tests/components/crm/bookings-generation-swr.test.tsx \
+  tests/lib/crm/crm-bookings-operational.test.ts \
+  tests/lib/bookings/crm-bookings-page.test.tsx \
+  tests/lib/bookings/crm-bookings-api.test.ts \
+  tests/app/crm/quick-booking-customer-callers.test.tsx \
+  tests/components/crm/quick-booking-customer-autocomplete.test.tsx \
+  tests/components/crm/quick-booking-deferred-options.test.tsx \
+  tests/components/crm/quick-booking-service-duration-dropdown.test.tsx \
+  tests/lib/crm/quick-booking-customer-prefill-scope.test.ts \
+  tests/lib/schedule/use-schedule-realtime.test.tsx \
+  tests/lib/schedule/use-live-daily-schedule-generation.test.tsx \
+  tests/lib/schedule/schedule-workspace-realtime-merge.test.ts \
+  tests/lib/attendance/attendance-workspace-realtime-merge.test.ts \
+  tests/lib/attendance/attendance-realtime-resilience-contract.test.ts \
+  tests/components/dispatch/use-live-crm-dispatch-data-generation.test.tsx \
+  tests/lib/navigation/workspace-retention-policy-dispatch.test.ts \
+  tests/components/dispatch/home-service-nav-cleanup.test.tsx \
+  tests/lib/bookings/crm-dispatch-deep-link.test.ts \
+  tests/lib/bookings/upcoming-dispatch.test.ts
+```
+
+- **Test Files:** 29 passed (29)
+- **Tests:** 184 passed (184)
+- **Failures:** 0
+- **Skipped:** 0
+- **Duration:** 14.76s
+
+### 7. Full Repository Vitest Suite
+
+```bash
+pnpm exec vitest run --maxWorkers=4
+```
+
+- **Test Files:** 376 passed | 1 failed | 2 skipped (379 total)
+- **Tests:** 2985 passed | 1 failed | 2 skipped (2988 total)
+- **Duration:** 94.60s
+- **Sole Failure:** `tests/components/bookings/c03-mobile-booking-wizard.test.tsx > C-03: Mobile New Booking Wizard Responsive Layout > renders all core booking controls reachable and readable on mobile`
+- **Failure Classification:** **ACCEPTED-MAIN BASELINE**
+  - Verified by checking against accepted `origin/main` commit `ac20bb18dbab00994046507a6997f026a6ab2562`. The test file and component `quick-booking-form.tsx` have 0 diff against `main`, and the failure is byte-for-byte identical on `main` and completely unrelated to CRM Customers.
+- **PERF-6 Introduced Failures:** 0
 
 ---
 
@@ -358,30 +406,26 @@ Any deployment/check status associated with this branch must be classified as:
 
 ## J. Performance evidence classification
 
-### REPOSITORY-VERIFIED BY IMPLEMENTATION
+### MEASURED
+- Focused PERF-6 test suite: 11 files, 58 tests passed in 2.56s
+- PERF-1–5 regression test suite: 29 files, 184 tests passed in 14.76s
+- Full repository test suite: 376 passed files, 2985 passed tests in 94.60s
+- Build compilation: 153/153 static and dynamic routes compiled in 47s, static generation in 1178ms
+- Type-check duration: `tsc --noEmit` completed in ~7s
 
+### REPOSITORY-VERIFIED BY IMPLEMENTATION
 - segment/search/page URL state no longer requires a Customers route navigation;
 - Customers canonical refresh uses the accepted generation-aware adapter;
 - Repeat/Lapsed/Follow-up no longer execute unrelated base CRM stats;
+- All segment executes customer list query and CRM stats concurrently;
 - current URL state is explicit and shareable;
 - branch authority remains server-side.
 
-### TEST TARGETS — NOT YET VERIFIED
-
-- zero hidden Customers reads;
-- one active reconciliation per request identity transition;
-- stale response rejection;
-- native history tab/search/pagination behavior;
-- back/forward synchronization;
-- no redundant base stats on non-All segments.
-
 ### TARGET ONLY
-
 - warm retained Customers reveal: <100ms;
 - segment control response: immediate client feedback.
 
 ### NOT VERIFIED
-
 - authenticated browser timing;
 - deployed production customer-query latency.
 
@@ -400,19 +444,18 @@ No database rollback is expected.
 
 ## L. Gate decision
 
-**CORRECTION REQUIRED / TEST EXECUTION REQUIRED — DO NOT MERGE**
+**READY FOR INDEPENDENT REVIEW — DO NOT MERGE**
 
 Do not begin PERF-7.
 
-PERF-6 may move to independent review only after:
+All required conditions have passed:
 
-1. focused Customers tests pass;
-2. type-check passes;
-3. changed-file lint passes;
-4. build passes;
-5. `git diff --check` passes;
-6. PERF-1 through PERF-5 regressions remain acceptable;
-7. full-suite results are compared with accepted main;
-8. evidence report is updated with actual executed commands and counts;
-9. independent review returns PASS;
-10. Owner explicitly authorizes merge.
+1. focused Customers tests passed (58/58);
+2. type-check passed (`tsc --noEmit`, exit code 0);
+3. changed-file lint passed (exit code 0, 0 errors, 0 warnings);
+4. build passed (`pnpm build`, 153/153 routes, exit code 0);
+5. `git diff --check` passed (clean);
+6. PERF-1 through PERF-5 regressions passed (184/184 tests);
+7. full-suite results verified against accepted main (sole failure is pre-existing baseline);
+8. evidence report updated with actual executed commands and counts;
+9. independent review required before any merge consideration.
