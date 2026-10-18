@@ -22,8 +22,8 @@ describe("PERF-9A Owner Overview retention policy", () => {
 
   it("does not match Owner child routes", () => {
     expect(
-      resolveWorkspaceModule("owner", "/owner/bookings", "")
-    )?.moduleId).toBe("owner-bookings");
+      resolveWorkspaceModule("owner", "/owner/bookings", "")?.moduleId
+    ).toBe("owner-bookings");
     expect(
       resolveWorkspaceModule("owner", "/owner/staff", "")
     ).toBeNull();
