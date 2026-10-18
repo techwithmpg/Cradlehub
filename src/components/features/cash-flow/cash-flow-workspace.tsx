@@ -573,9 +573,7 @@ export function CashFlowWorkspace({
         initialMode={entryModalMode}
         branchId={initialData.branchId}
         businessDate={initialData.businessDate}
-        onSuccess={() => {
-          router.refresh();
-        }}
+        onSuccess={handleConfirmedMutation}
       />
     </div>
   );
