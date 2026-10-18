@@ -316,7 +316,6 @@ export function CrmTherapistAssignmentTab({
                   >
                     {[
                       "Service",
-                      "Category",
                       "Assigned Providers",
                       "Booking Readiness",
                       "Actions",
