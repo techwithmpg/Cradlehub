@@ -75,6 +75,8 @@ export interface CrmServicesWorkspaceProps {
   reviewerSystemRole: string;
   /** Pre-selected tab — passed from page via ?tab= search param. */
   initialTab?: TabId;
+  /** Remove duplicate nested tabs when rendered inside the Setup Center. */
+  compactNavigation?: boolean;
 }
 
 // ── Mapper ────────────────────────────────────────────────────────────────────
@@ -134,6 +136,7 @@ export function CrmServicesWorkspace({
   homeServiceEnabled = false,
   reviewerSystemRole,
   initialTab = "services",
+  compactNavigation = false,
 }: CrmServicesWorkspaceProps) {
   const searchParams = useSearchParams();
   const rawTab = searchParams.get("tab");
@@ -277,13 +280,48 @@ export function CrmServicesWorkspace({
   return (
     <div>
       {/* ── Tab bar — instant switching, URL sync via replaceState ── */}
-      <CrmSegmentTabs
-        tabs={SEGMENT_TABS}
-        activeKey={activeTab}
-        onSelect={handleTabChange}
-        variant="underline"
-        className="mb-6"
-      />
+      {compactNavigation ? (
+        <div className="mb-3 flex flex-wrap items-center justify-between gap-2 rounded-xl border border-[var(--cs-border-soft)] bg-[var(--cs-surface)] px-3 py-2.5">
+          <div>
+            <p className="m-0 text-sm font-semibold text-[var(--cs-text)]">
+              {activeTab === "services"
+                ? "Service provider assignments"
+                : activeTab === "customization"
+                  ? "Customize service details"
+                  : activeTab === "providers"
+                    ? "Providers by staff member"
+                    : "Service readiness"}
+            </p>
+            <p className="m-0 mt-0.5 text-xs text-[var(--cs-text-muted)]">
+              {activeTab === "services"
+                ? "Assign eligible staff directly to each service."
+                : "Related service tools share the same branch and permissions."}
+            </p>
+          </div>
+          <label className="flex items-center gap-2 text-xs font-medium text-[var(--cs-text-muted)]">
+            <span>Task</span>
+            <select
+              aria-label="Choose service management task"
+              value={activeTab}
+              onChange={(event) => handleTabChange(event.target.value)}
+              className="h-9 max-w-full rounded-lg border border-[var(--cs-border)] bg-[var(--cs-surface)] px-2.5 text-xs font-semibold text-[var(--cs-text)]"
+            >
+              <option value="services">Assign providers</option>
+              <option value="customization">Customize services</option>
+              <option value="providers">View providers by staff</option>
+              <option value="readiness_issues">Service readiness details</option>
+            </select>
+          </label>
+        </div>
+      ) : (
+        <CrmSegmentTabs
+          tabs={SEGMENT_TABS}
+          activeKey={activeTab}
+          onSelect={handleTabChange}
+          variant="underline"
+          className="mb-6"
+        />
+      )}
 
       {/* ── Tab content ── */}
       {activeTab === "services" && (
