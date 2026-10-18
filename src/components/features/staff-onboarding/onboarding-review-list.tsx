@@ -40,12 +40,14 @@ export function RequestCard({
   reviewerSystemRole,
   reviewerBranchId,
   workflowTask,
+  onRequestResolved,
 }: {
   request: OnboardingRequest;
   branches: Branch[];
   reviewerSystemRole: string;
   reviewerBranchId: string | null;
   workflowTask?: WorkflowTask;
+  onRequestResolved?: (requestId: string) => void;
 }) {
   const [isPending, startTransition] = useTransition();
   const [expanded, setExpanded] = useState(false);
@@ -104,8 +106,13 @@ export function RequestCard({
         tier: selectedTier,
         serviceIds: requestedServiceIds,
       });
-      if (!result.success) setApproveError(result.error ?? "Failed to approve");
-      else window.location.reload();
+      if (!result.success) {
+        setApproveError(result.error ?? "Failed to approve");
+      } else if (onRequestResolved) {
+        onRequestResolved(request.id);
+      } else {
+        window.location.reload();
+      }
     });
   }
 
@@ -117,8 +124,13 @@ export function RequestCard({
         staffId: request.staff_id ?? "",
         rejectionReason: rejectionReason.trim() || undefined,
       });
-      if (!result.success) setRejectError(result.error ?? "Failed to reject");
-      else window.location.reload();
+      if (!result.success) {
+        setRejectError(result.error ?? "Failed to reject");
+      } else if (onRequestResolved) {
+        onRequestResolved(request.id);
+      } else {
+        window.location.reload();
+      }
     });
   }
 
@@ -425,12 +437,14 @@ export function OnboardingReviewList({
   reviewerSystemRole,
   reviewerBranchId,
   workflowTasks = [],
+  onRequestResolved,
 }: {
   requests: OnboardingRequest[];
   branches: Branch[];
   reviewerSystemRole: string;
   reviewerBranchId: string | null;
   workflowTasks?: WorkflowTask[];
+  onRequestResolved?: (requestId: string) => void;
 }) {
   if (requests.length === 0) {
     return (
@@ -459,6 +473,7 @@ export function OnboardingReviewList({
           reviewerSystemRole={reviewerSystemRole}
           reviewerBranchId={reviewerBranchId}
           workflowTask={taskByEntityId.get(r.id)}
+          onRequestResolved={onRequestResolved}
         />
       ))}
     </div>
