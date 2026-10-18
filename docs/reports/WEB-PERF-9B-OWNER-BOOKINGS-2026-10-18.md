@@ -141,6 +141,16 @@ The post-run commits have **not** been quality-gated in the user's Windows repos
 
 **Evidence status:** Source and test are committed remotely, but neither the new test nor the corrected focused/full suites has run in the user's environment. The owner explicitly deferred local synchronization to the later **pre-merge checkpoint**. This is not a quality-gate PASS and does not authorize merge.
 
+## Remote-only governance correction: Owner search scope preservation
+
+**Identified by source inspection (not browser measurements):** The Owner Bookings mobile/compact form in `src/components/features/bookings/bookings-workspace.tsx` contains date, branch and type controls only while its filter panel is expanded. A collapsed filter panel allowed the same GET search form to omit these values, which would reset the query to its default date and **all branches**, contrary to the selected Owner operational scope. The status URL filter had no Owner form control at all and could be lost on a form submit. This is a P1 workflow/scope consistency risk requiring correction before certification; it is not a claim of production reproduction.
+
+**Bounded correction:** Owner-only hidden inputs now preserve `date`, `branch` and `type` while Owner filters are collapsed. The Owner's `status` URL filter remains serialized while expanded or collapsed. Expanded date/branch/type inputs remain the exclusive submitted values; no duplicates are introduced. Other CRM/Manager form behavior is unchanged. Server-side role/branch checks remain authoritative; hidden inputs are not authorization grants.
+
+**New regression:** `tests/components/owner/owner-bookings-search-input.test.tsx` checks `FormData` for Owner branch, date, type and status with filters expanded and collapsed, and checks that changing current branch/date updates hidden values. The test has **not run** in the remote connector environment.
+
+**Quality gate:** No migration, payment/booking mutation writer, RLS, caching infrastructure, env/rollout, or production operation changed. Required local verification still deferred by owner instruction until the controlled pre-merge checkpoint. Remain **CORRECTION REQUIRED / NOT YET CERTIFIED** until tests and authenticated browser review.
+
 ## CP-PWA-01 checkpoint
 
 The previously agreed **CP-PWA-01 Member PWA optimization** begins only after current Web administrative PERF-9B, PERF-9C, PERF-9D, PERF-10 and FINAL certification. Do not begin it during PERF-9B.
