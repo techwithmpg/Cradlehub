@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect } from "react";
+import { useCallback, useEffect, useRef } from "react";
 import { refreshCrmStaffWorkspaceAction } from "@/lib/actions/crm-staff-data-actions";
 import { useGenerationAwareWorkspaceSWR } from "@/components/features/dashboard/use-workspace-generation";
 import { useWorkspaceModuleLifecycle } from "@/components/features/dashboard/use-workspace-visibility";
@@ -30,6 +30,7 @@ export function useLiveCrmStaffData(
     isRetained,
     isStale,
   } = lifecycle;
+  const staleRefreshActivation = useRef<number | null>(null);
   const {
     isDirty,
     isRefreshing,
@@ -41,11 +42,14 @@ export function useLiveCrmStaffData(
       !isActive ||
       !isStale ||
       isDirty ||
-      isRefreshing
+      isRefreshing ||
+      becameActiveAt === null ||
+      staleRefreshActivation.current === becameActiveAt
     ) {
       return;
     }
 
+    staleRefreshActivation.current = becameActiveAt;
     void live.revalidate().catch(() => {
       // Preserve the last validated Staff payload; the workspace exposes retry UI.
     });
