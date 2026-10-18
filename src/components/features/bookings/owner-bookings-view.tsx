@@ -160,6 +160,14 @@ export function OwnerBookingsView({
   const refreshing = store ? isRefreshing : ordinary.isValidating;
 
   if (!read) {
+    if (failure) {
+      return (
+        <div role="alert" className="rounded-lg border border-red-200 bg-red-50 p-5 text-sm text-red-800">
+          <p className="font-semibold">Bookings could not be loaded for these filters.</p>
+          <button type="button" onClick={refreshNow} className="mt-2 font-semibold underline">Retry</button>
+        </div>
+      );
+    }
     return (
       <div role="status" aria-busy="true" className="rounded-lg border border-border bg-card p-6 text-sm text-muted-foreground">
         Loading bookings for the selected filters…
