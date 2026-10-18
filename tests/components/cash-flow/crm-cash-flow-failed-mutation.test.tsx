@@ -89,7 +89,7 @@ describe("PERF-8 failed Cash Flow mutations", () => {
       { target: { value: "100" } }
     );
     fireEvent.click(
-      screen.getByRole("button", { name: /Open cash drawer/i })
+      screen.getByRole("button", { name: "Open drawer" })
     );
 
     await waitFor(() =>
