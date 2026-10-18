@@ -66,6 +66,7 @@ export function CrmCashFlowRetainedWorkspace({
         onRefresh={handleRefresh}
         onConfirmedMutation={handleConfirmedMutation}
         externallyRefreshing={live.generation.isRefreshing}
+        syncCrmRouteState
       />
     </div>
   );
