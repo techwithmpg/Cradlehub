@@ -43,4 +43,45 @@ describe("PERF-9B Owner Bookings search input lifecycle", () => {
     expect(restoredField).not.toBe(field);
     expect(screen.getByRole("heading", { name: "Bookings" })).toBe(heading);
   });
+
+  it("preserves Owner branch/date/type/status when search submits with filters collapsed", () => {
+    const props = {
+      workspaceContext: "owner" as const,
+      viewerRole: "owner",
+      date: "2026-10-17",
+      branchFilter: "main",
+      typeFilter: "online",
+      statusFilter: "confirmed",
+      search: "Alice",
+      branches: [{ id: "main", name: "Main Spa" }, { id: "sm", name: "SM" }],
+      bookings: [],
+    };
+    const view = render(<BookingsWorkspace {...props} />);
+    const getForm = () => {
+      const form = view.container.querySelector<HTMLFormElement>('form[method="get"]');
+      expect(form).not.toBeNull();
+      return new FormData(form!);
+    };
+
+    // With the filter drawer open, active fields are still serialized.
+    expect(getForm().getAll("date")).toEqual(["2026-10-17"]);
+    expect(getForm().getAll("branch")).toEqual(["main"]);
+    expect(getForm().getAll("type")).toEqual(["online"]);
+    expect(getForm().getAll("status")).toEqual(["confirmed"]);
+
+    fireEvent.click(screen.getByRole("button", { name: "Filters" }));
+    const collapsed = getForm();
+    expect(collapsed.getAll("date")).toEqual(["2026-10-17"]);
+    expect(collapsed.getAll("branch")).toEqual(["main"]);
+    expect(collapsed.getAll("type")).toEqual(["online"]);
+    expect(collapsed.getAll("status")).toEqual(["confirmed"]);
+    expect(collapsed.get("search")).toBe("Alice");
+
+    // A selected-branch URL update must change the hidden scope, not
+    // preserve the previous branch or broaden the query.
+    view.rerender(<BookingsWorkspace {...props} branchFilter="sm" date="2026-10-18" />);
+    const updated = getForm();
+    expect(updated.getAll("branch")).toEqual(["sm"]);
+    expect(updated.getAll("date")).toEqual(["2026-10-18"]);
+  });
 });
