@@ -235,8 +235,9 @@ describe("P1 Cash Session Close & Handover Operational Safety", () => {
       expect(res.session?.expectedCash).toBe(3000);
       expect(res.session?.countedCash).toBe(2950);
       expect(res.session?.variance).toBe(-50);
-      expect(mockRevalidatePath).toHaveBeenCalledWith("/crm/cash-flow");
+      expect(mockRevalidatePath).not.toHaveBeenCalledWith("/crm/cash-flow");
       expect(mockRevalidatePath).toHaveBeenCalledWith("/crm/reconciliation");
+      expect(mockRevalidatePath).toHaveBeenCalledWith("/owner/cash-flow");
     });
 
     it("handoverCashSessionAction rejects unauthenticated callers and validates inputs", async () => {

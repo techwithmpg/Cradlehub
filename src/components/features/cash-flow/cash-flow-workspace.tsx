@@ -1,7 +1,7 @@
 "use client";
 
 import React, { useState } from "react";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import { RefreshCw, Banknote, ArrowLeftRight, Plus, FileText, CheckCircle2 } from "lucide-react";
 import type { CashFlowWorkspaceData, CashSessionSummary } from "@/lib/cash-flow/cash-flow-types";
 import { TodayTab } from "./today-tab";
@@ -22,6 +22,10 @@ interface CashFlowWorkspaceProps {
   initialTab?: CashFlowTab;
   initialEntryMode?: FinancialEntryMode | null;
   reconciliationHref?: string | null;
+  onRefresh?: () => void | Promise<unknown>;
+  onConfirmedMutation?: () => void;
+  externallyRefreshing?: boolean;
+  syncCrmRouteState?: boolean;
 }
 
 export function CashFlowWorkspace({
@@ -31,12 +35,40 @@ export function CashFlowWorkspace({
   initialTab = "today",
   initialEntryMode = null,
   reconciliationHref = "/crm/reconciliation",
+  onRefresh,
+  onConfirmedMutation,
+  externallyRefreshing,
+  syncCrmRouteState = false,
 }: CashFlowWorkspaceProps) {
   const router = useRouter();
-  const [activeTab, setActiveTab] = useState<CashFlowTab>(initialTab);
+  const searchParams = useSearchParams();
+  const routeTabValue = syncCrmRouteState
+    ? searchParams.get("tab")
+    : null;
+  const routeTab: CashFlowTab | null =
+    routeTabValue === "today" ||
+    routeTabValue === "ledger" ||
+    routeTabValue === "day-close" ||
+    routeTabValue === "history"
+      ? routeTabValue
+      : null;
 
-  const [isRefreshing, setIsRefreshing] = useState(false);
-  const [isRecordPaymentOpen, setIsRecordPaymentOpen] = useState(Boolean(initialEntryMode));
+  const [activeTab, setActiveTab] = useState<CashFlowTab>(
+    () => routeTab ?? initialTab
+  );
+  const [prevRouteTab, setPrevRouteTab] = useState<CashFlowTab | null>(routeTab);
+  if (routeTab !== prevRouteTab) {
+    setPrevRouteTab(routeTab);
+    if (routeTab) {
+      setActiveTab(routeTab);
+    }
+  }
+
+  const [localRefreshing, setLocalRefreshing] = useState(false);
+  const isRefreshing = externallyRefreshing ?? localRefreshing;
+  const [isRecordPaymentOpen, setIsRecordPaymentOpen] = useState(
+    () => (syncCrmRouteState ? false : Boolean(initialEntryMode))
+  );
   const [isOpenDrawerModalOpen, setIsOpenDrawerModalOpen] = useState(false);
   const [isHandoverModalOpen, setIsHandoverModalOpen] = useState(false);
   const [isCloseDrawerModalOpen, setIsCloseDrawerModalOpen] = useState(false);
@@ -62,29 +94,101 @@ export function CashFlowWorkspace({
 
   const handleTabChange = (newTab: CashFlowTab) => {
     setActiveTab(newTab);
+    if (syncCrmRouteState && typeof window !== "undefined") {
+      const url = new URL(window.location.href);
+      url.searchParams.set("tab", newTab);
+      window.history.pushState(null, "", url.toString());
+    }
   };
 
-  const handleRefresh = () => {
-    setIsRefreshing(true);
+  const handleRefresh = async () => {
+    if (onRefresh) {
+      try {
+        await onRefresh();
+      } catch {
+        // The retained CRM wrapper preserves the last validated financial
+        // snapshot and exposes retry feedback.
+      }
+      return;
+    }
+
+    setLocalRefreshing(true);
     router.refresh();
     setTimeout(() => {
-      setIsRefreshing(false);
+      setLocalRefreshing(false);
     }, 600);
   };
 
+  const handleConfirmedMutation = () => {
+    if (onConfirmedMutation) {
+      onConfirmedMutation();
+      return;
+    }
+    router.refresh();
+  };
+
+  const [dismissedRouteEntry, setDismissedRouteEntry] = useState<string | null>(null);
+
+  const rawRouteEntryValue = syncCrmRouteState
+    ? searchParams.get("entry")
+    : null;
+
+  if (rawRouteEntryValue === null && dismissedRouteEntry !== null) {
+    setDismissedRouteEntry(null);
+  }
+
+  const routeEntryValue =
+    rawRouteEntryValue && rawRouteEntryValue !== dismissedRouteEntry
+      ? rawRouteEntryValue
+      : null;
+  const routeEntryMode: FinancialEntryMode | null =
+    routeEntryValue === "payment"
+      ? "customer_payment"
+      : routeEntryValue === "expense"
+        ? "expense"
+        : routeEntryValue === "cash-operations"
+          ? "other_entry"
+          : null;
+  const effectiveRecordPaymentOpen =
+    isRecordPaymentOpen || routeEntryMode !== null;
+  const effectiveEntryMode = routeEntryMode ?? entryModalMode;
+
+  const handleRecordPaymentOpenChange = (open: boolean) => {
+    setIsRecordPaymentOpen(open);
+    if (!open) {
+      if (rawRouteEntryValue) {
+        setDismissedRouteEntry(rawRouteEntryValue);
+      }
+      if (
+        syncCrmRouteState &&
+        rawRouteEntryValue !== null &&
+        typeof window !== "undefined"
+      ) {
+        const url = new URL(window.location.href);
+        url.searchParams.delete("entry");
+        window.history.replaceState(null, "", url.toString());
+      }
+    } else {
+      setDismissedRouteEntry(null);
+    }
+  };
+
   const openRecordPayment = (orderId?: string) => {
+    setDismissedRouteEntry(null);
     setEntryModalMode("customer_payment");
     setTargetOrderId(orderId);
     setIsRecordPaymentOpen(true);
   };
 
   const openRecordExpense = () => {
+    setDismissedRouteEntry(null);
     setEntryModalMode("expense");
     setTargetOrderId(undefined);
     setIsRecordPaymentOpen(true);
   };
 
   const openCashOperations = () => {
+    setDismissedRouteEntry(null);
     setEntryModalMode("other_entry");
     setTargetOrderId(undefined);
     setIsRecordPaymentOpen(true);
@@ -510,7 +614,7 @@ export function CashFlowWorkspace({
           availableDrawers={initialData.cashSessions?.availableDrawers ?? []}
           activeSessions={initialData.cashSessions?.activeSessions ?? []}
           onSuccess={() => {
-            router.refresh();
+            handleConfirmedMutation();
           }}
         />
       )}
@@ -523,9 +627,10 @@ export function CashFlowWorkspace({
           staffOptions={initialData.staffOptions ?? []}
           preferredIncomingStaffId={incomingStaffId}
           onSuccess={(handoverId) => {
-            if (reviewSession && handoverId)
+            handleConfirmedMutation();
+            if (reviewSession && handoverId) {
               router.push(`/crm/today?handover=${encodeURIComponent(handoverId)}`);
-            else router.refresh();
+            }
           }}
         />
       )}
@@ -535,28 +640,24 @@ export function CashFlowWorkspace({
           open={isCloseDrawerModalOpen}
           onOpenChange={setIsCloseDrawerModalOpen}
           session={(selectedSession || activeSession)!}
-          onSuccess={() => {
-            router.refresh();
-          }}
+          onSuccess={handleConfirmedMutation}
         />
       )}
 
       {/* ── Record Financial Entry Modal ─────────────────────────────── */}
       <RecordFinancialEntryModal
-        open={isRecordPaymentOpen}
-        onOpenChange={setIsRecordPaymentOpen}
+        open={effectiveRecordPaymentOpen}
+        onOpenChange={handleRecordPaymentOpenChange}
         accounts={initialData.accounts}
         expenseCategories={initialData.expenseCategories}
         staffOptions={initialData.staffOptions}
         payableOrders={initialData.payableOrders}
         activeCashSessions={initialData.cashSessions?.activeSessions ?? []}
         initialOrderId={targetOrderId}
-        initialMode={entryModalMode}
+        initialMode={effectiveEntryMode}
         branchId={initialData.branchId}
         businessDate={initialData.businessDate}
-        onSuccess={() => {
-          router.refresh();
-        }}
+        onSuccess={handleConfirmedMutation}
       />
     </div>
   );

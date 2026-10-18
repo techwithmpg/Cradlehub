@@ -254,7 +254,6 @@ export async function recordLegacyBookingPaymentAction(
   });
   if (!result.ok) return { ok: false, error: result.error, code: 'PAYMENT_REJECTED' };
   revalidateOperationalBookingSurfaces(result.booking.branch_id);
-  revalidatePath('/crm/cash-flow');
   return {
     ok: true,
     data: {
@@ -423,7 +422,6 @@ export async function recordExpenseAction(
 
   // A replay uses the original database receipt path, so remove this new upload.
   const replayCleanupError = data.idempotentReplay ? await cleanupReceipt() : null;
-  revalidatePath('/crm/cash-flow');
   return {
     ok: true,
     transactionId: data.transactionId,
@@ -475,7 +473,6 @@ export async function recordTipAction(
     return { ok: false, error: error.message, code: error.code || 'RPC_ERROR' };
   }
 
-  revalidatePath('/crm/cash-flow');
   return {
     ok: true,
     transactionId: (data as { transactionId?: string })?.transactionId,
@@ -525,8 +522,7 @@ export async function recordOtherEntryAction(
     });
 
     if (error) return { ok: false, error: error.message, code: error.code || 'RPC_ERROR' };
-    revalidatePath('/crm/cash-flow');
-    return { ok: true, transactionId: (data as { transactionId?: string })?.transactionId, idempotentReplay: (data as { idempotentReplay?: boolean })?.idempotentReplay };
+      return { ok: true, transactionId: (data as { transactionId?: string })?.transactionId, idempotentReplay: (data as { idempotentReplay?: boolean })?.idempotentReplay };
   }
 
   if (input.entryType === 'cash_addition' || input.entryType === 'cash_removal') {
@@ -559,8 +555,7 @@ export async function recordOtherEntryAction(
     });
 
     if (error) return { ok: false, error: error.message, code: error.code || 'RPC_ERROR' };
-    revalidatePath('/crm/cash-flow');
-    return { ok: true, transactionId: (data as { transactionId?: string })?.transactionId, idempotentReplay: (data as { idempotentReplay?: boolean })?.idempotentReplay };
+      return { ok: true, transactionId: (data as { transactionId?: string })?.transactionId, idempotentReplay: (data as { idempotentReplay?: boolean })?.idempotentReplay };
   }
 
   if (input.entryType === 'transfer') {
@@ -617,8 +612,7 @@ export async function recordOtherEntryAction(
     });
 
     if (error) return { ok: false, error: error.message, code: error.code || 'RPC_ERROR' };
-    revalidatePath('/crm/cash-flow');
-    return { ok: true, transactionId: (data as { transactionId?: string })?.transactionId, idempotentReplay: (data as { idempotentReplay?: boolean })?.idempotentReplay };
+      return { ok: true, transactionId: (data as { transactionId?: string })?.transactionId, idempotentReplay: (data as { idempotentReplay?: boolean })?.idempotentReplay };
   }
 
   return { ok: false, error: 'INVALID_ENTRY_TYPE: Unsupported entry type.', code: 'INVALID_ENTRY_TYPE' };
@@ -736,7 +730,6 @@ export async function openCashSessionAction(
   }
 
   // 4. Revalidate cache on success
-  revalidatePath('/crm/cash-flow');
 
   const openingFloatNum = Number(data.openingFloat) || 0;
 
@@ -857,7 +850,6 @@ export async function closeCashSessionAction(
   }
 
   // 4. Revalidate cache on success
-  revalidatePath('/crm/cash-flow');
   revalidatePath('/crm/reconciliation');
   revalidatePath('/owner/cash-flow');
 
@@ -985,7 +977,6 @@ export async function handoverCashSessionAction(
   }
 
   // 4. Revalidate cache on success
-  revalidatePath('/crm/cash-flow');
   revalidatePath('/owner/cash-flow');
 
   return {

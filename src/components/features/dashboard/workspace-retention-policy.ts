@@ -12,6 +12,7 @@ export type RetainedModuleId =
   | "crm-dispatch"
   | "crm-customers"
   | "crm-staff"
+  | "crm-cash-flow"
   | "owner-overview"
   | "owner-reports"
   | "owner-bookings";
@@ -109,6 +110,15 @@ const MODULE_POLICIES: readonly ModulePolicy[] = [
     exact: true,
     stableSearchParams: ["tab"],
     staleTimeMs: 60_000,
+    cost: "high",
+  },
+  {
+    workspace: "crm",
+    moduleId: "crm-cash-flow",
+    normalizedRoute: "/crm/cash-flow",
+    exact: true,
+    stableSearchParams: ["date", "tab"],
+    staleTimeMs: 10_000,
     cost: "high",
   },
   {
