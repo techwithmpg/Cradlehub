@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import type { FormEvent } from "react";
 import { Search } from "lucide-react";
 import type { CustomerTab } from "./customer-segment-tabs";
@@ -20,10 +20,14 @@ export function CustomerToolbar({
   onClear,
 }: CustomerToolbarProps) {
   const [query, setQuery] = useState(search ?? "");
+  const [prevSearch, setPrevSearch] = useState(search);
+  const [prevTab, setPrevTab] = useState(tab);
 
-  useEffect(() => {
+  if (prevSearch !== search || prevTab !== tab) {
+    setPrevSearch(search);
+    setPrevTab(tab);
     setQuery(search ?? "");
-  }, [search, tab]);
+  }
 
   function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();

@@ -9,7 +9,10 @@ import { WorkspaceGenerationContext } from "@/components/features/dashboard/use-
 import { WorkspaceSWRScopeContext } from "@/components/features/dashboard/workspace-swr-cache";
 import { useLiveCrmCustomersData } from "@/components/features/crm/customers/use-live-crm-customers-data";
 import { refreshCrmCustomersWorkspaceAction } from "@/lib/actions/crm-customers-data-actions";
-import type { CrmCustomersWorkspaceData } from "@/components/features/crm/customers/customer-workspace-data";
+import type {
+  CrmCustomersWorkspaceData,
+  CrmCustomersWorkspaceRequest,
+} from "@/components/features/crm/customers/customer-workspace-data";
 
 vi.mock("@/lib/actions/crm-customers-data-actions", () => ({
   refreshCrmCustomersWorkspaceAction: vi.fn(),
@@ -129,13 +132,13 @@ describe("PERF-6 generation-aware CRM Customers reads", () => {
     );
 
     const { result, rerender } = renderHook(
-      ({ tab }) =>
+      ({ tab }: { tab: CrmCustomersWorkspaceRequest["tab"] }) =>
         useLiveCrmCustomersData({
           request: { tab, page: 1 },
           fallbackData: fallback,
         }),
       {
-        initialProps: { tab: "all" as const },
+        initialProps: { tab: "all" as CrmCustomersWorkspaceRequest["tab"] },
         wrapper: wrapperFor(store),
       }
     );

@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useMemo, useState } from "react";
 import { useSearchParams } from "next/navigation";
 import { PageHeader } from "@/components/features/dashboard/page-header";
 import { OpenAdministrativeBookingButton } from "@/components/features/bookings/administrative-booking-modal-provider";
@@ -85,11 +85,10 @@ export function CustomersWorkspace({ initialData }: CustomersWorkspaceProps) {
     return new Set(rows.map((customer) => customer.id));
   }, [data]);
 
-  useEffect(() => {
-    if (!selectedCustomer || visibleCustomerIds.has(selectedCustomer.id)) return;
+  if (selectedCustomer && !visibleCustomerIds.has(selectedCustomer.id)) {
     setSelectedCustomer(null);
     setIsMobileRailOpen(false);
-  }, [selectedCustomer, visibleCustomerIds]);
+  }
 
   function pushRequest(next: CrmCustomersWorkspaceRequest) {
     window.history.pushState(null, "", customerWorkspaceUrl(next));

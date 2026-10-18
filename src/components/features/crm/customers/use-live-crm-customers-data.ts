@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useRef } from "react";
+import { useCallback, useState } from "react";
 import { refreshCrmCustomersWorkspaceAction } from "@/lib/actions/crm-customers-data-actions";
 import { useGenerationAwareWorkspaceSWR } from "@/components/features/dashboard/use-workspace-generation";
 import {
@@ -14,7 +14,7 @@ export function useLiveCrmCustomersData(params: {
   fallbackData: CrmCustomersWorkspaceData;
 }) {
   const requestKey = customerWorkspaceRequestKey(params.request);
-  const initialKeyRef = useRef(
+  const [initialKey] = useState(() =>
     customerWorkspaceRequestKey({
       tab: params.fallbackData.tab,
       page: params.fallbackData.page,
@@ -35,6 +35,6 @@ export function useLiveCrmCustomersData(params: {
     "crm-customers",
     requestKey,
     fetcher,
-    requestKey === initialKeyRef.current ? params.fallbackData : undefined
+    requestKey === initialKey ? params.fallbackData : undefined
   );
 }
