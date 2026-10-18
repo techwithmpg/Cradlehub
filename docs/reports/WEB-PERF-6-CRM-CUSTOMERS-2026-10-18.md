@@ -444,18 +444,89 @@ No database rollback is expected.
 
 ## L. Gate decision
 
-**READY FOR INDEPENDENT REVIEW — DO NOT MERGE**
+**READY FOR FINAL INDEPENDENT REVIEW — DO NOT MERGE**
 
 Do not begin PERF-7.
 
 All required conditions have passed:
 
-1. focused Customers tests passed (58/58);
+1. focused Customers tests passed (66/66 across 13 test files);
 2. type-check passed (`tsc --noEmit`, exit code 0);
 3. changed-file lint passed (exit code 0, 0 errors, 0 warnings);
 4. build passed (`pnpm build`, 153/153 routes, exit code 0);
 5. `git diff --check` passed (clean);
-6. PERF-1 through PERF-5 regressions passed (184/184 tests);
+6. PERF-1 through PERF-5 regressions passed (184/184 tests across 29 test files);
 7. full-suite results verified against accepted main (sole failure is pre-existing baseline);
-8. evidence report updated with actual executed commands and counts;
-9. independent review required before any merge consideration.
+8. duplicate waitlist revalidation eliminated;
+9. customer preview retention verified across pending, matching, and absent reconciliation states;
+10. evidence report updated with actual executed commands, exact counts, and distinct SHAs;
+11. independent review required before any merge consideration.
+
+---
+
+## M. Final Independent Review Corrections (Pass 2026-10-18)
+
+Following independent review of draft PR #36, three correction targets were authorized and executed:
+
+### 1. Duplicate Waitlist Customers Revalidation Defect & Resolution
+- **Defect:** `updateWaitlistStatusAction` in `src/app/(dashboard)/crm/waitlist/actions.ts` called `revalidatePath("/crm/customers")`. When triggered from `WaitlistFollowupTable` in the Customers Follow-up tab, `onChanged` fired `invalidate("crm-customers")` for generation-aware reconciliation, while `revalidatePath("/crm/customers")` forced an uncoordinated second server revalidation path.
+- **Root Cause:** Redundant server-action revalidation path left over from legacy full-page revalidations.
+- **Correction:** Removed `revalidatePath("/crm/customers");` in `updateWaitlistStatusAction`.
+- **Preservation:** Preserved `revalidatePath("/crm/waitlist");` and `revalidatePath("/crm/bookings");` for waitlist and booking operational consumers.
+- **Contract:** Successful waitlist mutation triggers exactly one Customers invalidation path (`crm-customers` generation invalidation via `onChanged`), with zero server revalidation collisions. Failed waitlist mutations do not trigger `onChanged` and display error feedback without false success.
+
+### 2. Customer Preview Retention During Pending Reconciliation Defect & Resolution
+- **Defect:** In `CustomersWorkspace` (`src/components/features/crm/customers/customers-workspace.tsx`), `visibleCustomerIds` was computed as `new Set<string>()` when `!data`. When switching tabs, search queries, or pages, `data === undefined` during the pending request, leading to `!visibleCustomerIds.has(selectedCustomer.id)` evaluating to true and immediately clearing `selectedCustomer` and closing the mobile rail. Additionally, `<SegmentLoadingState />` was conditionally replacing the entire section including `<CustomerPreviewRail>`.
+- **Root Cause:** Ambiguity between "data not yet arrived (pending request)" vs "authoritative data arrived and customer is absent", plus structural layout unmounting of the preview rail during loading.
+- **Correction:**
+  1. Updated `visibleCustomerIds` calculation to return `null` when `!data || data.tab === "followup"`.
+  2. Guarded preview closure so it only triggers when authoritative data exists and the customer is missing:
+     ```ts
+     if (
+       selectedCustomer &&
+       visibleCustomerIds &&
+       !visibleCustomerIds.has(selectedCustomer.id)
+     ) {
+       setSelectedCustomer(null);
+       setIsMobileRailOpen(false);
+     }
+     ```
+  3. Structured `customers-workspace.tsx` so `<CrmMotionSection className="flex gap-5">` wraps both the left content column (which renders `<SegmentLoadingState />` when `!data`) and the right `<CustomerPreviewRail>` (which remains mounted alongside loading states).
+- **Behavior Verified:**
+  - Pending request (`data === undefined`): preview remains open and mounted.
+  - Canonical result still contains selected customer: preview remains open.
+  - Canonical result excludes selected customer: preview and mobile rail close safely.
+
+### 3. Focused Regression Tests Added
+- `tests/components/crm/customers-client-navigation.test.tsx`:
+  - `retains customer preview while reconciliation is pending after segment, search, or page transition`
+  - `preserves customer preview when reconciled canonical dataset still contains the selected customer`
+  - `closes customer preview and mobile rail safely when reconciled canonical dataset excludes the selected customer`
+  - `invalidates crm-customers workspace generation exactly once when waitlist change occurs`
+- `tests/components/crm/customers-waitlist-mutation.test.tsx`:
+  - `successful mutation calls onChanged exactly once and shows success feedback`
+  - `failed mutation does not call onChanged and displays error without false success`
+- `tests/lib/crm/crm-waitlist-status-action.test.ts`:
+  - `preserves /crm/waitlist and /crm/bookings revalidation and eliminates /crm/customers revalidation`
+  - `rejects unauthorized caller and does not trigger any revalidation`
+  - `rejects invalid input schema and does not trigger any revalidation`
+
+### 4. Quality Gate Verification Summary
+- **Focused PERF-6 Suite (13 files, 66 tests):**
+  - Command: `pnpm exec vitest run tests/components/crm/customers-generation-swr.test.tsx tests/components/crm/customers-client-navigation.test.tsx tests/lib/crm/customer-workspace-data.test.ts tests/lib/crm/crm-customers-workspace.test.ts tests/lib/crm/crm-customers-data-action.test.ts tests/components/dashboard/retained-workspace-provider.test.tsx tests/components/dashboard/workspace-generation-swr.test.tsx tests/lib/navigation/workspace-generation.test.ts tests/api/crm-customer-search-scope.test.ts tests/lib/crm/customer-search-branch-filter.test.ts tests/lib/crm/customer-phone-lookup-scope.test.ts tests/components/crm/customers-waitlist-mutation.test.tsx tests/lib/crm/crm-waitlist-status-action.test.ts`
+  - Result: 13 passed, 0 failed, 66 passed tests in 3.08s
+- **Type Check:** `pnpm type-check` (`tsc --noEmit`) completed with exit code 0
+- **ESLint Changed Files:** `pnpm eslint ...` completed with exit code 0 (0 errors, 0 warnings)
+- **Production Build:** `pnpm build` completed with exit code 0 (153/153 static and dynamic routes compiled, Turbopack 43s)
+- **Git Diff Check:** `git diff --check` passed clean (0 errors)
+- **PERF-1 Through PERF-5 Regression Suite (29 files, 184 tests):**
+  - Result: 29 passed, 0 failed, 184 passed tests in 37.68s
+- **Full Vitest Suite (381 files, 2996 tests):**
+  - Result: 378 passed | 1 failed | 2 skipped (2993 passed tests, 1 failed, 2 skipped in 94.08s)
+  - Sole failure: `tests/components/bookings/c03-mobile-booking-wizard.test.tsx` (verified ACCEPTED-MAIN BASELINE failure)
+
+### 5. Final SHA Reconciliation
+- **Accepted Base / main:** `ac20bb18dbab00994046507a6997f026a6ab2562`
+- **Starting Correction HEAD:** `e49779c5cc4844107aaf2b42858bbc13fcf328a8`
+- **Quality-Gated Implementation SHA:** `235bf6e93e1eaf599b49ce336094ded64f731f05`
+- **Documentation Delivery SHA:** (Recorded upon commit of this evidence report)
