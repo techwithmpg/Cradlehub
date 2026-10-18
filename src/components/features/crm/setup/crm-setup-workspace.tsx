@@ -19,7 +19,7 @@
  */
 
 import { useCallback } from "react";
-import { useSearchParams } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import { AttendanceTabPanel } from "@/components/features/attendance/attendance-ui";
 import { CrmServicesWorkspace } from "@/components/features/crm/services/crm-services-workspace";
 import { SpacesRulesWorkspace } from "@/components/features/spaces-rules/spaces-rules-workspace";
@@ -81,6 +81,7 @@ export function CrmSetupWorkspace({
   spacesData,
 }: CrmSetupWorkspaceProps) {
   const searchParams = useSearchParams();
+  const router = useRouter();
   const rawTab = searchParams.get("tab");
   const activeTab: SetupTab = rawTab === "health"
     ? "health"
@@ -101,12 +102,16 @@ export function CrmSetupWorkspace({
 
   const handleTabChange = useCallback((next: string) => {
     const tab = next as SetupTab;
+    if (tab === "services") {
+      router.push("/crm/services");
+      return;
+    }
     if (typeof window !== "undefined") {
       const url = new URL(window.location.href);
       url.searchParams.set("tab", tab);
       window.history.pushState(null, "", url.toString());
     }
-  }, []);
+  }, [router]);
 
   const handleTabKeyDown = useCallback(
     (event: React.KeyboardEvent<HTMLDivElement>) => {
@@ -128,7 +133,7 @@ export function CrmSetupWorkspace({
 
   return (
     <div>
-      <div className="mb-4 flex flex-wrap items-center gap-2 rounded-xl border border-[var(--cs-border)] bg-[var(--cs-surface)] p-2" aria-label="Setup navigation">
+      {activeTab !== "services" && <div className="mb-4 flex flex-wrap items-center gap-2 rounded-xl border border-[var(--cs-border)] bg-[var(--cs-surface)] p-2" aria-label="Setup navigation">
         <div role="tablist" aria-label="Primary setup sections" onKeyDown={handleTabKeyDown} className="flex min-w-0 flex-1 flex-wrap gap-1">
           {PRIMARY_TABS.map((tab) => {
             const active = activeTab === tab.key;
@@ -166,7 +171,7 @@ export function CrmSetupWorkspace({
             {MORE_TABS.map((tab) => <option key={tab.key} value={tab.key}>{tab.label}</option>)}
           </select>
         </label>
-      </div>
+      </div>}
       <span className="sr-only" id="setup-tab-providers">Providers by staff</span>
       <span className="sr-only" id="setup-tab-staff_readiness">Staff readiness</span>
       <span className="sr-only" id="setup-tab-public_readiness">Public booking readiness</span>

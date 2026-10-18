@@ -82,7 +82,7 @@ export function visibleNavItems(
 
 const CRM_SYSTEM_NAV_ITEMS: NavItem[] = [
   { label: "Staff & Access", href: "/crm/staff", icon: "UserCheck" },
-  { label: "Services & Providers", href: "/crm/setup?tab=services", icon: "Sparkles" },
+  { label: "Services & Providers", href: "/crm/services", icon: "Sparkles" },
   { label: "Rooms & Resources", href: "/crm/setup?tab=spaces", icon: "Building2" },
   { label: "Booking Rules", href: "/crm/setup?tab=booking_rules", icon: "ClipboardCheck" },
   { label: "Schedule Management", href: "/crm/schedule?tab=setup", icon: "CalendarClock" },

@@ -111,6 +111,7 @@ export default async function CrmSetupPage({
   ]);
 
   const initialTab = resolveTab(params.tab);
+  if (initialTab === "services") redirect("/crm/services");
 
   const supabase = await createClient();
   const today = getBranchBusinessDate();

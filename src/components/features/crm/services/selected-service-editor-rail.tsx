@@ -31,12 +31,14 @@ export function SelectedServiceEditorRail({
   row,
   onClose,
   onServicePatch,
+  onManageProviders,
 }: {
   branchId: string;
   branchName: string;
   row: CustomizationRow | null;
   onClose: () => void;
   onServicePatch: (serviceId: string, patch: Partial<ServiceLite>) => void;
+  onManageProviders?: () => void;
 }) {
   if (!row) {
     return (
@@ -59,11 +61,9 @@ export function SelectedServiceEditorRail({
         />
         <PublicVisibilitySection branchId={branchId} row={row} onServicePatch={onServicePatch} />
         <ReadinessChecklist row={row} />
-        <QuickActions row={row} />
+        <QuickActions row={row} onManageProviders={onManageProviders} />
       </div>
-      <div className="border-t border-[var(--cs-border-soft)] px-5 py-3 text-[0.6875rem] text-[var(--cs-text-muted)]">
-        {branchName} · Last updated: just now
-      </div>
+      <div className="border-t border-[var(--cs-border-soft)] px-5 py-3 text-[0.6875rem] text-[var(--cs-text-muted)]">{branchName}</div>
     </div>
   );
 }
@@ -442,12 +442,14 @@ function ReadinessChecklist({ row }: { row: CustomizationRow }) {
 
 // ── Quick Actions ─────────────────────────────────────────────────────────────
 
-function QuickActions({ row }: { row: CustomizationRow }) {
+function QuickActions({ row, onManageProviders }: { row: CustomizationRow; onManageProviders?: () => void }) {
   return (
     <section>
       <h3 className="m-0 mb-3 text-sm font-semibold text-[var(--cs-text)]">Quick Actions</h3>
       <div className="grid gap-2">
-        <Button
+        {onManageProviders ? <Button type="button" variant="outline" size="lg" onClick={onManageProviders} className="justify-start border-[var(--cs-border)]">
+          <Pencil className="mr-2 size-4" />Manage Providers
+        </Button> : <Button
           asChild
           variant="outline"
           size="lg"
@@ -458,6 +460,7 @@ function QuickActions({ row }: { row: CustomizationRow }) {
             Manage Providers
           </Link>
         </Button>
+        }
         {row.providerCount === 0 && (
           <div className="flex items-start gap-2 rounded-lg border border-[#E7D9B8] bg-[var(--cs-warning-bg)] p-2.5 text-xs text-[var(--cs-warning-text)]">
             <ShieldAlert className="mt-0.5 size-4 shrink-0" />

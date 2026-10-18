@@ -33,7 +33,6 @@ import { CrmEditStaffProfileModal } from "@/components/features/crm/staff/crm-ed
 import { toCrmStaffServiceRows } from "@/components/features/crm/staff/service-row-adapter";
 import { CrmSegmentTabs } from "@/components/features/crm/premium/crm-segment-tabs";
 import type { CrmSegmentTab } from "@/components/features/crm/premium/crm-segment-tabs";
-import { CrmTherapistAssignmentTab } from "./crm-therapist-assignment-tab";
 import { CrmStaffCapabilitiesTab } from "./crm-staff-capabilities-tab";
 import { CrmServiceReadinessTab } from "./crm-service-readiness-tab";
 import { ServiceCustomizationTab } from "./service-customization-tab";
@@ -141,7 +140,7 @@ export function CrmServicesWorkspace({
   const searchParams = useSearchParams();
   const rawTab = searchParams.get("tab");
   const activeTab: TabId = rawTab === "customization"
-    ? "customization"
+    ? "services"
     : ["providers", "staff", "capabilities"].includes(rawTab ?? "")
       ? "providers"
       : ["issues", "readiness_issues", "readiness", "public_readiness", "public"].includes(rawTab ?? "")
@@ -280,22 +279,18 @@ export function CrmServicesWorkspace({
   return (
     <div>
       {/* ── Tab bar — instant switching, URL sync via replaceState ── */}
-      {compactNavigation ? (
+      {compactNavigation && activeTab !== "services" ? (
         <div className="mb-3 flex flex-wrap items-center justify-between gap-2 rounded-xl border border-[var(--cs-border-soft)] bg-[var(--cs-surface)] px-3 py-2.5">
           <div>
             <p className="m-0 text-sm font-semibold text-[var(--cs-text)]">
-              {activeTab === "services"
-                ? "Service provider assignments"
-                : activeTab === "customization"
+              {activeTab === "customization"
                   ? "Customize service details"
                   : activeTab === "providers"
                     ? "Providers by staff member"
                     : "Service readiness"}
             </p>
             <p className="m-0 mt-0.5 text-xs text-[var(--cs-text-muted)]">
-              {activeTab === "services"
-                ? "Assign eligible staff directly to each service."
-                : "Related service tools share the same branch and permissions."}
+              Related service tools share the same branch and permissions.
             </p>
           </div>
           <label className="flex items-center gap-2 text-xs font-medium text-[var(--cs-text-muted)]">
@@ -307,13 +302,12 @@ export function CrmServicesWorkspace({
               className="h-9 max-w-full rounded-lg border border-[var(--cs-border)] bg-[var(--cs-surface)] px-2.5 text-xs font-semibold text-[var(--cs-text)]"
             >
               <option value="services">Assign providers</option>
-              <option value="customization">Customize services</option>
               <option value="providers">View providers by staff</option>
               <option value="readiness_issues">Service readiness details</option>
             </select>
           </label>
         </div>
-      ) : (
+      ) : !compactNavigation ? (
         <CrmSegmentTabs
           tabs={SEGMENT_TABS}
           activeKey={activeTab}
@@ -321,7 +315,7 @@ export function CrmServicesWorkspace({
           variant="underline"
           className="mb-6"
         />
-      )}
+      ) : null}
 
       {/* ── Tab content ── */}
       {activeTab === "services" && (
@@ -334,9 +328,11 @@ export function CrmServicesWorkspace({
             </AlertDescription>
           </Alert>
         ) : (
-          <CrmTherapistAssignmentTab
+          <ServiceCustomizationTab
             branchId={branchId}
-            services={workspaceAssignableServices}
+            branchName={branchName}
+            services={workspaceServices}
+            activeServices={workspaceActiveServices}
             staff={workspaceProviderStaff}
             assignments={workspaceAssignments}
             onServicePatch={handleServicePatch}
@@ -363,6 +359,7 @@ export function CrmServicesWorkspace({
             staff={workspaceProviderStaff}
             assignments={workspaceAssignments}
             onServicePatch={handleServicePatch}
+            onAssignmentChange={handleAssignmentChange}
           />
         )
       )}

@@ -2,12 +2,11 @@
 
 import { useState, useTransition } from "react";
 import Image from "next/image";
-import { ChevronLeft, ChevronRight, Pencil } from "lucide-react";
+import { ChevronLeft, ChevronRight } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Switch } from "@/components/ui/switch";
 import type { CustomizationRow } from "./customization-rows";
-import type { DeliveryMode } from "./service-customization-tab";
 import { updateBranchServiceHomeServiceAvailabilityAction } from "@/app/(dashboard)/crm/services/actions";
 import type { ServiceLite } from "@/app/(dashboard)/owner/branches/[branchId]/branch-services-panel";
 
@@ -44,17 +43,16 @@ export function ServiceCustomizationTable({
 
   return (
     <div className="space-y-3">
-      <div className="overflow-hidden rounded-xl border border-[var(--cs-border)] bg-[var(--cs-surface)] shadow-[var(--cs-shadow-xs)]">
-        <table className="w-full table-fixed border-collapse text-left">
+      <div className="overflow-x-auto rounded-xl border border-[var(--cs-border)] bg-[var(--cs-surface)] shadow-[var(--cs-shadow-xs)]">
+        <table className="w-full min-w-[760px] border-collapse text-left">
           <thead>
             <tr className="border-b border-[var(--cs-border-soft)] bg-[var(--cs-surface-warm)] text-xs font-semibold text-[var(--cs-text-muted)]">
-              <th className="w-[28%] px-4 py-3">Service</th>
-              <th className="w-[14%] px-4 py-3">Category</th>
-              <th className="w-[12%] px-4 py-3">Delivery</th>
-              <th className="w-[12%] px-4 py-3 text-center">Home Service</th>
-              <th className="w-[12%] px-4 py-3">Public Status</th>
-              <th className="w-[14%] px-4 py-3">Readiness</th>
-              <th className="w-[8%] px-4 py-3 text-right">Actions</th>
+              <th scope="col" className="px-4 py-3">Service</th>
+              <th scope="col" className="px-4 py-3">Duration / Price</th>
+              <th scope="col" className="px-4 py-3">Category</th>
+              <th scope="col" className="px-4 py-3">Providers</th>
+              <th scope="col" className="px-4 py-3">Home Service</th>
+              <th scope="col" className="px-4 py-3">Coverage / Setup</th>
             </tr>
           </thead>
           <tbody>
@@ -141,18 +139,17 @@ function TableRow({
         <div className="flex items-center gap-3">
           <ServiceThumbnail row={row} />
           <div className="min-w-0">
-            <p className="m-0 text-sm font-semibold text-[var(--cs-text)] truncate">{row.name}</p>
-            <p className="m-0 text-xs text-[var(--cs-text-muted)]">
-              {row.duration} min · ₱{row.price.toLocaleString()}
-            </p>
+            <button type="button" onClick={(event) => { event.stopPropagation(); onSelect(); }} aria-label={`View ${row.name}`} className="text-left text-sm font-semibold text-[var(--cs-text)] hover:underline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--cs-success-text)]">{row.name}</button>
+            <p className="m-0 max-w-[220px] truncate text-xs text-[var(--cs-text-muted)]">{row.description ?? "Service details"}</p>
           </div>
         </div>
       </td>
+      <td className="whitespace-nowrap px-4 py-3 align-middle text-sm text-[var(--cs-text-secondary)]">{row.duration} min<span className="block text-xs text-[var(--cs-text-muted)]">₱{row.price.toLocaleString()}</span></td>
       <td className="px-4 py-3 align-middle">
         <span className="text-sm text-[var(--cs-text-secondary)]">{row.category ?? "—"}</span>
       </td>
       <td className="px-4 py-3 align-middle">
-        <DeliveryModeBadge mode={row.deliveryMode} />
+        <span className="text-sm font-medium text-[var(--cs-text)]">{row.providerCount}</span><span className="block text-xs text-[var(--cs-text-muted)]">assigned</span>
       </td>
       <td className="px-4 py-3 align-middle text-center">
         <HomeServiceToggle
@@ -163,21 +160,8 @@ function TableRow({
         />
       </td>
       <td className="px-4 py-3 align-middle">
-        <PublicStatusBadge row={row} />
-      </td>
-      <td className="px-4 py-3 align-middle">
-        <ReadinessBadge row={row} />
-      </td>
-      <td className="px-4 py-3 align-middle text-right">
-        <Button
-          type="button"
-          variant="ghost"
-          size="icon"
-          onClick={(e) => { e.stopPropagation(); onSelect(); }}
-          className="size-8 text-[var(--cs-text-muted)] hover:text-[var(--cs-text)]"
-        >
-          <Pencil className="size-4" />
-        </Button>
+        <span className={`inline-flex rounded-full px-2 py-1 text-xs font-medium ${row.providerCount === 0 ? "bg-[var(--cs-error-bg)] text-[var(--cs-error-text)]" : row.providerCount === 1 ? "bg-[var(--cs-warning-bg)] text-[var(--cs-warning-text)]" : "bg-[var(--cs-success-bg)] text-[var(--cs-success-text)]"}`}>{row.providerCount === 0 ? "Needs provider" : row.providerCount === 1 ? "Low coverage" : "Covered"}</span>
+        <span className="block pt-1 text-xs text-[var(--cs-text-muted)]">{row.isActive ? row.readinessIssues[0] ?? "Basic setup complete" : "Inactive"}</span>
       </td>
     </tr>
   );
@@ -290,69 +274,6 @@ function ServiceThumbnail({ row }: { row: CustomizationRow }) {
   return (
     <span className="flex size-10 shrink-0 items-center justify-center rounded-lg border border-[var(--cs-border)] bg-[var(--cs-sand-mist)] text-xs font-semibold text-[var(--cs-sand-dark)]">
       {initials || "S"}
-    </span>
-  );
-}
-
-function DeliveryModeBadge({ mode }: { mode: DeliveryMode }) {
-  const config: Record<DeliveryMode, { label: string; color: string; bg: string }> = {
-    in_spa: { label: "In-Spa", color: "#7c3aed", bg: "rgba(124,58,237,0.1)" },
-    home_service: { label: "Home-Service", color: "#2563eb", bg: "rgba(37,99,235,0.1)" },
-    both: { label: "Both", color: "#7c3aed", bg: "rgba(124,58,237,0.1)" },
-    hidden: { label: "Hidden", color: "var(--cs-text-muted)", bg: "var(--cs-surface-warm)" },
-  };
-  const c = config[mode];
-  return (
-    <span
-      className="inline-flex items-center rounded-md px-2 py-0.5 text-xs font-medium"
-      style={{ color: c.color, background: c.bg }}
-    >
-      {c.label}
-    </span>
-  );
-}
-
-function PublicStatusBadge({ row }: { row: CustomizationRow }) {
-  if (!row.isActive) {
-    return (
-      <span className="inline-flex items-center rounded-md border border-[var(--cs-border)] bg-[var(--cs-surface-warm)] px-2 py-0.5 text-xs font-medium text-[var(--cs-text-muted)]">
-        Inactive
-      </span>
-    );
-  }
-  if (row.visibility === "public") {
-    return (
-      <span className="inline-flex items-center rounded-md border border-[#CFE4D5] bg-[var(--cs-success-bg)] px-2 py-0.5 text-xs font-medium text-[var(--cs-success-text)]">
-        Public
-      </span>
-    );
-  }
-  return (
-    <span className="inline-flex items-center rounded-md border border-[var(--cs-border)] bg-[var(--cs-surface-warm)] px-2 py-0.5 text-xs font-medium text-[var(--cs-text-muted)]">
-      {row.visibility === "csr_only" ? "CSR Only" : row.visibility}
-    </span>
-  );
-}
-
-function ReadinessBadge({ row }: { row: CustomizationRow }) {
-  if (!row.isActive) {
-    return (
-      <span className="inline-flex items-center rounded-md border border-[var(--cs-border)] bg-[var(--cs-surface-warm)] px-2 py-0.5 text-xs font-medium text-[var(--cs-text-muted)]">
-        Hidden
-      </span>
-    );
-  }
-  if (row.isReady) {
-    return (
-      <span className="inline-flex items-center rounded-md border border-[#CFE4D5] bg-[var(--cs-success-bg)] px-2 py-0.5 text-xs font-medium text-[var(--cs-success-text)]">
-        Ready
-      </span>
-    );
-  }
-  const issue = row.readinessIssues[0] ?? "Needs setup";
-  return (
-    <span className="inline-flex items-center rounded-md border border-[#E7D9B8] bg-[var(--cs-warning-bg)] px-2 py-0.5 text-xs font-medium text-[var(--cs-warning-text)]">
-      {issue}
     </span>
   );
 }
