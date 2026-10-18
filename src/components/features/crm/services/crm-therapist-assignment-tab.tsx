@@ -6,12 +6,12 @@
  * Desktop-first professional SaaS table for the Therapist Assignments tab.
  *
  * Layout:
- *   - Intro card (text)
- *   - 4-column KPI cards: Active Services | Without Therapist | Eligible Providers | Fully Assigned
- *   - Filter/search row
- *   - Two-column grid: [table + pagination] | [right rail]
+ *   - One compact provider coverage summary, emphasizing missing assignments
+ *   - Search and an optional category/delivery filter disclosure
+ *   - Full-width assignment table, prioritized by missing coverage
+ *   - Existing assignment sheet and pagination, unchanged server mutations
  *
- * Table columns: SERVICE · CATEGORY · ASSIGNED THERAPISTS · STATUS · ACTIONS
+ * Table columns: SERVICE · ASSIGNED PROVIDERS · COVERAGE · ACTIONS
  *
  * Compact rows: max 3 preview chips + "+N more"; full list in Sheet.
  * Pagination: client-side, 10/25/50 rows per page.
@@ -257,7 +257,7 @@ export function CrmTherapistAssignmentTab({
         )}
       </div>
 
-      {/* ── Table + right rail (2-column grid) ── */}
+      {/* ── Full-width assignment table ── */}
       <div className="min-w-0">
         {/* ── Main table column ── */}
         <div
