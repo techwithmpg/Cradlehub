@@ -1,7 +1,7 @@
 "use client";
 
 import React, { useState } from "react";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import { RefreshCw, Banknote, ArrowLeftRight, Plus, FileText, CheckCircle2 } from "lucide-react";
 import type { CashFlowWorkspaceData, CashSessionSummary } from "@/lib/cash-flow/cash-flow-types";
 import { TodayTab } from "./today-tab";
@@ -25,6 +25,7 @@ interface CashFlowWorkspaceProps {
   onRefresh?: () => void | Promise<void>;
   onConfirmedMutation?: () => void;
   externallyRefreshing?: boolean;
+  syncCrmRouteState?: boolean;
 }
 
 export function CashFlowWorkspace({
@@ -37,13 +38,30 @@ export function CashFlowWorkspace({
   onRefresh,
   onConfirmedMutation,
   externallyRefreshing,
+  syncCrmRouteState = false,
 }: CashFlowWorkspaceProps) {
   const router = useRouter();
-  const [activeTab, setActiveTab] = useState<CashFlowTab>(initialTab);
+  const searchParams = useSearchParams();
+  const [localActiveTab, setLocalActiveTab] =
+    useState<CashFlowTab>(initialTab);
+
+  const routeTabValue = syncCrmRouteState
+    ? searchParams.get("tab")
+    : null;
+  const routeTab: CashFlowTab | null =
+    routeTabValue === "today" ||
+    routeTabValue === "ledger" ||
+    routeTabValue === "day-close" ||
+    routeTabValue === "history"
+      ? routeTabValue
+      : null;
+  const activeTab = routeTab ?? localActiveTab;
 
   const [localRefreshing, setLocalRefreshing] = useState(false);
   const isRefreshing = externallyRefreshing ?? localRefreshing;
-  const [isRecordPaymentOpen, setIsRecordPaymentOpen] = useState(Boolean(initialEntryMode));
+  const [isRecordPaymentOpen, setIsRecordPaymentOpen] = useState(
+    () => (syncCrmRouteState ? false : Boolean(initialEntryMode))
+  );
   const [isOpenDrawerModalOpen, setIsOpenDrawerModalOpen] = useState(false);
   const [isHandoverModalOpen, setIsHandoverModalOpen] = useState(false);
   const [isCloseDrawerModalOpen, setIsCloseDrawerModalOpen] = useState(false);
@@ -68,7 +86,12 @@ export function CashFlowWorkspace({
     `₱${val.toLocaleString("en-PH", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 
   const handleTabChange = (newTab: CashFlowTab) => {
-    setActiveTab(newTab);
+    setLocalActiveTab(newTab);
+    if (syncCrmRouteState && typeof window !== "undefined") {
+      const url = new URL(window.location.href);
+      url.searchParams.set("tab", newTab);
+      window.history.pushState(null, "", url.toString());
+    }
   };
 
   const handleRefresh = async () => {
@@ -95,6 +118,35 @@ export function CashFlowWorkspace({
       return;
     }
     router.refresh();
+  };
+
+  const routeEntryValue = syncCrmRouteState
+    ? searchParams.get("entry")
+    : null;
+  const routeEntryMode: FinancialEntryMode | null =
+    routeEntryValue === "payment"
+      ? "customer_payment"
+      : routeEntryValue === "expense"
+        ? "expense"
+        : routeEntryValue === "cash-operations"
+          ? "other_entry"
+          : null;
+  const effectiveRecordPaymentOpen =
+    isRecordPaymentOpen || routeEntryMode !== null;
+  const effectiveEntryMode = routeEntryMode ?? entryModalMode;
+
+  const handleRecordPaymentOpenChange = (open: boolean) => {
+    setIsRecordPaymentOpen(open);
+    if (
+      !open &&
+      syncCrmRouteState &&
+      routeEntryMode !== null &&
+      typeof window !== "undefined"
+    ) {
+      const url = new URL(window.location.href);
+      url.searchParams.delete("entry");
+      window.history.replaceState(null, "", url.toString());
+    }
   };
 
   const openRecordPayment = (orderId?: string) => {
@@ -567,15 +619,15 @@ export function CashFlowWorkspace({
 
       {/* ── Record Financial Entry Modal ─────────────────────────────── */}
       <RecordFinancialEntryModal
-        open={isRecordPaymentOpen}
-        onOpenChange={setIsRecordPaymentOpen}
+        open={effectiveRecordPaymentOpen}
+        onOpenChange={handleRecordPaymentOpenChange}
         accounts={initialData.accounts}
         expenseCategories={initialData.expenseCategories}
         staffOptions={initialData.staffOptions}
         payableOrders={initialData.payableOrders}
         activeCashSessions={initialData.cashSessions?.activeSessions ?? []}
         initialOrderId={targetOrderId}
-        initialMode={entryModalMode}
+        initialMode={effectiveEntryMode}
         branchId={initialData.branchId}
         businessDate={initialData.businessDate}
         onSuccess={handleConfirmedMutation}
