@@ -56,20 +56,8 @@ export async function getUtilityStaffIdentity(): Promise<UtilityWorkspaceRuntime
 export async function getUtilityWorkspaceRuntime({
   includeAttendance = false,
 }: { includeAttendance?: boolean } = {}): Promise<UtilityWorkspaceRuntime | null> {
-  const me = await getMyStaffRecord();
-  if (!me) return null;
-  if (resolveStaffPwaOperationalGroup(me.system_role, me.staff_type) !== "utility") {
-    return null;
-  }
-  const staff: UtilityWorkspaceRuntime["staff"] = {
-    id: me.id,
-    full_name: me.full_name,
-    nickname: me.nickname,
-    avatar_url: me.avatar_url ?? null,
-    branch_id: me.branch_id,
-    system_role: me.system_role,
-    staff_type: me.staff_type,
-  };
+  const staff = await getUtilityStaffIdentity();
+  if (!staff) return null;
 
   if (!staff.branch_id) {
     return {
@@ -89,7 +77,7 @@ export async function getUtilityWorkspaceRuntime({
   const recentCutoff = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString();
   // Both reads are branch-scoped. Completed tasks are bounded and only used for recent history.
   const [attendanceData, activeResult, completedResult] = await Promise.all([
-    includeAttendance && staff.branch_id ? getPureAttendanceSnapshot(30, me).catch(() => null) : Promise.resolve(null),
+    includeAttendance && staff.branch_id ? getPureAttendanceSnapshot(30).catch(() => null) : Promise.resolve(null),
     admin
       .from("workflow_tasks")
       .select(taskColumns)

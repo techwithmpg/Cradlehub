@@ -205,51 +205,23 @@ function mapCheckin(row: CheckinRow): StaffAttendanceHistoryRecord {
  * Performs ZERO writes, ZERO RPC mutations, and does not invoke dynamic recalculation.
  */
 export const getPureAttendanceSnapshot = cache(async (
-  days = 90,
-  preloadedStaff?: {
-    id: string;
-    full_name: string;
-    nickname: string | null;
-    branch_id: string | null;
-    staff_type: string | null;
-    system_role: string;
-  } | null
+  days = 90
 ): Promise<StaffAttendanceData | null> => {
   const supabase = await createClient();
-  let staff =
-    preloadedStaff && preloadedStaff.branch_id
-      ? {
-          id: preloadedStaff.id,
-          full_name: preloadedStaff.full_name,
-          nickname: preloadedStaff.nickname,
-          branch_id: preloadedStaff.branch_id,
-          staff_type: preloadedStaff.staff_type,
-          system_role: preloadedStaff.system_role,
-        }
-      : null;
-
-  if (!staff) {
-    const authResult = await supabase.auth.getUser();
-    const user = authResult?.data?.user;
-    if (!user) return null;
-    const staffResult = await supabase
-      .from("staff")
-      .select("id, full_name, nickname, branch_id, staff_type, system_role")
-      .eq("auth_user_id", user.id)
-      .eq("is_active", true)
-      .is("archived_at", null)
-      .is("merged_into_staff_id", null)
-      .maybeSingle();
-    if (staffResult.error || !staffResult.data || !staffResult.data.branch_id) return null;
-    staff = {
-      id: staffResult.data.id,
-      full_name: staffResult.data.full_name,
-      nickname: staffResult.data.nickname,
-      branch_id: staffResult.data.branch_id,
-      staff_type: staffResult.data.staff_type,
-      system_role: staffResult.data.system_role,
-    };
-  }
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  if (!user) return null;
+  const staffResult = await supabase
+    .from("staff")
+    .select("id, full_name, nickname, branch_id, staff_type, system_role")
+    .eq("auth_user_id", user.id)
+    .eq("is_active", true)
+    .is("archived_at", null)
+    .is("merged_into_staff_id", null)
+    .maybeSingle();
+  if (staffResult.error || !staffResult.data || !staffResult.data.branch_id) return null;
+  const staff = staffResult.data;
 
   const settings = await getAttendanceSettingsReadOnly(staff.branch_id);
   const branchNow = getAttendanceBranchNow(settings);
