@@ -176,6 +176,8 @@ The post-run commits have **not** been quality-gated in the user's Windows repos
 
 **New unexecuted regression:** `tests/components/bookings/home-service-room-exemption.test.tsx`. Tests delivery-type, booking-type, and legacy metadata classification; absence of Home Service room warnings/controls; Home Service checked-in dispatch action; retained in-spa room warning/action; and correct Home Service location label.
 
+**Legacy action classification compatibility:** `SelectedBookingPanelState` now accepts optional metadata Type/DeliveryType values. All discovered calls in `selected-booking-primary-action.tsx`, `selected-booking-quick-actions.tsx`, and `bookings-table.tsx` pass the booking metadata to the existing shared Home Service classifier. This prevents room actions for older metadata-designated Home Service records. The added regression directly tests `metadataDeliveryType` with otherwise standard `type`/`delivery_type`.
+
 **Safety boundary:** This change does not clear or rewrite historical `resource_id` values, change schema/RLS, alter payment/cash/attendance, change `start_booking_service_session`, activate Owner retention, change dispatch permission, or make local cache authoritative. It does not merge or deploy. Source inspection is **not** authenticated browser, DB or production verification.
 
 **Checkpoint:** At the single owner-approved pre-merge sync, execute the new regression and the existing room-assignment/booking/dispatch/CRM/Owner safety suites, type-check, lint, build, and manually inspect Home Service and In-Spa flows. Independent review and separate owner merge approval remain required.
