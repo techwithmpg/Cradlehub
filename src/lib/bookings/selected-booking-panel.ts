@@ -43,6 +43,8 @@ export type SelectedBookingPanelState = {
   bookingProgressStatus?: string | null;
   type?: string | null;
   deliveryType?: string | null;
+  metadataType?: unknown;
+  metadataDeliveryType?: unknown;
   resourceId?: string | null;
   hasStaff: boolean;
   hasDriver?: boolean;
