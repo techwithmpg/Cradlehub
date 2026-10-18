@@ -6,6 +6,7 @@ import { OwnerBookingsView } from "@/components/features/bookings/owner-bookings
 import { getOwnerWorkspaceBookingsAction } from "./actions";
 import { RetainedWorkspaceModule } from "@/components/features/dashboard/retained-workspace-provider";
 import { ownerBookingsInitialRead } from "@/lib/owner/owner-bookings-query";
+import type { WorkspaceBookingRow } from "@/components/features/bookings/booking-workspace-types";
 
 async function requireOwnerContext() {
   const supabase = await createClient();
@@ -59,7 +60,7 @@ export default async function OwnerBookingsPage({
   return (
     <RetainedWorkspaceModule moduleId="owner-bookings">
       <OwnerBookingsView
-        initialRead={ownerBookingsInitialRead(result)}
+        initialRead={ownerBookingsInitialRead("error" in result ? result : { bookings: result.bookings as WorkspaceBookingRow[] })}
         initialDate={date}
         initialBranch={branch}
         initialStatus={params.status}
