@@ -1,105 +1,27 @@
 import { redirect } from "next/navigation";
 import { CrmOperationalPageShell } from "@/components/features/crm/operational/crm-operational-page-shell";
-import { createClient } from "@/lib/supabase/server";
-import { createAdminClient } from "@/lib/supabase/admin";
-import { getAllBranches } from "@/lib/queries/branches";
-import { getStaffByBranchWithBranches, getPendingStaffByBranch } from "@/lib/queries/staff";
-import { getBranchStaffAndServiceAssignments } from "@/lib/queries/crm-services";
-import { getBranchAssignableServices } from "@/lib/services/service-catalog";
 import { CrmStaffWorkspace } from "@/components/features/crm/staff/crm-staff-workspace";
-import type { StaffMember } from "@/components/features/staff/staff-management-utils";
-import type {
-  ServiceLite,
-} from "@/app/(dashboard)/owner/branches/[branchId]/branch-services-panel";
-import type { StaffForServicePanel, ServiceAssignmentRow } from "@/lib/queries/crm-services";
 import {
-  getCrmStaffNestedService,
-  getCrmStaffServiceId,
-} from "@/components/features/crm/staff/service-row-adapter";
-import { canReviewStaffOnboarding } from "@/lib/permissions";
-import { getBranchAssignmentIssuesForActor } from "@/lib/staff/branch-assignment-resolver";
-import { isDevAuthBypassEnabled, getDevBypassLayoutStaff } from "@/lib/dev-bypass";
-import { canonicalizeSystemRole } from "@/constants/staff";
-import { canAccessCrmWorkspace } from "@/lib/auth/crm-permissions";
-import { getFrontDeskContext } from "@/lib/queries/crm-context";
+  normalizeCrmStaffTab,
+} from "@/components/features/crm/staff/crm-staff-workspace-data";
+import { RetainedWorkspaceModule } from "@/components/features/dashboard/retained-workspace-provider";
+import { loadCrmStaffWorkspaceData } from "@/lib/queries/crm-staff-workspace";
 
 export const metadata = { title: "Staff | Front Desk" };
-
-async function getCrmStaffPageContext() {
-  const supabase = await createClient();
-  const { data: { user } } = await supabase.auth.getUser();
-  if (!user) return { status: "unauthorized" as const };
-
-  const { data: me, error } = await supabase
-    .from("staff")
-    .select("id, system_role, branch_id, branches(name)")
-    .eq("auth_user_id", user.id)
-    .eq("is_active", true)
-    .maybeSingle();
-
-  if (error) {
-    console.error("[crm/staff] staff lookup failed", { message: error.message, code: error.code });
-    return { status: "unauthorized" as const };
-  }
-
-  const resolvedMe =
-    (me as { id: string; system_role: string; branch_id: string | null; branches: { name: string } | null } | null) ??
-    (isDevAuthBypassEnabled()
-      ? {
-          id: "dev-bypass-id",
-          system_role: getDevBypassLayoutStaff().system_role,
-          branch_id: getDevBypassLayoutStaff().branch_id,
-          branches: { name: "Dev Branch" },
-        }
-      : null);
-
-  const canonicalRole = resolvedMe ? canonicalizeSystemRole(resolvedMe.system_role) : null;
-  if (!resolvedMe || !canonicalRole || !canAccessCrmWorkspace(canonicalRole)) {
-    return { status: "unauthorized" as const };
-  }
-
-  if (!resolvedMe.branch_id) {
-    return {
-      status: "missing_branch" as const,
-      branchName: resolvedMe.branches?.name ?? "your assigned branch",
-    };
-  }
-
-  const frontDesk = await getFrontDeskContext();
-
-  return {
-    status: "ready" as const,
-    me: resolvedMe,
-    branchId: frontDesk.branchId,
-    branchName: frontDesk.branchName,
-    canReviewOnboarding: canReviewStaffOnboarding(canonicalRole),
-  };
-}
-
-// ── Page ──────────────────────────────────────────────────────────────────────
 
 export default async function CrmStaffPage({
   searchParams,
 }: {
   searchParams: Promise<{ tab?: string; status?: string }>;
 }) {
-  const [ctx, params] = await Promise.all([
-    getCrmStaffPageContext(),
+  const [result, params] = await Promise.all([
+    loadCrmStaffWorkspaceData(),
     searchParams,
   ]);
 
-  if (ctx.status === "unauthorized") redirect("/crm");
+  if (result.status === "unauthorized") redirect("/crm");
 
-  const initialTab = ((): "applications" | "branch-corrections" | "management" | "assignments" | "status" => {
-    if (params.tab === "applications") return "applications";
-    if (params.tab === "branch-corrections") return "branch-corrections";
-    if (params.tab === "management") return "management";
-    if (params.tab === "assignments") return "assignments";
-    if (params.tab === "status") return "status";
-    return "applications";
-  })();
-
-  if (ctx.status === "missing_branch") {
+  if (result.status === "missing_branch") {
     return (
       <CrmOperationalPageShell
         title="Staff"
@@ -113,133 +35,21 @@ export default async function CrmStaffPage({
     );
   }
 
-  const branchId = ctx.branchId;
-
-  // Fetch data for all tabs in parallel (some may be unused)
-  const [
-    allStaffResult,
-    pendingStaffResult,
-    branchesResult,
-    servicesResult,
-  ] = await Promise.allSettled([
-    getStaffByBranchWithBranches(branchId),
-    getPendingStaffByBranch(branchId),
-    getAllBranches(),
-    getBranchAssignableServices(branchId),
-  ]);
-
-  const allStaff = allStaffResult.status === "fulfilled" ? (allStaffResult.value as StaffMember[]) : [];
-  const pendingStaff = pendingStaffResult.status === "fulfilled" ? (pendingStaffResult.value as StaffMember[]) : [];
-  const branches = branchesResult.status === "fulfilled" ? branchesResult.value : [];
-
-  let activeServices: ServiceLite[] = [];
-  let providerStaff: StaffForServicePanel[] = [];
-  let providerAssignments: ServiceAssignmentRow[] = [];
-  let providerAssignmentsError: string | null = null;
-
-  if (servicesResult.status === "fulfilled") {
-    const services = servicesResult.value as ServiceLite[];
-    const eligible = services.filter(
-      (s) =>
-        s.is_active &&
-        getCrmStaffNestedService(s) !== null &&
-        getCrmStaffServiceId(s) !== null
-    );
-    activeServices = eligible;
-    const activeServiceIds = Array.from(
-      new Set(
-        eligible
-          .map(getCrmStaffServiceId)
-          .filter((id): id is string => id !== null)
-      )
-    );
-
-    if (activeServiceIds.length > 0) {
-      try {
-        const pa = await getBranchStaffAndServiceAssignments(branchId, activeServiceIds);
-        providerStaff = pa.staff;
-        providerAssignments = pa.assignments;
-      } catch (err) {
-        console.error("[crm/staff] provider assignment fetch failed", {
-          branchId,
-          error: err instanceof Error ? err.message : String(err),
-        });
-        providerAssignmentsError =
-          "Service assignments could not be loaded. Please refresh and try again.";
-      }
-    }
-  } else {
-    console.error("[crm/staff] branch services query failed", {
-      branchId,
-      error: servicesResult.reason instanceof Error
-        ? servicesResult.reason.message
-        : String(servicesResult.reason),
-    });
-    providerAssignmentsError =
-      "Service assignments could not be loaded. Please refresh and try again.";
-  }
-
-  // Onboarding requests stay permission-gated, but are preloaded so the
-  // Applications panel can switch internally without a route fetch.
-  let onboardingRequests: Awaited<ReturnType<typeof fetchOnboardingRequests>> = [];
-  if (ctx.canReviewOnboarding) {
-    onboardingRequests = await fetchOnboardingRequests(
-      canonicalizeSystemRole(ctx.me.system_role),
-      branchId
-    );
-  }
-
-  const branchCorrectionRequests = await getBranchAssignmentIssuesForActor({
-    systemRole: ctx.me.system_role,
-    branchId,
-  });
+  const initialTab = normalizeCrmStaffTab(params.tab);
+  const { data } = result;
 
   return (
-    <CrmOperationalPageShell
-      title="Staff"
-      description="Manage applications, review team roster, check service assignments, and monitor staff status."
-      context={`${ctx.branchName} · ${ctx.me.system_role}`}
-    >
-      <CrmStaffWorkspace
-        initialTab={initialTab}
-        branchId={branchId}
-        allStaff={allStaff}
-        pendingStaff={pendingStaff}
-        branches={branches.map((b) => ({ id: b.id, name: b.name }))}
-        activeServices={activeServices}
-        providerStaff={providerStaff}
-        providerAssignments={providerAssignments}
-        providerAssignmentsError={providerAssignmentsError}
-        onboardingRequests={onboardingRequests}
-        branchCorrectionRequests={branchCorrectionRequests}
-        reviewerSystemRole={ctx.me.system_role}
-        reviewerBranchId={branchId}
-        canReviewOnboarding={ctx.canReviewOnboarding}
-      />
-    </CrmOperationalPageShell>
+    <RetainedWorkspaceModule moduleId="crm-staff">
+      <CrmOperationalPageShell
+        title="Staff"
+        description="Manage applications, review team roster, check service assignments, and monitor staff status."
+        context={`${data.branchName} · ${data.reviewerSystemRole}`}
+      >
+        <CrmStaffWorkspace
+          initialTab={initialTab}
+          initialData={data}
+        />
+      </CrmOperationalPageShell>
+    </RetainedWorkspaceModule>
   );
-}
-
-// ── Onboarding requests ───────────────────────────────────────────────────────
-
-async function fetchOnboardingRequests(
-  systemRole: string,
-  branchId: string | null
-) {
-  const admin = createAdminClient();
-  let query = admin
-    .from("staff_onboarding_requests")
-    .select("*")
-    .eq("status", "submitted");
-
-  if (systemRole !== "owner" && branchId) {
-    query = query.eq("requested_branch_id", branchId);
-  }
-
-  const { data, error } = await query.order("created_at", { ascending: false });
-  if (error) {
-    console.error("[crm/staff] onboarding fetch failed", error.message);
-    return [];
-  }
-  return data ?? [];
 }
