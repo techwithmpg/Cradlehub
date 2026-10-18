@@ -34,6 +34,17 @@ export function normalizeCrmCashFlowEntryMode(
   return null;
 }
 
+function isValidBusinessDate(value: string): boolean {
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(value)) return false;
+  const [year, month, day] = value.split("-").map(Number);
+  const parsed = new Date(Date.UTC(year, month - 1, day));
+  return (
+    parsed.getUTCFullYear() === year &&
+    parsed.getUTCMonth() === month - 1 &&
+    parsed.getUTCDate() === day
+  );
+}
+
 function normalizeText(
   value: string | string[] | null | undefined,
   maxLength = 120
@@ -56,7 +67,7 @@ export function normalizeCrmCashFlowRequest(
 ): CrmCashFlowRequest {
   const requestedDate =
     typeof input.date === "string" &&
-    /^\d{4}-\d{2}-\d{2}$/.test(input.date)
+    isValidBusinessDate(input.date)
       ? input.date
       : fallbackBusinessDate;
 
