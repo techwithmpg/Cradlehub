@@ -25,6 +25,7 @@ type Props = {
   reviewerSystemRole: string;
   onStaffServicesSaved: (staffId: string, serviceIds: string[]) => void;
   onStaffChanged: (patch: Partial<StaffMember> & { id: string }) => void;
+  onStaffMutationCommitted: () => void;
 };
 
 export function CrmStaffManagementTab({
@@ -37,6 +38,7 @@ export function CrmStaffManagementTab({
   reviewerSystemRole,
   onStaffServicesSaved,
   onStaffChanged,
+  onStaffMutationCommitted,
 }: Props) {
   const [editingStaff, setEditingStaff] = useState<StaffMember | null>(null);
   const [servicesStaff, setServicesStaff] = useState<StaffMember | null>(null);
@@ -84,6 +86,7 @@ export function CrmStaffManagementTab({
         });
         if (result.success) {
           onStaffChanged(result.staff);
+          onStaffMutationCommitted();
           toast.success("Staff status updated.");
         } else {
           onStaffChanged({ id: staff.id, is_active: staff.is_active });
@@ -91,7 +94,7 @@ export function CrmStaffManagementTab({
         }
       });
     },
-    [onStaffChanged]
+    [onStaffChanged, onStaffMutationCommitted]
   );
 
   const handleToggleServiceId = useCallback((id: string) => {
@@ -123,9 +126,10 @@ export function CrmStaffManagementTab({
 
   const handleEditSuccess = useCallback((updatedStaff: Partial<StaffMember> & { id: string }) => {
     onStaffChanged(updatedStaff);
+    onStaffMutationCommitted();
     toast.success("Staff profile updated.");
     setEditingStaff(null);
-  }, [onStaffChanged]);
+  }, [onStaffChanged, onStaffMutationCommitted]);
 
   return (
     <>
