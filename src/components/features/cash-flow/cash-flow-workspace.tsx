@@ -73,7 +73,12 @@ export function CashFlowWorkspace({
 
   const handleRefresh = async () => {
     if (onRefresh) {
-      await onRefresh();
+      try {
+        await onRefresh();
+      } catch {
+        // The retained CRM wrapper preserves the last validated financial
+        // snapshot and exposes retry feedback.
+      }
       return;
     }
 
