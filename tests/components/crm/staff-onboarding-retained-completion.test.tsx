@@ -60,6 +60,8 @@ describe("PERF-7 retained CRM onboarding completion", () => {
       />
     );
 
+    fireEvent.click(screen.getByRole("button", { name: /Therapist One/i }));
+
     fireEvent.click(
       screen.getByRole("button", { name: "Approve & Activate" })
     );
@@ -88,6 +90,8 @@ describe("PERF-7 retained CRM onboarding completion", () => {
         onRequestResolved={onRequestResolved}
       />
     );
+
+    fireEvent.click(screen.getByRole("button", { name: /Therapist One/i }));
 
     fireEvent.click(
       screen.getByRole("button", { name: "Reject Application" })

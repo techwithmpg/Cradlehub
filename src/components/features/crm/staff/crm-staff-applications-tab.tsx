@@ -61,6 +61,7 @@ export function CrmStaffApplicationsTab({
         branches={branches}
         reviewerSystemRole={reviewerSystemRole}
         reviewerBranchId={reviewerBranchId}
+        onRequestResolved={onRequestResolved}
       />
     </div>
   );

@@ -36,6 +36,8 @@ export function useLiveCrmStaffData(
     isRefreshing,
   } = live.generation;
 
+  const { revalidate } = live;
+
   useEffect(() => {
     if (
       !isRetained ||
@@ -50,7 +52,7 @@ export function useLiveCrmStaffData(
     }
 
     staleRefreshActivation.current = becameActiveAt;
-    void live.revalidate().catch(() => {
+    void revalidate().catch(() => {
       // Preserve the last validated Staff payload; the workspace exposes retry UI.
     });
   }, [
@@ -60,7 +62,7 @@ export function useLiveCrmStaffData(
     isRefreshing,
     isRetained,
     isStale,
-    live.revalidate,
+    revalidate,
   ]);
 
   return live;
