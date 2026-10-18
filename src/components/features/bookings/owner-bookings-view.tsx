@@ -201,7 +201,7 @@ export function OwnerBookingsView({
         </div>
       ) : null}
       <BookingsWorkspace
-        key={JSON.stringify([requestKey, search ?? "", tab ?? "", selectedBookingId ?? ""])}
+        key={JSON.stringify([requestKey, tab ?? "", selectedBookingId ?? ""])}
         workspaceContext="owner"
         viewerRole="owner"
         branches={branches}
