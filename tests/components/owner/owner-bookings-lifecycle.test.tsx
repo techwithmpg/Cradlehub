@@ -205,6 +205,28 @@ describe("PERF-9B Owner Bookings lifecycle", () => {
     await waitFor(() => expect(screen.getByTestId("rows").textContent).toBe("fresh"));
   });
 
+  it("does not fetch hidden retained Owner Bookings on focus or reconnect", () => {
+    const store = createWorkspaceGenerationStore();
+    renderView({ store });
+    act(() => {
+      store.invalidate("owner-bookings");
+      window.dispatchEvent(new Event("focus"));
+      window.dispatchEvent(new Event("online"));
+    });
+    expect(mock.get).not.toHaveBeenCalled();
+  });
+
+  it("keeps the ordinary same-filter list visible on transport failure", async () => {
+    const d = pending<{ bookings: WorkspaceBookingRow[] }>();
+    mock.get.mockReturnValue(d.promise);
+    renderView();
+    fireEvent.click(screen.getByRole("button", { name: "Refresh" }));
+    await waitFor(() => expect(mock.get).toHaveBeenCalledTimes(1));
+    await act(async () => d.reject(new Error("network")));
+    await waitFor(() => expect(screen.getByRole("alert").textContent).toContain("last validated list"));
+    expect(screen.getByTestId("rows").textContent).toBe("main-1");
+  });
+
   it("keeps validated same-query bookings when a retained request fails", async () => {
     const store = createWorkspaceGenerationStore();
     store.setActive("owner-bookings");
