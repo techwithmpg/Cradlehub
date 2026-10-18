@@ -100,7 +100,6 @@ export async function updateWaitlistStatusAction(rawInput: unknown) {
   }
 
   revalidatePath("/crm/waitlist");
-  revalidatePath("/crm/customers");
   revalidatePath("/crm/bookings");
   return { ok: true as const };
 }
