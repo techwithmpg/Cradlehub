@@ -529,4 +529,5 @@ Following independent review of draft PR #36, three correction targets were auth
 - **Accepted Base / main:** `ac20bb18dbab00994046507a6997f026a6ab2562`
 - **Starting Correction HEAD:** `e49779c5cc4844107aaf2b42858bbc13fcf328a8`
 - **Quality-Gated Implementation SHA:** `235bf6e93e1eaf599b49ce336094ded64f731f05`
-- **Documentation Delivery SHA:** (Recorded upon commit of this evidence report)
+- **Prior Documentation Delivery SHA:** `807cceb988c91767d1de043d9ae862963cd2e6b6`
+- **Current documentation-only reconciliation:** this report is delivered by the subsequent documentation-only commit on PR #36; PR metadata is the authoritative pointer to that final delivery commit.
