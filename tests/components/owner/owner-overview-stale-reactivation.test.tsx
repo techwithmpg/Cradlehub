@@ -1,6 +1,6 @@
 /** @vitest-environment jsdom */
 
-import type { PropsWithChildren } from "react";
+import { useState, type PropsWithChildren } from "react";
 import { cleanup, render, waitFor } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { SWRConfig } from "swr";
@@ -83,7 +83,7 @@ function Providers({
   lifecycleValue: WorkspaceModuleLifecycleValue;
   store: ReturnType<typeof createWorkspaceGenerationStore>;
 }>) {
-  const cache = new Map();
+  const [cache] = useState(() => new Map());
   return (
     <SWRConfig value={{ provider: () => cache }}>
       <WorkspaceSWRScopeContext.Provider value="owner-1:owner:owner:all-branches">
