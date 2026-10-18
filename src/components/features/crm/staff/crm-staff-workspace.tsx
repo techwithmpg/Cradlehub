@@ -5,12 +5,6 @@ import { useSearchParams } from "next/navigation";
 import { AttendanceTabPanel } from "@/components/features/attendance/attendance-ui";
 import type { StaffMember } from "@/components/features/staff/staff-management-utils";
 import type {
-  ServiceLite,
-} from "@/app/(dashboard)/owner/branches/[branchId]/branch-services-panel";
-import type { StaffForServicePanel, ServiceAssignmentRow } from "@/lib/queries/crm-services";
-import type { Database } from "@/types/supabase";
-import type {
-  BranchAssignmentIssue,
   BranchAssignmentResolutionResult,
 } from "@/lib/staff/branch-correction-types";
 import { replaceStaffServiceAssignmentRows } from "@/lib/staff/service-assignment-state";
@@ -19,12 +13,14 @@ import { CrmStaffManagementTab } from "./crm-staff-management-tab";
 import { CrmStaffAssignmentsTab } from "./crm-staff-assignments-tab";
 import { CrmStaffStatusTab } from "./crm-staff-status-tab";
 import { CrmStaffBranchCorrectionsTab } from "./crm-staff-branch-corrections-tab";
+import {
+  normalizeCrmStaffTab,
+  type CrmStaffTab,
+  type CrmStaffWorkspaceData,
+} from "./crm-staff-workspace-data";
+import { useLiveCrmStaffData } from "./use-live-crm-staff-data";
 
-type OnboardingRequest = Database["public"]["Tables"]["staff_onboarding_requests"]["Row"];
-type Branch = { id: string; name: string };
-type StaffTab = "applications" | "branch-corrections" | "management" | "assignments" | "status";
-
-const STAFF_TAB_KEYS: StaffTab[] = [
+const STAFF_TAB_KEYS: CrmStaffTab[] = [
   "applications",
   "branch-corrections",
   "management",
@@ -32,7 +28,7 @@ const STAFF_TAB_KEYS: StaffTab[] = [
   "status",
 ];
 
-const TAB_URL_PARAM: Record<StaffTab, string> = {
+const TAB_URL_PARAM: Record<CrmStaffTab, string> = {
   applications: "applications",
   "branch-corrections": "branch-corrections",
   management: "management",
@@ -40,70 +36,112 @@ const TAB_URL_PARAM: Record<StaffTab, string> = {
   status: "status",
 };
 
-function isStaffTab(tab: string): tab is StaffTab {
-  return STAFF_TAB_KEYS.includes(tab as StaffTab);
+function isStaffTab(tab: string): tab is CrmStaffTab {
+  return STAFF_TAB_KEYS.includes(tab as CrmStaffTab);
 }
 
 type CrmStaffWorkspaceProps = {
-  initialTab: StaffTab;
-  branchId: string;
-  allStaff: StaffMember[];
-  pendingStaff: StaffMember[];
-  branches: Branch[];
-  activeServices: ServiceLite[];
-  providerStaff: StaffForServicePanel[];
-  providerAssignments: ServiceAssignmentRow[];
-  providerAssignmentsError: string | null;
-  onboardingRequests: OnboardingRequest[];
-  branchCorrectionRequests: BranchAssignmentIssue[];
-  reviewerSystemRole: string;
-  reviewerBranchId: string | null;
-  canReviewOnboarding: boolean;
+  initialTab: CrmStaffTab;
+  initialData: CrmStaffWorkspaceData;
 };
 
-export function CrmStaffWorkspace(props: CrmStaffWorkspaceProps) {
+export function CrmStaffWorkspace({
+  initialTab,
+  initialData,
+}: CrmStaffWorkspaceProps) {
   const searchParams = useSearchParams();
-  const rawTab = searchParams.get("tab");
-  const activeTab = rawTab && isStaffTab(rawTab) ? rawTab : props.initialTab;
+  const activeTab = normalizeCrmStaffTab(
+    searchParams.get("tab") ?? initialTab
+  );
+  const live = useLiveCrmStaffData(initialData);
+  const canonicalData = live.data ?? initialData;
+
+  const [lastCanonicalData, setLastCanonicalData] =
+    useState(canonicalData);
   const [assignmentOverrides, setAssignmentOverrides] = useState<
     Record<string, string[]>
   >({});
-  const [workspaceAllStaff, setWorkspaceAllStaff] = useState(props.allStaff);
-  const [workspacePendingStaff, setWorkspacePendingStaff] = useState(props.pendingStaff);
-  const [workspaceBranchCorrectionRequests, setWorkspaceBranchCorrectionRequests] = useState(
-    props.branchCorrectionRequests
+  const [workspaceAllStaff, setWorkspaceAllStaff] = useState(
+    canonicalData.allStaff
+  );
+  const [workspacePendingStaff, setWorkspacePendingStaff] = useState(
+    canonicalData.pendingStaff
+  );
+  const [
+    workspaceBranchCorrectionRequests,
+    setWorkspaceBranchCorrectionRequests,
+  ] = useState(canonicalData.branchCorrectionRequests);
+  const [workspaceOnboardingRequests, setWorkspaceOnboardingRequests] =
+    useState(canonicalData.onboardingRequests);
+
+  if (lastCanonicalData !== canonicalData) {
+    setLastCanonicalData(canonicalData);
+    setAssignmentOverrides({});
+    setWorkspaceAllStaff(canonicalData.allStaff);
+    setWorkspacePendingStaff(canonicalData.pendingStaff);
+    setWorkspaceBranchCorrectionRequests(
+      canonicalData.branchCorrectionRequests
+    );
+    setWorkspaceOnboardingRequests(canonicalData.onboardingRequests);
+  }
+
+  const handleStaffChanged = useCallback(
+    (patch: Partial<StaffMember> & { id: string }) => {
+      const applyPatch = (staff: StaffMember[]) =>
+        staff.map((member) =>
+          member.id === patch.id ? { ...member, ...patch } : member
+        );
+      setWorkspaceAllStaff(applyPatch);
+      setWorkspacePendingStaff(applyPatch);
+    },
+    []
   );
 
-  const handleStaffChanged = useCallback((patch: Partial<StaffMember> & { id: string }) => {
-    const applyPatch = (staff: StaffMember[]) => staff.map(
-      (member) => member.id === patch.id ? { ...member, ...patch } : member
-    );
-    setWorkspaceAllStaff(applyPatch);
-    setWorkspacePendingStaff(applyPatch);
-  }, []);
+  const handleBranchIssueResolved = useCallback(
+    (
+      result: Extract<
+        BranchAssignmentResolutionResult,
+        { ok: true }
+      >
+    ) => {
+      setWorkspaceBranchCorrectionRequests((current) =>
+        current.map((issue) =>
+          issue.id === result.issueId
+            ? {
+                ...issue,
+                status: result.issueStatus,
+                resolutionType: result.resolutionType,
+                nextAction: result.nextAction,
+                decidedAt: new Date().toISOString(),
+              }
+            : issue
+        )
+      );
+    },
+    []
+  );
 
-  const handleBranchIssueResolved = useCallback((result: Extract<BranchAssignmentResolutionResult, { ok: true }>) => {
-    setWorkspaceBranchCorrectionRequests((current) => current.map((issue) =>
-      issue.id === result.issueId
-        ? {
-            ...issue,
-            status: result.issueStatus,
-            resolutionType: result.resolutionType,
-            nextAction: result.nextAction,
-            decidedAt: new Date().toISOString(),
-          }
-        : issue
-    ));
-  }, []);
+  const handleOnboardingResolved = useCallback(
+    (requestId: string) => {
+      setWorkspaceOnboardingRequests((current) =>
+        current.filter((request) => request.id !== requestId)
+      );
+    },
+    []
+  );
 
   const providerAssignments = useMemo(
     () =>
       Object.entries(assignmentOverrides).reduce(
         (rows, [staffId, serviceIds]) =>
-          replaceStaffServiceAssignmentRows(rows, staffId, serviceIds),
-        props.providerAssignments
+          replaceStaffServiceAssignmentRows(
+            rows,
+            staffId,
+            serviceIds
+          ),
+        canonicalData.providerAssignments
       ),
-    [assignmentOverrides, props.providerAssignments]
+    [assignmentOverrides, canonicalData.providerAssignments]
   );
 
   const handleStaffServicesSaved = useCallback(
@@ -116,37 +154,52 @@ export function CrmStaffWorkspace(props: CrmStaffWorkspaceProps) {
     []
   );
 
-  const pendingBranchCorrectionCount = workspaceBranchCorrectionRequests.filter(
-    (request) => request.status === "open" || request.status === "requires_review"
-  ).length;
+  const pendingBranchCorrectionCount =
+    workspaceBranchCorrectionRequests.filter(
+      (request) =>
+        request.status === "open" ||
+        request.status === "requires_review"
+    ).length;
 
-  const tabs = useMemo<{ key: StaffTab; label: string; count?: number }[]>(
+  const tabs = useMemo<
+    { key: CrmStaffTab; label: string; count?: number }[]
+  >(
     () => [
       {
         key: "applications",
         label: "Applications",
-        count: props.canReviewOnboarding ? props.onboardingRequests.length : undefined,
+        count: canonicalData.canReviewOnboarding
+          ? workspaceOnboardingRequests.length
+          : undefined,
       },
       {
         key: "branch-corrections",
         label: "Branch Corrections",
         count: pendingBranchCorrectionCount,
       },
-      { key: "management", label: "Staff Management", count: workspaceAllStaff.length },
+      {
+        key: "management",
+        label: "Staff Management",
+        count: workspaceAllStaff.length,
+      },
       {
         key: "assignments",
         label: "Service Assignments",
         count: providerAssignments.length,
       },
-      { key: "status", label: "Status", count: workspacePendingStaff.length },
+      {
+        key: "status",
+        label: "Status",
+        count: workspacePendingStaff.length,
+      },
     ],
     [
-      workspaceAllStaff.length,
-      props.canReviewOnboarding,
+      canonicalData.canReviewOnboarding,
       pendingBranchCorrectionCount,
-      props.onboardingRequests.length,
-      workspacePendingStaff.length,
       providerAssignments.length,
+      workspaceAllStaff.length,
+      workspaceOnboardingRequests.length,
+      workspacePendingStaff.length,
     ]
   );
 
@@ -160,15 +213,21 @@ export function CrmStaffWorkspace(props: CrmStaffWorkspaceProps) {
     }
   }, []);
 
-  const activeTabIndex = tabs.findIndex((tab) => tab.key === activeTab);
+  const activeTabIndex = tabs.findIndex(
+    (tab) => tab.key === activeTab
+  );
 
   const handleTabKeyDown = useCallback(
     (event: React.KeyboardEvent<HTMLDivElement>) => {
       const lastIndex = tabs.length - 1;
       let nextIndex = activeTabIndex;
 
-      if (event.key === "ArrowRight") nextIndex = activeTabIndex === lastIndex ? 0 : activeTabIndex + 1;
-      else if (event.key === "ArrowLeft") nextIndex = activeTabIndex === 0 ? lastIndex : activeTabIndex - 1;
+      if (event.key === "ArrowRight")
+        nextIndex =
+          activeTabIndex === lastIndex ? 0 : activeTabIndex + 1;
+      else if (event.key === "ArrowLeft")
+        nextIndex =
+          activeTabIndex === 0 ? lastIndex : activeTabIndex - 1;
       else if (event.key === "Home") nextIndex = 0;
       else if (event.key === "End") nextIndex = lastIndex;
       else return;
@@ -182,6 +241,25 @@ export function CrmStaffWorkspace(props: CrmStaffWorkspaceProps) {
 
   return (
     <div className="space-y-6">
+      {live.error ? (
+        <div
+          role="alert"
+          className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-red-200 bg-red-50 p-3 text-sm text-red-800"
+        >
+          <span>
+            Staff data could not refresh. The last validated view is
+            preserved.
+          </span>
+          <button
+            type="button"
+            className="cs-btn cs-btn-secondary cs-btn-sm"
+            onClick={() => void live.revalidate()}
+          >
+            Retry
+          </button>
+        </div>
+      ) : null}
+
       <div
         role="tablist"
         aria-label="Staff sections"
@@ -229,11 +307,12 @@ export function CrmStaffWorkspace(props: CrmStaffWorkspaceProps) {
         active={activeTab === "applications"}
       >
         <CrmStaffApplicationsTab
-          requests={props.onboardingRequests}
-          branches={props.branches}
-          reviewerSystemRole={props.reviewerSystemRole}
-          reviewerBranchId={props.reviewerBranchId}
-          canReviewOnboarding={props.canReviewOnboarding}
+          requests={workspaceOnboardingRequests}
+          branches={canonicalData.branches}
+          reviewerSystemRole={canonicalData.reviewerSystemRole}
+          reviewerBranchId={canonicalData.reviewerBranchId}
+          canReviewOnboarding={canonicalData.canReviewOnboarding}
+          onRequestResolved={handleOnboardingResolved}
         />
       </AttendanceTabPanel>
 
@@ -256,11 +335,13 @@ export function CrmStaffWorkspace(props: CrmStaffWorkspaceProps) {
         <CrmStaffManagementTab
           allStaff={workspaceAllStaff}
           pendingStaff={workspacePendingStaff}
-          branches={props.branches}
-          activeServices={props.activeServices}
+          branches={canonicalData.branches}
+          activeServices={canonicalData.activeServices}
           providerAssignments={providerAssignments}
-          providerAssignmentsError={props.providerAssignmentsError}
-          reviewerSystemRole={props.reviewerSystemRole}
+          providerAssignmentsError={
+            canonicalData.providerAssignmentsError
+          }
+          reviewerSystemRole={canonicalData.reviewerSystemRole}
           onStaffServicesSaved={handleStaffServicesSaved}
           onStaffChanged={handleStaffChanged}
         />
@@ -272,11 +353,13 @@ export function CrmStaffWorkspace(props: CrmStaffWorkspaceProps) {
         active={activeTab === "assignments"}
       >
         <CrmStaffAssignmentsTab
-          branchId={props.branchId}
-          activeServices={props.activeServices}
-          providerStaff={props.providerStaff}
+          branchId={canonicalData.branchId}
+          activeServices={canonicalData.activeServices}
+          providerStaff={canonicalData.providerStaff}
           providerAssignments={providerAssignments}
-          providerAssignmentsError={props.providerAssignmentsError}
+          providerAssignmentsError={
+            canonicalData.providerAssignmentsError
+          }
           onStaffServicesSaved={handleStaffServicesSaved}
         />
       </AttendanceTabPanel>
