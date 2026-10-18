@@ -126,7 +126,7 @@ const MODULE_POLICIES: readonly ModulePolicy[] = [
     moduleId: "owner-overview",
     normalizedRoute: "/owner",
     exact: true,
-    stableSearchParams: ["branch", "date"],
+    stableSearchParams: [],
     staleTimeMs: 45_000,
     cost: "medium",
   },
