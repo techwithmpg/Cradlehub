@@ -107,12 +107,14 @@ describe("PERF-9B Owner Bookings lifecycle", () => {
     await waitFor(() => expect(screen.getByTestId("rows").textContent).toBe("updated"));
   });
 
-  it("never displays an unavailable branch as a legitimate empty list", () => {
+  it("never displays a server-denied branch as a legitimate empty list", async () => {
+    mock.get.mockResolvedValue({ error: "The selected branch is not available from this workspace." });
     search = "branch=not-visible";
     renderView();
     expect(screen.queryByTestId("rows")).toBeNull();
-    expect(screen.getByRole("alert").textContent).toContain("unavailable");
-    expect(mock.get).not.toHaveBeenCalled();
+    await waitFor(() => expect(screen.getByRole("alert").textContent).toContain("unavailable"));
+    expect(screen.queryByTestId("rows")).toBeNull();
+    expect(mock.get).toHaveBeenCalledWith(expect.objectContaining({ branchId: "not-visible" }));
   });
 
   it("rejects duplicate branch params without reading the first visible branch", () => {
