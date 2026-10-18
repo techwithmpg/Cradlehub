@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { useSearchParams } from "next/navigation";
 import { AttendanceTabPanel } from "@/components/features/attendance/attendance-ui";
 import type { StaffMember } from "@/components/features/staff/staff-management-utils";
@@ -74,7 +74,9 @@ export function CrmStaffWorkspace({
   const [workspaceOnboardingRequests, setWorkspaceOnboardingRequests] =
     useState(canonicalData.onboardingRequests);
 
-  if (lastCanonicalData !== canonicalData) {
+  useEffect(() => {
+    if (lastCanonicalData === canonicalData) return;
+
     setLastCanonicalData(canonicalData);
     setAssignmentOverrides({});
     setWorkspaceAllStaff(canonicalData.allStaff);
@@ -83,7 +85,11 @@ export function CrmStaffWorkspace({
       canonicalData.branchCorrectionRequests
     );
     setWorkspaceOnboardingRequests(canonicalData.onboardingRequests);
-  }
+  }, [canonicalData, lastCanonicalData]);
+
+  const invalidateCanonicalStaff = useCallback(() => {
+    live.generation.store?.invalidate("crm-staff");
+  }, [live.generation.store]);
 
   const handleStaffChanged = useCallback(
     (patch: Partial<StaffMember> & { id: string }) => {
@@ -117,8 +123,9 @@ export function CrmStaffWorkspace({
             : issue
         )
       );
+      invalidateCanonicalStaff();
     },
-    []
+    [invalidateCanonicalStaff]
   );
 
   const handleOnboardingResolved = useCallback(
@@ -126,8 +133,9 @@ export function CrmStaffWorkspace({
       setWorkspaceOnboardingRequests((current) =>
         current.filter((request) => request.id !== requestId)
       );
+      invalidateCanonicalStaff();
     },
-    []
+    [invalidateCanonicalStaff]
   );
 
   const providerAssignments = useMemo(
@@ -150,8 +158,9 @@ export function CrmStaffWorkspace({
         ...current,
         [staffId]: serviceIds,
       }));
+      invalidateCanonicalStaff();
     },
-    []
+    [invalidateCanonicalStaff]
   );
 
   const pendingBranchCorrectionCount =
@@ -344,6 +353,7 @@ export function CrmStaffWorkspace({
           reviewerSystemRole={canonicalData.reviewerSystemRole}
           onStaffServicesSaved={handleStaffServicesSaved}
           onStaffChanged={handleStaffChanged}
+          onStaffMutationCommitted={invalidateCanonicalStaff}
         />
       </AttendanceTabPanel>
 
