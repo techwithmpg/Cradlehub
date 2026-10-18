@@ -131,6 +131,16 @@ The post-run commits have **not** been quality-gated in the user's Windows repos
 - Treat a successful preview deployment as build/deployment-provider status, **not** evidence of authenticated performance, production operation or complete quality gates.
 - Complete independent review and obtain separate, explicit owner approval before merge.
 
+## Subsequent remote-only Owner URL/input correction
+
+**Repository inspection finding:** `src/components/features/bookings/bookings-workspace.tsx` renders Owner's search input with an uncontrolled `defaultValue`. Previous PERF-9B performance correction removed the search term from the entire Bookings workspace mount key. Without an Owner-specific input reconciliation, URL history navigation could display the old uncontrolled text while client-side filtering uses the new URL search parameter.
+
+**Bounded source correction:** For `workspaceContext="owner"` only, the search `<input>` has a React key derived from the current search query. The input alone is reconstructed when the URL search term changes; the rest of the Bookings workspace, selected panel/modal state and CRM rendering behavior are untouched. No caching, mutation, query, shared business calculation, RPC or auth changes.
+
+**New regression (not yet executed):** `tests/components/owner/owner-bookings-search-input.test.tsx` renders the actual shared Owner BookingsWorkspace, simulates unsubmitted draft search text, rerenders with new URL-derived search, and checks that the input updates without remounting the heading/workspace.
+
+**Evidence status:** Source and test are committed remotely, but neither the new test nor the corrected focused/full suites has run in the user's environment. The owner explicitly deferred local synchronization to the later **pre-merge checkpoint**. This is not a quality-gate PASS and does not authorize merge.
+
 ## CP-PWA-01 checkpoint
 
 The previously agreed **CP-PWA-01 Member PWA optimization** begins only after current Web administrative PERF-9B, PERF-9C, PERF-9D, PERF-10 and FINAL certification. Do not begin it during PERF-9B.
