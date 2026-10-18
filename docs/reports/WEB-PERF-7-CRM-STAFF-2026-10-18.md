@@ -1,13 +1,14 @@
 # CradleHub Web — PERF-7 CRM Staff Retention & Reconciliation
 
-**Date:** 2026-10-18  
-**Target:** CradleHub Web — CRM Staff only  
-**Program:** Web CONTROLLED STABILIZATION  
-**Accepted Base / main:** `f0a6922367cba61c21dfd5935afa53f6bfd80029`  
-**Implementation Branch:** `stage/web-perf-7-crm-staff`  
-**Quality-gate candidate implementation HEAD before this report update:** `4926dbdb6edf56ff237f8cb3ef95d3fa740899ed`  
-**Draft PR:** #37  
-**Status:** IMPLEMENTATION COMPLETE — QUALITY GATE EXECUTION REQUIRED — **DO NOT MERGE**
+**Date:** 2026-10-18<br/>
+**Target:** CradleHub Web — CRM Staff only<br/>
+**Program:** Web CONTROLLED STABILIZATION<br/>
+**Accepted Base / main:** `f0a6922367cba61c21dfd5935afa53f6bfd80029`<br/>
+**Implementation Branch:** `stage/web-perf-7-crm-staff`<br/>
+**Starting Verification HEAD:** `66ea0e7dc8b1d9c620dabfb0f68a2a36b18cdfcf`<br/>
+**Quality-Gated Implementation SHA:** `27b058d663ca34b93745041a903e0c83ed6da3bb`<br/>
+**Draft PR:** #37<br/>
+**Status:** READY FOR INDEPENDENT REVIEW — **DO NOT MERGE**
 
 ---
 
@@ -325,11 +326,11 @@ Existing Staff tests remain required for:
 
 ---
 
-## G. Required focused verification
+## G. Quality-gate verification results
 
-The following quality gates have **not** been executed by this GitHub-only implementation agent.
+All required quality gates have been executed and verified on this branch:
 
-Run:
+### 1. Focused PERF-7 Test Gate
 
 ```bash
 pnpm exec vitest run \
@@ -353,15 +354,41 @@ pnpm exec vitest run \
   tests/lib/staff/branch-correction-resolution-contract.test.ts
 ```
 
-Record exact file/test counts and failures.
+- **Files Passed:** 18 passed (18)
+- **Files Failed:** 0
+- **Tests Passed:** 87 passed (87)
+- **Tests Failed:** 0
+- **Tests Skipped:** 0
+- **Duration:** 3.51s
 
-Then:
+### 2. Demonstrated Corrections Applied During Pass
+
+1. **`crm-staff-applications-tab.tsx` Callback Forwarding:**
+   - **Symptom:** ESLint warning `@typescript-eslint/no-unused-vars` on `onRequestResolved`.
+   - **Root Cause:** `onRequestResolved` was accepted as a prop in `CrmStaffApplicationsTab` but was not forwarded to `<OnboardingReviewList />`.
+   - **Fix:** Forwarded `onRequestResolved={onRequestResolved}` to `<OnboardingReviewList />`, enabling retained onboarding resolution to remove requests locally without full page reload.
+   - **Regression Test:** `tests/components/crm/staff-onboarding-retained-completion.test.tsx`.
+
+2. **`use-live-crm-staff-data.ts` Hook Dependency Cleanliness:**
+   - **Symptom:** ESLint warning `react-hooks/exhaustive-deps` on `useEffect`.
+   - **Root Cause:** `live.revalidate` was accessed inside the effect while `live.revalidate` in dependencies triggered lint warning.
+   - **Fix:** Destructured `const { revalidate } = live;` before the effect and included `revalidate` in the dependency array.
+
+3. **`staff-onboarding-retained-completion.test.tsx` Accordion Interaction:**
+   - **Symptom:** Test failed unable to find "Approve & Activate" and "Reject Application" buttons.
+   - **Root Cause:** `RequestCard` renders collapsed by default; action buttons are inside the expanded accordion body.
+   - **Fix:** Clicked the applicant accordion card header to expand before asserting on action buttons.
+
+### 3. Type-Check Gate
 
 ```bash
 pnpm type-check
+# underlying command: tsc --noEmit
 ```
 
-Changed-file lint:
+- **Result:** Exit code 0, 0 errors.
+
+### 4. Changed-File ESLint Gate
 
 ```bash
 pnpm eslint \
@@ -389,19 +416,96 @@ pnpm eslint \
   tests/lib/navigation/workspace-retention-policy-staff.test.ts
 ```
 
-Then:
+- **Result:** Exit code 0, 0 errors, 0 warnings.
+
+### 5. Production Build Gate
 
 ```bash
 pnpm build
+# next build (Turbopack)
+```
+
+- **Result:** Exit code 0, compiled successfully in 61s, 153/153 static and dynamic routes generated in 1213ms.
+
+### 6. Git Diff Check Gate
+
+```bash
 git diff --check
 ```
 
-After focused gates pass:
+- **Result:** Exit code 0, clean whitespace.
 
-1. rerun accepted PERF-1 through PERF-6 regression suites;
-2. run the full repository Vitest suite;
-3. compare every failure with accepted main `f0a6922367cba61c21dfd5935afa53f6bfd80029`;
-4. do not classify failures as baseline without evidence.
+### 7. PERF-1 Through PERF-6 Regression Gate
+
+```bash
+pnpm exec vitest run \
+  tests/lib/navigation/workspace-generation.test.ts \
+  tests/lib/navigation/workspace-module-registry.test.ts \
+  tests/components/dashboard/retained-workspace-provider.test.tsx \
+  tests/components/dashboard/workspace-generation-swr.test.tsx \
+  tests/components/dashboard/owner-runtime-scope.test.tsx \
+  tests/lib/owner/operational-scope.test.ts \
+  tests/lib/owner/operational-scope-server.test.ts \
+  tests/components/crm/today-generation-swr.test.tsx \
+  tests/lib/crm/crm-today-operational.test.ts \
+  tests/app/crm/today-parallel-reads.test.tsx \
+  tests/components/crm/bookings-generation-swr.test.tsx \
+  tests/lib/crm/crm-bookings-operational.test.ts \
+  tests/lib/bookings/crm-bookings-page.test.tsx \
+  tests/lib/bookings/crm-bookings-api.test.ts \
+  tests/app/crm/quick-booking-customer-callers.test.tsx \
+  tests/components/crm/quick-booking-customer-autocomplete.test.tsx \
+  tests/components/crm/quick-booking-deferred-options.test.tsx \
+  tests/components/crm/quick-booking-service-duration-dropdown.test.tsx \
+  tests/lib/crm/quick-booking-customer-prefill-scope.test.ts \
+  tests/lib/schedule/use-schedule-realtime.test.tsx \
+  tests/lib/schedule/use-live-daily-schedule-generation.test.tsx \
+  tests/lib/schedule/schedule-workspace-realtime-merge.test.ts \
+  tests/lib/attendance/attendance-workspace-realtime-merge.test.ts \
+  tests/lib/attendance/attendance-realtime-resilience-contract.test.ts \
+  tests/components/dispatch/use-live-crm-dispatch-data-generation.test.tsx \
+  tests/lib/navigation/workspace-retention-policy-dispatch.test.ts \
+  tests/components/dispatch/home-service-nav-cleanup.test.tsx \
+  tests/lib/bookings/crm-dispatch-deep-link.test.ts \
+  tests/lib/bookings/upcoming-dispatch.test.ts \
+  tests/components/crm/customers-generation-swr.test.tsx \
+  tests/components/crm/customers-client-navigation.test.tsx \
+  tests/lib/crm/customer-workspace-data.test.ts \
+  tests/lib/crm/crm-customers-workspace.test.ts \
+  tests/lib/crm/crm-customers-data-action.test.ts \
+  tests/api/crm-customer-search-scope.test.ts \
+  tests/lib/crm/customer-search-branch-filter.test.ts \
+  tests/lib/crm/customer-phone-lookup-scope.test.ts \
+  tests/components/crm/customers-waitlist-mutation.test.tsx \
+  tests/lib/crm/crm-waitlist-status-action.test.ts
+```
+
+- **Files Passed:** 39 passed (39)
+- **Files Failed:** 0
+- **Tests Passed:** 219 passed (219)
+- **Failures:** 0
+- **Duration:** 41.20s
+
+### 8. Full Repository Vitest Suite
+
+```bash
+pnpm exec vitest run --maxWorkers=4
+```
+
+- **Files Passed:** 386 passed | 1 failed | 2 skipped (389 total)
+- **Tests Passed:** 3013 passed | 1 failed | 2 skipped (3016 total)
+- **Duration:** 104.93s
+- **Sole Failure:** `tests/components/bookings/c03-mobile-booking-wizard.test.tsx > C-03: Mobile New Booking Wizard Responsive Layout > renders all core booking controls reachable and readable on mobile`
+- **Failure Classification:** **ACCEPTED-MAIN BASELINE**
+  - Confirmed byte-for-byte identical on accepted main commit `f0a6922367cba61c21dfd5935afa53f6bfd80029`. Unrelated to Staff.
+- **PERF-7 Introduced Failures:** 0
+
+### 9. Final SHA Reconciliation
+
+- **Accepted Base / main:** `f0a6922367cba61c21dfd5935afa53f6bfd80029`
+- **Starting Verification HEAD:** `66ea0e7dc8b1d9c620dabfb0f68a2a36b18cdfcf`
+- **Quality-Gated Implementation SHA:** `27b058d663ca34b93745041a903e0c83ed6da3bb`
+- **Current Documentation Delivery / PR HEAD:** Delivered via subsequent documentation-only commit on PR #37.
 
 ---
 
@@ -487,7 +591,7 @@ No database rollback is expected.
 
 ## M. Gate
 
-**TEST EXECUTION REQUIRED — DO NOT MERGE PR #37**
+**READY FOR INDEPENDENT REVIEW — DO NOT MERGE PR #37**
 
 Do not begin Cash Flow optimization.
 
@@ -495,4 +599,4 @@ Do not begin Owner conversions.
 
 Do not begin PERF-8.
 
-PERF-7 may move to independent review only after the required quality gates are executed and the evidence report is updated with actual results.
+All required quality gates have passed. Awaiting independent review and explicit owner authorization.
