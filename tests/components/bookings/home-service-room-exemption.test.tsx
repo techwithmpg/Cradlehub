@@ -79,6 +79,20 @@ describe("Home Service requires no spa room", () => {
     }
   );
 
+  it("honors legacy Home Service metadata in the action plan", () => {
+    const plan = getSelectedBookingActionPlan({
+      status: "confirmed",
+      bookingProgressStatus: "checked_in",
+      type: "online",
+      deliveryType: "in_spa",
+      metadataDeliveryType: "home_service",
+      resourceId: null,
+      hasStaff: true,
+    });
+    expect(plan.primary?.id).toBe("track_dispatch");
+    expect([plan.primary, ...plan.secondary].map((action) => action?.id)).not.toContain("assign_room");
+  });
+
   it("preserves the in-spa checked-in Assign Room action", () => {
     const plan = getSelectedBookingActionPlan({
       status: "confirmed",
