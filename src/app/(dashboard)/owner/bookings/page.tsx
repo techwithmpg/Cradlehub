@@ -6,7 +6,6 @@ import { OwnerBookingsView } from "@/components/features/bookings/owner-bookings
 import { getOwnerWorkspaceBookingsAction } from "./actions";
 import { RetainedWorkspaceModule } from "@/components/features/dashboard/retained-workspace-provider";
 import { ownerBookingsInitialRead } from "@/lib/owner/owner-bookings-query";
-import type { WorkspaceBookingRow } from "@/components/features/bookings/booking-workspace-types";
 
 async function requireOwnerContext() {
   const supabase = await createClient();
@@ -24,15 +23,21 @@ async function requireOwnerContext() {
   if (me?.system_role !== "owner") redirect("/login");
 }
 
+function normalizeSingleParam(value: string | string[] | undefined): string | undefined {
+  if (typeof value === "string") return value;
+  if (Array.isArray(value) && typeof value[0] === "string") return value[0];
+  return undefined;
+}
+
 export default async function OwnerBookingsPage({
   searchParams,
 }: {
   searchParams: Promise<{
-    date?: string;
+    date?: string | string[];
     branch?: string | string[];
-    status?: string;
-    type?: string;
-    search?: string;
+    status?: string | string[];
+    type?: string | string[];
+    search?: string | string[];
   }>;
 }) {
   await requireOwnerContext();
@@ -41,9 +46,13 @@ export default async function OwnerBookingsPage({
   // Preserve the existing default date until a separately measured
   // business-date change is approved.
   const today = new Date().toISOString().split("T")[0]!;
-  const date = params.date ?? today;
+  const rawDate = normalizeSingleParam(params.date);
+  const date = rawDate ?? today;
   const duplicateBranch = Array.isArray(params.branch);
-  const branch = duplicateBranch ? undefined : params.branch;
+  const branch = typeof params.branch === "string" ? params.branch : undefined;
+  const status = normalizeSingleParam(params.status);
+  const type = normalizeSingleParam(params.type);
+  const search = normalizeSingleParam(params.search);
 
   const [branches, result] = await Promise.all([
     getAllBranches(),
@@ -51,21 +60,21 @@ export default async function OwnerBookingsPage({
       ? Promise.resolve({ error: "The selected branch is not available from this workspace." })
       : getOwnerWorkspaceBookingsAction({
           date,
-          branchId: branch || undefined,
-          status: params.status || undefined,
-          type: params.type || undefined,
+          branchId: branch,
+          status,
+          type,
         }).catch(() => ({ error: "Bookings could not be loaded. Please retry." })),
   ]);
 
   return (
     <RetainedWorkspaceModule moduleId="owner-bookings">
       <OwnerBookingsView
-        initialRead={ownerBookingsInitialRead("error" in result ? result : { bookings: result.bookings as WorkspaceBookingRow[] })}
+        initialRead={ownerBookingsInitialRead(result)}
         initialDate={date}
         initialBranch={branch}
-        initialStatus={params.status}
-        initialType={params.type}
-        initialSearch={params.search}
+        initialStatus={status}
+        initialType={type}
+        initialSearch={search}
         branches={branches}
       />
     </RetainedWorkspaceModule>

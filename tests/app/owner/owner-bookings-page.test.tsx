@@ -101,4 +101,20 @@ describe("PERF-9B Owner Bookings server page contract", () => {
     expect(mocks.getBranches).not.toHaveBeenCalled();
     expect(mocks.getBookings).not.toHaveBeenCalled();
   });
+  it("normalizes array URL parameters without broadening queries", async () => {
+    await OwnerBookingsPage({
+      searchParams: Promise.resolve({
+        date: ["2026-10-20", "2026-10-21"],
+        status: ["confirmed", "completed"],
+        type: ["online", "inhouse"],
+        search: ["Client A", "Client B"],
+      }),
+    });
+    expect(mocks.getBookings).toHaveBeenCalledWith({
+      date: "2026-10-20",
+      branchId: undefined,
+      status: "confirmed",
+      type: "online",
+    });
+  });
 });

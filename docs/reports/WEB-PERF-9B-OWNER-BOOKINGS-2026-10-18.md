@@ -1,11 +1,11 @@
 # CradleHub Web — PERF-9B Owner Bookings Implementation & Local Verification Handoff
 
-**Date:** 2026-10-18  
-**Program:** Web CONTROLLED STABILIZATION  
-**Stage:** PERF-9B Owner Bookings  
-**Accepted main / verified base:** `cd108714c9f1da2d493825b9b35a680888a34ef1`  
-**Implementation branch:** `stage/web-perf-9b-owner-bookings`  
-**Executable candidate before this report:** `481bc91a0eab0780a3eeef00762776eba4f8fa2c`  
+**Date:** 2026-10-18
+**Program:** Web CONTROLLED STABILIZATION
+**Stage:** PERF-9B Owner Bookings
+**Accepted main / verified base:** `cd108714c9f1da2d493825b9b35a680888a34ef1`
+**Implementation branch:** `stage/web-perf-9b-owner-bookings`
+**Executable candidate before this report:** `481bc91a0eab0780a3eeef00762776eba4f8fa2c`
 **Gate:** IMPLEMENTED FOR LOCAL VERIFICATION — **NOT QUALITY-GATED; DO NOT MERGE**
 
 ## Authorization and frozen scope
@@ -188,5 +188,5 @@ The previously agreed **CP-PWA-01 Member PWA optimization** begins only after cu
 
 ## Gate
 
-**LOCAL EXECUTION / CORRECTION REQUIRED — DO NOT MERGE.**  
+**LOCAL EXECUTION / CORRECTION REQUIRED — DO NOT MERGE.**
 Return the exact local quality-gated implementation SHA and test/browser evidence for independent review. Do not begin PERF-9C or change Owner-retention rollout before owner approval.

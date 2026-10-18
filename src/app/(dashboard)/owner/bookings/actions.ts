@@ -26,6 +26,8 @@ import { projectOwnerSheetEvidence } from "@/lib/owner/sheet-report-projection";
 import { loadMasterSheetReview } from "@/lib/integrations/google-sheets/sheet-review-service";
 import { resolveConfiguredWorkbookSources } from "@/lib/integrations/google-sheets/workbook-source-map";
 import { ownerScopeSearch, resolveOwnerOperationalScope } from "@/lib/owner/operational-scope";
+import { toWorkspaceBookingRow } from "@/lib/owner/owner-bookings-query";
+import type { WorkspaceBookingRow } from "@/components/features/bookings/booking-workspace-types";
 
 // ── Auth: owner only ──────────────────────────────────────────────────────
 async function requireOwner() {
@@ -283,7 +285,7 @@ export async function getOwnerWorkspaceBookingsAction(filters?: {
   branchId?: string;
   status?: string;
   type?: string;
-}) {
+}): Promise<{ error: string } | { bookings: WorkspaceBookingRow[] }> {
   const ctx = await requireOwner();
   if (!ctx) return { error: "Unauthorized" as const };
   const { getAllBranches } = await import("@/lib/queries/branches");
@@ -296,7 +298,7 @@ export async function getOwnerWorkspaceBookingsAction(filters?: {
     status: filters?.status,
     type: filters?.type,
   });
-  return { bookings };
+  return { bookings: bookings.map(toWorkspaceBookingRow) };
 }
 
 // ── Update payment on any booking (cross-branch, owner only) ─────────────

@@ -1,10 +1,10 @@
 # CradleHub Web — PERF-9B Owner Bookings Inspection and Scope Freeze
 
-**Date:** 2026-10-18  
-**Track:** Web CONTROLLED STABILIZATION  
-**Target:** Owner `/owner/bookings` only  
-**Accepted base / main:** `cd108714c9f1da2d493825b9b35a680888a34ef1` (merged PERF-9A)  
-**Planning branch:** `stage/web-perf-9b-owner-bookings-scope-freeze`  
+**Date:** 2026-10-18
+**Track:** Web CONTROLLED STABILIZATION
+**Target:** Owner `/owner/bookings` only
+**Accepted base / main:** `cd108714c9f1da2d493825b9b35a680888a34ef1` (merged PERF-9A)
+**Planning branch:** `stage/web-perf-9b-owner-bookings-scope-freeze`
 **Status:** REPOSITORY INSPECTION AND PROPOSED SCOPE FREEZE — **NO PERF-9B IMPLEMENTATION AUTHORIZATION YET**
 
 ## A. Stage authorization and exclusions

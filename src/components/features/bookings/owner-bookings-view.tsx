@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useRef } from "react";
+import Link from "next/link";
 import { useSearchParams } from "next/navigation";
 import useSWR from "swr";
 import {
@@ -84,7 +85,7 @@ export function OwnerBookingsView({
       status: query.status,
       type: query.type,
     });
-    return ownerBookingsInitialRead("error" in result ? result : { bookings: result.bookings as WorkspaceBookingRow[] });
+    return ownerBookingsInitialRead(result);
   }, [invalidBranch, query]);
 
   // PERF-9B: the accepted generation adapter is active only under the
@@ -181,7 +182,7 @@ export function OwnerBookingsView({
         <p className="font-semibold">Bookings are unavailable for the selected scope.</p>
         <p className="mt-1">{read.message}</p>
         <div className="mt-3 flex gap-3">
-          <a className="font-semibold underline" href="/owner/bookings">All branches</a>
+          <Link className="font-semibold underline" href="/owner/bookings">All branches</Link>
           {!invalidBranch ? (
             <button type="button" onClick={refreshNow} className="font-semibold underline">Retry</button>
           ) : null}
