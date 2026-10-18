@@ -1,10 +1,11 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useMemo, useState } from "react";
 import { useSearchParams } from "next/navigation";
 import { AttendanceTabPanel } from "@/components/features/attendance/attendance-ui";
 import type { StaffMember } from "@/components/features/staff/staff-management-utils";
 import type {
+  BranchAssignmentIssue,
   BranchAssignmentResolutionResult,
 } from "@/lib/staff/branch-correction-types";
 import { replaceStaffServiceAssignmentRows } from "@/lib/staff/service-assignment-state";
@@ -56,36 +57,89 @@ export function CrmStaffWorkspace({
   const live = useLiveCrmStaffData(initialData);
   const canonicalData = live.data ?? initialData;
 
-  const [lastCanonicalData, setLastCanonicalData] =
-    useState(canonicalData);
-  const [assignmentOverrides, setAssignmentOverrides] = useState<
-    Record<string, string[]>
-  >({});
-  const [workspaceAllStaff, setWorkspaceAllStaff] = useState(
-    canonicalData.allStaff
-  );
-  const [workspacePendingStaff, setWorkspacePendingStaff] = useState(
-    canonicalData.pendingStaff
-  );
-  const [
-    workspaceBranchCorrectionRequests,
-    setWorkspaceBranchCorrectionRequests,
-  ] = useState(canonicalData.branchCorrectionRequests);
-  const [workspaceOnboardingRequests, setWorkspaceOnboardingRequests] =
-    useState(canonicalData.onboardingRequests);
+  type LocalOverlay = {
+    base: CrmStaffWorkspaceData;
+    assignmentOverrides: Record<string, string[]>;
+    staffPatches: Record<string, Partial<StaffMember>>;
+    branchIssuePatches: Record<string, Partial<BranchAssignmentIssue>>;
+    resolvedOnboardingIds: string[];
+  };
 
-  useEffect(() => {
-    if (lastCanonicalData === canonicalData) return;
+  const [overlay, setOverlay] = useState<LocalOverlay>(() => ({
+    base: canonicalData,
+    assignmentOverrides: {},
+    staffPatches: {},
+    branchIssuePatches: {},
+    resolvedOnboardingIds: [],
+  }));
 
-    setLastCanonicalData(canonicalData);
-    setAssignmentOverrides({});
-    setWorkspaceAllStaff(canonicalData.allStaff);
-    setWorkspacePendingStaff(canonicalData.pendingStaff);
-    setWorkspaceBranchCorrectionRequests(
-      canonicalData.branchCorrectionRequests
-    );
-    setWorkspaceOnboardingRequests(canonicalData.onboardingRequests);
-  }, [canonicalData, lastCanonicalData]);
+  const currentOverlay =
+    overlay.base === canonicalData
+      ? overlay
+      : {
+          base: canonicalData,
+          assignmentOverrides: {},
+          staffPatches: {},
+          branchIssuePatches: {},
+          resolvedOnboardingIds: [],
+        };
+
+  const rebaseOverlay = useCallback(
+    (current: LocalOverlay): LocalOverlay =>
+      current.base === canonicalData
+        ? current
+        : {
+            base: canonicalData,
+            assignmentOverrides: {},
+            staffPatches: {},
+            branchIssuePatches: {},
+            resolvedOnboardingIds: [],
+          },
+    [canonicalData]
+  );
+
+  const workspaceAllStaff = useMemo(
+    () =>
+      canonicalData.allStaff.map((member) => ({
+        ...member,
+        ...(currentOverlay.staffPatches[member.id] ?? {}),
+      })),
+    [canonicalData.allStaff, currentOverlay.staffPatches]
+  );
+
+  const workspacePendingStaff = useMemo(
+    () =>
+      canonicalData.pendingStaff.map((member) => ({
+        ...member,
+        ...(currentOverlay.staffPatches[member.id] ?? {}),
+      })),
+    [canonicalData.pendingStaff, currentOverlay.staffPatches]
+  );
+
+  const workspaceBranchCorrectionRequests = useMemo(
+    () =>
+      canonicalData.branchCorrectionRequests.map((issue) => ({
+        ...issue,
+        ...(currentOverlay.branchIssuePatches[issue.id] ?? {}),
+      })),
+    [
+      canonicalData.branchCorrectionRequests,
+      currentOverlay.branchIssuePatches,
+    ]
+  );
+
+  const workspaceOnboardingRequests = useMemo(
+    () => {
+      const resolved = new Set(currentOverlay.resolvedOnboardingIds);
+      return canonicalData.onboardingRequests.filter(
+        (request) => !resolved.has(request.id)
+      );
+    },
+    [
+      canonicalData.onboardingRequests,
+      currentOverlay.resolvedOnboardingIds,
+    ]
+  );
 
   const invalidateCanonicalStaff = useCallback(() => {
     live.generation.store?.invalidate("crm-staff");
@@ -93,14 +147,21 @@ export function CrmStaffWorkspace({
 
   const handleStaffChanged = useCallback(
     (patch: Partial<StaffMember> & { id: string }) => {
-      const applyPatch = (staff: StaffMember[]) =>
-        staff.map((member) =>
-          member.id === patch.id ? { ...member, ...patch } : member
-        );
-      setWorkspaceAllStaff(applyPatch);
-      setWorkspacePendingStaff(applyPatch);
+      setOverlay((current) => {
+        const rebased = rebaseOverlay(current);
+        return {
+          ...rebased,
+          staffPatches: {
+            ...rebased.staffPatches,
+            [patch.id]: {
+              ...(rebased.staffPatches[patch.id] ?? {}),
+              ...patch,
+            },
+          },
+        };
+      });
     },
-    []
+    [rebaseOverlay]
   );
 
   const handleBranchIssueResolved = useCallback(
@@ -110,37 +171,45 @@ export function CrmStaffWorkspace({
         { ok: true }
       >
     ) => {
-      setWorkspaceBranchCorrectionRequests((current) =>
-        current.map((issue) =>
-          issue.id === result.issueId
-            ? {
-                ...issue,
-                status: result.issueStatus,
-                resolutionType: result.resolutionType,
-                nextAction: result.nextAction,
-                decidedAt: new Date().toISOString(),
-              }
-            : issue
-        )
-      );
+      setOverlay((current) => {
+        const rebased = rebaseOverlay(current);
+        return {
+          ...rebased,
+          branchIssuePatches: {
+            ...rebased.branchIssuePatches,
+            [result.issueId]: {
+              status: result.issueStatus,
+              resolutionType: result.resolutionType,
+              nextAction: result.nextAction,
+              decidedAt: new Date().toISOString(),
+            },
+          },
+        };
+      });
       invalidateCanonicalStaff();
     },
-    [invalidateCanonicalStaff]
+    [invalidateCanonicalStaff, rebaseOverlay]
   );
 
   const handleOnboardingResolved = useCallback(
     (requestId: string) => {
-      setWorkspaceOnboardingRequests((current) =>
-        current.filter((request) => request.id !== requestId)
-      );
+      setOverlay((current) => {
+        const rebased = rebaseOverlay(current);
+        return {
+          ...rebased,
+          resolvedOnboardingIds: Array.from(
+            new Set([...rebased.resolvedOnboardingIds, requestId])
+          ),
+        };
+      });
       invalidateCanonicalStaff();
     },
-    [invalidateCanonicalStaff]
+    [invalidateCanonicalStaff, rebaseOverlay]
   );
 
   const providerAssignments = useMemo(
     () =>
-      Object.entries(assignmentOverrides).reduce(
+      Object.entries(currentOverlay.assignmentOverrides).reduce(
         (rows, [staffId, serviceIds]) =>
           replaceStaffServiceAssignmentRows(
             rows,
@@ -149,18 +218,27 @@ export function CrmStaffWorkspace({
           ),
         canonicalData.providerAssignments
       ),
-    [assignmentOverrides, canonicalData.providerAssignments]
+    [
+      canonicalData.providerAssignments,
+      currentOverlay.assignmentOverrides,
+    ]
   );
 
   const handleStaffServicesSaved = useCallback(
     (staffId: string, serviceIds: string[]) => {
-      setAssignmentOverrides((current) => ({
-        ...current,
-        [staffId]: serviceIds,
-      }));
+      setOverlay((current) => {
+        const rebased = rebaseOverlay(current);
+        return {
+          ...rebased,
+          assignmentOverrides: {
+            ...rebased.assignmentOverrides,
+            [staffId]: serviceIds,
+          },
+        };
+      });
       invalidateCanonicalStaff();
     },
-    [invalidateCanonicalStaff]
+    [invalidateCanonicalStaff, rebaseOverlay]
   );
 
   const pendingBranchCorrectionCount =
