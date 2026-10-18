@@ -5,7 +5,7 @@
 **Program:** Web CONTROLLED STABILIZATION  
 **Accepted Base / main:** `f0a6922367cba61c21dfd5935afa53f6bfd80029`  
 **Implementation Branch:** `stage/web-perf-7-crm-staff`  
-**Implementation Candidate HEAD before this report:** `7fd56feeba132ee1b96d9c368157d6b1df11e832`  
+**Quality-gate candidate implementation HEAD before this report update:** `4926dbdb6edf56ff237f8cb3ef95d3fa740899ed`  
 **Draft PR:** #37  
 **Status:** IMPLEMENTATION COMPLETE — QUALITY GATE EXECUTION REQUIRED — **DO NOT MERGE**
 
@@ -161,7 +161,16 @@ This is a Staff-only compatibility layer; the global generation framework is unc
 
 `CrmStaffWorkspace` now consumes canonical SWR data while retaining its existing local interaction state.
 
-On a new canonical payload, authoritative collections are refreshed while the mounted child workspace remains intact.
+Local Staff changes are represented as overlays on the current canonical payload:
+
+- staff row patches;
+- service-assignment overrides;
+- locally resolved onboarding request IDs;
+- locally resolved branch-correction issue patches.
+
+The overlay is considered valid only while it belongs to the current canonical payload. When SWR publishes a new authoritative payload, prior overlays are ignored immediately without synchronously copying props into state.
+
+This avoids effect-driven derived-state synchronization and preserves the server payload as the canonical base.
 
 Existing Staff Management interaction state remains owned by the existing mounted components, including:
 
@@ -169,8 +178,6 @@ Existing Staff Management interaction state remains owned by the existing mounte
 - selected staff preview;
 - expanded groups;
 - modal/sheet state where the existing component permits it.
-
-Existing local Staff row patches and service assignment overrides remain in place for immediate UI feedback.
 
 ### 8. CRM onboarding retained completion
 
@@ -186,9 +193,46 @@ PERF-7 adds an optional `onRequestResolved` callback to the existing onboarding 
 
 CRM Staff supplies the callback and removes the resolved submitted request locally.
 
+After confirmed success, CRM Staff also invalidates the `crm-staff` generation so the whole aggregate Staff payload reconciles canonical membership/status changes.
+
+Failed onboarding does not call the retained success callback and therefore does not invalidate `crm-staff`.
+
 Other consumers that do not supply the callback preserve the existing browser reload fallback.
 
 No onboarding authorization, role assignment, branch policy, database mutation, or approval rule is changed.
+
+### 9. Confirmed Staff mutation reconciliation
+
+PERF-7 preserves immediate local UI feedback, but confirmed mutations that can change canonical Staff membership, branch, status, or service capability now invalidate only the retained `crm-staff` generation after server success.
+
+Confirmed-success paths include:
+
+- onboarding approve/reject;
+- branch-correction resolution;
+- staff profile edit;
+- active/inactive toggle;
+- service capability save.
+
+Optimistic Staff status patches do **not** invalidate before server confirmation.
+
+Failed mutations do not invalidate `crm-staff`.
+
+### 10. Duplicate self-route revalidation removal
+
+Once confirmed mutations reconcile through the generation store, a simultaneous `revalidatePath("/crm/staff")` would create a second CRM Staff refresh path.
+
+PERF-7 therefore removes only the direct `/crm/staff` revalidation from the mutation services that now reconcile through the retained module.
+
+Preserved downstream effects include, as applicable:
+
+- Owner Staff revalidation;
+- Manager Staff revalidation;
+- CRM Schedule / Today / Services / Setup revalidation;
+- public booking/service surfaces;
+- Attendance and branch-correction surfaces;
+- CRM/Manager cache-tag invalidation.
+
+This is a targeted retained-module compatibility correction, not broad revalidation cleanup.
 
 ---
 
@@ -211,30 +255,37 @@ No onboarding authorization, role assignment, branch policy, database mutation, 
 
 Implementation:
 
-1. `src/app/(dashboard)/crm/staff/page.tsx`
-2. `src/components/features/crm/staff/crm-staff-applications-tab.tsx`
-3. `src/components/features/crm/staff/crm-staff-workspace-data.ts`
-4. `src/components/features/crm/staff/crm-staff-workspace.tsx`
-5. `src/components/features/crm/staff/use-live-crm-staff-data.ts`
-6. `src/components/features/dashboard/workspace-retention-policy.ts`
-7. `src/components/features/staff-onboarding/onboarding-review-list.tsx`
-8. `src/lib/actions/crm-staff-data-actions.ts`
-9. `src/lib/queries/crm-staff-workspace.ts`
+1. `src/app/(dashboard)/crm/staff/actions.ts`
+2. `src/app/(dashboard)/crm/staff/page.tsx`
+3. `src/app/(dashboard)/owner/staff/actions.ts`
+4. `src/components/features/crm/staff/crm-staff-applications-tab.tsx`
+5. `src/components/features/crm/staff/crm-staff-management-tab.tsx`
+6. `src/components/features/crm/staff/crm-staff-workspace-data.ts`
+7. `src/components/features/crm/staff/crm-staff-workspace.tsx`
+8. `src/components/features/crm/staff/use-live-crm-staff-data.ts`
+9. `src/components/features/dashboard/workspace-retention-policy.ts`
+10. `src/components/features/staff-onboarding/onboarding-review-list.tsx`
+11. `src/lib/actions/crm-staff-data-actions.ts`
+12. `src/lib/actions/crm-staff-services.ts`
+13. `src/lib/queries/crm-staff-workspace.ts`
+14. `src/lib/staff/staff-onboarding-service.ts`
 
 Tests:
 
-10. `tests/components/crm/staff-generation-swr.test.tsx`
-11. `tests/components/crm/staff-onboarding-retained-completion.test.tsx`
-12. `tests/components/crm/staff-stale-reactivation.test.tsx`
-13. `tests/lib/crm/crm-staff-data-action.test.ts`
-14. `tests/lib/crm/crm-staff-workspace.test.ts`
-15. `tests/lib/navigation/workspace-retention-policy-staff.test.ts`
+15. `tests/components/crm/staff-confirmed-mutation-reconciliation.test.tsx`
+16. `tests/components/crm/staff-generation-swr.test.tsx`
+17. `tests/components/crm/staff-onboarding-retained-completion.test.tsx`
+18. `tests/components/crm/staff-stale-reactivation.test.tsx`
+19. `tests/lib/crm/crm-staff-data-action.test.ts`
+20. `tests/lib/crm/crm-staff-retained-mutation-contract.test.ts`
+21. `tests/lib/crm/crm-staff-workspace.test.ts`
+22. `tests/lib/navigation/workspace-retention-policy-staff.test.ts`
 
 Evidence:
 
-16. `docs/reports/WEB-PERF-7-CRM-STAFF-2026-10-18.md`
+23. `docs/reports/WEB-PERF-7-CRM-STAFF-2026-10-18.md`
 
-No Cash Flow, Owner, Manager, Desktop, SQL, migration, RLS, generated DB type, or production-operation file is changed.
+No Cash Flow, Owner UI, Manager UI, Desktop, SQL, migration, RLS, generated DB type, or production-operation file is changed. Shared Owner/Staff action files are touched only to remove the retained CRM Staff self-route revalidation; their Owner/Manager authorization and revalidation paths remain intact.
 
 ---
 
@@ -256,7 +307,10 @@ The new tests encode:
 - permitted non-owner onboarding reads remain branch-scoped;
 - branch-correction payload remains part of the aggregate canonical data;
 - successful CRM onboarding can complete through retained callback;
-- failed onboarding does not remove the request.
+- failed onboarding does not remove the request;
+- confirmed onboarding/branch/profile/status/service mutation callbacks invalidate `crm-staff` exactly once;
+- direct `revalidatePath("/crm/staff")` is absent from retained Staff mutation paths;
+- non-CRM Staff/Schedule/Services/Attendance revalidation side effects remain present.
 
 Existing Staff tests remain required for:
 
@@ -279,10 +333,12 @@ Run:
 
 ```bash
 pnpm exec vitest run \
+  tests/components/crm/staff-confirmed-mutation-reconciliation.test.tsx \
   tests/components/crm/staff-generation-swr.test.tsx \
   tests/components/crm/staff-stale-reactivation.test.tsx \
   tests/components/crm/staff-onboarding-retained-completion.test.tsx \
   tests/lib/crm/crm-staff-data-action.test.ts \
+  tests/lib/crm/crm-staff-retained-mutation-contract.test.ts \
   tests/lib/crm/crm-staff-workspace.test.ts \
   tests/lib/navigation/workspace-retention-policy-staff.test.ts \
   tests/components/crm/staff-management-retention.test.tsx \
@@ -309,19 +365,26 @@ Changed-file lint:
 
 ```bash
 pnpm eslint \
+  "src/app/(dashboard)/crm/staff/actions.ts" \
   "src/app/(dashboard)/crm/staff/page.tsx" \
+  "src/app/(dashboard)/owner/staff/actions.ts" \
   src/components/features/crm/staff/crm-staff-applications-tab.tsx \
+  src/components/features/crm/staff/crm-staff-management-tab.tsx \
   src/components/features/crm/staff/crm-staff-workspace-data.ts \
   src/components/features/crm/staff/crm-staff-workspace.tsx \
   src/components/features/crm/staff/use-live-crm-staff-data.ts \
   src/components/features/dashboard/workspace-retention-policy.ts \
   src/components/features/staff-onboarding/onboarding-review-list.tsx \
   src/lib/actions/crm-staff-data-actions.ts \
+  src/lib/actions/crm-staff-services.ts \
   src/lib/queries/crm-staff-workspace.ts \
+  src/lib/staff/staff-onboarding-service.ts \
+  tests/components/crm/staff-confirmed-mutation-reconciliation.test.tsx \
   tests/components/crm/staff-generation-swr.test.tsx \
   tests/components/crm/staff-onboarding-retained-completion.test.tsx \
   tests/components/crm/staff-stale-reactivation.test.tsx \
   tests/lib/crm/crm-staff-data-action.test.ts \
+  tests/lib/crm/crm-staff-retained-mutation-contract.test.ts \
   tests/lib/crm/crm-staff-workspace.test.ts \
   tests/lib/navigation/workspace-retention-policy-staff.test.ts
 ```
@@ -376,6 +439,9 @@ It does not prove authenticated CRM Staff behavior, operational mutations, or pr
 - hidden generation behavior is encoded in focused tests.
 - server refresh accepts no authoritative branch input.
 - CRM onboarding can complete without mandatory full browser reload.
+- confirmed Staff mutations trigger one retained generation invalidation after success.
+- retained Staff mutation actions no longer directly revalidate `/crm/staff`; cross-module revalidation remains preserved.
+- local optimistic/presentation state is derived as overlays over the current canonical payload rather than copied from props in an effect.
 
 ### TARGET
 
