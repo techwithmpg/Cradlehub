@@ -35,8 +35,20 @@ export function normalizeCrmCashFlowEntryMode(
 }
 
 function isValidBusinessDate(value: string): boolean {
-  if (!/^\d{4}-\d{2}-\d{2}$/.test(value)) return false;
-  const [year, month, day] = value.split("-").map(Number);
+  const match = /^(\d{4})-(\d{2})-(\d{2})$/.exec(value);
+  if (!match) return false;
+
+  const year = Number(match[1] ?? Number.NaN);
+  const month = Number(match[2] ?? Number.NaN);
+  const day = Number(match[3] ?? Number.NaN);
+  if (
+    !Number.isInteger(year) ||
+    !Number.isInteger(month) ||
+    !Number.isInteger(day)
+  ) {
+    return false;
+  }
+
   const parsed = new Date(Date.UTC(year, month - 1, day));
   return (
     parsed.getUTCFullYear() === year &&
