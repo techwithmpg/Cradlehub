@@ -5,9 +5,10 @@
 **Program:** Web CONTROLLED STABILIZATION  
 **Accepted Base / main:** `70b4f3004e77989329a2310e5e82fa37a417555f`
 **Implementation Branch:** `stage/web-perf-9a-owner-overview`
+**Branch Relationship to Accepted Main:** 17 commits ahead / 0 commits behind (merge-base: `70b4f3004e77989329a2310e5e82fa37a417555f`)
 **Starting Verification HEAD:** `ed2b061a026d063a907abb333041c8cf10ac67e5`
 **Quality-Gated Implementation SHA:** `47a9750a1bc303e9e7257ac9f32cbcc8889b0b3f`
-**Current Documentation Delivery / PR HEAD:** Delivered via subsequent documentation-only commit on PR #39
+**Reviewed Documentation Delivery HEAD:** `4c09f899fbb9035b23ec793178bc869c7bc1e58b`
 **Draft PR:** #39
 **Status:** READY FOR INDEPENDENT REVIEW — **DO NOT MERGE**
 
@@ -307,8 +308,9 @@ New PERF-9A tests encode:
 - Owner Overview stable restoration state is empty;
 - Owner child routes are not accidentally matched by Overview;
 - Owner retention remains disabled under CRM-only rollout.
+---
 
---## H. Quality gate verification evidence
+## H. Quality gate verification evidence
 
 All local quality gates have been executed by this verification pass.
 
@@ -508,12 +510,39 @@ pnpm exec vitest run --maxWorkers=4
   - Confirmed byte-for-byte identical on accepted main commit `70b4f3004e77989329a2310e5e82fa37a417555f`. Unrelated to Owner Overview.
 - **PERF-9A Introduced Failures:** 0
 
-### 9. Final SHA Reconciliation
+### 9. Repository / Branch State
 
-- **Accepted Base / main:** `70b4f3004e77989329a2310e5e82fa37a417555f`
-- **Starting Verification HEAD:** `ed2b061a026d063a907abb333041c8cf10ac67e5`
-- **Quality-Gated Implementation SHA:** `47a9750a1bc303e9e7257ac9f32cbcc8889b0b3f`
-- **Current Documentation Delivery / PR HEAD:** Delivered via subsequent documentation-only commit on PR #39.
+- Accepted main:
+  `70b4f3004e77989329a2310e5e82fa37a417555f`
+
+- Merge base:
+  `70b4f3004e77989329a2310e5e82fa37a417555f`
+
+- Current PERF-9A branch relationship to accepted main:
+  **17 commits ahead / 0 commits behind**
+
+- Starting Verification HEAD:
+  `ed2b061a026d063a907abb333041c8cf10ac67e5`
+
+- Quality-Gated Implementation SHA:
+  `47a9750a1bc303e9e7257ac9f32cbcc8889b0b3f`
+
+- Reviewed Documentation Delivery HEAD:
+  `4c09f899fbb9035b23ec793178bc869c7bc1e58b`
+
+- Verification-session delta from Starting Verification HEAD to reviewed documentation delivery:
+  **2 commits**
+
+  1. `47a9750a1bc303e9e7257ac9f32cbcc8889b0b3f`
+     — test syntax correction
+
+  2. `4c09f899fbb9035b23ec793178bc869c7bc1e58b`
+     — quality-gate evidence documentation
+
+> [!IMPORTANT]
+> **Explicit Branch Distinction:**
+> The branch-wide 17-commit relationship (`origin/main...HEAD`, representing the complete PERF-9A implementation progression on top of accepted `main`) and the 2-commit verification-session delta (from Starting Verification HEAD `ed2b061a026d063a907abb333041c8cf10ac67e5` to reviewed documentation delivery `4c09f899fbb9035b23ec793178bc869c7bc1e58b`) describe different things and must not be conflated.
+> The original executable candidate commits already existed before the stated Starting Verification HEAD and must not be counted as verification-session commits.
 
 ---
 
