@@ -1,5 +1,6 @@
 /** @vitest-environment jsdom */
 import { act, cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { useState } from "react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { SWRConfig } from "swr";
 import { WorkspaceGenerationContext } from "@/components/features/dashboard/use-workspace-generation";
@@ -11,6 +12,7 @@ import type { OwnerBookingsInitialRead } from "@/lib/owner/owner-bookings-query"
 
 const mock = vi.hoisted(() => ({ get: vi.fn(), change: vi.fn() }));
 let search = "";
+let workspaceMounts = 0;
 
 vi.mock("next/navigation", () => ({
   useSearchParams: () => new URLSearchParams(search),
@@ -29,8 +31,11 @@ vi.mock("@/components/features/bookings/bookings-workspace", () => ({
     initialTab?: string;
     initialSelectedId?: string;
     search?: string;
-  }) => (
+  }) => {
+    const [mountId] = useState(() => ++workspaceMounts);
+    return (
     <section>
+      <output data-testid="mount-id">{mountId}</output>
       <output data-testid="rows">{bookings.map((row) => row.id).join(",") || "empty"}</output>
       <output data-testid="branch">{branchFilter ?? "all"}</output>
       <output data-testid="selection">{initialSelectedId ?? "none"}</output>
@@ -39,7 +44,8 @@ vi.mock("@/components/features/bookings/bookings-workspace", () => ({
       <button onClick={onBookingsChanged}>Mutation completed</button>
       <button onClick={onRefresh}>Refresh</button>
     </section>
-  ),
+    );
+  },
 }));
 
 function row(id: string): WorkspaceBookingRow {
@@ -87,6 +93,7 @@ function renderView(options?: {
   return { ...view, rerender, cache };
 }
 beforeEach(() => {
+  workspaceMounts = 0;
   mock.get.mockReset();
   mock.get.mockResolvedValue({ bookings: [row("updated")] });
   search = "";
@@ -162,6 +169,33 @@ describe("PERF-9B Owner Bookings lifecycle", () => {
     expect(screen.getByTestId("search").textContent).toBe("alice");
     expect(screen.getByTestId("selection").textContent).toBe("main-1");
     expect(mock.get).not.toHaveBeenCalled();
+  });
+
+  it("does not remount the booking workspace or fetch again for local search edits", () => {
+    const view = renderView();
+    const mountId = screen.getByTestId("mount-id").textContent;
+    view.rerender("search=alice");
+    expect(screen.getByTestId("mount-id").textContent).toBe(mountId);
+    expect(screen.getByTestId("search").textContent).toBe("alice");
+    expect(mock.get).not.toHaveBeenCalled();
+  });
+
+  it("fails closed if a retained server refresh revokes Owner access", async () => {
+    const store = createWorkspaceGenerationStore();
+    store.setActive("owner-bookings");
+    renderView({ store });
+    mock.get.mockResolvedValue({ error: "Unauthorized" });
+    act(() => store.invalidate("owner-bookings"));
+    await waitFor(() => expect(screen.getByRole("alert").textContent).toContain("Unauthorized"));
+    expect(screen.queryByTestId("rows")).toBeNull();
+  });
+
+  it("fails closed if an ordinary refresh reports an unavailable branch", async () => {
+    renderView();
+    mock.get.mockResolvedValue({ error: "The selected branch is not available from this workspace." });
+    fireEvent.click(screen.getByRole("button", { name: "Refresh" }));
+    await waitFor(() => expect(screen.getByRole("alert").textContent).toContain("not available"));
+    expect(screen.queryByTestId("rows")).toBeNull();
   });
 
   it("reconciles dirty retained Owner Bookings only when visible", async () => {
