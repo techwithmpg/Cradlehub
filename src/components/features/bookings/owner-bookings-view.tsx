@@ -47,7 +47,6 @@ export function OwnerBookingsView({
   initialBranch,
   initialStatus,
   initialType,
-  initialSearch,
   branches,
 }: OwnerBookingsViewProps) {
   const searchParams = useSearchParams();
@@ -55,7 +54,7 @@ export function OwnerBookingsView({
   const branch = searchParams.get("branch") ?? undefined;
   const status = searchParams.get("status") ?? undefined;
   const type = searchParams.get("type") ?? undefined;
-  const search = searchParams.get("search") ?? initialSearch;
+  const search = searchParams.get("search") ?? undefined;
   const tab = parseTab(searchParams.get("tab"));
   const selectedBookingId = searchParams.get("bookingId") ?? undefined;
   const invalidBranch = isOwnerBookingsBranchParamInvalid(searchParams);
@@ -85,7 +84,7 @@ export function OwnerBookingsView({
       status: query.status,
       type: query.type,
     });
-    return ownerBookingsInitialRead(result);
+    return ownerBookingsInitialRead("error" in result ? result : { bookings: result.bookings as WorkspaceBookingRow[] });
   }, [invalidBranch, query]);
 
   // PERF-9B: the accepted generation adapter is active only under the
