@@ -161,6 +161,25 @@ The post-run commits have **not** been quality-gated in the user's Windows repos
 
 **Review evidence:** GitHub PR #40 has no submitted independent reviewer decision or review threads; no GitHub Actions pull-request workflow runs were returned for the previously inspected candidate. Successful preview builds do not substitute for local type-check, Vitest, authorized Owner interaction or independent review. No test-run PASS or production evidence is asserted.
 
+## Owner-authorized bounded correction — Home Service room assignment
+
+**Owner instruction (2026-10-18):** Home-service bookings do not require spa room assignments. This is an explicit targeted operational correction added to the active PERF-9B review branch. It does not authorize broad booking refactoring or a new Web stage, and must be separately accounted for at the same pre-merge quality gate.
+
+**Repository inspection — existing authority:** `getRoomAssignmentOptionsAction` already returns `notApplicable` for Home Service and `assignBookingRoomAction` already rejects Home Service assignments in `src/app/(dashboard)/crm/bookings/actions.ts`. `startCrmBookingService` already rejects Home Service sessions because the assigned staff starts those sessions. `bookings-table.tsx` and `bookings-workspace.tsx` already exempt Home Service from several room requirements. Those server/DB/authorization and core booking paths are **unchanged**.
+
+**Corrected UI gaps:**
+
+- `selected-booking-warnings.tsx`: a `checked_in` booking with no `resource_id` no longer shows `Room assignment required` if the booking is Home Service, including metadata-backed compatibility detection.
+- `selected-booking-panel.ts`: a checked-in Home Service record routes to the already existing `Track Dispatch` action, not `Assign Room` or `Change Room`. In-spa checked-in behavior is unchanged.
+- `selected-booking-summary-band.tsx`: Home Service shows `Service location: Home service` instead of a `Room` cell and does not expose room assignment controls. In-spa still shows its room name/TBD and actions.
+- `bookings-desktop-workspace.tsx`: a `?openRoomAssignment=1` link and the post-arrival fallback cannot open the room modal for Home Service, using the same metadata-aware UI classifier. No room assignment server mutation is added.
+
+**New unexecuted regression:** `tests/components/bookings/home-service-room-exemption.test.tsx`. Tests delivery-type, booking-type, and legacy metadata classification; absence of Home Service room warnings/controls; Home Service checked-in dispatch action; retained in-spa room warning/action; and correct Home Service location label.
+
+**Safety boundary:** This change does not clear or rewrite historical `resource_id` values, change schema/RLS, alter payment/cash/attendance, change `start_booking_service_session`, activate Owner retention, change dispatch permission, or make local cache authoritative. It does not merge or deploy. Source inspection is **not** authenticated browser, DB or production verification.
+
+**Checkpoint:** At the single owner-approved pre-merge sync, execute the new regression and the existing room-assignment/booking/dispatch/CRM/Owner safety suites, type-check, lint, build, and manually inspect Home Service and In-Spa flows. Independent review and separate owner merge approval remain required.
+
 ## CP-PWA-01 checkpoint
 
 The previously agreed **CP-PWA-01 Member PWA optimization** begins only after current Web administrative PERF-9B, PERF-9C, PERF-9D, PERF-10 and FINAL certification. Do not begin it during PERF-9B.
