@@ -2,12 +2,14 @@
 
 **Date:** 2026-10-18  
 **Target:** CradleHub Web — CRM Cash Flow only  
-**Program:** Web CONTROLLED STABILIZATION  
-**Accepted Base / main:** `0c8455dfee87441970284175c0dd7b4c19fbb327`  
-**Implementation Branch:** `stage/web-perf-8-crm-cash-flow`  
-**Implementation Candidate HEAD before this report:** `2e61cc0d467b4b7c4722c2097da807e460b05cb1`  
-**Draft PR:** #38  
-**Status:** IMPLEMENTATION COMPLETE — QUALITY GATE EXECUTION REQUIRED — **DO NOT MERGE**
+**Program:** Web CONTROLLED STABILIZATION
+**Accepted Base / main:** `0c8455dfee87441970284175c0dd7b4c19fbb327`
+**Implementation Branch:** `stage/web-perf-8-crm-cash-flow`
+**Starting Verification HEAD:** `ac25bfed546d59bd6f0127961380cfc92e2417f4`
+**Quality-Gated Implementation SHA:** `65205ac09aa2996b98e816c2c7295561220318ed`
+**Current Documentation Delivery / PR HEAD:** Delivered via subsequent documentation-only commit on PR #38
+**Draft PR:** #38
+**Status:** READY FOR INDEPENDENT REVIEW — **DO NOT MERGE**
 
 ---
 
@@ -335,11 +337,11 @@ Existing Cash Flow safety suites remain required.
 
 ---
 
-## G. Required focused verification
+## G. Quality gate verification evidence
 
-The following local quality gates have **not** been executed by this GitHub implementation environment.
+All local quality gates have been executed by this verification pass.
 
-Run:
+### 1. Focused PERF-8 Test Gate
 
 ```bash
 pnpm exec vitest run \
@@ -376,15 +378,41 @@ pnpm exec vitest run \
   tests/lib/cash-flow/reconciliation-status-guard.test.ts
 ```
 
-Record exact file/test counts, skipped tests, duration and all failures.
+- **Files Passed:** 31 passed (31)
+- **Files Failed:** 0
+- **Tests Passed:** 315 passed (315)
+- **Tests Failed:** 0
+- **Tests Skipped:** 0
+- **Duration:** 9.97s
 
-Then:
+### 2. Demonstrated Corrections Applied During Pass
+
+1. **`cash-flow-workspace.tsx` Retained Route State & Dismissal:**
+   - **Symptom:** In `crm-cash-flow-client-navigation.test.tsx`, closing the deep-linked `entry=expense` modal failed because `routeEntryMode` remained non-null during re-render, and clicking the "Today" tab failed to switch views.
+   - **Root Cause:** Next.js `window.history.replaceState` does not update `searchParams` hook state during synthetic tests or client renders. Furthermore, `activeTab` was derived statically from `searchParams` without synchronizing local state on tab selection.
+   - **Fix:** Tracked `dismissedRouteEntry` in local state upon modal close (`handleRecordPaymentOpenChange(false)`), allowing immediate closure, and synchronized `activeTab` state so tab clicks directly transition panels and update the URL.
+   - **Regression Test:** `tests/components/cash-flow/crm-cash-flow-client-navigation.test.tsx`.
+
+2. **`crm-cash-flow-retained-workspace.tsx` Hook Dependencies & Return Types:**
+   - **Symptom:** `pnpm type-check` error TS2322 (revalidate return type mismatch) and ESLint warning `react-hooks/exhaustive-deps`.
+   - **Root Cause:** `live.revalidate()` returned `Promise<"skipped" | "stale" | "validated">` which was incompatible with `() => void | Promise<void>`, and accessing `live.revalidate` in callback without destructuring triggered lint warnings.
+   - **Fix:** Widened `CashFlowWorkspaceProps.onRefresh` to `() => void | Promise<unknown>`, made `handleRefresh` an `async` function, and destructured `const { revalidate } = live;`.
+
+3. **`crm-cash-flow-failed-mutation.test.tsx` Label Pattern Matching:**
+   - **Symptom:** Strict string match failed for `screen.getByLabelText("Physical counted cash")` and `screen.getByLabelText("Physical count")`.
+   - **Root Cause:** The actual rendered label contains an inner required asterisk (`<span className="text-rose-500">*</span>`).
+   - **Fix:** Updated the query to use regex pattern matching (`/Physical counted cash/i` and `/Physical count/i`).
+
+### 3. Type-Check Gate
 
 ```bash
 pnpm type-check
+# underlying command: tsc --noEmit
 ```
 
-Changed-file lint:
+- **Result:** Exit code 0, 0 errors.
+
+### 4. Changed-File ESLint Gate
 
 ```bash
 pnpm eslint \
@@ -411,19 +439,114 @@ pnpm eslint \
   tests/lib/navigation/workspace-retention-policy-cash-flow.test.ts
 ```
 
-Then:
+- **Result:** Exit code 0, 0 errors, 0 warnings (clean).
+
+### 5. Production Build Gate
 
 ```bash
 pnpm build
+# underlying command: next build
+```
+
+- **Result:** Exit code 0. Compiled successfully, 153/153 static pages generated.
+
+### 6. Git Diff Whitespace Gate
+
+```bash
 git diff --check
 ```
 
-After focused gates pass:
+- **Result:** Exit code 0, clean whitespace.
 
-1. run the accepted PERF-1 through PERF-7 regression suites;
-2. run the full repository Vitest suite;
-3. compare every failure with accepted main `0c8455dfee87441970284175c0dd7b4c19fbb327`;
-4. do not classify a failure as baseline without reproducing it on accepted main.
+### 7. PERF-1 Through PERF-7 Regression Gate
+
+```bash
+pnpm exec vitest run \
+  tests/lib/navigation/workspace-generation.test.ts \
+  tests/lib/navigation/workspace-module-registry.test.ts \
+  tests/components/dashboard/retained-workspace-provider.test.tsx \
+  tests/components/dashboard/workspace-generation-swr.test.tsx \
+  tests/components/dashboard/owner-runtime-scope.test.tsx \
+  tests/lib/owner/operational-scope.test.ts \
+  tests/lib/owner/operational-scope-server.test.ts \
+  tests/components/crm/today-generation-swr.test.tsx \
+  tests/lib/crm/crm-today-operational.test.ts \
+  tests/app/crm/today-parallel-reads.test.tsx \
+  tests/components/crm/bookings-generation-swr.test.tsx \
+  tests/lib/crm/crm-bookings-operational.test.ts \
+  tests/lib/bookings/crm-bookings-page.test.tsx \
+  tests/lib/bookings/crm-bookings-api.test.ts \
+  tests/app/crm/quick-booking-customer-callers.test.tsx \
+  tests/components/crm/quick-booking-customer-autocomplete.test.tsx \
+  tests/components/crm/quick-booking-deferred-options.test.tsx \
+  tests/components/crm/quick-booking-service-duration-dropdown.test.tsx \
+  tests/lib/crm/quick-booking-customer-prefill-scope.test.ts \
+  tests/lib/schedule/use-schedule-realtime.test.tsx \
+  tests/lib/schedule/use-live-daily-schedule-generation.test.tsx \
+  tests/lib/schedule/schedule-workspace-realtime-merge.test.ts \
+  tests/lib/attendance/attendance-workspace-realtime-merge.test.ts \
+  tests/lib/attendance/attendance-realtime-resilience-contract.test.ts \
+  tests/components/dispatch/use-live-crm-dispatch-data-generation.test.tsx \
+  tests/lib/navigation/workspace-retention-policy-dispatch.test.ts \
+  tests/components/dispatch/home-service-nav-cleanup.test.tsx \
+  tests/lib/bookings/crm-dispatch-deep-link.test.ts \
+  tests/lib/bookings/upcoming-dispatch.test.ts \
+  tests/components/crm/customers-generation-swr.test.tsx \
+  tests/components/crm/customers-client-navigation.test.tsx \
+  tests/lib/crm/customer-workspace-data.test.ts \
+  tests/lib/crm/crm-customers-workspace.test.ts \
+  tests/lib/crm/crm-customers-data-action.test.ts \
+  tests/api/crm-customer-search-scope.test.ts \
+  tests/lib/crm/customer-search-branch-filter.test.ts \
+  tests/lib/crm/customer-phone-lookup-scope.test.ts \
+  tests/components/crm/customers-waitlist-mutation.test.tsx \
+  tests/lib/crm/crm-waitlist-status-action.test.ts \
+  tests/components/crm/staff-generation-swr.test.tsx \
+  tests/components/crm/staff-stale-reactivation.test.tsx \
+  tests/components/crm/staff-confirmed-mutation-reconciliation.test.tsx \
+  tests/components/crm/staff-onboarding-retained-completion.test.tsx \
+  tests/lib/crm/crm-staff-data-action.test.ts \
+  tests/lib/crm/crm-staff-retained-mutation-contract.test.ts \
+  tests/lib/crm/crm-staff-workspace.test.ts \
+  tests/lib/navigation/workspace-retention-policy-staff.test.ts \
+  tests/components/crm/staff-management-retention.test.tsx \
+  tests/components/crm/crm-staff-branch-corrections-tab.test.tsx \
+  tests/lib/staff/approval-branch-safety.test.ts \
+  tests/lib/staff/service-assignment-state.test.ts \
+  tests/lib/staff/service-providers.test.ts \
+  tests/lib/staff/operational-staff.test.ts \
+  tests/lib/staff/staff-mutation-service.test.ts \
+  tests/lib/staff/staff-onboarding-service.test.ts \
+  tests/lib/staff/branch-correction-policy.test.ts \
+  tests/lib/staff/branch-correction-resolution-contract.test.ts
+```
+
+- **Files Passed:** 57 passed (57)
+- **Files Failed:** 0
+- **Tests Passed:** 306 passed (306)
+- **Failures:** 0
+- **Duration:** 13.91s
+
+### 8. Full Repository Vitest Suite
+
+```bash
+pnpm exec vitest run --maxWorkers=4
+```
+
+- **Files Passed:** 395 passed | 1 failed | 2 skipped (398 total)
+- **Tests Passed:** 3043 passed | 1 failed | 2 skipped (3046 total)
+- **Duration:** 94.78s
+- **Sole Failure:** `tests/components/bookings/c03-mobile-booking-wizard.test.tsx > C-03: Mobile New Booking Wizard Responsive Layout > renders all core booking controls reachable and readable on mobile`
+- **Failure Classification:** **ACCEPTED-MAIN BASELINE**
+  - Confirmed byte-for-byte identical on accepted main commit `0c8455dfee87441970284175c0dd7b4c19fbb327`. Unrelated to Cash Flow.
+- **PERF-8 Introduced Failures:** 0
+
+### 9. Final SHA Reconciliation
+
+- **Accepted Base / main:** `0c8455dfee87441970284175c0dd7b4c19fbb327`
+- **Starting Verification HEAD:** `ac25bfed546d59bd6f0127961380cfc92e2417f4`
+- **Quality-Gated Implementation SHA:** `65205ac09aa2996b98e816c2c7295561220318ed`
+- **Current Documentation Delivery / PR HEAD:** Delivered via subsequent documentation-only commit on PR #38.
 
 ---
 
@@ -506,7 +629,7 @@ No database rollback is expected.
 
 ## L. Gate
 
-**TEST EXECUTION REQUIRED — DO NOT MERGE PR #38**
+**READY FOR INDEPENDENT REVIEW — DO NOT MERGE PR #38**
 
 Do not begin Owner operational conversion.
 
@@ -514,4 +637,4 @@ Do not begin loading/dialog prewarming.
 
 Do not begin PERF-9.
 
-PERF-8 may move to independent review only after all required quality gates are actually executed and this report is updated with measured results.
+PERF-8 is ready for independent review. DO NOT MERGE pending independent PASS and explicit owner merge authorization.
