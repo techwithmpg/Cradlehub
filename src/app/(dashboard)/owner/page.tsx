@@ -1,45 +1,26 @@
 import { redirect } from "next/navigation";
-import { OwnerDashboard } from "@/components/features/owner/dashboard/owner-dashboard";
-import {
-  getOwnerOverviewDashboardData,
-  OwnerDashboardAccessError,
-} from "@/lib/queries/owner-dashboard";
-import {
-  createAttendanceScanFeedFallback,
-  getRecentAttendanceScanFeed,
-} from "@/lib/attendance/recent-scans";
 import { RetainedWorkspaceModule } from "@/components/features/dashboard/retained-workspace-provider";
+import { OwnerOverviewRetainedWorkspace } from "@/components/features/owner/dashboard/owner-overview-retained-workspace";
+import { OwnerDashboardAccessError } from "@/lib/queries/owner-dashboard";
+import { loadOwnerOverviewWorkspaceData } from "@/lib/queries/owner-overview-workspace";
 
 export const dynamic = "force-dynamic";
 
 export default async function OwnerOverviewPage() {
-  const data = await loadOwnerOverviewDashboardData();
-  const attendanceScanFeed = await getRecentAttendanceScanFeed({
-    workspace: "owner",
-    selectedDate: data.today,
-    maxItems: 5,
-  }).catch(() =>
-    createAttendanceScanFeedFallback({
-      workspace: "owner",
-      selectedDate: data.today,
-      error: "Attendance activity could not be refreshed.",
-    })
-  );
+  let payload;
 
-  return (
-    <RetainedWorkspaceModule moduleId="owner-overview">
-      <OwnerDashboard data={data} attendanceScanFeed={attendanceScanFeed} />
-    </RetainedWorkspaceModule>
-  );
-}
-
-async function loadOwnerOverviewDashboardData() {
   try {
-    return await getOwnerOverviewDashboardData();
+    payload = await loadOwnerOverviewWorkspaceData();
   } catch (error) {
     if (error instanceof OwnerDashboardAccessError) {
       redirect(error.destination);
     }
     throw error;
   }
+
+  return (
+    <RetainedWorkspaceModule moduleId="owner-overview">
+      <OwnerOverviewRetainedWorkspace initialPayload={payload} />
+    </RetainedWorkspaceModule>
+  );
 }
