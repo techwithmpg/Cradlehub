@@ -3,11 +3,13 @@
 **Date:** 2026-10-18  
 **Target:** CradleHub Web — Owner Overview only  
 **Program:** Web CONTROLLED STABILIZATION  
-**Accepted Base / main:** `70b4f3004e77989329a2310e5e82fa37a417555f`  
-**Implementation Branch:** `stage/web-perf-9a-owner-overview`  
-**Executable Implementation Candidate:** `69dd71e6d14dda1e7a1e1ad62d90c05f75f118dc`  
-**Draft PR:** #39  
-**Status:** IMPLEMENTATION COMPLETE — QUALITY GATE EXECUTION REQUIRED — **DO NOT MERGE**
+**Accepted Base / main:** `70b4f3004e77989329a2310e5e82fa37a417555f`
+**Implementation Branch:** `stage/web-perf-9a-owner-overview`
+**Starting Verification HEAD:** `ed2b061a026d063a907abb333041c8cf10ac67e5`
+**Quality-Gated Implementation SHA:** `47a9750a1bc303e9e7257ac9f32cbcc8889b0b3f`
+**Current Documentation Delivery / PR HEAD:** Delivered via subsequent documentation-only commit on PR #39
+**Draft PR:** #39
+**Status:** READY FOR INDEPENDENT REVIEW — **DO NOT MERGE**
 
 ---
 
@@ -306,13 +308,11 @@ New PERF-9A tests encode:
 - Owner child routes are not accidentally matched by Overview;
 - Owner retention remains disabled under CRM-only rollout.
 
----
+--## H. Quality gate verification evidence
 
-## H. Required focused quality gate
+All local quality gates have been executed by this verification pass.
 
-The GitHub implementation environment has **not** executed the local test suite.
-
-Run:
+### 1. Focused PERF-9A Test Gate
 
 ```bash
 pnpm exec vitest run \
@@ -332,27 +332,31 @@ pnpm exec vitest run \
   tests/lib/attendance/scan-feed.test.ts
 ```
 
-Record exact:
+- **Files Passed:** 14 passed (14)
+- **Files Failed:** 0
+- **Tests Passed:** 85 passed (85)
+- **Tests Failed:** 0
+- **Skipped:** 0
+- **Duration:** 2.95s
 
-- files passed;
-- files failed;
-- tests passed;
-- tests failed;
-- skipped;
-- duration;
-- every failure.
+### 2. Demonstrated Corrections Applied During Pass
 
----
+1. **`workspace-retention-policy-owner-overview.test.ts` Syntax Correction:**
+   - **Symptom:** Test suite failed to parse with `[PARSE_ERROR] Error: Expected a semicolon or an implicit semicolon after a statement, but found none`.
+   - **Root Cause:** In line 26, `)?` closed the `expect(` wrapper prematurely before `.moduleId`.
+   - **Fix:** Corrected assertion to `expect(resolveWorkspaceModule("owner", "/owner/bookings", "")?.moduleId).toBe("owner-bookings");`.
+   - **Regression Test:** `tests/lib/navigation/workspace-retention-policy-owner-overview.test.ts`.
 
-## I. Static gates
-
-Run:
+### 3. Type-Check Gate
 
 ```bash
 pnpm type-check
+# underlying command: tsc --noEmit
 ```
 
-Changed-file lint:
+- **Result:** Exit code 0, 0 errors.
+
+### 4. Changed-File ESLint Gate
 
 ```bash
 pnpm eslint \
@@ -371,56 +375,145 @@ pnpm eslint \
   tests/lib/owner/owner-overview-workspace.test.ts
 ```
 
-Then:
+- **Result:** Exit code 0, 0 errors, 0 warnings (clean).
+
+### 5. Production Build Gate
 
 ```bash
 pnpm build
+# underlying command: next build
+```
+
+- **Result:** Exit code 0. Compiled successfully, 153/153 static pages generated.
+
+### 6. Git Diff Whitespace Gate
+
+```bash
 git diff --check
 ```
 
-Record exact results.
+- **Result:** Exit code 0, clean whitespace.
 
----
+### 7. PERF-1 Through PERF-8 Regression Gate
 
-## J. PERF-1 through PERF-8 regression gate
+```bash
+pnpm exec vitest run \
+  tests/lib/navigation/workspace-generation.test.ts \
+  tests/lib/navigation/workspace-module-registry.test.ts \
+  tests/components/dashboard/retained-workspace-provider.test.tsx \
+  tests/components/dashboard/workspace-generation-swr.test.tsx \
+  tests/components/dashboard/owner-runtime-scope.test.tsx \
+  tests/lib/owner/operational-scope.test.ts \
+  tests/lib/owner/operational-scope-server.test.ts \
+  tests/components/crm/today-generation-swr.test.tsx \
+  tests/lib/crm/crm-today-operational.test.ts \
+  tests/app/crm/today-parallel-reads.test.tsx \
+  tests/components/crm/bookings-generation-swr.test.tsx \
+  tests/lib/crm/crm-bookings-operational.test.ts \
+  tests/lib/bookings/crm-bookings-page.test.tsx \
+  tests/lib/bookings/crm-bookings-api.test.ts \
+  tests/app/crm/quick-booking-customer-callers.test.tsx \
+  tests/components/crm/quick-booking-customer-autocomplete.test.tsx \
+  tests/components/crm/quick-booking-deferred-options.test.tsx \
+  tests/components/crm/quick-booking-service-duration-dropdown.test.tsx \
+  tests/lib/crm/quick-booking-customer-prefill-scope.test.ts \
+  tests/lib/schedule/use-schedule-realtime.test.tsx \
+  tests/lib/schedule/use-live-daily-schedule-generation.test.tsx \
+  tests/lib/schedule/schedule-workspace-realtime-merge.test.ts \
+  tests/lib/attendance/attendance-workspace-realtime-merge.test.ts \
+  tests/lib/attendance/attendance-realtime-resilience-contract.test.ts \
+  tests/components/dispatch/use-live-crm-dispatch-data-generation.test.tsx \
+  tests/lib/navigation/workspace-retention-policy-dispatch.test.ts \
+  tests/components/dispatch/home-service-nav-cleanup.test.tsx \
+  tests/lib/bookings/crm-dispatch-deep-link.test.ts \
+  tests/lib/bookings/upcoming-dispatch.test.ts \
+  tests/components/crm/customers-generation-swr.test.tsx \
+  tests/components/crm/customers-client-navigation.test.tsx \
+  tests/lib/crm/customer-workspace-data.test.ts \
+  tests/lib/crm/crm-customers-workspace.test.ts \
+  tests/lib/crm/crm-customers-data-action.test.ts \
+  tests/api/crm-customer-search-scope.test.ts \
+  tests/lib/crm/customer-search-branch-filter.test.ts \
+  tests/lib/crm/customer-phone-lookup-scope.test.ts \
+  tests/components/crm/customers-waitlist-mutation.test.tsx \
+  tests/lib/crm/crm-waitlist-status-action.test.ts \
+  tests/components/crm/staff-generation-swr.test.tsx \
+  tests/components/crm/staff-stale-reactivation.test.tsx \
+  tests/components/crm/staff-confirmed-mutation-reconciliation.test.tsx \
+  tests/components/crm/staff-onboarding-retained-completion.test.tsx \
+  tests/lib/crm/crm-staff-data-action.test.ts \
+  tests/lib/crm/crm-staff-retained-mutation-contract.test.ts \
+  tests/lib/crm/crm-staff-workspace.test.ts \
+  tests/lib/navigation/workspace-retention-policy-staff.test.ts \
+  tests/components/crm/staff-management-retention.test.tsx \
+  tests/components/crm/crm-staff-branch-corrections-tab.test.tsx \
+  tests/lib/staff/approval-branch-safety.test.ts \
+  tests/lib/staff/service-assignment-state.test.ts \
+  tests/lib/staff/service-providers.test.ts \
+  tests/lib/staff/operational-staff.test.ts \
+  tests/lib/staff/staff-mutation-service.test.ts \
+  tests/lib/staff/staff-onboarding-service.test.ts \
+  tests/lib/staff/branch-correction-policy.test.ts \
+  tests/lib/staff/branch-correction-resolution-contract.test.ts \
+  tests/components/cash-flow/crm-cash-flow-client-navigation.test.tsx \
+  tests/components/cash-flow/crm-cash-flow-confirmed-mutation-reconciliation.test.tsx \
+  tests/components/cash-flow/crm-cash-flow-failed-mutation.test.tsx \
+  tests/components/cash-flow/crm-cash-flow-generation-swr.test.tsx \
+  tests/components/cash-flow/crm-cash-flow-retained-wrapper.test.tsx \
+  tests/components/cash-flow/crm-cash-flow-stale-reactivation.test.tsx \
+  tests/lib/navigation/workspace-retention-policy-cash-flow.test.ts \
+  tests/lib/cash-flow/crm-cash-flow-workspace-authority.test.ts \
+  tests/lib/cash-flow/crm-cash-flow-retained-mutation-contract.test.ts \
+  tests/lib/cash-flow/cash-flow-page-tabs.test.tsx \
+  tests/lib/cash-flow/cash-flow-ui.test.tsx \
+  tests/lib/cash-flow/cash-flow-mixed-read-model.test.ts \
+  tests/lib/cash-flow/c02-payment-safety.test.ts \
+  tests/lib/cash-flow/cash-payment-session-guard.test.ts \
+  tests/lib/cash-flow/cash-session-close-handover.test.ts \
+  tests/lib/cash-flow/cash-session-contract.test.ts \
+  tests/lib/cash-flow/cf7-receipt-correction.test.ts \
+  tests/lib/cash-flow/cf8-database-reconciliation.test.ts \
+  tests/lib/cash-flow/cf8c-cash-operations-integrity.test.ts \
+  tests/lib/cash-flow/cf8c-review-corrections.test.ts \
+  tests/lib/cash-flow/financial-entry-context.test.ts \
+  tests/lib/cash-flow/financial-foundation-contract.test.ts \
+  tests/lib/cash-flow/legacy-payment-action.test.ts \
+  tests/lib/cash-flow/order-payable-contract.test.ts \
+  tests/lib/cash-flow/order-payment-eligibility.test.ts \
+  tests/lib/cash-flow/owner-cash-flow-page.test.tsx \
+  tests/lib/cash-flow/payment-reconciliation-ui.test.tsx \
+  tests/lib/cash-flow/payment-writer-contract.test.ts \
+  tests/lib/cash-flow/reconciliation-actions.test.ts \
+  tests/lib/cash-flow/reconciliation-expected.test.ts \
+  tests/lib/cash-flow/reconciliation-status-guard.test.ts
+```
 
-After focused PERF-9A gates pass, rerun the accepted performance regression suites through PERF-8.
+- **Files Passed:** 88 passed (88)
+- **Files Failed:** 0
+- **Tests Passed:** 621 passed (621)
+- **Failures:** 0
+- **Duration:** 19.87s
 
-At minimum this must include:
-
-- retained workspace generation/registry/provider tests;
-- PERF-1B Owner scope isolation;
-- CRM Today;
-- CRM Bookings;
-- Schedule + Attendance;
-- CRM Dispatch;
-- CRM Customers;
-- CRM Staff;
-- CRM Cash Flow and its financial safety suites.
-
-Record the exact command and exact file/test counts.
-
-Do not infer success from the focused PERF-9A suite.
-
----
-
-## K. Full repository gate
-
-Run:
+### 8. Full Repository Vitest Suite
 
 ```bash
 pnpm exec vitest run --maxWorkers=4
 ```
 
-For every failure:
+- **Files Passed:** 401 passed | 1 failed | 2 skipped (404 total)
+- **Tests Passed:** 3060 passed | 1 failed | 2 skipped (3063 total)
+- **Duration:** 95.30s
+- **Sole Failure:** `tests/components/bookings/c03-mobile-booking-wizard.test.tsx > C-03: Mobile New Booking Wizard Responsive Layout > renders all core booking controls reachable and readable on mobile`
+- **Failure Classification:** **ACCEPTED-MAIN BASELINE**
+  - Confirmed byte-for-byte identical on accepted main commit `70b4f3004e77989329a2310e5e82fa37a417555f`. Unrelated to Owner Overview.
+- **PERF-9A Introduced Failures:** 0
 
-1. reproduce/compare on accepted main:
-   `70b4f3004e77989329a2310e5e82fa37a417555f`
-2. classify:
-   - PERF-9A INTRODUCED
-   - ACCEPTED-MAIN BASELINE
-   - UNRELATED / ENVIRONMENTAL
-3. do not call a failure baseline without evidence.
+### 9. Final SHA Reconciliation
+
+- **Accepted Base / main:** `70b4f3004e77989329a2310e5e82fa37a417555f`
+- **Starting Verification HEAD:** `ed2b061a026d063a907abb333041c8cf10ac67e5`
+- **Quality-Gated Implementation SHA:** `47a9750a1bc303e9e7257ac9f32cbcc8889b0b3f`
+- **Current Documentation Delivery / PR HEAD:** Delivered via subsequent documentation-only commit on PR #39.
 
 ---
 
@@ -509,7 +602,7 @@ No DB rollback is expected.
 
 ## P. Gate
 
-**TEST EXECUTION REQUIRED — DO NOT MERGE PR #39**
+**READY FOR INDEPENDENT REVIEW — DO NOT MERGE PR #39**
 
 Do not begin PERF-9B Owner Bookings.
 
@@ -519,4 +612,4 @@ Do not activate Owner retention.
 
 Do not begin PERF-10.
 
-PERF-9A may move to independent review only after the required quality gates are actually executed and this report is updated with measured evidence.
+PERF-9A is ready for independent review. DO NOT MERGE pending independent PASS and explicit owner merge authorization.
