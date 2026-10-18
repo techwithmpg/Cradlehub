@@ -26,15 +26,15 @@ export function CrmCashFlowRetainedWorkspace({
 }: Props) {
   const live = useLiveCrmCashFlowData(initialPayload);
   const payload = live.data ?? initialPayload;
+  const { revalidate } = live;
 
   const handleConfirmedMutation = useCallback(() => {
     live.generation.store?.invalidate("crm-cash-flow");
   }, [live.generation.store]);
 
-  const handleRefresh = useCallback(
-    () => live.revalidate(),
-    [live.revalidate]
-  );
+  const handleRefresh = useCallback(async () => {
+    await revalidate();
+  }, [revalidate]);
 
   return (
     <div className="space-y-3">

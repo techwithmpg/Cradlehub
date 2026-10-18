@@ -22,7 +22,7 @@ interface CashFlowWorkspaceProps {
   initialTab?: CashFlowTab;
   initialEntryMode?: FinancialEntryMode | null;
   reconciliationHref?: string | null;
-  onRefresh?: () => void | Promise<void>;
+  onRefresh?: () => void | Promise<unknown>;
   onConfirmedMutation?: () => void;
   externallyRefreshing?: boolean;
   syncCrmRouteState?: boolean;
@@ -42,9 +42,6 @@ export function CashFlowWorkspace({
 }: CashFlowWorkspaceProps) {
   const router = useRouter();
   const searchParams = useSearchParams();
-  const [localActiveTab, setLocalActiveTab] =
-    useState<CashFlowTab>(initialTab);
-
   const routeTabValue = syncCrmRouteState
     ? searchParams.get("tab")
     : null;
@@ -55,7 +52,17 @@ export function CashFlowWorkspace({
     routeTabValue === "history"
       ? routeTabValue
       : null;
-  const activeTab = routeTab ?? localActiveTab;
+
+  const [activeTab, setActiveTab] = useState<CashFlowTab>(
+    () => routeTab ?? initialTab
+  );
+  const [prevRouteTab, setPrevRouteTab] = useState<CashFlowTab | null>(routeTab);
+  if (routeTab !== prevRouteTab) {
+    setPrevRouteTab(routeTab);
+    if (routeTab) {
+      setActiveTab(routeTab);
+    }
+  }
 
   const [localRefreshing, setLocalRefreshing] = useState(false);
   const isRefreshing = externallyRefreshing ?? localRefreshing;
@@ -86,7 +93,7 @@ export function CashFlowWorkspace({
     `₱${val.toLocaleString("en-PH", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 
   const handleTabChange = (newTab: CashFlowTab) => {
-    setLocalActiveTab(newTab);
+    setActiveTab(newTab);
     if (syncCrmRouteState && typeof window !== "undefined") {
       const url = new URL(window.location.href);
       url.searchParams.set("tab", newTab);
@@ -120,9 +127,20 @@ export function CashFlowWorkspace({
     router.refresh();
   };
 
-  const routeEntryValue = syncCrmRouteState
+  const [dismissedRouteEntry, setDismissedRouteEntry] = useState<string | null>(null);
+
+  const rawRouteEntryValue = syncCrmRouteState
     ? searchParams.get("entry")
     : null;
+
+  if (rawRouteEntryValue === null && dismissedRouteEntry !== null) {
+    setDismissedRouteEntry(null);
+  }
+
+  const routeEntryValue =
+    rawRouteEntryValue && rawRouteEntryValue !== dismissedRouteEntry
+      ? rawRouteEntryValue
+      : null;
   const routeEntryMode: FinancialEntryMode | null =
     routeEntryValue === "payment"
       ? "customer_payment"
@@ -137,31 +155,40 @@ export function CashFlowWorkspace({
 
   const handleRecordPaymentOpenChange = (open: boolean) => {
     setIsRecordPaymentOpen(open);
-    if (
-      !open &&
-      syncCrmRouteState &&
-      routeEntryMode !== null &&
-      typeof window !== "undefined"
-    ) {
-      const url = new URL(window.location.href);
-      url.searchParams.delete("entry");
-      window.history.replaceState(null, "", url.toString());
+    if (!open) {
+      if (rawRouteEntryValue) {
+        setDismissedRouteEntry(rawRouteEntryValue);
+      }
+      if (
+        syncCrmRouteState &&
+        rawRouteEntryValue !== null &&
+        typeof window !== "undefined"
+      ) {
+        const url = new URL(window.location.href);
+        url.searchParams.delete("entry");
+        window.history.replaceState(null, "", url.toString());
+      }
+    } else {
+      setDismissedRouteEntry(null);
     }
   };
 
   const openRecordPayment = (orderId?: string) => {
+    setDismissedRouteEntry(null);
     setEntryModalMode("customer_payment");
     setTargetOrderId(orderId);
     setIsRecordPaymentOpen(true);
   };
 
   const openRecordExpense = () => {
+    setDismissedRouteEntry(null);
     setEntryModalMode("expense");
     setTargetOrderId(undefined);
     setIsRecordPaymentOpen(true);
   };
 
   const openCashOperations = () => {
+    setDismissedRouteEntry(null);
     setEntryModalMode("other_entry");
     setTargetOrderId(undefined);
     setIsRecordPaymentOpen(true);

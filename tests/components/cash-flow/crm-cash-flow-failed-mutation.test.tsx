@@ -115,7 +115,7 @@ describe("PERF-8 failed Cash Flow mutations", () => {
     );
 
     fireEvent.change(
-      screen.getByLabelText("Physical counted cash"),
+      screen.getByLabelText(/Physical counted cash/i),
       { target: { value: "150" } }
     );
     fireEvent.click(
@@ -149,7 +149,7 @@ describe("PERF-8 failed Cash Flow mutations", () => {
     );
 
     fireEvent.change(
-      screen.getByLabelText("Physical count"),
+      screen.getByLabelText(/Physical count/i),
       { target: { value: "150" } }
     );
     fireEvent.click(
