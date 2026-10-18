@@ -107,6 +107,30 @@ Record screenshots, request counts, timings, warnings, access limitations, befor
 
 **TARGET, NOT CLAIMED:** no duplicate initial fetch, zero hidden Owner reads after activation, correct filter/branch isolation, one reconciliation per action, faster navigation.
 
+## Local result received and subsequent remote review corrections
+
+### Owner-provided local evidence — candidate `89e21f7a8a286e0c1a80e4ace45a57c82255444e`
+
+The owner shared the result of a focused Windows Vitest run at `E:/cradlehub` on 2026-10-18. The output states **12 selected test files, 11 passed, 1 failed before collection; 73 tests passed; total duration 26.12s**. The single failed suite was `tests/app/owner/owner-bookings-page.test.tsx`: importing the production `server-only` sentinel in the Vitest test harness raised an error before test collection.
+
+**This run is not a PERF-9B PASS.** The interruption prevented TypeScript, ESLint, build and broader regressions in that command sequence. Vitest also emitted a Node `TimeoutNaNWarning`; no source-level cause is established by this warning alone.
+
+### Post-run remote corrections
+
+1. `13f7bd1f717da1d7cbed00cc0fb2a6fa595c7b29` — test-only `vi.mock("server-only", () => ({}))` consistent with the accepted PERF-9A Owner Overview page test convention. It does **not** weaken Next.js's production server-only boundary.
+2. `82df29d2fc74f5f1179062a368513ebb69222478` — removed the local `search` term from the Owner Bookings UI subtree mount key. Search filters existing rows and must not remount the entire Bookings workspace or create a different server query.
+3. `ef7f3f1522b0f9c16abdc39e4b6684b4b6e6d09f` — added focused regression assertions for search-only instance preservation and for server-reported Owner access/branch loss clearing previously visible rows. Distinguishes **explicit server authorization failure** (must fail closed) from a **thrown transport error** (may retain last validated same-query rows with a retry warning).
+
+The post-run commits have **not** been quality-gated in the user's Windows repository. In accordance with the owner's updated working agreement, routine remote changes are **not synchronized locally**; there will be a **single commit-locked local synchronization and testing checkpoint** after the remote correction/review pass, before any merge decision.
+
+### Remaining mandatory acceptance
+
+- Re-run the previously failed Owner Bookings page suite, then the full PERF-9B focused tests, ensuring the new assertions pass.
+- Run TypeScript type-check, changed-file ESLint, Next build, PERF-1B/9A and CRM regression suites, then full Vitest.
+- Conduct authenticated local Owner browser inspection and record actual query counts/timings for all-branches/Main/SM/invalid-scope, filter/selection/back-forward, status/payment-side effects in an authorized **test** environment only.
+- Treat a successful preview deployment as build/deployment-provider status, **not** evidence of authenticated performance, production operation or complete quality gates.
+- Complete independent review and obtain separate, explicit owner approval before merge.
+
 ## CP-PWA-01 checkpoint
 
 The previously agreed **CP-PWA-01 Member PWA optimization** begins only after current Web administrative PERF-9B, PERF-9C, PERF-9D, PERF-10 and FINAL certification. Do not begin it during PERF-9B.
