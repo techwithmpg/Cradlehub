@@ -131,7 +131,7 @@ export function CrmSetupWorkspace({
       <div className="mb-4 flex flex-wrap items-center gap-2 rounded-xl border border-[var(--cs-border)] bg-[var(--cs-surface)] p-2" aria-label="Setup navigation">
         <div role="tablist" aria-label="Primary setup sections" onKeyDown={handleTabKeyDown} className="flex min-w-0 flex-1 flex-wrap gap-1">
           {PRIMARY_TABS.map((tab) => {
-            const active = activeTab === tab.key || (tab.key === "services" && activeTab === "providers");
+            const active = activeTab === tab.key;
             return (
               <button
                 key={tab.key}
