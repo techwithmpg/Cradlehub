@@ -95,20 +95,6 @@ export function buildServiceTableRows(
 const SELECT_CHEVRON =
   "url(\"data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='6' viewBox='0 0 10 6'%3E%3Cpath d='M1 1l4 4 4-4' stroke='%23999' stroke-width='1.5' fill='none' stroke-linecap='round'/%3E%3C/svg%3E\")";
 
-const SELECT_STYLE: React.CSSProperties = {
-  height: 34,
-  padding: "0 28px 0 10px",
-  borderRadius: 6,
-  border: "1px solid var(--cs-border)",
-  background: "var(--cs-surface)",
-  fontSize: "0.8125rem",
-  color: "var(--cs-text)",
-  cursor: "pointer",
-  appearance: "none",
-  backgroundImage: SELECT_CHEVRON,
-  backgroundRepeat: "no-repeat",
-  backgroundPosition: "right 10px center",
-};
 
 function getPageNumbers(current: number, total: number): (number | "...")[] {
   if (total <= 7) return Array.from({ length: total }, (_, i) => i + 1);
