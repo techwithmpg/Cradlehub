@@ -143,6 +143,18 @@ describe("PERF-9B Owner Bookings lifecycle", () => {
     });
   });
 
+  it("shows Retry instead of an endless loader when a fresh filter read fails", async () => {
+    const d = pending<{ bookings: WorkspaceBookingRow[] }>();
+    mock.get.mockReturnValue(d.promise);
+    const view = renderView();
+    view.rerender("status=completed");
+    await waitFor(() => expect(mock.get).toHaveBeenCalledTimes(1));
+    await act(async () => d.reject(new Error("network")));
+    await waitFor(() => expect(screen.getByRole("alert").textContent).toContain("could not be loaded"));
+    expect(screen.queryByTestId("rows")).toBeNull();
+    expect(screen.getByRole("button", { name: "Retry" })).toBeTruthy();
+  });
+
   it("restores Owner tab, search and booking deep link without changing the server query", () => {
     search = "tab=active&search=alice&bookingId=main-1";
     renderView();
