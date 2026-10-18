@@ -162,6 +162,37 @@ describe("PERF-9B Owner Bookings lifecycle", () => {
     await waitFor(() => expect(screen.getByTestId("rows").textContent).toBe("updated"));
   });
 
+  it("does not launch a second legacy refresh for a retained mutation signal", async () => {
+    const store = createWorkspaceGenerationStore();
+    store.setActive("owner-bookings");
+    renderView({ store });
+    fireEvent.click(screen.getByRole("button", { name: "Mutation completed" }));
+    expect(mock.get).not.toHaveBeenCalled();
+    // The authenticated provider owns the single generation invalidation.
+    act(() => store.invalidate("owner-bookings"));
+    await waitFor(() => expect(mock.get).toHaveBeenCalledTimes(1));
+    await waitFor(() => expect(screen.getByTestId("rows").textContent).toBe("updated"));
+  });
+
+  it("rejects a late response from an invalidated retained generation", async () => {
+    const store = createWorkspaceGenerationStore();
+    store.setActive("owner-bookings");
+    const first = pending<{ bookings: WorkspaceBookingRow[] }>();
+    const second = pending<{ bookings: WorkspaceBookingRow[] }>();
+    mock.get.mockReturnValueOnce(first.promise).mockReturnValueOnce(second.promise);
+    renderView({ store });
+
+    act(() => store.invalidate("owner-bookings"));
+    await waitFor(() => expect(mock.get).toHaveBeenCalledTimes(1));
+    act(() => store.invalidate("owner-bookings"));
+    await act(async () => first.resolve({ bookings: [row("STALE")] }));
+    await waitFor(() => expect(mock.get).toHaveBeenCalledTimes(2));
+    expect(screen.getByTestId("rows").textContent).toBe("main-1");
+
+    await act(async () => second.resolve({ bookings: [row("fresh")] }));
+    await waitFor(() => expect(screen.getByTestId("rows").textContent).toBe("fresh"));
+  });
+
   it("keeps validated same-query bookings when a retained request fails", async () => {
     const store = createWorkspaceGenerationStore();
     store.setActive("owner-bookings");
