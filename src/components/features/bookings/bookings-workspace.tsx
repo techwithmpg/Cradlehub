@@ -619,6 +619,10 @@ export function BookingsWorkspace({
               <input
                 type="search"
                 name="search"
+                // Owner keeps its workspace mounted for local search updates.
+                // Recreate only this uncontrolled input when a URL navigation
+                // changes search; leave the CRM path and modal state untouched.
+                key={isOwner ? `owner-search:${search ?? ""}` : undefined}
                 defaultValue={search ?? ""}
                 placeholder="Customer, phone, staff, or booking ID"
                 className="min-w-0 flex-1 bg-transparent text-sm outline-none placeholder:text-muted-foreground"
