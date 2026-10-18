@@ -39,6 +39,8 @@ export function SelectedBookingPrimaryAction({
     bookingProgressStatus: booking.booking_progress_status,
     type: booking.type,
     deliveryType: booking.delivery_type,
+    metadataType: booking.metadata?.type,
+    metadataDeliveryType: booking.metadata?.delivery_type,
     resourceId: booking.resource_id,
     hasStaff: Boolean(firstBookingRelation(booking.staff)),
     hasDriver: Boolean(booking.driver_id),
