@@ -56,7 +56,7 @@ export function OwnerBookingsView({
   const type = searchParams.get("type") ?? undefined;
   const search = searchParams.get("search") ?? undefined;
   const tab = parseTab(searchParams.get("tab"));
-  const selectedBookingId = searchParams.get("bookingId") ?? undefined;
+  const selectedBookingId = searchParams.get("bookingId") ?? searchParams.get("highlight") ?? undefined;
   const invalidBranch = isOwnerBookingsBranchParamInvalid(searchParams);
 
   const query = useMemo(() => ({ date, branch, status, type }), [date, branch, status, type]);
