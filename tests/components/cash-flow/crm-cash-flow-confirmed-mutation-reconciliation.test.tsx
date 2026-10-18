@@ -26,6 +26,7 @@ vi.mock("next/navigation", () => ({
     refresh: routerRefresh,
     push: routerPush,
   }),
+  useSearchParams: () => new URLSearchParams(),
 }));
 
 vi.mock("@/components/features/cash-flow/today-tab", () => ({
