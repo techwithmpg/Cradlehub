@@ -5,7 +5,7 @@
 **Program:** Web CONTROLLED STABILIZATION  
 **Accepted Base / main:** `70b4f3004e77989329a2310e5e82fa37a417555f`
 **Implementation Branch:** `stage/web-perf-9a-owner-overview`
-**Branch Relationship to Accepted Main:** 17 commits ahead / 0 commits behind (merge-base: `70b4f3004e77989329a2310e5e82fa37a417555f`)
+**Historical Branch Relationship at Reviewed Documentation HEAD `4c09f899fbb9035b23ec793178bc869c7bc1e58b`:** 17 commits ahead / 0 commits behind (merge-base: `70b4f3004e77989329a2310e5e82fa37a417555f`). Later documentation-only commits increase the ahead count; verify the live relationship at review/merge.
 **Starting Verification HEAD:** `ed2b061a026d063a907abb333041c8cf10ac67e5`
 **Quality-Gated Implementation SHA:** `47a9750a1bc303e9e7257ac9f32cbcc8889b0b3f`
 **Reviewed Documentation Delivery HEAD:** `4c09f899fbb9035b23ec793178bc869c7bc1e58b`
@@ -518,8 +518,8 @@ pnpm exec vitest run --maxWorkers=4
 - Merge base:
   `70b4f3004e77989329a2310e5e82fa37a417555f`
 
-- Current PERF-9A branch relationship to accepted main:
-  **17 commits ahead / 0 commits behind**
+- PERF-9A branch relationship at reviewed documentation delivery `4c09f899fbb9035b23ec793178bc869c7bc1e58b`:
+  **17 commits ahead / 0 commits behind** (historical snapshot; not a claim about the latest PR HEAD)
 
 - Starting Verification HEAD:
   `ed2b061a026d063a907abb333041c8cf10ac67e5`
@@ -541,7 +541,7 @@ pnpm exec vitest run --maxWorkers=4
 
 > [!IMPORTANT]
 > **Explicit Branch Distinction:**
-> The branch-wide 17-commit relationship (`origin/main...HEAD`, representing the complete PERF-9A implementation progression on top of accepted `main`) and the 2-commit verification-session delta (from Starting Verification HEAD `ed2b061a026d063a907abb333041c8cf10ac67e5` to reviewed documentation delivery `4c09f899fbb9035b23ec793178bc869c7bc1e58b`) describe different things and must not be conflated.
+> The branch-wide 17-commit relationship (`origin/main...4c09f899fbb9035b23ec793178bc869c7bc1e58b`, at the reviewed documentation-delivery snapshot) and the 2-commit verification-session delta (from Starting Verification HEAD `ed2b061a026d063a907abb333041c8cf10ac67e5` to reviewed documentation delivery `4c09f899fbb9035b23ec793178bc869c7bc1e58b`) describe different things and must not be conflated.
 > The original executable candidate commits already existed before the stated Starting Verification HEAD and must not be counted as verification-session commits.
 
 ---
