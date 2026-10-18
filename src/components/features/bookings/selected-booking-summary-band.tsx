@@ -1,4 +1,4 @@
-import { BedDouble, Clock3, CreditCard, UserRound } from "lucide-react";
+import { BedDouble, Clock3, CreditCard, Home, UserRound } from "lucide-react";
 import type { WorkspaceBookingRow } from "./booking-workspace-types";
 import {
   getBookingDurationMinutes,
@@ -64,7 +64,8 @@ export function SelectedBookingSummaryBand({
   const price = readBookingPrice(booking.metadata);
   const balance = Math.max(0, price - Number(booking.amount_paid ?? 0));
   const canEdit = canUpdateBooking(viewerRole) && !isBookingOperationallyClosed(booking);
-  const canEditRoom = canEdit && !isHomeServiceBooking(booking);
+  const isHomeService = isHomeServiceBooking(booking);
+  const canEditRoom = canEdit && !isHomeService;
   const duration = getBookingDurationMinutes(booking);
 
   return (
@@ -82,9 +83,9 @@ export function SelectedBookingSummaryBand({
         ) : null}
       </SummaryCell>
       <SummaryCell
-        icon={<BedDouble className="size-5" />}
-        label="Room"
-        value={getBookingRoomLabel(booking)}
+        icon={isHomeService ? <Home className="size-5" /> : <BedDouble className="size-5" />}
+        label={isHomeService ? "Service location" : "Room"}
+        value={isHomeService ? "Home service" : getBookingRoomLabel(booking)}
       >
         {canEditRoom ? (
           <button type="button" onClick={onChangeRoom} className={actionClass}>
