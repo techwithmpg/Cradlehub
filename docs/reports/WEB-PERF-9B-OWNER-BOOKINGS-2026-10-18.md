@@ -151,6 +151,16 @@ The post-run commits have **not** been quality-gated in the user's Windows repos
 
 **Quality gate:** No migration, payment/booking mutation writer, RLS, caching infrastructure, env/rollout, or production operation changed. Required local verification still deferred by owner instruction until the controlled pre-merge checkpoint. Remain **CORRECTION REQUIRED / NOT YET CERTIFIED** until tests and authenticated browser review.
 
+## Remote-only compatibility review: legacy Owner highlight selection
+
+**Repository inspection finding:** The shared `BookingsTable` continues to consume both the modern `bookingId` and legacy `highlight` deep-link values, but the PERF-9B Owner view passed only `bookingId` as `initialSelectedId`. The shared BookingsWorkspace derives an initial workflow tab from `initialSelectedId`, so a legacy notification/deep link can select the intended record in the table without first opening the correct workflow tab. This was observed in code, **not reproduced in an authenticated browser**.
+
+**Bounded correction:** In `src/components/features/bookings/owner-bookings-view.tsx`, Owner's selected booking initializes from `bookingId ?? highlight`, preserving explicit modern-link priority. Existing shared BookingsTable and booking mutations are untouched. The retained Owner policy still excludes one-time `highlight` from restored stable search state.
+
+**Unexecuted regression:** `tests/components/owner/owner-bookings-lifecycle.test.tsx` now checks legacy highlight selection and priority when both values are present. Browser confirmation of workflow-tab placement remains part of the local pre-merge checkpoint.
+
+**Review evidence:** GitHub PR #40 has no submitted independent reviewer decision or review threads; no GitHub Actions pull-request workflow runs were returned for the previously inspected candidate. Successful preview builds do not substitute for local type-check, Vitest, authorized Owner interaction or independent review. No test-run PASS or production evidence is asserted.
+
 ## CP-PWA-01 checkpoint
 
 The previously agreed **CP-PWA-01 Member PWA optimization** begins only after current Web administrative PERF-9B, PERF-9C, PERF-9D, PERF-10 and FINAL certification. Do not begin it during PERF-9B.
