@@ -322,7 +322,6 @@ export async function updateStaffAction(rawInput: unknown) {
   revalidatePath(`/owner/staff/${staffId}`);
   revalidatePath("/manager/staff");
   revalidatePath(`/manager/staff/${staffId}`);
-  revalidatePath("/crm/staff");
   if (savedStaff.branch_id) {
     invalidateCrmWorkspace(savedStaff.branch_id);
     invalidateManagerWorkspace(savedStaff.branch_id);
@@ -404,7 +403,6 @@ export async function toggleStaffActiveAction(rawInput: unknown) {
 
   revalidatePath("/owner/staff");
   revalidatePath("/manager/staff");
-  revalidatePath("/crm/staff");
   revalidatePath("/crm/schedule");
   return { success: true, staff: updateResult.data[0]! } as const;
 }

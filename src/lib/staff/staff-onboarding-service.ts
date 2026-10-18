@@ -52,7 +52,6 @@ export function invalidateOnboardingApprovalSurfaces(branchId: string) {
   invalidateManagerWorkspace(branchId);
   revalidatePath("/owner/staff");
   revalidatePath("/manager/staff");
-  revalidatePath("/crm/staff");
   revalidatePath("/crm/setup");
   revalidatePath("/staff-onboarding");
 }

@@ -12,6 +12,7 @@ type Props = {
   reviewerSystemRole: string;
   reviewerBranchId: string | null;
   canReviewOnboarding: boolean;
+  onRequestResolved?: (requestId: string) => void;
 };
 
 export function CrmStaffApplicationsTab({
@@ -20,6 +21,7 @@ export function CrmStaffApplicationsTab({
   reviewerSystemRole,
   reviewerBranchId,
   canReviewOnboarding,
+  onRequestResolved,
 }: Props) {
   if (!canReviewOnboarding) {
     return (
@@ -59,6 +61,7 @@ export function CrmStaffApplicationsTab({
         branches={branches}
         reviewerSystemRole={reviewerSystemRole}
         reviewerBranchId={reviewerBranchId}
+        onRequestResolved={onRequestResolved}
       />
     </div>
   );

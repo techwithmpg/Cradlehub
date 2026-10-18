@@ -11,6 +11,7 @@ export type RetainedModuleId =
   | "crm-attendance"
   | "crm-dispatch"
   | "crm-customers"
+  | "crm-staff"
   | "owner-overview"
   | "owner-reports"
   | "owner-bookings";
@@ -100,6 +101,15 @@ const MODULE_POLICIES: readonly ModulePolicy[] = [
     stableSearchParams: ["tab", "page", "q"],
     staleTimeMs: 120_000,
     cost: "medium",
+  },
+  {
+    workspace: "crm",
+    moduleId: "crm-staff",
+    normalizedRoute: "/crm/staff",
+    exact: true,
+    stableSearchParams: ["tab"],
+    staleTimeMs: 60_000,
+    cost: "high",
   },
   {
     workspace: "owner",

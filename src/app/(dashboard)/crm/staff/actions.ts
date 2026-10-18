@@ -149,7 +149,6 @@ async function requireReviewActor(): Promise<ReviewActor | null> {
 
 function revalidateBranchCorrectionSurfaces(): void {
   for (const path of [
-    "/crm/staff",
     "/owner/staff",
     "/manager/staff",
     "/crm/availability",

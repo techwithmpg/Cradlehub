@@ -288,7 +288,6 @@ export async function updateStaffServicesFromCrmAction(
     invalidateManagerWorkspace(targetBranchId);
   }
 
-  revalidatePath("/crm/staff");
   revalidatePath("/crm/services");
   revalidatePath("/crm/setup");
   revalidatePath("/crm/schedule");
