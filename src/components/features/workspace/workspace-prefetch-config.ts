@@ -119,6 +119,24 @@ export const STAFF_PWA_PROVIDER_PREFETCH: WorkspacePrefetchConfig = {
   hover: [],
 };
 
+export const STAFF_PWA_DRIVER_PREFETCH: WorkspacePrefetchConfig = {
+  immediate: [],
+  idle: ["/staff/driver/trips", "/staff/driver/map", "/staff/driver/more"],
+  hover: [],
+};
+
+export const STAFF_PWA_UTILITY_PREFETCH: WorkspacePrefetchConfig = {
+  immediate: [],
+  idle: ["/staff/utility/work", "/staff/utility/rooms", "/staff/utility/more"],
+  hover: [],
+};
+
+export const STAFF_PWA_CRM_GENERAL_PREFETCH: WorkspacePrefetchConfig = {
+  immediate: [],
+  idle: ["/staff/work", "/staff/notices", "/staff/more"],
+  hover: [],
+};
+
 // ── Driver ────────────────────────────────────────────────────────────────────
 
 export const DRIVER_PREFETCH: WorkspacePrefetchConfig = {

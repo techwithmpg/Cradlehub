@@ -9,7 +9,13 @@
 import type { Metadata } from "next";
 import type { ReactNode } from "react";
 import { WorkspaceRoutePrefetcher } from "@/components/features/workspace/workspace-route-prefetcher";
-import { STAFF_PWA_PROVIDER_PREFETCH } from "@/components/features/workspace/workspace-prefetch-config";
+import {
+  STAFF_PWA_PROVIDER_PREFETCH,
+  STAFF_PWA_DRIVER_PREFETCH,
+  STAFF_PWA_UTILITY_PREFETCH,
+  STAFF_PWA_CRM_GENERAL_PREFETCH,
+  type WorkspacePrefetchConfig,
+} from "@/components/features/workspace/workspace-prefetch-config";
 import { DriverMobileShell } from "@/components/features/staff-portal/driver/driver-mobile-shell";
 import { StaffMobileShell } from "@/components/features/staff-portal/mobile/staff-mobile-shell";
 import { TherapistMobileShell } from "@/components/features/staff-portal/therapist/therapist-mobile-shell";
@@ -58,7 +64,7 @@ export default async function StaffLayout({ children }: { children: ReactNode })
   const profileResult = await getMyProfileAction().catch(() => null);
   const staff = profileResult && "staff" in profileResult ? profileResult.staff : null;
   let content: ReactNode = children;
-  let prefetchProviderTabs = false;
+  let prefetchConfig: WorkspacePrefetchConfig | null = null;
 
   if (staff) {
     const opRole = resolveStaffOperationalRole({
@@ -68,6 +74,7 @@ export default async function StaffLayout({ children }: { children: ReactNode })
     const profile = resolveNavigationProfile(opRole);
 
     if (profile === "driver") {
+      prefetchConfig = STAFF_PWA_DRIVER_PREFETCH;
       content = (
         <DriverMobileShell
           staff={staff}
@@ -78,7 +85,7 @@ export default async function StaffLayout({ children }: { children: ReactNode })
         </DriverMobileShell>
       );
     } else if (profile === "provider") {
-      prefetchProviderTabs = true;
+      prefetchConfig = STAFF_PWA_PROVIDER_PREFETCH;
       content = (
         <TherapistMobileShell
           identity={`${authContext?.user.id ?? ""}:${staff.id}:${staff.system_role}:${staff.staff_type ?? ""}:${staff.branch_id ?? ""}`}
@@ -87,6 +94,7 @@ export default async function StaffLayout({ children }: { children: ReactNode })
         </TherapistMobileShell>
       );
     } else if (profile === "utility") {
+      prefetchConfig = STAFF_PWA_UTILITY_PREFETCH;
       content = (
         <StaffMobileShell
           profile="utility"
@@ -96,6 +104,7 @@ export default async function StaffLayout({ children }: { children: ReactNode })
         </StaffMobileShell>
       );
     } else {
+      prefetchConfig = STAFF_PWA_CRM_GENERAL_PREFETCH;
       content = (
         <StaffMobileShell
           profile="crm_general"
@@ -109,8 +118,8 @@ export default async function StaffLayout({ children }: { children: ReactNode })
 
   return (
     <>
-      {prefetchProviderTabs ? (
-        <WorkspaceRoutePrefetcher config={STAFF_PWA_PROVIDER_PREFETCH} />
+      {prefetchConfig ? (
+        <WorkspaceRoutePrefetcher config={prefetchConfig} />
       ) : null}
       <StaffConnectivityBanner />
       <StaffServiceWorkerRegistration />

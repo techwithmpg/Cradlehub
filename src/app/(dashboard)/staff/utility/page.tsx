@@ -1,13 +1,8 @@
 import { redirect } from "next/navigation";
-import { resolveStaffPwaOperationalGroup } from "@/lib/auth/workspace-access";
+import { canAccessCanonicalUtility } from "@/lib/auth/workspace-access";
 import { UtilityMobileHome } from "@/components/features/staff-pwa/utility/utility-mobile-home";
 
-export function canAccessCanonicalUtility(
-  role: string | null | undefined,
-  staffType?: string | null | undefined
-): boolean {
-  return resolveStaffPwaOperationalGroup(role, staffType) === "utility";
-}
+
 
 const UTILITY_DESTINATIONS = [
   "/staff/utility/work",

@@ -171,6 +171,13 @@ export type StaffPwaOperationalGroup = "provider" | "crm_general" | "utility" | 
  * Managerial, Owner, and Digital Marketer roles do NOT produce Staff-PWA operational groups
  * (PWA-C4 Section 1 & External Review Directive).
  */
+export function canAccessCanonicalUtility(
+  role: string | null | undefined,
+  staffType?: string | null | undefined
+): boolean {
+  return resolveStaffPwaOperationalGroup(role, staffType) === "utility";
+}
+
 export function resolveStaffPwaOperationalGroup(
   role: string | null | undefined,
   staffType?: string | null | undefined

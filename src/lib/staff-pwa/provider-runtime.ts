@@ -71,7 +71,7 @@ export async function getProviderWorkspaceRuntime(
   const errors: ProviderRuntimeErrors = {};
 
   const [attendanceOutcome, scheduleOutcome, todayOutcome] = await Promise.allSettled([
-    getPureAttendanceSnapshot(30),
+    getPureAttendanceSnapshot(30, me),
     getMyTodayScheduleAction(targetDate),
     getMyTodayAction(targetDate),
   ]);

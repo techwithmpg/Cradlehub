@@ -1,7 +1,7 @@
 import "server-only";
 
-import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
+import { getMyStaffRecord } from "@/app/(dashboard)/staff-portal/actions";
 import { getPureAttendanceSnapshot, type StaffAttendanceData } from "@/lib/staff-portal/attendance";
 import { resolveStaffPwaOperationalGroup } from "@/lib/auth/workspace-access";
 
@@ -37,37 +37,39 @@ export type UtilityWorkspaceRuntime = {
 };
 
 export async function getUtilityStaffIdentity(): Promise<UtilityWorkspaceRuntime["staff"] | null> {
-  const supabase = await createClient();
-
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-
-  if (!user) return null;
-
-  const { data: staff, error: staffError } = await supabase
-    .from("staff")
-    .select("id, full_name, nickname, avatar_url, branch_id, system_role, staff_type")
-    .eq("auth_user_id", user.id)
-    .eq("is_active", true)
-    .maybeSingle();
-
-  if (staffError || !staff) {
+  const me = await getMyStaffRecord();
+  if (!me) return null;
+  if (resolveStaffPwaOperationalGroup(me.system_role, me.staff_type) !== "utility") {
     return null;
   }
-
-  if (resolveStaffPwaOperationalGroup(staff.system_role, staff.staff_type) !== "utility") {
-    return null;
-  }
-
-  return staff;
+  return {
+    id: me.id,
+    full_name: me.full_name,
+    nickname: me.nickname,
+    avatar_url: me.avatar_url ?? null,
+    branch_id: me.branch_id,
+    system_role: me.system_role,
+    staff_type: me.staff_type,
+  };
 }
 
 export async function getUtilityWorkspaceRuntime({
   includeAttendance = false,
 }: { includeAttendance?: boolean } = {}): Promise<UtilityWorkspaceRuntime | null> {
-  const staff = await getUtilityStaffIdentity();
-  if (!staff) return null;
+  const me = await getMyStaffRecord();
+  if (!me) return null;
+  if (resolveStaffPwaOperationalGroup(me.system_role, me.staff_type) !== "utility") {
+    return null;
+  }
+  const staff: UtilityWorkspaceRuntime["staff"] = {
+    id: me.id,
+    full_name: me.full_name,
+    nickname: me.nickname,
+    avatar_url: me.avatar_url ?? null,
+    branch_id: me.branch_id,
+    system_role: me.system_role,
+    staff_type: me.staff_type,
+  };
 
   if (!staff.branch_id) {
     return {
@@ -87,7 +89,7 @@ export async function getUtilityWorkspaceRuntime({
   const recentCutoff = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString();
   // Both reads are branch-scoped. Completed tasks are bounded and only used for recent history.
   const [attendanceData, activeResult, completedResult] = await Promise.all([
-    includeAttendance ? getPureAttendanceSnapshot(30).catch(() => null) : Promise.resolve(null),
+    includeAttendance && staff.branch_id ? getPureAttendanceSnapshot(30, me).catch(() => null) : Promise.resolve(null),
     admin
       .from("workflow_tasks")
       .select(taskColumns)
