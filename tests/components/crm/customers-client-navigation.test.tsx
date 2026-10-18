@@ -75,14 +75,26 @@ vi.mock("@/components/features/crm/customers/lapsed-clients-table", () => ({
   LapsedClientsTable: () => <div>Lapsed table</div>,
 }));
 vi.mock("@/components/features/crm/customers/waitlist-followup-table", () => ({
-  WaitlistFollowupTable: () => <div>Follow-up table</div>,
+  WaitlistFollowupTable: ({ onChanged }: { onChanged?: () => void }) => (
+    <div>
+      <span>Follow-up table</span>
+      <button onClick={() => onChanged?.()}>trigger:waitlist-changed</button>
+    </div>
+  ),
 }));
 vi.mock("@/components/features/crm/customers/customer-preview-rail", () => ({
   CustomerPreviewRail: ({
     customer,
+    isMobileOpen,
   }: {
     customer: { id: string; full_name: string } | null;
-  }) => (customer ? <aside data-testid="preview-rail">open:{customer.full_name}</aside> : null),
+    isMobileOpen: boolean;
+  }) =>
+    customer ? (
+      <aside data-testid="preview-rail" data-mobile-open={String(isMobileOpen)}>
+        open:{customer.full_name}
+      </aside>
+    ) : null,
 }));
 
 import { CustomersWorkspace } from "@/components/features/crm/customers/customers-workspace";
@@ -204,7 +216,78 @@ describe("PERF-6 CRM Customers native-history navigation", () => {
     );
   });
 
-  it("closes customer preview safely when selected customer is no longer visible", () => {
+  it("retains customer preview while reconciliation is pending after segment, search, or page transition", () => {
+    const customer1 = {
+      id: "cust-1",
+      full_name: "Customer One",
+      phone: "09171111111",
+      email: null,
+      total_bookings: 2,
+      last_booking_date: "2026-10-18",
+    };
+
+    currentSearch = "tab=all";
+    const initial = data({ tab: "all", allCustomers: [customer1] });
+    const view = render(<CustomersWorkspace initialData={initial} />);
+
+    // Select Customer One
+    fireEvent.click(screen.getByRole("button", { name: "select:Customer One" }));
+    expect(screen.getByTestId("preview-rail").textContent).toContain("open:Customer One");
+    expect(screen.getByTestId("preview-rail").getAttribute("data-mobile-open")).toBe("true");
+
+    // Transition to repeat tab while new data is pending (data === undefined)
+    currentSearch = "tab=repeat";
+    liveHook.mockReturnValue({
+      data: undefined,
+      error: undefined,
+      isLoading: true,
+      isValidating: true,
+      revalidate: vi.fn(),
+      generation: { store: { invalidate: vi.fn() } },
+    });
+    view.rerender(<CustomersWorkspace initialData={initial} />);
+
+    // Preview must remain open while request is pending
+    expect(screen.getByTestId("preview-rail").textContent).toContain("open:Customer One");
+    expect(screen.getByTestId("preview-rail").getAttribute("data-mobile-open")).toBe("true");
+  });
+
+  it("preserves customer preview when reconciled canonical dataset still contains the selected customer", () => {
+    const customer1 = {
+      id: "cust-1",
+      full_name: "Customer One",
+      phone: "09171111111",
+      email: null,
+      total_bookings: 2,
+      last_booking_date: "2026-10-18",
+    };
+
+    currentSearch = "tab=all";
+    const initial = data({ tab: "all", allCustomers: [customer1] });
+    const view = render(<CustomersWorkspace initialData={initial} />);
+
+    // Select Customer One
+    fireEvent.click(screen.getByRole("button", { name: "select:Customer One" }));
+    expect(screen.getByTestId("preview-rail").textContent).toContain("open:Customer One");
+
+    // Reconcile to repeat tab where Customer One still exists
+    currentSearch = "tab=repeat";
+    const reconciled = data({ tab: "repeat", repeatCustomers: [customer1] });
+    liveHook.mockReturnValue({
+      data: reconciled,
+      error: undefined,
+      isLoading: false,
+      isValidating: false,
+      revalidate: vi.fn(),
+      generation: { store: { invalidate: vi.fn() } },
+    });
+    view.rerender(<CustomersWorkspace initialData={initial} />);
+
+    // Preview remains open
+    expect(screen.getByTestId("preview-rail").textContent).toContain("open:Customer One");
+  });
+
+  it("closes customer preview and mobile rail safely when reconciled canonical dataset excludes the selected customer", () => {
     const customer1 = {
       id: "cust-1",
       full_name: "Customer One",
@@ -244,5 +327,25 @@ describe("PERF-6 CRM Customers native-history navigation", () => {
 
     // Preview should now be closed safely
     expect(screen.queryByTestId("preview-rail")).toBeNull();
+  });
+
+  it("invalidates crm-customers workspace generation exactly once when waitlist change occurs", () => {
+    const invalidate = vi.fn();
+    liveHook.mockReturnValue({
+      data: data({ tab: "followup" }),
+      error: undefined,
+      isLoading: false,
+      isValidating: false,
+      revalidate: vi.fn(),
+      generation: { store: { invalidate } },
+    });
+
+    currentSearch = "tab=followup";
+    render(<CustomersWorkspace initialData={data({ tab: "followup" })} />);
+
+    fireEvent.click(screen.getByRole("button", { name: "trigger:waitlist-changed" }));
+
+    expect(invalidate).toHaveBeenCalledTimes(1);
+    expect(invalidate).toHaveBeenCalledWith("crm-customers");
   });
 });

@@ -73,7 +73,7 @@ export function CustomersWorkspace({ initialData }: CustomersWorkspaceProps) {
   const [isMobileRailOpen, setIsMobileRailOpen] = useState(false);
 
   const visibleCustomerIds = useMemo(() => {
-    if (!data) return new Set<string>();
+    if (!data || data.tab === "followup") return null;
     const rows =
       data.tab === "all"
         ? data.allCustomers
@@ -85,7 +85,11 @@ export function CustomersWorkspace({ initialData }: CustomersWorkspaceProps) {
     return new Set(rows.map((customer) => customer.id));
   }, [data]);
 
-  if (selectedCustomer && !visibleCustomerIds.has(selectedCustomer.id)) {
+  if (
+    selectedCustomer &&
+    visibleCustomerIds &&
+    !visibleCustomerIds.has(selectedCustomer.id)
+  ) {
     setSelectedCustomer(null);
     setIsMobileRailOpen(false);
   }
@@ -162,14 +166,16 @@ export function CustomersWorkspace({ initialData }: CustomersWorkspaceProps) {
         onClear={() => handleSearch(undefined)}
       />
 
-      {!data ? (
-        <SegmentLoadingState />
-      ) : (
-        <>
-          <CustomerKpiRow tab={data.tab} data={data.kpiData} />
+      {data ? (
+        <CustomerKpiRow tab={data.tab} data={data.kpiData} />
+      ) : null}
 
-          <CrmMotionSection delay={80} className="flex gap-5">
-            <div className="min-w-0 flex-1">
+      <CrmMotionSection delay={80} className="flex gap-5">
+        <div className="min-w-0 flex-1">
+          {!data ? (
+            <SegmentLoadingState />
+          ) : (
+            <>
               {data.tab === "all" && (
                 <AllCustomersTable
                   rows={data.allCustomers}
@@ -225,17 +231,17 @@ export function CustomersWorkspace({ initialData }: CustomersWorkspaceProps) {
                   )}
                 </div>
               )}
-            </div>
+            </>
+          )}
+        </div>
 
-            <CustomerPreviewRail
-              customer={selectedCustomer}
-              onClose={handleCloseRail}
-              isMobileOpen={isMobileRailOpen}
-              setIsMobileOpen={setIsMobileRailOpen}
-            />
-          </CrmMotionSection>
-        </>
-      )}
+        <CustomerPreviewRail
+          customer={selectedCustomer}
+          onClose={handleCloseRail}
+          isMobileOpen={isMobileRailOpen}
+          setIsMobileOpen={setIsMobileRailOpen}
+        />
+      </CrmMotionSection>
     </div>
   );
 }
