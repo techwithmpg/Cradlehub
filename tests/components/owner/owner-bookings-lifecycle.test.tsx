@@ -171,6 +171,20 @@ describe("PERF-9B Owner Bookings lifecycle", () => {
     expect(mock.get).not.toHaveBeenCalled();
   });
 
+  it("opens a legacy highlight deep link in the Owner selected-booking workflow", () => {
+    search = "highlight=main-1";
+    renderView();
+    expect(screen.getByTestId("selection").textContent).toBe("main-1");
+    expect(mock.get).not.toHaveBeenCalled();
+  });
+
+  it("prefers the explicit bookingId when both bookingId and legacy highlight are present", () => {
+    search = "bookingId=main-1&highlight=another";
+    renderView();
+    expect(screen.getByTestId("selection").textContent).toBe("main-1");
+    expect(mock.get).not.toHaveBeenCalled();
+  });
+
   it("does not remount the booking workspace or fetch again for local search edits", () => {
     const view = renderView();
     const mountId = screen.getByTestId("mount-id").textContent;
