@@ -1,5 +1,9 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
+// Vitest loads a Server Component through Node, outside Next.js's RSC bundler.
+// Keep the production server-only boundary intact; mock only its test sentinel.
+vi.mock("server-only", () => ({}));
+
 const mocks = vi.hoisted(() => ({
   getUser: vi.fn(),
   getStaff: vi.fn(),
