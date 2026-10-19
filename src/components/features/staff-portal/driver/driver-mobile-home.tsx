@@ -25,11 +25,9 @@ type DriverMobileHomeProps = {
   attendanceData?: StaffAttendanceData | null;
 };
 
-const ACTIVE_STATUSES = new Set([
-  "in_route",
-  "arrived_at_customer",
-  "service_started",
-]);
+// Booking progress reflects the therapist's service as well as driver travel.
+// Only an outbound journey should occupy the driver's primary trip slot.
+const ACTIVE_STATUSES = new Set(["in_route"]);
 
 function isClosed(item: RealDispatchItem): boolean {
   return (
@@ -53,6 +51,7 @@ function resolvePrimaryTrip(
     open.find((item) =>
       ACTIVE_STATUSES.has(item.dispatchStatus)
     ) ??
+    open.find((item) => item.dispatchStatus === "ready") ??
     open[0] ??
     null
   );
@@ -186,7 +185,7 @@ function PrimaryTripCard({
 
           <div className="min-w-0">
             <div className="text-[10px] font-semibold uppercase tracking-[0.06em] text-[#748293]">
-              {active ? "Active Trip" : "Next Trip"}
+              {active ? "Current Travel" : trip.dispatchStatus === "ready" ? "Next Trip" : "Assigned Home Service"}
             </div>
 
             <div className="mt-0.5 truncate text-[17px] font-bold text-[#203548]">
