@@ -43,6 +43,8 @@ export type SelectedBookingPanelState = {
   bookingProgressStatus?: string | null;
   type?: string | null;
   deliveryType?: string | null;
+  metadataType?: unknown;
+  metadataDeliveryType?: unknown;
   resourceId?: string | null;
   hasStaff: boolean;
   hasDriver?: boolean;
@@ -196,7 +198,7 @@ export function getSelectedBookingActionPlan(
       };
     }
 
-    if (progress === "travel_started" || progress === "arrived") {
+    if (progress === "travel_started" || progress === "arrived" || progress === "checked_in") {
       return {
         mode: "normal",
         primary: { id: "track_dispatch", label: "Track Dispatch", tone: "primary" },
