@@ -11,15 +11,7 @@ afterEach(() => {
 
 vi.mock("server-only", () => ({}));
 vi.mock("next/image", () => ({
-  default: ({
-    src,
-    alt,
-    ...props
-  }: {
-    src: string;
-    alt: string;
-    [key: string]: unknown;
-  }) => (
+  default: ({ src, alt, ...props }: { src: string; alt: string; [key: string]: unknown }) => (
     // eslint-disable-next-line @next/next/no-img-element
     <img src={src} alt={alt} {...props} />
   ),
@@ -195,8 +187,8 @@ const MOCK_BRAND_SETTINGS: MarketingBrandSettingRow[] = [
 ];
 
 describe("Website Images Inventory & Public Parity", () => {
-  it("inventories all 32 static public website image placements", () => {
-    expect(PUBLIC_IMAGE_SLOTS.length).toBe(32);
+  it("inventories all 31 static public website image placements with consumers", () => {
+    expect(PUBLIC_IMAGE_SLOTS.length).toBe(31);
 
     const pages = new Set(PUBLIC_IMAGE_SLOTS.map((s) => s.page));
     expect(pages.has("Homepage")).toBe(true);
@@ -214,7 +206,7 @@ describe("Website Images Inventory & Public Parity", () => {
     });
 
     expect(dynamicSlots.length).toBe(4); // 2 branches + 2 services
-    expect(PUBLIC_IMAGE_SLOTS.length).toBe(32); // static array intact
+    expect(PUBLIC_IMAGE_SLOTS.length).toBe(31); // static array intact
 
     const smBranchSlot = dynamicSlots.find((s) => s.id === "branch_photo_branch-sm");
     expect(smBranchSlot).toBeDefined();
@@ -251,6 +243,24 @@ describe("Website Images Inventory & Public Parity", () => {
     expect(heroMobile?.fieldKey).toBe("mobileImageUrl");
     expect(heroDesktop?.deviceUsage).toBe("desktop");
     expect(heroMobile?.deviceUsage).toBe("mobile");
+  });
+
+  it("ignores closed draft rows when resolving a public image", () => {
+    const heroDesktop = PUBLIC_IMAGE_SLOTS.find((slot) => slot.id === "hero_desktop")!;
+    const resolution = resolveSlotState({
+      slot: heroDesktop,
+      drafts: [
+        createMockDraft({
+          content_key: "hero",
+          status: "published",
+          image_url: "https://cdn.example.com/old-published-draft.jpg",
+        }),
+      ],
+    });
+
+    expect(resolution.effectiveUrl).toBe(heroDesktop.defaultUrl);
+    expect(resolution.draftId).toBeUndefined();
+    expect(resolution.status).toBe("published_default");
   });
 
   it("resolves published overrides and draft states correctly with resolveSlotState", () => {

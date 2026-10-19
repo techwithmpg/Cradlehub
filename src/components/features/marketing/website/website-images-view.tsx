@@ -1,6 +1,6 @@
 "use client";
 
-import { useActionState, useMemo, useState } from "react";
+import { startTransition, useActionState, useMemo, useState } from "react";
 import Image from "next/image";
 import {
   AlertCircle,
@@ -33,6 +33,8 @@ import type { Database } from "@/types/supabase";
 import {
   PUBLIC_IMAGE_SLOTS,
   buildDynamicPublicImageSlots,
+  extractManagedSlotsFromMetadata,
+  isActiveMarketingDraft,
   resolveSlotState,
   type PublicImageSlot,
   type SlotResolution,
@@ -44,6 +46,7 @@ import {
 import {
   saveMarketingDraftAction,
   submitMarketingDraftAction,
+  type MarketingDraftActionState,
 } from "@/app/(dashboard)/marketing/actions";
 import {
   approveMarketingDraftAction,
@@ -114,7 +117,23 @@ export function WebsiteImagesView({
   } | null>(null);
 
   // Server Actions
-  const [saveState, saveAction, isSaving] = useActionState(saveMarketingDraftAction, {});
+  const [saveState, saveAction, isSaving] = useActionState(
+    async (previousState: MarketingDraftActionState, formData: FormData) => {
+      const slotId = String(formData.get("clientSlotId") ?? "");
+      const selectedUrl = String(formData.get("clientSelectedUrl") ?? "");
+      const result = await saveMarketingDraftAction(previousState, formData);
+      if (result.success && slotId) {
+        setPendingSelections((previous) => {
+          if (previous[slotId]?.url !== selectedUrl) return previous;
+          const next = { ...previous };
+          delete next[slotId];
+          return next;
+        });
+      }
+      return result;
+    },
+    {}
+  );
   const [submitState, submitAction, isSubmitting] = useActionState(submitMarketingDraftAction, {});
   const [approveState, approveAction, isApproving] = useActionState(
     approveMarketingDraftAction,
@@ -222,14 +241,7 @@ export function WebsiteImagesView({
         : { type: "error" as const, message: res.error || "Action failed." };
     }
     return localFeedback;
-  }, [
-    saveState,
-    submitState,
-    approveState,
-    publishState,
-    archiveState,
-    localFeedback,
-  ]);
+  }, [saveState, submitState, approveState, publishState, archiveState, localFeedback]);
 
   // Handle image selected from UniversalMediaPicker
   const handleSelectMedia = (slot: PublicImageSlot, selected: SelectedMediaValue) => {
@@ -277,7 +289,10 @@ export function WebsiteImagesView({
       const slotKey = slot.slotKey || slot.id;
       const siteImagesSection = publishedSections.find((s) => s.section_key === "site_images");
       const siteImagesDraft = effectiveDrafts.find(
-        (d) => d.content_type === "section" && d.content_key === "site_images"
+        (d) =>
+          d.content_type === "section" &&
+          d.content_key === "site_images" &&
+          isActiveMarketingDraft(d)
       );
 
       formData.append("id", siteImagesDraft?.id ?? "");
@@ -294,21 +309,21 @@ export function WebsiteImagesView({
           "Centralized public image configurations and visual placements"
       );
       formData.append("isEnabled", "on");
+      formData.append(
+        "sortOrder",
+        String(siteImagesDraft?.sort_order ?? siteImagesSection?.sort_order ?? 100)
+      );
 
-      // Extract existing slots
+      // Keep only this draft's changes; published slots are merged at publish time.
       const currentDraftMeta = (siteImagesDraft?.metadata ?? {}) as Record<string, unknown>;
-      const currentPubMeta = (siteImagesSection?.metadata ?? {}) as Record<string, unknown>;
       const currentSlots = {
-        ...((currentPubMeta.slots as Record<string, string>) || {}),
-        ...((currentDraftMeta.slots as Record<string, string>) || {}),
+        ...extractManagedSlotsFromMetadata(currentDraftMeta),
+        [slotKey]: targetUrl,
       };
-
-      currentSlots[slotKey] = targetUrl;
 
       formData.append(
         "metadataJson",
         JSON.stringify({
-          ...currentPubMeta,
           ...currentDraftMeta,
           slots: currentSlots,
         })
@@ -318,7 +333,8 @@ export function WebsiteImagesView({
       const sectionKey = slot.targetSectionKey || "hero";
       const existingSection = publishedSections.find((s) => s.section_key === sectionKey);
       const existingDraft = effectiveDrafts.find(
-        (d) => d.content_type === "section" && d.content_key === sectionKey
+        (d) =>
+          d.content_type === "section" && d.content_key === sectionKey && isActiveMarketingDraft(d)
       );
 
       formData.append("id", existingDraft?.id ?? "");
@@ -330,24 +346,25 @@ export function WebsiteImagesView({
       formData.append("ctaLabel", existingDraft?.cta_label ?? existingSection?.cta_label ?? "");
       formData.append("ctaHref", existingDraft?.cta_href ?? existingSection?.cta_href ?? "");
 
-      if (slot.fieldKey === "secondaryImageUrl" || slot.fieldKey === "mobileImageUrl") {
-        formData.append("imageUrl", existingDraft?.image_url ?? existingSection?.image_url ?? "");
-        formData.append("secondaryImageUrl", targetUrl);
-      } else if (slot.fieldKey === "categoryImage") {
-        formData.append("imageUrl", existingDraft?.image_url ?? existingSection?.image_url ?? "");
-        formData.append(
-          "secondaryImageUrl",
-          existingDraft?.secondary_image_url ?? existingSection?.secondary_image_url ?? ""
-        );
-      } else {
-        formData.append("imageUrl", targetUrl);
-        formData.append(
-          "secondaryImageUrl",
-          existingDraft?.secondary_image_url ?? existingSection?.secondary_image_url ?? ""
-        );
-      }
+      formData.append(
+        "imageUrl",
+        slot.fieldKey === "imageUrl"
+          ? targetUrl
+          : (existingDraft?.image_url ?? existingSection?.image_url ?? "")
+      );
+      formData.append(
+        "secondaryImageUrl",
+        slot.fieldKey === "secondaryImageUrl"
+          ? targetUrl
+          : (existingDraft?.secondary_image_url ?? existingSection?.secondary_image_url ?? "")
+      );
 
-      formData.append("altText", pending?.altText || existingDraft?.alt_text || slot.label);
+      formData.append(
+        "altText",
+        slot.fieldKey === "mobileImageUrl" || slot.fieldKey === "categoryImage"
+          ? (existingDraft?.alt_text ?? "")
+          : pending?.altText || existingDraft?.alt_text || slot.label
+      );
       formData.append(
         "sortOrder",
         String(existingDraft?.sort_order ?? existingSection?.sort_order ?? 0)
@@ -369,19 +386,18 @@ export function WebsiteImagesView({
         };
         nextMeta.categoryImages = catImages;
       }
+      if (slot.fieldKey === "mobileImageUrl") {
+        nextMeta.mobileImageUrl = targetUrl;
+        nextMeta.mobileImageAltText = pending?.altText || slot.label;
+      }
 
       formData.append("metadataJson", JSON.stringify(nextMeta));
     }
 
     // Call server action
-    saveAction(formData);
-
-    // Clean up pending selection once saved to draft
-    setPendingSelections((prev) => {
-      const next = { ...prev };
-      delete next[slot.id];
-      return next;
-    });
+    formData.append("clientSlotId", slot.id);
+    formData.append("clientSelectedUrl", targetUrl);
+    startTransition(() => saveAction(formData));
   };
 
   // Restore Default Asset action
@@ -429,10 +445,18 @@ export function WebsiteImagesView({
 
       // Device filter
       if (deviceFilter !== "all") {
-        if (deviceFilter === "desktop" && slot.deviceUsage !== "desktop" && slot.deviceUsage !== "both") {
+        if (
+          deviceFilter === "desktop" &&
+          slot.deviceUsage !== "desktop" &&
+          slot.deviceUsage !== "both"
+        ) {
           return false;
         }
-        if (deviceFilter === "mobile" && slot.deviceUsage !== "mobile" && slot.deviceUsage !== "both") {
+        if (
+          deviceFilter === "mobile" &&
+          slot.deviceUsage !== "mobile" &&
+          slot.deviceUsage !== "both"
+        ) {
           return false;
         }
       }
@@ -457,7 +481,16 @@ export function WebsiteImagesView({
 
       return true;
     });
-  }, [allSlots, slotResolutions, pendingSelections, searchQuery, pageFilter, deviceFilter, ownerFilter, statusFilter]);
+  }, [
+    allSlots,
+    slotResolutions,
+    pendingSelections,
+    searchQuery,
+    pageFilter,
+    deviceFilter,
+    ownerFilter,
+    statusFilter,
+  ]);
 
   // Group slots by Page
   const groupedSlots = useMemo(() => {
@@ -537,7 +570,9 @@ export function WebsiteImagesView({
             <span className="text-2xl font-bold text-amber-700 dark:text-amber-300">
               {stats.externalStudio}
             </span>
-            <span className="text-xs text-[var(--cs-text-secondary)]">Brand, Services, Branches</span>
+            <span className="text-xs text-[var(--cs-text-secondary)]">
+              Brand, Services, Branches
+            </span>
           </div>
         </div>
 
@@ -1083,10 +1118,14 @@ export function WebsiteImagesView({
             <div className="mt-4 space-y-4">
               <div className="flex items-center justify-between text-xs text-[var(--cs-text-secondary)]">
                 <span>
-                  Aspect Ratio: <strong className="text-[var(--cs-text)]">{previewSlot.aspectRatio}</strong>
+                  Aspect Ratio:{" "}
+                  <strong className="text-[var(--cs-text)]">{previewSlot.aspectRatio}</strong>
                 </span>
                 <span>
-                  Recommended: <strong className="text-[var(--cs-text)]">{previewSlot.recommendedDimensions}</strong>
+                  Recommended:{" "}
+                  <strong className="text-[var(--cs-text)]">
+                    {previewSlot.recommendedDimensions}
+                  </strong>
                 </span>
               </div>
 
@@ -1130,7 +1169,10 @@ export function WebsiteImagesView({
                       <span className="text-[10px] font-bold uppercase tracking-widest text-[#C8A96B]">
                         Live Placement Preview
                       </span>
-                      <h4 className="mt-1 text-lg font-medium text-white" style={{ fontFamily: "serif" }}>
+                      <h4
+                        className="mt-1 text-lg font-medium text-white"
+                        style={{ fontFamily: "serif" }}
+                      >
                         {previewSlot.label}
                       </h4>
                       <p className="mt-1 text-xs text-white/70 line-clamp-2">
@@ -1147,19 +1189,24 @@ export function WebsiteImagesView({
                   <span className="font-bold text-[var(--cs-text)]">Live Published Asset:</span>
                   <div className="relative aspect-video w-full overflow-hidden rounded-lg border border-[var(--cs-border)] bg-[var(--cs-surface-warm)]">
                     <Image
-                      src={slotResolutions.get(previewSlot.id)?.publishedUrl || previewSlot.defaultUrl}
+                      src={
+                        slotResolutions.get(previewSlot.id)?.publishedUrl || previewSlot.defaultUrl
+                      }
                       alt="Current live image"
                       fill
                       className="object-cover"
                     />
                   </div>
                   <p className="text-[10px] text-[var(--cs-text-secondary)] truncate">
-                    URL: {slotResolutions.get(previewSlot.id)?.publishedUrl || previewSlot.defaultUrl}
+                    URL:{" "}
+                    {slotResolutions.get(previewSlot.id)?.publishedUrl || previewSlot.defaultUrl}
                   </p>
                 </div>
 
                 <div className="space-y-1.5">
-                  <span className="font-bold text-[var(--cs-text)]">Draft / Selected Staged Asset:</span>
+                  <span className="font-bold text-[var(--cs-text)]">
+                    Draft / Selected Staged Asset:
+                  </span>
                   <div className="relative aspect-video w-full overflow-hidden rounded-lg border border-purple-300 dark:border-purple-800 bg-[var(--cs-surface-warm)]">
                     <Image
                       src={

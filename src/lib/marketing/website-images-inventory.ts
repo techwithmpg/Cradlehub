@@ -137,7 +137,8 @@ export const PUBLIC_IMAGE_SLOTS: readonly PublicImageSlot[] = [
     targetSectionKey: MANAGED_SITE_IMAGES_SECTION_KEY,
     fieldKey: "managedSlot",
     slotKey: "home_hero_mobile_slide_3",
-    description: "Third slide in the mobile hero carousel highlighting soothing treatment lighting.",
+    description:
+      "Third slide in the mobile hero carousel highlighting soothing treatment lighting.",
   },
 
   // ── HOMEPAGE: SIGNATURE SERVICES CATEGORY COVERS ───────────────────────────
@@ -207,7 +208,8 @@ export const PUBLIC_IMAGE_SLOTS: readonly PublicImageSlot[] = [
     targetSectionKey: "signature_services",
     fieldKey: "categoryImage",
     categoryName: "Divine Renewal Packages",
-    description: "Cover card image for Divine Renewal Packages on homepage grid and mobile categories.",
+    description:
+      "Cover card image for Divine Renewal Packages on homepage grid and mobile categories.",
   },
   {
     id: "category_party",
@@ -243,7 +245,8 @@ export const PUBLIC_IMAGE_SLOTS: readonly PublicImageSlot[] = [
     targetSectionKey: MANAGED_SITE_IMAGES_SECTION_KEY,
     fieldKey: "managedSlot",
     slotKey: "home_setting_in_spa",
-    description: "Illustration for In-Spa appointment setting on desktop and mobile experience cards.",
+    description:
+      "Illustration for In-Spa appointment setting on desktop and mobile experience cards.",
   },
   {
     id: "setting_home_service",
@@ -260,7 +263,8 @@ export const PUBLIC_IMAGE_SLOTS: readonly PublicImageSlot[] = [
     targetSectionKey: MANAGED_SITE_IMAGES_SECTION_KEY,
     fieldKey: "managedSlot",
     slotKey: "home_setting_home_service",
-    description: "Illustration for Home Service appointment setting on desktop and mobile experience cards.",
+    description:
+      "Illustration for Home Service appointment setting on desktop and mobile experience cards.",
   },
 
   // ── HOMEPAGE: MOBILE SIGNATURE RITUALS ────────────────────────────────────
@@ -456,7 +460,8 @@ export const PUBLIC_IMAGE_SLOTS: readonly PublicImageSlot[] = [
     targetSectionKey: MANAGED_SITE_IMAGES_SECTION_KEY,
     fieldKey: "managedSlot",
     slotKey: "branches_fallback_ambient",
-    description: "Fallback photograph used for branch cards when an individual branch photo is not uploaded.",
+    description:
+      "Fallback photograph used for branch cards when an individual branch photo is not uploaded.",
   },
 
   // ── LANDING PAGES & BOOKING FLOW ──────────────────────────────────────────
@@ -528,24 +533,6 @@ export const PUBLIC_IMAGE_SLOTS: readonly PublicImageSlot[] = [
     slotKey: "landing_home_setup",
     description: "In-home massage setup presentation photo on /home-service-massage-bacolod.",
   },
-  {
-    id: "booking_wizard_banner",
-    label: "Booking Wizard Illustration",
-    page: "Landing Pages & Booking",
-    section: "Booking Wizard",
-    category: "landing",
-    deviceUsage: "both",
-    recommendedDimensions: "800 × 600px (4:3)",
-    aspectRatio: "4:3",
-    defaultUrl: SPA_IMAGES.booking,
-    canonicalOwner: "website",
-    targetTab: "website",
-    targetSectionKey: MANAGED_SITE_IMAGES_SECTION_KEY,
-    fieldKey: "managedSlot",
-    slotKey: "booking_wizard_banner",
-    description: "Illustration banner shown in the guided booking wizard and booking CTA.",
-  },
-
   // ── BRAND & IDENTITY (OWNED BY BRAND STUDIO) ──────────────────────────────
   {
     id: "brand_header_logo",
@@ -626,6 +613,10 @@ export type SlotResolutionResult = {
 
 export type SlotResolution = SlotResolutionResult;
 
+export function isActiveMarketingDraft(draft: MarketingContentDraftRow): boolean {
+  return draft.status !== "published" && draft.status !== "archived";
+}
+
 function readMetaRecord(val: unknown): Record<string, unknown> {
   if (val && typeof val === "object" && !Array.isArray(val)) {
     return val as Record<string, unknown>;
@@ -668,7 +659,7 @@ export function resolveSlotState({
 }): SlotResolutionResult {
   // 1. BRAND OWNER
   if (slot.canonicalOwner === "brand") {
-    const draftBrand = drafts.find((d) => d.content_type === "brand");
+    const draftBrand = drafts.find((d) => d.content_type === "brand" && isActiveMarketingDraft(d));
     const meta = readMetaRecord(draftBrand?.metadata);
 
     let publishedUrl: string | undefined;
@@ -717,7 +708,8 @@ export function resolveSlotState({
     return {
       effectiveUrl: publishedUrl || slot.defaultUrl,
       isCustom: Boolean(publishedUrl && publishedUrl !== slot.defaultUrl),
-      status: publishedUrl && publishedUrl !== slot.defaultUrl ? "published_custom" : "published_default",
+      status:
+        publishedUrl && publishedUrl !== slot.defaultUrl ? "published_custom" : "published_default",
       publishedUrl,
     };
   }
@@ -726,7 +718,8 @@ export function resolveSlotState({
   if (slot.canonicalOwner === "branches") {
     const branch = branches.find((b) => b.id === slot.targetId);
     const locMeta = readMetaRecord(branch?.location_metadata);
-    const publishedUrl = (locMeta.image_url as string) || (locMeta.imageUrl as string) || slot.defaultUrl;
+    const publishedUrl =
+      (locMeta.image_url as string) || (locMeta.imageUrl as string) || slot.defaultUrl;
     return {
       effectiveUrl: publishedUrl,
       isCustom: publishedUrl !== slot.defaultUrl,
@@ -749,7 +742,9 @@ export function resolveSlotState({
 
   // 4. WEBSITE STUDIO SLOTS
   const sectionKey = slot.targetSectionKey ?? "hero";
-  const draft = drafts.find((d) => d.content_type === "section" && d.content_key === sectionKey);
+  const draft = drafts.find(
+    (d) => d.content_type === "section" && d.content_key === sectionKey && isActiveMarketingDraft(d)
+  );
   const published = publishedSections.find((s) => s.section_key === sectionKey);
 
   let publishedUrl: string | undefined;
@@ -804,7 +799,8 @@ export function resolveSlotState({
   return {
     effectiveUrl: publishedUrl || slot.defaultUrl,
     isCustom: Boolean(publishedUrl && publishedUrl !== slot.defaultUrl),
-    status: publishedUrl && publishedUrl !== slot.defaultUrl ? "published_custom" : "published_default",
+    status:
+      publishedUrl && publishedUrl !== slot.defaultUrl ? "published_custom" : "published_default",
     publishedUrl,
   };
 }

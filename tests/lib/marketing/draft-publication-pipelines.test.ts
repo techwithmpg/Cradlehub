@@ -13,8 +13,10 @@ vi.mock("@/app/(dashboard)/owner/branches/actions", () => ({
 }));
 
 const mockUpdatePublicSiteSection = vi.fn();
+const mockGetPublicSiteSection = vi.fn();
 vi.mock("@/lib/queries/public-site", () => ({
   updatePublicSiteSection: (...args: unknown[]) => mockUpdatePublicSiteSection(...args),
+  getPublicSiteSection: (...args: unknown[]) => mockGetPublicSiteSection(...args),
 }));
 
 const mockUpdateBrandSettingsBatchOwner = vi.fn();
@@ -43,7 +45,10 @@ vi.mock("@/lib/dev-bypass", () => ({
   isDevAuthBypassEnabled: vi.fn(() => false),
 }));
 
-import { publishMarketingContentDraft } from "@/lib/queries/marketing-content";
+import {
+  publishMarketingContentDraft,
+  saveMarketingContentDraft,
+} from "@/lib/queries/marketing-content";
 
 function createStaffQuery(): MockQueryChain {
   const query: MockQueryChain = {
@@ -92,9 +97,116 @@ function createRevisionsQuery() {
   };
 }
 
+function createSiteImagesSupabase(draft: Record<string, unknown>) {
+  return {
+    auth: {
+      getUser: vi.fn().mockResolvedValue({ data: { user: { id: "owner-user-01" } } }),
+    },
+    from: vi.fn((table: string) => {
+      if (table === "staff") return { select: vi.fn().mockReturnValue(createStaffQuery()) };
+      if (table === "marketing_content_drafts") {
+        return {
+          select: vi.fn().mockReturnValue({
+            eq: vi.fn().mockReturnValue({
+              maybeSingle: vi.fn().mockResolvedValue({ data: draft, error: null }),
+            }),
+          }),
+          update: vi.fn().mockReturnValue(createDraftUpdateQuery(draft)),
+        };
+      }
+      if (table === "marketing_content_revisions") return createRevisionsQuery();
+      return {};
+    }),
+  };
+}
+
 describe("Draft Publication Pipelines (C5.4 Review Corrections)", () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    mockGetPublicSiteSection.mockResolvedValue(null);
+  });
+
+  describe("Website Images section publication", () => {
+    const draftId = "77777777-7777-4777-8777-777777777777";
+    const draft = {
+      id: draftId,
+      content_type: "section",
+      content_key: "site_images",
+      status: "approved",
+      title: "Website Managed Images",
+      subtitle: "Visual placements",
+      body: "",
+      cta_label: "",
+      cta_href: "",
+      image_url: "",
+      secondary_image_url: "",
+      sort_order: 100,
+      is_enabled: true,
+      metadata: { slots: { home_setting_in_spa: "https://cdn.example.com/draft.webp" } },
+      reviewed_by: null,
+      reviewed_at: null,
+    };
+
+    it("rejects changes to a previously published draft row", async () => {
+      currentMockSupabase = createSiteImagesSupabase({ ...draft, status: "published" });
+
+      const result = await saveMarketingContentDraft({
+        id: draftId,
+        contentType: "section",
+        contentKey: "site_images",
+        metadata: { slots: { home_setting_in_spa: "https://cdn.example.com/new.webp" } },
+      });
+
+      expect(result).toEqual({ success: false, error: "This draft is closed. Start a new draft." });
+    });
+
+    it("uses the canonical section upsert when no site_images row exists", async () => {
+      currentMockSupabase = createSiteImagesSupabase(draft);
+      mockUpdatePublicSiteSection.mockResolvedValue({
+        success: true,
+        section: { id: "new-site-images" },
+      });
+
+      const result = await publishMarketingContentDraft({ id: draftId });
+
+      expect(result.success).toBe(true);
+      expect(mockGetPublicSiteSection).toHaveBeenCalledWith("site_images");
+      expect(mockUpdatePublicSiteSection).toHaveBeenCalledWith(
+        expect.objectContaining({
+          sectionKey: "site_images",
+          metadata: draft.metadata,
+        })
+      );
+    });
+
+    it("preserves current published slots that the draft did not change", async () => {
+      currentMockSupabase = createSiteImagesSupabase(draft);
+      mockGetPublicSiteSection.mockResolvedValue({
+        metadata: {
+          slots: {
+            home_setting_home_service: "https://cdn.example.com/live.webp",
+          },
+        },
+      });
+      mockUpdatePublicSiteSection.mockResolvedValue({
+        success: true,
+        section: { id: "site-images" },
+      });
+
+      const result = await publishMarketingContentDraft({ id: draftId });
+
+      expect(result.success).toBe(true);
+      expect(mockUpdatePublicSiteSection).toHaveBeenCalledWith(
+        expect.objectContaining({
+          metadata: {
+            slots: {
+              home_setting_home_service: "https://cdn.example.com/live.webp",
+              home_setting_in_spa: "https://cdn.example.com/draft.webp",
+            },
+          },
+        })
+      );
+    });
   });
 
   describe("Branch Draft Publication", () => {
@@ -390,7 +502,9 @@ describe("Draft Publication Pipelines (C5.4 Review Corrections)", () => {
                 return {
                   eq: vi.fn().mockReturnValue({
                     select: vi.fn().mockReturnValue({
-                      maybeSingle: vi.fn().mockResolvedValue({ data: { id: realServiceId }, error: null }),
+                      maybeSingle: vi
+                        .fn()
+                        .mockResolvedValue({ data: { id: realServiceId }, error: null }),
                     }),
                   }),
                 };

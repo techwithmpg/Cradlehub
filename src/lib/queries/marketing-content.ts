@@ -15,7 +15,7 @@ import {
   marketingDraftScheduleSchema,
   type MarketingContentDraftInput,
 } from "@/lib/validations/marketing";
-import { updatePublicSiteSection } from "@/lib/queries/public-site";
+import { getPublicSiteSection, updatePublicSiteSection } from "@/lib/queries/public-site";
 import { validateTrustedSiteIconPackage } from "@/lib/marketing/icon-package-validator";
 
 export type MarketingContentType = (typeof MARKETING_CONTENT_TYPES)[number];
@@ -130,6 +130,12 @@ function table<T>(client: unknown, tableName: string): UntypedTable<T> {
 function cleanText(value?: string | null): string | null {
   const trimmed = value?.trim() ?? "";
   return trimmed.length > 0 ? trimmed : null;
+}
+
+function metadataRecord(value: unknown): Record<string, unknown> {
+  return value && typeof value === "object" && !Array.isArray(value)
+    ? (value as Record<string, unknown>)
+    : {};
 }
 
 function cleanOptionalDate(value?: string | null): string | null {
@@ -255,14 +261,17 @@ async function insertMarketingRevision(
   }
 
   const revisionNo = (latest.data?.[0]?.revision_no ?? 0) + 1;
-  const { error } = await revisions.insert({
-    draft_id: draft.id,
-    revision_no: revisionNo,
-    action,
-    snapshot: draftSnapshot(draft),
-    note: cleanText(note),
-    created_by: staffId,
-  }).select(REVISION_SELECT).single();
+  const { error } = await revisions
+    .insert({
+      draft_id: draft.id,
+      revision_no: revisionNo,
+      action,
+      snapshot: draftSnapshot(draft),
+      note: cleanText(note),
+      created_by: staffId,
+    })
+    .select(REVISION_SELECT)
+    .single();
 
   if (error) {
     logError("marketing.revision_insert_failed", { draftId: draft.id, action, error });
@@ -348,6 +357,10 @@ export async function saveMarketingContentDraft(
       return { success: false, error: migrationUnavailableError() };
     }
     return { success: false, error: existing.error.message };
+  }
+
+  if (existing.data?.status === "published" || existing.data?.status === "archived") {
+    return { success: false, error: "This draft is closed. Start a new draft." };
   }
 
   if (context.role !== "owner" && existing.data && !isMutableDraftStatus(existing.data.status)) {
@@ -713,12 +726,14 @@ export async function publishMarketingContentDraft(
       (typeof meta.shortDescription === "string" && meta.shortDescription) ||
       existing.data.subtitle ||
       null;
-    const badges = Array.isArray(meta.badges) && meta.badges.every((item) => typeof item === "string")
-      ? (meta.badges as string[])
-      : undefined;
-    const inclusions = Array.isArray(meta.inclusions) && meta.inclusions.every((item) => typeof item === "string")
-      ? (meta.inclusions as string[])
-      : undefined;
+    const badges =
+      Array.isArray(meta.badges) && meta.badges.every((item) => typeof item === "string")
+        ? (meta.badges as string[])
+        : undefined;
+    const inclusions =
+      Array.isArray(meta.inclusions) && meta.inclusions.every((item) => typeof item === "string")
+        ? (meta.inclusions as string[])
+        : undefined;
     const imageAlt =
       existing.data.alt_text || (typeof meta.imageAlt === "string" ? meta.imageAlt : null);
 
@@ -832,6 +847,20 @@ export async function publishMarketingContentDraft(
     }
   } else if (existing.data.content_type === "section") {
     // Standard Homepage section draft
+    let metadata = existing.data.metadata;
+    if (existing.data.content_key === "site_images") {
+      const published = await getPublicSiteSection("site_images");
+      const publishedMetadata = metadataRecord(published?.metadata);
+      const draftMetadata = metadataRecord(existing.data.metadata);
+      metadata = {
+        ...publishedMetadata,
+        ...draftMetadata,
+        slots: {
+          ...metadataRecord(publishedMetadata.slots),
+          ...metadataRecord(draftMetadata.slots),
+        },
+      };
+    }
     const published = await updatePublicSiteSection({
       sectionKey: existing.data.content_key,
       title: existing.data.title ?? "",
@@ -843,7 +872,7 @@ export async function publishMarketingContentDraft(
       secondaryImageUrl: existing.data.secondary_image_url ?? "",
       sortOrder: existing.data.sort_order,
       isEnabled: existing.data.is_enabled,
-      metadata: existing.data.metadata,
+      metadata,
     });
 
     if (!published.success) return { success: false, error: published.error };
