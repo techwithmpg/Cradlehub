@@ -377,7 +377,18 @@ export function WebsiteImagesView({
         string,
         unknown
       >;
+      if (existingDraft && !("websiteImagesBaseUpdatedAt" in currentMeta)) {
+        setLocalFeedback({
+          type: "error",
+          message:
+            "This section already has a draft from Website Studio. Finish or archive that draft before changing its pictures here.",
+        });
+        return;
+      }
       const nextMeta = { ...currentMeta };
+      nextMeta.websiteImagesBaseUpdatedAt = existingDraft
+        ? currentMeta.websiteImagesBaseUpdatedAt
+        : (existingSection?.updated_at ?? null);
 
       if (slot.fieldKey === "categoryImage" && slot.categoryName) {
         const catImages = {

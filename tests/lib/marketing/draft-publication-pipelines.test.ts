@@ -286,6 +286,95 @@ describe("Draft Publication Pipelines (C5.4 Review Corrections)", () => {
         })
       );
     });
+
+    it("blocks an image draft from restoring a newer live category cover", async () => {
+      const baseline = "2026-10-19T01:00:00.000Z";
+      currentMockSupabase = createSiteImagesSupabase({
+        ...draft,
+        content_key: "signature_services",
+        metadata: {
+          websiteImagesBaseUpdatedAt: baseline,
+          categoryImages: {
+            "Massage Services": "/images/new-massage.jpg",
+            "Salon Services": "/images/old-salon.jpg",
+          },
+        },
+      });
+      mockGetPublicSiteSection.mockResolvedValue({
+        updated_at: "2026-10-19T02:00:00.000Z",
+        metadata: { categoryImages: { "Salon Services": "/images/newer-salon.jpg" } },
+      });
+
+      const result = await publishMarketingContentDraft({ id: draftId });
+
+      expect(result.success).toBe(false);
+      expect(result).toHaveProperty("error", expect.stringMatching(/live section changed/i));
+      expect(mockUpdatePublicSiteSection).not.toHaveBeenCalled();
+    });
+
+    it("blocks saving an image draft when its published baseline changed", async () => {
+      const baseline = "2026-10-19T01:00:00.000Z";
+      currentMockSupabase = createSiteImagesSupabase({
+        ...draft,
+        content_key: "hero",
+        status: "draft",
+        metadata: { websiteImagesBaseUpdatedAt: baseline },
+      });
+      mockGetPublicSiteSection.mockResolvedValue({
+        updated_at: "2026-10-19T02:00:00.000Z",
+      });
+
+      const result = await saveMarketingContentDraft({
+        id: draftId,
+        contentType: "section",
+        contentKey: "hero",
+        imageUrl: "/images/new-hero.jpg",
+        metadata: { websiteImagesBaseUpdatedAt: baseline },
+      });
+
+      expect(result.success).toBe(false);
+      expect(result).toHaveProperty("error", expect.stringMatching(/live section changed/i));
+    });
+
+    it("rejects converting an existing Website Studio draft into an image draft", async () => {
+      currentMockSupabase = createSiteImagesSupabase({
+        ...draft,
+        content_key: "hero",
+        status: "draft",
+        metadata: {},
+      });
+
+      const result = await saveMarketingContentDraft({
+        id: draftId,
+        contentType: "section",
+        contentKey: "hero",
+        imageUrl: "/images/new-hero.jpg",
+        metadata: { websiteImagesBaseUpdatedAt: "2026-10-19T01:00:00.000Z" },
+      });
+
+      expect(result.success).toBe(false);
+      expect(result).toHaveProperty("error", expect.stringMatching(/different editing workflow/i));
+    });
+
+    it("rejects resetting an existing image draft to a newer baseline", async () => {
+      currentMockSupabase = createSiteImagesSupabase({
+        ...draft,
+        content_key: "hero",
+        status: "draft",
+        metadata: { websiteImagesBaseUpdatedAt: "2026-10-19T01:00:00.000Z" },
+      });
+
+      const result = await saveMarketingContentDraft({
+        id: draftId,
+        contentType: "section",
+        contentKey: "hero",
+        imageUrl: "/images/new-hero.jpg",
+        metadata: { websiteImagesBaseUpdatedAt: "2026-10-19T02:00:00.000Z" },
+      });
+
+      expect(result.success).toBe(false);
+      expect(result).toHaveProperty("error", expect.stringMatching(/baseline cannot be changed/i));
+    });
   });
 
   describe("Branch Draft Publication", () => {

@@ -384,6 +384,39 @@ export async function saveMarketingContentDraft(
     return { success: false, error: "This draft is locked for owner review." };
   }
 
+  const inputMetadata = metadataRecord(input.metadata);
+  const existingMetadata = metadataRecord(existing.data?.metadata);
+  const hasImageBaseline = Object.prototype.hasOwnProperty.call(
+    inputMetadata,
+    "websiteImagesBaseUpdatedAt"
+  );
+  const existingHasImageBaseline = Object.prototype.hasOwnProperty.call(
+    existingMetadata,
+    "websiteImagesBaseUpdatedAt"
+  );
+  if (existing.data && existingHasImageBaseline !== hasImageBaseline) {
+    return {
+      success: false,
+      error: "This section draft has a different editing workflow. Finish or archive it first.",
+    };
+  }
+  if (hasImageBaseline) {
+    if (
+      existing.data &&
+      existingMetadata.websiteImagesBaseUpdatedAt !== inputMetadata.websiteImagesBaseUpdatedAt
+    ) {
+      return { success: false, error: "The Website Images draft baseline cannot be changed." };
+    }
+    const currentPublished = await getPublicSiteSection(input.contentKey);
+    if ((currentPublished?.updated_at ?? null) !== inputMetadata.websiteImagesBaseUpdatedAt) {
+      return {
+        success: false,
+        error:
+          "The live section changed since this image draft started. Review the latest section before saving.",
+      };
+    }
+  }
+
   const payload = {
     content_type: input.contentType,
     content_key: input.contentKey,
@@ -891,6 +924,18 @@ export async function publishMarketingContentDraft(
           error: validMetadata.error.issues[0]?.message ?? "Invalid website image metadata.",
         };
       }
+      const draftMetadata = metadataRecord(existing.data.metadata);
+      if (Object.prototype.hasOwnProperty.call(draftMetadata, "websiteImagesBaseUpdatedAt")) {
+        if (
+          (currentPublishedSection?.updated_at ?? null) !== draftMetadata.websiteImagesBaseUpdatedAt
+        ) {
+          return {
+            success: false,
+            error:
+              "The live section changed since this image draft started. Review the latest section before publishing.",
+          };
+        }
+      }
     }
     if (existing.data.content_key === "site_images") {
       const published = await getPublicSiteSection("site_images");
@@ -916,7 +961,14 @@ export async function publishMarketingContentDraft(
         },
       };
     }
-    const published = await updatePublicSiteSection({
+    const publicMetadata = { ...metadataRecord(metadata) };
+    delete publicMetadata.websiteImagesBaseUpdatedAt;
+    const imageDraftMetadata = metadataRecord(existing.data.metadata);
+    const hasImageBaseline = Object.prototype.hasOwnProperty.call(
+      imageDraftMetadata,
+      "websiteImagesBaseUpdatedAt"
+    );
+    const publicationInput = {
       sectionKey: existing.data.content_key,
       title: existing.data.title ?? "",
       subtitle: existing.data.subtitle ?? "",
@@ -927,8 +979,13 @@ export async function publishMarketingContentDraft(
       secondaryImageUrl: existing.data.secondary_image_url ?? "",
       sortOrder: existing.data.sort_order,
       isEnabled: existing.data.is_enabled,
-      metadata,
-    });
+      metadata: publicMetadata,
+    };
+    const published = hasImageBaseline
+      ? await updatePublicSiteSection(publicationInput, {
+          expectedUpdatedAt: imageDraftMetadata.websiteImagesBaseUpdatedAt as string | null,
+        })
+      : await updatePublicSiteSection(publicationInput);
 
     if (!published.success) return { success: false, error: published.error };
     sourceSectionId = published.section.id;

@@ -86,9 +86,8 @@ describe("Website Images draft payload", () => {
   afterEach(cleanup);
 
   it("saves the mobile hero in metadata without replacing the portrait image", async () => {
-    render(
-      <WebsiteImagesView role="owner" publishedSections={[publishedSection("hero")]} drafts={[]} />
-    );
+    const hero = publishedSection("hero");
+    render(<WebsiteImagesView role="owner" publishedSections={[hero]} drafts={[]} />);
 
     const formData = await selectAndSave("Hero Mobile Slide 1");
     const metadata = JSON.parse(String(formData.get("metadataJson")));
@@ -97,6 +96,7 @@ describe("Website Images draft payload", () => {
     expect(formData.get("secondaryImageUrl")).toBe("/images/portrait.webp");
     expect(metadata.mobileImageUrl).toBe("/images/replacement.webp");
     expect(metadata.mobileImageAltText).toBe("Replacement image");
+    expect(metadata.websiteImagesBaseUpdatedAt).toBe(hero.updated_at);
   });
 
   it("starts a new managed-slot draft without copying live or closed-draft slots", async () => {
@@ -177,6 +177,36 @@ describe("Website Images draft payload", () => {
       "Unknown Category": "/images/unknown.jpg",
       "Skin Care Services": "/images/replacement.webp",
     });
+  });
+
+  it("does not convert an existing Website Studio section draft into an image snapshot", () => {
+    const draft = {
+      id: "77777777-7777-4777-8777-777777777777",
+      content_type: "section",
+      content_key: "hero",
+      status: "draft",
+      metadata: {},
+    } as unknown as MarketingContentDraftRow;
+    render(
+      <WebsiteImagesView
+        role="owner"
+        publishedSections={[publishedSection("hero")]}
+        drafts={[draft]}
+      />
+    );
+
+    fireEvent.change(
+      screen.getByPlaceholderText("Search by placement, label, page, or slot ID..."),
+      {
+        target: { value: "Hero Mobile Slide 1" },
+      }
+    );
+    fireEvent.click(screen.getByRole("button", { name: "Change Picture" }));
+    fireEvent.click(screen.getByRole("button", { name: "Select replacement" }));
+    fireEvent.click(screen.getByRole("button", { name: "Save Draft" }));
+
+    expect(screen.getByText(/already has a draft from Website Studio/i)).toBeDefined();
+    expect(saveDraft).not.toHaveBeenCalled();
   });
 
   it("shows a later submission error instead of the earlier save success", async () => {

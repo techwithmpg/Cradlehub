@@ -90,6 +90,24 @@ export const marketingContentDraftInputSchema = z
     metadata: jsonObject,
   })
   .superRefine((input, context) => {
+    if (Object.prototype.hasOwnProperty.call(input.metadata, "websiteImagesBaseUpdatedAt")) {
+      const baseline = input.metadata.websiteImagesBaseUpdatedAt;
+      if (
+        input.contentType !== "section" ||
+        !["hero", "about", "quote_banner", "signature_services"].includes(input.contentKey) ||
+        (baseline !== null &&
+          (typeof baseline !== "string" ||
+            baseline.length > 64 ||
+            Number.isNaN(Date.parse(baseline))))
+      ) {
+        context.addIssue({
+          code: "custom",
+          path: ["metadata", "websiteImagesBaseUpdatedAt"],
+          message: "Invalid Website Images draft baseline.",
+        });
+      }
+    }
+
     if (
       input.contentType === "section" &&
       ["hero", "about", "quote_banner"].includes(input.contentKey)
