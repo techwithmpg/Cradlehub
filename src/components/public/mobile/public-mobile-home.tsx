@@ -71,7 +71,10 @@ export function PublicMobileHomeRenderer({
       {/* ── Calm mobile journey ───────────────────────────────────────────── */}
       <div className="-mt-5 rounded-t-[30px] bg-[#061912] pt-2 shadow-[0_-18px_44px_rgba(0,0,0,0.24)]">
         {/* ── Choose Your Calm / Service Categories ───────────────────────── */}
-        <MobileCalmCategories services={services} />
+        <MobileCalmCategories
+          services={services}
+          categoryImages={sections.signatureServices.categoryImages}
+        />
 
         {/* ── Most-Loved Treatments ───────────────────────────────────────── */}
         <MobileMostLovedTreatments services={featured} />

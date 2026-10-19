@@ -24,6 +24,7 @@ import type { PublicCatalogService } from "@/lib/queries/services";
 import {
   PUBLIC_CATALOG_CATEGORY_DETAILS,
   PUBLIC_CATALOG_CATEGORY_NAMES,
+  getPublicHomeCategoryImage,
   type PublicCatalogCategoryName,
 } from "@/lib/public/service-catalog-config";
 import {
@@ -53,11 +54,6 @@ type CoverImageProps = {
 const proofIcons = [ShieldCheck, Home, MapPin, MessageCircle] as const;
 const journeyIcons = [Home, Sparkles, CalendarDays, HeartHandshake] as const;
 const whyIcons = [Leaf, CalendarDays, Home, MapPin] as const;
-
-const HOME_CATEGORY_IMAGES: Partial<Record<PublicCatalogCategoryName, string>> = {
-  "Divine Renewal Packages": "/images/spa/home/packages.jpg",
-  "Spa Party Packages": "/images/spa/home/spa-party.jpg",
-};
 
 const HOME_CATEGORY_IMAGE_CLASSES: Partial<Record<PublicCatalogCategoryName, string>> = {
   "Spa Party Packages": "object-[center_45%]",
@@ -120,7 +116,7 @@ export function HomePageSectionsRenderer({
       name: categoryName,
       details: {
         ...details,
-        image: HOME_CATEGORY_IMAGES[categoryName] ?? details.image,
+        image: signatureServices.categoryImages[categoryName] ?? getPublicHomeCategoryImage(categoryName),
       },
       imageClassName: HOME_CATEGORY_IMAGE_CLASSES[categoryName] ?? "",
       count: categoryServices.length,
