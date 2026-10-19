@@ -24,8 +24,8 @@ export default async function CrmStaffPage({
   if (result.status === "missing_branch") {
     return (
       <CrmOperationalPageShell
-        title="Staff"
-        description="Manage applications, review team roster, check service assignments, and monitor staff status."
+        title="Staff & Access"
+        description="Manage staff, access, invitations, and onboarding readiness."
         context="Branch required"
       >
         <div className="rounded-xl border border-[var(--cs-border)] bg-[var(--cs-surface)] p-6 text-sm text-[var(--cs-text-muted)]">
@@ -41,8 +41,8 @@ export default async function CrmStaffPage({
   return (
     <RetainedWorkspaceModule moduleId="crm-staff">
       <CrmOperationalPageShell
-        title="Staff"
-        description="Manage applications, review team roster, check service assignments, and monitor staff status."
+        title="Staff & Access"
+        description="Manage staff, access, invitations, and onboarding readiness."
         context={`${data.branchName} · ${data.reviewerSystemRole}`}
       >
         <CrmStaffWorkspace

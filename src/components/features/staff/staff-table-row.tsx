@@ -51,7 +51,7 @@ export function StaffTableRow({
       aria-selected={isSelected}
       className={[
         "border-b border-[var(--cs-border-soft)] last:border-b-0",
-        isSelected ? "bg-[var(--cs-sand-tint)]" : "bg-[var(--cs-surface)]",
+        isSelected ? "bg-[var(--cs-success-bg)]" : "bg-[var(--cs-surface)]",
       ].join(" ")}
     >
       <td className="px-4 py-2.5 align-middle">
