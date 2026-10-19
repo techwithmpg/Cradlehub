@@ -53,12 +53,11 @@ export type DriverRoutePageViewModel = {
 type BuildDriverRoutePageViewModelOptions = {
   detailsBasePath: string;
   today?: Date;
+  preferredStopId?: string | null;
 };
 
 const ACTIVE_STATUSES: ReadonlySet<RealDispatchItem["dispatchStatus"]> = new Set([
   "in_route",
-  "arrived_at_customer",
-  "service_started",
 ]);
 
 function isCompleted(status: RealDispatchItem["dispatchStatus"]): boolean {
@@ -124,7 +123,12 @@ export function buildDriverRoutePageViewModel(
     .sort(sortByStartTime);
 
   const activeItem = routeItems.find((item) => ACTIVE_STATUSES.has(item.dispatchStatus)) ?? null;
-  const nextItem = activeItem ?? routeItems.find((item) => isRouteCandidate(item.dispatchStatus)) ?? null;
+  const preferredItem = options.preferredStopId
+    ? routeItems.find((item) => item.id === options.preferredStopId && isRouteCandidate(item.dispatchStatus)) ?? null
+    : null;
+  const nextItem = preferredItem ?? activeItem ??
+    routeItems.find((item) => item.dispatchStatus === "ready") ??
+    routeItems.find((item) => isRouteCandidate(item.dispatchStatus)) ?? null;
   const allCompleted = routeItems.length > 0 && routeItems.every((item) => isCompleted(item.dispatchStatus));
   const routeState = nextItem
     ? getRouteState(nextItem.dispatchStatus)
