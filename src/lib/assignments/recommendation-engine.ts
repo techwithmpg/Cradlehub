@@ -99,6 +99,8 @@ export type ConflictBooking = {
   start_time: string;
   end_time: string;
   status: string;
+  /** Driver travel state is separate from the therapist's full service duration. */
+  booking_progress_status?: string | null;
 };
 
 export type StaffServiceMapping = {
@@ -392,9 +394,15 @@ function isDriver(staff: StaffForScoring): boolean {
 }
 
 function hasActiveDriverTrip(staffId: string, existingBookings: ConflictBooking[]): boolean {
-  // For drivers, existingBookings should already be filtered to driver_id assignments
+  // A booking may remain in progress for hours after the driver drops off the
+  // therapist. Only travel_started occupies the driver's current outbound run;
+  // arrived/session_started must not lock the driver until service completion.
+  // The driver_id remains on the booking for dispatch history and coordination.
   return existingBookings.some(
-    (b) => b.staff_id === staffId && !["cancelled", "no_show", "completed"].includes(b.status)
+    (b) =>
+      b.staff_id === staffId &&
+      !["cancelled", "no_show", "completed"].includes(b.status) &&
+      b.booking_progress_status === "travel_started"
   );
 }
 
@@ -575,14 +583,15 @@ function scoreDriver(staff: StaffForScoring, ctx: RecommendationContext): Scored
   reasons.push("Same branch");
   score += SCORE.sameBranch;
 
-  // No active trip
+  // Count current outbound travel, not every unfinished home-service booking:
+  // a driver can drop off staff, take another run, and coordinate pickup later.
   const activeTrip = hasActiveDriverTrip(staff.id, ctx.existingBookings);
   if (activeTrip) {
     score += SCORE.activeConflict;
-    warnings.push("Has active trip/dispatch");
+    warnings.push("Driver is already en route; confirm return before dispatching");
   } else {
     score += SCORE.noConflict;
-    reasons.push("No active trip");
+    reasons.push("No outbound trip in progress");
   }
 
   // Schedule presence
