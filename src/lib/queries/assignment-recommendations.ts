@@ -286,7 +286,7 @@ export async function getDriverConflictBookings(
   const supabase = options.supabase ?? (await createClient());
   const { data, error } = await supabase
     .from("bookings")
-    .select("id, driver_id, start_time, end_time, status")
+    .select("id, driver_id, start_time, end_time, status, booking_progress_status")
     .eq("branch_id", branchId)
     .eq("booking_date", date)
     .not("status", "in", '("cancelled","no_show")')
@@ -299,6 +299,7 @@ export async function getDriverConflictBookings(
     start_time: b.start_time,
     end_time: b.end_time ?? b.start_time,
     status: b.status,
+    booking_progress_status: b.booking_progress_status,
   }));
 }
 
