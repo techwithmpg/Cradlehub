@@ -23,7 +23,7 @@ describe("managed homepage category pictures", () => {
     expect(PUBLIC_CATALOG_CATEGORY_NAMES).toHaveLength(5);
     expect(normalized.signatureServices.categoryImages).toEqual({});
     for (const category of PUBLIC_CATALOG_CATEGORY_NAMES) {
-      expect(getPublicHomeCategoryImage(category)).toMatch(/^\\/images\\//);
+      expect(getPublicHomeCategoryImage(category).startsWith("/images/")).toBe(true);
     }
   });
 
