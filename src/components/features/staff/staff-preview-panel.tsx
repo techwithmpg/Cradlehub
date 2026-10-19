@@ -42,10 +42,11 @@ type StaffPreviewPanelProps = {
   staff: StaffMember | null;
   onClearSelection: () => void;
   workspaceContext?: "owner" | "manager" | "crm";
-  /** CRM-only: open the inline staff edit sheet */
+  /** Open the authorized inline staff editor when available. */
   onEditStaff?: (staff: StaffMember) => void;
-  /** CRM-only: open the inline service capability editor */
+  /** Open the authorized inline service capability editor when available. */
   onManageServices?: (staff: StaffMember) => void;
+  onEditWorkSetup?: (staff: StaffMember) => void;
   /** CRM-only: toggle active/inactive status */
   onToggleActive?: (staff: StaffMember) => void;
 };
@@ -56,6 +57,7 @@ export function StaffPreviewPanel({
   workspaceContext = "owner",
   onEditStaff,
   onManageServices,
+  onEditWorkSetup,
   onToggleActive,
 }: StaffPreviewPanelProps) {
   const [activePanel, setActivePanel] = useState<"overview" | "access" | "services" | "onboarding">("overview");
@@ -99,7 +101,7 @@ export function StaffPreviewPanel({
               }
             />
             <DropdownMenuContent align="end" className="min-w-44">
-              {!isCrm && (
+              {!isCrm && (!onEditStaff || status !== "active") && (
                 <DropdownMenuItem>
                   <Link href={`${basePath}/${staff.id}`} className="flex w-full items-center gap-2">
                     <UserCog className="size-4" aria-hidden="true" />
@@ -107,13 +109,13 @@ export function StaffPreviewPanel({
                   </Link>
                 </DropdownMenuItem>
               )}
-              {isCrm && onEditStaff && (
+              {onEditStaff && (isCrm || status === "active") && (
                 <DropdownMenuItem onSelect={() => onEditStaff(staff)}>
                   <UserCog className="size-4" aria-hidden="true" />
                   Edit profile
                 </DropdownMenuItem>
               )}
-              {isCrm && onManageServices && (
+              {onManageServices && (
                 <DropdownMenuItem onSelect={() => onManageServices(staff)}>
                   <Sparkles className="size-4" aria-hidden="true" />
                   Manage services
@@ -263,7 +265,20 @@ export function StaffPreviewPanel({
                   </Link>
                 </Button>
               )}
-              <QuickAction href={`${basePath}/${staff.id}`} label={profileActionLabel} Icon={UserCog} />
+              {onEditStaff && status === "active" ? (
+                <Button type="button" variant="outline" size="lg" className="justify-start" onClick={() => onEditStaff(staff)}>
+                  <UserCog className="size-4" aria-hidden="true" />
+                  Edit Profile
+                </Button>
+              ) : (
+                <QuickAction href={`${basePath}/${staff.id}`} label={profileActionLabel} Icon={UserCog} />
+              )}
+              {isOwner && onEditWorkSetup && status === "active" && (
+                <Button type="button" variant="outline" size="lg" className="justify-start" onClick={() => onEditWorkSetup(staff)}>
+                  <Building2 className="size-4" aria-hidden="true" />
+                  Edit Work Setup
+                </Button>
+              )}
               {isOwner && (
                 <QuickAction href={`${basePath}/${staff.id}`} label="Assign Branch" Icon={MapPin} />
               )}

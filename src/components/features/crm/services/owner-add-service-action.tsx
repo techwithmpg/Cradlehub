@@ -1,7 +1,6 @@
 "use client";
 
 import { useState } from "react";
-import { useRouter } from "next/navigation";
 import { Plus } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { ServiceEditorModal } from "@/components/features/services/service-editor-modal";
@@ -14,7 +13,6 @@ export function OwnerAddServiceAction({
   branches: OwnerServiceBranch[];
   categories: OwnerServiceCategory[];
 }) {
-  const router = useRouter();
   const [open, setOpen] = useState(false);
 
   return (
@@ -29,7 +27,7 @@ export function OwnerAddServiceAction({
         branches={branches}
         categories={categories}
         onClose={() => setOpen(false)}
-        onSaved={() => { setOpen(false); router.refresh(); }}
+        onSaved={() => setOpen(false)}
       />
     </>
   );

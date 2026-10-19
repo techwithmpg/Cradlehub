@@ -159,7 +159,7 @@ describe("Front Desk role unification", () => {
     expect(NAV_CONFIG.crm?.systemItems?.map((item) => item.href)).toEqual(
       expect.arrayContaining([
         "/crm/staff",
-        "/crm/setup?tab=services",
+        "/crm/services",
         "/crm/setup?tab=spaces",
         "/crm/setup?tab=booking_rules",
         "/crm/schedule?tab=setup",

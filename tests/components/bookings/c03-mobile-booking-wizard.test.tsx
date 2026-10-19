@@ -116,7 +116,7 @@ describe("C-03: Mobile New Booking Wizard Responsive Layout", () => {
     expect(screen.getByRole("combobox", { name: "Customer name" })).toBeDefined();
 
     // 3. Service controls
-    expect(screen.getByText("Search and select one or more services.")).toBeDefined();
+    expect(screen.getByRole("button", { name: "Search in-spa services" })).toBeDefined();
 
     // 4. Date & Time controls
     expect(screen.getByLabelText(/choose next available time/i)).toBeDefined();

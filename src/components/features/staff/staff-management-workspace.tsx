@@ -26,10 +26,12 @@ type StaffManagementWorkspaceProps = {
   pendingStaff: StaffMember[];
   initialTab: StaffTab;
   workspaceContext?: "owner" | "manager" | "crm";
-  /** CRM-only: callback to open inline staff edit sheet */
+  /** Open the authorized inline staff editor when available. */
   onEditStaff?: (staff: StaffMember) => void;
-  /** CRM-only: callback to open inline service capability editor */
+  /** Open the authorized inline service capability editor when available. */
   onManageServices?: (staff: StaffMember) => void;
+  /** Owner-only: open the existing staff work setup editor */
+  onEditWorkSetup?: (staff: StaffMember) => void;
   /** CRM-only: callback to toggle staff active/inactive */
   onToggleActive?: (staff: StaffMember) => void;
 };
@@ -48,6 +50,7 @@ export function StaffManagementWorkspace({
   workspaceContext = "owner",
   onEditStaff,
   onManageServices,
+  onEditWorkSetup,
   onToggleActive,
 }: StaffManagementWorkspaceProps) {
   const isOwner = workspaceContext === "owner";
@@ -214,6 +217,7 @@ export function StaffManagementWorkspace({
           workspaceContext={workspaceContext}
           onEditStaff={onEditStaff}
           onManageServices={onManageServices}
+          onEditWorkSetup={onEditWorkSetup}
           onToggleActive={onToggleActive}
         />
       </div>

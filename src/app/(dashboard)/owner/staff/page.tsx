@@ -1,4 +1,4 @@
-import { StaffManagementWorkspace } from "@/components/features/staff/staff-management-workspace";
+import { OwnerStaffManagement } from "@/components/features/staff/owner-staff-management";
 import type { StaffMember, StaffTab } from "@/components/features/staff/staff-management-utils";
 import { getAllStaff, getPendingStaff } from "@/lib/queries/staff";
 
@@ -13,11 +13,10 @@ export default async function OwnerStaffPage({
   const [allStaff, pendingStaff] = await Promise.all([getAllStaff(), getPendingStaff()]);
 
   return (
-    <StaffManagementWorkspace
+    <OwnerStaffManagement
       allStaff={allStaff as StaffMember[]}
       pendingStaff={pendingStaff as StaffMember[]}
       initialTab={initialTab}
-      workspaceContext="owner"
     />
   );
 }
