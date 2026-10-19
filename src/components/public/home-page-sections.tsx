@@ -48,6 +48,7 @@ type CoverImageProps = {
   priority?: boolean;
   sizes: string;
   className?: string;
+  objectPosition?: string;
 };
 
 const proofIcons = [ShieldCheck, Home, MapPin, MessageCircle] as const;
@@ -63,17 +64,17 @@ const HOME_CATEGORY_IMAGE_CLASSES: Partial<Record<PublicCatalogCategoryName, str
   "Spa Party Packages": "object-[center_45%]",
 };
 
-function CoverImage({ src, alt, priority, sizes, className = "" }: CoverImageProps) {
+function CoverImage({ src, alt, priority, sizes, className = "", objectPosition }: CoverImageProps) {
   const imageClass = `object-cover ${className}`.trim();
 
   if (src.startsWith("/") && !src.startsWith("//")) {
     return (
-      <Image src={src} alt={alt} fill priority={priority} className={imageClass} sizes={sizes} />
+      <Image src={src} alt={alt} fill priority={priority} className={imageClass} sizes={sizes} style={{ objectPosition }} />
     );
   }
 
   // eslint-disable-next-line @next/next/no-img-element
-  return <img src={src} alt={alt} className={`absolute inset-0 h-full w-full ${imageClass}`} />;
+  return <img src={src} alt={alt} className={`absolute inset-0 h-full w-full ${imageClass}`} style={{ objectPosition }} />;
 }
 
 function slugify(value: string) {
@@ -136,9 +137,10 @@ export function HomePageSectionsRenderer({
           <div className="absolute inset-0">
             <CoverImage
               src={hero.imageUrl}
-              alt="Cradle Massage and Wellness Spa treatment room"
+              alt={hero.imageAltText}
               priority
               className="object-cover opacity-70"
+              objectPosition={hero.imagePosition}
               sizes="(max-width: 767px) 0px, 100vw"
             />
             <div className="absolute inset-0 bg-[#10261D]/55" />

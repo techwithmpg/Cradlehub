@@ -100,7 +100,12 @@ export function SectionEditor({
   disabled = false,
 }: SectionEditorProps) {
   const formId = useId();
-  const [activePickerField, setActivePickerField] = useState<"primary" | "secondary" | null>(null);
+  const [activePickerField, setActivePickerField] = useState<"primary" | "secondary" | "mobile" | null>(null);
+  const mobileImageUrl = typeof values.metadata.mobileImageUrl === "string" ? values.metadata.mobileImageUrl : "";
+  const focalValue = (key: string) => {
+    const value = values.metadata[key];
+    return typeof value === "number" && Number.isFinite(value) && value >= 0 && value <= 100 ? value : 50;
+  };
 
   const staticSection = STATIC_SECTION_DEFINITIONS.find((s) => s.key === sectionKey);
 
@@ -122,11 +127,24 @@ export function SectionEditor({
         ...values,
         imageUrl: selected.publicUrl,
         altText: selected.altText || values.altText || selected.title || "",
+        metadata: {
+          ...values.metadata,
+          imageAltText: selected.altText || values.altText || selected.title || "",
+        },
       });
     } else if (activePickerField === "secondary") {
       onChange({
         ...values,
         secondaryImageUrl: selected.publicUrl,
+      });
+    } else if (activePickerField === "mobile") {
+      onChange({
+        ...values,
+        metadata: {
+          ...values.metadata,
+          mobileImageUrl: selected.publicUrl,
+          mobileImageAltText: selected.altText || selected.title || "",
+        },
       });
     }
     setActivePickerField(null);
@@ -548,6 +566,7 @@ export function SectionEditor({
                       src={values.imageUrl}
                       alt={values.altText || "Section primary image preview"}
                       className="h-full w-full object-cover"
+                      style={{ objectPosition: `${focalValue("desktopFocalX")}% ${focalValue("desktopFocalY")}%` }}
                     />
                   </div>
                   <div className="flex-1 min-w-0">
@@ -577,6 +596,60 @@ export function SectionEditor({
                 </button>
               )}
             </div>
+
+              {sectionKey === "hero" && (
+                <label className="block text-xs font-medium text-[var(--cs-text)]">
+                  Desktop image description
+                  <input
+                    type="text"
+                    disabled={disabled}
+                    value={values.altText}
+                    onChange={(event) => onChange({
+                      ...values,
+                      altText: event.target.value,
+                      metadata: { ...values.metadata, imageAltText: event.target.value },
+                    })}
+                    maxLength={220}
+                    className="mt-1 w-full rounded-lg border border-[var(--cs-border)] bg-[var(--cs-surface)] px-3 py-2 text-sm"
+                  />
+                </label>
+              )}
+
+            {sectionKey === "hero" && (
+              <div className="rounded-lg border border-[var(--cs-border)] p-3.5 space-y-3">
+                <div className="flex items-center justify-between">
+                  <span className="text-xs font-semibold text-[var(--cs-text)]">Mobile Hero Image</span>
+                  {mobileImageUrl && (
+                    <button type="button" disabled={disabled} onClick={() => updateMetadataField("mobileImageUrl", "")} className="text-[11px] text-red-600 hover:underline">Remove</button>
+                  )}
+                </div>
+                <p className="text-xs text-[var(--cs-text-secondary)]">Uses the desktop image when no mobile image is selected.</p>
+                {mobileImageUrl && (
+                  <div className="relative h-32 w-24 overflow-hidden rounded-lg border border-[var(--cs-border)]">
+                    {/* eslint-disable-next-line @next/next/no-img-element */}
+                    <img src={mobileImageUrl} alt={String(values.metadata.mobileImageAltText || "Mobile hero preview")} className="h-full w-full object-cover" style={{ objectPosition: `${focalValue("mobileFocalX")}% ${focalValue("mobileFocalY")}%` }} />
+                  </div>
+                )}
+                <button type="button" disabled={disabled} onClick={() => setActivePickerField("mobile")} className="inline-flex items-center gap-2 rounded-lg border border-[var(--cs-border)] px-3 py-2 text-xs font-semibold text-[var(--cs-primary)]">
+                  <ImageIcon className="h-4 w-4" /> {mobileImageUrl ? "Change Mobile Image" : "Choose Mobile Image"}
+                </button>
+                <label className="block text-xs font-medium text-[var(--cs-text)]">
+                  Mobile image description
+                  <input type="text" disabled={disabled} value={String(values.metadata.mobileImageAltText ?? "")} onChange={(event) => updateMetadataField("mobileImageAltText", event.target.value)} maxLength={220} className="mt-1 w-full rounded-lg border border-[var(--cs-border)] bg-[var(--cs-surface)] px-3 py-2 text-sm" />
+                </label>
+              </div>
+            )}
+
+            {sectionKey === "hero" && (["desktop", "mobile"] as const).map((variant) => (
+              <div key={variant} className="grid gap-3 rounded-lg border border-[var(--cs-border)] p-3.5 sm:grid-cols-2">
+                {(["X", "Y"] as const).map((axis) => (
+                  <label key={axis} className="block text-xs font-medium text-[var(--cs-text)]">
+                    {variant === "desktop" ? "Desktop" : "Mobile"} focal {axis === "X" ? "horizontal" : "vertical"}: {focalValue(`${variant}Focal${axis}`)}%
+                    <input type="range" min={0} max={100} step={1} disabled={disabled} value={focalValue(`${variant}Focal${axis}`)} onChange={(event) => updateMetadataField(`${variant}Focal${axis}`, Number(event.target.value))} className="mt-2 w-full" />
+                  </label>
+                ))}
+              </div>
+            ))}
 
             {/* Secondary Image (Hero / About) */}
             {(sectionKey === "hero" || sectionKey === "about") && (
@@ -647,11 +720,13 @@ export function SectionEditor({
           isOpen={Boolean(activePickerField)}
           onClose={() => setActivePickerField(null)}
           onSelect={handleMediaSelect}
-          currentUrl={activePickerField === "primary" ? values.imageUrl : values.secondaryImageUrl}
+          currentUrl={activePickerField === "primary" ? values.imageUrl : activePickerField === "mobile" ? mobileImageUrl : values.secondaryImageUrl}
           title={
             activePickerField === "primary"
               ? `Select Primary Image for ${values.title || "Section"}`
-              : `Select Secondary Image for ${values.title || "Section"}`
+              : activePickerField === "mobile"
+                ? `Select Mobile Image for ${values.title || "Section"}`
+                : `Select Secondary Image for ${values.title || "Section"}`
           }
           availableAssets={mediaAssets}
           filterSectionKey={sectionKey}

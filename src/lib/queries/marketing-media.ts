@@ -1,5 +1,6 @@
 import "server-only";
 
+import { randomUUID } from "node:crypto";
 import { revalidatePath } from "next/cache";
 import { isDevAuthBypassEnabled } from "@/lib/dev-bypass";
 import { logError } from "@/lib/logger";
@@ -425,8 +426,7 @@ export async function saveMarketingMediaAsset(
   const context = await getMarketingAccessContext();
   if (!context) return { success: false, error: "Unauthorized" };
 
-  const { id, bucketPath, publicUrl, title, altText, sectionKey, contentKey, metadata } =
-    parsed.data;
+  const { id, title, altText, sectionKey, contentKey, metadata } = parsed.data;
   const assetsTable = table<MarketingMediaAssetRow>(context.supabase, "marketing_media_assets");
 
   if (id) {
@@ -484,7 +484,12 @@ export async function saveMarketingMediaAsset(
       "mimeType",
       "sizeBytes",
       "originalFileName",
+      "originalMimeType",
+      "originalSizeBytes",
       "uploadedAt",
+      "width",
+      "height",
+      "format",
     ];
 
     let mergedMetadata = existingMeta;
@@ -525,31 +530,9 @@ export async function saveMarketingMediaAsset(
     return { success: true, asset: result.data, message: "Media asset updated." };
   }
 
-  if (!bucketPath) {
-    return { success: false, error: "Bucket path is required for new media assets." };
-  }
-
-  const insertPayload = {
-    bucket_path: bucketPath,
-    public_url: publicUrl ?? null,
-    title: cleanText(title) || bucketPath.split("/").pop() || "Untitled Image",
-    alt_text: altText ?? "Media asset",
-    section_key: cleanText(sectionKey),
-    content_key: cleanText(contentKey),
-    status: "draft",
-    metadata: metadata ?? {},
-    created_by: context.staffId,
-    updated_by: context.staffId,
-  };
-
-  const result = await assetsTable.insert(insertPayload).select(MEDIA_ASSET_SELECT).single();
-
-  if (result.error || !result.data) {
-    return { success: false, error: result.error?.message ?? "Could not create media asset." };
-  }
-
-  revalidateMediaLibrary();
-  return { success: true, asset: result.data, message: "Media asset saved as draft." };
+  // New catalog records must be coupled to a validated, tracked Storage upload.
+  // The metadata action cannot register an arbitrary public URL or object path.
+  return { success: false, error: "Upload an image to create a media asset." };
 }
 
 export async function updateMarketingMediaAssetStatus(
@@ -732,6 +715,9 @@ export async function uploadMarketingMediaFile(
   if (!file || !(file instanceof File)) {
     return { success: false, error: "Please choose a valid file to upload." };
   }
+  if (file.size === 0 || file.size > 10 * 1024 * 1024) {
+    return { success: false, error: "Image must be nonempty and no larger than 10 MB." };
+  }
 
   const rawTitle = (formData.get("title") as string) || "";
   const rawAltText = (formData.get("altText") as string) || "";
@@ -739,7 +725,8 @@ export async function uploadMarketingMediaFile(
   const mediaIntent = (formData.get("mediaIntent") as string) || "";
 
   const arrayBuffer = await file.arrayBuffer();
-  const buffer = Buffer.from(arrayBuffer);
+  let buffer: Buffer = Buffer.from(arrayBuffer);
+  let storedMimeType = file.type;
 
   let validatedWidth: number | undefined;
   let validatedHeight: number | undefined;
@@ -776,30 +763,23 @@ export async function uploadMarketingMediaFile(
     validatedWidth = validation.width;
     validatedHeight = validation.height;
     validatedFormat = validation.format;
-  } else {
-    // Generic fallback validation
-    const allowedMimeTypes = [
-      "image/jpeg",
-      "image/jpg",
-      "image/png",
-      "image/webp",
-      "image/svg+xml",
-      "image/gif",
-    ];
-    if (!allowedMimeTypes.includes(file.type.toLowerCase())) {
-      return {
-        success: false,
-        error: "Unsupported file type. Please upload a JPG, PNG, WebP, SVG, or GIF image.",
-      };
-    }
+  }
 
-    const maxBytes = 10 * 1024 * 1024; // 10MB
-    if (file.size > maxBytes) {
-      return {
-        success: false,
-        error: "File size exceeds 10MB limit. Please upload an optimized image.",
-      };
-    }
+  // Every uploaded public object is a decoded, bounded raster derivative.
+  // This also prevents a client from bypassing validation through mediaIntent.
+  try {
+    const { processGenericMarketingImage } = await import("@/lib/marketing/generic-upload-server");
+    const processed = await processGenericMarketingImage(buffer, file.type);
+    buffer = processed.buffer;
+    storedMimeType = processed.mimeType;
+    validatedWidth = processed.width;
+    validatedHeight = processed.height;
+    validatedFormat = processed.format;
+  } catch (error) {
+    return {
+      success: false,
+      error: error instanceof Error ? error.message : "Could not validate the image upload.",
+    };
   }
 
   const sanitizedFileName = file.name
@@ -807,8 +787,7 @@ export async function uploadMarketingMediaFile(
     .replace(/[^a-z0-9.-]/g, "_")
     .replace(/_{2,}/g, "_");
 
-  const timestamp = Date.now();
-  const bucketPath = `media/${timestamp}-${sanitizedFileName}`;
+  const bucketPath = `media/${randomUUID()}-${sanitizedFileName.replace(/\.[^.]+$/, "")}.webp`;
 
   const title = cleanText(rawTitle) || file.name.replace(/\.[^/.]+$/, "");
   const baseAlt = cleanText(rawAltText) || title || "Public site image";
@@ -826,8 +805,10 @@ export async function uploadMarketingMediaFile(
     status: "draft",
     metadata: {
       originalFileName: file.name,
-      mimeType: file.type,
-      sizeBytes: file.size,
+      originalMimeType: file.type,
+      originalSizeBytes: file.size,
+      mimeType: storedMimeType,
+      sizeBytes: buffer.length,
       mediaIntent: mediaIntent || undefined,
       width: validatedWidth,
       height: validatedHeight,
@@ -861,7 +842,7 @@ export async function uploadMarketingMediaFile(
     const { error: uploadError } = await context.supabase.storage
       .from(PUBLIC_MEDIA_BUCKET)
       .upload(bucketPath, buffer, {
-        contentType: file.type,
+        contentType: storedMimeType,
         upsert: false,
       });
 

@@ -912,7 +912,7 @@ export function UniversalMediaPicker({
                   accept={
                     contract
                       ? contract.allowedMimeTypes.join(",")
-                      : "image/jpeg,image/png,image/webp,image/svg+xml,image/gif"
+                      : "image/jpeg,image/png,image/webp"
                   }
                   style={{
                     width: "100%",
@@ -927,7 +927,7 @@ export function UniversalMediaPicker({
                 <p style={{ margin: "4px 0 0", fontSize: 11, color: "var(--cs-text-muted)" }}>
                   {contract
                     ? contract.requirementText
-                    : "JPG, PNG, WebP, SVG, or GIF up to 10MB."}
+                    : "JPG, PNG, or WebP up to 10MB. Images are optimized before storage."}
                 </p>
               </div>
 

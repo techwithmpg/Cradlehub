@@ -24,22 +24,25 @@ export function MobileHomeHeroCarousel({ hero }: MobileHomeHeroCarouselProps) {
 
   const heroSlides = [
     {
-      src: hero?.imageUrl || SPA_IMAGES.heroMobile,
-      alt: "Cradle therapist providing a warm massage treatment",
+      src: hero?.mobileImageUrl || hero?.imageUrl || SPA_IMAGES.heroMobile,
+      alt: hero?.mobileImageAltText || hero?.imageAltText || "Cradle wellness spa treatment room",
       className: "cradle-hero-slide-one",
       imageClassName: "object-center",
+      objectPosition: hero?.mobileImagePosition,
     },
     {
       src: SPA_IMAGES.heroWide,
       alt: "Warm Cradle massage room with treatment beds",
       className: "cradle-hero-slide-two",
       imageClassName: "object-center",
+      objectPosition: undefined,
     },
     {
       src: SPA_IMAGES.heroAmbience,
       alt: "Calm Cradle spa ambience with towels and warm light",
       className: "cradle-hero-slide-three",
       imageClassName: "object-center",
+      objectPosition: undefined,
     },
   ] as const;
 
@@ -60,6 +63,7 @@ export function MobileHomeHeroCarousel({ hero }: MobileHomeHeroCarouselProps) {
               fill
               preload={index === 0}
               className={`cradle-hero-image object-cover ${slide.imageClassName}`}
+              style={{ objectPosition: slide.objectPosition }}
               sizes="100vw"
             />
           </div>

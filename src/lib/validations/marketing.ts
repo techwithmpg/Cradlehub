@@ -82,6 +82,30 @@ export const marketingContentDraftInputSchema = z.object({
   sortOrder: z.number().int().min(-1000).max(1000).default(0),
   isEnabled: z.boolean().default(true),
   metadata: jsonObject,
+}).superRefine((input, context) => {
+  if (input.contentType !== "section" || input.contentKey !== "hero") return;
+
+  const mobileImageUrl = input.metadata.mobileImageUrl;
+  if (
+    mobileImageUrl !== undefined &&
+    (typeof mobileImageUrl !== "string" || mobileImageUrl.length > 1000 || !isSafeImageUrl(mobileImageUrl))
+  ) {
+    context.addIssue({ code: "custom", path: ["metadata", "mobileImageUrl"], message: "Use a safe mobile image URL." });
+  }
+
+  for (const key of ["desktopFocalX", "desktopFocalY", "mobileFocalX", "mobileFocalY"]) {
+    const value = input.metadata[key];
+    if (value !== undefined && (typeof value !== "number" || !Number.isFinite(value) || value < 0 || value > 100)) {
+      context.addIssue({ code: "custom", path: ["metadata", key], message: "Focal coordinates must be from 0 to 100." });
+    }
+  }
+
+  for (const key of ["imageAltText", "mobileImageAltText"]) {
+    const value = input.metadata[key];
+    if (value !== undefined && (typeof value !== "string" || value.length > 220)) {
+      context.addIssue({ code: "custom", path: ["metadata", key], message: "Image description is too long." });
+    }
+  }
 });
 
 export type MarketingContentDraftInput = z.infer<typeof marketingContentDraftInputSchema>;

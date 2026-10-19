@@ -10,6 +10,11 @@ export interface NormalizedHeroSection {
   ctaLabel: string;
   ctaHref: string;
   imageUrl: string;
+  mobileImageUrl: string;
+  imageAltText: string;
+  mobileImageAltText: string;
+  imagePosition: string;
+  mobileImagePosition: string;
   secondaryImageUrl: string;
   secondaryCtaLabel: string;
   secondaryCtaHref: string;
@@ -96,6 +101,14 @@ function metadataText(metadata: Record<string, unknown>, key: string, fallback: 
   return typeof value === "string" && value.trim() ? value.trim() : fallback;
 }
 
+function imagePosition(metadata: Record<string, unknown>, prefix: string): string {
+  const x = metadata[`${prefix}FocalX`];
+  const y = metadata[`${prefix}FocalY`];
+  const coordinate = (value: unknown) =>
+    typeof value === "number" && Number.isFinite(value) && value >= 0 && value <= 100 ? value : 50;
+  return `${coordinate(x)}% ${coordinate(y)}%`;
+}
+
 function metadataItems(
   metadata: Record<string, unknown>,
   fallback: readonly string[]
@@ -139,6 +152,11 @@ export function resolvePublicSiteSections(
     ctaLabel: sectionText(heroRow, "cta_label", "Book Appointment"),
     ctaHref: sectionText(heroRow, "cta_href", "/book"),
     imageUrl: sectionText(heroRow, "image_url", SPA_IMAGES.hero),
+    mobileImageUrl: metadataText(heroMeta, "mobileImageUrl", ""),
+    imageAltText: metadataText(heroMeta, "imageAltText", "Cradle wellness spa treatment room"),
+    mobileImageAltText: metadataText(heroMeta, "mobileImageAltText", ""),
+    imagePosition: imagePosition(heroMeta, "desktop"),
+    mobileImagePosition: imagePosition(heroMeta, "mobile"),
     secondaryImageUrl: sectionText(heroRow, "secondary_image_url", SPA_IMAGES.heroPortrait),
     secondaryCtaLabel: metadataText(heroMeta, "secondaryCtaLabel", "Plan Your Visit"),
     secondaryCtaHref: metadataText(heroMeta, "secondaryCtaHref", "#plan-your-visit"),
