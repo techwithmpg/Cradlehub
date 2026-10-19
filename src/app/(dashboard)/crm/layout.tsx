@@ -52,7 +52,10 @@ export default async function CrmLayout({ children }: { children: React.ReactNod
   return (
     <>
       {/* Background route warm-up for CRM workspace */}
-      <WorkspaceRoutePrefetcher config={CRM_PREFETCH} />
+      <WorkspaceRoutePrefetcher
+        config={CRM_PREFETCH}
+        mobileIdleRoutes={["/crm/today", "/crm/schedule"]}
+      />
 
       {canShowCoach ? (
         <AgentCoachProvider
