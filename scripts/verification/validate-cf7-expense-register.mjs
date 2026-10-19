@@ -634,7 +634,7 @@ async function main() {
 
   // T13: Orphan cleanup authorization (owner_id check)
   // Staff 2 cannot delete Staff 1's uploaded receipt
-  const unauthorizedDelete = runPsql(`
+  runPsql(`
     BEGIN;
     SET LOCAL ROLE authenticated;
     SET LOCAL "request.jwt.claim.sub" = '${staffCsr2Uid}';
@@ -649,7 +649,7 @@ async function main() {
   console.log('  ✓ Unauthorized deletion blocked: owner_id ownership rule prevents deleting other staff files');
 
   // Staff 1 CAN delete their own uploaded object (orphan cleanup)
-  const staff1Cleanup = runPsql(`
+  runPsql(`
     BEGIN;
     SET LOCAL ROLE authenticated;
     SET LOCAL "request.jwt.claim.sub" = '${staffCsrUid}';

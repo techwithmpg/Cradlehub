@@ -3,7 +3,6 @@
 import Link from "next/link";
 import { ArrowLeft, Bell, User as UserIcon } from "lucide-react";
 import type { StaffTopBarProps } from "./types";
-import { cn } from "@/lib/utils";
 
 export function StaffTopBar({
   title,

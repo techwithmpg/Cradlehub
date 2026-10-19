@@ -30,18 +30,24 @@ const mockWorkflowTasksUpdateIs = vi.fn();
 const mockWorkflowTasksGte = vi.fn();
 const mockWorkflowTasksLimit = vi.fn();
 
-let updateCasRowsOverride: any[] | (() => any[]) | null = null;
-let insertErrorOverride: any | null = null;
+let updateCasRowsOverride: Record<string, unknown>[] | (() => Record<string, unknown>[]) | null = null;
+let insertErrorOverride: { code: string; message: string } | null = null;
 
-function createChain(resolver: () => Promise<any>, customActions?: Record<string, any>) {
-  const chain: any = {
+function createChain(resolver: () => Promise<unknown>, customActions?: {
+  insert?: (payload: Record<string, unknown>) => unknown;
+  update?: (payload: Record<string, unknown>) => unknown;
+  eq?: (...args: unknown[]) => unknown;
+  gte?: (...args: unknown[]) => unknown;
+  limit?: (...args: unknown[]) => unknown;
+}) {
+  const chain: Record<string, unknown> = {
     select: () => chain,
-    insert: (payload: any) => {
+    insert: (payload: Record<string, unknown>) => {
       mockInsertSpy(payload);
       if (customActions?.insert) return customActions.insert(payload);
       return chain;
     },
-    update: (payload: any) => {
+    update: (payload: Record<string, unknown>) => {
       mockUpdateSpy(payload);
       if (customActions?.update) return customActions.update(payload);
       return chain;
@@ -50,7 +56,7 @@ function createChain(resolver: () => Promise<any>, customActions?: Record<string
       mockDeleteSpy();
       return chain;
     },
-    upsert: (payload: any) => {
+    upsert: (payload: unknown) => {
       mockUpsertSpy(payload);
       return chain;
     },
@@ -72,13 +78,13 @@ function createChain(resolver: () => Promise<any>, customActions?: Record<string
     },
     maybeSingle: () => resolver(),
     single: () => resolver(),
-    then: (resolve: any, reject: any) => resolver().then(resolve, reject),
+    then: (resolve: (value: unknown) => unknown, reject: (reason: unknown) => unknown) => resolver().then(resolve, reject),
   };
   return chain;
 }
 
 const mockAdminClient = {
-  rpc: (fn: string, args: any) => {
+  rpc: (fn: string, args: unknown) => {
     mockRpcSpy(fn, args);
     return Promise.resolve({ data: null, error: null });
   },
@@ -100,9 +106,9 @@ const mockAdminClient = {
         eq: mockWorkflowTasksEq,
         gte: mockWorkflowTasksGte,
         limit: mockWorkflowTasksLimit,
-        insert: (payload: any) => {
+        insert: (payload: Record<string, unknown>) => {
           mockWorkflowTasksInsert(payload);
-          const insertChain: any = {
+          const insertChain: Record<string, unknown> = {
             select: () => insertChain,
             single: () => {
               if (insertErrorOverride)
@@ -114,7 +120,7 @@ const mockAdminClient = {
                 return Promise.resolve({ data: null, error: insertErrorOverride });
               return Promise.resolve({ data: { id: taskId, ...payload }, error: null });
             },
-            then: (resolve: any, reject: any) => {
+            then: (resolve: (value: unknown) => unknown, reject: (reason: unknown) => unknown) => {
               if (insertErrorOverride)
                 return Promise.resolve({ data: null, error: insertErrorOverride }).then(
                   resolve,
@@ -128,9 +134,9 @@ const mockAdminClient = {
           };
           return insertChain;
         },
-        update: (payload: any) => {
+        update: (payload: Record<string, unknown>) => {
           mockWorkflowTasksUpdate(payload);
-          const updateChain: any = {
+          const updateChain: Record<string, unknown> = {
             eq: (...args: unknown[]) => {
               mockWorkflowTasksUpdateEq(...args);
               return updateChain;
@@ -159,7 +165,7 @@ const mockAdminClient = {
                     : [{ id: taskId, ...payload }];
               return Promise.resolve({ data: rows[0] ?? null, error: null });
             },
-            then: (resolve: any, reject: any) => {
+            then: (resolve: (value: unknown) => unknown, reject: (reason: unknown) => unknown) => {
               const rows =
                 typeof updateCasRowsOverride === "function"
                   ? updateCasRowsOverride()
@@ -1122,7 +1128,7 @@ describe("W1B: Utility Room Turnover Integrity, Concurrency & Recovery", () => {
     });
 
     const crmCtx = {
-      supabase: mockUserClient as any,
+      supabase: mockUserClient as unknown as Parameters<typeof completeCrmBookingService>[0]["supabase"],
       authUserId: userId,
       me: { id: staffId, branch_id: branchId, system_role: "owner" },
     };
@@ -1182,7 +1188,7 @@ describe("W1B: Utility Room Turnover Integrity, Concurrency & Recovery", () => {
     });
 
     const crmCtx = {
-      supabase: mockUserClient as any,
+      supabase: mockUserClient as unknown as Parameters<typeof completeCrmBookingService>[0]["supabase"],
       authUserId: userId,
       me: { id: staffId, branch_id: branchId, system_role: "owner" },
     };
@@ -1394,7 +1400,7 @@ describe("W1B: Utility Room Turnover Integrity, Concurrency & Recovery", () => {
     });
 
     const crmCtx = {
-      supabase: mockUserClient as any,
+      supabase: mockUserClient as unknown as Parameters<typeof completeCrmBookingService>[0]["supabase"],
       authUserId: userId,
       me: { id: staffId, branch_id: branchId, system_role: "owner" },
     };
@@ -1451,7 +1457,7 @@ describe("W1B: Utility Room Turnover Integrity, Concurrency & Recovery", () => {
     insertErrorOverride = { code: "50000", message: "disk I/O failure" };
 
     const crmCtx = {
-      supabase: mockUserClient as any,
+      supabase: mockUserClient as unknown as Parameters<typeof completeCrmBookingService>[0]["supabase"],
       authUserId: userId,
       me: { id: staffId, branch_id: branchId, system_role: "owner" },
     };

@@ -21,22 +21,22 @@ const mockAttendanceSettingsSelect = vi.fn();
 const mockRuleVersionsSelect = vi.fn();
 const mockBranchesSelect = vi.fn();
 
-function createChain(resolver: () => Promise<any>) {
-  const chain: any = {
+function createChain(resolver: () => Promise<unknown>) {
+  const chain: Record<string, unknown> = {
     select: () => chain,
-    insert: (...args: any[]) => {
+    insert: (...args: unknown[]) => {
       mockInsertSpy(...args);
       return chain;
     },
-    update: (...args: any[]) => {
+    update: (...args: unknown[]) => {
       mockUpdateSpy(...args);
       return chain;
     },
-    delete: (...args: any[]) => {
+    delete: (...args: unknown[]) => {
       mockDeleteSpy(...args);
       return chain;
     },
-    upsert: (...args: any[]) => {
+    upsert: (...args: unknown[]) => {
       mockUpsertSpy(...args);
       return chain;
     },
@@ -48,7 +48,7 @@ function createChain(resolver: () => Promise<any>) {
     limit: () => chain,
     maybeSingle: () => resolver(),
     single: () => resolver(),
-    then: (resolve: any, reject: any) => resolver().then(resolve, reject),
+    then: (resolve: (value: unknown) => unknown, reject: (reason: unknown) => unknown) => resolver().then(resolve, reject),
   };
   return chain;
 }
@@ -66,7 +66,7 @@ const mockUserClient = {
     if (table === "attendance_rule_versions") return createChain(mockRuleVersionsSelect);
     return createChain(vi.fn().mockResolvedValue({ data: [], error: null }));
   }),
-  rpc: (...args: any[]) => {
+  rpc: (...args: unknown[]) => {
     mockRpcSpy(...args);
     return Promise.resolve({ data: null, error: null });
   },
@@ -80,7 +80,7 @@ const mockAdminClient = {
     if (table === "branches") return createChain(mockBranchesSelect);
     return createChain(vi.fn().mockResolvedValue({ data: [], error: null }));
   }),
-  rpc: (...args: any[]) => {
+  rpc: (...args: unknown[]) => {
     mockRpcSpy(...args);
     return Promise.resolve({ data: null, error: null });
   },

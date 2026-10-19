@@ -245,7 +245,6 @@ describe("resolveStaffScanTarget", () => {
 
   describe("full URL: localhost accepted in non-production", () => {
     it("resolves localhost URL in non-production environment", () => {
-      const originalEnv = process.env.NODE_ENV;
       // NODE_ENV in test is 'test', not 'production', so localhost is accepted
       const result = resolveStaffScanTarget(
         "http://localhost:3000/scan/att_abc123"

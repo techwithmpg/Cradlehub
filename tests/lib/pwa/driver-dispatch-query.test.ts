@@ -1,16 +1,24 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 vi.mock("server-only", () => ({}));
 vi.mock("@/lib/home-service/distance-service", () => ({ getHomeServiceBranchRouteOrigin: async () => null }));
-const state = vi.hoisted(() => ({ calls: [] as any[], rows: [] as any[], errors: {} as Record<string, unknown> }));
-const db: any = {
+type MockBooking = {
+  [key: string]: unknown;
+  metadata: { dispatch: Record<string, unknown>; home_service_address?: Record<string, unknown> };
+  payment_status: string | null;
+  booking_progress_status: string;
+  status: string;
+  type?: string;
+};
+const state = vi.hoisted(() => ({ calls: [] as Array<{ table: string; filters: unknown[][]; limit: number }>, rows: [] as MockBooking[], errors: {} as Record<string, unknown> }));
+const db = {
   from(table: string) {
-    const call = { table, filters: [] as any[], limit: 0 }; state.calls.push(call);
-    const query: any = {};
+    const call = { table, filters: [] as unknown[][], limit: 0 }; state.calls.push(call);
+    const query: Record<string, unknown> = {};
     for (const method of ["select", "order", "eq", "in", "gte", "lte", "or", "range"]) {
-      query[method] = (...args: any[]) => { call.filters.push([method, ...args]); return query; };
+      query[method] = (...args: unknown[]) => { call.filters.push([method, ...args]); return query; };
     }
     query.limit = (value: number) => { call.limit = value; return query; };
-    query.then = (resolve: any) => Promise.resolve({ data: table === "bookings" ? state.rows : [], error: state.errors[table] ?? null }).then(resolve);
+    query.then = (resolve: (value: { data: MockBooking[]; error: unknown }) => unknown) => Promise.resolve({ data: table === "bookings" ? state.rows : [], error: state.errors[table] ?? null }).then(resolve);
     return query;
   },
 };
@@ -26,17 +34,17 @@ describe("Assigned Driver dispatch query", () => {
   it("scopes by driver, branch and operational delivery, never sales type", async () => {
     await getDispatchData(args);
     const booking = state.calls.find(row => row.table === "bookings");
-    expect(booking.filters).toEqual(expect.arrayContaining([["eq", "branch_id", "branch"], ["eq", "driver_id", "driver"], ["eq", "delivery_type", "home_service"], ["eq", "booking_date", args.date]]));
-    expect(booking.filters.some((row: any[]) => row[0] === "or")).toBe(false);
-    expect(booking.limit).toBe(100);
+    expect(booking!.filters).toEqual(expect.arrayContaining([["eq", "branch_id", "branch"], ["eq", "driver_id", "driver"], ["eq", "delivery_type", "home_service"], ["eq", "booking_date", args.date]]));
+    expect(booking!.filters.some((row) => row[0] === "or")).toBe(false);
+    expect(booking!.limit).toBe(100);
   });
   it("batches and bounds snapshots with staff/branch filters", async () => {
-    state.rows.push({ ...state.rows[0], id: "booking-2" });
+    state.rows.push({ ...state.rows[0]!, id: "booking-2" });
     await getDispatchData(args);
     const snapshots = state.calls.filter(row => row.table === "staff_location_snapshots");
     expect(snapshots).toHaveLength(1);
-    expect(snapshots[0].filters).toEqual(expect.arrayContaining([["eq", "staff_id", "driver"], ["eq", "branch_id", "branch"]]));
-    expect(snapshots[0].limit).toBe(500);
+    expect(snapshots[0]!.filters).toEqual(expect.arrayContaining([["eq", "staff_id", "driver"], ["eq", "branch_id", "branch"]]));
+    expect(snapshots[0]!.limit).toBe(500);
   });
   it("fails closed when assignment scope is missing", async () => {
     await expect(getDispatchData({ ...args, staffId: undefined })).rejects.toThrow("Staff assignment");
@@ -51,14 +59,14 @@ describe("Assigned Driver dispatch query", () => {
     expect(await getDispatchData(args)).toMatchObject({ items: [], stats: { totalToday: 0 } });
   });
   it.each(["scheduled", "released_to_driver"])("uses booking progress instead of legacy %s metadata", async legacyStatus => {
-    state.rows[0].metadata.dispatch.status = legacyStatus;
-    state.rows[0].payment_status = "unpaid";
+    state.rows[0]!.metadata.dispatch.status = legacyStatus;
+    state.rows[0]!.payment_status = "unpaid";
     const { items } = await getDispatchData(args);
     expect(items).toMatchObject([{ id: "booking", dispatchStatus: "ready", paymentStatus: "unpaid" }]);
   });
   it.each(["online", "walkin"])("shows assigned %s Home Service bookings without preparation", async source => {
-    state.rows[0].type = source;
-    state.rows[0].metadata.dispatch = { eta_minutes: 7 };
+    state.rows[0]!.type = source;
+    state.rows[0]!.metadata.dispatch = { eta_minutes: 7 };
     const { items } = await getDispatchData(args);
     expect(items).toMatchObject([{ id: "booking", dispatchStatus: "ready" }]);
   });
@@ -68,17 +76,17 @@ describe("Assigned Driver dispatch query", () => {
     ["session_started", "service_started"],
     ["completed", "completed"],
   ])("shows %s as %s", async (progress, status) => {
-    state.rows[0].booking_progress_status = progress;
+    state.rows[0]!.booking_progress_status = progress;
     const { items } = await getDispatchData(args);
     expect(items[0]?.dispatchStatus).toBe(status);
   });
   it.each(["cancelled", "no_show"])("keeps %s bookings out of the ready state", async status => {
-    state.rows[0].status = status;
+    state.rows[0]!.status = status;
     const { items } = await getDispatchData(args);
     expect(items[0]?.dispatchStatus).toBe("cancelled");
   });
   it("does not fabricate coordinates, payment or ETA", async () => {
-    state.rows[0].payment_status = null;
+    state.rows[0]!.payment_status = null;
     const { items } = await getDispatchData(args);
     expect(items[0]).toMatchObject({ lat: null, etaMinutes: null, paymentStatus: "unknown" });
     const model = buildDriverRoutePageViewModel(items, { detailsBasePath: "/staff/driver/trips" });

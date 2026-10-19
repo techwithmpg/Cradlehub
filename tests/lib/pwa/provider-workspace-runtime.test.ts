@@ -13,10 +13,6 @@ import {
   getProviderWorkspaceRuntime,
   resolveProviderPrimaryWork,
   resolveProviderShift,
-  isClosedBooking,
-  isOperationallyActive,
-  serviceStateLabel,
-  type ProviderWorkspaceRuntime,
 } from "@/lib/staff-pwa/provider-runtime";
 import {
   resolveStaffPwaOperationalGroup,
@@ -24,7 +20,6 @@ import {
 } from "@/lib/auth/workspace-access";
 import {
   canTransitionBookingProgress,
-  getNextAllowedProgressActions,
 } from "@/lib/bookings/progress";
 import { getTherapistMoreSections } from "@/components/features/staff-portal/therapist/therapist-more-menu";
 import type { StaffPortalBooking, StaffPortalStaff } from "@/components/features/staff-portal/types";
@@ -40,7 +35,7 @@ vi.mock("@/app/(dashboard)/staff-portal/actions", () => ({
   getMyProfileAction: () => mockGetMyProfileAction(),
   getMyTodayScheduleAction: (date: string) => mockGetMyTodayScheduleAction(date),
   getMyTodayAction: (date: string) => mockGetMyTodayAction(date),
-  updateBookingProgressAction: (params: any) => mockUpdateBookingProgressAction(params),
+  updateBookingProgressAction: (params: unknown) => mockUpdateBookingProgressAction(params),
 }));
 
 vi.mock("@/lib/staff-portal/attendance", () => ({
@@ -318,8 +313,8 @@ describe("W2: Provider / Salon Functional Wiring", () => {
         expect(customer).toBeDefined();
         const firstCust = Array.isArray(customer) ? customer[0] : customer;
         expect(firstCust?.full_name).toBe("Customer Privacy Test");
-        expect((firstCust as any)?.phone).toBeUndefined();
-        expect((firstCust as any)?.email).toBeUndefined();
+        expect((firstCust as Record<string, unknown> | null)?.phone).toBeUndefined();
+        expect((firstCust as Record<string, unknown> | null)?.email).toBeUndefined();
       }
     });
 
@@ -704,10 +699,10 @@ describe("W2: Provider / Salon Functional Wiring", () => {
         expect(progressSummary.homeServicesToday).toBe(2);
 
         // Prove no speculative metrics exist in runtime
-        expect((progressSummary as any).commissions).toBeUndefined();
-        expect((progressSummary as any).tips).toBeUndefined();
-        expect((progressSummary as any).ratings).toBeUndefined();
-        expect((progressSummary as any).score).toBeUndefined();
+        expect((progressSummary as Record<string, unknown>).commissions).toBeUndefined();
+        expect((progressSummary as Record<string, unknown>).tips).toBeUndefined();
+        expect((progressSummary as Record<string, unknown>).ratings).toBeUndefined();
+        expect((progressSummary as Record<string, unknown>).score).toBeUndefined();
       }
     });
   });
@@ -721,7 +716,7 @@ describe("W2: Provider / Salon Functional Wiring", () => {
 
       const allHrefs = sections
         .flatMap((s) => s.items)
-        .filter((item): item is { kind: "link"; label: string; description: string; href: string; icon: any } => item.kind === "link")
+        .filter((item): item is Extract<typeof item, { kind: "link" }> => item.kind === "link")
         .map((item) => item.href);
 
       expect(allHrefs).toContain("/staff/profile");
