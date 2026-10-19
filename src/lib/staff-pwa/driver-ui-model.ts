@@ -1,6 +1,8 @@
 import type { RealDispatchItem } from "@/lib/queries/dispatch-queries";
 
-const activeStatuses = new Set(["in_route", "arrived_at_customer", "service_started"]);
+// A driver is transporting staff only while en route. Arrival releases the
+// outbound trip without completing the therapist's home-service booking.
+const activeStatuses = new Set(["in_route"]);
 
 export function isDriverTripClosed(item: RealDispatchItem): boolean {
   return item.dispatchStatus === "completed" || item.dispatchStatus === "cancelled";
@@ -12,7 +14,12 @@ export function getDriverPrimaryTrip(items: RealDispatchItem[]): RealDispatchIte
     .sort((a, b) =>
       `${a.bookingDate}T${a.startTime}`.localeCompare(`${b.bookingDate}T${b.startTime}`)
     );
-  return open.find((item) => activeStatuses.has(item.dispatchStatus)) ?? open[0] ?? null;
+  return (
+    open.find((item) => activeStatuses.has(item.dispatchStatus)) ??
+    open.find((item) => item.dispatchStatus === "ready") ??
+    open[0] ??
+    null
+  );
 }
 
 export function getDriverTripSummary(items: RealDispatchItem[]) {
