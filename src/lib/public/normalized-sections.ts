@@ -1,4 +1,8 @@
 import { SPA_IMAGES } from "@/constants/spa-images";
+import {
+  PUBLIC_CATALOG_CATEGORY_NAMES,
+  type PublicCatalogCategoryName,
+} from "@/lib/public/service-catalog-config";
 import { businessInfo, planningNotes } from "@/lib/public/public-site-data";
 import type { Database } from "@/types/supabase";
 
@@ -50,6 +54,7 @@ export interface NormalizedSignatureServicesSection {
   subtitle: string;
   body: string;
   isVisible: boolean;
+  categoryImages: Partial<Record<PublicCatalogCategoryName, string>>;
 }
 
 export interface NormalizedGallerySection {
@@ -108,6 +113,31 @@ function metadataItems(
     if (items.length > 0) return items;
   }
   return fallback;
+}
+
+function normalizedCategoryImages(metadata: Record<string, unknown>): Partial<Record<PublicCatalogCategoryName, string>> {
+  const raw = metadata.categoryImages;
+  if (!raw || typeof raw !== "object" || Array.isArray(raw)) return {};
+  const candidates = raw as Record<string, unknown>;
+  const images: Partial<Record<PublicCatalogCategoryName, string>> = {};
+
+  for (const category of PUBLIC_CATALOG_CATEGORY_NAMES) {
+    const candidate = candidates[category];
+    if (typeof candidate !== "string") continue;
+    const url = candidate.trim();
+    if (!url || url.length > 1000) continue;
+    if (url.startsWith("/") && !url.startsWith("//")) {
+      images[category] = url;
+      continue;
+    }
+    try {
+      const parsed = new URL(url);
+      if (parsed.protocol === "https:" || parsed.protocol === "http:") images[category] = url;
+    } catch {
+      // Invalid or non-image schemes never reach the public image renderer.
+    }
+  }
+  return images;
 }
 
 /**
@@ -197,6 +227,7 @@ export function resolvePublicSiteSections(
 
   // 5. Signature Services (Consumer-recognized)
   const servicesRow = getSection("signature_services");
+  const servicesMeta = metadataObject(servicesRow?.metadata);
   const signatureServices: NormalizedSignatureServicesSection = {
     title: sectionText(servicesRow, "title", "Explore Cradle's full menu by care category."),
     subtitle: sectionText(servicesRow, "subtitle", "Signature Services"),
@@ -206,6 +237,7 @@ export function resolvePublicSiteSections(
       "Massage, salon, skin care, packages, and group spa experiences are organized for easy browsing. Booking availability still depends on branch and visit type."
     ),
     isVisible: isSectionEnabled("signature_services", true),
+    categoryImages: normalizedCategoryImages(servicesMeta),
   };
 
   // 6. Gallery (Consumer-recognized visibility gate)
