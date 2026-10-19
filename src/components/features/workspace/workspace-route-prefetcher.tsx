@@ -6,6 +6,7 @@ import {
   WORKSPACE_PREFETCH_CONFIGS,
   type WorkspacePrefetchConfig,
 } from "./workspace-prefetch-config";
+import { resolveIdlePrefetchRoutes } from "./mobile-idle-prefetch";
 
 const prefetchedRoutes = new Set<string>();
 
@@ -80,6 +81,8 @@ type WorkspaceRoutePrefetcherProps = {
    * Default: false (idle routes wait for requestIdleCallback).
    */
   eagerIdle?: boolean;
+  /** Optional mobile-only subset of the current config's idle routes. */
+  mobileIdleRoutes?: string[];
 };
 
 /**
@@ -100,6 +103,7 @@ type WorkspaceRoutePrefetcherProps = {
 export function WorkspaceRoutePrefetcher({
   config: explicitConfig,
   eagerIdle = false,
+  mobileIdleRoutes,
 }: WorkspaceRoutePrefetcherProps) {
   const router = useRouter();
   const pathname = usePathname();
@@ -121,6 +125,10 @@ export function WorkspaceRoutePrefetcher({
     if (!config) return;
 
     const slow = isSlowConnection();
+    const isMobileViewport =
+      typeof window.matchMedia === "function" &&
+      window.matchMedia("(max-width: 767px)").matches;
+    const idleRoutes = resolveIdlePrefetchRoutes(config, mobileIdleRoutes, isMobileViewport);
 
     // Immediate batch — slight delay so current page data wins the network queue.
     const immediateTimer = window.setTimeout(() => {
@@ -131,8 +139,8 @@ export function WorkspaceRoutePrefetcher({
     let idleTimer: number | undefined;
     let idleCallbackId: number | undefined;
 
-    if (config.idle.length > 0 && !slow) {
-      const runIdle = () => doPrefetch(config.idle);
+    if (idleRoutes.length > 0 && !slow) {
+      const runIdle = () => doPrefetch(idleRoutes);
 
       if (eagerIdle) {
         idleTimer = window.setTimeout(runIdle, 1200);
@@ -153,7 +161,7 @@ export function WorkspaceRoutePrefetcher({
       if (idleTimer !== undefined) window.clearTimeout(idleTimer);
       if (idleCallbackId !== undefined) window.cancelIdleCallback(idleCallbackId);
     };
-  }, [config, doPrefetch, eagerIdle]);
+  }, [config, doPrefetch, eagerIdle, mobileIdleRoutes]);
 
   return null;
 }
