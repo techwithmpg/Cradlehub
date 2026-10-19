@@ -1,6 +1,12 @@
 "use client";
 
 import { useId, useState } from "react";
+import Image from "next/image";
+import {
+  PUBLIC_CATALOG_CATEGORY_NAMES,
+  getPublicHomeCategoryImage,
+  type PublicCatalogCategoryName,
+} from "@/lib/public/service-catalog-config";
 import { ImageIcon, Info, Plus, Trash2 } from "lucide-react";
 import type { MarketingMediaAssetRow } from "@/lib/queries/marketing-media";
 import {
@@ -100,7 +106,7 @@ export function SectionEditor({
   disabled = false,
 }: SectionEditorProps) {
   const formId = useId();
-  const [activePickerField, setActivePickerField] = useState<"primary" | "secondary" | null>(null);
+  const [activePickerField, setActivePickerField] = useState<"primary" | "secondary" | PublicCatalogCategoryName | null>(null);
 
   const staticSection = STATIC_SECTION_DEFINITIONS.find((s) => s.key === sectionKey);
 
@@ -116,6 +122,19 @@ export function SectionEditor({
     onChange({ ...values, metadata: nextMeta });
   };
 
+  const categoryImagesRaw = values.metadata?.categoryImages;
+  const categoryImages: Record<string, unknown> =
+    categoryImagesRaw && typeof categoryImagesRaw === "object" && !Array.isArray(categoryImagesRaw)
+      ? categoryImagesRaw as Record<string, unknown>
+      : {};
+
+  const setCategoryImage = (category: PublicCatalogCategoryName, url: string) => {
+    const nextImages = { ...categoryImages };
+    if (url) nextImages[category] = url;
+    else delete nextImages[category];
+    updateMetadataField("categoryImages", nextImages);
+  };
+
   const handleMediaSelect = (selected: SelectedMediaValue) => {
     if (activePickerField === "primary") {
       onChange({
@@ -128,9 +147,30 @@ export function SectionEditor({
         ...values,
         secondaryImageUrl: selected.publicUrl,
       });
+    } else if (activePickerField && PUBLIC_CATALOG_CATEGORY_NAMES.some((category) => category === activePickerField)) {
+      setCategoryImage(activePickerField as PublicCatalogCategoryName, selected.publicUrl);
     }
     setActivePickerField(null);
   };
+
+  const pickerCategory = PUBLIC_CATALOG_CATEGORY_NAMES.find((category) => category === activePickerField);
+  const mediaPicker = activePickerField ? (
+    <UniversalMediaPicker
+      isOpen
+      onClose={() => setActivePickerField(null)}
+      onSelect={handleMediaSelect}
+      currentUrl={
+        pickerCategory
+          ? (categoryImages[pickerCategory] as string | undefined) ?? getPublicHomeCategoryImage(pickerCategory)
+          : activePickerField === "primary" ? values.imageUrl : values.secondaryImageUrl
+      }
+      title={pickerCategory ? `Replace homepage picture: ${pickerCategory}` :
+        activePickerField === "primary" ? `Select Primary Image for ${values.title || "Section"}` :
+          `Select Secondary Image for ${values.title || "Section"}`}
+      availableAssets={mediaAssets}
+      filterSectionKey={pickerCategory ? undefined : sectionKey}
+    />
+  ) : null;
 
   // If this is a Category C Static Component
   if (staticSection) {
@@ -264,6 +304,58 @@ export function SectionEditor({
               />
             </div>
 
+            <div className="space-y-3 border-t border-[var(--cs-border)] pt-4">
+              <div>
+                <h3 className="text-sm font-semibold text-[var(--cs-text)]">Homepage Category Pictures</h3>
+                <p className="mt-1 text-xs text-[var(--cs-text-secondary)]">
+                  Replace the five category-card pictures on the public desktop and mobile homepages.
+                  These do not change individual service photos, services, prices, or bookings.
+                </p>
+              </div>
+              <div className="grid gap-3 sm:grid-cols-2">
+                {PUBLIC_CATALOG_CATEGORY_NAMES.map((category) => {
+                  const override = typeof categoryImages[category] === "string"
+                    ? (categoryImages[category] as string).trim()
+                    : "";
+                  const imageUrl = override || getPublicHomeCategoryImage(category);
+                  return (
+                    <div key={category} className="rounded-lg border border-[var(--cs-border)] p-3">
+                      <p className="mb-2 text-xs font-semibold text-[var(--cs-text)]">{category}</p>
+                      <div className="relative h-28 w-full overflow-hidden rounded-md bg-[var(--cs-surface-warm)]">
+                        <Image
+                          src={imageUrl}
+                          alt={`Homepage category picture preview for ${category}`}
+                          fill
+                          sizes="(max-width: 640px) 100vw, 240px"
+                          className="object-cover"
+                        />
+                      </div>
+                      <div className="mt-2 flex flex-wrap items-center gap-2">
+                        <button
+                          type="button"
+                          disabled={disabled}
+                          onClick={() => setActivePickerField(category)}
+                          className="rounded-md border border-[var(--cs-border)] px-2.5 py-1.5 text-xs font-semibold text-[var(--cs-text)] hover:bg-[var(--cs-surface-warm)] disabled:opacity-50"
+                        >
+                          Change Picture
+                        </button>
+                        {override ? (
+                          <button
+                            type="button"
+                            disabled={disabled}
+                            onClick={() => setCategoryImage(category, "")}
+                            className="text-xs text-[var(--cs-text-secondary)] underline disabled:opacity-50"
+                          >
+                            Use Default
+                          </button>
+                        ) : null}
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+
             <div className="rounded-lg bg-amber-50 p-3 text-[11px] text-amber-800 dark:bg-amber-950/30 dark:text-amber-300">
               <p className="font-semibold">Operational Catalog Boundary</p>
               <p className="mt-0.5">
@@ -273,6 +365,7 @@ export function SectionEditor({
             </div>
           </div>
         )}
+        {mediaPicker}
       </div>
     );
   }
@@ -642,21 +735,7 @@ export function SectionEditor({
       </div>
 
       {/* Universal Media Picker Modal */}
-      {activePickerField && (
-        <UniversalMediaPicker
-          isOpen={Boolean(activePickerField)}
-          onClose={() => setActivePickerField(null)}
-          onSelect={handleMediaSelect}
-          currentUrl={activePickerField === "primary" ? values.imageUrl : values.secondaryImageUrl}
-          title={
-            activePickerField === "primary"
-              ? `Select Primary Image for ${values.title || "Section"}`
-              : `Select Secondary Image for ${values.title || "Section"}`
-          }
-          availableAssets={mediaAssets}
-          filterSectionKey={sectionKey}
-        />
-      )}
+      {mediaPicker}
     </div>
   );
 }
