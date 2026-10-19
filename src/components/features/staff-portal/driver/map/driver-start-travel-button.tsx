@@ -9,11 +9,13 @@ import { invalidateStaffSafeMemory } from "@/components/features/staff-pwa/safe-
 type DriverStartTravelButtonProps = {
   bookingId: string;
   navigationUrl: string | null;
+  stayInPwa?: boolean;
 };
 
 export function DriverStartTravelButton({
   bookingId,
   navigationUrl,
+  stayInPwa = false,
 }: DriverStartTravelButtonProps) {
   const router = useRouter();
   const [pending, startTransition] = useTransition();
@@ -45,7 +47,7 @@ export function DriverStartTravelButton({
          * Android normally opens the Maps app when associated.
          * Browser directions remain the fallback.
          */
-        if (navigationUrl) {
+        if (!stayInPwa && navigationUrl) {
           window.location.assign(navigationUrl);
           return;
         }
@@ -70,7 +72,7 @@ export function DriverStartTravelButton({
         }
       >
         <Navigation size={17} />
-        {pending ? "Starting travel…" : navigationUrl ? "Start Travel & Navigate" : "Start Travel"}
+        {pending ? "Starting travel…" : stayInPwa ? "Start Trip (show route here)" : navigationUrl ? "Start Travel & Navigate" : "Start Travel"}
       </button>
 
       {error ? (
