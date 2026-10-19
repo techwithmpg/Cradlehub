@@ -94,6 +94,21 @@ describe("driver dispatch capacity is based on outbound travel, not service coun
     expect(result[0]?.reasons).not.toContain("No outbound trip in progress");
   });
 
+  it("flags a simultaneous pending departure but still permits manual route grouping", () => {
+    const result = scoreDriverCandidates(driverContext({
+      existingBookings: [{
+        ...assignedBooking(1, "not_started"),
+        start_time: "18:00:00",
+        status: "confirmed",
+      }],
+    }));
+
+    expect(result[0]?.warnings).toContain(
+      "Another departure at this time; confirm if this is the same vehicle run"
+    );
+    expect(result[0]?.status).toBe("available");
+  });
+
   it("does not treat a completed booking as an active outbound trip", () => {
     const result = scoreDriverCandidates(driverContext({
       existingBookings: [
