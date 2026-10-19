@@ -3,6 +3,9 @@ import Image from "next/image";
 import Link from "next/link";
 import { MapPin, Phone, Mail, Clock, ArrowRight } from "lucide-react";
 import { getPublicBranches } from "@/lib/queries/branches";
+import { getPublicSiteSections } from "@/lib/queries/public-site";
+import { resolvePublicSiteSections } from "@/lib/public/normalized-sections";
+import { isPublicReadTransportFailure } from "@/lib/public/public-read-error";
 import { ScrollReveal } from "@/components/public/scroll-reveal";
 import { PublicMobileBranches } from "@/components/public/mobile/public-mobile-branches";
 import { SPA_IMAGES } from "@/constants/spa-images";
@@ -22,11 +25,20 @@ const PUBLIC_DARK_CARD =
   "rounded-2xl border border-[#D4B57A]/22 bg-[#0D2B20]/70 shadow-[0_24px_70px_rgba(0,0,0,0.32),inset_0_1px_0_rgba(246,235,214,0.06)] backdrop-blur-xl";
 
 export default async function BranchesPage() {
-  const branches = await getPublicBranches();
+  const [branches, managedSections] = await Promise.all([
+    getPublicBranches(),
+    getPublicSiteSections({ includeDisabled: false }).catch((error) => {
+      if (!isPublicReadTransportFailure(error)) throw error;
+      return [];
+    }),
+  ]);
+
+  const resolved = resolvePublicSiteSections(managedSections);
+  const fallbackImage = resolved.siteImages?.branches_fallback_ambient;
 
   return (
     <div className="sp-public">
-      <PublicMobileBranches branches={branches} />
+      <PublicMobileBranches branches={branches} fallbackImage={fallbackImage} />
       <div className="hidden md:block">
         {/* Dark hero — matches mobile header */}
         <div className="pt-28 pb-14 lg:pt-36 lg:pb-20" style={{ background: "#10261D" }}>
@@ -54,14 +66,9 @@ export default async function BranchesPage() {
         <section className={`${PUBLIC_DARK_SECTION} py-20 lg:py-28`}>
           <div className="mx-auto max-w-5xl px-6">
             {branches.length === 0 ? (
-              <div className={`py-16 text-center ${PUBLIC_DARK_CARD}`}>
-                <p className="text-[15px] font-medium" style={{ color: "#F6EBD6" }}>
-                  No branches available at the moment.
-                </p>
-                <p className="text-[13px] mt-2" style={{ color: "rgba(246,235,214,0.66)" }}>
-                  Please check back soon or contact us directly.
-                </p>
-              </div>
+              <p className="text-center text-sm" style={{ color: "rgba(246,235,214,0.6)" }}>
+                Branch information is being updated. Please contact us for details.
+              </p>
             ) : (
               <div className="flex flex-col gap-8">
                 {branches.map((branch, i) => {
@@ -73,7 +80,10 @@ export default async function BranchesPage() {
                     branch.location_metadata.image_url.trim().length > 0
                       ? branch.location_metadata.image_url.trim()
                       : null;
-                  const imgSrc = metaImg || (i % 2 === 0 ? SPA_IMAGES.contact : SPA_IMAGES.booking);
+                  const imgSrc =
+                    metaImg ||
+                    fallbackImage ||
+                    (i % 2 === 0 ? SPA_IMAGES.contact : SPA_IMAGES.booking);
 
                   return (
                     <ScrollReveal key={branch.id} delay={i * 100}>
@@ -88,87 +98,96 @@ export default async function BranchesPage() {
                               alt={`${branch.name} location`}
                               fill
                               className="object-cover transition-transform duration-500 hover:scale-105"
-                              sizes="(max-width: 1024px) 100vw, 360px"
+                              sizes="(max-width: 1024px) 100vw, 33vw"
                             />
+                            <div className="absolute inset-0 bg-[#031B16]/20" />
                           </div>
 
                           {/* Branch Details */}
-                          <div className="p-8 lg:p-10 lg:col-span-8 flex flex-col justify-between gap-5">
+                          <div className="p-8 lg:p-10 lg:col-span-8 flex flex-col justify-between">
                             <div>
-                              <div className="flex items-center gap-3 mb-3">
-                                <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-[#163A2B] text-[#C8A96B] shrink-0">
-                                  <MapPin className="h-5 w-5" />
-                                </div>
+                              <div className="flex items-start justify-between gap-4 mb-4">
                                 <h2
-                                  className="text-xl sm:text-2xl font-medium"
+                                  className="text-2xl font-medium"
                                   style={{ fontFamily: "var(--sp-font-display)", color: "#F6EBD6" }}
                                 >
                                   {branch.name}
                                 </h2>
-                              </div>
-                              {branch.address && (
-                                <p
-                                  className="text-[14px] mb-3 pl-13"
-                                  style={{ color: "rgba(246,235,214,0.68)" }}
+                                <span
+                                  className="inline-flex items-center px-3 py-1 rounded-full text-[11px] font-semibold border"
+                                  style={{
+                                    borderColor: "rgba(200,169,107,0.3)",
+                                    color: "#C8A96B",
+                                    background: "rgba(200,169,107,0.08)",
+                                  }}
                                 >
-                                  {branch.address}
-                                </p>
-                              )}
-                              <div className="flex flex-wrap gap-x-5 gap-y-2 pl-13">
+                                  In-Spa & Home Service
+                                </span>
+                              </div>
+
+                              <div className="flex flex-col gap-3 text-[14px]" style={{ color: "rgba(246,235,214,0.72)" }}>
+                                {branch.address && (
+                                  <div className="flex items-start gap-3">
+                                    <MapPin className="h-4 w-4 shrink-0 mt-0.5" style={{ color: "#C8A96B" }} />
+                                    <span>{branch.address}</span>
+                                  </div>
+                                )}
                                 {branch.phone && (
-                                  <div
-                                    className="flex items-center gap-2 text-[13px]"
-                                    style={{ color: "rgba(246,235,214,0.66)" }}
-                                  >
-                                    <Phone className="h-3.5 w-3.5 text-[#C8A96B] shrink-0" />
-                                    {branch.phone}
+                                  <div className="flex items-center gap-3">
+                                    <Phone className="h-4 w-4 shrink-0" style={{ color: "#C8A96B" }} />
+                                    <a
+                                      href={`tel:${branch.phone.replace(/\s/g, "")}`}
+                                      className="transition hover:underline"
+                                      style={{ color: "#F6EBD6" }}
+                                    >
+                                      {branch.phone}
+                                    </a>
                                   </div>
                                 )}
                                 {branch.email && (
-                                  <div
-                                    className="flex items-center gap-2 text-[13px]"
-                                    style={{ color: "rgba(246,235,214,0.66)" }}
-                                  >
-                                    <Mail className="h-3.5 w-3.5 text-[#C8A96B] shrink-0" />
-                                    {branch.email}
+                                  <div className="flex items-center gap-3">
+                                    <Mail className="h-4 w-4 shrink-0" style={{ color: "#C8A96B" }} />
+                                    <a
+                                      href={`mailto:${branch.email}`}
+                                      className="transition hover:underline"
+                                      style={{ color: "#F6EBD6" }}
+                                    >
+                                      {branch.email}
+                                    </a>
                                   </div>
                                 )}
-                                <div
-                                  className="flex items-center gap-2 text-[13px]"
-                                  style={{ color: "rgba(246,235,214,0.66)" }}
-                                >
-                                  <Clock className="h-3.5 w-3.5 text-[#C8A96B] shrink-0" />
-                                  {branch.opening_hours ?? "Daily availability through booking"}
-                                </div>
+                                {branch.opening_hours && (
+                                  <div className="flex items-center gap-3">
+                                    <Clock className="h-4 w-4 shrink-0" style={{ color: "#C8A96B" }} />
+                                    <span>{branch.opening_hours}</span>
+                                  </div>
+                                )}
                               </div>
                             </div>
 
-                            {/* Action buttons */}
-                            <div className="flex flex-wrap gap-3 pt-1">
-                              {branch.phone && (
-                                <a
-                                  href={`tel:${branch.phone.replace(/\s/g, "")}`}
-                                  className="inline-flex items-center gap-2 rounded-full border px-5 py-2 text-[12px] font-medium tracking-wide transition-all duration-300 hover:bg-[#D4B57A]/10"
-                                  style={{
-                                    borderColor: "rgba(212,181,122,0.36)",
-                                    color: "#F6EBD6",
-                                  }}
-                                >
-                                  <Phone className="h-3.5 w-3.5" />
-                                  Call
-                                </a>
-                              )}
+                            <div className="mt-8 pt-6 border-t border-[#D4B57A]/12 flex flex-wrap gap-4 items-center">
                               <Link
-                                href="/book"
-                                className="inline-flex items-center gap-2 rounded-full px-5 py-2 text-[12px] font-semibold tracking-widest uppercase transition-all duration-300 hover:shadow-md hover:-translate-y-0.5"
+                                href={`/book?branch=${branch.id}`}
+                                className="inline-flex items-center gap-2 px-6 py-3 rounded-xl text-sm font-semibold transition"
                                 style={{
-                                  background: "linear-gradient(135deg, #C8A96B, #B68A3C)",
-                                  color: "#10261D",
+                                  background: "#C8A96B",
+                                  color: "#031B16",
                                 }}
                               >
-                                Book Now
-                                <ArrowRight className="h-3.5 w-3.5" />
+                                Book at this Branch
+                                <ArrowRight className="h-4 w-4" />
                               </Link>
+                              {branch.address && (
+                                <a
+                                  href={`https://maps.google.com/?q=${encodeURIComponent(branch.address)}`}
+                                  target="_blank"
+                                  rel="noopener noreferrer"
+                                  className="inline-flex items-center gap-2 px-5 py-3 rounded-xl text-sm font-medium border border-[#D4B57A]/24 transition hover:bg-white/[0.04]"
+                                  style={{ color: "#F6EBD6" }}
+                                >
+                                  Open in Maps
+                                </a>
+                              )}
                             </div>
                           </div>
                         </div>
@@ -181,13 +200,13 @@ export default async function BranchesPage() {
           </div>
         </section>
       </div>
-      <LocalBusinessJsonLd />
       <BreadcrumbJsonLd
         items={[
           { name: "Home", path: "/" },
           { name: "Branches", path: "/branches" },
         ]}
       />
+      <LocalBusinessJsonLd />
     </div>
   );
 }

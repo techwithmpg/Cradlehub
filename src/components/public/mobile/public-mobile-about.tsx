@@ -15,12 +15,18 @@ const MOBILE_PUBLIC_SURFACE =
 const MOBILE_GLASS_CARD =
   "box-border border border-[#D4B57A]/22 bg-[#0D2B20]/72 shadow-[0_24px_70px_rgba(0,0,0,0.32),inset_0_1px_0_rgba(246,235,214,0.06)] backdrop-blur-xl";
 
-export function PublicMobileAbout() {
+type PublicMobileAboutProps = {
+  headerImage?: string;
+};
+
+export function PublicMobileAbout({ headerImage }: PublicMobileAboutProps = {}) {
+  const effectiveHeaderImage = headerImage || SPA_IMAGES.aboutSecondary;
+
   return (
     <div className={MOBILE_PUBLIC_SURFACE}>
       <section className="relative h-[270px] overflow-hidden bg-[#10261D]">
         <Image
-          src={SPA_IMAGES.aboutSecondary}
+          src={effectiveHeaderImage}
           alt="Candles, towels, and oils inside Cradle"
           fill
           priority

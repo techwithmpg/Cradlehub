@@ -89,4 +89,21 @@ export const PUBLIC_SITE_SECTION_DEFAULTS = [
       ],
     },
   },
+  {
+    sectionKey: "site_images",
+    label: "Website Images Configuration",
+    description: "Managed slot configurations for public website visual placements.",
+    title: "Public Website Images",
+    subtitle: "Managed Visual Placements",
+    body: "",
+    ctaLabel: "",
+    ctaHref: "",
+    imageUrl: "",
+    secondaryImageUrl: "",
+    sortOrder: 100,
+    isEnabled: true,
+    metadata: {
+      slots: {},
+    },
+  },
 ] as const satisfies readonly MarketingSectionDefault[];

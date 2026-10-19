@@ -187,6 +187,11 @@ export async function updatePublicSiteSection(
   }
 
   revalidatePath("/");
+  revalidatePath("/about");
+  revalidatePath("/services");
+  revalidatePath("/branches");
+  revalidatePath("/massage-spa-bacolod");
+  revalidatePath("/home-service-massage-bacolod");
   revalidatePath("/owner/marketing");
 
   return { success: true, section: data };

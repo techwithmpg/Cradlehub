@@ -6,12 +6,19 @@ import { MobileFadeUp, MobileScrollFloatHeading } from "./mobile-scroll-effects"
 
 type MobileSignatureRitualsProps = {
   services: PublicCatalogService[];
+  siteImages?: Record<string, string>;
 };
 
 const STACK_CLASSES = [
   "top-[76px] scale-[0.92]",
   "top-[92px] scale-[0.935]",
   "top-[108px] scale-[0.95]",
+] as const;
+
+const RITUAL_SLOT_KEYS = [
+  "mobile_ritual_glow",
+  "mobile_ritual_recovery",
+  "mobile_ritual_full_reset",
 ] as const;
 
 const RITUAL_BLUEPRINTS = [
@@ -56,7 +63,10 @@ const RITUAL_BLUEPRINTS = [
   },
 ] as const;
 
-function resolvePackageServices(services: PublicCatalogService[]) {
+function resolvePackageServices(
+  services: PublicCatalogService[],
+  siteImages?: Record<string, string>
+) {
   const packageServices = services.filter(
     (service) =>
       service.categoryName === "Divine Renewal Packages" ||
@@ -65,8 +75,12 @@ function resolvePackageServices(services: PublicCatalogService[]) {
 
   return RITUAL_BLUEPRINTS.map((blueprint, index) => {
     const service = packageServices[index] ?? packageServices[0] ?? null;
+    const slotKey = RITUAL_SLOT_KEYS[index];
+    const image = (slotKey && siteImages?.[slotKey]) || blueprint.image;
+
     return {
       ...blueprint,
+      image,
       duration:
         service?.packageDurationText ?? service?.durationText ?? "Curated session",
       price: service?.priceLabel ?? "See menu",
@@ -76,8 +90,9 @@ function resolvePackageServices(services: PublicCatalogService[]) {
 
 export function MobileSignatureRituals({
   services,
+  siteImages,
 }: MobileSignatureRitualsProps) {
-  const rituals = resolvePackageServices(services);
+  const rituals = resolvePackageServices(services, siteImages);
 
   return (
     <section className="px-4 pt-12">

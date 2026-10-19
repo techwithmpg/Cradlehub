@@ -150,8 +150,10 @@ export function MarketingWorkspaceShell({
             drafts={drafts}
             revisions={revisions}
             mediaAssets={mediaAssets}
+            brandSettings={brandSettings}
             branches={branches}
             services={services}
+            onNavigateTab={(tab) => setActiveTab(tab)}
           />
         )}
 

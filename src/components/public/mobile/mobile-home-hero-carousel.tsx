@@ -5,9 +5,10 @@ import type { NormalizedHeroSection } from "@/lib/public/normalized-sections";
 
 type MobileHomeHeroCarouselProps = {
   hero?: NormalizedHeroSection;
+  siteImages?: Record<string, string>;
 };
 
-export function MobileHomeHeroCarousel({ hero }: MobileHomeHeroCarouselProps) {
+export function MobileHomeHeroCarousel({ hero, siteImages }: MobileHomeHeroCarouselProps) {
   if (hero && !hero.isEnabled) {
     return null;
   }
@@ -31,14 +32,14 @@ export function MobileHomeHeroCarousel({ hero }: MobileHomeHeroCarouselProps) {
       objectPosition: hero?.mobileImagePosition,
     },
     {
-      src: SPA_IMAGES.heroWide,
+      src: siteImages?.home_hero_mobile_slide_2 || SPA_IMAGES.heroWide,
       alt: "Warm Cradle massage room with treatment beds",
       className: "cradle-hero-slide-two",
       imageClassName: "object-center",
       objectPosition: undefined,
     },
     {
-      src: SPA_IMAGES.heroAmbience,
+      src: siteImages?.home_hero_mobile_slide_3 || SPA_IMAGES.heroAmbience,
       alt: "Calm Cradle spa ambience with towels and warm light",
       className: "cradle-hero-slide-three",
       imageClassName: "object-center",

@@ -3,6 +3,9 @@ import Link from "next/link";
 import Image from "next/image";
 import { ArrowRight, Check, Home, Phone } from "lucide-react";
 import { SPA_IMAGES } from "@/constants/spa-images";
+import { getPublicSiteSections } from "@/lib/queries/public-site";
+import { resolvePublicSiteSections } from "@/lib/public/normalized-sections";
+import { isPublicReadTransportFailure } from "@/lib/public/public-read-error";
 import { buildMetadata } from "@/lib/seo/metadata";
 import { ServiceJsonLd, BreadcrumbJsonLd, FAQPageJsonLd } from "@/components/seo/structured-data";
 
@@ -36,7 +39,19 @@ const faqs = [
   },
 ];
 
-export default function HomeServiceMassagePage() {
+export default async function HomeServiceMassagePage() {
+  let managedSections: Awaited<ReturnType<typeof getPublicSiteSections>> = [];
+  try {
+    managedSections = await getPublicSiteSections({ includeDisabled: false });
+  } catch (error) {
+    if (!isPublicReadTransportFailure(error)) throw error;
+    managedSections = [];
+  }
+
+  const resolved = resolvePublicSiteSections(managedSections);
+  const heroBanner = resolved.siteImages?.landing_home_banner || SPA_IMAGES.booking;
+  const setupImage = resolved.siteImages?.landing_home_setup || SPA_IMAGES.booking;
+
   return (
     <>
       <div className="sp-public">
@@ -44,7 +59,7 @@ export default function HomeServiceMassagePage() {
         <section className="relative overflow-hidden bg-[#10261D] pt-28 pb-16 text-[#FCFAF5] lg:pt-40 lg:pb-24">
           <div className="absolute inset-0">
             <Image
-              src={SPA_IMAGES.booking}
+              src={heroBanner}
               alt="Home service massage setup in Bacolod"
               fill
               priority
@@ -122,7 +137,7 @@ export default function HomeServiceMassagePage() {
               </div>
               <div className="relative aspect-[4/3] overflow-hidden rounded-2xl shadow-xl">
                 <Image
-                  src={SPA_IMAGES.booking}
+                  src={setupImage}
                   alt="Prepared home service massage setup in Bacolod"
                   fill
                   className="object-cover"

@@ -73,11 +73,12 @@ export interface NormalizedPublicSiteSections {
   beforeYouBook: NormalizedBeforeYouBookSection;
   signatureServices: NormalizedSignatureServicesSection;
   gallery: NormalizedGallerySection;
+  siteImages: Record<string, string>;
   rawSections: PublicSiteSectionRow[];
 }
 
 function metadataObject(
-  value: PublicSiteSectionRow["metadata"] | undefined
+  value: unknown
 ): Record<string, unknown> {
   if (value && typeof value === "object" && !Array.isArray(value)) {
     return value as Record<string, unknown>;
@@ -263,6 +264,17 @@ export function resolvePublicSiteSections(
     isVisible: isSectionEnabled("gallery", true),
   };
 
+  // 7. Managed Site Image Slots
+  const siteImagesRow = getSection("site_images");
+  const siteImagesMeta = metadataObject(siteImagesRow?.metadata);
+  const rawSlots = metadataObject(siteImagesMeta.slots);
+  const siteImages: Record<string, string> = {};
+  for (const [key, val] of Object.entries(rawSlots)) {
+    if (typeof val === "string" && val.trim().length > 0) {
+      siteImages[key] = val.trim();
+    }
+  }
+
   return {
     hero,
     about,
@@ -270,6 +282,7 @@ export function resolvePublicSiteSections(
     beforeYouBook,
     signatureServices,
     gallery,
+    siteImages,
     rawSections: rows,
   };
 }

@@ -8,6 +8,7 @@ import {
   Clock,
   Eye,
   Globe,
+  ImageIcon,
   Layout,
   MessageSquare,
   RotateCcw,
@@ -21,6 +22,7 @@ import type {
   MarketingContentRevisionRow,
 } from "@/lib/queries/marketing-content";
 import type { MarketingMediaAssetRow } from "@/lib/queries/marketing-media";
+import type { MarketingBrandSettingRow } from "@/lib/queries/marketing-brand";
 import type { PublicCatalogService } from "@/lib/queries/services";
 import type { PublicSiteAssetRow, PublicSiteSectionRow } from "@/lib/queries/public-site";
 import type { Database } from "@/types/supabase";
@@ -38,6 +40,7 @@ import {
 } from "@/app/(dashboard)/owner/marketing/actions";
 import { SectionEditor, type SectionFormValues } from "./section-editor";
 import { HighFidelityPreview } from "./high-fidelity-preview";
+import { WebsiteImagesView } from "./website-images-view";
 import { RevertToLiveDialog, UnsavedChangesDialog } from "./unsaved-changes-dialog";
 import {
   Dialog,
@@ -57,8 +60,10 @@ export type WebsiteStudioViewProps = {
   drafts: MarketingContentDraftRow[];
   revisions?: MarketingContentRevisionRow[];
   mediaAssets?: MarketingMediaAssetRow[];
+  brandSettings?: MarketingBrandSettingRow[];
   branches?: BranchRow[];
   services?: PublicCatalogService[];
+  onNavigateTab?: (tab: "website" | "brand" | "branches" | "services" | "media") => void;
 };
 
 type SectionNavItem = {
@@ -224,9 +229,13 @@ export function WebsiteStudioView({
   publishedSections,
   drafts,
   mediaAssets = [],
+  revisions = [],
+  brandSettings = [],
   branches = [],
   services = [],
+  onNavigateTab,
 }: WebsiteStudioViewProps) {
+  const [studioMode, setStudioMode] = useState<"sections" | "images">("sections");
   const [activeSectionKey, setActiveSectionKey] = useState<string>("hero");
   const [pendingSectionKey, setPendingSectionKey] = useState<string | null>(null);
 
@@ -558,16 +567,48 @@ export function WebsiteStudioView({
           </div>
         </div>
 
-        {/* Mobile/Tablet Preview trigger */}
-        <div className="flex items-center gap-2 xl:hidden">
-          <button
-            type="button"
-            onClick={() => setIsMobilePreviewOpen(true)}
-            className="inline-flex items-center gap-1.5 rounded-lg border border-[var(--cs-border)] bg-[var(--cs-surface-warm)] px-3 py-1.5 text-xs font-semibold text-[var(--cs-text)] shadow-xs transition hover:bg-[var(--cs-surface)]"
-          >
-            <Eye className="h-3.5 w-3.5" />
-            Open Preview Window
-          </button>
+        {/* Studio Sub-view Mode Switcher & Mobile Preview */}
+        <div className="flex flex-wrap items-center gap-2">
+          <div className="flex items-center gap-1 rounded-lg border border-[var(--cs-border)] bg-[var(--cs-surface-warm)] p-1">
+            <button
+              type="button"
+              onClick={() => setStudioMode("sections")}
+              className={`inline-flex items-center gap-1.5 rounded-md px-3 py-1.5 text-xs font-semibold transition ${
+                studioMode === "sections"
+                  ? "bg-[var(--cs-surface)] text-[var(--cs-text)] shadow-xs"
+                  : "text-[var(--cs-text-secondary)] hover:text-[var(--cs-text)]"
+              }`}
+            >
+              <Layout className="h-3.5 w-3.5" />
+              <span>Sections Editor</span>
+            </button>
+            <button
+              type="button"
+              onClick={() => setStudioMode("images")}
+              className={`inline-flex items-center gap-1.5 rounded-md px-3 py-1.5 text-xs font-semibold transition ${
+                studioMode === "images"
+                  ? "bg-[var(--cs-surface)] text-[var(--cs-text)] shadow-xs"
+                  : "text-[var(--cs-text-secondary)] hover:text-[var(--cs-text)]"
+              }`}
+            >
+              <ImageIcon className="h-3.5 w-3.5 text-purple-600 dark:text-purple-400" />
+              <span>Website Images</span>
+              <span className="rounded-full bg-purple-100 px-1.5 py-0.2 text-[10px] font-bold text-purple-700 dark:bg-purple-950/60 dark:text-purple-300">
+                All
+              </span>
+            </button>
+          </div>
+
+          <div className="flex items-center gap-2 xl:hidden">
+            <button
+              type="button"
+              onClick={() => setIsMobilePreviewOpen(true)}
+              className="inline-flex items-center gap-1.5 rounded-lg border border-[var(--cs-border)] bg-[var(--cs-surface-warm)] px-3 py-1.5 text-xs font-semibold text-[var(--cs-text)] shadow-xs transition hover:bg-[var(--cs-surface)]"
+            >
+              <Eye className="h-3.5 w-3.5" />
+              Open Preview Window
+            </button>
+          </div>
         </div>
       </div>
 
@@ -613,15 +654,53 @@ export function WebsiteStudioView({
         </div>
       )}
 
-      {/* ── Main Studio 3-Pane / 2-Column Layout ──────────────────── */}
-      <div className="grid gap-4 xl:grid-cols-[240px_1fr_480px] 2xl:grid-cols-[260px_1fr_560px]">
-        {/* ── LEFT PANE: Section Navigation ──────────────────────── */}
-        <div className="rounded-xl border border-[var(--cs-border)] bg-[var(--cs-surface)] p-3.5 shadow-xs space-y-4">
-          <div>
-            <h2 className="px-2 text-[11px] font-bold uppercase tracking-wider text-[var(--cs-text-secondary)]">
-              Homepage Sections
-            </h2>
-          </div>
+      {/* ── Main Studio View Content (Conditional by Studio Mode) ───── */}
+      {studioMode === "images" ? (
+        <WebsiteImagesView
+          role={role}
+          sectionDefaults={sectionDefaults}
+          publishedSections={publishedSections}
+          drafts={effectiveDrafts}
+          revisions={revisions}
+          mediaAssets={mediaAssets}
+          brandSettings={brandSettings}
+          branches={branches}
+          services={services}
+          onNavigateTab={onNavigateTab}
+        />
+      ) : (
+        /* ── 3-Pane Sections Editor ─────────────────────────────────── */
+        <div className="grid gap-4 xl:grid-cols-[240px_1fr_480px] 2xl:grid-cols-[260px_1fr_560px]">
+          {/* ── LEFT PANE: Section Navigation ──────────────────────── */}
+          <div className="rounded-xl border border-[var(--cs-border)] bg-[var(--cs-surface)] p-3.5 shadow-xs space-y-4">
+            {/* Quick link to Website Images workspace */}
+            <div className="rounded-lg border border-purple-200 bg-purple-50/60 p-2.5 dark:border-purple-900/40 dark:bg-purple-950/20">
+              <div className="flex items-center justify-between">
+                <span className="text-[11px] font-bold text-purple-900 dark:text-purple-200">
+                  Website Images
+                </span>
+                <span className="rounded bg-purple-200/60 px-1.5 py-0.5 text-[9px] font-bold uppercase text-purple-800 dark:bg-purple-900/60 dark:text-purple-200">
+                  Workspace
+                </span>
+              </div>
+              <p className="mt-1 text-[10px] leading-normal text-purple-700/80 dark:text-purple-300/80">
+                Browse, preview, and replace all public images from one location.
+              </p>
+              <button
+                type="button"
+                onClick={() => setStudioMode("images")}
+                className="mt-2 flex w-full items-center justify-center gap-1.5 rounded-md bg-purple-600 px-2.5 py-1.5 text-xs font-semibold text-white shadow-xs transition hover:bg-purple-700"
+              >
+                <ImageIcon className="h-3 w-3" />
+                <span>Open Website Images</span>
+              </button>
+            </div>
+
+            <div>
+              <h2 className="px-2 text-[11px] font-bold uppercase tracking-wider text-[var(--cs-text-secondary)]">
+                Homepage Sections
+              </h2>
+            </div>
 
           {/* Managed Sections */}
           <div className="space-y-1">
@@ -906,6 +985,7 @@ export function WebsiteStudioView({
           />
         </div>
       </div>
+      )}
 
       {/* ── Fullscreen Preview Modal (Mobile & Tablet) ─────────────── */}
       <Dialog open={isMobilePreviewOpen} onOpenChange={setIsMobilePreviewOpen}>

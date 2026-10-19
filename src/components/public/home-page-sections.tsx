@@ -361,18 +361,26 @@ export function HomePageSectionsRenderer({
           </div>
 
           <div className="grid gap-6 lg:grid-cols-2">
-            {settingCards.map((card, index) => (
-              <ScrollReveal key={card.id} delay={index * 120} variant="scale">
-                <article className="grid h-full overflow-hidden rounded-[8px] bg-white shadow-[0_10px_34px_rgba(22,58,43,0.08)] md:grid-cols-[0.92fr_1.08fr]">
-                  <div className="relative min-h-72">
-                    <Image
-                      src={card.image}
-                      alt={card.imageAlt}
-                      fill
-                      className="object-cover"
-                      sizes="(max-width: 1024px) 100vw, 36vw"
-                    />
-                  </div>
+            {settingCards.map((card, index) => {
+              const cardImage =
+                (card.id === "in_spa"
+                  ? sections.siteImages?.home_setting_in_spa
+                  : card.id === "home_service"
+                    ? sections.siteImages?.home_setting_home_service
+                    : undefined) || card.image;
+
+              return (
+                <ScrollReveal key={card.id} delay={index * 120} variant="scale">
+                  <article className="grid h-full overflow-hidden rounded-[8px] bg-white shadow-[0_10px_34px_rgba(22,58,43,0.08)] md:grid-cols-[0.92fr_1.08fr]">
+                    <div className="relative min-h-72">
+                      <Image
+                        src={cardImage}
+                        alt={card.imageAlt}
+                        fill
+                        className="object-cover"
+                        sizes="(max-width: 1024px) 100vw, 36vw"
+                      />
+                    </div>
                   <div className="flex flex-col p-7">
                     <p className="text-[11px] font-semibold uppercase tracking-[0.22em] text-[#B68A3C]">
                       {card.eyebrow}
@@ -402,7 +410,8 @@ export function HomePageSectionsRenderer({
                   </div>
                 </article>
               </ScrollReveal>
-            ))}
+              );
+            })}
           </div>
         </div>
       </section>
