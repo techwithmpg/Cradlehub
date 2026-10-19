@@ -253,6 +253,11 @@ export function CrmStaffWorkspace({
   >(
     () => [
       {
+        key: "management",
+        label: "Staff Management",
+        count: workspaceAllStaff.length,
+      },
+      {
         key: "applications",
         label: "Applications",
         count: canonicalData.canReviewOnboarding
@@ -265,11 +270,6 @@ export function CrmStaffWorkspace({
         count: pendingBranchCorrectionCount,
       },
       {
-        key: "management",
-        label: "Staff Management",
-        count: workspaceAllStaff.length,
-      },
-      {
         key: "assignments",
         label: "Service Assignments",
         count: providerAssignments.length,
@@ -278,7 +278,7 @@ export function CrmStaffWorkspace({
         key: "status",
         label: "Status",
         count: workspacePendingStaff.length,
-      },
+      }
     ],
     [
       canonicalData.canReviewOnboarding,

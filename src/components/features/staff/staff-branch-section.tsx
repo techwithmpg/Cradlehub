@@ -4,7 +4,7 @@ import { ChevronRight } from "lucide-react";
 import { StaffTableRow } from "./staff-table-row";
 import { type StaffBranchGroup, type StaffMember, type StaffTab } from "./staff-management-utils";
 
-const MAX_COLLAPSED_ROWS = 8;
+const MAX_COLLAPSED_ROWS = 12;
 
 type StaffBranchSectionProps = {
   group: StaffBranchGroup;
@@ -40,8 +40,8 @@ export function StaffBranchSection({
         </span>
       </div>
 
-      <div className="overflow-hidden">
-        <table className="w-full table-fixed border-collapse text-left">
+      <div className="overflow-x-auto">
+        <table className="w-full min-w-[780px] table-fixed border-collapse text-left">
           <thead>
             <tr className="border-b border-[var(--cs-border-soft)] bg-[var(--cs-surface-warm)] text-xs font-semibold text-[var(--cs-text-muted)]">
               <th className="w-10 px-4 py-2.5">

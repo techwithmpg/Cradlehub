@@ -1,5 +1,6 @@
 "use server";
 
+import { cache } from "react";
 import { randomUUID } from "node:crypto";
 import { z } from "zod";
 import { cookies } from "next/headers";
@@ -325,7 +326,7 @@ function getStaffBranchName(staff: StaffPortalStaff): string | null {
 }
 
 // ── Resolve authenticated staff record ────────────────────────────────────
-async function getMyStaffRecord(allowDevBypass = true): Promise<StaffPortalStaff | null> {
+export const getMyStaffRecord = cache(async (allowDevBypass = true): Promise<StaffPortalStaff | null> => {
   const supabase = await createClient();
   const {
     data: { user },
@@ -381,7 +382,7 @@ async function getMyStaffRecord(allowDevBypass = true): Promise<StaffPortalStaff
   if (!me) return null;
 
   return me;
-}
+});
 
 // ── Update staff profile photo ──────────────────────────────────────────
 export async function updateStaffProfilePhotoAction(formData: FormData) {
@@ -1228,11 +1229,11 @@ export async function getMyStatsAction(year: number, month: number) {
 }
 
 // ── Personal profile details ─────────────────────────────────────────────
-export async function getMyProfileAction() {
+export const getMyProfileAction = cache(async () => {
   const me = await getMyStaffRecord();
   if (!me) return { error: "Unauthorized" };
   return { staff: me };
-}
+});
 
 // ── Driver: today's dispatch jobs ─────────────────────────────────────────
 import { getDispatchData } from "@/lib/queries/dispatch-queries";

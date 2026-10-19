@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import Image from "next/image";
+import { useState } from "react";
 import {
   Building2,
   CalendarDays,
@@ -41,10 +42,11 @@ type StaffPreviewPanelProps = {
   staff: StaffMember | null;
   onClearSelection: () => void;
   workspaceContext?: "owner" | "manager" | "crm";
-  /** CRM-only: open the inline staff edit sheet */
+  /** Open the authorized inline staff editor when available. */
   onEditStaff?: (staff: StaffMember) => void;
-  /** CRM-only: open the inline service capability editor */
+  /** Open the authorized inline service capability editor when available. */
   onManageServices?: (staff: StaffMember) => void;
+  onEditWorkSetup?: (staff: StaffMember) => void;
   /** CRM-only: toggle active/inactive status */
   onToggleActive?: (staff: StaffMember) => void;
 };
@@ -55,8 +57,10 @@ export function StaffPreviewPanel({
   workspaceContext = "owner",
   onEditStaff,
   onManageServices,
+  onEditWorkSetup,
   onToggleActive,
 }: StaffPreviewPanelProps) {
+  const [activePanel, setActivePanel] = useState<"overview" | "access" | "services" | "onboarding">("overview");
   const isOwner = workspaceContext === "owner";
   const isCrm = workspaceContext === "crm";
   const basePath = isCrm ? "#" : `/${workspaceContext}/staff`;
@@ -97,7 +101,7 @@ export function StaffPreviewPanel({
               }
             />
             <DropdownMenuContent align="end" className="min-w-44">
-              {!isCrm && (
+              {!isCrm && (!onEditStaff || status !== "active") && (
                 <DropdownMenuItem>
                   <Link href={`${basePath}/${staff.id}`} className="flex w-full items-center gap-2">
                     <UserCog className="size-4" aria-hidden="true" />
@@ -105,13 +109,13 @@ export function StaffPreviewPanel({
                   </Link>
                 </DropdownMenuItem>
               )}
-              {isCrm && onEditStaff && (
+              {onEditStaff && (isCrm || status === "active") && (
                 <DropdownMenuItem onSelect={() => onEditStaff(staff)}>
                   <UserCog className="size-4" aria-hidden="true" />
                   Edit profile
                 </DropdownMenuItem>
               )}
-              {isCrm && onManageServices && (
+              {onManageServices && (
                 <DropdownMenuItem onSelect={() => onManageServices(staff)}>
                   <Sparkles className="size-4" aria-hidden="true" />
                   Manage services
@@ -131,7 +135,7 @@ export function StaffPreviewPanel({
       </div>
 
       <div className="p-5">
-        <div className="flex flex-col items-center text-center">
+        <div className="flex flex-wrap items-start gap-3 text-left">
           <ProfileAvatar staff={staff} label={displayName} />
           <h2 className="mt-3 mb-0 text-lg font-semibold text-[var(--cs-text)]">{displayName}</h2>
           <p className="mt-1 mb-0 text-sm text-[var(--cs-text-secondary)]">{displayPosition}</p>
@@ -140,7 +144,37 @@ export function StaffPreviewPanel({
           </div>
         </div>
 
-        <dl className="mt-5 space-y-2.5">
+        <div
+          className="mt-4 flex gap-1 overflow-x-auto border-b border-[var(--cs-border-soft)]"
+          role="group"
+          aria-label="Staff profile sections"
+        >
+          {([
+            ["overview", "Overview"],
+            ["access", "Access & Permissions"],
+            ["services", "Services"],
+            ["onboarding", "Onboarding"]
+          ] as const).map(([key, label]) => (
+            <button
+              key={key}
+              type="button"
+              aria-pressed={activePanel === key}
+              onClick={() => setActivePanel(key)}
+              className={[
+                "shrink-0 border-b-2 px-3 py-2 text-xs font-semibold",
+                "focus-visible:outline-none focus-visible:ring-2",
+                activePanel === key
+                  ? "border-[var(--cs-sand-dark)] text-[var(--cs-text)]"
+                  : "border-transparent text-[var(--cs-text-muted)]"
+              ].join(" ")}
+            >
+              {label}
+            </button>
+          ))}
+        </div>
+
+        {activePanel === "overview" && (
+          <dl className="mt-3 space-y-2.5 rounded-xl border border-[var(--cs-border)] p-3">
           <DetailRow Icon={Building2} label="Branch" value={branchName} />
           <DetailRow Icon={UserCheck} label="Known As" value={nickname ?? "—"} />
           <DetailRow Icon={ShieldCheck} label="Workspace Access" value={meta.badgeLabel} />
@@ -154,9 +188,66 @@ export function StaffPreviewPanel({
           {staff.email && <DetailRow Icon={Mail} label="Email" value={staff.email} />}
           <DetailRow Icon={UserCheck} label="Status" value={getStaffStatusLabel(status)} />
           <DetailRow Icon={CalendarDays} label="Joined" value={formatStaffDate(staff.created_at)} />
-        </dl>
+          </dl>
+        )}
 
-        {isOwner && <StaffAccountAccessPanel key={staff.id} staffId={staff.id} />}
+        {activePanel === "access" && (
+          <div className="mt-3 space-y-3">
+            <div className="rounded-xl border border-[var(--cs-border)] p-4">
+              <h3 className="m-0 text-sm font-semibold">Workspace Access</h3>
+              <dl className="mt-3 space-y-3">
+                <DetailRow Icon={ShieldCheck} label="Role" value={meta.badgeLabel} />
+                <DetailRow Icon={Building2} label="Branch" value={branchName} />
+                <DetailRow Icon={UserCog} label="Function" value={meta.staffTypeLabel} />
+                <DetailRow Icon={UserCheck} label="Status" value={getStaffStatusLabel(status)} />
+              </dl>
+            </div>
+            {isOwner && (
+              <StaffAccountAccessPanel key={staff.id} staffId={staff.id} />
+            )}
+          </div>
+        )}
+
+        {activePanel === "services" && (
+          <div className="mt-3 rounded-xl border border-[var(--cs-border)] p-4">
+            <h3 className="m-0 text-sm font-semibold">Service Capabilities</h3>
+            <p className="mt-2 text-xs text-[var(--cs-text-muted)]">
+              Manage the services assigned to this staff member.
+            </p>
+            {onManageServices ? (
+              <Button
+                type="button"
+                variant="outline"
+                className="mt-3"
+                onClick={() => onManageServices(staff)}
+              >
+                <Sparkles className="size-4" aria-hidden="true" />
+                Manage Services
+              </Button>
+            ) : (
+              <p className="mt-2 text-xs text-[var(--cs-text-muted)]">
+                Use the existing authorized staff profile to manage services.
+              </p>
+            )}
+          </div>
+        )}
+
+        {activePanel === "onboarding" && (
+          <div className="mt-3 rounded-xl border border-[var(--cs-border)] p-4">
+            <h3 className="m-0 text-sm font-semibold">
+              Onboarding & Account Status
+            </h3>
+            <p className="mt-2 text-sm text-[var(--cs-text-secondary)]">
+              Current account state: {getStaffStatusLabel(status)}
+            </p>
+            <Link
+              href={isCrm ? "/crm/staff?tab=applications" : "/owner/staff/onboarding"}
+              className="mt-3 inline-flex text-sm font-semibold text-[var(--cs-sand-dark)] underline"
+            >
+              Review applications
+            </Link>
+          </div>
+        )}
 
         {!isCrm && (
           <div className="mt-5 rounded-xl border border-[var(--cs-border-soft)] bg-[var(--cs-surface-warm)] p-3">
@@ -174,7 +265,20 @@ export function StaffPreviewPanel({
                   </Link>
                 </Button>
               )}
-              <QuickAction href={`${basePath}/${staff.id}`} label={profileActionLabel} Icon={UserCog} />
+              {onEditStaff && status === "active" ? (
+                <Button type="button" variant="outline" size="lg" className="justify-start" onClick={() => onEditStaff(staff)}>
+                  <UserCog className="size-4" aria-hidden="true" />
+                  Edit Profile
+                </Button>
+              ) : (
+                <QuickAction href={`${basePath}/${staff.id}`} label={profileActionLabel} Icon={UserCog} />
+              )}
+              {isOwner && onEditWorkSetup && status === "active" && (
+                <Button type="button" variant="outline" size="lg" className="justify-start" onClick={() => onEditWorkSetup(staff)}>
+                  <Building2 className="size-4" aria-hidden="true" />
+                  Edit Work Setup
+                </Button>
+              )}
               {isOwner && (
                 <QuickAction href={`${basePath}/${staff.id}`} label="Assign Branch" Icon={MapPin} />
               )}

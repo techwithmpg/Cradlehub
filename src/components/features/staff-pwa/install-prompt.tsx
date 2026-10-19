@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useState, useSyncExternalStore } from "react";
 import { Download, X } from "lucide-react";
 import { StaffInstallGuide } from "./install-guide";
 
@@ -9,30 +9,30 @@ interface BeforeInstallPromptEvent extends Event {
   userChoice: Promise<{ outcome: "accepted" | "dismissed"; platform: string }>;
 }
 
+function subscribeToBrowserSnapshot() {
+  return () => {};
+}
+
+function getStandaloneSnapshot() {
+  return window.matchMedia("(display-mode: standalone)").matches ||
+    ("standalone" in window.navigator &&
+      (window.navigator as unknown as { standalone: boolean }).standalone === true);
+}
+
+function getIOSSnapshot() {
+  return /iphone|ipad|ipod/.test(window.navigator.userAgent.toLowerCase());
+}
+
 export function StaffInstallPrompt() {
   const [deferredPrompt, setDeferredPrompt] = useState<BeforeInstallPromptEvent | null>(null);
-  const [isStandalone, setIsStandalone] = useState(false);
+  const isStandalone = useSyncExternalStore(subscribeToBrowserSnapshot, getStandaloneSnapshot, () => false);
   const [isInstalled, setIsInstalled] = useState(false);
   const [isDismissed, setIsDismissed] = useState(false);
-  const [isIOS, setIsIOS] = useState(false);
+  const isIOS = useSyncExternalStore(subscribeToBrowserSnapshot, getIOSSnapshot, () => false);
   const [showGuide, setShowGuide] = useState(false);
 
   useEffect(() => {
-    // 1. Check if already running in standalone mode
-    const checkStandalone = () => {
-      const isStandaloneMode =
-        window.matchMedia("(display-mode: standalone)").matches ||
-        ("standalone" in window.navigator && (window.navigator as unknown as { standalone: boolean }).standalone === true);
-      setIsStandalone(isStandaloneMode);
-    };
-    checkStandalone();
-
-    // 2. Detect iOS device
-    const userAgent = window.navigator.userAgent.toLowerCase();
-    const iosDevice = /iphone|ipad|ipod/.test(userAgent);
-    setIsIOS(iosDevice);
-
-    // 3. Listen for Chromium beforeinstallprompt event
+    // Listen for Chromium beforeinstallprompt event
     const handleBeforeInstallPrompt = (event: Event) => {
       event.preventDefault();
       setDeferredPrompt(event as BeforeInstallPromptEvent);

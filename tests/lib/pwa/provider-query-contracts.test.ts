@@ -11,21 +11,21 @@ vi.mock("next/headers", () => ({
 
 // Supabase mock harnesses
 const mockQuerySpy = vi.fn();
-let mockBookingsData: any[] = [];
-let mockBookingsError: any = null;
-let mockStaffRecord: any = null;
-let mockStaffSchedulesData: any[] = [];
-let mockStaffSchedulesError: any = null;
-let mockScheduleOverridesData: any[] = [];
-let mockScheduleOverridesError: any = null;
-let mockAttendanceSettingsData: any = {
+let mockBookingsData: unknown[] = [];
+let mockBookingsError: { message: string } | null = null;
+let mockStaffRecord: Record<string, unknown> | null = null;
+let mockStaffSchedulesData: unknown[] = [];
+let mockStaffSchedulesError: { message: string } | null = null;
+let mockScheduleOverridesData: unknown[] = [];
+let mockScheduleOverridesError: { message: string } | null = null;
+let mockAttendanceSettingsData: Record<string, unknown> | null = {
   branch_id: "11111111-1111-1111-1111-111111111111",
   timezone: "Asia/Manila",
   attendance_day_boundary: "06:00:00",
 };
-let mockAttendanceSettingsError: any = null;
-let mockAttendanceRuleVersionsData: any = null;
-let mockAttendanceRuleVersionsError: any = null;
+let mockAttendanceSettingsError: { message: string } | null = null;
+let mockAttendanceRuleVersionsData: Record<string, unknown> | null = null;
+let mockAttendanceRuleVersionsError: { message: string } | null = null;
 
 const mockSupabase = {
   from: vi.fn((table: string) => {
@@ -49,14 +49,14 @@ const mockSupabase = {
       return {
         select: vi.fn((sel: string) => {
           mockQuerySpy(sel);
-          const builder: any = {
+          const builder = {
             eq: vi.fn().mockReturnThis(),
             gte: vi.fn().mockReturnThis(),
             lte: vi.fn().mockReturnThis(),
             neq: vi.fn().mockReturnThis(),
             not: vi.fn().mockReturnThis(),
             order: vi.fn().mockReturnThis(),
-            then: (resolve: any) =>
+            then: (resolve: (value: { data: unknown[]; error: { message: string } | null }) => unknown) =>
               Promise.resolve({
                 data: mockBookingsData,
                 error: mockBookingsError,
@@ -82,7 +82,7 @@ const mockSupabase = {
         select: vi.fn().mockReturnThis(),
         eq: vi.fn().mockReturnThis(),
         order: vi.fn().mockReturnThis(),
-        then: (resolve: any) =>
+        then: (resolve: (value: { data: unknown[]; error: { message: string } | null }) => unknown) =>
           Promise.resolve({
             data: mockStaffSchedulesData,
             error: mockStaffSchedulesError,
@@ -96,7 +96,7 @@ const mockSupabase = {
         eq: vi.fn().mockReturnThis(),
         gte: vi.fn().mockReturnThis(),
         order: vi.fn().mockReturnThis(),
-        then: (resolve: any) =>
+        then: (resolve: (value: { data: unknown[]; error: { message: string } | null }) => unknown) =>
           Promise.resolve({
             data: mockScheduleOverridesData,
             error: mockScheduleOverridesError,
@@ -132,7 +132,7 @@ const mockSupabase = {
     return {
       select: vi.fn().mockReturnThis(),
       eq: vi.fn().mockReturnThis(),
-      then: (resolve: any) => Promise.resolve({ data: [], error: null }).then(resolve),
+      then: (resolve: (value: { data: never[]; error: null }) => unknown) => Promise.resolve({ data: [], error: null }).then(resolve),
     };
   }),
   auth: {
@@ -160,7 +160,6 @@ import { getMyUpcomingBookings } from "@/lib/queries/bookings";
 import { buildStaffWeekPlanner } from "@/lib/staff-portal/week";
 import {
   resolveProviderPrimaryWork,
-  resolveProviderShift,
   getProviderWorkspaceRuntime,
 } from "@/lib/staff-pwa/provider-runtime";
 import { getProviderBusinessDate } from "@/lib/staff-pwa/provider-date";
@@ -352,7 +351,7 @@ describe("W2 CORRECTION: Provider Delivery Authority & Query Data Contracts", ()
             services: { id: "s-2", name: "In-Spa Facial", duration_minutes: 60 },
             customers: { id: "c-2", full_name: "Customer 2" },
           },
-        ] as any[],
+        ] as Parameters<typeof buildStaffWeekPlanner>[0]["bookings"],
         schedule: [],
         overrides: [],
         todayIso: "2026-09-14",
@@ -450,7 +449,6 @@ describe("W2 CORRECTION: Provider Delivery Authority & Query Data Contracts", ()
 
     it("Schedule read failure DOES NOT produce 'No Shift'", async () => {
       mockBookingsData = [];
-      const failingScheduleRuntime: any = resolveProviderShift(null, null);
       // But when schedule has a load error:
       const loadErrorShift = { kind: "load_error", error: "Failed to load schedule" };
       expect(loadErrorShift.kind).toBe("load_error");
@@ -663,7 +661,7 @@ describe("W2 CORRECTION: Provider Delivery Authority & Query Data Contracts", ()
         "Provider has no assigned branch for operational date resolution"
       );
 
-      mockStaffRecord.branch_id = null;
+      mockStaffRecord = { ...mockStaffRecord, branch_id: null };
 
       const todayRes = await getMyTodayAction();
       expect(todayRes).toEqual({

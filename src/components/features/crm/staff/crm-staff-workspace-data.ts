@@ -46,5 +46,5 @@ export function normalizeCrmStaffTab(
 ): CrmStaffTab {
   return value && STAFF_TABS.includes(value as CrmStaffTab)
     ? (value as CrmStaffTab)
-    : "applications";
+    : "management";
 }

@@ -12,6 +12,7 @@ import {
   getStaffScheduleExceptionMessage,
 } from "@/lib/bookings/staff-schedule-exception";
 import { isPaymentOverdue } from "@/lib/crm/cradle-flow";
+import { isHomeServiceBooking } from "@/lib/bookings/bookings-workspace-filters";
 
 const reviewButtonClass =
   "inline-flex h-8 items-center justify-center rounded-lg px-3 text-xs font-semibold text-emerald-900 hover:bg-white";
@@ -61,7 +62,8 @@ export function SelectedBookingWarnings({
   const [showStaffReview, setShowStaffReview] = useState(false);
   const [isResolving, startTransition] = useTransition();
   const exception = getOpenStaffScheduleException(booking.metadata);
-  const missingRoom = booking.booking_progress_status === "checked_in" && !booking.resource_id;
+  const isHomeService = isHomeServiceBooking(booking);
+  const missingRoom = !isHomeService && booking.booking_progress_status === "checked_in" && !booking.resource_id;
   const pendingPayment =
     !grouped && ["unpaid", "pending", "pending_payment"].includes(booking.payment_status);
   const pricePaid = Number(booking.metadata?.price_paid);
@@ -72,8 +74,6 @@ export function SelectedBookingWarnings({
       ...booking,
       price_paid: pricePaid,
     });
-  const isHomeService = booking.delivery_type === "home_service" || booking.type === "home_service";
-
   function callCustomer() {
     const phone = firstBookingRelation(booking.customers)?.phone?.trim();
     if (!phone) {

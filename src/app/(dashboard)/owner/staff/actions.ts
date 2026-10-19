@@ -83,7 +83,7 @@ async function syncStaffServices(
   staffId: string,
   serviceIds: string[] | undefined
 ) {
-  if (!serviceIds) return;
+  if (serviceIds === undefined) return;
   const unique = Array.from(new Set(serviceIds));
   const { error } = await supabase.rpc("replace_staff_service_capabilities", {
     p_target_staff_id: staffId,
@@ -195,7 +195,7 @@ export async function updateStaffAction(rawInput: unknown) {
 
   const { data: target } = await ctx.supabase
     .from("staff")
-    .select("branch_id, system_role")
+    .select("id, full_name, nickname, phone, tier, system_role, staff_type, is_head, branch_id, is_active, updated_at")
     .eq("id", staffId)
     .single();
 
@@ -280,33 +280,39 @@ export async function updateStaffAction(rawInput: unknown) {
     ...(updates.isActive   !== undefined && { is_active:    updates.isActive }),
   };
 
-  let updateResult = await ctx.supabase
-    .from("staff")
-    .update(updatePayload)
-    .eq("id", staffId)
-    .select("id, full_name, nickname, phone, tier, system_role, staff_type, is_head, branch_id, is_active, updated_at");
+  let savedStaff = target;
 
-  // Backward compatibility: if staff_type/is_head columns don't exist yet
-  if (updateResult.error && isMissingStaffOrgColumnsError(updateResult.error.message)) {
-    const legacyPayload: Database["public"]["Tables"]["staff"]["Update"] = {
-      ...updatePayload,
-    };
-    delete legacyPayload.staff_type;
-    delete legacyPayload.is_head;
-    updateResult = await ctx.supabase
+  if (Object.keys(updatePayload).length > 0) {
+    let updateResult = await ctx.supabase
       .from("staff")
-      .update(legacyPayload)
+      .update(updatePayload)
       .eq("id", staffId)
-      .select("id, full_name, nickname, phone, tier, system_role, branch_id, is_active, updated_at");
-  }
+      .select("id, full_name, nickname, phone, tier, system_role, staff_type, is_head, branch_id, is_active, updated_at");
 
-  if (updateResult.error) return { success: false, error: updateResult.error.message };
+    // Backward compatibility: if staff_type/is_head columns don't exist yet
+    if (updateResult.error && isMissingStaffOrgColumnsError(updateResult.error.message)) {
+      const legacyPayload: Database["public"]["Tables"]["staff"]["Update"] = {
+        ...updatePayload,
+      };
+      delete legacyPayload.staff_type;
+      delete legacyPayload.is_head;
+      updateResult = await ctx.supabase
+        .from("staff")
+        .update(legacyPayload)
+        .eq("id", staffId)
+        .select("id, full_name, nickname, phone, tier, system_role, branch_id, is_active, updated_at");
+    }
 
-  // Defensive: if no rows were returned, the UPDATE was silently blocked by RLS
-  // or the row no longer exists. Without .select() Supabase returns 204/OK even
-  // when RLS prevents the update, so we must verify via the returned row set.
-  if (!updateResult.data || updateResult.data.length === 0) {
-    return { success: false, error: "No rows were updated. The staff record may be inaccessible or does not exist." };
+    if (updateResult.error) return { success: false, error: updateResult.error.message };
+
+    // Defensive: if no rows were returned, the UPDATE was silently blocked by RLS
+    // or the row no longer exists. Without .select() Supabase returns 204/OK even
+    // when RLS prevents the update, so we must verify via the returned row set.
+    if (!updateResult.data || updateResult.data.length === 0) {
+      return { success: false, error: "No rows were updated. The staff record may be inaccessible or does not exist." };
+    }
+
+    savedStaff = updateResult.data[0]!;
   }
 
   if (serviceIds !== undefined) {
@@ -317,12 +323,17 @@ export async function updateStaffAction(rawInput: unknown) {
     }
   }
 
-  const savedStaff = updateResult.data[0]!;
   revalidatePath("/owner/staff");
   revalidatePath(`/owner/staff/${staffId}`);
   revalidatePath("/manager/staff");
   revalidatePath(`/manager/staff/${staffId}`);
   if (savedStaff.branch_id) {
+    if (serviceIds !== undefined) {
+      revalidatePath("/crm/services");
+      revalidatePath("/crm/setup");
+      revalidatePath("/crm/schedule");
+      revalidatePath("/crm/today");
+    }
     invalidateCrmWorkspace(savedStaff.branch_id);
     invalidateManagerWorkspace(savedStaff.branch_id);
   }

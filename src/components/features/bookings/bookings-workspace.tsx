@@ -592,6 +592,21 @@ export function BookingsWorkspace({
         {referenceSource !== "master_sheet" ? (
           <input type="hidden" name="tab" value={activeTab} />
         ) : null}
+        {/* Owner search submits with the filter panel collapsed. Preserve the
+            authorized branch/date/filter request instead of silently widening
+            the next server read to all branches or defaulting the date. */}
+        {isOwner && !showFilters ? (
+          <>
+            <input type="hidden" name="date" value={date} />
+            <input type="hidden" name="branch" value={branchFilter ?? ""} />
+            <input type="hidden" name="type" value={typeFilter ?? ""} />
+          </>
+        ) : null}
+        {/* Status is a URL/server filter but Owner's compact filter drawer
+            has no status selector; preserve it on search and filter submits. */}
+        {isOwner && statusFilter ? (
+          <input type="hidden" name="status" value={statusFilter} />
+        ) : null}
         {!showFilters ? (
           <input type="hidden" name="referenceSource" value={referenceSource} />
         ) : null}
@@ -619,6 +634,10 @@ export function BookingsWorkspace({
               <input
                 type="search"
                 name="search"
+                // Owner keeps its workspace mounted for local search updates.
+                // Recreate only this uncontrolled input when a URL navigation
+                // changes search; leave the CRM path and modal state untouched.
+                key={isOwner ? `owner-search:${search ?? ""}` : undefined}
                 defaultValue={search ?? ""}
                 placeholder="Customer, phone, staff, or booking ID"
                 className="min-w-0 flex-1 bg-transparent text-sm outline-none placeholder:text-muted-foreground"

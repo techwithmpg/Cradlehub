@@ -162,7 +162,12 @@ export function StaffEditForm({
         return { success: false, error: "Please select valid role, tier, and job function." };
       }
 
-      const serviceIds = formData.getAll("serviceIds").map((v) => String(v));
+      const isManagingServices = formData.get("manageServices") === "1" || !onEditServices;
+      const selectedServiceIds = formData
+        .getAll("serviceIds")
+        .map((v) => String(v).trim())
+        .filter((id) => id.length > 0);
+      const serviceIds = isManagingServices ? selectedServiceIds : undefined;
 
       const branchIdRaw = String(formData.get("branchId") ?? "").trim();
       const result = await updateStaffAction({
@@ -176,7 +181,7 @@ export function StaffEditForm({
         isHead: formData.get("isHead") === "on",
         branchId: branchIdRaw.length > 0 ? branchIdRaw : undefined,
         isActive: formData.get("isActive") === "on",
-        serviceIds: serviceIds.length > 0 ? serviceIds : undefined,
+        serviceIds,
       });
 
       return {
@@ -370,6 +375,7 @@ export function StaffEditForm({
             </div>
           ) : (
             <fieldset style={{ border: "none", padding: 0, margin: 0 }}>
+              <input type="hidden" name="manageServices" value="1" />
               <legend
                 style={{
                   fontSize: "0.8125rem",

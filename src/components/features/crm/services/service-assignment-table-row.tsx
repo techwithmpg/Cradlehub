@@ -183,7 +183,7 @@ export function ServiceAssignmentTableRow({
                   fontSize: "0.875rem",
                   fontWeight: 600,
                   color: "var(--cs-text)",
-                  whiteSpace: "nowrap",
+                  overflowWrap: "anywhere",
                 }}
               >
                 {row.name}
@@ -214,25 +214,13 @@ export function ServiceAssignmentTableRow({
                 flexWrap: "wrap",
               }}
             >
+              {row.category && <span className="font-medium">{row.category} ·</span>}
               <span>{row.duration} min</span>
               <span>·</span>
               <span>₱{row.price.toLocaleString()}</span>
               <DeliveryBadge inSpa={row.isInSpa} home={row.isHomeService} />
             </div>
           </div>
-        </td>
-
-        {/* ── Category ── */}
-        <td
-          style={{
-            padding: "0.625rem 1rem",
-            verticalAlign: "middle",
-            fontSize: "0.8125rem",
-            color: "var(--cs-text-secondary)",
-            whiteSpace: "nowrap",
-          }}
-        >
-          {row.category ?? <span style={{ color: "var(--cs-text-muted)" }}>—</span>}
         </td>
 
         {/* ── Assigned Therapists (compact preview) ── */}
@@ -375,7 +363,7 @@ export function ServiceAssignmentTableRow({
                 padding: "5px 12px",
                 borderRadius: 6,
                 border: "none",
-                background: "#7c3aed",
+                background: "var(--cs-sand-dark)",
                 color: "#fff",
                 fontSize: "0.8125rem",
                 fontWeight: 600,
@@ -386,10 +374,10 @@ export function ServiceAssignmentTableRow({
                 transition: "background 0.15s",
               }}
               onMouseEnter={(e) => {
-                (e.currentTarget as HTMLButtonElement).style.background = "#6d28d9";
+                (e.currentTarget as HTMLButtonElement).style.background = "var(--cs-sand)";
               }}
               onMouseLeave={(e) => {
-                (e.currentTarget as HTMLButtonElement).style.background = "#7c3aed";
+                (e.currentTarget as HTMLButtonElement).style.background = "var(--cs-sand-dark)";
               }}
             >
               <span style={{ fontWeight: 700 }}>+</span>

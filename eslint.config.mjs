@@ -10,6 +10,7 @@ const eslintConfig = defineConfig([
     // Default ignores of eslint-config-next:
     ".claude/**",
     ".codex-artifacts/**",
+    ".playwright-mcp/**",
     ".fix-backups/**",
     ".next/**",
     ".tmp/**",

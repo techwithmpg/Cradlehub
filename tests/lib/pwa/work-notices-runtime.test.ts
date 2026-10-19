@@ -2,7 +2,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 vi.mock("server-only", () => ({}));
 vi.mock("next/cache", () => ({ revalidatePath: vi.fn() }));
 const state = vi.hoisted(() => ({
-  context: vi.fn(), calls: [] as any[], data: {} as Record<string, any[]>, errors: {} as Record<string, unknown>,
+  context: vi.fn(), calls: [] as Array<{ table: string; filters: unknown[][]; update: unknown }>, data: {} as Record<string, Record<string, unknown>[]>, errors: {} as Record<string, unknown>,
 }));
 vi.mock("@/lib/staff-pwa/staff-context", () => ({ getStaffPwaContext: state.context }));
 vi.mock("@/lib/staff-pwa/provider-date", () => ({ getProviderBusinessDate: async () => "2026-09-13" }));
@@ -10,13 +10,13 @@ import { getStaffWork } from "@/lib/staff-pwa/work-runtime";
 import { getStaffNotices } from "@/lib/staff-pwa/notices-runtime";
 import { markStaffNoticeRead } from "@/lib/staff-pwa/notice-actions";
 const staff = { id: "staff", branch_id: "branch", system_role: "crm", staff_type: null };
-const db: any = { from(table: string) {
-  const call = { table, filters: [] as any[], update: null as unknown }; state.calls.push(call);
-  const q: any = {};
-  for (const method of ["select", "eq", "is", "in", "or", "gte", "lte", "order", "limit"]) q[method] = (...args: any[]) => { call.filters.push([method, ...args]); return q; };
+const db = { from(table: string) {
+  const call = { table, filters: [] as unknown[][], update: null as unknown }; state.calls.push(call);
+  const q: Record<string, unknown> = {};
+  for (const method of ["select", "eq", "is", "in", "or", "gte", "lte", "order", "limit"]) q[method] = (...args: unknown[]) => { call.filters.push([method, ...args]); return q; };
   q.update = (payload: unknown) => { call.update = payload; return q; };
   q.maybeSingle = async () => ({ data: null, error: null });
-  q.then = (resolve: any) => Promise.resolve({ data: state.data[table] ?? [], error: state.errors[table] ?? null }).then(resolve);
+  q.then = (resolve: (value: { data: Record<string, unknown>[]; error: unknown }) => unknown) => Promise.resolve({ data: state.data[table] ?? [], error: state.errors[table] ?? null }).then(resolve);
   return q;
 } };
 beforeEach(() => {
@@ -35,7 +35,7 @@ describe("Work query boundary and truthful failures", () => {
     state.context.mockResolvedValue({ db, staff: { ...staff, system_role: "staff" }, group: "crm_general" });
     await getStaffWork();
     expect(state.calls.map(row => row.table)).toEqual(["workflow_tasks"]);
-    expect(state.calls[0].filters).toContainEqual(["eq", "assigned_to_staff_id", "staff"]);
+    expect(state.calls[0]!.filters).toContainEqual(["eq", "assigned_to_staff_id", "staff"]);
   });
   it("preserves independent results when a source fails", async () => {
     state.errors.bookings = { message: "down" };
@@ -51,7 +51,7 @@ describe("Work query boundary and truthful failures", () => {
   });
 });
 describe("Current notice reconciliation", () => {
-  function notice(extra: any = {}) {
+  function notice(extra: Record<string, unknown> = {}) {
     return { id: "notice", branch_id: "branch", target_workspace: "driver", recipient_staff_id: "staff", status: "unread", type: "home_service_assigned", entity_type: "booking", entity_id: "booking", title: "Trip", created_at: new Date().toISOString(), requires_action: true, ...extra };
   }
   it("removes stale Driver assignments and completed booking alerts", async () => {

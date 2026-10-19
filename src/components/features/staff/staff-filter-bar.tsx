@@ -1,6 +1,6 @@
 "use client";
 
-import { Search, SlidersHorizontal, X } from "lucide-react";
+import { Search, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import type { StaffFilters } from "./staff-management-utils";
@@ -47,8 +47,8 @@ export function StaffFilterBar({
       className="rounded-xl border border-[var(--cs-border)] bg-[var(--cs-surface)] p-3 shadow-[var(--cs-shadow-xs)]"
       aria-label="Staff filters"
     >
-      <div className="grid gap-2 lg:grid-cols-[minmax(220px,1fr)_180px_170px_170px_auto_auto]">
-        <div className="relative min-w-0">
+      <div className="flex flex-wrap items-center gap-2">
+        <div className="relative min-w-[220px] flex-[1_1_300px]">
           <label htmlFor="staff-search" className="sr-only">
             Search staff
           </label>
@@ -86,17 +86,6 @@ export function StaffFilterBar({
           onChange={(value) => updateFilter("status", value)}
         />
 
-        <Button
-          type="button"
-          variant="outline"
-          size="icon-lg"
-          onClick={onClear}
-          aria-label="Reset staff filters"
-          title="Reset staff filters"
-          className="border-[var(--cs-border)] bg-[var(--cs-surface)] text-[var(--cs-text-muted)]"
-        >
-          <SlidersHorizontal className="size-4" aria-hidden="true" />
-        </Button>
 
         <Button
           type="button"
@@ -128,7 +117,7 @@ function FilterSelect({
   const id = `staff-filter-${label.toLowerCase().replace(/\s+/g, "-")}`;
 
   return (
-    <div className="min-w-0">
+    <div className="min-w-[125px] flex-[0_1_175px]">
       <label htmlFor={id} className="sr-only">
         Filter by {label}
       </label>

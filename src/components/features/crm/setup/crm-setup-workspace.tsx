@@ -19,7 +19,7 @@
  */
 
 import { useCallback } from "react";
-import { useSearchParams } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import { AttendanceTabPanel } from "@/components/features/attendance/attendance-ui";
 import { CrmServicesWorkspace } from "@/components/features/crm/services/crm-services-workspace";
 import { SpacesRulesWorkspace } from "@/components/features/spaces-rules/spaces-rules-workspace";
@@ -39,14 +39,19 @@ export type SetupTab =
   | "staff_readiness"
   | "public_readiness";
 
-const TABS: { key: SetupTab; label: string }[] = [
-  { key: "health",          label: "Setup Health"    },
-  { key: "services",        label: "Services"        },
-  { key: "providers",       label: "Providers"       },
-  { key: "spaces",          label: "Spaces & Rules"  },
-  { key: "booking_rules",   label: "Booking Rules"   },
-  { key: "staff_readiness", label: "Staff Readiness" },
-  { key: "public_readiness",label: "Public Booking"  },
+const PRIMARY_TABS: { key: SetupTab; label: string }[] = [
+  { key: "health", label: "Overview" },
+  { key: "services", label: "Services & Providers" },
+  { key: "spaces", label: "Rooms & Resources" },
+  { key: "booking_rules", label: "Booking Rules" },
+];
+
+// Keep the original deep links available. These are supporting views, not
+// separate primary workspaces competing for a staff member's attention.
+const MORE_TABS: { key: SetupTab; label: string }[] = [
+  { key: "providers", label: "Providers by staff" },
+  { key: "staff_readiness", label: "Staff readiness" },
+  { key: "public_readiness", label: "Public booking readiness" },
 ];
 
 // ── Props ─────────────────────────────────────────────────────────────────────
@@ -76,6 +81,7 @@ export function CrmSetupWorkspace({
   spacesData,
 }: CrmSetupWorkspaceProps) {
   const searchParams = useSearchParams();
+  const router = useRouter();
   const rawTab = searchParams.get("tab");
   const activeTab: SetupTab = rawTab === "health"
     ? "health"
@@ -92,21 +98,25 @@ export function CrmSetupWorkspace({
               : ["public_readiness", "readiness", "issues", "public"].includes(rawTab ?? "")
                 ? "public_readiness"
                 : initialTab;
-  const activeTabIndex = TABS.findIndex((tab) => tab.key === activeTab);
+  const activeTabIndex = PRIMARY_TABS.findIndex((tab) => tab.key === activeTab);
 
   const handleTabChange = useCallback((next: string) => {
     const tab = next as SetupTab;
+    if (tab === "services") {
+      router.push("/crm/services");
+      return;
+    }
     if (typeof window !== "undefined") {
       const url = new URL(window.location.href);
       url.searchParams.set("tab", tab);
       window.history.pushState(null, "", url.toString());
     }
-  }, []);
+  }, [router]);
 
   const handleTabKeyDown = useCallback(
     (event: React.KeyboardEvent<HTMLDivElement>) => {
-      const lastIndex = TABS.length - 1;
-      let nextIndex = activeTabIndex;
+      const lastIndex = PRIMARY_TABS.length - 1;
+      let nextIndex = activeTabIndex < 0 ? 0 : activeTabIndex;
 
       if (event.key === "ArrowRight") nextIndex = activeTabIndex === lastIndex ? 0 : activeTabIndex + 1;
       else if (event.key === "ArrowLeft") nextIndex = activeTabIndex === 0 ? lastIndex : activeTabIndex - 1;
@@ -115,7 +125,7 @@ export function CrmSetupWorkspace({
       else return;
 
       event.preventDefault();
-      const nextTab = TABS[nextIndex];
+      const nextTab = PRIMARY_TABS[nextIndex];
       if (nextTab) handleTabChange(nextTab.key);
     },
     [activeTabIndex, handleTabChange]
@@ -123,46 +133,59 @@ export function CrmSetupWorkspace({
 
   return (
     <div>
-      <div
-        role="tablist"
-        aria-label="Setup sections"
-        onKeyDown={handleTabKeyDown}
-        className="mb-6 flex gap-0 overflow-x-auto border-b border-[var(--cs-border-soft)]"
-      >
-        {TABS.map((tab) => {
-          const active = activeTab === tab.key;
-          return (
-            <button
-              key={tab.key}
-              id={`setup-tab-${tab.key}`}
-              type="button"
-              role="tab"
-              aria-selected={active}
-              aria-controls={`setup-panel-${tab.key}`}
-              tabIndex={active ? 0 : -1}
-              onClick={() => handleTabChange(tab.key)}
-              className={`relative shrink-0 px-4 py-2.5 text-sm font-medium whitespace-nowrap transition-colors duration-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--cs-sand)] ${
-                active
-                  ? "text-[var(--cs-text)] after:absolute after:bottom-0 after:left-2 after:right-2 after:h-[2px] after:rounded-full after:bg-[var(--cs-sand)]"
-                  : "text-[var(--cs-text-muted)] hover:text-[var(--cs-text-secondary)]"
-              }`}
-            >
-              {tab.label}
-            </button>
-          );
-        })}
-      </div>
+      {activeTab !== "services" && <div className="mb-4 flex flex-wrap items-center gap-2 rounded-xl border border-[var(--cs-border)] bg-[var(--cs-surface)] p-2" aria-label="Setup navigation">
+        <div role="tablist" aria-label="Primary setup sections" onKeyDown={handleTabKeyDown} className="flex min-w-0 flex-1 flex-wrap gap-1">
+          {PRIMARY_TABS.map((tab) => {
+            const active = activeTab === tab.key;
+            return (
+              <button
+                key={tab.key}
+                id={`setup-tab-${tab.key}`}
+                type="button"
+                role="tab"
+                aria-selected={active}
+                aria-controls={`setup-panel-${tab.key}`}
+                tabIndex={active ? 0 : -1}
+                onClick={() => handleTabChange(tab.key)}
+                className={[
+                  "rounded-lg px-3 py-2 text-sm font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--cs-sand)]",
+                  active
+                    ? "bg-[var(--cs-success-bg)] text-[var(--cs-success-text)]"
+                    : "text-[var(--cs-text-secondary)] hover:bg-[var(--cs-surface-warm)]",
+                ].join(" ")}
+              >
+                {tab.label}
+              </button>
+            );
+          })}
+        </div>
+        <label className="flex items-center gap-2 text-xs text-[var(--cs-text-muted)]">
+          <span className="sr-only">Additional setup tools</span>
+          <select
+            aria-label="Additional setup tools"
+            value={MORE_TABS.some((tab) => tab.key === activeTab) ? activeTab : ""}
+            onChange={(event) => handleTabChange(event.target.value)}
+            className="h-9 min-w-[148px] max-w-full rounded-lg border border-[var(--cs-border)] bg-[var(--cs-surface)] px-2 text-xs font-medium text-[var(--cs-text-secondary)]"
+          >
+            <option value="" disabled>Other setup tools</option>
+            {MORE_TABS.map((tab) => <option key={tab.key} value={tab.key}>{tab.label}</option>)}
+          </select>
+        </label>
+      </div>}
+      <span className="sr-only" id="setup-tab-providers">Providers by staff</span>
+      <span className="sr-only" id="setup-tab-staff_readiness">Staff readiness</span>
+      <span className="sr-only" id="setup-tab-public_readiness">Public booking readiness</span>
 
       <AttendanceTabPanel id="setup-panel-health" labelledBy="setup-tab-health" active={activeTab === "health"}>
         {healthSlot}
       </AttendanceTabPanel>
 
       <AttendanceTabPanel id="setup-panel-services" labelledBy="setup-tab-services" active={activeTab === "services"}>
-        <CrmServicesWorkspace {...servicesData} initialTab="services" />
+        <CrmServicesWorkspace {...servicesData} initialTab="services" compactNavigation />
       </AttendanceTabPanel>
 
       <AttendanceTabPanel id="setup-panel-providers" labelledBy="setup-tab-providers" active={activeTab === "providers"}>
-        <CrmServicesWorkspace {...servicesData} initialTab="providers" />
+        <CrmServicesWorkspace {...servicesData} initialTab="providers" compactNavigation />
       </AttendanceTabPanel>
 
       <AttendanceTabPanel id="setup-panel-spaces" labelledBy="setup-tab-spaces" active={activeTab === "spaces"}>
@@ -190,7 +213,7 @@ export function CrmSetupWorkspace({
         labelledBy="setup-tab-public_readiness"
         active={activeTab === "public_readiness"}
       >
-        <CrmServicesWorkspace {...servicesData} initialTab="readiness_issues" />
+        <CrmServicesWorkspace {...servicesData} initialTab="readiness_issues" compactNavigation />
       </AttendanceTabPanel>
     </div>
   );

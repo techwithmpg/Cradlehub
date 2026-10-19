@@ -1,13 +1,12 @@
-import { Eye, EyeOff, Home, MapPin, Sparkles, Wrench } from "lucide-react";
+import { CheckCircle2, CircleAlert, Sparkles, TriangleAlert, UsersRound } from "lucide-react";
 import type { CustomizationRow } from "./customization-rows";
 
 export function ServiceCustomizationMetricGrid({ rows }: { rows: CustomizationRow[] }) {
   const total = rows.length;
-  const publicCount = rows.filter((r) => r.visibility === "public" && r.isActive).length;
-  const inSpaCount = rows.filter((r) => r.isActive && r.isInSpa).length;
-  const homeServiceCount = rows.filter((r) => r.isActive && r.isHomeService).length;
-  const hiddenCount = rows.filter((r) => !r.isActive).length;
-  const needsSetup = rows.filter((r) => r.isActive && !r.isReady).length;
+  const basicSetupComplete = rows.filter((r) => r.isReady).length;
+  const needsProvider = rows.filter((r) => r.isActive && r.providerCount === 0).length;
+  const lowCoverage = rows.filter((r) => r.isActive && r.providerCount === 1).length;
+  const needsSetup = rows.filter((r) => r.isActive && r.readinessIssues.length > 0).length;
 
   const cards = [
     {
@@ -18,44 +17,37 @@ export function ServiceCustomizationMetricGrid({ rows }: { rows: CustomizationRo
       bg: "var(--cs-sand-mist)",
     },
     {
-      label: "Public Services",
-      value: publicCount,
-      icon: Eye,
+      label: "Basic Setup Complete",
+      value: basicSetupComplete,
+      icon: CheckCircle2,
       color: "#5A8A6A",
       bg: "rgba(90,138,106,0.12)",
     },
     {
-      label: "In-Spa Services",
-      value: inSpaCount,
-      icon: MapPin,
-      color: "#7c3aed",
-      bg: "rgba(124,58,237,0.1)",
+      label: "Needs Provider",
+      value: needsProvider,
+      icon: TriangleAlert,
+      color: "var(--cs-warning-text)",
+      bg: "var(--cs-warning-bg)",
     },
     {
-      label: "Home-Service",
-      value: homeServiceCount,
-      icon: Home,
-      color: "#2563eb",
-      bg: "rgba(37,99,235,0.1)",
+      label: "Low Coverage",
+      value: lowCoverage,
+      icon: UsersRound,
+      color: "var(--cs-warning-text)",
+      bg: "var(--cs-warning-bg)",
     },
     {
-      label: "Hidden",
-      value: hiddenCount,
-      icon: EyeOff,
-      color: "var(--cs-text-muted)",
-      bg: "var(--cs-surface-warm)",
-    },
-    {
-      label: "Needs Setup",
+      label: "Setup Issues",
       value: needsSetup,
-      icon: Wrench,
+      icon: CircleAlert,
       color: needsSetup > 0 ? "var(--cs-warning-text)" : "var(--cs-text-muted)",
       bg: needsSetup > 0 ? "var(--cs-warning-bg)" : "var(--cs-surface-warm)",
     },
   ];
 
   return (
-    <section className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-6" aria-label="Service metrics">
+    <section className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-5" aria-label="Service metrics">
       {cards.map(({ label, value, icon: Icon, color, bg }) => (
         <div
           key={label}

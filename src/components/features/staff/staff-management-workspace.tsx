@@ -26,10 +26,12 @@ type StaffManagementWorkspaceProps = {
   pendingStaff: StaffMember[];
   initialTab: StaffTab;
   workspaceContext?: "owner" | "manager" | "crm";
-  /** CRM-only: callback to open inline staff edit sheet */
+  /** Open the authorized inline staff editor when available. */
   onEditStaff?: (staff: StaffMember) => void;
-  /** CRM-only: callback to open inline service capability editor */
+  /** Open the authorized inline service capability editor when available. */
   onManageServices?: (staff: StaffMember) => void;
+  /** Owner-only: open the existing staff work setup editor */
+  onEditWorkSetup?: (staff: StaffMember) => void;
   /** CRM-only: callback to toggle staff active/inactive */
   onToggleActive?: (staff: StaffMember) => void;
 };
@@ -48,6 +50,7 @@ export function StaffManagementWorkspace({
   workspaceContext = "owner",
   onEditStaff,
   onManageServices,
+  onEditWorkSetup,
   onToggleActive,
 }: StaffManagementWorkspaceProps) {
   const isOwner = workspaceContext === "owner";
@@ -124,9 +127,9 @@ export function StaffManagementWorkspace({
 
   return (
     <div className="space-y-4">
-      <header className="flex flex-col gap-3 rounded-xl border border-[var(--cs-border)] bg-[var(--cs-surface)] px-4 py-4 shadow-[var(--cs-shadow-xs)] sm:flex-row sm:items-start sm:justify-between">
+      {!isCrm && <header className="flex flex-col gap-3 rounded-xl border border-[var(--cs-border)] bg-[var(--cs-surface)] px-4 py-4 shadow-[var(--cs-shadow-xs)] sm:flex-row sm:items-start sm:justify-between">
         <div>
-          <h1 className="m-0 text-2xl font-semibold leading-tight text-[var(--cs-text)]">Staff</h1>
+          <h1 className="m-0 text-2xl font-semibold leading-tight text-[var(--cs-text)]">Staff & Access</h1>
           <p className="mt-1 mb-0 text-sm text-[var(--cs-text-muted)]">
             {activeStaff.length} active · {awaitingCount} awaiting approval · {invitedCount} invites sent
           </p>
@@ -157,7 +160,7 @@ export function StaffManagementWorkspace({
             </Button>
           </div>
         )}
-      </header>
+      </header>}
 
       <StaffStatsCards
         activeCount={activeStaff.length}
@@ -188,7 +191,7 @@ export function StaffManagementWorkspace({
         </p>
       </div>
 
-      <div className="grid items-start gap-4 xl:grid-cols-[minmax(0,1fr)_340px]">
+      <div className="grid items-start gap-4 xl:grid-cols-[minmax(0,1.85fr)_minmax(360px,1fr)]">
         <div className="min-w-0 space-y-4">
           {groupedStaff.length > 0 ? (
             groupedStaff.map((group) => (
@@ -214,6 +217,7 @@ export function StaffManagementWorkspace({
           workspaceContext={workspaceContext}
           onEditStaff={onEditStaff}
           onManageServices={onManageServices}
+          onEditWorkSetup={onEditWorkSetup}
           onToggleActive={onToggleActive}
         />
       </div>

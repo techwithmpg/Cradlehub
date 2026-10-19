@@ -144,7 +144,7 @@ const MODULE_POLICIES: readonly ModulePolicy[] = [
     moduleId: "owner-bookings",
     normalizedRoute: "/owner/bookings",
     exact: true,
-    stableSearchParams: ["date", "branch", "status", "type", "search", "bookingId"],
+    stableSearchParams: ["date", "branch", "status", "type", "search", "bookingId", "tab"],
     staleTimeMs: 25_000,
     cost: "medium",
   },

@@ -51,7 +51,10 @@ export default async function OwnerLayout({ children }: { children: ReactNode })
 
   return (
     <>
-      <WorkspaceRoutePrefetcher config={OWNER_PREFETCH} />
+      <WorkspaceRoutePrefetcher
+        config={OWNER_PREFETCH}
+        mobileIdleRoutes={["/owner", "/owner/bookings"]}
+      />
       {canShowCoach ? (
         <AgentCoachProvider
           workspace="owner"

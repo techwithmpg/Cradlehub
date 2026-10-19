@@ -1,3 +1,4 @@
+import { cache } from "react";
 import "server-only";
 
 import { revalidatePath } from "next/cache";
@@ -319,9 +320,9 @@ export async function getAttendanceSettings(branchId: string): Promise<Attendanc
  *
  * Performs ZERO inserts, updates, deletes, upserts, or RPC mutations.
  */
-export async function getAttendanceSettingsReadOnly(
+const getAttendanceSettingsReadOnlyCached = cache(async (
   branchId: string
-): Promise<AttendanceSettings> {
+): Promise<AttendanceSettings> => {
   const admin = asAttendanceDb(createAdminClient());
   const { data, error } = await admin
     .from("attendance_settings")
@@ -368,6 +369,12 @@ export async function getAttendanceSettingsReadOnly(
   // Missing row in database: return normalized default settings in memory with zero writes
   const fallback = { branch_id: branchId, ...DEFAULT_SETTINGS, ...ruleValues };
   return normalizeAttendanceSettings(fallback, branchId);
+});
+
+export async function getAttendanceSettingsReadOnly(
+  branchId: string
+): Promise<AttendanceSettings> {
+  return getAttendanceSettingsReadOnlyCached(branchId);
 }
 
 export const getAttendanceSettingsSnapshot = getAttendanceSettingsReadOnly;

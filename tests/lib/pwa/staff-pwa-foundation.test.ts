@@ -560,7 +560,7 @@ describe("PWA-C5: Canonical Staff Runtime Scope Containment", () => {
 
 describe("PWA-C5: Canonical Utility Authorization Contract", () => {
   it("verifies canAccessCanonicalUtility enforces trusted operational-group resolution", async () => {
-    const { canAccessCanonicalUtility } = await import("@/app/(dashboard)/staff/utility/page");
+    const { canAccessCanonicalUtility } = await import("@/lib/auth/workspace-access");
 
     // 1. role=utility → allowed
     expect(canAccessCanonicalUtility("utility", null)).toBe(true);

@@ -24,7 +24,7 @@ import type {
 } from "./booking-workspace-types";
 import type { BookingQuickFilter } from "@/lib/bookings/bookings-workspace-filters";
 import { applyBookingListFilters } from "@/lib/bookings/booking-list-exact-filters";
-import { bookingMatchesQuickFilter } from "@/lib/bookings/bookings-workspace-filters";
+import { bookingMatchesQuickFilter, isHomeServiceBooking } from "@/lib/bookings/bookings-workspace-filters";
 import { firstBookingRelation } from "@/lib/bookings/booking-display";
 import { groupCrmBookings, matchesCrmBookingGroupSearch } from "@/lib/bookings/crm-booking-groups";
 import { findBookingGroup } from "@/lib/bookings/group-bookings-by-order";
@@ -173,7 +173,7 @@ export function BookingsDesktopWorkspace(props: DesktopWorkspaceProps) {
     searchParams.get("bookingId") ?? searchParams.get("highlight") ?? props.initialSelectedId;
   const initialRoomBooking =
     searchParams.get("openRoomAssignment") === "1" && requestedId
-      ? (props.bookings.find((booking) => booking.id === requestedId && !booking.resource_id) ??
+      ? (props.bookings.find((booking) => booking.id === requestedId && !booking.resource_id && !isHomeServiceBooking(booking)) ??
         null)
       : null;
   const [selectedId, setSelectedId] = useState<string>(() => {
@@ -279,9 +279,7 @@ export function BookingsDesktopWorkspace(props: DesktopWorkspaceProps) {
     const arrived = { ...modalState.booking, booking_progress_status: "checked_in" };
     changed();
     if (
-      !arrived.resource_id &&
-      arrived.delivery_type !== "home_service" &&
-      arrived.type !== "home_service"
+      !arrived.resource_id && !isHomeServiceBooking(arrived)
     ) {
       setModalState({ type: "room", booking: arrived });
     } else setModalState(null);
