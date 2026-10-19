@@ -71,6 +71,8 @@ function createDraftUpdateQuery(draftRow: Record<string, unknown>): MockQueryCha
 function createRevisionsQuery() {
   return {
     insert: vi.fn().mockReturnValue({
+      then: (resolve: (result: { data: null; error: null }) => void) =>
+        resolve({ data: null, error: null }),
       select: vi.fn().mockReturnValue({
         single: vi.fn().mockResolvedValue({
           data: { id: "rev-01" },

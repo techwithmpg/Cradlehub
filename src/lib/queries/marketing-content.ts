@@ -255,15 +255,14 @@ async function insertMarketingRevision(
   }
 
   const revisionNo = (latest.data?.[0]?.revision_no ?? 0) + 1;
-  const inserted = await revisions.insert({
+  const { error } = await revisions.insert({
     draft_id: draft.id,
     revision_no: revisionNo,
     action,
     snapshot: draftSnapshot(draft),
     note: cleanText(note),
     created_by: staffId,
-  });
-  const { error } = await inserted.select(REVISION_SELECT).single();
+  }).select(REVISION_SELECT).single();
 
   if (error) {
     logError("marketing.revision_insert_failed", { draftId: draft.id, action, error });
