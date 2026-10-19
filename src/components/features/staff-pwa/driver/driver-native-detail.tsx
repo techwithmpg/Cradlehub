@@ -65,8 +65,11 @@ export function DriverNativeDetail({ job }: { job: RealDispatchItem }) {
         else setArrivedAt(result.timestamp);
         setFeedback(next === "arrived" ? "Arrival confirmed." : "Travel started.");
         invalidateStaffSafeMemory(["driverToday", "driverTrips", "driverMap"]);
+        // Route focus follows the driver's recorded action, not the
+        // therapist's service completion. The map picks the next queued stop
+        // after arrival and never starts the next booking without driver input.
+        router.push("/staff/driver/map");
         router.refresh();
-        if (next === "travel_started" && navigationUrl) window.location.assign(navigationUrl);
       } catch {
         setError("Trip update could not be confirmed. Refresh before retrying.");
       }
