@@ -128,6 +128,57 @@ describe("Website Images draft payload", () => {
     });
   });
 
+  it("preserves untouched legacy hero images in a new mobile draft", async () => {
+    render(
+      <WebsiteImagesView
+        role="owner"
+        publishedSections={[
+          publishedSection("hero", {
+            image_url: "https://cdn.example.com/old-desktop.jpg",
+            secondary_image_url: "https://cdn.example.com/old-portrait.jpg",
+            metadata: { mobileImageUrl: "https://cdn.example.com/old-mobile.jpg" },
+          }),
+        ]}
+        drafts={[]}
+      />
+    );
+
+    const formData = await selectAndSave("Hero Mobile Slide 1");
+    expect(formData.get("imageUrl")).toBe("https://cdn.example.com/old-desktop.jpg");
+    expect(formData.get("secondaryImageUrl")).toBe("https://cdn.example.com/old-portrait.jpg");
+    expect(JSON.parse(String(formData.get("metadataJson"))).mobileImageUrl).toBe(
+      "/images/replacement.webp"
+    );
+  });
+
+  it("preserves untouched category entries when saving another cover", async () => {
+    render(
+      <WebsiteImagesView
+        role="owner"
+        publishedSections={[
+          publishedSection("signature_services", {
+            metadata: {
+              categoryImages: {
+                "Massage Services": "/images/current-massage.jpg",
+                "Salon Services": "https://cdn.example.com/old-salon.jpg",
+                "Unknown Category": "/images/unknown.jpg",
+              },
+            },
+          }),
+        ]}
+        drafts={[]}
+      />
+    );
+
+    const formData = await selectAndSave("Category Cover: Skin Care Services");
+    expect(JSON.parse(String(formData.get("metadataJson"))).categoryImages).toEqual({
+      "Massage Services": "/images/current-massage.jpg",
+      "Salon Services": "https://cdn.example.com/old-salon.jpg",
+      "Unknown Category": "/images/unknown.jpg",
+      "Skin Care Services": "/images/replacement.webp",
+    });
+  });
+
   it("shows a later submission error instead of the earlier save success", async () => {
     const draft = {
       id: "77777777-7777-4777-8777-777777777777",

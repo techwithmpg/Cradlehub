@@ -219,6 +219,73 @@ describe("Draft Publication Pipelines (C5.4 Review Corrections)", () => {
       expect(result.success).toBe(false);
       expect(mockUpdatePublicSiteSection).not.toHaveBeenCalled();
     });
+
+    it("publishes a mobile hero change without clearing unchanged legacy images", async () => {
+      const oldDesktop = "https://cdn.example.com/old-desktop.jpg";
+      const oldPortrait = "https://cdn.example.com/old-portrait.jpg";
+      currentMockSupabase = createSiteImagesSupabase({
+        ...draft,
+        content_key: "hero",
+        image_url: oldDesktop,
+        secondary_image_url: oldPortrait,
+        metadata: { mobileImageUrl: "/images/new-mobile.jpg" },
+      });
+      mockGetPublicSiteSection.mockResolvedValue({
+        image_url: oldDesktop,
+        secondary_image_url: oldPortrait,
+        metadata: { mobileImageUrl: "https://cdn.example.com/old-mobile.jpg" },
+      });
+      mockUpdatePublicSiteSection.mockResolvedValue({
+        success: true,
+        section: { id: "hero-section" },
+      });
+
+      const result = await publishMarketingContentDraft({ id: draftId });
+
+      expect(result.success).toBe(true);
+      expect(mockUpdatePublicSiteSection).toHaveBeenCalledWith(
+        expect.objectContaining({
+          sectionKey: "hero",
+          imageUrl: oldDesktop,
+          secondaryImageUrl: oldPortrait,
+          metadata: { mobileImageUrl: "/images/new-mobile.jpg" },
+        })
+      );
+    });
+
+    it("merges a category cover draft with untouched published category images", async () => {
+      currentMockSupabase = createSiteImagesSupabase({
+        ...draft,
+        content_key: "signature_services",
+        metadata: { categoryImages: { "Skin Care Services": "/images/new-skin-care.jpg" } },
+      });
+      mockGetPublicSiteSection.mockResolvedValue({
+        metadata: {
+          categoryImages: {
+            "Salon Services": "https://cdn.example.com/old-salon.jpg",
+          },
+        },
+      });
+      mockUpdatePublicSiteSection.mockResolvedValue({
+        success: true,
+        section: { id: "signature-services" },
+      });
+
+      const result = await publishMarketingContentDraft({ id: draftId });
+
+      expect(result.success).toBe(true);
+      expect(mockUpdatePublicSiteSection).toHaveBeenCalledWith(
+        expect.objectContaining({
+          sectionKey: "signature_services",
+          metadata: {
+            categoryImages: {
+              "Salon Services": "https://cdn.example.com/old-salon.jpg",
+              "Skin Care Services": "/images/new-skin-care.jpg",
+            },
+          },
+        })
+      );
+    });
   });
 
   describe("Branch Draft Publication", () => {

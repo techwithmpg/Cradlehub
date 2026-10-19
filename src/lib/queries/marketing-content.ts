@@ -11,6 +11,7 @@ import {
   MARKETING_CONTENT_TYPES,
   marketingContentDraftIdSchema,
   marketingContentDraftInputSchema,
+  parseMarketingDraftWithPublishedImages,
   marketingDraftReviewSchema,
   marketingDraftScheduleSchema,
   type MarketingContentDraftInput,
@@ -339,7 +340,23 @@ export async function getMarketingContentRevisions(
 export async function saveMarketingContentDraft(
   rawInput: unknown
 ): Promise<ActionResult<{ draft: MarketingContentDraftRow; message: string }>> {
-  const parsed = marketingContentDraftInputSchema.safeParse(rawInput);
+  let parsed = marketingContentDraftInputSchema.safeParse(rawInput);
+  let accessContext: Awaited<ReturnType<typeof getMarketingAccessContext>> = null;
+  if (
+    !parsed.success &&
+    rawInput &&
+    typeof rawInput === "object" &&
+    (rawInput as Record<string, unknown>).contentType === "section" &&
+    ["hero", "about", "quote_banner", "signature_services"].includes(
+      String((rawInput as Record<string, unknown>).contentKey)
+    )
+  ) {
+    accessContext = await getMarketingAccessContext();
+    if (!accessContext) return { success: false, error: "Unauthorized" };
+    const sectionKey = (rawInput as Record<string, unknown>).contentKey as string;
+    const currentPublished = await getPublicSiteSection(sectionKey);
+    parsed = parseMarketingDraftWithPublishedImages(rawInput, currentPublished);
+  }
   if (!parsed.success) {
     return {
       success: false,
@@ -347,7 +364,7 @@ export async function saveMarketingContentDraft(
     };
   }
 
-  const context = await getMarketingAccessContext();
+  const context = accessContext ?? (await getMarketingAccessContext());
   if (!context) return { success: false, error: "Unauthorized" };
 
   const input = parsed.data;
@@ -848,18 +865,26 @@ export async function publishMarketingContentDraft(
   } else if (existing.data.content_type === "section") {
     // Standard Homepage section draft
     let metadata = existing.data.metadata;
+    let currentPublishedSection: Awaited<ReturnType<typeof getPublicSiteSection>> = null;
     if (
       ["site_images", "signature_services", "hero", "about", "quote_banner"].includes(
         existing.data.content_key
       )
     ) {
-      const validMetadata = marketingContentDraftInputSchema.safeParse({
-        contentType: "section",
-        contentKey: existing.data.content_key,
-        imageUrl: existing.data.image_url,
-        secondaryImageUrl: existing.data.secondary_image_url,
-        metadata: existing.data.metadata,
-      });
+      currentPublishedSection =
+        existing.data.content_key === "site_images"
+          ? null
+          : await getPublicSiteSection(existing.data.content_key);
+      const validMetadata = parseMarketingDraftWithPublishedImages(
+        {
+          contentType: "section",
+          contentKey: existing.data.content_key,
+          imageUrl: existing.data.image_url,
+          secondaryImageUrl: existing.data.secondary_image_url,
+          metadata: existing.data.metadata,
+        },
+        currentPublishedSection
+      );
       if (!validMetadata.success) {
         return {
           success: false,
@@ -877,6 +902,17 @@ export async function publishMarketingContentDraft(
         slots: {
           ...metadataRecord(publishedMetadata.slots),
           ...metadataRecord(draftMetadata.slots),
+        },
+      };
+    } else if (existing.data.content_key === "signature_services") {
+      const publishedMetadata = metadataRecord(currentPublishedSection?.metadata);
+      const draftMetadata = metadataRecord(existing.data.metadata);
+      metadata = {
+        ...publishedMetadata,
+        ...draftMetadata,
+        categoryImages: {
+          ...metadataRecord(publishedMetadata.categoryImages),
+          ...metadataRecord(draftMetadata.categoryImages),
         },
       };
     }

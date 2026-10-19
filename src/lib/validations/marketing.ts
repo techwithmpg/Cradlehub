@@ -214,6 +214,95 @@ export const marketingContentDraftInputSchema = z
 
 export type MarketingContentDraftInput = z.infer<typeof marketingContentDraftInputSchema>;
 
+type PublishedSectionImages = {
+  image_url?: string | null;
+  secondary_image_url?: string | null;
+  metadata?: unknown;
+};
+
+function recordOrEmpty(value: unknown): Record<string, unknown> {
+  return value && typeof value === "object" && !Array.isArray(value)
+    ? (value as Record<string, unknown>)
+    : {};
+}
+
+/**
+ * Keep an unsupported legacy image only when it is byte-for-byte unchanged from
+ * the current published row. New unsupported values still fail the draft schema.
+ */
+export function parseMarketingDraftWithPublishedImages(
+  rawInput: unknown,
+  published: PublishedSectionImages | null
+): ReturnType<typeof marketingContentDraftInputSchema.safeParse> {
+  const strict = marketingContentDraftInputSchema.safeParse(rawInput);
+  if (strict.success || !published || !rawInput || typeof rawInput !== "object") return strict;
+
+  const raw = rawInput as Record<string, unknown>;
+  if (raw.contentType !== "section") return strict;
+
+  const sanitized: Record<string, unknown> = { ...raw };
+  const originalMeta = recordOrEmpty(raw.metadata);
+  const publishedMeta = recordOrEmpty(published.metadata);
+  const sanitizedMeta = { ...originalMeta };
+  const preservedFields: Array<"imageUrl" | "secondaryImageUrl"> = [];
+  let preservedMetadata = false;
+
+  if (["hero", "about", "quote_banner"].includes(String(raw.contentKey))) {
+    for (const [field, publishedValue] of [
+      ["imageUrl", published.image_url],
+      ["secondaryImageUrl", published.secondary_image_url],
+    ] as const) {
+      const value = raw[field];
+      if (
+        typeof value === "string" &&
+        value === publishedValue &&
+        !isRenderableManagedSiteImageUrl(value)
+      ) {
+        sanitized[field] = "";
+        preservedFields.push(field);
+      }
+    }
+  }
+
+  if (
+    raw.contentKey === "hero" &&
+    originalMeta.mobileImageUrl !== undefined &&
+    originalMeta.mobileImageUrl === publishedMeta.mobileImageUrl &&
+    !isRenderableManagedSiteImageUrl(originalMeta.mobileImageUrl)
+  ) {
+    delete sanitizedMeta.mobileImageUrl;
+    preservedMetadata = true;
+  }
+
+  if (raw.contentKey === "signature_services") {
+    const rawCategories = recordOrEmpty(originalMeta.categoryImages);
+    const publishedCategories = recordOrEmpty(publishedMeta.categoryImages);
+    const sanitizedCategories = { ...rawCategories };
+    for (const [key, value] of Object.entries(rawCategories)) {
+      if (
+        key in publishedCategories &&
+        value === publishedCategories[key] &&
+        (!PUBLIC_CATALOG_CATEGORY_NAMES.some((category) => category === key) ||
+          !isRenderableManagedSiteImageUrl(value))
+      ) {
+        delete sanitizedCategories[key];
+        preservedMetadata = true;
+      }
+    }
+    if (preservedMetadata) sanitizedMeta.categoryImages = sanitizedCategories;
+  }
+
+  if (preservedFields.length === 0 && !preservedMetadata) return strict;
+  sanitized.metadata = sanitizedMeta;
+  const retry = marketingContentDraftInputSchema.safeParse(sanitized);
+  if (!retry.success) return strict;
+
+  const data = { ...retry.data };
+  for (const field of preservedFields) data[field] = raw[field] as string;
+  if (preservedMetadata) data.metadata = originalMeta;
+  return { success: true, data };
+}
+
 export const marketingContentDraftIdSchema = z.object({
   id: uuid,
 });
