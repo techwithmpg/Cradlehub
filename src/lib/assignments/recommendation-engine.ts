@@ -406,6 +406,25 @@ function hasActiveDriverTrip(staffId: string, existingBookings: ConflictBooking[
   );
 }
 
+function hasSameTimePendingDriverDeparture(
+  staffId: string,
+  bookingStart: string,
+  existingBookings: ConflictBooking[]
+): boolean {
+  // There may be legitimate grouped bookings on the same vehicle run. Flag
+  // same-time departures for a dispatcher's route check, but never treat the
+  // therapist's entire service duration as driver occupancy.
+  return existingBookings.some(
+    (b) =>
+      b.staff_id === staffId &&
+      !["cancelled", "no_show", "completed"].includes(b.status) &&
+      (b.booking_progress_status === null ||
+        b.booking_progress_status === undefined ||
+        b.booking_progress_status === "not_started") &&
+      b.start_time === bookingStart
+  );
+}
+
 // ── Scoring ────────────────────────────────────────────────────────────────────
 
 function scoreTherapist(staff: StaffForScoring, ctx: RecommendationContext): ScoredStaff {
@@ -592,6 +611,12 @@ function scoreDriver(staff: StaffForScoring, ctx: RecommendationContext): Scored
   } else {
     score += SCORE.noConflict;
     reasons.push("No outbound trip in progress");
+    if (hasSameTimePendingDriverDeparture(staff.id, ctx.bookingStartTime, ctx.existingBookings)) {
+      // Lower auto-recommendation priority; grouped trips remain manually
+      // assignable after the dispatcher verifies the route and vehicle capacity.
+      score -= 20;
+      warnings.push("Another departure at this time; confirm if this is the same vehicle run");
+    }
   }
 
   // Schedule presence
