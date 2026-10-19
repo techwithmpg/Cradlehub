@@ -848,10 +848,16 @@ export async function publishMarketingContentDraft(
   } else if (existing.data.content_type === "section") {
     // Standard Homepage section draft
     let metadata = existing.data.metadata;
-    if (["site_images", "signature_services", "hero"].includes(existing.data.content_key)) {
+    if (
+      ["site_images", "signature_services", "hero", "about", "quote_banner"].includes(
+        existing.data.content_key
+      )
+    ) {
       const validMetadata = marketingContentDraftInputSchema.safeParse({
         contentType: "section",
         contentKey: existing.data.content_key,
+        imageUrl: existing.data.image_url,
+        secondaryImageUrl: existing.data.secondary_image_url,
         metadata: existing.data.metadata,
       });
       if (!validMetadata.success) {

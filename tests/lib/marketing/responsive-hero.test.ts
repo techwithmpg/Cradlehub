@@ -61,4 +61,26 @@ describe("responsive Marketing hero contract", () => {
     } as unknown as PublicSiteSectionRow;
     expect(resolvePublicSiteSections([hero]).hero.mobileImageUrl).toBe("");
   });
+
+  it("rejects unsupported section images and falls back for legacy published rows", () => {
+    for (const contentKey of ["hero", "about", "quote_banner"]) {
+      const invalid = marketingContentDraftInputSchema.safeParse({
+        contentType: "section",
+        contentKey,
+        imageUrl: "https://cdn.example.com/unsupported.jpg",
+      });
+      expect(invalid.success).toBe(false);
+    }
+
+    const normalized = resolvePublicSiteSections([
+      {
+        section_key: "hero",
+        image_url: "https://cdn.example.com/unsupported.jpg",
+        secondary_image_url: "https://cdn.example.com/unsupported-portrait.jpg",
+        is_enabled: true,
+      } as PublicSiteSectionRow,
+    ]);
+    expect(normalized.hero.imageUrl).toMatch(/^\/images\//);
+    expect(normalized.hero.secondaryImageUrl).toMatch(/^\/images\//);
+  });
 });

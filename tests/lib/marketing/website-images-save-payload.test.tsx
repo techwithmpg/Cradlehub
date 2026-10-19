@@ -34,7 +34,7 @@ vi.mock("@/components/features/marketing/media/universal-media-picker", () => ({
       type="button"
       onClick={() =>
         onSelect({
-          publicUrl: "https://cdn.example.com/replacement.webp",
+          publicUrl: "/images/replacement.webp",
           altText: "Replacement image",
           title: "Replacement",
         })
@@ -59,8 +59,8 @@ function publishedSection(
     body: "",
     cta_label: "",
     cta_href: "",
-    image_url: "https://cdn.example.com/desktop.webp",
-    secondary_image_url: "https://cdn.example.com/portrait.webp",
+    image_url: "/images/desktop.webp",
+    secondary_image_url: "/images/portrait.webp",
     sort_order: 10,
     is_enabled: true,
     metadata: {},
@@ -93,9 +93,9 @@ describe("Website Images draft payload", () => {
     const formData = await selectAndSave("Hero Mobile Slide 1");
     const metadata = JSON.parse(String(formData.get("metadataJson")));
 
-    expect(formData.get("imageUrl")).toBe("https://cdn.example.com/desktop.webp");
-    expect(formData.get("secondaryImageUrl")).toBe("https://cdn.example.com/portrait.webp");
-    expect(metadata.mobileImageUrl).toBe("https://cdn.example.com/replacement.webp");
+    expect(formData.get("imageUrl")).toBe("/images/desktop.webp");
+    expect(formData.get("secondaryImageUrl")).toBe("/images/portrait.webp");
+    expect(metadata.mobileImageUrl).toBe("/images/replacement.webp");
     expect(metadata.mobileImageAltText).toBe("Replacement image");
   });
 
@@ -105,14 +105,14 @@ describe("Website Images draft payload", () => {
       content_type: "section",
       content_key: "site_images",
       status: "published",
-      metadata: { slots: { home_hero_mobile_slide_2: "https://cdn.example.com/old.webp" } },
+      metadata: { slots: { home_hero_mobile_slide_2: "/images/old.webp" } },
     } as unknown as MarketingContentDraftRow;
     render(
       <WebsiteImagesView
         role="digital_marketer"
         publishedSections={[
           publishedSection("site_images", {
-            metadata: { slots: { home_setting_home_service: "https://cdn.example.com/live.webp" } },
+            metadata: { slots: { home_setting_home_service: "/images/live.webp" } },
           }),
         ]}
         drafts={[closedDraft]}
@@ -124,7 +124,7 @@ describe("Website Images draft payload", () => {
 
     expect(formData.get("id")).toBe("");
     expect(metadata.slots).toEqual({
-      home_hero_mobile_slide_2: "https://cdn.example.com/replacement.webp",
+      home_hero_mobile_slide_2: "/images/replacement.webp",
     });
   });
 

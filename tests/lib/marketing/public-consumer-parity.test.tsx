@@ -63,8 +63,8 @@ describe("C5.1 Public Consumer Parity & Component Grounding", () => {
           body: null,
           cta_label: "Reserve Now",
           cta_href: "/book?service=custom",
-          image_url: "https://example.com/custom-hero.jpg",
-          secondary_image_url: "https://example.com/custom-portrait.jpg",
+          image_url: "/images/custom-hero.jpg",
+          secondary_image_url: "/images/custom-portrait.jpg",
           sort_order: 0,
           is_enabled: true,
           metadata: {
@@ -82,7 +82,7 @@ describe("C5.1 Public Consumer Parity & Component Grounding", () => {
           body: "Enjoy 20% off all renewal packages this month.",
           cta_label: "Book Special",
           cta_href: "/book?promo=summer",
-          image_url: "https://example.com/summer-banner.jpg",
+          image_url: "/images/summer-banner.jpg",
           secondary_image_url: null,
           sort_order: 50,
           is_enabled: true,
@@ -98,8 +98,8 @@ describe("C5.1 Public Consumer Parity & Component Grounding", () => {
       expect(normalized.hero.subtitle).toBe("Experience tranquil body renewal tailored for you.");
       expect(normalized.hero.ctaLabel).toBe("Reserve Now");
       expect(normalized.hero.ctaHref).toBe("/book?service=custom");
-      expect(normalized.hero.imageUrl).toBe("https://example.com/custom-hero.jpg");
-      expect(normalized.hero.secondaryImageUrl).toBe("https://example.com/custom-portrait.jpg");
+      expect(normalized.hero.imageUrl).toBe("/images/custom-hero.jpg");
+      expect(normalized.hero.secondaryImageUrl).toBe("/images/custom-portrait.jpg");
       expect(normalized.hero.secondaryCtaLabel).toBe("Explore Menu");
       expect(normalized.hero.secondaryCtaHref).toBe("/services");
 
@@ -191,7 +191,7 @@ describe("C5.1 Public Consumer Parity & Component Grounding", () => {
           body: null,
           cta_label: "Reserve Now",
           cta_href: "/book?promo=c5",
-          image_url: "https://example.com/custom-hero.jpg",
+          image_url: "/images/custom-hero.jpg",
           secondary_image_url: null,
           sort_order: 0,
           is_enabled: true,

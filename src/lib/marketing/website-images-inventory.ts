@@ -787,11 +787,19 @@ export function resolveSlotState({
   let draftUrl: string | undefined;
 
   if (slot.fieldKey === "imageUrl") {
-    publishedUrl = published?.image_url || slot.defaultUrl;
-    draftUrl = draft?.image_url || undefined;
+    const publishedImage = published?.image_url;
+    const draftImage = draft?.image_url;
+    publishedUrl = isRenderableManagedSiteImageUrl(publishedImage)
+      ? publishedImage.trim()
+      : slot.defaultUrl;
+    draftUrl = isRenderableManagedSiteImageUrl(draftImage) ? draftImage.trim() : undefined;
   } else if (slot.fieldKey === "secondaryImageUrl") {
-    publishedUrl = published?.secondary_image_url || slot.defaultUrl;
-    draftUrl = draft?.secondary_image_url || undefined;
+    const publishedImage = published?.secondary_image_url;
+    const draftImage = draft?.secondary_image_url;
+    publishedUrl = isRenderableManagedSiteImageUrl(publishedImage)
+      ? publishedImage.trim()
+      : slot.defaultUrl;
+    draftUrl = isRenderableManagedSiteImageUrl(draftImage) ? draftImage.trim() : undefined;
   } else if (slot.fieldKey === "mobileImageUrl") {
     const pubMeta = readMetaRecord(published?.metadata);
     const draftMeta = readMetaRecord(draft?.metadata);

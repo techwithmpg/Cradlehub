@@ -146,6 +146,10 @@ function normalizedCategoryImages(
   return images;
 }
 
+function sectionImageUrl(value: unknown, fallback: string): string {
+  return isRenderableManagedSiteImageUrl(value) ? value.trim() : fallback;
+}
+
 /**
  * Resolves raw database rows into typed, safe presentation models with canonical fallbacks.
  * Used across desktop homepage, mobile homepage, and future high-fidelity Marketing preview.
@@ -174,7 +178,7 @@ export function resolvePublicSiteSections(
     ),
     ctaLabel: sectionText(heroRow, "cta_label", "Book Appointment"),
     ctaHref: sectionText(heroRow, "cta_href", "/book"),
-    imageUrl: sectionText(heroRow, "image_url", SPA_IMAGES.hero),
+    imageUrl: sectionImageUrl(heroRow?.image_url, SPA_IMAGES.hero),
     mobileImageUrl: isRenderableManagedSiteImageUrl(heroMeta.mobileImageUrl)
       ? heroMeta.mobileImageUrl.trim()
       : "",
@@ -182,7 +186,7 @@ export function resolvePublicSiteSections(
     mobileImageAltText: metadataText(heroMeta, "mobileImageAltText", ""),
     imagePosition: imagePosition(heroMeta, "desktop"),
     mobileImagePosition: imagePosition(heroMeta, "mobile"),
-    secondaryImageUrl: sectionText(heroRow, "secondary_image_url", SPA_IMAGES.heroPortrait),
+    secondaryImageUrl: sectionImageUrl(heroRow?.secondary_image_url, SPA_IMAGES.heroPortrait),
     secondaryCtaLabel: metadataText(heroMeta, "secondaryCtaLabel", "Plan Your Visit"),
     secondaryCtaHref: metadataText(heroMeta, "secondaryCtaHref", "#plan-your-visit"),
     brandEyebrow: `${businessInfo.brandName} · ${businessInfo.location}`,
@@ -206,8 +210,8 @@ export function resolvePublicSiteSections(
     subtitle: sectionText(aboutRow, "subtitle", "Spa Philosophy"),
     body: aboutBody,
     paragraphs: aboutParagraphs,
-    imageUrl: sectionText(aboutRow, "image_url", SPA_IMAGES.about),
-    secondaryImageUrl: sectionText(aboutRow, "secondary_image_url", SPA_IMAGES.aboutSecondary),
+    imageUrl: sectionImageUrl(aboutRow?.image_url, SPA_IMAGES.about),
+    secondaryImageUrl: sectionImageUrl(aboutRow?.secondary_image_url, SPA_IMAGES.aboutSecondary),
     isEnabled: isSectionEnabled("about", true),
   };
 
@@ -219,7 +223,7 @@ export function resolvePublicSiteSections(
     body: sectionText(quoteRow, "body", ""),
     ctaLabel: sectionText(quoteRow, "cta_label", ""),
     ctaHref: sectionText(quoteRow, "cta_href", "/book"),
-    imageUrl: sectionText(quoteRow, "image_url", SPA_IMAGES.ctaBanner),
+    imageUrl: sectionImageUrl(quoteRow?.image_url, SPA_IMAGES.ctaBanner),
     isEnabled: isSectionEnabled("quote_banner", true),
   };
 

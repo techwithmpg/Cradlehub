@@ -273,8 +273,8 @@ describe("Website Images Inventory & Public Parity", () => {
         body: "",
         cta_label: "Book",
         cta_href: "/book",
-        image_url: "https://cdn.example.com/custom-hero-desktop.jpg",
-        secondary_image_url: "https://cdn.example.com/custom-hero-portrait.jpg",
+        image_url: "/images/custom-hero-desktop.jpg",
+        secondary_image_url: "/images/custom-hero-portrait.jpg",
         sort_order: 1,
         is_enabled: true,
         metadata: {
@@ -295,8 +295,8 @@ describe("Website Images Inventory & Public Parity", () => {
         body: "",
         cta_label: "Book",
         cta_href: "/book",
-        image_url: "https://cdn.example.com/staged-draft-desktop.jpg",
-        secondary_image_url: "https://cdn.example.com/custom-hero-mobile.jpg",
+        image_url: "/images/staged-draft-desktop.jpg",
+        secondary_image_url: "/images/custom-hero-mobile.jpg",
         alt_text: "Hero Draft",
         sort_order: 1,
         is_enabled: true,
@@ -314,9 +314,9 @@ describe("Website Images Inventory & Public Parity", () => {
       publishedSections,
       drafts,
     });
-    expect(desktopRes.effectiveUrl).toBe("https://cdn.example.com/staged-draft-desktop.jpg");
+    expect(desktopRes.effectiveUrl).toBe("/images/staged-draft-desktop.jpg");
     expect(desktopRes.status).toBe("approved");
-    expect(desktopRes.publishedUrl).toBe("https://cdn.example.com/custom-hero-desktop.jpg");
+    expect(desktopRes.publishedUrl).toBe("/images/custom-hero-desktop.jpg");
 
     // Mobile has no draft (only published override)
     const mobileRes = resolveSlotState({

@@ -90,6 +90,26 @@ export const marketingContentDraftInputSchema = z
     metadata: jsonObject,
   })
   .superRefine((input, context) => {
+    if (
+      input.contentType === "section" &&
+      ["hero", "about", "quote_banner"].includes(input.contentKey)
+    ) {
+      const fields =
+        input.contentKey === "quote_banner"
+          ? (["imageUrl"] as const)
+          : (["imageUrl", "secondaryImageUrl"] as const);
+      for (const field of fields) {
+        const value = input[field];
+        if (value && !isRenderableManagedSiteImageUrl(value)) {
+          context.addIssue({
+            code: "custom",
+            path: [field],
+            message: "Use a supported public image URL.",
+          });
+        }
+      }
+    }
+
     if (input.contentType === "section" && input.contentKey === "site_images") {
       const slots = input.metadata.slots;
       if (!slots || typeof slots !== "object" || Array.isArray(slots)) {
