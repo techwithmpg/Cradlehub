@@ -596,6 +596,42 @@ export const PUBLIC_IMAGE_SLOTS: readonly PublicImageSlot[] = [
   },
 ] as const;
 
+export const MANAGED_SITE_IMAGE_SLOT_KEYS = new Set(
+  PUBLIC_IMAGE_SLOTS.filter((slot) => slot.fieldKey === "managedSlot")
+    .map((slot) => slot.slotKey)
+    .filter((key): key is string => Boolean(key))
+);
+
+export function isRenderableManagedSiteImageUrl(value: unknown): value is string {
+  if (typeof value !== "string") return false;
+  const urlText = value.trim();
+  if (!urlText || urlText.length > 1000 || /[\\\s]/.test(urlText)) return false;
+  if (urlText.startsWith("/")) return !urlText.startsWith("//");
+
+  try {
+    const url = new URL(urlText);
+    if (url.protocol !== "https:" || url.username || url.password || url.port || url.hash) {
+      return false;
+    }
+    if (url.hostname === "images.unsplash.com") return url.pathname.startsWith("/photo-");
+
+    let configuredHost: string | null = null;
+    try {
+      const configuredUrl = new URL(process.env.NEXT_PUBLIC_SUPABASE_URL ?? "");
+      if (configuredUrl.protocol === "https:") configuredHost = configuredUrl.hostname;
+    } catch {
+      // A missing or local build target does not authorize another remote host.
+    }
+
+    return (
+      (url.hostname === "lsrbwqhvzjfpiabeolkv.supabase.co" || url.hostname === configuredHost) &&
+      url.pathname.startsWith("/storage/v1/object/public/")
+    );
+  } catch {
+    return false;
+  }
+}
+
 export type SlotResolutionResult = {
   effectiveUrl: string;
   isCustom: boolean;

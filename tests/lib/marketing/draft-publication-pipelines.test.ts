@@ -142,7 +142,7 @@ describe("Draft Publication Pipelines (C5.4 Review Corrections)", () => {
       secondary_image_url: "",
       sort_order: 100,
       is_enabled: true,
-      metadata: { slots: { home_setting_in_spa: "https://cdn.example.com/draft.webp" } },
+      metadata: { slots: { home_setting_in_spa: "/images/spa/draft.webp" } },
       reviewed_by: null,
       reviewed_at: null,
     };
@@ -154,7 +154,7 @@ describe("Draft Publication Pipelines (C5.4 Review Corrections)", () => {
         id: draftId,
         contentType: "section",
         contentKey: "site_images",
-        metadata: { slots: { home_setting_in_spa: "https://cdn.example.com/new.webp" } },
+        metadata: { slots: { home_setting_in_spa: "/images/spa/new.webp" } },
       });
 
       expect(result).toEqual({ success: false, error: "This draft is closed. Start a new draft." });
@@ -184,7 +184,7 @@ describe("Draft Publication Pipelines (C5.4 Review Corrections)", () => {
       mockGetPublicSiteSection.mockResolvedValue({
         metadata: {
           slots: {
-            home_setting_home_service: "https://cdn.example.com/live.webp",
+            home_setting_home_service: "/images/spa/live.webp",
           },
         },
       });
@@ -200,12 +200,24 @@ describe("Draft Publication Pipelines (C5.4 Review Corrections)", () => {
         expect.objectContaining({
           metadata: {
             slots: {
-              home_setting_home_service: "https://cdn.example.com/live.webp",
-              home_setting_in_spa: "https://cdn.example.com/draft.webp",
+              home_setting_home_service: "/images/spa/live.webp",
+              home_setting_in_spa: "/images/spa/draft.webp",
             },
           },
         })
       );
+    });
+
+    it("blocks publication of a legacy draft with an unsafe managed image URL", async () => {
+      currentMockSupabase = createSiteImagesSupabase({
+        ...draft,
+        metadata: { slots: { home_setting_in_spa: "javascript:alert(1)" } },
+      });
+
+      const result = await publishMarketingContentDraft({ id: draftId });
+
+      expect(result.success).toBe(false);
+      expect(mockUpdatePublicSiteSection).not.toHaveBeenCalled();
     });
   });
 

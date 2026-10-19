@@ -1,5 +1,9 @@
 import { z } from "zod";
 import { publicSiteSectionKeySchema } from "@/lib/validations/public-site";
+import {
+  MANAGED_SITE_IMAGE_SLOT_KEYS,
+  isRenderableManagedSiteImageUrl,
+} from "@/lib/marketing/website-images-inventory";
 
 export const MARKETING_CONTENT_TYPES = ["section", "asset", "brand", "seo", "service"] as const;
 
@@ -66,47 +70,93 @@ const optionalImageUrl = z
 
 const jsonObject = z.record(z.string(), z.unknown()).default({});
 
-export const marketingContentDraftInputSchema = z.object({
-  id: uuid.optional().nullable(),
-  contentType: z.enum(MARKETING_CONTENT_TYPES).default("section"),
-  contentKey: publicSiteSectionKeySchema,
-  title: optionalText(180),
-  subtitle: optionalText(320),
-  body: optionalText(3000),
-  ctaLabel: optionalText(80),
-  ctaHref: optionalHref,
-  imageUrl: optionalImageUrl,
-  secondaryImageUrl: optionalImageUrl,
-  altText: optionalText(220),
-  linkHref: optionalHref,
-  sortOrder: z.number().int().min(-1000).max(1000).default(0),
-  isEnabled: z.boolean().default(true),
-  metadata: jsonObject,
-}).superRefine((input, context) => {
-  if (input.contentType !== "section" || input.contentKey !== "hero") return;
-
-  const mobileImageUrl = input.metadata.mobileImageUrl;
-  if (
-    mobileImageUrl !== undefined &&
-    (typeof mobileImageUrl !== "string" || mobileImageUrl.length > 1000 || !isSafeImageUrl(mobileImageUrl))
-  ) {
-    context.addIssue({ code: "custom", path: ["metadata", "mobileImageUrl"], message: "Use a safe mobile image URL." });
-  }
-
-  for (const key of ["desktopFocalX", "desktopFocalY", "mobileFocalX", "mobileFocalY"]) {
-    const value = input.metadata[key];
-    if (value !== undefined && (typeof value !== "number" || !Number.isFinite(value) || value < 0 || value > 100)) {
-      context.addIssue({ code: "custom", path: ["metadata", key], message: "Focal coordinates must be from 0 to 100." });
+export const marketingContentDraftInputSchema = z
+  .object({
+    id: uuid.optional().nullable(),
+    contentType: z.enum(MARKETING_CONTENT_TYPES).default("section"),
+    contentKey: publicSiteSectionKeySchema,
+    title: optionalText(180),
+    subtitle: optionalText(320),
+    body: optionalText(3000),
+    ctaLabel: optionalText(80),
+    ctaHref: optionalHref,
+    imageUrl: optionalImageUrl,
+    secondaryImageUrl: optionalImageUrl,
+    altText: optionalText(220),
+    linkHref: optionalHref,
+    sortOrder: z.number().int().min(-1000).max(1000).default(0),
+    isEnabled: z.boolean().default(true),
+    metadata: jsonObject,
+  })
+  .superRefine((input, context) => {
+    if (input.contentType === "section" && input.contentKey === "site_images") {
+      const slots = input.metadata.slots;
+      if (!slots || typeof slots !== "object" || Array.isArray(slots)) {
+        context.addIssue({
+          code: "custom",
+          path: ["metadata", "slots"],
+          message: "Image slots must be an object.",
+        });
+      } else {
+        for (const [key, value] of Object.entries(slots)) {
+          if (!MANAGED_SITE_IMAGE_SLOT_KEYS.has(key)) {
+            context.addIssue({
+              code: "custom",
+              path: ["metadata", "slots", key],
+              message: "Unknown website image slot.",
+            });
+          } else if (!isRenderableManagedSiteImageUrl(value)) {
+            context.addIssue({
+              code: "custom",
+              path: ["metadata", "slots", key],
+              message: "Use a supported public image URL.",
+            });
+          }
+        }
+      }
     }
-  }
 
-  for (const key of ["imageAltText", "mobileImageAltText"]) {
-    const value = input.metadata[key];
-    if (value !== undefined && (typeof value !== "string" || value.length > 220)) {
-      context.addIssue({ code: "custom", path: ["metadata", key], message: "Image description is too long." });
+    if (input.contentType !== "section" || input.contentKey !== "hero") return;
+
+    const mobileImageUrl = input.metadata.mobileImageUrl;
+    if (
+      mobileImageUrl !== undefined &&
+      (typeof mobileImageUrl !== "string" ||
+        mobileImageUrl.length > 1000 ||
+        !isSafeImageUrl(mobileImageUrl))
+    ) {
+      context.addIssue({
+        code: "custom",
+        path: ["metadata", "mobileImageUrl"],
+        message: "Use a safe mobile image URL.",
+      });
     }
-  }
-});
+
+    for (const key of ["desktopFocalX", "desktopFocalY", "mobileFocalX", "mobileFocalY"]) {
+      const value = input.metadata[key];
+      if (
+        value !== undefined &&
+        (typeof value !== "number" || !Number.isFinite(value) || value < 0 || value > 100)
+      ) {
+        context.addIssue({
+          code: "custom",
+          path: ["metadata", key],
+          message: "Focal coordinates must be from 0 to 100.",
+        });
+      }
+    }
+
+    for (const key of ["imageAltText", "mobileImageAltText"]) {
+      const value = input.metadata[key];
+      if (value !== undefined && (typeof value !== "string" || value.length > 220)) {
+        context.addIssue({
+          code: "custom",
+          path: ["metadata", key],
+          message: "Image description is too long.",
+        });
+      }
+    }
+  });
 
 export type MarketingContentDraftInput = z.infer<typeof marketingContentDraftInputSchema>;
 

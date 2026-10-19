@@ -250,6 +250,29 @@ describe("C5.1 Public Consumer Parity & Component Grounding", () => {
   });
 
   describe("MobileFinalCta presentation grounding & fallback parity", () => {
+    it("uses the published mobile CTA image override ahead of the quote banner image", () => {
+      const sections = resolvePublicSiteSections([
+        {
+          id: "sec-quote",
+          section_key: "quote_banner",
+          image_url: "/images/spa/quote.jpg",
+          is_enabled: true,
+          metadata: {},
+        } as PublicSiteSectionRow,
+        {
+          id: "sec-images",
+          section_key: "site_images",
+          is_enabled: true,
+          metadata: { slots: { mobile_final_cta_ambient: "/images/spa/mobile-cta.jpg" } },
+        } as unknown as PublicSiteSectionRow,
+      ]);
+
+      const { container } = render(
+        <MobileFinalCta quoteBanner={sections.quoteBanner} siteImages={sections.siteImages} />
+      );
+      expect(container.querySelector("img")?.getAttribute("src")).toContain("mobile-cta.jpg");
+    });
+
     it("renders custom quote banner copy and link when quoteBanner is supplied with CTA", () => {
       const normalized = resolvePublicSiteSections([
         {

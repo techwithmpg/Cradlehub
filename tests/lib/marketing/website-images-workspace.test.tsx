@@ -344,9 +344,11 @@ describe("Website Images Inventory & Public Parity", () => {
         is_enabled: true,
         metadata: {
           slots: {
-            home_setting_in_spa: "https://cdn.example.com/new-inspa-setting.jpg",
-            mobile_ritual_glow: "https://cdn.example.com/glow-ritual.jpg",
-            landing_spa_banner: "https://cdn.example.com/landing-banner.jpg",
+            home_setting_in_spa: "/images/spa/new-inspa-setting.jpg",
+            mobile_ritual_glow: "/images/spa/glow-ritual.jpg",
+            landing_spa_banner: "/images/spa/landing-banner.jpg",
+            unknown_slot: "/images/spa/unknown.jpg",
+            mobile_ritual_recovery: "javascript:alert(1)",
           },
         },
         created_at: new Date().toISOString(),
@@ -355,15 +357,10 @@ describe("Website Images Inventory & Public Parity", () => {
     ];
 
     const normalized = resolvePublicSiteSections(publishedSections);
-    expect(normalized.siteImages.home_setting_in_spa).toBe(
-      "https://cdn.example.com/new-inspa-setting.jpg"
-    );
-    expect(normalized.siteImages.mobile_ritual_glow).toBe(
-      "https://cdn.example.com/glow-ritual.jpg"
-    );
-    expect(normalized.siteImages.landing_spa_banner).toBe(
-      "https://cdn.example.com/landing-banner.jpg"
-    );
+    expect(normalized.siteImages.home_setting_in_spa).toBe("/images/spa/new-inspa-setting.jpg");
+    expect(normalized.siteImages.mobile_ritual_glow).toBe("/images/spa/glow-ritual.jpg");
+    expect(normalized.siteImages.landing_spa_banner).toBe("/images/spa/landing-banner.jpg");
+    expect(normalized.siteImages.unknown_slot).toBeUndefined();
     // Unset slot returns undefined and falls back safely in component
     expect(normalized.siteImages.mobile_ritual_recovery).toBeUndefined();
   });
@@ -533,6 +530,7 @@ describe("WebsiteImagesView Component", () => {
 
     // Digital marketer should NOT see Publish button
     expect(screen.queryByRole("button", { name: /^Publish$/i })).toBeNull();
+    expect(screen.queryByRole("button", { name: "Archive Entire Draft" })).toBeNull();
   });
 
   it("shows approve and publish buttons for owner role on active draft", () => {
@@ -568,6 +566,7 @@ describe("WebsiteImagesView Component", () => {
 
     expect(screen.getByRole("button", { name: /Approve/i })).toBeDefined();
     expect(screen.getByRole("button", { name: /Publish/i })).toBeDefined();
+    expect(screen.getByRole("button", { name: "Archive Entire Draft" })).toBeDefined();
   });
 });
 

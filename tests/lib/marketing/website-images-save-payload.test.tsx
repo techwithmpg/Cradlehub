@@ -21,7 +21,7 @@ vi.mock("@/app/(dashboard)/marketing/actions", () => ({
     saveDraft(formData);
     return { success: true, message: "Saved" };
   },
-  submitMarketingDraftAction: vi.fn(),
+  submitMarketingDraftAction: async () => ({ success: false, error: "Submission denied" }),
 }));
 vi.mock("@/app/(dashboard)/owner/marketing/actions", () => ({
   approveMarketingDraftAction: vi.fn(),
@@ -126,5 +126,23 @@ describe("Website Images draft payload", () => {
     expect(metadata.slots).toEqual({
       home_hero_mobile_slide_2: "https://cdn.example.com/replacement.webp",
     });
+  });
+
+  it("shows a later submission error instead of the earlier save success", async () => {
+    const draft = {
+      id: "77777777-7777-4777-8777-777777777777",
+      content_type: "section",
+      content_key: "site_images",
+      status: "draft",
+      metadata: { slots: { home_setting_in_spa: "/images/spa/current.webp" } },
+    } as unknown as MarketingContentDraftRow;
+    render(<WebsiteImagesView role="digital_marketer" publishedSections={[]} drafts={[draft]} />);
+
+    await selectAndSave("Setting Card: In-Spa Experience");
+    await waitFor(() => expect(screen.getByRole("button", { name: "Submit" })).toBeDefined());
+    fireEvent.click(screen.getByRole("button", { name: "Submit" }));
+
+    await waitFor(() => expect(screen.getByText("Submission denied")).toBeDefined());
+    expect(screen.queryByText("Saved")).toBeNull();
   });
 });

@@ -21,7 +21,8 @@ export function MobileFinalCta({ quoteBanner, siteImages }: MobileFinalCtaProps)
     const body = quoteBanner.body;
     const ctaLabel = quoteBanner.ctaLabel;
     const ctaHref = quoteBanner.ctaHref || "/book";
-    const image = quoteBanner.imageUrl || siteImages?.mobile_final_cta_ambient || SPA_IMAGES.ctaBanner;
+    const image =
+      siteImages?.mobile_final_cta_ambient || quoteBanner.imageUrl || SPA_IMAGES.ctaBanner;
 
     return (
       <section className="px-4 pb-14 pt-12">

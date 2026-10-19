@@ -52,6 +52,7 @@ import {
   approveMarketingDraftAction,
   archiveMarketingDraftAction,
   publishMarketingDraftAction,
+  type MarketingActionState,
 } from "@/app/(dashboard)/owner/marketing/actions";
 import {
   Dialog,
@@ -82,6 +83,15 @@ type PendingSelection = {
   altText: string;
   title?: string;
 };
+
+function actionFeedback(
+  result: { success?: boolean; error?: string; message?: string },
+  successMessage: string
+): { type: "success" | "error"; message: string } {
+  return result.success
+    ? { type: "success", message: result.message || successMessage }
+    : { type: "error", message: result.error || "Action failed." };
+}
 
 export function WebsiteImagesView({
   role,
@@ -122,6 +132,7 @@ export function WebsiteImagesView({
       const slotId = String(formData.get("clientSlotId") ?? "");
       const selectedUrl = String(formData.get("clientSelectedUrl") ?? "");
       const result = await saveMarketingDraftAction(previousState, formData);
+      setLocalFeedback(actionFeedback(result, "Draft image saved."));
       if (result.success && slotId) {
         setPendingSelections((previous) => {
           if (previous[slotId]?.url !== selectedUrl) return previous;
@@ -134,17 +145,36 @@ export function WebsiteImagesView({
     },
     {}
   );
-  const [submitState, submitAction, isSubmitting] = useActionState(submitMarketingDraftAction, {});
+  const [submitState, submitAction, isSubmitting] = useActionState(
+    async (previousState: MarketingDraftActionState, formData: FormData) => {
+      const result = await submitMarketingDraftAction(previousState, formData);
+      setLocalFeedback(actionFeedback(result, "Draft submitted for Owner review."));
+      return result;
+    },
+    {}
+  );
   const [approveState, approveAction, isApproving] = useActionState(
-    approveMarketingDraftAction,
+    async (previousState: MarketingActionState, formData: FormData) => {
+      const result = await approveMarketingDraftAction(previousState, formData);
+      setLocalFeedback(actionFeedback(result, "Draft approved."));
+      return result;
+    },
     {}
   );
   const [publishState, publishAction, isPublishing] = useActionState(
-    publishMarketingDraftAction,
+    async (previousState: MarketingActionState, formData: FormData) => {
+      const result = await publishMarketingDraftAction(previousState, formData);
+      setLocalFeedback(actionFeedback(result, "Draft published."));
+      return result;
+    },
     {}
   );
   const [archiveState, archiveAction, isArchiving] = useActionState(
-    archiveMarketingDraftAction,
+    async (previousState: MarketingActionState, formData: FormData) => {
+      const result = await archiveMarketingDraftAction(previousState, formData);
+      setLocalFeedback(actionFeedback(result, "Draft archived."));
+      return result;
+    },
     {}
   );
 
@@ -211,37 +241,7 @@ export function WebsiteImagesView({
     return map;
   }, [allSlots, publishedSections, effectiveDrafts, brandSettings, branches, services]);
 
-  // Consolidated Feedback notice
-  const feedback = useMemo(() => {
-    if (saveState.message || saveState.error) {
-      return saveState.success
-        ? { type: "success" as const, message: saveState.message || "Draft image saved." }
-        : { type: "error" as const, message: saveState.error || "Save failed." };
-    }
-    if (submitState.message || submitState.error) {
-      return submitState.success
-        ? {
-            type: "success" as const,
-            message: submitState.message || "Draft submitted for Owner review.",
-          }
-        : { type: "error" as const, message: submitState.error || "Submission failed." };
-    }
-    const res =
-      approveState.message || approveState.error
-        ? approveState
-        : publishState.message || publishState.error
-          ? publishState
-          : archiveState.message || archiveState.error
-            ? archiveState
-            : null;
-
-    if (res?.message || res?.error) {
-      return res.success
-        ? { type: "success" as const, message: res.message || "Action completed." }
-        : { type: "error" as const, message: res.error || "Action failed." };
-    }
-    return localFeedback;
-  }, [saveState, submitState, approveState, publishState, archiveState, localFeedback]);
+  const feedback = localFeedback;
 
   // Handle image selected from UniversalMediaPicker
   const handleSelectMedia = (slot: PublicImageSlot, selected: SelectedMediaValue) => {
@@ -1004,18 +1004,35 @@ export function WebsiteImagesView({
                                 )}
                               </div>
 
-                              {/* Revert draft button */}
+                              {/* Archiving affects the entire draft, including other managed slots. */}
                               <div className="flex items-center justify-between text-[11px]">
-                                <form action={archiveAction}>
-                                  <input type="hidden" name="id" value={activeDraft.id} />
-                                  <button
-                                    type="submit"
-                                    disabled={isArchiving}
-                                    className="text-stone-500 hover:text-stone-800 underline dark:text-stone-400"
+                                {isOwner && (
+                                  <form
+                                    action={archiveAction}
+                                    onSubmit={(event) => {
+                                      const scope =
+                                        activeDraft.content_key === "site_images"
+                                          ? "all unpublished Website Images changes"
+                                          : "all unpublished changes in this section";
+                                      if (
+                                        !window.confirm(
+                                          `Archive this entire draft and discard ${scope}?`
+                                        )
+                                      ) {
+                                        event.preventDefault();
+                                      }
+                                    }}
                                   >
-                                    Revert Draft
-                                  </button>
-                                </form>
+                                    <input type="hidden" name="id" value={activeDraft.id} />
+                                    <button
+                                      type="submit"
+                                      disabled={isArchiving}
+                                      className="text-stone-500 hover:text-stone-800 underline dark:text-stone-400"
+                                    >
+                                      Archive Entire Draft
+                                    </button>
+                                  </form>
+                                )}
 
                                 {resolution?.isCustom && (
                                   <button

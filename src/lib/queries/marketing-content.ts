@@ -849,6 +849,17 @@ export async function publishMarketingContentDraft(
     // Standard Homepage section draft
     let metadata = existing.data.metadata;
     if (existing.data.content_key === "site_images") {
+      const validSlots = marketingContentDraftInputSchema.safeParse({
+        contentType: "section",
+        contentKey: "site_images",
+        metadata: existing.data.metadata,
+      });
+      if (!validSlots.success) {
+        return {
+          success: false,
+          error: validSlots.error.issues[0]?.message ?? "Invalid website image slots.",
+        };
+      }
       const published = await getPublicSiteSection("site_images");
       const publishedMetadata = metadataRecord(published?.metadata);
       const draftMetadata = metadataRecord(existing.data.metadata);

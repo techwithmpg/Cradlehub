@@ -1,5 +1,9 @@
 import { SPA_IMAGES } from "@/constants/spa-images";
 import {
+  MANAGED_SITE_IMAGE_SLOT_KEYS,
+  isRenderableManagedSiteImageUrl,
+} from "@/lib/marketing/website-images-inventory";
+import {
   PUBLIC_CATALOG_CATEGORY_NAMES,
   type PublicCatalogCategoryName,
 } from "@/lib/public/service-catalog-config";
@@ -77,9 +81,7 @@ export interface NormalizedPublicSiteSections {
   rawSections: PublicSiteSectionRow[];
 }
 
-function metadataObject(
-  value: unknown
-): Record<string, unknown> {
+function metadataObject(value: unknown): Record<string, unknown> {
   if (value && typeof value === "object" && !Array.isArray(value)) {
     return value as Record<string, unknown>;
   }
@@ -129,7 +131,9 @@ function metadataItems(
   return fallback;
 }
 
-function normalizedCategoryImages(metadata: Record<string, unknown>): Partial<Record<PublicCatalogCategoryName, string>> {
+function normalizedCategoryImages(
+  metadata: Record<string, unknown>
+): Partial<Record<PublicCatalogCategoryName, string>> {
   const raw = metadata.categoryImages;
   if (!raw || typeof raw !== "object" || Array.isArray(raw)) return {};
   const candidates = raw as Record<string, unknown>;
@@ -270,7 +274,7 @@ export function resolvePublicSiteSections(
   const rawSlots = metadataObject(siteImagesMeta.slots);
   const siteImages: Record<string, string> = {};
   for (const [key, val] of Object.entries(rawSlots)) {
-    if (typeof val === "string" && val.trim().length > 0) {
+    if (MANAGED_SITE_IMAGE_SLOT_KEYS.has(key) && isRenderableManagedSiteImageUrl(val)) {
       siteImages[key] = val.trim();
     }
   }

@@ -1,5 +1,14 @@
 import type { NextConfig } from "next";
 
+const configuredSupabaseHost = (() => {
+  try {
+    const url = new URL(process.env.NEXT_PUBLIC_SUPABASE_URL ?? "");
+    return url.protocol === "https:" ? url.hostname : null;
+  } catch {
+    return null;
+  }
+})();
+
 const nextConfig: NextConfig = {
   // Proxy preserves /staff/ (the accepted manifest start URL) while retaining
   // slashless redirects for every other route.
@@ -102,6 +111,15 @@ const nextConfig: NextConfig = {
         hostname: "lsrbwqhvzjfpiabeolkv.supabase.co",
         pathname: "/storage/**",
       },
+      ...(configuredSupabaseHost && configuredSupabaseHost !== "lsrbwqhvzjfpiabeolkv.supabase.co"
+        ? [
+            {
+              protocol: "https" as const,
+              hostname: configuredSupabaseHost,
+              pathname: "/storage/**",
+            },
+          ]
+        : []),
     ],
     formats: ["image/avif", "image/webp"],
   },
