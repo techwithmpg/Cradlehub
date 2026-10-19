@@ -1,5 +1,8 @@
 import { describe, expect, it } from "vitest";
-import { resolvePublicSiteSections, type PublicSiteSectionRow } from "@/lib/public/normalized-sections";
+import {
+  resolvePublicSiteSections,
+  type PublicSiteSectionRow,
+} from "@/lib/public/normalized-sections";
 import { marketingContentDraftInputSchema } from "@/lib/validations/marketing";
 
 describe("responsive Marketing hero contract", () => {
@@ -41,5 +44,21 @@ describe("responsive Marketing hero contract", () => {
       metadata: { mobileImageUrl: "/images/spa/hero-mobile.jpg", mobileFocalX: 25 },
     });
     expect(valid.success).toBe(true);
+
+    const unsupportedHost = marketingContentDraftInputSchema.safeParse({
+      contentType: "section",
+      contentKey: "hero",
+      metadata: { mobileImageUrl: "https://cdn.example.com/mobile.jpg" },
+    });
+    expect(unsupportedHost.success).toBe(false);
+  });
+
+  it("drops a legacy mobile image URL that Next/Image cannot render", () => {
+    const hero = {
+      section_key: "hero",
+      is_enabled: true,
+      metadata: { mobileImageUrl: "https://cdn.example.com/mobile.jpg" },
+    } as unknown as PublicSiteSectionRow;
+    expect(resolvePublicSiteSections([hero]).hero.mobileImageUrl).toBe("");
   });
 });

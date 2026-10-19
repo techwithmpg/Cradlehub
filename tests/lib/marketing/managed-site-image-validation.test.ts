@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { marketingContentDraftInputSchema } from "@/lib/validations/marketing";
+import { extractManagedSlotsFromMetadata } from "@/lib/marketing/website-images-inventory";
 
 const draft = (slots: unknown) => ({
   contentType: "section",
@@ -28,5 +29,17 @@ describe("managed website image validation", () => {
     null,
   ])("rejects unsafe or unknown managed slots: %j", (slots) => {
     expect(marketingContentDraftInputSchema.safeParse(draft(slots)).success).toBe(false);
+  });
+
+  it("ignores unsupported and unknown legacy slots in workspace previews", () => {
+    expect(
+      extractManagedSlotsFromMetadata({
+        slots: {
+          home_setting_in_spa: "https://unconfigured.example.com/image.jpg",
+          mobile_final_cta_ambient: "/images/spa/cta.jpg",
+          unknown_slot: "/images/spa/other.jpg",
+        },
+      })
+    ).toEqual({ mobile_final_cta_ambient: "/images/spa/cta.jpg" });
   });
 });

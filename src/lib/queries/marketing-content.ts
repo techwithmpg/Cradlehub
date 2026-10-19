@@ -848,18 +848,20 @@ export async function publishMarketingContentDraft(
   } else if (existing.data.content_type === "section") {
     // Standard Homepage section draft
     let metadata = existing.data.metadata;
-    if (existing.data.content_key === "site_images") {
-      const validSlots = marketingContentDraftInputSchema.safeParse({
+    if (["site_images", "signature_services", "hero"].includes(existing.data.content_key)) {
+      const validMetadata = marketingContentDraftInputSchema.safeParse({
         contentType: "section",
-        contentKey: "site_images",
+        contentKey: existing.data.content_key,
         metadata: existing.data.metadata,
       });
-      if (!validSlots.success) {
+      if (!validMetadata.success) {
         return {
           success: false,
-          error: validSlots.error.issues[0]?.message ?? "Invalid website image slots.",
+          error: validMetadata.error.issues[0]?.message ?? "Invalid website image metadata.",
         };
       }
+    }
+    if (existing.data.content_key === "site_images") {
       const published = await getPublicSiteSection("site_images");
       const publishedMetadata = metadataRecord(published?.metadata);
       const draftMetadata = metadataRecord(existing.data.metadata);

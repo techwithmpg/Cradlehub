@@ -278,7 +278,7 @@ describe("Website Images Inventory & Public Parity", () => {
         sort_order: 1,
         is_enabled: true,
         metadata: {
-          mobileImageUrl: "https://cdn.example.com/custom-hero-mobile.jpg",
+          mobileImageUrl: "/images/custom-hero-mobile.jpg",
         },
         created_at: new Date().toISOString(),
         updated_at: new Date().toISOString(),
@@ -324,7 +324,7 @@ describe("Website Images Inventory & Public Parity", () => {
       publishedSections,
       drafts,
     });
-    expect(mobileRes.effectiveUrl).toBe("https://cdn.example.com/custom-hero-mobile.jpg");
+    expect(mobileRes.effectiveUrl).toBe("/images/custom-hero-mobile.jpg");
     expect(mobileRes.status).toBe("published_custom");
   });
 
@@ -512,7 +512,7 @@ describe("WebsiteImagesView Component", () => {
       status: "approved",
       metadata: {
         slots: {
-          home_setting_in_spa: "https://cdn.example.com/test-draft.jpg",
+          home_setting_in_spa: "/images/test-draft.jpg",
         },
       },
     });
@@ -542,7 +542,7 @@ describe("WebsiteImagesView Component", () => {
       status: "draft",
       metadata: {
         slots: {
-          home_setting_in_spa: "https://cdn.example.com/test-draft.jpg",
+          home_setting_in_spa: "/images/test-draft.jpg",
         },
       },
     });

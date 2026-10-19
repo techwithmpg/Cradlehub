@@ -7,6 +7,7 @@ import {
   resolvePublicSiteSections,
   type PublicSiteSectionRow,
 } from "@/lib/public/normalized-sections";
+import { marketingContentDraftInputSchema } from "@/lib/validations/marketing";
 
 function sectionWithImages(categoryImages: unknown): PublicSiteSectionRow {
   return {
@@ -28,7 +29,7 @@ describe("managed homepage category pictures", () => {
   });
 
   it("resolves independently published category pictures without changing the other covers", () => {
-    const updated = "https://cdn.example.com/skin-care-replacement.webp";
+    const updated = "/images/skin-care-replacement.webp";
     const normalized = resolvePublicSiteSections([
       sectionWithImages({ "Skin Care Services": updated }),
     ]);
@@ -44,11 +45,33 @@ describe("managed homepage category pictures", () => {
         "Massage Services": "javascript:alert(1)",
         "Salon Services": "//untrusted.example/image.jpg",
         "Skin Care Services": 123,
+        "Divine Renewal Packages": "https://cdn.example.com/unconfigured.webp",
         "Spa Party Packages": "/images/new-spa-party.jpg",
       }),
     ]);
     expect(normalized.signatureServices.categoryImages).toEqual({
       "Spa Party Packages": "/images/new-spa-party.jpg",
     });
+  });
+
+  it("rejects unsupported image hosts and unknown categories before saving", () => {
+    const invalid = marketingContentDraftInputSchema.safeParse({
+      contentType: "section",
+      contentKey: "signature_services",
+      metadata: {
+        categoryImages: {
+          "Massage Services": "https://cdn.example.com/unconfigured.webp",
+          "Unknown Category": "/images/other.jpg",
+        },
+      },
+    });
+    expect(invalid.success).toBe(false);
+
+    const valid = marketingContentDraftInputSchema.safeParse({
+      contentType: "section",
+      contentKey: "signature_services",
+      metadata: { categoryImages: { "Massage Services": "/images/massage.jpg" } },
+    });
+    expect(valid.success).toBe(true);
   });
 });

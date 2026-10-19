@@ -4,6 +4,7 @@ import {
   MANAGED_SITE_IMAGE_SLOT_KEYS,
   isRenderableManagedSiteImageUrl,
 } from "@/lib/marketing/website-images-inventory";
+import { PUBLIC_CATALOG_CATEGORY_NAMES } from "@/lib/public/service-catalog-config";
 
 export const MARKETING_CONTENT_TYPES = ["section", "asset", "brand", "seo", "service"] as const;
 
@@ -116,6 +117,39 @@ export const marketingContentDraftInputSchema = z
       }
     }
 
+    if (input.contentType === "section" && input.contentKey === "signature_services") {
+      const categoryImages = input.metadata.categoryImages;
+      if (categoryImages !== undefined) {
+        if (
+          !categoryImages ||
+          typeof categoryImages !== "object" ||
+          Array.isArray(categoryImages)
+        ) {
+          context.addIssue({
+            code: "custom",
+            path: ["metadata", "categoryImages"],
+            message: "Category images must be an object.",
+          });
+        } else {
+          for (const [key, value] of Object.entries(categoryImages)) {
+            if (!PUBLIC_CATALOG_CATEGORY_NAMES.some((category) => category === key)) {
+              context.addIssue({
+                code: "custom",
+                path: ["metadata", "categoryImages", key],
+                message: "Unknown service category.",
+              });
+            } else if (!isRenderableManagedSiteImageUrl(value)) {
+              context.addIssue({
+                code: "custom",
+                path: ["metadata", "categoryImages", key],
+                message: "Use a supported public image URL.",
+              });
+            }
+          }
+        }
+      }
+    }
+
     if (input.contentType !== "section" || input.contentKey !== "hero") return;
 
     const mobileImageUrl = input.metadata.mobileImageUrl;
@@ -123,12 +157,12 @@ export const marketingContentDraftInputSchema = z
       mobileImageUrl !== undefined &&
       (typeof mobileImageUrl !== "string" ||
         mobileImageUrl.length > 1000 ||
-        !isSafeImageUrl(mobileImageUrl))
+        (mobileImageUrl !== "" && !isRenderableManagedSiteImageUrl(mobileImageUrl)))
     ) {
       context.addIssue({
         code: "custom",
         path: ["metadata", "mobileImageUrl"],
-        message: "Use a safe mobile image URL.",
+        message: "Use a supported public mobile image URL.",
       });
     }
 

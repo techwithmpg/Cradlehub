@@ -668,7 +668,7 @@ export function extractManagedSlotsFromMetadata(metadata: unknown): Record<strin
   const slotsRaw = readMetaRecord(meta.slots);
   const result: Record<string, string> = {};
   for (const [key, val] of Object.entries(slotsRaw)) {
-    if (typeof val === "string" && val.trim().length > 0) {
+    if (MANAGED_SITE_IMAGE_SLOT_KEYS.has(key) && isRenderableManagedSiteImageUrl(val)) {
       result[key] = val.trim();
     }
   }
@@ -795,16 +795,26 @@ export function resolveSlotState({
   } else if (slot.fieldKey === "mobileImageUrl") {
     const pubMeta = readMetaRecord(published?.metadata);
     const draftMeta = readMetaRecord(draft?.metadata);
-    publishedUrl = (pubMeta.mobileImageUrl as string) || slot.defaultUrl;
-    draftUrl = (draftMeta.mobileImageUrl as string) || undefined;
+    publishedUrl = isRenderableManagedSiteImageUrl(pubMeta.mobileImageUrl)
+      ? pubMeta.mobileImageUrl.trim()
+      : slot.defaultUrl;
+    draftUrl = isRenderableManagedSiteImageUrl(draftMeta.mobileImageUrl)
+      ? draftMeta.mobileImageUrl.trim()
+      : undefined;
   } else if (slot.fieldKey === "categoryImage" && slot.categoryName) {
     const pubMeta = readMetaRecord(published?.metadata);
     const pubCatImages = readMetaRecord(pubMeta.categoryImages);
-    publishedUrl = (pubCatImages[slot.categoryName] as string) || slot.defaultUrl;
+    const pubCategoryImage = pubCatImages[slot.categoryName];
+    publishedUrl = isRenderableManagedSiteImageUrl(pubCategoryImage)
+      ? pubCategoryImage.trim()
+      : slot.defaultUrl;
 
     const draftMeta = readMetaRecord(draft?.metadata);
     const draftCatImages = readMetaRecord(draftMeta.categoryImages);
-    draftUrl = (draftCatImages[slot.categoryName] as string) || undefined;
+    const draftCategoryImage = draftCatImages[slot.categoryName];
+    draftUrl = isRenderableManagedSiteImageUrl(draftCategoryImage)
+      ? draftCategoryImage.trim()
+      : undefined;
   } else if (slot.fieldKey === "managedSlot" && slot.slotKey) {
     const pubSlots = extractManagedSlotsFromMetadata(published?.metadata);
     publishedUrl = pubSlots[slot.slotKey] || slot.defaultUrl;

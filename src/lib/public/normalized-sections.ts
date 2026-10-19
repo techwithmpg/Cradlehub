@@ -141,19 +141,7 @@ function normalizedCategoryImages(
 
   for (const category of PUBLIC_CATALOG_CATEGORY_NAMES) {
     const candidate = candidates[category];
-    if (typeof candidate !== "string") continue;
-    const url = candidate.trim();
-    if (!url || url.length > 1000) continue;
-    if (url.startsWith("/") && !url.startsWith("//")) {
-      images[category] = url;
-      continue;
-    }
-    try {
-      const parsed = new URL(url);
-      if (parsed.protocol === "https:" || parsed.protocol === "http:") images[category] = url;
-    } catch {
-      // Invalid or non-image schemes never reach the public image renderer.
-    }
+    if (isRenderableManagedSiteImageUrl(candidate)) images[category] = candidate.trim();
   }
   return images;
 }
@@ -187,7 +175,9 @@ export function resolvePublicSiteSections(
     ctaLabel: sectionText(heroRow, "cta_label", "Book Appointment"),
     ctaHref: sectionText(heroRow, "cta_href", "/book"),
     imageUrl: sectionText(heroRow, "image_url", SPA_IMAGES.hero),
-    mobileImageUrl: metadataText(heroMeta, "mobileImageUrl", ""),
+    mobileImageUrl: isRenderableManagedSiteImageUrl(heroMeta.mobileImageUrl)
+      ? heroMeta.mobileImageUrl.trim()
+      : "",
     imageAltText: metadataText(heroMeta, "imageAltText", "Cradle wellness spa treatment room"),
     mobileImageAltText: metadataText(heroMeta, "mobileImageAltText", ""),
     imagePosition: imagePosition(heroMeta, "desktop"),
