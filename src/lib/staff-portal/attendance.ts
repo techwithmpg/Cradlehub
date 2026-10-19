@@ -1,3 +1,4 @@
+import { cache } from "react";
 import "server-only";
 
 import { cookies } from "next/headers";
@@ -203,7 +204,9 @@ function mapCheckin(row: CheckinRow): StaffAttendanceHistoryRecord {
  * Derives staff identity strictly from the authenticated server session.
  * Performs ZERO writes, ZERO RPC mutations, and does not invoke dynamic recalculation.
  */
-export async function getPureAttendanceSnapshot(days = 90): Promise<StaffAttendanceData | null> {
+export const getPureAttendanceSnapshot = cache(async (
+  days = 90
+): Promise<StaffAttendanceData | null> => {
   const supabase = await createClient();
   const {
     data: { user },
@@ -217,7 +220,7 @@ export async function getPureAttendanceSnapshot(days = 90): Promise<StaffAttenda
     .is("archived_at", null)
     .is("merged_into_staff_id", null)
     .maybeSingle();
-  if (staffResult.error || !staffResult.data) return null;
+  if (staffResult.error || !staffResult.data || !staffResult.data.branch_id) return null;
   const staff = staffResult.data;
 
   const settings = await getAttendanceSettingsReadOnly(staff.branch_id);
@@ -455,7 +458,7 @@ export async function getPureAttendanceSnapshot(days = 90): Promise<StaffAttenda
     issues,
     portalClockOut,
   };
-}
+});
 
 /**
  * Backward-compatible alias for existing callers.

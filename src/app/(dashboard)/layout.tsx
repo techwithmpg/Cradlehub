@@ -26,12 +26,12 @@ export default async function DashboardLayout({ children }: { children: React.Re
 
   if (!resolvedMe) redirect(staffPwaRoute ? "/staff/login" : "/login");
 
-  const workspaces = await getUserWorkspaceAccess(ctx.user.id).catch(() => []);
+  const workspaces = staffPwaRoute ? [] : await getUserWorkspaceAccess(ctx.user.id).catch(() => []);
 
   // Fetch CRM readiness for the header indicator (failure-safe).
   const branchId = resolvedMe.branch_id ?? null;
   const displayName = getStaffDisplayName(resolvedMe);
-  const readiness = branchId ? await getCrmReadinessCached(branchId).catch(() => null) : null;
+  const readiness = staffPwaRoute || !branchId ? null : await getCrmReadinessCached(branchId).catch(() => null);
 
   return (
     <div
@@ -42,14 +42,16 @@ export default async function DashboardLayout({ children }: { children: React.Re
       }}
     >
       <OfflineBanner />
-      <Sidebar
-        role={resolvedMe.system_role}
+      {!staffPwaRoute && (
+        <Sidebar
+          role={resolvedMe.system_role}
         canReviewMasterSheet={Boolean(me && canViewMasterSheetReview(me.system_role))}
         fullName={resolvedMe.full_name}
         nickname={resolvedMe.nickname}
         avatarUrl={resolvedMe.avatar_url}
         branchName={(resolvedMe.branches as { name: string } | null)?.name}
-      />
+        />
+      )}
 
       <div
         style={{
@@ -59,16 +61,18 @@ export default async function DashboardLayout({ children }: { children: React.Re
           flexDirection: "column",
         }}
       >
-        <div className="hidden md:block">
-          <Header
+        {!staffPwaRoute && (
+          <div className="hidden md:block">
+            <Header
             role={resolvedMe.system_role}
             fullName={resolvedMe.full_name}
             displayName={displayName}
             avatarUrl={resolvedMe.avatar_url}
             readiness={readiness}
             workspaces={workspaces}
-          />
-        </div>
+            />
+          </div>
+        )}
         <main
           data-testid="workspace-main"
           className="p-0 md:p-5"
