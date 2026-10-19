@@ -22,10 +22,9 @@ const nextConfig: NextConfig = {
       static: 300, // seconds — fully-static pages
     },
     serverActions: {
-      // Set to 8mb to support the largest authorized Marketing media contract (HERO_BACKGROUND: 6MB)
-      // with multipart form boundary overhead. Authoritative server-side validateMediaBuffer enforces
-      // exact per-intent maxBytes thresholds (2MB - 6MB) before Storage upload or DB writes.
-      bodySizeLimit: "8mb",
+      // Generic Marketing uploads allow 10 MB source files; multipart framing
+      // needs headroom. The server validates bytes and dimensions before storage.
+      bodySizeLimit: "12mb",
     },
   },
   async headers() {

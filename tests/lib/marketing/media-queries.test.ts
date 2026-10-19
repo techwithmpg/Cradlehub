@@ -1,4 +1,5 @@
 import { describe, expect, it, vi } from "vitest";
+import sharp from "sharp";
 
 vi.mock("server-only", () => ({}));
 vi.mock("next/cache", () => ({
@@ -204,6 +205,25 @@ import {
 const TEST_ASSET_ID = "e4b6c310-8b1e-450f-90bf-c94d2fa8e711";
 
 describe("marketing media queries - role boundaries and safety enforcement", () => {
+  it("rejects catalog records for client supplied storage paths", async () => {
+    mockStaff = { id: "staff-dm", system_role: "digital_marketer" };
+    mockDbInsert.mockClear();
+
+    const result = await saveMarketingMediaAsset({
+      bucketPath: "media/untracked-photo.jpg",
+      publicUrl: "https://example.com/untracked-photo.jpg",
+      title: "Untracked photo",
+      altText: "Untracked photo",
+      metadata: {},
+    });
+
+    expect(result).toEqual({
+      success: false,
+      error: "Upload an image to create a media asset.",
+    });
+    expect(mockDbInsert).not.toHaveBeenCalled();
+  });
+
   it("rejects digital marketer modification of approved or published assets", async () => {
     mockStaff = { id: "staff-dm", system_role: "digital_marketer" };
     mockDbSelectData = {
@@ -612,7 +632,10 @@ describe("marketing media queries - role boundaries and safety enforcement", () 
     mockDbUpdateData = null;
     mockDbUpdateError = { message: "Database connection timeout during finalization" };
 
-    const file = new File(["dummy content"], "sample.jpg", { type: "image/jpeg" });
+    const validImage = await sharp({
+      create: { width: 100, height: 100, channels: 3, background: "#163a2b" },
+    }).jpeg().toBuffer();
+    const file = new File([new Uint8Array(validImage)], "sample.jpg", { type: "image/jpeg" });
     const formData = new FormData();
     formData.append("file", file);
     formData.append("title", "Sample Image");
@@ -648,7 +671,10 @@ describe("marketing media queries - role boundaries and safety enforcement", () 
     expect(mockMediaContractsServerModuleLoad).not.toHaveBeenCalled();
 
     // Binary uploads with media intent dynamically initialize and invoke validation.
-    const file = new File(["sample image bytes"], "hero.jpg", { type: "image/jpeg" });
+    const heroImage = await sharp({
+      create: { width: 1920, height: 1080, channels: 3, background: "#163a2b" },
+    }).jpeg().toBuffer();
+    const file = new File([new Uint8Array(heroImage)], "hero.jpg", { type: "image/jpeg" });
     const formData = new FormData();
     formData.append("file", file);
     formData.append("mediaIntent", "HERO_BACKGROUND");

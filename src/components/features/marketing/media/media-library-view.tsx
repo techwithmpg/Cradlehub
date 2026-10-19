@@ -1287,13 +1287,13 @@ export function MediaLibraryView({
                   Click to select an image file
                 </p>
                 <p style={{ margin: "4px 0 0", fontSize: 12, color: "var(--cs-text-muted)" }}>
-                  JPG, PNG, WebP, SVG, GIF up to 10MB
+                  JPG, PNG, or WebP up to 10MB. Images are optimized before storage.
                 </p>
                 <input
                   ref={fileInputRef}
                   type="file"
                   name="file"
-                  accept="image/jpeg,image/png,image/webp,image/svg+xml,image/gif"
+                  accept="image/jpeg,image/png,image/webp"
                   required
                   style={{ display: "none" }}
                 />

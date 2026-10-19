@@ -422,7 +422,7 @@ export function BrandStudioView({
               {/* 4. Dynamic Site Icon Package Generator */}
               <MarketingFieldGroup
                 title="4. Website & Device Icon Package"
-                description="Upload one master brand image (SVG/PNG min 512x512) to automatically generate all 7 required web/device PNG icons"
+                description="Upload one master brand image (PNG/WebP min 512x512) to automatically generate all 7 required web/device PNG icons"
                 badge={
                   formValues.siteIconPackage ? (
                     <span className="inline-flex items-center gap-1 rounded-full bg-emerald-100 px-2 py-0.5 text-[10px] font-bold text-emerald-800 dark:bg-emerald-950/40 dark:text-emerald-300">
@@ -447,7 +447,7 @@ export function BrandStudioView({
                     if (assetId) handleFieldChange("siteIconMasterAssetId", assetId);
                   }}
                   availableAssets={mediaAssets}
-                  helperText="Recommended: 1024x1024 SVG or high-resolution PNG with transparent background."
+                  helperText="Recommended: 1024x1024 PNG or WebP with transparent background."
                 />
 
                 {/* Generator Trigger */}

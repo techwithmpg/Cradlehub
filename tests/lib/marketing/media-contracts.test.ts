@@ -112,7 +112,7 @@ describe("Marketing Media Contracts System", () => {
     expect(gifResult.error).toContain("not supported");
   });
 
-  it("HEADER_LOGO contract rejects JPG and requires SVG, PNG, or WebP with transparency", async () => {
+  it("HEADER_LOGO contract rejects JPG and accepts raster logo formats", async () => {
     const headerLogoContract = getMediaContract("HEADER_LOGO");
 
     const jpgBuffer = await sharp({
@@ -131,37 +131,22 @@ describe("Marketing Media Contracts System", () => {
     expect(jpgResult.error).toContain("not supported");
   });
 
-  it("validates safe SVG assets and rejects malicious or corrupt SVGs", async () => {
+  it("rejects SVG for public icon masters, even when the SVG is syntactically safe", async () => {
     const contract = getMediaContract("SITE_ICON_MASTER");
 
-    // 1. Safe valid SVG
     const safeSvg = Buffer.from(
       `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512"><circle cx="256" cy="256" r="200" fill="#C8A96B"/></svg>`
     );
     const safeResult = await validateMediaBuffer(safeSvg, "image/svg+xml", contract);
-    expect(safeResult.isValid).toBe(true);
+    expect(safeResult.isValid).toBe(false);
+    expect(safeResult.error).toContain("Vector SVG format is not allowed");
 
-    // 2. Malicious SVG with embedded <script>
     const maliciousScriptSvg = Buffer.from(
       `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512"><script>alert('xss')</script><circle cx="256" cy="256" r="200" fill="#C8A96B"/></svg>`
     );
     const scriptResult = await validateMediaBuffer(maliciousScriptSvg, "image/svg+xml", contract);
     expect(scriptResult.isValid).toBe(false);
-    expect(scriptResult.error).toContain("Security validation failed");
-
-    // 3. Malicious SVG with onload attribute
-    const maliciousOnloadSvg = Buffer.from(
-      `<svg xmlns="http://www.w3.org/2000/svg" onload="fetch('https://evil.com')"><circle cx="256" cy="256" r="200" fill="#C8A96B"/></svg>`
-    );
-    const onloadResult = await validateMediaBuffer(maliciousOnloadSvg, "image/svg+xml", contract);
-    expect(onloadResult.isValid).toBe(false);
-    expect(onloadResult.error).toContain("Security validation failed");
-
-    // 4. Corrupt unparseable SVG
-    const corruptSvg = Buffer.from("<svg>this is not valid xml <><<<<");
-    const corruptResult = await validateMediaBuffer(corruptSvg, "image/svg+xml", contract);
-    expect(corruptResult.isValid).toBe(false);
-    expect(corruptResult.error).toContain("Could not parse or decode SVG artwork");
+    expect(scriptResult.error).toContain("Vector SVG format is not allowed");
   });
 
   it("evaluates compatibility on media library asset rows and tolerates legacy untracked assets", () => {

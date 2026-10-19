@@ -162,6 +162,7 @@ function getInitialFormValues(
   const draft = drafts.find((d) => d.content_type === "section" && d.content_key === sectionKey);
   const published = publishedSections.find((s) => s.section_key === sectionKey);
   const fallback = sectionDefaults.find((d) => d.sectionKey === sectionKey);
+  const publishedAlt = metadataObject(published?.metadata).imageAltText;
 
   return {
     sectionKey,
@@ -176,7 +177,7 @@ function getInitialFormValues(
       published?.secondary_image_url ??
       fallback?.secondaryImageUrl ??
       "",
-    altText: draft?.alt_text ?? "",
+    altText: draft?.alt_text ?? (typeof publishedAlt === "string" ? publishedAlt : ""),
     linkHref: draft?.link_href ?? "",
     sortOrder: draft?.sort_order ?? published?.sort_order ?? fallback?.sortOrder ?? 0,
     isEnabled: draft?.is_enabled ?? published?.is_enabled ?? fallback?.isEnabled ?? true,
@@ -195,6 +196,7 @@ function getLiveFormValues(
 ): SectionFormValues {
   const published = publishedSections.find((s) => s.section_key === sectionKey);
   const fallback = sectionDefaults.find((d) => d.sectionKey === sectionKey);
+  const publishedAlt = metadataObject(published?.metadata).imageAltText;
 
   return {
     sectionKey,
@@ -205,7 +207,7 @@ function getLiveFormValues(
     ctaHref: published?.cta_href ?? fallback?.ctaHref ?? "",
     imageUrl: published?.image_url ?? fallback?.imageUrl ?? "",
     secondaryImageUrl: published?.secondary_image_url ?? fallback?.secondaryImageUrl ?? "",
-    altText: "",
+    altText: typeof publishedAlt === "string" ? publishedAlt : "",
     linkHref: "",
     sortOrder: published?.sort_order ?? fallback?.sortOrder ?? 0,
     isEnabled: published?.is_enabled ?? fallback?.isEnabled ?? true,
