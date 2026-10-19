@@ -1,12 +1,12 @@
 # CradleHub Staff PWA — Performance Diagnostic & Scope Freeze
 
-**Date:** 2026-10-18  
-**Target:** Canonical CradleHub Staff PWA (`/staff/*`)  
-**Program:** Controlled Performance Stabilization  
-**Accepted Base:** `cd108714c9f1da2d493825b9b35a680888a34ef1` (`origin/main`)  
-**Dedicated Worktree:** `E:\cradlehub-staff-pwa-perf`  
-**Review Branch:** `stage/staff-pwa-performance-stabilization`  
-**Database Target:** PRODUCTION (`https://lsrbwqhvzjfpiabeolkv.supabase.co`) — *Read-only performance inspection enforced; zero mutations executed*  
+**Date:** 2026-10-18
+**Target:** Canonical CradleHub Staff PWA (`/staff/*`)
+**Program:** Controlled Performance Stabilization
+**Accepted Base:** `cd108714c9f1da2d493825b9b35a680888a34ef1` (`origin/main`)
+**Dedicated Worktree:** `E:\cradlehub-staff-pwa-perf`
+**Review Branch:** `stage/staff-pwa-performance-stabilization`
+**Database Target:** PRODUCTION (`https://lsrbwqhvzjfpiabeolkv.supabase.co`) — *Read-only performance inspection enforced; zero mutations executed*
 **Status:** **FROZEN SCOPE PENDING OWNER APPROVAL**
 
 ---

@@ -2,9 +2,9 @@
 
 **Authorization:** Owner brief attached to the 2026-10-18 task, six approved PNGs, Web controlled stabilization. This checkpoint implements Services & Providers first. The other five modules are inspection only.
 
-**Branch:** `stage/system-management-ui-20261018`  
-**Accepted main:** `cd108714c9f1da2d493825b9b35a680888a34ef1`  
-**Unmerged setup foundation:** `d7915b2c62dde10e07cf929e5e2c04b4293d4d7d`  
+**Branch:** `stage/system-management-ui-20261018`
+**Accepted main:** `cd108714c9f1da2d493825b9b35a680888a34ef1`
+**Unmerged setup foundation:** `d7915b2c62dde10e07cf929e5e2c04b4293d4d7d`
 **Services implementation commit:** `8be10a6cdb49f8234942c7df0cc17995f1cb92bf`
 
 The implementation branch descends from the setup foundation, whose merge base with accepted `origin/main` is the exact accepted main SHA above. `main` was not changed. Staff UI work on `origin/stage/staff-management-ui-20261017` was inspected but not merged or overwritten.

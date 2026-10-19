@@ -37,6 +37,7 @@ Other worktrees inspected by HEAD/status included `E:\cradlehub-ui` (Staff UI Pr
 - `src/components/features/crm/services/owner-add-service-action.tsx`: remove redundant `router.refresh()` after save. The existing server action revalidates `/crm/services`, and local Next.js 16 documentation says Server Function revalidation updates the viewed path.
 - `tests/components/bookings/c03-mobile-booking-wizard.test.tsx`: assert the current accessible in-spa service search control rather than removed helper copy.
 - `tests/lib/auth/front-desk-role-unification.test.ts`: assert the current `/crm/services` navigation destination.
+- Two preserved CRM Staff source files and three imported handoff reports had only line-ending/trailing-space normalization so the complete branch diff passes `git diff --check origin/main...HEAD`; `git diff --ignore-space-at-eol` showed no content changes in those files.
 
 ## Quality gates and local startup
 
@@ -47,7 +48,7 @@ Other worktrees inspected by HEAD/status included `E:\cradlehub-ui` (Staff UI Pr
 | `pnpm exec vitest run` | 1 | First run: three stale/integration assertions; after correction: one 5-second attendance test timeout under full concurrency. The attendance file passed alone. |
 | `pnpm exec vitest run --maxWorkers=4` | 0 | 411 files and 3,115 tests passed; 2 files and 2 tests skipped by existing configuration. |
 | `pnpm build` with process-scoped LOCAL placeholders | 0 | Turbopack compilation, TypeScript, and 153 static pages passed. No remote database target used for the build. |
-| `git diff --check` / staged diff check | 0 | PASS after preserving LF line endings in the two corrected tests. |
+| `git diff --check` / staged diff check | 0 | PASS after preserving LF line endings in the two corrected tests. The complete branch diff was also checked after whitespace normalization. |
 
 Port 3000 was free before startup. Only `E:\cradlehub\.next` was removed after the passing build, after confirming it was a normal directory inside the primary checkout. `pnpm dev --port 3000` started from `E:\cradlehub` with Next.js 16.2.4 and the existing `.env.local` configuration. Process-scoped URL checks returned `/login` 200, `/staff/login` 200, `/crm` 307 to `/login`, and `/owner` 307 to `/login`; no credentials, protected content, or business actions were used. Dev startup reported no errors. The remaining listener must be verified at handoff time.
 
