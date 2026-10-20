@@ -1,5 +1,10 @@
 import { z } from "zod";
 import { publicSiteSectionKeySchema } from "@/lib/validations/public-site";
+import {
+  MANAGED_SITE_IMAGE_SLOT_KEYS,
+  isRenderableManagedSiteImageUrl,
+} from "@/lib/marketing/website-images-inventory";
+import { PUBLIC_CATALOG_CATEGORY_NAMES } from "@/lib/public/service-catalog-config";
 
 export const MARKETING_CONTENT_TYPES = ["section", "asset", "brand", "seo", "service"] as const;
 
@@ -66,25 +71,255 @@ const optionalImageUrl = z
 
 const jsonObject = z.record(z.string(), z.unknown()).default({});
 
-export const marketingContentDraftInputSchema = z.object({
-  id: uuid.optional().nullable(),
-  contentType: z.enum(MARKETING_CONTENT_TYPES).default("section"),
-  contentKey: publicSiteSectionKeySchema,
-  title: optionalText(180),
-  subtitle: optionalText(320),
-  body: optionalText(3000),
-  ctaLabel: optionalText(80),
-  ctaHref: optionalHref,
-  imageUrl: optionalImageUrl,
-  secondaryImageUrl: optionalImageUrl,
-  altText: optionalText(220),
-  linkHref: optionalHref,
-  sortOrder: z.number().int().min(-1000).max(1000).default(0),
-  isEnabled: z.boolean().default(true),
-  metadata: jsonObject,
-});
+export const marketingContentDraftInputSchema = z
+  .object({
+    id: uuid.optional().nullable(),
+    contentType: z.enum(MARKETING_CONTENT_TYPES).default("section"),
+    contentKey: publicSiteSectionKeySchema,
+    title: optionalText(180),
+    subtitle: optionalText(320),
+    body: optionalText(3000),
+    ctaLabel: optionalText(80),
+    ctaHref: optionalHref,
+    imageUrl: optionalImageUrl,
+    secondaryImageUrl: optionalImageUrl,
+    altText: optionalText(220),
+    linkHref: optionalHref,
+    sortOrder: z.number().int().min(-1000).max(1000).default(0),
+    isEnabled: z.boolean().default(true),
+    metadata: jsonObject,
+  })
+  .superRefine((input, context) => {
+    if (Object.prototype.hasOwnProperty.call(input.metadata, "websiteImagesBaseUpdatedAt")) {
+      const baseline = input.metadata.websiteImagesBaseUpdatedAt;
+      if (
+        input.contentType !== "section" ||
+        !["hero", "about", "quote_banner", "signature_services"].includes(input.contentKey) ||
+        (baseline !== null &&
+          (typeof baseline !== "string" ||
+            baseline.length > 64 ||
+            Number.isNaN(Date.parse(baseline))))
+      ) {
+        context.addIssue({
+          code: "custom",
+          path: ["metadata", "websiteImagesBaseUpdatedAt"],
+          message: "Invalid Website Images draft baseline.",
+        });
+      }
+    }
+
+    if (
+      input.contentType === "section" &&
+      ["hero", "about", "quote_banner"].includes(input.contentKey)
+    ) {
+      const fields =
+        input.contentKey === "quote_banner"
+          ? (["imageUrl"] as const)
+          : (["imageUrl", "secondaryImageUrl"] as const);
+      for (const field of fields) {
+        const value = input[field];
+        if (value && !isRenderableManagedSiteImageUrl(value)) {
+          context.addIssue({
+            code: "custom",
+            path: [field],
+            message: "Use a supported public image URL.",
+          });
+        }
+      }
+    }
+
+    if (input.contentType === "section" && input.contentKey === "site_images") {
+      const slots = input.metadata.slots;
+      if (!slots || typeof slots !== "object" || Array.isArray(slots)) {
+        context.addIssue({
+          code: "custom",
+          path: ["metadata", "slots"],
+          message: "Image slots must be an object.",
+        });
+      } else {
+        for (const [key, value] of Object.entries(slots)) {
+          if (!MANAGED_SITE_IMAGE_SLOT_KEYS.has(key)) {
+            context.addIssue({
+              code: "custom",
+              path: ["metadata", "slots", key],
+              message: "Unknown website image slot.",
+            });
+          } else if (!isRenderableManagedSiteImageUrl(value)) {
+            context.addIssue({
+              code: "custom",
+              path: ["metadata", "slots", key],
+              message: "Use a supported public image URL.",
+            });
+          }
+        }
+      }
+    }
+
+    if (input.contentType === "section" && input.contentKey === "signature_services") {
+      const categoryImages = input.metadata.categoryImages;
+      if (categoryImages !== undefined) {
+        if (
+          !categoryImages ||
+          typeof categoryImages !== "object" ||
+          Array.isArray(categoryImages)
+        ) {
+          context.addIssue({
+            code: "custom",
+            path: ["metadata", "categoryImages"],
+            message: "Category images must be an object.",
+          });
+        } else {
+          for (const [key, value] of Object.entries(categoryImages)) {
+            if (!PUBLIC_CATALOG_CATEGORY_NAMES.some((category) => category === key)) {
+              context.addIssue({
+                code: "custom",
+                path: ["metadata", "categoryImages", key],
+                message: "Unknown service category.",
+              });
+            } else if (!isRenderableManagedSiteImageUrl(value)) {
+              context.addIssue({
+                code: "custom",
+                path: ["metadata", "categoryImages", key],
+                message: "Use a supported public image URL.",
+              });
+            }
+          }
+        }
+      }
+    }
+
+    if (input.contentType !== "section" || input.contentKey !== "hero") return;
+
+    const mobileImageUrl = input.metadata.mobileImageUrl;
+    if (
+      mobileImageUrl !== undefined &&
+      (typeof mobileImageUrl !== "string" ||
+        mobileImageUrl.length > 1000 ||
+        (mobileImageUrl !== "" && !isRenderableManagedSiteImageUrl(mobileImageUrl)))
+    ) {
+      context.addIssue({
+        code: "custom",
+        path: ["metadata", "mobileImageUrl"],
+        message: "Use a supported public mobile image URL.",
+      });
+    }
+
+    for (const key of ["desktopFocalX", "desktopFocalY", "mobileFocalX", "mobileFocalY"]) {
+      const value = input.metadata[key];
+      if (
+        value !== undefined &&
+        (typeof value !== "number" || !Number.isFinite(value) || value < 0 || value > 100)
+      ) {
+        context.addIssue({
+          code: "custom",
+          path: ["metadata", key],
+          message: "Focal coordinates must be from 0 to 100.",
+        });
+      }
+    }
+
+    for (const key of ["imageAltText", "mobileImageAltText"]) {
+      const value = input.metadata[key];
+      if (value !== undefined && (typeof value !== "string" || value.length > 220)) {
+        context.addIssue({
+          code: "custom",
+          path: ["metadata", key],
+          message: "Image description is too long.",
+        });
+      }
+    }
+  });
 
 export type MarketingContentDraftInput = z.infer<typeof marketingContentDraftInputSchema>;
+
+type PublishedSectionImages = {
+  image_url?: string | null;
+  secondary_image_url?: string | null;
+  metadata?: unknown;
+};
+
+function recordOrEmpty(value: unknown): Record<string, unknown> {
+  return value && typeof value === "object" && !Array.isArray(value)
+    ? (value as Record<string, unknown>)
+    : {};
+}
+
+/**
+ * Keep an unsupported legacy image only when it is byte-for-byte unchanged from
+ * the current published row. New unsupported values still fail the draft schema.
+ */
+export function parseMarketingDraftWithPublishedImages(
+  rawInput: unknown,
+  published: PublishedSectionImages | null
+): ReturnType<typeof marketingContentDraftInputSchema.safeParse> {
+  const strict = marketingContentDraftInputSchema.safeParse(rawInput);
+  if (strict.success || !published || !rawInput || typeof rawInput !== "object") return strict;
+
+  const raw = rawInput as Record<string, unknown>;
+  if (raw.contentType !== "section") return strict;
+
+  const sanitized: Record<string, unknown> = { ...raw };
+  const originalMeta = recordOrEmpty(raw.metadata);
+  const publishedMeta = recordOrEmpty(published.metadata);
+  const sanitizedMeta = { ...originalMeta };
+  const preservedFields: Array<"imageUrl" | "secondaryImageUrl"> = [];
+  let preservedMetadata = false;
+
+  if (["hero", "about", "quote_banner"].includes(String(raw.contentKey))) {
+    for (const [field, publishedValue] of [
+      ["imageUrl", published.image_url],
+      ["secondaryImageUrl", published.secondary_image_url],
+    ] as const) {
+      const value = raw[field];
+      if (
+        typeof value === "string" &&
+        value === publishedValue &&
+        !isRenderableManagedSiteImageUrl(value)
+      ) {
+        sanitized[field] = "";
+        preservedFields.push(field);
+      }
+    }
+  }
+
+  if (
+    raw.contentKey === "hero" &&
+    originalMeta.mobileImageUrl !== undefined &&
+    originalMeta.mobileImageUrl === publishedMeta.mobileImageUrl &&
+    !isRenderableManagedSiteImageUrl(originalMeta.mobileImageUrl)
+  ) {
+    delete sanitizedMeta.mobileImageUrl;
+    preservedMetadata = true;
+  }
+
+  if (raw.contentKey === "signature_services") {
+    const rawCategories = recordOrEmpty(originalMeta.categoryImages);
+    const publishedCategories = recordOrEmpty(publishedMeta.categoryImages);
+    const sanitizedCategories = { ...rawCategories };
+    for (const [key, value] of Object.entries(rawCategories)) {
+      if (
+        key in publishedCategories &&
+        value === publishedCategories[key] &&
+        (!PUBLIC_CATALOG_CATEGORY_NAMES.some((category) => category === key) ||
+          !isRenderableManagedSiteImageUrl(value))
+      ) {
+        delete sanitizedCategories[key];
+        preservedMetadata = true;
+      }
+    }
+    if (preservedMetadata) sanitizedMeta.categoryImages = sanitizedCategories;
+  }
+
+  if (preservedFields.length === 0 && !preservedMetadata) return strict;
+  sanitized.metadata = sanitizedMeta;
+  const retry = marketingContentDraftInputSchema.safeParse(sanitized);
+  if (!retry.success) return strict;
+
+  const data = { ...retry.data };
+  for (const field of preservedFields) data[field] = raw[field] as string;
+  if (preservedMetadata) data.metadata = originalMeta;
+  return { success: true, data };
+}
 
 export const marketingContentDraftIdSchema = z.object({
   id: uuid,

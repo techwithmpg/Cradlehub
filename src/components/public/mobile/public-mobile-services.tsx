@@ -44,7 +44,13 @@ function serviceAction(service: PublicCatalogService) {
   return { href: "/contact", label: "Inquire", Icon: MessageCircle };
 }
 
-export function PublicMobileServices({ services }: { services: PublicCatalogService[] }) {
+export function PublicMobileServices({
+  services,
+  bannerImage,
+}: {
+  services: PublicCatalogService[];
+  bannerImage?: string;
+}) {
   const categories = useMemo(
     () =>
       PUBLIC_CATALOG_CATEGORY_NAMES.filter((category) =>
@@ -69,7 +75,7 @@ export function PublicMobileServices({ services }: { services: PublicCatalogServ
     <div className={MOBILE_PUBLIC_SURFACE}>
       <section className="relative h-[214px] overflow-hidden bg-[#10261D]">
         <Image
-          src={SPA_IMAGES.ctaBanner}
+          src={bannerImage || SPA_IMAGES.ctaBanner}
           alt="Cradle wellness service details"
           fill
           priority

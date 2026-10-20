@@ -21,7 +21,13 @@ const MOBILE_PUBLIC_SURFACE =
 const MOBILE_GLASS_CARD =
   "box-border border border-[#D4B57A]/22 bg-[#0D2B20]/70 shadow-[0_24px_70px_rgba(0,0,0,0.32),inset_0_1px_0_rgba(246,235,214,0.06)] backdrop-blur-xl";
 
-export function PublicMobileBranches({ branches }: { branches: MobileBranch[] }) {
+export function PublicMobileBranches({
+  branches,
+  fallbackImage,
+}: {
+  branches: MobileBranch[];
+  fallbackImage?: string;
+}) {
   return (
     <div className={MOBILE_PUBLIC_SURFACE}>
       <section className="bg-[#082E22] px-5 pb-7 pt-8 text-[#FCFAF5]">
@@ -31,7 +37,9 @@ export function PublicMobileBranches({ branches }: { branches: MobileBranch[] })
         >
           Our Branches
         </h1>
-        <p className="mt-2 text-[13px] text-[#FCFAF5]/78">Find a branch near you.</p>
+        <p className="mt-2 text-[13px] text-[#FCFAF5]/84">
+          Visit us at our calming Bacolod locations.
+        </p>
       </section>
 
       <section className="space-y-4 overflow-hidden px-4 py-5">
@@ -44,7 +52,8 @@ export function PublicMobileBranches({ branches }: { branches: MobileBranch[] })
             branch.location_metadata.image_url.trim().length > 0
               ? branch.location_metadata.image_url.trim()
               : null;
-          const imgSrc = metaImg || (index % 2 === 0 ? SPA_IMAGES.contact : SPA_IMAGES.booking);
+          const imgSrc =
+            metaImg || fallbackImage || (index % 2 === 0 ? SPA_IMAGES.contact : SPA_IMAGES.booking);
 
           return (
             <article
@@ -55,93 +64,75 @@ export function PublicMobileBranches({ branches }: { branches: MobileBranch[] })
               <div className="relative h-[150px] w-full overflow-hidden rounded-[7px] bg-[#031B16]">
                 <Image
                   src={imgSrc}
-                  alt={`${branch.name} branch`}
+                  alt={branch.name}
                   fill
                   className="object-cover"
-                  sizes="(max-width: 767px) 100vw, 360px"
+                  sizes="calc(100vw - 56px)"
                 />
+                <div className="absolute inset-0 bg-[#031B16]/25" />
               </div>
-              <div className="mt-3 min-w-0 overflow-hidden">
-                <span className="inline-flex rounded-full border border-[#D4B57A]/24 bg-[#D4B57A]/12 px-2 py-1 text-[10px] font-semibold text-[#D4B57A]">
-                  Services vary by branch
-                </span>
+
+              <div className="mt-3">
                 <h2
-                  className="mt-2 break-words text-[19px] font-medium leading-6 text-[#F6EBD6]"
+                  className="text-[17px] font-medium text-[#F6EBD6]"
                   style={{ fontFamily: "var(--sp-font-display)" }}
                 >
                   {branch.name}
                 </h2>
-                {branch.address && (
-                  <p
-                    className="mt-1 whitespace-normal text-[12px] leading-5 text-[#F6EBD6]/62"
-                    style={{ maxWidth: "min(280px, calc(100vw - 90px))" }}
+                {branch.address ? (
+                  <p className="mt-1 flex items-start gap-1.5 text-[12px] text-[#F6EBD6]/75">
+                    <MapPin className="mt-0.5 h-3.5 w-3.5 shrink-0 text-[#D4B57A]" />
+                    <span>{branch.address}</span>
+                  </p>
+                ) : null}
+                {branch.phone ? (
+                  <p className="mt-1 flex items-center gap-1.5 text-[12px] text-[#F6EBD6]/75">
+                    <Phone className="h-3.5 w-3.5 shrink-0 text-[#D4B57A]" />
+                    <a
+                      href={`tel:${branch.phone.replace(/\s/g, "")}`}
+                      className="underline decoration-[#D4B57A]/40 hover:text-[#D4B57A]"
+                    >
+                      {branch.phone}
+                    </a>
+                  </p>
+                ) : null}
+                {branch.opening_hours ? (
+                  <p className="mt-1 flex items-center gap-1.5 text-[12px] text-[#F6EBD6]/75">
+                    <Clock className="h-3.5 w-3.5 shrink-0 text-[#D4B57A]" />
+                    <span>{branch.opening_hours}</span>
+                  </p>
+                ) : null}
+
+                <div className="mt-3.5 flex gap-2">
+                  <a
+                    href={mapHref(branch)}
+                    target="_blank"
+                    rel="noreferrer"
+                    className="flex flex-1 items-center justify-center gap-1.5 rounded-[6px] border border-[#D4B57A]/35 bg-[#031B16]/40 py-2 text-[11px] font-semibold text-[#F6EBD6] backdrop-blur-md"
                   >
-                    {branch.address}
-                  </p>
-                )}
-                <div className="mt-3 space-y-1 text-[11px] text-[#F6EBD6]/70">
-                  <p className="flex min-w-0 items-start gap-1.5">
-                    <Clock className="h-3 w-3 shrink-0 text-[#D4B57A]" aria-hidden="true" />
-                    <span className="min-w-0 break-words">
-                      {branch.opening_hours ?? "Daily availability through booking"}
-                    </span>
-                  </p>
-                  {branch.phone && (
-                    <p className="flex min-w-0 items-start gap-1.5">
-                      <Phone className="h-3 w-3 shrink-0 text-[#D4B57A]" aria-hidden="true" />
-                      <span className="min-w-0 break-words">{branch.phone}</span>
-                    </p>
-                  )}
+                    <Navigation className="h-3 w-3 text-[#D4B57A]" />
+                    Directions
+                  </a>
+                  {branch.phone ? (
+                    <a
+                      href={`tel:${branch.phone.replace(/\s/g, "")}`}
+                      className="flex flex-1 items-center justify-center gap-1.5 rounded-[6px] border border-[#D4B57A]/35 bg-[#031B16]/40 py-2 text-[11px] font-semibold text-[#F6EBD6] backdrop-blur-md"
+                    >
+                      <Phone className="h-3 w-3 text-[#D4B57A]" />
+                      Call
+                    </a>
+                  ) : null}
+                  <Link
+                    href={`/book?branch=${branch.id}`}
+                    className="flex flex-1 items-center justify-center rounded-[6px] bg-[#D4B57A] py-2 text-[11px] font-semibold uppercase tracking-[0.08em] text-[#031B16]"
+                  >
+                    Book
+                  </Link>
                 </div>
               </div>
-
-              <div
-                className={
-                  branch.phone
-                    ? "mt-3 grid w-full min-w-0 grid-cols-[minmax(0,1fr)_minmax(0,1fr)] gap-2 overflow-hidden"
-                    : "mt-3"
-                }
-              >
-                {branch.phone && (
-                  <a
-                    href={`tel:${branch.phone.replace(/\s/g, "")}`}
-                    className="flex min-h-9 min-w-0 overflow-hidden items-center justify-center gap-2 rounded-[6px] border border-[#D4B57A]/32 bg-[#031B16]/50 px-2 text-[11px] font-semibold uppercase text-[#F6EBD6]"
-                  >
-                    <Phone className="h-3.5 w-3.5 text-[#D4B57A]" aria-hidden="true" />
-                    <span className="truncate">Call</span>
-                  </a>
-                )}
-                <a
-                  href={mapHref(branch)}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="flex min-h-9 min-w-0 overflow-hidden items-center justify-center gap-1.5 rounded-[6px] border border-[#D4B57A]/32 bg-[#031B16]/50 px-2 text-[10.5px] font-semibold uppercase text-[#F6EBD6]"
-                >
-                  <Navigation className="h-3.5 w-3.5 text-[#D4B57A]" aria-hidden="true" />
-                  <span className="truncate">Directions</span>
-                </a>
-              </div>
-              <Link
-                href="/book"
-                className="mt-3 flex min-h-10 w-full max-w-full items-center justify-center rounded-[6px] bg-gradient-to-r from-[#D4B57A] via-[#C8A96A] to-[#B88945] text-[11px] font-semibold uppercase tracking-[0.12em] text-[#031B16]"
-              >
-                Book Now
-              </Link>
             </article>
           );
         })}
-
-        {branches.length === 0 && (
-          <div className={`rounded-[10px] p-6 text-center ${MOBILE_GLASS_CARD}`}>
-            <MapPin className="mx-auto h-6 w-6 text-[#D4B57A]" aria-hidden="true" />
-            <p className="mt-3 text-[13px] font-semibold text-[#F6EBD6]">
-              Branches are being prepared.
-            </p>
-            <p className="mt-1 text-[12px] text-[#F6EBD6]/62">
-              Please contact the front desk for the latest branch availability.
-            </p>
-          </div>
-        )}
       </section>
     </div>
   );

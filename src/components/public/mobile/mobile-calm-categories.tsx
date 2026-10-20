@@ -4,6 +4,7 @@ import { ArrowRight, Sparkles } from "lucide-react";
 import {
   PUBLIC_CATALOG_CATEGORY_DETAILS,
   PUBLIC_CATALOG_CATEGORY_NAMES,
+  getPublicHomeCategoryImage,
   type PublicCatalogCategoryName,
 } from "@/lib/public/service-catalog-config";
 import type { PublicCatalogService } from "@/lib/queries/services";
@@ -11,6 +12,7 @@ import { MobileFadeUp, MobileScrollFloatHeading } from "./mobile-scroll-effects"
 
 type MobileCalmCategoriesProps = {
   services: PublicCatalogService[];
+  categoryImages?: Partial<Record<PublicCatalogCategoryName, string>>;
 };
 
 const CATEGORY_IMAGE_CLASSES: Partial<Record<PublicCatalogCategoryName, string>> = {
@@ -21,11 +23,6 @@ const CATEGORY_IMAGE_CLASSES: Partial<Record<PublicCatalogCategoryName, string>>
   "Spa Party Packages": "object-[center_45%]",
 };
 
-const HOME_CATEGORY_IMAGES: Partial<Record<PublicCatalogCategoryName, string>> = {
-  "Divine Renewal Packages": "/images/spa/home/packages.jpg",
-  "Spa Party Packages": "/images/spa/home/spa-party.jpg",
-};
-
 const HOME_CATEGORY_DESCRIPTIONS: Partial<Record<PublicCatalogCategoryName, string>> = {
   "Massage Services": "Relaxing bodywork for deep rest and recovery.",
   "Salon Services": "Beauty care for hair, nails, lashes, and polish.",
@@ -34,7 +31,7 @@ const HOME_CATEGORY_DESCRIPTIONS: Partial<Record<PublicCatalogCategoryName, stri
   "Spa Party Packages": "Shared spa moments for groups and celebrations.",
 };
 
-export function MobileCalmCategories({ services }: MobileCalmCategoriesProps) {
+export function MobileCalmCategories({ services, categoryImages = {} }: MobileCalmCategoriesProps) {
   const categories = PUBLIC_CATALOG_CATEGORY_NAMES.map((categoryName) => {
     const detail =
       PUBLIC_CATALOG_CATEGORY_DETAILS[categoryName as PublicCatalogCategoryName];
@@ -65,7 +62,7 @@ export function MobileCalmCategories({ services }: MobileCalmCategoriesProps) {
               className="group relative block min-h-[238px] overflow-hidden rounded-[30px] border border-[#C8A96A]/22 bg-[#05241D] shadow-[0_22px_52px_rgba(0,0,0,0.24)]"
             >
               <Image
-                src={HOME_CATEGORY_IMAGES[categoryName] ?? detail.image}
+                src={categoryImages[categoryName] ?? getPublicHomeCategoryImage(categoryName)}
                 alt={detail.shortName}
                 fill
                 className={`object-cover ${CATEGORY_IMAGE_CLASSES[categoryName] ?? "object-center"} transition-transform duration-700 group-active:scale-[1.03]`}

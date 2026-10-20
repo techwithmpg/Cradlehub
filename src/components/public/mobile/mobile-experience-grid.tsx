@@ -29,7 +29,24 @@ const CARDS: Card[] = [
   },
 ];
 
-export function MobileExperienceGrid() {
+type MobileExperienceGridProps = {
+  siteImages?: Record<string, string>;
+};
+
+export function MobileExperienceGrid({ siteImages }: MobileExperienceGridProps = {}) {
+  const card0 = CARDS[0]!;
+  const card1 = CARDS[1]!;
+  const effectiveCards: Card[] = [
+    {
+      ...card0,
+      image: siteImages?.home_setting_in_spa || card0.image,
+    },
+    {
+      ...card1,
+      image: siteImages?.home_setting_home_service || card1.image,
+    },
+  ];
+
   return (
     <section className="px-4 pt-8">
       <div className="mb-3.5 text-center">
@@ -45,7 +62,7 @@ export function MobileExperienceGrid() {
       </div>
 
       <div className="grid grid-cols-2 gap-3">
-        {CARDS.map(({ Icon, title, body, href, image }) => (
+        {effectiveCards.map(({ Icon, title, body, href, image }) => (
           <MobileFadeUp key={title}>
             <Link
               href={href}
@@ -58,32 +75,22 @@ export function MobileExperienceGrid() {
                 className="object-cover transition-transform duration-700 group-active:scale-[1.03]"
                 sizes="(max-width: 768px) 50vw, 200px"
               />
-              <div className="absolute inset-0 bg-[linear-gradient(0deg,rgba(2,15,10,0.88)_0%,rgba(3,27,18,0.36)_60%,rgba(2,15,10,0.08)_100%)]" />
-
-              <span className="absolute left-3 top-3 flex h-9 w-9 items-center justify-center rounded-full border border-[#C8A96A]/24 bg-[#061912]/58 backdrop-blur-md">
-                <Icon className="h-4 w-4 text-[#C8A96A]" aria-hidden="true" />
-              </span>
-
-              <div className="absolute inset-x-3 bottom-3 text-[#FCFAF5]">
-                <p className="text-[15px] font-semibold leading-tight">
-                  {title}
-                </p>
-                <p className="mt-1 text-[10px] leading-[1.5] text-[#FCFAF5]/78">
-                  {body}
-                </p>
-                <ArrowRight
-                  className="mt-2 h-3.5 w-3.5 text-[#C8A96A]"
-                  aria-hidden="true"
-                />
+              <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/30 to-transparent" />
+              <div className="relative flex h-full flex-col justify-end p-3.5">
+                <div className="flex h-7 w-7 items-center justify-center rounded-lg bg-white/10 backdrop-blur-sm">
+                  <Icon className="h-4 w-4 text-[#C8A96A]" />
+                </div>
+                <h3 className="mt-2 text-[14px] font-medium text-white">{title}</h3>
+                <p className="mt-0.5 line-clamp-2 text-[11px] leading-4 text-white/70">{body}</p>
+                <span className="mt-2 inline-flex items-center gap-1 text-[11px] font-medium text-[#C8A96A]">
+                  Book now
+                  <ArrowRight className="h-3 w-3" />
+                </span>
               </div>
             </Link>
           </MobileFadeUp>
         ))}
       </div>
-
-      <p className="mt-3 text-center text-[10px] text-[#D8CCB3]/60">
-        Available from participating branches.
-      </p>
     </section>
   );
 }

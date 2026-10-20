@@ -13,10 +13,8 @@ import {
   type UpdatePublicSiteAssetInput,
 } from "@/lib/validations/public-site";
 
-export type PublicSiteSectionRow =
-  Database["public"]["Tables"]["public_site_sections"]["Row"];
-export type PublicSiteAssetRow =
-  Database["public"]["Tables"]["public_site_assets"]["Row"];
+export type PublicSiteSectionRow = Database["public"]["Tables"]["public_site_sections"]["Row"];
+export type PublicSiteAssetRow = Database["public"]["Tables"]["public_site_assets"]["Row"];
 
 type ActionResult<T extends object | undefined = undefined> =
   | (T extends object ? { success: true } & T : { success: true })
@@ -34,8 +32,7 @@ function jsonForDb(value: Record<string, unknown>): Json {
 function isMissingPublicSiteTableError(message: string): boolean {
   const lower = message.toLowerCase();
   return (
-    (lower.includes("public_site_sections") ||
-      lower.includes("public_site_assets")) &&
+    (lower.includes("public_site_sections") || lower.includes("public_site_assets")) &&
     (lower.includes("does not exist") ||
       lower.includes("schema cache") ||
       lower.includes("could not find"))
@@ -139,7 +136,8 @@ export async function getPublicSiteAssets(
 }
 
 export async function updatePublicSiteSection(
-  rawInput: unknown
+  rawInput: unknown,
+  options?: { expectedUpdatedAt: string | null }
 ): Promise<ActionResult<{ section: PublicSiteSectionRow }>> {
   const parsed = publicSiteSectionSchema.safeParse(rawInput);
   if (!parsed.success) {
@@ -154,32 +152,44 @@ export async function updatePublicSiteSection(
 
   const input: PublicSiteSectionInput = parsed.data;
   const supabase = await createClient();
-  const { data, error } = await supabase
-    .from("public_site_sections")
-    .upsert(
-      {
-        section_key: input.sectionKey,
-        title: cleanText(input.title),
-        subtitle: cleanText(input.subtitle),
-        body: cleanText(input.body),
-        cta_label: cleanText(input.ctaLabel),
-        cta_href: cleanText(input.ctaHref),
-        image_url: cleanText(input.imageUrl),
-        secondary_image_url: cleanText(input.secondaryImageUrl),
-        sort_order: input.sortOrder,
-        is_enabled: input.isEnabled,
-        metadata: jsonForDb(input.metadata),
-      },
-      { onConflict: "section_key" }
-    )
-    .select("*")
-    .single();
+  const payload = {
+    section_key: input.sectionKey,
+    title: cleanText(input.title),
+    subtitle: cleanText(input.subtitle),
+    body: cleanText(input.body),
+    cta_label: cleanText(input.ctaLabel),
+    cta_href: cleanText(input.ctaHref),
+    image_url: cleanText(input.imageUrl),
+    secondary_image_url: cleanText(input.secondaryImageUrl),
+    sort_order: input.sortOrder,
+    is_enabled: input.isEnabled,
+    metadata: jsonForDb(input.metadata),
+  };
+  const sections = supabase.from("public_site_sections");
+  const { data, error } =
+    options === undefined
+      ? await sections.upsert(payload, { onConflict: "section_key" }).select("*").single()
+      : options.expectedUpdatedAt === null
+        ? await sections.insert(payload).select("*").maybeSingle()
+        : await sections
+            .update(payload)
+            .eq("section_key", input.sectionKey)
+            .eq("updated_at", options.expectedUpdatedAt)
+            .select("*")
+            .maybeSingle();
 
   if (error || !data) {
+    if (options !== undefined && (!error || error.code === "23505")) {
+      return {
+        success: false,
+        error: "The live section changed before publishing. Review the latest section.",
+      };
+    }
     if (error && isMissingPublicSiteTableError(error.message)) {
       return {
         success: false,
-        error: "Marketing Studio tables are not available yet. Run the latest Supabase migration first.",
+        error:
+          "Marketing Studio tables are not available yet. Run the latest Supabase migration first.",
       };
     }
 
@@ -187,6 +197,11 @@ export async function updatePublicSiteSection(
   }
 
   revalidatePath("/");
+  revalidatePath("/about");
+  revalidatePath("/services");
+  revalidatePath("/branches");
+  revalidatePath("/massage-spa-bacolod");
+  revalidatePath("/home-service-massage-bacolod");
   revalidatePath("/owner/marketing");
 
   return { success: true, section: data };
@@ -227,7 +242,8 @@ export async function createPublicSiteAsset(
     if (error && isMissingPublicSiteTableError(error.message)) {
       return {
         success: false,
-        error: "Marketing Studio tables are not available yet. Run the latest Supabase migration first.",
+        error:
+          "Marketing Studio tables are not available yet. Run the latest Supabase migration first.",
       };
     }
 
@@ -276,7 +292,8 @@ export async function updatePublicSiteAsset(
     if (error && isMissingPublicSiteTableError(error.message)) {
       return {
         success: false,
-        error: "Marketing Studio tables are not available yet. Run the latest Supabase migration first.",
+        error:
+          "Marketing Studio tables are not available yet. Run the latest Supabase migration first.",
       };
     }
 
@@ -289,9 +306,7 @@ export async function updatePublicSiteAsset(
   return { success: true, asset: data };
 }
 
-export async function disablePublicSiteAsset(
-  rawInput: unknown
-): Promise<ActionResult> {
+export async function disablePublicSiteAsset(rawInput: unknown): Promise<ActionResult> {
   const parsed = publicSiteAssetIdSchema.safeParse(rawInput);
   if (!parsed.success) {
     return {
@@ -313,7 +328,8 @@ export async function disablePublicSiteAsset(
     if (isMissingPublicSiteTableError(error.message)) {
       return {
         success: false,
-        error: "Marketing Studio tables are not available yet. Run the latest Supabase migration first.",
+        error:
+          "Marketing Studio tables are not available yet. Run the latest Supabase migration first.",
       };
     }
 

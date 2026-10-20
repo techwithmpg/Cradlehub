@@ -6,6 +6,9 @@ import { SPA_IMAGES } from "@/constants/spa-images";
 import { ServiceCatalogClient } from "@/components/public/service-catalog-client";
 import { PublicMobileServices } from "@/components/public/mobile/public-mobile-services";
 import { getPublicServiceCatalog } from "@/lib/queries/services";
+import { getPublicSiteSections } from "@/lib/queries/public-site";
+import { resolvePublicSiteSections } from "@/lib/public/normalized-sections";
+import { isPublicReadTransportFailure } from "@/lib/public/public-read-error";
 import { buildMetadata } from "@/lib/seo/metadata";
 import { ServiceJsonLd, BreadcrumbJsonLd } from "@/components/seo/structured-data";
 
@@ -17,16 +20,28 @@ export const metadata: Metadata = buildMetadata({
 });
 
 export default async function ServicesPage() {
-  const services = await getPublicServiceCatalog();
+  const [services, managedSections] = await Promise.all([
+    getPublicServiceCatalog(),
+    getPublicSiteSections({ includeDisabled: false }).catch((error) => {
+      if (!isPublicReadTransportFailure(error)) throw error;
+      return [];
+    }),
+  ]);
+
+  const resolved = resolvePublicSiteSections(managedSections);
+  const bannerImage =
+    resolved.siteImages?.services_page_banner ||
+    resolved.quoteBanner.imageUrl ||
+    SPA_IMAGES.ctaBanner;
 
   return (
     <div className="sp-public">
-      <PublicMobileServices services={services} />
+      <PublicMobileServices services={services} bannerImage={bannerImage} />
       <div className="hidden md:block">
         <section className="relative overflow-hidden bg-[#10261D] pt-32 pb-16 text-[#FCFAF5] lg:pt-40 lg:pb-24">
           <div className="absolute inset-0">
             <Image
-              src={SPA_IMAGES.ctaBanner}
+              src={bannerImage}
               alt="Cradle spa treatment details"
               fill
               priority
@@ -49,47 +64,61 @@ export default async function ServicesPage() {
               >
                 Massage, salon, skin care, and spa rituals in one calm menu.
               </h1>
-              <p className="mt-6 max-w-2xl text-[15px] leading-7 text-[#F7F3EB]/76">
-                Browse Cradle&apos;s real service catalog by category. The public booking flow
-                remains branch-aware, so only assigned and available services appear when you book.
+              <p className="mt-6 max-w-2xl text-[15px] leading-7 text-[#EDE4D3]/76">
+                Browse our treatments by category, review service notes, and book
+                directly online. Our team is always ready to guide your selection.
               </p>
-              <div className="mt-9 flex flex-col gap-3 sm:flex-row">
+            </div>
+
+            <div className="rounded-[8px] border border-[#D4B57A]/22 bg-[#061912]/74 p-7 backdrop-blur-md">
+              <p className="text-[11px] font-semibold uppercase tracking-[0.22em] text-[#E8D5A3]">
+                Booking Guidance
+              </p>
+              <h2
+                className="mt-3 text-2xl font-medium text-[#FCFAF5]"
+                style={{ fontFamily: "var(--sp-font-display)" }}
+              >
+                Need help deciding?
+              </h2>
+              <p className="mt-3 text-[13px] leading-6 text-[#EDE4D3]/72">
+                Choose in-spa for full relaxation in our treatment rooms, or home
+                service when comfort at your residence is preferred.
+              </p>
+              <div className="mt-6 flex flex-wrap gap-3">
                 <Link
                   href="/book"
-                  className="inline-flex min-h-12 items-center justify-center gap-2 rounded-[8px] bg-[#C8A96B] px-7 text-[12px] font-semibold uppercase tracking-[0.16em] text-[#10261D] transition hover:bg-[#E8D5A3]"
+                  className="inline-flex min-h-11 items-center justify-center gap-2 rounded-[6px] bg-[#C8A96B] px-5 text-[12px] font-semibold uppercase tracking-[0.16em] text-[#10261D] transition hover:bg-[#D4B57A]"
                 >
-                  Book Appointment
-                  <ArrowRight className="h-4 w-4" aria-hidden="true" />
+                  Book Online
+                  <ArrowRight className="h-4 w-4" />
                 </Link>
                 <Link
                   href="/contact"
-                  className="inline-flex min-h-12 items-center justify-center gap-2 rounded-[8px] border border-[#D4B57A]/32 px-7 text-[12px] font-semibold uppercase tracking-[0.16em] text-[#FCFAF5] transition hover:bg-[#D4B57A]/10"
+                  className="inline-flex min-h-11 items-center justify-center gap-2 rounded-[6px] border border-[#D4B57A]/35 px-4 text-[12px] font-semibold uppercase tracking-[0.16em] text-[#FCFAF5] transition hover:bg-white/5"
                 >
+                  <MessageCircle className="h-4 w-4 text-[#C8A96B]" />
                   Ask Front Desk
-                  <MessageCircle className="h-4 w-4" aria-hidden="true" />
                 </Link>
               </div>
-            </div>
-
-            <div className="rounded-[8px] border border-[#D4B57A]/22 bg-[#0D2B20]/72 p-5 text-[#F6EBD6] shadow-[0_24px_70px_rgba(0,0,0,0.32),inset_0_1px_0_rgba(246,235,214,0.06)] backdrop-blur-xl">
-              <p className="text-[11px] font-semibold uppercase tracking-[0.2em] text-[#D4B57A]">
-                What appears in booking?
-              </p>
-              <p className="mt-3 text-[14px] leading-6 text-[#F6EBD6]/70">
-                The catalog below is for browsing. The booking wizard only shows services that are
-                assigned to your selected branch, active, public, and available for your visit type.
-              </p>
             </div>
           </div>
         </section>
 
-        <ServiceCatalogClient services={services} />
+        <section className="bg-[#FAF7F2] py-16 lg:py-24">
+          <div className="mx-auto max-w-7xl px-6 lg:px-12">
+            <ServiceCatalogClient services={services} />
+          </div>
+        </section>
       </div>
-      <ServiceJsonLd
-        serviceName="Cradle Wellness Living Services"
-        description="Massage, salon, skin care, Divine Renewal packages, and spa party packages in Bacolod."
-        urlPath="/services"
-      />
+
+      {services.slice(0, 10).map((s) => (
+        <ServiceJsonLd
+          key={s.id}
+          serviceName={s.name}
+          description={s.description || s.name}
+          urlPath="/services"
+        />
+      ))}
       <BreadcrumbJsonLd
         items={[
           { name: "Home", path: "/" },

@@ -1,5 +1,14 @@
 import type { NextConfig } from "next";
 
+const configuredSupabaseHost = (() => {
+  try {
+    const url = new URL(process.env.NEXT_PUBLIC_SUPABASE_URL ?? "");
+    return url.protocol === "https:" ? url.hostname : null;
+  } catch {
+    return null;
+  }
+})();
+
 const nextConfig: NextConfig = {
   // Proxy preserves /staff/ (the accepted manifest start URL) while retaining
   // slashless redirects for every other route.
@@ -22,10 +31,9 @@ const nextConfig: NextConfig = {
       static: 300, // seconds — fully-static pages
     },
     serverActions: {
-      // Set to 8mb to support the largest authorized Marketing media contract (HERO_BACKGROUND: 6MB)
-      // with multipart form boundary overhead. Authoritative server-side validateMediaBuffer enforces
-      // exact per-intent maxBytes thresholds (2MB - 6MB) before Storage upload or DB writes.
-      bodySizeLimit: "8mb",
+      // Generic Marketing uploads allow 10 MB source files; multipart framing
+      // needs headroom. The server validates bytes and dimensions before storage.
+      bodySizeLimit: "12mb",
     },
   },
   async headers() {
@@ -103,6 +111,15 @@ const nextConfig: NextConfig = {
         hostname: "lsrbwqhvzjfpiabeolkv.supabase.co",
         pathname: "/storage/**",
       },
+      ...(configuredSupabaseHost && configuredSupabaseHost !== "lsrbwqhvzjfpiabeolkv.supabase.co"
+        ? [
+            {
+              protocol: "https" as const,
+              hostname: configuredSupabaseHost,
+              pathname: "/storage/**",
+            },
+          ]
+        : []),
     ],
     formats: ["image/avif", "image/webp"],
   },

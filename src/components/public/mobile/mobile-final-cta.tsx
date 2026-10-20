@@ -7,9 +7,10 @@ import { MobileFadeUp, MobileScrollFloatHeading } from "./mobile-scroll-effects"
 
 type MobileFinalCtaProps = {
   quoteBanner?: NormalizedQuoteBannerSection;
+  siteImages?: Record<string, string>;
 };
 
-export function MobileFinalCta({ quoteBanner }: MobileFinalCtaProps) {
+export function MobileFinalCta({ quoteBanner, siteImages }: MobileFinalCtaProps) {
   if (quoteBanner) {
     if (!quoteBanner.isEnabled) {
       return null;
@@ -20,7 +21,8 @@ export function MobileFinalCta({ quoteBanner }: MobileFinalCtaProps) {
     const body = quoteBanner.body;
     const ctaLabel = quoteBanner.ctaLabel;
     const ctaHref = quoteBanner.ctaHref || "/book";
-    const image = quoteBanner.imageUrl || SPA_IMAGES.ctaBanner;
+    const image =
+      siteImages?.mobile_final_cta_ambient || quoteBanner.imageUrl || SPA_IMAGES.ctaBanner;
 
     return (
       <section className="px-4 pb-14 pt-12">
@@ -66,7 +68,7 @@ export function MobileFinalCta({ quoteBanner }: MobileFinalCtaProps) {
   const body = "Book your pause today.";
   const ctaLabel = "Book Now";
   const ctaHref = "/book";
-  const image = SPA_IMAGES.heroAmbience;
+  const image = siteImages?.mobile_final_cta_ambient || SPA_IMAGES.heroAmbience;
 
   return (
     <section className="px-4 pb-14 pt-12">

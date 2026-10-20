@@ -66,24 +66,27 @@ export function PublicMobileHomeRenderer({
   return (
     <div className="bg-[#061912] pb-0 text-[#F3E9D2]">
       {/* ── Hero Carousel (consuming canonical Hero data) ───────────────────── */}
-      <MobileHomeHeroCarousel hero={sections.hero} />
+      <MobileHomeHeroCarousel hero={sections.hero} siteImages={sections.siteImages} />
 
       {/* ── Calm mobile journey ───────────────────────────────────────────── */}
       <div className="-mt-5 rounded-t-[30px] bg-[#061912] pt-2 shadow-[0_-18px_44px_rgba(0,0,0,0.24)]">
         {/* ── Choose Your Calm / Service Categories ───────────────────────── */}
-        <MobileCalmCategories services={services} />
+        <MobileCalmCategories
+          services={services}
+          categoryImages={sections.signatureServices.categoryImages}
+        />
 
         {/* ── Most-Loved Treatments ───────────────────────────────────────── */}
         <MobileMostLovedTreatments services={featured} />
 
         {/* ── Signature Rituals ───────────────────────────────────────────── */}
-        <MobileSignatureRituals services={services} />
+        <MobileSignatureRituals services={services} siteImages={sections.siteImages} />
 
         {/* ── Guest Impressions ───────────────────────────────────────────── */}
         <MobileGuestImpressions testimonials={TESTIMONIALS} />
 
         {/* ── Branches ────────────────────────────────────────────────────── */}
-        <MobileBranchesSection branches={branches} />
+        <MobileBranchesSection branches={branches} siteImages={sections.siteImages} />
 
         {/* ── FAQ ──────────────────────────────────────────────────────────── */}
         <section className="px-4 pt-12">
@@ -128,7 +131,7 @@ export function PublicMobileHomeRenderer({
         </section>
 
         {/* ── Final CTA (consuming canonical quote banner / final CTA data) ─── */}
-        <MobileFinalCta quoteBanner={sections.quoteBanner} />
+        <MobileFinalCta quoteBanner={sections.quoteBanner} siteImages={sections.siteImages} />
       </div>
     </div>
   );

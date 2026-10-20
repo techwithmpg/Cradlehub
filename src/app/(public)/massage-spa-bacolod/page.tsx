@@ -3,6 +3,9 @@ import Link from "next/link";
 import Image from "next/image";
 import { ArrowRight, MapPin, Phone, Sparkles } from "lucide-react";
 import { SPA_IMAGES } from "@/constants/spa-images";
+import { getPublicSiteSections } from "@/lib/queries/public-site";
+import { resolvePublicSiteSections } from "@/lib/public/normalized-sections";
+import { isPublicReadTransportFailure } from "@/lib/public/public-read-error";
 import { buildMetadata } from "@/lib/seo/metadata";
 import { ServiceJsonLd, BreadcrumbJsonLd, FAQPageJsonLd } from "@/components/seo/structured-data";
 
@@ -36,7 +39,19 @@ const faqs = [
   },
 ];
 
-export default function MassageSpaBacolodPage() {
+export default async function MassageSpaBacolodPage() {
+  let managedSections: Awaited<ReturnType<typeof getPublicSiteSections>> = [];
+  try {
+    managedSections = await getPublicSiteSections({ includeDisabled: false });
+  } catch (error) {
+    if (!isPublicReadTransportFailure(error)) throw error;
+    managedSections = [];
+  }
+
+  const resolved = resolvePublicSiteSections(managedSections);
+  const heroBanner = resolved.siteImages?.landing_spa_banner || SPA_IMAGES.ctaBanner;
+  const storyImage = resolved.siteImages?.landing_spa_story || SPA_IMAGES.about;
+
   return (
     <>
       <div className="sp-public">
@@ -44,7 +59,7 @@ export default function MassageSpaBacolodPage() {
         <section className="relative overflow-hidden bg-[#10261D] pt-28 pb-16 text-[#FCFAF5] lg:pt-40 lg:pb-24">
           <div className="absolute inset-0">
             <Image
-              src={SPA_IMAGES.ctaBanner}
+              src={heroBanner}
               alt="Massage spa experience in Bacolod at Cradle Wellness Living"
               fill
               priority
@@ -157,7 +172,7 @@ export default function MassageSpaBacolodPage() {
             <div className="grid gap-12 lg:grid-cols-2 items-center">
               <div className="relative aspect-[4/3] overflow-hidden rounded-2xl shadow-xl">
                 <Image
-                  src={SPA_IMAGES.about}
+                  src={storyImage}
                   alt="Cradle spa branch interior in Bacolod"
                   fill
                   className="object-cover"

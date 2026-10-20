@@ -11,11 +11,12 @@ import {
   MARKETING_CONTENT_TYPES,
   marketingContentDraftIdSchema,
   marketingContentDraftInputSchema,
+  parseMarketingDraftWithPublishedImages,
   marketingDraftReviewSchema,
   marketingDraftScheduleSchema,
   type MarketingContentDraftInput,
 } from "@/lib/validations/marketing";
-import { updatePublicSiteSection } from "@/lib/queries/public-site";
+import { getPublicSiteSection, updatePublicSiteSection } from "@/lib/queries/public-site";
 import { validateTrustedSiteIconPackage } from "@/lib/marketing/icon-package-validator";
 
 export type MarketingContentType = (typeof MARKETING_CONTENT_TYPES)[number];
@@ -130,6 +131,12 @@ function table<T>(client: unknown, tableName: string): UntypedTable<T> {
 function cleanText(value?: string | null): string | null {
   const trimmed = value?.trim() ?? "";
   return trimmed.length > 0 ? trimmed : null;
+}
+
+function metadataRecord(value: unknown): Record<string, unknown> {
+  return value && typeof value === "object" && !Array.isArray(value)
+    ? (value as Record<string, unknown>)
+    : {};
 }
 
 function cleanOptionalDate(value?: string | null): string | null {
@@ -255,15 +262,17 @@ async function insertMarketingRevision(
   }
 
   const revisionNo = (latest.data?.[0]?.revision_no ?? 0) + 1;
-  const inserted = await revisions.insert({
-    draft_id: draft.id,
-    revision_no: revisionNo,
-    action,
-    snapshot: draftSnapshot(draft),
-    note: cleanText(note),
-    created_by: staffId,
-  });
-  const { error } = await inserted.select(REVISION_SELECT).single();
+  const { error } = await revisions
+    .insert({
+      draft_id: draft.id,
+      revision_no: revisionNo,
+      action,
+      snapshot: draftSnapshot(draft),
+      note: cleanText(note),
+      created_by: staffId,
+    })
+    .select(REVISION_SELECT)
+    .single();
 
   if (error) {
     logError("marketing.revision_insert_failed", { draftId: draft.id, action, error });
@@ -331,7 +340,23 @@ export async function getMarketingContentRevisions(
 export async function saveMarketingContentDraft(
   rawInput: unknown
 ): Promise<ActionResult<{ draft: MarketingContentDraftRow; message: string }>> {
-  const parsed = marketingContentDraftInputSchema.safeParse(rawInput);
+  let parsed = marketingContentDraftInputSchema.safeParse(rawInput);
+  let accessContext: Awaited<ReturnType<typeof getMarketingAccessContext>> = null;
+  if (
+    !parsed.success &&
+    rawInput &&
+    typeof rawInput === "object" &&
+    (rawInput as Record<string, unknown>).contentType === "section" &&
+    ["hero", "about", "quote_banner", "signature_services"].includes(
+      String((rawInput as Record<string, unknown>).contentKey)
+    )
+  ) {
+    accessContext = await getMarketingAccessContext();
+    if (!accessContext) return { success: false, error: "Unauthorized" };
+    const sectionKey = (rawInput as Record<string, unknown>).contentKey as string;
+    const currentPublished = await getPublicSiteSection(sectionKey);
+    parsed = parseMarketingDraftWithPublishedImages(rawInput, currentPublished);
+  }
   if (!parsed.success) {
     return {
       success: false,
@@ -339,7 +364,7 @@ export async function saveMarketingContentDraft(
     };
   }
 
-  const context = await getMarketingAccessContext();
+  const context = accessContext ?? (await getMarketingAccessContext());
   if (!context) return { success: false, error: "Unauthorized" };
 
   const input = parsed.data;
@@ -351,8 +376,45 @@ export async function saveMarketingContentDraft(
     return { success: false, error: existing.error.message };
   }
 
+  if (existing.data?.status === "published" || existing.data?.status === "archived") {
+    return { success: false, error: "This draft is closed. Start a new draft." };
+  }
+
   if (context.role !== "owner" && existing.data && !isMutableDraftStatus(existing.data.status)) {
     return { success: false, error: "This draft is locked for owner review." };
+  }
+
+  const inputMetadata = metadataRecord(input.metadata);
+  const existingMetadata = metadataRecord(existing.data?.metadata);
+  const hasImageBaseline = Object.prototype.hasOwnProperty.call(
+    inputMetadata,
+    "websiteImagesBaseUpdatedAt"
+  );
+  const existingHasImageBaseline = Object.prototype.hasOwnProperty.call(
+    existingMetadata,
+    "websiteImagesBaseUpdatedAt"
+  );
+  if (existing.data && existingHasImageBaseline !== hasImageBaseline) {
+    return {
+      success: false,
+      error: "This section draft has a different editing workflow. Finish or archive it first.",
+    };
+  }
+  if (hasImageBaseline) {
+    if (
+      existing.data &&
+      existingMetadata.websiteImagesBaseUpdatedAt !== inputMetadata.websiteImagesBaseUpdatedAt
+    ) {
+      return { success: false, error: "The Website Images draft baseline cannot be changed." };
+    }
+    const currentPublished = await getPublicSiteSection(input.contentKey);
+    if ((currentPublished?.updated_at ?? null) !== inputMetadata.websiteImagesBaseUpdatedAt) {
+      return {
+        success: false,
+        error:
+          "The live section changed since this image draft started. Review the latest section before saving.",
+      };
+    }
   }
 
   const payload = {
@@ -714,12 +776,14 @@ export async function publishMarketingContentDraft(
       (typeof meta.shortDescription === "string" && meta.shortDescription) ||
       existing.data.subtitle ||
       null;
-    const badges = Array.isArray(meta.badges) && meta.badges.every((item) => typeof item === "string")
-      ? (meta.badges as string[])
-      : undefined;
-    const inclusions = Array.isArray(meta.inclusions) && meta.inclusions.every((item) => typeof item === "string")
-      ? (meta.inclusions as string[])
-      : undefined;
+    const badges =
+      Array.isArray(meta.badges) && meta.badges.every((item) => typeof item === "string")
+        ? (meta.badges as string[])
+        : undefined;
+    const inclusions =
+      Array.isArray(meta.inclusions) && meta.inclusions.every((item) => typeof item === "string")
+        ? (meta.inclusions as string[])
+        : undefined;
     const imageAlt =
       existing.data.alt_text || (typeof meta.imageAlt === "string" ? meta.imageAlt : null);
 
@@ -833,7 +897,78 @@ export async function publishMarketingContentDraft(
     }
   } else if (existing.data.content_type === "section") {
     // Standard Homepage section draft
-    const published = await updatePublicSiteSection({
+    let metadata = existing.data.metadata;
+    let currentPublishedSection: Awaited<ReturnType<typeof getPublicSiteSection>> = null;
+    if (
+      ["site_images", "signature_services", "hero", "about", "quote_banner"].includes(
+        existing.data.content_key
+      )
+    ) {
+      currentPublishedSection =
+        existing.data.content_key === "site_images"
+          ? null
+          : await getPublicSiteSection(existing.data.content_key);
+      const validMetadata = parseMarketingDraftWithPublishedImages(
+        {
+          contentType: "section",
+          contentKey: existing.data.content_key,
+          imageUrl: existing.data.image_url,
+          secondaryImageUrl: existing.data.secondary_image_url,
+          metadata: existing.data.metadata,
+        },
+        currentPublishedSection
+      );
+      if (!validMetadata.success) {
+        return {
+          success: false,
+          error: validMetadata.error.issues[0]?.message ?? "Invalid website image metadata.",
+        };
+      }
+      const draftMetadata = metadataRecord(existing.data.metadata);
+      if (Object.prototype.hasOwnProperty.call(draftMetadata, "websiteImagesBaseUpdatedAt")) {
+        if (
+          (currentPublishedSection?.updated_at ?? null) !== draftMetadata.websiteImagesBaseUpdatedAt
+        ) {
+          return {
+            success: false,
+            error:
+              "The live section changed since this image draft started. Review the latest section before publishing.",
+          };
+        }
+      }
+    }
+    if (existing.data.content_key === "site_images") {
+      const published = await getPublicSiteSection("site_images");
+      const publishedMetadata = metadataRecord(published?.metadata);
+      const draftMetadata = metadataRecord(existing.data.metadata);
+      metadata = {
+        ...publishedMetadata,
+        ...draftMetadata,
+        slots: {
+          ...metadataRecord(publishedMetadata.slots),
+          ...metadataRecord(draftMetadata.slots),
+        },
+      };
+    } else if (existing.data.content_key === "signature_services") {
+      const publishedMetadata = metadataRecord(currentPublishedSection?.metadata);
+      const draftMetadata = metadataRecord(existing.data.metadata);
+      metadata = {
+        ...publishedMetadata,
+        ...draftMetadata,
+        categoryImages: {
+          ...metadataRecord(publishedMetadata.categoryImages),
+          ...metadataRecord(draftMetadata.categoryImages),
+        },
+      };
+    }
+    const publicMetadata = { ...metadataRecord(metadata) };
+    delete publicMetadata.websiteImagesBaseUpdatedAt;
+    const imageDraftMetadata = metadataRecord(existing.data.metadata);
+    const hasImageBaseline = Object.prototype.hasOwnProperty.call(
+      imageDraftMetadata,
+      "websiteImagesBaseUpdatedAt"
+    );
+    const publicationInput = {
       sectionKey: existing.data.content_key,
       title: existing.data.title ?? "",
       subtitle: existing.data.subtitle ?? "",
@@ -844,8 +979,13 @@ export async function publishMarketingContentDraft(
       secondaryImageUrl: existing.data.secondary_image_url ?? "",
       sortOrder: existing.data.sort_order,
       isEnabled: existing.data.is_enabled,
-      metadata: existing.data.metadata,
-    });
+      metadata: publicMetadata,
+    };
+    const published = hasImageBaseline
+      ? await updatePublicSiteSection(publicationInput, {
+          expectedUpdatedAt: imageDraftMetadata.websiteImagesBaseUpdatedAt as string | null,
+        })
+      : await updatePublicSiteSection(publicationInput);
 
     if (!published.success) return { success: false, error: published.error };
     sourceSectionId = published.section.id;

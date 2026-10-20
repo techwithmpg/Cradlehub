@@ -6,6 +6,9 @@ import { PublicMobileAbout } from "@/components/public/mobile/public-mobile-abou
 import { Heart, Award, Sparkles, Leaf } from "lucide-react";
 import { buildMetadata } from "@/lib/seo/metadata";
 import { BreadcrumbJsonLd } from "@/components/seo/structured-data";
+import { getPublicSiteSections } from "@/lib/queries/public-site";
+import { resolvePublicSiteSections } from "@/lib/public/normalized-sections";
+import { isPublicReadTransportFailure } from "@/lib/public/public-read-error";
 
 const values = [
   {
@@ -42,10 +45,27 @@ export const metadata: Metadata = buildMetadata({
   path: "/about",
 });
 
-export default function AboutPage() {
+export default async function AboutPage() {
+  let managedSections: Awaited<ReturnType<typeof getPublicSiteSections>> = [];
+
+  try {
+    managedSections = await getPublicSiteSections({ includeDisabled: false });
+  } catch (error) {
+    if (!isPublicReadTransportFailure(error)) throw error;
+    managedSections = [];
+  }
+
+  const resolved = resolvePublicSiteSections(managedSections);
+  const storyImage =
+    resolved.siteImages?.about_page_story || resolved.about.imageUrl || SPA_IMAGES.about;
+  const experienceImage =
+    resolved.siteImages?.about_page_experience ||
+    resolved.about.secondaryImageUrl ||
+    SPA_IMAGES.aboutSecondary;
+
   return (
     <div className="sp-public">
-      <PublicMobileAbout />
+      <PublicMobileAbout headerImage={experienceImage} />
       <div className="hidden md:block">
         {/* Dark hero — matches mobile header */}
         <div
@@ -80,7 +100,7 @@ export default function AboutPage() {
               <ScrollReveal variant="scale">
                 <div className="relative aspect-[4/3] rounded-2xl overflow-hidden shadow-xl">
                   <Image
-                    src={SPA_IMAGES.about}
+                    src={storyImage}
                     alt="Cradle Spa interior"
                     fill
                     className="object-cover"
@@ -194,7 +214,7 @@ export default function AboutPage() {
               <ScrollReveal variant="scale" className="order-1 lg:order-2">
                 <div className="relative aspect-[4/3] rounded-2xl overflow-hidden shadow-xl">
                   <Image
-                    src={SPA_IMAGES.aboutSecondary}
+                    src={experienceImage}
                     alt="Spa relaxation lounge"
                     fill
                     className="object-cover"

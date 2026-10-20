@@ -57,6 +57,19 @@ export const PUBLIC_CATALOG_CATEGORY_DETAILS: Record<
   },
 };
 
+/** Default homepage category covers, before any owner-published Marketing Studio overrides. */
+export const PUBLIC_HOME_CATEGORY_IMAGE_OVERRIDES: Partial<
+  Record<PublicCatalogCategoryName, string>
+> = {
+  "Divine Renewal Packages": "/images/spa/home/packages.jpg",
+  "Spa Party Packages": "/images/spa/home/spa-party.jpg",
+};
+
+export function getPublicHomeCategoryImage(categoryName: PublicCatalogCategoryName): string {
+  return PUBLIC_HOME_CATEGORY_IMAGE_OVERRIDES[categoryName] ??
+    PUBLIC_CATALOG_CATEGORY_DETAILS[categoryName].image;
+}
+
 export const PUBLIC_CATALOG_SUBCATEGORY_ORDER = [
   "1-hour / standard",
   "1.5-hour / specialty",

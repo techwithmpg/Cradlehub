@@ -63,8 +63,8 @@ describe("C5.1 Public Consumer Parity & Component Grounding", () => {
           body: null,
           cta_label: "Reserve Now",
           cta_href: "/book?service=custom",
-          image_url: "https://example.com/custom-hero.jpg",
-          secondary_image_url: "https://example.com/custom-portrait.jpg",
+          image_url: "/images/custom-hero.jpg",
+          secondary_image_url: "/images/custom-portrait.jpg",
           sort_order: 0,
           is_enabled: true,
           metadata: {
@@ -82,7 +82,7 @@ describe("C5.1 Public Consumer Parity & Component Grounding", () => {
           body: "Enjoy 20% off all renewal packages this month.",
           cta_label: "Book Special",
           cta_href: "/book?promo=summer",
-          image_url: "https://example.com/summer-banner.jpg",
+          image_url: "/images/summer-banner.jpg",
           secondary_image_url: null,
           sort_order: 50,
           is_enabled: true,
@@ -98,8 +98,8 @@ describe("C5.1 Public Consumer Parity & Component Grounding", () => {
       expect(normalized.hero.subtitle).toBe("Experience tranquil body renewal tailored for you.");
       expect(normalized.hero.ctaLabel).toBe("Reserve Now");
       expect(normalized.hero.ctaHref).toBe("/book?service=custom");
-      expect(normalized.hero.imageUrl).toBe("https://example.com/custom-hero.jpg");
-      expect(normalized.hero.secondaryImageUrl).toBe("https://example.com/custom-portrait.jpg");
+      expect(normalized.hero.imageUrl).toBe("/images/custom-hero.jpg");
+      expect(normalized.hero.secondaryImageUrl).toBe("/images/custom-portrait.jpg");
       expect(normalized.hero.secondaryCtaLabel).toBe("Explore Menu");
       expect(normalized.hero.secondaryCtaHref).toBe("/services");
 
@@ -191,7 +191,7 @@ describe("C5.1 Public Consumer Parity & Component Grounding", () => {
           body: null,
           cta_label: "Reserve Now",
           cta_href: "/book?promo=c5",
-          image_url: "https://example.com/custom-hero.jpg",
+          image_url: "/images/custom-hero.jpg",
           secondary_image_url: null,
           sort_order: 0,
           is_enabled: true,
@@ -250,6 +250,29 @@ describe("C5.1 Public Consumer Parity & Component Grounding", () => {
   });
 
   describe("MobileFinalCta presentation grounding & fallback parity", () => {
+    it("uses the published mobile CTA image override ahead of the quote banner image", () => {
+      const sections = resolvePublicSiteSections([
+        {
+          id: "sec-quote",
+          section_key: "quote_banner",
+          image_url: "/images/spa/quote.jpg",
+          is_enabled: true,
+          metadata: {},
+        } as PublicSiteSectionRow,
+        {
+          id: "sec-images",
+          section_key: "site_images",
+          is_enabled: true,
+          metadata: { slots: { mobile_final_cta_ambient: "/images/spa/mobile-cta.jpg" } },
+        } as unknown as PublicSiteSectionRow,
+      ]);
+
+      const { container } = render(
+        <MobileFinalCta quoteBanner={sections.quoteBanner} siteImages={sections.siteImages} />
+      );
+      expect(container.querySelector("img")?.getAttribute("src")).toContain("mobile-cta.jpg");
+    });
+
     it("renders custom quote banner copy and link when quoteBanner is supplied with CTA", () => {
       const normalized = resolvePublicSiteSections([
         {

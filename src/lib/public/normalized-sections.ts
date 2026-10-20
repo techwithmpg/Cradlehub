@@ -1,4 +1,12 @@
 import { SPA_IMAGES } from "@/constants/spa-images";
+import {
+  MANAGED_SITE_IMAGE_SLOT_KEYS,
+  isRenderableManagedSiteImageUrl,
+} from "@/lib/marketing/website-images-inventory";
+import {
+  PUBLIC_CATALOG_CATEGORY_NAMES,
+  type PublicCatalogCategoryName,
+} from "@/lib/public/service-catalog-config";
 import { businessInfo, planningNotes } from "@/lib/public/public-site-data";
 import type { Database } from "@/types/supabase";
 
@@ -10,6 +18,11 @@ export interface NormalizedHeroSection {
   ctaLabel: string;
   ctaHref: string;
   imageUrl: string;
+  mobileImageUrl: string;
+  imageAltText: string;
+  mobileImageAltText: string;
+  imagePosition: string;
+  mobileImagePosition: string;
   secondaryImageUrl: string;
   secondaryCtaLabel: string;
   secondaryCtaHref: string;
@@ -50,6 +63,7 @@ export interface NormalizedSignatureServicesSection {
   subtitle: string;
   body: string;
   isVisible: boolean;
+  categoryImages: Partial<Record<PublicCatalogCategoryName, string>>;
 }
 
 export interface NormalizedGallerySection {
@@ -63,12 +77,11 @@ export interface NormalizedPublicSiteSections {
   beforeYouBook: NormalizedBeforeYouBookSection;
   signatureServices: NormalizedSignatureServicesSection;
   gallery: NormalizedGallerySection;
+  siteImages: Record<string, string>;
   rawSections: PublicSiteSectionRow[];
 }
 
-function metadataObject(
-  value: PublicSiteSectionRow["metadata"] | undefined
-): Record<string, unknown> {
+function metadataObject(value: unknown): Record<string, unknown> {
   if (value && typeof value === "object" && !Array.isArray(value)) {
     return value as Record<string, unknown>;
   }
@@ -96,6 +109,14 @@ function metadataText(metadata: Record<string, unknown>, key: string, fallback: 
   return typeof value === "string" && value.trim() ? value.trim() : fallback;
 }
 
+function imagePosition(metadata: Record<string, unknown>, prefix: string): string {
+  const x = metadata[`${prefix}FocalX`];
+  const y = metadata[`${prefix}FocalY`];
+  const coordinate = (value: unknown) =>
+    typeof value === "number" && Number.isFinite(value) && value >= 0 && value <= 100 ? value : 50;
+  return `${coordinate(x)}% ${coordinate(y)}%`;
+}
+
 function metadataItems(
   metadata: Record<string, unknown>,
   fallback: readonly string[]
@@ -108,6 +129,25 @@ function metadataItems(
     if (items.length > 0) return items;
   }
   return fallback;
+}
+
+function normalizedCategoryImages(
+  metadata: Record<string, unknown>
+): Partial<Record<PublicCatalogCategoryName, string>> {
+  const raw = metadata.categoryImages;
+  if (!raw || typeof raw !== "object" || Array.isArray(raw)) return {};
+  const candidates = raw as Record<string, unknown>;
+  const images: Partial<Record<PublicCatalogCategoryName, string>> = {};
+
+  for (const category of PUBLIC_CATALOG_CATEGORY_NAMES) {
+    const candidate = candidates[category];
+    if (isRenderableManagedSiteImageUrl(candidate)) images[category] = candidate.trim();
+  }
+  return images;
+}
+
+function sectionImageUrl(value: unknown, fallback: string): string {
+  return isRenderableManagedSiteImageUrl(value) ? value.trim() : fallback;
 }
 
 /**
@@ -138,8 +178,15 @@ export function resolvePublicSiteSections(
     ),
     ctaLabel: sectionText(heroRow, "cta_label", "Book Appointment"),
     ctaHref: sectionText(heroRow, "cta_href", "/book"),
-    imageUrl: sectionText(heroRow, "image_url", SPA_IMAGES.hero),
-    secondaryImageUrl: sectionText(heroRow, "secondary_image_url", SPA_IMAGES.heroPortrait),
+    imageUrl: sectionImageUrl(heroRow?.image_url, SPA_IMAGES.hero),
+    mobileImageUrl: isRenderableManagedSiteImageUrl(heroMeta.mobileImageUrl)
+      ? heroMeta.mobileImageUrl.trim()
+      : "",
+    imageAltText: metadataText(heroMeta, "imageAltText", "Cradle wellness spa treatment room"),
+    mobileImageAltText: metadataText(heroMeta, "mobileImageAltText", ""),
+    imagePosition: imagePosition(heroMeta, "desktop"),
+    mobileImagePosition: imagePosition(heroMeta, "mobile"),
+    secondaryImageUrl: sectionImageUrl(heroRow?.secondary_image_url, SPA_IMAGES.heroPortrait),
     secondaryCtaLabel: metadataText(heroMeta, "secondaryCtaLabel", "Plan Your Visit"),
     secondaryCtaHref: metadataText(heroMeta, "secondaryCtaHref", "#plan-your-visit"),
     brandEyebrow: `${businessInfo.brandName} · ${businessInfo.location}`,
@@ -163,8 +210,8 @@ export function resolvePublicSiteSections(
     subtitle: sectionText(aboutRow, "subtitle", "Spa Philosophy"),
     body: aboutBody,
     paragraphs: aboutParagraphs,
-    imageUrl: sectionText(aboutRow, "image_url", SPA_IMAGES.about),
-    secondaryImageUrl: sectionText(aboutRow, "secondary_image_url", SPA_IMAGES.aboutSecondary),
+    imageUrl: sectionImageUrl(aboutRow?.image_url, SPA_IMAGES.about),
+    secondaryImageUrl: sectionImageUrl(aboutRow?.secondary_image_url, SPA_IMAGES.aboutSecondary),
     isEnabled: isSectionEnabled("about", true),
   };
 
@@ -176,7 +223,7 @@ export function resolvePublicSiteSections(
     body: sectionText(quoteRow, "body", ""),
     ctaLabel: sectionText(quoteRow, "cta_label", ""),
     ctaHref: sectionText(quoteRow, "cta_href", "/book"),
-    imageUrl: sectionText(quoteRow, "image_url", SPA_IMAGES.ctaBanner),
+    imageUrl: sectionImageUrl(quoteRow?.image_url, SPA_IMAGES.ctaBanner),
     isEnabled: isSectionEnabled("quote_banner", true),
   };
 
@@ -197,6 +244,7 @@ export function resolvePublicSiteSections(
 
   // 5. Signature Services (Consumer-recognized)
   const servicesRow = getSection("signature_services");
+  const servicesMeta = metadataObject(servicesRow?.metadata);
   const signatureServices: NormalizedSignatureServicesSection = {
     title: sectionText(servicesRow, "title", "Explore Cradle's full menu by care category."),
     subtitle: sectionText(servicesRow, "subtitle", "Signature Services"),
@@ -206,12 +254,24 @@ export function resolvePublicSiteSections(
       "Massage, salon, skin care, packages, and group spa experiences are organized for easy browsing. Booking availability still depends on branch and visit type."
     ),
     isVisible: isSectionEnabled("signature_services", true),
+    categoryImages: normalizedCategoryImages(servicesMeta),
   };
 
   // 6. Gallery (Consumer-recognized visibility gate)
   const gallery: NormalizedGallerySection = {
     isVisible: isSectionEnabled("gallery", true),
   };
+
+  // 7. Managed Site Image Slots
+  const siteImagesRow = getSection("site_images");
+  const siteImagesMeta = metadataObject(siteImagesRow?.metadata);
+  const rawSlots = metadataObject(siteImagesMeta.slots);
+  const siteImages: Record<string, string> = {};
+  for (const [key, val] of Object.entries(rawSlots)) {
+    if (MANAGED_SITE_IMAGE_SLOT_KEYS.has(key) && isRenderableManagedSiteImageUrl(val)) {
+      siteImages[key] = val.trim();
+    }
+  }
 
   return {
     hero,
@@ -220,6 +280,7 @@ export function resolvePublicSiteSections(
     beforeYouBook,
     signatureServices,
     gallery,
+    siteImages,
     rawSections: rows,
   };
 }

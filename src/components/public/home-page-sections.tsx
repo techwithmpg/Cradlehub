@@ -24,6 +24,7 @@ import type { PublicCatalogService } from "@/lib/queries/services";
 import {
   PUBLIC_CATALOG_CATEGORY_DETAILS,
   PUBLIC_CATALOG_CATEGORY_NAMES,
+  getPublicHomeCategoryImage,
   type PublicCatalogCategoryName,
 } from "@/lib/public/service-catalog-config";
 import {
@@ -48,32 +49,28 @@ type CoverImageProps = {
   priority?: boolean;
   sizes: string;
   className?: string;
+  objectPosition?: string;
 };
 
 const proofIcons = [ShieldCheck, Home, MapPin, MessageCircle] as const;
 const journeyIcons = [Home, Sparkles, CalendarDays, HeartHandshake] as const;
 const whyIcons = [Leaf, CalendarDays, Home, MapPin] as const;
 
-const HOME_CATEGORY_IMAGES: Partial<Record<PublicCatalogCategoryName, string>> = {
-  "Divine Renewal Packages": "/images/spa/home/packages.jpg",
-  "Spa Party Packages": "/images/spa/home/spa-party.jpg",
-};
-
 const HOME_CATEGORY_IMAGE_CLASSES: Partial<Record<PublicCatalogCategoryName, string>> = {
   "Spa Party Packages": "object-[center_45%]",
 };
 
-function CoverImage({ src, alt, priority, sizes, className = "" }: CoverImageProps) {
+function CoverImage({ src, alt, priority, sizes, className = "", objectPosition }: CoverImageProps) {
   const imageClass = `object-cover ${className}`.trim();
 
   if (src.startsWith("/") && !src.startsWith("//")) {
     return (
-      <Image src={src} alt={alt} fill priority={priority} className={imageClass} sizes={sizes} />
+      <Image src={src} alt={alt} fill priority={priority} className={imageClass} sizes={sizes} style={{ objectPosition }} />
     );
   }
 
   // eslint-disable-next-line @next/next/no-img-element
-  return <img src={src} alt={alt} className={`absolute inset-0 h-full w-full ${imageClass}`} />;
+  return <img src={src} alt={alt} className={`absolute inset-0 h-full w-full ${imageClass}`} style={{ objectPosition }} />;
 }
 
 function slugify(value: string) {
@@ -120,7 +117,7 @@ export function HomePageSectionsRenderer({
       name: categoryName,
       details: {
         ...details,
-        image: HOME_CATEGORY_IMAGES[categoryName] ?? details.image,
+        image: signatureServices.categoryImages[categoryName] ?? getPublicHomeCategoryImage(categoryName),
       },
       imageClassName: HOME_CATEGORY_IMAGE_CLASSES[categoryName] ?? "",
       count: categoryServices.length,
@@ -136,9 +133,10 @@ export function HomePageSectionsRenderer({
           <div className="absolute inset-0">
             <CoverImage
               src={hero.imageUrl}
-              alt="Cradle Massage and Wellness Spa treatment room"
+              alt={hero.imageAltText}
               priority
               className="object-cover opacity-70"
+              objectPosition={hero.imagePosition}
               sizes="(max-width: 767px) 0px, 100vw"
             />
             <div className="absolute inset-0 bg-[#10261D]/55" />
@@ -363,18 +361,26 @@ export function HomePageSectionsRenderer({
           </div>
 
           <div className="grid gap-6 lg:grid-cols-2">
-            {settingCards.map((card, index) => (
-              <ScrollReveal key={card.id} delay={index * 120} variant="scale">
-                <article className="grid h-full overflow-hidden rounded-[8px] bg-white shadow-[0_10px_34px_rgba(22,58,43,0.08)] md:grid-cols-[0.92fr_1.08fr]">
-                  <div className="relative min-h-72">
-                    <Image
-                      src={card.image}
-                      alt={card.imageAlt}
-                      fill
-                      className="object-cover"
-                      sizes="(max-width: 1024px) 100vw, 36vw"
-                    />
-                  </div>
+            {settingCards.map((card, index) => {
+              const cardImage =
+                (card.id === "in_spa"
+                  ? sections.siteImages?.home_setting_in_spa
+                  : card.id === "home_service"
+                    ? sections.siteImages?.home_setting_home_service
+                    : undefined) || card.image;
+
+              return (
+                <ScrollReveal key={card.id} delay={index * 120} variant="scale">
+                  <article className="grid h-full overflow-hidden rounded-[8px] bg-white shadow-[0_10px_34px_rgba(22,58,43,0.08)] md:grid-cols-[0.92fr_1.08fr]">
+                    <div className="relative min-h-72">
+                      <Image
+                        src={cardImage}
+                        alt={card.imageAlt}
+                        fill
+                        className="object-cover"
+                        sizes="(max-width: 1024px) 100vw, 36vw"
+                      />
+                    </div>
                   <div className="flex flex-col p-7">
                     <p className="text-[11px] font-semibold uppercase tracking-[0.22em] text-[#B68A3C]">
                       {card.eyebrow}
@@ -404,7 +410,8 @@ export function HomePageSectionsRenderer({
                   </div>
                 </article>
               </ScrollReveal>
-            ))}
+              );
+            })}
           </div>
         </div>
       </section>
