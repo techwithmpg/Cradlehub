@@ -904,12 +904,9 @@ export function QuickBookingForm({
     if (nextMode === "walkin") {
       setDate(todayYmd());
       setTime(nextQuarterTime());
-      setPaymentReceived(true);
-      setPaymentMethod((current) => current || "cash");
-    } else {
-      setPaymentReceived(false);
-      setPaymentMethod("");
     }
+    setPaymentReceived(false);
+    setPaymentMethod("");
     if (nextMode === "home_service") {
       setResourceId("");
     }
@@ -2081,8 +2078,7 @@ export function QuickBookingForm({
                     checked={paymentReceived}
                     onChange={(event) => {
                       setPaymentReceived(event.target.checked);
-                      if (!event.target.checked) setPaymentMethod("");
-                      if (event.target.checked) setPaymentMethod((current) => current || "cash");
+                      setPaymentMethod("");
                     }}
                     disabled={isSaving}
                     className="size-4 accent-[var(--cs-sand-dark)]"
