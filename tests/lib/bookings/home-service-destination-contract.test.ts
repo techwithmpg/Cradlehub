@@ -18,6 +18,16 @@ const preciseLocation = {
   homeServiceLng: 122.95,
 };
 
+function futureDate(): string {
+  const date = new Date();
+  date.setDate(date.getDate() + 7);
+  return [
+    date.getFullYear(),
+    String(date.getMonth() + 1).padStart(2, "0"),
+    String(date.getDate()).padStart(2, "0"),
+  ].join("-");
+}
+
 describe("Home Service destination contract", () => {
   it("requires a selected place for CRM and online Home Service, including deliveryType-only requests", () => {
     const crm = {
@@ -28,7 +38,7 @@ describe("Home Service destination contract", () => {
       phone: "09171234567",
       deliveryType: "home_service" as const,
     };
-    const online = { ...crm, branchId: ID, date: "2026-10-20" };
+    const online = { ...crm, branchId: ID, date: futureDate() };
 
     expect(createInhouseBookingMultiSchema.safeParse(crm).success).toBe(false);
     expect(createOnlineBookingMultiSchema.safeParse(online).success).toBe(false);
@@ -53,7 +63,7 @@ describe("Home Service destination contract", () => {
       phone: "09171234567",
       deliveryType: "in_spa" as const,
     };
-    const online = { ...crm, branchId: ID, date: "2026-10-20" };
+    const online = { ...crm, branchId: ID, date: futureDate() };
     expect(createInhouseBookingMultiSchema.safeParse(crm).success).toBe(true);
     expect(createOnlineBookingMultiSchema.safeParse(online).success).toBe(true);
   });
