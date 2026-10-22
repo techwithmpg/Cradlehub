@@ -112,7 +112,7 @@ function workspaceMeta(key: WorkspaceKey, branchName: string | null): WorkspaceA
         key,
         label: "Utility Portal",
         description: "View utility tasks, assignments and operational updates.",
-        href: "/utility",
+        href: "/staff/utility",
         priority: 25,
         branchName,
       };
@@ -160,6 +160,13 @@ export function getWorkspaceSwitchDestination(workspaces: readonly WorkspaceAcce
   if (workspaces.length === 0) return "/account/setup";
   if (workspaces.length === 1) return getPrimaryWorkspaceHref(workspaces);
   return "/select-workspace";
+}
+
+/** Keep old /utility bookmarks working without granting owner access to Staff PWA. */
+export function getLegacyUtilityDestination(workspaces: readonly WorkspaceAccess[]): string {
+  if (hasWorkspaceAccess(workspaces, "owner")) return "/owner";
+  if (hasWorkspaceAccess(workspaces, "utility")) return "/staff/utility";
+  return getWorkspaceSwitchDestination(workspaces);
 }
 
 export type StaffPwaOperationalGroup = "provider" | "crm_general" | "utility" | "driver";

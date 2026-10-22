@@ -252,7 +252,7 @@ export function getDefaultDashboardPath(role: string): string {
   if (canonicalRole === "crm") return "/crm";
   if (canonicalRole === "digital_marketer") return "/marketing";
   if (canonicalRole === "driver") return "/driver";
-  if (canonicalRole === "utility") return "/utility";
+  if (canonicalRole === "utility") return "/staff/utility";
   if (
     canonicalRole === "staff" ||
     canonicalRole === "therapist" ||

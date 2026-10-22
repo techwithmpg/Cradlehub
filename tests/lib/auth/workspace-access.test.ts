@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import {
   buildWorkspaceAccessFromStaffProfile,
   canAccessWorkspacePath,
+  getLegacyUtilityDestination,
   getPrimaryWorkspaceHref,
   getWorkspaceSwitchDestination,
   type WorkspaceKey,
@@ -61,7 +62,7 @@ describe("workspace defaults", () => {
     expect(getDefaultDashboardPath("digital_marketer")).toBe("/marketing");
     expect(getDefaultDashboardPath("staff")).toBe("/staff-portal");
     expect(getDefaultDashboardPath("driver")).toBe("/driver");
-    expect(getDefaultDashboardPath("utility")).toBe("/utility");
+    expect(getDefaultDashboardPath("utility")).toBe("/staff/utility");
   });
 
   it("prefers Owner as the primary owner workspace but still shows the switcher", () => {
@@ -87,6 +88,32 @@ describe("buildWorkspaceAccessFromStaffProfile", () => {
     expect(workspaceKeys({ system_role: "staff" })).toEqual(["staff_portal"]);
     expect(workspaceKeys({ system_role: "driver", staff_type: "driver" })).toEqual(["driver"]);
     expect(workspaceKeys({ system_role: "utility", staff_type: "utility" })).toEqual(["utility"]);
+  });
+
+  it("uses canonical Utility PWA and redirects legacy /utility without widening access", () => {
+    const utilityWorkspaces = buildWorkspaceAccessFromStaffProfile(
+      profile({ system_role: "utility", staff_type: "utility" })
+    );
+    const ownerWorkspaces = buildWorkspaceAccessFromStaffProfile(
+      profile({ system_role: "owner", staff_type: "managerial" })
+    );
+    const therapistWorkspaces = buildWorkspaceAccessFromStaffProfile(
+      profile({ system_role: "staff", staff_type: "therapist" })
+    );
+
+    expect(utilityWorkspaces.find((w) => w.key === "utility")?.href).toBe("/staff/utility");
+    expect(getPrimaryWorkspaceHref(utilityWorkspaces)).toBe("/staff/utility");
+    expect(getWorkspaceSwitchDestination(utilityWorkspaces)).toBe("/staff/utility");
+    expect(getLegacyUtilityDestination(utilityWorkspaces)).toBe("/staff/utility");
+    expect(getLegacyUtilityDestination(ownerWorkspaces)).toBe("/owner");
+    expect(getLegacyUtilityDestination(therapistWorkspaces)).toBe("/staff-portal");
+    expect(canAccessWorkspacePath("/utility", "utility", utilityWorkspaces, "utility")).toBe(true);
+    expect(canAccessWorkspacePath("/staff/utility", "utility", utilityWorkspaces, "utility")).toBe(true);
+    expect(canAccessWorkspacePath("/staff/utility", "owner", ownerWorkspaces, "managerial")).toBe(false);
+    expect(canAccessWorkspacePath("/staff/utility", "staff", therapistWorkspaces, "therapist")).toBe(false);
+    expect(NAV_CONFIG.utility?.items).toEqual([
+      { label: "Utility Panel", href: "/staff/utility", icon: "Wrench" },
+    ]);
   });
 
   it("grants digital marketers only the protected Marketing workspace", () => {

@@ -106,7 +106,7 @@ const DRIVER_NAV_ITEMS: NavItem[] = [
   { label: "Dispatch", href: "/driver/dispatch", icon: "MapPin" },
 ];
 
-const UTILITY_NAV_ITEMS: NavItem[] = [{ label: "Utility Panel", href: "/utility", icon: "Wrench" }];
+const UTILITY_NAV_ITEMS: NavItem[] = [{ label: "Utility Panel", href: "/staff/utility", icon: "Wrench" }];
 
 const MARKETING_NAV_ITEMS: NavItem[] = [
   { label: "Drafts", href: "/marketing", icon: "Sparkles" },
@@ -159,6 +159,7 @@ const WORKSPACE_PREFIX_TO_KEY = [
   { prefix: "/marketing", key: "marketing" },
   { prefix: "/manager", key: "manager" },
   { prefix: "/crm", key: "crm" },
+  { prefix: "/staff/utility", key: "utility" },
   { prefix: "/staff-portal", key: "staff" },
   { prefix: "/driver", key: "driver" },
   { prefix: "/utility", key: "utility" },
