@@ -8,6 +8,34 @@ import { formatServiceDuration } from "@/components/features/bookings/quick-book
 import type { QuickBookingServiceOption } from "@/components/features/bookings/quick-booking-form";
 import type { ServiceLineQuote } from "@/lib/services/service-line-quote";
 
+async function fetchDurationQuotes(
+  branchId: string,
+  serviceId: string,
+  deliveryMode: "in_spa" | "home_service",
+  signal: AbortSignal
+): Promise<ServiceLineQuote[]> {
+  const response = await fetch("/api/booking/service-line-quotes", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ branchId, serviceId, audience: "crm", deliveryMode }),
+    signal,
+  });
+  if (!response.ok) throw new Error("Service duration options could not be loaded.");
+  const result = (await response.json()) as { options: ServiceLineQuote[] };
+  if (
+    !Array.isArray(result.options) ||
+    result.options.length === 0 ||
+    result.options.some(
+      (option, index) =>
+        index > 0 &&
+        (option.selectedDurationMinutes <= result.options[index - 1]!.selectedDurationMinutes ||
+          option.calculatedPrice <= result.options[index - 1]!.calculatedPrice)
+    )
+  )
+    throw new Error("Duration options are unavailable.");
+  return result.options;
+}
+
 export type InlineServiceDurationDropdownProps = {
   branchId: string;
   service: QuickBookingServiceOption;
@@ -43,38 +71,14 @@ export function InlineServiceDurationDropdown({
     setLoading(true);
     setError(null);
     try {
-      const response = await fetch("/api/booking/service-line-quotes", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          branchId,
-          serviceId: service.id,
-          audience: "crm",
-          deliveryMode,
-        }),
-        signal: controller.signal,
-      });
-
-      if (!response.ok) {
-        throw new Error("Service duration options could not be loaded.");
-      }
-
-      const result = (await response.json()) as { options: ServiceLineQuote[] };
+      const nextOptions = await fetchDurationQuotes(
+        branchId,
+        service.id,
+        deliveryMode,
+        controller.signal
+      );
       if (controller.signal.aborted) return;
-      if (
-        !Array.isArray(result.options) ||
-        result.options.length === 0 ||
-        result.options.some(
-          (opt, i) =>
-            i > 0 &&
-            (opt.selectedDurationMinutes <= result.options[i - 1]!.selectedDurationMinutes ||
-              opt.calculatedPrice <= result.options[i - 1]!.calculatedPrice)
-        )
-      ) {
-        throw new Error("Duration options are unavailable.");
-      }
-
-      setOptions(result.options);
+      setOptions(nextOptions);
     } catch (err) {
       if (!controller.signal.aborted) {
         setError(err instanceof Error ? err.message : "Duration options are unavailable.");
@@ -194,5 +198,123 @@ export function InlineServiceDurationDropdown({
         )}
       </PopoverContent>
     </Popover>
+  );
+}
+
+/** Service-specific, server-quoted duration buttons for the Walk-in guest card. */
+export function InlineServiceDurationButtons({
+  branchId,
+  service,
+  deliveryMode,
+  disabled = false,
+  onSelectQuote,
+}: InlineServiceDurationDropdownProps) {
+  const [options, setOptions] = useState<ServiceLineQuote[]>([]);
+  const [loading, setLoading] = useState(service.durationPolicy === "extendable");
+  const [error, setError] = useState<string | null>(null);
+  const requestRef = useRef<AbortController | null>(null);
+
+  useEffect(() => {
+    if (service.durationPolicy !== "extendable") return;
+    const controller = new AbortController();
+    requestRef.current = controller;
+    void fetchDurationQuotes(branchId, service.id, deliveryMode, controller.signal)
+      .then((nextOptions) => {
+        if (!controller.signal.aborted) setOptions(nextOptions);
+      })
+      .catch((cause) => {
+        if (!controller.signal.aborted)
+          setError(cause instanceof Error ? cause.message : "Duration options are unavailable.");
+      })
+      .finally(() => {
+        if (!controller.signal.aborted) setLoading(false);
+      });
+    return () => controller.abort();
+  }, [branchId, deliveryMode, service.id, service.durationPolicy]);
+
+  async function chooseDuration(minutes: number) {
+    requestRef.current?.abort();
+    const controller = new AbortController();
+    requestRef.current = controller;
+    setLoading(true);
+    setError(null);
+    try {
+      // Refresh when chosen so the price and quote version are current.
+      const latest = await fetchDurationQuotes(
+        branchId,
+        service.id,
+        deliveryMode,
+        controller.signal
+      );
+      if (controller.signal.aborted) return;
+      setOptions(latest);
+      const selected = latest.find((option) => option.selectedDurationMinutes === minutes);
+      if (!selected)
+        throw new Error("This duration is no longer available. Choose another option.");
+      onSelectQuote(selected);
+    } catch (cause) {
+      if (!controller.signal.aborted)
+        setError(cause instanceof Error ? cause.message : "Duration options are unavailable.");
+    } finally {
+      if (!controller.signal.aborted) setLoading(false);
+    }
+  }
+
+  if (service.durationPolicy !== "extendable") {
+    return (
+      <span
+        aria-label={`Fixed duration for ${service.name}`}
+        className="inline-flex h-7 items-center rounded-full border border-[#006044] bg-[#006044] px-3 text-xs font-semibold text-white"
+      >
+        {formatServiceDuration(service.durationMinutes)} · fixed
+      </span>
+    );
+  }
+
+  return (
+    <div className="min-w-0">
+      <div
+        role="group"
+        aria-label={`Duration options for ${service.name}`}
+        className="flex min-h-7 flex-wrap items-center gap-1"
+      >
+        {options.map((option) => (
+          <button
+            key={option.selectedDurationMinutes}
+            type="button"
+            aria-pressed={option.selectedDurationMinutes === service.durationMinutes}
+            title={`${formatServiceDuration(option.selectedDurationMinutes)} · ${formatCurrency(option.calculatedPrice)}`}
+            onClick={() => void chooseDuration(option.selectedDurationMinutes)}
+            disabled={disabled || loading}
+            className={cn(
+              "h-7 min-w-11 rounded-full border px-2 text-[11px] font-semibold focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#006044] disabled:opacity-60",
+              option.selectedDurationMinutes === service.durationMinutes
+                ? "border-[#006044] bg-[#006044] text-white"
+                : "border-[var(--cs-border)] bg-white text-[var(--cs-text)] hover:border-[#006044]"
+            )}
+          >
+            {formatServiceDuration(option.selectedDurationMinutes)}
+          </button>
+        ))}
+        {loading ? (
+          <Loader2 size={13} className="animate-spin" aria-label="Checking duration prices" />
+        ) : null}
+        {!loading && options.length === 0 ? (
+          <button
+            type="button"
+            onClick={() => void chooseDuration(service.durationMinutes)}
+            disabled={disabled}
+            className="text-[11px] font-semibold text-[#006044] underline"
+          >
+            Retry durations
+          </button>
+        ) : null}
+      </div>
+      {error ? (
+        <p role="alert" className="mt-0.5 text-[11px] text-[var(--cs-error-text)]">
+          {error}
+        </p>
+      ) : null}
+    </div>
   );
 }

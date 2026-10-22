@@ -73,7 +73,7 @@ function paymentCheckbox() {
 function expectUnpaid() {
   expect(paymentCheckbox().checked).toBe(false);
   expect(screen.queryByRole("combobox", { name: "Payment method" })).toBeNull();
-  expect(screen.getByText("Settle after service")).toBeTruthy();
+  expect(screen.getAllByText(/Unpaid|Settle after service/).length).toBeGreaterThan(0);
 }
 
 beforeEach(() => {
@@ -118,11 +118,17 @@ describe("Quick Booking payment intent", () => {
     fireEvent.change(screen.getByRole("combobox", { name: "Payment method" }), {
       target: { value: "cash" },
     });
-    for (const label of ["Walk-in", "Future", "Home Service", "Phone", "Walk-in"]) {
+    for (const label of [
+      "Walk-in",
+      "Phone / Future",
+      "Home Service",
+      "Phone / Future",
+      "Walk-in",
+    ]) {
       fireEvent.click(modeButton(label));
       expectUnpaid();
     }
-    fireEvent.click(screen.getByRole("button", { name: /Save Walk-in/i }));
+    fireEvent.click(screen.getByRole("button", { name: /Save Booking/i }));
     await waitFor(() => expect(mocks.createBooking).toHaveBeenCalledOnce());
     expect(mocks.createBooking.mock.calls[0]?.[0]).toMatchObject({
       crmBookingMode: "walkin",
@@ -134,20 +140,54 @@ describe("Quick Booking payment intent", () => {
     });
   });
 
+  it("requires an explicit source when Phone / Future is chosen from another mode", async () => {
+    renderMode("walkin");
+    fireEvent.click(modeButton("Phone / Future"));
+    expect(
+      screen.getByRole("button", { name: "Call or message" }).getAttribute("aria-pressed")
+    ).toBe("false");
+    expect(
+      screen.getByRole("button", { name: "Scheduled in advance" }).getAttribute("aria-pressed")
+    ).toBe("false");
+    fireEvent.click(screen.getByRole("button", { name: "Save Booking" }));
+    expect(mocks.createBooking).not.toHaveBeenCalled();
+
+    fireEvent.click(screen.getByRole("button", { name: "Scheduled in advance" }));
+    fireEvent.click(screen.getByRole("button", { name: "Save Booking" }));
+    await waitFor(() => expect(mocks.createBooking).toHaveBeenCalledOnce());
+    expect(mocks.createBooking.mock.calls[0]?.[0]).toMatchObject({
+      crmBookingMode: "standard_future",
+      paymentReceived: false,
+      paymentMethod: undefined,
+    });
+  });
+
+  it("preserves a known Future source after switching through another mode", async () => {
+    renderMode("standard_future");
+    fireEvent.click(modeButton("Home Service"));
+    fireEvent.click(modeButton("Phone / Future"));
+    expect(
+      screen.getByRole("button", { name: "Scheduled in advance" }).getAttribute("aria-pressed")
+    ).toBe("true");
+    expect(
+      screen.getByRole("button", { name: "Call or message" }).getAttribute("aria-pressed")
+    ).toBe("false");
+  });
+
   it("requires an explicit tender after payment is marked received and retains the atomic submit path", async () => {
     renderMode("walkin");
     fireEvent.click(paymentCheckbox());
     expect(
       (screen.getByRole("combobox", { name: "Payment method" }) as HTMLSelectElement).value
     ).toBe("");
-    fireEvent.click(screen.getByRole("button", { name: /Save Walk-in/i }));
+    fireEvent.click(screen.getByRole("button", { name: /Save Booking/i }));
     expect(screen.getByText("Please select a payment method.")).toBeTruthy();
     expect(mocks.createBooking).not.toHaveBeenCalled();
 
     fireEvent.change(screen.getByRole("combobox", { name: "Payment method" }), {
       target: { value: "cash" },
     });
-    fireEvent.click(screen.getByRole("button", { name: /Save Walk-in/i }));
+    fireEvent.click(screen.getByRole("button", { name: /Save Booking/i }));
     await waitFor(() => expect(mocks.createBooking).toHaveBeenCalledOnce());
     expect(mocks.createBooking.mock.calls[0]?.[0]).toMatchObject({
       paymentReceived: true,
@@ -164,7 +204,7 @@ describe("Quick Booking payment intent", () => {
     });
     fireEvent.click(paymentCheckbox());
     expectUnpaid();
-    fireEvent.click(screen.getByRole("button", { name: /Save Walk-in/i }));
+    fireEvent.click(screen.getByRole("button", { name: /Save Booking/i }));
     await waitFor(() => expect(mocks.createBooking).toHaveBeenCalledOnce());
     expect(mocks.createBooking.mock.calls[0]?.[0]).toMatchObject({
       paymentReceived: false,

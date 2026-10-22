@@ -116,10 +116,10 @@ describe("C-03: Mobile New Booking Wizard Responsive Layout", () => {
     expect(screen.getByRole("combobox", { name: "Customer name" })).toBeDefined();
 
     // 3. Service controls
-    expect(screen.getByRole("button", { name: "Search in-spa services" })).toBeDefined();
+    expect(screen.getByRole("searchbox", { name: "Service" })).toBeDefined();
 
     // 4. Date & Time controls
-    expect(screen.getByLabelText(/choose next available time/i)).toBeDefined();
+    expect(screen.getByLabelText(/shared start time/i)).toBeDefined();
 
     // 5. Provider / Therapist control (present in form and summary)
     expect(screen.getAllByText(/^Therapist$/i).length).toBeGreaterThanOrEqual(1);
@@ -128,10 +128,10 @@ describe("C-03: Mobile New Booking Wizard Responsive Layout", () => {
     expect(screen.getAllByText(/^Room$/i).length).toBeGreaterThanOrEqual(1);
 
     // 7. Summary panel readable
-    expect(screen.getByText(/^Summary$/i)).toBeDefined();
+    expect(screen.getByText(/summary/i)).toBeDefined();
 
     // 8. Bottom actions pinned in footer
-    expect(screen.getByRole("button", { name: /save walk-in/i })).toBeDefined();
+    expect(screen.getByRole("button", { name: /save/i })).toBeDefined();
     expect(screen.getByRole("button", { name: /cancel/i })).toBeDefined();
   });
 });
