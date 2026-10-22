@@ -15,6 +15,7 @@ const ALLOWED_REDIRECT_PREFIXES = [
   "/crm",
   "/staff-portal",
   "/driver",
+  "/staff/utility",
   "/utility",
 ] as const;
 

@@ -65,6 +65,8 @@ describe("auth redirect helpers", () => {
   it("allows expected internal workspace paths", () => {
     expect(sanitizeAuthRedirectPath("/reset-password")).toBe("/reset-password");
     expect(sanitizeAuthRedirectPath("/crm/bookings?view=today")).toBe("/crm/bookings?view=today");
+    expect(sanitizeAuthRedirectPath("/staff/utility")).toBe("/staff/utility");
+    expect(sanitizeAuthRedirectPath("/utility")).toBe("/utility");
   });
 
   it("rejects external and callback redirects", () => {
