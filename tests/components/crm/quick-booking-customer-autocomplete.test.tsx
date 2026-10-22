@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 import React from "react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { cleanup, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 
 const mocks = vi.hoisted(() => ({
   prefill: vi.fn(),
@@ -89,30 +89,118 @@ afterEach(() => {
 });
 
 describe("Quick Booking customer name autocomplete", () => {
-  it("reveals guest details progressively and submits attendee service associations", async () => {
-    render(<QuickBookingForm {...props} initialName="Malcolm Owner" initialPhone="09171234567"
-      services={[...props.services, { id: "svc-2", name: "Facial", price: 700,
-        durationMinutes: 90, availableInSpa: true, availableHomeService: false }]} />);
+  it("keeps two Walk-in guest cards expanded with independent service choices and a shared start", () => {
+    render(
+      <QuickBookingForm
+        {...props}
+        initialMode="walkin"
+        initialName="Test Guest"
+        initialPhone="09171234567"
+        services={[
+          ...props.services,
+          {
+            id: "svc-2",
+            name: "Facial",
+            price: 700,
+            durationMinutes: 90,
+            availableInSpa: true,
+            availableHomeService: false,
+          },
+        ]}
+      />
+    );
+    fireEvent.click(screen.getByRole("button", { name: "Add Guest" }));
+    const first = screen.getByRole("region", { name: "Guest 1 booking details" });
+    const second = screen.getByRole("region", { name: "Guest 2 booking details" });
+    expect(within(first).getByRole("searchbox", { name: "Service" })).toBeTruthy();
+    expect(within(second).getByRole("searchbox", { name: "Service" })).toBeTruthy();
+    expect(within(first).getByLabelText("Guest 1 shared start time")).toBeTruthy();
+    expect(within(second).getByLabelText("Guest 2 shared start time")).toBeTruthy();
+    fireEvent.click(within(second).getByRole("button", { name: /Facial.*₱/ }));
+    expect(
+      within(second)
+        .getByRole("button", { name: /Facial.*₱/ })
+        .getAttribute("aria-pressed")
+    ).toBe("true");
+    expect(
+      within(first)
+        .getByRole("button", { name: /Facial.*₱/ })
+        .getAttribute("aria-pressed")
+    ).toBe("false");
+    fireEvent.change(within(second).getByLabelText("Guest 2 shared start time"), {
+      target: { value: "15:00" },
+    });
+    expect(
+      (within(first).getByLabelText("Guest 1 shared start time") as HTMLInputElement).value
+    ).toBe("15:00");
     expect(screen.queryByRole("tablist", { name: "Guest sessions" })).toBeNull();
-    fireEvent.click(screen.getByRole("button", { name: "+ Add Guest" }));
-    expect(screen.getByRole("tablist", { name: "Guest sessions" })).toBeTruthy();
-    expect(screen.getAllByLabelText("Guest name")).toHaveLength(1);
-    expect(screen.getByRole("tab", { name: /Guest 2/ }).getAttribute("aria-selected")).toBe("true");
-    fireEvent.change(screen.getByLabelText("Guest name"), { target: { value: "Anna Guest" } });
-    fireEvent.click(screen.getByRole("button", { name: /Search in-spa services/i }));
-    fireEvent.click(screen.getByText("Facial"));
-    fireEvent.click(screen.getByRole("tab", { name: /Malcolm Owner/ }));
-    expect((screen.getByLabelText("Guest name") as HTMLInputElement).value).toBe("Malcolm Owner (You)");
-    expect((screen.getByLabelText("Guest name") as HTMLInputElement).readOnly).toBe(true);
-    expect(screen.getAllByLabelText("Guest name")).toHaveLength(1);
-    fireEvent.click(screen.getByRole("tab", { name: /Anna Guest/ }));
-    expect((screen.getByLabelText("Guest name") as HTMLInputElement).value).toBe("Anna Guest");
+    expect(screen.queryByRole("dialog", { name: /services/i })).toBeNull();
+  });
+
+  it("does not submit a customer-requested single therapist as a soft group preference", () => {
+    render(
+      <QuickBookingForm
+        {...props}
+        initialMode="walkin"
+        initialDate="2026-10-22"
+        initialName="Test Guest"
+        initialPhone="09171234567"
+        initialStaffId="staff-1"
+        staff={[{ id: "staff-1", name: "Test Therapist", serviceIds: ["svc-1"] }]}
+      />
+    );
+    fireEvent.click(screen.getByRole("checkbox", { name: "Customer requested this therapist" }));
+    fireEvent.click(screen.getByRole("button", { name: "Add Guest" }));
+    fireEvent.change(screen.getByRole("textbox", { name: "Guest 2 name" }), {
+      target: { value: "Second Guest" },
+    });
+    fireEvent.click(screen.getByRole("button", { name: "Copy to Guest 2" }));
+    fireEvent.click(screen.getByRole("button", { name: "Save Booking" }));
+    expect(screen.getByText(/Exact per-guest therapist selection is not supported/i)).toBeTruthy();
+    expect(mocks.createBooking).not.toHaveBeenCalled();
+  });
+  it("keeps Phone/Future guests expanded and submits attendee service associations", async () => {
+    render(
+      <QuickBookingForm
+        {...props}
+        initialName="Malcolm Owner"
+        initialPhone="09171234567"
+        services={[
+          ...props.services,
+          {
+            id: "svc-2",
+            name: "Facial",
+            price: 700,
+            durationMinutes: 90,
+            availableInSpa: true,
+            availableHomeService: false,
+          },
+        ]}
+      />
+    );
+    fireEvent.click(screen.getByRole("button", { name: "Add Guest" }));
+    const first = within(screen.getByRole("region", { name: "Guest 1 booking details" }));
+    const second = within(screen.getByRole("region", { name: "Guest 2 booking details" }));
+    fireEvent.change(second.getByRole("textbox", { name: "Guest 2 name" }), {
+      target: { value: "Anna Guest" },
+    });
+    fireEvent.change(second.getByRole("searchbox", { name: "Service" }), {
+      target: { value: "Facial" },
+    });
+    fireEvent.click(second.getByRole("button", { name: /Facial.*₱/ }));
+    expect(first.getByRole("searchbox", { name: "Service" })).toBeTruthy();
+    expect((second.getByRole("textbox", { name: "Guest 2 name" }) as HTMLInputElement).value).toBe(
+      "Anna Guest"
+    );
+    expect(screen.queryByRole("tablist", { name: "Guest sessions" })).toBeNull();
     expect(screen.queryByRole("combobox", { name: "Room" })).toBeNull();
-    expect(screen.getAllByText("Assigned per guest")).toHaveLength(2);
-    fireEvent.click(screen.getByRole("button", { name: /schedule booking/i }));
+    expect(second.getByText(/Assigned automatically/)).toBeTruthy();
+    fireEvent.click(screen.getByRole("button", { name: "Save Booking" }));
     await waitFor(() => expect(mocks.createBooking).toHaveBeenCalledOnce());
     expect(mocks.createBooking.mock.calls[0]?.[0]).toMatchObject({
-      bookingFor: "me_and_others", serviceIds: ["svc-1", "svc-2"], resourceId: undefined,
+      bookingFor: "me_and_others",
+      serviceIds: ["svc-1", "svc-2"],
+      resourceId: undefined,
       attendees: [
         { name: "Malcolm Owner", isOrganizer: true, serviceIds: ["svc-1"] },
         { name: "Anna Guest", isOrganizer: false, serviceIds: ["svc-2"] },
@@ -120,26 +208,26 @@ describe("Quick Booking customer name autocomplete", () => {
     });
   });
 
-  it("keeps four guest pills in one session strip with only one active editor", () => {
+  it("keeps four Phone/Future guest cards expanded with one vertical scroll area", () => {
     render(<QuickBookingForm {...props} initialName="Malcolm Owner" initialPhone="09171234567" />);
-    fireEvent.click(screen.getByRole("button", { name: "+ Add Guest" }));
-    fireEvent.click(screen.getByRole("button", { name: "+ Add Guest" }));
-    fireEvent.click(screen.getByRole("button", { name: "+ Add Guest" }));
+    fireEvent.click(screen.getByRole("button", { name: "Add Guest" }));
+    fireEvent.click(screen.getByRole("button", { name: "Add Guest" }));
+    fireEvent.click(screen.getByRole("button", { name: "Add Guest" }));
 
-    expect(screen.getAllByRole("tab")).toHaveLength(4);
-    expect(screen.getAllByRole("button", { name: "+ Add Guest" })).toHaveLength(1);
-    expect(screen.getAllByLabelText("Guest name")).toHaveLength(1);
-    expect(screen.getByRole("button", { name: "+ Add Guest" }).hasAttribute("disabled")).toBe(true);
-    expect(screen.getByRole("tab", { name: /Guest 4/ }).getAttribute("aria-selected")).toBe("true");
+    expect(screen.getAllByRole("region", { name: /Guest [1-4] booking details/ })).toHaveLength(4);
+    expect(screen.getByRole("button", { name: "Add Guest" }).hasAttribute("disabled")).toBe(true);
+    expect(screen.queryByRole("tablist", { name: "Guest sessions" })).toBeNull();
 
-    fireEvent.click(screen.getByRole("button", { name: "Remove Guest 4" }));
-    expect(screen.getAllByRole("tab")).toHaveLength(3);
-    expect(screen.getByRole("tab", { name: /Malcolm Owner/ }).getAttribute("aria-selected")).toBe("true");
-    expect((screen.getByLabelText("Guest name") as HTMLInputElement).readOnly).toBe(true);
-    expect(screen.getByRole("button", { name: "+ Add Guest" }).hasAttribute("disabled")).toBe(false);
+    fireEvent.click(
+      within(screen.getByRole("region", { name: "Guest 4 booking details" })).getByRole("button", {
+        name: "Remove",
+      })
+    );
+    expect(screen.getAllByRole("region", { name: /Guest [1-4] booking details/ })).toHaveLength(3);
+    expect(screen.getByRole("button", { name: "Add Guest" }).hasAttribute("disabled")).toBe(false);
 
-    fireEvent.click(screen.getByRole("button", { name: "Optional details" }));
-    expect(screen.getByText("Booking mode")).toBeTruthy();
+    fireEvent.click(screen.getByRole("button", { name: "Add email" }));
+    expect(screen.getByText("Email")).toBeTruthy();
   });
 
   it("searches under the single name field, masks matches, and reuses the global ID at SM", async () => {
@@ -160,7 +248,7 @@ describe("Quick Booking customer name autocomplete", () => {
     expect(
       mocks.fetch.mock.calls.filter(([url]) => String(url).startsWith("/api/customers/search"))
     ).toHaveLength(1);
-    fireEvent.click(screen.getByRole("button", { name: /schedule booking/i }));
+    fireEvent.click(screen.getByRole("button", { name: "Save Booking" }));
     await waitFor(() => expect(mocks.createBooking).toHaveBeenCalled());
     expect(mocks.createBooking.mock.calls[0]?.[0]).toMatchObject({
       branchId: "sm",
@@ -181,7 +269,7 @@ describe("Quick Booking customer name autocomplete", () => {
     const phone = screen.getByPlaceholderText("Phone number") as HTMLInputElement;
     expect(phone.value).toBe("");
     fireEvent.change(phone, { target: { value: "09123456789" } });
-    fireEvent.click(screen.getByRole("button", { name: /schedule booking/i }));
+    fireEvent.click(screen.getByRole("button", { name: "Save Booking" }));
     await waitFor(() => expect(mocks.createBooking).toHaveBeenCalled());
     expect(mocks.createBooking.mock.calls[0]?.[0]).toMatchObject({
       branchId: "sm",
@@ -236,7 +324,7 @@ describe("Quick Booking customer name autocomplete", () => {
     fireEvent.change(screen.getByPlaceholderText("Phone number"), {
       target: { value: "09123456789" },
     });
-    fireEvent.click(screen.getByRole("button", { name: /schedule booking/i }));
+    fireEvent.click(screen.getByRole("button", { name: "Save Booking" }));
     await waitFor(() => expect(mocks.createBooking).toHaveBeenCalled());
     expect(mocks.createBooking.mock.calls[0]?.[0]).toMatchObject({
       branchId: "sm",
