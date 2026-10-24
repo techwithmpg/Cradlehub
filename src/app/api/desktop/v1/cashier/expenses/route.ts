@@ -4,6 +4,8 @@ import {
   DesktopExpensePayloadSchema,
   desktopJson,
   desktopFailure,
+  type GenericRpcClient,
+  type DynamicCategoryClient,
 } from "@/lib/cashier/desktop-cashier-contract";
 
 export async function POST(request: NextRequest) {
@@ -23,10 +25,21 @@ export async function POST(request: NextRequest) {
 
     const input = parsed.data;
 
-    // Verify financial account belongs to branch and is active
+    // Validate expense category exists and is active
+    const { data: category, error: catError } = await (ctx.supabase as unknown as DynamicCategoryClient)
+      .from("financial_expense_categories")
+      .select("id, is_active")
+      .eq("id", input.categoryId)
+      .maybeSingle();
+
+    if (catError || !category || !category.is_active) {
+      return desktopFailure("CATEGORY_INVALID", "Expense category is invalid or inactive.", 400);
+    }
+
+    // Verify financial account belongs to branch, is active, and disbursement eligible
     const { data: account, error: accError } = await ctx.supabase
       .from("financial_accounts")
-      .select("id, branch_id, is_active")
+      .select("id, branch_id, is_active, account_type")
       .eq("id", input.financialAccountId)
       .maybeSingle();
 
@@ -43,7 +56,7 @@ export async function POST(request: NextRequest) {
     }
 
     // Call atomic expense writer
-    const { data, error } = await ctx.supabase.rpc("post_expense_atomic", {
+    const { data, error } = await (ctx.supabase as unknown as GenericRpcClient).rpc("post_expense_atomic", {
       p_branch_id: ctx.branchId,
       p_idempotency_key: input.idempotencyKey,
       p_amount: input.amount,
@@ -59,6 +72,11 @@ export async function POST(request: NextRequest) {
 
     if (error) {
       return desktopFailure(error.code || "RPC_ERROR", error.message, 400);
+    }
+
+    if (!data || (typeof data === "object" && (("success" in data && (data as Record<string, unknown>).success === false) || ("ok" in data && (data as Record<string, unknown>).ok === false)))) {
+      const errMessage = (typeof (data as Record<string, unknown>)?.error === "string" && (data as Record<string, unknown>).error) || "Expense posting was rejected.";
+      return desktopFailure("EXPENSE_REJECTED", String(errMessage), 400);
     }
 
     return desktopJson({

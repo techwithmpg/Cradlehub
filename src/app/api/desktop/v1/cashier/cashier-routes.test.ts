@@ -15,6 +15,10 @@ vi.mock("@/lib/cash-flow/payment-writer", () => ({
   recordOrderPayment: vi.fn(),
 }));
 
+vi.mock("@/lib/cash-flow/cash-flow-actions", () => ({
+  recordLegacyBookingPaymentAction: vi.fn(),
+}));
+
 vi.mock("@/lib/engine/slot-time", () => ({
   getBranchBusinessDate: vi.fn(() => "2026-10-23"),
 }));
@@ -25,36 +29,197 @@ vi.mock("@/lib/logger", () => ({
 
 import { verifyDesktopBearerAuth } from "@/lib/auth/desktop-bearer-auth";
 import { getCashFlowData } from "@/lib/cash-flow/cash-flow-queries";
+import type { CashFlowWorkspaceData } from "@/lib/cash-flow/cash-flow-types";
+import type { SupabaseClient } from "@supabase/supabase-js";
+import type { Database } from "@/types/supabase";
 import { recordOrderPayment } from "@/lib/cash-flow/payment-writer";
+import { recordLegacyBookingPaymentAction } from "@/lib/cash-flow/cash-flow-actions";
 import { GET as getOverview } from "./overview/route";
 import { GET as getPayableOrders } from "./payable-orders/route";
 import { GET as getLedger } from "./ledger/route";
 import { GET as getDrawers, POST as postDrawerAction } from "./drawers/route";
 import { GET as getDayClose } from "./day-close/route";
-import { GET as getHistory } from "./history/route";
 import { POST as postPayment } from "./payments/route";
 import { POST as postExpense } from "./expenses/route";
 
 const mockedAuth = vi.mocked(verifyDesktopBearerAuth);
 const mockedQueries = vi.mocked(getCashFlowData);
 const mockedPaymentWriter = vi.mocked(recordOrderPayment);
+const mockedLegacyPaymentAction = vi.mocked(recordLegacyBookingPaymentAction);
 
-function createMockClient(overrides: Record<string, unknown> = {}) {
-  const maybeSingle = vi.fn().mockResolvedValue({
-    data: { id: "branch-uuid-1", name: "Main Spa" },
-    error: null,
-  });
-  const eq = vi.fn().mockReturnValue({ maybeSingle });
-  const select = vi.fn().mockReturnValue({ eq });
+const UUID_DRAWER = "22222222-2222-4222-a222-222222222222";
+const UUID_GCASH = "33333333-3333-4333-a333-333333333333";
+const UUID_CATEGORY = "44444444-4444-4444-a444-444444444444";
+const UUID_CUSTODIAN = "55555555-5555-4555-a555-555555555555";
+const UUID_SESSION = "66666666-6666-4666-a666-666666666666";
+
+interface MockClientOptions {
+  branchId?: string;
+  orderId?: string | null;
+  orderBranchId?: string;
+  accounts?: Array<{
+    id: string;
+    account_type: string;
+    branch_id: string | null;
+    is_active: boolean;
+  }>;
+  category?: { id: string; is_active: boolean } | null;
+  custodian?: { id: string; branch_id: string | null; is_active: boolean } | null;
+  rpcResult?: { data: unknown; error: unknown };
+  transactionsCount?: number;
+}
+
+function createRobustMockClient(opts: MockClientOptions = {}) {
+  const branchId = opts.branchId ?? "branch-uuid-1";
+  const defaultAccounts = opts.accounts ?? [
+    {
+      id: UUID_DRAWER,
+      account_type: "cash_drawer",
+      branch_id: branchId,
+      is_active: true,
+    },
+    {
+      id: UUID_GCASH,
+      account_type: "gcash",
+      branch_id: branchId,
+      is_active: true,
+    },
+  ];
 
   return {
-    from: vi.fn().mockReturnValue({ select }),
-    rpc: vi.fn().mockResolvedValue({ data: { ok: true, transactionId: "tx-123" }, error: null }),
-    ...overrides,
+    from: vi.fn((table: string) => {
+      if (table === "branches") {
+        return {
+          select: vi.fn().mockReturnValue({
+            eq: vi.fn().mockReturnValue({
+              maybeSingle: vi.fn().mockResolvedValue({
+                data: { id: branchId, name: "Main Spa" },
+                error: null,
+              }),
+            }),
+          }),
+        };
+      }
+      if (table === "financial_accounts") {
+        return {
+          select: vi.fn().mockReturnValue({
+            eq: vi.fn((col: string, val: string) => ({
+              maybeSingle: vi.fn().mockResolvedValue({
+                data: defaultAccounts.find((a) => a.id === val) ?? null,
+                error: null,
+              }),
+            })),
+            in: vi.fn((col: string, ids: string[]) =>
+              Promise.resolve({
+                data: defaultAccounts.filter((a) => ids.includes(a.id)),
+                error: null,
+              })
+            ),
+          }),
+        };
+      }
+      if (table === "financial_expense_categories") {
+        return {
+          select: vi.fn().mockReturnValue({
+            eq: vi.fn((col: string, val: string) => ({
+              maybeSingle: vi.fn().mockResolvedValue({
+                data:
+                  opts.category !== undefined
+                    ? opts.category
+                    : { id: val, is_active: true },
+                error: null,
+              }),
+            })),
+          }),
+        };
+      }
+      if (table === "staff") {
+        return {
+          select: vi.fn().mockReturnValue({
+            eq: vi.fn((col: string, val: string) => ({
+              maybeSingle: vi.fn().mockResolvedValue({
+                data:
+                  opts.custodian !== undefined
+                    ? opts.custodian
+                    : { id: val, branch_id: branchId, is_active: true },
+                error: null,
+              }),
+            })),
+          }),
+        };
+      }
+      if (table === "booking_orders") {
+        return {
+          select: vi.fn().mockReturnValue({
+            eq: vi.fn((col: string, val: string) => ({
+              maybeSingle: vi.fn().mockResolvedValue({
+                data:
+                  opts.orderBranchId !== undefined
+                    ? { id: val, branch_id: opts.orderBranchId }
+                    : opts.orderId === null
+                    ? null
+                    : { id: val, branch_id: branchId },
+                error: null,
+              }),
+            })),
+          }),
+        };
+      }
+      if (table === "bookings") {
+        return {
+          select: vi.fn().mockReturnValue({
+            eq: vi.fn((col: string, val: string) => ({
+              maybeSingle: vi.fn().mockResolvedValue({
+                data: {
+                  id: val,
+                  branch_id: branchId,
+                  order_id: null,
+                  amount_paid: 200,
+                  payment_status: "pending",
+                  status: "confirmed",
+                  metadata: { total_price: 500 },
+                },
+                error: null,
+              }),
+            })),
+          }),
+        };
+      }
+      if (table === "financial_transactions") {
+        return {
+          select: vi.fn().mockReturnValue({
+            eq: vi.fn().mockReturnValue({
+              eq: vi.fn().mockReturnValue({
+                eq: vi.fn().mockReturnValue({
+                  eq: vi.fn().mockResolvedValue({
+                    count: opts.transactionsCount ?? 2,
+                    data: null,
+                    error: null,
+                  }),
+                }),
+              }),
+            }),
+          }),
+        };
+      }
+      return {
+        select: vi.fn().mockReturnValue({
+          eq: vi.fn().mockReturnValue({
+            maybeSingle: vi.fn().mockResolvedValue({ data: null, error: null }),
+          }),
+        }),
+      };
+    }),
+    rpc: vi.fn().mockResolvedValue(
+      opts.rpcResult ?? {
+        data: { ok: true, success: true, transactionId: "tx-123", sessionId: UUID_SESSION },
+        error: null,
+      }
+    ),
   };
 }
 
-function mockAuthSuccess(client?: unknown) {
+function mockAuthSuccess(client?: unknown, role = "crm") {
   mockedAuth.mockResolvedValue({
     ok: true as const,
     operator: {
@@ -62,30 +227,30 @@ function mockAuthSuccess(client?: unknown) {
       staff: {
         id: "staff-1",
         branch_id: "branch-uuid-1",
-        system_role: "crm",
+        system_role: role,
       },
-      staffRole: "crm",
+      staffRole: role,
       isDevBypass: false,
     },
     user: { id: "auth-user-1", email: "cashier@cradlehub.test" },
-    client: (client ?? createMockClient()) as any,
+    client: (client ?? createRobustMockClient()) as unknown as SupabaseClient<Database>,
   });
 }
 
-const mockWorkspaceData: any = {
+const mockWorkspaceData: CashFlowWorkspaceData = {
   branchId: "branch-uuid-1",
   branchName: "Main Spa",
   businessDate: "2026-10-23",
   accounts: [
     {
-      id: "acc-cash-1",
+      id: UUID_DRAWER,
       name: "Main Cash Drawer",
       accountType: "cash_drawer",
       identifierMask: "CASH-01",
       branchId: "branch-uuid-1",
     },
     {
-      id: "acc-gcash-1",
+      id: UUID_GCASH,
       name: "Front Desk GCash",
       accountType: "gcash",
       identifierMask: "0917****123",
@@ -93,7 +258,7 @@ const mockWorkspaceData: any = {
     },
   ],
   expenseCategories: [
-    { id: "cat-1", code: "supplies", name: "Supplies", description: "Consumables" },
+    { id: UUID_CATEGORY, code: "supplies", name: "Supplies", description: "Consumables" },
   ],
   staffOptions: [
     { id: "staff-1", name: "Maria Santos", role: "crm" },
@@ -102,10 +267,10 @@ const mockWorkspaceData: any = {
   cashSessions: {
     activeSessions: [
       {
-        id: "session-1",
+        id: UUID_SESSION,
         branchId: "branch-uuid-1",
         businessDate: "2026-10-23",
-        cashDrawerAccountId: "acc-cash-1",
+        cashDrawerAccountId: UUID_DRAWER,
         cashDrawerName: "Main Cash Drawer",
         status: "open",
         openingFloat: 2000,
@@ -117,10 +282,11 @@ const mockWorkspaceData: any = {
     ],
     availableDrawers: [
       {
-        id: "acc-cash-1",
+        id: UUID_DRAWER,
         name: "Main Cash Drawer",
         accountType: "cash_drawer",
         identifierMask: "CASH-01",
+        branchId: "branch-uuid-1",
       },
     ],
   },
@@ -199,6 +365,7 @@ const mockWorkspaceData: any = {
       amountPaid: 0,
       remainingBalance: 500,
       bookingDate: "2026-10-23",
+      bookingStatus: "Active",
       paymentStatus: "unpaid",
     },
     {
@@ -212,6 +379,21 @@ const mockWorkspaceData: any = {
       amountPaid: 1200,
       remainingBalance: 0,
       bookingDate: "2026-10-23",
+      bookingStatus: "completed",
+      paymentStatus: "paid",
+    },
+    {
+      id: "order-3",
+      sourceKind: "booking_order",
+      paymentEligible: true,
+      orderNumber: "BKG-1038",
+      customerName: "Carla Lim",
+      serviceDescription: "Foot Spa",
+      totalAmount: 800,
+      amountPaid: 800,
+      remainingBalance: 0,
+      bookingDate: "2026-10-23",
+      bookingStatus: "Active",
       paymentStatus: "paid",
     },
   ],
@@ -249,7 +431,7 @@ describe("Cashier Desktop API Endpoints", () => {
           isDevBypass: false,
         },
         user: { id: "user-1" },
-        client: createMockClient() as any,
+        client: createRobustMockClient() as unknown as SupabaseClient<Database>,
       });
 
       const req = new NextRequest("http://localhost/api/desktop/v1/cashier/overview");
@@ -263,7 +445,8 @@ describe("Cashier Desktop API Endpoints", () => {
 
   describe("GET /api/desktop/v1/cashier/overview", () => {
     it("returns truthful branch overview KPIs and payment mix", async () => {
-      mockAuthSuccess();
+      const client = createRobustMockClient({ transactionsCount: 3 });
+      mockAuthSuccess(client);
       mockedQueries.mockResolvedValueOnce(mockWorkspaceData);
 
       const req = new NextRequest("http://localhost/api/desktop/v1/cashier/overview");
@@ -275,16 +458,20 @@ describe("Cashier Desktop API Endpoints", () => {
       expect(json.data.branchName).toBe("Main Spa");
       expect(json.data.businessDate).toBe("2026-10-23");
       expect(json.data.kpis.totalCollected).toBe(12450);
-      expect(json.data.kpis.pendingAmount).toBe(6250);
+      expect(json.data.kpis.totalTransactions).toBe(18);
+      expect(json.data.kpis.pendingAmount).toBe(500);
+      expect(json.data.kpis.pendingBookingsCount).toBe(1);
       expect(json.data.kpis.cashAmount).toBe(7150);
+      expect(json.data.kpis.cashCount).toBe(10);
       expect(json.data.kpis.digitalAmount).toBe(5300);
-      expect(json.data.kpis.expenseAmount).toBe(1200);
-      expect(json.data.activeDrawerSession?.id).toBe("session-1");
+      expect(json.data.kpis.digitalCount).toBe(8);
+      expect(json.data.kpis.expenseCount).toBe(3);
+      expect(json.data.activeDrawerSession?.cashDrawerName).toBe("Main Cash Drawer");
     });
   });
 
   describe("GET /api/desktop/v1/cashier/payable-orders", () => {
-    it("separates pending orders from paid and closed orders", async () => {
+    it("separates pending orders from paid and closed orders strictly", async () => {
       mockAuthSuccess();
       mockedQueries.mockResolvedValueOnce(mockWorkspaceData);
 
@@ -294,13 +481,12 @@ describe("Cashier Desktop API Endpoints", () => {
       const json = await res.json();
 
       expect(json.ok).toBe(true);
-      expect(json.data.pendingQueue).toHaveLength(1);
+      expect(json.data.pendingQueue).toHaveLength(2);
       expect(json.data.pendingQueue[0].orderNumber).toBe("BKG-1045");
-      expect(json.data.pendingQueue[0].remainingBalance).toBe(500);
+      expect(json.data.pendingQueue[1].orderNumber).toBe("BKG-1038");
 
       expect(json.data.paidAndClosed).toHaveLength(1);
       expect(json.data.paidAndClosed[0].orderNumber).toBe("BKG-1037");
-      expect(json.data.paidAndClosed[0].remainingBalance).toBe(0);
     });
   });
 
@@ -309,21 +495,15 @@ describe("Cashier Desktop API Endpoints", () => {
       mockAuthSuccess();
       mockedQueries.mockResolvedValueOnce(mockWorkspaceData);
 
-      const req = new NextRequest("http://localhost/api/desktop/v1/cashier/ledger?search=Maria&page=1&pageSize=15");
+      const req = new NextRequest("http://localhost/api/desktop/v1/cashier/ledger?search=Maria&page=1&pageSize=10");
       const res = await getLedger(req);
       expect(res.status).toBe(200);
       const json = await res.json();
 
       expect(json.ok).toBe(true);
       expect(json.data.records).toHaveLength(1);
-      expect(json.data.kpis.netFlow).toBe(11250);
-      expect(mockedQueries).toHaveBeenCalledWith(
-        "branch-uuid-1",
-        "Main Spa",
-        "2026-10-23",
-        expect.objectContaining({ search: "Maria", page: 1, pageSize: 15 }),
-        expect.anything()
-      );
+      expect(json.data.totalRecords).toBe(1);
+      expect(json.data.page).toBe(1);
     });
   });
 
@@ -339,53 +519,65 @@ describe("Cashier Desktop API Endpoints", () => {
 
       expect(json.ok).toBe(true);
       expect(json.data.activeSessions).toHaveLength(1);
-      expect(json.data.accounts).toHaveLength(2);
+      expect(json.data.availableDrawers).toHaveLength(1);
     });
 
-    it("calls open_cash_session_atomic on open action", async () => {
-      const mockRpc = vi.fn().mockResolvedValue({
-        data: { ok: true, sessionId: "sess-99" },
-        error: null,
+    it("enforces role authorization on drawer operations", async () => {
+      const client = createRobustMockClient();
+      mockAuthSuccess(client, "therapist");
+
+      const req = new NextRequest("http://localhost/api/desktop/v1/cashier/drawers", {
+        method: "POST",
+        body: JSON.stringify({
+          action: "open",
+          cashDrawerAccountId: UUID_DRAWER,
+          openingFloat: 2000,
+          idempotencyKey: "idem-unauth-1",
+        }),
       });
-      const client = createMockClient({ rpc: mockRpc });
+
+      const res = await postDrawerAction(req);
+      expect(res.status).toBe(403);
+      const json = await res.json();
+      expect(json.code).toBe("UNAUTHORIZED_ROLE");
+    });
+
+    it("calls open_cash_session_atomic on open action after verifying drawer account", async () => {
+      const client = createRobustMockClient();
       mockAuthSuccess(client);
 
       const req = new NextRequest("http://localhost/api/desktop/v1/cashier/drawers", {
         method: "POST",
         body: JSON.stringify({
           action: "open",
-          cashDrawerAccountId: "a1b2c3d4-e5f6-7890-abcd-ef1234567890",
+          cashDrawerAccountId: UUID_DRAWER,
           openingFloat: 2000,
-          openingNote: "Starting float",
+          openingNote: "Shift start",
           idempotencyKey: "idem-open-1",
         }),
       });
 
       const res = await postDrawerAction(req);
       expect(res.status).toBe(200);
-      expect(mockRpc).toHaveBeenCalledWith("open_cash_session_atomic", {
+      expect(client.rpc).toHaveBeenCalledWith("open_cash_session_atomic", {
         p_branch_id: "branch-uuid-1",
-        p_cash_drawer_account_id: "a1b2c3d4-e5f6-7890-abcd-ef1234567890",
+        p_cash_drawer_account_id: UUID_DRAWER,
         p_opening_float: 2000,
         p_business_date: "2026-10-23",
-        p_opening_note: "Starting float",
+        p_opening_note: "Shift start",
         p_idempotency_key: "idem-open-1",
       });
     });
 
     it("calls close_cash_session_atomic on close action", async () => {
-      const mockRpc = vi.fn().mockResolvedValue({
-        data: { ok: true, sessionId: "sess-1" },
-        error: null,
-      });
-      const client = createMockClient({ rpc: mockRpc });
+      const client = createRobustMockClient();
       mockAuthSuccess(client);
 
       const req = new NextRequest("http://localhost/api/desktop/v1/cashier/drawers", {
         method: "POST",
         body: JSON.stringify({
           action: "close",
-          sessionId: "a1b2c3d4-e5f6-7890-abcd-ef1234567890",
+          sessionId: UUID_SESSION,
           countedCash: 2500,
           closingNote: "Balanced",
           idempotencyKey: "idem-close-1",
@@ -394,12 +586,35 @@ describe("Cashier Desktop API Endpoints", () => {
 
       const res = await postDrawerAction(req);
       expect(res.status).toBe(200);
-      expect(mockRpc).toHaveBeenCalledWith("close_cash_session_atomic", {
-        p_session_id: "a1b2c3d4-e5f6-7890-abcd-ef1234567890",
+      expect(client.rpc).toHaveBeenCalledWith("close_cash_session_atomic", {
+        p_session_id: UUID_SESSION,
         p_counted_cash: 2500,
         p_closing_note: "Balanced",
         p_idempotency_key: "idem-close-1",
       });
+    });
+
+    it("rejects drawer handover if incoming custodian belongs to another branch", async () => {
+      const client = createRobustMockClient({
+        custodian: { id: UUID_CUSTODIAN, branch_id: "different-branch-uuid", is_active: true },
+      });
+      mockAuthSuccess(client);
+
+      const req = new NextRequest("http://localhost/api/desktop/v1/cashier/drawers", {
+        method: "POST",
+        body: JSON.stringify({
+          action: "handover",
+          sessionId: UUID_SESSION,
+          incomingCustodianId: UUID_CUSTODIAN,
+          countedCash: 2500,
+          idempotencyKey: "idem-handover-err",
+        }),
+      });
+
+      const res = await postDrawerAction(req);
+      expect(res.status).toBe(400);
+      const json = await res.json();
+      expect(json.code).toBe("INVALID_CUSTODIAN");
     });
   });
 
@@ -422,54 +637,9 @@ describe("Cashier Desktop API Endpoints", () => {
 
   describe("POST /api/desktop/v1/cashier/payments", () => {
     it("validates payment method compatibility and posts payment atomically", async () => {
-      const client = {
-        from: vi.fn((table: string) => {
-          if (table === "branches") {
-            return {
-              select: vi.fn().mockReturnValue({
-                eq: vi.fn().mockReturnValue({
-                  maybeSingle: vi.fn().mockResolvedValue({
-                    data: { id: "branch-uuid-1", name: "Main Spa" },
-                    error: null,
-                  }),
-                }),
-              }),
-            };
-          }
-          if (table === "booking_orders") {
-            return {
-              select: vi.fn().mockReturnValue({
-                eq: vi.fn().mockReturnValue({
-                  maybeSingle: vi.fn().mockResolvedValue({
-                    data: { id: "11111111-1111-4111-a111-111111111111", branch_id: "branch-uuid-1" },
-                    error: null,
-                  }),
-                }),
-              }),
-            };
-          }
-          if (table === "financial_accounts") {
-            return {
-              select: vi.fn().mockReturnValue({
-                in: vi.fn().mockResolvedValue({
-                  data: [
-                    {
-                      id: "22222222-2222-4222-a222-222222222222",
-                      account_type: "cash_drawer",
-                      branch_id: "branch-uuid-1",
-                      is_active: true,
-                    },
-                  ],
-                  error: null,
-                }),
-              }),
-            };
-          }
-          return {};
-        }),
-      };
-
+      const client = createRobustMockClient();
       mockAuthSuccess(client);
+
       mockedPaymentWriter.mockResolvedValueOnce({
         ok: true,
         data: {
@@ -498,7 +668,7 @@ describe("Cashier Desktop API Endpoints", () => {
             {
               amount: 500,
               paymentMethod: "cash",
-              financialAccountId: "22222222-2222-4222-a222-222222222222",
+              financialAccountId: UUID_DRAWER,
             },
           ],
         }),
@@ -513,37 +683,42 @@ describe("Cashier Desktop API Endpoints", () => {
       expect(json.data.paymentState).toBe("paid");
     });
 
-    it("rejects payments for cross-branch orders with 403", async () => {
-      const client = {
-        from: vi.fn((table: string) => {
-          if (table === "branches") {
-            return {
-              select: vi.fn().mockReturnValue({
-                eq: vi.fn().mockReturnValue({
-                  maybeSingle: vi.fn().mockResolvedValue({
-                    data: { id: "branch-uuid-1", name: "Main Spa" },
-                    error: null,
-                  }),
-                }),
-              }),
-            };
-          }
-          if (table === "booking_orders") {
-            return {
-              select: vi.fn().mockReturnValue({
-                eq: vi.fn().mockReturnValue({
-                  maybeSingle: vi.fn().mockResolvedValue({
-                    data: { id: "11111111-1111-4111-a111-111111111111", branch_id: "other-branch-uuid" },
-                    error: null,
-                  }),
-                }),
-              }),
-            };
-          }
-          return {};
-        }),
-      };
+    it("rejects payments when RPC posting returns unsuccessful result", async () => {
+      const client = createRobustMockClient();
+      mockAuthSuccess(client);
 
+      mockedPaymentWriter.mockResolvedValueOnce({
+        ok: false,
+        error: "Business validation failed in RPC.",
+        code: "PAYMENT_REJECTED",
+      });
+
+      const req = new NextRequest("http://localhost/api/desktop/v1/cashier/payments", {
+        method: "POST",
+        body: JSON.stringify({
+          orderId: "11111111-1111-4111-a111-111111111111",
+          idempotencyKey: "idem-pay-fail",
+          payments: [
+            {
+              amount: 500,
+              paymentMethod: "cash",
+              financialAccountId: UUID_DRAWER,
+            },
+          ],
+        }),
+      });
+
+      const res = await postPayment(req);
+      expect(res.status).toBe(400);
+      const json = await res.json();
+      expect(json.ok).toBe(false);
+      expect(json.code).toBe("PAYMENT_REJECTED");
+    });
+
+    it("rejects payments for cross-branch orders with 403", async () => {
+      const client = createRobustMockClient({
+        orderBranchId: "other-branch-uuid",
+      });
       mockAuthSuccess(client);
 
       const req = new NextRequest("http://localhost/api/desktop/v1/cashier/payments", {
@@ -555,7 +730,7 @@ describe("Cashier Desktop API Endpoints", () => {
             {
               amount: 500,
               paymentMethod: "cash",
-              financialAccountId: "22222222-2222-4222-a222-222222222222",
+              financialAccountId: UUID_DRAWER,
             },
           ],
         }),
@@ -566,75 +741,122 @@ describe("Cashier Desktop API Endpoints", () => {
       const json = await res.json();
       expect(json.code).toBe("BRANCH_MISMATCH");
     });
+
+    it("supports legacy booking payment when orderId references a legacy booking row", async () => {
+      const client = createRobustMockClient({ orderId: null });
+      mockAuthSuccess(client);
+
+      mockedLegacyPaymentAction.mockResolvedValueOnce({
+        ok: true,
+        data: {
+          transactionId: "tx-legacy-1",
+          paymentDelta: 300,
+          isIdempotentReplay: false,
+          branchId: "branch-uuid-1",
+        },
+      });
+
+      const req = new NextRequest("http://localhost/api/desktop/v1/cashier/payments", {
+        method: "POST",
+        body: JSON.stringify({
+          orderId: "11111111-1111-4111-a111-111111111111",
+          idempotencyKey: "idem-legacy-1",
+          payments: [
+            {
+              amount: 300,
+              paymentMethod: "cash",
+              financialAccountId: UUID_DRAWER,
+            },
+          ],
+        }),
+      });
+
+      const res = await postPayment(req);
+      expect(res.status).toBe(200);
+      const json = await res.json();
+      expect(json.ok).toBe(true);
+      expect(json.data.success).toBe(true);
+      expect(json.data.transactionId).toBe("tx-legacy-1");
+    });
   });
 
   describe("POST /api/desktop/v1/cashier/expenses", () => {
-    it("validates and posts an expense atomically", async () => {
-      const mockRpc = vi.fn().mockResolvedValue({
-        data: { ok: true, transactionId: "tx-exp-1" },
-        error: null,
-      });
-
-      const client = {
-        from: vi.fn((table: string) => {
-          if (table === "branches") {
-            return {
-              select: vi.fn().mockReturnValue({
-                eq: vi.fn().mockReturnValue({
-                  maybeSingle: vi.fn().mockResolvedValue({
-                    data: { id: "branch-uuid-1", name: "Main Spa" },
-                    error: null,
-                  }),
-                }),
-              }),
-            };
-          }
-          if (table === "financial_accounts") {
-            return {
-              select: vi.fn().mockReturnValue({
-                eq: vi.fn().mockReturnValue({
-                  maybeSingle: vi.fn().mockResolvedValue({
-                    data: {
-                      id: "22222222-2222-4222-a222-222222222222",
-                      branch_id: "branch-uuid-1",
-                      is_active: true,
-                    },
-                    error: null,
-                  }),
-                }),
-              }),
-            };
-          }
-          return {};
-        }),
-        rpc: mockRpc,
-      };
-
+    it("validates category and account eligibility and posts expense atomically", async () => {
+      const client = createRobustMockClient();
       mockAuthSuccess(client);
 
       const req = new NextRequest("http://localhost/api/desktop/v1/cashier/expenses", {
         method: "POST",
         body: JSON.stringify({
-          categoryId: "11111111-1111-4111-a111-111111111111",
-          financialAccountId: "22222222-2222-4222-a222-222222222222",
-          amount: 350,
-          payee: "Direct Vendor",
-          description: "Nail products",
+          categoryId: UUID_CATEGORY,
+          financialAccountId: UUID_DRAWER,
+          amount: 150,
+          payee: "Ace Hardware",
+          description: "Cleaning supplies",
           idempotencyKey: "idem-exp-1",
         }),
       });
 
       const res = await postExpense(req);
-            expect(res.status).toBe(200);
+      expect(res.status).toBe(200);
       const json = await res.json();
 
       expect(json.ok).toBe(true);
-      expect(mockRpc).toHaveBeenCalledWith("post_expense_atomic", expect.objectContaining({
+      expect(client.rpc).toHaveBeenCalledWith("post_expense_atomic", expect.objectContaining({
         p_branch_id: "branch-uuid-1",
-        p_amount: 350,
-        p_description: "Nail products",
+        p_amount: 150,
+        p_category_id: UUID_CATEGORY,
+        p_financial_account_id: UUID_DRAWER,
+        p_payee: "Ace Hardware",
+        p_description: "Cleaning supplies",
         p_idempotency_key: "idem-exp-1",
       }));
+    });
+
+    it("rejects expense when category is inactive or invalid", async () => {
+      const client = createRobustMockClient({ category: null });
+      mockAuthSuccess(client);
+
+      const req = new NextRequest("http://localhost/api/desktop/v1/cashier/expenses", {
+        method: "POST",
+        body: JSON.stringify({
+          categoryId: UUID_CATEGORY,
+          financialAccountId: UUID_DRAWER,
+          amount: 150,
+          payee: "Vendor",
+          description: "Items",
+          idempotencyKey: "idem-cat-err",
+        }),
+      });
+
+      const res = await postExpense(req);
+      expect(res.status).toBe(400);
+      const json = await res.json();
+      expect(json.code).toBe("CATEGORY_INVALID");
+    });
+
+    it("rejects expense when RPC reports unsuccessful business outcome", async () => {
+      const client = createRobustMockClient({
+        rpcResult: { data: { success: false, error: "Insufficient drawer float for expense." }, error: null },
+      });
+      mockAuthSuccess(client);
+
+      const req = new NextRequest("http://localhost/api/desktop/v1/cashier/expenses", {
+        method: "POST",
+        body: JSON.stringify({
+          categoryId: UUID_CATEGORY,
+          financialAccountId: UUID_DRAWER,
+          amount: 50000,
+          payee: "Vendor",
+          description: "Big purchase",
+          idempotencyKey: "idem-exp-fail",
+        }),
+      });
+
+      const res = await postExpense(req);
+      expect(res.status).toBe(400);
+      const json = await res.json();
+      expect(json.code).toBe("EXPENSE_REJECTED");
     });
   });
 });

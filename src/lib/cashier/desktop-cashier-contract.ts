@@ -2,17 +2,11 @@ import "server-only";
 
 import { NextResponse } from "next/server";
 import { z } from "zod";
-import { verifyDesktopBearerAuth } from "@/lib/auth/desktop-bearer-auth";
+import { verifyDesktopBearerAuth, type DesktopBearerAuthResult } from "@/lib/auth/desktop-bearer-auth";
 import type { InhouseBookingOperator } from "@/lib/bookings/inhouse-booking-engine";
 import { getBranchBusinessDate } from "@/lib/engine/slot-time";
 import { getCashFlowData } from "@/lib/cash-flow/cash-flow-queries";
-import { recordOrderPayment } from "@/lib/cash-flow/payment-writer";
-import {
-  PostOrderPaymentPayloadSchema,
-  type PostOrderPaymentPayload,
-  isPaymentMethodCompatibleWithAccount,
-  FinancialPaymentMethodSchema,
-} from "@/lib/cash-flow/financial-contract";
+
 import type {
   CashFlowWorkspaceData,
   PayableOrderOption,
@@ -38,8 +32,25 @@ export function desktopFailure(code: string, message: string, status = 400) {
   return desktopJson({ ok: false, code, message }, status);
 }
 
+export interface GenericRpcClient {
+  rpc: (
+    fn: string,
+    args: Record<string, unknown>
+  ) => Promise<{ data: unknown; error: { message: string; code?: string } | null }>;
+}
+
+export interface DynamicCategoryClient {
+  from: (table: string) => {
+    select: (columns: string) => {
+      eq: (column: string, value: unknown) => {
+        maybeSingle: () => Promise<{ data: { id: string; is_active?: boolean } | null; error: { message: string } | null }>;
+      };
+    };
+  };
+}
+
 export interface DesktopCashierContext {
-  supabase: any;
+  supabase: Extract<DesktopBearerAuthResult, { ok: true }>["client"];
   operator: InhouseBookingOperator;
   authUserId: string;
   branchId: string;
@@ -156,21 +167,72 @@ export async function getDesktopCashierOverview(
       ? data.cashSessions.activeSessions[0]
       : null;
 
+  // Count actual recorded operational expenses for this business date
+  let expenseCount = 0;
+  try {
+    const { count } = await (ctx.supabase as unknown as {
+      from: (t: string) => {
+        select: (c: string, o: { count: string; head: boolean }) => {
+          eq: (k: string, v: unknown) => {
+            eq: (k: string, v: unknown) => {
+              eq: (k: string, v: unknown) => {
+                eq: (k: string, v: unknown) => Promise<{ count: number | null; error: unknown }>;
+              };
+            };
+          };
+        };
+      };
+    })
+      .from("financial_transactions")
+      .select("id", { count: "exact", head: true })
+      .eq("branch_id", ctx.branchId)
+      .eq("business_date", ctx.businessDate)
+      .eq("transaction_type", "operational_expense")
+      .eq("status", "posted");
+
+    if (typeof count === "number") {
+      expenseCount = count;
+    } else {
+      expenseCount = data.ledger.records.filter(
+        (r) =>
+          r.category.toLowerCase().includes("expense") ||
+          (r.outflow !== null && r.outflow > 0 && !r.isReconciliationOnly)
+      ).length;
+    }
+  } catch {
+    expenseCount = data.ledger.records.filter(
+      (r) =>
+        r.category.toLowerCase().includes("expense") ||
+        (r.outflow !== null && r.outflow > 0 && !r.isReconciliationOnly)
+    ).length;
+  }
+
+  // Derive pending balances from authoritative payable orders
+  const pendingOrders = (data.payableOrders || []).filter(
+    (o) => o.remainingBalance > 0
+  );
+  const pendingAmount = pendingOrders.reduce(
+    (sum, o) => sum + (o.remainingBalance > 0 ? o.remainingBalance : 0),
+    0
+  );
+  const pendingBookingsCount = pendingOrders.length;
+  const totalTransactions = cashCount + digitalCount;
+
   return {
     branchId: ctx.branchId,
     branchName: ctx.branchName,
     businessDate: ctx.businessDate,
     kpis: {
       totalCollected: data.today.kpis.recordedPayments,
-      totalTransactions: data.today.kpis.paidBookingsCount,
-      pendingAmount: data.today.kpis.outstandingBalance,
-      pendingBookingsCount: data.today.kpis.needsPaymentCount,
+      totalTransactions,
+      pendingAmount,
+      pendingBookingsCount,
       cashAmount,
       cashCount,
       digitalAmount,
       digitalCount,
       expenseAmount: data.dayClose.recordedOutflow,
-      expenseCount: data.dayClose.coverageCategories.length,
+      expenseCount,
     },
     paymentMix: data.today.paymentMix,
     recentPayments: data.today.recentPayments,
@@ -203,10 +265,15 @@ export async function getDesktopPayableOrders(
   const paidAndClosed: PayableOrderOption[] = [];
 
   for (const order of data.payableOrders) {
-    if (order.remainingBalance > 0 && order.paymentStatus !== "paid") {
-      pendingQueue.push(order);
-    } else {
+    const isFullySettled = order.remainingBalance <= 0;
+    const isServicesComplete =
+      order.bookingStatus?.toLowerCase() === "completed";
+
+    // Paid & Closed requires BOTH full settlement and completed services
+    if (isFullySettled && isServicesComplete) {
       paidAndClosed.push(order);
+    } else {
+      pendingQueue.push(order);
     }
   }
 
@@ -303,7 +370,10 @@ export async function getDesktopDayClose(
     ctx.supabase
   );
 
-  return data.dayClose;
+  return {
+    ...data.dayClose,
+    isFinalizationSupported: false,
+  };
 }
 
 // ── History Data ─────────────────────────────────────────────────────────────
