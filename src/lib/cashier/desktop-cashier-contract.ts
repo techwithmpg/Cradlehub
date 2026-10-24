@@ -167,45 +167,9 @@ export async function getDesktopCashierOverview(
       ? data.cashSessions.activeSessions[0]
       : null;
 
-  // Count actual recorded operational expenses for this business date
-  let expenseCount = 0;
-  try {
-    const { count } = await (ctx.supabase as unknown as {
-      from: (t: string) => {
-        select: (c: string, o: { count: string; head: boolean }) => {
-          eq: (k: string, v: unknown) => {
-            eq: (k: string, v: unknown) => {
-              eq: (k: string, v: unknown) => {
-                eq: (k: string, v: unknown) => Promise<{ count: number | null; error: unknown }>;
-              };
-            };
-          };
-        };
-      };
-    })
-      .from("financial_transactions")
-      .select("id", { count: "exact", head: true })
-      .eq("branch_id", ctx.branchId)
-      .eq("business_date", ctx.businessDate)
-      .eq("transaction_type", "operational_expense")
-      .eq("status", "posted");
-
-    if (typeof count === "number") {
-      expenseCount = count;
-    } else {
-      expenseCount = data.ledger.records.filter(
-        (r) =>
-          r.category.toLowerCase().includes("expense") ||
-          (r.outflow !== null && r.outflow > 0 && !r.isReconciliationOnly)
-      ).length;
-    }
-  } catch {
-    expenseCount = data.ledger.records.filter(
-      (r) =>
-        r.category.toLowerCase().includes("expense") ||
-        (r.outflow !== null && r.outflow > 0 && !r.isReconciliationOnly)
-    ).length;
-  }
+  // Derive operational expense KPIs strictly from canonical posted operational expenses
+  const expenseAmount = data.operationalExpenses?.totalAmount ?? 0;
+  const expenseCount = data.operationalExpenses?.count ?? 0;
 
   // Derive pending balances from authoritative payable orders
   const pendingOrders = (data.payableOrders || []).filter(
@@ -231,7 +195,7 @@ export async function getDesktopCashierOverview(
       cashCount,
       digitalAmount,
       digitalCount,
-      expenseAmount: data.dayClose.recordedOutflow,
+      expenseAmount,
       expenseCount,
     },
     paymentMix: data.today.paymentMix,
@@ -265,14 +229,18 @@ export async function getDesktopPayableOrders(
   const paidAndClosed: PayableOrderOption[] = [];
 
   for (const order of data.payableOrders) {
+    const isCancelled = order.bookingStatus?.toLowerCase() === "cancelled";
+    if (isCancelled) continue;
+
     const isFullySettled = order.remainingBalance <= 0;
     const isServicesComplete =
       order.bookingStatus?.toLowerCase() === "completed";
 
-    // Paid & Closed requires BOTH full settlement and completed services
+    // Paid & Closed requires BOTH zero remaining balance AND completed service lifecycle
     if (isFullySettled && isServicesComplete) {
       paidAndClosed.push(order);
-    } else {
+    } else if (order.remainingBalance > 0) {
+      // Pending Payment Queue: eligible orders with positive outstanding balance
       pendingQueue.push(order);
     }
   }

@@ -15,8 +15,8 @@ vi.mock("@/lib/cash-flow/payment-writer", () => ({
   recordOrderPayment: vi.fn(),
 }));
 
-vi.mock("@/lib/cash-flow/cash-flow-actions", () => ({
-  recordLegacyBookingPaymentAction: vi.fn(),
+vi.mock("@/lib/cash-flow/legacy-payment-writer", () => ({
+  recordLegacyBookingPaymentDomain: vi.fn(),
 }));
 
 vi.mock("@/lib/engine/slot-time", () => ({
@@ -33,7 +33,7 @@ import type { CashFlowWorkspaceData } from "@/lib/cash-flow/cash-flow-types";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type { Database } from "@/types/supabase";
 import { recordOrderPayment } from "@/lib/cash-flow/payment-writer";
-import { recordLegacyBookingPaymentAction } from "@/lib/cash-flow/cash-flow-actions";
+import { recordLegacyBookingPaymentDomain } from "@/lib/cash-flow/legacy-payment-writer";
 import { GET as getOverview } from "./overview/route";
 import { GET as getPayableOrders } from "./payable-orders/route";
 import { GET as getLedger } from "./ledger/route";
@@ -45,7 +45,7 @@ import { POST as postExpense } from "./expenses/route";
 const mockedAuth = vi.mocked(verifyDesktopBearerAuth);
 const mockedQueries = vi.mocked(getCashFlowData);
 const mockedPaymentWriter = vi.mocked(recordOrderPayment);
-const mockedLegacyPaymentAction = vi.mocked(recordLegacyBookingPaymentAction);
+const mockedLegacyPaymentDomain = vi.mocked(recordLegacyBookingPaymentDomain);
 
 const UUID_DRAWER = "22222222-2222-4222-a222-222222222222";
 const UUID_GCASH = "33333333-3333-4333-a333-333333333333";
@@ -353,6 +353,10 @@ const mockWorkspaceData: CashFlowWorkspaceData = {
     records: [],
     auditTrail: [],
   },
+  operationalExpenses: {
+    totalAmount: 1850,
+    count: 3,
+  },
   payableOrders: [
     {
       id: "order-1",
@@ -365,7 +369,7 @@ const mockWorkspaceData: CashFlowWorkspaceData = {
       amountPaid: 0,
       remainingBalance: 500,
       bookingDate: "2026-10-23",
-      bookingStatus: "Active",
+      bookingStatus: "confirmed",
       paymentStatus: "unpaid",
     },
     {
@@ -390,11 +394,39 @@ const mockWorkspaceData: CashFlowWorkspaceData = {
       customerName: "Carla Lim",
       serviceDescription: "Foot Spa",
       totalAmount: 800,
-      amountPaid: 800,
+      amountPaid: 400,
+      remainingBalance: 400,
+      bookingDate: "2026-10-23",
+      bookingStatus: "in_progress",
+      paymentStatus: "partially_paid",
+    },
+    {
+      id: "order-4",
+      sourceKind: "booking_order",
+      paymentEligible: false,
+      orderNumber: "BKG-1039",
+      customerName: "Ana Reyes",
+      serviceDescription: "Massage",
+      totalAmount: 600,
+      amountPaid: 600,
       remainingBalance: 0,
       bookingDate: "2026-10-23",
-      bookingStatus: "Active",
+      bookingStatus: "in_progress",
       paymentStatus: "paid",
+    },
+    {
+      id: "order-5",
+      sourceKind: "booking_order",
+      paymentEligible: false,
+      orderNumber: "BKG-1040",
+      customerName: "Elena Cruz",
+      serviceDescription: "Facial",
+      totalAmount: 400,
+      amountPaid: 0,
+      remainingBalance: 0,
+      bookingDate: "2026-10-23",
+      bookingStatus: "cancelled",
+      paymentStatus: "unpaid",
     },
   ],
 };
@@ -459,13 +491,14 @@ describe("Cashier Desktop API Endpoints", () => {
       expect(json.data.businessDate).toBe("2026-10-23");
       expect(json.data.kpis.totalCollected).toBe(12450);
       expect(json.data.kpis.totalTransactions).toBe(18);
-      expect(json.data.kpis.pendingAmount).toBe(500);
-      expect(json.data.kpis.pendingBookingsCount).toBe(1);
+      expect(json.data.kpis.pendingAmount).toBe(900);
+      expect(json.data.kpis.pendingBookingsCount).toBe(2);
       expect(json.data.kpis.cashAmount).toBe(7150);
       expect(json.data.kpis.cashCount).toBe(10);
       expect(json.data.kpis.digitalAmount).toBe(5300);
       expect(json.data.kpis.digitalCount).toBe(8);
       expect(json.data.kpis.expenseCount).toBe(3);
+      expect(json.data.kpis.expenseAmount).toBe(1850);
       expect(json.data.activeDrawerSession?.cashDrawerName).toBe("Main Cash Drawer");
     });
   });
@@ -746,9 +779,10 @@ describe("Cashier Desktop API Endpoints", () => {
       const client = createRobustMockClient({ orderId: null });
       mockAuthSuccess(client);
 
-      mockedLegacyPaymentAction.mockResolvedValueOnce({
+      mockedLegacyPaymentDomain.mockResolvedValueOnce({
         ok: true,
         data: {
+          success: true,
           transactionId: "tx-legacy-1",
           paymentDelta: 300,
           isIdempotentReplay: false,

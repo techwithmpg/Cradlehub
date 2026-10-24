@@ -4,9 +4,6 @@ import { revalidatePath } from 'next/cache';
 import { revalidateOperationalBookingSurfaces } from '@/lib/bookings/revalidate-booking-surfaces';
 import { createClient } from '@/lib/supabase/server';
 import { createAdminClient } from '@/lib/supabase/admin';
-import { z } from 'zod';
-import { recordBookingPaymentChange } from '@/lib/bookings/payment-transaction';
-import { validatedLegacyBookingPrice } from './legacy-booking-price';
 import {
   EXPENSE_RECEIPT_BUCKET,
   makeExpenseReceiptPath,
@@ -16,7 +13,6 @@ import { recordOrderPayment, type RecordOrderPaymentResult } from './payment-wri
 import { isBookingClosedForCrm } from '@/lib/bookings/crm-booking-status';
 import {
   PostOrderPaymentPayloadSchema,
-  PaymentPartPayloadSchema,
   type PostOrderPaymentPayload,
 } from './financial-contract';
 import type {
@@ -172,97 +168,26 @@ export async function recordOrderPaymentAction(
   return result;
 }
 
-const LegacyBookingPaymentPayloadSchema = z.object({
-  bookingId: z.guid(),
-  branchId: z.guid(),
-  expectedAmountPaid: z.number().nonnegative().refine(
-    (amount) => Number.isFinite(amount) && Number(amount.toFixed(2)) === amount
-  ),
-  idempotencyKey: z.string().trim().min(1).max(255),
-  payments: z.array(PaymentPartPayloadSchema).min(1),
-  businessDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
-  notes: z.string().trim().max(1000).nullish(),
-});
-
-export type LegacyBookingPaymentPayload = z.infer<typeof LegacyBookingPaymentPayloadSchema>;
+export {
+  LegacyBookingPaymentPayloadSchema,
+  type LegacyBookingPaymentPayload,
+} from './legacy-payment-writer';
+import { recordLegacyBookingPaymentDomain, type LegacyBookingPaymentPayload } from './legacy-payment-writer';
 
 export async function recordLegacyBookingPaymentAction(
   input: LegacyBookingPaymentPayload
 ): Promise<
-  | { ok: true; data: { transactionId: string | null; paymentDelta: number; isIdempotentReplay: boolean; branchId: string } }
+  | { ok: true; data: { transactionId: string | null; paymentDelta: number; isIdempotentReplay: boolean; branchId: string; success?: boolean } }
   | { ok: false; error: string; code?: string }
 > {
-  const parsed = LegacyBookingPaymentPayloadSchema.safeParse(input);
-  if (!parsed.success) {
-    return { ok: false, error: 'VALIDATION_FAILED: Invalid booking payment request.', code: 'VALIDATION_FAILED' };
-  }
-  const payload = parsed.data;
   const supabase = await createClient();
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) {
     return { ok: false, error: 'AUTH_REQUIRED: Authentication required to record payments.', code: 'AUTH_REQUIRED' };
   }
 
-  const { data: booking, error: bookingError } = await supabase.from('bookings')
-    .select('id, branch_id, order_id, amount_paid, payment_status, status, metadata')
-    .eq('id', payload.bookingId)
-    .maybeSingle();
-  if (bookingError || !booking) {
-    return { ok: false, error: 'BOOKING_NOT_FOUND: Booking is unavailable.', code: 'BOOKING_NOT_FOUND' };
-  }
-  if (booking.order_id !== null) {
-    return { ok: false, error: 'SOURCE_MISMATCH: Use the order payment command for this booking.', code: 'SOURCE_MISMATCH' };
-  }
-  if (booking.branch_id !== payload.branchId) {
-    return { ok: false, error: 'BRANCH_MISMATCH: Booking belongs to another branch.', code: 'BRANCH_MISMATCH' };
-  }
-  if (isBookingClosedForCrm(booking.status ?? '')) {
-    return { ok: false, error: 'BOOKING_NOT_PAYABLE: This booking is closed and cannot receive payment.', code: 'BOOKING_NOT_PAYABLE' };
-  }
-
-  const total = validatedLegacyBookingPrice(booking.metadata as Record<string, unknown> | null);
-  if (total === null) {
-    return { ok: false, error: 'BOOKING_PRICE_INVALID: Booking price snapshot is unavailable.', code: 'BOOKING_PRICE_INVALID' };
-  }
-  const tenderCents = payload.payments.reduce((sum, part) => sum + Math.round(part.amount * 100), 0);
-  const previousCents = Math.round(payload.expectedAmountPaid * 100);
-  const targetCents = previousCents + tenderCents;
-  const currentPaid = Number(booking.amount_paid ?? 0);
-  const currentCents = Math.round(currentPaid * 100);
-  if (!Number.isFinite(currentPaid) || currentPaid < 0 ||
-      targetCents > Math.round(total * 100) ||
-      (currentCents !== previousCents && currentCents !== targetCents) ||
-      (currentCents === previousCents && booking.payment_status === 'paid')) {
-    return { ok: false, error: 'PAYMENT_STATE_CHANGED: Refresh the booking balance before posting.', code: 'PAYMENT_STATE_CHANGED' };
-  }
-
-  const isFullPayment = targetCents === Math.round(total * 100);
-  const shouldConfirm = isFullPayment && booking.status === 'pending_payment';
-  const result = await recordBookingPaymentChange(supabase, {
-    bookingId: booking.id,
-    branchId: payload.branchId,
-    paymentMethod: payload.payments.length === 1 ? payload.payments[0]!.paymentMethod : 'other',
-    paymentStatus: isFullPayment ? 'paid' : 'pending',
-    amountPaid: targetCents / 100,
-    paymentReference: payload.payments.length === 1 ? payload.payments[0]!.externalReference ?? null : null,
-    reason: payload.notes || 'Cash Flow payment',
-    nextStatus: shouldConfirm ? 'confirmed' : null,
-    clearHold: shouldConfirm,
-    idempotencyKey: payload.idempotencyKey,
-    payments: payload.payments,
-    businessDate: payload.businessDate,
-  });
-  if (!result.ok) return { ok: false, error: result.error, code: 'PAYMENT_REJECTED' };
-  revalidateOperationalBookingSurfaces(result.booking.branch_id);
-  return {
-    ok: true,
-    data: {
-      transactionId: result.transactionId,
-      paymentDelta: result.paymentDelta,
-      isIdempotentReplay: result.isIdempotentReplay,
-      branchId: result.booking.branch_id,
-    },
-  };
+  const result = await recordLegacyBookingPaymentDomain(supabase, input, { userId: user.id });
+  return result;
 }
 
 export async function recordExpenseAction(
