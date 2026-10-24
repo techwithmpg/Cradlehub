@@ -114,9 +114,10 @@ export async function getCashFlowData(
   branchId: string,
   branchName: string,
   businessDate: string,
-  filters: CashFlowQueryFilters = {}
+  filters: CashFlowQueryFilters = {},
+  client?: Awaited<ReturnType<typeof createClient>>
 ): Promise<CashFlowWorkspaceData> {
-  const supabase = await createClient();
+  const supabase = client ?? (await createClient());
 
   // 1. Fetch active financial accounts for this branch
   const { data: accountsData, error: accountsError } = await supabase

@@ -88,6 +88,18 @@ export async function recordOrderPayment(
 
   const raw = rpcData as Record<string, unknown>;
 
+  if (raw.success === false) {
+    const errorMsg =
+      (typeof raw.error === 'string' && raw.error) ||
+      (typeof raw.message === 'string' && raw.message) ||
+      'Payment posting was rejected by RPC.';
+    return {
+      ok: false,
+      error: errorMsg,
+      code: (typeof raw.code === 'string' && raw.code) || 'PAYMENT_REJECTED',
+    };
+  }
+
   const result: PostOrderPaymentResult = {
     success: Boolean(raw.success),
     isIdempotentReplay: Boolean(raw.is_idempotent_replay),
