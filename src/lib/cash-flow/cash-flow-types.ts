@@ -148,6 +148,7 @@ export interface HistoryTabSummary {
     action: string;
     details: string;
   }>;
+  isHistoricalSummarySupported?: boolean;
 }
 
 export interface PayableOrderItemDetail {
@@ -379,4 +380,8 @@ export interface CashFlowWorkspaceData {
   dayClose: DayCloseSummaryData;
   history: HistoryTabSummary;
   payableOrders: PayableOrderOption[];
+  operationalExpenses?: {
+    totalAmount: number;
+    count: number;
+  };
 }

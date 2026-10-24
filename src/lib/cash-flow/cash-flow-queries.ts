@@ -12,6 +12,8 @@ import type {
   PayableOrderItemDetail,
   PayableOrderPreviousPayment,
   CashSessionSummary,
+  HistoricalDayCloseItem,
+  HistoryTabSummary,
 } from './cash-flow-types';
 import type { FinancialPaymentMethod } from './financial-contract';
 import { findUnmatchedBookingPayments, isCashFlowReceiptTransactionType } from './payment-evidence';
@@ -876,7 +878,7 @@ export async function getCashFlowData(
     const orderState = b.order_id ? orderPayment(b.order_id) : null;
     if (b.order_id && !orderState) continue;
     const orderEligibility = b.order_id ? orderEligibilityById.get(b.order_id) : null;
-    if (b.order_id && !orderEligibility?.eligible) continue;
+    if (b.order_id && !orderEligibility) continue;
     const legacyTotal = b.order_id ? null : validatedLegacyBookingPrice(b.metadata);
     if (!b.order_id && legacyTotal === null) continue;
     const legacyPaid = Number(b.amount_paid ?? 0);
@@ -887,7 +889,6 @@ export async function getCashFlowData(
     const isPaid = b.order_id
       ? orderState?.status === 'paid'
       : b.payment_status === 'paid';
-    if (isPaid || remaining <= 0) continue;
     const isPartial = !isPaid && paid > 0;
     const displayBooking = b.order_id
       ? todayBookings.find((row) => row.order_id === b.order_id && !isBookingClosedForCrm(row.status ?? '')) ?? b
@@ -973,11 +974,23 @@ export async function getCashFlowData(
       serviceTime: displayBooking.start_time ? formatTimeFromHHMM(displayBooking.start_time) : null,
       branchName: branchName,
       visitType: isHomeService ? 'home_service' : 'in_spa',
-      bookingStatus: b.order_id
-        ? (orderChildrenById.get(b.order_id) ?? []).some((child) => isBookingClosedForCrm(child.status ?? ''))
-          ? 'Mixed services'
-          : 'Active'
-        : b.status ? b.status.charAt(0).toUpperCase() + b.status.slice(1) : 'Confirmed',
+      bookingStatus: (() => {
+        if (b.order_id) {
+          const children = orderChildrenById.get(b.order_id) ?? [];
+          const activeChildren = children.filter((child) => !isBookingClosedForCrm(child.status ?? ''));
+          if (children.length === 0 || activeChildren.length === 0) {
+            return 'cancelled';
+          }
+          if (activeChildren.every((c) => (c.status ?? '').toLowerCase() === 'completed')) {
+            return 'completed';
+          }
+          if (activeChildren.some((c) => (c.status ?? '').toLowerCase() === 'in_progress')) {
+            return 'in_progress';
+          }
+          return 'confirmed';
+        }
+        return (b.status ?? 'confirmed').toLowerCase();
+      })(),
       paymentEligible: b.order_id ? orderEligibility?.eligible === true : true,
       paymentStatus: isPaid ? 'paid' : isPartial ? 'partially_paid' : 'unpaid',
       payableItems,
@@ -1037,14 +1050,49 @@ export async function getCashFlowData(
     isFinalizationSupported: false,
   };
 
-  const historySummary = {
+  let historicalRecords: HistoricalDayCloseItem[] = [];
+  try {
+    const { data: histRows } = await supabase
+      .from('daily_cash_reconciliations')
+      .select('id, branch_id, reconciliation_date, status, actual_cash, expected_cash, recorded_by, created_at')
+      .eq('branch_id', branchId)
+      .order('reconciliation_date', { ascending: false })
+      .limit(30);
+
+    if (histRows && histRows.length > 0) {
+      historicalRecords = (histRows as Array<{
+        id: string;
+        reconciliation_date: string;
+        status: string;
+        actual_cash: number | null;
+        recorded_by: string | null;
+      }>).map((r) => {
+        const cashActual = Number(r.actual_cash ?? 0);
+        return {
+          id: r.id,
+          date: r.reconciliation_date,
+          branchName: branchName,
+          status: r.status === 'approved' ? 'reviewed' : r.status === 'submitted' ? 'needs_review' : 'closed',
+          inflow: cashActual,
+          outflow: 0,
+          net: cashActual,
+          reviewedBy: r.recorded_by ? 'Staff' : null,
+        };
+      });
+    }
+  } catch {
+    // Graceful fallback to empty records
+  }
+
+  const historySummary: HistoryTabSummary = {
     closedDaysThisMonth: 0,
     totalInflowThisMonth: totalInflowFromMovements,
     totalOutflowThisMonth: 0,
     reviewExceptions: 0,
-    records: [],
+    records: historicalRecords,
     selectedClose: null,
     auditTrail: [],
+    isHistoricalSummarySupported: false,
   };
 
   return {
@@ -1085,6 +1133,10 @@ export async function getCashFlowData(
     dayClose: dayCloseSummary,
     history: historySummary,
     payableOrders,
+    operationalExpenses: {
+      totalAmount: totalExpenseOutflow,
+      count: expenseCount,
+    },
     expenseCategories,
     staffOptions,
     cashSessions: {

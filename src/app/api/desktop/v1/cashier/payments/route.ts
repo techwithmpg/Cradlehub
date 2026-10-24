@@ -11,7 +11,7 @@ import {
   FinancialAccountType,
 } from "@/lib/cash-flow/financial-contract";
 import { recordOrderPayment } from "@/lib/cash-flow/payment-writer";
-import { recordLegacyBookingPaymentAction } from "@/lib/cash-flow/cash-flow-actions";
+import { recordLegacyBookingPaymentDomain } from "@/lib/cash-flow/legacy-payment-writer";
 import { isBookingClosedForCrm } from "@/lib/bookings/crm-booking-status";
 
 export async function POST(request: NextRequest) {
@@ -120,15 +120,23 @@ export async function POST(request: NextRequest) {
         return desktopFailure("BOOKING_NOT_PAYABLE", "This booking is closed and cannot receive payment.", 400);
       }
 
-      const legacyResult = await recordLegacyBookingPaymentAction({
-        bookingId: legacyBooking.id,
-        branchId: ctx.branchId,
-        expectedAmountPaid: Number(legacyBooking.amount_paid ?? 0),
-        idempotencyKey: payload.idempotencyKey,
-        payments: payload.payments,
-        businessDate: String(payload.businessDate ?? ctx.businessDate),
-        notes: payload.notes ?? null,
-      });
+      const legacyResult = await recordLegacyBookingPaymentDomain(
+        ctx.supabase,
+        {
+          bookingId: legacyBooking.id,
+          branchId: ctx.branchId,
+          expectedAmountPaid: Number(legacyBooking.amount_paid ?? 0),
+          idempotencyKey: payload.idempotencyKey,
+          payments: payload.payments,
+          businessDate: String(payload.businessDate ?? ctx.businessDate),
+          notes: payload.notes ?? null,
+        },
+        {
+          userId: ctx.authUserId,
+          role: ctx.operator.staffRole ?? ctx.operator.staff?.system_role ?? undefined,
+          staffId: ctx.operator.staff?.id ?? undefined,
+        }
+      );
 
       if (!legacyResult.ok) {
         return desktopFailure(legacyResult.code || "PAYMENT_REJECTED", legacyResult.error, 400);
@@ -136,10 +144,7 @@ export async function POST(request: NextRequest) {
 
       return desktopJson({
         ok: true,
-        data: {
-          success: true,
-          ...legacyResult.data,
-        },
+        data: legacyResult.data,
       });
     }
 
