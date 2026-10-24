@@ -2,18 +2,39 @@ import { NextRequest } from "next/server";
 import { z } from "zod";
 import { verifyDesktopBearerAuth } from "@/lib/auth/desktop-bearer-auth";
 import { desktopFailure, desktopJson } from "@/lib/bookings/desktop-booking-contract";
+import {
+  checkLocationRateLimit,
+  verifyLocationBranchAccess,
+  sanitizeLocationQuery,
+  GOOGLE_PLACES_TIMEOUT_MS,
+} from "@/lib/locations/location-security";
 import { logError } from "@/lib/logger";
 
 const autocompleteSchema = z.object({
-  query: z.string().trim().min(2, "Search query must be at least 2 characters").max(200),
+  query: z
+    .string()
+    .trim()
+    .min(2, "Search query must be at least 2 characters")
+    .max(150, "Search query must not exceed 150 characters")
+    .refine((q) => !/[\x00-\x1F\x7F]/.test(q), "Query contains invalid characters"),
   branchId: z.string().uuid("Invalid branch ID").optional(),
-  sessionToken: z.string().trim().max(100).optional(),
+  sessionToken: z.string().trim().min(1).max(100).optional(),
 });
 
 export async function POST(req: NextRequest) {
   const auth = await verifyDesktopBearerAuth(req);
   if (!auth.ok) {
     return desktopFailure(auth.code, auth.message, auth.status);
+  }
+
+  // Rate limiting per operator/user
+  const rateLimitKey = `autocomplete:${auth.operator.authUserId || auth.user.id}`;
+  if (!checkLocationRateLimit(rateLimitKey, 60)) {
+    return desktopFailure(
+      "RATE_LIMIT_EXCEEDED",
+      "Too many location search requests. Please wait a moment and try again.",
+      429
+    );
   }
 
   let body: unknown;
@@ -32,6 +53,17 @@ export async function POST(req: NextRequest) {
     );
   }
 
+  const { query, branchId, sessionToken } = parsed.data;
+
+  // Enforce staff branch authorization
+  if (branchId && !verifyLocationBranchAccess(auth.operator, branchId)) {
+    return desktopFailure(
+      "CRM_BRANCH_FORBIDDEN",
+      "You can only search locations for your assigned branch.",
+      403
+    );
+  }
+
   const apiKey = process.env.GOOGLE_MAPS_SERVER_API_KEY;
   if (!apiKey) {
     return desktopFailure(
@@ -42,9 +74,9 @@ export async function POST(req: NextRequest) {
   }
 
   try {
-    const { query, branchId, sessionToken } = parsed.data;
+    const cleanQuery = sanitizeLocationQuery(query);
     const bodyPayload: Record<string, unknown> = {
-      input: query,
+      input: cleanQuery,
       includedRegionCodes: ["ph"],
     };
 
@@ -52,11 +84,12 @@ export async function POST(req: NextRequest) {
       bodyPayload.sessionToken = sessionToken;
     }
 
-    if (branchId) {
+    const effectiveBranchId = branchId || auth.operator.staff?.branch_id;
+    if (effectiveBranchId) {
       const { data: branch } = await auth.client
         .from("branches")
         .select("latitude, longitude")
-        .eq("id", branchId)
+        .eq("id", effectiveBranchId)
         .maybeSingle();
 
       const lat = Number(branch?.latitude);
@@ -78,6 +111,7 @@ export async function POST(req: NextRequest) {
         "X-Goog-Api-Key": apiKey,
       },
       body: JSON.stringify(bodyPayload),
+      signal: AbortSignal.timeout(GOOGLE_PLACES_TIMEOUT_MS),
     });
 
     if (!res.ok) {
@@ -116,7 +150,15 @@ export async function POST(req: NextRequest) {
     });
 
     return desktopJson({ ok: true, predictions });
-  } catch (error) {
+  } catch (error: unknown) {
+    if (error instanceof Error && error.name === "TimeoutError") {
+      logError("api.desktop.locations.autocomplete.timeout");
+      return desktopFailure(
+        "LOCATION_LOOKUP_TIMEOUT",
+        "Location provider timed out. Please try again.",
+        504
+      );
+    }
     logError("api.desktop.locations.autocomplete.failed", { error });
     return desktopFailure("SERVER_ERROR", "Could not complete location search.", 500);
   }

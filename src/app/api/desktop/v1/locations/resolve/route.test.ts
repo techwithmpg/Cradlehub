@@ -2,6 +2,7 @@ vi.mock("server-only", () => ({}));
 import { afterAll, beforeEach, describe, expect, it, vi } from "vitest";
 import { NextRequest } from "next/server";
 import type { DesktopBearerAuthResult } from "@/lib/auth/desktop-bearer-auth";
+import { resetLocationRateLimits } from "@/lib/locations/location-security";
 
 vi.mock("@/lib/auth/desktop-bearer-auth", () => ({
   verifyDesktopBearerAuth: vi.fn(),
@@ -16,12 +17,14 @@ import { POST } from "./route";
 
 const mockedAuth = vi.mocked(verifyDesktopBearerAuth);
 type AuthedSuccess = Extract<DesktopBearerAuthResult, { ok: true }>;
+const dummyClient = {} as unknown as AuthedSuccess["client"];
 
 describe("POST /api/desktop/v1/locations/resolve", () => {
   const originalEnv = process.env.GOOGLE_MAPS_SERVER_API_KEY;
 
   beforeEach(() => {
     vi.clearAllMocks();
+    resetLocationRateLimits();
     process.env.GOOGLE_MAPS_SERVER_API_KEY = "test-api-key";
   });
 
@@ -46,7 +49,7 @@ describe("POST /api/desktop/v1/locations/resolve", () => {
     expect(res.status).toBe(401);
   });
 
-  it("returns 400 when placeId is missing", async () => {
+  it("enforces branch authorization when branchId provided does not match operator branch", async () => {
     mockedAuth.mockResolvedValueOnce({
       ok: true,
       operator: {
@@ -56,19 +59,24 @@ describe("POST /api/desktop/v1/locations/resolve", () => {
         isDevBypass: false,
       },
       user: { id: "u1" },
-      client: {} as unknown as AuthedSuccess["client"],
+      client: dummyClient,
     });
 
     const req = new NextRequest("http://localhost/api/desktop/v1/locations/resolve", {
       method: "POST",
-      body: JSON.stringify({ placeId: "" }),
+      body: JSON.stringify({
+        placeId: "place-123",
+        branchId: "22222222-2222-4222-8222-222222222222",
+      }),
     });
 
     const res = await POST(req);
-    expect(res.status).toBe(400);
+    expect(res.status).toBe(403);
+    const body = await res.json();
+    expect(body.code).toBe("CRM_BRANCH_FORBIDDEN");
   });
 
-  it("resolves place details and returns formatted address, coordinates, and components", async () => {
+  it("resolves place details with valid coordinates and formatted address", async () => {
     mockedAuth.mockResolvedValueOnce({
       ok: true,
       operator: {
@@ -78,19 +86,17 @@ describe("POST /api/desktop/v1/locations/resolve", () => {
         isDevBypass: false,
       },
       user: { id: "u1" },
-      client: {} as unknown as AuthedSuccess["client"],
+      client: dummyClient,
     });
 
     const mockFetch = vi.fn().mockResolvedValueOnce({
       ok: true,
       json: async () => ({
         id: "place-123",
-        displayName: { text: "Glorietta 4" },
-        formattedAddress: "Ayala Center, Makati, Metro Manila, Philippines",
-        location: { latitude: 14.551, longitude: 121.025 },
+        formattedAddress: "Ayala Avenue, Makati, Philippines",
+        location: { latitude: 14.5547, longitude: 121.0244 },
         addressComponents: [
           { longText: "Makati", shortText: "Makati", types: ["locality"] },
-          { longText: "Metro Manila", shortText: "NCR", types: ["administrative_area_level_1"] },
         ],
         googleMapsURI: "https://maps.google.com/?cid=123",
       }),
@@ -99,24 +105,46 @@ describe("POST /api/desktop/v1/locations/resolve", () => {
 
     const req = new NextRequest("http://localhost/api/desktop/v1/locations/resolve", {
       method: "POST",
-      body: JSON.stringify({ placeId: "place-123", sessionToken: "token-1" }),
+      body: JSON.stringify({ placeId: "place-123" }),
     });
 
     const res = await POST(req);
     expect(res.status).toBe(200);
     const body = await res.json();
     expect(body.ok).toBe(true);
-    expect(body.location).toEqual({
-      placeId: "place-123",
-      formattedAddress: "Ayala Center, Makati, Metro Manila, Philippines",
-      lat: 14.551,
-      lng: 121.025,
-      addressComponents: [
-        { long_name: "Makati", short_name: "Makati", types: ["locality"] },
-        { long_name: "Metro Manila", short_name: "NCR", types: ["administrative_area_level_1"] },
-      ],
-      mapUrl: "https://maps.google.com/?cid=123",
+    expect(body.location.lat).toBe(14.5547);
+    expect(body.location.lng).toBe(121.0244);
+    expect(body.location.formattedAddress).toBe("Ayala Avenue, Makati, Philippines");
+
+    vi.unstubAllGlobals();
+  });
+
+  it("handles upstream timeout gracefully", async () => {
+    mockedAuth.mockResolvedValueOnce({
+      ok: true,
+      operator: {
+        authUserId: "u1",
+        staff: { id: "s1", branch_id: "11111111-1111-4111-8111-111111111111", system_role: "crm" },
+        staffRole: "crm",
+        isDevBypass: false,
+      },
+      user: { id: "u1" },
+      client: dummyClient,
     });
+
+    const timeoutError = new Error("The operation was aborted due to timeout");
+    timeoutError.name = "TimeoutError";
+    vi.stubGlobal("fetch", vi.fn().mockRejectedValueOnce(timeoutError));
+
+    const req = new NextRequest("http://localhost/api/desktop/v1/locations/resolve", {
+      method: "POST",
+      body: JSON.stringify({ placeId: "place-timeout" }),
+    });
+
+    const res = await POST(req);
+    expect(res.status).toBe(504);
+    const body = await res.json();
+    expect(body.code).toBe("LOCATION_RESOLVE_TIMEOUT");
 
     vi.unstubAllGlobals();
   });

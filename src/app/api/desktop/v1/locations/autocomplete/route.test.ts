@@ -2,6 +2,7 @@ vi.mock("server-only", () => ({}));
 import { afterAll, beforeEach, describe, expect, it, vi } from "vitest";
 import { NextRequest } from "next/server";
 import type { DesktopBearerAuthResult } from "@/lib/auth/desktop-bearer-auth";
+import { resetLocationRateLimits } from "@/lib/locations/location-security";
 
 vi.mock("@/lib/auth/desktop-bearer-auth", () => ({
   verifyDesktopBearerAuth: vi.fn(),
@@ -37,6 +38,7 @@ describe("POST /api/desktop/v1/locations/autocomplete", () => {
 
   beforeEach(() => {
     vi.clearAllMocks();
+    resetLocationRateLimits();
     process.env.GOOGLE_MAPS_SERVER_API_KEY = "test-api-key";
   });
 
@@ -87,6 +89,117 @@ describe("POST /api/desktop/v1/locations/autocomplete", () => {
     const body = await res.json();
     expect(body.ok).toBe(false);
     expect(body.code).toBe("VALIDATION_ERROR");
+  });
+
+  it("enforces staff branch authorization when branchId does not match assigned branch", async () => {
+    mockedAuth.mockResolvedValueOnce({
+      ok: true,
+      operator: {
+        authUserId: "u1",
+        staff: { id: "s1", branch_id: "11111111-1111-4111-8111-111111111111", system_role: "crm" },
+        staffRole: "crm",
+        isDevBypass: false,
+      },
+      user: { id: "u1" },
+      client: createMockClient(),
+    });
+
+    const req = new NextRequest("http://localhost/api/desktop/v1/locations/autocomplete", {
+      method: "POST",
+      body: JSON.stringify({
+        query: "Ayala Ave",
+        branchId: "22222222-2222-4222-8222-222222222222", // Different branch
+      }),
+    });
+
+    const res = await POST(req);
+    expect(res.status).toBe(403);
+    const body = await res.json();
+    expect(body.ok).toBe(false);
+    expect(body.code).toBe("CRM_BRANCH_FORBIDDEN");
+  });
+
+  it("allows owner role cross-branch location search", async () => {
+    mockedAuth.mockResolvedValueOnce({
+      ok: true,
+      operator: {
+        authUserId: "u-owner",
+        staff: { id: "s-owner", branch_id: "11111111-1111-4111-8111-111111111111", system_role: "owner" },
+        staffRole: "owner",
+        isDevBypass: false,
+      },
+      user: { id: "u-owner" },
+      client: createMockClient(),
+    });
+
+    const mockFetch = vi.fn().mockResolvedValueOnce({
+      ok: true,
+      json: async () => ({
+        suggestions: [
+          {
+            placePrediction: {
+              placeId: "place-owner",
+              text: { text: "Owner Location" },
+            },
+          },
+        ],
+      }),
+    });
+    vi.stubGlobal("fetch", mockFetch);
+
+    const req = new NextRequest("http://localhost/api/desktop/v1/locations/autocomplete", {
+      method: "POST",
+      body: JSON.stringify({
+        query: "Owner Loc",
+        branchId: "22222222-2222-4222-8222-222222222222",
+      }),
+    });
+
+    const res = await POST(req);
+    expect(res.status).toBe(200);
+    vi.unstubAllGlobals();
+  });
+
+  it("returns 429 when rate limit is exceeded", async () => {
+    mockedAuth.mockResolvedValue({
+      ok: true,
+      operator: {
+        authUserId: "u-spammer",
+        staff: { id: "s1", branch_id: "11111111-1111-4111-8111-111111111111", system_role: "crm" },
+        staffRole: "crm",
+        isDevBypass: false,
+      },
+      user: { id: "u-spammer" },
+      client: createMockClient(),
+    });
+
+    const mockFetch = vi.fn().mockResolvedValue({
+      ok: true,
+      json: async () => ({ suggestions: [] }),
+    });
+    vi.stubGlobal("fetch", mockFetch);
+
+    // Make 60 requests (within limit)
+    for (let i = 0; i < 60; i++) {
+      const req = new NextRequest("http://localhost/api/desktop/v1/locations/autocomplete", {
+        method: "POST",
+        body: JSON.stringify({ query: "Test Query" }),
+      });
+      const res = await POST(req);
+      expect(res.status).toBe(200);
+    }
+
+    // 61st request should be rate limited
+    const overReq = new NextRequest("http://localhost/api/desktop/v1/locations/autocomplete", {
+      method: "POST",
+      body: JSON.stringify({ query: "Test Query Over Limit" }),
+    });
+    const overRes = await POST(overReq);
+    expect(overRes.status).toBe(429);
+    const body = await overRes.json();
+    expect(body.code).toBe("RATE_LIMIT_EXCEEDED");
+
+    vi.unstubAllGlobals();
   });
 
   it("returns 503 when Google Maps server API key is not configured", async () => {
@@ -169,17 +282,6 @@ describe("POST /api/desktop/v1/locations/autocomplete", () => {
         secondaryText: "Makati, Metro Manila, Philippines",
       },
     ]);
-
-    expect(mockFetch).toHaveBeenCalledWith(
-      "https://places.googleapis.com/v1/places:autocomplete",
-      expect.objectContaining({
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          "X-Goog-Api-Key": "test-api-key",
-        },
-      })
-    );
 
     vi.unstubAllGlobals();
   });

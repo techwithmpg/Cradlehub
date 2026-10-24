@@ -2,6 +2,10 @@ import { NextRequest } from "next/server";
 import { z } from "zod";
 import { verifyDesktopBearerAuth } from "@/lib/auth/desktop-bearer-auth";
 import { desktopFailure, desktopJson } from "@/lib/bookings/desktop-booking-contract";
+import {
+  checkLocationRateLimit,
+  verifyLocationBranchAccess,
+} from "@/lib/locations/location-security";
 import { calculateHomeServiceDistanceQuote } from "@/lib/home-service/distance-service";
 import { logError } from "@/lib/logger";
 
@@ -17,6 +21,16 @@ export async function POST(req: NextRequest) {
   const auth = await verifyDesktopBearerAuth(req);
   if (!auth.ok) {
     return desktopFailure(auth.code, auth.message, auth.status);
+  }
+
+  // Rate limiting per operator/user
+  const rateLimitKey = `distance:${auth.operator.authUserId || auth.user.id}`;
+  if (!checkLocationRateLimit(rateLimitKey, 60)) {
+    return desktopFailure(
+      "RATE_LIMIT_EXCEEDED",
+      "Too many distance quote requests. Please wait a moment and try again.",
+      429
+    );
   }
 
   let body: unknown;
@@ -38,7 +52,7 @@ export async function POST(req: NextRequest) {
   const { branchId, destination } = parsed.data;
 
   // Enforce staff branch authorization
-  if (auth.operator.staffRole !== "owner" && auth.operator.staff?.branch_id !== branchId) {
+  if (!verifyLocationBranchAccess(auth.operator, branchId)) {
     return desktopFailure(
       "CRM_BRANCH_FORBIDDEN",
       "You can only calculate distance for your assigned branch.",
