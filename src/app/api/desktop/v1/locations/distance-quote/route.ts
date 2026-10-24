@@ -23,12 +23,21 @@ export async function POST(req: NextRequest) {
     return desktopFailure(auth.code, auth.message, auth.status);
   }
 
-  // Rate limiting per operator/user
-  const rateLimitKey = `distance:${auth.operator.authUserId || auth.user.id}`;
-  if (!checkLocationRateLimit(rateLimitKey, 60)) {
+  // Rate limiting per operator/user and branch
+  const branchScope = auth.operator.staff?.branch_id || "any";
+  const rateLimitKey = `distance:${branchScope}:${auth.operator.authUserId || auth.user.id}`;
+  const rateLimit = await checkLocationRateLimit(rateLimitKey, 60);
+  if (!rateLimit.allowed) {
+    if (rateLimit.code === "RATE_LIMITER_UNAVAILABLE") {
+      return desktopFailure(
+        "RATE_LIMITER_UNAVAILABLE",
+        rateLimit.error || "Distributed rate limiter is unavailable.",
+        503
+      );
+    }
     return desktopFailure(
       "RATE_LIMIT_EXCEEDED",
-      "Too many distance quote requests. Please wait a moment and try again.",
+      rateLimit.error || "Too many distance quote requests. Please wait a moment and try again.",
       429
     );
   }
