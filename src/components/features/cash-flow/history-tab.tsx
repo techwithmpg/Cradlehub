@@ -174,13 +174,13 @@ export function HistoryTab({ history, businessDate }: HistoryTabProps) {
                           </span>
                         </td>
                         <td className="py-3 px-2 text-right font-medium tabular-nums text-[#1E1916]">
-                          {formatPeso(r.inflow)}
+                          {r.inflow !== null ? formatPeso(r.inflow) : '—'}
                         </td>
                         <td className="py-3 px-2 text-right font-medium tabular-nums text-[#6B5D52]">
-                          {formatPeso(r.outflow)}
+                          {r.outflow !== null ? formatPeso(r.outflow) : '—'}
                         </td>
                         <td className="py-3 px-2 text-right font-bold tabular-nums text-[#1E1916]">
-                          {formatPeso(r.net)}
+                          {r.net !== null ? formatPeso(r.net) : '—'}
                         </td>
                         <td className="py-3 px-2 text-[#6B5D52]">{r.reviewedBy || '—'}</td>
                         <td className="py-3 pl-2 text-right">

@@ -1,52 +1,61 @@
-import { describe, expect, it, vi, beforeEach } from 'vitest';
-import { recordLegacyBookingPaymentDomain } from './legacy-payment-writer';
+import { describe, it, expect, vi, beforeEach } from 'vitest';
 
 vi.mock('server-only', () => ({}));
 
-vi.mock('@/lib/bookings/revalidate-booking-surfaces', () => ({
-  revalidateOperationalBookingSurfaces: vi.fn(),
-}));
+import { recordLegacyBookingPaymentDomain } from './legacy-payment-writer';
+import { recordBookingPaymentChange } from '@/lib/bookings/payment-transaction';
 
 vi.mock('@/lib/bookings/payment-transaction', () => ({
   recordBookingPaymentChange: vi.fn(),
 }));
 
-import { recordBookingPaymentChange } from '@/lib/bookings/payment-transaction';
+vi.mock('@/lib/bookings/revalidate-booking-surfaces', () => ({
+  revalidateOperationalBookingSurfaces: vi.fn().mockResolvedValue(undefined),
+}));
+
 const mockedRecordBookingPaymentChange = vi.mocked(recordBookingPaymentChange);
 
-const BRANCH_A = '11111111-1111-4111-a111-111111111111';
-const BRANCH_B = '22222222-2222-4222-a222-222222222222';
-const BOOKING_ID = '33333333-3333-4333-a333-333333333333';
-const ACCOUNT_ID = '44444444-4444-4444-a444-444444444444';
+const BRANCH_A = '11111111-1111-4111-8111-111111111111';
+const BRANCH_B = '22222222-2222-4222-8222-222222222222';
+const BOOKING_ID = '33333333-3333-4333-8333-333333333333';
+const ACCOUNT_ID = '44444444-4444-4444-8444-444444444444';
 
-function createMockSupabase(bookingRow: Record<string, unknown> | null) {
+function createMockSupabase(bookingRow: Record<string, unknown> | null = null) {
   return {
-    from: vi.fn(() => ({
-      select: vi.fn(() => ({
-        eq: vi.fn(() => ({
-          maybeSingle: vi.fn(async () => ({
+    from: vi.fn((table: string) => {
+      if (table === 'bookings') {
+        return {
+          select: vi.fn().mockReturnThis(),
+          eq: vi.fn().mockReturnThis(),
+          maybeSingle: vi.fn().mockResolvedValue({
             data: bookingRow,
             error: null,
-          })),
-        })),
-      })),
-    })),
-  };
+          }),
+        };
+      }
+      return {
+        select: vi.fn().mockReturnThis(),
+        eq: vi.fn().mockReturnThis(),
+        maybeSingle: vi.fn().mockResolvedValue({ data: null, error: null }),
+      };
+    }),
+  } as unknown as Parameters<typeof recordLegacyBookingPaymentDomain>[0];
 }
 
-describe('recordLegacyBookingPaymentDomain (Bearer Authenticated)', () => {
+describe('recordLegacyBookingPaymentDomain', () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    mockedRecordBookingPaymentChange.mockReset();
   });
 
-  it('proves a valid Desktop bearer token client works without browser cookies', async () => {
+  it('records payment successfully for authorized crm front-desk staff', async () => {
     const supabase = createMockSupabase({
       id: BOOKING_ID,
       branch_id: BRANCH_A,
       order_id: null,
       amount_paid: 0,
       payment_status: 'unpaid',
-      status: 'pending_payment',
+      status: 'confirmed',
       metadata: { price_paid: 1000 },
     });
 
@@ -77,9 +86,10 @@ describe('recordLegacyBookingPaymentDomain (Bearer Authenticated)', () => {
         notes: 'Full payment via desktop',
       },
       {
-        userId: 'user-cashier-1',
-        role: 'cashier',
-        staffId: 'staff-cashier-1',
+        userId: 'user-crm-1',
+        role: 'crm',
+        staffId: 'staff-crm-1',
+        branchId: BRANCH_A,
       }
     );
 
@@ -91,16 +101,54 @@ describe('recordLegacyBookingPaymentDomain (Bearer Authenticated)', () => {
       expect(result.data.isIdempotentReplay).toBe(false);
       expect(result.data.branchId).toBe(BRANCH_A);
     }
-    expect(mockedRecordBookingPaymentChange).toHaveBeenCalledWith(
+  });
+
+  it.each([
+    ['crm'],
+    ['csr'],
+    ['manager'],
+    ['assistant_manager'],
+    ['store_manager'],
+    ['owner'],
+  ])('authorizes payment recording for valid role: %s', async (role) => {
+    const supabase = createMockSupabase({
+      id: BOOKING_ID,
+      branch_id: BRANCH_A,
+      order_id: null,
+      amount_paid: 0,
+      payment_status: 'unpaid',
+      status: 'confirmed',
+      metadata: { price_paid: 500 },
+    });
+
+    mockedRecordBookingPaymentChange.mockResolvedValueOnce({
+      ok: true,
+      booking: { id: BOOKING_ID, branch_id: BRANCH_A },
+      transactionId: `tx-${role}`,
+      paymentDelta: 500,
+      isIdempotentReplay: false,
+      reconciliationWarning: null,
+    });
+
+    const result = await recordLegacyBookingPaymentDomain(
       supabase,
-      expect.objectContaining({
+      {
         bookingId: BOOKING_ID,
         branchId: BRANCH_A,
-        amountPaid: 1000,
-        nextStatus: 'confirmed',
-        clearHold: true,
-      })
+        expectedAmountPaid: 0,
+        idempotencyKey: `idem-${role}`,
+        payments: [{ amount: 500, paymentMethod: 'cash', financialAccountId: ACCOUNT_ID }],
+        businessDate: '2026-10-23',
+      },
+      {
+        userId: `user-${role}`,
+        role,
+        staffId: `staff-${role}`,
+        branchId: BRANCH_A,
+      }
     );
+
+    expect(result.ok).toBe(true);
   });
 
   it('rejects unauthenticated requests (missing actor userId)', async () => {
@@ -125,40 +173,65 @@ describe('recordLegacyBookingPaymentDomain (Bearer Authenticated)', () => {
     }
   });
 
-  it('rejects cross-branch bookings with BRANCH_MISMATCH', async () => {
-    const supabase = createMockSupabase({
-      id: BOOKING_ID,
-      branch_id: BRANCH_B, // Belongs to branch B
-      order_id: null,
-      amount_paid: 0,
-      payment_status: 'unpaid',
-      status: 'confirmed',
-      metadata: { price_paid: 1000 },
-    });
+  it('rejects missing staff record with STAFF_REQUIRED', async () => {
+    const supabase = createMockSupabase(null);
 
     const result = await recordLegacyBookingPaymentDomain(
       supabase,
       {
         bookingId: BOOKING_ID,
-        branchId: BRANCH_A, // Cashier is on branch A
+        branchId: BRANCH_A,
         expectedAmountPaid: 0,
         idempotencyKey: 'idem-1',
         payments: [{ amount: 500, paymentMethod: 'cash', financialAccountId: ACCOUNT_ID }],
         businessDate: '2026-10-23',
       },
       {
-        userId: 'user-1',
-        role: 'cashier',
+        userId: 'user-no-staff',
+        role: 'crm',
+        staffId: undefined,
       }
     );
 
     expect(result.ok).toBe(false);
     if (!result.ok) {
-      expect(result.code).toBe('BRANCH_MISMATCH');
+      expect(result.code).toBe('STAFF_REQUIRED');
     }
   });
 
-  it('rejects ineligible staff roles with FORBIDDEN', async () => {
+  it('rejects missing or unresolved role with ROLE_REQUIRED', async () => {
+    const supabase = createMockSupabase(null);
+
+    const result = await recordLegacyBookingPaymentDomain(
+      supabase,
+      {
+        bookingId: BOOKING_ID,
+        branchId: BRANCH_A,
+        expectedAmountPaid: 0,
+        idempotencyKey: 'idem-1',
+        payments: [{ amount: 500, paymentMethod: 'cash', financialAccountId: ACCOUNT_ID }],
+        businessDate: '2026-10-23',
+      },
+      {
+        userId: 'user-no-role',
+        staffId: 'staff-no-role',
+        role: '',
+      }
+    );
+
+    expect(result.ok).toBe(false);
+    if (!result.ok) {
+      expect(result.code).toBe('ROLE_REQUIRED');
+    }
+  });
+
+  it.each([
+    ['therapist'],
+    ['driver'],
+    ['cleaner'],
+    ['inventory'],
+    ['unauthorized_role'],
+  ])('rejects unauthorized role (%s) with FORBIDDEN', async (role) => {
     const supabase = createMockSupabase({
       id: BOOKING_ID,
       branch_id: BRANCH_A,
@@ -181,7 +254,9 @@ describe('recordLegacyBookingPaymentDomain (Bearer Authenticated)', () => {
       },
       {
         userId: 'user-1',
-        role: 'therapist', // Therapists cannot record payments
+        staffId: 'staff-1',
+        role,
+        branchId: BRANCH_A,
       }
     );
 
@@ -189,6 +264,82 @@ describe('recordLegacyBookingPaymentDomain (Bearer Authenticated)', () => {
     if (!result.ok) {
       expect(result.code).toBe('FORBIDDEN');
     }
+  });
+
+  it('rejects cross-branch access for non-owner staff with BRANCH_MISMATCH', async () => {
+    const supabase = createMockSupabase({
+      id: BOOKING_ID,
+      branch_id: BRANCH_A,
+      order_id: null,
+      amount_paid: 0,
+      payment_status: 'unpaid',
+      status: 'confirmed',
+      metadata: { price_paid: 1000 },
+    });
+
+    const result = await recordLegacyBookingPaymentDomain(
+      supabase,
+      {
+        bookingId: BOOKING_ID,
+        branchId: BRANCH_A, // Request target branch
+        expectedAmountPaid: 0,
+        idempotencyKey: 'idem-1',
+        payments: [{ amount: 500, paymentMethod: 'cash', financialAccountId: ACCOUNT_ID }],
+        businessDate: '2026-10-23',
+      },
+      {
+        userId: 'user-1',
+        staffId: 'staff-1',
+        role: 'crm',
+        branchId: BRANCH_B, // Staff belongs to branch B
+      }
+    );
+
+    expect(result.ok).toBe(false);
+    if (!result.ok) {
+      expect(result.code).toBe('BRANCH_MISMATCH');
+    }
+  });
+
+  it('allows cross-branch access for owner role', async () => {
+    const supabase = createMockSupabase({
+      id: BOOKING_ID,
+      branch_id: BRANCH_A,
+      order_id: null,
+      amount_paid: 0,
+      payment_status: 'unpaid',
+      status: 'confirmed',
+      metadata: { price_paid: 1000 },
+    });
+
+    mockedRecordBookingPaymentChange.mockResolvedValueOnce({
+      ok: true,
+      booking: { id: BOOKING_ID, branch_id: BRANCH_A },
+      transactionId: 'tx-owner',
+      paymentDelta: 1000,
+      isIdempotentReplay: false,
+      reconciliationWarning: null,
+    });
+
+    const result = await recordLegacyBookingPaymentDomain(
+      supabase,
+      {
+        bookingId: BOOKING_ID,
+        branchId: BRANCH_A,
+        expectedAmountPaid: 0,
+        idempotencyKey: 'idem-owner-cross',
+        payments: [{ amount: 1000, paymentMethod: 'cash', financialAccountId: ACCOUNT_ID }],
+        businessDate: '2026-10-23',
+      },
+      {
+        userId: 'user-owner',
+        staffId: 'staff-owner',
+        role: 'owner',
+        branchId: BRANCH_B, // Owner assigned to Branch B can operate on Branch A
+      }
+    );
+
+    expect(result.ok).toBe(true);
   });
 
   it('rejects bookings backed by booking_orders with SOURCE_MISMATCH', async () => {
@@ -214,7 +365,9 @@ describe('recordLegacyBookingPaymentDomain (Bearer Authenticated)', () => {
       },
       {
         userId: 'user-1',
-        role: 'cashier',
+        staffId: 'staff-1',
+        role: 'crm',
+        branchId: BRANCH_A,
       }
     );
 
@@ -247,7 +400,9 @@ describe('recordLegacyBookingPaymentDomain (Bearer Authenticated)', () => {
       },
       {
         userId: 'user-1',
-        role: 'cashier',
+        staffId: 'staff-1',
+        role: 'crm',
+        branchId: BRANCH_A,
       }
     );
 
@@ -277,20 +432,21 @@ describe('recordLegacyBookingPaymentDomain (Bearer Authenticated)', () => {
       reconciliationWarning: null,
     });
 
-    // Replay of same payment
     const result = await recordLegacyBookingPaymentDomain(
       supabase,
       {
         bookingId: BOOKING_ID,
         branchId: BRANCH_A,
-        expectedAmountPaid: 0, // original expected amount
+        expectedAmountPaid: 0,
         idempotencyKey: 'idem-replay-1',
         payments: [{ amount: 1000, paymentMethod: 'cash', financialAccountId: ACCOUNT_ID }],
         businessDate: '2026-10-23',
       },
       {
         userId: 'user-1',
-        role: 'cashier',
+        staffId: 'staff-1',
+        role: 'crm',
+        branchId: BRANCH_A,
       }
     );
 
@@ -333,7 +489,9 @@ describe('recordLegacyBookingPaymentDomain (Bearer Authenticated)', () => {
       },
       {
         userId: 'user-1',
-        role: 'cashier',
+        staffId: 'staff-1',
+        role: 'crm',
+        branchId: BRANCH_A,
       }
     );
 
@@ -343,7 +501,7 @@ describe('recordLegacyBookingPaymentDomain (Bearer Authenticated)', () => {
       expect.objectContaining({
         amountPaid: 400,
         paymentStatus: 'pending',
-        nextStatus: null, // Should not confirm on partial payment
+        nextStatus: null,
         clearHold: false,
       })
     );

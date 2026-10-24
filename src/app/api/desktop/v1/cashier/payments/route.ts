@@ -1,3 +1,5 @@
+import { deriveOrderPaymentEligibility } from "@/lib/cash-flow/order-payment-eligibility";
+import { canConfirmPayments } from "@/lib/auth/crm-permissions";
 import { NextRequest } from "next/server";
 import {
   withDesktopCashierContext,
@@ -16,6 +18,15 @@ import { isBookingClosedForCrm } from "@/lib/bookings/crm-booking-status";
 
 export async function POST(request: NextRequest) {
   return withDesktopCashierContext(request, async (ctx) => {
+    const staffRole = ctx.operator.staffRole ?? ctx.operator.staff?.system_role ?? "";
+    if (!staffRole || !canConfirmPayments(staffRole)) {
+      return desktopFailure("FORBIDDEN", `Staff role '${staffRole}' is not authorized to record payments.`, 403);
+    }
+
+    if (staffRole !== "owner" && ctx.operator.staff?.branch_id && ctx.operator.staff.branch_id !== ctx.branchId) {
+      return desktopFailure("BRANCH_MISMATCH", "Cannot record payment for a branch you are not assigned to.", 403);
+    }
+
     let body: unknown;
     try {
       body = await request.json();
@@ -81,6 +92,81 @@ export async function POST(request: NextRequest) {
         return desktopFailure("BRANCH_MISMATCH", "Cannot record payment for an order in another branch.", 403);
       }
 
+      // Enforce order payment eligibility on the server if child bookings exist
+      let orderBookings: Array<{ id: string; status: string | null; metadata: Record<string, unknown> | null }> | null = null;
+      try {
+        const bookingsRes = await ctx.supabase
+          .from("bookings")
+          .select("id, status, metadata")
+          .eq("order_id", order.id);
+        if (bookingsRes && Array.isArray(bookingsRes.data)) {
+          orderBookings = bookingsRes.data as unknown as Array<{ id: string; status: string | null; metadata: Record<string, unknown> | null }>;
+        }
+      } catch {
+        orderBookings = null;
+      }
+
+      if (orderBookings && orderBookings.length > 0) {
+        let orderItems: Array<{
+          id: string;
+          booking_id: string | null;
+          amount: number | string;
+          charge_type: string;
+          source_type: string | null;
+          source_id: string | null;
+          sequence: number;
+        }> = [];
+        try {
+          const itemsRes = await ctx.supabase
+            .from("order_payable_items")
+            .select("id, booking_id, amount, charge_type, sequence, source_type, source_id")
+            .eq("order_id", order.id)
+            .order("sequence");
+          if (itemsRes && Array.isArray(itemsRes.data)) {
+            orderItems = itemsRes.data;
+          }
+        } catch {
+          orderItems = [];
+        }
+
+        const { data: orderSummary } = await ctx.supabase
+          .from("v_booking_order_financial_summaries")
+          .select("total_payable, net_allocated")
+          .eq("order_id", order.id)
+          .maybeSingle();
+
+        const { data: orderMeta } = await ctx.supabase
+          .from("booking_orders")
+          .select("metadata")
+          .eq("id", order.id)
+          .maybeSingle();
+
+        const eligibility = deriveOrderPaymentEligibility({
+          children: orderBookings.map((b) => ({
+            id: b.id,
+            status: b.status,
+            metadata: b.metadata as Record<string, unknown> | null,
+          })),
+          items: orderItems.map((i) => ({
+            id: i.id,
+            booking_id: i.booking_id,
+            amount: Number(i.amount) || 0,
+            charge_type: i.charge_type,
+            source_type: i.source_type,
+            source_id: i.source_id,
+            sequence: i.sequence,
+          })),
+          totalPayable: Number(orderSummary?.total_payable ?? 0),
+          netAllocated: Number(orderSummary?.net_allocated ?? 0),
+          quotedTotal: Number((orderMeta?.metadata as Record<string, unknown> | null)?.total_amount) || null,
+          homeServiceFee: (orderMeta?.metadata as Record<string, unknown> | null)?.home_service_fee,
+        });
+
+        if (eligibility && !eligibility.eligible) {
+          return desktopFailure("ORDER_INELIGIBLE", "This order is not currently eligible for payment collection.", 400);
+        }
+      }
+
       // Call authoritative atomic writer
       const result = await recordOrderPayment(ctx.supabase, payload);
 
@@ -133,8 +219,9 @@ export async function POST(request: NextRequest) {
         },
         {
           userId: ctx.authUserId,
-          role: ctx.operator.staffRole ?? ctx.operator.staff?.system_role ?? undefined,
+          role: staffRole,
           staffId: ctx.operator.staff?.id ?? undefined,
+          branchId: ctx.operator.staff?.branch_id ?? undefined,
         }
       );
 

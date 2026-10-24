@@ -4,6 +4,7 @@ import { z } from 'zod';
 import { revalidateOperationalBookingSurfaces } from '@/lib/bookings/revalidate-booking-surfaces';
 import { recordBookingPaymentChange } from '@/lib/bookings/payment-transaction';
 import { isBookingClosedForCrm } from '@/lib/bookings/crm-booking-status';
+import { canConfirmPayments } from '@/lib/auth/crm-permissions';
 import { validatedLegacyBookingPrice } from './legacy-booking-price';
 import { PaymentPartPayloadSchema } from './financial-contract';
 
@@ -23,8 +24,9 @@ export type LegacyBookingPaymentPayload = z.infer<typeof LegacyBookingPaymentPay
 
 export type LegacyBookingPaymentActor = {
   userId: string;
-  role?: string;
-  staffId?: string;
+  role?: string | null;
+  staffId?: string | null;
+  branchId?: string | null;
 };
 
 export type LegacyBookingPaymentResult =
@@ -54,12 +56,16 @@ export async function recordLegacyBookingPaymentDomain(
     return { ok: false, error: 'AUTH_REQUIRED: Authentication required to record payments.', code: 'AUTH_REQUIRED' };
   }
 
-  if (actor.role) {
-    const role = actor.role.toLowerCase();
-    const allowedRoles = ['owner', 'manager', 'cashier', 'receptionist', 'admin'];
-    if (!allowedRoles.includes(role)) {
-      return { ok: false, error: 'FORBIDDEN: Staff role is not authorized to record payments.', code: 'FORBIDDEN' };
-    }
+  if (!actor.staffId) {
+    return { ok: false, error: 'STAFF_REQUIRED: Active staff profile is required to record payments.', code: 'STAFF_REQUIRED' };
+  }
+
+  if (!actor.role || typeof actor.role !== 'string' || !actor.role.trim()) {
+    return { ok: false, error: 'ROLE_REQUIRED: Staff role is required and must be authorized to record payments.', code: 'ROLE_REQUIRED' };
+  }
+
+  if (!canConfirmPayments(actor.role)) {
+    return { ok: false, error: `FORBIDDEN: Staff role '${actor.role}' is not authorized to record payments.`, code: 'FORBIDDEN' };
   }
 
   const parsed = LegacyBookingPaymentPayloadSchema.safeParse(input);
@@ -67,6 +73,14 @@ export async function recordLegacyBookingPaymentDomain(
     return { ok: false, error: 'VALIDATION_FAILED: Invalid booking payment request.', code: 'VALIDATION_FAILED' };
   }
   const payload = parsed.data;
+
+  // Branch authorization: non-owners cannot record payments for another branch
+  const normalizedRole = actor.role.toLowerCase().trim();
+  if (normalizedRole !== 'owner') {
+    if (!actor.branchId || actor.branchId !== payload.branchId) {
+      return { ok: false, error: 'BRANCH_MISMATCH: Staff member cannot record payments for another branch.', code: 'BRANCH_MISMATCH' };
+    }
+  }
 
   const client = supabase as {
     from: (table: string) => {
