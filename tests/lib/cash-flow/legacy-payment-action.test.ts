@@ -53,6 +53,17 @@ beforeEach(() => {
   mocks.createClient.mockResolvedValue({
     auth: { getUser: async () => ({ data: { user: authenticated ? { id: 'user-a' } : null } }) },
     from: (table: string) => {
+      if (table === 'staff') {
+        const staffQuery = {
+          select: () => staffQuery,
+          eq: () => staffQuery,
+          maybeSingle: async () => ({
+            data: { id: 'staff-a', branch_id: branchId, system_role: 'crm', is_active: true },
+            error: null,
+          }),
+        };
+        return staffQuery;
+      }
       expect(table).toBe('bookings');
       return query;
     },

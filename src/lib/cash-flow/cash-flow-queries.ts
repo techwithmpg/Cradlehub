@@ -1,3 +1,4 @@
+import { logError } from '@/lib/logger';
 import 'server-only';
 
 import { createClient } from '@/lib/supabase/server';
@@ -889,6 +890,7 @@ export async function getCashFlowData(
     const isPaid = b.order_id
       ? orderState?.status === 'paid'
       : b.payment_status === 'paid';
+    if (isPaid || remaining <= 0) continue;
     const isPartial = !isPaid && paid > 0;
     const displayBooking = b.order_id
       ? todayBookings.find((row) => row.order_id === b.order_id && !isBookingClosedForCrm(row.status ?? '')) ?? b
@@ -978,20 +980,42 @@ export async function getCashFlowData(
         if (b.order_id) {
           const children = orderChildrenById.get(b.order_id) ?? [];
           const activeChildren = children.filter((child) => !isBookingClosedForCrm(child.status ?? ''));
+          if (children.some((child) => isBookingClosedForCrm(child.status ?? ''))) {
+            return 'Mixed services';
+          }
           if (children.length === 0 || activeChildren.length === 0) {
             return 'cancelled';
           }
           if (activeChildren.every((c) => (c.status ?? '').toLowerCase() === 'completed')) {
             return 'completed';
           }
-          if (activeChildren.some((c) => (c.status ?? '').toLowerCase() === 'in_progress')) {
-            return 'in_progress';
+          if (activeChildren.some((c) => (c.status ?? '').toLowerCase() === 'in_progress' || (c.status ?? '').toLowerCase() === 'in_service')) {
+            return 'in_service';
           }
-          return 'confirmed';
+          if (activeChildren.some((c) => (c.status ?? '').toLowerCase() === 'waiting' || (c.status ?? '').toLowerCase() === 'checked_in')) {
+            return 'waiting';
+          }
+          return 'scheduled';
         }
-        return (b.status ?? 'confirmed').toLowerCase();
+        const s = (b.status ?? 'confirmed').toLowerCase();
+        if (s === 'in_progress' || s === 'in_service') return 'in_service';
+        if (s === 'confirmed' || s === 'scheduled') return 'scheduled';
+        return s;
       })(),
-      paymentEligible: b.order_id ? orderEligibility?.eligible === true : true,
+      paymentEligible: b.order_id
+        ? orderEligibility?.eligible === true
+        : (!isPaid && !isBookingClosedForCrm(b.status ?? '') && remaining > 0),
+      ineligibilityReason: (() => {
+        if (b.order_id) {
+          if (!orderEligibility) return 'Order pricing could not be verified';
+          if (orderEligibility.remaining <= 0) return 'Balance is already settled';
+          if (!orderEligibility.eligible) return 'Awaiting service completion or check-in';
+          return null;
+        }
+        if (isPaid || remaining <= 0) return 'Balance is already settled';
+        if (isBookingClosedForCrm(b.status ?? '')) return 'Booking is closed';
+        return null;
+      })(),
       paymentStatus: isPaid ? 'paid' : isPartial ? 'partially_paid' : 'unpaid',
       payableItems,
       previousPayments,
@@ -1051,37 +1075,72 @@ export async function getCashFlowData(
   };
 
   let historicalRecords: HistoricalDayCloseItem[] = [];
-  try {
-    const { data: histRows } = await supabase
-      .from('daily_cash_reconciliations')
-      .select('id, branch_id, reconciliation_date, status, actual_cash, expected_cash, recorded_by, created_at')
-      .eq('branch_id', branchId)
-      .order('reconciliation_date', { ascending: false })
-      .limit(30);
+  const { data: histRows, error: histError } = await supabase
+    .from('daily_cash_reconciliations')
+    .select('id, branch_id, reconciliation_date, status, actual_cash, expected_cash, recorded_by, created_at')
+    .eq('branch_id', branchId)
+    .order('reconciliation_date', { ascending: false })
+    .limit(30);
 
-    if (histRows && histRows.length > 0) {
-      historicalRecords = (histRows as Array<{
-        id: string;
-        reconciliation_date: string;
-        status: string;
-        actual_cash: number | null;
-        recorded_by: string | null;
-      }>).map((r) => {
-        const cashActual = Number(r.actual_cash ?? 0);
-        return {
-          id: r.id,
-          date: r.reconciliation_date,
-          branchName: branchName,
-          status: r.status === 'approved' ? 'reviewed' : r.status === 'submitted' ? 'needs_review' : 'closed',
-          inflow: cashActual,
-          outflow: 0,
-          net: cashActual,
-          reviewedBy: r.recorded_by ? 'Staff' : null,
-        };
-      });
+  if (histError) {
+    logError('Failed to query daily_cash_reconciliations history', { error: histError });
+  } else if (histRows && histRows.length > 0) {
+    const recordedByIds = [...new Set(histRows.map((r: { recorded_by: string | null }) => r.recorded_by).filter(Boolean) as string[])];
+    const reviewerMap = new Map<string, string>();
+    if (recordedByIds.length > 0) {
+      const { data: reviewers } = await supabase
+        .from('staff')
+        .select('id, full_name')
+        .in('id', recordedByIds);
+      for (const rev of (reviewers ?? []) as Array<{ id: string; full_name: string }>) {
+        reviewerMap.set(rev.id, rev.full_name);
+      }
     }
-  } catch {
-    // Graceful fallback to empty records
+
+    // Aggregate verified posted transactions by business_date
+    const txByDate = new Map<string, { inflow: number; outflow: number; count: number }>();
+    for (const tx of (allTransactions ?? []) as Array<{
+      status: string;
+      business_date: string;
+      financial_account_movements?: Array<{ amount: number | string }>;
+    }>) {
+      if (tx.status !== 'posted') continue;
+      const date = tx.business_date;
+      if (!date) continue;
+      const current = txByDate.get(date) ?? { inflow: 0, outflow: 0, count: 0 };
+      for (const m of tx.financial_account_movements ?? []) {
+        const amt = Number(m.amount) || 0;
+        if (amt > 0) current.inflow += amt;
+        else if (amt < 0) current.outflow += Math.abs(amt);
+      }
+      current.count += 1;
+      txByDate.set(date, current);
+    }
+
+    historicalRecords = (histRows as Array<{
+      id: string;
+      reconciliation_date: string;
+      status: string;
+      actual_cash: number | null;
+      recorded_by: string | null;
+    }>).map((r) => {
+      const verified = txByDate.get(r.reconciliation_date);
+      const inflow = verified ? verified.inflow : null;
+      const outflow = verified ? verified.outflow : null;
+      const net = verified ? verified.inflow - verified.outflow : null;
+      const reviewer = r.recorded_by ? (reviewerMap.get(r.recorded_by) ?? null) : null;
+
+      return {
+        id: r.id,
+        date: r.reconciliation_date,
+        branchName: branchName,
+        status: r.status, // preserve actual reconciliation status directly
+        inflow,
+        outflow,
+        net,
+        reviewedBy: reviewer, // do not fabricate 'Staff'
+      };
+    });
   }
 
   const historySummary: HistoryTabSummary = {

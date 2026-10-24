@@ -1,5 +1,7 @@
 'use server';
 
+import { canConfirmPayments } from '@/lib/auth/crm-permissions';
+
 import { revalidatePath } from 'next/cache';
 import { revalidateOperationalBookingSurfaces } from '@/lib/bookings/revalidate-booking-surfaces';
 import { createClient } from '@/lib/supabase/server';
@@ -116,6 +118,28 @@ export async function recordOrderPaymentAction(
     };
   }
 
+  const { data: staff, error: staffError } = await supabase
+    .from('staff')
+    .select('id, branch_id, system_role, is_active')
+    .eq('auth_user_id', user.id)
+    .maybeSingle();
+
+  if (staffError || !staff || !staff.is_active) {
+    return {
+      ok: false,
+      error: 'STAFF_INACTIVE: Active staff profile is required to record payments.',
+      code: 'STAFF_INACTIVE',
+    };
+  }
+
+  if (!canConfirmPayments(staff.system_role ?? '')) {
+    return {
+      ok: false,
+      error: `FORBIDDEN: Staff role '${staff.system_role}' is not authorized to record payments.`,
+      code: 'FORBIDDEN',
+    };
+  }
+
   // 2. Validate payload schema
   const parsed = PostOrderPaymentPayloadSchema.safeParse(payload);
   if (!parsed.success) {
@@ -130,7 +154,7 @@ export async function recordOrderPaymentAction(
   // 3. Server guard: Verify that the order has at least one active, non-closed booking
   const { data: orderBookings, error: bookingsErr } = await supabase
     .from('bookings')
-    .select('id, status')
+    .select('id, status, branch_id')
     .eq('order_id', parsed.data.orderId);
 
   if (bookingsErr) {
@@ -158,6 +182,18 @@ export async function recordOrderPaymentAction(
     };
   }
 
+  // Non-owner staff cannot record payments for another branch
+  if (staff.system_role !== 'owner') {
+    const orderBranchId = orderBookings[0]?.branch_id;
+    if (orderBranchId && staff.branch_id && staff.branch_id !== orderBranchId) {
+      return {
+        ok: false,
+        error: 'BRANCH_MISMATCH: Staff member cannot record payments for another branch.',
+        code: 'BRANCH_MISMATCH',
+      };
+    }
+  }
+
   // 4. Delegate to canonical CF4 atomic payment writer
   const result = await recordOrderPayment(supabase, parsed.data);
 
@@ -165,6 +201,7 @@ export async function recordOrderPaymentAction(
     revalidateOperationalBookingSurfaces(result.data.branchId);
   }
 
+  // revalidateOperationalBookingSurfaces(result.booking.branch_id) handled in domain writer
   return result;
 }
 
@@ -186,7 +223,26 @@ export async function recordLegacyBookingPaymentAction(
     return { ok: false, error: 'AUTH_REQUIRED: Authentication required to record payments.', code: 'AUTH_REQUIRED' };
   }
 
-  const result = await recordLegacyBookingPaymentDomain(supabase, input, { userId: user.id });
+  const { data: staff, error: staffError } = await supabase
+    .from('staff')
+    .select('id, branch_id, system_role, is_active')
+    .eq('auth_user_id', user.id)
+    .maybeSingle();
+
+  if (staffError || !staff || !staff.is_active) {
+    return {
+      ok: false,
+      error: 'STAFF_INACTIVE: Active staff profile is required to record payments.',
+      code: 'STAFF_INACTIVE',
+    };
+  }
+
+  const result = await recordLegacyBookingPaymentDomain(supabase, input, {
+    userId: user.id,
+    staffId: staff.id,
+    role: staff.system_role ?? undefined,
+    branchId: staff.branch_id ?? undefined,
+  });
   return result;
 }
 

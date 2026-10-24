@@ -117,10 +117,10 @@ export interface HistoricalDayCloseItem {
   id: string;
   date: string;
   branchName: string;
-  status: 'reviewed' | 'closed' | 'needs_review' | 'reopened';
-  inflow: number;
-  outflow: number;
-  net: number;
+  status: string;
+  inflow: number | null;
+  outflow: number | null;
+  net: number | null;
   reviewedBy: string | null;
 }
 
@@ -170,6 +170,7 @@ export interface PayableOrderOption {
   sourceKind: 'booking_order' | 'legacy_booking';
   /** Explicit order-level eligibility; never inferred from a representative child status. */
   paymentEligible?: boolean;
+  ineligibilityReason?: string | null;
   orderNumber: string;
   customerName: string;
   customerPhone?: string | null;

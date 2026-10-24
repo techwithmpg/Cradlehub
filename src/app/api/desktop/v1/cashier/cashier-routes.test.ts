@@ -775,6 +775,32 @@ describe("Cashier Desktop API Endpoints", () => {
       expect(json.code).toBe("BRANCH_MISMATCH");
     });
 
+    it("rejects payment recording when operator has an unauthorized role", async () => {
+      const client = createRobustMockClient();
+      mockAuthSuccess(client, "therapist");
+
+      const req = new NextRequest("http://localhost/api/desktop/v1/cashier/payments", {
+        method: "POST",
+        body: JSON.stringify({
+          orderId: "11111111-1111-4111-a111-111111111111",
+          idempotencyKey: "idem-unauth-role",
+          payments: [
+            {
+              amount: 500,
+              paymentMethod: "cash",
+              financialAccountId: UUID_DRAWER,
+            },
+          ],
+        }),
+      });
+
+      const res = await postPayment(req);
+      expect(res.status).toBe(403);
+      const json = await res.json();
+      expect(json.ok).toBe(false);
+      expect(json.code).toBe("FORBIDDEN");
+    });
+
     it("supports legacy booking payment when orderId references a legacy booking row", async () => {
       const client = createRobustMockClient({ orderId: null });
       mockAuthSuccess(client);
