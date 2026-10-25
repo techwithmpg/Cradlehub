@@ -38,6 +38,12 @@ export type CrmSetupHealthData = {
   driversTotal: number;
   /** Unassigned confirmed bookings for today */
   unassignedTodayCount: number;
+  /** Specific active branch services lacking any eligible provider assignment */
+  unstaffedServices?: Array<{
+    serviceId: string;
+    serviceName: string;
+    category: string | null;
+  }>;
   /** Issues derived from the above */
   issues: SetupIssue[];
 };
@@ -226,7 +232,23 @@ export async function getCrmSetupHealth(branchId: string): Promise<CrmSetupHealt
 
   const unassignedTodayCount = unassignedResult.count ?? 0;
 
+  const unstaffedServices = providerReadiness
+    .filter((readiness) => readiness.needsStaffAssignment)
+    .map((readiness) => {
+      const match = assignableServices.find((s) => s.service_id === readiness.serviceId);
+      const masterService = Array.isArray(match?.services) ? match.services[0] : match?.services;
+      const masterCategory = Array.isArray(masterService?.service_categories)
+        ? masterService.service_categories[0]
+        : masterService?.service_categories;
+      return {
+        serviceId: readiness.serviceId,
+        serviceName: match?.public_title ?? masterService?.name ?? "Unnamed Service",
+        category: masterCategory?.name ?? null,
+      };
+    });
+
   const base = {
+    unstaffedServices,
     serviceStaffTotal,
     serviceStaffWithSchedule,
     activeServicesTotal,

@@ -1,14 +1,16 @@
 import { describe, expect, it } from "vitest";
 import {
   buildOperationsIssues,
+  buildStaffDuplicateIssues,
   issueMatchesSearch,
   recentUnsuccessfulScans,
   scanMatchesSearch,
+  type OperationalStaffMember,
 } from "@/lib/operations-center/issue-model";
 import type { AttendanceWorkspaceData } from "@/lib/attendance/types";
 import type { CrmSetupHealthData } from "@/lib/queries/crm-setup";
 
-const setup = {
+const setupWithGenericIssue = {
   issues: [
     {
       id: "no-staff-for-service",
@@ -18,6 +20,27 @@ const setup = {
       impact: "Service cannot be booked.",
       fixLabel: "Assign therapists",
       fixHref: "/crm/services",
+    },
+  ],
+} as unknown as CrmSetupHealthData;
+
+const setupWithSpecificServices = {
+  issues: [
+    {
+      id: "no-staff-for-service",
+      severity: "error",
+      title: "One active service has no therapist",
+      detail: "Provider assignment is missing.",
+      impact: "Service cannot be booked.",
+      fixLabel: "Assign therapists",
+      fixHref: "/crm/services",
+    },
+  ],
+  unstaffedServices: [
+    {
+      serviceId: "svc-prenatal-massage",
+      serviceName: "Prenatal Signature Massage",
+      category: "massage",
     },
   ],
 } as unknown as CrmSetupHealthData;
@@ -70,20 +93,71 @@ const attendance = {
   ],
 } as unknown as AttendanceWorkspaceData;
 
-describe("Operations Center first slice", () => {
+const staffSample: OperationalStaffMember[] = [
+  {
+    id: "staff-1",
+    full_name: "Maria Santos",
+    phone: "09171234567",
+    system_role: "therapist",
+    staff_type: "therapist",
+    is_active: true,
+    branch_id: "branch-1",
+    auth_user_id: "auth-1",
+    identity_verified_at: "2026-10-01T00:00:00Z",
+  },
+  {
+    id: "staff-2",
+    full_name: "Maria Santos",
+    phone: "09171234567",
+    system_role: "therapist",
+    staff_type: "therapist",
+    is_active: false,
+    branch_id: "branch-1",
+    auth_user_id: null,
+    identity_verified_at: null,
+  },
+  {
+    id: "staff-3",
+    full_name: "Juan Dela Cruz",
+    phone: "09189876543",
+    system_role: "therapist",
+    staff_type: "therapist",
+    is_active: true,
+    branch_id: "branch-1",
+    auth_user_id: "auth-3",
+    identity_verified_at: "2026-10-01T00:00:00Z",
+  },
+];
+
+describe("Operations Center issue model and diagnostics", () => {
   it("does not fabricate findings when either source is unavailable", () => {
     expect(buildOperationsIssues(null, null)).toEqual([]);
-    expect(buildOperationsIssues(null, setup)).toHaveLength(1);
+    expect(buildOperationsIssues(null, setupWithGenericIssue)).toHaveLength(1);
     expect(buildOperationsIssues(attendance, null)).toHaveLength(1);
   });
 
-  it("routes configuration repair to the existing service readiness editor", () => {
-    const result = buildOperationsIssues(null, setup);
+  it("routes generic configuration repair to the existing service readiness editor when unstaffed list is empty", () => {
+    const result = buildOperationsIssues(null, setupWithGenericIssue);
     expect(result[0]).toMatchObject({
       area: "configuration",
       severity: "critical",
       actionHref: "/crm/services?tab=issues",
     });
+  });
+
+  it("emits record-specific provider issues when authoritative unstaffed services are available", () => {
+    const result = buildOperationsIssues(null, setupWithSpecificServices);
+    expect(result).toHaveLength(1);
+    expect(result[0]).toMatchObject({
+      id: "configuration:service-provider:svc-prenatal-massage",
+      area: "configuration",
+      severity: "critical",
+      title: "Prenatal Signature Massage has no assigned provider",
+      resolutionKind: "provider_assignment",
+      serviceId: "svc-prenatal-massage",
+      serviceName: "Prenatal Signature Massage",
+    });
+    expect(issueMatchesSearch(result[0]!, "prenatal")).toBe(true);
   });
 
   it("keeps a device-limit incident read-only and points to the selected staff phone controls", () => {
@@ -99,7 +173,28 @@ describe("Operations Center first slice", () => {
   it("searches blocked scan IDs and does not classify successful scans as unsuccessful", () => {
     const scans = recentUnsuccessfulScans(attendance);
     expect(scans).toHaveLength(1);
+    expect(scans[0]!.staffId).toBe("staff-1");
     expect(scanMatchesSearch(scans[0]!, "device_limit_reached")).toBe(true);
     expect(scanMatchesSearch(scans[0]!, "4f0af7d6")).toBe(true);
+  });
+
+  it("detects potential duplicate staff accounts non-destructively", () => {
+    const duplicates = buildStaffDuplicateIssues(staffSample);
+    expect(duplicates).toHaveLength(1);
+    expect(duplicates[0]).toMatchObject({
+      area: "staff_identity",
+      severity: "warning",
+      resolutionKind: "staff_duplicate",
+      code: "STAFF_DUPLICATE_SUSPECTED",
+    });
+    expect(duplicates[0]!.title).toContain("Maria Santos");
+  });
+
+  it("combines attendance, configuration, and staff identity issues in priority order", () => {
+    const combined = buildOperationsIssues(attendance, setupWithSpecificServices, staffSample);
+    expect(combined.length).toBe(3);
+    // Critical (service provider) should rank before warning (device limit & staff duplicate)
+    expect(combined[0]!.severity).toBe("critical");
+    expect(combined[0]!.resolutionKind).toBe("provider_assignment");
   });
 });
