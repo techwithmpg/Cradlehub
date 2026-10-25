@@ -7,6 +7,7 @@ import {
   scanMatchesSearch,
   type OperationalStaffMember,
 } from "@/lib/operations-center/issue-model";
+import { isEligibleServiceProvider } from "@/constants/staff-roles";
 import type { AttendanceWorkspaceData } from "@/lib/attendance/types";
 import type { CrmSetupHealthData } from "@/lib/queries/crm-setup";
 
@@ -102,7 +103,8 @@ const staffSample: OperationalStaffMember[] = [
     staff_type: "therapist",
     is_active: true,
     branch_id: "branch-1",
-    auth_user_id: "auth-1",
+    hasLoginAccount: true,
+    isIdentityVerified: true,
     identity_verified_at: "2026-10-01T00:00:00Z",
   },
   {
@@ -113,7 +115,8 @@ const staffSample: OperationalStaffMember[] = [
     staff_type: "therapist",
     is_active: false,
     branch_id: "branch-1",
-    auth_user_id: null,
+    hasLoginAccount: false,
+    isIdentityVerified: false,
     identity_verified_at: null,
   },
   {
@@ -124,7 +127,8 @@ const staffSample: OperationalStaffMember[] = [
     staff_type: "therapist",
     is_active: true,
     branch_id: "branch-1",
-    auth_user_id: "auth-3",
+    hasLoginAccount: true,
+    isIdentityVerified: true,
     identity_verified_at: "2026-10-01T00:00:00Z",
   },
 ];
@@ -193,52 +197,129 @@ describe("Operations Center issue model and diagnostics", () => {
   it("combines attendance, configuration, and staff identity issues in priority order", () => {
     const combined = buildOperationsIssues(attendance, setupWithSpecificServices, staffSample);
     expect(combined.length).toBe(3);
-    // Critical (service provider) should rank before warning (device limit & staff duplicate)
     expect(combined[0]!.severity).toBe("critical");
     expect(combined[0]!.resolutionKind).toBe("provider_assignment");
   });
-  it("distinguishes unresolved scan blockers from transient or recovered attempts", () => {
-    const attendanceWithRecovery = {
+
+  it("distinguishes successes before failures from successes after failures using timestamps", () => {
+    const timelineData = {
+      exceptions: [],
+      scanEvents: [
+        // Staff A: success at 08:00, blocked failure at 09:00 (success BEFORE failure)
+        {
+          id: "scan-a-success-early",
+          staff_id: "staff-a",
+          outcome: "success",
+          created_at: "2026-10-25T08:00:00.000Z",
+        },
+        {
+          id: "scan-a-blocked-later",
+          staff_id: "staff-a",
+          outcome: "blocked",
+          reason_code: "BRANCH_MISMATCH",
+          message: "Scanned at wrong branch",
+          created_at: "2026-10-25T09:00:00.000Z",
+        },
+        // Staff B: blocked failure at 08:30, success at 09:30 (success AFTER failure)
+        {
+          id: "scan-b-blocked-early",
+          staff_id: "staff-b",
+          outcome: "blocked",
+          reason_code: "BRANCH_MISMATCH",
+          message: "Scanned at wrong branch",
+          created_at: "2026-10-25T08:30:00.000Z",
+        },
+        {
+          id: "scan-b-success-later",
+          staff_id: "staff-b",
+          outcome: "success",
+          created_at: "2026-10-25T09:30:00.000Z",
+        },
+      ],
+    } as unknown as AttendanceWorkspaceData;
+
+    const scans = recentUnsuccessfulScans(timelineData);
+    expect(scans).toHaveLength(2);
+
+    const scanA = scans.find((s) => s.id === "scan-a-blocked-later");
+    const scanB = scans.find((s) => s.id === "scan-b-blocked-early");
+
+    // Success BEFORE failure does NOT resolve the later failure:
+    expect(scanA?.isUnresolvedFailure).toBe(true);
+
+    // Success AFTER failure resolves the earlier failure:
+    expect(scanB?.isUnresolvedFailure).toBe(false);
+  });
+
+  it("treats scans with unknown device/staff identity as unresolved failures", () => {
+    const unknownData = {
       exceptions: [],
       scanEvents: [
         {
-          id: "scan-blocked-unresolved",
-          staff_id: "staff-unresolved",
-          staff_name: "Unresolved Staff",
+          id: "scan-unknown-device",
+          staff_id: null,
+          staff_name: null,
           outcome: "blocked",
-          reason_code: "DEVICE_LIMIT_REACHED",
-          message: "Device limit reached",
+          reason_code: "UNRECOGNIZED_DEVICE",
+          message: "Device not recognized",
           created_at: "2026-10-25T09:00:00.000Z",
         },
+        // Other staff members had successful scans
         {
-          id: "scan-blocked-recovered",
-          staff_id: "staff-recovered",
-          staff_name: "Recovered Staff",
-          outcome: "blocked",
-          reason_code: "DEVICE_LIMIT_REACHED",
-          message: "Device limit reached",
+          id: "scan-other-staff-success",
+          staff_id: "staff-other",
+          outcome: "success",
           created_at: "2026-10-25T09:05:00.000Z",
         },
+      ],
+    } as unknown as AttendanceWorkspaceData;
+
+    const scans = recentUnsuccessfulScans(unknownData);
+    expect(scans).toHaveLength(1);
+    expect(scans[0]!.staffId).toBeNull();
+    // Cannot be recovered by other staff's scans:
+    expect(scans[0]!.isUnresolvedFailure).toBe(true);
+  });
+
+  it("does not claim an affected phone was repaired solely from another device's scan when an open device exception exists", () => {
+    const deviceBlockerData = {
+      exceptions: [
         {
-          id: "scan-recovered-success",
-          staff_id: "staff-recovered",
-          staff_name: "Recovered Staff",
+          id: "ex-device-limit",
+          staff_id: "staff-device-blocked",
+          status: "open",
+          severity: "warning",
+          exception_type: "device_limit_reached",
+          safe_error_code: "DEVICE_LIMIT_REACHED",
+          metadata: {},
+          detected_at: "2026-10-25T09:00:00.000Z",
+        },
+      ],
+      scanEvents: [
+        {
+          id: "scan-phone-limit-reached",
+          staff_id: "staff-device-blocked",
+          staff_name: "Device Blocked Staff",
+          outcome: "blocked",
+          reason_code: "DEVICE_LIMIT_REACHED",
+          message: "Active device limit reached",
+          created_at: "2026-10-25T09:00:00.000Z",
+        },
+        // Staff member scans from a different already-registered device
+        {
+          id: "scan-from-other-device",
+          staff_id: "staff-device-blocked",
+          staff_name: "Device Blocked Staff",
           outcome: "success",
-          reason_code: null,
-          message: null,
           created_at: "2026-10-25T09:10:00.000Z",
         },
       ],
     } as unknown as AttendanceWorkspaceData;
 
-    const scans = recentUnsuccessfulScans(attendanceWithRecovery);
-    expect(scans).toHaveLength(2);
-
-    const unresolved = scans.find((s) => s.staffId === "staff-unresolved");
-    const recovered = scans.find((s) => s.staffId === "staff-recovered");
-
-    expect(unresolved?.isUnresolvedFailure).toBe(true);
-    expect(recovered?.isUnresolvedFailure).toBe(false);
+    const scans = recentUnsuccessfulScans(deviceBlockerData);
+    expect(scans).toHaveLength(1);
+    // Because the open device limit exception remains active, the phone failure is NOT falsely claimed repaired:
+    expect(scans[0]!.isUnresolvedFailure).toBe(true);
   });
 
   it("maps persisted states to aligned resolution states without fabricating verified history", () => {
@@ -268,5 +349,149 @@ describe("Operations Center issue model and diagnostics", () => {
     expect(configIssue?.resolutionState).toBe("detected");
     expect(staffIssue?.resolutionState).toBe("under_review");
     expect(issues.some((i) => (i.resolutionState as string) === "verified")).toBe(false);
+  });
+
+  it("enforces canonical provider eligibility rules across branch, active status, and provider roles", () => {
+    const branchId = "branch-bacolod";
+
+    // 1. Valid therapist on correct branch
+    expect(
+      isEligibleServiceProvider(
+        {
+          is_active: true,
+          staff_type: "therapist",
+          system_role: "staff",
+          branch_id: branchId,
+        },
+        branchId
+      )
+    ).toBe(true);
+
+    // 2. Nail tech on correct branch
+    expect(
+      isEligibleServiceProvider(
+        {
+          is_active: true,
+          staff_type: "nail_tech",
+          system_role: "staff",
+          branch_id: branchId,
+        },
+        branchId
+      )
+    ).toBe(true);
+
+    // 3. Inactive staff -> ineligible
+    expect(
+      isEligibleServiceProvider(
+        {
+          is_active: false,
+          staff_type: "therapist",
+          system_role: "staff",
+          branch_id: branchId,
+        },
+        branchId
+      )
+    ).toBe(false);
+
+    // 4. Archived staff -> ineligible
+    expect(
+      isEligibleServiceProvider(
+        {
+          is_active: true,
+          staff_type: "therapist",
+          system_role: "staff",
+          branch_id: branchId,
+          archived_at: "2026-09-01T00:00:00Z",
+        },
+        branchId
+      )
+    ).toBe(false);
+
+    // 5. Merged staff -> ineligible
+    expect(
+      isEligibleServiceProvider(
+        {
+          is_active: true,
+          staff_type: "therapist",
+          system_role: "staff",
+          branch_id: branchId,
+          merged_into_staff_id: "staff-primary-id",
+        },
+        branchId
+      )
+    ).toBe(false);
+
+    // 6. Wrong branch staff -> ineligible
+    expect(
+      isEligibleServiceProvider(
+        {
+          is_active: true,
+          staff_type: "therapist",
+          system_role: "staff",
+          branch_id: "branch-other",
+        },
+        branchId
+      )
+    ).toBe(false);
+
+    // 7. Hard-excluded roles (driver, utility, digital_marketer) -> ineligible even if staff_type is therapist
+    expect(
+      isEligibleServiceProvider(
+        {
+          is_active: true,
+          staff_type: "therapist",
+          system_role: "driver",
+          branch_id: branchId,
+        },
+        branchId
+      )
+    ).toBe(false);
+
+    expect(
+      isEligibleServiceProvider(
+        {
+          is_active: true,
+          staff_type: "therapist",
+          system_role: "utility",
+          branch_id: branchId,
+        },
+        branchId
+      )
+    ).toBe(false);
+
+    expect(
+      isEligibleServiceProvider(
+        {
+          is_active: true,
+          staff_type: "therapist",
+          system_role: "digital_marketer",
+          branch_id: branchId,
+        },
+        branchId
+      )
+    ).toBe(false);
+
+    // 8. Non-service staff type (e.g. csr, driver, managerial) -> ineligible
+    expect(
+      isEligibleServiceProvider(
+        {
+          is_active: true,
+          staff_type: "csr",
+          system_role: "crm",
+          branch_id: branchId,
+        },
+        branchId
+      )
+    ).toBe(false);
+  });
+
+  it("minimizes sensitive identity data by omitting raw auth identifiers in operational staff models", () => {
+    for (const staff of staffSample) {
+      // Must not contain raw auth_user_id UUID
+      expect((staff as Record<string, unknown>).auth_user_id).toBeUndefined();
+      // Must express login status via boolean flag
+      expect(typeof staff.hasLoginAccount).toBe("boolean");
+      expect(typeof staff.isIdentityVerified).toBe("boolean");
+    }
   });
 });

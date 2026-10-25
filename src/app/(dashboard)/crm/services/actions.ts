@@ -23,7 +23,7 @@ import {
 import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { isDevAuthBypassEnabled, getDevBypassLayoutStaff } from "@/lib/dev-bypass";
-import { SERVICE_STAFF_TYPES, canonicalizeSystemRole } from "@/constants/staff-roles";
+import { canonicalizeSystemRole, isEligibleServiceProvider } from "@/constants/staff-roles";
 import { canManageCrmSetup } from "@/lib/auth/crm-permissions";
 import { getBranchBookingRulesOrDefault } from "@/lib/queries/branch-booking-rules";
 import { validateBranchServiceEligibility, getBranchProviderReadiness } from "@/lib/services/service-catalog";
@@ -50,8 +50,6 @@ const HIGH_PRIVILEGE_ROLES = new Set(["owner", "manager", "assistant_manager", "
 /** System roles that can never be service providers, regardless of staff_services entries. */
 const HARD_EXCLUDED_SYSTEM_ROLES = new Set(["digital_marketer", "driver", "utility"]);
 
-/** Staff types that are valid service providers. */
-const SERVICE_STAFF_TYPE_SET = new Set<string>(SERVICE_STAFF_TYPES);
 
 // ── Auth context helper ───────────────────────────────────────────────────────
 
@@ -213,12 +211,12 @@ type StaffEligibility = {
   staff_type: string;
   system_role: string;
   branch_id: string;
+  archived_at?: string | null;
+  merged_into_staff_id?: string | null;
 };
 
-function isValidServiceProvider(s: StaffEligibility): boolean {
-  if (!s.is_active) return false;
-  if (HARD_EXCLUDED_SYSTEM_ROLES.has(canonicalizeSystemRole(s.system_role))) return false;
-  return SERVICE_STAFF_TYPE_SET.has(s.staff_type);
+function isValidServiceProvider(s: StaffEligibility, targetBranchId?: string): boolean {
+  return isEligibleServiceProvider(s, targetBranchId);
 }
 
 // ── Actions ───────────────────────────────────────────────────────────────────
@@ -279,7 +277,7 @@ export async function assignProviderToServiceAction(rawInput: unknown): Promise<
   // Verify the staff member's eligibility
   const { data: staff, error: sErr } = await ctx.supabase
     .from("staff")
-    .select("id, is_active, staff_type, system_role, branch_id")
+    .select("id, is_active, staff_type, system_role, branch_id, archived_at, merged_into_staff_id")
     .eq("id", staffId)
     .maybeSingle();
 

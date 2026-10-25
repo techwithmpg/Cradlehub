@@ -53,7 +53,8 @@ export type OperationalStaffMember = {
   tier?: string | null;
   is_active: boolean;
   branch_id: string;
-  auth_user_id?: string | null;
+  hasLoginAccount: boolean;
+  isIdentityVerified: boolean;
   identity_verified_at?: string | null;
   archived_at?: string | null;
   merged_into_staff_id?: string | null;
@@ -235,21 +236,65 @@ export function buildOperationsIssues(
 export function recentUnsuccessfulScans(attendance: AttendanceWorkspaceData | null): OperationsScan[] {
   if (!attendance) return [];
 
-  // Determine which staff members had a subsequent successful scan today
-  const successfulStaffIds = new Set(
-    attendance.scanEvents
-      .filter((e) => e.outcome === "success" && e.staff_id)
-      .map((e) => e.staff_id as string)
+  // Group successful scans by staffId with their millisecond timestamps
+  const successfulTimestampsByStaff = new Map<string, number[]>();
+  for (const scan of attendance.scanEvents) {
+    if (scan.outcome === "success" && scan.staff_id) {
+      const ts = new Date(scan.created_at).getTime();
+      const existing = successfulTimestampsByStaff.get(scan.staff_id) ?? [];
+      existing.push(ts);
+      successfulTimestampsByStaff.set(scan.staff_id, existing);
+    }
+  }
+
+  // Staff members with active open device/phone exceptions
+  const staffWithOpenDeviceExceptions = new Set(
+    (attendance.exceptions ?? [])
+      .filter(
+        (ex) =>
+          Boolean(ex.staff_id) &&
+          ex.status === "open" &&
+          (ex.exception_type.toLowerCase().includes("device") ||
+            (ex.safe_error_code ?? "").toUpperCase().includes("DEVICE"))
+      )
+      .map((ex) => ex.staff_id as string)
   );
 
-  // The source currently loads only the latest 100 scan events for the selected business day.
   return attendance.scanEvents
     .filter((event) => event.outcome !== "success")
     .map((event) => {
-      const isTransient =
-        (event.reason_code ?? "").toLowerCase().includes("duplicate") ||
-        event.outcome === "noop" ||
-        (Boolean(event.staff_id) && successfulStaffIds.has(event.staff_id!));
+      const reasonUpper = (event.reason_code ?? "").toUpperCase();
+      const isDuplicateNoop = reasonUpper.includes("DUPLICATE") || event.outcome === "noop";
+      const isDeviceFailure = reasonUpper.includes("DEVICE") || reasonUpper.includes("PHONE");
+
+      // Staff identity check: Unknown device identity (no staff_id) can NEVER be recovered
+      const hasKnownStaff = Boolean(event.staff_id);
+      const eventTime = new Date(event.created_at).getTime();
+
+      // Subsequent success check: Must have a success strictly AFTER this failure event
+      const staffSuccessTimes = hasKnownStaff
+        ? successfulTimestampsByStaff.get(event.staff_id!) ?? []
+        : [];
+      const hasSubsequentSuccess = staffSuccessTimes.some((time) => time > eventTime);
+
+      // Do not claim an affected phone was repaired solely from another device's successful scan:
+      // If the failure was device-related, having an open device exception or device limit reached
+      // means the phone issue remains an unresolved failure regardless of other device scans.
+      const hasActiveDeviceBlocker =
+        hasKnownStaff &&
+        isDeviceFailure &&
+        (staffWithOpenDeviceExceptions.has(event.staff_id!) || reasonUpper.includes("LIMIT"));
+
+      const isRecovered =
+        !isDuplicateNoop &&
+        hasKnownStaff &&
+        hasSubsequentSuccess &&
+        !hasActiveDeviceBlocker;
+
+      const isUnresolvedFailure =
+        !isDuplicateNoop &&
+        !isRecovered &&
+        (event.outcome === "blocked" || event.outcome === "exception");
 
       return {
         id: event.id,
@@ -259,7 +304,7 @@ export function recentUnsuccessfulScans(attendance: AttendanceWorkspaceData | nu
         message: event.message ?? "Scan did not complete successfully.",
         scanIdSuffix: scanSuffix(event.id) ?? "",
         occurredAt: event.created_at,
-        isUnresolvedFailure: !isTransient && (event.outcome === "blocked" || event.outcome === "exception"),
+        isUnresolvedFailure,
       };
     });
 }

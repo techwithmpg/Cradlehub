@@ -288,7 +288,7 @@ function ProfileCard({
         <div className="flex justify-between">
           <span className="text-[var(--cs-text-muted)]">Login Identity:</span>
           <span className="font-medium text-stone-800">
-            {staff.auth_user_id ? "Linked to login account" : "No login account linked"}
+            {staff.hasLoginAccount ? "Active Login Account Linked" : "No Login Account"}
           </span>
         </div>
         <div className="flex justify-between">

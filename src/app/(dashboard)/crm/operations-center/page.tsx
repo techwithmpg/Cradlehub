@@ -50,7 +50,23 @@ export default async function CrmOperationsCenterPage({
   if (staffResult.status === "fulfilled") {
     const { data, error } = staffResult.value;
     if (!error && Array.isArray(data)) {
-      staffRows = data;
+      staffRows = data.map((row) => ({
+        id: row.id,
+        full_name: row.full_name,
+        nickname: row.nickname,
+        phone: row.phone,
+        system_role: row.system_role,
+        staff_type: row.staff_type,
+        tier: row.tier,
+        is_active: row.is_active,
+        branch_id: row.branch_id,
+        hasLoginAccount: Boolean(row.auth_user_id),
+        isIdentityVerified: Boolean(row.identity_verified_at),
+        identity_verified_at: row.identity_verified_at,
+        archived_at: row.archived_at,
+        merged_into_staff_id: row.merged_into_staff_id,
+        created_at: row.created_at,
+      }));
     } else {
       console.error("[operations-center] staff query failed:", error?.message);
       staffRows = null;
