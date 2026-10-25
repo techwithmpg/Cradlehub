@@ -41,6 +41,7 @@ export default async function CrmOperationsCenterPage({
       scans={recentUnsuccessfulScans(attendance)}
       attendanceAvailable={attendance !== null}
       configurationAvailable={configuration !== null}
+      attendanceData={attendance}
     />
   );
 }
