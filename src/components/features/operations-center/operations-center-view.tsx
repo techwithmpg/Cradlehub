@@ -1,4 +1,12 @@
+"use client";
+
 import Link from "next/link";
+import { useRouter } from "next/navigation";
+import { useMemo, useState } from "react";
+import { AttendanceIssueModalRouter } from "@/components/features/attendance/review/attendance-issue-modal-router";
+import { OperationsGuidanceModal } from "@/components/features/operations-center/operations-guidance-modal";
+import { buildAttendanceReviewItems } from "@/lib/attendance/crm-review";
+import type { AttendanceWorkspaceData } from "@/lib/attendance/types";
 import {
   AlertTriangle,
   ArrowUpRight,
@@ -21,6 +29,7 @@ type OperationsCenterViewProps = {
   scans: OperationsScan[];
   attendanceAvailable: boolean;
   configurationAvailable: boolean;
+  attendanceData: AttendanceWorkspaceData | null;
 };
 
 const priorityClasses: Record<OperationsIssue["severity"], string> = {
@@ -43,7 +52,20 @@ export function OperationsCenterView({
   scans,
   attendanceAvailable,
   configurationAvailable,
+  attendanceData,
 }: OperationsCenterViewProps) {
+  const router = useRouter();
+  const [selectedIssueId, setSelectedIssueId] = useState<string | null>(null);
+  const [selectedScanId, setSelectedScanId] = useState<string | null>(null);
+  const selectedIssue = issues.find((issue) => issue.id === selectedIssueId) ?? null;
+  const selectedScan = scans.find((scan) => scan.id === selectedScanId) ?? null;
+  const attendanceReviewItems = useMemo(
+    () => buildAttendanceReviewItems(attendanceData?.exceptions ?? []),
+    [attendanceData?.exceptions]
+  );
+  const selectedAttendanceItem = selectedIssue?.area === "attendance"
+    ? attendanceReviewItems.find((item) => "attendance:" + item.exception.id === selectedIssue.id) ?? null
+    : null;
   const normalizedSearch = search.trim().toLowerCase();
   const matchingIssues = issues.filter((issue) => issueMatchesSearch(issue, normalizedSearch));
   const matchingScans = scans.filter((scan) => scanMatchesSearch(scan, normalizedSearch));
@@ -62,7 +84,7 @@ export function OperationsCenterView({
           </div>
           <h1 className="text-2xl font-bold tracking-tight text-[var(--cs-text)]">Operations Center</h1>
           <p className="mt-1 max-w-3xl text-sm text-[var(--cs-text-secondary)]">
-            Find operational problems, understand what needs attention, and open the existing authorized correction screen.
+            Find operational problems and open a focused resolution dialog without leaving this workspace.
           </p>
           <p className="mt-2 text-xs text-[var(--cs-text-muted)]">Last loaded: {checkedAt} · Refresh to rerun checks</p>
         </div>
@@ -149,9 +171,11 @@ export function OperationsCenterView({
                   <span className="text-xs text-[var(--cs-text-muted)]">
                     {issue.scanIdSuffix ? "Scan ID suffix: " + issue.scanIdSuffix : issue.detectedAt ? "Recorded: " + issue.detectedAt : "Branch configuration"}
                   </span>
-                  <Link href={issue.actionHref} className="inline-flex min-h-9 items-center gap-1 rounded-lg border border-[var(--cs-border)] px-3 text-xs font-semibold hover:bg-[var(--cs-surface-warm)]">
-                    {issue.actionLabel} <ArrowUpRight size={13} aria-hidden />
-                  </Link>
+                  <button type="button" onClick={() => setSelectedIssueId(issue.id)}
+                    className="inline-flex min-h-9 items-center gap-1 rounded-lg border border-[var(--cs-border)] px-3 text-xs font-semibold hover:bg-[var(--cs-surface-warm)]"
+                    aria-label={"Resolve: " + issue.title}>
+                    Resolve <ArrowUpRight size={13} aria-hidden />
+                  </button>
                 </div>
               </article>
             ))}
@@ -179,17 +203,35 @@ export function OperationsCenterView({
                 </div>
                 <p className="mt-1 text-xs">{scan.message}</p>
               </div>
-              <Link href="/crm/attendance?view=review" className="inline-flex min-h-9 items-center gap-1 text-xs font-semibold underline">
-                Inspect Attendance <ArrowUpRight size={13} aria-hidden />
-              </Link>
+              <button type="button" onClick={() => setSelectedScanId(scan.id)}
+                className="inline-flex min-h-9 items-center gap-1 text-xs font-semibold underline">
+                Inspect scan <ArrowUpRight size={13} aria-hidden />
+              </button>
             </div>
           ))}
         </section>
       ) : null}
 
       <p className="rounded-lg border border-[var(--cs-border)] bg-[var(--cs-surface-warm)] p-3 text-xs text-[var(--cs-text-muted)]">
-        Account duplicates are not automatically diagnosed in this release. Verify identity and dependent history in Staff &amp; Access before changing any account. This page does not alter attendance, devices, accounts, bookings or settings.
+        Account duplicates are not automatically diagnosed in this release. Account changes still require verified identity and the existing permission checks. Attendance corrections use the existing authorized dialogs; issuing a recovery link does not itself confirm a successful scan.
       </p>
+      {attendanceData && selectedAttendanceItem ? (
+        <AttendanceIssueModalRouter
+          data={attendanceData}
+          item={selectedAttendanceItem}
+          onClose={() => setSelectedIssueId(null)}
+          onRefresh={() => router.refresh()}
+          onManagePhone={(staffId) => {
+            setSelectedIssueId(null);
+            router.push("/crm/attendance?view=setup&section=phones" + (staffId ? "&staffId=" + encodeURIComponent(staffId) : ""));
+          }}
+        />
+      ) : null}
+      <OperationsGuidanceModal
+        issue={selectedIssue && (!selectedAttendanceItem || !attendanceData) ? selectedIssue : null}
+        scan={selectedScan}
+        onClose={() => { setSelectedIssueId(null); setSelectedScanId(null); }}
+      />
     </section>
   );
 }
