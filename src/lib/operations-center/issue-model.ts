@@ -278,12 +278,13 @@ export function recentUnsuccessfulScans(attendance: AttendanceWorkspaceData | nu
       const hasSubsequentSuccess = staffSuccessTimes.some((time) => time > eventTime);
 
       // Do not claim an affected phone was repaired solely from another device's successful scan:
-      // If the failure was device-related, having an open device exception or device limit reached
-      // means the phone issue remains an unresolved failure regardless of other device scans.
+      // While an open device exception exists for this staff member, the failure remains an active blocker.
+      // Once the device problem is authoritatively cleared (no open device exception remains)
+      // and a subsequent successful scan occurs, the failure is preserved as historical and marked recovered.
       const hasActiveDeviceBlocker =
         hasKnownStaff &&
         isDeviceFailure &&
-        (staffWithOpenDeviceExceptions.has(event.staff_id!) || reasonUpper.includes("LIMIT"));
+        staffWithOpenDeviceExceptions.has(event.staff_id!);
 
       const isRecovered =
         !isDuplicateNoop &&

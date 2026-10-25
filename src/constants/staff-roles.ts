@@ -267,7 +267,11 @@ export function isEligibleServiceProvider(
   if (staff.is_active !== true) return false;
   if (Boolean(staff.archived_at)) return false;
   if (Boolean(staff.merged_into_staff_id)) return false;
-  if (targetBranchId && staff.branch_id && staff.branch_id !== targetBranchId) return false;
+  if (targetBranchId) {
+    if (!staff.branch_id || staff.branch_id !== targetBranchId) {
+      return false;
+    }
+  }
   const canonicalRole = canonicalizeSystemRole(staff.system_role);
   if (canonicalRole && HARD_EXCLUDED_PROVIDER_SYSTEM_ROLES.has(canonicalRole)) return false;
   return isServiceStaffType(staff.staff_type);

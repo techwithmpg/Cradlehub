@@ -215,11 +215,11 @@ export function ServiceProviderModal({
             <div className="rounded-xl border border-emerald-200 bg-emerald-50 p-4 text-emerald-950">
               <div className="flex items-center gap-2 font-semibold">
                 <CheckCircle2 size={18} className="text-emerald-700" aria-hidden />
-                Provider Assigned &amp; Authoritatively Verified
+                Provider Coverage Confirmed &amp; Authoritatively Verified
               </div>
               <p className="mt-2 text-xs leading-5">
-                Authoritative service readiness check confirmed: <strong>{providerCount} active provider(s)</strong> assigned to {serviceName}.
-                Readiness caches have been invalidated and the service is now available for appointment scheduling.
+                Authoritative readiness check confirmed: <strong>{providerCount} qualified provider(s)</strong> assigned to {serviceName} at {branchName}.
+                Provider readiness caches have been invalidated. (Full booking readiness also requires active branch schedules, resources, and catalog configuration.)
               </p>
             </div>
           ) : status === "unconfirmed" ? (

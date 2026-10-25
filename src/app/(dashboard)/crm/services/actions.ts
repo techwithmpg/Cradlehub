@@ -636,8 +636,8 @@ export async function verifyServiceProviderReadinessAction(rawInput: unknown): P
       hasEligibleProvider,
       providerCount,
       message: hasEligibleProvider
-        ? `Authoritative service check confirmed: ${providerCount} active provider(s) assigned.`
-        : "Authoritative service check indicates zero active providers are assigned to this service.",
+        ? `Eligible provider coverage confirmed: ${providerCount} qualified provider(s) assigned for this branch.`
+        : "Authoritative service check indicates zero qualified providers are assigned to this service for this branch.",
     };
   } catch (err) {
     console.error("[crm/services] verifyServiceProviderReadiness failed", err);

@@ -322,6 +322,80 @@ describe("Operations Center issue model and diagnostics", () => {
     expect(scans[0]!.isUnresolvedFailure).toBe(true);
   });
 
+
+  it("marks DEVICE_LIMIT_REACHED scan recovered after phone replacement, closed exception, and subsequent successful scan while preserving history", () => {
+    // Stage 1: Initial failure with open exception
+    const openFailureData = {
+      exceptions: [
+        {
+          id: "ex-limit",
+          staff_id: "staff-1",
+          status: "open",
+          severity: "warning",
+          exception_type: "device_limit_reached",
+          safe_error_code: "DEVICE_LIMIT_REACHED",
+          metadata: {},
+          detected_at: "2026-10-25T09:00:00.000Z",
+        },
+      ],
+      scanEvents: [
+        {
+          id: "scan-fail-1",
+          staff_id: "staff-1",
+          staff_name: "Staff 1",
+          outcome: "blocked",
+          reason_code: "DEVICE_LIMIT_REACHED",
+          message: "Device limit reached",
+          created_at: "2026-10-25T09:00:00.000Z",
+        },
+      ],
+    } as unknown as AttendanceWorkspaceData;
+
+    const initialScans = recentUnsuccessfulScans(openFailureData);
+    expect(initialScans).toHaveLength(1);
+    expect(initialScans[0]!.isUnresolvedFailure).toBe(true);
+
+    // Stage 2: Device replaced, exception closed/resolved, and subsequent scan succeeds
+    const resolvedData = {
+      exceptions: [
+        {
+          id: "ex-limit",
+          staff_id: "staff-1",
+          status: "resolved",
+          severity: "warning",
+          exception_type: "device_limit_reached",
+          safe_error_code: "DEVICE_LIMIT_REACHED",
+          metadata: {},
+          detected_at: "2026-10-25T09:00:00.000Z",
+          resolved_at: "2026-10-25T09:10:00.000Z",
+        },
+      ],
+      scanEvents: [
+        {
+          id: "scan-fail-1",
+          staff_id: "staff-1",
+          staff_name: "Staff 1",
+          outcome: "blocked",
+          reason_code: "DEVICE_LIMIT_REACHED",
+          message: "Device limit reached",
+          created_at: "2026-10-25T09:00:00.000Z",
+        },
+        {
+          id: "scan-replacement-success",
+          staff_id: "staff-1",
+          staff_name: "Staff 1",
+          outcome: "success",
+          created_at: "2026-10-25T09:15:00.000Z",
+        },
+      ],
+    } as unknown as AttendanceWorkspaceData;
+
+    const clearedScans = recentUnsuccessfulScans(resolvedData);
+    expect(clearedScans).toHaveLength(1);
+    expect(clearedScans[0]!.id).toBe("scan-fail-1");
+    expect(clearedScans[0]!.reasonCode).toBe("DEVICE_LIMIT_REACHED");
+    expect(clearedScans[0]!.isUnresolvedFailure).toBe(false);
+  });
   it("maps persisted states to aligned resolution states without fabricating verified history", () => {
     const attendanceWithStates = {
       exceptions: [
@@ -429,6 +503,43 @@ describe("Operations Center issue model and diagnostics", () => {
           staff_type: "therapist",
           system_role: "staff",
           branch_id: "branch-other",
+        },
+        branchId
+      )
+    ).toBe(false);
+
+    // 6b. Missing or empty branch assignments when target branch is requested -> must be rejected
+    expect(
+      isEligibleServiceProvider(
+        {
+          is_active: true,
+          staff_type: "therapist",
+          system_role: "staff",
+          branch_id: null,
+        },
+        branchId
+      )
+    ).toBe(false);
+
+    expect(
+      isEligibleServiceProvider(
+        {
+          is_active: true,
+          staff_type: "therapist",
+          system_role: "staff",
+          branch_id: undefined,
+        },
+        branchId
+      )
+    ).toBe(false);
+
+    expect(
+      isEligibleServiceProvider(
+        {
+          is_active: true,
+          staff_type: "therapist",
+          system_role: "staff",
+          branch_id: "",
         },
         branchId
       )
