@@ -3,6 +3,7 @@ import "server-only";
 import { unstable_cache } from "next/cache";
 import { cacheTags } from "@/lib/cache/cache-tags";
 import { getBranchBookingRulesOrDefault } from "@/lib/queries/branch-booking-rules";
+import { isEligibleServiceProvider } from "@/constants/staff-roles";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { createClient } from "@/lib/supabase/server";
 import type { Database } from "@/types/supabase";
@@ -449,14 +450,15 @@ export async function getBranchProviderReadiness(
 
   const { data: staffRows, error: staffError } = await admin
     .from("staff")
-    .select("id")
+    .select("id, staff_type, system_role, is_active, branch_id, archived_at, merged_into_staff_id")
     .eq("branch_id", branchId)
     .eq("is_active", true)
     .is("archived_at", null)
     .is("merged_into_staff_id", null);
   if (staffError) throw new Error(staffError.message);
 
-  const staffIds = (staffRows ?? []).map((staff) => staff.id);
+  const eligibleStaff = (staffRows ?? []).filter((s) => isEligibleServiceProvider(s, branchId));
+  const staffIds = eligibleStaff.map((staff) => staff.id);
   if (staffIds.length === 0) {
     return targetServiceIds.map((serviceId) => ({
       serviceId,

@@ -236,3 +236,43 @@ export function isStaffType(value: string): value is StaffType {
 export function isServiceStaffType(value: string | null | undefined): value is ServiceStaffType {
   return SERVICE_STAFF_TYPES.includes(value as ServiceStaffType);
 }
+
+/** Roles that can never provide services (transport, utility, marketing). */
+export const HARD_EXCLUDED_PROVIDER_SYSTEM_ROLES = new Set<string>([
+  "digital_marketer",
+  "driver",
+  "utility",
+]);
+
+/**
+ * Validates that a staff member satisfies canonical service provider eligibility:
+ * - is_active is true
+ * - not archived (archived_at is null)
+ * - not merged (merged_into_staff_id is null)
+ * - belongs to the target branch (if targetBranchId provided)
+ * - system_role is not a hard-excluded non-provider role (driver, utility, marketer)
+ * - staff_type is in SERVICE_STAFF_TYPES (therapist, nail_tech, aesthetician, salon_head)
+ */
+export function isEligibleServiceProvider(
+  staff: {
+    is_active?: boolean | null;
+    staff_type?: string | null;
+    system_role?: string | null;
+    branch_id?: string | null;
+    archived_at?: string | null;
+    merged_into_staff_id?: string | null;
+  },
+  targetBranchId?: string | null
+): boolean {
+  if (staff.is_active !== true) return false;
+  if (Boolean(staff.archived_at)) return false;
+  if (Boolean(staff.merged_into_staff_id)) return false;
+  if (targetBranchId) {
+    if (!staff.branch_id || staff.branch_id !== targetBranchId) {
+      return false;
+    }
+  }
+  const canonicalRole = canonicalizeSystemRole(staff.system_role);
+  if (canonicalRole && HARD_EXCLUDED_PROVIDER_SYSTEM_ROLES.has(canonicalRole)) return false;
+  return isServiceStaffType(staff.staff_type);
+}

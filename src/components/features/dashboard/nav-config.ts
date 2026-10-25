@@ -36,6 +36,7 @@ const OWNER_NAV_ITEMS: NavItem[] = [
   { label: "Payroll", href: "/owner/payroll", icon: "DollarSign" },
   { label: "Services", href: "/owner/services", icon: "Sparkles" },
   { label: "Notifications", href: "/owner/notifications", icon: "Bell" },
+  { label: "Operations Center", href: "/crm/operations-center", icon: "Wrench" },
 ];
 
 const MANAGER_NAV_ITEMS: NavItem[] = [
@@ -50,7 +51,7 @@ const MANAGER_NAV_ITEMS: NavItem[] = [
   { label: "Spaces & Rules", href: "/manager/spaces-rules", icon: "Building2" },
   { label: "Services", href: "/manager/services", icon: "Sparkles" },
   { label: "Operations", href: "/manager/operations", icon: "Wrench" },
-  { label: "Settings", href: "/manager/settings", icon: "Settings" },
+  { label: "Operations Center", href: "/crm/operations-center", icon: "Wrench" },
 ];
 
 // ── CRM navigation ────────────────────────────────────────────────────────────
@@ -65,6 +66,7 @@ const CRM_NAV_ITEMS: NavItem[] = [
   { label: "Attendance", href: "/crm/attendance", icon: "ClipboardCheck" },
   { label: "Customers", href: "/crm/customers", icon: "Users" },
   { label: "Home Service", href: "/crm/dispatch", icon: "Truck" },
+  { label: "Operations Center", href: "/crm/operations-center", icon: "Wrench" },
   {
     label: "Master Sheet Review",
     href: "/crm/master-sheet",
