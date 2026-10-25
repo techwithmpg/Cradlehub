@@ -15,6 +15,7 @@ import {
 } from "@/components/ui/dialog";
 import { formatAttendanceDateTime } from "@/components/features/attendance/attendance-ui";
 import { formatDeviceReason } from "@/lib/attendance/device-display";
+import { ACTIVE_ATTENDANCE_DEVICE_LIMIT } from "@/lib/attendance/device-policy";
 import type {
   AttendanceDeviceRegistryData,
   AttendanceDeviceRegistryEntry,
@@ -59,9 +60,13 @@ export function RecoveryLinkDialog({
     "staff_profile"
   );
   const [revokePrevious, setRevokePrevious] = useState(false);
-  const [previousDeviceId, setPreviousDeviceId] = useState(
-    entry?.device?.isActive ? entry.device.id : ""
-  );
+  const [previousDeviceId, setPreviousDeviceId] = useState(() => {
+    const initialId = initialStaffId ?? entry?.staffId ?? registry.staffOptions[0]?.id ?? "";
+    const atLimit = registry.activeDevices.filter((device) => device.staffId === initialId).length
+      >= ACTIVE_ATTENDANCE_DEVICE_LIMIT;
+    // When at the phone limit, require an intentional verified choice.
+    return atLimit ? "" : (entry?.device?.isActive ? entry.device.id : "");
+  });
   const [result, setResult] = useState<RecoveryLinkResult | null>(null);
   const [isPending, startTransition] = useTransition();
   const idPrefix = useId();
@@ -71,7 +76,10 @@ export function RecoveryLinkDialog({
     () => registry.activeDevices.filter((device) => device.staffId === staffId),
     [registry.activeDevices, staffId]
   );
-  const requiresPreviousSelection = revokePrevious && activeDevices.length > 1 && !previousDeviceId;
+  const atDeviceLimit = activeDevices.length >= ACTIVE_ATTENDANCE_DEVICE_LIMIT;
+  const willReplaceDevice = revokePrevious || atDeviceLimit;
+  const requiresPreviousSelection = willReplaceDevice &&
+    !activeDevices.some((device) => device.id === previousDeviceId);
 
   function changeReason(nextReason: DeviceRecoveryReason) {
     const config = RECOVERY_REASONS.find((item) => item.value === nextReason);
@@ -91,7 +99,7 @@ export function RecoveryLinkDialog({
         reason,
         expiresInMinutes: ttl,
         deliveryMethod,
-        revokePreviousDeviceId: revokePrevious ? previousDeviceId || undefined : undefined,
+        revokePreviousDeviceId: willReplaceDevice ? previousDeviceId : undefined,
       });
       if (!response.success) {
         toast.error(response.error);
@@ -107,7 +115,7 @@ export function RecoveryLinkDialog({
         reason,
         createdAt: new Date().toISOString(),
         expiresAt: response.data.expiresAt,
-        revokePreviousDeviceId: revokePrevious ? previousDeviceId || null : null,
+        revokePreviousDeviceId: willReplaceDevice ? previousDeviceId : null,
         deliveryMethod,
       };
       setResult(response.data);
@@ -251,12 +259,19 @@ export function RecoveryLinkDialog({
               <label className="flex items-center gap-2 text-sm font-semibold text-stone-700">
                 <input
                   type="checkbox"
-                  checked={revokePrevious}
+                  checked={willReplaceDevice}
+                  disabled={atDeviceLimit}
                   onChange={(event) => setRevokePrevious(event.target.checked)}
                 />
                 Disconnect previous phone after connection
               </label>
-              {revokePrevious ? (
+              {atDeviceLimit ? (
+                <p className="text-xs text-amber-800">
+                  This staff account is already at the {ACTIVE_ATTENDANCE_DEVICE_LIMIT}-phone limit.
+                  Confirm which old phone is no longer in use, then select it for replacement.
+                </p>
+              ) : null}
+              {willReplaceDevice ? (
                 <select
                   aria-label="Previous phone to disconnect"
                   value={previousDeviceId}
