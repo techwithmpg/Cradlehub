@@ -75,8 +75,8 @@ export function OperationsGuidanceModal({
         </div>
         <DialogFooter className="mx-0 mb-0 gap-2 p-4">
           <Button type="button" variant="outline" onClick={onClose}>Close</Button>
-          <Button render={<Link href={target} />} nativeButton={false}>
-            {label} <ArrowUpRight size={15} aria-hidden />
+          <Button asChild>
+            <Link href={target}>{label} <ArrowUpRight size={15} aria-hidden /></Link>
           </Button>
         </DialogFooter>
       </DialogContent>
