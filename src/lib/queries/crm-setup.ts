@@ -188,7 +188,7 @@ export async function getCrmSetupHealth(branchId: string): Promise<CrmSetupHealt
       .eq("is_active", true),
 
     // Booking rules
-    getBranchBookingRulesOrDefault(branchId).catch(() => null),
+    getBranchBookingRulesOrDefault(branchId),
 
     // Active drivers
     supabase
@@ -209,7 +209,16 @@ export async function getCrmSetupHealth(branchId: string): Promise<CrmSetupHealt
   ]);
 
   if (scheduledStaffResult.error) {
-    throw new Error("Could not load service staff schedules for setup readiness.");
+    throw new Error("Could not load service staff schedules for setup readiness: " + scheduledStaffResult.error.message);
+  }
+  if (resourcesResult.error) {
+    throw new Error("Could not load active branch resources for setup readiness: " + resourcesResult.error.message);
+  }
+  if (driversResult.error) {
+    throw new Error("Could not load active drivers for setup readiness: " + driversResult.error.message);
+  }
+  if (unassignedResult.error) {
+    throw new Error("Could not check unassigned confirmed bookings for setup readiness: " + unassignedResult.error.message);
   }
 
   // De-duplicate staff IDs from the schedule results

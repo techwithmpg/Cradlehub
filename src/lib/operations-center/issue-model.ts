@@ -4,7 +4,7 @@ import type { CrmSetupHealthData } from "@/lib/queries/crm-setup";
 
 export type OperationsIssueArea = "attendance" | "configuration" | "staff_identity";
 export type OperationsIssueSeverity = "critical" | "warning" | "info";
-export type OperationsResolutionState = "detected" | "under_review" | "pending_action" | "verified";
+export type OperationsResolutionState = "detected" | "under_review" | "pending_action";
 export type OperationsResolutionKind =
   | "attendance_router"
   | "provider_assignment"
@@ -40,6 +40,7 @@ export type OperationsScan = {
   message: string;
   scanIdSuffix: string;
   occurredAt: string;
+  isUnresolvedFailure: boolean;
 };
 
 export type OperationalStaffMember = {
@@ -69,11 +70,11 @@ function configurationAction(issue: CrmSetupHealthData["issues"][number]): strin
     "no-schedule": "/crm/schedule?tab=setup",
     "no-staff-for-service": "/crm/services?tab=issues",
     "no-drivers": "/crm/staff?tab=management",
-    "no-resources": "/crm/setup?tab=spaces",
-    "default-rules": "/crm/setup?tab=booking_rules",
+    "no-resources": "/crm/spaces-rules",
+    "default-rules": "/crm/spaces-rules",
     "unassigned-bookings": "/crm/today?filter=needs_action",
   };
-  return byIssue[issue.id] ?? "/crm/setup?tab=health";
+  return byIssue[issue.id] ?? "/crm/setup";
 }
 
 export function buildStaffDuplicateIssues(
@@ -157,7 +158,6 @@ export function buildOperationsIssues(
         let resolutionState: OperationsResolutionState = "detected";
         if (item.exception.status === "in_review") resolutionState = "under_review";
         if (item.exception.status === "pending_action") resolutionState = "pending_action";
-        if (item.exception.status === "resolved") resolutionState = "verified";
 
         return {
           id: "attendance:" + item.exception.id,
@@ -188,7 +188,7 @@ export function buildOperationsIssues(
         severity: "critical",
         resolutionState: "detected",
         title: `${svc.serviceName} has no assigned provider`,
-        description: `Active branch service has zero assigned therapists in staff_services. Customers cannot complete bookings for this service.`,
+        description: "Active branch service has zero assigned therapists in staff_services. Customers cannot complete bookings for this service.",
         guidance: "Assign at least one active therapist, nail technician, or aesthetician to this service at this branch.",
         actionLabel: "Assign provider",
         actionHref: "/crm/services?tab=issues&serviceId=" + encodeURIComponent(svc.serviceId),
@@ -234,18 +234,34 @@ export function buildOperationsIssues(
 
 export function recentUnsuccessfulScans(attendance: AttendanceWorkspaceData | null): OperationsScan[] {
   if (!attendance) return [];
+
+  // Determine which staff members had a subsequent successful scan today
+  const successfulStaffIds = new Set(
+    attendance.scanEvents
+      .filter((e) => e.outcome === "success" && e.staff_id)
+      .map((e) => e.staff_id as string)
+  );
+
   // The source currently loads only the latest 100 scan events for the selected business day.
   return attendance.scanEvents
     .filter((event) => event.outcome !== "success")
-    .map((event) => ({
-      id: event.id,
-      staffId: event.staff_id ?? null,
-      staffName: event.staff_name ?? "Unidentified staff",
-      reasonCode: event.reason_code ?? "SCAN_REVIEW",
-      message: event.message ?? "Scan did not complete successfully.",
-      scanIdSuffix: scanSuffix(event.id) ?? "",
-      occurredAt: event.created_at,
-    }));
+    .map((event) => {
+      const isTransient =
+        (event.reason_code ?? "").toLowerCase().includes("duplicate") ||
+        event.outcome === "noop" ||
+        (Boolean(event.staff_id) && successfulStaffIds.has(event.staff_id!));
+
+      return {
+        id: event.id,
+        staffId: event.staff_id ?? null,
+        staffName: event.staff_name ?? "Unidentified staff",
+        reasonCode: event.reason_code ?? "SCAN_REVIEW",
+        message: event.message ?? "Scan did not complete successfully.",
+        scanIdSuffix: scanSuffix(event.id) ?? "",
+        occurredAt: event.created_at,
+        isUnresolvedFailure: !isTransient && (event.outcome === "blocked" || event.outcome === "exception"),
+      };
+    });
 }
 
 export function issueMatchesSearch(issue: OperationsIssue, search: string): boolean {

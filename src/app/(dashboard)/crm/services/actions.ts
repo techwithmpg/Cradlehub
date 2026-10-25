@@ -26,7 +26,7 @@ import { isDevAuthBypassEnabled, getDevBypassLayoutStaff } from "@/lib/dev-bypas
 import { SERVICE_STAFF_TYPES, canonicalizeSystemRole } from "@/constants/staff-roles";
 import { canManageCrmSetup } from "@/lib/auth/crm-permissions";
 import { getBranchBookingRulesOrDefault } from "@/lib/queries/branch-booking-rules";
-import { validateBranchServiceEligibility } from "@/lib/services/service-catalog";
+import { validateBranchServiceEligibility, getBranchProviderReadiness } from "@/lib/services/service-catalog";
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -585,4 +585,67 @@ export async function removeProviderFromServiceAction(rawInput: unknown): Promis
     assignment: { staff_id: staffId, service_id: serviceId },
     assigned: false,
   };
+}
+
+export type VerificationResult =
+  | {
+      ok: true;
+      hasEligibleProvider: boolean;
+      providerCount: number;
+      message: string;
+    }
+  | { ok: false; message: string };
+
+const verifySchema = z.object({
+  branchId: z.string().uuid("Invalid branch ID"),
+  serviceId: z.string().uuid("Invalid service ID"),
+});
+
+export async function verifyServiceProviderReadinessAction(rawInput: unknown): Promise<VerificationResult> {
+  const parsed = verifySchema.safeParse(rawInput);
+  if (!parsed.success) {
+    return {
+      ok: false,
+      message: parsed.error.issues[0]?.message ?? "Invalid input",
+    };
+  }
+  const { branchId, serviceId } = parsed.data;
+
+  const ctx = await requireCrmSetupAccess();
+  if (!ctx) {
+    return {
+      ok: false,
+      message: "Unauthorized. CRM setup access is required to verify provider readiness.",
+    };
+  }
+
+  const scopeError = await checkBranchScope(ctx, branchId);
+  if (scopeError) {
+    return {
+      ok: false,
+      message: scopeError.message,
+    };
+  }
+
+  try {
+    const readinessList = await getBranchProviderReadiness(branchId, [serviceId]);
+    const readiness = readinessList[0];
+    const providerCount = readiness?.providerCount ?? 0;
+    const hasEligibleProvider = providerCount > 0 && !readiness?.needsStaffAssignment;
+
+    return {
+      ok: true,
+      hasEligibleProvider,
+      providerCount,
+      message: hasEligibleProvider
+        ? `Authoritative service check confirmed: ${providerCount} active provider(s) assigned.`
+        : "Authoritative service check indicates zero active providers are assigned to this service.",
+    };
+  } catch (err) {
+    console.error("[crm/services] verifyServiceProviderReadiness failed", err);
+    return {
+      ok: false,
+      message: err instanceof Error ? err.message : "Authoritative verification query failed.",
+    };
+  }
 }

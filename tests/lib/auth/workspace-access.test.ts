@@ -33,6 +33,7 @@ const OWNER_ROUTE_PREFIXES = new Set([
   "/owner/services",
   "/owner/spaces-rules",
   "/owner/staff",
+  "/crm/operations-center",
 ]);
 
 function profile(overrides: Partial<WorkspaceStaffProfile>): WorkspaceStaffProfile {

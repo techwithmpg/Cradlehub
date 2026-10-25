@@ -57,7 +57,6 @@ const stateLabels: Record<OperationsResolutionState, { label: string; badge: str
   detected: { label: "Detected", badge: "border-slate-200 bg-slate-100 text-slate-700" },
   under_review: { label: "Under Review", badge: "border-blue-200 bg-blue-50 text-blue-800" },
   pending_action: { label: "Pending Action", badge: "border-amber-200 bg-amber-50 text-amber-900" },
-  verified: { label: "Verified Resolved", badge: "border-emerald-200 bg-emerald-50 text-emerald-800" },
 };
 
 const areaLabels: Record<OperationsIssueArea, string> = {
@@ -132,18 +131,24 @@ export function OperationsCenterView({
 
   const incomplete = !attendanceAvailable || !configurationAvailable || !staffAvailable;
   const criticalCount = issues.filter((issue) => issue.severity === "critical").length;
-  const warningCount = issues.filter((issue) => issue.severity === "warning").length;
   const attendanceCount = issues.filter((issue) => issue.area === "attendance").length;
   const staffCount = issues.filter((issue) => issue.area === "staff_identity").length;
   const configCount = issues.filter((issue) => issue.area === "configuration").length;
 
+  const unresolvedScans = scans.filter((s) => s.isUnresolvedFailure);
+  const unresolvedScanCount = unresolvedScans.length;
+
+  // Operational health: Distinguish unresolved scan failures, confirmed open incidents,
+  // and harmless unsuccessful attempts. Do not label a branch fully operational based solely on zero open exceptions.
   const readyLabel = incomplete
-    ? "Incomplete"
+    ? "Diagnostics Incomplete"
     : criticalCount > 0
       ? `${criticalCount} Critical Problem${criticalCount > 1 ? "s" : ""}`
-      : warningCount > 0
-        ? "Attention Needed"
-        : "Operational Ready";
+      : issues.length > 0
+        ? `${issues.length} Open Incident${issues.length > 1 ? "s" : ""}`
+        : unresolvedScanCount > 0
+          ? `${unresolvedScanCount} Blocked Scan${unresolvedScanCount > 1 ? "s" : ""}`
+          : "Current Checks Clear";
 
   // Action dispatcher when user clicks "Resolve"
   const handleResolveIssue = (issue: OperationsIssue) => {
@@ -234,7 +239,7 @@ export function OperationsCenterView({
           label="Branch Health"
           value={readyLabel}
           icon={ShieldCheck}
-          variant={incomplete ? "warning" : criticalCount > 0 ? "critical" : "normal"}
+          variant={incomplete || unresolvedScanCount > 0 ? "warning" : criticalCount > 0 ? "critical" : "normal"}
         />
         <Summary
           label="Open Incidents"
@@ -334,7 +339,6 @@ export function OperationsCenterView({
             <option value="detected">Detected</option>
             <option value="under_review">Under Review</option>
             <option value="pending_action">Pending Action</option>
-            <option value="verified">Verified</option>
           </select>
 
           {(severityFilter !== "all" || categoryFilter !== "all" || resolutionFilter !== "all" || normalizedSearch) ? (
@@ -370,13 +374,23 @@ export function OperationsCenterView({
               <div className="text-center text-xs text-[var(--cs-text-muted)]">
                 No matching operational issues in the active snapshot for the selected filters.
               </div>
+            ) : unresolvedScanCount > 0 ? (
+              <div className="flex items-center gap-3 text-amber-900">
+                <AlertTriangle size={22} className="shrink-0 text-amber-700" aria-hidden />
+                <div>
+                  <p className="font-bold">{unresolvedScanCount} unresolved scan attempt(s) requiring review</p>
+                  <p className="mt-0.5 text-xs text-stone-600">
+                    No confirmed open exceptions logged, but recent unsuccessful scan attempts have not been followed by a successful check-in today.
+                  </p>
+                </div>
+              </div>
             ) : (
               <div className="flex items-center gap-3 text-emerald-800">
                 <CheckCircle2 size={22} className="shrink-0 text-emerald-700" aria-hidden />
                 <div>
-                  <p className="font-bold">No active operational problems detected</p>
+                  <p className="font-bold">Current checks clear</p>
                   <p className="mt-0.5 text-xs text-stone-600">
-                    Attendance records, registered devices, staff identities, and service readiness checks are in good standing for {branchName}.
+                    Zero open exceptions or blocked scans detected in current branch snapshot for {branchName}.
                   </p>
                 </div>
               </div>
@@ -483,11 +497,20 @@ export function OperationsCenterView({
                   className="flex flex-wrap items-center justify-between gap-3 rounded-lg border border-[var(--cs-border)] bg-[var(--cs-surface)] p-3 text-sm transition hover:border-[var(--cs-sand)]"
                 >
                   <div className="min-w-0">
-                    <div className="flex items-center gap-2">
+                    <div className="flex flex-wrap items-center gap-2">
                       <strong className="text-stone-900">{scan.staffName}</strong>
                       <span className="rounded bg-stone-100 px-1.5 py-0.5 font-mono text-[10px] text-stone-600">
                         {scan.reasonCode.toUpperCase()}
                       </span>
+                      {scan.isUnresolvedFailure ? (
+                        <span className="rounded-md border border-red-200 bg-red-50 px-2 py-0.5 text-[10px] font-semibold text-red-800">
+                          Unresolved Scan Failure
+                        </span>
+                      ) : (
+                        <span className="rounded-md border border-slate-200 bg-slate-50 px-2 py-0.5 text-[10px] font-medium text-slate-600">
+                          Harmless / Succeeded Later
+                        </span>
+                      )}
                     </div>
                     <p className="mt-1 text-xs text-[var(--cs-text-secondary)]">{scan.message}</p>
                     <div className="mt-1 text-[11px] text-[var(--cs-text-muted)]">

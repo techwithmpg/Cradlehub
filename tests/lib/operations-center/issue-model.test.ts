@@ -197,4 +197,76 @@ describe("Operations Center issue model and diagnostics", () => {
     expect(combined[0]!.severity).toBe("critical");
     expect(combined[0]!.resolutionKind).toBe("provider_assignment");
   });
+  it("distinguishes unresolved scan blockers from transient or recovered attempts", () => {
+    const attendanceWithRecovery = {
+      exceptions: [],
+      scanEvents: [
+        {
+          id: "scan-blocked-unresolved",
+          staff_id: "staff-unresolved",
+          staff_name: "Unresolved Staff",
+          outcome: "blocked",
+          reason_code: "DEVICE_LIMIT_REACHED",
+          message: "Device limit reached",
+          created_at: "2026-10-25T09:00:00.000Z",
+        },
+        {
+          id: "scan-blocked-recovered",
+          staff_id: "staff-recovered",
+          staff_name: "Recovered Staff",
+          outcome: "blocked",
+          reason_code: "DEVICE_LIMIT_REACHED",
+          message: "Device limit reached",
+          created_at: "2026-10-25T09:05:00.000Z",
+        },
+        {
+          id: "scan-recovered-success",
+          staff_id: "staff-recovered",
+          staff_name: "Recovered Staff",
+          outcome: "success",
+          reason_code: null,
+          message: null,
+          created_at: "2026-10-25T09:10:00.000Z",
+        },
+      ],
+    } as unknown as AttendanceWorkspaceData;
+
+    const scans = recentUnsuccessfulScans(attendanceWithRecovery);
+    expect(scans).toHaveLength(2);
+
+    const unresolved = scans.find((s) => s.staffId === "staff-unresolved");
+    const recovered = scans.find((s) => s.staffId === "staff-recovered");
+
+    expect(unresolved?.isUnresolvedFailure).toBe(true);
+    expect(recovered?.isUnresolvedFailure).toBe(false);
+  });
+
+  it("maps persisted states to aligned resolution states without fabricating verified history", () => {
+    const attendanceWithStates = {
+      exceptions: [
+        {
+          id: "ex-1",
+          status: "open",
+          severity: "critical",
+          exception_type: "device_limit_reached",
+          safe_error_code: "DEVICE_LIMIT_REACHED",
+          metadata: {},
+          detected_at: "2026-10-25T09:00:00.000Z",
+        },
+      ],
+      scanEvents: [],
+    } as unknown as AttendanceWorkspaceData;
+
+    const issues = buildOperationsIssues(attendanceWithStates, setupWithSpecificServices, staffSample);
+    expect(issues).toHaveLength(3);
+
+    const attendanceIssue = issues.find((i) => i.area === "attendance");
+    const configIssue = issues.find((i) => i.area === "configuration");
+    const staffIssue = issues.find((i) => i.area === "staff_identity");
+
+    expect(attendanceIssue?.resolutionState).toBe("detected");
+    expect(configIssue?.resolutionState).toBe("detected");
+    expect(staffIssue?.resolutionState).toBe("under_review");
+    expect(issues.some((i) => (i.resolutionState as string) === "verified")).toBe(false);
+  });
 });
