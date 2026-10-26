@@ -7,6 +7,8 @@ import { AttendanceIssueModalRouter } from "@/components/features/attendance/rev
 import { RecoveryLinkDialog } from "@/components/features/attendance/devices/recovery-link-dialog";
 import { OperationsGuidanceModal } from "@/components/features/operations-center/operations-guidance-modal";
 import { ServiceProviderModal } from "@/components/features/operations-center/service-provider-modal";
+import { OperationsScheduleSetup } from "@/components/features/operations-center/operations-schedule-setup";
+import type { StaffAvailabilityItem } from "@/lib/queries/staff";
 import { StaffDuplicateModal } from "@/components/features/operations-center/staff-duplicate-modal";
 import { Button } from "@/components/ui/button";
 import { buildAttendanceReviewItems } from "@/lib/attendance/crm-review";
@@ -45,6 +47,9 @@ type OperationsCenterViewProps = {
   staffAvailable: boolean;
   attendanceData: AttendanceWorkspaceData | null;
   branchStaff: OperationalStaffMember[];
+  availabilityItems: StaffAvailabilityItem[];
+  availabilityAvailable: boolean;
+  scheduleDayOfWeek: number;
 };
 
 const priorityClasses: Record<OperationsIssueSeverity, string> = {
@@ -77,6 +82,9 @@ export function OperationsCenterView({
   staffAvailable,
   attendanceData,
   branchStaff,
+  availabilityItems,
+  availabilityAvailable,
+  scheduleDayOfWeek,
 }: OperationsCenterViewProps) {
   const router = useRouter();
 
@@ -87,6 +95,7 @@ export function OperationsCenterView({
   const [isDuplicateModalOpen, setIsDuplicateModalOpen] = useState(false);
   const [duplicateStaffId, setDuplicateStaffId] = useState<string | null>(null);
   const [isProviderModalOpen, setIsProviderModalOpen] = useState(false);
+  const [scheduleSetupOpen, setScheduleSetupOpen] = useState(false);
   const [selectedServiceIssue, setSelectedServiceIssue] = useState<{
     serviceId: string;
     serviceName: string;
@@ -105,9 +114,12 @@ export function OperationsCenterView({
     [attendanceData?.exceptions]
   );
 
-  const selectedAttendanceItem = selectedIssue?.area === "attendance"
-    ? attendanceReviewItems.find((item) => "attendance:" + item.exception.id === selectedIssue.id) ?? null
-    : null;
+  const selectedAttendanceItem =
+    selectedIssue?.area === "attendance"
+      ? (attendanceReviewItems.find(
+          (item) => "attendance:" + item.exception.id === selectedIssue.id
+        ) ?? null)
+      : null;
 
   // Search and Filtering
   const normalizedSearch = search.trim().toLowerCase();
@@ -152,6 +164,10 @@ export function OperationsCenterView({
 
   // Action dispatcher when user clicks "Resolve"
   const handleResolveIssue = (issue: OperationsIssue) => {
+    if (issue.id === "configuration:no-schedule") {
+      setScheduleSetupOpen(true);
+      return;
+    }
     if (issue.resolutionKind === "provider_assignment" && issue.serviceId) {
       setSelectedServiceIssue({
         serviceId: issue.serviceId,
@@ -193,9 +209,12 @@ export function OperationsCenterView({
     setSelectedScanId(scan.id);
   };
 
-  const recoveryEntry = selectedRecoveryStaffId && attendanceData
-    ? attendanceData.deviceRegistry.entries.find((entry) => entry.staffId === selectedRecoveryStaffId) ?? null
-    : null;
+  const recoveryEntry =
+    selectedRecoveryStaffId && attendanceData
+      ? (attendanceData.deviceRegistry.entries.find(
+          (entry) => entry.staffId === selectedRecoveryStaffId
+        ) ?? null)
+      : null;
 
   return (
     <section className="space-y-5" aria-label="Operations Center">
@@ -205,13 +224,42 @@ export function OperationsCenterView({
           <div className="mb-1 text-xs font-semibold uppercase tracking-wide text-[var(--cs-text-muted)]">
             {branchName} · Operational Command & Diagnostics
           </div>
-          <h1 className="text-2xl font-bold tracking-tight text-[var(--cs-text)]">Operations Center</h1>
+          <h1 className="text-2xl font-bold tracking-tight text-[var(--cs-text)]">
+            Operations Center
+          </h1>
           <p className="mt-1 max-w-3xl text-sm text-[var(--cs-text-secondary)]">
-            Detect, diagnose, and resolve branch operational problems using authoritative CradleHub workflows.
+            Detect, diagnose, and resolve branch operational problems using authoritative CradleHub
+            workflows.
           </p>
-          <p className="mt-2 text-xs text-[var(--cs-text-muted)]">Authoritative check: {checkedAt} · Refresh to rerun diagnostics</p>
+          <p className="mt-2 text-xs text-[var(--cs-text-muted)]">
+            Authoritative check: {checkedAt} · Refresh to rerun diagnostics
+          </p>
         </div>
         <div className="flex flex-wrap items-center gap-2">
+          {configurationAvailable &&
+          issues.some((issue) => issue.resolutionKind === "provider_assignment") ? (
+            <Button
+              type="button"
+              variant="outline"
+              className="min-h-10 text-xs font-semibold"
+              onClick={() => {
+                setSelectedServiceIssue(null);
+                setIsProviderModalOpen(true);
+              }}
+            >
+              Assign Providers
+            </Button>
+          ) : null}
+          {issues.some((issue) => issue.id === "configuration:no-schedule") ? (
+            <Button
+              type="button"
+              variant="outline"
+              className="min-h-10 text-xs font-semibold"
+              onClick={() => setScheduleSetupOpen(true)}
+            >
+              Set Up Schedules
+            </Button>
+          ) : null}
           <Button
             type="button"
             variant="outline"
@@ -234,12 +282,21 @@ export function OperationsCenterView({
       </div>
 
       {/* 6 Authoritative Diagnostic Summary Cards */}
-      <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-6" aria-label="Operational Summary Metrics">
+      <div
+        className="grid gap-3 sm:grid-cols-2 lg:grid-cols-6"
+        aria-label="Operational Summary Metrics"
+      >
         <Summary
           label="Branch Health"
           value={readyLabel}
           icon={ShieldCheck}
-          variant={incomplete || unresolvedScanCount > 0 ? "warning" : criticalCount > 0 ? "critical" : "normal"}
+          variant={
+            incomplete || unresolvedScanCount > 0
+              ? "warning"
+              : criticalCount > 0
+                ? "critical"
+                : "normal"
+          }
         />
         <Summary
           label="Open Incidents"
@@ -274,16 +331,30 @@ export function OperationsCenterView({
       <section className="space-y-3" aria-labelledby="operations-issues-heading">
         <div className="flex flex-wrap items-end justify-between gap-3">
           <div>
-            <h2 id="operations-issues-heading" className="text-lg font-bold">Issue inbox</h2>
+            <h2 id="operations-issues-heading" className="text-lg font-bold">
+              Issue inbox
+            </h2>
             <p className="text-xs text-[var(--cs-text-muted)]">
-              Unified operational findings across Attendance exceptions, identity discrepancies, and service readiness
+              Unified operational findings across Attendance exceptions, identity discrepancies, and
+              service readiness
             </p>
           </div>
 
-          <form method="get" action="/crm/operations-center" role="search" className="flex w-full max-w-md gap-2">
-            <label htmlFor="operations-search" className="sr-only">Search loaded staff issues, codes, services, or scan IDs</label>
+          <form
+            method="get"
+            action="/crm/operations-center"
+            role="search"
+            className="flex w-full max-w-md gap-2"
+          >
+            <label htmlFor="operations-search" className="sr-only">
+              Search loaded staff issues, codes, services, or scan IDs
+            </label>
             <div className="relative min-w-0 flex-1">
-              <Search size={15} aria-hidden className="absolute left-3 top-3 text-[var(--cs-text-muted)]" />
+              <Search
+                size={15}
+                aria-hidden
+                className="absolute left-3 top-3 text-[var(--cs-text-muted)]"
+              />
               <input
                 id="operations-search"
                 name="q"
@@ -293,7 +364,10 @@ export function OperationsCenterView({
                 className="min-h-10 w-full min-w-0 rounded-lg border border-[var(--cs-border)] bg-[var(--cs-surface)] pl-9 pr-3 text-sm focus:border-[var(--cs-sand)] focus:outline-none"
               />
             </div>
-            <button type="submit" className="min-h-10 rounded-lg bg-[var(--cs-sidebar-active)] px-3 text-sm font-semibold text-white hover:opacity-95">
+            <button
+              type="submit"
+              className="min-h-10 rounded-lg bg-[var(--cs-sidebar-active)] px-3 text-sm font-semibold text-white hover:opacity-95"
+            >
               Find
             </button>
           </form>
@@ -341,7 +415,10 @@ export function OperationsCenterView({
             <option value="pending_action">Pending Action</option>
           </select>
 
-          {(severityFilter !== "all" || categoryFilter !== "all" || resolutionFilter !== "all" || normalizedSearch) ? (
+          {severityFilter !== "all" ||
+          categoryFilter !== "all" ||
+          resolutionFilter !== "all" ||
+          normalizedSearch ? (
             <button
               type="button"
               onClick={() => {
@@ -366,11 +443,16 @@ export function OperationsCenterView({
                 <div>
                   <p className="font-bold">Diagnostics partially unavailable</p>
                   <p className="mt-1 text-xs text-stone-600">
-                    One or more diagnostic queries failed to load. No complete operational conclusion can be drawn from an empty or partial result. Check connectivity or refresh.
+                    One or more diagnostic queries failed to load. No complete operational
+                    conclusion can be drawn from an empty or partial result. Check connectivity or
+                    refresh.
                   </p>
                 </div>
               </div>
-            ) : normalizedSearch || severityFilter !== "all" || categoryFilter !== "all" || resolutionFilter !== "all" ? (
+            ) : normalizedSearch ||
+              severityFilter !== "all" ||
+              categoryFilter !== "all" ||
+              resolutionFilter !== "all" ? (
               <div className="text-center text-xs text-[var(--cs-text-muted)]">
                 No matching operational issues in the active snapshot for the selected filters.
               </div>
@@ -378,9 +460,12 @@ export function OperationsCenterView({
               <div className="flex items-center gap-3 text-amber-900">
                 <AlertTriangle size={22} className="shrink-0 text-amber-700" aria-hidden />
                 <div>
-                  <p className="font-bold">{unresolvedScanCount} unresolved scan attempt(s) requiring review</p>
+                  <p className="font-bold">
+                    {unresolvedScanCount} unresolved scan attempt(s) requiring review
+                  </p>
                   <p className="mt-0.5 text-xs text-stone-600">
-                    No confirmed open exceptions logged, but recent unsuccessful scan attempts have not been followed by a successful check-in today.
+                    No confirmed open exceptions logged, but recent unsuccessful scan attempts have
+                    not been followed by a successful check-in today.
                   </p>
                 </div>
               </div>
@@ -390,7 +475,8 @@ export function OperationsCenterView({
                 <div>
                   <p className="font-bold">Current checks clear</p>
                   <p className="mt-0.5 text-xs text-stone-600">
-                    Zero open exceptions or blocked scans detected in current branch snapshot for {branchName}.
+                    Zero open exceptions or blocked scans detected in current branch snapshot for{" "}
+                    {branchName}.
                   </p>
                 </div>
               </div>
@@ -405,13 +491,23 @@ export function OperationsCenterView({
               >
                 <div className="flex flex-wrap items-start justify-between gap-2">
                   <div className="flex flex-wrap items-center gap-2">
-                    <span className={"rounded-md border px-2 py-0.5 text-[11px] font-semibold capitalize " + priorityClasses[issue.severity]}>
+                    <span
+                      className={
+                        "rounded-md border px-2 py-0.5 text-[11px] font-semibold capitalize " +
+                        priorityClasses[issue.severity]
+                      }
+                    >
                       {issue.severity}
                     </span>
                     <span className="text-xs font-semibold text-[var(--cs-text-muted)]">
                       {areaLabels[issue.area]}
                     </span>
-                    <span className={"rounded-md border px-2 py-0.5 text-[11px] font-medium " + stateLabels[issue.resolutionState].badge}>
+                    <span
+                      className={
+                        "rounded-md border px-2 py-0.5 text-[11px] font-medium " +
+                        stateLabels[issue.resolutionState].badge
+                      }
+                    >
                       {stateLabels[issue.resolutionState].label}
                     </span>
                   </div>
@@ -423,7 +519,9 @@ export function OperationsCenterView({
                 </div>
 
                 <h3 className="mt-2 text-sm font-bold text-stone-900">{issue.title}</h3>
-                <p className="mt-1 text-xs text-[var(--cs-text-secondary)] leading-5">{issue.description}</p>
+                <p className="mt-1 text-xs text-[var(--cs-text-secondary)] leading-5">
+                  {issue.description}
+                </p>
                 <p className="mt-2 rounded-md bg-[var(--cs-surface-warm)] p-2 text-xs text-stone-700">
                   <strong className="text-stone-900">Recommended correction: </strong>
                   {issue.guidance}
@@ -462,7 +560,8 @@ export function OperationsCenterView({
 
             {filteredIssues.length > visibleIssues.length ? (
               <p className="text-center text-xs text-[var(--cs-text-muted)]">
-                Showing {visibleIssues.length} of {filteredIssues.length} issues. Use filters or search to narrow results.
+                Showing {visibleIssues.length} of {filteredIssues.length} issues. Use filters or
+                search to narrow results.
               </p>
             ) : null}
           </div>
@@ -474,9 +573,13 @@ export function OperationsCenterView({
         <section className="space-y-2.5" aria-labelledby="operations-scan-heading">
           <div className="flex flex-wrap items-end justify-between gap-2">
             <div>
-              <h2 id="operations-scan-heading" className="text-lg font-bold">Recent unsuccessful scan attempts</h2>
+              <h2 id="operations-scan-heading" className="text-lg font-bold">
+                Recent unsuccessful scan attempts
+              </h2>
               <p className="text-xs text-[var(--cs-text-muted)]">
-                Authoritative check of today&apos;s latest 100 scans. Unsuccessful scan attempts help diagnose hardware, device limits, and camera issues before an incident is opened.
+                Authoritative check of today&apos;s latest 100 scans. Unsuccessful scan attempts
+                help diagnose hardware, device limits, and camera issues before an incident is
+                opened.
               </p>
             </div>
           </div>
@@ -514,7 +617,8 @@ export function OperationsCenterView({
                     </div>
                     <p className="mt-1 text-xs text-[var(--cs-text-secondary)]">{scan.message}</p>
                     <div className="mt-1 text-[11px] text-[var(--cs-text-muted)]">
-                      Receipt suffix: <code className="font-mono">{scan.scanIdSuffix}</code> · {scan.occurredAt}
+                      Receipt suffix: <code className="font-mono">{scan.scanIdSuffix}</code> ·{" "}
+                      {scan.occurredAt}
                     </div>
                   </div>
 
@@ -547,8 +651,10 @@ export function OperationsCenterView({
       {/* Governance & Safeguard Footer Note */}
       <div className="rounded-xl border border-[var(--cs-border)] bg-[var(--cs-surface-warm)] p-4 text-xs text-[var(--cs-text-muted)] leading-5">
         <strong>Operations Center Governance: </strong>
-        Account duplicate diagnosis is non-destructive. Account merging or deletion requires an atomic migration contract to protect historical payroll and booking records.
-        Attendance device replacements enforce the {branchName} active device limit; issuing a connection link does not confirm an issue as resolved until a subsequent scan succeeds.
+        Account duplicate diagnosis is non-destructive. Account merging or deletion requires an
+        atomic migration contract to protect historical payroll and booking records. Attendance
+        device replacements enforce the {branchName} active device limit; issuing a connection link
+        does not confirm an issue as resolved until a subsequent scan succeeds.
       </div>
 
       {/* Attendance Modal Router (for attendance issues) */}
@@ -585,12 +691,19 @@ export function OperationsCenterView({
 
       {/* Service Provider Assignment Modal (Priority Workflow 3: MISSING PROVIDER) */}
       <ServiceProviderModal
+        key={selectedServiceIssue?.serviceId ?? "provider-queue"}
         open={isProviderModalOpen}
         branchId={branchId}
         branchName={branchName}
         serviceId={selectedServiceIssue?.serviceId ?? null}
         serviceName={selectedServiceIssue?.serviceName ?? null}
         branchStaff={branchStaff}
+        services={issues
+          .filter((issue) => issue.resolutionKind === "provider_assignment" && !!issue.serviceId)
+          .map((issue) => ({
+            serviceId: issue.serviceId!,
+            serviceName: issue.serviceName ?? issue.title,
+          }))}
         onClose={() => {
           setIsProviderModalOpen(false);
           setSelectedServiceIssue(null);
@@ -599,6 +712,20 @@ export function OperationsCenterView({
           router.refresh();
         }}
       />
+
+      {scheduleSetupOpen ? (
+        <OperationsScheduleSetup
+          open
+          branchId={branchId}
+          branchName={branchName}
+          available={availabilityAvailable && staffAvailable}
+          items={availabilityItems}
+          verifiedStaff={branchStaff}
+          dayOfWeek={scheduleDayOfWeek}
+          onClose={() => setScheduleSetupOpen(false)}
+          onSaved={() => router.refresh()}
+        />
+      ) : null}
 
       {/* Staff & Duplicate Accounts Review Modal (Priority Workflow 2: DUPLICATE ACCOUNTS) */}
       <StaffDuplicateModal

@@ -42,6 +42,7 @@ type ServiceProviderModalProps = {
   serviceId: string | null;
   serviceName: string | null;
   branchStaff: OperationalStaffMember[];
+  services: Array<{ serviceId: string; serviceName: string }>;
   onClose: () => void;
   onAssigned: () => void;
 };
@@ -53,17 +54,22 @@ export function ServiceProviderModal({
   serviceId,
   serviceName,
   branchStaff,
+  services,
   onClose,
   onAssigned,
 }: ServiceProviderModalProps) {
   const selectId = useId();
   const [isPending, startTransition] = useTransition();
   const [selectedStaffId, setSelectedStaffId] = useState<string>("");
+  const [chosenServiceId, setChosenServiceId] = useState(serviceId ?? "");
   const [status, setStatus] = useState<VerificationStatus>("idle");
   const [statusMessage, setStatusMessage] = useState<string | null>(null);
   const [providerCount, setProviderCount] = useState<number>(0);
 
-  if (!open || !serviceId) return null;
+  const activeServiceId = chosenServiceId || serviceId || "";
+  const activeServiceName =
+    services.find((item) => item.serviceId === activeServiceId)?.serviceName ?? serviceName;
+  if (!open) return null;
 
   // Filter staff to active service-facing roles at this branch
   const hardExcludedRoles = new Set(["digital_marketer", "driver", "utility"]);
@@ -77,7 +83,7 @@ export function ServiceProviderModal({
   );
 
   const handleAssign = () => {
-    if (!selectedStaffId) {
+    if (!activeServiceId || !selectedStaffId) {
       setStatus("error");
       setStatusMessage("Please select an eligible service provider.");
       return;
@@ -90,7 +96,7 @@ export function ServiceProviderModal({
       try {
         const result = await assignProviderToServiceAction({
           branchId,
-          serviceId,
+          serviceId: activeServiceId,
           staffId: selectedStaffId,
         });
 
@@ -106,7 +112,7 @@ export function ServiceProviderModal({
 
         const verifyResult = await verifyServiceProviderReadinessAction({
           branchId,
-          serviceId,
+          serviceId: activeServiceId,
         });
 
         if (!verifyResult.ok) {
@@ -146,7 +152,7 @@ export function ServiceProviderModal({
       try {
         const verifyResult = await verifyServiceProviderReadinessAction({
           branchId,
-          serviceId,
+          serviceId: activeServiceId,
         });
 
         if (!verifyResult.ok) {
@@ -185,22 +191,59 @@ export function ServiceProviderModal({
   };
 
   return (
-    <Dialog open={open} onOpenChange={(isOpen) => { if (!isOpen) handleClose(); }}>
+    <Dialog
+      open={open}
+      onOpenChange={(isOpen) => {
+        if (!isOpen) handleClose();
+      }}
+    >
       <DialogContent className="max-h-[90vh] max-w-[min(100%-2rem,560px)] overflow-y-auto p-0 sm:max-w-xl">
         <DialogHeader className="border-b border-[var(--cs-border-soft)] p-5 pr-12">
           <div className="flex items-center gap-2 text-xs font-semibold uppercase tracking-wide text-[var(--cs-text-muted)]">
             <Wrench size={14} aria-hidden />
             Service Configuration · {branchName}
           </div>
-          <DialogTitle className="mt-1 text-lg font-bold">
-            Assign Provider to Service
-          </DialogTitle>
+          <DialogTitle className="mt-1 text-lg font-bold">Assign Provider to Service</DialogTitle>
           <DialogDescription className="text-sm text-[var(--cs-text-secondary)]">
-            {serviceName ?? "Selected service"} has no eligible provider assigned.
+            Choose a service and the staff member who will provide it.
           </DialogDescription>
         </DialogHeader>
 
         <div className="grid gap-4 p-5 text-sm">
+          <div className="space-y-1.5">
+            <label htmlFor="missing-provider-service" className="block text-xs font-semibold">
+              Service needing a provider
+            </label>
+            <select
+              id="missing-provider-service"
+              value={activeServiceId}
+              disabled={
+                isPending ||
+                status === "submitting" ||
+                status === "verifying" ||
+                status === "verified"
+              }
+              onChange={(event) => {
+                setChosenServiceId(event.target.value);
+                setSelectedStaffId("");
+                setStatus("idle");
+                setStatusMessage(null);
+              }}
+              className="min-h-10 w-full rounded-lg border border-[var(--cs-border)] bg-white px-3 text-sm"
+            >
+              <option value="">Select an unassigned service</option>
+              {services.map((item) => (
+                <option key={item.serviceId} value={item.serviceId}>
+                  {item.serviceName}
+                </option>
+              ))}
+            </select>
+            {services.length === 0 ? (
+              <p className="text-xs text-amber-800">
+                No confirmed unassigned services. Refresh checks before making changes.
+              </p>
+            ) : null}
+          </div>
           {status === "verifying" ? (
             <div className="rounded-xl border border-blue-200 bg-blue-50 p-4 text-blue-950">
               <div className="flex items-center gap-2 font-semibold">
@@ -208,7 +251,8 @@ export function ServiceProviderModal({
                 Verifying Authoritative Service Readiness…
               </div>
               <p className="mt-2 text-xs leading-5 text-blue-900/80">
-                Mutation completed on server. Re-querying <code>getBranchProviderReadiness</code> to confirm active provider coverage.
+                Mutation completed on server. Re-querying <code>getBranchProviderReadiness</code> to
+                confirm active provider coverage.
               </p>
             </div>
           ) : status === "verified" ? (
@@ -218,8 +262,11 @@ export function ServiceProviderModal({
                 Provider Coverage Confirmed &amp; Authoritatively Verified
               </div>
               <p className="mt-2 text-xs leading-5">
-                Authoritative readiness check confirmed: <strong>{providerCount} qualified provider(s)</strong> assigned to {serviceName} at {branchName}.
-                Provider readiness caches have been invalidated. (Full booking readiness also requires active branch schedules, resources, and catalog configuration.)
+                Authoritative readiness check confirmed:{" "}
+                <strong>{providerCount} qualified provider(s)</strong> assigned to{" "}
+                {activeServiceName} at {branchName}. Provider readiness caches have been
+                invalidated. (Full booking readiness also requires active branch schedules,
+                resources, and catalog configuration.)
               </p>
             </div>
           ) : status === "unconfirmed" ? (
@@ -228,9 +275,7 @@ export function ServiceProviderModal({
                 <AlertTriangle size={18} className="text-amber-700" aria-hidden />
                 Mutation Saved — Readiness Unconfirmed
               </div>
-              <p className="mt-2 text-xs leading-5 text-amber-900">
-                {statusMessage}
-              </p>
+              <p className="mt-2 text-xs leading-5 text-amber-900">{statusMessage}</p>
               <div className="mt-3">
                 <Button
                   type="button"
@@ -256,19 +301,27 @@ export function ServiceProviderModal({
                   Active service cannot be booked because zero active branch providers are assigned.
                 </p>
                 <p className="mt-1 text-xs text-amber-900/80">
-                  Online booking and front-desk appointment wizards require at least one eligible staff member in <code>staff_services</code> before appointments can be scheduled.
+                  Online booking and front-desk appointment wizards require at least one eligible
+                  staff member in <code>staff_services</code> before appointments can be scheduled.
                 </p>
               </div>
 
               <div className="space-y-2">
-                <label htmlFor={selectId} className="block text-xs font-bold uppercase text-[var(--cs-text-muted)]">
+                <label
+                  htmlFor={selectId}
+                  className="block text-xs font-bold uppercase text-[var(--cs-text-muted)]"
+                >
                   Select Service Provider for {branchName}
                 </label>
                 {eligibleProviders.length === 0 ? (
                   <div className="rounded-lg border border-[var(--cs-border)] bg-[var(--cs-surface-warm)] p-4 text-xs text-[var(--cs-text-secondary)]">
-                    <p className="font-semibold text-stone-900">No eligible service providers found in this branch.</p>
+                    <p className="font-semibold text-stone-900">
+                      No eligible service providers found in this branch.
+                    </p>
                     <p className="mt-1">
-                      There are currently no active therapists, nail technicians, or aestheticians assigned to {branchName}. Onboard a new provider or transfer an existing staff member in Staff Management before assigning services.
+                      There are currently no active therapists, nail technicians, or aestheticians
+                      assigned to {branchName}. Onboard a new provider or transfer an existing staff
+                      member in Staff Management before assigning services.
                     </p>
                   </div>
                 ) : (
@@ -294,13 +347,18 @@ export function ServiceProviderModal({
                   </select>
                 )}
                 <p className="text-[11px] text-[var(--cs-text-muted)]">
-                  Only active service providers (therapists, nail technicians, aestheticians) assigned to this branch are listed.
+                  Only active service providers (therapists, nail technicians, aestheticians)
+                  assigned to this branch are listed.
                 </p>
               </div>
 
               {status === "error" && statusMessage ? (
-                <div className="rounded-lg border border-red-200 bg-red-50 p-3 text-xs text-red-800" role="alert">
-                  <span className="font-semibold">Error: </span>{statusMessage}
+                <div
+                  className="rounded-lg border border-red-200 bg-red-50 p-3 text-xs text-red-800"
+                  role="alert"
+                >
+                  <span className="font-semibold">Error: </span>
+                  {statusMessage}
                 </div>
               ) : null}
 
@@ -308,7 +366,8 @@ export function ServiceProviderModal({
                 <ShieldCheck size={16} className="mt-0.5 shrink-0 text-emerald-700" aria-hidden />
                 <span>
                   <strong>Authoritative Server Action &amp; Verification: </strong>
-                  Updates canonical <code>staff_services</code> and re-queries branch provider readiness before presenting confirmation.
+                  Updates canonical <code>staff_services</code> and re-queries branch provider
+                  readiness before presenting confirmation.
                 </span>
               </div>
             </>
@@ -322,7 +381,14 @@ export function ServiceProviderModal({
           {status !== "verified" && (
             <Button
               type="button"
-              disabled={isPending || status === "submitting" || status === "verifying" || !selectedStaffId || eligibleProviders.length === 0}
+              disabled={
+                isPending ||
+                status === "submitting" ||
+                status === "verifying" ||
+                !activeServiceId ||
+                !selectedStaffId ||
+                eligibleProviders.length === 0
+              }
               onClick={handleAssign}
               className="bg-[var(--cs-sidebar-active)] text-white hover:opacity-95"
             >
