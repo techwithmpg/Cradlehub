@@ -13,7 +13,7 @@ function metadataString(metadata: Record<string, unknown>, key: string): string 
   return typeof value === "string" && value.trim() ? value.trim() : null;
 }
 
-export function effectiveAttendanceExceptionType(exception: AttendanceException): string {
+export function effectiveAttendanceExceptionType(exception: Pick<AttendanceException, "exception_type" | "metadata">): string {
   return (
     metadataString(exception.metadata, "internalExceptionType") ??
     metadataString(exception.metadata, "internal_exception_type") ??
@@ -21,7 +21,7 @@ export function effectiveAttendanceExceptionType(exception: AttendanceException)
   );
 }
 
-export function isTimingOnlyAttendanceException(exception: AttendanceException): boolean {
+export function isTimingOnlyAttendanceException(exception: Pick<AttendanceException, "exception_type" | "metadata">): boolean {
   const type = effectiveAttendanceExceptionType(exception).toLowerCase();
   return TIMING_ONLY_EXCEPTION_TYPES.some((value) => type.includes(value));
 }

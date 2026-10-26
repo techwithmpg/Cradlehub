@@ -57,6 +57,7 @@ export function CrmTodayShell({
         actionNotifications,
         readinessIssues,
         readinessStatus,
+        readinessAvailable: false,
       },
     [initialData, queueData, snapshot, actionNotifications, readinessIssues, readinessStatus]
   );

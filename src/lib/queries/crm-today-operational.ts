@@ -84,6 +84,7 @@ export type CrmTodayOperationalData = {
   actionNotifications: { id: string; title: string; message?: string }[];
   readinessIssues: ReadinessIssue[];
   readinessStatus: ReadinessStatus;
+  readinessAvailable: boolean;
 };
 
 export async function getCrmTodayOperationalData(params: {
@@ -301,5 +302,6 @@ export async function getCrmTodayOperationalData(params: {
     actionNotifications,
     readinessIssues,
     readinessStatus,
+    readinessAvailable: readiness !== null,
   };
 }

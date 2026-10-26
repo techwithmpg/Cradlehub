@@ -73,9 +73,6 @@ vi.mock("sonner", () => ({
   },
 }));
 
-
-
-
 function deferred<T>() {
   let resolve!: (value: T) => void;
   let reject!: (reason: Error) => void;
@@ -193,6 +190,7 @@ function makeOperationalData(bookingCount = 1, collected = 1000): CrmTodayOperat
     actionNotifications: [],
     readinessIssues: [],
     readinessStatus: "ok",
+    readinessAvailable: true,
   };
 }
 
@@ -243,7 +241,6 @@ function fixture() {
 
   return { store, cache, fetcher, initial, renderComponent };
 }
-
 
 afterEach(() => {
   cleanup();
@@ -349,9 +346,7 @@ describe("CRM Today Generation-Aware SWR Lifecycle (PERF-2)", () => {
     const { store, fetcher, renderComponent } = fixture();
     const staleResponse = deferred<CrmTodayOperationalData>();
     const latestResponse = deferred<CrmTodayOperationalData>();
-    fetcher
-      .mockReturnValueOnce(staleResponse.promise)
-      .mockReturnValueOnce(latestResponse.promise);
+    fetcher.mockReturnValueOnce(staleResponse.promise).mockReturnValueOnce(latestResponse.promise);
 
     store.setActive("crm-work-queue");
     renderComponent();
@@ -434,7 +429,9 @@ describe("CRM Today Generation-Aware SWR Lifecycle (PERF-2)", () => {
     expect(screen.getByText("Customer 1")).toBeDefined();
 
     // Non-destructive retry feedback is visible
-    await waitFor(() => expect(screen.getByText(/Could not refresh live operational data/i)).toBeDefined());
+    await waitFor(() =>
+      expect(screen.getByText(/Could not refresh live operational data/i)).toBeDefined()
+    );
 
     // Module remains dirty
     expect(store.getSnapshot("crm-work-queue").isDirty).toBe(true);
@@ -488,7 +485,9 @@ describe("CRM Today Generation-Aware SWR Lifecycle (PERF-2)", () => {
     });
 
     // Selected booking survives reconciliation by ID and displays updated information
-    await waitFor(() => expect(screen.getAllByText("Customer One (Updated Name)").length).toBeGreaterThan(0));
+    await waitFor(() =>
+      expect(screen.getAllByText("Customer One (Updated Name)").length).toBeGreaterThan(0)
+    );
 
     // Now reconcile with booking removed
     const emptyPayload = makeOperationalData(0, 0);
@@ -577,7 +576,10 @@ describe("CRM Today Generation-Aware SWR Lifecycle (PERF-2)", () => {
     const checkInBtn = screen.getByText("Check In");
 
     // Case 1: Mutation fails
-    markBookingArrivedActionMock.mockResolvedValueOnce({ success: false, error: "Therapist unavailable" });
+    markBookingArrivedActionMock.mockResolvedValueOnce({
+      success: false,
+      error: "Therapist unavailable",
+    });
     await act(async () => {
       fireEvent.click(checkInBtn);
     });
@@ -634,6 +636,3 @@ describe("CRM Today Generation-Aware SWR Lifecycle (PERF-2)", () => {
     expect(screen.queryByText(/All Paid/i)).toBeNull();
   });
 });
-
-
-

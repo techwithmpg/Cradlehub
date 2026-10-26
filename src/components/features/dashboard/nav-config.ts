@@ -59,6 +59,7 @@ const MANAGER_NAV_ITEMS: NavItem[] = [
 // tools into a quieter System Management area. Routes stay stable for now.
 
 const CRM_NAV_ITEMS: NavItem[] = [
+  { label: "Cradle Live", href: "/crm/live-operations", icon: "Activity" },
   { label: "Cradle Flow", href: "/crm/today", icon: "LayoutDashboard" },
   { label: "Bookings", href: "/crm/bookings", icon: "ClipboardList" },
   { label: "Cash Flow", href: "/crm/cash-flow", icon: "DollarSign" },

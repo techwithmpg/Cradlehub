@@ -141,7 +141,7 @@ export function buildStaffDuplicateIssues(
 }
 
 export function buildOperationsIssues(
-  attendance: AttendanceWorkspaceData | null,
+  attendance: Pick<AttendanceWorkspaceData, 'exceptions'> | null,
   setup: CrmSetupHealthData | null,
   staffList?: OperationalStaffMember[] | null
 ): OperationsIssue[] {

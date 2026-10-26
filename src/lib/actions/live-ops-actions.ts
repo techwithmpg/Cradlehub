@@ -5,6 +5,7 @@ import { parseLiveEta } from "@/lib/bookings/ops-warnings";
 import { getStaffAdminName } from "@/lib/staff/display-name";
 import type { LiveEtaData } from "@/lib/bookings/ops-warnings";
 import { logError } from "@/lib/logger";
+import { getBranchBusinessDate } from "@/lib/engine/slot-time";
 
 export type ActiveTripData = {
   id: string;
@@ -53,7 +54,7 @@ export async function getActiveTripsForOpsMap(): Promise<ActiveTripData[]> {
 
     if (!me?.branch_id) return [];
 
-    const today = new Date().toISOString().split("T")[0]!;
+    const today = getBranchBusinessDate();
     const branchId = me.branch_id as string;
 
     // Fetch active HS bookings — include type = home_service OR delivery_type = home_service
