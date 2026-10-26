@@ -272,18 +272,32 @@ export function QuickBookingServiceSelector({
                     atLimit && "opacity-50"
                   )}
                 >
-                  {service.imageUrl ? (
-                    <img
-                      src={service.imageUrl}
-                      alt=""
-                      loading="lazy"
-                      className="size-10 shrink-0 rounded-md object-cover"
-                    />
-                  ) : (
-                    <span className="grid size-10 shrink-0 place-items-center rounded-md bg-[var(--cs-sand-mist)] text-[#006044]">
-                      <Sparkles size={15} />
-                    </span>
-                  )}
+                  <span className="relative grid size-11 shrink-0 place-items-center overflow-hidden rounded-md bg-[var(--cs-sand-mist)] text-[#006044]">
+                    <Sparkles size={15} />
+                    {service.imageUrl ? (
+                      <img
+                        src={service.imageUrl}
+                        alt=""
+                        loading="lazy"
+                        decoding="async"
+                        onError={(event) => {
+                          const image = event.currentTarget;
+                          const fallback = service.fallbackImageUrl;
+                          if (
+                            fallback &&
+                            image.dataset.fallbackAttempted !== "true" &&
+                            fallback !== image.getAttribute("src")
+                          ) {
+                            image.dataset.fallbackAttempted = "true";
+                            image.src = fallback;
+                          } else {
+                            image.style.display = "none";
+                          }
+                        }}
+                        className="absolute inset-0 h-full w-full object-cover"
+                      />
+                    ) : null}
+                  </span>
                   <span className="min-w-0 flex-1">
                     <span
                       className="block truncate text-xs font-bold text-[var(--cs-text)]"

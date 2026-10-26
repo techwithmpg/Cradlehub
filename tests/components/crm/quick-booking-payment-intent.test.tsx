@@ -24,6 +24,7 @@ import {
   QuickBookingForm,
   type QuickBookingMode,
 } from "@/components/features/bookings/quick-booking-form";
+import { BOOKINGS_CHANGED_EVENT } from "@/lib/bookings/bookings-client-events";
 
 const props = {
   branchId: "sm",
@@ -92,12 +93,13 @@ beforeEach(() => {
 afterEach(() => {
   cleanup();
   vi.unstubAllGlobals();
+  vi.useRealTimers();
 });
 
 describe("Quick Booking payment intent", () => {
   it.each(["walkin", "phone", "standard_future", "home_service"] as QuickBookingMode[])(
     "starts %s without received payment or an assumed tender",
-    (initialMode) => {
+    (initialMode: QuickBookingMode) => {
       renderMode(initialMode);
       expectUnpaid();
     }
@@ -105,7 +107,7 @@ describe("Quick Booking payment intent", () => {
 
   it.each(["phone", "standard_future", "home_service"] as QuickBookingMode[])(
     "switches %s to Walk-in without creating payment intent",
-    (initialMode) => {
+    (initialMode: QuickBookingMode) => {
       renderMode(initialMode);
       fireEvent.click(modeButton("Walk-in"));
       expectUnpaid();
@@ -140,38 +142,87 @@ describe("Quick Booking payment intent", () => {
     });
   });
 
-  it("requires an explicit source when Phone / Future is chosen from another mode", async () => {
-    renderMode("walkin");
+  it("selects Phone / Future in one click and submits a later-today booking without arrival", async () => {
+    vi.useFakeTimers({ toFake: ["Date"] });
+    vi.setSystemTime(new Date("2026-10-26T02:00:00.000Z"));
+    render(<QuickBookingForm {...props} initialMode="walkin" initialDate="2026-10-26" initialTime="14:00" />);
+    expect(screen.getAllByRole("button", { name: /^(Walk-in|Phone \/ Future|Home Service)/i })).toHaveLength(3);
     fireEvent.click(modeButton("Phone / Future"));
-    expect(
-      screen.getByRole("button", { name: "Call or message" }).getAttribute("aria-pressed")
-    ).toBe("false");
-    expect(
-      screen.getByRole("button", { name: "Scheduled in advance" }).getAttribute("aria-pressed")
-    ).toBe("false");
-    fireEvent.click(screen.getByRole("button", { name: "Save Booking" }));
-    expect(mocks.createBooking).not.toHaveBeenCalled();
-
-    fireEvent.click(screen.getByRole("button", { name: "Scheduled in advance" }));
+    expect(modeButton("Phone / Future").getAttribute("aria-pressed")).toBe("true");
+    expect(screen.queryByRole("group", { name: "Booking source" })).toBeNull();
+    expect(screen.queryByRole("button", { name: "Call or message" })).toBeNull();
+    expect(screen.queryByRole("button", { name: "Scheduled in advance" })).toBeNull();
     fireEvent.click(screen.getByRole("button", { name: "Save Booking" }));
     await waitFor(() => expect(mocks.createBooking).toHaveBeenCalledOnce());
     expect(mocks.createBooking.mock.calls[0]?.[0]).toMatchObject({
-      crmBookingMode: "standard_future",
+      crmBookingMode: "phone",
+      date: "2026-10-26",
+      startTime: "14:00:00",
+      markArrived: false,
       paymentReceived: false,
       paymentMethod: undefined,
     });
   });
 
-  it("preserves a known Future source after switching through another mode", async () => {
+  it("uses the same Phone / Future flow for a future-date booking", async () => {
+    render(<QuickBookingForm {...props} initialMode="walkin" initialDate="2026-10-27" initialTime="14:00" />);
+    fireEvent.click(modeButton("Phone / Future"));
+    fireEvent.click(screen.getByRole("button", { name: "Save Booking" }));
+    await waitFor(() => expect(mocks.createBooking).toHaveBeenCalledOnce());
+    expect(mocks.createBooking.mock.calls[0]?.[0]).toMatchObject({
+      crmBookingMode: "phone", date: "2026-10-27", markArrived: false,
+    });
+  });
+
+  it("notifies the workspace and the modal owner after a mocked Phone / Future save", async () => {
+    const onSuccess = vi.fn();
+    const onBookingsChanged = vi.fn();
+    window.addEventListener(BOOKINGS_CHANGED_EVENT, onBookingsChanged);
+    try {
+      render(<QuickBookingForm {...props} initialMode="phone" onSuccess={onSuccess} />);
+      fireEvent.click(screen.getByRole("button", { name: "Save Booking" }));
+      await waitFor(() => expect(onSuccess).toHaveBeenCalledOnce());
+      expect(onSuccess).toHaveBeenCalledWith(expect.objectContaining({
+        bookingId: "booking-sm", mode: "phone", isHomeService: false,
+      }));
+      expect(onBookingsChanged).toHaveBeenCalledOnce();
+    } finally {
+      window.removeEventListener(BOOKINGS_CHANGED_EVENT, onBookingsChanged);
+    }
+  });
+
+  it("preserves a programmatic standard_future request after switching through another mode", async () => {
     renderMode("standard_future");
     fireEvent.click(modeButton("Home Service"));
     fireEvent.click(modeButton("Phone / Future"));
-    expect(
-      screen.getByRole("button", { name: "Scheduled in advance" }).getAttribute("aria-pressed")
-    ).toBe("true");
-    expect(
-      screen.getByRole("button", { name: "Call or message" }).getAttribute("aria-pressed")
-    ).toBe("false");
+    expect(modeButton("Phone / Future").getAttribute("aria-pressed")).toBe("true");
+    expect(screen.queryByRole("group", { name: "Booking source" })).toBeNull();
+    fireEvent.click(screen.getByRole("button", { name: "Save Booking" }));
+    await waitFor(() => expect(mocks.createBooking).toHaveBeenCalledOnce());
+    expect(mocks.createBooking.mock.calls[0]?.[0]).toMatchObject({
+      crmBookingMode: "standard_future", markArrived: false,
+    });
+  });
+
+  it("still rejects incomplete Phone / Future details", () => {
+    render(<QuickBookingForm {...props} initialMode="walkin" initialPhone="" />);
+    fireEvent.click(modeButton("Phone / Future"));
+    fireEvent.click(screen.getByRole("button", { name: "Save Booking" }));
+    expect(screen.getByText("Enter the customer's phone number.")).toBeTruthy();
+    expect(mocks.createBooking).not.toHaveBeenCalled();
+  });
+
+  it("still blocks a Phone / Future slot rejected by exact availability", async () => {
+    mocks.fetch.mockImplementation(async (url: string) => {
+      if (url === "/api/booking/crm-availability")
+        return { ok: true, json: async () => ({ available: false, message: "Selected time is unavailable." }) };
+      throw new Error(`Unexpected request ${url}`);
+    });
+    renderMode("walkin");
+    fireEvent.click(modeButton("Phone / Future"));
+    fireEvent.click(screen.getByRole("button", { name: "Save Booking" }));
+    await waitFor(() => expect(screen.getByText("Selected time is unavailable.")).toBeTruthy());
+    expect(mocks.createBooking).not.toHaveBeenCalled();
   });
 
   it("requires an explicit tender after payment is marked received and retains the atomic submit path", async () => {

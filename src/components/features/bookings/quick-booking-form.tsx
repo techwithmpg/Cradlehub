@@ -63,6 +63,7 @@ export type QuickBookingServiceOption = {
   availableHomeService: boolean;
   description?: string | null;
   imageUrl?: string | null;
+  fallbackImageUrl?: string | null;
   categoryId?: string | null;
   categoryName?: string | null;
 };
@@ -203,8 +204,7 @@ type FieldErrors = Partial<
     | "date"
     | "time"
     | "homeServiceAddress"
-    | "paymentMethod"
-    | "source",
+    | "paymentMethod",
     string
   >
 >;
@@ -215,7 +215,7 @@ const MODES: Array<{
   description: string;
 }> = [
   { value: "walkin", label: "Walk-in", description: "Now · In branch" },
-  { value: "phone", label: "Phone / Future", description: "Call or schedule in advance" },
+  { value: "phone", label: "Phone / Future", description: "Book ahead or schedule by phone" },
   { value: "home_service", label: "Home Service", description: "We go to customer" },
 ];
 
@@ -372,12 +372,6 @@ export function QuickBookingForm({
   );
   const seededCustomerQuery = initialCustomer?.fullName || initialName || "";
   const [mode, setMode] = useState<QuickBookingMode>(initialMode);
-  const [phoneSourceChosen, setPhoneSourceChosen] = useState(
-    initialMode === "phone" || initialMode === "standard_future"
-  );
-  const [phoneFutureSource, setPhoneFutureSource] = useState<"phone" | "standard_future">(
-    initialMode === "standard_future" ? "standard_future" : "phone"
-  );
   const isPhoneFuture = mode === "phone" || mode === "standard_future";
   const [selectedCustomer, setSelectedCustomer] = useState<QuickBookingCustomerOption | null>(
     initialCustomer
@@ -1060,13 +1054,6 @@ export function QuickBookingForm({
     }
   }
 
-  function choosePhoneSource(nextSource: "phone" | "standard_future") {
-    setPhoneFutureSource(nextSource);
-    setMode(nextSource);
-    setPhoneSourceChosen(true);
-    setFieldErrors((current) => ({ ...current, source: undefined }));
-  }
-
   function handleServiceSelectionChange(nextServiceIds: string[]) {
     setLineQuotes((current) =>
       Object.fromEntries(
@@ -1267,9 +1254,6 @@ export function QuickBookingForm({
 
   function validate(): FieldErrors {
     const nextErrors: FieldErrors = {};
-    if (isPhoneFuture && !phoneSourceChosen) {
-      nextErrors.source = "Choose call or scheduled in advance before saving.";
-    }
     if (!fullName.trim()) nextErrors.fullName = "Enter the customer's name.";
     if (!phone.trim()) nextErrors.phone = "Enter the customer's phone number.";
     if (phone.trim() && phone.trim().length < 7) {
@@ -2133,69 +2117,12 @@ export function QuickBookingForm({
                     item.value === "walkin" ? User : item.value === "phone" ? Phone : Home;
                   const isSelected = item.value === "phone" ? isPhoneFuture : mode === item.value;
 
-                  if (item.value === "phone" && isPhoneFuture) {
-                    return (
-                      <div
-                        key={item.value}
-                        className="flex min-h-[54px] flex-col justify-center rounded-xl border border-[#006044] bg-[#006044] px-3 py-1 text-white shadow-xs"
-                      >
-                        <button
-                          type="button"
-                          onClick={() => changeMode(mode)}
-                          disabled={isSaving}
-                          aria-pressed
-                          aria-label="Phone / Future"
-                          className="flex items-center gap-2 text-left text-xs font-bold focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-white"
-                        >
-                          <Phone size={15} /> Phone / Future
-                        </button>
-                        <div
-                          role="group"
-                          aria-label="Booking source"
-                          className="ml-6 flex items-center gap-1 text-[10px]"
-                        >
-                          <span className="text-white/80">Source</span>
-                          <button
-                            type="button"
-                            onClick={() => choosePhoneSource("phone")}
-                            disabled={isSaving}
-                            aria-pressed={phoneSourceChosen && mode === "phone"}
-                            aria-label="Call or message"
-                            className={cn(
-                              "rounded border px-1.5 py-0.5 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-white",
-                              phoneSourceChosen && mode === "phone"
-                                ? "border-white bg-white text-[#006044]"
-                                : "border-white/50 text-white"
-                            )}
-                          >
-                            Call
-                          </button>
-                          <button
-                            type="button"
-                            onClick={() => choosePhoneSource("standard_future")}
-                            disabled={isSaving}
-                            aria-pressed={phoneSourceChosen && mode === "standard_future"}
-                            aria-label="Scheduled in advance"
-                            className={cn(
-                              "rounded border px-1.5 py-0.5 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-white",
-                              phoneSourceChosen && mode === "standard_future"
-                                ? "border-white bg-white text-[#006044]"
-                                : "border-white/50 text-white"
-                            )}
-                          >
-                            Future
-                          </button>
-                        </div>
-                      </div>
-                    );
-                  }
-
                   return (
                     <button
                       key={item.value}
                       type="button"
                       onClick={() =>
-                        changeMode(item.value === "phone" ? phoneFutureSource : item.value)
+                        changeMode(item.value === "phone" && initialMode === "standard_future" ? "standard_future" : item.value)
                       }
                       disabled={isSaving}
                       className={cn(
@@ -2235,7 +2162,6 @@ export function QuickBookingForm({
                   );
                 })}
               </div>
-              {isPhoneFuture ? <FieldError message={fieldErrors.source} /> : null}
             </div>
 
             {/* Customer Details and Guest Sessions — Shared Two-Column Row */}
@@ -2246,8 +2172,13 @@ export function QuickBookingForm({
               )}
             >
               {/* LEFT COLUMN — CUSTOMER DETAILS (~54%) */}
-              <div className={cn("grid min-w-0 gap-2", "sm:grid-cols-3")}>
-                <div className="flex items-center gap-1.5 text-xs font-bold text-[var(--cs-text)] sm:col-span-2">
+              <div
+                className={cn(
+                  "grid min-w-0 gap-2",
+                  "sm:grid-cols-[minmax(0,1.4fr)_minmax(0,1fr)_minmax(0,1.2fr)]"
+                )}
+              >
+                <div className="flex items-center gap-1.5 text-xs font-bold text-[var(--cs-text)] sm:col-span-3">
                   <User size={14} className="text-[#7A583E]" />
                   <span>Customer Information</span>
                   <button
@@ -2260,7 +2191,7 @@ export function QuickBookingForm({
                   </button>
                 </div>
 
-                <div className="relative min-w-0 sm:col-span-3">
+                <div className="relative min-w-0">
                   <FieldLabel icon={<User size={14} />} label="Customer" />
                   <div className="relative">
                     <Search className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-[var(--cs-text-muted)]" />
@@ -2477,7 +2408,7 @@ export function QuickBookingForm({
                   </div>
                   <FieldError message={fieldErrors.phone} />
                 </div>
-                <div className="min-w-0 sm:col-span-2">
+                <div className="min-w-0">
                   <FieldLabel label="Notes" optional />
                   <input
                     type="text"

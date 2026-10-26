@@ -219,7 +219,7 @@ export function AdministrativeBookingModalProvider({
         placement="center"
         ariaLabel="New booking"
         showCloseButton={false}
-        className="top-0 left-0 h-[100dvh] max-h-[100dvh] w-full max-w-full translate-x-0 translate-y-0 rounded-none border-0 bg-[var(--cs-surface)] sm:top-1/2 sm:left-1/2 sm:-translate-x-1/2 sm:-translate-y-1/2 sm:rounded-2xl sm:border sm:h-[min(98dvh,1060px)] sm:max-h-[min(98dvh,1060px)] sm:w-[min(1480px,calc(100vw-24px))] sm:max-w-[min(1480px,calc(100vw-24px))]"
+        className="top-0 left-0 h-[100dvh] max-h-[100dvh] w-full max-w-full translate-x-0 translate-y-0 rounded-none border-0 bg-[var(--cs-surface)] sm:top-1/2 sm:left-1/2 sm:-translate-x-1/2 sm:-translate-y-1/2 sm:rounded-2xl sm:border sm:h-[min(86dvh,820px)] sm:max-h-[min(86dvh,820px)] sm:w-[min(1180px,calc(100vw-40px))] sm:max-w-[min(1180px,calc(100vw-40px))]"
       >
         <AdminOverlayBody padded={false} className="overflow-hidden bg-[var(--cs-bg)]">
           {!bookingContext || loadingCustomer ? (

@@ -168,7 +168,8 @@ export async function getQuickBookingOptions(branchId: string): Promise<{
         availableInSpa: row.available_in_spa ?? true,
         availableHomeService: row.available_home_service ?? false,
         description: row.public_description || service.description || null,
-        imageUrl: row.custom_image_url || service.image_url || null,
+        imageUrl: row.custom_image_url?.trim() || service.image_url?.trim() || null,
+        fallbackImageUrl: service.image_url?.trim() || null,
         categoryId: service.category_id || categoryRel?.id || null,
         categoryName: categoryRel?.name || null,
       };
