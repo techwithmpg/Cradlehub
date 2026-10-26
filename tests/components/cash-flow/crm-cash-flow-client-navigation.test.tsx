@@ -20,8 +20,8 @@ vi.mock("next/navigation", () => ({
     new URLSearchParams(window.location.search),
 }));
 
-vi.mock("@/components/features/cash-flow/today-tab", () => ({
-  TodayTab: () => <div>Today panel</div>,
+vi.mock("@/components/features/cash-flow/cash-flow-today-operations", () => ({
+  CashFlowTodayOperations: () => <div>Today panel</div>,
 }));
 vi.mock("@/components/features/cash-flow/ledger-tab", () => ({
   LedgerTab: () => <div>Ledger panel</div>,

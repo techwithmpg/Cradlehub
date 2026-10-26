@@ -3,10 +3,11 @@ import React from "react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
 
-const { openBookingModal, loadContext, modalProps } = vi.hoisted(() => ({
+const { openBookingModal, loadContext, modalProps, quickProps } = vi.hoisted(() => ({
   openBookingModal: vi.fn(),
   loadContext: vi.fn(),
   modalProps: vi.fn(),
+  quickProps: vi.fn(),
 }));
 
 vi.mock("@/components/features/bookings/administrative-booking-modal-provider", () => ({
@@ -19,6 +20,26 @@ vi.mock("@/components/features/cash-flow/record-financial-entry-modal", () => ({
   RecordFinancialEntryModal: (props: { onSuccess: () => void }) => {
     modalProps(props);
     return <div role="dialog" aria-label="Existing financial entry modal"><button onClick={props.onSuccess}>Complete entry</button></div>;
+  },
+}));
+vi.mock("@/components/features/crm/today/cradle-flow-quick-payment-modal", () => ({
+  isQuickPaymentEligible: (order: { remainingBalance: number; sourceKind: string; paymentEligible: boolean }) =>
+    order.remainingBalance > 0 && (order.sourceKind !== "booking_order" || order.paymentEligible),
+  CradleFlowQuickPaymentModal: (props: {
+    data: unknown;
+    error?: string | null;
+    requestedOrderId?: string;
+    allowLegacyCheckout?: boolean;
+    onSuccess: () => void;
+    onLegacyCheckout: () => void;
+  }) => {
+    quickProps(props);
+    return <div role="dialog" aria-label="Quick payment modal">
+      {props.error ? <p role="alert">{props.error}</p> : null}
+      <button onClick={props.onSuccess}>Complete entry</button>
+      {props.error && props.allowLegacyCheckout ?
+        <button onClick={props.onLegacyCheckout}>Open Booking Checkout</button> : null}
+    </div>;
   },
 }));
 vi.mock("@/components/shared/overlays", () => ({
@@ -39,7 +60,7 @@ const financialContext = {
     accounts: [{ id: "account-1" }],
     expenseCategories: [],
     staffOptions: [],
-    payableOrders: [{ id: "order-1" }],
+    payableOrders: [{ id: "order-1", sourceKind: "booking_order", remainingBalance: 100, paymentEligible: true }],
     cashSessions: { activeSessions: [], availableDrawers: [] },
   },
 };
@@ -69,7 +90,7 @@ describe("Cradle Flow workflow modals", () => {
     expect(window.location.pathname).toBe("/crm/today");
   });
 
-  it("mounts the existing Cash Flow modal with the selected order in place", async () => {
+  it("mounts the quick payment workflow for the requested order", async () => {
     const onSuccess = vi.fn();
     render(
       <CradleFlowFinancialEntry
@@ -80,16 +101,28 @@ describe("Cradle Flow workflow modals", () => {
       />
     );
 
-    await waitFor(() => expect(modalProps).toHaveBeenCalled());
-    expect(modalProps.mock.lastCall?.[0]).toMatchObject({
-      initialMode: "customer_payment",
-      initialOrderId: "order-1",
-      branchId: "branch-1",
-      businessDate: "2026-09-30",
+    await waitFor(() => expect(quickProps.mock.lastCall?.[0].data).toBeTruthy());
+    expect(quickProps.mock.lastCall?.[0]).toMatchObject({
+      requestedOrderId: "order-1",
+      error: null,
     });
+    expect(modalProps).not.toHaveBeenCalled();
     fireEvent.click(screen.getByRole("button", { name: "Complete entry" }));
     expect(onSuccess).toHaveBeenCalledOnce();
     expect(window.location.pathname).toBe("/crm/today");
+  });
+
+  it("retains the existing financial entry modal for expenses", async () => {
+    render(
+      <CradleFlowFinancialEntry
+        request={{ mode: "expense" }}
+        onClose={vi.fn()}
+        onSuccess={vi.fn()}
+        onLegacyCheckout={vi.fn()}
+      />
+    );
+    await waitFor(() => expect(modalProps).toHaveBeenCalled());
+    expect(modalProps.mock.lastCall?.[0]).toMatchObject({ initialMode: "expense" });
   });
 
   it("blocks a stale order instead of selecting a different payable order", async () => {

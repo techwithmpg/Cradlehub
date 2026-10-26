@@ -34,14 +34,14 @@ describe('CF8-C independent-review corrections', () => {
   it('labels canonical cash operations distinctly in the ledger', () => {
     expect(queries).toContain('const isCanonicalTransfer =');
     expect(queries).toContain("movements.length === 2");
-    expect(queries).toContain("? 'Transfer'");
-    expect(queries).toContain("? 'Cash Addition'");
-    expect(queries).toContain(": 'Cash Removal'");
-    expect(queries).toContain(": 'Adjustment'");
+    expect(queries).toMatch(/\?\s*["']Transfer["']/);
+    expect(queries).toMatch(/\?\s*["']Cash Addition["']/);
+    expect(queries).toMatch(/:\s*["']Cash Removal["']/);
+    expect(queries).toMatch(/:\s*["']Adjustment["']/);
   });
 
   it('fails explicitly when the authoritative cash-session read fails', () => {
-    expect(queries).toContain("throw new CashFlowRequiredDataError('cash_sessions')");
+    expect(queries).toMatch(/throw new CashFlowRequiredDataError\(["']cash_sessions["']\)/);
     expect(queries).not.toContain(
       `} catch {
     rawSessions = [];

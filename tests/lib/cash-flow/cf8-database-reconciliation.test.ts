@@ -28,7 +28,7 @@ describe("CF8 database reconciliation against accepted repository contracts", ()
     for (const column of ["total_payable", "net_allocated", "remaining_balance", "payment_state"]) {
       expect(cf3).toContain(column);
     }
-    expect(cashQuery).toContain(".from('order_payable_items')");
+    expect(cashQuery).toMatch(/\.from\(["']order_payable_items["']\)/);
   });
 
   it("DB02: pending money writers use the live system_role authority", () => {
