@@ -1,4 +1,4 @@
-import type { FinancialPaymentMethod, FinancialAccountType } from './financial-contract';
+import type { FinancialPaymentMethod, FinancialAccountType } from "./financial-contract";
 
 export interface MaskedAccountOption {
   id: string;
@@ -21,7 +21,7 @@ export interface TodayKpiSummary {
 }
 
 export interface PaymentMixItem {
-  method: FinancialPaymentMethod | 'other';
+  method: FinancialPaymentMethod | "other";
   label: string;
   amount: number;
   percentage: number;
@@ -36,19 +36,19 @@ export interface CashFlowCoverageCategory {
   isAvailable: boolean;
   statusText?: string;
   iconType:
-    | 'calendar'
-    | 'home'
-    | 'credit_card'
-    | 'shopping_cart'
-    | 'gift'
-    | 'user'
-    | 'users'
-    | 'percent'
-    | 'wallet'
-    | 'arrows'
-    | 'reply'
-    | 'sliders'
-    | 'plus';
+    | "calendar"
+    | "home"
+    | "credit_card"
+    | "shopping_cart"
+    | "gift"
+    | "user"
+    | "users"
+    | "percent"
+    | "wallet"
+    | "arrows"
+    | "reply"
+    | "sliders"
+    | "plus";
 }
 
 export interface RecentPaymentItem {
@@ -61,7 +61,7 @@ export interface RecentPaymentItem {
   durationMinutes?: number | null;
   paymentMethodDisplay: string;
   amount: number;
-  status: 'paid' | 'partial' | 'pending' | 'reversed';
+  status: "paid" | "partial" | "pending" | "reversed";
   orderId?: string | null;
 }
 
@@ -92,7 +92,7 @@ export interface DayCloseSummaryData {
   isBalanced: boolean;
   readyForReview: boolean;
   lastUpdatedText: string;
-  reconciliationStatus: 'not_started' | 'draft' | 'submitted' | 'approved';
+  reconciliationStatus: "not_started" | "draft" | "submitted" | "approved";
   expectedCash: number | null;
   actualCash: number | null;
   cashVariance: number | null;
@@ -117,7 +117,7 @@ export interface HistoricalDayCloseItem {
   id: string;
   date: string;
   branchName: string;
-  status: 'reviewed' | 'closed' | 'needs_review' | 'reopened';
+  status: "reviewed" | "closed" | "needs_review" | "reopened";
   inflow: number;
   outflow: number;
   net: number;
@@ -154,7 +154,14 @@ export interface PayableOrderItemDetail {
   id: string;
   description: string;
   amount: number;
-  itemType?: 'service' | 'home_service_fee' | 'retail_product' | 'surcharge' | 'discount' | 'manual_adjustment' | 'other';
+  itemType?:
+    | "service"
+    | "home_service_fee"
+    | "retail_product"
+    | "surcharge"
+    | "discount"
+    | "manual_adjustment"
+    | "other";
   subDescription?: string | null;
 }
 
@@ -166,9 +173,11 @@ export interface PayableOrderPreviousPayment {
 
 export interface PayableOrderOption {
   id: string;
-  sourceKind: 'booking_order' | 'legacy_booking';
+  sourceKind: "booking_order" | "legacy_booking";
   /** Explicit order-level eligibility; never inferred from a representative child status. */
   paymentEligible?: boolean;
+  /** True only when the payable service(s) have completed. */
+  readyForCheckout?: boolean;
   orderNumber: string;
   customerName: string;
   customerPhone?: string | null;
@@ -179,9 +188,9 @@ export interface PayableOrderOption {
   bookingDate: string;
   serviceTime?: string | null;
   branchName?: string;
-  visitType?: 'in_spa' | 'home_service';
+  visitType?: "in_spa" | "home_service";
   bookingStatus?: string;
-  paymentStatus?: 'unpaid' | 'partially_paid' | 'paid';
+  paymentStatus?: "unpaid" | "partially_paid" | "paid";
   payableItems?: PayableOrderItemDetail[];
   previousPayments?: PayableOrderPreviousPayment[];
 }
@@ -215,7 +224,7 @@ export interface RecordExpenseInput {
 export interface RecordTipInput {
   branchId?: string;
   beneficiaryStaffId: string;
-  custodyType: 'direct_cash' | 'company_custodied';
+  custodyType: "direct_cash" | "company_custodied";
   amount: number;
   financialAccountId?: string;
   paymentMethod?: FinancialPaymentMethod;
@@ -226,7 +235,7 @@ export interface RecordTipInput {
 
 export interface RecordOtherEntryInput {
   branchId?: string;
-  entryType: 'misc_income' | 'cash_addition' | 'cash_removal' | 'transfer';
+  entryType: "misc_income" | "cash_addition" | "cash_removal" | "transfer";
   amount: number;
   businessDate?: string;
   notes?: string;
@@ -259,7 +268,7 @@ export interface CashSessionSummary {
   businessDate: string;
   cashDrawerAccountId: string;
   cashDrawerName: string;
-  status: 'open' | 'closed';
+  status: "open" | "closed";
   openingFloat: number;
   openingNote?: string | null;
   openedBy: string;
@@ -312,7 +321,7 @@ export interface CloseCashSessionResult {
     cashDrawerAccountId: string;
     cashDrawerName?: string;
     businessDate: string;
-    status: 'closed';
+    status: "closed";
     openingFloat: number;
     expectedCash: number;
     countedCash: number;

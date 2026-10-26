@@ -5,6 +5,8 @@ import { useRouter, useSearchParams } from "next/navigation";
 import { RefreshCw, Banknote, ArrowLeftRight, Plus, FileText, CheckCircle2 } from "lucide-react";
 import type { CashFlowWorkspaceData, CashSessionSummary } from "@/lib/cash-flow/cash-flow-types";
 import { TodayTab } from "./today-tab";
+import { CashFlowTodayOperations } from "./cash-flow-today-operations";
+import type { FinancialPaymentMethod } from "@/lib/cash-flow/financial-contract";
 import { LedgerTab } from "./ledger-tab";
 import { DayCloseTab } from "./day-close-tab";
 import { HistoryTab } from "./history-tab";
@@ -74,6 +76,7 @@ export function CashFlowWorkspace({
   const [isCloseDrawerModalOpen, setIsCloseDrawerModalOpen] = useState(false);
   const [selectedSession, setSelectedSession] = useState<CashSessionSummary | null>(null);
   const [targetOrderId, setTargetOrderId] = useState<string | undefined>(undefined);
+  const [targetPaymentMethod, setTargetPaymentMethod] = useState<FinancialPaymentMethod | undefined>(undefined);
   const [entryModalMode, setEntryModalMode] = useState<FinancialEntryMode>(
     initialEntryMode ?? "customer_payment"
   );
@@ -173,10 +176,11 @@ export function CashFlowWorkspace({
     }
   };
 
-  const openRecordPayment = (orderId?: string) => {
+  const openRecordPayment = (orderId?: string, method?: FinancialPaymentMethod) => {
     setDismissedRouteEntry(null);
     setEntryModalMode("customer_payment");
     setTargetOrderId(orderId);
+    setTargetPaymentMethod(method);
     setIsRecordPaymentOpen(true);
   };
 
@@ -219,6 +223,8 @@ export function CashFlowWorkspace({
 
         {/* Right-side Action Buttons */}
         <div className="flex items-center gap-2 flex-wrap">
+          {!(syncCrmRouteState && activeTab === "today") && (
+            <>
           {activeSession ? (
             <>
               <button
@@ -256,6 +262,9 @@ export function CashFlowWorkspace({
               <span>Open Cash Drawer</span>
             </button>
           )}
+            </>
+          )}
+          {!(syncCrmRouteState && activeTab === "today" && activeSession) && (
           <button
             type="button"
             onClick={openCashOperations}
@@ -265,6 +274,7 @@ export function CashFlowWorkspace({
             <ArrowLeftRight className="h-3.5 w-3.5 text-[#6B5D52]" />
             <span>Cash Operations</span>
           </button>
+          )}
           <button
             onClick={() => openRecordPayment()}
             className="inline-flex items-center gap-1.5 px-3.5 py-1.5 border border-[#1B4D3E] bg-[#EEF8F2] hover:bg-[#E3F2E9] text-xs font-semibold text-[#163E32] rounded-lg shadow-2xs transition"
@@ -473,7 +483,7 @@ export function CashFlowWorkspace({
         })}
       </div>
 
-      {activeTab === "today" && (
+      {activeTab === "today" && !syncCrmRouteState && (
         <div>
           {initialData.cashSessions?.activeSessions?.length ? (
             <div className="grid grid-cols-1 gap-3 xl:grid-cols-2">
@@ -569,16 +579,24 @@ export function CashFlowWorkspace({
       {/* ── Active Tab Content ──────────────────────────────────────── */}
       <div>
         {activeTab === "today" && (
-          <TodayTab
-            kpis={initialData.today.kpis}
-            paymentMix={initialData.today.paymentMix}
-            totalInflow={initialData.today.totalInflow}
-            coverage={initialData.today.coverage}
-            recentPayments={initialData.today.recentPayments}
-            onNavigateToLedger={() => handleTabChange("ledger")}
-            onRecordPaymentClick={openRecordPayment}
-            onRecordExpenseClick={openRecordExpense}
-          />
+          syncCrmRouteState ? (
+            <CashFlowTodayOperations
+              data={initialData}
+              onNavigateToLedger={() => handleTabChange("ledger")}
+              onRecordPaymentClick={openRecordPayment}
+            />
+          ) : (
+            <TodayTab
+              kpis={initialData.today.kpis}
+              paymentMix={initialData.today.paymentMix}
+              totalInflow={initialData.today.totalInflow}
+              coverage={initialData.today.coverage}
+              recentPayments={initialData.today.recentPayments}
+              onNavigateToLedger={() => handleTabChange("ledger")}
+              onRecordPaymentClick={openRecordPayment}
+              onRecordExpenseClick={openRecordExpense}
+            />
+          )
         )}
 
         {activeTab === "ledger" && (
@@ -654,6 +672,7 @@ export function CashFlowWorkspace({
         payableOrders={initialData.payableOrders}
         activeCashSessions={initialData.cashSessions?.activeSessions ?? []}
         initialOrderId={targetOrderId}
+        initialPaymentMethod={targetPaymentMethod}
         initialMode={effectiveEntryMode}
         branchId={initialData.branchId}
         businessDate={initialData.businessDate}

@@ -17,15 +17,15 @@ import {
   type FinancialEntryContext,
 } from "@/lib/cash-flow/financial-entry-context";
 
+import { CradleFlowQuickPaymentModal, isQuickPaymentEligible } from "./cradle-flow-quick-payment-modal";
+
 export type CradleFlowFinancialEntryRequest = {
   mode: FinancialEntryMode;
   orderId?: string;
   allowLegacyCheckout?: boolean;
 };
 
-type LoadResult =
-  | { ok: true; data: FinancialEntryContext }
-  | { ok: false; error: string };
+type LoadResult = { ok: true; data: FinancialEntryContext } | { ok: false; error: string };
 
 export function CradleFlowFinancialEntry({
   request,
@@ -51,7 +51,8 @@ export function CradleFlowFinancialEntry({
         if (active) {
           setResult({
             ok: false,
-            error: error instanceof Error ? error.message : "Could not load financial entry options.",
+            error:
+              error instanceof Error ? error.message : "Could not load financial entry options.",
           });
         }
       });
@@ -61,7 +62,11 @@ export function CradleFlowFinancialEntry({
   }, [retryKey]);
 
   const selectedOrderAvailable =
-    !request.orderId || (result?.ok && result.data.payableOrders.some((order) => order.id === request.orderId));
+    !request.orderId ||
+    (result?.ok && result.data.payableOrders.some((order) =>
+      order.id === request.orderId &&
+      (request.mode !== "customer_payment" || isQuickPaymentEligible(order))
+    ));
   const error = result?.ok
     ? selectedOrderAvailable
       ? null
@@ -69,6 +74,25 @@ export function CradleFlowFinancialEntry({
         ? "This booking is not available in the Cash Flow payment list. Its existing booking checkout is still available."
         : "This order is no longer available for payment. Refresh the visit before recording a payment."
     : result?.error;
+
+  if (request.mode === "customer_payment") {
+    return (
+      <CradleFlowQuickPaymentModal
+        data={result?.ok ? result.data : null}
+        loading={result === null}
+        error={error}
+        requestedOrderId={request.orderId}
+        allowLegacyCheckout={request.allowLegacyCheckout}
+        onRetry={() => {
+          setResult(null);
+          setRetryKey((key) => key + 1);
+        }}
+        onClose={onClose}
+        onSuccess={onSuccess}
+        onLegacyCheckout={onLegacyCheckout}
+      />
+    );
+  }
 
   if (result?.ok && selectedOrderAvailable) {
     return (
@@ -92,32 +116,66 @@ export function CradleFlowFinancialEntry({
   }
 
   return (
-    <AdminDialog open onOpenChange={(open) => { if (!open) onClose(); }} placement="center" size="md" ariaLabel="Financial entry">
-      <AdminOverlayHeader title="Record Financial Entry" description="Loading the existing Cash Flow workflow." />
+    <AdminDialog
+      open
+      onOpenChange={(open) => {
+        if (!open) onClose();
+      }}
+      placement="center"
+      size="md"
+      ariaLabel="Financial entry"
+    >
+      <AdminOverlayHeader
+        title="Record Financial Entry"
+        description="Loading the existing Cash Flow workflow."
+      />
       <AdminOverlayBody>
         {error ? (
-          <p role="alert" className="rounded-lg border border-amber-200 bg-amber-50 p-3 text-sm text-amber-950">{error}</p>
+          <p
+            role="alert"
+            className="rounded-lg border border-amber-200 bg-amber-50 p-3 text-sm text-amber-950"
+          >
+            {error}
+          </p>
         ) : (
-          <p role="status" className="text-sm text-[var(--cs-text-muted)]">Loading accounts and payable orders…</p>
+          <p role="status" className="text-sm text-[var(--cs-text-muted)]">
+            Loading accounts and payable orders…
+          </p>
         )}
       </AdminOverlayBody>
       <AdminOverlayFooter className="flex flex-wrap justify-end gap-2">
-        <button type="button" onClick={onClose} className="cs-btn cs-btn-secondary h-10 rounded-lg px-4">Close</button>
+        <button
+          type="button"
+          onClick={onClose}
+          className="cs-btn cs-btn-secondary h-10 rounded-lg px-4"
+        >
+          Close
+        </button>
         {error ? (
           <button
             type="button"
-            onClick={() => { setResult(null); setRetryKey((key) => key + 1); }}
+            onClick={() => {
+              setResult(null);
+              setRetryKey((key) => key + 1);
+            }}
             className="h-10 rounded-lg bg-[#164b36] px-4 text-sm font-bold text-white"
           >
             Retry
           </button>
         ) : null}
         {error && request.allowLegacyCheckout ? (
-          <button type="button" onClick={onLegacyCheckout} className="h-10 rounded-lg bg-[#164b36] px-4 text-sm font-bold text-white">
+          <button
+            type="button"
+            onClick={onLegacyCheckout}
+            className="h-10 rounded-lg bg-[#164b36] px-4 text-sm font-bold text-white"
+          >
             Open Booking Checkout
           </button>
         ) : null}
-        <Link href="/crm/cash-flow" className="inline-flex h-10 items-center rounded-lg border border-[var(--cs-border)] px-4 text-sm font-bold">
+        <Link
+          href="/crm/cash-flow"
+          className="inline-flex h-10 items-center rounded-lg border border-[var(--cs-border)] px-4 text-sm font-bold"
+        >
           Open in Cash Flow
         </Link>
       </AdminOverlayFooter>

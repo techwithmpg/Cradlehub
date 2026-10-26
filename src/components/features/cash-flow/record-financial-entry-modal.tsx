@@ -72,6 +72,7 @@ export interface RecordFinancialEntryModalProps {
   payableOrders?: PayableOrderOption[];
   activeCashSessions?: CashSessionSummary[];
   initialOrderId?: string;
+  initialPaymentMethod?: FinancialPaymentMethod;
   initialMode?: FinancialEntryMode;
   branchId?: string;
   businessDate: string;
@@ -87,6 +88,7 @@ export function RecordFinancialEntryModal({
   payableOrders,
   activeCashSessions = [],
   initialOrderId,
+  initialPaymentMethod,
   initialMode,
   branchId,
   businessDate,
@@ -107,6 +109,7 @@ export function RecordFinancialEntryModal({
             payableOrders={payableOrders}
             activeCashSessions={activeCashSessions}
             initialOrderId={initialOrderId}
+            initialPaymentMethod={initialPaymentMethod}
             initialMode={initialMode}
             branchId={branchId}
             businessDate={businessDate}
@@ -129,6 +132,7 @@ interface RecordFinancialEntryFormProps {
   payableOrders?: PayableOrderOption[];
   activeCashSessions?: CashSessionSummary[];
   initialOrderId?: string;
+  initialPaymentMethod?: FinancialPaymentMethod;
   initialMode?: FinancialEntryMode;
   branchId?: string;
   businessDate: string;
@@ -143,6 +147,7 @@ function RecordFinancialEntryForm({
   payableOrders = [],
   activeCashSessions = [],
   initialOrderId,
+  initialPaymentMethod,
   initialMode,
   branchId,
   businessDate,
@@ -192,14 +197,14 @@ function RecordFinancialEntryForm({
 
   // Default compatible cash account
   const defaultAccount = accounts.find((a) =>
-    isPaymentMethodCompatibleWithAccount('cash', a.accountType)
+    isPaymentMethodCompatibleWithAccount(initialPaymentMethod ?? 'cash', a.accountType)
   );
 
   // Initial payment lines
   const [paymentLines, setPaymentLines] = useState<PaymentLineItem[]>(() => [
     {
       id: crypto.randomUUID(),
-      method: 'cash',
+      method: initialPaymentMethod ?? 'cash',
       accountId: defaultAccount?.id || '',
       amount: selectedOrder && selectedOrder.remainingBalance > 0 ? selectedOrder.remainingBalance : '',
       reference: '',

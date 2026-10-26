@@ -1,6 +1,6 @@
-import 'server-only';
+import "server-only";
 
-import { createClient } from '@/lib/supabase/server';
+import { createClient } from "@/lib/supabase/server";
 import type {
   CashFlowWorkspaceData,
   MaskedAccountOption,
@@ -12,17 +12,17 @@ import type {
   PayableOrderItemDetail,
   PayableOrderPreviousPayment,
   CashSessionSummary,
-} from './cash-flow-types';
-import type { FinancialPaymentMethod } from './financial-contract';
-import { findUnmatchedBookingPayments, isCashFlowReceiptTransactionType } from './payment-evidence';
-import { CashFlowRequiredDataError } from './cash-flow-errors';
-import { validatedLegacyBookingPrice } from './legacy-booking-price';
-import { isBookingClosedForCrm } from '@/lib/bookings/crm-booking-status';
+} from "./cash-flow-types";
+import type { FinancialPaymentMethod } from "./financial-contract";
+import { findUnmatchedBookingPayments, isCashFlowReceiptTransactionType } from "./payment-evidence";
+import { CashFlowRequiredDataError } from "./cash-flow-errors";
+import { validatedLegacyBookingPrice } from "./legacy-booking-price";
+import { isBookingClosedForCrm } from "@/lib/bookings/crm-booking-status";
 import {
   deriveOrderPaymentEligibility,
   type OrderPaymentChild,
   type OrderPaymentItem,
-} from './order-payment-eligibility';
+} from "./order-payment-eligibility";
 
 export interface CashFlowQueryFilters {
   tab?: string;
@@ -63,7 +63,7 @@ interface RawTransaction {
 
 function bookingPriceSnapshot(metadata: Record<string, unknown> | null): number {
   const raw = metadata?.price_paid;
-  const amount = typeof raw === 'number' || typeof raw === 'string' ? Number(raw) : NaN;
+  const amount = typeof raw === "number" || typeof raw === "string" ? Number(raw) : NaN;
   return Number.isFinite(amount) && amount >= 0 ? amount : 0;
 }
 
@@ -92,7 +92,7 @@ export function computeExpectedPhysicalCash(
   let netMovement = 0;
 
   for (const tx of transactions) {
-    if (tx.status !== 'posted') continue;
+    if (tx.status !== "posted") continue;
 
     const movements = tx.movements || tx.financial_account_movements || [];
     for (const m of movements) {
@@ -120,19 +120,19 @@ export async function getCashFlowData(
 
   // 1. Fetch active financial accounts for this branch
   const { data: accountsData, error: accountsError } = await supabase
-    .from('financial_accounts')
-    .select('id, name, account_type, identifier_mask, branch_id, is_active')
+    .from("financial_accounts")
+    .select("id, name, account_type, identifier_mask, branch_id, is_active")
     .or(`branch_id.eq.${branchId},branch_id.is.null`)
-    .eq('is_active', true)
-    .order('name');
+    .eq("is_active", true)
+    .order("name");
   if (accountsError) {
-    throw new CashFlowRequiredDataError('financial_accounts');
+    throw new CashFlowRequiredDataError("financial_accounts");
   }
 
   const accounts: MaskedAccountOption[] = (accountsData || []).map((acc) => ({
     id: acc.id,
     name: acc.name,
-    accountType: acc.account_type as MaskedAccountOption['accountType'],
+    accountType: acc.account_type as MaskedAccountOption["accountType"],
     identifierMask: acc.identifier_mask,
     branchId: acc.branch_id,
   }));
@@ -141,9 +141,17 @@ export async function getCashFlowData(
   interface DynamicCategoryQuery {
     from: (table: string) => {
       select: (cols: string) => {
-        eq: (col: string, val: unknown) => {
+        eq: (
+          col: string,
+          val: unknown
+        ) => {
           order: (col: string) => Promise<{
-            data: Array<{ id: string; code: string; name: string; description: string | null }> | null;
+            data: Array<{
+              id: string;
+              code: string;
+              name: string;
+              description: string | null;
+            }> | null;
             error: unknown;
           }>;
         };
@@ -152,12 +160,19 @@ export async function getCashFlowData(
   }
 
   const { data: categoriesData } = await (supabase as unknown as DynamicCategoryQuery)
-    .from('financial_expense_categories')
-    .select('id, code, name, description')
-    .eq('is_active', true)
-    .order('display_order');
+    .from("financial_expense_categories")
+    .select("id, code, name, description")
+    .eq("is_active", true)
+    .order("display_order");
 
-  const expenseCategories = ((categoriesData as Array<{ id: string; code: string; name: string; description: string | null }>) || []).map((c) => ({
+  const expenseCategories = (
+    (categoriesData as Array<{
+      id: string;
+      code: string;
+      name: string;
+      description: string | null;
+    }>) || []
+  ).map((c) => ({
     id: c.id,
     code: c.code,
     name: c.name,
@@ -166,11 +181,11 @@ export async function getCashFlowData(
 
   // 1c. Fetch active staff members for this branch
   const { data: staffData } = await supabase
-    .from('staff')
-    .select('id, full_name, system_role')
-    .eq('branch_id', branchId)
-    .eq('is_active', true)
-    .order('full_name');
+    .from("staff")
+    .select("id, full_name, system_role")
+    .eq("branch_id", branchId)
+    .eq("is_active", true)
+    .order("full_name");
 
   const staffOptions = (staffData || []).map((s) => ({
     id: s.id,
@@ -180,8 +195,9 @@ export async function getCashFlowData(
 
   // 2. Fetch financial transactions for this branch
   const { data: txData, error: transactionsError } = await supabase
-    .from('financial_transactions')
-    .select(`
+    .from("financial_transactions")
+    .select(
+      `
       id,
       branch_id,
       transaction_type,
@@ -202,28 +218,29 @@ export async function getCashFlowData(
         created_at,
         financial_account_id
       )
-    `)
-    .eq('branch_id', branchId)
-    .order('occurred_at', { ascending: false });
+    `
+    )
+    .eq("branch_id", branchId)
+    .order("occurred_at", { ascending: false });
   if (transactionsError) {
-    throw new CashFlowRequiredDataError('financial_transactions or financial_account_movements');
+    throw new CashFlowRequiredDataError("financial_transactions or financial_account_movements");
   }
 
   // These are required CF tables even on days with no transactions or orders.
   // A missing migration must not render as a plausible zero-activity day.
   const [movementsProbe, payablesProbe, summariesProbe] = await Promise.all([
-    supabase.from('financial_account_movements').select('id').limit(0),
-    supabase.from('order_payable_items').select('id').limit(0),
-    supabase.from('v_booking_order_financial_summaries').select('order_id').limit(0),
+    supabase.from("financial_account_movements").select("id").limit(0),
+    supabase.from("order_payable_items").select("id").limit(0),
+    supabase.from("v_booking_order_financial_summaries").select("order_id").limit(0),
   ]);
   if (movementsProbe.error) {
-    throw new CashFlowRequiredDataError('financial_account_movements');
+    throw new CashFlowRequiredDataError("financial_account_movements");
   }
   if (payablesProbe.error) {
-    throw new CashFlowRequiredDataError('order_payable_items');
+    throw new CashFlowRequiredDataError("order_payable_items");
   }
   if (summariesProbe.error) {
-    throw new CashFlowRequiredDataError('v_booking_order_financial_summaries');
+    throw new CashFlowRequiredDataError("v_booking_order_financial_summaries");
   }
 
   const allTransactions: RawTransaction[] = (txData as unknown as RawTransaction[]) || [];
@@ -233,7 +250,7 @@ export async function getCashFlowData(
   );
 
   // 2b. Available physical cash drawer accounts for this branch
-  const availableDrawers = accounts.filter((acc) => acc.accountType === 'cash_drawer');
+  const availableDrawers = accounts.filter((acc) => acc.accountType === "cash_drawer");
 
   // 2c. Fetch active cash sessions for this branch
   let rawSessions: Array<{
@@ -241,7 +258,7 @@ export async function getCashFlowData(
     branch_id: string;
     cash_drawer_account_id: string;
     business_date: string;
-    status: 'open' | 'closed';
+    status: "open" | "closed";
     opening_float: number | string;
     opening_note: string | null;
     opened_by: string;
@@ -256,25 +273,38 @@ export async function getCashFlowData(
   }> = [];
 
   try {
-    const { data: sessionRows, error: sessionErr } = await (supabase as unknown as {
-      from: (tbl: string) => {
-        select: (cols: string) => {
-          eq: (c1: string, v1: unknown) => {
-            eq: (c2: string, v2: unknown) => {
-              order: (c3: string, o?: { ascending?: boolean }) => Promise<{
-                data: typeof rawSessions | null;
-                error: unknown;
-              }>;
+    const { data: sessionRows, error: sessionErr } = await (
+      supabase as unknown as {
+        from: (tbl: string) => {
+          select: (cols: string) => {
+            eq: (
+              c1: string,
+              v1: unknown
+            ) => {
+              eq: (
+                c2: string,
+                v2: unknown
+              ) => {
+                order: (
+                  c3: string,
+                  o?: { ascending?: boolean }
+                ) => Promise<{
+                  data: typeof rawSessions | null;
+                  error: unknown;
+                }>;
+              };
             };
           };
         };
-      };
-    })
-      .from('cash_sessions')
-      .select('id, branch_id, cash_drawer_account_id, business_date, status, opening_float, opening_note, opened_by, opened_at, current_custodian_id, closed_by, closed_at, counted_cash, expected_cash_at_close, variance, closing_note')
-      .eq('branch_id', branchId)
-      .eq('status', 'open')
-      .order('opened_at', { ascending: false });
+      }
+    )
+      .from("cash_sessions")
+      .select(
+        "id, branch_id, cash_drawer_account_id, business_date, status, opening_float, opening_note, opened_by, opened_at, current_custodian_id, closed_by, closed_at, counted_cash, expected_cash_at_close, variance, closing_note"
+      )
+      .eq("branch_id", branchId)
+      .eq("status", "open")
+      .order("opened_at", { ascending: false });
 
     if (sessionErr) {
       throw sessionErr;
@@ -282,7 +312,7 @@ export async function getCashFlowData(
 
     rawSessions = sessionRows ?? [];
   } catch {
-    throw new CashFlowRequiredDataError('cash_sessions');
+    throw new CashFlowRequiredDataError("cash_sessions");
   }
 
   // Derive active cash session summaries with strictly derived expectedCash
@@ -308,20 +338,21 @@ export async function getCashFlowData(
       branchId: s.branch_id,
       businessDate: s.business_date,
       cashDrawerAccountId: s.cash_drawer_account_id,
-      cashDrawerName: drawerAcc?.name || 'Cash Drawer',
+      cashDrawerName: drawerAcc?.name || "Cash Drawer",
       status: s.status,
       openingFloat,
       openingNote: s.opening_note || null,
       openedBy: s.opened_by,
-      openedByName: openerStaff?.name || 'Staff',
+      openedByName: openerStaff?.name || "Staff",
       openedAt: s.opened_at,
       currentCustodianId: custodianId,
-      currentCustodianName: custodianStaff?.name || openerStaff?.name || 'Staff',
+      currentCustodianName: custodianStaff?.name || openerStaff?.name || "Staff",
       closedBy: s.closed_by || null,
       closedAt: s.closed_at || null,
       expectedCash,
       countedCash: s.counted_cash != null ? Number(s.counted_cash) : null,
-      expectedCashAtClose: s.expected_cash_at_close != null ? Number(s.expected_cash_at_close) : null,
+      expectedCashAtClose:
+        s.expected_cash_at_close != null ? Number(s.expected_cash_at_close) : null,
       variance: s.variance != null ? Number(s.variance) : null,
       closingNote: s.closing_note || null,
     };
@@ -348,8 +379,9 @@ export async function getCashFlowData(
 
   // 3. Fetch today's bookings for operational context
   const { data: bookingsData } = await supabase
-    .from('bookings')
-    .select(`
+    .from("bookings")
+    .select(
+      `
       id,
       booking_date,
       start_time,
@@ -363,9 +395,10 @@ export async function getCashFlowData(
       order_id,
       customers:customer_id ( full_name, phone ),
       services:service_id ( name, duration_minutes )
-    `)
-    .eq('branch_id', branchId)
-    .eq('booking_date', businessDate);
+    `
+    )
+    .eq("branch_id", branchId)
+    .eq("booking_date", businessDate);
 
   type RawBooking = {
     id: string;
@@ -379,12 +412,18 @@ export async function getCashFlowData(
     amount_paid: number | null;
     metadata: Record<string, unknown> | null;
     order_id: string | null;
-    customers: { full_name: string; phone: string | null } | { full_name: string; phone: string | null }[] | null;
-    services: { name: string; duration_minutes: number | null } | { name: string; duration_minutes: number | null }[] | null;
+    customers:
+      | { full_name: string; phone: string | null }
+      | { full_name: string; phone: string | null }[]
+      | null;
+    services:
+      | { name: string; duration_minutes: number | null }
+      | { name: string; duration_minutes: number | null }[]
+      | null;
   };
 
   const todayBookings: RawBooking[] = (bookingsData as unknown as RawBooking[]) || [];
-  const orderIds = [...new Set(todayBookings.flatMap((b) => b.order_id ? [b.order_id] : []))];
+  const orderIds = [...new Set(todayBookings.flatMap((b) => (b.order_id ? [b.order_id] : [])))];
   type OrderSummary = {
     order_id: string;
     total_payable: number | string;
@@ -404,26 +443,32 @@ export async function getCashFlowData(
       { data: orders, error: ordersError },
       { data: orderItems, error: itemsError },
       { data: orderBookings, error: bookingsError },
-    ] =
-      await Promise.all([
-        supabase.from('v_booking_order_financial_summaries')
-          .select('order_id, total_payable, net_allocated, remaining_balance, payment_state')
-          .in('order_id', orderIds),
-        supabase.from('booking_orders').select('id, metadata').in('id', orderIds),
-        supabase.from('order_payable_items')
-          .select('id, order_id, booking_id, description, amount, charge_type, sequence, source_type, source_id')
-          .in('order_id', orderIds).order('sequence'),
-        supabase.from('bookings')
-          .select('id, order_id, status, metadata')
-          .in('order_id', orderIds),
-      ]);
+    ] = await Promise.all([
+      supabase
+        .from("v_booking_order_financial_summaries")
+        .select("order_id, total_payable, net_allocated, remaining_balance, payment_state")
+        .in("order_id", orderIds),
+      supabase.from("booking_orders").select("id, metadata").in("id", orderIds),
+      supabase
+        .from("order_payable_items")
+        .select(
+          "id, order_id, booking_id, description, amount, charge_type, sequence, source_type, source_id"
+        )
+        .in("order_id", orderIds)
+        .order("sequence"),
+      supabase.from("bookings").select("id, order_id, status, metadata").in("order_id", orderIds),
+    ]);
     if (summaryError || ordersError || itemsError || bookingsError) {
-      throw new Error('Could not load authoritative order payment summaries.');
+      throw new Error("Could not load authoritative order payment summaries.");
     }
     for (const b of orderBookings ?? []) {
       if (!b.order_id) continue;
       const list = orderChildrenById.get(b.order_id) ?? [];
-      list.push({ id: b.id, status: b.status, metadata: b.metadata as Record<string, unknown> | null });
+      list.push({
+        id: b.id,
+        status: b.status,
+        metadata: b.metadata as Record<string, unknown> | null,
+      });
       orderChildrenById.set(b.order_id, list);
     }
     for (const row of (summaries ?? []) as OrderSummary[]) {
@@ -441,9 +486,10 @@ export async function getCashFlowData(
         id: row.id,
         description: row.description,
         amount: Number(row.amount) || 0,
-        itemType: row.charge_type === 'other_charge'
-          ? 'other'
-          : row.charge_type as PayableOrderItemDetail['itemType'],
+        itemType:
+          row.charge_type === "other_charge"
+            ? "other"
+            : (row.charge_type as PayableOrderItemDetail["itemType"]),
       });
       orderItemsById.set(row.order_id, list);
       const rawList = orderRawItemsById.get(row.order_id) ?? [];
@@ -461,14 +507,17 @@ export async function getCashFlowData(
   }
   const orderEligibilityById = new Map<string, ReturnType<typeof deriveOrderPaymentEligibility>>();
   for (const orderId of orderIds) {
-    orderEligibilityById.set(orderId, deriveOrderPaymentEligibility({
-      children: orderChildrenById.get(orderId) ?? [],
-      items: orderRawItemsById.get(orderId) ?? [],
-      totalPayable: Number(orderSummaryById.get(orderId)?.total_payable ?? 0),
-      netAllocated: Number(orderSummaryById.get(orderId)?.net_allocated ?? 0),
-      quotedTotal: orderQuoteById.get(orderId) ?? null,
-      homeServiceFee: orderFeeById.get(orderId),
-    }));
+    orderEligibilityById.set(
+      orderId,
+      deriveOrderPaymentEligibility({
+        children: orderChildrenById.get(orderId) ?? [],
+        items: orderRawItemsById.get(orderId) ?? [],
+        totalPayable: Number(orderSummaryById.get(orderId)?.total_payable ?? 0),
+        netAllocated: Number(orderSummaryById.get(orderId)?.net_allocated ?? 0),
+        quotedTotal: orderQuoteById.get(orderId) ?? null,
+        homeServiceFee: orderFeeById.get(orderId),
+      })
+    );
   }
   const orderPayment = (orderId: string) => {
     const collectible = orderEligibilityById.get(orderId);
@@ -478,8 +527,7 @@ export async function getCashFlowData(
       total,
       paid,
       remaining,
-      status: total > 0 && paid >= total
-        ? 'paid' : paid > 0 ? 'partial' : 'unpaid',
+      status: total > 0 && paid >= total ? "paid" : paid > 0 ? "partial" : "unpaid",
     };
   };
 
@@ -494,10 +542,8 @@ export async function getCashFlowData(
   for (const b of todayBookings) {
     const orderState = b.order_id ? orderPayment(b.order_id) : null;
     if (b.order_id && !orderState) continue;
-    const isPaid = b.order_id
-      ? orderState?.status === 'paid'
-      : b.payment_status === 'paid';
-    const isHomeService = b.type === 'home_service' || b.delivery_type === 'home_service';
+    const isPaid = b.order_id ? orderState?.status === "paid" : b.payment_status === "paid";
+    const isHomeService = b.type === "home_service" || b.delivery_type === "home_service";
 
     const total = orderState?.total ?? bookingPriceSnapshot(b.metadata);
     const paid = orderState?.paid ?? (Number(b.amount_paid) || 0);
@@ -523,32 +569,43 @@ export async function getCashFlowData(
   let bookingInflowTotal = 0;
   let homeServiceInflowTotal = 0;
   for (const tx of todayTransactions) {
-    if (tx.transaction_type !== 'customer_payment' && tx.transaction_type !== 'customer_deposit') continue;
-    const linkedBookings = tx.source_type === 'legacy_booking'
-      ? todayBookings.filter((booking) => booking.id === tx.source_id)
-      : tx.source_type === 'booking_order'
-        ? todayBookings.filter((booking) => booking.order_id === tx.source_id)
-        : [];
+    if (tx.transaction_type !== "customer_payment" && tx.transaction_type !== "customer_deposit")
+      continue;
+    const linkedBookings =
+      tx.source_type === "legacy_booking"
+        ? todayBookings.filter((booking) => booking.id === tx.source_id)
+        : tx.source_type === "booking_order"
+          ? todayBookings.filter((booking) => booking.order_id === tx.source_id)
+          : [];
     if (linkedBookings.length === 0) continue;
     const amount = (tx.financial_account_movements || []).reduce(
-      (sum, movement) => sum + Math.max(0, Number(movement.amount) || 0), 0
+      (sum, movement) => sum + Math.max(0, Number(movement.amount) || 0),
+      0
     );
-    if (linkedBookings.every((booking) => booking.type === 'home_service' || booking.delivery_type === 'home_service')) {
+    if (
+      linkedBookings.every(
+        (booking) => booking.type === "home_service" || booking.delivery_type === "home_service"
+      )
+    ) {
       homeServiceInflowTotal += amount;
-    } else if (linkedBookings.every((booking) => booking.type !== 'home_service' && booking.delivery_type !== 'home_service')) {
+    } else if (
+      linkedBookings.every(
+        (booking) => booking.type !== "home_service" && booking.delivery_type !== "home_service"
+      )
+    ) {
       bookingInflowTotal += amount;
     }
   }
 
   // 4. Calculate Payment Mix from canonical financial account movements
   let totalInflowFromMovements = 0;
-  const mixMap = new Map<FinancialPaymentMethod | 'other', { amount: number; count: number }>();
+  const mixMap = new Map<FinancialPaymentMethod | "other", { amount: number; count: number }>();
 
   for (const m of todayMovements) {
     const amt = Number(m.amount) || 0;
     if (amt > 0) {
       totalInflowFromMovements += amt;
-      const method = (m.payment_method as FinancialPaymentMethod) || 'other';
+      const method = (m.payment_method as FinancialPaymentMethod) || "other";
       const existing = mixMap.get(method) || { amount: 0, count: 0 };
       existing.amount += amt;
       existing.count += 1;
@@ -557,19 +614,17 @@ export async function getCashFlowData(
   }
 
   const standardMethods: Array<{ method: FinancialPaymentMethod; label: string }> = [
-    { method: 'cash', label: 'Cash' },
-    { method: 'gcash', label: 'GCash' },
-    { method: 'maya', label: 'Maya' },
-    { method: 'card', label: 'Card' },
-    { method: 'bank_transfer', label: 'Bank Transfer' },
+    { method: "cash", label: "Cash" },
+    { method: "gcash", label: "GCash" },
+    { method: "maya", label: "Maya" },
+    { method: "card", label: "Card" },
+    { method: "bank_transfer", label: "Bank Transfer" },
   ];
 
   const paymentMix: PaymentMixItem[] = standardMethods.map(({ method, label }) => {
     const item = mixMap.get(method) || { amount: 0, count: 0 };
     const percentage =
-      totalInflowFromMovements > 0
-        ? Math.round((item.amount / totalInflowFromMovements) * 100)
-        : 0;
+      totalInflowFromMovements > 0 ? Math.round((item.amount / totalInflowFromMovements) * 100) : 0;
     return {
       method,
       label,
@@ -579,15 +634,15 @@ export async function getCashFlowData(
     };
   });
 
-  const otherItem = mixMap.get('other');
+  const otherItem = mixMap.get("other");
   if (otherItem && otherItem.amount > 0) {
     const percentage =
       totalInflowFromMovements > 0
         ? Math.round((otherItem.amount / totalInflowFromMovements) * 100)
         : 0;
     paymentMix.push({
-      method: 'other',
-      label: 'Other',
+      method: "other",
+      label: "Other",
       amount: otherItem.amount,
       percentage,
       transactionCount: otherItem.count,
@@ -596,7 +651,7 @@ export async function getCashFlowData(
 
   // Operational expenses calculation from canonical transactions/movements (CF7)
   const expenseTransactions = todayTransactions.filter(
-    (tx) => tx.transaction_type === 'operational_expense'
+    (tx) => tx.transaction_type === "operational_expense"
   );
   let totalExpenseOutflow = 0;
   for (const tx of expenseTransactions) {
@@ -613,118 +668,118 @@ export async function getCashFlowData(
   // 5. Build Cash Flow Coverage categories (13 tiles matching visual reference)
   const coverage: CashFlowCoverageCategory[] = [
     {
-      id: 'bookings',
-      label: 'Bookings',
+      id: "bookings",
+      label: "Bookings",
       amount: bookingInflowTotal,
       countLabel: `${inSpaPaidCount} paid`,
       isAvailable: true,
-      iconType: 'calendar',
+      iconType: "calendar",
     },
     {
-      id: 'home_service',
-      label: 'Home Service',
+      id: "home_service",
+      label: "Home Service",
       amount: homeServiceInflowTotal,
       countLabel: `${homeServicePaidCount} paid`,
       isAvailable: true,
-      iconType: 'home',
+      iconType: "home",
     },
     {
-      id: 'payments',
-      label: 'Payments',
+      id: "payments",
+      label: "Payments",
       amount: totalInflowFromMovements,
       countLabel: `${todayMovements.length} transactions`,
       isAvailable: true,
-      iconType: 'credit_card',
+      iconType: "credit_card",
     },
     {
-      id: 'expenses',
-      label: 'Expenses',
+      id: "expenses",
+      label: "Expenses",
       amount: totalExpenseOutflow,
-      countLabel: expenseCount > 0 ? `${expenseCount} logged` : '0 logged',
+      countLabel: expenseCount > 0 ? `${expenseCount} logged` : "0 logged",
       isAvailable: true,
-      statusText: expenseCount > 0 ? `${expenseCount} logged` : '0 logged',
-      iconType: 'shopping_cart',
+      statusText: expenseCount > 0 ? `${expenseCount} logged` : "0 logged",
+      iconType: "shopping_cart",
     },
     {
-      id: 'tips',
-      label: 'Tips',
+      id: "tips",
+      label: "Tips",
       amount: 0,
-      countLabel: 'Not yet configured',
+      countLabel: "Not yet configured",
       isAvailable: false,
-      statusText: 'Not yet configured',
-      iconType: 'gift',
+      statusText: "Not yet configured",
+      iconType: "gift",
     },
     {
-      id: 'staff_advances',
-      label: 'Staff Advances',
+      id: "staff_advances",
+      label: "Staff Advances",
       amount: 0,
-      countLabel: 'Not yet configured',
+      countLabel: "Not yet configured",
       isAvailable: false,
-      statusText: 'Not yet configured',
-      iconType: 'user',
+      statusText: "Not yet configured",
+      iconType: "user",
     },
     {
-      id: 'payroll',
-      label: 'Payroll',
+      id: "payroll",
+      label: "Payroll",
       amount: 0,
-      countLabel: 'Not yet configured',
+      countLabel: "Not yet configured",
       isAvailable: false,
-      statusText: 'Not yet configured',
-      iconType: 'users',
+      statusText: "Not yet configured",
+      iconType: "users",
     },
     {
-      id: 'commissions',
-      label: 'Commission Payouts',
+      id: "commissions",
+      label: "Commission Payouts",
       amount: 0,
-      countLabel: 'Not yet configured',
+      countLabel: "Not yet configured",
       isAvailable: false,
-      statusText: 'Not yet configured',
-      iconType: 'percent',
+      statusText: "Not yet configured",
+      iconType: "percent",
     },
     {
-      id: 'petty_cash',
-      label: 'Petty Cash',
+      id: "petty_cash",
+      label: "Petty Cash",
       amount: 0,
-      countLabel: 'Not yet configured',
+      countLabel: "Not yet configured",
       isAvailable: false,
-      statusText: 'Not yet configured',
-      iconType: 'wallet',
+      statusText: "Not yet configured",
+      iconType: "wallet",
     },
     {
-      id: 'transfers',
-      label: 'Transfers',
+      id: "transfers",
+      label: "Transfers",
       amount: 0,
-      countLabel: 'Not yet configured',
+      countLabel: "Not yet configured",
       isAvailable: false,
-      statusText: 'Not yet configured',
-      iconType: 'arrows',
+      statusText: "Not yet configured",
+      iconType: "arrows",
     },
     {
-      id: 'refunds',
-      label: 'Refunds',
+      id: "refunds",
+      label: "Refunds",
       amount: 0,
-      countLabel: 'Not yet configured',
+      countLabel: "Not yet configured",
       isAvailable: false,
-      statusText: 'Not yet configured',
-      iconType: 'reply',
+      statusText: "Not yet configured",
+      iconType: "reply",
     },
     {
-      id: 'adjustments',
-      label: 'Adjustments',
+      id: "adjustments",
+      label: "Adjustments",
       amount: 0,
-      countLabel: 'Not yet configured',
+      countLabel: "Not yet configured",
       isAvailable: false,
-      statusText: 'Not yet configured',
-      iconType: 'sliders',
+      statusText: "Not yet configured",
+      iconType: "sliders",
     },
     {
-      id: 'misc_income',
-      label: 'Misc Income',
+      id: "misc_income",
+      label: "Misc Income",
       amount: 0,
-      countLabel: 'Not yet configured',
+      countLabel: "Not yet configured",
       isAvailable: false,
-      statusText: 'Not yet configured',
-      iconType: 'plus',
+      statusText: "Not yet configured",
+      iconType: "plus",
     },
   ];
 
@@ -738,24 +793,22 @@ export async function getCashFlowData(
     if (totalAmount <= 0) continue;
 
     // Multi-method presentation (e.g., "Cash + GCash")
-    const methods = Array.from(
-      new Set(movements.map((m) => formatMethodLabel(m.payment_method)))
-    );
-    const paymentMethodDisplay = methods.join(' + ') || 'Payment';
+    const methods = Array.from(new Set(movements.map((m) => formatMethodLabel(m.payment_method))));
+    const paymentMethodDisplay = methods.join(" + ") || "Payment";
 
     const timeStr = formatTimeString(tx.occurred_at || tx.recorded_at);
 
     recentPayments.push({
       id: tx.id,
       time: timeStr,
-      type: tx.transaction_type === 'customer_deposit' ? 'Deposit' : 'Payment',
-      customerName: tx.notes || 'Walk-in Customer',
+      type: tx.transaction_type === "customer_deposit" ? "Deposit" : "Payment",
+      customerName: tx.notes || "Walk-in Customer",
       reference: tx.external_reference || `#TX-${tx.id.slice(0, 8)}`,
-      serviceDescription: tx.source_type ? `${tx.source_type.replace(/_/g, ' ')}` : 'Spa Service',
+      serviceDescription: tx.source_type ? `${tx.source_type.replace(/_/g, " ")}` : "Spa Service",
       durationMinutes: null,
       paymentMethodDisplay,
       amount: totalAmount,
-      status: tx.status === 'posted' ? 'paid' : 'pending',
+      status: tx.status === "posted" ? "paid" : "pending",
       orderId: tx.source_id,
     });
   }
@@ -767,13 +820,11 @@ export async function getCashFlowData(
     const movements = tx.financial_account_movements || [];
     const movementAmounts = movements.map((movement) => Number(movement.amount) || 0);
     const isCanonicalTransfer =
-      tx.transaction_type === 'cash_adjustment' &&
+      tx.transaction_type === "cash_adjustment" &&
       movements.length === 2 &&
       movementAmounts.some((amount) => amount > 0) &&
       movementAmounts.some((amount) => amount < 0) &&
-      Math.round(
-        movementAmounts.reduce((sum, amount) => sum + amount, 0) * 100
-      ) === 0;
+      Math.round(movementAmounts.reduce((sum, amount) => sum + amount, 0) * 100) === 0;
 
     for (const m of movements) {
       const amt = Number(m.amount) || 0;
@@ -782,30 +833,31 @@ export async function getCashFlowData(
         id: m.id,
         dateTime: formatDateTimeString(m.created_at || tx.occurred_at),
         reference: m.external_reference || tx.external_reference || `TX-${tx.id.slice(0, 8)}`,
-        customerSource: tx.notes || (tx.source_type ? tx.source_type.replace(/_/g, ' ') : 'Customer'),
+        customerSource:
+          tx.notes || (tx.source_type ? tx.source_type.replace(/_/g, " ") : "Customer"),
         category:
-          tx.transaction_type === 'customer_deposit'
-            ? 'Deposit'
-            : tx.transaction_type === 'operational_expense'
-            ? 'Expense'
-            : tx.transaction_type === 'tip_collection'
-            ? 'Staff Tip'
-            : tx.transaction_type === 'other_income'
-            ? 'Misc Income'
-            : tx.transaction_type === 'cash_adjustment'
-            ? isCanonicalTransfer
-              ? 'Transfer'
-              : movements.length === 1
-                ? isInflow
-                  ? 'Cash Addition'
-                  : 'Cash Removal'
-                : 'Adjustment'
-            : 'Booking Payment',
+          tx.transaction_type === "customer_deposit"
+            ? "Deposit"
+            : tx.transaction_type === "operational_expense"
+              ? "Expense"
+              : tx.transaction_type === "tip_collection"
+                ? "Staff Tip"
+                : tx.transaction_type === "other_income"
+                  ? "Misc Income"
+                  : tx.transaction_type === "cash_adjustment"
+                    ? isCanonicalTransfer
+                      ? "Transfer"
+                      : movements.length === 1
+                        ? isInflow
+                          ? "Cash Addition"
+                          : "Cash Removal"
+                        : "Adjustment"
+                    : "Booking Payment",
         method: formatMethodLabel(m.payment_method),
         inflow: isInflow ? amt : null,
         outflow: !isInflow ? Math.abs(amt) : null,
         netEffect: amt,
-        status: tx.status === 'posted' ? 'Paid' : tx.status,
+        status: tx.status === "posted" ? "Paid" : tx.status,
       });
     }
   }
@@ -815,16 +867,20 @@ export async function getCashFlowData(
     allLedgerRecords.unshift({
       id: `unmatched-${gap.sourceType}-${gap.sourceId}`,
       dateTime: businessDate,
-      reference: gap.sourceType === 'legacy_booking' ? `BK-${gap.sourceId.slice(0, 8)}` : `ORDER-${gap.sourceId.slice(0, 8)}`,
-      customerSource: gap.reason === 'ambiguous_order'
-        ? `Order-level payment cannot be assigned to booking snapshots; review ${gap.snapshotAmount.toFixed(2)}`
-        : `Booking snapshot ${gap.snapshotAmount.toFixed(2)}; ${gap.unmatchedAmount.toFixed(2)} lacks financial evidence`,
-      category: 'Booking payment snapshot',
-      method: 'Unverified',
+      reference:
+        gap.sourceType === "legacy_booking"
+          ? `BK-${gap.sourceId.slice(0, 8)}`
+          : `ORDER-${gap.sourceId.slice(0, 8)}`,
+      customerSource:
+        gap.reason === "ambiguous_order"
+          ? `Order-level payment cannot be assigned to booking snapshots; review ${gap.snapshotAmount.toFixed(2)}`
+          : `Booking snapshot ${gap.snapshotAmount.toFixed(2)}; ${gap.unmatchedAmount.toFixed(2)} lacks financial evidence`,
+      category: "Booking payment snapshot",
+      method: "Unverified",
       inflow: null,
       outflow: null,
       netEffect: 0,
-      status: 'Needs reconciliation',
+      status: "Needs reconciliation",
       isReconciliationOnly: true,
     });
   }
@@ -840,7 +896,7 @@ export async function getCashFlowData(
     );
   }
 
-  if (filters.method && filters.method !== 'all') {
+  if (filters.method && filters.method !== "all") {
     allLedgerRecords = allLedgerRecords.filter(
       (r) => r.method.toLowerCase() === filters.method?.toLowerCase()
     );
@@ -870,7 +926,7 @@ export async function getCashFlowData(
     if (b.order_id && listedOrders.has(b.order_id)) continue;
     if (b.order_id) listedOrders.add(b.order_id);
 
-    if (!b.order_id && isBookingClosedForCrm(b.status ?? '')) continue;
+    if (!b.order_id && isBookingClosedForCrm(b.status ?? "")) continue;
 
     const orderState = b.order_id ? orderPayment(b.order_id) : null;
     if (b.order_id && !orderState) continue;
@@ -883,52 +939,60 @@ export async function getCashFlowData(
     const total = orderEligibility?.total ?? legacyTotal!;
     const paid = orderEligibility?.paid ?? legacyPaid;
     const remaining = orderEligibility?.remaining ?? Math.max(0, total - paid);
-    const isPaid = b.order_id
-      ? orderState?.status === 'paid'
-      : b.payment_status === 'paid';
+    const isPaid = b.order_id ? orderState?.status === "paid" : b.payment_status === "paid";
     if (isPaid || remaining <= 0) continue;
     const isPartial = !isPaid && paid > 0;
     const displayBooking = b.order_id
-      ? todayBookings.find((row) => row.order_id === b.order_id && !isBookingClosedForCrm(row.status ?? '')) ?? b
+      ? (todayBookings.find(
+          (row) => row.order_id === b.order_id && !isBookingClosedForCrm(row.status ?? "")
+        ) ?? b)
       : b;
-    const isHomeService = displayBooking.type === 'home_service' || displayBooking.delivery_type === 'home_service';
+    const isHomeService =
+      displayBooking.type === "home_service" || displayBooking.delivery_type === "home_service";
 
-    const cust = Array.isArray(displayBooking.customers) ? displayBooking.customers[0] : displayBooking.customers;
-    const svc = Array.isArray(displayBooking.services) ? displayBooking.services[0] : displayBooking.services;
+    const cust = Array.isArray(displayBooking.customers)
+      ? displayBooking.customers[0]
+      : displayBooking.customers;
+    const svc = Array.isArray(displayBooking.services)
+      ? displayBooking.services[0]
+      : displayBooking.services;
 
-    const payableItems: PayableOrderItemDetail[] =
-      b.order_id ? [...(orderItemsById.get(b.order_id) ?? [])] : [];
+    const payableItems: PayableOrderItemDetail[] = b.order_id
+      ? [...(orderItemsById.get(b.order_id) ?? [])]
+      : [];
     for (const waiver of orderEligibility?.projectedWaivers ?? []) {
       payableItems.push({
         id: `projected-waiver-${waiver.bookingId}`,
-        description: 'Closed service charge waiver',
+        description: "Closed service charge waiver",
         amount: -waiver.amount,
-        itemType: 'manual_adjustment',
+        itemType: "manual_adjustment",
       });
     }
     if (payableItems.length === 0 && b.order_id) {
       for (const child of orderChildrenById.get(b.order_id) ?? []) {
-        if (isBookingClosedForCrm(child.status ?? '')) continue;
+        if (isBookingClosedForCrm(child.status ?? "")) continue;
         const amount = validatedLegacyBookingPrice(child.metadata);
         if (amount === null) continue;
         const childBooking = todayBookings.find((row) => row.id === child.id);
         const childService = childBooking
-          ? Array.isArray(childBooking.services) ? childBooking.services[0] : childBooking.services
+          ? Array.isArray(childBooking.services)
+            ? childBooking.services[0]
+            : childBooking.services
           : null;
         payableItems.push({
           id: `item-svc-${child.id}`,
           description: childService?.name ?? `Booking ${child.id.slice(0, 8)}`,
           amount,
-          itemType: 'service',
+          itemType: "service",
         });
       }
       const fee = Number(orderFeeById.get(b.order_id) ?? 0);
       if (fee > 0) {
         payableItems.push({
           id: `item-fee-${b.order_id}`,
-          description: 'Home Service travel',
+          description: "Home Service travel",
           amount: fee,
-          itemType: 'home_service_fee',
+          itemType: "home_service_fee",
         });
       }
     }
@@ -937,15 +1001,15 @@ export async function getCashFlowData(
         id: `item-svc-${b.id}`,
         description: svc.name,
         amount: total,
-        itemType: 'service',
+        itemType: "service",
         subDescription: svc.duration_minutes ? `${svc.duration_minutes} mins` : undefined,
       });
     } else if (payableItems.length === 0) {
       payableItems.push({
         id: `item-svc-${b.id}`,
-        description: 'Spa Service',
+        description: "Spa Service",
         amount: total,
-        itemType: 'service',
+        itemType: "service",
       });
     }
 
@@ -954,31 +1018,46 @@ export async function getCashFlowData(
       previousPayments.push({
         date: b.booking_date,
         amount: paid,
-        method: b.order_id ? 'Order payment' : 'Booking snapshot (unverified)',
+        method: b.order_id ? "Order payment" : "Booking snapshot (unverified)",
       });
     }
 
     payableOrders.push({
       id: b.order_id || b.id,
-      sourceKind: b.order_id ? 'booking_order' : 'legacy_booking',
+      sourceKind: b.order_id ? "booking_order" : "legacy_booking",
       orderNumber: b.order_id ? `ORDER-${b.order_id.slice(0, 8)}` : `BK-${b.id.slice(0, 8)}`,
-      customerName: cust?.full_name || 'Guest',
+      customerName: cust?.full_name || "Guest",
       customerPhone: cust?.phone ?? null,
-      serviceDescription: svc?.name || 'Spa Service',
+      serviceDescription: svc?.name || "Spa Service",
       totalAmount: total,
       amountPaid: paid,
       remainingBalance: remaining,
       bookingDate: displayBooking.booking_date,
       serviceTime: displayBooking.start_time ? formatTimeFromHHMM(displayBooking.start_time) : null,
       branchName: branchName,
-      visitType: isHomeService ? 'home_service' : 'in_spa',
+      visitType: isHomeService ? "home_service" : "in_spa",
       bookingStatus: b.order_id
-        ? (orderChildrenById.get(b.order_id) ?? []).some((child) => isBookingClosedForCrm(child.status ?? ''))
-          ? 'Mixed services'
-          : 'Active'
-        : b.status ? b.status.charAt(0).toUpperCase() + b.status.slice(1) : 'Confirmed',
+        ? (orderChildrenById.get(b.order_id) ?? []).some((child) =>
+            isBookingClosedForCrm(child.status ?? "")
+          )
+          ? "Mixed services"
+          : "Active"
+        : b.status
+          ? b.status.charAt(0).toUpperCase() + b.status.slice(1)
+          : "Confirmed",
       paymentEligible: b.order_id ? orderEligibility?.eligible === true : true,
-      paymentStatus: isPaid ? 'paid' : isPartial ? 'partially_paid' : 'unpaid',
+      readyForCheckout: b.order_id
+        ? (() => {
+            const activeChildren = (orderChildrenById.get(b.order_id!) ?? []).filter(
+              (child) => !isBookingClosedForCrm(child.status ?? "")
+            );
+            return (
+              activeChildren.length > 0 &&
+              activeChildren.every((child) => child.status === "completed")
+            );
+          })()
+        : b.status === "completed",
+      paymentStatus: isPaid ? "paid" : isPartial ? "partially_paid" : "unpaid",
       payableItems,
       previousPayments,
     });
@@ -986,35 +1065,49 @@ export async function getCashFlowData(
 
   // 9. Consume the persisted reconciliation authority for this branch/date.
   const { data: reconciliationRows, error: reconciliationError } = await supabase
-    .from('daily_cash_reconciliations')
-    .select('status, expected_cash, expected_gcash, expected_maya, expected_card, expected_other, actual_cash, actual_gcash, actual_maya, actual_card, actual_other, updated_at')
-    .eq('branch_id', branchId)
-    .eq('reconciliation_date', businessDate)
+    .from("daily_cash_reconciliations")
+    .select(
+      "status, expected_cash, expected_gcash, expected_maya, expected_card, expected_other, actual_cash, actual_gcash, actual_maya, actual_card, actual_other, updated_at"
+    )
+    .eq("branch_id", branchId)
+    .eq("reconciliation_date", businessDate)
     .limit(1);
   if (reconciliationError) {
-    throw new CashFlowRequiredDataError('daily_cash_reconciliations');
+    throw new CashFlowRequiredDataError("daily_cash_reconciliations");
   }
   const reconciliation = reconciliationRows?.[0] ?? null;
-  const reconciliationStatus: CashFlowWorkspaceData['dayClose']['reconciliationStatus'] = reconciliation?.status === 'draft' ||
-    reconciliation?.status === 'submitted' || reconciliation?.status === 'approved'
-    ? reconciliation.status : 'not_started';
+  const reconciliationStatus: CashFlowWorkspaceData["dayClose"]["reconciliationStatus"] =
+    reconciliation?.status === "draft" ||
+    reconciliation?.status === "submitted" ||
+    reconciliation?.status === "approved"
+      ? reconciliation.status
+      : "not_started";
   const expectedCash = reconciliation ? Number(reconciliation.expected_cash) : null;
   const actualCash = reconciliation ? Number(reconciliation.actual_cash) : null;
-  const cashVariance = expectedCash !== null && actualCash !== null
-    ? actualCash - expectedCash : null;
-  const channelVariance = reconciliation ? [
-    'cash', 'gcash', 'maya', 'card', 'other',
-  ].reduce((sum, channel) =>
-    sum + Math.abs(Number(reconciliation[`actual_${channel}` as keyof typeof reconciliation]) -
-      Number(reconciliation[`expected_${channel}` as keyof typeof reconciliation])), 0) : null;
+  const cashVariance =
+    expectedCash !== null && actualCash !== null ? actualCash - expectedCash : null;
+  const channelVariance = reconciliation
+    ? ["cash", "gcash", "maya", "card", "other"].reduce(
+        (sum, channel) =>
+          sum +
+          Math.abs(
+            Number(reconciliation[`actual_${channel}` as keyof typeof reconciliation]) -
+              Number(reconciliation[`expected_${channel}` as keyof typeof reconciliation])
+          ),
+        0
+      )
+    : null;
 
   // 10. Day Close and History Construction
   const dayCloseSummary = {
     businessDate,
-    isBalanced: (reconciliationStatus === 'submitted' || reconciliationStatus === 'approved') && channelVariance === 0,
-    readyForReview: reconciliationStatus === 'submitted',
+    isBalanced:
+      (reconciliationStatus === "submitted" || reconciliationStatus === "approved") &&
+      channelVariance === 0,
+    readyForReview: reconciliationStatus === "submitted",
     lastUpdatedText: reconciliation?.updated_at
-      ? formatDateTimeString(reconciliation.updated_at) : 'not recorded',
+      ? formatDateTimeString(reconciliation.updated_at)
+      : "not recorded",
     reconciliationStatus,
     expectedCash,
     actualCash,
@@ -1070,9 +1163,10 @@ export async function getCashFlowData(
         inflow: ledgerInflow,
         outflow: ledgerOutflow,
         netFlow: ledgerInflow - ledgerOutflow,
-        unreconciledText: unmatchedPayments.length > 0
-          ? `${unmatchedPayments.length} booking payment snapshot${unmatchedPayments.length === 1 ? '' : 's'} need review`
-          : 'Reconciliation not configured',
+        unreconciledText:
+          unmatchedPayments.length > 0
+            ? `${unmatchedPayments.length} booking payment snapshot${unmatchedPayments.length === 1 ? "" : "s"} need review`
+            : "Reconciliation not configured",
         unreconciledCount: unmatchedPayments.length,
       },
       records: pagedRecords,
@@ -1094,31 +1188,31 @@ export async function getCashFlowData(
 }
 
 function formatMethodLabel(method: string): string {
-  if (!method) return 'Cash';
+  if (!method) return "Cash";
   switch (method.toLowerCase()) {
-    case 'cash':
-      return 'Cash';
-    case 'gcash':
-      return 'GCash';
-    case 'maya':
-      return 'Maya';
-    case 'card':
-    case 'card_terminal':
-      return 'Card';
-    case 'bank_transfer':
-      return 'Bank Transfer';
+    case "cash":
+      return "Cash";
+    case "gcash":
+      return "GCash";
+    case "maya":
+      return "Maya";
+    case "card":
+    case "card_terminal":
+      return "Card";
+    case "bank_transfer":
+      return "Bank Transfer";
     default:
       return method.charAt(0).toUpperCase() + method.slice(1);
   }
 }
 
 function formatTimeString(isoString: string): string {
-  if (!isoString) return '';
+  if (!isoString) return "";
   try {
     const d = new Date(isoString);
-    return d.toLocaleTimeString('en-US', {
-      hour: 'numeric',
-      minute: '2-digit',
+    return d.toLocaleTimeString("en-US", {
+      hour: "numeric",
+      minute: "2-digit",
       hour12: true,
     });
   } catch {
@@ -1127,12 +1221,12 @@ function formatTimeString(isoString: string): string {
 }
 
 function formatTimeFromHHMM(timeStr: string): string {
-  if (!timeStr) return '';
+  if (!timeStr) return "";
   try {
-    const parts = timeStr.split(':');
-    const hour = parseInt(parts[0] || '0', 10);
-    const min = parts[1] || '00';
-    const ampm = hour >= 12 ? 'PM' : 'AM';
+    const parts = timeStr.split(":");
+    const hour = parseInt(parts[0] || "0", 10);
+    const min = parts[1] || "00";
+    const ampm = hour >= 12 ? "PM" : "AM";
     const formattedHour = hour % 12 === 0 ? 12 : hour % 12;
     return `${formattedHour}:${min} ${ampm}`;
   } catch {
@@ -1141,13 +1235,13 @@ function formatTimeFromHHMM(timeStr: string): string {
 }
 
 function formatDateTimeString(isoString: string): string {
-  if (!isoString) return '';
+  if (!isoString) return "";
   try {
     const d = new Date(isoString);
     const datePart = d.toISOString().slice(0, 10);
-    const timePart = d.toLocaleTimeString('en-US', {
-      hour: 'numeric',
-      minute: '2-digit',
+    const timePart = d.toLocaleTimeString("en-US", {
+      hour: "numeric",
+      minute: "2-digit",
       hour12: true,
     });
     return `${datePart} ${timePart}`;
