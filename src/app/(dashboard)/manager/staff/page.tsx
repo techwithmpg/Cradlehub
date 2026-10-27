@@ -10,7 +10,12 @@ export default async function ManagerStaffPage({
 }) {
   const branchId = await getManagerBranchId();
   const resolvedSearchParams = await searchParams;
-  const initialTab: StaffTab = resolvedSearchParams.tab === "pending" ? "pending" : "active";
+  const initialTab: StaffTab =
+    resolvedSearchParams.tab === "pending"
+      ? "pending"
+      : resolvedSearchParams.tab === "inactive"
+        ? "inactive"
+        : "active";
 
   const [allStaff, pendingStaff] = await Promise.all([
     getStaffByBranchWithBranches(branchId),

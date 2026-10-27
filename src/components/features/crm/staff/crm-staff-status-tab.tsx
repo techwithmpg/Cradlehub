@@ -7,6 +7,7 @@ import {
   Send,
   ShieldCheck,
   UserCheck,
+  UserRoundX,
   UsersRound,
 } from "lucide-react";
 import {
@@ -21,29 +22,41 @@ type Props = {
 
 export function CrmStaffStatusTab({ allStaff, pendingStaff }: Props) {
   const stats = useMemo(() => {
-    const combined = [...allStaff, ...pendingStaff];
+    const nonArchivedAll = allStaff.filter(
+      (s) => !s.archived_at && !s.merged_into_staff_id
+    );
+    const nonArchivedPending = pendingStaff.filter(
+      (s) => !s.archived_at && !s.merged_into_staff_id
+    );
+    const combined = [...nonArchivedAll, ...nonArchivedPending];
+    const seen = new Set<string>();
+    const uniqueCombined = combined.filter((s) => {
+      if (seen.has(s.id)) return false;
+      seen.add(s.id);
+      return true;
+    });
 
-    const active = allStaff.filter((s) => s.is_active);
-    const awaiting = pendingStaff.filter((s) => getStaffStatus(s) === "awaiting");
-    const invited = pendingStaff.filter((s) => getStaffStatus(s) === "invited");
-    const inactive = pendingStaff.filter((s) => getStaffStatus(s) === "inactive");
+    const active = nonArchivedAll.filter((s) => s.is_active);
+    const awaiting = nonArchivedPending.filter((s) => getStaffStatus(s) === "awaiting");
+    const invited = nonArchivedPending.filter((s) => getStaffStatus(s) === "invited");
+    const inactive = uniqueCombined.filter((s) => getStaffStatus(s) === "inactive");
 
     const roleCounts = new Map<string, number>();
-    for (const s of combined) {
+    for (const s of uniqueCombined) {
       roleCounts.set(s.system_role, (roleCounts.get(s.system_role) ?? 0) + 1);
     }
 
     const typeCounts = new Map<string, number>();
-    for (const s of combined) {
+    for (const s of uniqueCombined) {
       if (s.staff_type) {
         typeCounts.set(s.staff_type, (typeCounts.get(s.staff_type) ?? 0) + 1);
       }
     }
 
-    const headCount = combined.filter((s) => s.is_head).length;
+    const headCount = uniqueCombined.filter((s) => s.is_head).length;
 
     return {
-      total: combined.length,
+      total: uniqueCombined.length,
       activeCount: active.length,
       awaitingCount: awaiting.length,
       invitedCount: invited.length,
@@ -83,12 +96,19 @@ export function CrmStaffStatusTab({ allStaff, pendingStaff }: Props) {
       color: "var(--cs-info-text)",
       bg: "var(--cs-info-bg)",
     },
+    {
+      label: "Inactive",
+      value: stats.inactiveCount,
+      icon: UserRoundX,
+      color: "var(--cs-text-muted)",
+      bg: "var(--cs-neutral-bg)",
+    },
   ];
 
   return (
     <div className="space-y-5">
       {/* Status KPIs */}
-      <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+      <div className="grid grid-cols-2 gap-3 sm:grid-cols-5">
         {statusCards.map((card) => (
           <div
             key={card.label}

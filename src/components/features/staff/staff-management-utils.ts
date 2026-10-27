@@ -14,10 +14,12 @@ export type StaffMember = Omit<StaffRow, "branch_id"> & {
   branches: StaffBranchRelation;
   email?: string | null;
   job_title?: string | null;
+  onboarding_request_status?: string | null;
+  has_submitted_onboarding?: boolean;
 };
 
-export type StaffTab = "active" | "pending";
-export type StaffStatus = "active" | "awaiting" | "invited" | "inactive";
+export type StaffTab = "active" | "pending" | "inactive";
+export type StaffStatus = "active" | "awaiting" | "invited" | "inactive" | "archived";
 
 export type StaffBranchGroup = {
   branchId: string;
@@ -117,11 +119,19 @@ export function getBranchShortName(branchName: string): string {
 }
 
 export function getStaffStatus(member: StaffMember): StaffStatus {
-  if (member.is_active) return "active";
+  if (member.archived_at || member.merged_into_staff_id) {
+    return "archived";
+  }
+  if (member.is_active) {
+    return "active";
+  }
   if (!member.auth_user_id || member.full_name.toLowerCase() === "pending invitation") {
     return "invited";
   }
-  return "awaiting";
+  if (member.onboarding_request_status === "submitted" || member.has_submitted_onboarding === true) {
+    return "awaiting";
+  }
+  return "inactive";
 }
 
 export function getStaffStatusLabel(status: StaffStatus): string {
@@ -130,8 +140,9 @@ export function getStaffStatusLabel(status: StaffStatus): string {
     awaiting: "Awaiting Approval",
     invited: "Invite Sent",
     inactive: "Inactive",
+    archived: "Archived",
   };
-  return labels[status];
+  return labels[status] ?? "Inactive";
 }
 
 export function getSystemRoleLabel(role: string): string {

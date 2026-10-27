@@ -62,8 +62,45 @@ export function StaffManagementWorkspace({
   const [selectedStaffId, setSelectedStaffId] = useState<string | null>(null);
   const [expandedBranches, setExpandedBranches] = useState<Set<string>>(() => new Set());
 
-  const activeStaff = useMemo(() => allStaff.filter((member) => member.is_active), [allStaff]);
-  const staffForCurrentTab = activeTab === "active" ? activeStaff : pendingStaff;
+  const activeStaff = useMemo(
+    () => allStaff.filter((member) => member.is_active && !member.archived_at && !member.merged_into_staff_id),
+    [allStaff]
+  );
+  const pendingStaffList = useMemo(
+    () =>
+      pendingStaff.filter((member) => {
+        if (member.archived_at || member.merged_into_staff_id) return false;
+        const status = getStaffStatus(member);
+        return status === "awaiting" || status === "invited";
+      }),
+    [pendingStaff]
+  );
+  const inactiveStaffList = useMemo(() => {
+    const combined = [...allStaff, ...pendingStaff];
+    const seen = new Set<string>();
+    return combined.filter((member) => {
+      if (seen.has(member.id)) return false;
+      seen.add(member.id);
+      return getStaffStatus(member) === "inactive";
+    });
+  }, [allStaff, pendingStaff]);
+
+  const staffForCurrentTab = useMemo(() => {
+    if (filters.status !== "all") {
+      const combined = [...allStaff, ...pendingStaff];
+      const seen = new Set<string>();
+      return combined.filter((member) => {
+        if (seen.has(member.id)) return false;
+        seen.add(member.id);
+        return true;
+      });
+    }
+    if (activeTab === "active") return activeStaff;
+    if (activeTab === "pending") return pendingStaffList;
+    if (activeTab === "inactive") return inactiveStaffList;
+    return activeStaff;
+  }, [activeTab, activeStaff, pendingStaffList, inactiveStaffList, filters.status, allStaff, pendingStaff]);
+
   const filteredStaff = useMemo(
     () => staffForCurrentTab.filter((member) => staffMatchesFilters(member, filters)),
     [filters, staffForCurrentTab]
@@ -79,10 +116,10 @@ export function StaffManagementWorkspace({
 
   const awaitingCount = pendingStaff.filter((member) => getStaffStatus(member) === "awaiting").length;
   const invitedCount = pendingStaff.filter((member) => getStaffStatus(member) === "invited").length;
-  const branchCount = getKnownBranchCount([...activeStaff, ...pendingStaff]);
+  const branchCount = getKnownBranchCount([...activeStaff, ...pendingStaffList, ...inactiveStaffList]);
 
   const branchOptions = useMemo(() => {
-    const groups = groupStaffByBranch([...activeStaff, ...pendingStaff]);
+    const groups = groupStaffByBranch([...activeStaff, ...pendingStaffList, ...inactiveStaffList]);
     return [
       { value: "all", label: "All branches" },
       ...groups.map((group) => ({
@@ -90,10 +127,10 @@ export function StaffManagementWorkspace({
         label: group.branchName,
       })),
     ];
-  }, [activeStaff, pendingStaff]);
+  }, [activeStaff, pendingStaffList, inactiveStaffList]);
 
   const roleOptions = useMemo(() => {
-    const roles = Array.from(new Set([...activeStaff, ...pendingStaff].map((member) => member.system_role))).sort(
+    const roles = Array.from(new Set([...activeStaff, ...pendingStaffList, ...inactiveStaffList].map((member) => member.system_role))).sort(
       (a, b) => getSystemRoleLabel(a).localeCompare(getSystemRoleLabel(b))
     );
 
@@ -101,7 +138,7 @@ export function StaffManagementWorkspace({
       { value: "all", label: "All access roles" },
       ...roles.map((role) => ({ value: role, label: getSystemRoleLabel(role) })),
     ];
-  }, [activeStaff, pendingStaff]);
+  }, [activeStaff, pendingStaffList, inactiveStaffList]);
 
   const statusOptions = useMemo(
     () => [
@@ -109,6 +146,8 @@ export function StaffManagementWorkspace({
       { value: "active", label: "Active" },
       { value: "awaiting", label: "Awaiting approval" },
       { value: "invited", label: "Invite sent" },
+      { value: "inactive", label: "Inactive" },
+      { value: "archived", label: "Archived" },
     ],
     []
   );
@@ -183,7 +222,8 @@ export function StaffManagementWorkspace({
         <StaffTabs
           activeTab={activeTab}
           activeCount={activeStaff.length}
-          pendingCount={pendingStaff.length}
+          pendingCount={pendingStaffList.length}
+          inactiveCount={inactiveStaffList.length}
           onTabChange={setActiveTab}
         />
         <p className="m-0 text-sm text-[var(--cs-text-muted)]">

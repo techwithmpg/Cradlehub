@@ -359,13 +359,26 @@ export async function toggleStaffActiveAction(rawInput: unknown) {
 
   const actorRole = canonicalizeSystemRole(ctx.me.system_role);
   const isBranchScoped = actorRole !== "owner";
+
+  const { data: target, error: targetError } = await ctx.supabase
+    .from("staff")
+    .select("id, branch_id, system_role, is_active, archived_at, merged_into_staff_id")
+    .eq("id", staffId)
+    .maybeSingle();
+
+  if (targetError || !target) {
+    return { success: false, error: "Staff record not found." } as const;
+  }
+
+  if (target.archived_at || target.merged_into_staff_id) {
+    return {
+      success: false,
+      error: "Archived or merged staff profiles cannot be reactivated.",
+    } as const;
+  }
+
   if (isBranchScoped) {
-    const { data: target } = await ctx.supabase
-      .from("staff")
-      .select("branch_id, system_role")
-      .eq("id", staffId)
-      .maybeSingle();
-    if (!target || target.branch_id !== ctx.me.branch_id) {
+    if (target.branch_id !== ctx.me.branch_id) {
       return { success: false, error: "You can only manage staff in your branch." } as const;
     }
     if (SENSITIVE_SYSTEM_ROLES.has(target.system_role as string)) {
@@ -414,6 +427,7 @@ export async function toggleStaffActiveAction(rawInput: unknown) {
 
   revalidatePath("/owner/staff");
   revalidatePath("/manager/staff");
+  revalidatePath("/crm/staff");
   revalidatePath("/crm/schedule");
   return { success: true, staff: updateResult.data[0]! } as const;
 }

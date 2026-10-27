@@ -316,7 +316,7 @@ export function StaffPreviewPanel({
                   Manage Services
                 </Button>
               )}
-              {onToggleActive && (
+              {onToggleActive && status !== "archived" && (
                 <Button
                   variant="outline"
                   size="lg"

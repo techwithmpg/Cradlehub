@@ -11,12 +11,13 @@ import {
   readBranchName,
   getInitials,
   getStaffInternalName,
+  type StaffMember,
+  type StaffStatus,
 } from "./staff-management-utils";
 import { StaffServiceEditorSheet } from "./staff-service-editor-sheet";
 import { ActionableWarning } from "@/components/shared/actionable-warning";
 import { warningTargets } from "@/lib/warnings/action-targets";
 import type { ActionableWarning as ActionableWarningType } from "@/types/warnings";
-import type { StaffMember } from "./staff-management-utils";
 import type { Database } from "@/types/supabase";
 
 type ServiceRow = Database["public"]["Tables"]["services"]["Row"] & {
@@ -50,6 +51,7 @@ const STATUS_STYLE: Record<string, { bg: string; color: string; border: string }
   awaiting: { bg: "#FFFBEB", color: "#92400E", border: "#FDE68A" },
   invited:  { bg: "#EFF6FF", color: "#1D4ED8", border: "#BFDBFE" },
   inactive: { bg: "#F9FAFB", color: "#6B7280", border: "#E5E7EB" },
+  archived: { bg: "#F3F4F6", color: "#6B7280", border: "#E5E7EB" },
 };
 
 const PREVIEW_CHIP_MAX = 6;
@@ -138,7 +140,7 @@ function StatusBadge({ status }: { status: string }) {
         border: `1px solid ${s.border}`,
       }}
     >
-      {getStaffStatusLabel(status as "active" | "awaiting" | "invited" | "inactive")}
+      {getStaffStatusLabel(status as StaffStatus)}
     </span>
   );
 }

@@ -222,6 +222,40 @@ export async function loadCrmStaffWorkspaceData(): Promise<CrmStaffWorkspaceLoad
     );
   }
 
+  const submittedStaffIds = new Set(
+    onboardingRequests
+      .flatMap((r) => [r.staff_id, r.auth_user_id])
+      .filter((id): id is string => Boolean(id))
+  );
+
+  const cleanAllStaff = allStaff
+    .filter((member) => !member.archived_at && !member.merged_into_staff_id)
+    .map((member) => {
+      const isSubmitted =
+        submittedStaffIds.has(member.id) ||
+        (member.auth_user_id ? submittedStaffIds.has(member.auth_user_id) : false) ||
+        member.has_submitted_onboarding === true;
+      return {
+        ...member,
+        has_submitted_onboarding: isSubmitted,
+        onboarding_request_status: isSubmitted ? "submitted" : null,
+      };
+    });
+
+  const cleanPendingStaff = pendingStaff
+    .filter((member) => !member.archived_at && !member.merged_into_staff_id)
+    .map((member) => {
+      const isSubmitted =
+        submittedStaffIds.has(member.id) ||
+        (member.auth_user_id ? submittedStaffIds.has(member.auth_user_id) : false) ||
+        member.has_submitted_onboarding === true;
+      return {
+        ...member,
+        has_submitted_onboarding: isSubmitted,
+        onboarding_request_status: isSubmitted ? "submitted" : null,
+      };
+    });
+
   const branchCorrectionRequests =
     await getBranchAssignmentIssuesForActor({
       systemRole: ctx.me.system_role,
@@ -236,8 +270,8 @@ export async function loadCrmStaffWorkspaceData(): Promise<CrmStaffWorkspaceLoad
       reviewerSystemRole: ctx.me.system_role,
       reviewerBranchId: branchId,
       canReviewOnboarding: ctx.canReviewOnboarding,
-      allStaff,
-      pendingStaff,
+      allStaff: cleanAllStaff,
+      pendingStaff: cleanPendingStaff,
       branches: branches.map((branch) => ({
         id: branch.id,
         name: branch.name,

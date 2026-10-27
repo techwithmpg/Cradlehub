@@ -6,13 +6,21 @@ type StaffTabsProps = {
   activeTab: StaffTab;
   activeCount: number;
   pendingCount: number;
+  inactiveCount?: number;
   onTabChange: (tab: StaffTab) => void;
 };
 
-export function StaffTabs({ activeTab, activeCount, pendingCount, onTabChange }: StaffTabsProps) {
+export function StaffTabs({
+  activeTab,
+  activeCount,
+  pendingCount,
+  inactiveCount = 0,
+  onTabChange,
+}: StaffTabsProps) {
   const tabs: { value: StaffTab; label: string; count: number }[] = [
     { value: "active", label: "Active Staff", count: activeCount },
     { value: "pending", label: "Pending", count: pendingCount },
+    { value: "inactive", label: "Inactive", count: inactiveCount },
   ];
 
   return (

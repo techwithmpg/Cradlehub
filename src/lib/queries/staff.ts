@@ -39,6 +39,35 @@ function normalizeBranchStaff(
   };
 }
 
+async function getSubmittedOnboardingStaffIds(
+  branchId?: string
+): Promise<{ staffIds: Set<string>; authUserIds: Set<string> }> {
+  try {
+    const admin = createAdminClient();
+    let query = admin
+      .from("staff_onboarding_requests")
+      .select("staff_id, auth_user_id")
+      .eq("status", "submitted");
+
+    if (branchId) {
+      query = query.eq("requested_branch_id", branchId);
+    }
+
+    const { data, error } = await query;
+    if (error || !data) return { staffIds: new Set(), authUserIds: new Set() };
+
+    const staffIds = new Set<string>();
+    const authUserIds = new Set<string>();
+    for (const row of data) {
+      if (row.staff_id) staffIds.add(row.staff_id);
+      if (row.auth_user_id) authUserIds.add(row.auth_user_id);
+    }
+    return { staffIds, authUserIds };
+  } catch {
+    return { staffIds: new Set(), authUserIds: new Set() };
+  }
+}
+
 export async function getStaffByBranch(branchId: string) {
   const supabase = await createClient();
   const primary = await supabase
@@ -48,6 +77,8 @@ export async function getStaffByBranch(branchId: string) {
     )
     .eq("branch_id", branchId)
     .eq("is_active", true)
+    .is("archived_at", null)
+    .is("merged_into_staff_id", null)
     .order("tier")
     .order("full_name");
 
@@ -63,6 +94,8 @@ export async function getStaffByBranch(branchId: string) {
       .select("id, full_name, tier, system_role, phone, is_active, branch_id")
       .eq("branch_id", branchId)
       .eq("is_active", true)
+      .is("archived_at", null)
+      .is("merged_into_staff_id", null)
       .order("tier")
       .order("full_name");
 
@@ -88,27 +121,52 @@ function injectStaffDefaults(row: Record<string, unknown>): Record<string, unkno
 
 export async function getAllStaff() {
   const supabase = await createClient();
-  const primary = await supabase
-    .from("staff")
-    .select("*, branches ( id, name )")
-    .order("tier")
-    .order("full_name")
-    .limit(500);
+  const [{ staffIds, authUserIds }, primary] = await Promise.all([
+    getSubmittedOnboardingStaffIds(),
+    supabase
+      .from("staff")
+      .select("*, branches ( id, name )")
+      .is("archived_at", null)
+      .is("merged_into_staff_id", null)
+      .order("tier")
+      .order("full_name")
+      .limit(500),
+  ]);
 
   if (!primary.error) {
-    return (primary.data ?? []).map((row) => injectStaffDefaults(row));
+    return (primary.data ?? []).map((row) => {
+      const isSubmitted =
+        staffIds.has(row.id as string) ||
+        (row.auth_user_id ? authUserIds.has(row.auth_user_id as string) : false);
+      return injectStaffDefaults({
+        ...row,
+        has_submitted_onboarding: isSubmitted,
+        onboarding_request_status: isSubmitted ? "submitted" : null,
+      });
+    });
   }
 
   if (isMissingStaffOrgColumnsError(primary.error.message)) {
     const fallback = await supabase
       .from("staff")
       .select(`${STAFF_COLUMNS_LEGACY}, branches ( id, name )`)
+      .is("archived_at", null)
+      .is("merged_into_staff_id", null)
       .order("tier")
       .order("full_name")
       .limit(500);
 
     if (fallback.error) throw new Error(fallback.error.message);
-    return (fallback.data ?? []).map((row) => injectStaffDefaults(row));
+    return (fallback.data ?? []).map((row) => {
+      const isSubmitted =
+        staffIds.has(row.id as string) ||
+        (row.auth_user_id ? authUserIds.has(row.auth_user_id as string) : false);
+      return injectStaffDefaults({
+        ...row,
+        has_submitted_onboarding: isSubmitted,
+        onboarding_request_status: isSubmitted ? "submitted" : null,
+      });
+    });
   }
 
   throw new Error(primary.error.message);
@@ -184,6 +242,8 @@ export async function getStaffByBranchWithBranches(branchId: string) {
     .select("*, branches ( id, name )")
     .eq("branch_id", branchId)
     .eq("is_active", true)
+    .is("archived_at", null)
+    .is("merged_into_staff_id", null)
     .order("tier")
     .order("full_name");
 
@@ -197,6 +257,8 @@ export async function getStaffByBranchWithBranches(branchId: string) {
       .select(`${STAFF_COLUMNS_LEGACY}, branches ( id, name )`)
       .eq("branch_id", branchId)
       .eq("is_active", true)
+      .is("archived_at", null)
+      .is("merged_into_staff_id", null)
       .order("tier")
       .order("full_name");
 
@@ -210,15 +272,29 @@ export async function getStaffByBranchWithBranches(branchId: string) {
 // ── Pending staff for a branch (invite generated but not yet active) ───────
 export async function getPendingStaffByBranch(branchId: string) {
   const supabase = await createClient();
-  const primary = await supabase
-    .from("staff")
-    .select("*, branches ( id, name )")
-    .eq("branch_id", branchId)
-    .eq("is_active", false)
-    .order("created_at", { ascending: false });
+  const [{ staffIds, authUserIds }, primary] = await Promise.all([
+    getSubmittedOnboardingStaffIds(branchId),
+    supabase
+      .from("staff")
+      .select("*, branches ( id, name )")
+      .eq("branch_id", branchId)
+      .eq("is_active", false)
+      .is("archived_at", null)
+      .is("merged_into_staff_id", null)
+      .order("created_at", { ascending: false }),
+  ]);
 
   if (!primary.error) {
-    return (primary.data ?? []).map((row) => injectStaffDefaults(row));
+    return (primary.data ?? []).map((row) => {
+      const isSubmitted =
+        staffIds.has(row.id as string) ||
+        (row.auth_user_id ? authUserIds.has(row.auth_user_id as string) : false);
+      return injectStaffDefaults({
+        ...row,
+        has_submitted_onboarding: isSubmitted,
+        onboarding_request_status: isSubmitted ? "submitted" : null,
+      });
+    });
   }
 
   if (isMissingStaffOrgColumnsError(primary.error.message)) {
@@ -227,10 +303,21 @@ export async function getPendingStaffByBranch(branchId: string) {
       .select(`${STAFF_COLUMNS_LEGACY}, branches ( id, name )`)
       .eq("branch_id", branchId)
       .eq("is_active", false)
+      .is("archived_at", null)
+      .is("merged_into_staff_id", null)
       .order("created_at", { ascending: false });
 
     if (fallback.error) throw new Error(fallback.error.message);
-    return (fallback.data ?? []).map((row) => injectStaffDefaults(row));
+    return (fallback.data ?? []).map((row) => {
+      const isSubmitted =
+        staffIds.has(row.id as string) ||
+        (row.auth_user_id ? authUserIds.has(row.auth_user_id as string) : false);
+      return injectStaffDefaults({
+        ...row,
+        has_submitted_onboarding: isSubmitted,
+        onboarding_request_status: isSubmitted ? "submitted" : null,
+      });
+    });
   }
 
   throw new Error(primary.error.message);
@@ -239,15 +326,29 @@ export async function getPendingStaffByBranch(branchId: string) {
 // ── Pending staff (invite generated but not yet active) ───────────────────
 export async function getPendingStaff() {
   const supabase = await createClient();
-  const primary = await supabase
-    .from("staff")
-    .select("*, branches ( id, name )")
-    .eq("is_active", false)
-    .order("created_at", { ascending: false })
-    .limit(200);
+  const [{ staffIds, authUserIds }, primary] = await Promise.all([
+    getSubmittedOnboardingStaffIds(),
+    supabase
+      .from("staff")
+      .select("*, branches ( id, name )")
+      .eq("is_active", false)
+      .is("archived_at", null)
+      .is("merged_into_staff_id", null)
+      .order("created_at", { ascending: false })
+      .limit(200),
+  ]);
 
   if (!primary.error) {
-    return (primary.data ?? []).map((row) => injectStaffDefaults(row));
+    return (primary.data ?? []).map((row) => {
+      const isSubmitted =
+        staffIds.has(row.id as string) ||
+        (row.auth_user_id ? authUserIds.has(row.auth_user_id as string) : false);
+      return injectStaffDefaults({
+        ...row,
+        has_submitted_onboarding: isSubmitted,
+        onboarding_request_status: isSubmitted ? "submitted" : null,
+      });
+    });
   }
 
   if (isMissingStaffOrgColumnsError(primary.error.message)) {
@@ -255,11 +356,22 @@ export async function getPendingStaff() {
       .from("staff")
       .select(`${STAFF_COLUMNS_LEGACY}, branches ( id, name )`)
       .eq("is_active", false)
+      .is("archived_at", null)
+      .is("merged_into_staff_id", null)
       .order("created_at", { ascending: false })
       .limit(200);
 
     if (fallback.error) throw new Error(fallback.error.message);
-    return (fallback.data ?? []).map((row) => injectStaffDefaults(row));
+    return (fallback.data ?? []).map((row) => {
+      const isSubmitted =
+        staffIds.has(row.id as string) ||
+        (row.auth_user_id ? authUserIds.has(row.auth_user_id as string) : false);
+      return injectStaffDefaults({
+        ...row,
+        has_submitted_onboarding: isSubmitted,
+        onboarding_request_status: isSubmitted ? "submitted" : null,
+      });
+    });
   }
 
   throw new Error(primary.error.message);

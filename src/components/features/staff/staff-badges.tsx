@@ -13,6 +13,7 @@ const statusClassNames: Record<StaffStatus, string> = {
   awaiting: "border-[#E7D9B8] bg-[var(--cs-warning-bg)] text-[var(--cs-warning-text)]",
   invited: "border-[#D7DDEE] bg-[var(--cs-info-bg)] text-[var(--cs-info-text)]",
   inactive: "border-[var(--cs-border)] bg-[var(--cs-neutral-bg)] text-[var(--cs-neutral-text)]",
+  archived: "border-[var(--cs-border)] bg-[var(--cs-surface-warm)] text-[var(--cs-text-muted)]",
 };
 
 function getRoleClassName(role: string): string {

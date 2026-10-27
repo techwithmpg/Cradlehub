@@ -3,7 +3,10 @@
 import { useCallback, useMemo, useState } from "react";
 import { useSearchParams } from "next/navigation";
 import { AttendanceTabPanel } from "@/components/features/attendance/attendance-ui";
-import type { StaffMember } from "@/components/features/staff/staff-management-utils";
+import {
+  getStaffStatus,
+  type StaffMember,
+} from "@/components/features/staff/staff-management-utils";
 import type {
   BranchAssignmentIssue,
   BranchAssignmentResolutionResult,
@@ -248,6 +251,15 @@ export function CrmStaffWorkspace({
         request.status === "requires_review"
     ).length;
 
+  const pendingStatusCount = useMemo(
+    () =>
+      workspacePendingStaff.filter((member) => {
+        const s = getStaffStatus(member);
+        return s === "awaiting" || s === "invited";
+      }).length,
+    [workspacePendingStaff]
+  );
+
   const tabs = useMemo<
     { key: CrmStaffTab; label: string; count?: number }[]
   >(
@@ -277,16 +289,16 @@ export function CrmStaffWorkspace({
       {
         key: "status",
         label: "Status",
-        count: workspacePendingStaff.length,
+        count: pendingStatusCount,
       }
     ],
     [
       canonicalData.canReviewOnboarding,
       pendingBranchCorrectionCount,
+      pendingStatusCount,
       providerAssignments.length,
       workspaceAllStaff.length,
       workspaceOnboardingRequests.length,
-      workspacePendingStaff.length,
     ]
   );
 
