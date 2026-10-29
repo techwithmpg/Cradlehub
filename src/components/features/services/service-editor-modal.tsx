@@ -17,6 +17,8 @@ type Props = {
   service: OwnerService | null;
   branches: OwnerServiceBranch[];
   categories: OwnerServiceCategory[];
+  scopedBranchId?: string | null;
+  scopedBranchName?: string | null;
   onClose: () => void;
   onSaved: () => void;
 };
@@ -29,7 +31,16 @@ function peso(value: number) {
   return new Intl.NumberFormat("en-PH", { style: "currency", currency: "PHP", maximumFractionDigits: 2 }).format(value);
 }
 
-export function ServiceEditorModal({ open, service, branches, categories, onClose, onSaved }: Props) {
+export function ServiceEditorModal({
+  open,
+  service,
+  branches,
+  categories,
+  scopedBranchId = null,
+  scopedBranchName = null,
+  onClose,
+  onSaved,
+}: Props) {
   const fileInput = useRef<HTMLInputElement>(null);
   const submitting = useRef(false);
   const [pending, setPending] = useState(false);
@@ -49,8 +60,13 @@ export function ServiceEditorModal({ open, service, branches, categories, onClos
   const [maximumDuration, setMaximumDuration] = useState(String(service?.maximum_duration_minutes ?? 180));
   const [active, setActive] = useState(service?.is_active ?? true);
   const [visible, setVisible] = useState(service?.is_public_visible ?? true);
-  const [allBranches, setAllBranches] = useState(!service || (branches.length > 0 && service.offeredBranchIds.length === branches.length));
-  const [selectedBranchIds, setSelectedBranchIds] = useState<string[]>(service?.offeredBranchIds ?? []);
+  const isBranchScoped = Boolean(scopedBranchId);
+  const [allBranches, setAllBranches] = useState(
+    !isBranchScoped && (!service || (branches.length > 0 && service.offeredBranchIds.length === branches.length))
+  );
+  const [selectedBranchIds, setSelectedBranchIds] = useState<string[]>(
+    service?.offeredBranchIds ?? (scopedBranchId ? [scopedBranchId] : [])
+  );
   const [imageAlt, setImageAlt] = useState(service?.image_alt ?? "");
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const [localPreview, setLocalPreview] = useState<string | null>(null);
@@ -82,6 +98,7 @@ export function ServiceEditorModal({ open, service, branches, categories, onClos
   }
 
   function toggleBranch(branchId: string) {
+    if (scopedBranchId && branchId !== scopedBranchId) return;
     setSelectedBranchIds((current) => current.includes(branchId)
       ? current.filter((id) => id !== branchId)
       : [...current, branchId]);
@@ -103,6 +120,11 @@ export function ServiceEditorModal({ open, service, branches, categories, onClos
       }
     }
     try {
+      const effectiveBranchIds = scopedBranchId && !service
+        ? [scopedBranchId]
+        : selectedBranchIds;
+      const effectiveAllBranches = scopedBranchId ? false : allBranches;
+
       const formData = new FormData();
       formData.set("catalog", JSON.stringify({
         ...(service && { serviceId: service.id }),
@@ -112,7 +134,9 @@ export function ServiceEditorModal({ open, service, branches, categories, onClos
         extensionIncrementMinutes: durationPolicy === "extendable" ? extensionStep : null,
         extensionPrice: durationPolicy === "extendable" ? stepPrice : null,
         maximumDurationMinutes: durationPolicy === "extendable" ? max : null,
-        imageAlt: imageAlt.trim(), allBranches, branchIds: selectedBranchIds,
+        imageAlt: imageAlt.trim(),
+        allBranches: effectiveAllBranches,
+        branchIds: effectiveBranchIds,
       }));
       if (selectedFile) formData.set("image", selectedFile);
       const result = await saveOwnerServiceCatalogAction(formData);
@@ -194,9 +218,52 @@ export function ServiceEditorModal({ open, service, branches, categories, onClos
               </section>
               <section>
                 <h3 className="mb-3 text-sm font-semibold text-[var(--cs-text)]">4. Branch Availability</h3>
-                <label className="mb-2 flex gap-2 text-sm"><input type="radio" name="branchMode" checked={allBranches} onChange={() => setAllBranches(true)} />All branches</label>
-                <label className="mb-2 flex gap-2 text-sm"><input type="radio" name="branchMode" checked={!allBranches} onChange={() => setAllBranches(false)} />Selected branches</label>
-                {!allBranches && <div className="space-y-1 rounded-md border border-[var(--cs-border)] p-2">{branches.map((branch) => <label key={branch.id} className="flex gap-2 py-1 text-sm"><input type="checkbox" checked={selectedBranchIds.includes(branch.id)} onChange={() => toggleBranch(branch.id)} />{branch.name}</label>)}</div>}
+                {scopedBranchId && (
+                  <p className="mb-2 rounded-md border border-[var(--cs-border)] bg-[var(--cs-surface-warm)] px-2.5 py-2 text-xs text-[var(--cs-text-muted)]">
+                    Shared catalogue details apply across branches. {service ? "Branch offering changes when editing an existing service are scoped to " : "New service offerings are scoped to "}{scopedBranchName ?? "your branch"}.
+                  </p>
+                )}
+                <label className={`mb-2 flex gap-2 text-sm ${scopedBranchId ? "opacity-60 cursor-not-allowed" : ""}`}>
+                  <input
+                    type="radio"
+                    name="branchMode"
+                    disabled={Boolean(scopedBranchId)}
+                    checked={allBranches}
+                    onChange={() => setAllBranches(true)}
+                  />
+                  All branches
+                </label>
+                <label className="mb-2 flex gap-2 text-sm">
+                  <input
+                    type="radio"
+                    name="branchMode"
+                    checked={!allBranches}
+                    onChange={() => setAllBranches(false)}
+                  />
+                  Selected branches
+                </label>
+                {!allBranches && (
+                  <div className="space-y-1 rounded-md border border-[var(--cs-border)] p-2">
+                    {branches.map((branch) => {
+                      const lockedOtherBranch = Boolean(scopedBranchId && branch.id !== scopedBranchId);
+                      return (
+                        <label
+                          key={branch.id}
+                          className={`flex gap-2 py-1 text-sm ${lockedOtherBranch ? "opacity-60 cursor-not-allowed" : ""}`}
+                        >
+                          <input
+                            type="checkbox"
+                            aria-label={branch.name}
+                            disabled={lockedOtherBranch}
+                            checked={selectedBranchIds.includes(branch.id)}
+                            onChange={() => toggleBranch(branch.id)}
+                          />
+                          {branch.name}
+                        </label>
+                      );
+                    })}
+                  </div>
+                )}
               </section>
               <section>
                 <h3 className="mb-3 text-sm font-semibold text-[var(--cs-text)]">5. Visibility &amp; Status</h3>

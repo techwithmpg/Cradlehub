@@ -38,6 +38,7 @@ import {
   withPossibleMatch,
 } from "@/lib/integrations/google-sheets/sheet-native-match";
 import { sortSheetReferencesRecentFirst } from "@/lib/bookings/booking-recency";
+import { isOperationalBookingGroup } from "@/lib/bookings/operational-booking-eligibility";
 import type { SheetNativeReferencesState } from "@/lib/integrations/google-sheets/sheet-native-types";
 
 const NO_SELECTION = "__no_booking_selected__";
@@ -57,6 +58,7 @@ type DesktopWorkspaceProps = {
   branches?: Branch[];
   date: string;
   businessDate?: string;
+  clockTime?: string;
   statusFilter?: string;
   sourceFilter?: string;
   referenceSource?: "all" | "cradlehub" | "master_sheet";
@@ -143,6 +145,21 @@ export function BookingsDesktopWorkspace(props: DesktopWorkspaceProps) {
     [props.bookings, props.workspaceContext]
   );
 
+  // Operational bookings simplification (CRM):
+  // Show only operationally actionable bookings (excluding completed+paid, cancelled, expired unattended)
+  const operationalGroups = useMemo(() => {
+    if (props.workspaceContext !== "crm") {
+      return allGroups;
+    }
+    const businessDate = props.businessDate ?? props.date;
+    return allGroups.filter((group) =>
+      isOperationalBookingGroup(group, {
+        businessDate,
+        clockTime: props.clockTime,
+      })
+    );
+  }, [allGroups, props.workspaceContext, props.businessDate, props.date, props.clockTime]);
+
   // Collect unique options for dropdowns
   const availableServices = useMemo(() => {
     if (modalContext?.services && modalContext.services.length > 0) {
@@ -208,7 +225,7 @@ export function BookingsDesktopWorkspace(props: DesktopWorkspaceProps) {
   const filteredGroups = useMemo(() => {
     if (props.referenceSource === "master_sheet") return [];
 
-    return allGroups
+    return operationalGroups
       .filter((group) => {
         if (quickFilter === "needs-attention" && group.attentionSummary.length === 0) return false;
         if (
@@ -303,7 +320,7 @@ export function BookingsDesktopWorkspace(props: DesktopWorkspaceProps) {
         return a.startTime.localeCompare(b.startTime);
       });
   }, [
-    allGroups,
+    operationalGroups,
     props.referenceSource,
     quickFilter,
     statusFilter,
@@ -345,7 +362,7 @@ export function BookingsDesktopWorkspace(props: DesktopWorkspaceProps) {
     {
       key: "all" as const,
       label: "All bookings",
-      count: quickFilter === "upcoming" ? undefined : allGroups.length,
+      count: quickFilter === "upcoming" ? undefined : operationalGroups.length,
     },
     {
       key: "needs-attention" as const,
@@ -353,7 +370,7 @@ export function BookingsDesktopWorkspace(props: DesktopWorkspaceProps) {
       count:
         quickFilter === "upcoming"
           ? undefined
-          : allGroups.filter((group) => group.attentionSummary.length > 0).length,
+          : operationalGroups.filter((group) => group.attentionSummary.length > 0).length,
     },
     {
       key: "active-now" as const,
@@ -361,14 +378,14 @@ export function BookingsDesktopWorkspace(props: DesktopWorkspaceProps) {
       count:
         quickFilter === "upcoming"
           ? undefined
-          : allGroups.filter((group) =>
+          : operationalGroups.filter((group) =>
               group.lines.some((line) => bookingMatchesQuickFilter(line, "active-now"))
             ).length,
     },
     {
       key: "upcoming" as const,
       label: "Upcoming",
-      count: quickFilter === "upcoming" ? allGroups.length : undefined,
+      count: quickFilter === "upcoming" ? operationalGroups.length : undefined,
     },
   ];
 

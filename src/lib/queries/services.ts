@@ -145,8 +145,8 @@ export async function getAllServices() {
   return (await getMasterServiceCatalog()).filter((service) => service.is_public_visible);
 }
 
-export async function getAllServicesForOwner() {
-  return getMasterServiceCatalog({ includeInactive: true });
+export async function getAllServicesForOwner(options?: { useAdminClient?: boolean }) {
+  return getMasterServiceCatalog({ includeInactive: true, useAdminClient: options?.useAdminClient });
 }
 
 export async function getServiceById(serviceId: string) {

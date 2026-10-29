@@ -134,4 +134,73 @@ describe("Owner service modal", () => {
       isActive: false, isPublicVisible: false, durationPolicy: "extendable",
     });
   });
+
+  it("locks other branches' offering checkboxes when scoped to a CRM branch on edit", () => {
+    const service = {
+      id: "service-id", name: "Swedish Massage", description: "Relaxation",
+      category_id: categoryId, duration_minutes: 60, price: 800,
+      duration_policy: "fixed", extension_increment_minutes: null,
+      extension_price: null, maximum_duration_minutes: null,
+      is_active: true, is_public_visible: true,
+      image_url: null, image_alt: null,
+      offeredBranchIds: [branchId],
+    } as OwnerService;
+    render(<ServiceEditorModal open service={service}
+      branches={[{ id: branchId, name: "Main Spa" }, { id: "branch-sm", name: "SM Branch" }]}
+      categories={[{ id: categoryId, name: "Massage" }]}
+      scopedBranchId="branch-sm"
+      scopedBranchName="SM Branch"
+      onClose={vi.fn()} onSaved={vi.fn()} />);
+
+    expect(screen.getByText(/Branch offering changes when editing an existing service are scoped to SM Branch/i)).toBeTruthy();
+    const mainCheckbox = screen.getByLabelText("Main Spa") as HTMLInputElement;
+    const smCheckbox = screen.getByLabelText("SM Branch") as HTMLInputElement;
+    expect(mainCheckbox.disabled).toBe(true);
+    expect(mainCheckbox.checked).toBe(true);
+    expect(smCheckbox.disabled).toBe(false);
+    expect(smCheckbox.checked).toBe(false);
+  });
+
+  it("defaults to scoped branch, locks all-branches and other branches when scoped to a CRM branch on create", async () => {
+    state.save.mockResolvedValue({ success: true, serviceId: "new-service-id" });
+    const onSaved = vi.fn();
+    render(
+      <ServiceEditorModal
+        open
+        service={null}
+        branches={[{ id: branchId, name: "Main Spa" }, { id: "branch-sm", name: "SM Branch" }]}
+        categories={[{ id: categoryId, name: "Massage" }]}
+        scopedBranchId="branch-sm"
+        scopedBranchName="SM Branch"
+        onClose={vi.fn()}
+        onSaved={onSaved}
+      />
+    );
+
+    expect(screen.getByText(/New service offerings are scoped to SM Branch/i)).toBeTruthy();
+    const allBranchesRadio = screen.getByRole("radio", { name: "All branches" }) as HTMLInputElement;
+    const selectedBranchesRadio = screen.getByRole("radio", { name: "Selected branches" }) as HTMLInputElement;
+    expect(allBranchesRadio.disabled).toBe(true);
+    expect(selectedBranchesRadio.checked).toBe(true);
+
+    const mainCheckbox = screen.getByLabelText("Main Spa") as HTMLInputElement;
+    const smCheckbox = screen.getByLabelText("SM Branch") as HTMLInputElement;
+    expect(mainCheckbox.disabled).toBe(true);
+    expect(mainCheckbox.checked).toBe(false);
+    expect(smCheckbox.disabled).toBe(false);
+    expect(smCheckbox.checked).toBe(true);
+
+    fireEvent.change(screen.getByPlaceholderText("e.g. Swedish Massage"), { target: { value: "Aromatherapy Massage" } });
+    fireEvent.change(screen.getByRole("combobox"), { target: { value: categoryId } });
+    fireEvent.submit(screen.getByRole("button", { name: "Create Service" }).closest("form")!);
+    await waitFor(() => expect(onSaved).toHaveBeenCalledOnce());
+
+    const formData = state.save.mock.calls[0]![0] as FormData;
+    expect(JSON.parse(String(formData.get("catalog")))).toMatchObject({
+      name: "Aromatherapy Massage",
+      categoryId,
+      allBranches: false,
+      branchIds: ["branch-sm"],
+    });
+  });
 });

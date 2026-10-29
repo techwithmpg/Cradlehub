@@ -43,6 +43,7 @@ export function CradleFlowQuickPaymentModal({
   loading,
   error,
   requestedOrderId,
+  initialPaymentMethod,
   allowLegacyCheckout,
   onClose,
   onRetry,
@@ -53,6 +54,7 @@ export function CradleFlowQuickPaymentModal({
   loading: boolean;
   error?: string | null;
   requestedOrderId?: string;
+  initialPaymentMethod?: FinancialPaymentMethod;
   allowLegacyCheckout?: boolean;
   onClose: () => void;
   onRetry: () => void;
@@ -86,18 +88,23 @@ export function CradleFlowQuickPaymentModal({
     );
   const firstAccount = (method: FinancialPaymentMethod) => accountChoices(method)[0]?.id ?? "";
 
+  const initialMethod =
+    initialPaymentMethod && accountChoices(initialPaymentMethod).length > 0
+      ? initialPaymentMethod
+      : "cash";
+
   // Derive the default payment line from the selected payable order.
   // Only user edits are stored as state, eliminating the reset effect.
   const tenderKey = selected
-    ? `${data?.branchId ?? ""}:${data?.businessDate ?? ""}:${selected.sourceKind}:${selected.id}:${selected.remainingBalance}`
+    ? `${data?.branchId ?? ""}:${data?.businessDate ?? ""}:${selected.sourceKind}:${selected.id}:${selected.remainingBalance}:${initialMethod}`
     : "";
 
   const defaultTenders: Tender[] = selected
     ? [
         {
           id: `default-${selected.id}`,
-          method: "cash",
-          accountId: firstAccount("cash"),
+          method: initialMethod,
+          accountId: firstAccount(initialMethod),
           amount: selected.remainingBalance.toFixed(2),
           reference: "",
         },

@@ -15,9 +15,17 @@ type Props = {
   services: OwnerService[];
   branches: OwnerServiceBranch[];
   categories: OwnerServiceCategory[];
+  scopedBranchId?: string | null;
+  scopedBranchName?: string | null;
 };
 
-export function ServicesPageClient({ services, branches, categories }: Props) {
+export function ServicesPageClient({
+  services,
+  branches,
+  categories,
+  scopedBranchId = null,
+  scopedBranchName = null,
+}: Props) {
   const router = useRouter();
   const [search, setSearch] = useState("");
   const [filter, setFilter] = useState<ServiceFilter>("all");
@@ -75,6 +83,8 @@ export function ServicesPageClient({ services, branches, categories }: Props) {
         service={editing === "new" ? null : editing}
         categories={categories}
         branches={branches}
+        scopedBranchId={scopedBranchId}
+        scopedBranchName={scopedBranchName}
         onClose={() => setEditing(null)}
         onSaved={() => { setEditing(null); router.refresh(); }}
       />

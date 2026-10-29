@@ -1,91 +1,61 @@
 import { redirect } from "next/navigation";
-import { CrmOperationalPageShell } from "@/components/features/crm/operational/crm-operational-page-shell";
-import { CrmServicesWorkspace } from "@/components/features/crm/services/crm-services-workspace";
-import { OwnerAddServiceAction } from "@/components/features/crm/services/owner-add-service-action";
+import { ServicesPageClient } from "@/components/features/services/services-page-client";
+import type { OwnerService } from "@/components/features/services/owner-service-types";
 import { getFrontDeskContext } from "@/lib/queries/crm-context";
-import { getBranchStaffAndServiceAssignments } from "@/lib/queries/crm-services";
-import { getBranchBookingRulesOrDefault } from "@/lib/queries/branch-booking-rules";
-import { getBranchAssignableServices, getBranchServiceCatalog } from "@/lib/services/service-catalog";
-import type { ServiceLite } from "@/app/(dashboard)/owner/branches/[branchId]/branch-services-panel";
-import type { ActiveBranchService } from "@/components/features/manager-settings/types";
-import { getAllCategories } from "@/lib/queries/services";
 import { getAllBranches } from "@/lib/queries/branches";
+import { getAllCategories, getAllServicesForOwner } from "@/lib/queries/services";
+import { createClient } from "@/lib/supabase/server";
 
 export default async function CrmServicesPage({ searchParams }: { searchParams: Promise<{ tab?: string }> }) {
   const [context, params] = await Promise.all([getFrontDeskContext(), searchParams]);
-  if (!context.capabilities.canManageCrmSetup) redirect("/crm");
+  if (!context.capabilities.canManageServices) redirect("/crm");
 
-  // Preserve existing links to supporting service views. The catalog and its
-  // provider editor are the primary operational workspace.
+  // Preserve existing links to supporting setup views in /crm/setup.
   if (["providers", "staff", "capabilities"].includes(params.tab ?? "")) {
     redirect("/crm/setup?tab=providers");
   }
   if (["issues", "readiness_issues", "readiness", "public", "public_readiness"].includes(params.tab ?? "")) {
     redirect("/crm/setup?tab=public_readiness");
   }
+  if (["customization", "assignments"].includes(params.tab ?? "")) {
+    redirect("/crm/setup?tab=services");
+  }
 
   const { branchId, branchName, role } = context;
-  const [servicesResult, assignableResult, rulesResult] = await Promise.allSettled([
-    getBranchServiceCatalog(branchId, {
-      audience: "management",
-      includeInactiveBranchRows: true,
-      includeUnavailableDeliveryModes: true,
-    }),
-    getBranchAssignableServices(branchId),
-    getBranchBookingRulesOrDefault(branchId),
+  const [categories, services, branches] = await Promise.all([
+    getAllCategories(),
+    getAllServicesForOwner({ useAdminClient: role !== "owner" }),
+    getAllBranches(),
   ]);
+  const supabase = await createClient();
+  const { data: offerings, error } = services.length > 0
+    ? await supabase
+        .from("branch_services")
+        .select("service_id, branch_id, is_active")
+        .in("service_id", services.map((service) => service.id))
+    : { data: [], error: null };
+  if (error) throw new Error(error.message);
 
-  const services = servicesResult.status === "fulfilled" ? servicesResult.value as ServiceLite[] : [];
-  const activeServices = services.filter((service): service is ActiveBranchService => service.is_active && service.services !== null);
-  const homeServiceEnabled = rulesResult.status === "fulfilled" && rulesResult.value.homeServiceEnabled;
-  const assignableServices = assignableResult.status === "fulfilled"
-    ? assignableResult.value as ServiceLite[]
-    : activeServices.filter((service) =>
-        (service.available_in_spa ?? true) || (homeServiceEnabled && (service.available_home_service ?? false))
-      );
-
-  const serviceIds = assignableServices.map((service) => {
-    const nested = Array.isArray(service.services) ? service.services[0] : service.services;
-    return service.service_id ?? nested?.id ?? null;
-  }).filter((id): id is string => id !== null);
-
-  const assignmentResult = await Promise.allSettled([
-    getBranchStaffAndServiceAssignments(branchId, serviceIds),
-  ]);
-  const assignmentData = assignmentResult[0]?.status === "fulfilled" ? assignmentResult[0].value : null;
-  const ownerOptions = role === "owner"
-    ? await Promise.all([getAllCategories(), getAllBranches()])
-    : null;
-  const loadError = servicesResult.status === "rejected"
-    ? "Could not load services."
-    : !assignmentData
-      ? "Could not load provider assignments."
-      : null;
+  const activeBranchIds = new Set(branches.map((branch) => branch.id));
+  const offeredByService = new Map<string, string[]>();
+  for (const row of offerings ?? []) {
+    if (!row.is_active || !activeBranchIds.has(row.branch_id)) continue;
+    const offered = offeredByService.get(row.service_id) ?? [];
+    offered.push(row.branch_id);
+    offeredByService.set(row.service_id, offered);
+  }
+  const ownerServices = services.map((service) => ({
+    ...service,
+    offeredBranchIds: offeredByService.get(service.id) ?? [],
+  })) as OwnerService[];
 
   return (
-    <CrmOperationalPageShell
-      title="Services & Providers"
-      description="Manage services, provider coverage, and service setup."
-      context={`${branchName} · ${role}`}
-      actions={ownerOptions ? <OwnerAddServiceAction
-        categories={ownerOptions[0].map(({ id, name }) => ({ id, name }))}
-        branches={ownerOptions[1].map(({ id, name }) => ({ id, name }))}
-      /> : undefined}
-    >
-      <CrmServicesWorkspace
-        branchId={branchId}
-        branchName={branchName}
-        services={services}
-        assignableServices={assignableServices}
-        allServices={[]}
-        loadError={loadError}
-        providerStaff={assignmentData?.staff ?? []}
-        providerAssignments={assignmentData?.assignments ?? []}
-        homeServiceEnabled={homeServiceEnabled}
-        reviewerSystemRole={role}
-        initialTab="services"
-        compactNavigation
-      />
-    </CrmOperationalPageShell>
+    <ServicesPageClient
+      services={ownerServices}
+      categories={categories.map(({ id, name }) => ({ id, name }))}
+      branches={branches.map(({ id, name }) => ({ id, name }))}
+      scopedBranchId={role === "owner" ? null : branchId}
+      scopedBranchName={role === "owner" ? null : branchName}
+    />
   );
 }

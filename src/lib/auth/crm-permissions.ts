@@ -73,10 +73,30 @@ export function canManageCrmSetup(role: string): boolean {
   return isCrmOperationalRole(role);
 }
 
-/** Can add/edit/remove services.
- *  Available to all CRM/front-desk roles; branch scope still applies. */
+/**
+ * System roles permitted to manage the service catalogue (master services & branch offerings).
+ * Reconciled with database public.is_service_admin():
+ * - owner
+ * - manager, assistant_manager, store_manager (branch management)
+ * - crm, csr_head (front-desk leadership)
+ * Subordinate front-desk roles (csr, csr_staff) are excluded from shared catalogue administration.
+ */
+export const SERVICE_ADMIN_ROLES = [
+  "owner",
+  "manager",
+  "assistant_manager",
+  "store_manager",
+  "crm",
+  "csr_head",
+] as const;
+
+export type ServiceAdminRole = (typeof SERVICE_ADMIN_ROLES)[number];
+
+/** Can add/edit/configure services.
+ *  Restricted to authorized service admin roles (owner, manager, assistant_manager,
+ *  store_manager, crm, csr_head). Routine csr and csr_staff are excluded. */
 export function canManageServices(role: string): boolean {
-  return isCrmOperationalRole(role);
+  return (SERVICE_ADMIN_ROLES as readonly string[]).includes(role);
 }
 
 /** Can create, update, cancel, and manage bookings.

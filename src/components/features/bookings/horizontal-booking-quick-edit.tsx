@@ -28,6 +28,7 @@ import { getTherapistRecommendationsAction } from "@/lib/actions/assignment-reco
 import type { ScoredStaff } from "@/lib/assignments/recommendation-engine";
 import { firstBookingRelation } from "@/lib/bookings/booking-display";
 import { isHomeServiceBooking } from "@/lib/bookings/bookings-workspace-filters";
+import { CancelBookingDialog } from "@/components/features/bookings/cancel-booking-dialog";
 
 type HorizontalBookingQuickEditProps = {
   group: CrmBookingGroup;
@@ -132,6 +133,7 @@ export function HorizontalBookingQuickEdit({
   const [resourceId, setResourceId] = useState<string>(initialResourceId);
   const [notes, setNotes] = useState<string>(() => readBookingNote(activeLine));
   const [saveError, setSaveError] = useState<string | null>(null);
+  const [isCancelBookingOpen, setIsCancelBookingOpen] = useState(false);
 
   const savedBaselineRef = useRef<SavedLineBaseline>(createLineBaseline(activeLine));
 
@@ -454,15 +456,23 @@ export function HorizontalBookingQuickEdit({
           </div>
         </div>
 
-        {/* Action buttons matching approved screenshot EXACT order: Cancel | Reschedule | Save Changes */}
+        {/* Action buttons: Cancel Booking | Cancel Edit | Reschedule | Save Changes */}
         <div className="flex items-center gap-2">
+          <button
+            type="button"
+            onClick={() => setIsCancelBookingOpen(true)}
+            disabled={isSaving}
+            className="flex items-center gap-1.5 rounded-lg border border-rose-200 bg-rose-50/70 px-3.5 py-1.5 text-xs font-medium text-rose-700 transition hover:bg-rose-100/80 hover:border-rose-300 active:scale-[0.98] disabled:opacity-50"
+          >
+            Cancel Booking
+          </button>
           <button
             type="button"
             onClick={onCancel}
             disabled={isSaving}
             className="rounded-lg border border-neutral-300 bg-white px-3.5 py-1.5 text-xs font-medium text-neutral-700 transition hover:bg-neutral-50 active:scale-[0.98] disabled:opacity-50"
           >
-            Cancel
+            Cancel Edit
           </button>
           <button
             type="button"
@@ -688,6 +698,18 @@ export function HorizontalBookingQuickEdit({
           className="h-9 w-full rounded-lg border border-neutral-200 bg-white px-3 text-xs text-neutral-800 placeholder:text-neutral-400 focus:border-[#006044] focus:outline-none focus:ring-1 focus:ring-[#006044]"
         />
       </div>
+
+      {isCancelBookingOpen ? (
+        <CancelBookingDialog
+          booking={activeLine}
+          open={isCancelBookingOpen}
+          onOpenChange={setIsCancelBookingOpen}
+          onChanged={() => {
+            onCancel();
+            onSaved();
+          }}
+        />
+      ) : null}
     </div>
   );
 }

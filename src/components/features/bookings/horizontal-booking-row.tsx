@@ -1,6 +1,7 @@
 "use client";
 
 import { useTransition } from "react";
+import Link from "next/link";
 import { toast } from "sonner";
 import {
   ChevronDown,
@@ -253,7 +254,17 @@ export function HorizontalBookingRow({
         {/* 2. Customer */}
         <div className="min-w-0 flex-[1.1]">
           <div className="truncate text-sm font-semibold text-neutral-900">
-            {customer?.full_name ?? group.organizerName ?? "Walk-in Guest"}
+            {customer?.id ? (
+              <Link
+                href={`/crm/${customer.id}`}
+                onClick={(e) => e.stopPropagation()}
+                className="hover:text-[#006044] hover:underline"
+              >
+                {customer?.full_name ?? group.organizerName ?? "Walk-in Guest"}
+              </Link>
+            ) : (
+              customer?.full_name ?? group.organizerName ?? "Walk-in Guest"
+            )}
             {group.lines.length > 1 ? (
               <span className="ml-1 text-xs font-normal text-neutral-500">
                 (+{group.lines.length - 1} guests)

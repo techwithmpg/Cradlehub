@@ -64,4 +64,13 @@ describe("workspace navigation contract", () => {
       },
     ]);
   });
+
+  it("includes Services in the primary CRM sidebar navigation", () => {
+    const crmItems = NAV_CONFIG.crm?.items ?? [];
+    expect(crmItems).toContainEqual({
+      label: "Services",
+      href: "/crm/services",
+      icon: "Sparkles",
+    });
+  });
 });

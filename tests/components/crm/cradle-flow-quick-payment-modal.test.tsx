@@ -124,4 +124,27 @@ describe("CRM quick payment modal", () => {
     ).toBe(true);
     expect(mocks.recordOrder).not.toHaveBeenCalled();
   });
+
+  it("initializes with initialPaymentMethod and compatible account when provided", async () => {
+    render(
+      <CradleFlowQuickPaymentModal
+        data={data}
+        loading={false}
+        requestedOrderId="order-1"
+        initialPaymentMethod="gcash"
+        {...callbacks}
+      />
+    );
+    await waitFor(() => expect(screen.getByLabelText("Tender 1 amount")).toBeTruthy());
+    expect((screen.getByLabelText("Tender 1 method") as HTMLSelectElement).value).toBe("gcash");
+    expect((screen.getByLabelText("Tender 1 amount") as HTMLInputElement).value).toBe("1200.00");
+
+    fireEvent.click(screen.getByRole("button", { name: "Record Payment" }));
+    await waitFor(() => expect(mocks.recordOrder).toHaveBeenCalledTimes(1));
+    const input = mocks.recordOrder.mock.calls[0]?.[0];
+    expect(input.orderId).toBe("order-1");
+    expect(input.payments).toEqual([
+      { amount: 1200, paymentMethod: "gcash", financialAccountId: "gcash", externalReference: null },
+    ]);
+  });
 });

@@ -41,6 +41,24 @@ vi.mock("@/components/features/cash-flow/handover-drawer-modal", () => ({
 vi.mock("@/components/features/cash-flow/close-drawer-modal", () => ({
   CloseDrawerModal: () => null,
 }));
+vi.mock("@/components/features/crm/today/cradle-flow-quick-payment-modal", () => ({
+  CradleFlowQuickPaymentModal: ({
+    onClose,
+    requestedOrderId,
+    initialPaymentMethod,
+  }: {
+    onClose: () => void;
+    requestedOrderId?: string;
+    initialPaymentMethod?: string;
+  }) => (
+    <div>
+      <span>Quick Payment Modal</span>
+      {requestedOrderId && <span>Order: {requestedOrderId}</span>}
+      {initialPaymentMethod && <span>Method: {initialPaymentMethod}</span>}
+      <button onClick={onClose}>Close quick payment</button>
+    </div>
+  ),
+}));
 vi.mock("@/components/features/cash-flow/record-financial-entry-modal", () => ({
   RecordFinancialEntryModal: ({
     open,
@@ -163,5 +181,34 @@ describe("PERF-8 retained CRM Cash Flow route state", () => {
       expect(window.location.search).toBe("?tab=today")
     );
     expect(screen.getByText("Today panel")).toBeTruthy();
+  });
+
+  it("renders CradleFlowQuickPaymentModal when entry=payment deep link is supplied", async () => {
+    window.history.replaceState(
+      null,
+      "",
+      "/crm/cash-flow?tab=today&entry=payment"
+    );
+
+    render(
+      <CashFlowWorkspace
+        initialData={data}
+        initialTab="today"
+        initialEntryMode="customer_payment"
+        syncCrmRouteState
+      />
+    );
+
+    expect(screen.getByText("Quick Payment Modal")).toBeTruthy();
+    expect(screen.queryByText(/Entry mode:/)).toBeNull();
+
+    fireEvent.click(
+      screen.getByRole("button", { name: "Close quick payment" })
+    );
+
+    await waitFor(() =>
+      expect(window.location.search).toBe("?tab=today")
+    );
+    expect(screen.queryByText("Quick Payment Modal")).toBeNull();
   });
 });

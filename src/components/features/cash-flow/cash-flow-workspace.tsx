@@ -14,6 +14,7 @@ import { OpenCashDrawerModal } from "./open-cash-drawer-modal";
 import { HandoverDrawerModal } from "./handover-drawer-modal";
 import { CloseDrawerModal } from "./close-drawer-modal";
 import { RecordFinancialEntryModal, type FinancialEntryMode } from "./record-financial-entry-modal";
+import { CradleFlowQuickPaymentModal } from "@/components/features/crm/today/cradle-flow-quick-payment-modal";
 
 export type CashFlowTab = "today" | "ledger" | "day-close" | "history";
 
@@ -663,21 +664,36 @@ export function CashFlowWorkspace({
       )}
 
       {/* ── Record Financial Entry Modal ─────────────────────────────── */}
-      <RecordFinancialEntryModal
-        open={effectiveRecordPaymentOpen}
-        onOpenChange={handleRecordPaymentOpenChange}
-        accounts={initialData.accounts}
-        expenseCategories={initialData.expenseCategories}
-        staffOptions={initialData.staffOptions}
-        payableOrders={initialData.payableOrders}
-        activeCashSessions={initialData.cashSessions?.activeSessions ?? []}
-        initialOrderId={targetOrderId}
-        initialPaymentMethod={targetPaymentMethod}
-        initialMode={effectiveEntryMode}
-        branchId={initialData.branchId}
-        businessDate={initialData.businessDate}
-        onSuccess={handleConfirmedMutation}
-      />
+      {effectiveRecordPaymentOpen && effectiveEntryMode === "customer_payment" ? (
+        <CradleFlowQuickPaymentModal
+          data={initialData}
+          loading={false}
+          requestedOrderId={targetOrderId}
+          initialPaymentMethod={targetPaymentMethod}
+          onClose={() => handleRecordPaymentOpenChange(false)}
+          onRetry={() => {
+            void handleRefresh();
+          }}
+          onSuccess={handleConfirmedMutation}
+          onLegacyCheckout={() => handleRecordPaymentOpenChange(false)}
+        />
+      ) : (
+        <RecordFinancialEntryModal
+          open={effectiveRecordPaymentOpen}
+          onOpenChange={handleRecordPaymentOpenChange}
+          accounts={initialData.accounts}
+          expenseCategories={initialData.expenseCategories}
+          staffOptions={initialData.staffOptions}
+          payableOrders={initialData.payableOrders}
+          activeCashSessions={initialData.cashSessions?.activeSessions ?? []}
+          initialOrderId={targetOrderId}
+          initialPaymentMethod={targetPaymentMethod}
+          initialMode={effectiveEntryMode}
+          branchId={initialData.branchId}
+          businessDate={initialData.businessDate}
+          onSuccess={handleConfirmedMutation}
+        />
+      )}
     </div>
   );
 }

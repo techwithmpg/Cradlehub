@@ -66,6 +66,7 @@ const CRM_NAV_ITEMS: NavItem[] = [
   { label: "Schedule", href: "/crm/schedule", icon: "CalendarDays" },
   { label: "Attendance", href: "/crm/attendance", icon: "ClipboardCheck" },
   { label: "Customers", href: "/crm/customers", icon: "Users" },
+  { label: "Services", href: "/crm/services", icon: "Sparkles" },
   { label: "Home Service", href: "/crm/dispatch", icon: "Truck" },
   { label: "Operations Center", href: "/crm/operations-center", icon: "Wrench" },
   {

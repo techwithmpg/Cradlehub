@@ -12,6 +12,7 @@ const mocks = vi.hoisted(() => ({
   getTherapistRecommendationsAction: vi.fn(),
   crmStartServiceAction: vi.fn(),
   crmCompleteServiceAction: vi.fn(),
+  recordBookingFollowupAction: vi.fn(),
   createInhouseBookingMultiAction: vi.fn(),
   toastSuccess: vi.fn(),
   toastError: vi.fn(),
@@ -85,6 +86,7 @@ vi.mock("@/app/(dashboard)/crm/bookings/actions", () => ({
   getRoomAssignmentOptionsAction: mocks.getRoomAssignmentOptionsAction,
   crmStartServiceAction: mocks.crmStartServiceAction,
   crmCompleteServiceAction: mocks.crmCompleteServiceAction,
+  recordBookingFollowupAction: mocks.recordBookingFollowupAction,
 }));
 
 vi.mock("@/lib/actions/assignment-recommendations", () => ({
@@ -191,6 +193,7 @@ describe("Horizontal Bookings Workspace & Quick Edit Integration", () => {
     mocks.rescheduleBookingAction.mockResolvedValue({ success: true });
     mocks.assignBookingTherapistAction.mockResolvedValue({ success: true });
     mocks.assignBookingRoomAction.mockResolvedValue({ success: true });
+    mocks.recordBookingFollowupAction.mockResolvedValue({ success: true });
     mocks.createInhouseBookingMultiAction.mockResolvedValue({
       ok: true,
       bookingId: "new-booking-should-not-happen",
@@ -204,9 +207,12 @@ describe("Horizontal Bookings Workspace & Quick Edit Integration", () => {
       }),
     }));
     vi.stubGlobal("fetch", mocks.fetch);
+    vi.useFakeTimers({ toFake: ["Date"] });
+    vi.setSystemTime(new Date("2026-10-29T04:00:00Z"));
   });
 
   afterEach(() => {
+    vi.useRealTimers();
     cleanup();
     vi.unstubAllGlobals();
   });
@@ -266,8 +272,8 @@ describe("Horizontal Bookings Workspace & Quick Edit Integration", () => {
     expect(await screen.findByDisplayValue("Second booking note")).toBeTruthy();
     expect(screen.queryByDisplayValue("Prefers warm oil and quiet room")).toBeNull();
 
-    // Cancel collapses Quick Edit without mutating
-    fireEvent.click(screen.getByRole("button", { name: /^Cancel$/i }));
+    // Cancel Edit collapses Quick Edit without mutating
+    fireEvent.click(screen.getByRole("button", { name: /Cancel Edit/i }));
     expect(screen.queryByDisplayValue("Second booking note")).toBeNull();
     expect(mocks.rescheduleBookingAction).not.toHaveBeenCalled();
   });
@@ -528,5 +534,85 @@ describe("Horizontal Bookings Workspace & Quick Edit Integration", () => {
     });
     expect(mocks.rescheduleBookingAction).toHaveBeenCalledTimes(1);
     expect(mocks.createInhouseBookingMultiAction).not.toHaveBeenCalled();
+  });
+
+  it("links customer name to Customer Profile (/crm/[customerId])", async () => {
+    const booking = makeBooking({
+      customers: {
+        id: "cust-99",
+        full_name: "Teresa Mendoza",
+        phone: "09170001111",
+        email: "teresa@example.com",
+      },
+    });
+
+    render(
+      <BookingsDesktopWorkspace
+        workspaceContext="crm"
+        viewerRole="admin"
+        date="2026-10-29"
+        initialQuickFilter="all"
+        bookings={[booking]}
+      />
+    );
+
+    const customerLink = screen.getByRole("link", { name: "Teresa Mendoza" });
+    expect(customerLink).toBeTruthy();
+    expect(customerLink.getAttribute("href")).toBe("/crm/cust-99");
+  });
+
+  it("presents Cancel Booking | Cancel Edit | Reschedule | Save Changes in Quick Edit and cancels booking", async () => {
+    const booking = makeBooking({
+      id: "booking-to-cancel",
+      customers: {
+        id: "cust-cancel",
+        full_name: "Eduardo Cruz",
+        phone: "09172223333",
+        email: "eduardo@example.com",
+      },
+    });
+
+    const onBookingsChanged = vi.fn();
+
+    render(
+      <BookingsDesktopWorkspace
+        workspaceContext="crm"
+        viewerRole="admin"
+        date="2026-10-29"
+        initialQuickFilter="all"
+        bookings={[booking]}
+        onBookingsChanged={onBookingsChanged}
+      />
+    );
+
+    fireEvent.click(screen.getByRole("button", { name: /Expand quick edit/i }));
+
+    // Verify all four buttons in approved order
+    expect(screen.getByRole("button", { name: "Cancel Booking" })).toBeTruthy();
+    expect(screen.getByRole("button", { name: "Cancel Edit" })).toBeTruthy();
+    expect(screen.getByRole("button", { name: "Reschedule" })).toBeTruthy();
+    expect(screen.getByRole("button", { name: "Save Changes" })).toBeTruthy();
+
+    // Click Cancel Booking -> opens CancelBookingDialog
+    fireEvent.click(screen.getByRole("button", { name: "Cancel Booking" }));
+    expect(await screen.findByRole("heading", { name: "Cancel booking?" })).toBeTruthy();
+
+    // Select cancellation reason and confirm
+    const reasonSelect = screen.getByRole("combobox", { name: /Reason/i });
+    fireEvent.change(reasonSelect, { target: { value: "customer_requested" } });
+
+    const confirmCancelBtn = screen.getByRole("button", { name: "Cancel Booking" });
+    fireEvent.click(confirmCancelBtn);
+
+    await waitFor(() => {
+      expect(mocks.recordBookingFollowupAction).toHaveBeenCalledWith({
+        bookingId: "booking-to-cancel",
+        result: "cancel",
+        cancellationReason: "customer_requested",
+        note: undefined,
+      });
+      expect(mocks.toastSuccess).toHaveBeenCalledWith("Booking cancelled.");
+      expect(onBookingsChanged).toHaveBeenCalled();
+    });
   });
 });

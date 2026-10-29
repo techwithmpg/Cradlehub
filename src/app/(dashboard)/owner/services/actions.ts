@@ -2,6 +2,8 @@
 
 import { createClient } from "@/lib/supabase/server";
 import { isDevAuthBypassEnabled } from "@/lib/dev-bypass";
+import { canonicalizeSystemRole } from "@/constants/staff-roles";
+import { canManageServices } from "@/lib/auth/crm-permissions";
 import {
   createServiceCategorySchema,
   createServiceSchema,
@@ -24,19 +26,48 @@ import { validateMediaBuffer } from "@/lib/marketing/media-contracts-server";
 import { getMediaContract } from "@/lib/marketing/media-contracts";
 import type { Json } from "@/types/supabase";
 
+type ServiceCatalogAccessContext = {
+  supabase: Awaited<ReturnType<typeof createClient>>;
+  role: string;
+  branchId: string | null;
+  isOwner: boolean;
+};
+
 async function requireOwner() {
+  if (isDevAuthBypassEnabled()) {
+    return createClient();
+  }
   const supabase = await createClient();
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) return null;
-
-  if (isDevAuthBypassEnabled()) {
-    return supabase;
-  }
 
   const { data: me } = await supabase
     .from("staff").select("system_role").eq("auth_user_id", user.id).eq("is_active", true).maybeSingle();
   if (me?.system_role !== "owner") return null;
   return supabase;
+}
+
+async function requireServiceCatalogAccess(): Promise<ServiceCatalogAccessContext | null> {
+  if (isDevAuthBypassEnabled()) {
+    const supabase = await createClient();
+    return { supabase, role: "owner", branchId: null, isOwner: true };
+  }
+  const supabase = await createClient();
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) return null;
+
+  const { data: me } = await supabase
+    .from("staff")
+    .select("system_role, branch_id")
+    .eq("auth_user_id", user.id)
+    .eq("is_active", true)
+    .maybeSingle();
+  if (!me || !canManageServices(me.system_role)) return null;
+  const role = canonicalizeSystemRole(me.system_role);
+  const isOwner = role === "owner";
+  const branchId = ((me as { branch_id?: string | null }).branch_id ?? null) as string | null;
+  if (!isOwner && !branchId) return null;
+  return { supabase, role, branchId, isOwner };
 }
 
 export async function createServiceCategoryAction(rawInput: unknown) {
@@ -56,8 +87,9 @@ export async function createServiceCategoryAction(rawInput: unknown) {
 export async function createServiceAction(rawInput: unknown) {
   const parsed = createServiceSchema.safeParse(rawInput);
   if (!parsed.success) return { success: false, error: parsed.error.issues[0]?.message };
-  const supabase = await requireOwner();
-  if (!supabase) return { success: false, error: "Unauthorized" };
+  const auth = await requireServiceCatalogAccess();
+  if (!auth) return { success: false, error: "Unauthorized" };
+  const { supabase } = auth;
   const d = parsed.data;
   const { data, error } = await supabase
     .from("services")
@@ -96,8 +128,9 @@ export async function createServiceAction(rawInput: unknown) {
 export async function updateServiceAction(rawInput: unknown) {
   const parsed = updateServiceSchema.safeParse(rawInput);
   if (!parsed.success) return { success: false, error: parsed.error.issues[0]?.message };
-  const supabase = await requireOwner();
-  if (!supabase) return { success: false, error: "Unauthorized" };
+  const auth = await requireServiceCatalogAccess();
+  if (!auth) return { success: false, error: "Unauthorized" };
+  const { supabase } = auth;
   const { serviceId, ...updates } = parsed.data;
   const mapped = {
     ...(updates.categoryId      !== undefined && { category_id:      updates.categoryId }),
@@ -119,8 +152,9 @@ export async function updateServiceAction(rawInput: unknown) {
 export async function toggleServiceActiveAction(rawInput: unknown) {
   const parsed = toggleServiceSchema.safeParse(rawInput);
   if (!parsed.success) return { ok: false, message: parsed.error.issues[0]?.message ?? "Invalid input" };
-  const supabase = await requireOwner();
-  if (!supabase) return { ok: false, message: "Unauthorized" };
+  const auth = await requireServiceCatalogAccess();
+  if (!auth) return { ok: false, message: "Unauthorized" };
+  const { supabase } = auth;
   const { error } = await supabase
     .from("services")
     .update({ is_active: parsed.data.isActive })
@@ -144,9 +178,13 @@ export async function deleteServiceAction(rawInput: unknown) {
 export async function setBranchServiceAction(rawInput: unknown) {
   const parsed = setBranchServiceSchema.safeParse(rawInput);
   if (!parsed.success) return { success: false, error: parsed.error.issues[0]?.message };
-  const supabase = await requireOwner();
-  if (!supabase) return { success: false, error: "Unauthorized" };
+  const auth = await requireServiceCatalogAccess();
+  if (!auth) return { success: false, error: "Unauthorized" };
   const d = parsed.data;
+  if (!auth.isOwner && auth.branchId !== d.branchId) {
+    return { success: false, error: "You can only configure services for your own branch." };
+  }
+  const { supabase } = auth;
   const { error } = await supabase
     .from("branch_services")
     .upsert(
@@ -180,8 +218,9 @@ export async function setBranchServiceAction(rawInput: unknown) {
 export async function saveOwnerServiceCatalogAction(formData: FormData): Promise<
   { success: true; serviceId: string } | { success: false; error: string }
 > {
-  const supabase = await requireOwner();
-  if (!supabase) return { success: false, error: "Unauthorized" };
+  const auth = await requireServiceCatalogAccess();
+  if (!auth) return { success: false, error: "Unauthorized" };
+  const { supabase } = auth;
 
   let raw: unknown;
   try {
@@ -208,6 +247,36 @@ export async function saveOwnerServiceCatalogAction(formData: FormData): Promise
   let oldImageUrl: string | null = null;
   let oldBufferBefore = 0;
   let oldBufferAfter = 0;
+  let effectiveAllBranches = data.allBranches;
+  let effectiveBranchIds = data.allBranches ? [] : data.branchIds;
+
+  if (!auth.isOwner && auth.branchId) {
+    if (!eligibleBranches.has(auth.branchId)) {
+      return { success: false, error: "Your branch is not an active branch." };
+    }
+    effectiveAllBranches = false;
+    if (data.serviceId) {
+      const { data: existingOfferings, error: offeringsError } = await supabase
+        .from("branch_services")
+        .select("branch_id, is_active")
+        .eq("service_id", data.serviceId);
+      if (offeringsError) return { success: false, error: offeringsError.message };
+      const preservedOtherBranches = (existingOfferings ?? [])
+        .filter((row) => row.is_active && eligibleBranches.has(row.branch_id) && row.branch_id !== auth.branchId)
+        .map((row) => row.branch_id);
+      const actorBranchOffered = data.allBranches || data.branchIds.includes(auth.branchId);
+      effectiveBranchIds = Array.from(new Set([
+        ...preservedOtherBranches,
+        ...(actorBranchOffered ? [auth.branchId] : []),
+      ]));
+      if (effectiveBranchIds.length === 0) {
+        return { success: false, error: "Choose at least one active branch." };
+      }
+    } else {
+      effectiveBranchIds = [auth.branchId];
+    }
+  }
+
   if (data.serviceId) {
     const { data: existing, error } = await supabase.from("services")
       .select("image_url, buffer_before, buffer_after")
@@ -257,21 +326,24 @@ export async function saveOwnerServiceCatalogAction(formData: FormData): Promise
   const { data: serviceId, error: saveError } = await supabase.rpc("save_owner_service_catalog", {
     p_service_id: data.serviceId ?? null,
     p_catalog: catalog as Json,
-    p_all_branches: data.allBranches,
-    p_branch_ids: data.allBranches ? [] : data.branchIds,
+    p_all_branches: effectiveAllBranches,
+    p_branch_ids: effectiveBranchIds,
   });
   if (saveError || !serviceId) {
+    const baseError = saveError?.message?.toLowerCase().includes("owner access required")
+      ? "Service editing for CRM staff requires owner database authorization approval."
+      : saveError?.message ?? "Service could not be saved.";
     if (uploadedPath) {
       const { error: cleanupError } = await supabase.storage.from("public-site-media").remove([uploadedPath]);
       if (cleanupError) {
         console.error("Service upload cleanup failed", { path: uploadedPath, error: cleanupError.message });
         return {
           success: false,
-          error: `${saveError?.message ?? "Service could not be saved."} The temporary image could not be removed; ask an administrator to check the service-images folder.`,
+          error: `${baseError} The temporary image could not be removed; ask an administrator to check the service-images folder.`,
         };
       }
     }
-    return { success: false, error: saveError?.message ?? "Service could not be saved." };
+    return { success: false, error: baseError };
   }
 
   // Superseded files from this workflow are private to the service. Legacy or
