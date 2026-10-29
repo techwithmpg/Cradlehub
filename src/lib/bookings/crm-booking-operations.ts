@@ -306,6 +306,8 @@ export function withRescheduleMetadata(
       : {}),
     ...(input.homeServiceLocation
       ? {
+          home_service_distance_km: input.homeServiceLocation.distanceKm,
+          home_service_distance_source: input.homeServiceLocation.distanceSource,
           dispatch: {
             ...(current.dispatch &&
             typeof current.dispatch === "object" &&
@@ -926,6 +928,75 @@ export async function rescheduleBooking(
       branchId: booking.branch_id,
       destination: { lat, lng },
     });
+    if (!distance.ok) {
+      return { success: false, code: distance.code, error: distance.message };
+    }
+
+    const lineTravelFee: unknown =
+      currentMetadata.home_service_travel_fee ?? currentHomeAddress.travel_fee;
+    let bookedTravelFee: unknown = lineTravelFee;
+    if (booking.order_id) {
+      const { data: orderLines, error: orderLinesError } = await createAdminClient()
+        .from("bookings")
+        .select("id")
+        .eq("order_id", booking.order_id)
+        .eq("branch_id", booking.branch_id)
+        .limit(2);
+      if (
+        orderLinesError || !orderLines || orderLines.length !== 1 ||
+        orderLines[0]?.id !== booking.id
+      ) {
+        return {
+          success: false,
+          code: "HOME_SERVICE_GROUP_LOCATION_EDIT_REQUIRED",
+          error: "This order has multiple service lines or its lines could not be verified. Its destination needs a coordinated booking correction.",
+        };
+      }
+
+      const { data: order, error: orderError } = await createAdminClient()
+        .from("booking_orders")
+        .select("metadata")
+        .eq("id", booking.order_id)
+        .eq("branch_id", booking.branch_id)
+        .maybeSingle();
+      if (
+        orderError || !order || !order.metadata ||
+        typeof order.metadata !== "object" || Array.isArray(order.metadata)
+      ) {
+        return {
+          success: false,
+          code: "HOME_SERVICE_FEE_UNVERIFIED",
+          error: "Could not verify the booked travel fee. Refresh and try again.",
+        };
+      }
+      bookedTravelFee = (order.metadata as Record<string, unknown>).home_service_fee;
+    }
+
+    const toFeeCents = (value: unknown): number | null => {
+      if (
+        typeof value !== "number" &&
+        !(typeof value === "string" && /^(?:0|[1-9]\d*)(?:\.\d{1,2})?$/.test(value))
+      ) return null;
+      const amount = Number(value);
+      const cents = Math.round(amount * 100);
+      return Number.isFinite(amount) && amount >= 0 && Number.isSafeInteger(cents) &&
+        Math.abs(amount * 100 - cents) < 0.000001 ? cents : null;
+    };
+    const bookedFeeCents = toFeeCents(bookedTravelFee);
+    const lineFeeCents = toFeeCents(lineTravelFee);
+    const quotedFeeCents = toFeeCents(distance.quote.travelFee);
+    if (
+      bookedFeeCents === null || quotedFeeCents === null ||
+      (booking.order_id && lineTravelFee !== null && lineTravelFee !== undefined &&
+        lineFeeCents !== bookedFeeCents) ||
+      bookedFeeCents !== quotedFeeCents
+    ) {
+      return {
+        success: false,
+        code: "HOME_SERVICE_REPRICE_REQUIRED",
+        error: "The new destination changes or cannot verify the booked travel fee. A controlled price correction is required before saving this address.",
+      };
+    }
     homeServiceLocation = {
       formattedAddress: parsed.data.homeServiceFormattedAddress!.trim(),
       placeId: parsed.data.homeServicePlaceId!.trim(),
@@ -933,11 +1004,9 @@ export async function rescheduleBooking(
       lng,
       mapUrl: parsed.data.homeServiceMapUrl?.trim() || buildGoogleMapsSearchUrl(lat, lng),
       addressComponents: parsed.data.homeServiceAddressComponents ?? [],
-      distanceKm: distance.ok ? distance.quote.distanceKm : null,
-      distanceSource: distance.ok ? distance.quote.distanceSource : null,
-      distanceWarning: distance.ok
-        ? null
-        : "Customer destination saved. Branch distance is unavailable; review the travel fee.",
+      distanceKm: distance.quote.distanceKm,
+      distanceSource: distance.quote.distanceSource,
+      distanceWarning: null,
     };
   }
   let updatedMetadata = withRescheduleMetadata(booking.metadata, {

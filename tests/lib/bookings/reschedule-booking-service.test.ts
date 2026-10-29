@@ -67,6 +67,7 @@ import { buildRecommendationContext } from "@/lib/queries/assignment-recommendat
 import { scoreTherapistCandidates } from "@/lib/assignments/recommendation-engine";
 import { createNotification, resolveNotificationsForEntity } from "@/lib/notifications/create";
 import { resolveStaffScheduleExceptionSignals } from "@/lib/bookings/staff-schedule-exception-signals";
+import { calculateHomeServiceDistanceQuote } from "@/lib/home-service/distance-service";
 
 const mockedBuildRec = vi.mocked(buildRecommendationContext);
 const mockedScore = vi.mocked(scoreTherapistCandidates);
@@ -100,6 +101,14 @@ function makeSelectChain(data: unknown): QueryChain {
   const chain: QueryChain = {
     eq: vi.fn(() => chain),
     maybeSingle: vi.fn().mockResolvedValue({ data, error: null }),
+  };
+  return chain;
+}
+
+function makeOrderLinesChain(ids: string[]) {
+  const chain = {
+    eq: vi.fn(() => chain),
+    limit: vi.fn().mockResolvedValue({ data: ids.map((id) => ({ id })), error: null }),
   };
   return chain;
 }
@@ -217,7 +226,7 @@ describe("rescheduleBooking — Service-Level Combined Authority", () => {
     const booking = makeBooking({
       delivery_type: "home_service",
       type: "home_service",
-      metadata: { home_service_address: { full_address: "Old address", travel_fee: 300 } },
+      metadata: { home_service_address: { full_address: "Old address", travel_fee: 100 } },
     });
     const capture: { payload?: Record<string, unknown> } = {};
     const updateMock = makeUpdateChain([{ id: BOOKING_ID }], (payload) => {
@@ -259,13 +268,260 @@ describe("rescheduleBooking — Service-Level Combined Authority", () => {
     expect(corrected.success).toBe(true);
     expect(mockedBuildRec).not.toHaveBeenCalled();
     expect(capture.payload?.metadata).toMatchObject({
+      home_service_distance_km: 6,
+      home_service_distance_source: "google_driving",
       home_service_address: {
         full_address: "123 Sample Street, Bacolod City",
         lat: 10.67,
         lng: 122.95,
-        travel_fee: 300,
+        travel_fee: 100,
       },
       dispatch: { needs_location_review: false, live_eta: null },
+    });
+  });
+
+  it("blocks an address change when the new driving quote changes the booked fee", async () => {
+    const booking = makeBooking({
+      delivery_type: "home_service",
+      type: "home_service",
+      metadata: { home_service_address: { full_address: "Old address", travel_fee: 300 } },
+    });
+    const updateMock = makeUpdateChain([{ id: BOOKING_ID }]);
+    mockAdminClient.from.mockImplementation((table: string) => {
+      if (table === "bookings")
+        return { select: vi.fn().mockReturnValue(makeSelectChain(booking)), update: updateMock };
+      if (table === "staff") return setupDefaultStaffTable();
+      return {};
+    });
+
+    const result = await rescheduleBooking(makeCtx(), {
+      bookingId: BOOKING_ID,
+      date: booking.booking_date,
+      startTime: booking.start_time,
+      homeServiceAddress: "123 Sample Street, Bacolod City",
+      homeServicePlaceId: "google-place-1",
+      homeServiceFormattedAddress: "123 Sample Street, Bacolod City",
+      homeServiceLat: 10.67,
+      homeServiceLng: 122.95,
+    });
+    expect(result).toMatchObject({ success: false, code: "HOME_SERVICE_REPRICE_REQUIRED" });
+    expect(updateMock).not.toHaveBeenCalled();
+  });
+
+  it("blocks an address change when driving distance cannot be calculated", async () => {
+    vi.mocked(calculateHomeServiceDistanceQuote).mockResolvedValueOnce({
+      ok: false,
+      code: "HOME_SERVICE_DISTANCE_UNAVAILABLE",
+      message: "Distance unavailable",
+    });
+    const booking = makeBooking({
+      delivery_type: "home_service",
+      type: "home_service",
+      metadata: { home_service_address: { full_address: "Old address", travel_fee: 100 } },
+    });
+    const updateMock = makeUpdateChain([{ id: BOOKING_ID }]);
+    mockAdminClient.from.mockImplementation((table: string) => {
+      if (table === "bookings")
+        return { select: vi.fn().mockReturnValue(makeSelectChain(booking)), update: updateMock };
+      if (table === "staff") return setupDefaultStaffTable();
+      return {};
+    });
+
+    const result = await rescheduleBooking(makeCtx(), {
+      bookingId: BOOKING_ID,
+      date: booking.booking_date,
+      startTime: booking.start_time,
+      homeServiceAddress: "123 Sample Street, Bacolod City",
+      homeServicePlaceId: "google-place-1",
+      homeServiceFormattedAddress: "123 Sample Street, Bacolod City",
+      homeServiceLat: 10.67,
+      homeServiceLng: 122.95,
+    });
+    expect(result).toMatchObject({ success: false, code: "HOME_SERVICE_DISTANCE_UNAVAILABLE" });
+    expect(updateMock).not.toHaveBeenCalled();
+  });
+
+  it("uses the canonical order fee when checking an address change", async () => {
+    const booking = makeBooking({
+      order_id: "550e8400-e29b-41d4-a716-446655440015",
+      delivery_type: "home_service",
+      type: "home_service",
+      metadata: { home_service_address: { full_address: "Old address", travel_fee: 100 } },
+    });
+    const updateMock = makeUpdateChain([{ id: BOOKING_ID }]);
+    mockAdminClient.from.mockImplementation((table: string) => {
+      if (table === "bookings")
+        return {
+          select: vi.fn().mockImplementation((columns: string) =>
+            columns === "id" ? makeOrderLinesChain([BOOKING_ID]) : makeSelectChain(booking)
+          ),
+          update: updateMock,
+        };
+      if (table === "booking_orders")
+        return { select: vi.fn().mockReturnValue(makeSelectChain({ metadata: { home_service_fee: 300 } })) };
+      if (table === "staff") return setupDefaultStaffTable();
+      return {};
+    });
+
+    const result = await rescheduleBooking(makeCtx(), {
+      bookingId: BOOKING_ID,
+      date: booking.booking_date,
+      startTime: booking.start_time,
+      homeServiceAddress: "123 Sample Street, Bacolod City",
+      homeServicePlaceId: "google-place-1",
+      homeServiceFormattedAddress: "123 Sample Street, Bacolod City",
+      homeServiceLat: 10.67,
+      homeServiceLng: 122.95,
+    });
+    expect(result).toMatchObject({ success: false, code: "HOME_SERVICE_REPRICE_REQUIRED" });
+    expect(updateMock).not.toHaveBeenCalled();
+  });
+
+  it("rejects an empty canonical order fee instead of coercing it to zero", async () => {
+    vi.mocked(calculateHomeServiceDistanceQuote).mockResolvedValueOnce({
+      ok: true,
+      quote: {
+        branchId: BRANCH_MAIN,
+        branchName: "Main Spa",
+        distanceKm: 1,
+        drivingDistanceKm: 1,
+        distanceSource: "google_driving",
+        baseFee: 0,
+        includedKm: 1,
+        perKmFee: 0,
+        billableDistanceKm: 0,
+        rawFee: 0,
+        travelFee: 0,
+        freeKm: 1,
+        extraKm: 0,
+        feePerExtraKm: 0,
+        transportSnapshot: {
+          pricing_version: 1,
+          distance_source: "google_routes",
+          driving_distance_km: 1,
+          base_fee: 0,
+          included_km: 1,
+          per_km_fee: 0,
+          billable_distance_km: 0,
+          raw_fee: 0,
+          calculated_fee: 0,
+        },
+      },
+    });
+    const booking = makeBooking({
+      order_id: "550e8400-e29b-41d4-a716-446655440015",
+      delivery_type: "home_service",
+      type: "home_service",
+      metadata: { home_service_address: { full_address: "Old address" } },
+    });
+    const updateMock = makeUpdateChain([{ id: BOOKING_ID }]);
+    mockAdminClient.from.mockImplementation((table: string) => {
+      if (table === "bookings")
+        return {
+          select: vi.fn().mockImplementation((columns: string) =>
+            columns === "id" ? makeOrderLinesChain([BOOKING_ID]) : makeSelectChain(booking)
+          ),
+          update: updateMock,
+        };
+      if (table === "booking_orders")
+        return { select: vi.fn().mockReturnValue(makeSelectChain({ metadata: { home_service_fee: "" } })) };
+      if (table === "staff") return setupDefaultStaffTable();
+      return {};
+    });
+
+    const result = await rescheduleBooking(makeCtx(), {
+      bookingId: BOOKING_ID,
+      date: booking.booking_date,
+      startTime: booking.start_time,
+      homeServiceAddress: "123 Sample Street, Bacolod City",
+      homeServicePlaceId: "google-place-1",
+      homeServiceFormattedAddress: "123 Sample Street, Bacolod City",
+      homeServiceLat: 10.67,
+      homeServiceLng: 122.95,
+    });
+    expect(result).toMatchObject({ success: false, code: "HOME_SERVICE_REPRICE_REQUIRED" });
+    expect(updateMock).not.toHaveBeenCalled();
+  });
+
+  it("blocks a one-line address edit that would leave sibling order lines at the old destination", async () => {
+    const booking = makeBooking({
+      order_id: "550e8400-e29b-41d4-a716-446655440015",
+      delivery_type: "home_service",
+      type: "home_service",
+      metadata: { home_service_address: { full_address: "Old address", travel_fee: 100 } },
+    });
+    const updateMock = makeUpdateChain([{ id: BOOKING_ID }]);
+    mockAdminClient.from.mockImplementation((table: string) => {
+      if (table === "bookings")
+        return {
+          select: vi.fn().mockImplementation((columns: string) =>
+            columns === "id"
+              ? makeOrderLinesChain([BOOKING_ID, "550e8400-e29b-41d4-a716-446655440016"])
+              : makeSelectChain(booking)
+          ),
+          update: updateMock,
+        };
+      if (table === "staff") return setupDefaultStaffTable();
+      return {};
+    });
+
+    const result = await rescheduleBooking(makeCtx(), {
+      bookingId: BOOKING_ID,
+      date: booking.booking_date,
+      startTime: booking.start_time,
+      homeServiceAddress: "123 Sample Street, Bacolod City",
+      homeServicePlaceId: "google-place-1",
+      homeServiceFormattedAddress: "123 Sample Street, Bacolod City",
+      homeServiceLat: 10.67,
+      homeServiceLng: 122.95,
+    });
+    expect(result).toMatchObject({
+      success: false,
+      code: "HOME_SERVICE_GROUP_LOCATION_EDIT_REQUIRED",
+    });
+    expect(updateMock).not.toHaveBeenCalled();
+  });
+
+  it("allows an equal-fee destination change for a single-line order with no copied line fee", async () => {
+    const booking = makeBooking({
+      order_id: "550e8400-e29b-41d4-a716-446655440015",
+      delivery_type: "home_service",
+      type: "home_service",
+      metadata: { home_service_address: { full_address: "Old address" } },
+    });
+    const capture: { payload?: Record<string, unknown> } = {};
+    const updateMock = makeUpdateChain([{ id: BOOKING_ID }], (payload) => {
+      capture.payload = payload;
+    });
+    mockAdminClient.from.mockImplementation((table: string) => {
+      if (table === "bookings")
+        return {
+          select: vi.fn().mockImplementation((columns: string) =>
+            columns === "id" ? makeOrderLinesChain([BOOKING_ID]) : makeSelectChain(booking)
+          ),
+          update: updateMock,
+        };
+      if (table === "booking_orders")
+        return { select: vi.fn().mockReturnValue(makeSelectChain({ metadata: { home_service_fee: 100 } })) };
+      if (table === "staff") return setupDefaultStaffTable();
+      if (table === "booking_events") return { insert: vi.fn().mockResolvedValue({ error: null }) };
+      return {};
+    });
+
+    const result = await rescheduleBooking(makeCtx(), {
+      bookingId: BOOKING_ID,
+      date: booking.booking_date,
+      startTime: booking.start_time,
+      homeServiceAddress: "123 Sample Street, Bacolod City",
+      homeServicePlaceId: "google-place-1",
+      homeServiceFormattedAddress: "123 Sample Street, Bacolod City",
+      homeServiceLat: 10.67,
+      homeServiceLng: 122.95,
+    });
+    expect(result.success).toBe(true);
+    expect(capture.payload?.metadata).toMatchObject({
+      home_service_distance_km: 6,
+      home_service_address: { full_address: "123 Sample Street, Bacolod City" },
     });
   });
 

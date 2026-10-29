@@ -447,8 +447,8 @@ function RescheduleBookingModalContent({
                 />
               </label>
               <p className="mt-2 text-xs text-[var(--cs-text-muted)]">
-                Changing the address may affect travel time, ETA, and the booked travel fee. Review
-                the fee separately.
+                The new address recalculates the travel fee. If it differs from the booked fee,
+                this change needs a controlled price correction before it can be saved.
               </p>
             </div>
           ) : null}
