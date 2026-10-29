@@ -2,24 +2,45 @@
 -- Migration: 20261029150000_crm_services_catalog_authorization.sql
 -- Description: Authorize service management for verified service-admin roles
 --              (owner, manager, assistant_manager, store_manager, crm, csr_head),
+--              harden is_service_admin() search path to public, pg_temp,
 --              preserve SECURITY INVOKER on save_owner_service_catalog,
---              eliminate cross-branch write exposure in service_admin_all_branch_services,
---              enforce strict branch-scoped writes on branch_services for non-owners,
---              protect SM Branch Home Service, and grant service-images media policies.
+--              eliminate cross-branch write exposure and non-owner DELETE permissions
+--              on public.branch_services and public.services,
+--              eliminate direct CSR UPDATE permissions on branch_services,
+--              enforce strict branch-scoped INSERT and UPDATE on branch_services for non-owners,
+--              protect SM Branch Home Service, and grant service-images upload/update media policies.
 -- Target: Supabase Postgres
 -- Safety: Idempotent. Preserves existing Owner rights.
 -- =============================================================================
 
 -- -----------------------------------------------------------------------------
--- 1. Correct cross-branch exposure on public.branch_services
+-- 0. Harden public.is_service_admin() search path
+-- -----------------------------------------------------------------------------
+-- Ensure the SECURITY DEFINER function has a fixed search path (public, pg_temp)
+-- to avoid search-path shadowing risks.
+alter function public.is_service_admin() set search_path = public, pg_temp;
+
+-- -----------------------------------------------------------------------------
+-- 1. Correct cross-branch exposure and DELETE permissions on public.branch_services
 -- -----------------------------------------------------------------------------
 -- The existing permissive service_admin_all_branch_services allowed service admins
--- to write to any branch. We drop it and replace it with a strictly branch-scoped
--- write policy for non-owners while preserving owner cross-branch authority.
+-- to write across branches. Additionally, branch_services_management_roles and
+-- branch_services_manager_manage granted FOR ALL (including hard DELETE) to managers,
+-- while branch_services_crm_operational_update permitted ordinary CSR roles to UPDATE
+-- branch services directly.
+-- We drop these permissive/ALL/unintended policies and replace them with strictly
+-- branch-scoped SELECT, INSERT, and UPDATE policies for verified service administrators.
+-- Hard DELETE on branch_services remains strictly restricted to owners via
+-- existing branch_services_owner_all.
 
 drop policy if exists "service_admin_all_branch_services" on public.branch_services;
+drop policy if exists "branch_services_manager_manage" on public.branch_services;
+drop policy if exists "branch_services_management_roles" on public.branch_services;
+drop policy if exists "branch_services_crm_operational_update" on public.branch_services;
 drop policy if exists "branch_services_service_admin_branch_write" on public.branch_services;
 drop policy if exists "branch_services_service_admin_select" on public.branch_services;
+drop policy if exists "branch_services_service_admin_branch_insert" on public.branch_services;
+drop policy if exists "branch_services_service_admin_branch_update" on public.branch_services;
 
 -- Read policy: Service administrators may view all branch offerings across branches
 -- (to display multi-branch availability in shared catalogue screens).
@@ -28,10 +49,23 @@ create policy "branch_services_service_admin_select"
   to authenticated
   using (public.is_service_admin());
 
--- Write policy: Non-owner service admins can ONLY insert/update/delete rows for their own branch.
--- Owners retain full cross-branch write access.
-create policy "branch_services_service_admin_branch_write"
-  on public.branch_services for all
+-- Insert policy: Non-owner service admins can ONLY insert rows for their own branch.
+-- Owners retain full cross-branch insert access.
+create policy "branch_services_service_admin_branch_insert"
+  on public.branch_services for insert
+  to authenticated
+  with check (
+    public.is_service_admin()
+    and (
+      public.get_auth_role() = 'owner'
+      or branch_id = public.get_auth_branch_id()
+    )
+  );
+
+-- Update policy: Non-owner service admins can ONLY update rows for their own branch.
+-- Owners retain full cross-branch update access.
+create policy "branch_services_service_admin_branch_update"
+  on public.branch_services for update
   to authenticated
   using (
     public.is_service_admin()
@@ -53,7 +87,8 @@ create policy "branch_services_service_admin_branch_write"
 -- -----------------------------------------------------------------------------
 -- Because save_owner_service_catalog is SECURITY INVOKER, table-level RLS on
 -- public.services must permit authorized service administrators to SELECT, INSERT,
--- and UPDATE master catalogue rows. Hard DELETE remains restricted to owners.
+-- and UPDATE master catalogue rows. Hard DELETE remains restricted to owners via
+-- existing services_owner_all.
 
 drop policy if exists "service_admin_all_services" on public.services;
 drop policy if exists "services_service_admin_select" on public.services;
@@ -294,6 +329,11 @@ grant execute on function public.save_owner_service_catalog(uuid, jsonb, boolean
 -- -----------------------------------------------------------------------------
 -- 4. Storage policies for service images in public-site-media
 -- -----------------------------------------------------------------------------
+-- Allow service administrators to upload and update service images under service-images/*.
+-- In accordance with owner security decision, non-owner service administrators do NOT
+-- receive DELETE privileges on storage.objects. Deletions remain restricted to Owner
+-- and Digital Marketer via existing public_site_media_marketing_delete policy.
+
 drop policy if exists "public_site_media_service_images_crm_insert" on storage.objects;
 drop policy if exists "public_site_media_service_images_crm_update" on storage.objects;
 drop policy if exists "public_site_media_service_images_crm_delete" on storage.objects;
@@ -311,14 +351,6 @@ create policy "public_site_media_service_images_admin_insert"
 
 create policy "public_site_media_service_images_admin_update"
   on storage.objects for update to authenticated
-  using (
-    bucket_id = 'public-site-media'
-    and (storage.foldername(name))[1] = 'service-images'
-    and public.is_service_admin()
-  );
-
-create policy "public_site_media_service_images_admin_delete"
-  on storage.objects for delete to authenticated
   using (
     bucket_id = 'public-site-media'
     and (storage.foldername(name))[1] = 'service-images'
