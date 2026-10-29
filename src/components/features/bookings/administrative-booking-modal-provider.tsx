@@ -49,10 +49,16 @@ export type AdministrativeBookingModalRequest = {
   branchId?: string;
   serviceId?: string;
   staffId?: string;
+  resourceId?: string;
   date?: string;
   time?: string;
   name?: string;
   phone?: string;
+  notes?: string;
+  rescheduleBookingId?: string;
+  rescheduleOrderId?: string | null;
+  homeServiceAddress?: string;
+  homeServiceAccessNote?: string;
 };
 
 type AdministrativeBookingModalContextValue = {
@@ -250,8 +256,14 @@ export function AdministrativeBookingModalProvider({
               initialPhone={request?.phone ?? ""}
               initialServiceId={request?.serviceId}
               initialStaffId={request?.staffId}
+              initialResourceId={request?.resourceId}
               initialDate={request?.date}
               initialTime={request?.time}
+              initialNotes={request?.notes}
+              initialHomeServiceAddress={request?.homeServiceAddress}
+              initialHomeServiceAccessNote={request?.homeServiceAccessNote}
+              rescheduleBookingId={request?.rescheduleBookingId}
+              rescheduleOrderId={request?.rescheduleOrderId}
               services={bookingContext.services}
               staff={bookingContext.staff}
               resources={bookingContext.resources}
@@ -261,11 +273,14 @@ export function AdministrativeBookingModalProvider({
               onSuccess={(result) => {
                 closeBookingModal();
                 notifyBookingsChanged();
-                toast.success("Booking created", {
-                  description: result.isHomeService
-                    ? "Home service surfaces will refresh shortly."
-                    : "Schedule and booking queues will refresh shortly.",
-                });
+                toast.success(
+                  request?.rescheduleBookingId ? "Booking rescheduled successfully." : "Booking created",
+                  {
+                    description: result.isHomeService
+                      ? "Home service surfaces will refresh shortly."
+                      : "Schedule and booking queues will refresh shortly.",
+                  }
+                );
               }}
             />
           )}

@@ -22,6 +22,11 @@ import { toast } from "sonner";
 import { notifyBookingsChanged } from "@/lib/bookings/bookings-client-events";
 import { getBranchWalkInDefaults, parseBookingTime } from "@/lib/bookings/booking-clock-time";
 import { createInhouseBookingMultiAction } from "@/lib/actions/inhouse-booking";
+import {
+  rescheduleBookingAction,
+  assignBookingTherapistAction,
+  assignBookingRoomAction,
+} from "@/app/(dashboard)/crm/bookings/actions";
 import { getAdministrativeBookingCustomerPrefillAction } from "@/lib/actions/administrative-booking";
 import { getAttendanceQueueSuggestionAction } from "@/lib/actions/attendance-queue";
 import {
@@ -101,8 +106,14 @@ type QuickBookingFormProps = {
   initialPhone?: string;
   initialServiceId?: string;
   initialStaffId?: string;
+  initialResourceId?: string;
   initialDate?: string;
   initialTime?: string;
+  initialNotes?: string;
+  initialHomeServiceAddress?: string;
+  initialHomeServiceAccessNote?: string;
+  rescheduleBookingId?: string;
+  rescheduleOrderId?: string | null;
   services: QuickBookingServiceOption[];
   staff: QuickBookingStaffOption[];
   resources: QuickBookingResourceOption[];
@@ -335,8 +346,14 @@ export function QuickBookingForm({
   initialPhone = "",
   initialServiceId = "",
   initialStaffId = "",
+  initialResourceId = "",
   initialDate,
   initialTime,
+  initialNotes = "",
+  initialHomeServiceAddress = "",
+  initialHomeServiceAccessNote = "",
+  rescheduleBookingId,
+  rescheduleOrderId,
   services,
   staff,
   resources,
@@ -404,12 +421,12 @@ export function QuickBookingForm({
   const [serviceModeNotice, setServiceModeNotice] = useState("");
   const [date, setDate] = useState(initialDateValue);
   const [time, setTime] = useState(initialTimeValue);
-  const [notes, setNotes] = useState("");
-  const [homeServiceAddress, setHomeServiceAddress] = useState("");
+  const [notes, setNotes] = useState(initialNotes);
+  const [homeServiceAddress, setHomeServiceAddress] = useState(initialHomeServiceAddress);
   const [homeServicePlace, setHomeServicePlace] = useState<PlaceSelectResult | null>(null);
   const [homeServiceBarangay, setHomeServiceBarangay] = useState("");
   const [homeServiceCity, setHomeServiceCity] = useState("");
-  const [homeServiceAccessNote, setHomeServiceAccessNote] = useState("");
+  const [homeServiceAccessNote, setHomeServiceAccessNote] = useState(initialHomeServiceAccessNote);
   const [placesStatus, setPlacesStatus] = useState<PlacesAutocompleteStatus>("idle");
   const [homeServiceDistanceStatus, setHomeServiceDistanceStatus] = useState<
     "idle" | "loading" | "ready" | "error"
@@ -425,7 +442,7 @@ export function QuickBookingForm({
     initialStaffId ? "manual" : "automatic"
   );
   const [customerRequestedTherapist, setCustomerRequestedTherapist] = useState(false);
-  const [resourceId, setResourceId] = useState("");
+  const [resourceId, setResourceId] = useState(initialResourceId);
   const [moreOpen, setMoreOpen] = useState(false);
   const [attendanceHint, setAttendanceHint] = useState<{
     staffId: string;
@@ -594,6 +611,16 @@ export function QuickBookingForm({
     [bookingRules]
   );
 
+  const savedRescheduleBaseline = useRef({
+    date: initialDateValue,
+    time: normalizeTime(initialTimeValue),
+    notes: initialNotes.trim(),
+    homeServiceAddress: initialHomeServiceAddress.trim(),
+    homeServiceAccessNote: initialHomeServiceAccessNote.trim(),
+    staffId: initialStaffId,
+    resourceId: initialResourceId,
+  });
+
   const dirty = useMemo(
     () =>
       mode !== initialMode ||
@@ -609,17 +636,17 @@ export function QuickBookingForm({
       Object.keys(lineQuotes).length > 0 ||
       date !== initialDateValue ||
       time !== initialTimeValue ||
-      notes !== "" ||
-      homeServiceAddress !== "" ||
+      notes !== initialNotes ||
+      homeServiceAddress !== initialHomeServiceAddress ||
       homeServicePlace !== null ||
       homeServiceBarangay !== "" ||
       homeServiceCity !== "" ||
-      homeServiceAccessNote !== "" ||
+      homeServiceAccessNote !== initialHomeServiceAccessNote ||
       paymentReceived ||
       paymentMethod !== "" ||
       staffId !== initialStaffId ||
       customerRequestedTherapist ||
-      resourceId !== "",
+      resourceId !== initialResourceId,
     [
       customerQuery,
       date,
@@ -632,9 +659,13 @@ export function QuickBookingForm({
       homeServicePlace,
       initialCustomer,
       initialDateValue,
+      initialHomeServiceAccessNote,
+      initialHomeServiceAddress,
       initialMode,
       initialName,
+      initialNotes,
       initialPhone,
+      initialResourceId,
       initialSelectedServiceIds,
       initialStaffId,
       initialTimeValue,
@@ -1248,6 +1279,16 @@ export function QuickBookingForm({
       nextErrors.service = "Select at least one service.";
     } else if (selectedServiceIds.length > 5) {
       nextErrors.service = "You can select up to 5 services per booking.";
+    } else if (
+      rescheduleBookingId &&
+      initialServiceId &&
+      (selectedServiceIds.length !== 1 ||
+        selectedServiceIds[0] !== initialServiceId ||
+        additionalGuests.length > 0 ||
+        Object.keys(lineQuotes).length > 0)
+    ) {
+      nextErrors.service =
+        "Service or duration changes require financial adjustment and cannot be applied during a schedule update.";
     }
     if (
       additionalGuests.some(
@@ -1264,9 +1305,13 @@ export function QuickBookingForm({
       nextErrors.staffId = "Choose an available therapist or select Automatic.";
     }
     if (isHomeService) {
+      const addressUnchangedDuringReschedule =
+        Boolean(rescheduleBookingId) &&
+        Boolean(initialHomeServiceAddress.trim()) &&
+        homeServiceAddress.trim() === initialHomeServiceAddress.trim();
       if (!homeServiceAddress.trim()) {
         nextErrors.homeServiceAddress = "Enter the complete home-service address.";
-      } else if (!homeServicePlace) {
+      } else if (!homeServicePlace && !addressUnchangedDuringReschedule) {
         nextErrors.homeServiceAddress = CRM_PRECISE_HOME_SERVICE_LOCATION_MESSAGE;
       }
     }
@@ -1400,6 +1445,129 @@ export function QuickBookingForm({
 
     setIsSaving(true);
     try {
+      if (rescheduleBookingId) {
+        const baseline = savedRescheduleBaseline.current;
+        const normalizedTime = normalizeTime(time);
+        const trimmedNotes = notes.trim();
+        const trimmedAddress = homeServiceAddress.trim();
+        const trimmedAccessNote = homeServiceAccessNote.trim();
+
+        const scheduleOrDetailsChanged =
+          date !== baseline.date ||
+          normalizedTime !== baseline.time ||
+          trimmedNotes !== baseline.notes ||
+          (isHomeService &&
+            (trimmedAddress !== baseline.homeServiceAddress ||
+              trimmedAccessNote !== baseline.homeServiceAccessNote ||
+              Boolean(homeServicePlace)));
+        const therapistChanged = Boolean(staffId) && staffId !== baseline.staffId;
+        const roomChanged = !isHomeService && Boolean(resourceId) && resourceId !== baseline.resourceId;
+        const shouldRunReschedule = scheduleOrDetailsChanged || (!therapistChanged && !roomChanged);
+
+        const completedSteps: string[] = [];
+
+        if (shouldRunReschedule) {
+          const rescheduleResult = await rescheduleBookingAction({
+            bookingId: rescheduleBookingId,
+            date,
+            startTime: normalizedTime,
+            note: trimmedNotes || undefined,
+            homeServiceAddress: isHomeService ? trimmedAddress : undefined,
+            homeServiceAccessNote: isHomeService ? trimmedAccessNote || undefined : undefined,
+            homeServicePlaceId: homeServicePlace?.placeId,
+            homeServiceFormattedAddress: homeServicePlace?.formattedAddress,
+            homeServiceLat: homeServicePlace?.lat,
+            homeServiceLng: homeServicePlace?.lng,
+            homeServiceMapUrl: homeServicePlace?.mapUrl,
+            homeServiceAddressComponents: homeServicePlace?.addressComponents,
+          });
+
+          if (!rescheduleResult.success) {
+            const message =
+              rescheduleResult.error || "Could not reschedule booking. Please try again.";
+            setFormError(message);
+            toast.error("Reschedule failed", { description: message });
+            return;
+          }
+
+          baseline.date = date;
+          baseline.time = normalizedTime;
+          baseline.notes = trimmedNotes;
+          baseline.homeServiceAddress = trimmedAddress;
+          baseline.homeServiceAccessNote = trimmedAccessNote;
+          completedSteps.push("schedule");
+        }
+
+        if (therapistChanged) {
+          const staffResult = await assignBookingTherapistAction({
+            bookingId: rescheduleBookingId,
+            staffId,
+            overrideReason: "other",
+          });
+          if (!staffResult.success) {
+            const errorMsg = staffResult.error || "Failed to assign therapist.";
+            if (completedSteps.length > 0) {
+              notifyBookingsChanged();
+              const partialMsg = `Partial update (${completedSteps.join(", ")} saved): ${errorMsg}`;
+              setFormError(partialMsg);
+              toast.error("Booking partially updated", { description: partialMsg });
+            } else {
+              setFormError(errorMsg);
+              toast.error("Therapist assignment failed", { description: errorMsg });
+            }
+            return;
+          }
+          baseline.staffId = staffId;
+          completedSteps.push("therapist");
+        }
+
+        if (roomChanged) {
+          const roomResult = await assignBookingRoomAction({
+            bookingId: rescheduleBookingId,
+            resourceId,
+            overrideReason: "other",
+          });
+          if (!roomResult.success) {
+            const errorMsg = roomResult.error || "Failed to assign room.";
+            if (completedSteps.length > 0) {
+              notifyBookingsChanged();
+              const partialMsg = `Partial update (${completedSteps.join(", ")} saved): ${errorMsg}`;
+              setFormError(partialMsg);
+              toast.error("Booking partially updated", { description: partialMsg });
+            } else {
+              setFormError(errorMsg);
+              toast.error("Room assignment failed", { description: errorMsg });
+            }
+            return;
+          }
+          baseline.resourceId = resourceId;
+          completedSteps.push("room");
+        }
+
+        toast.success("Booking updated successfully", {
+          description: "The booking schedule has been updated.",
+        });
+        notifyBookingsChanged();
+        if (onSuccess) {
+          onSuccess({
+            bookingId: rescheduleBookingId,
+            date,
+            mode,
+            customerId: selectedCustomer?.id,
+            isHomeService,
+          });
+        } else if (onCancel) {
+          onCancel();
+        } else if (successBehavior === "redirect") {
+          const params = new URLSearchParams({
+            date,
+            bookingId: rescheduleBookingId,
+          });
+          router.push(`/crm/bookings?${params.toString()}`);
+        }
+        return;
+      }
+
       const bookingInput = {
         branchId,
         customerId: selectedCustomer?.id,
@@ -1931,7 +2099,7 @@ export function QuickBookingForm({
             />
             <div>
               <h1 className="font-display text-xl sm:text-2xl font-bold leading-tight text-[var(--cs-text)]">
-                New Booking –{" "}
+                {rescheduleBookingId ? "Reschedule Booking – " : "New Booking – "}
                 {isHomeService ? "Home Service" : isPhoneFuture ? "Phone / Future" : "Walk-in"}
               </h1>
               <p className="mt-0.5 text-xs text-[var(--cs-text-secondary)]">
@@ -2736,6 +2904,9 @@ export function QuickBookingForm({
                     ) : null}
                   </>
                 )}
+                {rescheduleOrderId ? (
+                  <SummaryRow label="Original Order" value={rescheduleOrderId} />
+                ) : null}
                 {notes ? <SummaryRow label="Notes" value={notes} /> : null}
               </div>
             </div>
@@ -2754,43 +2925,56 @@ export function QuickBookingForm({
                   )}
                 </strong>
               </div>
-              <label className="flex items-center gap-2 text-xs font-semibold">
-                <CreditCard size={15} /> Payment{" "}
-                <span className="ml-auto rounded-full bg-[#faead9] px-2 py-0.5 text-[#8a491e]">
-                  {paymentReceived ? "Payment to record" : "Unpaid"}
-                </span>
-              </label>
-              <label className="mt-1 flex items-center gap-2 text-xs">
-                <input
-                  type="checkbox"
-                  checked={paymentReceived}
-                  onChange={(event) => {
-                    setPaymentReceived(event.target.checked);
-                    setPaymentMethod("");
-                  }}
-                  disabled={isSaving}
-                />{" "}
-                Full advance payment received
-              </label>
-              {paymentReceived ? (
-                <select
-                  value={paymentMethod}
-                  onChange={(event) => setPaymentMethod(event.target.value as typeof paymentMethod)}
-                  disabled={isSaving}
-                  aria-label="Payment method"
-                  className={cn(
-                    selectClassName(Boolean(fieldErrors.paymentMethod)),
-                    "mt-1 h-8 text-xs"
-                  )}
-                >
-                  <option value="">Select payment method</option>
-                  <option value="cash">Cash</option>
-                  <option value="gcash">GCash</option>
-                  <option value="maya">Maya</option>
-                  <option value="card">Card</option>
-                </select>
-              ) : null}
-              <FieldError message={fieldErrors.paymentMethod} />
+              {rescheduleBookingId ? (
+                <div className="flex items-center gap-2 text-xs font-semibold">
+                  <CreditCard size={15} /> Payment{" "}
+                  <span className="ml-auto rounded-full bg-[var(--cs-surface)] px-2 py-0.5 text-[var(--cs-text-muted)]">
+                    Preserved from original order
+                  </span>
+                </div>
+              ) : (
+                <>
+                  <label className="flex items-center gap-2 text-xs font-semibold">
+                    <CreditCard size={15} /> Payment{" "}
+                    <span className="ml-auto rounded-full bg-[#faead9] px-2 py-0.5 text-[#8a491e]">
+                      {paymentReceived ? "Payment to record" : "Unpaid"}
+                    </span>
+                  </label>
+                  <label className="mt-1 flex items-center gap-2 text-xs">
+                    <input
+                      type="checkbox"
+                      checked={paymentReceived}
+                      onChange={(event) => {
+                        setPaymentReceived(event.target.checked);
+                        setPaymentMethod("");
+                      }}
+                      disabled={isSaving}
+                    />{" "}
+                    Full advance payment received
+                  </label>
+                  {paymentReceived ? (
+                    <select
+                      value={paymentMethod}
+                      onChange={(event) =>
+                        setPaymentMethod(event.target.value as typeof paymentMethod)
+                      }
+                      disabled={isSaving}
+                      aria-label="Payment method"
+                      className={cn(
+                        selectClassName(Boolean(fieldErrors.paymentMethod)),
+                        "mt-1 h-8 text-xs"
+                      )}
+                    >
+                      <option value="">Select payment method</option>
+                      <option value="cash">Cash</option>
+                      <option value="gcash">GCash</option>
+                      <option value="maya">Maya</option>
+                      <option value="card">Card</option>
+                    </select>
+                  ) : null}
+                  <FieldError message={fieldErrors.paymentMethod} />
+                </>
+              )}
               <div className="mt-2 flex gap-2">
                 <button
                   type="button"
@@ -2808,7 +2992,7 @@ export function QuickBookingForm({
                   }
                   className="cs-btn h-9 flex-1 rounded-lg bg-[#006044] text-xs text-white disabled:opacity-60"
                 >
-                  {isSaving ? "Saving…" : slotChecking ? "Checking…" : "Save Booking"}
+                  {isSaving ? "Saving…" : slotChecking ? "Checking…" : rescheduleBookingId ? "Save Changes" : "Save Booking"}
                 </button>
               </div>
             </div>
