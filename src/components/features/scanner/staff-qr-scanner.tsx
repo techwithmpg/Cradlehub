@@ -6,6 +6,7 @@ import { Camera, CameraOff, Loader2, QrCode, RefreshCw, ShieldAlert, XCircle } f
 import { useStaffScanner } from "./use-staff-scanner";
 import type { ScannerState } from "./use-staff-scanner";
 import { resolveStaffScanTargetAction } from "@/app/(dashboard)/staff/scan/actions";
+import { warmAttendanceLocation } from "@/lib/attendance/browser-location";
 
 // ---------------------------------------------------------------------------
 // Types
@@ -13,6 +14,7 @@ import { resolveStaffScanTargetAction } from "@/app/(dashboard)/staff/scan/actio
 
 type StaffQrScannerProps = {
   returnHref: string;
+  locationRequired?: boolean;
 };
 
 // ---------------------------------------------------------------------------
@@ -294,7 +296,16 @@ function Actions({
  *
  * Architecture: PWA-GOV-009 / C6
  */
-export function StaffQrScanner({ returnHref }: StaffQrScannerProps) {
+export function StaffQrScanner({ returnHref, locationRequired = false }: StaffQrScannerProps) {
+  useEffect(() => {
+    if (!locationRequired) return;
+    void warmAttendanceLocation();
+    const onVisible = () => {
+      if (document.visibilityState === "visible") void warmAttendanceLocation();
+    };
+    document.addEventListener("visibilitychange", onVisible);
+    return () => document.removeEventListener("visibilitychange", onVisible);
+  }, [locationRequired]);
   const router = useRouter();
 
   /**

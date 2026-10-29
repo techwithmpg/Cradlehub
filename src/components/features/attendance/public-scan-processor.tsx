@@ -18,9 +18,21 @@ import { PublicScanLoginForm } from "./public-scan-login-form";
 import { PublicScanResultView } from "./public-scan-result";
 import { PublicScanStage, type PublicScanStageName } from "./public-scan-stage";
 import styles from "./public-scan-processor.module.css";
+import {
+  browserLocationFailureResult,
+  freshAttendanceLocation,
+  needsLocationExplanation,
+  warmAttendanceLocation,
+} from "@/lib/attendance/browser-location";
+import type { AttendanceLocation } from "@/lib/attendance/geofence";
 
 type PublicScanProcessorProps =
-  | { mode: "scan"; publicCode: string; scanBasePath?: "/scan" | "/staff/scan/process" }
+  | {
+      mode: "scan";
+      publicCode: string;
+      scanBasePath?: "/scan" | "/staff/scan/process";
+      locationRequired?: boolean;
+    }
   | { mode: "activation"; token: string };
 
 const RECOGNITION_DURATION_MS = 250;
@@ -28,7 +40,7 @@ const MINIMUM_FLOW_DURATION_MS = 450;
 const DEVICE_STAGE_DURATION_MS = 350;
 const ATTENDANCE_STAGE_DURATION_MS = 450;
 
-type ProcessorStage = PublicScanStageName | "sign_in_required" | "result";
+type ProcessorStage = PublicScanStageName | "sign_in_required" | "location_permission" | "result";
 
 function createRequestId(): string {
   if (typeof crypto !== "undefined" && "randomUUID" in crypto) {
@@ -44,6 +56,7 @@ function wait(durationMs: number): Promise<void> {
 async function processPublicQrScan(input: {
   publicCode: string;
   requestId: string;
+  location?: AttendanceLocation;
 }): Promise<PublicScanResult> {
   const response = await fetch("/api/attendance/public-scan", {
     method: "POST",
@@ -109,6 +122,8 @@ export function PublicScanProcessor(props: PublicScanProcessorProps) {
   const startedRef = useRef(false);
   const mountedRef = useRef(true);
   const loginInFlightRef = useRef(false);
+  const [locationPromptAccepted, setLocationPromptAccepted] = useState(false);
+  const locationRequired = mode === "scan" && props.locationRequired === true;
 
   useEffect(() => {
     return () => {
@@ -117,22 +132,65 @@ export function PublicScanProcessor(props: PublicScanProcessorProps) {
   }, []);
 
   useEffect(() => {
-    if (startedRef.current) return;
-    startedRef.current = true;
+    if (!locationRequired) return;
+    const onVisible = () => {
+      if (document.visibilityState === "visible") void warmAttendanceLocation();
+    };
+    document.addEventListener("visibilitychange", onVisible);
+    return () => document.removeEventListener("visibilitychange", onVisible);
+  }, [locationRequired]);
 
+  useEffect(() => {
+    if (startedRef.current) return;
     let active = true;
-    const startedAt = Date.now();
-    const processingTimer = window.setTimeout(() => {
-      if (active) setStage("processing");
-    }, RECOGNITION_DURATION_MS);
+    let processingTimer: number | undefined;
 
     async function runScan(): Promise<void> {
       let nextResult: PublicScanResult;
+      let location: AttendanceLocation | undefined;
+
+      if (mode === "scan" && locationRequired) {
+        const permission = await needsLocationExplanation();
+        if (!active) return;
+        if (permission === "denied") {
+          setResult(
+            withAttendanceScanResolution({
+              ...browserLocationFailureResult("location_permission_denied"),
+              operationId: requestId,
+            })
+          );
+          setStage("result");
+          return;
+        }
+        if (permission === "explain" && !locationPromptAccepted) {
+          setStage("location_permission");
+          return;
+        }
+        try {
+          location = await freshAttendanceLocation();
+        } catch (error) {
+          if (!active) return;
+          setResult(
+            withAttendanceScanResolution({
+              ...browserLocationFailureResult(error),
+              operationId: requestId,
+            })
+          );
+          setStage("result");
+          return;
+        }
+      }
+      if (!active) return;
+      startedRef.current = true;
+      const startedAt = Date.now();
+      processingTimer = window.setTimeout(() => {
+        if (active) setStage("processing");
+      }, RECOGNITION_DURATION_MS);
 
       try {
         nextResult =
           mode === "scan" && scanPublicCode
-            ? await processPublicQrScan({ publicCode: scanPublicCode, requestId })
+            ? await processPublicQrScan({ publicCode: scanPublicCode, requestId, location })
             : await activateDeviceAction({ token: activationToken ?? "", requestId });
       } catch {
         nextResult = withAttendanceScanResolution({
@@ -182,9 +240,9 @@ export function PublicScanProcessor(props: PublicScanProcessorProps) {
 
     return () => {
       active = false;
-      window.clearTimeout(processingTimer);
+      if (processingTimer !== undefined) window.clearTimeout(processingTimer);
     };
-  }, [activationToken, mode, requestId, scanPublicCode]);
+  }, [activationToken, mode, requestId, scanPublicCode, locationRequired, locationPromptAccepted]);
 
   async function handleFirstTimeSignIn() {
     if (mode !== "scan" || !scanPublicCode || loginInFlightRef.current) return;
@@ -198,11 +256,29 @@ export function PublicScanProcessor(props: PublicScanProcessorProps) {
     setStage("signing_in");
 
     try {
+      let location: AttendanceLocation | undefined;
+      if (locationRequired) {
+        try {
+          location = await freshAttendanceLocation();
+        } catch (error) {
+          if (mountedRef.current) {
+            setResult(
+              withAttendanceScanResolution({
+                ...browserLocationFailureResult(error),
+                operationId: requestId,
+              })
+            );
+            setStage("result");
+          }
+          return;
+        }
+      }
       const actionResult = await signInAndRegisterAttendanceDeviceAction({
         publicCode: scanPublicCode,
         email,
         password,
         requestId,
+        location,
       });
 
       if (!mountedRef.current) return;
@@ -276,7 +352,7 @@ export function PublicScanProcessor(props: PublicScanProcessorProps) {
   function restartScan() {
     if (scanPublicCode) {
       window.location.replace(
-        `${props.mode === "scan" ? props.scanBasePath ?? "/scan" : "/scan"}/${encodeURIComponent(scanPublicCode)}?scan=${createRequestId()}`
+        `${props.mode === "scan" ? (props.scanBasePath ?? "/scan") : "/scan"}/${encodeURIComponent(scanPublicCode)}?scan=${createRequestId()}`
       );
       return;
     }
@@ -305,6 +381,21 @@ export function PublicScanProcessor(props: PublicScanProcessorProps) {
           onSwitchAccount={handleSwitchAccount}
           onDisconnectPhone={handleDisconnectPhone}
         />
+      ) : stage === "location_permission" ? (
+        <section className="mx-auto flex min-h-[60svh] max-w-md flex-col items-center justify-center gap-5 p-8 text-center">
+          <h1 className="text-xl font-semibold">Location access for attendance</h1>
+          <p>
+            CradleHub checks your location when you scan the branch attendance QR. Your phone will
+            ask for location permission.
+          </p>
+          <button
+            type="button"
+            className="rounded-lg bg-[#31523d] px-5 py-3 font-semibold text-white"
+            onClick={() => setLocationPromptAccepted(true)}
+          >
+            Allow location and continue
+          </button>
+        </section>
       ) : (stage === "sign_in_required" || stage === "signing_in") && mode === "scan" ? (
         <PublicScanLoginForm
           email={loginCredentials.email}

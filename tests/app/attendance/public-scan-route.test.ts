@@ -100,6 +100,21 @@ describe("public attendance scan route", () => {
     expect(json.isTest).toBe(false);
   });
 
+  it("forwards a browser location reading to the shared scan engine", async () => {
+    processQrScanMock.mockResolvedValueOnce(successfulScan());
+    const location = {
+      latitude: 10.7024485,
+      longitude: 122.9619465,
+      accuracy: 12,
+      timestamp: Date.now(),
+    };
+    await POST(request({ publicCode: "qr-code", requestId: "scan-location", location }));
+    expect(processQrScanMock).toHaveBeenCalledWith(
+      "qr-code",
+      expect.objectContaining({ location })
+    );
+  });
+
   it("returns a successful Test Mode scan with an explicit non-live indicator", async () => {
     processQrScanMock.mockResolvedValueOnce(successfulScan(true));
 

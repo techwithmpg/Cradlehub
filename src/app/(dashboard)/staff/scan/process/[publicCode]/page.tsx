@@ -1,4 +1,5 @@
 import { PublicScanProcessor } from "@/components/features/attendance/public-scan-processor";
+import { attendanceGeofenceRequired } from "@/lib/attendance/geofence-server";
 
 export default async function StaffScanProcessPage({
   params,
@@ -8,7 +9,12 @@ export default async function StaffScanProcessPage({
   const { publicCode } = await params;
   return (
     <main className="min-h-svh bg-[#f3f0ea] sm:grid sm:place-items-center sm:p-6">
-      <PublicScanProcessor mode="scan" publicCode={publicCode} scanBasePath="/staff/scan/process" />
+      <PublicScanProcessor
+        mode="scan"
+        publicCode={publicCode}
+        scanBasePath="/staff/scan/process"
+        locationRequired={attendanceGeofenceRequired()}
+      />
     </main>
   );
 }
