@@ -239,6 +239,8 @@ const mockWorkspaceData: CashFlowWorkspaceData = {
       visitType: "in_spa",
       bookingStatus: "Confirmed",
       paymentStatus: "unpaid",
+      paymentEligible: true,
+      readyForCheckout: true,
       payableItems: [
         {
           id: "item-1",
@@ -601,8 +603,8 @@ describe("CF5 Cash Flow UI Foundation", () => {
     render(<CashFlowWorkspace initialData={mockWorkspaceData} />);
 
     fireEvent.click(screen.getByRole("button", { name: "Record Payment" }));
-    fireEvent.click(screen.getByText("BK-20260928-002 — Michael Tan"));
-    fireEvent.click(screen.getByRole("button", { name: /Record Entry/i }));
+    const modalButtons = screen.getAllByRole("button", { name: "Record Payment" });
+    fireEvent.click(modalButtons[modalButtons.length - 1]!);
 
     await waitFor(() => expect(mockRefresh).toHaveBeenCalledTimes(1));
     expect(mockPush).not.toHaveBeenCalled();

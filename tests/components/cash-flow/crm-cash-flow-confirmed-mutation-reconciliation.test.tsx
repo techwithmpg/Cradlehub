@@ -18,6 +18,8 @@ import {
 } from "vitest";
 import type { CashFlowWorkspaceData } from "@/lib/cash-flow/cash-flow-types";
 
+vi.mock("server-only", () => ({}));
+
 const routerRefresh = vi.fn();
 const routerPush = vi.fn();
 
@@ -96,6 +98,18 @@ vi.mock("@/components/features/cash-flow/record-financial-entry-modal", () => ({
         Confirm financial entry
       </button>
     ) : null,
+}));
+
+vi.mock("@/components/features/crm/today/cradle-flow-quick-payment-modal", () => ({
+  CradleFlowQuickPaymentModal: ({
+    onSuccess,
+  }: {
+    onSuccess?: () => void;
+  }) => (
+    <button onClick={() => onSuccess?.()}>
+      Confirm financial entry
+    </button>
+  ),
 }));
 
 import { CashFlowWorkspace } from "@/components/features/cash-flow/cash-flow-workspace";
