@@ -110,6 +110,24 @@ const data: FinancialEntryContext = {
       paymentEligible: true,
       readyForCheckout: true,
     },
+    {
+      id: "order-deposit-test",
+      sourceKind: "booking_order",
+      orderNumber: "ORDER-DEP-001",
+      customerName: "Elena Cruz",
+      customerPhone: "09170001122",
+      serviceDescription: "Prenatal Massage",
+      totalAmount: 1000,
+      amountPaid: 600,
+      remainingBalance: 400,
+      bookingDate: "2026-10-30",
+      serviceTime: "2:00 PM",
+      visitType: "in_spa",
+      bookingStatus: "in_progress",
+      paymentEligible: true,
+      readyForCheckout: true,
+      payableItems: [{ id: "item-dep-1", description: "Prenatal Massage", amount: 1000 }],
+    },
   ],
 };
 
@@ -761,5 +779,298 @@ describe("CRM quick payment modal", () => {
     expect(callbacks.onSuccess).not.toHaveBeenCalled();
     expect(mocks.printReceipt).not.toHaveBeenCalled();
     expect(screen.getByRole("alert").textContent).toContain("Authoritative total payable amount is missing or invalid");
+  });
+
+  it("calculates Previously Paid ₱600, Paid Now ₱400, Remaining ₱0 when customer owes ₱1,000 with existing ₱600 deposit (Requirement 2)", async () => {
+    // In production post_order_payment_atomic, totalPaid is 400 (current transaction), netAllocated is 1000, remainingBalance is 0
+    mocks.recordOrder.mockResolvedValueOnce({
+      ok: true,
+      data: {
+        success: true,
+        isIdempotentReplay: false,
+        transactionId: "c5cc08fd-9912-4f32-8ea3-289b41dc6820",
+        orderId: "order-deposit-test",
+        branchId: "branch-main",
+        businessDate: "2026-10-30",
+        totalPaid: 400, // production returns transaction amount
+        totalPayable: 1000,
+        netAllocated: 1000, // cumulative allocation
+        remainingBalance: 0,
+        paymentState: "fully_paid",
+        movements: [
+          {
+            id: "mov-dep-1",
+            financialAccountId: "drawer",
+            amount: 400,
+            paymentMethod: "cash",
+            externalReference: null,
+          },
+        ],
+        allocations: [],
+      },
+    });
+
+    render(
+      <CradleFlowQuickPaymentModal
+        data={data}
+        loading={false}
+        requestedOrderId="order-deposit-test"
+        {...callbacks}
+      />
+    );
+
+    await waitFor(() => expect(screen.getByLabelText("Tender 1 amount")).toBeTruthy());
+    expect((screen.getByLabelText("Tender 1 amount") as HTMLInputElement).value).toBe("400.00");
+
+    fireEvent.click(screen.getByRole("button", { name: "Record Payment" }));
+
+    await waitFor(() => expect(mocks.recordOrder).toHaveBeenCalledTimes(1));
+    await waitFor(() => expect(mocks.printReceipt).toHaveBeenCalledTimes(1));
+
+    const receiptData = mocks.printReceipt.mock.calls[0]?.[0];
+    expect(receiptData.transactionId).toBe("c5cc08fd-9912-4f32-8ea3-289b41dc6820");
+    expect(receiptData.totalPayable).toBe(1000);
+    expect(receiptData.alreadyPaid).toBe(600);
+    expect(receiptData.amountPaid).toBe(400);
+    expect(receiptData.remainingBalance).toBe(0);
+    expect(receiptData.payments).toHaveLength(1);
+    expect(receiptData.payments[0]).toMatchObject({
+      method: "Cash",
+      amount: 400,
+      reference: null,
+    });
+    expect(callbacks.onSuccess).toHaveBeenCalledTimes(1);
+  });
+
+  it("handles legacy idempotent replay with existing deposit without double-counting original payment (Requirement 3)", async () => {
+    // Total 2500, previous deposit 500, replaying original 1000 payment
+    mocks.recordLegacy.mockResolvedValueOnce({
+      ok: true,
+      data: {
+        transactionId: "c5cc08fd-9912-4f32-8ea3-289b41dc6821",
+        paymentDelta: 0,
+        isIdempotentReplay: true,
+        branchId: "branch-main",
+        totalPayable: 2500,
+        totalPaid: 1500,
+        alreadyPaid: 500, // properly attributes 500, not 1500
+        remainingBalance: 1000,
+        movements: [
+          {
+            id: "mov-rep-1",
+            amount: 1000,
+            paymentMethod: "cash",
+            externalReference: null,
+          },
+        ],
+      },
+    });
+
+    render(
+      <CradleFlowQuickPaymentModal
+        data={data}
+        loading={false}
+        requestedOrderId="booking-legacy-1"
+        {...callbacks}
+      />
+    );
+
+    await waitFor(() => expect(screen.getByLabelText("Tender 1 amount")).toBeTruthy());
+    fireEvent.click(screen.getByRole("button", { name: "Record Payment" }));
+
+    await waitFor(() => expect(mocks.recordLegacy).toHaveBeenCalledTimes(1));
+    await waitFor(() => expect(mocks.printReceipt).toHaveBeenCalledTimes(1));
+
+    const receiptData = mocks.printReceipt.mock.calls[0]?.[0];
+    expect(receiptData.transactionId).toBe("c5cc08fd-9912-4f32-8ea3-289b41dc6821");
+    expect(receiptData.totalPayable).toBe(2500);
+    expect(receiptData.alreadyPaid).toBe(500);
+    expect(receiptData.amountPaid).toBe(1000);
+    expect(receiptData.remainingBalance).toBe(1000);
+    expect(receiptData.isIdempotentReplay).toBe(true);
+    expect(callbacks.onSuccess).toHaveBeenCalledTimes(1);
+  });
+
+  it("locks payment submission when server posting is uncertain and provides Verify & Refresh (Requirement 4)", async () => {
+    // Return response with invalid/missing transactionId to trigger uncertainty
+    mocks.recordOrder.mockResolvedValueOnce({
+      ok: true,
+      data: {
+        success: true,
+        transactionId: "", // invalid transaction ID
+        totalPaid: 400,
+        totalPayable: 1000,
+        netAllocated: 1000,
+        remainingBalance: 0,
+        paymentState: "fully_paid",
+        movements: [{ id: "m1", amount: 400, paymentMethod: "cash" }],
+      },
+    });
+
+    render(
+      <CradleFlowQuickPaymentModal
+        data={data}
+        loading={false}
+        requestedOrderId="order-deposit-test"
+        {...callbacks}
+      />
+    );
+
+    await waitFor(() => expect(screen.getByLabelText("Tender 1 amount")).toBeTruthy());
+    const submitBtn = screen.getByRole("button", { name: "Record Payment" });
+    fireEvent.click(submitBtn);
+
+    await waitFor(() => expect(mocks.recordOrder).toHaveBeenCalledTimes(1));
+    expect(callbacks.onSuccess).not.toHaveBeenCalled();
+    expect(mocks.printReceipt).not.toHaveBeenCalled();
+
+    // Verification alert and footer lock message must be visible
+    expect(screen.getByText("Payment submission locked pending verification")).toBeTruthy();
+    // The "Record Payment" button must be replaced/removed
+    expect(screen.queryByRole("button", { name: "Record Payment" })).toBeNull();
+
+    // Verify & Refresh button should trigger onRetry
+    const refreshBtn = screen.getByRole("button", { name: "Verify & Refresh" });
+    fireEvent.click(refreshBtn);
+    expect(callbacks.onRetry).toHaveBeenCalledTimes(1);
+
+    // Ensure mocks.recordOrder was NOT called again
+    expect(mocks.recordOrder).toHaveBeenCalledTimes(1);
+  });
+
+  it("supports split tender on order with existing deposit and prints receipt with full breakdown", async () => {
+    // Split tender: ₱200 Cash + ₱200 GCash to pay remaining ₱400
+    mocks.recordOrder.mockResolvedValueOnce({
+      ok: true,
+      data: {
+        success: true,
+        isIdempotentReplay: false,
+        transactionId: "c5cc08fd-9912-4f32-8ea3-289b41dc6822",
+        orderId: "order-deposit-test",
+        branchId: "branch-main",
+        businessDate: "2026-10-30",
+        totalPaid: 400,
+        totalPayable: 1000,
+        netAllocated: 1000,
+        remainingBalance: 0,
+        paymentState: "fully_paid",
+        movements: [
+          {
+            id: "mov-split-1",
+            financialAccountId: "drawer",
+            amount: 200,
+            paymentMethod: "cash",
+            externalReference: null,
+          },
+          {
+            id: "mov-split-2",
+            financialAccountId: "gcash",
+            amount: 200,
+            paymentMethod: "gcash",
+            externalReference: "GCASH-SPLIT-REF",
+          },
+        ],
+        allocations: [],
+      },
+    });
+
+    render(
+      <CradleFlowQuickPaymentModal
+        data={data}
+        loading={false}
+        requestedOrderId="order-deposit-test"
+        {...callbacks}
+      />
+    );
+
+    await waitFor(() => expect(screen.getByLabelText("Tender 1 amount")).toBeTruthy());
+
+    // Switch to split tender
+    fireEvent.click(screen.getByRole("button", { name: "Split +" }));
+
+    // Tender 1: 200
+    const tender1Input = screen.getByLabelText("Tender 1 amount");
+    fireEvent.change(tender1Input, { target: { value: "200" } });
+
+    // Tender 2: 200
+    const tender2Input = screen.getByLabelText("Tender 2 amount");
+    fireEvent.change(tender2Input, { target: { value: "200" } });
+
+    fireEvent.click(screen.getByRole("button", { name: "Record Payment" }));
+
+    await waitFor(() => expect(mocks.recordOrder).toHaveBeenCalledTimes(1));
+    await waitFor(() => expect(mocks.printReceipt).toHaveBeenCalledTimes(1));
+
+    const receiptData = mocks.printReceipt.mock.calls[0]?.[0];
+    expect(receiptData.transactionId).toBe("c5cc08fd-9912-4f32-8ea3-289b41dc6822");
+    expect(receiptData.totalPayable).toBe(1000);
+    expect(receiptData.alreadyPaid).toBe(600);
+    expect(receiptData.amountPaid).toBe(400);
+    expect(receiptData.remainingBalance).toBe(0);
+    expect(receiptData.payments).toHaveLength(2);
+    expect(receiptData.payments[0]).toMatchObject({ method: "Cash", amount: 200, reference: null });
+    expect(receiptData.payments[1]).toMatchObject({ method: "GCash", amount: 200, reference: "GCASH-SPLIT-REF" });
+  });
+
+  it("displays print warning when browser printing fails and allows Print Again without re-posting", async () => {
+    mocks.printReceipt.mockReturnValueOnce(false); // printer fails first time
+    mocks.recordOrder.mockResolvedValueOnce({
+      ok: true,
+      data: {
+        success: true,
+        isIdempotentReplay: false,
+        transactionId: "c5cc08fd-9912-4f32-8ea3-289b41dc6823",
+        orderId: "order-deposit-test",
+        branchId: "branch-main",
+        businessDate: "2026-10-30",
+        totalPaid: 400,
+        totalPayable: 1000,
+        netAllocated: 1000,
+        remainingBalance: 0,
+        paymentState: "fully_paid",
+        movements: [
+          {
+            id: "mov-dep-1",
+            financialAccountId: "drawer",
+            amount: 400,
+            paymentMethod: "cash",
+            externalReference: null,
+          },
+        ],
+        allocations: [],
+      },
+    });
+
+    render(
+      <CradleFlowQuickPaymentModal
+        data={data}
+        loading={false}
+        requestedOrderId="order-deposit-test"
+        {...callbacks}
+      />
+    );
+
+    await waitFor(() => expect(screen.getByLabelText("Tender 1 amount")).toBeTruthy());
+    fireEvent.click(screen.getByRole("button", { name: "Record Payment" }));
+
+    await waitFor(() => expect(mocks.recordOrder).toHaveBeenCalledTimes(1));
+    await waitFor(() => expect(mocks.printReceipt).toHaveBeenCalledTimes(1));
+
+    // Warning message should be visible
+    expect(screen.getByText(/Automatic printing could not be opened/)).toBeTruthy();
+
+    // Print Again button should be available
+    const [printAgainBtn] = screen.getAllByRole("button", { name: "Print Again" });
+    expect(printAgainBtn).toBeDefined();
+    mocks.printReceipt.mockReturnValueOnce(true); // printer succeeds on reprint
+    fireEvent.click(printAgainBtn!);
+
+    // Print was called a second time
+    expect(mocks.printReceipt).toHaveBeenCalledTimes(2);
+    expect(mocks.printReceipt.mock.calls[1]?.[0].isReprint).toBe(true);
+
+    // Payment was NOT re-posted
+    expect(mocks.recordOrder).toHaveBeenCalledTimes(1);
+    expect(mocks.recordLegacy).not.toHaveBeenCalled();
   });
 });

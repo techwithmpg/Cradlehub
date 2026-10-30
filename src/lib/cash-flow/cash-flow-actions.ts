@@ -297,15 +297,33 @@ export async function recordLegacyBookingPaymentAction(
     }
   }
 
-  const totalPaidAuthoritative = targetCents / 100;
-  const alreadyPaidAuthoritative =
-    isFullPayment && result.isIdempotentReplay
-      ? Math.max(0, Math.round((targetCents - Math.round(result.paymentDelta * 100)) / 100))
-      : previousCents / 100;
-  const remainingBalanceAuthoritative = Math.max(
+  let totalPaidAuthoritative = targetCents / 100;
+  let alreadyPaidAuthoritative = previousCents / 100;
+  let remainingBalanceAuthoritative = Math.max(
     0,
     Math.round((total - totalPaidAuthoritative) * 100) / 100
   );
+
+  if (result.isIdempotentReplay) {
+    const originalMovementSum = movements.reduce((sum, m) => sum + m.amount, 0);
+    if (originalMovementSum > 0) {
+      // For idempotent replay, booking.amount_paid already contains the original transaction.
+      // Prior payments before that transaction are cumulative booking paid minus original movement sum.
+      const cumulativeBookingPaid = Number(booking.amount_paid ?? 0);
+      alreadyPaidAuthoritative = Math.max(
+        0,
+        Math.round((cumulativeBookingPaid - originalMovementSum) * 100) / 100
+      );
+      totalPaidAuthoritative = cumulativeBookingPaid;
+      remainingBalanceAuthoritative = Math.max(
+        0,
+        Math.round((total - cumulativeBookingPaid) * 100) / 100
+      );
+    } else {
+      // If original movements could not be established, suppress receipt printing
+      movements = [];
+    }
+  }
 
   return {
     ok: true,

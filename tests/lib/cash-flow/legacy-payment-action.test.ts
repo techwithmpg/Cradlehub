@@ -163,6 +163,87 @@ describe('Cash Flow legacy booking payment action', () => {
       .toEqual(['cash-flow-legacy-1', 'cash-flow-legacy-1']);
   });
 
+  it('correctly attributes prior payments on idempotent replay without double-counting the original payment', async () => {
+    const validTxnId = 'c5cc08fd-9912-4f32-8ea3-289b41dc6805';
+    // Booking has price 2500, cumulative amount_paid 1500 (which includes a 500 deposit + 1000 original payment)
+    booking.metadata = { price_paid: 2500 };
+    booking.amount_paid = 1500;
+    mocks.rpc.mockResolvedValueOnce({
+      data: {
+        booking_id: bookingId,
+        branch_id: branchId,
+        transaction_id: validTxnId,
+        payment_delta: 0,
+        is_idempotent_replay: true,
+        reconciliation_warning: null,
+      },
+      error: null,
+    });
+    movementsList = [
+      {
+        id: 'mov-replay-1',
+        amount: 1000,
+        payment_method: 'cash',
+        external_reference: null,
+      },
+    ];
+
+    const result = await recordLegacyBookingPaymentAction({
+      ...baseInput,
+      expectedAmountPaid: 500,
+      payments: [{ amount: 1000, paymentMethod: 'cash', financialAccountId: cashAccountId }],
+    });
+
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+
+    expect(result.data.isIdempotentReplay).toBe(true);
+    expect(result.data.totalPayable).toBe(2500);
+    // Cumulative booking is 1500. Original txn was 1000. Prior paid must be 500 (NOT 1500!)
+    expect(result.data.alreadyPaid).toBe(500);
+    expect(result.data.totalPaid).toBe(1500);
+    expect(result.data.remainingBalance).toBe(1000);
+    expect(result.data.movements).toEqual([
+      {
+        id: 'mov-replay-1',
+        amount: 1000,
+        paymentMethod: 'cash',
+        externalReference: null,
+      },
+    ]);
+  });
+
+  it('suppresses movements on idempotent replay if original movements cannot be recovered', async () => {
+    const validTxnId = 'c5cc08fd-9912-4f32-8ea3-289b41dc6806';
+    booking.metadata = { price_paid: 1000 };
+    booking.amount_paid = 1000;
+    mocks.rpc.mockResolvedValueOnce({
+      data: {
+        booking_id: bookingId,
+        branch_id: branchId,
+        transaction_id: validTxnId,
+        payment_delta: 0,
+        is_idempotent_replay: true,
+        reconciliation_warning: null,
+      },
+      error: null,
+    });
+    movementsList = []; // no movements recovered
+
+    const result = await recordLegacyBookingPaymentAction({
+      ...baseInput,
+      expectedAmountPaid: 0,
+      payments: [{ amount: 1000, paymentMethod: 'cash', financialAccountId: cashAccountId }],
+    });
+
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+
+    expect(result.data.isIdempotentReplay).toBe(true);
+    // Movements should be empty to suppress receipt printing
+    expect(result.data.movements).toEqual([]);
+  });
+
   it('reads and returns authoritative branch-scoped financial_account_movements and verified balances for valid transaction ID', async () => {
     const validTxnId = 'c5cc08fd-9912-4f32-8ea3-289b41dc6801';
     mocks.rpc.mockResolvedValueOnce({

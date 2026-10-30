@@ -214,6 +214,7 @@ export function CradleFlowQuickPaymentModal({
     !invalidTender &&
     !cashReceivedError &&
     !confirmedReceipt &&
+    !verificationWarning &&
     totalCents > 0 &&
     totalCents <= remainingCents
   );
@@ -252,7 +253,7 @@ export function CradleFlowQuickPaymentModal({
   }
 
   async function recordPayment() {
-    if (confirmedReceipt || submitting.current || !canSubmit || !data || !selected) return;
+    if (confirmedReceipt || verificationWarning || submitting.current || !canSubmit || !data || !selected) return;
     submitting.current = true;
     setBusy(true);
     setPaymentError(null);
@@ -373,6 +374,7 @@ export function CradleFlowQuickPaymentModal({
               const totalPayableVal = Number(legacyData.totalPayable);
               const remBalVal = Number(legacyData.remainingBalance);
               const totalPaidVal = Number(legacyData.totalPaid);
+              const alreadyPaidVal = Number(legacyData.alreadyPaid);
 
               if (!Number.isFinite(totalPayableVal) || totalPayableVal < 0) {
                 unverifiedReason = "Authoritative total payable amount is missing or invalid in server confirmation.";
@@ -380,12 +382,18 @@ export function CradleFlowQuickPaymentModal({
                 unverifiedReason = "Authoritative remaining balance is missing or invalid in server confirmation.";
               } else if (!Number.isFinite(totalPaidVal) || totalPaidVal < 0) {
                 unverifiedReason = "Authoritative total paid amount is missing or invalid in server confirmation.";
+              } else if (!Number.isFinite(alreadyPaidVal) || alreadyPaidVal < 0) {
+                unverifiedReason = "Authoritative already paid amount is missing or invalid in server confirmation.";
               } else {
-                confirmedTotalPayable = totalPayableVal;
-                confirmedRemainingBalance = remBalVal;
-                confirmedAlreadyPaid = Number.isFinite(Number(legacyData.alreadyPaid))
-                  ? Number(legacyData.alreadyPaid)
-                  : Math.max(0, Math.round((totalPaidVal - confirmedAmountPaid) * 100) / 100);
+                const roundedExpectedSum = Math.round((alreadyPaidVal + confirmedAmountPaid + remBalVal) * 100);
+                const roundedTotalPayable = Math.round(totalPayableVal * 100);
+                if (roundedExpectedSum !== roundedTotalPayable) {
+                  unverifiedReason = "Authoritative balance calculation mismatch: total payable, previous payments, and remaining balance are inconsistent.";
+                } else {
+                  confirmedTotalPayable = totalPayableVal;
+                  confirmedRemainingBalance = remBalVal;
+                  confirmedAlreadyPaid = alreadyPaidVal;
+                }
               }
             }
           }
@@ -441,23 +449,34 @@ export function CradleFlowQuickPaymentModal({
                 const remBalVal = Number.isFinite(orderData.remainingBalance)
                   ? orderData.remainingBalance
                   : Number(orderData.remaining_balance);
-                const totalPaidVal = Number.isFinite(orderData.totalPaid)
-                  ? orderData.totalPaid
-                  : Number(orderData.total_paid);
+                const netAllocatedVal = Number.isFinite(orderData.netAllocated)
+                  ? orderData.netAllocated
+                  : Number(orderData.net_allocated);
 
                 if (!Number.isFinite(totalPayableVal) || totalPayableVal < 0) {
                   unverifiedReason = "Authoritative total payable amount is missing or invalid in server confirmation.";
                 } else if (!Number.isFinite(remBalVal) || remBalVal < 0) {
                   unverifiedReason = "Authoritative remaining balance is missing or invalid in server confirmation.";
-                } else if (!Number.isFinite(totalPaidVal) || totalPaidVal < 0) {
-                  unverifiedReason = "Authoritative total paid amount is missing or invalid in server confirmation.";
+                } else if (!Number.isFinite(netAllocatedVal) || netAllocatedVal < 0) {
+                  unverifiedReason = "Authoritative cumulative allocation amount is missing or invalid in server confirmation.";
                 } else {
-                  confirmedTotalPayable = totalPayableVal;
-                  confirmedRemainingBalance = remBalVal;
-                  confirmedAlreadyPaid = Math.max(
-                    0,
-                    Math.round((totalPaidVal - confirmedAmountPaid) * 100) / 100
-                  );
+                  // Previously paid is cumulative allocation before this transaction
+                  const prevPaid = Math.max(0, Math.round((netAllocatedVal - confirmedAmountPaid) * 100) / 100);
+
+                  const roundedNetAlloc = Math.round(netAllocatedVal * 100);
+                  const roundedExpectedAlloc = Math.round((prevPaid + confirmedAmountPaid) * 100);
+                  const roundedTotalPayable = Math.round(totalPayableVal * 100);
+                  const roundedExpectedTotal = Math.round((remBalVal + netAllocatedVal) * 100);
+
+                  if (roundedNetAlloc < Math.round(confirmedAmountPaid * 100)) {
+                    unverifiedReason = "Authoritative cumulative allocation is less than current transaction amount.";
+                  } else if (roundedTotalPayable !== roundedExpectedTotal || roundedNetAlloc !== roundedExpectedAlloc) {
+                    unverifiedReason = "Authoritative balance calculation mismatch: total payable, cumulative allocation, and remaining balance are inconsistent.";
+                  } else {
+                    confirmedTotalPayable = totalPayableVal;
+                    confirmedRemainingBalance = remBalVal;
+                    confirmedAlreadyPaid = prevPaid;
+                  }
                 }
               }
             }
@@ -840,7 +859,43 @@ export function CradleFlowQuickPaymentModal({
                           className="h-9 w-full min-w-0 rounded-lg border border-[#e9e2d8] pl-6 pr-2 text-right text-xs focus:border-[#14543e] focus:outline-none"
                         />
                       </div>
-                    ) : (
+                    ) : verificationWarning ? (
+            <>
+              <div className="flex items-center gap-2 text-xs text-amber-900">
+                <AlertTriangle size={16} className="shrink-0 text-amber-700" />
+                <span className="font-semibold">
+                  Payment submission locked until verified in ledger.
+                </span>
+              </div>
+              <div className="flex gap-2">
+                <Link
+                  href="/crm/cash-flow?tab=ledger"
+                  className="rounded-lg border border-amber-400 bg-white px-4 py-2 text-xs font-semibold text-amber-900 hover:bg-amber-100"
+                >
+                  View Ledger
+                </Link>
+                {onRetry ? (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setVerificationWarning(null);
+                      onRetry();
+                    }}
+                    className="rounded-lg border border-[#e9e2d8] px-4 py-2 text-xs font-semibold hover:bg-[#FAF8F5]"
+                  >
+                    Verify & Refresh
+                  </button>
+                ) : null}
+                <button
+                  type="button"
+                  onClick={onClose}
+                  className="rounded-lg bg-amber-800 px-5 py-2 text-xs font-bold text-white hover:bg-amber-900"
+                >
+                  Close
+                </button>
+              </div>
+            </>
+          ) : (
                       <input
                         aria-label={`Tender ${index + 1} reference`}
                         value={line.reference}
@@ -1042,7 +1097,43 @@ export function CradleFlowQuickPaymentModal({
                   </p>
                 </div>
               </>
-            ) : (
+            ) : verificationWarning ? (
+            <>
+              <div className="flex items-center gap-2 text-xs text-amber-900">
+                <AlertTriangle size={16} className="shrink-0 text-amber-700" />
+                <span className="font-semibold">
+                  Payment submission locked until verified in ledger.
+                </span>
+              </div>
+              <div className="flex gap-2">
+                <Link
+                  href="/crm/cash-flow?tab=ledger"
+                  className="rounded-lg border border-amber-400 bg-white px-4 py-2 text-xs font-semibold text-amber-900 hover:bg-amber-100"
+                >
+                  View Ledger
+                </Link>
+                {onRetry ? (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setVerificationWarning(null);
+                      onRetry();
+                    }}
+                    className="rounded-lg border border-[#e9e2d8] px-4 py-2 text-xs font-semibold hover:bg-[#FAF8F5]"
+                  >
+                    Verify & Refresh
+                  </button>
+                ) : null}
+                <button
+                  type="button"
+                  onClick={onClose}
+                  className="rounded-lg bg-amber-800 px-5 py-2 text-xs font-bold text-white hover:bg-amber-900"
+                >
+                  Close
+                </button>
+              </div>
+            </>
+          ) : (
               <p className="text-sm text-[#786d61]">
                 Select an eligible booking to see its payment details.
               </p>
@@ -1112,6 +1203,42 @@ export function CradleFlowQuickPaymentModal({
                   className="rounded-lg bg-[#14543e] px-5 py-2 text-xs font-bold text-white hover:bg-[#0f402f]"
                 >
                   Done
+                </button>
+              </div>
+            </>
+          ) : verificationWarning ? (
+            <>
+              <div className="flex items-center gap-2 text-xs text-amber-900">
+                <AlertTriangle size={16} className="shrink-0 text-amber-700" />
+                <span className="font-semibold">
+                  Payment submission locked until verified in ledger.
+                </span>
+              </div>
+              <div className="flex gap-2">
+                <Link
+                  href="/crm/cash-flow?tab=ledger"
+                  className="rounded-lg border border-amber-400 bg-white px-4 py-2 text-xs font-semibold text-amber-900 hover:bg-amber-100"
+                >
+                  View Ledger
+                </Link>
+                {onRetry ? (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setVerificationWarning(null);
+                      onRetry();
+                    }}
+                    className="rounded-lg border border-[#e9e2d8] px-4 py-2 text-xs font-semibold hover:bg-[#FAF8F5]"
+                  >
+                    Verify & Refresh
+                  </button>
+                ) : null}
+                <button
+                  type="button"
+                  onClick={onClose}
+                  className="rounded-lg bg-amber-800 px-5 py-2 text-xs font-bold text-white hover:bg-amber-900"
+                >
+                  Close
                 </button>
               </div>
             </>
