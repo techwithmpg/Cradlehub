@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import { AlertTriangle, CheckCircle2, Info, Plus, Printer, X } from "lucide-react";
 import { Dialog, DialogContent, DialogTitle } from "@/components/ui/dialog";
@@ -99,8 +99,54 @@ export function CradleFlowQuickPaymentModal({
   const [verificationWarning, setVerificationWarning] = useState<string | null>(null);
   const [printWarning, setPrintWarning] = useState<string | null>(null);
   const [confirmedReceipt, setConfirmedReceipt] = useState<PrintableReceiptData | null>(null);
+  const [unresolvedAttempt, setUnresolvedAttempt] = useState<boolean>(false);
   const submitting = useRef(false);
-  const attempt = useRef<{ signature: string; key: string } | null>(null);
+  const attempt = useRef<{
+    signature: string;
+    key: string;
+    unresolved?: boolean;
+    orderId?: string;
+    sourceKind?: string;
+    paidBefore?: number;
+    totalPayable?: number;
+    amount?: number;
+  } | null>(null);
+
+  const isLocked = Boolean(verificationWarning || unresolvedAttempt);
+
+  useEffect(() => {
+    if (!unresolvedAttempt || !data || !attempt.current) return;
+
+    const attemptedId = attempt.current.orderId;
+    const attemptedAmount = attempt.current.amount ?? 0;
+    const paidBefore = attempt.current.paidBefore ?? 0;
+    const totalPayable = attempt.current.totalPayable ?? 0;
+
+    const refreshedOrder = data.payableOrders.find((o) => o.id === attemptedId);
+
+    if (refreshedOrder) {
+      const currentPaid = refreshedOrder.amountPaid;
+      if (Math.round(currentPaid * 100) >= Math.round((paidBefore + attemptedAmount) * 100)) {
+        // Authoritatively confirmed posted in the refreshed ledger
+        attempt.current.unresolved = false;
+        setUnresolvedAttempt(false);
+        setVerificationWarning(null);
+        setPaymentError(null);
+        onSuccess();
+      }
+    } else if (
+      !loading &&
+      !error &&
+      Math.round((paidBefore + attemptedAmount) * 100) >= Math.round(totalPayable * 100)
+    ) {
+      // Order was fully paid and closed out of payable orders
+      attempt.current.unresolved = false;
+      setUnresolvedAttempt(false);
+      setVerificationWarning(null);
+      setPaymentError(null);
+      onSuccess();
+    }
+  }, [unresolvedAttempt, data, loading, error, onSuccess]);
 
   const eligible = useMemo(() => (data?.payableOrders ?? []).filter(isQuickPaymentEligible), [data]);
   const ready = eligible.filter((order) => order.readyForCheckout && order.amountPaid === 0);
@@ -146,6 +192,7 @@ export function CradleFlowQuickPaymentModal({
   const tenders = tenderDraft?.key === tenderKey ? tenderDraft.lines : defaultTenders;
 
   function setTenders(next: Tender[] | ((previous: Tender[]) => Tender[])) {
+    if (isLocked) return;
     setTenderDraft((previous) => {
       const current = previous?.key === tenderKey ? previous.lines : defaultTenders;
       const lines = typeof next === "function" ? next(current) : next;
@@ -214,12 +261,13 @@ export function CradleFlowQuickPaymentModal({
     !invalidTender &&
     !cashReceivedError &&
     !confirmedReceipt &&
-    !verificationWarning &&
+    !isLocked &&
     totalCents > 0 &&
     totalCents <= remainingCents
   );
 
   function updateTender(id: string, change: Partial<Tender>) {
+    if (isLocked) return;
     setPaymentError(null);
     setTenders((current) =>
       current.map((line) => {
@@ -234,6 +282,7 @@ export function CradleFlowQuickPaymentModal({
   }
 
   function addTender() {
+    if (isLocked) return;
     const next: FinancialPaymentMethod = tenders.some((line) => line.method === "cash")
       ? "gcash"
       : "cash";
@@ -253,11 +302,10 @@ export function CradleFlowQuickPaymentModal({
   }
 
   async function recordPayment() {
-    if (confirmedReceipt || verificationWarning || submitting.current || !canSubmit || !data || !selected) return;
+    if (confirmedReceipt || isLocked || submitting.current || !canSubmit || !data || !selected) return;
     submitting.current = true;
     setBusy(true);
     setPaymentError(null);
-    setVerificationWarning(null);
     setPrintWarning(null);
 
     const payments = tenders.map((line) => ({
@@ -276,8 +324,22 @@ export function CradleFlowQuickPaymentModal({
       notes: notes.trim(),
     });
 
-    if (attempt.current?.signature !== signature)
-      attempt.current = { signature, key: crypto.randomUUID() };
+    const key =
+      attempt.current?.unresolved && attempt.current.orderId === selected.id
+        ? attempt.current.key
+        : crypto.randomUUID();
+
+    attempt.current = {
+      signature,
+      key,
+      unresolved: true,
+      orderId: selected.id,
+      sourceKind: selected.sourceKind,
+      paidBefore: selected.amountPaid,
+      totalPayable: selected.totalAmount,
+      amount: totalCents / 100,
+    };
+    setUnresolvedAttempt(true);
 
     try {
       const result =
@@ -286,21 +348,39 @@ export function CradleFlowQuickPaymentModal({
               bookingId: selected.id,
               branchId: data.branchId,
               expectedAmountPaid: selected.amountPaid,
-              idempotencyKey: attempt.current!.key,
+              idempotencyKey: key,
               payments,
               businessDate: data.businessDate,
               notes: notes.trim() || null,
             })
           : await recordOrderPaymentAction({
               orderId: selected.id,
-              idempotencyKey: attempt.current!.key,
+              idempotencyKey: key,
               payments,
               businessDate: data.businessDate,
               notes: notes.trim() || null,
             });
 
       if (!result.ok) {
-        setPaymentError(result.error || "Payment could not be recorded. Refresh before retrying.");
+        const isPreWriteRejection =
+          result.code === "VALIDATION_FAILED" ||
+          result.code === "AUTH_REQUIRED" ||
+          result.code === "ORDER_NOT_PAYABLE" ||
+          result.code === "SOURCE_MISMATCH" ||
+          result.code === "BOOKING_PRICE_INVALID";
+
+        if (isPreWriteRejection) {
+          if (attempt.current) attempt.current.unresolved = false;
+          setUnresolvedAttempt(false);
+          setPaymentError(result.error || "Payment was rejected before posting.");
+          return;
+        }
+
+        setUnresolvedAttempt(true);
+        setVerificationWarning(
+          `Payment posting reported an unconfirmed status: ${result.error || "Server error"}. The transaction may have already posted. Payment submission is locked until the ledger is authoritatively verified.`
+        );
+        setConfirmedReceipt(null);
         return;
       }
 
@@ -485,6 +565,7 @@ export function CradleFlowQuickPaymentModal({
       }
 
       if (unverifiedReason || !confirmedTxnId) {
+        setUnresolvedAttempt(true);
         setVerificationWarning(
           `Payment status requires verification: ${unverifiedReason ?? "Missing confirmed transaction ID"}. Please check the Cash Flow ledger to verify whether the transaction posted before re-attempting payment or issuing a receipt.`
         );
@@ -535,6 +616,12 @@ export function CradleFlowQuickPaymentModal({
         isIdempotentReplay,
       };
 
+      if (attempt.current) {
+        attempt.current.unresolved = false;
+      }
+      setUnresolvedAttempt(false);
+      setVerificationWarning(null);
+      setPaymentError(null);
       setConfirmedReceipt(receiptData);
       const printed = printThermalReceipt(receiptData);
       if (!printed) {
@@ -546,11 +633,12 @@ export function CradleFlowQuickPaymentModal({
       }
       onSuccess();
     } catch (err) {
-      setPaymentError(
-        err instanceof Error
-          ? err.message
-          : "Payment result unknown. Verify the ledger before retrying."
+      const msg = err instanceof Error ? err.message : "Network error or timeout";
+      setUnresolvedAttempt(true);
+      setVerificationWarning(
+        `Payment status uncertain due to communication failure (${msg}). The transaction may have already posted. Payment submission is locked until the ledger is authoritatively verified.`
       );
+      setConfirmedReceipt(null);
     } finally {
       submitting.current = false;
       setBusy(false);
@@ -668,8 +756,9 @@ export function CradleFlowQuickPaymentModal({
                 <button
                   key={id}
                   type="button"
+                  disabled={isLocked}
                   onClick={() => setTab(id)}
-                  className={`rounded-lg px-2 py-2 font-semibold ${tab === id ? "bg-[#14543e] text-white" : "text-[#50483f] hover:bg-[#f5f0e9]"}`}
+                  className={`rounded-lg px-2 py-2 font-semibold ${tab === id ? "bg-[#14543e] text-white" : "text-[#50483f] hover:bg-[#f5f0e9]"} disabled:opacity-50`}
                 >
                   {label}
                 </button>
@@ -718,11 +807,12 @@ export function CradleFlowQuickPaymentModal({
                 <button
                   key={order.id}
                   type="button"
+                  disabled={isLocked}
                   onClick={() => {
                     setSelectedId(order.id);
                     setPaymentError(null);
                   }}
-                  className={`flex w-full items-center gap-3 rounded-xl border p-3 text-left transition ${selected?.id === order.id ? "border-[#116044] bg-[#eff8f2]" : "border-[#e9e2d8] bg-white hover:border-[#116044]"}`}
+                  className={`flex w-full items-center gap-3 rounded-xl border p-3 text-left transition ${selected?.id === order.id ? "border-[#116044] bg-[#eff8f2]" : "border-[#e9e2d8] bg-white hover:border-[#116044]"} disabled:opacity-60`}
                 >
                   <span
                     aria-hidden="true"
@@ -753,7 +843,7 @@ export function CradleFlowQuickPaymentModal({
                   <button
                     key={method}
                     type="button"
-                    disabled={!selected || busy || tenders.length === 0}
+                    disabled={!selected || busy || isLocked || tenders.length === 0}
                     onClick={() =>
                       updateTender(tenders[0]!.id, {
                         method,
@@ -767,7 +857,7 @@ export function CradleFlowQuickPaymentModal({
                 ))}
                 <button
                   type="button"
-                  disabled={!selected || busy}
+                  disabled={!selected || busy || isLocked}
                   onClick={addTender}
                   className="rounded-lg border border-dashed border-[#116044] px-3 py-2 text-xs font-semibold text-[#14543e]"
                 >
@@ -793,7 +883,7 @@ export function CradleFlowQuickPaymentModal({
                       <select
                         aria-label={`Tender ${index + 1} method`}
                         value={line.method}
-                        disabled={busy}
+                        disabled={busy || isLocked}
                         onChange={(e) => {
                           const method = e.target.value as FinancialPaymentMethod;
                           updateTender(line.id, { method, accountId: firstAccount(method) });
@@ -810,7 +900,7 @@ export function CradleFlowQuickPaymentModal({
                         <select
                           aria-label={`Tender ${index + 1} receiving account`}
                           value={line.accountId}
-                          disabled={busy}
+                          disabled={busy || isLocked}
                           onChange={(e) => updateTender(line.id, { accountId: e.target.value })}
                           className="h-7 w-full rounded border px-1 text-[11px]"
                         >
@@ -836,7 +926,7 @@ export function CradleFlowQuickPaymentModal({
                         min="0.01"
                         step="0.01"
                         inputMode="decimal"
-                        disabled={busy}
+                        disabled={busy || isLocked}
                         value={line.amount}
                         onChange={(e) => updateTender(line.id, { amount: e.target.value })}
                         className="h-9 w-full min-w-0 rounded-lg border border-[#e9e2d8] pl-6 pr-2 text-right text-xs"
@@ -853,53 +943,17 @@ export function CradleFlowQuickPaymentModal({
                           step="0.01"
                           inputMode="decimal"
                           placeholder={line.amount ? Number(line.amount).toFixed(2) : "0.00"}
-                          disabled={busy}
+                          disabled={busy || isLocked}
                           value={line.cashReceived ?? ""}
                           onChange={(e) => updateTender(line.id, { cashReceived: e.target.value })}
                           className="h-9 w-full min-w-0 rounded-lg border border-[#e9e2d8] pl-6 pr-2 text-right text-xs focus:border-[#14543e] focus:outline-none"
                         />
                       </div>
-                    ) : verificationWarning ? (
-            <>
-              <div className="flex items-center gap-2 text-xs text-amber-900">
-                <AlertTriangle size={16} className="shrink-0 text-amber-700" />
-                <span className="font-semibold">
-                  Payment submission locked until verified in ledger.
-                </span>
-              </div>
-              <div className="flex gap-2">
-                <Link
-                  href="/crm/cash-flow?tab=ledger"
-                  className="rounded-lg border border-amber-400 bg-white px-4 py-2 text-xs font-semibold text-amber-900 hover:bg-amber-100"
-                >
-                  View Ledger
-                </Link>
-                {onRetry ? (
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setVerificationWarning(null);
-                      onRetry();
-                    }}
-                    className="rounded-lg border border-[#e9e2d8] px-4 py-2 text-xs font-semibold hover:bg-[#FAF8F5]"
-                  >
-                    Verify & Refresh
-                  </button>
-                ) : null}
-                <button
-                  type="button"
-                  onClick={onClose}
-                  className="rounded-lg bg-amber-800 px-5 py-2 text-xs font-bold text-white hover:bg-amber-900"
-                >
-                  Close
-                </button>
-              </div>
-            </>
-          ) : (
+                    ) : (
                       <input
                         aria-label={`Tender ${index + 1} reference`}
                         value={line.reference}
-                        disabled={busy}
+                        disabled={busy || isLocked}
                         onChange={(e) => updateTender(line.id, { reference: e.target.value })}
                         placeholder="Transaction reference (optional)"
                         className="col-span-2 h-9 w-full min-w-0 rounded-lg border border-[#e9e2d8] px-2 text-xs sm:col-span-1"
@@ -909,7 +963,7 @@ export function CradleFlowQuickPaymentModal({
                     <button
                       type="button"
                       aria-label={`Remove tender ${index + 1}`}
-                      disabled={busy || tenders.length === 1}
+                      disabled={busy || isLocked || tenders.length === 1}
                       onClick={() =>
                         setTenders((current) => current.filter((t) => t.id !== line.id))
                       }
@@ -923,7 +977,7 @@ export function CradleFlowQuickPaymentModal({
 
               <button
                 type="button"
-                disabled={!selected || busy}
+                disabled={!selected || busy || isLocked}
                 onClick={addTender}
                 className="mt-2 flex w-full items-center justify-center gap-1 rounded-lg border border-dashed border-[#a0cab3] py-2 text-xs font-semibold text-[#14543e]"
               >
@@ -932,6 +986,7 @@ export function CradleFlowQuickPaymentModal({
 
               <button
                 type="button"
+                disabled={busy || isLocked}
                 onClick={() => setShowNotes(!showNotes)}
                 className="mt-2 text-xs text-[#14543e]"
               >
@@ -942,6 +997,7 @@ export function CradleFlowQuickPaymentModal({
                 <input
                   aria-label="Payment notes"
                   value={notes}
+                  disabled={busy || isLocked}
                   onChange={(e) => setNotes(e.target.value)}
                   maxLength={1000}
                   className="mt-1 h-9 w-full rounded-lg border px-2 text-xs"
@@ -1097,43 +1153,7 @@ export function CradleFlowQuickPaymentModal({
                   </p>
                 </div>
               </>
-            ) : verificationWarning ? (
-            <>
-              <div className="flex items-center gap-2 text-xs text-amber-900">
-                <AlertTriangle size={16} className="shrink-0 text-amber-700" />
-                <span className="font-semibold">
-                  Payment submission locked until verified in ledger.
-                </span>
-              </div>
-              <div className="flex gap-2">
-                <Link
-                  href="/crm/cash-flow?tab=ledger"
-                  className="rounded-lg border border-amber-400 bg-white px-4 py-2 text-xs font-semibold text-amber-900 hover:bg-amber-100"
-                >
-                  View Ledger
-                </Link>
-                {onRetry ? (
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setVerificationWarning(null);
-                      onRetry();
-                    }}
-                    className="rounded-lg border border-[#e9e2d8] px-4 py-2 text-xs font-semibold hover:bg-[#FAF8F5]"
-                  >
-                    Verify & Refresh
-                  </button>
-                ) : null}
-                <button
-                  type="button"
-                  onClick={onClose}
-                  className="rounded-lg bg-amber-800 px-5 py-2 text-xs font-bold text-white hover:bg-amber-900"
-                >
-                  Close
-                </button>
-              </div>
-            </>
-          ) : (
+            ) : (
               <p className="text-sm text-[#786d61]">
                 Select an eligible booking to see its payment details.
               </p>
@@ -1217,6 +1237,8 @@ export function CradleFlowQuickPaymentModal({
               <div className="flex gap-2">
                 <Link
                   href="/crm/cash-flow?tab=ledger"
+                  target="_blank"
+                  rel="noopener noreferrer"
                   className="rounded-lg border border-amber-400 bg-white px-4 py-2 text-xs font-semibold text-amber-900 hover:bg-amber-100"
                 >
                   View Ledger
@@ -1224,13 +1246,13 @@ export function CradleFlowQuickPaymentModal({
                 {onRetry ? (
                   <button
                     type="button"
+                    disabled={loading}
                     onClick={() => {
-                      setVerificationWarning(null);
                       onRetry();
                     }}
-                    className="rounded-lg border border-[#e9e2d8] px-4 py-2 text-xs font-semibold hover:bg-[#FAF8F5]"
+                    className="rounded-lg border border-[#e9e2d8] px-4 py-2 text-xs font-semibold hover:bg-[#FAF8F5] disabled:opacity-50"
                   >
-                    Verify & Refresh
+                    {loading ? "Verifying…" : "Verify & Refresh"}
                   </button>
                 ) : null}
                 <button

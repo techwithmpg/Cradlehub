@@ -380,7 +380,7 @@ describe("CRM quick payment modal", () => {
     expect(screen.getByRole("alert").textContent).toContain("Payment Verification Required");
     expect(screen.getByRole("alert").textContent).toContain("Payment status requires verification");
     expect(screen.getByRole("alert").textContent).toContain("check the Cash Flow ledger");
-    expect(screen.getByRole("link", { name: "View Ledger" })).toBeTruthy();
+    expect(screen.getAllByRole("link", { name: "View Ledger" }).length).toBeGreaterThanOrEqual(1);
   });
 
   it("displays verification warning and suppresses printing when server response indicates success: false", async () => {
@@ -925,7 +925,7 @@ describe("CRM quick payment modal", () => {
     expect(mocks.printReceipt).not.toHaveBeenCalled();
 
     // Verification alert and footer lock message must be visible
-    expect(screen.getByText("Payment submission locked pending verification")).toBeTruthy();
+    expect(screen.getByText("Payment submission locked until verified in ledger.")).toBeTruthy();
     // The "Record Payment" button must be replaced/removed
     expect(screen.queryByRole("button", { name: "Record Payment" })).toBeNull();
 
@@ -1072,5 +1072,227 @@ describe("CRM quick payment modal", () => {
     // Payment was NOT re-posted
     expect(mocks.recordOrder).toHaveBeenCalledTimes(1);
     expect(mocks.recordLegacy).not.toHaveBeenCalled();
+  });
+
+  it("handles network uncertainty: network exception locks submission, preserves idempotency key, and prevents second payment", async () => {
+    // Simulate a network failure/timeout during order payment dispatch
+    mocks.recordOrder.mockRejectedValueOnce(new Error("Network timeout: connection reset by peer"));
+
+    render(
+      <CradleFlowQuickPaymentModal
+        data={data}
+        loading={false}
+        requestedOrderId="order-deposit-test"
+        {...callbacks}
+      />
+    );
+
+    await waitFor(() => expect(screen.getByLabelText("Tender 1 amount")).toBeTruthy());
+    const recordBtn = screen.getByRole("button", { name: "Record Payment" });
+    fireEvent.click(recordBtn);
+
+    await waitFor(() => expect(mocks.recordOrder).toHaveBeenCalledTimes(1));
+    const firstCallKey = mocks.recordOrder.mock.calls[0]?.[0]?.idempotencyKey;
+    expect(typeof firstCallKey).toBe("string");
+    expect(firstCallKey.length).toBeGreaterThan(0);
+
+    // Verify warning is displayed and submission is locked
+    await waitFor(() => {
+      expect(
+        screen.getByText(/Payment status uncertain due to communication failure/)
+      ).toBeTruthy();
+    });
+    expect(screen.getByText("Payment submission locked until verified in ledger.")).toBeTruthy();
+    expect(screen.queryByRole("button", { name: "Record Payment" })).toBeNull();
+
+    // Tender inputs must be disabled to prevent changing payment amounts
+    expect((screen.getByLabelText("Tender 1 amount") as HTMLInputElement).disabled).toBe(true);
+
+    // Clicking Verify & Refresh triggers onRetry without dispatching a second payment
+    const refreshBtn = screen.getByRole("button", { name: "Verify & Refresh" });
+    fireEvent.click(refreshBtn);
+    expect(callbacks.onRetry).toHaveBeenCalledTimes(1);
+    expect(mocks.recordOrder).toHaveBeenCalledTimes(1);
+  });
+
+  it("proves refresh failure keeps submission locked and prevents a second payment", async () => {
+    mocks.recordOrder.mockRejectedValueOnce(new Error("504 Gateway Timeout"));
+
+    const { rerender } = render(
+      <CradleFlowQuickPaymentModal
+        data={data}
+        loading={false}
+        requestedOrderId="order-deposit-test"
+        {...callbacks}
+      />
+    );
+
+    await waitFor(() => expect(screen.getByLabelText("Tender 1 amount")).toBeTruthy());
+    fireEvent.click(screen.getByRole("button", { name: "Record Payment" }));
+
+    await waitFor(() => {
+      expect(screen.getByText("Payment submission locked until verified in ledger.")).toBeTruthy();
+    });
+
+    // Simulate refresh failure from parent: error occurs
+    rerender(
+      <CradleFlowQuickPaymentModal
+        data={data}
+        loading={false}
+        error="Failed to load updated ledger context"
+        requestedOrderId="order-deposit-test"
+        {...callbacks}
+      />
+    );
+
+    // Lock must remain active
+    expect(screen.getByText("Payment submission locked until verified in ledger.")).toBeTruthy();
+    expect(screen.queryByRole("button", { name: "Record Payment" })).toBeNull();
+    expect((screen.getByLabelText("Tender 1 amount") as HTMLInputElement).disabled).toBe(true);
+    expect(mocks.recordOrder).toHaveBeenCalledTimes(1);
+  });
+
+  it("proves delayed refresh keeps submission locked and shows Verifying state", async () => {
+    mocks.recordOrder.mockRejectedValueOnce(new Error("504 Gateway Timeout"));
+
+    const { rerender } = render(
+      <CradleFlowQuickPaymentModal
+        data={data}
+        loading={false}
+        requestedOrderId="order-deposit-test"
+        {...callbacks}
+      />
+    );
+
+    await waitFor(() => expect(screen.getByLabelText("Tender 1 amount")).toBeTruthy());
+    fireEvent.click(screen.getByRole("button", { name: "Record Payment" }));
+
+    await waitFor(() => {
+      expect(screen.getByText("Payment submission locked until verified in ledger.")).toBeTruthy();
+    });
+
+    // Simulate delayed refresh from parent: loading: true
+    rerender(
+      <CradleFlowQuickPaymentModal
+        data={data}
+        loading={true}
+        requestedOrderId="order-deposit-test"
+        {...callbacks}
+      />
+    );
+
+    // Must show Verifying... button, disabled
+    const verifyingBtn = screen.getByRole("button", { name: "Verifying…" });
+    expect((verifyingBtn as HTMLButtonElement).disabled).toBe(true);
+    expect(screen.queryByRole("button", { name: "Record Payment" })).toBeNull();
+    expect(mocks.recordOrder).toHaveBeenCalledTimes(1);
+  });
+
+  it("proves stale refresh (unchanged balance) keeps submission locked and does not resolve attempt", async () => {
+    mocks.recordOrder.mockRejectedValueOnce(new Error("504 Gateway Timeout"));
+
+    const { rerender } = render(
+      <CradleFlowQuickPaymentModal
+        data={data}
+        loading={false}
+        requestedOrderId="order-deposit-test"
+        {...callbacks}
+      />
+    );
+
+    await waitFor(() => expect(screen.getByLabelText("Tender 1 amount")).toBeTruthy());
+    fireEvent.click(screen.getByRole("button", { name: "Record Payment" }));
+
+    await waitFor(() => {
+      expect(screen.getByText("Payment submission locked until verified in ledger.")).toBeTruthy();
+    });
+
+    // Click Verify & Refresh
+    const refreshBtn = screen.getByRole("button", { name: "Verify & Refresh" });
+    fireEvent.click(refreshBtn);
+    expect(callbacks.onRetry).toHaveBeenCalledTimes(1);
+
+    // Simulate refresh completes, but data is stale (amountPaid still 600)
+    rerender(
+      <CradleFlowQuickPaymentModal
+        data={{ ...data }}
+        loading={false}
+        requestedOrderId="order-deposit-test"
+        {...callbacks}
+      />
+    );
+
+    // Lock MUST NOT clear
+    expect(screen.getByText("Payment submission locked until verified in ledger.")).toBeTruthy();
+    expect(screen.queryByRole("button", { name: "Record Payment" })).toBeNull();
+    expect(callbacks.onSuccess).not.toHaveBeenCalled();
+    expect(mocks.recordOrder).toHaveBeenCalledTimes(1);
+  });
+
+  it("proves changed tender details are blocked while previous attempt is unresolved", async () => {
+    mocks.recordOrder.mockRejectedValueOnce(new Error("Connection reset"));
+
+    render(
+      <CradleFlowQuickPaymentModal
+        data={data}
+        loading={false}
+        requestedOrderId="order-deposit-test"
+        {...callbacks}
+      />
+    );
+
+    await waitFor(() => expect(screen.getByLabelText("Tender 1 amount")).toBeTruthy());
+    fireEvent.click(screen.getByRole("button", { name: "Record Payment" }));
+
+    await waitFor(() => {
+      expect(screen.getByText("Payment submission locked until verified in ledger.")).toBeTruthy();
+    });
+
+    // Inputs and method preset buttons are disabled
+    expect((screen.getByLabelText("Tender 1 amount") as HTMLInputElement).disabled).toBe(true);
+    expect((screen.getByRole("button", { name: "Split +" }) as HTMLButtonElement).disabled).toBe(true);
+    expect((screen.getByRole("button", { name: "GCash" }) as HTMLButtonElement).disabled).toBe(true);
+    expect(screen.queryByRole("button", { name: "Record Payment" })).toBeNull();
+  });
+
+  it("authoritatively resolves and completes when refresh returns updated balance reflecting payment", async () => {
+    mocks.recordOrder.mockRejectedValueOnce(new Error("Connection reset"));
+
+    const { rerender } = render(
+      <CradleFlowQuickPaymentModal
+        data={data}
+        loading={false}
+        requestedOrderId="order-deposit-test"
+        {...callbacks}
+      />
+    );
+
+    await waitFor(() => expect(screen.getByLabelText("Tender 1 amount")).toBeTruthy());
+    fireEvent.click(screen.getByRole("button", { name: "Record Payment" }));
+
+    await waitFor(() => {
+      expect(screen.getByText("Payment submission locked until verified in ledger.")).toBeTruthy();
+    });
+
+    // Parent provides refreshed data where order has amountPaid: 1000 (reconciled!)
+    const updatedData: FinancialEntryContext = {
+      ...data,
+      payableOrders: data.payableOrders.map((o) =>
+        o.id === "order-deposit-test" ? { ...o, amountPaid: 1000, remainingBalance: 0 } : o
+      ),
+    };
+
+    rerender(
+      <CradleFlowQuickPaymentModal
+        data={updatedData}
+        loading={false}
+        requestedOrderId="order-deposit-test"
+        {...callbacks}
+      />
+    );
+
+    // Lock is cleared and onSuccess is called
+    await waitFor(() => expect(callbacks.onSuccess).toHaveBeenCalledTimes(1));
+    expect(screen.queryByText("Payment submission locked until verified in ledger.")).toBeNull();
   });
 });
