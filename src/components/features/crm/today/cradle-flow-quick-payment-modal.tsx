@@ -2,14 +2,15 @@
 
 import { useMemo, useRef, useState } from "react";
 import Link from "next/link";
-import { CheckCircle2, Info, Plus, X } from "lucide-react";
+import { AlertTriangle, CheckCircle2, Info, Plus, Printer, X } from "lucide-react";
 import { Dialog, DialogContent, DialogTitle } from "@/components/ui/dialog";
 import type { FinancialEntryContext } from "@/lib/cash-flow/financial-entry-context";
-import type { MaskedAccountOption, PayableOrderOption } from "@/lib/cash-flow/cash-flow-types";
+import type { MaskedAccountOption } from "@/lib/cash-flow/cash-flow-types";
 import {
   FINANCIAL_PAYMENT_RAILS,
   isPaymentMethodCompatibleWithAccount,
   type FinancialPaymentMethod,
+  type PostOrderPaymentResult,
 } from "@/lib/cash-flow/financial-contract";
 import {
   recordLegacyBookingPaymentAction,
@@ -24,6 +25,21 @@ import {
 } from "@/lib/cash-flow/receipt-printer";
 
 export { isQuickPaymentEligible };
+
+type FlexiblePaymentMovement = PostOrderPaymentResult["movements"][number] & {
+  payment_method?: string;
+  reference?: string | null;
+};
+
+type FlexiblePaymentResult = PostOrderPaymentResult & {
+  transaction_id?: string;
+  is_idempotent_replay?: boolean;
+  total_payable?: number;
+  remaining_balance?: number;
+  net_allocated?: number;
+  total_paid?: number;
+  movements?: FlexiblePaymentMovement[];
+};
 
 type Tender = {
   id: string;
@@ -79,6 +95,8 @@ export function CradleFlowQuickPaymentModal({
   const [showNotes, setShowNotes] = useState(false);
   const [busy, setBusy] = useState(false);
   const [paymentError, setPaymentError] = useState<string | null>(null);
+  const [verificationWarning, setVerificationWarning] = useState<string | null>(null);
+  const [printWarning, setPrintWarning] = useState<string | null>(null);
   const [confirmedReceipt, setConfirmedReceipt] = useState<PrintableReceiptData | null>(null);
   const submitting = useRef(false);
   const attempt = useRef<{ signature: string; key: string } | null>(null);
@@ -194,6 +212,7 @@ export function CradleFlowQuickPaymentModal({
     !busy &&
     !invalidTender &&
     !cashReceivedError &&
+    !confirmedReceipt &&
     totalCents > 0 &&
     totalCents <= remainingCents
   );
@@ -236,6 +255,8 @@ export function CradleFlowQuickPaymentModal({
     submitting.current = true;
     setBusy(true);
     setPaymentError(null);
+    setVerificationWarning(null);
+    setPrintWarning(null);
 
     const payments = tenders.map((line) => ({
       amount: Number(line.amount),
@@ -276,62 +297,197 @@ export function CradleFlowQuickPaymentModal({
               notes: notes.trim() || null,
             });
 
-      if (result.ok) {
-        const transactionId =
-          ("data" in result &&
-            result.data &&
-            "transactionId" in result.data &&
-            result.data.transactionId) ||
-          `TXN-${selected.id.slice(0, 8)}`;
+      if (!result.ok) {
+        setPaymentError(result.error || "Payment could not be recorded. Refresh before retrying.");
+        return;
+      }
 
-        const receiptData: PrintableReceiptData = {
-          companyName: "CRADLE WELLNESS LIVING INC.",
-          branchName: selected.branchName || "Main Spa",
-          transactionId,
-          orderNumber: selected.orderNumber,
-          customerName: selected.customerName,
-          customerPhone: selected.customerPhone,
-          formattedDateTime: new Date().toLocaleString("en-PH", {
-            year: "numeric",
-            month: "short",
-            day: "numeric",
-            hour: "2-digit",
-            minute: "2-digit",
-            hour12: true,
-          }),
-          serviceDescription: selected.serviceDescription,
-          visitType: selected.visitType,
-          items: selected.payableItems?.length
-            ? selected.payableItems.map((item) => ({
-                description: item.description,
-                amount: item.amount,
-              }))
-            : [{ description: selected.serviceDescription, amount: selected.totalAmount }],
-          totalPayable: selected.totalAmount,
-          alreadyPaid: selected.amountPaid,
-          amountPaid: totalCents / 100,
-          remainingBalance: Math.max(0, remainingCents - totalCents) / 100,
-          payments: tenders.map((line) => ({
-            method: methodLabels[line.method],
+      // Authoritative verification of server confirmation
+      let confirmedTxnId: string | null = null;
+      let confirmedAmountPaid = 0;
+      let confirmedTotalPayable = selected.totalAmount;
+      let confirmedAlreadyPaid = selected.amountPaid;
+      let confirmedRemainingBalance = 0;
+      let confirmedMovements: Array<{ method: string; amount: number; reference?: string | null }> = [];
+      let isIdempotentReplay = false;
+      let unverifiedReason: string | null = null;
+
+      if (selected.sourceKind === "legacy_booking") {
+        const legacyData =
+          "data" in result && result.data && "paymentDelta" in result.data
+            ? (result.data as {
+                transactionId: string | null;
+                paymentDelta: number;
+                isIdempotentReplay: boolean;
+                branchId: string;
+              })
+            : null;
+        const rawId = legacyData?.transactionId;
+        confirmedTxnId = typeof rawId === "string" && rawId.trim().length > 0 ? rawId.trim() : null;
+        isIdempotentReplay = Boolean(legacyData?.isIdempotentReplay);
+
+        if (!confirmedTxnId) {
+          unverifiedReason = "Authoritative transaction ID is missing from server response.";
+        } else if (!legacyData || typeof legacyData.paymentDelta !== "number" || !Number.isFinite(legacyData.paymentDelta)) {
+          unverifiedReason = "Invalid payment delta in server response.";
+        } else {
+          confirmedAmountPaid = legacyData.paymentDelta;
+          if (Math.round(confirmedAmountPaid * 100) !== totalCents && !isIdempotentReplay) {
+            unverifiedReason = `Posting amount mismatch: expected ${php(totalCents / 100)}, but server recorded ${php(confirmedAmountPaid)}.`;
+          }
+          confirmedAlreadyPaid = selected.amountPaid;
+          confirmedTotalPayable = selected.totalAmount;
+          confirmedRemainingBalance = Math.max(
+            0,
+            Math.round((confirmedTotalPayable - (confirmedAlreadyPaid + confirmedAmountPaid)) * 100) / 100
+          );
+          confirmedMovements = tenders.map((line) => ({
+            method: methodLabels[line.method] || line.method,
             amount: Number(line.amount) || 0,
             reference: line.reference.trim() || null,
-            cashReceived:
-              line.method === "cash" && line.cashReceived?.trim()
-                ? Number(line.cashReceived)
-                : null,
-            change: line.method === "cash" ? changeCents / 100 : null,
-          })),
-          totalCashReceived:
-            hasCashTender && hasAnyCashReceivedEntered ? totalCashReceivedCents / 100 : null,
-          changeGiven: hasCashTender ? changeCents / 100 : null,
-        };
-
-        setConfirmedReceipt(receiptData);
-        printThermalReceipt(receiptData);
-        onSuccess();
+          }));
+        }
       } else {
-        setPaymentError(result.error || "Payment could not be recorded. Refresh before retrying.");
+        // Canonical order payment
+        const orderData = "data" in result ? (result.data as FlexiblePaymentResult) : null;
+        if (!orderData) {
+          unverifiedReason = "Empty payment data received from server.";
+        } else if (orderData.success !== true) {
+          unverifiedReason = "Server reported unconfirmed payment posting status.";
+        } else {
+          const rawId = orderData.transactionId || orderData.transaction_id;
+          confirmedTxnId = typeof rawId === "string" && rawId.trim().length > 0 ? rawId.trim() : null;
+          isIdempotentReplay = Boolean(orderData.isIdempotentReplay || orderData.is_idempotent_replay);
+
+          if (!confirmedTxnId) {
+            unverifiedReason = "Authoritative transaction ID is missing from server response.";
+          } else {
+            const totalPayableVal = Number.isFinite(orderData.totalPayable)
+              ? orderData.totalPayable
+              : Number(orderData.total_payable);
+            confirmedTotalPayable = Number.isFinite(totalPayableVal)
+              ? totalPayableVal
+              : selected.totalAmount;
+
+            const remBalVal = Number.isFinite(orderData.remainingBalance)
+              ? orderData.remainingBalance
+              : Number(orderData.remaining_balance);
+            confirmedRemainingBalance = Number.isFinite(remBalVal)
+              ? remBalVal
+              : 0;
+
+            if (Array.isArray(orderData.movements) && orderData.movements.length > 0) {
+              confirmedAmountPaid = orderData.movements.reduce(
+                (sum, m) => sum + (Number(m.amount) || 0),
+                0
+              );
+              confirmedMovements = orderData.movements.map((m) => {
+                const methodKey = (m.paymentMethod || "") as FinancialPaymentMethod;
+                const displayMethod =
+                  (methodKey in methodLabels ? methodLabels[methodKey] : methodKey) || "Payment";
+                return {
+                  method: displayMethod,
+                  amount: Number(m.amount) || 0,
+                  reference: m.externalReference ?? null,
+                };
+              });
+            } else {
+              const netAllocVal = Number.isFinite(orderData.netAllocated)
+                ? orderData.netAllocated
+                : Number(orderData.net_allocated);
+              if (Number.isFinite(netAllocVal) && netAllocVal > 0) {
+                confirmedAmountPaid = netAllocVal;
+              } else {
+                confirmedAmountPaid = totalCents / 100;
+              }
+              confirmedMovements = tenders.map((line) => ({
+                method: methodLabels[line.method] || line.method,
+                amount: Number(line.amount) || 0,
+                reference: line.reference.trim() || null,
+              }));
+            }
+
+            if (Math.round(confirmedAmountPaid * 100) !== totalCents && !isIdempotentReplay) {
+              unverifiedReason = `Posting amount mismatch: expected ${php(totalCents / 100)}, but server recorded ${php(confirmedAmountPaid)}.`;
+            }
+
+            const totalPaidVal = Number.isFinite(orderData.totalPaid)
+              ? orderData.totalPaid
+              : Number(orderData.total_paid);
+            if (Number.isFinite(totalPaidVal)) {
+              confirmedAlreadyPaid = Math.max(
+                0,
+                Math.round((totalPaidVal - confirmedAmountPaid) * 100) / 100
+              );
+            } else {
+              confirmedAlreadyPaid = selected.amountPaid;
+            }
+          }
+        }
       }
+
+      if (unverifiedReason || !confirmedTxnId) {
+        setVerificationWarning(
+          `Payment was processed by server, but receipt confirmation is unverified (${unverifiedReason ?? "Missing confirmed transaction ID"}). Check the Cash Flow ledger to verify the transaction before printing a receipt.`
+        );
+        setConfirmedReceipt(null);
+        onSuccess();
+        return;
+      }
+
+      const receiptData: PrintableReceiptData = {
+        companyName: "CRADLE WELLNESS LIVING INC.",
+        branchName: selected.branchName || "Main Spa",
+        transactionId: confirmedTxnId,
+        orderNumber: selected.orderNumber,
+        customerName: selected.customerName,
+        customerPhone: selected.customerPhone,
+        formattedDateTime: new Date().toLocaleString("en-PH", {
+          year: "numeric",
+          month: "short",
+          day: "numeric",
+          hour: "2-digit",
+          minute: "2-digit",
+          hour12: true,
+        }),
+        serviceDescription: selected.serviceDescription,
+        visitType: selected.visitType,
+        items: selected.payableItems?.length
+          ? selected.payableItems.map((item) => ({
+              description: item.description,
+              amount: item.amount,
+            }))
+          : [{ description: selected.serviceDescription, amount: confirmedTotalPayable }],
+        totalPayable: confirmedTotalPayable,
+        alreadyPaid: confirmedAlreadyPaid,
+        amountPaid: confirmedAmountPaid,
+        remainingBalance: confirmedRemainingBalance,
+        payments: confirmedMovements.map((m) => {
+          const isCash = m.method.toLowerCase().includes("cash");
+          return {
+            method: m.method,
+            amount: m.amount,
+            reference: m.reference ?? null,
+            cashReceived: isCash && hasAnyCashReceivedEntered ? totalCashReceivedCents / 100 : null,
+            change: isCash ? changeCents / 100 : null,
+          };
+        }),
+        totalCashReceived:
+          hasCashTender && hasAnyCashReceivedEntered ? totalCashReceivedCents / 100 : null,
+        changeGiven: hasCashTender ? changeCents / 100 : null,
+        isIdempotentReplay,
+      };
+
+      setConfirmedReceipt(receiptData);
+      const printed = printThermalReceipt(receiptData);
+      if (!printed) {
+        setPrintWarning(
+          "Automatic printing could not be opened. Click 'Print Again' to retry, or check browser print permissions."
+        );
+      } else {
+        setPrintWarning(null);
+      }
+      onSuccess();
     } catch (err) {
       setPaymentError(
         err instanceof Error
@@ -373,34 +529,71 @@ export function CradleFlowQuickPaymentModal({
           </button>
         </header>
 
-        {confirmedReceipt ? (
-          <div className="flex items-center justify-between border-b border-emerald-200 bg-[#eaf5ee] px-5 py-3 text-xs text-[#14543e]">
-            <div className="flex items-center gap-2">
-              <CheckCircle2 size={18} className="shrink-0 text-[#14543e]" />
+        {verificationWarning ? (
+          <div
+            role="alert"
+            className="flex items-start justify-between gap-3 border-b border-amber-300 bg-amber-50 px-5 py-3 text-xs text-amber-950"
+          >
+            <div className="flex items-start gap-2">
+              <AlertTriangle size={18} className="mt-0.5 shrink-0 text-amber-700" />
               <div>
-                <span className="font-bold">
-                  Payment of {php(confirmedReceipt.amountPaid)} recorded successfully!
-                </span>
-                <span className="ml-2 text-[#4e6b5c]">
-                  (Txn: {confirmedReceipt.transactionId}) · Receipt print initiated
-                </span>
+                <span className="font-bold">Payment Verification Required: </span>
+                <span>{verificationWarning}</span>
               </div>
             </div>
             <div className="flex items-center gap-2">
-              <button
-                type="button"
-                onClick={() => printThermalReceipt({ ...confirmedReceipt, isReprint: true })}
-                className="rounded-lg border border-[#14543e] bg-white px-3 py-1 font-semibold text-[#14543e] hover:bg-[#edf6f0]"
+              <Link
+                href="/crm/cash-flow?tab=ledger"
+                className="rounded-lg border border-amber-400 bg-white px-3 py-1 font-semibold text-amber-900 hover:bg-amber-100"
               >
-                Print Again
-              </button>
+                View Ledger
+              </Link>
               <button
                 type="button"
                 onClick={onClose}
-                className="rounded-lg bg-[#14543e] px-4 py-1 font-bold text-white hover:bg-[#0f402f]"
+                className="rounded-lg bg-amber-800 px-3 py-1 font-bold text-white hover:bg-amber-900"
               >
-                Done
+                Close
               </button>
+            </div>
+          </div>
+        ) : null}
+
+        {confirmedReceipt ? (
+          <div className="flex flex-col gap-1 border-b border-emerald-200 bg-[#eaf5ee] px-5 py-3 text-xs text-[#14543e]">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <CheckCircle2 size={18} className="shrink-0 text-[#14543e]" />
+                <div>
+                  <span className="font-bold">
+                    Payment of {php(confirmedReceipt.amountPaid)} recorded successfully!
+                  </span>
+                  <span className="ml-2 text-[#4e6b5c]">
+                    (Txn: <span className="font-mono">{confirmedReceipt.transactionId}</span>)
+                    {confirmedReceipt.isIdempotentReplay ? " · Idempotent Replay" : ""}
+                    {printWarning ? ` · ${printWarning}` : " · Receipt print initiated"}
+                  </span>
+                </div>
+              </div>
+              <div className="flex items-center gap-2">
+                <button
+                  type="button"
+                  onClick={() => {
+                    const ok = printThermalReceipt({ ...confirmedReceipt, isReprint: true });
+                    if (ok) setPrintWarning(null);
+                  }}
+                  className="rounded-lg border border-[#14543e] bg-white px-3 py-1 font-semibold text-[#14543e] hover:bg-[#edf6f0]"
+                >
+                  Print Again
+                </button>
+                <button
+                  type="button"
+                  onClick={onClose}
+                  className="rounded-lg bg-[#14543e] px-4 py-1 font-bold text-white hover:bg-[#0f402f]"
+                >
+                  Done
+                </button>
+              </div>
             </div>
           </div>
         ) : null}
@@ -677,9 +870,89 @@ export function CradleFlowQuickPaymentModal({
           </div>
           <aside className="min-w-0 space-y-3 overflow-y-auto rounded-xl border border-[#e9e2d8] bg-white p-4">
             <h3 className="flex items-center gap-2 text-base font-bold">
-              <CheckCircle2 size={18} className="text-[#116044]" /> Selected Payment
+              <CheckCircle2 size={18} className="text-[#116044]" />{" "}
+              {confirmedReceipt ? "Payment Confirmed" : "Selected Payment"}
             </h3>
-            {selected ? (
+            {confirmedReceipt ? (
+              <div className="space-y-3">
+                <div className="rounded-lg bg-[#edf6ef] p-3 text-xs">
+                  <div className="flex items-center justify-between font-bold text-[#14543e]">
+                    <span>Transaction Recorded</span>
+                    {confirmedReceipt.isIdempotentReplay ? (
+                      <span className="rounded bg-amber-100 px-1.5 py-0.5 text-[10px] text-amber-800">
+                        REPLAY
+                      </span>
+                    ) : null}
+                  </div>
+                  <p className="mt-1 font-mono text-[11px] text-[#2c3e35]">
+                    Ref: {confirmedReceipt.transactionId}
+                  </p>
+                </div>
+                <div className="border-b pb-3 text-xs">
+                  <p className="text-[11px] text-[#786d61]">Customer</p>
+                  <p className="font-bold">{confirmedReceipt.customerName}</p>
+                  <p className="text-xs text-[#786d61]">{confirmedReceipt.orderNumber}</p>
+                  <p className="mt-1 text-[11px] text-[#786d61]">
+                    Branch: {confirmedReceipt.branchName}
+                  </p>
+                </div>
+                <div className="space-y-2 text-xs">
+                  <div className="flex justify-between">
+                    <span>Total payable</span>
+                    <strong>{php(confirmedReceipt.totalPayable)}</strong>
+                  </div>
+                  <div className="flex justify-between">
+                    <span>Total paid</span>
+                    <strong>{php(confirmedReceipt.alreadyPaid)}</strong>
+                  </div>
+                  <div className="flex justify-between rounded-lg bg-[#edf6ef] p-2 font-bold text-[#14543e]">
+                    <span>Remaining balance</span>
+                    <span>{php(confirmedReceipt.remainingBalance)}</span>
+                  </div>
+                </div>
+                <div className="rounded-xl bg-[#eff8f2] p-3">
+                  <p className="mb-2 text-xs font-bold">Confirmed tender breakdown</p>
+                  {(confirmedReceipt.payments || []).map((line, idx) => (
+                    <div key={idx} className="flex justify-between text-xs">
+                      <span>{line.method}</span>
+                      <span>{php(line.amount)}</span>
+                    </div>
+                  ))}
+                  <div className="mt-2 flex justify-between border-t pt-2 text-sm font-bold">
+                    <span>Amount recorded</span>
+                    <span>{php(confirmedReceipt.amountPaid)}</span>
+                  </div>
+                  {confirmedReceipt.totalCashReceived != null ? (
+                    <div className="mt-2 space-y-1 border-t pt-2 text-xs text-[#786d61]">
+                      <div className="flex justify-between">
+                        <span>Cash tendered</span>
+                        <span>{php(confirmedReceipt.totalCashReceived)}</span>
+                      </div>
+                      <div className="flex justify-between font-semibold text-[#14543e]">
+                        <span>Change given</span>
+                        <span>{php(confirmedReceipt.changeGiven ?? 0)}</span>
+                      </div>
+                    </div>
+                  ) : null}
+                </div>
+                <button
+                  type="button"
+                  onClick={() => {
+                    const printed = printThermalReceipt({ ...confirmedReceipt, isReprint: true });
+                    if (!printed) {
+                      setPrintWarning(
+                        "Browser print dialog could not be opened. You can click 'Print Receipt Again' anytime."
+                      );
+                    } else {
+                      setPrintWarning(null);
+                    }
+                  }}
+                  className="flex w-full items-center justify-center gap-2 rounded-lg border border-[#14543e] bg-white px-3 py-2 text-xs font-semibold text-[#14543e] hover:bg-[#eff8f2]"
+                >
+                  <Printer size={14} /> Print Receipt Again
+                </button>
+              </div>
+            ) : selected ? (
               <>
                 <div className="border-b pb-3">
                   <p className="text-[11px] text-[#786d61]">Customer</p>
@@ -757,41 +1030,92 @@ export function CradleFlowQuickPaymentModal({
           </p>
         ) : null}
         <footer className="flex shrink-0 items-center justify-between gap-3 border-t border-[#e9e2d8] bg-white px-5 py-3">
-          <div className="flex items-center gap-4">
-            <div>
-              <p className="text-[11px] text-[#786d61]">Total to record</p>
-              <p className="text-lg font-bold">{php(totalCents / 100)}</p>
-            </div>
-            {hasCashTender ? (
-              <>
-                <div className="h-8 w-px bg-[#e9e2d8]" aria-hidden="true" />
+          {confirmedReceipt ? (
+            <>
+              <div className="flex items-center gap-4">
                 <div>
-                  <p className="text-[11px] text-[#786d61]">Change</p>
+                  <p className="text-[11px] text-[#786d61]">Amount recorded</p>
                   <p className="text-lg font-bold text-[#14543e]">
-                    {php(changeCents / 100)}
+                    {php(confirmedReceipt.amountPaid)}
                   </p>
                 </div>
-              </>
-            ) : null}
-          </div>
-          <div className="flex gap-2">
-            <button
-              type="button"
-              onClick={onClose}
-              disabled={busy}
-              className="rounded-lg border border-[#e9e2d8] px-4 py-2 text-xs font-semibold hover:bg-[#FAF8F5]"
-            >
-              Cancel
-            </button>
-            <button
-              type="button"
-              disabled={!canSubmit}
-              onClick={() => void recordPayment()}
-              className="rounded-lg bg-[#14543e] px-5 py-2 text-xs font-bold text-white hover:bg-[#0f402f] disabled:opacity-40"
-            >
-              {busy ? "Recording…" : "Record Payment"}
-            </button>
-          </div>
+                {confirmedReceipt.totalCashReceived != null ? (
+                  <>
+                    <div className="h-8 w-px bg-[#e9e2d8]" aria-hidden="true" />
+                    <div>
+                      <p className="text-[11px] text-[#786d61]">Change</p>
+                      <p className="text-lg font-bold text-[#14543e]">
+                        {php(confirmedReceipt.changeGiven ?? 0)}
+                      </p>
+                    </div>
+                  </>
+                ) : null}
+              </div>
+              <div className="flex gap-2">
+                <button
+                  type="button"
+                  onClick={() => {
+                    const printed = printThermalReceipt({ ...confirmedReceipt, isReprint: true });
+                    if (!printed) {
+                      setPrintWarning(
+                        "Browser print dialog could not be opened. You can click 'Print Receipt Again' anytime."
+                      );
+                    } else {
+                      setPrintWarning(null);
+                    }
+                  }}
+                  className="flex items-center gap-1.5 rounded-lg border border-[#14543e] px-4 py-2 text-xs font-semibold text-[#14543e] hover:bg-[#FAF8F5]"
+                >
+                  <Printer size={14} /> Print Again
+                </button>
+                <button
+                  type="button"
+                  onClick={onClose}
+                  className="rounded-lg bg-[#14543e] px-5 py-2 text-xs font-bold text-white hover:bg-[#0f402f]"
+                >
+                  Done
+                </button>
+              </div>
+            </>
+          ) : (
+            <>
+              <div className="flex items-center gap-4">
+                <div>
+                  <p className="text-[11px] text-[#786d61]">Total to record</p>
+                  <p className="text-lg font-bold">{php(totalCents / 100)}</p>
+                </div>
+                {hasCashTender ? (
+                  <>
+                    <div className="h-8 w-px bg-[#e9e2d8]" aria-hidden="true" />
+                    <div>
+                      <p className="text-[11px] text-[#786d61]">Change</p>
+                      <p className="text-lg font-bold text-[#14543e]">
+                        {php(changeCents / 100)}
+                      </p>
+                    </div>
+                  </>
+                ) : null}
+              </div>
+              <div className="flex gap-2">
+                <button
+                  type="button"
+                  onClick={onClose}
+                  disabled={busy}
+                  className="rounded-lg border border-[#e9e2d8] px-4 py-2 text-xs font-semibold hover:bg-[#FAF8F5]"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="button"
+                  disabled={!canSubmit}
+                  onClick={() => void recordPayment()}
+                  className="rounded-lg bg-[#14543e] px-5 py-2 text-xs font-bold text-white hover:bg-[#0f402f] disabled:opacity-40"
+                >
+                  {busy ? "Recording…" : "Record Payment"}
+                </button>
+              </div>
+            </>
+          )}
         </footer>
       </DialogContent>
     </Dialog>

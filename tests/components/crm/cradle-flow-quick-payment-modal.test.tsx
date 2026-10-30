@@ -102,9 +102,29 @@ const callbacks = {
 afterEach(cleanup);
 beforeEach(() => {
   vi.clearAllMocks();
+  mocks.printReceipt.mockReturnValue(true);
   mocks.recordOrder.mockResolvedValue({
     ok: true,
-    data: { transactionId: "TXN-TEST-1234", branchId: "branch-main" },
+    data: {
+      success: true,
+      transaction_id: "TXN-TEST-1234",
+      order_id: "ORDER-c5cc08fd",
+      branch_id: "branch-main",
+      total_paid: 1086,
+      total_payable: 1086,
+      net_allocated: 1086,
+      remaining_balance: 0,
+      is_idempotent_replay: false,
+      movements: [
+        {
+          amount: 1086,
+          payment_method: "cash",
+          account_id: "drawer",
+          reference: null,
+        },
+      ],
+      allocations: [],
+    },
   });
 });
 
@@ -245,7 +265,7 @@ describe("CRM quick payment modal", () => {
 
     // Success banner should show
     expect(screen.getByText(/Payment of ₱1,086.00 recorded successfully!/i)).toBeTruthy();
-    expect(screen.getByRole("button", { name: "Print Again" })).toBeTruthy();
+    expect(screen.getAllByRole("button", { name: /Print Again/i }).length).toBeGreaterThan(0);
   });
 
   it("reprints receipt on Print Again without creating a second payment", async () => {
@@ -264,7 +284,7 @@ describe("CRM quick payment modal", () => {
     await waitFor(() => expect(mocks.printReceipt).toHaveBeenCalledTimes(1));
 
     // Click Print Again
-    fireEvent.click(screen.getByRole("button", { name: "Print Again" }));
+    fireEvent.click(screen.getAllByRole("button", { name: /Print Again/i })[0]!);
 
     expect(mocks.printReceipt).toHaveBeenCalledTimes(2);
     // Server action must strictly NOT be called again
@@ -285,5 +305,169 @@ describe("CRM quick payment modal", () => {
     await waitFor(() => expect(mocks.recordOrder).toHaveBeenCalledTimes(1));
     expect(screen.getByRole("alert").textContent).toContain("Cash drawer balance mismatch.");
     expect(mocks.printReceipt).not.toHaveBeenCalled();
+  });
+
+  it("displays verification warning and suppresses printing when server response lacks a valid transaction ID", async () => {
+    mocks.recordOrder.mockResolvedValueOnce({
+      ok: true,
+      data: {
+        success: true,
+        transaction_id: "",
+        order_id: "ORDER-c5cc08fd",
+        branch_id: "branch-main",
+        total_paid: 1086,
+        total_payable: 1086,
+        net_allocated: 1086,
+        remaining_balance: 0,
+        movements: [{ amount: 1086, payment_method: "cash", account_id: "drawer" }],
+      },
+    });
+
+    render(
+      <CradleFlowQuickPaymentModal
+        data={data}
+        loading={false}
+        requestedOrderId="order-dawn"
+        {...callbacks}
+      />
+    );
+
+    await waitFor(() => expect(screen.getByLabelText("Tender 1 amount")).toBeTruthy());
+    fireEvent.click(screen.getByRole("button", { name: "Record Payment" }));
+
+    await waitFor(() => expect(mocks.recordOrder).toHaveBeenCalledTimes(1));
+    expect(callbacks.onSuccess).toHaveBeenCalledTimes(1);
+    expect(mocks.printReceipt).not.toHaveBeenCalled();
+    expect(screen.getByRole("alert").textContent).toContain("Payment Verification Required");
+    expect(screen.getByRole("alert").textContent).toContain("Check the Cash Flow ledger");
+    expect(screen.getByRole("link", { name: "View Ledger" })).toBeTruthy();
+  });
+
+  it("displays verification warning and suppresses printing when server response indicates success: false", async () => {
+    mocks.recordOrder.mockResolvedValueOnce({
+      ok: true,
+      data: {
+        success: false,
+        transaction_id: "TXN-FAIL-001",
+        order_id: "ORDER-c5cc08fd",
+        branch_id: "branch-main",
+        total_paid: 0,
+        total_payable: 1086,
+        net_allocated: 0,
+        remaining_balance: 1086,
+        movements: [],
+      },
+    });
+
+    render(
+      <CradleFlowQuickPaymentModal
+        data={data}
+        loading={false}
+        requestedOrderId="order-dawn"
+        {...callbacks}
+      />
+    );
+
+    await waitFor(() => expect(screen.getByLabelText("Tender 1 amount")).toBeTruthy());
+    fireEvent.click(screen.getByRole("button", { name: "Record Payment" }));
+
+    await waitFor(() => expect(mocks.recordOrder).toHaveBeenCalledTimes(1));
+    expect(callbacks.onSuccess).toHaveBeenCalledTimes(1);
+    expect(mocks.printReceipt).not.toHaveBeenCalled();
+    expect(screen.getByRole("alert").textContent).toContain("Payment Verification Required");
+  });
+
+  it("displays verification warning when server net_allocated mismatches the payment tender amount", async () => {
+    mocks.recordOrder.mockResolvedValueOnce({
+      ok: true,
+      data: {
+        success: true,
+        transaction_id: "TXN-MISMATCH-99",
+        order_id: "ORDER-c5cc08fd",
+        branch_id: "branch-main",
+        total_paid: 500,
+        total_payable: 1086,
+        net_allocated: 500,
+        remaining_balance: 586,
+        movements: [{ amount: 500, payment_method: "cash", account_id: "drawer" }],
+      },
+    });
+
+    render(
+      <CradleFlowQuickPaymentModal
+        data={data}
+        loading={false}
+        requestedOrderId="order-dawn"
+        {...callbacks}
+      />
+    );
+
+    await waitFor(() => expect(screen.getByLabelText("Tender 1 amount")).toBeTruthy());
+    fireEvent.click(screen.getByRole("button", { name: "Record Payment" }));
+
+    await waitFor(() => expect(mocks.recordOrder).toHaveBeenCalledTimes(1));
+    expect(callbacks.onSuccess).toHaveBeenCalledTimes(1);
+    expect(mocks.printReceipt).not.toHaveBeenCalled();
+    expect(screen.getByRole("alert").textContent).toContain("Posting amount mismatch");
+  });
+
+  it("handles idempotent replay safely with replay indicators and without duplicate payment submission", async () => {
+    mocks.recordOrder.mockResolvedValueOnce({
+      ok: true,
+      data: {
+        success: true,
+        transaction_id: "TXN-REPLAY-1234",
+        order_id: "ORDER-c5cc08fd",
+        branch_id: "branch-main",
+        total_paid: 1086,
+        total_payable: 1086,
+        net_allocated: 1086,
+        remaining_balance: 0,
+        is_idempotent_replay: true,
+        movements: [{ amount: 1086, payment_method: "cash", account_id: "drawer" }],
+      },
+    });
+
+    render(
+      <CradleFlowQuickPaymentModal
+        data={data}
+        loading={false}
+        requestedOrderId="order-dawn"
+        {...callbacks}
+      />
+    );
+
+    await waitFor(() => expect(screen.getByLabelText("Tender 1 amount")).toBeTruthy());
+    fireEvent.click(screen.getByRole("button", { name: "Record Payment" }));
+
+    await waitFor(() => expect(mocks.printReceipt).toHaveBeenCalledTimes(1));
+    const receiptData = mocks.printReceipt.mock.calls[0]?.[0];
+    expect(receiptData.isIdempotentReplay).toBe(true);
+
+    expect(screen.getByText("REPLAY")).toBeTruthy();
+    expect(screen.getByText(/Idempotent Replay/i)).toBeTruthy();
+  });
+
+  it("handles blocked browser print dialog gracefully while keeping payment confirmed", async () => {
+    mocks.printReceipt.mockReturnValueOnce(false);
+
+    render(
+      <CradleFlowQuickPaymentModal
+        data={data}
+        loading={false}
+        requestedOrderId="order-dawn"
+        {...callbacks}
+      />
+    );
+
+    await waitFor(() => expect(screen.getByLabelText("Tender 1 amount")).toBeTruthy());
+    fireEvent.click(screen.getByRole("button", { name: "Record Payment" }));
+
+    await waitFor(() => expect(mocks.recordOrder).toHaveBeenCalledTimes(1));
+    await waitFor(() => expect(mocks.printReceipt).toHaveBeenCalledTimes(1));
+
+    expect(screen.getByText(/Payment of ₱1,086.00 recorded successfully!/i)).toBeTruthy();
+    expect(screen.getByText(/Automatic printing could not be opened/i)).toBeTruthy();
+    expect(screen.getAllByRole("button", { name: /Print Again/i }).length).toBeGreaterThan(0);
   });
 });

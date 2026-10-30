@@ -76,8 +76,34 @@ describe("Thermal Receipt Printing Subsystem", () => {
     expect(html).toContain("₱414.00");
 
     // Legal / Receipt disclaimer
-    expect(html).toContain("OFFICIAL PAYMENT RECEIPT");
-    expect(html).toContain("This serves as your proof of payment.");
+    expect(html).toContain("PAYMENT ACKNOWLEDGMENT");
+    expect(html).toContain("Supplementary payment record only.");
+    expect(html).toContain("Not a BIR-registered invoice.");
+  });
+
+  it("blocks printing and returns false if transactionId is empty or whitespace", () => {
+    const invalidReceipt = {
+      ...mockSampleReceipt,
+      transactionId: "   ",
+    };
+    const printSpy = vi.spyOn(window, "print");
+    const result = printThermalReceipt(invalidReceipt);
+    expect(result).toBe(false);
+    expect(printSpy).not.toHaveBeenCalled();
+    printSpy.mockRestore();
+  });
+
+  it("renders idempotent replay notice in HTML and text when isIdempotentReplay is true", () => {
+    const replayedReceipt: PrintableReceiptData = {
+      ...mockSampleReceipt,
+      isIdempotentReplay: true,
+    };
+    const html = buildThermalReceiptHtml(replayedReceipt);
+    expect(html).toContain("PREVIOUSLY RECORDED PAYMENT");
+    expect(html).toContain("Idempotent Replay Confirmation");
+
+    const text = buildThermalReceiptText(replayedReceipt);
+    expect(text).toContain("PREVIOUSLY RECORDED PAYMENT");
   });
 
   it("generates clean text receipt for split payments", () => {

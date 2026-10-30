@@ -37,6 +37,8 @@ export interface PrintableReceiptData {
   changeGiven?: number | null;
   cashierName?: string | null;
   isReprint?: boolean;
+  isIdempotentReplay?: boolean;
+  receiptLabel?: string;
 }
 
 export function formatReceiptPeso(amount: number): string {
@@ -54,7 +56,9 @@ export function buildThermalReceiptHtml(data: PrintableReceiptData): string {
   const branch = data.branchName || "Main Spa";
   const reprintBanner = data.isReprint
     ? `<div style="text-align:center; font-weight:bold; border:1px solid #000; padding:2px 0; margin-bottom:6px;">*** DUPLICATE / REPRINT ***</div>`
-    : "";
+    : data.isIdempotentReplay
+      ? `<div style="text-align:center; font-weight:bold; border:1px solid #000; padding:2px 0; margin-bottom:6px;">*** PREVIOUSLY RECORDED PAYMENT ***<br><span style="font-size:9px; font-weight:normal;">Idempotent Replay Confirmation</span></div>`
+      : "";
 
   const itemsHtml = data.items
     .map(
@@ -98,7 +102,7 @@ export function buildThermalReceiptHtml(data: PrintableReceiptData): string {
 <html>
 <head>
   <meta charset="utf-8">
-  <title>Receipt - ${escapeHtml(data.orderNumber)}</title>
+  <title>Payment Acknowledgment - ${escapeHtml(data.orderNumber)}</title>
   <style>
     @page {
       size: 80mm auto;
@@ -233,8 +237,9 @@ export function buildThermalReceiptHtml(data: PrintableReceiptData): string {
   <div class="divider"></div>
 
   <div class="footer">
-    <div>*** OFFICIAL PAYMENT RECEIPT ***</div>
-    <div>This serves as your proof of payment.</div>
+    <div>*** ${escapeHtml(data.receiptLabel || "PAYMENT ACKNOWLEDGMENT")} ***</div>
+    <div>Supplementary payment record only.</div>
+    <div>Not a BIR-registered invoice.</div>
     <div style="margin-top: 4px;">Thank you for choosing Cradle Wellness Living!</div>
   </div>
 </body>
@@ -259,7 +264,12 @@ export function buildThermalReceiptText(data: PrintableReceiptData): string {
   lines.push("=".repeat(W));
   lines.push(center(data.companyName || "CRADLE WELLNESS LIVING INC."));
   lines.push(center(data.branchName || "Main Spa"));
-  if (data.isReprint) lines.push(center("*** REPRINT ***"));
+  if (data.isReprint) {
+    lines.push(center("*** REPRINT ***"));
+  } else if (data.isIdempotentReplay) {
+    lines.push(center("*** PREVIOUSLY RECORDED PAYMENT ***"));
+    lines.push(center("(Idempotent Replay Confirmation)"));
+  }
   lines.push("=".repeat(W));
   lines.push(`Date: ${data.formattedDateTime}`);
   lines.push(`Order: ${data.orderNumber}`);
@@ -288,7 +298,9 @@ export function buildThermalReceiptText(data: PrintableReceiptData): string {
   lines.push("-".repeat(W));
   lines.push(pad("Remaining Balance", formatReceiptPeso(data.remainingBalance)));
   lines.push("=".repeat(W));
-  lines.push(center("OFFICIAL PAYMENT RECEIPT"));
+  lines.push(center(data.receiptLabel || "PAYMENT ACKNOWLEDGMENT"));
+  lines.push(center("Supplementary payment record only."));
+  lines.push(center("Not a BIR-registered invoice."));
   lines.push(center("Thank you!"));
   lines.push("=".repeat(W));
 
@@ -310,6 +322,12 @@ function escapeHtml(text: string): string {
  */
 export function printThermalReceipt(data: PrintableReceiptData): boolean {
   if (typeof window === "undefined" || typeof document === "undefined") {
+    return false;
+  }
+
+  // Require a genuine non-empty confirmed transaction ID before printing
+  if (!data.transactionId || typeof data.transactionId !== "string" || data.transactionId.trim() === "") {
+    console.error("Thermal receipt print rejected: Authoritative transactionId is required.");
     return false;
   }
 
