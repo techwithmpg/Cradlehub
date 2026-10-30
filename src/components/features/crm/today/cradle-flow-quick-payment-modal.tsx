@@ -20,6 +20,7 @@ import {
   isQuickPaymentEligible,
 } from "@/components/features/cash-flow/cash-flow-today-eligibility";
 import {
+  isValidAuthoritativeTransactionId,
   printThermalReceipt,
   type PrintableReceiptData,
 } from "@/lib/cash-flow/receipt-printer";
@@ -251,7 +252,7 @@ export function CradleFlowQuickPaymentModal({
   }
 
   async function recordPayment() {
-    if (submitting.current || !canSubmit || !data || !selected) return;
+    if (confirmedReceipt || submitting.current || !canSubmit || !data || !selected) return;
     submitting.current = true;
     setBusy(true);
     setPaymentError(null);
@@ -320,32 +321,58 @@ export function CradleFlowQuickPaymentModal({
                 paymentDelta: number;
                 isIdempotentReplay: boolean;
                 branchId: string;
+                movements?: Array<{
+                  id: string;
+                  amount: number;
+                  paymentMethod: string;
+                  externalReference: string | null;
+                }>;
               })
             : null;
         const rawId = legacyData?.transactionId;
-        confirmedTxnId = typeof rawId === "string" && rawId.trim().length > 0 ? rawId.trim() : null;
-        isIdempotentReplay = Boolean(legacyData?.isIdempotentReplay);
 
-        if (!confirmedTxnId) {
-          unverifiedReason = "Authoritative transaction ID is missing from server response.";
+        if (!isValidAuthoritativeTransactionId(rawId)) {
+          unverifiedReason = "Missing, malformed, or fabricated transaction reference in server response.";
         } else if (!legacyData || typeof legacyData.paymentDelta !== "number" || !Number.isFinite(legacyData.paymentDelta)) {
           unverifiedReason = "Invalid payment delta in server response.";
+        } else if (!Array.isArray(legacyData.movements) || legacyData.movements.length === 0) {
+          unverifiedReason = "Authoritative payment tender movements are missing from the server confirmation.";
         } else {
-          confirmedAmountPaid = legacyData.paymentDelta;
-          if (Math.round(confirmedAmountPaid * 100) !== totalCents && !isIdempotentReplay) {
-            unverifiedReason = `Posting amount mismatch: expected ${php(totalCents / 100)}, but server recorded ${php(confirmedAmountPaid)}.`;
+          confirmedTxnId = (rawId as string).trim();
+          isIdempotentReplay = Boolean(legacyData.isIdempotentReplay);
+
+          let movementSum = 0;
+          let hasInvalidMovement = false;
+          confirmedMovements = legacyData.movements.map((m) => {
+            const amount = Number(m.amount);
+            if (!Number.isFinite(amount) || amount <= 0) {
+              hasInvalidMovement = true;
+            }
+            movementSum += amount;
+            const methodKey = (m.paymentMethod || "") as FinancialPaymentMethod;
+            const displayMethod =
+              (methodKey in methodLabels ? methodLabels[methodKey] : methodKey) || "Payment";
+            return {
+              method: displayMethod,
+              amount,
+              reference: m.externalReference ?? null,
+            };
+          });
+
+          if (hasInvalidMovement) {
+            unverifiedReason = "One or more authoritative tender movements contain invalid amounts.";
+          } else {
+            confirmedAmountPaid = movementSum;
+            if (Math.round(confirmedAmountPaid * 100) !== totalCents && !isIdempotentReplay) {
+              unverifiedReason = `Posting amount mismatch: expected ${php(totalCents / 100)}, but server recorded ${php(confirmedAmountPaid)}.`;
+            }
+            confirmedAlreadyPaid = selected.amountPaid;
+            confirmedTotalPayable = selected.totalAmount;
+            confirmedRemainingBalance = Math.max(
+              0,
+              Math.round((confirmedTotalPayable - (confirmedAlreadyPaid + confirmedAmountPaid)) * 100) / 100
+            );
           }
-          confirmedAlreadyPaid = selected.amountPaid;
-          confirmedTotalPayable = selected.totalAmount;
-          confirmedRemainingBalance = Math.max(
-            0,
-            Math.round((confirmedTotalPayable - (confirmedAlreadyPaid + confirmedAmountPaid)) * 100) / 100
-          );
-          confirmedMovements = tenders.map((line) => ({
-            method: methodLabels[line.method] || line.method,
-            amount: Number(line.amount) || 0,
-            reference: line.reference.trim() || null,
-          }));
         }
       } else {
         // Canonical order payment
@@ -356,71 +383,68 @@ export function CradleFlowQuickPaymentModal({
           unverifiedReason = "Server reported unconfirmed payment posting status.";
         } else {
           const rawId = orderData.transactionId || orderData.transaction_id;
-          confirmedTxnId = typeof rawId === "string" && rawId.trim().length > 0 ? rawId.trim() : null;
-          isIdempotentReplay = Boolean(orderData.isIdempotentReplay || orderData.is_idempotent_replay);
 
-          if (!confirmedTxnId) {
-            unverifiedReason = "Authoritative transaction ID is missing from server response.";
+          if (!isValidAuthoritativeTransactionId(rawId)) {
+            unverifiedReason = "Missing, malformed, or fabricated transaction reference in server response.";
+          } else if (!Array.isArray(orderData.movements) || orderData.movements.length === 0) {
+            unverifiedReason = "Authoritative payment tender movements are missing from the server confirmation.";
           } else {
-            const totalPayableVal = Number.isFinite(orderData.totalPayable)
-              ? orderData.totalPayable
-              : Number(orderData.total_payable);
-            confirmedTotalPayable = Number.isFinite(totalPayableVal)
-              ? totalPayableVal
-              : selected.totalAmount;
+            confirmedTxnId = (rawId as string).trim();
+            isIdempotentReplay = Boolean(orderData.isIdempotentReplay || orderData.is_idempotent_replay);
 
-            const remBalVal = Number.isFinite(orderData.remainingBalance)
-              ? orderData.remainingBalance
-              : Number(orderData.remaining_balance);
-            confirmedRemainingBalance = Number.isFinite(remBalVal)
-              ? remBalVal
-              : 0;
-
-            if (Array.isArray(orderData.movements) && orderData.movements.length > 0) {
-              confirmedAmountPaid = orderData.movements.reduce(
-                (sum, m) => sum + (Number(m.amount) || 0),
-                0
-              );
-              confirmedMovements = orderData.movements.map((m) => {
-                const methodKey = (m.paymentMethod || "") as FinancialPaymentMethod;
-                const displayMethod =
-                  (methodKey in methodLabels ? methodLabels[methodKey] : methodKey) || "Payment";
-                return {
-                  method: displayMethod,
-                  amount: Number(m.amount) || 0,
-                  reference: m.externalReference ?? null,
-                };
-              });
-            } else {
-              const netAllocVal = Number.isFinite(orderData.netAllocated)
-                ? orderData.netAllocated
-                : Number(orderData.net_allocated);
-              if (Number.isFinite(netAllocVal) && netAllocVal > 0) {
-                confirmedAmountPaid = netAllocVal;
-              } else {
-                confirmedAmountPaid = totalCents / 100;
+            let movementSum = 0;
+            let hasInvalidMovement = false;
+            confirmedMovements = orderData.movements.map((m) => {
+              const rawM = m as Record<string, unknown>;
+              const amount = Number(rawM.amount);
+              if (!Number.isFinite(amount) || amount <= 0) {
+                hasInvalidMovement = true;
               }
-              confirmedMovements = tenders.map((line) => ({
-                method: methodLabels[line.method] || line.method,
-                amount: Number(line.amount) || 0,
-                reference: line.reference.trim() || null,
-              }));
-            }
+              movementSum += amount;
+              const methodKey = String(rawM.paymentMethod || rawM.payment_method || "") as FinancialPaymentMethod;
+              const displayMethod =
+                (methodKey in methodLabels ? methodLabels[methodKey] : methodKey) || "Payment";
+              const ref = rawM.externalReference ?? rawM.reference;
+              return {
+                method: displayMethod,
+                amount,
+                reference: typeof ref === "string" ? ref : null,
+              };
+            });
 
-            if (Math.round(confirmedAmountPaid * 100) !== totalCents && !isIdempotentReplay) {
-              unverifiedReason = `Posting amount mismatch: expected ${php(totalCents / 100)}, but server recorded ${php(confirmedAmountPaid)}.`;
-            }
-
-            const totalPaidVal = Number.isFinite(orderData.totalPaid)
-              ? orderData.totalPaid
-              : Number(orderData.total_paid);
-            if (Number.isFinite(totalPaidVal)) {
-              confirmedAlreadyPaid = Math.max(
-                0,
-                Math.round((totalPaidVal - confirmedAmountPaid) * 100) / 100
-              );
+            if (hasInvalidMovement) {
+              unverifiedReason = "One or more authoritative tender movements contain invalid amounts.";
             } else {
-              confirmedAlreadyPaid = selected.amountPaid;
+              confirmedAmountPaid = movementSum;
+              if (Math.round(confirmedAmountPaid * 100) !== totalCents && !isIdempotentReplay) {
+                unverifiedReason = `Posting amount mismatch: expected ${php(totalCents / 100)}, but server recorded ${php(confirmedAmountPaid)}.`;
+              }
+
+              const totalPayableVal = Number.isFinite(orderData.totalPayable)
+                ? orderData.totalPayable
+                : Number(orderData.total_payable);
+              confirmedTotalPayable = Number.isFinite(totalPayableVal)
+                ? totalPayableVal
+                : selected.totalAmount;
+
+              const remBalVal = Number.isFinite(orderData.remainingBalance)
+                ? orderData.remainingBalance
+                : Number(orderData.remaining_balance);
+              confirmedRemainingBalance = Number.isFinite(remBalVal)
+                ? remBalVal
+                : Math.max(0, Math.round((confirmedTotalPayable - (confirmedAlreadyPaid + confirmedAmountPaid)) * 100) / 100);
+
+              const totalPaidVal = Number.isFinite(orderData.totalPaid)
+                ? orderData.totalPaid
+                : Number(orderData.total_paid);
+              if (Number.isFinite(totalPaidVal)) {
+                confirmedAlreadyPaid = Math.max(
+                  0,
+                  Math.round((totalPaidVal - confirmedAmountPaid) * 100) / 100
+                );
+              } else {
+                confirmedAlreadyPaid = selected.amountPaid;
+              }
             }
           }
         }
@@ -571,7 +595,7 @@ export function CradleFlowQuickPaymentModal({
                   <span className="ml-2 text-[#4e6b5c]">
                     (Txn: <span className="font-mono">{confirmedReceipt.transactionId}</span>)
                     {confirmedReceipt.isIdempotentReplay ? " · Idempotent Replay" : ""}
-                    {printWarning ? ` · ${printWarning}` : " · Receipt print initiated"}
+                    {printWarning ? ` · ${printWarning}` : " · Print command initiated"}
                   </span>
                 </div>
               </div>

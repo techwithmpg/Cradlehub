@@ -4,6 +4,43 @@
  * Purely client-safe with no DB mutations or side-effects on financial posting.
  */
 
+/**
+ * Validates whether a transaction reference is a genuine, non-fabricated authoritative UUID.
+ * Strictly rejects null, undefined, stringified sentinels ("null", "undefined", "none", etc.),
+ * placeholder prefixes ("TXN-", "MOCK-", etc.), and malformed identifiers.
+ */
+export function isValidAuthoritativeTransactionId(id: unknown): boolean {
+  if (typeof id !== "string") return false;
+  const trimmed = id.trim();
+  if (!trimmed) return false;
+
+  const lower = trimmed.toLowerCase();
+  const prohibitedSentinels = [
+    "null",
+    "undefined",
+    "none",
+    "n/a",
+    "na",
+    "nil",
+    "[object object]",
+    "nan",
+    "false",
+    "true",
+    "unknown",
+    "00000000-0000-0000-0000-000000000000",
+  ];
+  if (prohibitedSentinels.includes(lower)) return false;
+
+  // Reject fabricated or mock prefixes
+  if (/^(txn|mock|temp|fake|test|dummy|fallback|placeholder)[-_:]+/i.test(trimmed)) {
+    return false;
+  }
+
+  // Must match a genuine standard 36-character hexadecimal UUID format (RFC 4122 compliant)
+  const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+  return uuidRegex.test(trimmed) && trimmed !== "00000000-0000-0000-0000-000000000000";
+}
+
 export interface PrintableReceiptItem {
   description: string;
   amount: number;
@@ -318,16 +355,35 @@ function escapeHtml(text: string): string {
 
 /**
  * Initiates automatic browser printing using a detached hidden iframe.
- * Avoids popup blockers and isolates 80mm thermal receipt CSS styles.
+ * Isolates 80mm thermal receipt CSS styles without navigating away or displaying a separate page.
+ * Strictly avoids unsafe window.print() fallbacks to prevent printing the host CRM dashboard.
+ *
+ * Returns true if the print command was successfully initiated in the hidden frame, false otherwise.
+ * Note: Browser sandbox permissions and OS spooler status cannot confirm physical printer hardware output.
  */
 export function printThermalReceipt(data: PrintableReceiptData): boolean {
   if (typeof window === "undefined" || typeof document === "undefined") {
     return false;
   }
 
-  // Require a genuine non-empty confirmed transaction ID before printing
-  if (!data.transactionId || typeof data.transactionId !== "string" || data.transactionId.trim() === "") {
-    console.error("Thermal receipt print rejected: Authoritative transactionId is required.");
+  // Reject missing, malformed, or fabricated transaction references
+  if (!isValidAuthoritativeTransactionId(data.transactionId)) {
+    console.error(
+      "Thermal receipt print rejected: Authoritative non-fabricated transactionId is required. Received:",
+      data.transactionId
+    );
+    return false;
+  }
+
+  // Reject unverified financial totals or missing tender lines
+  if (
+    !Array.isArray(data.payments) ||
+    data.payments.length === 0 ||
+    typeof data.amountPaid !== "number" ||
+    !Number.isFinite(data.amountPaid) ||
+    data.amountPaid <= 0
+  ) {
+    console.error("Thermal receipt print rejected: Authoritative payment tenders and positive amountPaid are required.");
     return false;
   }
 
@@ -341,6 +397,7 @@ export function printThermalReceipt(data: PrintableReceiptData): boolean {
     iframe = document.createElement("iframe");
     iframe.id = iframeId;
     iframe.setAttribute("aria-hidden", "true");
+    iframe.setAttribute("title", "Thermal Receipt Printing Frame");
     iframe.style.position = "fixed";
     iframe.style.top = "-9999px";
     iframe.style.left = "-9999px";
@@ -367,22 +424,23 @@ export function printThermalReceipt(data: PrintableReceiptData): boolean {
       return false;
     }
 
-    // Give DOM a frame to layout before print dialog
-    setTimeout(() => {
-      try {
+    try {
+      if (typeof win.focus === "function") {
         win.focus();
-        win.print();
-      } catch (err) {
-        console.warn("Iframe print invocation failed, falling back to window.print", err);
-        try {
-          window.print();
-        } catch {
-          // Ignore
-        }
       }
-    }, 150);
-
-    return true;
+      if (typeof win.print === "function") {
+        win.print();
+        return true;
+      } else {
+        console.warn("Hidden iframe window.print is unavailable in this environment.");
+        return false;
+      }
+    } catch (printErr) {
+      // REQUIREMENT 5: REMOVE UNSAFE FALLBACK.
+      // Under no circumstance fall back to window.print(), which would print the host CRM page.
+      console.warn("Hidden iframe print invocation failed; print command not initiated:", printErr);
+      return false;
+    }
   } catch (error) {
     console.error("Thermal receipt print error:", error);
     return false;

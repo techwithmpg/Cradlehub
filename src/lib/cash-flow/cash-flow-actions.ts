@@ -19,6 +19,7 @@ import {
   PaymentPartPayloadSchema,
   type PostOrderPaymentPayload,
 } from './financial-contract';
+import { isValidAuthoritativeTransactionId } from './receipt-printer';
 import type {
   OpenCashSessionInput,
   OpenCashSessionResult,
@@ -189,7 +190,21 @@ export type LegacyBookingPaymentPayload = z.infer<typeof LegacyBookingPaymentPay
 export async function recordLegacyBookingPaymentAction(
   input: LegacyBookingPaymentPayload
 ): Promise<
-  | { ok: true; data: { transactionId: string | null; paymentDelta: number; isIdempotentReplay: boolean; branchId: string } }
+  | {
+      ok: true;
+      data: {
+        transactionId: string | null;
+        paymentDelta: number;
+        isIdempotentReplay: boolean;
+        branchId: string;
+        movements: Array<{
+          id: string;
+          amount: number;
+          paymentMethod: string;
+          externalReference: string | null;
+        }>;
+      };
+    }
   | { ok: false; error: string; code?: string }
 > {
   const parsed = LegacyBookingPaymentPayloadSchema.safeParse(input);
@@ -254,6 +269,30 @@ export async function recordLegacyBookingPaymentAction(
   });
   if (!result.ok) return { ok: false, error: result.error, code: 'PAYMENT_REJECTED' };
   revalidateOperationalBookingSurfaces(result.booking.branch_id);
+
+  let movements: Array<{
+    id: string;
+    amount: number;
+    paymentMethod: string;
+    externalReference: string | null;
+  }> = [];
+
+  if (result.transactionId && isValidAuthoritativeTransactionId(result.transactionId)) {
+    const { data: movementsData } = await supabase
+      .from('financial_account_movements')
+      .select('id, amount, payment_method, external_reference')
+      .eq('transaction_id', result.transactionId);
+
+    if (Array.isArray(movementsData) && movementsData.length > 0) {
+      movements = movementsData.map((m) => ({
+        id: m.id,
+        amount: Number(m.amount),
+        paymentMethod: m.payment_method,
+        externalReference: m.external_reference ?? null,
+      }));
+    }
+  }
+
   return {
     ok: true,
     data: {
@@ -261,6 +300,7 @@ export async function recordLegacyBookingPaymentAction(
       paymentDelta: result.paymentDelta,
       isIdempotentReplay: result.isIdempotentReplay,
       branchId: result.booking.branch_id,
+      movements,
     },
   };
 }

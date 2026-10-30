@@ -91,7 +91,10 @@ export async function recordOrderPayment(
   const result: PostOrderPaymentResult = {
     success: Boolean(raw.success),
     isIdempotentReplay: Boolean(raw.is_idempotent_replay),
-    transactionId: String(raw.transaction_id),
+    transactionId:
+      typeof raw.transaction_id === 'string' && raw.transaction_id.trim() !== ''
+        ? raw.transaction_id.trim()
+        : '',
     orderId: String(raw.order_id),
     branchId: String(raw.branch_id),
     businessDate: String(raw.business_date),
