@@ -32,10 +32,12 @@ const baseInput: LegacyBookingPaymentPayload = {
 
 let booking: Record<string, unknown>;
 let authenticated: boolean;
+let movementsList: Array<{ id: string; amount: number; payment_method: string; external_reference: string | null }>;
 
 beforeEach(() => {
   vi.clearAllMocks();
   authenticated = true;
+  movementsList = [];
   booking = {
     id: bookingId,
     branch_id: branchId,
@@ -45,16 +47,21 @@ beforeEach(() => {
     status: 'pending_payment',
     metadata: { price_paid: 900 },
   };
-  const query = {
-    select: () => query,
-    eq: () => query,
+  const bookingsQuery = {
+    select: () => bookingsQuery,
+    eq: () => bookingsQuery,
     maybeSingle: async () => ({ data: booking, error: null }),
+  };
+  const movementsQuery = {
+    select: () => movementsQuery,
+    eq: vi.fn().mockImplementation(() => Promise.resolve({ data: movementsList, error: null })),
   };
   mocks.createClient.mockResolvedValue({
     auth: { getUser: async () => ({ data: { user: authenticated ? { id: 'user-a' } : null } }) },
     from: (table: string) => {
-      expect(table).toBe('bookings');
-      return query;
+      if (table === 'bookings') return bookingsQuery;
+      if (table === 'financial_account_movements') return movementsQuery;
+      throw new Error(`Unexpected table: ${table}`);
     },
     rpc: mocks.rpc,
   });
@@ -154,6 +161,47 @@ describe('Cash Flow legacy booking payment action', () => {
     expect(mocks.rpc.mock.calls.map((call) => call[1].p_amount_paid)).toEqual([900, 900]);
     expect(mocks.rpc.mock.calls.map((call) => call[1].p_idempotency_key))
       .toEqual(['cash-flow-legacy-1', 'cash-flow-legacy-1']);
+  });
+
+  it('reads and returns authoritative branch-scoped financial_account_movements and verified balances for valid transaction ID', async () => {
+    const validTxnId = 'c5cc08fd-9912-4f32-8ea3-289b41dc6801';
+    mocks.rpc.mockResolvedValueOnce({
+      data: {
+        booking_id: bookingId,
+        branch_id: branchId,
+        transaction_id: validTxnId,
+        payment_delta: 900,
+        is_idempotent_replay: false,
+        reconciliation_warning: null,
+      },
+      error: null,
+    });
+    movementsList = [
+      {
+        id: 'mov-1',
+        amount: 900,
+        payment_method: 'cash',
+        external_reference: null,
+      },
+    ];
+
+    const result = await recordLegacyBookingPaymentAction(baseInput);
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+
+    expect(result.data.transactionId).toBe(validTxnId);
+    expect(result.data.totalPayable).toBe(900);
+    expect(result.data.totalPaid).toBe(900);
+    expect(result.data.alreadyPaid).toBe(0);
+    expect(result.data.remainingBalance).toBe(0);
+    expect(result.data.movements).toEqual([
+      {
+        id: 'mov-1',
+        amount: 900,
+        paymentMethod: 'cash',
+        externalReference: null,
+      },
+    ]);
   });
 
   it('rejects unauthenticated, order-backed, invalid-price, and stale requests before RPC', async () => {

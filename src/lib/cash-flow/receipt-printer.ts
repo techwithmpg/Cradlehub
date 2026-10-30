@@ -381,9 +381,20 @@ export function printThermalReceipt(data: PrintableReceiptData): boolean {
     data.payments.length === 0 ||
     typeof data.amountPaid !== "number" ||
     !Number.isFinite(data.amountPaid) ||
-    data.amountPaid <= 0
+    data.amountPaid <= 0 ||
+    typeof data.totalPayable !== "number" ||
+    !Number.isFinite(data.totalPayable) ||
+    data.totalPayable < 0 ||
+    typeof data.remainingBalance !== "number" ||
+    !Number.isFinite(data.remainingBalance) ||
+    data.remainingBalance < 0 ||
+    typeof data.alreadyPaid !== "number" ||
+    !Number.isFinite(data.alreadyPaid) ||
+    data.alreadyPaid < 0
   ) {
-    console.error("Thermal receipt print rejected: Authoritative payment tenders and positive amountPaid are required.");
+    console.error(
+      "Thermal receipt print rejected: Authoritative payment tenders, positive amountPaid, and valid non-negative finite totalPayable, remainingBalance, and alreadyPaid are required."
+    );
     return false;
   }
 

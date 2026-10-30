@@ -14,7 +14,13 @@ import {
 const chromePath = "C:\\Program Files\\Google\\Chrome\\Application\\chrome.exe";
 
 console.log("==================================================================");
-console.log("CRADLEHUB CASH FLOW — 80MM THERMAL RECEIPT BROWSER VERIFICATION");
+console.log("CRADLEHUB CASH FLOW — 80MM THERMAL RECEIPT HEADLESS BROWSER VERIFICATION");
+console.log("DOM Hidden-Frame Isolation & Print Command Dispatch Pipeline");
+console.log("------------------------------------------------------------------");
+console.log("DISCLAIMER: This script tests DOM hidden-frame isolation, print script");
+console.log("execution, and browser command flag parsing in headless Chrome.");
+console.log("It does NOT simulate physical printer hardware (paper feed, roll cutter,");
+console.log("or spooler hardware), which requires on-device cashier testing.");
 console.log("==================================================================");
 
 // 1. Generate HTML harness for browser testing
@@ -192,6 +198,63 @@ const harnessHtml = `<!DOCTYPE html>
           payments: [{ method: "Cash", amount: 500 }]
         },
         expectReject: true
+      },
+      {
+        name: "Scenario 8: Non-Finite Total Payable Rejection (Must Reject)",
+        data: {
+          companyName: "CRADLE WELLNESS LIVING INC.",
+          branchName: "Main Spa Branch",
+          transactionId: "c5cc08fd-9912-4f32-8ea3-289b41dc6808",
+          orderNumber: "ORDER-0008",
+          customerName: "TEST GUEST",
+          formattedDateTime: "Oct 30, 2026, 05:00 PM",
+          serviceDescription: "Test Service",
+          items: [{ description: "Test Service", amount: 500 }],
+          totalPayable: NaN,
+          alreadyPaid: 0,
+          amountPaid: 500,
+          remainingBalance: 0,
+          payments: [{ method: "Cash", amount: 500 }]
+        },
+        expectReject: true
+      },
+      {
+        name: "Scenario 9: Empty Tender Payments Rejection (Must Reject)",
+        data: {
+          companyName: "CRADLE WELLNESS LIVING INC.",
+          branchName: "Main Spa Branch",
+          transactionId: "c5cc08fd-9912-4f32-8ea3-289b41dc6809",
+          orderNumber: "ORDER-0009",
+          customerName: "TEST GUEST",
+          formattedDateTime: "Oct 30, 2026, 05:00 PM",
+          serviceDescription: "Test Service",
+          items: [{ description: "Test Service", amount: 500 }],
+          totalPayable: 500,
+          alreadyPaid: 0,
+          amountPaid: 500,
+          remainingBalance: 0,
+          payments: []
+        },
+        expectReject: true
+      },
+      {
+        name: "Scenario 10: Negative Remaining Balance Rejection (Must Reject)",
+        data: {
+          companyName: "CRADLE WELLNESS LIVING INC.",
+          branchName: "Main Spa Branch",
+          transactionId: "c5cc08fd-9912-4f32-8ea3-289b41dc6810",
+          orderNumber: "ORDER-0010",
+          customerName: "TEST GUEST",
+          formattedDateTime: "Oct 30, 2026, 05:00 PM",
+          serviceDescription: "Test Service",
+          items: [{ description: "Test Service", amount: 500 }],
+          totalPayable: 500,
+          alreadyPaid: 0,
+          amountPaid: 500,
+          remainingBalance: -100,
+          payments: [{ method: "Cash", amount: 500 }]
+        },
+        expectReject: true
       }
     ];
 
@@ -224,53 +287,83 @@ const tmpHtmlPath = path.join(tmpDir, "thermal-print-verification.html");
 fs.writeFileSync(tmpHtmlPath, harnessHtml, "utf8");
 const fileUrl = "file:///" + tmpHtmlPath.replace(/\\/g, "/");
 
-console.log("[1/3] Running in Standard Chrome (Normal Print Pipeline)...");
+console.log("[1/3] Headless Chrome: Standard Print Command Dispatch Emulation...");
 try {
   const stdOutput = execSync(
     `"${chromePath}" --headless=new --disable-gpu --dump-dom "${fileUrl}"`,
     { encoding: "utf8", timeout: 15000 }
   );
   const match = stdOutput.match(/<div id="test-results">([\s\S]*?)<\/div>/);
-  if (match && match[1]) {
-    const data = JSON.parse(match[1].trim());
-    console.log("  Standard Chrome Results:");
-    data.results.forEach((r) => {
-      console.log(`    ${r.passed ? "✔ PASS" : "✖ FAIL"}: ${r.name} (initiated: ${r.initiated})`);
-    });
-    console.log(`    ✔ Host Window Protected (no full CRM print): ${!data.hostWindowPrinted}`);
-    console.log(`    ✔ Hidden Print Frame Maintained: ${data.iframeCreated}`);
-    if (!data.allPassed || data.hostWindowPrinted) {
-      throw new Error("Standard Chrome verification failed!");
-    }
+  if (!match || !match[1] || !match[1].trim()) {
+    throw new Error(
+      "Standard Chrome headless verification failed: #test-results container not found or empty in DOM dump."
+    );
+  }
+  let data;
+  try {
+    data = JSON.parse(match[1].trim());
+  } catch (parseErr) {
+    throw new Error(
+      `Standard Chrome headless verification failed: could not parse #test-results JSON: ${parseErr.message}`
+    );
+  }
+  if (!data || typeof data !== "object" || !Array.isArray(data.results)) {
+    throw new Error(
+      "Standard Chrome headless verification failed: invalid results payload structure."
+    );
+  }
+  console.log("  Standard Chrome Emulation Results:");
+  data.results.forEach((r) => {
+    console.log(`    ${r.passed ? "✔ PASS" : "✖ FAIL"}: ${r.name} (initiated: ${r.initiated})`);
+  });
+  console.log(`    ✔ Host Window Protected (no full CRM print): ${!data.hostWindowPrinted}`);
+  console.log(`    ✔ Hidden Print Frame Maintained: ${data.iframeCreated}`);
+  if (!data.allPassed || data.hostWindowPrinted || !data.iframeCreated) {
+    throw new Error("Standard Chrome headless verification scenarios failed!");
   }
 } catch (e) {
   console.error("Standard Chrome execution failed:", e.message);
   process.exit(1);
 }
 
-console.log("\n[2/3] Running in Cashier Chrome Kiosk-Printing Mode (--kiosk --kiosk-printing)...");
+console.log("\n[2/3] Headless Chrome: Kiosk Command Flag Emulation (--kiosk --kiosk-printing)...");
 try {
   const kioskOutput = execSync(
     `"${chromePath}" --headless=new --disable-gpu --kiosk --kiosk-printing --dump-dom "${fileUrl}"`,
     { encoding: "utf8", timeout: 15000 }
   );
   const match = kioskOutput.match(/<div id="test-results">([\s\S]*?)<\/div>/);
-  if (match && match[1]) {
-    const data = JSON.parse(match[1].trim());
-    console.log("  Cashier Kiosk Mode Results:");
-    data.results.forEach((r) => {
-      console.log(`    ${r.passed ? "✔ PASS" : "✖ FAIL"}: ${r.name} (initiated: ${r.initiated})`);
-    });
-    console.log(`    ✔ Host Window Protected (no full CRM print): ${!data.hostWindowPrinted}`);
-    console.log(`    ✔ Hidden Print Frame Maintained: ${data.iframeCreated}`);
-    if (!data.allPassed || data.hostWindowPrinted) {
-      throw new Error("Cashier Kiosk Mode verification failed!");
-    }
+  if (!match || !match[1] || !match[1].trim()) {
+    throw new Error(
+      "Headless Chrome kiosk flag verification failed: #test-results container not found or empty in DOM dump."
+    );
+  }
+  let data;
+  try {
+    data = JSON.parse(match[1].trim());
+  } catch (parseErr) {
+    throw new Error(
+      `Headless Chrome kiosk flag verification failed: could not parse #test-results JSON: ${parseErr.message}`
+    );
+  }
+  if (!data || typeof data !== "object" || !Array.isArray(data.results)) {
+    throw new Error(
+      "Headless Chrome kiosk flag verification failed: invalid results payload structure."
+    );
+  }
+  console.log("  Headless Chrome Kiosk Flag Emulation Results:");
+  data.results.forEach((r) => {
+    console.log(`    ${r.passed ? "✔ PASS" : "✖ FAIL"}: ${r.name} (initiated: ${r.initiated})`);
+  });
+  console.log(`    ✔ Host Window Protected (no full CRM print): ${!data.hostWindowPrinted}`);
+  console.log(`    ✔ Hidden Print Frame Maintained: ${data.iframeCreated}`);
+  if (!data.allPassed || data.hostWindowPrinted || !data.iframeCreated) {
+    throw new Error("Headless Chrome kiosk flag verification scenarios failed!");
   }
 } catch (e) {
-  console.error("Cashier Kiosk Mode execution failed:", e.message);
+  console.error("Headless Chrome kiosk flag execution failed:", e.message);
   process.exit(1);
 }
 
-console.log("\n[3/3] Verification Complete: All Browser Printing Tests PASSED Cleanly!");
+console.log("\n[3/3] Verification Complete: All Browser Printing Emulation Tests PASSED Cleanly!");
 console.log("==================================================================");

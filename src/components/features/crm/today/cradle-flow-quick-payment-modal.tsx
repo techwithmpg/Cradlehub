@@ -306,8 +306,8 @@ export function CradleFlowQuickPaymentModal({
       // Authoritative verification of server confirmation
       let confirmedTxnId: string | null = null;
       let confirmedAmountPaid = 0;
-      let confirmedTotalPayable = selected.totalAmount;
-      let confirmedAlreadyPaid = selected.amountPaid;
+      let confirmedTotalPayable = 0;
+      let confirmedAlreadyPaid = 0;
       let confirmedRemainingBalance = 0;
       let confirmedMovements: Array<{ method: string; amount: number; reference?: string | null }> = [];
       let isIdempotentReplay = false;
@@ -321,6 +321,10 @@ export function CradleFlowQuickPaymentModal({
                 paymentDelta: number;
                 isIdempotentReplay: boolean;
                 branchId: string;
+                totalPayable?: number;
+                totalPaid?: number;
+                alreadyPaid?: number;
+                remainingBalance?: number;
                 movements?: Array<{
                   id: string;
                   amount: number;
@@ -365,13 +369,25 @@ export function CradleFlowQuickPaymentModal({
             confirmedAmountPaid = movementSum;
             if (Math.round(confirmedAmountPaid * 100) !== totalCents && !isIdempotentReplay) {
               unverifiedReason = `Posting amount mismatch: expected ${php(totalCents / 100)}, but server recorded ${php(confirmedAmountPaid)}.`;
+            } else {
+              const totalPayableVal = Number(legacyData.totalPayable);
+              const remBalVal = Number(legacyData.remainingBalance);
+              const totalPaidVal = Number(legacyData.totalPaid);
+
+              if (!Number.isFinite(totalPayableVal) || totalPayableVal < 0) {
+                unverifiedReason = "Authoritative total payable amount is missing or invalid in server confirmation.";
+              } else if (!Number.isFinite(remBalVal) || remBalVal < 0) {
+                unverifiedReason = "Authoritative remaining balance is missing or invalid in server confirmation.";
+              } else if (!Number.isFinite(totalPaidVal) || totalPaidVal < 0) {
+                unverifiedReason = "Authoritative total paid amount is missing or invalid in server confirmation.";
+              } else {
+                confirmedTotalPayable = totalPayableVal;
+                confirmedRemainingBalance = remBalVal;
+                confirmedAlreadyPaid = Number.isFinite(Number(legacyData.alreadyPaid))
+                  ? Number(legacyData.alreadyPaid)
+                  : Math.max(0, Math.round((totalPaidVal - confirmedAmountPaid) * 100) / 100);
+              }
             }
-            confirmedAlreadyPaid = selected.amountPaid;
-            confirmedTotalPayable = selected.totalAmount;
-            confirmedRemainingBalance = Math.max(
-              0,
-              Math.round((confirmedTotalPayable - (confirmedAlreadyPaid + confirmedAmountPaid)) * 100) / 100
-            );
           }
         }
       } else {
@@ -418,32 +434,31 @@ export function CradleFlowQuickPaymentModal({
               confirmedAmountPaid = movementSum;
               if (Math.round(confirmedAmountPaid * 100) !== totalCents && !isIdempotentReplay) {
                 unverifiedReason = `Posting amount mismatch: expected ${php(totalCents / 100)}, but server recorded ${php(confirmedAmountPaid)}.`;
-              }
-
-              const totalPayableVal = Number.isFinite(orderData.totalPayable)
-                ? orderData.totalPayable
-                : Number(orderData.total_payable);
-              confirmedTotalPayable = Number.isFinite(totalPayableVal)
-                ? totalPayableVal
-                : selected.totalAmount;
-
-              const remBalVal = Number.isFinite(orderData.remainingBalance)
-                ? orderData.remainingBalance
-                : Number(orderData.remaining_balance);
-              confirmedRemainingBalance = Number.isFinite(remBalVal)
-                ? remBalVal
-                : Math.max(0, Math.round((confirmedTotalPayable - (confirmedAlreadyPaid + confirmedAmountPaid)) * 100) / 100);
-
-              const totalPaidVal = Number.isFinite(orderData.totalPaid)
-                ? orderData.totalPaid
-                : Number(orderData.total_paid);
-              if (Number.isFinite(totalPaidVal)) {
-                confirmedAlreadyPaid = Math.max(
-                  0,
-                  Math.round((totalPaidVal - confirmedAmountPaid) * 100) / 100
-                );
               } else {
-                confirmedAlreadyPaid = selected.amountPaid;
+                const totalPayableVal = Number.isFinite(orderData.totalPayable)
+                  ? orderData.totalPayable
+                  : Number(orderData.total_payable);
+                const remBalVal = Number.isFinite(orderData.remainingBalance)
+                  ? orderData.remainingBalance
+                  : Number(orderData.remaining_balance);
+                const totalPaidVal = Number.isFinite(orderData.totalPaid)
+                  ? orderData.totalPaid
+                  : Number(orderData.total_paid);
+
+                if (!Number.isFinite(totalPayableVal) || totalPayableVal < 0) {
+                  unverifiedReason = "Authoritative total payable amount is missing or invalid in server confirmation.";
+                } else if (!Number.isFinite(remBalVal) || remBalVal < 0) {
+                  unverifiedReason = "Authoritative remaining balance is missing or invalid in server confirmation.";
+                } else if (!Number.isFinite(totalPaidVal) || totalPaidVal < 0) {
+                  unverifiedReason = "Authoritative total paid amount is missing or invalid in server confirmation.";
+                } else {
+                  confirmedTotalPayable = totalPayableVal;
+                  confirmedRemainingBalance = remBalVal;
+                  confirmedAlreadyPaid = Math.max(
+                    0,
+                    Math.round((totalPaidVal - confirmedAmountPaid) * 100) / 100
+                  );
+                }
               }
             }
           }
@@ -452,10 +467,9 @@ export function CradleFlowQuickPaymentModal({
 
       if (unverifiedReason || !confirmedTxnId) {
         setVerificationWarning(
-          `Payment was processed by server, but receipt confirmation is unverified (${unverifiedReason ?? "Missing confirmed transaction ID"}). Check the Cash Flow ledger to verify the transaction before printing a receipt.`
+          `Payment status requires verification: ${unverifiedReason ?? "Missing confirmed transaction ID"}. Please check the Cash Flow ledger to verify whether the transaction posted before re-attempting payment or issuing a receipt.`
         );
         setConfirmedReceipt(null);
-        onSuccess();
         return;
       }
 

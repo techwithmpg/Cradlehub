@@ -598,7 +598,25 @@ describe("CF5 Cash Flow UI Foundation", () => {
   it("9c. A successful payment still refreshes financial data", async () => {
     mockRecordOrderPaymentAction.mockResolvedValueOnce({
       ok: true,
-      data: { success: true, transactionId: "tx-new-123", orderId: "ord-1" },
+      data: {
+        success: true,
+        transactionId: "c5cc08fd-9912-4f32-8ea3-289b41dc6801",
+        orderId: "ord-1",
+        branchId: "branch-main",
+        totalPayable: 1800,
+        totalPaid: 1800,
+        remainingBalance: 0,
+        netAllocated: 1800,
+        movements: [
+          {
+            id: "mov-1",
+            amount: 1800,
+            paymentMethod: "cash",
+            financialAccountId: "acc-1",
+            externalReference: null,
+          },
+        ],
+      },
     });
     render(<CashFlowWorkspace initialData={mockWorkspaceData} />);
 

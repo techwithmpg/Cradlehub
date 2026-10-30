@@ -93,6 +93,23 @@ const data: FinancialEntryContext = {
         { id: "p-2", description: "Home Service travel", amount: 286 },
       ],
     },
+    {
+      id: "booking-legacy-1",
+      sourceKind: "legacy_booking",
+      orderNumber: "BKG-LEGACY-01",
+      customerName: "ROSE FLORES",
+      customerPhone: "09181112233",
+      serviceDescription: "Foot Spa & Reflexology",
+      totalAmount: 900,
+      amountPaid: 0,
+      remainingBalance: 900,
+      bookingDate: "2026-10-30",
+      serviceTime: "1:00 PM",
+      visitType: "in_spa",
+      bookingStatus: "pending_payment",
+      paymentEligible: true,
+      readyForCheckout: true,
+    },
   ],
 };
 
@@ -340,10 +357,11 @@ describe("CRM quick payment modal", () => {
     fireEvent.click(screen.getByRole("button", { name: "Record Payment" }));
 
     await waitFor(() => expect(mocks.recordOrder).toHaveBeenCalledTimes(1));
-    expect(callbacks.onSuccess).toHaveBeenCalledTimes(1);
+    expect(callbacks.onSuccess).not.toHaveBeenCalled();
     expect(mocks.printReceipt).not.toHaveBeenCalled();
     expect(screen.getByRole("alert").textContent).toContain("Payment Verification Required");
-    expect(screen.getByRole("alert").textContent).toContain("Check the Cash Flow ledger");
+    expect(screen.getByRole("alert").textContent).toContain("Payment status requires verification");
+    expect(screen.getByRole("alert").textContent).toContain("check the Cash Flow ledger");
     expect(screen.getByRole("link", { name: "View Ledger" })).toBeTruthy();
   });
 
@@ -376,9 +394,10 @@ describe("CRM quick payment modal", () => {
     fireEvent.click(screen.getByRole("button", { name: "Record Payment" }));
 
     await waitFor(() => expect(mocks.recordOrder).toHaveBeenCalledTimes(1));
-    expect(callbacks.onSuccess).toHaveBeenCalledTimes(1);
+    expect(callbacks.onSuccess).not.toHaveBeenCalled();
     expect(mocks.printReceipt).not.toHaveBeenCalled();
     expect(screen.getByRole("alert").textContent).toContain("Payment Verification Required");
+    expect(screen.getByRole("alert").textContent).toContain("Payment status requires verification");
   });
 
   it("displays verification warning and suppresses printing when transaction ID is stringified null or fabricated", async () => {
@@ -410,7 +429,7 @@ describe("CRM quick payment modal", () => {
     fireEvent.click(screen.getByRole("button", { name: "Record Payment" }));
 
     await waitFor(() => expect(mocks.recordOrder).toHaveBeenCalledTimes(1));
-    expect(callbacks.onSuccess).toHaveBeenCalledTimes(1);
+    expect(callbacks.onSuccess).not.toHaveBeenCalled();
     expect(mocks.printReceipt).not.toHaveBeenCalled();
     expect(screen.getByRole("alert").textContent).toContain("Missing, malformed, or fabricated transaction reference");
   });
@@ -444,7 +463,7 @@ describe("CRM quick payment modal", () => {
     fireEvent.click(screen.getByRole("button", { name: "Record Payment" }));
 
     await waitFor(() => expect(mocks.recordOrder).toHaveBeenCalledTimes(1));
-    expect(callbacks.onSuccess).toHaveBeenCalledTimes(1);
+    expect(callbacks.onSuccess).not.toHaveBeenCalled();
     expect(mocks.printReceipt).not.toHaveBeenCalled();
     expect(screen.getByRole("alert").textContent).toContain("Authoritative payment tender movements are missing");
   });
@@ -478,7 +497,7 @@ describe("CRM quick payment modal", () => {
     fireEvent.click(screen.getByRole("button", { name: "Record Payment" }));
 
     await waitFor(() => expect(mocks.recordOrder).toHaveBeenCalledTimes(1));
-    expect(callbacks.onSuccess).toHaveBeenCalledTimes(1);
+    expect(callbacks.onSuccess).not.toHaveBeenCalled();
     expect(mocks.printReceipt).not.toHaveBeenCalled();
     expect(screen.getByRole("alert").textContent).toContain("Posting amount mismatch");
   });
@@ -619,5 +638,128 @@ describe("CRM quick payment modal", () => {
     expect(receiptData.payments[0].amount).toBe(500);
     expect(receiptData.payments[1].method).toBe("GCash");
     expect(receiptData.payments[1].amount).toBe(586);
+  });
+
+  it("displays verification warning and suppresses printing when server response contains invalid or non-finite total payable", async () => {
+    mocks.recordOrder.mockResolvedValueOnce({
+      ok: true,
+      data: {
+        success: true,
+        transaction_id: "c5cc08fd-9912-4f32-8ea3-289b41dc6807",
+        order_id: "ORDER-c5cc08fd",
+        branch_id: "branch-main",
+        total_paid: 1086,
+        total_payable: NaN, // Invalid non-finite total payable
+        net_allocated: 1086,
+        remaining_balance: 0,
+        movements: [{ amount: 1086, payment_method: "cash", account_id: "drawer" }],
+      },
+    });
+
+    render(
+      <CradleFlowQuickPaymentModal
+        data={data}
+        loading={false}
+        requestedOrderId="order-dawn"
+        {...callbacks}
+      />
+    );
+
+    await waitFor(() => expect(screen.getByLabelText("Tender 1 amount")).toBeTruthy());
+    fireEvent.click(screen.getByRole("button", { name: "Record Payment" }));
+
+    await waitFor(() => expect(mocks.recordOrder).toHaveBeenCalledTimes(1));
+    expect(callbacks.onSuccess).not.toHaveBeenCalled();
+    expect(mocks.printReceipt).not.toHaveBeenCalled();
+    expect(screen.getByRole("alert").textContent).toContain("Authoritative total payable amount is missing or invalid");
+  });
+
+  it("authoritatively records legacy booking payment and prints receipt with server balances", async () => {
+    mocks.recordLegacy.mockResolvedValueOnce({
+      ok: true,
+      data: {
+        transactionId: "c5cc08fd-9912-4f32-8ea3-289b41dc6808",
+        paymentDelta: 900,
+        isIdempotentReplay: false,
+        branchId: "branch-main",
+        totalPayable: 900,
+        totalPaid: 900,
+        alreadyPaid: 0,
+        remainingBalance: 0,
+        movements: [
+          {
+            id: "mov-1",
+            amount: 900,
+            paymentMethod: "cash",
+            externalReference: null,
+          },
+        ],
+      },
+    });
+
+    render(
+      <CradleFlowQuickPaymentModal
+        data={data}
+        loading={false}
+        requestedOrderId="booking-legacy-1"
+        {...callbacks}
+      />
+    );
+
+    await waitFor(() => expect(screen.getByLabelText("Tender 1 amount")).toBeTruthy());
+    fireEvent.click(screen.getByRole("button", { name: "Record Payment" }));
+
+    await waitFor(() => expect(mocks.recordLegacy).toHaveBeenCalledTimes(1));
+    await waitFor(() => expect(mocks.printReceipt).toHaveBeenCalledTimes(1));
+
+    const receiptData = mocks.printReceipt.mock.calls[0]?.[0];
+    expect(receiptData.transactionId).toBe("c5cc08fd-9912-4f32-8ea3-289b41dc6808");
+    expect(receiptData.totalPayable).toBe(900);
+    expect(receiptData.amountPaid).toBe(900);
+    expect(receiptData.remainingBalance).toBe(0);
+    expect(receiptData.payments).toHaveLength(1);
+    expect(receiptData.payments[0].method).toBe("Cash");
+    expect(callbacks.onSuccess).toHaveBeenCalledTimes(1);
+  });
+
+  it("suppresses printing and displays warning when legacy booking payment response lacks valid balances", async () => {
+    mocks.recordLegacy.mockResolvedValueOnce({
+      ok: true,
+      data: {
+        transactionId: "c5cc08fd-9912-4f32-8ea3-289b41dc6809",
+        paymentDelta: 900,
+        isIdempotentReplay: false,
+        branchId: "branch-main",
+        totalPayable: NaN, // non-finite
+        totalPaid: 900,
+        alreadyPaid: 0,
+        remainingBalance: 0,
+        movements: [
+          {
+            id: "mov-1",
+            amount: 900,
+            paymentMethod: "cash",
+            externalReference: null,
+          },
+        ],
+      },
+    });
+
+    render(
+      <CradleFlowQuickPaymentModal
+        data={data}
+        loading={false}
+        requestedOrderId="booking-legacy-1"
+        {...callbacks}
+      />
+    );
+
+    await waitFor(() => expect(screen.getByLabelText("Tender 1 amount")).toBeTruthy());
+    fireEvent.click(screen.getByRole("button", { name: "Record Payment" }));
+
+    await waitFor(() => expect(mocks.recordLegacy).toHaveBeenCalledTimes(1));
+    expect(callbacks.onSuccess).not.toHaveBeenCalled();
+    expect(mocks.printReceipt).not.toHaveBeenCalled();
+    expect(screen.getByRole("alert").textContent).toContain("Authoritative total payable amount is missing or invalid");
   });
 });

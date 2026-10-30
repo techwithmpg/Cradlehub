@@ -220,6 +220,19 @@ describe("Thermal Receipt Printing Subsystem", () => {
       hostPrintSpy.mockRestore();
     });
 
+    it("rejects non-finite or negative totalPayable, remainingBalance, or alreadyPaid", () => {
+      const hostPrintSpy = vi.spyOn(window, "print");
+      const nanTotalReceipt = { ...mockSampleReceipt, totalPayable: NaN };
+      const negativeBalanceReceipt = { ...mockSampleReceipt, remainingBalance: -10 };
+      const negativePaidReceipt = { ...mockSampleReceipt, alreadyPaid: -50 };
+
+      expect(printThermalReceipt(nanTotalReceipt)).toBe(false);
+      expect(printThermalReceipt(negativeBalanceReceipt)).toBe(false);
+      expect(printThermalReceipt(negativePaidReceipt)).toBe(false);
+      expect(hostPrintSpy).not.toHaveBeenCalled();
+      hostPrintSpy.mockRestore();
+    });
+
     it("creates an isolated hidden print iframe and dispatches print to it", () => {
       const result = printThermalReceipt(mockSampleReceipt);
       expect(result).toBe(true);

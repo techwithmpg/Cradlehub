@@ -197,6 +197,10 @@ export async function recordLegacyBookingPaymentAction(
         paymentDelta: number;
         isIdempotentReplay: boolean;
         branchId: string;
+        totalPayable: number;
+        totalPaid: number;
+        alreadyPaid: number;
+        remainingBalance: number;
         movements: Array<{
           id: string;
           amount: number;
@@ -278,12 +282,12 @@ export async function recordLegacyBookingPaymentAction(
   }> = [];
 
   if (result.transactionId && isValidAuthoritativeTransactionId(result.transactionId)) {
-    const { data: movementsData } = await supabase
+    const { data: movementsData, error: movementsErr } = await supabase
       .from('financial_account_movements')
       .select('id, amount, payment_method, external_reference')
       .eq('transaction_id', result.transactionId);
 
-    if (Array.isArray(movementsData) && movementsData.length > 0) {
+    if (!movementsErr && Array.isArray(movementsData) && movementsData.length > 0) {
       movements = movementsData.map((m) => ({
         id: m.id,
         amount: Number(m.amount),
@@ -293,6 +297,16 @@ export async function recordLegacyBookingPaymentAction(
     }
   }
 
+  const totalPaidAuthoritative = targetCents / 100;
+  const alreadyPaidAuthoritative =
+    isFullPayment && result.isIdempotentReplay
+      ? Math.max(0, Math.round((targetCents - Math.round(result.paymentDelta * 100)) / 100))
+      : previousCents / 100;
+  const remainingBalanceAuthoritative = Math.max(
+    0,
+    Math.round((total - totalPaidAuthoritative) * 100) / 100
+  );
+
   return {
     ok: true,
     data: {
@@ -300,6 +314,10 @@ export async function recordLegacyBookingPaymentAction(
       paymentDelta: result.paymentDelta,
       isIdempotentReplay: result.isIdempotentReplay,
       branchId: result.booking.branch_id,
+      totalPayable: total,
+      totalPaid: totalPaidAuthoritative,
+      alreadyPaid: alreadyPaidAuthoritative,
+      remainingBalance: remainingBalanceAuthoritative,
       movements,
     },
   };
