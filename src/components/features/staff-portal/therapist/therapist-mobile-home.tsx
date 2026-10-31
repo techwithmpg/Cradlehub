@@ -18,6 +18,7 @@ import {
   type ResolvedShift,
 } from "@/lib/staff-pwa/provider-model";
 import { BookingProgressActions } from "@/components/features/staff-portal/booking-progress-actions";
+import { StaffAttendanceClockOut } from "@/components/features/staff-portal/staff-attendance-clock-out";
 import { TherapistHeader } from "./therapist-header";
 import {
   StaffCard,
@@ -459,9 +460,12 @@ export function TherapistMobileHome({
             </div>
           </section>
         ) : currentAttendance ? (
-          <Link href="/staff/attendance" className="block">
-            <AttendanceCard attendanceData={currentAttendance} shift={shift} />
-          </Link>
+          <div>
+            <Link href="/staff/attendance" className="block">
+              <AttendanceCard attendanceData={currentAttendance} shift={shift} />
+            </Link>
+            {currentAttendance.currentClockState === "clocked_in" && currentAttendance.portalClockOut ? <StaffAttendanceClockOut availability={currentAttendance.portalClockOut} timezone={currentAttendance.todayState.timezone} /> : null}
+          </div>
         ) : null}
 
         <PrimaryServiceCard work={primaryWork} />

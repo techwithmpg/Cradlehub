@@ -275,12 +275,13 @@ export const getPureAttendanceSnapshot = cache(async (
   const history = ((checkinsResult.data ?? []) as CheckinRow[]).map(mapCheckin);
   const rawCheckins = (checkinsResult.data ?? []) as CheckinRow[];
   const todayRecords = history.filter((record) => record.shiftDate === today);
-  const currentRecord =
-    todayRecords.find((record) => record.status === "checked_in") ?? todayRecords[0] ?? null;
+  // An overnight shift keeps its original Attendance business date after midnight.
   const currentOpenRow =
-    rawCheckins.find(
-      (row) => row.shift_date === today && row.status === "checked_in" && !row.checked_out_at
-    ) ?? null;
+    rawCheckins.find((row) => row.status === "checked_in" && !row.checked_out_at) ?? null;
+  const currentRecord =
+    (currentOpenRow ? history.find((record) => record.id === currentOpenRow.id) : null) ??
+    todayRecords[0] ??
+    null;
   const currentClockState =
     currentRecord?.status === "checked_in"
       ? "clocked_in"
@@ -447,7 +448,7 @@ export const getPureAttendanceSnapshot = cache(async (
     scheduleLabel,
     scheduleState,
     currentClockState:
-      todayState.operationalStatus === "clocked_in" || todayState.operationalStatus === "on_service"
+      currentOpenRow || todayState.operationalStatus === "clocked_in" || todayState.operationalStatus === "on_service"
         ? "clocked_in"
         : todayState.operationalStatus === "clocked_out"
           ? "clocked_out"

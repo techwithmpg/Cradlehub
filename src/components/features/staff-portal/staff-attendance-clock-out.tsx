@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useTransition } from "react";
+import { useRef, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { ClockArrowDown, LoaderCircle, QrCode } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -27,34 +27,49 @@ export function StaffAttendanceClockOut({
 }) {
   const router = useRouter();
   const [isPending, startTransition] = useTransition();
+  const submitting = useRef(false);
+  const completed = useRef(false);
   const [result, setResult] = useState<{
     ok: boolean;
     title: string;
     message: string;
+    checkedOutAt?: string;
   } | null>(null);
   const expected = formatTime(availability.expectedClockOutAt, timezone);
   const nextAssignment = formatTime(availability.nextAssignmentAt, timezone);
 
   const submit = () => {
+    if (submitting.current || completed.current || result?.ok || !availability.enabled) return;
+    submitting.current = true;
     startTransition(async () => {
-      const next = await clockOutFromStaffPortalAction();
-      setResult(next);
-      if (next.ok) router.refresh();
+      try {
+        const next = await clockOutFromStaffPortalAction();
+        setResult(next);
+        if (next.ok) {
+          completed.current = true;
+          router.refresh();
+        }
+      } catch {
+        setResult({ ok: false, title: "Clock-out unavailable", message: "Please retry or ask CRM for help." });
+      } finally {
+        submitting.current = false;
+      }
     });
   };
 
   return (
     <div className="mt-3 flex flex-col gap-2 rounded-xl border bg-muted/35 p-3 sm:flex-row sm:items-center sm:justify-between">
-      <div className="min-w-0">
+      <div className="min-w-0" aria-live="polite">
         <p className="text-sm font-medium">{result?.title ?? availability.label}</p>
         <p className="text-xs text-muted-foreground">
           {result?.message ?? availability.message}
+          {result?.ok && result.checkedOutAt ? ` Clocked out at ${formatTime(result.checkedOutAt, timezone)}` : ""}
           {!result && nextAssignment ? ` Next assignment: ${nextAssignment}.` : ""}
           {!result && !nextAssignment && expected ? ` Expected completion: ${expected}.` : ""}
         </p>
       </div>
       {availability.enabled && !result?.ok ? (
-        <Button type="button" size="sm" className="shrink-0" disabled={isPending} onClick={submit}>
+        <Button type="button" size="sm" className="min-h-11 shrink-0" disabled={isPending} onClick={submit}>
           {isPending ? <LoaderCircle className="animate-spin" /> : <ClockArrowDown />}
           {isPending ? "Clocking out…" : "Clock out"}
         </Button>

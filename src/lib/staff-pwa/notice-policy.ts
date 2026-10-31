@@ -39,8 +39,10 @@ export function staffNoticeHref(notice: Pick<WorkspaceNotification, "type" | "en
   return notice.entity_type === "booking" ? "/staff/progress" : "/staff/notices";
 }
 
-export function safeAttendanceNoticeCopy(notice: Pick<WorkspaceNotification, "type" | "title" | "body">) {
-  return ["attendance_clock_out_reminder", "attendance_closing_escalation"].includes(notice.type)
+export function safeAttendanceNoticeCopy(notice: Pick<WorkspaceNotification, "type" | "title" | "body"> & Partial<Pick<WorkspaceNotification, "dedupe_key">>) {
+  return notice.type === "attendance_clock_out_reminder" && notice.dedupe_key?.startsWith("staff-clock-out-reminder:")
+    ? { title: "You forgot to clock out", body: "Your expected shift has ended, but your attendance is still open. Clock out here if eligible, use the branch QR, or contact CRM for assistance." }
+    : ["attendance_clock_out_reminder", "attendance_closing_escalation"].includes(notice.type)
     ? { title: "Attendance needs review", body: "Review your current attendance and work. Clock-out eligibility is checked by the server; this notice does not end your shift." }
     : { title: notice.title, body: notice.body };
 }

@@ -202,3 +202,24 @@ job duration. A future paid/platform upgrade may add more frequent narrow-window
 execution, but it must continue to call the same authoritative idempotent
 function and use the same open-record partial indexes. All-day five-minute HTTP
 polling should not be reintroduced.
+
+## Proposed general-staff forgotten clock-out reminder
+
+The four CRM Closing jobs above remain unchanged. A separate, bounded hourly
+staff reminder is proposed because their near-midnight schedules cannot deliver
+general staff reminders near an arbitrary dynamic shift end. The additive
+`20261031074004_staff_clock_out_reminders.sql` migration reads the existing
+latest-normal deadline and re-runs the canonical dynamic resolver before sending
+one recipient-scoped notice for an open live shift. Active or upcoming assignments
+block delivery. A dedicated activation row prevents historical overdue shifts
+from receiving notices on first enablement. Canonical record completion resolves
+the notice, including QR, portal, manual correction, and provisional close.
+
+This migration and `supabase/operations/enable-staff-attendance-reminders.sql`
+are **proposals only**. Neither is applied by an application deploy. The
+operation must be reviewed against a classified target, then executed separately
+after migration and TEST/STAGING verification. It adds one hourly job without
+editing any of the four Closing jobs. A reviewed rollback unschedules only
+`attendance-staff-clock-out-reminder` and removes its activation row. The
+migration's completion trigger remains installed until a separately reviewed
+database rollback removes it.

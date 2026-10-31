@@ -19,6 +19,7 @@ import { formatTime12h } from "@/lib/utils/time-format";
 import type { StaffPortalStaff } from "@/components/features/staff-portal/types";
 import type { RealDispatchItem } from "@/lib/queries/dispatch-queries";
 import type { StaffAttendanceData } from "@/lib/staff-portal/attendance";
+import { StaffAttendanceClockOut } from "@/components/features/staff-portal/staff-attendance-clock-out";
 
 export function DriverNativeHome({
   staff,
@@ -164,12 +165,12 @@ export function DriverNativeHome({
         </Link>
       </StaffCard>
       {attendanceData ? (
-        <Link
-          href="/staff/attendance"
-          className="mt-3 block text-center text-xs text-[#65746b] underline"
-        >
-          Attendance: {attendanceData.currentClockState.replaceAll("_", " ")}
-        </Link>
+        <div className="mt-3">
+          <Link href="/staff/attendance" className="block text-center text-xs text-[#65746b] underline">
+            Attendance: {attendanceData.currentClockState.replaceAll("_", " ")}
+          </Link>
+          {attendanceData.currentClockState === "clocked_in" && attendanceData.portalClockOut ? <StaffAttendanceClockOut availability={attendanceData.portalClockOut} timezone={attendanceData.todayState.timezone} /> : null}
+        </div>
       ) : null}
     </StaffScreen>
   );
