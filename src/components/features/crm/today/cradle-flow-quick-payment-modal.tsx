@@ -42,6 +42,37 @@ type FlexiblePaymentResult = PostOrderPaymentResult & {
   movements?: FlexiblePaymentMovement[];
 };
 
+export interface UnresolvedPaymentAttempt {
+  idempotencyKey: string;
+  orderId: string;
+  sourceKind: "order" | "legacy_booking";
+  branchId: string;
+  branchName: string;
+  orderNumber: string;
+  customerName: string;
+  customerPhone?: string | null;
+  serviceDescription: string;
+  visitType?: string | null;
+  totalAmount: number;
+  amountPaid: number;
+  remainingBalance: number;
+  payableItems?: Array<{ description: string; amount: number }>;
+  payments: Array<{
+    amount: number;
+    paymentMethod: FinancialPaymentMethod;
+    financialAccountId: string;
+    externalReference: string | null;
+  }>;
+  submittedTenders: Tender[];
+  businessDate?: string | null;
+  notes: string;
+  hasCashTender: boolean;
+  hasAnyCashReceivedEntered: boolean;
+  totalCashReceivedCents: number;
+  totalCashTenderCents: number;
+  changeCents: number;
+}
+
 type Tender = {
   id: string;
   method: FinancialPaymentMethod;
@@ -97,7 +128,8 @@ export function CradleFlowQuickPaymentModal({
   const [busy, setBusy] = useState(false);
   const [reconciling, setReconciling] = useState(false);
   const [reconcileResult, setReconcileResult] = useState<string | null>(null);
-  const [unresolvedAttemptKey, setUnresolvedAttemptKey] = useState<string | null>(null);
+  const [unresolvedAttempt, setUnresolvedAttempt] = useState<UnresolvedPaymentAttempt | null>(null);
+  const unresolvedAttemptKey = unresolvedAttempt?.idempotencyKey ?? null;
   const [paymentError, setPaymentError] = useState<string | null>(null);
   const [verificationWarning, setVerificationWarning] = useState<string | null>(null);
   const [printWarning, setPrintWarning] = useState<string | null>(null);
@@ -110,9 +142,33 @@ export function CradleFlowQuickPaymentModal({
   const partial = eligible.filter((order) => order.amountPaid > 0);
   const visible = tab === "ready" ? ready : tab === "partial" ? partial : eligible;
   const requestedOrderEligible = !requestedOrderId || eligible.some((order) => order.id === requestedOrderId);
-  const selected = requestedOrderEligible
+
+  // When an attempt is unresolved, lockedOrder strictly binds selection to that attempt's order
+  const lockedOrder = unresolvedAttempt
+    ? eligible.find((order) => order.id === unresolvedAttempt.orderId) ?? {
+        id: unresolvedAttempt.orderId,
+        sourceKind: unresolvedAttempt.sourceKind === "legacy_booking" ? ("legacy_booking" as const) : ("booking_order" as const),
+        orderNumber: unresolvedAttempt.orderNumber,
+        customerName: unresolvedAttempt.customerName,
+        customerPhone: unresolvedAttempt.customerPhone,
+        serviceDescription: unresolvedAttempt.serviceDescription,
+        visitType: unresolvedAttempt.visitType,
+        totalAmount: unresolvedAttempt.totalAmount,
+        amountPaid: unresolvedAttempt.amountPaid,
+        remainingBalance: unresolvedAttempt.remainingBalance,
+        payableItems: unresolvedAttempt.payableItems,
+        readyForCheckout: true,
+        bookingDate: unresolvedAttempt.businessDate || "",
+        branchName: unresolvedAttempt.branchName,
+      }
+    : undefined;
+
+  const selected = unresolvedAttempt
+    ? lockedOrder
+    : requestedOrderEligible
     ? visible.find((order) => order.id === selectedId) ?? (selectedId ? undefined : visible[0])
     : undefined;
+
   const accounts = useMemo(() => data?.accounts ?? [], [data]);
   const accountChoices = (method: FinancialPaymentMethod): MaskedAccountOption[] =>
     accounts.filter(
@@ -149,6 +205,7 @@ export function CradleFlowQuickPaymentModal({
   const tenders = tenderDraft?.key === tenderKey ? tenderDraft.lines : defaultTenders;
 
   function setTenders(next: Tender[] | ((previous: Tender[]) => Tender[])) {
+    if (unresolvedAttempt) return;
     setTenderDraft((previous) => {
       const current = previous?.key === tenderKey ? previous.lines : defaultTenders;
       const lines = typeof next === "function" ? next(current) : next;
@@ -215,7 +272,7 @@ export function CradleFlowQuickPaymentModal({
     !loading &&
     !busy &&
     !reconciling &&
-    !unresolvedAttemptKey &&
+    !unresolvedAttempt &&
     !invalidTender &&
     !cashReceivedError &&
     !confirmedReceipt &&
@@ -224,6 +281,7 @@ export function CradleFlowQuickPaymentModal({
   );
 
   function updateTender(id: string, change: Partial<Tender>) {
+    if (unresolvedAttempt) return;
     setPaymentError(null);
     setTenders((current) =>
       current.map((line) => {
@@ -238,6 +296,7 @@ export function CradleFlowQuickPaymentModal({
   }
 
   function addTender() {
+    if (unresolvedAttempt) return;
     const next: FinancialPaymentMethod = tenders.some((line) => line.method === "cash")
       ? "gcash"
       : "cash";
@@ -257,37 +316,60 @@ export function CradleFlowQuickPaymentModal({
   }
 
   async function handleVerifyTransaction() {
-    if (!unresolvedAttemptKey || !data || !selected || reconciling) return;
+    if (!unresolvedAttempt || !data || reconciling) return;
     setReconciling(true);
     setPaymentError(null);
     setReconcileResult(null);
 
     try {
       const res = await verifyPaymentTransactionAction({
-        idempotencyKey: unresolvedAttemptKey,
-        branchId: data.branchId,
-        orderId: selected.id,
+        idempotencyKey: unresolvedAttempt.idempotencyKey,
+        branchId: unresolvedAttempt.branchId,
+        sourceId: unresolvedAttempt.orderId,
+        sourceType: unresolvedAttempt.sourceKind === "legacy_booking" ? "legacy_booking" : "booking_order",
       });
 
       if (!res.ok) {
+        // Propagate verification errors without clearing the unresolved attempt
         setPaymentError(res.error || "Failed to verify transaction status.");
         return;
       }
 
       if (res.status === "committed" && res.transaction) {
         const tx = res.transaction;
-        const totalAmount = selected.totalAmount;
+
+        // Authoritative transaction verification against original attempt
+        if (tx.branchId !== unresolvedAttempt.branchId) {
+          setPaymentError(`Branch mismatch: Verified transaction belongs to branch ${tx.branchId}, expected ${unresolvedAttempt.branchId}.`);
+          return;
+        }
+        if (tx.sourceId !== unresolvedAttempt.orderId) {
+          setPaymentError(`Source mismatch: Verified transaction belongs to order ${tx.sourceId}, expected ${unresolvedAttempt.orderId}.`);
+          return;
+        }
+        if (tx.status !== "posted") {
+          setPaymentError(`Transaction is not posted (status: ${tx.status}). Receipt cannot be printed.`);
+          return;
+        }
+        if (tx.transactionType !== "customer_payment") {
+          setPaymentError(`Transaction is not a customer payment (type: ${tx.transactionType}). Receipt cannot be printed.`);
+          return;
+        }
+
         const movementsTotal = tx.movements.reduce((sum, m) => sum + m.amount, 0);
-        const amountPaid = movementsTotal > 0 ? movementsTotal : totalCents / 100;
-        const remaining = Math.max(0, Math.round((totalAmount - (selected.amountPaid + amountPaid)) * 100) / 100);
+        const amountPaid = movementsTotal > 0 ? movementsTotal : (unresolvedAttempt.totalCashTenderCents / 100);
+        const remaining = Math.max(
+          0,
+          Math.round((unresolvedAttempt.totalAmount - (unresolvedAttempt.amountPaid + amountPaid)) * 100) / 100
+        );
 
         const receiptData: PrintableReceiptData = {
           companyName: "CRADLE WELLNESS LIVING INC.",
-          branchName: selected.branchName || "Main Spa",
+          branchName: unresolvedAttempt.branchName || "Main Spa",
           transactionId: tx.id,
-          orderNumber: selected.orderNumber,
-          customerName: selected.customerName,
-          customerPhone: selected.customerPhone,
+          orderNumber: unresolvedAttempt.orderNumber,
+          customerName: unresolvedAttempt.customerName,
+          customerPhone: unresolvedAttempt.customerPhone,
           formattedDateTime: new Date(tx.occurredAt || Date.now()).toLocaleString("en-PH", {
             year: "numeric",
             month: "short",
@@ -296,36 +378,44 @@ export function CradleFlowQuickPaymentModal({
             minute: "2-digit",
             hour12: true,
           }),
-          serviceDescription: selected.serviceDescription,
-          visitType: selected.visitType,
-          items: selected.payableItems?.length
-            ? selected.payableItems.map((item) => ({
+          serviceDescription: unresolvedAttempt.serviceDescription,
+          visitType: unresolvedAttempt.visitType === "home_service" ? "home_service" : "in_spa",
+          items: unresolvedAttempt.payableItems?.length
+            ? unresolvedAttempt.payableItems.map((item) => ({
                 description: item.description,
                 amount: item.amount,
               }))
-            : [{ description: selected.serviceDescription, amount: totalAmount }],
-          totalPayable: totalAmount,
-          alreadyPaid: selected.amountPaid,
+            : [{ description: unresolvedAttempt.serviceDescription, amount: unresolvedAttempt.totalAmount }],
+          totalPayable: unresolvedAttempt.totalAmount,
+          alreadyPaid: unresolvedAttempt.amountPaid,
           amountPaid,
           remainingBalance: remaining,
           payments: tx.movements.length > 0
-            ? tx.movements.map((m) => ({
-                method: m.paymentMethod,
-                amount: m.amount,
-                reference: m.externalReference,
-              }))
-            : tenders.map((t) => ({
+            ? tx.movements.map((m) => {
+                const isCash = m.paymentMethod.toLowerCase().includes("cash");
+                return {
+                  method: methodLabels[m.paymentMethod as FinancialPaymentMethod] || m.paymentMethod,
+                  amount: m.amount,
+                  reference: m.externalReference ?? null,
+                  cashReceived: isCash && unresolvedAttempt.hasAnyCashReceivedEntered ? unresolvedAttempt.totalCashReceivedCents / 100 : null,
+                  change: isCash ? unresolvedAttempt.changeCents / 100 : null,
+                };
+              })
+            : unresolvedAttempt.submittedTenders.map((t) => ({
                 method: methodLabels[t.method] || t.method,
                 amount: Number(t.amount) || 0,
                 reference: t.reference.trim() || null,
               })),
-          totalCashReceived: hasCashTender && hasAnyCashReceivedEntered ? totalCashReceivedCents / 100 : null,
-          changeGiven: hasCashTender ? changeCents / 100 : null,
+          totalCashReceived:
+            unresolvedAttempt.hasCashTender && unresolvedAttempt.hasAnyCashReceivedEntered
+              ? unresolvedAttempt.totalCashReceivedCents / 100
+              : null,
+          changeGiven: unresolvedAttempt.hasCashTender ? unresolvedAttempt.changeCents / 100 : null,
           isIdempotentReplay: true,
         };
 
         setConfirmedReceipt(receiptData);
-        setUnresolvedAttemptKey(null);
+        setUnresolvedAttempt(null);
         const printed = printThermalReceipt(receiptData);
         if (!printed) {
           setPrintWarning(
@@ -334,7 +424,7 @@ export function CradleFlowQuickPaymentModal({
         }
         onSuccess();
       } else {
-        // Do not clear unresolvedAttemptKey on not_found.
+        // Do not clear unresolvedAttempt on not_found.
         // A not_found lookup is not proof that the transaction cannot still commit.
         setReconcileResult(
           "Transaction not found yet in ledger. The previous attempt may still be in flight or delayed. Keep verifying until confirmed, or retry with the identical key."
@@ -347,58 +437,94 @@ export function CradleFlowQuickPaymentModal({
     }
   }
 
-  async function recordPayment(retryKey?: string) {
-    if (submitting.current || !data || !selected) return;
-    if (!retryKey && !canSubmit) return;
+  async function recordPayment(retryAttempt?: UnresolvedPaymentAttempt) {
+    if (submitting.current || !data) return;
+    const targetAttempt = retryAttempt ?? unresolvedAttempt;
+    if (!targetAttempt && (!selected || !canSubmit)) return;
+
     submitting.current = true;
     setBusy(true);
     setPaymentError(null);
     setVerificationWarning(null);
     setPrintWarning(null);
 
-    const payments = tenders.map((line) => ({
-      amount: Number(line.amount),
-      paymentMethod: line.method,
-      financialAccountId: line.accountId,
-      externalReference: line.reference.trim() || null,
-    }));
+    let frozenAttempt: UnresolvedPaymentAttempt;
 
-    const signature = JSON.stringify({
-      source: selected.sourceKind,
-      id: selected.id,
-      paid: selected.amountPaid,
-      date: data.businessDate,
-      payments,
-      notes: notes.trim(),
-    });
+    if (targetAttempt) {
+      // Retain original booking ID, source kind, branch, idempotency key and submitted tender payload
+      frozenAttempt = targetAttempt;
+    } else {
+      // Construct immutable attempt payload bound to the current selected booking and tenders
+      const payments = tenders.map((line) => ({
+        amount: Number(line.amount),
+        paymentMethod: line.method,
+        financialAccountId: line.accountId,
+        externalReference: line.reference.trim() || null,
+      }));
 
-    const keyToUse =
-      retryKey ??
-      unresolvedAttemptKey ??
-      (attempt.current?.signature === signature && attempt.current.key
-        ? attempt.current.key
-        : crypto.randomUUID());
-    attempt.current = { signature, key: keyToUse };
-    setUnresolvedAttemptKey(keyToUse);
+      const signature = JSON.stringify({
+        source: selected!.sourceKind,
+        id: selected!.id,
+        paid: selected!.amountPaid,
+        date: data.businessDate,
+        payments,
+        notes: notes.trim(),
+      });
+
+      const keyToUse =
+        attempt.current?.signature === signature && attempt.current.key
+          ? attempt.current.key
+          : crypto.randomUUID();
+
+      attempt.current = { signature, key: keyToUse };
+
+      frozenAttempt = {
+        idempotencyKey: keyToUse,
+        orderId: selected!.id,
+        sourceKind: selected!.sourceKind === "legacy_booking" ? "legacy_booking" : "order",
+        branchId: data.branchId,
+        branchName: selected!.branchName || "Main Spa",
+        orderNumber: selected!.orderNumber,
+        customerName: selected!.customerName,
+        customerPhone: selected!.customerPhone,
+        serviceDescription: selected!.serviceDescription,
+        visitType: selected!.visitType,
+        totalAmount: selected!.totalAmount,
+        amountPaid: selected!.amountPaid,
+        remainingBalance: selected!.remainingBalance,
+        payableItems: selected!.payableItems,
+        payments,
+        submittedTenders: [...tenders],
+        businessDate: data.businessDate,
+        notes: notes.trim(),
+        hasCashTender,
+        hasAnyCashReceivedEntered,
+        totalCashReceivedCents,
+        totalCashTenderCents,
+        changeCents,
+      };
+    }
+
+    setUnresolvedAttempt(frozenAttempt);
 
     try {
       const result =
-        selected.sourceKind === "legacy_booking"
+        frozenAttempt.sourceKind === "legacy_booking"
           ? await recordLegacyBookingPaymentAction({
-              bookingId: selected.id,
-              branchId: data.branchId,
-              expectedAmountPaid: selected.amountPaid,
-              idempotencyKey: attempt.current!.key,
-              payments,
-              businessDate: data.businessDate,
-              notes: notes.trim() || null,
+              bookingId: frozenAttempt.orderId,
+              branchId: frozenAttempt.branchId,
+              expectedAmountPaid: frozenAttempt.amountPaid,
+              idempotencyKey: frozenAttempt.idempotencyKey,
+              payments: frozenAttempt.payments,
+              businessDate: frozenAttempt.businessDate || data.businessDate,
+              notes: frozenAttempt.notes || null,
             })
           : await recordOrderPaymentAction({
-              orderId: selected.id,
-              idempotencyKey: attempt.current!.key,
-              payments,
-              businessDate: data.businessDate,
-              notes: notes.trim() || null,
+              orderId: frozenAttempt.orderId,
+              idempotencyKey: frozenAttempt.idempotencyKey,
+              payments: frozenAttempt.payments,
+              businessDate: frozenAttempt.businessDate || data.businessDate,
+              notes: frozenAttempt.notes || null,
             });
 
       if (!result.ok) {
@@ -409,14 +535,16 @@ export function CradleFlowQuickPaymentModal({
       // Authoritative verification of server confirmation
       let confirmedTxnId: string | null = null;
       let confirmedAmountPaid = 0;
-      let confirmedTotalPayable = selected.totalAmount;
-      let confirmedAlreadyPaid = selected.amountPaid;
+      let confirmedTotalPayable = frozenAttempt.totalAmount;
+      let confirmedAlreadyPaid = frozenAttempt.amountPaid;
       let confirmedRemainingBalance = 0;
       let confirmedMovements: Array<{ method: string; amount: number; reference?: string | null }> = [];
       let isIdempotentReplay = false;
       let unverifiedReason: string | null = null;
 
-      if (selected.sourceKind === "legacy_booking") {
+      const totalTenderCents = frozenAttempt.payments.reduce((s, p) => s + Math.round(p.amount * 100), 0);
+
+      if (frozenAttempt.sourceKind === "legacy_booking") {
         const legacyData =
           "data" in result && result.data && "paymentDelta" in result.data
             ? (result.data as {
@@ -436,19 +564,19 @@ export function CradleFlowQuickPaymentModal({
           unverifiedReason = "Invalid payment delta in server response.";
         } else {
           confirmedAmountPaid = legacyData.paymentDelta;
-          if (Math.round(confirmedAmountPaid * 100) !== totalCents && !isIdempotentReplay) {
-            unverifiedReason = `Posting amount mismatch: expected ${php(totalCents / 100)}, but server recorded ${php(confirmedAmountPaid)}.`;
+          if (Math.round(confirmedAmountPaid * 100) !== totalTenderCents && !isIdempotentReplay) {
+            unverifiedReason = `Posting amount mismatch: expected ${php(totalTenderCents / 100)}, but server recorded ${php(confirmedAmountPaid)}.`;
           }
-          confirmedAlreadyPaid = selected.amountPaid;
-          confirmedTotalPayable = selected.totalAmount;
+          confirmedAlreadyPaid = frozenAttempt.amountPaid;
+          confirmedTotalPayable = frozenAttempt.totalAmount;
           confirmedRemainingBalance = Math.max(
             0,
             Math.round((confirmedTotalPayable - (confirmedAlreadyPaid + confirmedAmountPaid)) * 100) / 100
           );
-          confirmedMovements = tenders.map((line) => ({
-            method: methodLabels[line.method] || line.method,
-            amount: Number(line.amount) || 0,
-            reference: line.reference.trim() || null,
+          confirmedMovements = frozenAttempt.payments.map((line) => ({
+            method: methodLabels[line.paymentMethod] || line.paymentMethod,
+            amount: line.amount,
+            reference: line.externalReference ?? null,
           }));
         }
       } else {
@@ -471,7 +599,7 @@ export function CradleFlowQuickPaymentModal({
               : Number(orderData.total_payable);
             confirmedTotalPayable = Number.isFinite(totalPayableVal)
               ? totalPayableVal
-              : selected.totalAmount;
+              : frozenAttempt.totalAmount;
 
             const remBalVal = Number.isFinite(orderData.remainingBalance)
               ? orderData.remainingBalance
@@ -502,17 +630,17 @@ export function CradleFlowQuickPaymentModal({
               if (Number.isFinite(netAllocVal) && netAllocVal > 0) {
                 confirmedAmountPaid = netAllocVal;
               } else {
-                confirmedAmountPaid = totalCents / 100;
+                confirmedAmountPaid = totalTenderCents / 100;
               }
-              confirmedMovements = tenders.map((line) => ({
-                method: methodLabels[line.method] || line.method,
-                amount: Number(line.amount) || 0,
-                reference: line.reference.trim() || null,
+              confirmedMovements = frozenAttempt.payments.map((line) => ({
+                method: methodLabels[line.paymentMethod] || line.paymentMethod,
+                amount: line.amount,
+                reference: line.externalReference ?? null,
               }));
             }
 
-            if (Math.round(confirmedAmountPaid * 100) !== totalCents && !isIdempotentReplay) {
-              unverifiedReason = `Posting amount mismatch: expected ${php(totalCents / 100)}, but server recorded ${php(confirmedAmountPaid)}.`;
+            if (Math.round(confirmedAmountPaid * 100) !== totalTenderCents && !isIdempotentReplay) {
+              unverifiedReason = `Posting amount mismatch: expected ${php(totalTenderCents / 100)}, but server recorded ${php(confirmedAmountPaid)}.`;
             }
 
             const netAllocVal = Number.isFinite(orderData.netAllocated)
@@ -533,7 +661,7 @@ export function CradleFlowQuickPaymentModal({
                   Math.round((totalPaidVal - confirmedAmountPaid) * 100) / 100
                 );
               } else {
-                confirmedAlreadyPaid = selected.amountPaid;
+                confirmedAlreadyPaid = frozenAttempt.amountPaid;
               }
             }
           }
@@ -541,7 +669,7 @@ export function CradleFlowQuickPaymentModal({
       }
 
       if (unverifiedReason || !confirmedTxnId) {
-        setUnresolvedAttemptKey(null);
+        setUnresolvedAttempt(null);
         setVerificationWarning(
           `Payment was processed by server, but receipt confirmation is unverified (${unverifiedReason ?? "Missing confirmed transaction ID"}). Check the Cash Flow ledger to verify the transaction before printing a receipt.`
         );
@@ -552,11 +680,11 @@ export function CradleFlowQuickPaymentModal({
 
       const receiptData: PrintableReceiptData = {
         companyName: "CRADLE WELLNESS LIVING INC.",
-        branchName: selected.branchName || "Main Spa",
+        branchName: frozenAttempt.branchName || "Main Spa",
         transactionId: confirmedTxnId,
-        orderNumber: selected.orderNumber,
-        customerName: selected.customerName,
-        customerPhone: selected.customerPhone,
+        orderNumber: frozenAttempt.orderNumber,
+        customerName: frozenAttempt.customerName,
+        customerPhone: frozenAttempt.customerPhone,
         formattedDateTime: new Date().toLocaleString("en-PH", {
           year: "numeric",
           month: "short",
@@ -565,14 +693,14 @@ export function CradleFlowQuickPaymentModal({
           minute: "2-digit",
           hour12: true,
         }),
-        serviceDescription: selected.serviceDescription,
-        visitType: selected.visitType,
-        items: selected.payableItems?.length
-          ? selected.payableItems.map((item) => ({
+        serviceDescription: frozenAttempt.serviceDescription,
+        visitType: frozenAttempt.visitType === "home_service" ? "home_service" : "in_spa",
+        items: frozenAttempt.payableItems?.length
+          ? frozenAttempt.payableItems.map((item) => ({
               description: item.description,
               amount: item.amount,
             }))
-          : [{ description: selected.serviceDescription, amount: confirmedTotalPayable }],
+          : [{ description: frozenAttempt.serviceDescription, amount: confirmedTotalPayable }],
         totalPayable: confirmedTotalPayable,
         alreadyPaid: confirmedAlreadyPaid,
         amountPaid: confirmedAmountPaid,
@@ -583,18 +711,18 @@ export function CradleFlowQuickPaymentModal({
             method: m.method,
             amount: m.amount,
             reference: m.reference ?? null,
-            cashReceived: isCash && hasAnyCashReceivedEntered ? totalCashReceivedCents / 100 : null,
-            change: isCash ? changeCents / 100 : null,
+            cashReceived: isCash && frozenAttempt.hasAnyCashReceivedEntered ? frozenAttempt.totalCashReceivedCents / 100 : null,
+            change: isCash ? frozenAttempt.changeCents / 100 : null,
           };
         }),
         totalCashReceived:
-          hasCashTender && hasAnyCashReceivedEntered ? totalCashReceivedCents / 100 : null,
-        changeGiven: hasCashTender ? changeCents / 100 : null,
+          frozenAttempt.hasCashTender && frozenAttempt.hasAnyCashReceivedEntered ? frozenAttempt.totalCashReceivedCents / 100 : null,
+        changeGiven: frozenAttempt.hasCashTender ? frozenAttempt.changeCents / 100 : null,
         isIdempotentReplay,
       };
 
       setConfirmedReceipt(receiptData);
-      setUnresolvedAttemptKey(null);
+      setUnresolvedAttempt(null);
       const printed = printThermalReceipt(receiptData);
       if (!printed) {
         setPrintWarning(
@@ -610,7 +738,7 @@ export function CradleFlowQuickPaymentModal({
           ? err.message
           : "Payment submission interrupted or timed out. Please verify transaction status."
       );
-      setUnresolvedAttemptKey(attempt.current?.key || null);
+      setUnresolvedAttempt(frozenAttempt);
     } finally {
       submitting.current = false;
       setBusy(false);
@@ -674,7 +802,7 @@ export function CradleFlowQuickPaymentModal({
               </button>
               <button
                 type="button"
-                onClick={() => void recordPayment(unresolvedAttemptKey)}
+                onClick={() => void recordPayment(unresolvedAttempt ?? undefined)}
                 disabled={reconciling || busy}
                 className="rounded-lg bg-amber-800 px-3 py-1 font-semibold text-white hover:bg-amber-900 disabled:opacity-50"
               >
@@ -766,8 +894,9 @@ export function CradleFlowQuickPaymentModal({
                 <button
                   key={id}
                   type="button"
+                  disabled={Boolean(unresolvedAttempt)}
                   onClick={() => setTab(id)}
-                  className={`rounded-lg px-2 py-2 font-semibold ${tab === id ? "bg-[#14543e] text-white" : "text-[#50483f] hover:bg-[#f5f0e9]"}`}
+                  className={`rounded-lg px-2 py-2 font-semibold ${tab === id ? "bg-[#14543e] text-white" : "text-[#50483f] hover:bg-[#f5f0e9]"} disabled:opacity-50`}
                 >
                   {label}
                 </button>
@@ -816,11 +945,14 @@ export function CradleFlowQuickPaymentModal({
                 <button
                   key={order.id}
                   type="button"
+                  disabled={Boolean(unresolvedAttempt)}
                   onClick={() => {
-                    setSelectedId(order.id);
-                    setPaymentError(null);
+                    if (!unresolvedAttempt) {
+                      setSelectedId(order.id);
+                      setPaymentError(null);
+                    }
                   }}
-                  className={`flex w-full items-center gap-3 rounded-xl border p-3 text-left transition ${selected?.id === order.id ? "border-[#116044] bg-[#eff8f2]" : "border-[#e9e2d8] bg-white hover:border-[#116044]"}`}
+                  className={`flex w-full items-center gap-3 rounded-xl border p-3 text-left transition ${selected?.id === order.id ? "border-[#116044] bg-[#eff8f2]" : "border-[#e9e2d8] bg-white hover:border-[#116044]"} disabled:cursor-not-allowed disabled:opacity-60`}
                 >
                   <span
                     aria-hidden="true"
@@ -851,7 +983,7 @@ export function CradleFlowQuickPaymentModal({
                   <button
                     key={method}
                     type="button"
-                    disabled={!selected || busy || tenders.length === 0}
+                    disabled={!selected || busy || tenders.length === 0 || Boolean(unresolvedAttempt)}
                     onClick={() =>
                       updateTender(tenders[0]!.id, {
                         method,
@@ -865,7 +997,7 @@ export function CradleFlowQuickPaymentModal({
                 ))}
                 <button
                   type="button"
-                  disabled={!selected || busy}
+                  disabled={!selected || busy || Boolean(unresolvedAttempt)}
                   onClick={addTender}
                   className="rounded-lg border border-dashed border-[#116044] px-3 py-2 text-xs font-semibold text-[#14543e]"
                 >
@@ -891,7 +1023,7 @@ export function CradleFlowQuickPaymentModal({
                       <select
                         aria-label={`Tender ${index + 1} method`}
                         value={line.method}
-                        disabled={busy}
+                        disabled={busy || Boolean(unresolvedAttempt)}
                         onChange={(e) => {
                           const method = e.target.value as FinancialPaymentMethod;
                           updateTender(line.id, { method, accountId: firstAccount(method) });
@@ -908,7 +1040,7 @@ export function CradleFlowQuickPaymentModal({
                         <select
                           aria-label={`Tender ${index + 1} receiving account`}
                           value={line.accountId}
-                          disabled={busy}
+                          disabled={busy || Boolean(unresolvedAttempt)}
                           onChange={(e) => updateTender(line.id, { accountId: e.target.value })}
                           className="h-7 w-full rounded border px-1 text-[11px]"
                         >
@@ -934,7 +1066,7 @@ export function CradleFlowQuickPaymentModal({
                         min="0.01"
                         step="0.01"
                         inputMode="decimal"
-                        disabled={busy}
+                        disabled={busy || Boolean(unresolvedAttempt)}
                         value={line.amount}
                         onChange={(e) => updateTender(line.id, { amount: e.target.value })}
                         className="h-9 w-full min-w-0 rounded-lg border border-[#e9e2d8] pl-6 pr-2 text-right text-xs"
@@ -951,7 +1083,7 @@ export function CradleFlowQuickPaymentModal({
                           step="0.01"
                           inputMode="decimal"
                           placeholder={line.amount ? Number(line.amount).toFixed(2) : "0.00"}
-                          disabled={busy}
+                          disabled={busy || Boolean(unresolvedAttempt)}
                           value={line.cashReceived ?? ""}
                           onChange={(e) => updateTender(line.id, { cashReceived: e.target.value })}
                           className="h-9 w-full min-w-0 rounded-lg border border-[#e9e2d8] pl-6 pr-2 text-right text-xs focus:border-[#14543e] focus:outline-none"
@@ -961,7 +1093,7 @@ export function CradleFlowQuickPaymentModal({
                       <input
                         aria-label={`Tender ${index + 1} reference`}
                         value={line.reference}
-                        disabled={busy}
+                        disabled={busy || Boolean(unresolvedAttempt)}
                         onChange={(e) => updateTender(line.id, { reference: e.target.value })}
                         placeholder="Transaction reference (optional)"
                         className="col-span-2 h-9 w-full min-w-0 rounded-lg border border-[#e9e2d8] px-2 text-xs sm:col-span-1"
@@ -971,7 +1103,7 @@ export function CradleFlowQuickPaymentModal({
                     <button
                       type="button"
                       aria-label={`Remove tender ${index + 1}`}
-                      disabled={busy || tenders.length === 1}
+                      disabled={busy || tenders.length === 1 || Boolean(unresolvedAttempt)}
                       onClick={() =>
                         setTenders((current) => current.filter((t) => t.id !== line.id))
                       }
@@ -985,7 +1117,7 @@ export function CradleFlowQuickPaymentModal({
 
               <button
                 type="button"
-                disabled={!selected || busy}
+                disabled={!selected || busy || Boolean(unresolvedAttempt)}
                 onClick={addTender}
                 className="mt-2 flex w-full items-center justify-center gap-1 rounded-lg border border-dashed border-[#a0cab3] py-2 text-xs font-semibold text-[#14543e]"
               >
@@ -1004,6 +1136,7 @@ export function CradleFlowQuickPaymentModal({
                 <input
                   aria-label="Payment notes"
                   value={notes}
+                  disabled={busy || Boolean(unresolvedAttempt)}
                   onChange={(e) => setNotes(e.target.value)}
                   maxLength={1000}
                   className="mt-1 h-9 w-full rounded-lg border px-2 text-xs"
@@ -1118,7 +1251,7 @@ export function CradleFlowQuickPaymentModal({
                   {selected.payableItems?.length ? (
                     <div className="mt-2 space-y-1">
                       {selected.payableItems.map((item, itemIdx) => (
-                        <div key={item.id || `payable-${itemIdx}`} className="flex justify-between gap-2 text-[11px]">
+                        <div key={"id" in item && item.id ? String(item.id) : `payable-${itemIdx}`} className="flex justify-between gap-2 text-[11px]">
                           <span className="min-w-0 truncate">{item.description}</span>
                           <span>{php(item.amount)}</span>
                         </div>

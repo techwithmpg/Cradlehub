@@ -448,6 +448,178 @@ describe("CRM quick payment modal", () => {
     expect(screen.getByText(/Payment of ₱1,086.00 recorded successfully!/i)).toBeTruthy();
   });
 
+  it("locks selection and prevents changing booking, tender amount, or payment method during unresolved recovery", async () => {
+    // Attempt 1 fails with network timeout
+    mocks.recordOrder.mockRejectedValueOnce(new Error("Network timeout: gateway closed"));
+
+    render(
+      <CradleFlowQuickPaymentModal
+        data={data}
+        loading={false}
+        requestedOrderId="order-dawn"
+        {...callbacks}
+      />
+    );
+
+    await waitFor(() => expect(screen.getByLabelText("Tender 1 amount")).toBeTruthy());
+
+    // Record payment for order-dawn (₱1,086)
+    fireEvent.click(screen.getByRole("button", { name: "Record Payment" }));
+
+    // Enters unresolved state
+    await waitFor(() => {
+      expect(screen.getByText(/Payment Status Unresolved/i)).toBeTruthy();
+    });
+
+    const initialKey = mocks.recordOrder.mock.calls[0]?.[0]?.idempotencyKey;
+    expect(initialKey).toBeTruthy();
+    expect(mocks.recordOrder.mock.calls[0]?.[0]?.orderId).toBe("order-dawn");
+
+    // 1. Verify that order list rows are disabled to prevent redirecting to another booking
+    const orderButtons = screen.getAllByRole("button").filter((b) =>
+      b.textContent?.includes("Maria Santos") || b.textContent?.includes("DAWN NAVARRO")
+    );
+    for (const btn of orderButtons) {
+      expect((btn as HTMLButtonElement).disabled).toBe(true);
+    }
+
+    // 2. Verify that queue tabs are disabled
+    const readyTab = screen.getByRole("button", { name: /Ready to Pay/i }) as HTMLButtonElement;
+    expect(readyTab.disabled).toBe(true);
+
+    // 3. Verify that tender amount and method inputs are disabled
+    const tender1Amount = screen.getByLabelText("Tender 1 amount") as HTMLInputElement;
+    expect(tender1Amount.disabled).toBe(true);
+
+    const tender1Method = screen.getByLabelText("Tender 1 method") as HTMLSelectElement;
+    expect(tender1Method.disabled).toBe(true);
+
+    // 4. Verify that split button is disabled
+    const splitBtn = screen.getByRole("button", { name: /Split \+/i }) as HTMLButtonElement;
+    expect(splitBtn.disabled).toBe(true);
+
+    // Now cashier clicks "Retry Same Attempt"
+    mocks.recordOrder.mockResolvedValueOnce({
+      ok: true,
+      data: {
+        success: true,
+        transaction_id: "c5cc08fd-9912-4f32-8ea3-289b41dc6810",
+        order_id: "order-dawn",
+        branch_id: "branch-main",
+        total_paid: 1086,
+        total_payable: 1086,
+        net_allocated: 1086,
+        remaining_balance: 0,
+        movements: [{ amount: 1086, payment_method: "cash", account_id: "drawer" }],
+      },
+    });
+
+    fireEvent.click(screen.getByRole("button", { name: /Retry Same Attempt/i }));
+
+    await waitFor(() => expect(mocks.recordOrder).toHaveBeenCalledTimes(2));
+    const retryCall = mocks.recordOrder.mock.calls[1]?.[0];
+
+    // Retry MUST be submitted with original order ID, original key, and original tender amount
+    expect(retryCall.orderId).toBe("order-dawn");
+    expect(retryCall.idempotencyKey).toBe(initialKey);
+    expect(retryCall.payments).toEqual([
+      {
+        financialAccountId: "drawer",
+        paymentMethod: "cash",
+        amount: 1086,
+        externalReference: null,
+      },
+    ]);
+
+    await waitFor(() => expect(mocks.printReceipt).toHaveBeenCalledTimes(1));
+  });
+
+  it("propagates verification errors without clearing the unresolved attempt", async () => {
+    mocks.recordOrder.mockRejectedValueOnce(new Error("Network timeout: gateway closed"));
+
+    render(
+      <CradleFlowQuickPaymentModal
+        data={data}
+        loading={false}
+        requestedOrderId="order-dawn"
+        {...callbacks}
+      />
+    );
+
+    await waitFor(() => expect(screen.getByLabelText("Tender 1 amount")).toBeTruthy());
+    fireEvent.click(screen.getByRole("button", { name: "Record Payment" }));
+
+    await waitFor(() => {
+      expect(screen.getByText(/Payment Status Unresolved/i)).toBeTruthy();
+    });
+
+    // Verification action returns an error (e.g. database query error)
+    mocks.verifyPayment.mockResolvedValueOnce({
+      ok: false,
+      error: "QUERY_FAILED: Database connection reset during verification.",
+    });
+
+    fireEvent.click(screen.getByRole("button", { name: /Verify Transaction Status/i }));
+
+    // Error must be displayed
+    await waitFor(() => {
+      expect(screen.getByText(/Database connection reset during verification/i)).toBeTruthy();
+    });
+
+    // Unresolved attempt MUST remain active and banner must not be dismissed
+    expect(screen.getByText(/Payment Status Unresolved/i)).toBeTruthy();
+    expect(screen.getByRole("button", { name: /Retry Same Attempt/i })).toBeTruthy();
+    expect(mocks.printReceipt).not.toHaveBeenCalled();
+  });
+
+  it("rejects verified transaction if branch or source ID does not match the payment attempt", async () => {
+    mocks.recordOrder.mockRejectedValueOnce(new Error("Network timeout: gateway closed"));
+
+    render(
+      <CradleFlowQuickPaymentModal
+        data={data}
+        loading={false}
+        requestedOrderId="order-dawn"
+        {...callbacks}
+      />
+    );
+
+    await waitFor(() => expect(screen.getByLabelText("Tender 1 amount")).toBeTruthy());
+    fireEvent.click(screen.getByRole("button", { name: "Record Payment" }));
+
+    await waitFor(() => {
+      expect(screen.getByText(/Payment Status Unresolved/i)).toBeTruthy();
+    });
+
+    // Verification returns committed transaction belonging to a DIFFERENT order
+    mocks.verifyPayment.mockResolvedValueOnce({
+      ok: true,
+      status: "committed",
+      transaction: {
+        id: "tx-mismatched-order",
+        branchId: "branch-main",
+        sourceId: "order-DIFFERENT-123",
+        sourceType: "booking_order",
+        status: "posted",
+        transactionType: "customer_payment",
+        businessDate: "2026-10-26",
+        occurredAt: new Date().toISOString(),
+        movements: [{ id: "m1", financialAccountId: "drawer", amount: 1086, paymentMethod: "cash", externalReference: null }],
+      },
+    });
+
+    fireEvent.click(screen.getByRole("button", { name: /Verify Transaction Status/i }));
+
+    // Error must report source mismatch
+    await waitFor(() => {
+      expect(screen.getByText(/Source mismatch: Verified transaction belongs to order order-DIFFERENT-123/i)).toBeTruthy();
+    });
+
+    // Attempt MUST NOT be cleared and receipt MUST NOT be printed for the wrong order
+    expect(screen.getByText(/Payment Status Unresolved/i)).toBeTruthy();
+    expect(mocks.printReceipt).not.toHaveBeenCalled();
+  });
+
   it("calculates accurate Previously Paid math on partial payments (₱600 previously paid, ₱400 paid now)", async () => {
     mocks.recordOrder.mockResolvedValueOnce({
       ok: true,

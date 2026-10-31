@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 import React from "react";
-import { describe, it, expect, vi, beforeEach } from "vitest";
-import { render, screen, fireEvent, waitFor } from "@testing-library/react";
+import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
+import { render, screen, fireEvent, waitFor, cleanup } from "@testing-library/react";
 
 // Mock server-only and next cache
 vi.mock("server-only", () => ({}));
@@ -69,6 +69,10 @@ const mockEntryContext: FinancialEntryContext = {
 describe("CRM Cashier Runtime Hotfix Verification", () => {
   beforeEach(() => {
     vi.clearAllMocks();
+  });
+
+  afterEach(() => {
+    cleanup();
   });
 
   describe("1. 'use server' Export Boundary Compliance", () => {
@@ -197,6 +201,155 @@ describe("CRM Cashier Runtime Hotfix Verification", () => {
       // Confirmed receipt is displayed and print is triggered
       await waitFor(() => expect(mockPrintReceipt).toHaveBeenCalledTimes(1));
       expect(screen.getByText(/Payment of ₱1,000.00 recorded successfully!/i)).toBeTruthy();
+    });
+
+    it("freezes the submitted booking and tenders so changing form values cannot alter an unresolved retry", async () => {
+      const multiOrderContext: FinancialEntryContext = {
+        ...mockEntryContext,
+        payableOrders: [
+          ...mockEntryContext.payableOrders,
+          {
+            id: "order-test-2",
+            sourceKind: "booking_order",
+            orderNumber: "ORD-20261031-002",
+            customerName: "Juan Dela Cruz",
+            bookingDate: "2026-10-31",
+            serviceTime: "11:00 AM",
+            serviceDescription: "Foot Reflexology",
+            visitType: "in_spa",
+            branchName: "Main Spa",
+            totalAmount: 500,
+            amountPaid: 0,
+            remainingBalance: 500,
+            readyForCheckout: true,
+            payableItems: [{ id: "item-2", description: "Foot Reflexology", amount: 500 }],
+          },
+        ],
+      };
+
+      const spyRecordOrder = vi.spyOn(cashFlowActions, "recordOrderPaymentAction")
+        .mockRejectedValueOnce(new Error("Network connection dropped"));
+
+      render(
+        <CradleFlowQuickPaymentModal
+          data={multiOrderContext}
+          loading={false}
+          requestedOrderId="order-test-1"
+          onClose={vi.fn()}
+          onRetry={vi.fn()}
+          onSuccess={vi.fn()}
+          onLegacyCheckout={vi.fn()}
+        />
+      );
+
+      await waitFor(() =>
+        expect((screen.getByLabelText("Tender 1 amount") as HTMLInputElement).value).toBe("1000.00")
+      );
+
+      // Submit attempt 1 for order-test-1
+      fireEvent.click(screen.getByRole("button", { name: "Record Payment" }));
+
+      await waitFor(() => {
+        expect(screen.getByText(/Payment Status Unresolved:/i)).toBeTruthy();
+      });
+
+      const originalKey = spyRecordOrder.mock.calls[0]?.[0]?.idempotencyKey;
+      expect(originalKey).toBeTruthy();
+
+      // Form inputs must be disabled to prevent tampering
+      expect((screen.getByLabelText("Tender 1 amount") as HTMLInputElement).disabled).toBe(true);
+      expect((screen.getByLabelText("Tender 1 method") as HTMLSelectElement).disabled).toBe(true);
+
+      // Order rows must be disabled
+      const orderRows = screen.getAllByRole("button").filter((b) =>
+        b.textContent?.includes("Maria Santos") || b.textContent?.includes("Juan Dela Cruz")
+      );
+      for (const row of orderRows) {
+        expect((row as HTMLButtonElement).disabled).toBe(true);
+      }
+
+      // Mock success for retry
+      spyRecordOrder.mockResolvedValueOnce({
+        ok: true,
+        data: {
+          success: true,
+          transactionId: "a1000000-0000-0000-0000-000000000100",
+          orderId: "order-test-1",
+          branchId: "branch-main-1",
+          totalPaid: 1000,
+          totalPayable: 1000,
+          netAllocated: 1000,
+          remainingBalance: 0,
+          isIdempotentReplay: false,
+          businessDate: "2026-10-31",
+          paymentState: "paid",
+          allocations: [],
+          movements: [
+            {
+              id: "mov-2",
+              financialAccountId: "drawer-1",
+              amount: 1000,
+              paymentMethod: "cash",
+              externalReference: null,
+            },
+          ],
+        },
+      });
+
+      // Cashier clicks "Retry Same Attempt"
+      fireEvent.click(screen.getByRole("button", { name: /Retry Same Attempt/i }));
+
+      await waitFor(() => expect(spyRecordOrder).toHaveBeenCalledTimes(2));
+
+      // The retry payload MUST target order-test-1, with 1000 amount, and originalKey
+      const retryPayload = spyRecordOrder.mock.calls[1]?.[0];
+      expect(retryPayload.orderId).toBe("order-test-1");
+      expect(retryPayload.idempotencyKey).toBe(originalKey);
+      expect(retryPayload.payments[0]?.amount).toBe(1000);
+    });
+
+    it("propagates verification errors without clearing unresolved attempt", async () => {
+      vi.spyOn(cashFlowActions, "recordOrderPaymentAction")
+        .mockRejectedValueOnce(new Error("Timeout"));
+
+      const spyVerify = vi.spyOn(cashFlowActions, "verifyPaymentTransactionAction")
+        .mockResolvedValueOnce({
+          ok: false,
+          error: "TRANSACTION_BRANCH_MISMATCH: Transaction belongs to a different branch.",
+          code: "TRANSACTION_BRANCH_MISMATCH",
+        });
+
+      render(
+        <CradleFlowQuickPaymentModal
+          data={mockEntryContext}
+          loading={false}
+          requestedOrderId="order-test-1"
+          onClose={vi.fn()}
+          onRetry={vi.fn()}
+          onSuccess={vi.fn()}
+          onLegacyCheckout={vi.fn()}
+        />
+      );
+
+      await waitFor(() => expect(screen.getByLabelText("Tender 1 amount")).toBeTruthy());
+      fireEvent.click(screen.getByRole("button", { name: "Record Payment" }));
+
+      await waitFor(() => {
+        expect(screen.getByText(/Payment Status Unresolved:/i)).toBeTruthy();
+      });
+
+      fireEvent.click(screen.getByRole("button", { name: /Verify Transaction Status/i }));
+
+      await waitFor(() => expect(spyVerify).toHaveBeenCalledTimes(1));
+
+      // Error is displayed and unresolved attempt is preserved
+      await waitFor(() => {
+        expect(screen.getByText(/Transaction belongs to a different branch/i)).toBeTruthy();
+      });
+
+      expect(screen.getByText(/Payment Status Unresolved:/i)).toBeTruthy();
+      expect(screen.getByRole("button", { name: /Retry Same Attempt/i })).toBeTruthy();
+      expect(mockPrintReceipt).not.toHaveBeenCalled();
     });
   });
 });

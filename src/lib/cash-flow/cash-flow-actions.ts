@@ -997,11 +997,19 @@ export async function handoverCashSessionAction(
   };
 }
 
-const VerifyPaymentTransactionInputSchema = z.object({
-  idempotencyKey: z.string().trim().min(1).max(255),
-  branchId: z.string().trim().min(1),
-  orderId: z.string().trim().optional(),
-});
+const VerifyPaymentTransactionInputSchema = z
+  .object({
+    idempotencyKey: z.string().trim().min(1).max(255),
+    branchId: z.string().trim().min(1),
+    sourceId: z.string().trim().min(1).optional(),
+    orderId: z.string().trim().min(1).optional(),
+    sourceType: z.enum(['booking_order', 'legacy_booking']).optional(),
+    sourceKind: z.enum(['order', 'legacy_booking']).optional(),
+    expectedAmount: z.number().positive().optional(),
+  })
+  .refine((data) => Boolean(data.sourceId || data.orderId), {
+    message: 'Either sourceId or orderId must be provided',
+  });
 
 export type VerifyPaymentTransactionInput = z.infer<typeof VerifyPaymentTransactionInputSchema>;
 
@@ -1055,6 +1063,10 @@ export async function verifyPaymentTransactionAction(
     };
   }
   const payload = parsed.data;
+  const targetSourceId = payload.sourceId ?? payload.orderId!;
+  const targetSourceType =
+    payload.sourceType ?? (payload.sourceKind === 'legacy_booking' ? 'legacy_booking' : 'booking_order');
+
   const supabase = await createClient();
 
   const {
@@ -1140,6 +1152,47 @@ export async function verifyPaymentTransactionAction(
     };
   }
 
+  // Strict financial identity & transaction validity checks
+  if (tx.branch_id !== payload.branchId) {
+    return {
+      ok: false,
+      error: `TRANSACTION_BRANCH_MISMATCH: Transaction belongs to branch ${tx.branch_id}, expected ${payload.branchId}.`,
+      code: 'TRANSACTION_BRANCH_MISMATCH',
+    };
+  }
+
+  if (tx.source_id !== targetSourceId) {
+    return {
+      ok: false,
+      error: `TRANSACTION_SOURCE_MISMATCH: Transaction source ID ${tx.source_id} does not match requested source ${targetSourceId}.`,
+      code: 'TRANSACTION_SOURCE_MISMATCH',
+    };
+  }
+
+  if (tx.source_type !== targetSourceType) {
+    return {
+      ok: false,
+      error: `TRANSACTION_SOURCE_TYPE_MISMATCH: Transaction source type '${tx.source_type}' does not match expected '${targetSourceType}'.`,
+      code: 'TRANSACTION_SOURCE_TYPE_MISMATCH',
+    };
+  }
+
+  if (tx.transaction_type !== 'customer_payment') {
+    return {
+      ok: false,
+      error: `INVALID_TRANSACTION_TYPE: Transaction is a '${tx.transaction_type}', not a customer payment.`,
+      code: 'INVALID_TRANSACTION_TYPE',
+    };
+  }
+
+  if (tx.status !== 'posted') {
+    return {
+      ok: false,
+      error: `TRANSACTION_NOT_POSTED: Transaction status is '${tx.status}', expected 'posted'.`,
+      code: 'TRANSACTION_NOT_POSTED',
+    };
+  }
+
   const movements: VerifiedFinancialMovement[] = Array.isArray(tx.financial_account_movements)
     ? (tx.financial_account_movements as unknown as Array<{
         id: string;
@@ -1155,6 +1208,25 @@ export async function verifyPaymentTransactionAction(
         externalReference: m.external_reference ? String(m.external_reference) : null,
       }))
     : [];
+
+  if (movements.length === 0) {
+    return {
+      ok: false,
+      error: 'NO_MOVEMENTS_FOUND: Posted transaction has no financial movements.',
+      code: 'NO_MOVEMENTS_FOUND',
+    };
+  }
+
+  if (payload.expectedAmount !== undefined) {
+    const totalMovements = movements.reduce((sum, m) => sum + m.amount, 0);
+    if (Math.round(totalMovements * 100) !== Math.round(payload.expectedAmount * 100)) {
+      return {
+        ok: false,
+        error: `AMOUNT_MISMATCH: Transaction movements total ₱${totalMovements.toFixed(2)}, expected ₱${payload.expectedAmount.toFixed(2)}.`,
+        code: 'AMOUNT_MISMATCH',
+      };
+    }
+  }
 
   return {
     ok: true,
