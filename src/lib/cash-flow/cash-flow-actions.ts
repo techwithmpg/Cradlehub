@@ -1321,7 +1321,39 @@ export async function getPrintableReceiptAction(
     };
   }
 
-  // 3. Movement Integrity Guard (Strict positive amounts, no Math.abs) (Requirement 1)
+  // 3. Fetch allocations for booking_order (Correction A & B)
+  const allocationByMovementId = new Map<string, number>();
+  if (sourceType === 'booking_order') {
+    const { data: orderAllocs, error: allocError } = await supabase
+      .from('financial_order_allocations')
+      .select('id, financial_account_movement_id, amount')
+      .eq('order_id', sourceId);
+
+    if (allocError) {
+      return {
+        ok: false,
+        error: `HISTORICAL_QUERY_FAILED: Failed to fetch order allocations: ${allocError.message}`,
+        code: 'HISTORICAL_QUERY_FAILED',
+      };
+    }
+
+    if (Array.isArray(orderAllocs)) {
+      for (const a of orderAllocs) {
+        const aAmt = Number(a.amount);
+        if (!Number.isFinite(aAmt) || aAmt <= 0) {
+          return {
+            ok: false,
+            error: `MALFORMED_FINANCIAL_EVIDENCE: Order allocation ${a.id} contains invalid or non-positive amount.`,
+            code: 'MALFORMED_FINANCIAL_EVIDENCE',
+          };
+        }
+        const prev = allocationByMovementId.get(a.financial_account_movement_id) || 0;
+        allocationByMovementId.set(a.financial_account_movement_id, prev + aAmt);
+      }
+    }
+  }
+
+  // 4. Movement Integrity Guard (Strict positive amounts, no Math.abs) (Requirement 1)
   const rawMovements = Array.isArray(tx.financial_account_movements)
     ? tx.financial_account_movements
     : [];
@@ -1336,6 +1368,7 @@ export async function getPrintableReceiptAction(
 
   const movements: Array<{ method: string; amount: number; reference: string | null }> = [];
   for (const m of rawMovements as Array<{
+    id?: unknown;
     amount: unknown;
     payment_method: unknown;
     external_reference: unknown;
@@ -1356,9 +1389,19 @@ export async function getPrintableReceiptAction(
         code: 'INVALID_MOVEMENTS',
       };
     }
+    const movementId = m.id ? String(m.id) : undefined;
+    const allocatedAmt = movementId ? allocationByMovementId.get(movementId) : undefined;
+    const effectiveMovementAmt = allocatedAmt !== undefined ? allocatedAmt : amt;
+    if (!Number.isFinite(effectiveMovementAmt) || effectiveMovementAmt <= 0) {
+      return {
+        ok: false,
+        error: 'INVALID_MOVEMENT_AMOUNT: Receipt movements must be positive verified amounts.',
+        code: 'INVALID_MOVEMENTS',
+      };
+    }
     movements.push({
       method: methodStr,
-      amount: amt,
+      amount: effectiveMovementAmt,
       reference: m.external_reference ? String(m.external_reference) : null,
     });
   }
@@ -1372,9 +1415,11 @@ export async function getPrintableReceiptAction(
     };
   }
 
-  // 4. Authoritative Historical Reconstruction (Requirement 2)
-  // Reconstruct previously paid and remaining balances at the time of the original transaction
-  // using authoritative sibling posted transactions.
+  // 5. Authoritative Historical Reconstruction (Correction A & B)
+  // Reconstruct net previously paid and historical payable total at the time of the original transaction
+  // accounting for refunds, reversals, and financial_order_allocations.
+
+  // Fetch sibling transactions (payments, deposits, and refunds)
   const { data: siblingTxs, error: siblingError } = await supabase
     .from('financial_transactions')
     .select(`
@@ -1383,15 +1428,17 @@ export async function getPrintableReceiptAction(
       created_at,
       status,
       transaction_type,
+      reversal_of_transaction_id,
       financial_account_movements (
         id,
-        amount
+        amount,
+        payment_method,
+        external_reference
       )
     `)
     .eq('source_type', sourceType)
     .eq('source_id', sourceId)
-    .eq('status', 'posted')
-    .in('transaction_type', ['customer_payment', 'customer_deposit']);
+    .in('transaction_type', ['customer_payment', 'customer_deposit', 'customer_refund']);
 
   if (siblingError) {
     return {
@@ -1401,19 +1448,65 @@ export async function getPrintableReceiptAction(
     };
   }
 
-  const allPostedTxs: Array<{
+  const allTxs: Array<{
     id: string;
     occurred_at: string;
     created_at?: string;
+    status: string;
+    transaction_type: string;
+    reversal_of_transaction_id?: string | null;
     financial_account_movements?: unknown;
   }> = Array.isArray(siblingTxs) ? [...siblingTxs] : [];
 
-  if (!allPostedTxs.some((t) => t.id === tx.id)) {
-    allPostedTxs.push(tx);
+  if (!allTxs.some((t) => t.id === tx.id)) {
+    allTxs.push(tx);
+  }
+
+  // Track reversals & voids
+  const voidedOrReversedIds = new Set<string>();
+  for (const stx of allTxs) {
+    if (stx.status === 'voided' || stx.status === 'reversed') {
+      voidedOrReversedIds.add(stx.id);
+    }
+    if (stx.reversal_of_transaction_id) {
+      voidedOrReversedIds.add(stx.reversal_of_transaction_id);
+    }
+  }
+
+  // Validate financial movements across all sibling transactions (Reject malformed/incomplete evidence)
+  for (const stx of allTxs) {
+    const rawM = Array.isArray(stx.financial_account_movements)
+      ? stx.financial_account_movements
+      : [];
+    if (rawM.length === 0) {
+      return {
+        ok: false,
+        error: `MALFORMED_FINANCIAL_EVIDENCE: Transaction ${stx.id} has no financial account movements.`,
+        code: 'MALFORMED_FINANCIAL_EVIDENCE',
+      };
+    }
+    for (const pm of rawM as Array<{ amount: unknown; payment_method: unknown }>) {
+      const amt = Number(pm.amount);
+      if (!Number.isFinite(amt) || amt === 0) {
+        return {
+          ok: false,
+          error: `MALFORMED_FINANCIAL_EVIDENCE: Transaction ${stx.id} contains invalid, non-finite, or zero movement amount.`,
+          code: 'MALFORMED_FINANCIAL_EVIDENCE',
+        };
+      }
+      const methodStr = String(pm.payment_method ?? '').trim();
+      if (!methodStr) {
+        return {
+          ok: false,
+          error: `MALFORMED_FINANCIAL_EVIDENCE: Transaction ${stx.id} movement is missing payment method.`,
+          code: 'MALFORMED_FINANCIAL_EVIDENCE',
+        };
+      }
+    }
   }
 
   // Sort chronologically by occurred_at, then created_at, with id as deterministic tie-breaker
-  allPostedTxs.sort((a, b) => {
+  allTxs.sort((a, b) => {
     const timeA = new Date(a.occurred_at).getTime();
     const timeB = new Date(b.occurred_at).getTime();
     if (timeA !== timeB) return timeA - timeB;
@@ -1423,7 +1516,7 @@ export async function getPrintableReceiptAction(
     return String(a.id).localeCompare(String(b.id));
   });
 
-  const currentIndex = allPostedTxs.findIndex((t) => t.id === tx.id);
+  const currentIndex = allTxs.findIndex((t) => t.id === tx.id);
   if (currentIndex === -1) {
     return {
       ok: false,
@@ -1434,20 +1527,50 @@ export async function getPrintableReceiptAction(
 
   let alreadyPaidCents = 0;
   for (let i = 0; i < currentIndex; i++) {
-    const prior = allPostedTxs[i]!;
-    const priorMovs = Array.isArray(prior.financial_account_movements)
-      ? prior.financial_account_movements
-      : [];
-    for (const pm of priorMovs as Array<{ amount: unknown }>) {
-      const pAmt = Number(pm.amount);
-      if (Number.isFinite(pAmt) && pAmt > 0) {
-        alreadyPaidCents += Math.round(pAmt * 100);
+    const prior = allTxs[i]!;
+
+    // If voided, reversed, or is a reversal itself, net effect is 0
+    if (
+      prior.status === 'voided' ||
+      prior.status === 'reversed' ||
+      voidedOrReversedIds.has(prior.id) ||
+      prior.reversal_of_transaction_id
+    ) {
+      continue;
+    }
+
+    const priorMovs = prior.financial_account_movements as Array<{ id: string; amount: unknown }>;
+
+    if (prior.transaction_type === 'customer_payment' || prior.transaction_type === 'customer_deposit') {
+      let txInflowCents = 0;
+      for (const pm of priorMovs) {
+        const pAmt = Number(pm.amount);
+        const allocated = allocationByMovementId.get(pm.id);
+        const effectiveAmt = allocated !== undefined ? allocated : pAmt;
+        if (effectiveAmt <= 0) {
+          return {
+            ok: false,
+            error: `MALFORMED_FINANCIAL_EVIDENCE: Movement ${pm.id} has invalid non-positive effective allocation.`,
+            code: 'MALFORMED_FINANCIAL_EVIDENCE',
+          };
+        }
+        txInflowCents += Math.round(effectiveAmt * 100);
       }
+      alreadyPaidCents += txInflowCents;
+    } else if (prior.transaction_type === 'customer_refund') {
+      let txOutflowCents = 0;
+      for (const pm of priorMovs) {
+        const pAmt = Number(pm.amount);
+        const refundMagnitude = Math.abs(pAmt);
+        txOutflowCents += Math.round(refundMagnitude * 100);
+      }
+      alreadyPaidCents -= txOutflowCents;
     }
   }
-  const alreadyPaid = alreadyPaidCents / 100;
 
-  // Retrieve order or booking details and establish authoritative total payable
+  const alreadyPaid = Math.max(0, alreadyPaidCents / 100);
+
+  // Retrieve order or booking details and establish authoritative historical total payable
   let orderNumber = tx.external_reference || `TXN-${String(tx.id).slice(0, 8)}`;
   let customerName = tx.notes || 'Guest';
   let customerPhone: string | null = null;
@@ -1455,6 +1578,8 @@ export async function getPrintableReceiptAction(
   let visitType: 'in_spa' | 'home_service' = 'in_spa';
   let items: Array<{ description: string; amount: number }> = [];
   let totalPayable: number | null = null;
+
+  const txTimestamp = new Date(tx.created_at || tx.occurred_at).getTime();
 
   if (sourceType === 'booking_order') {
     const { data: order, error: orderErr } = await supabase
@@ -1484,9 +1609,10 @@ export async function getPrintableReceiptAction(
       if (cust?.phone) customerPhone = cust.phone;
     }
 
-    const { data: payableItems, error: itemsErr } = await supabase
+    // Fetch all payable items for this order
+    const { data: allPayableItems, error: itemsErr } = await supabase
       .from('order_payable_items')
-      .select('description, amount')
+      .select('id, description, amount, sequence, created_at')
       .eq('order_id', sourceId)
       .order('sequence');
 
@@ -1498,37 +1624,42 @@ export async function getPrintableReceiptAction(
       };
     }
 
-    if (payableItems && payableItems.length > 0) {
-      items = payableItems.map((item) => ({
-        description: item.description || 'Service',
-        amount: Number(item.amount) || 0,
-      }));
-      serviceDescription = items.map((i) => i.description).join(', ');
-      const sumItems = items.reduce((acc, i) => acc + i.amount, 0);
-      if (sumItems > 0) {
-        totalPayable = Math.round(sumItems * 100) / 100;
-      }
-    }
+    // Filter items that existed at or before this transaction's execution
+    // (allow up to 5000ms margin for same-request commit ordering)
+    const historicalPayableItems = Array.isArray(allPayableItems)
+      ? allPayableItems.filter((item) => {
+          if (!item.created_at) return true;
+          const itemTime = new Date(item.created_at).getTime();
+          return itemTime <= txTimestamp + 5000;
+        })
+      : [];
 
-    if (totalPayable === null) {
-      const { data: summary } = await supabase
-        .from('v_booking_order_financial_summaries')
-        .select('total_payable')
-        .eq('order_id', sourceId)
-        .maybeSingle();
-
-      if (summary && Number(summary.total_payable) > 0) {
-        totalPayable = Number(summary.total_payable);
-      }
-    }
-
-    if (totalPayable === null || totalPayable <= 0 || !Number.isFinite(totalPayable)) {
+    if (historicalPayableItems.length === 0) {
       return {
         ok: false,
-        error: 'INVALID_PAYABLE_TOTAL: Total payable amount could not be established from authoritative order records.',
-        code: 'INVALID_PAYABLE_TOTAL',
+        error: 'UNVERIFIED_HISTORICAL_PAYABLE: The payable total at the time of the original transaction cannot be verified from historical records.',
+        code: 'UNVERIFIED_HISTORICAL_PAYABLE',
       };
     }
+
+    items = historicalPayableItems.map((item) => ({
+      description: item.description || 'Service',
+      amount: Number(item.amount) || 0,
+    }));
+    serviceDescription = items.map((i) => i.description).join(', ');
+
+    let sumCents = 0;
+    for (const it of items) {
+      if (!Number.isFinite(it.amount) || it.amount <= 0) {
+        return {
+          ok: false,
+          error: 'UNVERIFIED_HISTORICAL_PAYABLE: Historical payable item contains invalid or non-positive amount.',
+          code: 'UNVERIFIED_HISTORICAL_PAYABLE',
+        };
+      }
+      sumCents += Math.round(it.amount * 100);
+    }
+    totalPayable = sumCents / 100;
   } else if (sourceType === 'legacy_booking') {
     const { data: b, error: bookingErr } = await supabase
       .from('bookings')
@@ -1562,11 +1693,12 @@ export async function getPrintableReceiptAction(
     if (validatedPrice === null || validatedPrice <= 0 || !Number.isFinite(validatedPrice)) {
       return {
         ok: false,
-        error: 'INVALID_PAYABLE_TOTAL: Legacy booking price could not be established from metadata snapshot.',
-        code: 'INVALID_PAYABLE_TOTAL',
+        error: 'UNVERIFIED_HISTORICAL_PAYABLE: Legacy booking price could not be established from metadata snapshot.',
+        code: 'UNVERIFIED_HISTORICAL_PAYABLE',
       };
     }
     totalPayable = validatedPrice;
+    items = [{ description: serviceDescription, amount: totalPayable }];
   } else {
     return {
       ok: false,

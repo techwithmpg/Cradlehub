@@ -27,6 +27,7 @@ type MockTx = {
   source_type: string;
   source_id: string;
   external_reference: string | null;
+  reversal_of_transaction_id?: string | null;
   notes: string | null;
   branches: { name: string };
   financial_account_movements: Array<{
@@ -38,6 +39,20 @@ type MockTx = {
   }>;
 };
 
+type MockPayableItem = {
+  id?: string;
+  description: string;
+  amount: number;
+  sequence?: number;
+  created_at?: string;
+};
+
+type MockAllocation = {
+  id: string;
+  financial_account_movement_id: string;
+  amount: number;
+};
+
 describe('getPrintableReceiptAction', () => {
   let authenticatedUser: { id: string } | null;
   let staffRecord: { id: string; branch_id: string; system_role: string; is_active: boolean } | null;
@@ -45,7 +60,8 @@ describe('getPrintableReceiptAction', () => {
   let siblingTxs: MockTx[];
   let orderRecord: Record<string, unknown> | null;
   let summaryRecord: Record<string, unknown> | null;
-  let payableItemsRecord: Array<{ description: string; amount: number }>;
+  let payableItemsRecord: MockPayableItem[];
+  let allocationsRecord: MockAllocation[];
   let legacyBookingRecord: Record<string, unknown> | null;
 
   beforeEach(() => {
@@ -93,8 +109,9 @@ describe('getPrintableReceiptAction', () => {
       remaining_balance: 0,
     };
     payableItemsRecord = [
-      { description: 'Swedish Massage 60m', amount: 1500 },
+      { id: 'item-1', description: 'Swedish Massage 60m', amount: 1500, sequence: 1, created_at: '2026-10-31T14:00:00.000Z' },
     ];
+    allocationsRecord = [];
     legacyBookingRecord = null;
 
     mocks.createClient.mockResolvedValue({
@@ -130,6 +147,7 @@ describe('getPrintableReceiptAction', () => {
                 if (id === validTxId && txRecord) return { data: txRecord, error: null };
                 const match = siblingTxs.find((t) => t.id === id);
                 if (match) return { data: match, error: null };
+                if (txRecord && txRecord.id === id) return { data: txRecord, error: null };
                 return { data: null, error: null };
               }
               if (table === 'booking_orders') return { data: orderRecord, error: null };
@@ -139,6 +157,9 @@ describe('getPrintableReceiptAction', () => {
             },
             // eslint-disable-next-line @typescript-eslint/no-explicit-any
             then(resolve: (val: { data: any; error: null }) => void) {
+              if (table === 'financial_order_allocations') {
+                return Promise.resolve(resolve({ data: allocationsRecord, error: null }));
+              }
               if (table === 'order_payable_items') {
                 return Promise.resolve(resolve({ data: payableItemsRecord, error: null }));
               }
@@ -263,7 +284,7 @@ describe('getPrintableReceiptAction', () => {
   });
 
   it('rejects negative, zero, or missing financial movements without Math.abs conversion', async () => {
-    // Negative movement (must NOT be flipped by Math.abs)
+    // Negative movement
     txRecord!.financial_account_movements = [
       {
         id: 'mov-neg',
@@ -336,13 +357,17 @@ describe('getPrintableReceiptAction', () => {
     }
   });
 
-  it('reconstructs exact historical balances for partial payments: ₱400 paid first and ₱600 paid later on ₱1,000 bill', async () => {
+  // ─── REGRESSION TEST SUITE FOR CORRECTION A & B ───────────────────────────
+
+  it('Regression A1: reconstructs exact historical balances for ₱400 + ₱600 partial payments', async () => {
     const orderId = 'order-split-1000';
     const tx1Id = '11111111-1111-4111-8111-111111111111';
     const tx2Id = '22222222-2222-4222-8222-222222222222';
 
-    // Total bill: ₱1,000
-    payableItemsRecord = [{ description: 'Body Scrub & Massage', amount: 1000 }];
+    // Total bill: ₱1,000 (created at 10:00 AM)
+    payableItemsRecord = [
+      { id: 'item-1000', description: 'Body Scrub & Massage', amount: 1000, sequence: 1, created_at: '2026-10-31T10:00:00.000Z' },
+    ];
     orderRecord = {
       id: orderId,
       order_number: 'ORD-SPLIT-1000',
@@ -350,15 +375,15 @@ describe('getPrintableReceiptAction', () => {
       customers: { full_name: 'Ana Ramos', phone: '09190001122' },
     };
 
-    // First payment: ₱400 at 10:00 AM
+    // First payment: ₱400 at 10:05 AM
     const tx1: MockTx = {
       id: tx1Id,
       branch_id: branchId,
       transaction_type: 'customer_payment',
       status: 'posted',
       business_date: '2026-10-31',
-      occurred_at: '2026-10-31T10:00:00.000Z',
-      created_at: '2026-10-31T10:00:00.000Z',
+      occurred_at: '2026-10-31T10:05:00.000Z',
+      created_at: '2026-10-31T10:05:00.000Z',
       source_type: 'booking_order',
       source_id: orderId,
       external_reference: 'ORD-SPLIT-1000',
@@ -403,7 +428,6 @@ describe('getPrintableReceiptAction', () => {
     siblingTxs = [tx1, tx2];
 
     // 1. Reprint Tx 1 (₱400 paid first):
-    // Should show: alreadyPaid = 0, amountPaid = 400, remainingBalance = 600
     txRecord = tx1;
     const res1 = await getPrintableReceiptAction(tx1Id);
     expect(res1.ok).toBe(true);
@@ -419,7 +443,6 @@ describe('getPrintableReceiptAction', () => {
     }
 
     // 2. Reprint Tx 2 (₱600 paid later):
-    // Should show: alreadyPaid = 400, amountPaid = 600, remainingBalance = 0
     txRecord = tx2;
     const res2 = await getPrintableReceiptAction(tx2Id);
     expect(res2.ok).toBe(true);
@@ -435,12 +458,482 @@ describe('getPrintableReceiptAction', () => {
     }
   });
 
-  it('fails closed when total payable cannot be established', async () => {
-    payableItemsRecord = [];
-    summaryRecord = { total_payable: 0 };
+  it('Regression A2: accounts for posted refunds: ₱400 payment, ₱100 refund, then ₱700 payment', async () => {
+    const orderId = 'order-refund-flow';
+    const tx1Id = '11111111-1111-4111-8111-aaaaaaaaaaaa';
+    const tx2Id = '22222222-2222-4222-8222-bbbbbbbbbbbb';
+    const tx3Id = '33333333-3333-4333-8333-cccccccccccc';
+
+    // Total payable: ₱1,000
+    payableItemsRecord = [
+      { id: 'item-ref', description: 'Spa Package', amount: 1000, sequence: 1, created_at: '2026-10-31T09:00:00.000Z' },
+    ];
+    orderRecord = {
+      id: orderId,
+      order_number: 'ORD-REF-1000',
+      delivery_type: 'in_spa',
+      customers: { full_name: 'Carlos Diaz', phone: '09175554321' },
+    };
+
+    // Tx 1: ₱400 payment at 10:00 AM
+    const tx1: MockTx = {
+      id: tx1Id,
+      branch_id: branchId,
+      transaction_type: 'customer_payment',
+      status: 'posted',
+      business_date: '2026-10-31',
+      occurred_at: '2026-10-31T10:00:00.000Z',
+      created_at: '2026-10-31T10:00:00.000Z',
+      source_type: 'booking_order',
+      source_id: orderId,
+      external_reference: 'ORD-REF-1000',
+      notes: null,
+      branches: { name: 'Main Spa' },
+      financial_account_movements: [
+        { id: 'mov-p1', financial_account_id: 'acc-1', amount: 400, payment_method: 'cash', external_reference: null },
+      ],
+    };
+
+    // Tx 2: ₱100 refund at 11:00 AM (signed movement -100)
+    const tx2: MockTx = {
+      id: tx2Id,
+      branch_id: branchId,
+      transaction_type: 'customer_refund',
+      status: 'posted',
+      business_date: '2026-10-31',
+      occurred_at: '2026-10-31T11:00:00.000Z',
+      created_at: '2026-10-31T11:00:00.000Z',
+      source_type: 'booking_order',
+      source_id: orderId,
+      external_reference: 'ORD-REF-1000',
+      notes: 'Customer changed mind on add-on',
+      branches: { name: 'Main Spa' },
+      financial_account_movements: [
+        { id: 'mov-r1', financial_account_id: 'acc-1', amount: -100, payment_method: 'cash', external_reference: null },
+      ],
+    };
+
+    // Tx 3: ₱700 payment at 2:00 PM
+    const tx3: MockTx = {
+      id: tx3Id,
+      branch_id: branchId,
+      transaction_type: 'customer_payment',
+      status: 'posted',
+      business_date: '2026-10-31',
+      occurred_at: '2026-10-31T14:00:00.000Z',
+      created_at: '2026-10-31T14:00:00.000Z',
+      source_type: 'booking_order',
+      source_id: orderId,
+      external_reference: 'ORD-REF-1000',
+      notes: null,
+      branches: { name: 'Main Spa' },
+      financial_account_movements: [
+        { id: 'mov-p2', financial_account_id: 'acc-1', amount: 700, payment_method: 'card', external_reference: 'CARD-700' },
+      ],
+    };
+
+    siblingTxs = [tx1, tx2, tx3];
+
+    // Check Tx 1 reprint:
+    txRecord = tx1;
+    const res1 = await getPrintableReceiptAction(tx1Id);
+    expect(res1.ok).toBe(true);
+    if (res1.ok) {
+      expect(res1.data.alreadyPaid).toBe(0);
+      expect(res1.data.amountPaid).toBe(400);
+      expect(res1.data.remainingBalance).toBe(600);
+    }
+
+    // Check Tx 3 reprint:
+    // Prior net paid must be ₱400 (Tx 1) - ₱100 (Tx 2 refund) = ₱300.
+    // Tx 3 pays ₱700, so remaining balance is ₱1000 - ₱300 - ₱700 = ₱0.
+    txRecord = tx3;
+    const res3 = await getPrintableReceiptAction(tx3Id);
+    expect(res3.ok).toBe(true);
+    if (res3.ok) {
+      expect(res3.data.alreadyPaid).toBe(300);
+      expect(res3.data.amountPaid).toBe(700);
+      expect(res3.data.totalPayable).toBe(1000);
+      expect(res3.data.remainingBalance).toBe(0);
+      expect(res3.data.payments).toEqual([
+        { method: 'card', amount: 700, reference: 'CARD-700' },
+      ]);
+    }
+  });
+
+  it('Regression A3: ignores voided or reversed payments when calculating alreadyPaid', async () => {
+    const orderId = 'order-voided-flow';
+    const txVoidedId = '11111111-1111-4111-8111-aaaaaaaaaa01';
+    const txActiveId = '22222222-2222-4222-8222-bbbbbbbbbb02';
+
+    payableItemsRecord = [
+      { id: 'item-v', description: 'Deep Tissue', amount: 1000, sequence: 1, created_at: '2026-10-31T09:00:00.000Z' },
+    ];
+    orderRecord = {
+      id: orderId,
+      order_number: 'ORD-VOID-1000',
+      delivery_type: 'in_spa',
+      customers: { full_name: 'Elena Cruz', phone: '09171113333' },
+    };
+
+    // Tx 1: ₱400 was voided
+    const txVoided: MockTx = {
+      id: txVoidedId,
+      branch_id: branchId,
+      transaction_type: 'customer_payment',
+      status: 'voided',
+      business_date: '2026-10-31',
+      occurred_at: '2026-10-31T10:00:00.000Z',
+      created_at: '2026-10-31T10:00:00.000Z',
+      source_type: 'booking_order',
+      source_id: orderId,
+      external_reference: 'ORD-VOID-1000',
+      notes: 'Entry mistake, voided',
+      branches: { name: 'Main Spa' },
+      financial_account_movements: [
+        { id: 'mov-v1', financial_account_id: 'acc-1', amount: 400, payment_method: 'cash', external_reference: null },
+      ],
+    };
+
+    // Tx 2: ₱1,000 paid later
+    const txActive: MockTx = {
+      id: txActiveId,
+      branch_id: branchId,
+      transaction_type: 'customer_payment',
+      status: 'posted',
+      business_date: '2026-10-31',
+      occurred_at: '2026-10-31T14:00:00.000Z',
+      created_at: '2026-10-31T14:00:00.000Z',
+      source_type: 'booking_order',
+      source_id: orderId,
+      external_reference: 'ORD-VOID-1000',
+      notes: null,
+      branches: { name: 'Main Spa' },
+      financial_account_movements: [
+        { id: 'mov-act1', financial_account_id: 'acc-1', amount: 1000, payment_method: 'cash', external_reference: null },
+      ],
+    };
+
+    siblingTxs = [txVoided, txActive];
+
+    // Tx 2 reprint should see alreadyPaid = 0 because Tx 1 is voided
+    txRecord = txActive;
+    const res = await getPrintableReceiptAction(txActiveId);
+    expect(res.ok).toBe(true);
+    if (res.ok) {
+      expect(res.data.alreadyPaid).toBe(0);
+      expect(res.data.amountPaid).toBe(1000);
+      expect(res.data.remainingBalance).toBe(0);
+    }
+
+    // Direct reprint of Tx Voided should fail with TRANSACTION_NOT_POSTED
+    txRecord = txVoided;
+    const resVoid = await getPrintableReceiptAction(txVoidedId);
+    expect(resVoid.ok).toBe(false);
+    if (!resVoid.ok) expect(resVoid.code).toBe('TRANSACTION_NOT_POSTED');
+  });
+
+  it('Regression A4: supports split-tender payments accurately across history', async () => {
+    const orderId = 'order-split-tender';
+    const tx1Id = '11111111-1111-4111-8111-aaaaaaaaaa03';
+    const tx2Id = '22222222-2222-4222-8222-bbbbbbbbbb04';
+
+    payableItemsRecord = [
+      { id: 'item-st', description: 'Package Service', amount: 1000, sequence: 1, created_at: '2026-10-31T09:00:00.000Z' },
+    ];
+    orderRecord = {
+      id: orderId,
+      order_number: 'ORD-SPLIT-TENDER',
+      delivery_type: 'in_spa',
+      customers: { full_name: 'Mark Reyes', phone: '09172224444' },
+    };
+
+    // Tx 1: Split tender: ₱200 cash + ₱200 maya = ₱400
+    const tx1: MockTx = {
+      id: tx1Id,
+      branch_id: branchId,
+      transaction_type: 'customer_payment',
+      status: 'posted',
+      business_date: '2026-10-31',
+      occurred_at: '2026-10-31T10:00:00.000Z',
+      created_at: '2026-10-31T10:00:00.000Z',
+      source_type: 'booking_order',
+      source_id: orderId,
+      external_reference: 'ORD-SPLIT-TENDER',
+      notes: null,
+      branches: { name: 'Main Spa' },
+      financial_account_movements: [
+        { id: 'mov-st1', financial_account_id: 'acc-1', amount: 200, payment_method: 'cash', external_reference: null },
+        { id: 'mov-st2', financial_account_id: 'acc-2', amount: 200, payment_method: 'maya', external_reference: 'MAYA-200' },
+      ],
+    };
+
+    // Tx 2: ₱600 card
+    const tx2: MockTx = {
+      id: tx2Id,
+      branch_id: branchId,
+      transaction_type: 'customer_payment',
+      status: 'posted',
+      business_date: '2026-10-31',
+      occurred_at: '2026-10-31T14:00:00.000Z',
+      created_at: '2026-10-31T14:00:00.000Z',
+      source_type: 'booking_order',
+      source_id: orderId,
+      external_reference: 'ORD-SPLIT-TENDER',
+      notes: null,
+      branches: { name: 'Main Spa' },
+      financial_account_movements: [
+        { id: 'mov-st3', financial_account_id: 'acc-3', amount: 600, payment_method: 'card', external_reference: 'CARD-600' },
+      ],
+    };
+
+    siblingTxs = [tx1, tx2];
+
+    // Tx 1 reprint: shows both tenders in breakdown
+    txRecord = tx1;
+    const res1 = await getPrintableReceiptAction(tx1Id);
+    expect(res1.ok).toBe(true);
+    if (res1.ok) {
+      expect(res1.data.amountPaid).toBe(400);
+      expect(res1.data.payments).toHaveLength(2);
+      expect(res1.data.alreadyPaid).toBe(0);
+      expect(res1.data.remainingBalance).toBe(600);
+    }
+
+    // Tx 2 reprint: recognizes prior split tender sum of ₱400
+    txRecord = tx2;
+    const res2 = await getPrintableReceiptAction(tx2Id);
+    expect(res2.ok).toBe(true);
+    if (res2.ok) {
+      expect(res2.data.alreadyPaid).toBe(400);
+      expect(res2.data.amountPaid).toBe(600);
+      expect(res2.data.remainingBalance).toBe(0);
+    }
+  });
+
+  it('Regression A5: rejects incomplete, zero, or malformed previous movements rather than silently skipping them', async () => {
+    const orderId = 'order-corrupt-flow';
+    const txBadId = '11111111-1111-4111-8111-aaaaaaaaaa05';
+    const txGoodId = '22222222-2222-4222-8222-bbbbbbbbbb06';
+
+    payableItemsRecord = [
+      { id: 'item-corrupt', description: 'Massage', amount: 1000, sequence: 1, created_at: '2026-10-31T09:00:00.000Z' },
+    ];
+    orderRecord = {
+      id: orderId,
+      order_number: 'ORD-CORRUPT',
+      delivery_type: 'in_spa',
+      customers: { full_name: 'Corrupt Client', phone: '09170000000' },
+    };
+
+    // Prior transaction has movement with amount 0 (strictly invalid per ledger rules)
+    const txBad: MockTx = {
+      id: txBadId,
+      branch_id: branchId,
+      transaction_type: 'customer_payment',
+      status: 'posted',
+      business_date: '2026-10-31',
+      occurred_at: '2026-10-31T10:00:00.000Z',
+      created_at: '2026-10-31T10:00:00.000Z',
+      source_type: 'booking_order',
+      source_id: orderId,
+      external_reference: 'ORD-CORRUPT',
+      notes: null,
+      branches: { name: 'Main Spa' },
+      financial_account_movements: [
+        { id: 'mov-zero-prior', financial_account_id: 'acc-1', amount: 0, payment_method: 'cash', external_reference: null },
+      ],
+    };
+
+    const txGood: MockTx = {
+      id: txGoodId,
+      branch_id: branchId,
+      transaction_type: 'customer_payment',
+      status: 'posted',
+      business_date: '2026-10-31',
+      occurred_at: '2026-10-31T14:00:00.000Z',
+      created_at: '2026-10-31T14:00:00.000Z',
+      source_type: 'booking_order',
+      source_id: orderId,
+      external_reference: 'ORD-CORRUPT',
+      notes: null,
+      branches: { name: 'Main Spa' },
+      financial_account_movements: [
+        { id: 'mov-good', financial_account_id: 'acc-1', amount: 1000, payment_method: 'cash', external_reference: null },
+      ],
+    };
+
+    siblingTxs = [txBad, txGood];
+    txRecord = txGood;
+
+    // Must fail closed with MALFORMED_FINANCIAL_EVIDENCE
+    const res = await getPrintableReceiptAction(txGoodId);
+    expect(res.ok).toBe(false);
+    if (!res.ok) {
+      expect(res.code).toBe('MALFORMED_FINANCIAL_EVIDENCE');
+      expect(res.error).toContain('MALFORMED_FINANCIAL_EVIDENCE');
+    }
+  });
+
+  it('Regression B1: does not present today’s changed order total as an immutable historical receipt total', async () => {
+    const orderId = 'order-items-added-later';
+    const tx1Id = '11111111-1111-4111-8111-aaaaaaaaaa07';
+    const tx2Id = '22222222-2222-4222-8222-bbbbbbbbbb08';
+
+    // Order initially had 1 item (₱1,000 at 10:00 AM).
+    // Later at 3:00 PM, an add-on item of ₱500 was added.
+    payableItemsRecord = [
+      { id: 'item-orig', description: 'Original Massage', amount: 1000, sequence: 1, created_at: '2026-10-31T10:00:00.000Z' },
+      { id: 'item-later', description: 'Add-on Scrub', amount: 500, sequence: 2, created_at: '2026-10-31T15:00:00.000Z' },
+    ];
+    orderRecord = {
+      id: orderId,
+      order_number: 'ORD-CHANGED-TOTAL',
+      delivery_type: 'in_spa',
+      customers: { full_name: 'Lita Gomez', phone: '09173335555' },
+    };
+
+    // Tx 1: ₱400 paid at 10:05 AM (when total was only ₱1,000)
+    const tx1: MockTx = {
+      id: tx1Id,
+      branch_id: branchId,
+      transaction_type: 'customer_payment',
+      status: 'posted',
+      business_date: '2026-10-31',
+      occurred_at: '2026-10-31T10:05:00.000Z',
+      created_at: '2026-10-31T10:05:00.000Z',
+      source_type: 'booking_order',
+      source_id: orderId,
+      external_reference: 'ORD-CHANGED-TOTAL',
+      notes: null,
+      branches: { name: 'Main Spa' },
+      financial_account_movements: [
+        { id: 'mov-t1', financial_account_id: 'acc-1', amount: 400, payment_method: 'cash', external_reference: null },
+      ],
+    };
+
+    // Tx 2: ₱1,100 paid at 3:05 PM (after total became ₱1,500)
+    const tx2: MockTx = {
+      id: tx2Id,
+      branch_id: branchId,
+      transaction_type: 'customer_payment',
+      status: 'posted',
+      business_date: '2026-10-31',
+      occurred_at: '2026-10-31T15:05:00.000Z',
+      created_at: '2026-10-31T15:05:00.000Z',
+      source_type: 'booking_order',
+      source_id: orderId,
+      external_reference: 'ORD-CHANGED-TOTAL',
+      notes: null,
+      branches: { name: 'Main Spa' },
+      financial_account_movements: [
+        { id: 'mov-t2', financial_account_id: 'acc-1', amount: 1100, payment_method: 'card', external_reference: 'CARD-1100' },
+      ],
+    };
+
+    siblingTxs = [tx1, tx2];
+
+    // 1. When reprinting Tx 1 (at 10:05 AM):
+    // Total payable must be ₱1,000 (NOT today's ₱1,500!).
+    // Items should only contain the 1 item that existed at 10:05 AM.
+    // alreadyPaid = 0, amountPaid = 400, remainingBalance = 600.
+    txRecord = tx1;
+    const res1 = await getPrintableReceiptAction(tx1Id);
+    expect(res1.ok).toBe(true);
+    if (res1.ok) {
+      expect(res1.data.totalPayable).toBe(1000);
+      expect(res1.data.amountPaid).toBe(400);
+      expect(res1.data.alreadyPaid).toBe(0);
+      expect(res1.data.remainingBalance).toBe(600);
+      expect(res1.data.items).toEqual([
+        { description: 'Original Massage', amount: 1000 },
+      ]);
+    }
+
+    // 2. When reprinting Tx 2 (at 3:05 PM):
+    // Total payable includes both items: ₱1,500.
+    // alreadyPaid = 400, amountPaid = 1,100, remainingBalance = 0.
+    txRecord = tx2;
+    const res2 = await getPrintableReceiptAction(tx2Id);
+    expect(res2.ok).toBe(true);
+    if (res2.ok) {
+      expect(res2.data.totalPayable).toBe(1500);
+      expect(res2.data.amountPaid).toBe(1100);
+      expect(res2.data.alreadyPaid).toBe(400);
+      expect(res2.data.remainingBalance).toBe(0);
+      expect(res2.data.items).toHaveLength(2);
+    }
+  });
+
+  it('Regression B2: fails closed with actionable warning when historical payable total cannot be verified', async () => {
+    // All payable items were created in the future after the transaction
+    payableItemsRecord = [
+      { id: 'item-future', description: 'Future Item', amount: 1000, sequence: 1, created_at: '2026-10-31T20:00:00.000Z' },
+    ];
+    txRecord!.created_at = '2026-10-31T10:00:00.000Z';
+    txRecord!.occurred_at = '2026-10-31T10:00:00.000Z';
+
     const res = await getPrintableReceiptAction(validTxId);
     expect(res.ok).toBe(false);
-    if (!res.ok) expect(res.code).toBe('INVALID_PAYABLE_TOTAL');
+    if (!res.ok) {
+      expect(res.code).toBe('UNVERIFIED_HISTORICAL_PAYABLE');
+      expect(res.error).toContain('UNVERIFIED_HISTORICAL_PAYABLE');
+    }
+  });
+
+  it('Regression A6: uses financial_order_allocations when present to determine exact order payment amount', async () => {
+    const orderId = 'order-allocated-1';
+    const txId = '11111111-1111-4111-8111-aaaaaaaaaa09';
+
+    payableItemsRecord = [
+      { id: 'item-aloc', description: 'Group Service', amount: 600, sequence: 1, created_at: '2026-10-31T10:00:00.000Z' },
+    ];
+    orderRecord = {
+      id: orderId,
+      order_number: 'ORD-ALLOC-600',
+      delivery_type: 'in_spa',
+      customers: { full_name: 'Group Client', phone: '09174446666' },
+    };
+
+    // Movement was ₱1,000 (split across orders), but only ₱600 is allocated to this order
+    const tx: MockTx = {
+      id: txId,
+      branch_id: branchId,
+      transaction_type: 'customer_payment',
+      status: 'posted',
+      business_date: '2026-10-31',
+      occurred_at: '2026-10-31T10:05:00.000Z',
+      created_at: '2026-10-31T10:05:00.000Z',
+      source_type: 'booking_order',
+      source_id: orderId,
+      external_reference: 'ORD-ALLOC-600',
+      notes: null,
+      branches: { name: 'Main Spa' },
+      financial_account_movements: [
+        { id: 'mov-multi', financial_account_id: 'acc-1', amount: 1000, payment_method: 'cash', external_reference: null },
+      ],
+    };
+
+    // Allocation specifically for this order: ₱600
+    allocationsRecord = [
+      { id: 'alloc-1', financial_account_movement_id: 'mov-multi', amount: 600 },
+    ];
+
+    siblingTxs = [tx];
+    txRecord = tx;
+
+    const res = await getPrintableReceiptAction(txId);
+    expect(res.ok).toBe(true);
+    if (res.ok) {
+      // Amount paid should be the allocated ₱600, not the full ₱1,000 movement!
+      expect(res.data.amountPaid).toBe(600);
+      expect(res.data.totalPayable).toBe(600);
+      expect(res.data.alreadyPaid).toBe(0);
+      expect(res.data.remainingBalance).toBe(0);
+      expect(res.data.payments).toEqual([
+        { method: 'cash', amount: 600, reference: null },
+      ]);
+    }
   });
 
   it('reconstructs authoritative receipt data for legacy_booking with validated price', async () => {
