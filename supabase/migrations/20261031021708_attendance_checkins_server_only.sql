@@ -33,11 +33,33 @@ create policy "checkins_csr_branch_read" on public.staff_shift_checkins
     and branch_id = get_auth_branch_id()
   );
 
--- Grants and RLS must both deny direct mutations. Revoking PUBLIC also
--- prevents inherited table privileges from silently reopening Data API writes.
-revoke insert, update, delete on table public.staff_shift_checkins
+-- TRUNCATE and REFERENCES are outside RLS. Data API roles do not need
+-- maintenance operations or schema-level trigger/reference powers.
+-- Keep the server role's existing DML for scan, correction, and closing RPCs.
+revoke insert, update, delete, truncate, trigger, references, maintain
+  on table public.staff_shift_checkins
   from public, anon, authenticated;
 grant select on table public.staff_shift_checkins to authenticated;
 grant select, insert, update, delete on table public.staff_shift_checkins to service_role;
+
+-- Fail the migration rather than leave an inherited grant silently effective.
+do $$
+declare
+  checked_role text;
+  checked_privilege text;
+begin
+  foreach checked_role in array array['anon', 'authenticated'] loop
+    foreach checked_privilege in array array[
+      'INSERT', 'UPDATE', 'DELETE', 'TRUNCATE', 'TRIGGER', 'REFERENCES', 'MAINTAIN'
+    ] loop
+      if has_table_privilege(
+        checked_role, 'public.staff_shift_checkins', checked_privilege
+      ) then
+        raise exception 'Unexpected inherited % privilege on staff_shift_checkins for %',
+          checked_privilege, checked_role;
+      end if;
+    end loop;
+  end loop;
+end $$;
 
 commit;

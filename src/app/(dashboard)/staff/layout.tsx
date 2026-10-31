@@ -28,6 +28,7 @@ import {
 import { StaffConnectivityBanner } from "@/components/features/staff-pwa/connectivity-banner";
 import { StaffInstallPrompt } from "@/components/features/staff-pwa/install-prompt";
 import { StaffServiceWorkerRegistration } from "@/components/features/staff-pwa/staff-service-worker-registration";
+import { attendanceGeofenceMode } from "@/lib/attendance/geofence-server";
 import { AttendanceLocationRefresh } from "@/components/features/staff-pwa/attendance-location-refresh";
 
 export const metadata: Metadata = {
@@ -122,7 +123,7 @@ export default async function StaffLayout({ children }: { children: ReactNode })
       {prefetchConfig ? <WorkspaceRoutePrefetcher config={prefetchConfig} /> : null}
       <StaffConnectivityBanner />
       <StaffServiceWorkerRegistration />
-      <AttendanceLocationRefresh />
+      <AttendanceLocationRefresh enabled={attendanceGeofenceMode() === "enabled"} />
       <StaffInstallPrompt />
       {content}
     </>
