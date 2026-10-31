@@ -152,6 +152,65 @@ describe('Reprint Receipt UI in Cash Flow Views', () => {
         expect(screen.getByText(/Authentication required/i)).toBeTruthy()
       );
     });
+
+    it('does not render Reprint button for ineligible items (pending, zero/negative, non-payment)', () => {
+      const ineligiblePayments: RecentPaymentItem[] = [
+        {
+          id: 'ineligible-1',
+          time: '3:00 PM',
+          type: 'Payment',
+          customerName: 'Pending Customer',
+          reference: '#TX-PENDING',
+          serviceDescription: 'Massage',
+          paymentMethodDisplay: 'Cash',
+          amount: 1500,
+          status: 'pending',
+          orderId: 'order-2',
+        },
+        {
+          id: 'ineligible-2',
+          time: '3:15 PM',
+          type: 'Payment',
+          customerName: 'Zero Amount',
+          reference: '#TX-ZERO',
+          serviceDescription: 'Massage',
+          paymentMethodDisplay: 'Cash',
+          amount: 0,
+          status: 'paid',
+          orderId: 'order-3',
+        },
+        {
+          id: 'ineligible-3',
+          time: '3:30 PM',
+          type: 'Refund',
+          customerName: 'Refund Item',
+          reference: '#TX-REFUND',
+          serviceDescription: 'Massage',
+          paymentMethodDisplay: 'Cash',
+          amount: 500,
+          status: 'paid',
+          orderId: 'order-4',
+        },
+      ];
+
+      render(
+        <TodayTab
+          kpis={kpis}
+          paymentMix={[]}
+          totalInflow={1500}
+          coverage={[]}
+          recentPayments={ineligiblePayments}
+          onNavigateToLedger={vi.fn()}
+          onRecordPaymentClick={vi.fn()}
+        />
+      );
+
+      // Verify no Reprint button is present
+      expect(screen.queryByRole('button', { name: /Reprint/i })).toBeNull();
+      // Should show dashes
+      const dashes = screen.getAllByText('—');
+      expect(dashes.length).toBeGreaterThanOrEqual(3);
+    });
   });
 
   describe('LedgerTab Canonical Records', () => {
@@ -218,6 +277,47 @@ describe('Reprint Receipt UI in Cash Flow Views', () => {
           })
         )
       );
+    });
+
+    it('does not render Receipt button for ineligible records (expenses, pending, zero inflow)', () => {
+      const ineligibleRecords: LedgerRecordItem[] = [
+        {
+          id: 'mov-expense',
+          transactionId: 'expense-tx-uuid',
+          dateTime: 'Oct 31, 2026, 03:00 PM',
+          reference: 'EXP-001',
+          customerSource: 'Office Depot',
+          category: 'Operational Expense',
+          method: 'Cash',
+          inflow: null,
+          outflow: 500,
+          netEffect: -500,
+          status: 'Paid',
+        },
+        {
+          id: 'mov-pending',
+          transactionId: 'pending-tx-uuid',
+          dateTime: 'Oct 31, 2026, 03:15 PM',
+          reference: 'TX-PENDING',
+          customerSource: 'Pending Client',
+          category: 'Booking Payment',
+          method: 'Cash',
+          inflow: 1000,
+          outflow: null,
+          netEffect: 1000,
+          status: 'Pending',
+        },
+      ];
+
+      render(
+        <LedgerTab
+          kpis={kpis}
+          records={ineligibleRecords}
+          businessDate="2026-10-31"
+        />
+      );
+
+      expect(screen.queryByRole('button', { name: /Receipt/i })).toBeNull();
     });
   });
 });

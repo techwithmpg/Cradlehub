@@ -459,20 +459,26 @@ export function TodayTab({
                       </span>
                     </td>
                     <td className="py-3 pl-3 text-right">
-                      <button
-                        type="button"
-                        onClick={() => handleReprint(item.id)}
-                        disabled={reprintingId === item.id}
-                        className="inline-flex items-center gap-1 px-2.5 py-1 rounded border border-[#E9E2D8] bg-white text-xs font-semibold text-[#14543e] hover:bg-[#FAF8F5] disabled:opacity-50 transition-colors"
-                        title="Reprint thermal receipt"
-                      >
-                        {reprintingId === item.id ? (
-                          <Loader2 className="w-3.5 h-3.5 animate-spin" />
-                        ) : (
-                          <Printer className="w-3.5 h-3.5" />
-                        )}
-                        <span>Reprint</span>
-                      </button>
+                      {item.status === 'paid' &&
+                      (item.type === 'Payment' || item.type === 'Deposit') &&
+                      item.amount > 0 ? (
+                        <button
+                          type="button"
+                          onClick={() => handleReprint(item.id)}
+                          disabled={reprintingId === item.id}
+                          className="inline-flex items-center gap-1 px-2.5 py-1 rounded border border-[#E9E2D8] bg-white text-xs font-semibold text-[#14543e] hover:bg-[#FAF8F5] disabled:opacity-50 transition-colors"
+                          title="Reprint thermal receipt"
+                        >
+                          {reprintingId === item.id ? (
+                            <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                          ) : (
+                            <Printer className="w-3.5 h-3.5" />
+                          )}
+                          <span>Reprint</span>
+                        </button>
+                      ) : (
+                        <span className="text-xs text-[#8A7E72]">—</span>
+                      )}
                     </td>
                   </tr>
                 ))}

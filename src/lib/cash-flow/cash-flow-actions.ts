@@ -1252,6 +1252,7 @@ export async function getPrintableReceiptAction(
       status,
       business_date,
       occurred_at,
+      created_at,
       source_type,
       source_id,
       external_reference,
@@ -1292,35 +1293,171 @@ export async function getPrintableReceiptAction(
     };
   }
 
-  const movements = Array.isArray(tx.financial_account_movements)
-    ? (tx.financial_account_movements as unknown as Array<{
-        id: string;
-        financial_account_id: string;
-        amount: number | string;
-        payment_method: string;
-        external_reference: string | null;
-      }>).map((m) => ({
-        method: String(m.payment_method),
-        amount: Math.abs(Number(m.amount) || 0),
-        reference: m.external_reference ? String(m.external_reference) : null,
-      }))
+  // 1. Transaction Type & Status Guard (Requirement 1)
+  if (!['customer_payment', 'customer_deposit'].includes(tx.transaction_type)) {
+    return {
+      ok: false,
+      error: `INVALID_TRANSACTION_TYPE: Only customer payment or deposit transactions can produce customer receipts. Found '${tx.transaction_type}'.`,
+      code: 'INVALID_TRANSACTION_TYPE',
+    };
+  }
+
+  if (tx.status !== 'posted') {
+    return {
+      ok: false,
+      error: `TRANSACTION_NOT_POSTED: Cannot generate receipt for transaction with status '${tx.status}'. Only posted transactions are eligible.`,
+      code: 'TRANSACTION_NOT_POSTED',
+    };
+  }
+
+  // 2. Source Guard (Requirement 1)
+  const sourceType = tx.source_type;
+  const sourceId = tx.source_id;
+  if ((sourceType !== 'booking_order' && sourceType !== 'legacy_booking') || !sourceId) {
+    return {
+      ok: false,
+      error: 'INVALID_TRANSACTION_SOURCE: Transaction must have a valid booking_order or legacy_booking source.',
+      code: 'INVALID_TRANSACTION_SOURCE',
+    };
+  }
+
+  // 3. Movement Integrity Guard (Strict positive amounts, no Math.abs) (Requirement 1)
+  const rawMovements = Array.isArray(tx.financial_account_movements)
+    ? tx.financial_account_movements
     : [];
 
-  const amountPaid = movements.reduce((acc, m) => acc + m.amount, 0);
+  if (rawMovements.length === 0) {
+    return {
+      ok: false,
+      error: 'INVALID_MOVEMENTS: Transaction has no financial account movements.',
+      code: 'INVALID_MOVEMENTS',
+    };
+  }
 
-  // Retrieve order or booking details
+  const movements: Array<{ method: string; amount: number; reference: string | null }> = [];
+  for (const m of rawMovements as Array<{
+    amount: unknown;
+    payment_method: unknown;
+    external_reference: unknown;
+  }>) {
+    const amt = Number(m.amount);
+    if (!Number.isFinite(amt) || amt <= 0) {
+      return {
+        ok: false,
+        error: 'INVALID_MOVEMENT_AMOUNT: Receipt movements must be positive verified amounts.',
+        code: 'INVALID_MOVEMENTS',
+      };
+    }
+    const methodStr = String(m.payment_method ?? '').trim();
+    if (!methodStr) {
+      return {
+        ok: false,
+        error: 'INVALID_PAYMENT_METHOD: Movement missing payment method.',
+        code: 'INVALID_MOVEMENTS',
+      };
+    }
+    movements.push({
+      method: methodStr,
+      amount: amt,
+      reference: m.external_reference ? String(m.external_reference) : null,
+    });
+  }
+
+  const amountPaid = Math.round(movements.reduce((acc, m) => acc + m.amount, 0) * 100) / 100;
+  if (amountPaid <= 0) {
+    return {
+      ok: false,
+      error: 'INVALID_PAYMENT_AMOUNT: Total payment amount must be greater than zero.',
+      code: 'INVALID_PAYMENT_AMOUNT',
+    };
+  }
+
+  // 4. Authoritative Historical Reconstruction (Requirement 2)
+  // Reconstruct previously paid and remaining balances at the time of the original transaction
+  // using authoritative sibling posted transactions.
+  const { data: siblingTxs, error: siblingError } = await supabase
+    .from('financial_transactions')
+    .select(`
+      id,
+      occurred_at,
+      created_at,
+      status,
+      transaction_type,
+      financial_account_movements (
+        id,
+        amount
+      )
+    `)
+    .eq('source_type', sourceType)
+    .eq('source_id', sourceId)
+    .eq('status', 'posted')
+    .in('transaction_type', ['customer_payment', 'customer_deposit']);
+
+  if (siblingError) {
+    return {
+      ok: false,
+      error: `HISTORICAL_QUERY_FAILED: Failed to fetch sibling transactions: ${siblingError.message}`,
+      code: 'HISTORICAL_QUERY_FAILED',
+    };
+  }
+
+  const allPostedTxs: Array<{
+    id: string;
+    occurred_at: string;
+    created_at?: string;
+    financial_account_movements?: unknown;
+  }> = Array.isArray(siblingTxs) ? [...siblingTxs] : [];
+
+  if (!allPostedTxs.some((t) => t.id === tx.id)) {
+    allPostedTxs.push(tx);
+  }
+
+  // Sort chronologically by occurred_at, then created_at, with id as deterministic tie-breaker
+  allPostedTxs.sort((a, b) => {
+    const timeA = new Date(a.occurred_at).getTime();
+    const timeB = new Date(b.occurred_at).getTime();
+    if (timeA !== timeB) return timeA - timeB;
+    const createdA = a.created_at ? new Date(a.created_at).getTime() : timeA;
+    const createdB = b.created_at ? new Date(b.created_at).getTime() : timeB;
+    if (createdA !== createdB) return createdA - createdB;
+    return String(a.id).localeCompare(String(b.id));
+  });
+
+  const currentIndex = allPostedTxs.findIndex((t) => t.id === tx.id);
+  if (currentIndex === -1) {
+    return {
+      ok: false,
+      error: 'HISTORICAL_POSITION_FAILED: Current transaction could not be sequenced.',
+      code: 'HISTORICAL_POSITION_FAILED',
+    };
+  }
+
+  let alreadyPaidCents = 0;
+  for (let i = 0; i < currentIndex; i++) {
+    const prior = allPostedTxs[i]!;
+    const priorMovs = Array.isArray(prior.financial_account_movements)
+      ? prior.financial_account_movements
+      : [];
+    for (const pm of priorMovs as Array<{ amount: unknown }>) {
+      const pAmt = Number(pm.amount);
+      if (Number.isFinite(pAmt) && pAmt > 0) {
+        alreadyPaidCents += Math.round(pAmt * 100);
+      }
+    }
+  }
+  const alreadyPaid = alreadyPaidCents / 100;
+
+  // Retrieve order or booking details and establish authoritative total payable
   let orderNumber = tx.external_reference || `TXN-${String(tx.id).slice(0, 8)}`;
   let customerName = tx.notes || 'Guest';
   let customerPhone: string | null = null;
   let serviceDescription = 'Spa Services';
   let visitType: 'in_spa' | 'home_service' = 'in_spa';
   let items: Array<{ description: string; amount: number }> = [];
-  let totalPayable = amountPaid;
-  let remainingBalance = 0;
-  let alreadyPaid = 0;
+  let totalPayable: number | null = null;
 
-  if (tx.source_type === 'booking_order' && tx.source_id) {
-    const { data: order } = await supabase
+  if (sourceType === 'booking_order') {
+    const { data: order, error: orderErr } = await supabase
       .from('booking_orders')
       .select(`
         id,
@@ -1328,8 +1465,16 @@ export async function getPrintableReceiptAction(
         delivery_type,
         customers:organizer_customer_id ( full_name, phone )
       `)
-      .eq('id', tx.source_id)
+      .eq('id', sourceId)
       .maybeSingle();
+
+    if (orderErr) {
+      return {
+        ok: false,
+        error: `QUERY_FAILED: Failed to fetch booking order: ${orderErr.message}`,
+        code: 'QUERY_FAILED',
+      };
+    }
 
     if (order) {
       if (order.order_number) orderNumber = order.order_number;
@@ -1339,24 +1484,19 @@ export async function getPrintableReceiptAction(
       if (cust?.phone) customerPhone = cust.phone;
     }
 
-    const { data: summary } = await supabase
-      .from('v_booking_order_financial_summaries')
-      .select('total_payable, net_allocated, remaining_balance')
-      .eq('order_id', tx.source_id)
-      .maybeSingle();
-
-    if (summary) {
-      totalPayable = Number(summary.total_payable) || totalPayable;
-      const netAllocated = Number(summary.net_allocated) || amountPaid;
-      alreadyPaid = Math.max(0, Math.round((netAllocated - amountPaid) * 100) / 100);
-      remainingBalance = Number(summary.remaining_balance) || 0;
-    }
-
-    const { data: payableItems } = await supabase
+    const { data: payableItems, error: itemsErr } = await supabase
       .from('order_payable_items')
       .select('description, amount')
-      .eq('order_id', tx.source_id)
+      .eq('order_id', sourceId)
       .order('sequence');
+
+    if (itemsErr) {
+      return {
+        ok: false,
+        error: `QUERY_FAILED: Failed to fetch payable items: ${itemsErr.message}`,
+        code: 'QUERY_FAILED',
+      };
+    }
 
     if (payableItems && payableItems.length > 0) {
       items = payableItems.map((item) => ({
@@ -1364,9 +1504,33 @@ export async function getPrintableReceiptAction(
         amount: Number(item.amount) || 0,
       }));
       serviceDescription = items.map((i) => i.description).join(', ');
+      const sumItems = items.reduce((acc, i) => acc + i.amount, 0);
+      if (sumItems > 0) {
+        totalPayable = Math.round(sumItems * 100) / 100;
+      }
     }
-  } else if (tx.source_type === 'legacy_booking' && tx.source_id) {
-    const { data: b } = await supabase
+
+    if (totalPayable === null) {
+      const { data: summary } = await supabase
+        .from('v_booking_order_financial_summaries')
+        .select('total_payable')
+        .eq('order_id', sourceId)
+        .maybeSingle();
+
+      if (summary && Number(summary.total_payable) > 0) {
+        totalPayable = Number(summary.total_payable);
+      }
+    }
+
+    if (totalPayable === null || totalPayable <= 0 || !Number.isFinite(totalPayable)) {
+      return {
+        ok: false,
+        error: 'INVALID_PAYABLE_TOTAL: Total payable amount could not be established from authoritative order records.',
+        code: 'INVALID_PAYABLE_TOTAL',
+      };
+    }
+  } else if (sourceType === 'legacy_booking') {
+    const { data: b, error: bookingErr } = await supabase
       .from('bookings')
       .select(`
         id,
@@ -1375,28 +1539,50 @@ export async function getPrintableReceiptAction(
         customers:customer_id ( full_name, phone ),
         services:service_id ( name )
       `)
-      .eq('id', tx.source_id)
+      .eq('id', sourceId)
       .maybeSingle();
 
-    if (b) {
-      orderNumber = `BK-${b.id.slice(0, 8)}`;
-      const cust = Array.isArray(b.customers) ? b.customers[0] : b.customers;
-      if (cust?.full_name) customerName = cust.full_name;
-      if (cust?.phone) customerPhone = cust.phone;
-      const svc = Array.isArray(b.services) ? b.services[0] : b.services;
-      if (svc?.name) serviceDescription = svc.name;
-      if (b.delivery_type === 'home_service') visitType = 'home_service';
-      const validatedPrice = validatedLegacyBookingPrice(b.metadata as Record<string, unknown> | null);
-      if (validatedPrice != null) {
-        totalPayable = validatedPrice;
-        remainingBalance = Math.max(0, Math.round((totalPayable - amountPaid) * 100) / 100);
-      }
+    if (bookingErr || !b) {
+      return {
+        ok: false,
+        error: 'BOOKING_NOT_FOUND: Legacy booking record could not be found.',
+        code: 'BOOKING_NOT_FOUND',
+      };
     }
+
+    orderNumber = `BK-${b.id.slice(0, 8)}`;
+    const cust = Array.isArray(b.customers) ? b.customers[0] : b.customers;
+    if (cust?.full_name) customerName = cust.full_name;
+    if (cust?.phone) customerPhone = cust.phone;
+    const svc = Array.isArray(b.services) ? b.services[0] : b.services;
+    if (svc?.name) serviceDescription = svc.name;
+    if (b.delivery_type === 'home_service') visitType = 'home_service';
+
+    const validatedPrice = validatedLegacyBookingPrice(b.metadata as Record<string, unknown> | null);
+    if (validatedPrice === null || validatedPrice <= 0 || !Number.isFinite(validatedPrice)) {
+      return {
+        ok: false,
+        error: 'INVALID_PAYABLE_TOTAL: Legacy booking price could not be established from metadata snapshot.',
+        code: 'INVALID_PAYABLE_TOTAL',
+      };
+    }
+    totalPayable = validatedPrice;
+  } else {
+    return {
+      ok: false,
+      error: 'INVALID_TRANSACTION_SOURCE: Transaction source must be booking_order or legacy_booking.',
+      code: 'INVALID_TRANSACTION_SOURCE',
+    };
   }
 
   if (items.length === 0) {
     items = [{ description: serviceDescription, amount: totalPayable }];
   }
+
+  const remainingBalance = Math.max(
+    0,
+    Math.round((totalPayable - alreadyPaid - amountPaid) * 100) / 100
+  );
 
   const branchObj = Array.isArray(tx.branches) ? tx.branches[0] : tx.branches;
   const branchName = branchObj?.name || 'Main Spa';

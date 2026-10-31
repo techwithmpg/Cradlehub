@@ -446,7 +446,11 @@ export function LedgerTab({ kpis, records, businessDate }: LedgerTabProps) {
                             </span>
                           </td>
                           <td className="py-3 pl-3 text-right">
-                            {item.transactionId && (item.category === "Booking Payment" || item.category === "Deposit" || item.inflow) ? (
+                            {item.transactionId &&
+                            item.status.toLowerCase() === "paid" &&
+                            (item.category === "Booking Payment" || item.category === "Deposit") &&
+                            typeof item.inflow === "number" &&
+                            item.inflow > 0 ? (
                               <button
                                 type="button"
                                 onClick={() => handleReprint(item.transactionId!)}
