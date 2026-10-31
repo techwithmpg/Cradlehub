@@ -17,10 +17,12 @@ import {
 } from "@/lib/attendance/scan-errors";
 import type { PublicScanResult } from "@/lib/attendance/types";
 import { withAttendanceScanResolution } from "@/lib/attendance/scan-resolution";
+import type { AttendanceLocation } from "@/lib/attendance/geofence";
 
 type PublicScanBody = {
   publicCode?: string | null;
   requestId?: string | null;
+  location?: AttendanceLocation | null;
 };
 
 function revalidatePublicScanResult(result: PublicScanResult): void {
@@ -95,6 +97,7 @@ export async function POST(request: NextRequest) {
       rawDeviceCredential,
       userAgent: request.headers.get("user-agent"),
       ipAddress: request.headers.get("x-forwarded-for") ?? request.headers.get("x-real-ip"),
+      location: input.location,
     };
     const supabase = await createClient();
     const {

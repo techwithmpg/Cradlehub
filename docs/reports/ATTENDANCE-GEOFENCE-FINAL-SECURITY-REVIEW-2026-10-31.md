@@ -1,0 +1,73 @@
+# Attendance geofence final security correction — independent-review handoff
+
+**Verdict: CORRECTION REQUIRED.** The source corrections and table-level privilege contract are verified locally. A complete CradleHub LOCAL/TEST Supabase environment was unavailable, so RPC, correction, scheduled-job, and Home Service clock-out authorization remains unproven. The full repository test and formatting gates are red on accepted main and this branch; no governance acceptance for those failures was supplied.
+
+## Authority and Git state
+
+- Owner authorization: 2026-10-31 final security review correction instruction. Branch: `fix/attendance-geofence-20261029`; worktree: `E:\cradlehub\.tmp\attendance-geofence`.
+- Original feature base/merge base: `30173eda8872dfed7675c4d6700198beb507ceb8`; reviewed starting HEAD: `194f4863fb0cbdf32911f6e214ad372c392e0583`; accepted `origin/main` checked at `82406113ffa750ca75d5f0d500ef6f558b66ad5a`.
+- The final commit and verified remote HEAD are supplied in the publication response because a commit cannot contain its own SHA. The branch was not rebased onto later main work, which is outside this correction scope.
+
+## Changed files in this correction
+
+| File                                                                     | Change                                                                                                                                                    |
+| ------------------------------------------------------------------------ | --------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `supabase/migrations/20261031021708_attendance_checkins_server_only.sql` | Revoke INSERT, UPDATE, DELETE, TRUNCATE, TRIGGER, REFERENCES, MAINTAIN from PUBLIC/anon/authenticated; fail transaction on any surviving inherited grant. |
+| `src/components/features/crm/availability/crm-availability-board.tsx`    | Replace rejected check-in/out controls with Attendance Review navigation; keep presence status.                                                           |
+| `src/components/features/crm/availability/crm-availability-client.tsx`   | Same correction in Staff List and Driver Readiness.                                                                                                       |
+| `src/components/features/staff-pwa/attendance-location-refresh.tsx`      | Warm only when server-provided enabled flag is true.                                                                                                      |
+| `src/app/(dashboard)/staff/layout.tsx`                                   | Pass authoritative `attendanceGeofenceMode() === "enabled"`.                                                                                              |
+| `src/app/(dashboard)/staff-portal/layout.tsx`                            | Pass the same authoritative flag.                                                                                                                         |
+| `tests/components/attendance/attendance-location-refresh.test.tsx`       | Disabled and enabled warm behavior plus both server layout contracts.                                                                                     |
+| `tests/components/crm/attendance-review-links.test.tsx`                  | Three CRM views keep review navigation and omit direct attendance buttons.                                                                                |
+| This report                                                              | Evidence and limitations.                                                                                                                                 |
+
+No Attendance scan engine, Home Service, CRM Services, or unrelated branch files changed. Prettier touched formatting in the two CRM components; their functional diff removes only the dormant action wiring and adds review links.
+
+## SQL, privilege, and policy contract
+
+The exact reviewed SQL is `supabase/migrations/20261031021708_attendance_checkins_server_only.sql`. The original 2026-05-23 migration had permissive `FOR ALL` policies for Owner, same-branch management, and same-branch CRM/CSR, staff-own INSERT/UPDATE policies, and a staff-own SELECT policy. The correction drops the five write-capable policies, creates corresponding Owner/manager/CRM SELECT policies, and retains staff-own SELECT. No permissive write policy remains in the isolated fixture. Table grants deny direct writes even if another permissive policy is later added. RLS does not govern TRUNCATE or REFERENCES.
+
+Read-only **PRODUCTION** catalog inspection on 2026-10-31 found direct grants of SELECT, INSERT, UPDATE, DELETE, TRUNCATE, TRIGGER, REFERENCES, and MAINTAIN to `anon`, `authenticated`, and `service_role`; `has_table_privilege` returned true for all eight on each role. Repository trigger definitions are migration-time DDL; no runtime Data API consumer of TRUNCATE, TRIGGER, REFERENCES, or MAINTAIN on this table was found. These broad defaults explain the added MAINTAIN revoke. The migration does not revoke the existing `service_role` grants; its server DML remains available. No production SQL was applied.
+
+| Role          | LOCAL fixture after correction: SELECT | INSERT/UPDATE/DELETE | TRUNCATE/TRIGGER/REFERENCES/MAINTAIN                                                  |
+| ------------- | -------------------------------------- | -------------------- | ------------------------------------------------------------------------------------- |
+| anon          | Denied                                 | Denied               | Denied                                                                                |
+| authenticated | Granted, filtered by SELECT RLS        | Denied               | Denied                                                                                |
+| service_role  | Granted                                | Granted              | No synthetic grant; production's existing direct grants are retained by the migration |
+
+The migration checks effective privileges for `anon` and `authenticated`, including inherited grants, inside the same transaction. A synthetic inherited MAINTAIN grant caused `ERROR: Unexpected inherited MAINTAIN privilege...`; all changes rolled back (six original policies and authenticated INSERT/MAINTAIN remained). Removing only that synthetic grant allowed `COMMIT`; effective `has_table_privilege` values then matched the table above. An actual authenticated LOCAL role INSERT was denied with `permission denied for table staff_shift_checkins`; additional direct-role commands were not completed after the automatic approval service returned a Bad Request review failure. Prior P0 local evidence also exercised actual authenticated INSERT/UPDATE/DELETE/TRUNCATE denial and service-role DML, but this final migration's extended privilege set is proven by the effective privilege matrix, not by those earlier commands.
+
+Fixture classification: **LOCAL**, disposable PostgreSQL 17 container `cradlehub-attendance-rls-local`, `--network none`, no host port or persistent volume. It applied only the original attendance-table migration and this correction, with minimal dependency stubs. It is not a full Supabase stack and cannot establish Auth JWT, RPC ACL, SECURITY DEFINER behavior, real correction flows, scheduled jobs, or Home Service clock-out. The only existing full local Supabase stack was MPG-Reputation and was not used. No historical local-only migrations were bulk-replayed.
+
+## Application behavior and authorization matrix
+
+| Actor/path                                                          | Direct attendance table write      | Approved path and status                                                                                                           |
+| ------------------------------------------------------------------- | ---------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------- |
+| Ordinary staff, CRM/CSR, managers, Owner via authenticated Data API | Denied by grant                    | Fresh-GPS registered-device QR scan, or authorized audited Attendance Review correction as applicable; full runtime proof pending. |
+| Staff Home Service clock-out                                        | Denied direct write                | Existing server action and service-role RPC; unchanged, runtime test pending.                                                      |
+| Scheduled recovery/closing                                          | No authenticated grant             | Existing service-role jobs/RPCs; unchanged, runtime test pending.                                                                  |
+| `service_role`                                                      | Server DML retained                | Existing scan/correction/closing paths; isolated fixture DML verified in prior P0 evidence.                                        |
+| anon                                                                | No direct write or read in fixture | No attendance mutation path.                                                                                                       |
+
+The two CRM Availability components preserve status chips and replace all rejected legacy check-in/out buttons with `/crm/attendance?tab=exceptions`, the existing authorized Attendance Review workflow. No direct attendance write was restored. Both Staff layouts now read the server geofence mode and pass `enabled` to the client warmer. Disabled or invalid mode does not acquire GPS. Enabled mode still warms only with existing permission on mount/foreground return. Scan handling still takes its own fresh location measurement; warm coordinates are not scan evidence.
+
+## Quality gates
+
+| Gate                                          | Accepted main `82406113...`                                                                                                                                               | Correction branch                                                                                                                     |
+| --------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------- |
+| `pnpm exec vitest run --maxWorkers=4`         | 2 failed, 441 passed, 2 skipped files; 2 failed, 3,368 passed, 2 skipped tests                                                                                            | 2 failed, 443 passed, 2 skipped files; 2 failed, 3,329 passed, 2 skipped tests.                                                       |
+| Known full-suite failures                     | `desktop-v1-home-service-operations.test.ts`: Home Service reschedule destination coordinates; `crm-staff-retained-mutation-contract.test.ts`: `/crm/staff` revalidation. | Same two failures observed before final test run; neither subsystem changed here.                                                     |
+| `pnpm type-check`                             | Pass                                                                                                                                                                      | Pass after final source edits.                                                                                                        |
+| `pnpm lint`                                   | Baseline warning set                                                                                                                                                      | Exit 0; 0 errors, 22 warnings.                                                                                                        |
+| Changed-file `pnpm exec prettier --check ...` | N/A                                                                                                                                                                       | Pass for all seven changed TS/TSX files.                                                                                              |
+| `pnpm format:check`                           | Exit 1, 473 warning paths                                                                                                                                                 | Exit 1, 464 warning paths before final SQL edit; no changed TS/TSX file in warnings.                                                  |
+| `pnpm exec next build --webpack`              | No production configuration supplied                                                                                                                                      | Compilation and TypeScript succeeded, prerender failed at `/about` because `supabaseUrl is required`; no production URL was injected. |
+
+The final focused attendance, scanner, Home Service pricing, and CRM link suite passed **80 files / 624 tests**. The earlier accepted 78-file / 619-test focused suite remains covered by this broader run.
+
+## Production impact, rollback, and next review
+
+Production impact so far: **none**. No production mutation, SQL application, merge, deployment, or geofence enablement. If a later authorized application fails, leave enforcement disabled and investigate the grant/policy snapshot; the transaction is atomic. If application succeeds but a runtime issue appears, disable the geofence feature flag while preserving the direct-write lockout, route clock-ins through the existing QR flow, and use Attendance Review for audited corrections. Reversing the table lockout alone would reopen the bypass and needs a separate Owner security decision. This branch can be reverted before integration; no database rollback is needed now.
+
+Independent review must first establish a classified full CradleHub LOCAL/TEST Supabase target, inspect its live grants and policies, apply only the targeted SQL, then exercise direct INSERT/UPDATE/DELETE/TRUNCATE, RPC denial, Owner/CRM correction, scheduled jobs, and Home Service clock-out. Review the two accepted-main full-suite failures for explicit governance acceptance or separate fixes, and resolve the global formatting gate. Production SQL, merge, deployment, and enforcement require later Owner authorization.

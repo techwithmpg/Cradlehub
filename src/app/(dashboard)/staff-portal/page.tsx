@@ -1,8 +1,4 @@
-import {
-  getMyTodayAction,
-  getMyTodayScheduleAction,
-  getMyDriverJobsAction,
-} from "./actions";
+import { getMyTodayAction, getMyTodayScheduleAction, getMyDriverJobsAction } from "./actions";
 import { getStaffCheckinForDate } from "@/lib/actions/staff-checkins";
 import { StaffTodayDashboard } from "@/components/features/staff-portal/staff-today-dashboard";
 import { StaffMobileHome } from "@/components/features/staff-portal/mobile/staff-mobile-home";
@@ -11,18 +7,12 @@ import { ActionRequiredList } from "@/components/features/notifications/action-r
 import { BasicStaffMobileHome } from "@/components/features/staff-portal/basic/basic-staff-mobile-home";
 import { TherapistMobileHome } from "@/components/features/staff-portal/therapist/therapist-mobile-home";
 import { DriverMobileHome } from "@/components/features/staff-portal/driver/driver-mobile-home";
-import {
-  getStaffPortalMode,
-  isBasicStaffMode,
-} from "@/lib/staff/get-staff-portal-mode";
+import { getStaffPortalMode, isBasicStaffMode } from "@/lib/staff/get-staff-portal-mode";
 import type {
   StaffPortalBooking,
   StaffPortalStaff,
 } from "@/components/features/staff-portal/types";
-import type {
-  RealDispatchItem,
-  DispatchStats,
-} from "@/lib/queries/dispatch-queries";
+import type { RealDispatchItem, DispatchStats } from "@/lib/queries/dispatch-queries";
 import { getPureAttendanceSnapshot } from "@/lib/staff-portal/attendance";
 import { StaffAttendanceSummary } from "@/components/features/staff-portal/staff-attendance-summary";
 import { StaffAttendanceRealtime } from "@/components/features/staff-portal/staff-attendance-realtime";
@@ -72,41 +62,26 @@ export default async function StaffTodayPage() {
   const isDriver = mode === "driver";
   const attendanceData = await getPureAttendanceSnapshot(30);
 
-  const scheduleResult = !isDriver
-    ? await getMyTodayScheduleAction(today)
-    : null;
+  const scheduleResult = !isDriver ? await getMyTodayScheduleAction(today) : null;
 
   const todaySchedule =
-    scheduleResult && !("error" in scheduleResult)
-      ? scheduleResult.todaySchedule
-      : null;
+    scheduleResult && !("error" in scheduleResult) ? scheduleResult.todaySchedule : null;
 
   const todayOverride =
-    scheduleResult && !("error" in scheduleResult)
-      ? scheduleResult.todayOverride
-      : null;
+    scheduleResult && !("error" in scheduleResult) ? scheduleResult.todayOverride : null;
 
-  const driverResult = isDriver
-    ? ((await getMyDriverJobsAction(today)) as DriverJobsResult)
-    : null;
+  const driverResult = isDriver ? ((await getMyDriverJobsAction(today)) as DriverJobsResult) : null;
 
-  const driverItems =
-    driverResult && !("error" in driverResult)
-      ? driverResult.items
-      : [];
+  const driverItems = driverResult && !("error" in driverResult) ? driverResult.items : [];
 
   const driverStats =
-    driverResult && !("error" in driverResult)
-      ? driverResult.stats
-      : EMPTY_DISPATCH_STATS;
+    driverResult && !("error" in driverResult) ? driverResult.stats : EMPTY_DISPATCH_STATS;
 
   const checkin =
     !isBasic && result.staff.branch_id
-      ? await getStaffCheckinForDate(
-          result.staff.id,
-          result.staff.branch_id,
-          today
-        ).catch(() => null)
+      ? await getStaffCheckinForDate(result.staff.id, result.staff.branch_id, today).catch(
+          () => null
+        )
       : null;
 
   return (
@@ -122,19 +97,11 @@ export default async function StaffTodayPage() {
 
         {result.staff.branch_id && !isBasic ? (
           <div style={{ marginBottom: "1rem" }}>
-            <StaffCheckinWidget
-              staffId={result.staff.id}
-              shiftDate={today}
-              checkin={checkin}
-            />
+            <StaffCheckinWidget checkin={checkin} />
           </div>
         ) : null}
 
-        <StaffTodayDashboard
-          staff={result.staff}
-          bookings={result.bookings}
-          date={today}
-        />
+        <StaffTodayDashboard staff={result.staff} bookings={result.bookings} date={today} />
       </div>
 
       <div className="block md:hidden">
@@ -154,35 +121,21 @@ export default async function StaffTodayPage() {
             attendanceData={attendanceData}
           />
         ) : isDriver ? (
-          <DriverMobileHome
-            staff={result.staff}
-            items={driverItems}
-            stats={driverStats}
-          />
+          <DriverMobileHome staff={result.staff} items={driverItems} stats={driverStats} />
         ) : (
           <>
             {result.staff.branch_id ? (
               <div style={{ marginBottom: "0.75rem" }}>
-                <StaffCheckinWidget
-                  staffId={result.staff.id}
-                  shiftDate={today}
-                  checkin={checkin}
-                />
+                <StaffCheckinWidget checkin={checkin} />
               </div>
             ) : null}
 
-            <StaffMobileHome
-              staff={result.staff}
-              bookings={result.bookings}
-              date={today}
-            />
+            <StaffMobileHome staff={result.staff} bookings={result.bookings} date={today} />
           </>
         )}
       </div>
 
-      {attendanceData ? (
-        <StaffAttendanceRealtime staffId={attendanceData.staffId} />
-      ) : null}
+      {attendanceData ? <StaffAttendanceRealtime staffId={attendanceData.staffId} /> : null}
     </>
   );
 }
