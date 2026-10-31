@@ -54,6 +54,25 @@ describe("attendance geofence", () => {
     expect(distanceMeters(mainLocation, nearMain)).toBeGreaterThan(100);
   });
 
+  it("uses the reported point at the Main Spa boundary without widening the approved radius for GPS uncertainty", () => {
+    const nearInside = {
+      ...mainLocation,
+      latitude: mainLocation.latitude + 99 / 111_195,
+      accuracy: 75,
+    };
+    const nearOutside = {
+      ...mainLocation,
+      latitude: mainLocation.latitude + 101 / 111_195,
+      accuracy: 75,
+    };
+    expect(distanceMeters(mainLocation, nearInside)).toBeLessThan(100);
+    expect(distanceMeters(mainLocation, nearOutside)).toBeGreaterThan(100);
+    expect(check(MAIN, mainLocation.latitude, mainLocation.longitude, nearInside)).toBeNull();
+    expect(check(MAIN, mainLocation.latitude, mainLocation.longitude, nearOutside)).toBe(
+      "location_outside"
+    );
+  });
+
   it("rejects a reading from the other branch", () => {
     expect(check(MAIN, mainLocation.latitude, mainLocation.longitude, smLocation)).toBe(
       "location_outside"

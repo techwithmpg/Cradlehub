@@ -1,6 +1,7 @@
 -- LOCAL REVIEW ONLY. Apply only after the database target is classified and approved.
--- Existing numeric(9,6) branch columns round these owner-confirmed coordinates
--- to six decimal places (well below one metre of displacement).
+-- Coordinate precision must be read from the classified target before applying.
+-- The read-only live review found unconstrained numeric columns; an older
+-- migration specified numeric(9,6), so do not assume either schema here.
 do $$
 begin
   if (select count(*) from public.branches

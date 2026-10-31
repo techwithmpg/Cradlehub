@@ -1,5 +1,9 @@
 # Attendance geofence review handoff — updated 2026-10-31
 
+> Historical review evidence for `19f7cc2e3cd59710368aeda394f2a060d0f2684c`.
+> The P0 direct-write correction and current gate results are in
+> `ATTENDANCE-GEOFENCE-P0-CORRECTION-2026-10-31.md`.
+
 **Result: REVIEW BRANCH ONLY.** The Owner authorized committing and pushing the isolated Attendance Geofencing branch for independent code and SQL review. This is not approval to merge, deploy, apply SQL, or enable production enforcement. Release remains gated by a classified LOCAL/TEST database, migration verification, indoor mobile evidence, independent review, and the Owner's later approvals.
 
 ## Scope and baseline
@@ -19,7 +23,7 @@
 - The public scan API, direct server action, and first-time registration continuation pass the reading to the same scan engine. The Staff Portal's dedicated policy-backed off-site clock-out was not changed.
 - The browser uses `getCurrentPosition` with high accuracy, zero maximum age, and a 15 s timeout for each new attendance scan. It explains the first permission request, reports denied/unavailable readings, and refreshes only on visible attendance pages after permission is granted. No continuous location upload or watch is added.
 - `.env.example` documents the disabled default and local test configuration.
-- `supabase/migrations/20261029065202_attendance_geofence_branch_coordinates.sql` prepares the Owner-confirmed branch-coordinate update. It was **not applied**. Existing `numeric(9,6)` columns round the supplied coordinates to six decimal places.
+- `supabase/migrations/20261029065202_attendance_geofence_branch_coordinates.sql` prepares the Owner-confirmed branch-coordinate update. It was **not applied**. The read-only live review reported unconstrained `numeric` columns, while an older repository migration declared `numeric(9,6)`; the target schema must be checked before application.
 
 ## Branch values and enforcement
 

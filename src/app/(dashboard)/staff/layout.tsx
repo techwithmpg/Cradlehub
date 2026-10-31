@@ -28,6 +28,7 @@ import {
 import { StaffConnectivityBanner } from "@/components/features/staff-pwa/connectivity-banner";
 import { StaffInstallPrompt } from "@/components/features/staff-pwa/install-prompt";
 import { StaffServiceWorkerRegistration } from "@/components/features/staff-pwa/staff-service-worker-registration";
+import { AttendanceLocationRefresh } from "@/components/features/staff-pwa/attendance-location-refresh";
 
 export const metadata: Metadata = {
   applicationName: "Cradle Hub",
@@ -118,11 +119,10 @@ export default async function StaffLayout({ children }: { children: ReactNode })
 
   return (
     <>
-      {prefetchConfig ? (
-        <WorkspaceRoutePrefetcher config={prefetchConfig} />
-      ) : null}
+      {prefetchConfig ? <WorkspaceRoutePrefetcher config={prefetchConfig} /> : null}
       <StaffConnectivityBanner />
       <StaffServiceWorkerRegistration />
+      <AttendanceLocationRefresh />
       <StaffInstallPrompt />
       {content}
     </>
