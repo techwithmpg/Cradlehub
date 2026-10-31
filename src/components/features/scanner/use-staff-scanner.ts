@@ -38,6 +38,8 @@ export type UseStaffScannerReturn = {
   setState: (s: ScannerState) => void;
 };
 
+const CAMERA_STARTUP_TIMEOUT_MS = 20_000;
+
 function stopStream(stream: MediaStream | null): void {
   for (const track of stream?.getTracks() ?? []) track.stop();
 }
@@ -55,6 +57,7 @@ export function useStaffScanner({ onDecode, autoStart = false }: UseStaffScanner
   const videoRef = useRef<HTMLVideoElement | null>(null);
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
   const streamRef = useRef<MediaStream | null>(null);
+  const startupTimerRef = useRef<number | null>(null);
   const animFrameRef = useRef<number | null>(null);
   const lockedRef = useRef(false);
   const mountedRef = useRef(true);
@@ -68,6 +71,8 @@ export function useStaffScanner({ onDecode, autoStart = false }: UseStaffScanner
     // Invalidate pending permission, play and native decoder promises as well as RAF.
     generationRef.current += 1;
     acquiringRef.current = false;
+    if (startupTimerRef.current !== null) window.clearTimeout(startupTimerRef.current);
+    startupTimerRef.current = null;
     if (animFrameRef.current !== null) cancelAnimationFrame(animFrameRef.current);
     animFrameRef.current = null;
     stopStream(streamRef.current);
@@ -95,13 +100,23 @@ export function useStaffScanner({ onDecode, autoStart = false }: UseStaffScanner
   }, [stopScan]);
 
   const startScan = useCallback(async () => {
-    if (!mountedRef.current || document.hidden || acquiringRef.current || streamRef.current) return;
+    if (!mountedRef.current) return;
+    if (document.hidden) {
+      setState("paused");
+      return;
+    }
+    if (acquiringRef.current || streamRef.current) return;
     stopScan();
     const generation = generationRef.current;
     const isCurrent = () => mountedRef.current && !document.hidden && generationRef.current === generation;
     lockedRef.current = false;
     acquiringRef.current = true;
     setState("permission_request");
+    startupTimerRef.current = window.setTimeout(() => {
+      if (!isCurrent()) return;
+      stopScan();
+      setState("camera_unavailable");
+    }, CAMERA_STARTUP_TIMEOUT_MS);
 
     let stream: MediaStream;
     try {
@@ -115,7 +130,7 @@ export function useStaffScanner({ onDecode, autoStart = false }: UseStaffScanner
       }
     } catch (err) {
       if (!isCurrent()) return;
-      acquiringRef.current = false;
+      stopScan();
       const name = err && typeof err === "object" && "name" in err ? err.name : "";
       setState(name === "NotAllowedError" || name === "PermissionDeniedError"
         ? "permission_denied" : "camera_unavailable");
@@ -152,6 +167,8 @@ export function useStaffScanner({ onDecode, autoStart = false }: UseStaffScanner
     }
     function startDecoder() {
       if (!isCurrent()) return;
+      if (startupTimerRef.current !== null) window.clearTimeout(startupTimerRef.current);
+      startupTimerRef.current = null;
       setState("scanning");
       if ("BarcodeDetector" in window) {
         try {

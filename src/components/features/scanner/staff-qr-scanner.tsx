@@ -299,6 +299,7 @@ function Actions({
 export function StaffQrScanner({ returnHref, locationRequired = false }: StaffQrScannerProps) {
   const location = useStaffScanLocation(locationRequired);
   const scanReady = !locationRequired || location.state === "ready";
+  const wasScanReady = useRef(scanReady);
   const router = useRouter();
 
   /**
@@ -350,8 +351,14 @@ export function StaffQrScanner({ returnHref, locationRequired = false }: StaffQr
   });
 
   useEffect(() => {
-    if (!scanReady) stopScan();
-  }, [scanReady, stopScan]);
+    if (!scanReady) {
+      stopScan();
+      if (wasScanReady.current) queueMicrotask(() => {
+        if (mountedRef.current) setState("paused");
+      });
+    }
+    wasScanReady.current = scanReady;
+  }, [scanReady, setState, stopScan]);
 
   // Decode callbacks run after mount; keep their setter reference current in an effect.
   useEffect(() => {
@@ -371,23 +378,24 @@ export function StaffQrScanner({ returnHref, locationRequired = false }: StaffQr
           ) : (
             <>
               <h2 className="text-base font-semibold">
-                {location.state === "permission_needed" ? "Allow location to scan attendance"
+                {location.state === "permission_needed" ? "Enable location for attendance"
                   : location.state === "denied" ? "Location permission is blocked"
                   : location.state === "inaccurate" ? "Improve location accuracy"
                   : "Location is unavailable"}
               </h2>
               <p className="text-sm text-[#475569]">
                 {location.state === "permission_needed"
-                  ? "Tap Enable location and allow precise location when your phone asks."
+                  ? "CradleHub needs your location to verify that you are at your assigned branch."
                   : location.state === "denied"
                     ? "Open your phone's app or browser settings, allow precise location for CradleHub, then return and retry."
                     : location.state === "inaccurate"
-                      ? `Your phone reports about ±${location.accuracyMeters ?? "?"} m accuracy. Move near the spa entrance or a window and try again (75 m required).`
-                      : "Turn on device location and precise location, move where GPS reception is better, then retry."}
+                      ? `Your phone cannot confirm your location accurately enough for attendance. Reported accuracy: ±${location.accuracyMeters ?? "?"} m (75 m required). Enable Precise Location, keep Wi-Fi and device location on, move near a window or another area with better reception, then retry.`
+                      : "Turn on device location and Precise Location, move where reception is better, then retry."}
               </p>
               <button type="button" onClick={location.request}
                 className="min-h-11 rounded-lg bg-[#163A2B] px-5 py-3 text-sm font-semibold text-white">
-                {location.state === "permission_needed" ? "Enable location" : "Try location again"}
+                {location.state === "permission_needed" ? "Enable Location"
+                  : location.state === "inaccurate" ? "Try Location Again" : "Try Again"}
               </button>
             </>
           )}

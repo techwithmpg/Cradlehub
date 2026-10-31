@@ -10,6 +10,16 @@ import {
 export type ScanLocationReadiness =
   | "checking" | "permission_needed" | "denied" | "unavailable" | "inaccurate" | "ready";
 
+function withReadinessTimeout<T>(request: Promise<T>): Promise<T> {
+  return new Promise((resolve, reject) => {
+    const timer = window.setTimeout(() => reject("location_unavailable"), 20_000);
+    request.then(
+      (value) => { window.clearTimeout(timer); resolve(value); },
+      (error) => { window.clearTimeout(timer); reject(error); }
+    );
+  });
+}
+
 /**
  * Foreground-only location readiness. Coordinates are not cached or sent here.
  * The actual QR scan requests a new fix and the server remains authoritative.
@@ -27,27 +37,29 @@ export function useStaffScanLocation(required: boolean) {
     }
     if (document.visibilityState !== "visible") return;
 
-    // Only the staff member's action may initiate the first permission prompt.
-    if (!userInitiated) {
-      const permission = await needsLocationExplanation();
-      if (generation.current !== attempt) return;
-      if (permission === "denied") {
-        setState("denied");
-        return;
-      }
-      if (permission === "explain") {
-        setState("permission_needed");
-        return;
-      }
-    }
-
-    setState("checking");
-    setAccuracyMeters(null);
     try {
-      const fix = await freshAttendanceLocation();
+      // Only the staff member's action may initiate the first permission prompt.
+      if (!userInitiated) {
+        const permission = await withReadinessTimeout(needsLocationExplanation());
+        if (generation.current !== attempt) return;
+        if (permission === "denied") {
+          setState("denied");
+          return;
+        }
+        if (permission === "explain") {
+          setState("permission_needed");
+          return;
+        }
+      }
+
+      setState("checking");
+      setAccuracyMeters(null);
+      const fix = await withReadinessTimeout(freshAttendanceLocation());
       if (generation.current !== attempt || document.visibilityState !== "visible") return;
       const age = Date.now() - fix.timestamp;
-      if (!Number.isFinite(fix.accuracy) || fix.accuracy <= 0 ||
+      if (!Number.isFinite(fix.latitude) || fix.latitude < -90 || fix.latitude > 90 ||
+          !Number.isFinite(fix.longitude) || fix.longitude < -180 || fix.longitude > 180 ||
+          !Number.isFinite(fix.accuracy) || fix.accuracy <= 0 ||
           !Number.isFinite(age) || age < -5_000 || age > MAX_ATTENDANCE_LOCATION_AGE_MS) {
         setState("unavailable");
       } else if (fix.accuracy > MAX_ATTENDANCE_LOCATION_ACCURACY_METERS) {
@@ -63,13 +75,17 @@ export function useStaffScanLocation(required: boolean) {
   }, [required]);
 
   useEffect(() => {
-    void refresh();
+    let active = true;
+    queueMicrotask(() => {
+      if (active) void refresh();
+    });
     const onVisibility = () => {
       if (document.visibilityState === "visible") void refresh();
       else generation.current += 1;
     };
     document.addEventListener("visibilitychange", onVisibility);
     return () => {
+      active = false;
       generation.current += 1;
       document.removeEventListener("visibilitychange", onVisibility);
     };
