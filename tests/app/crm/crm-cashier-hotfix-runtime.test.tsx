@@ -303,9 +303,10 @@ describe("CRM Cashier Runtime Hotfix Verification", () => {
 
       // The retry payload MUST target order-test-1, with 1000 amount, and originalKey
       const retryPayload = spyRecordOrder.mock.calls[1]?.[0];
-      expect(retryPayload.orderId).toBe("order-test-1");
-      expect(retryPayload.idempotencyKey).toBe(originalKey);
-      expect(retryPayload.payments[0]?.amount).toBe(1000);
+      expect(retryPayload).toBeDefined();
+      expect(retryPayload!.orderId).toBe("order-test-1");
+      expect(retryPayload!.idempotencyKey).toBe(originalKey);
+      expect(retryPayload!.payments[0]?.amount).toBe(1000);
     });
 
     it("propagates verification errors without clearing unresolved attempt", async () => {
