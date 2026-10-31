@@ -1,6 +1,7 @@
 -- Reviewed operation only; never run as part of an application deploy.
 -- Prerequisites: classified target, approved release window, applied and verified
--- 20261031074004_staff_clock_out_reminders.sql, and exactly four existing
+-- 20261031074004_staff_clock_out_reminders.sql and
+-- 20261031074005_crm_closing_reminder_eligibility.sql, and exactly four existing
 -- Attendance closing jobs. This adds one hourly job because the closing jobs
 -- only run near midnight and can miss a full working day.
 begin;

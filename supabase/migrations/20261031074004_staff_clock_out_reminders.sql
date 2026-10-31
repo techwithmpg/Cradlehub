@@ -74,6 +74,17 @@ begin
         select 1 from public.workspace_notifications as issued
         where issued.dedupe_key = 'staff-clock-out-reminder:' || checkin.id::text
       )
+      and not exists (
+        select 1 from public.attendance_exceptions as reviewed
+        where reviewed.checkin_id = checkin.id
+          and reviewed.branch_id = checkin.branch_id
+          and reviewed.staff_id = checkin.staff_id
+          and reviewed.exception_type = 'missed_checkout'
+          and reviewed.status = 'open'
+          and reviewed.resolution_status = 'reviewed'
+          and reviewed.reviewed_by is not null
+          and reviewed.reviewed_at is not null
+      )
       and staff.is_active = true
       and staff.archived_at is null
       and staff.merged_into_staff_id is null
@@ -108,6 +119,19 @@ begin
     v_key := 'staff-clock-out-reminder:' || v_checkin.id::text;
     if exists (select 1 from public.workspace_notifications as notification
                where notification.dedupe_key = v_key) then
+      continue;
+    end if;
+    if exists (
+      select 1 from public.attendance_exceptions as reviewed
+      where reviewed.checkin_id = v_checkin.id
+        and reviewed.branch_id = v_checkin.branch_id
+        and reviewed.staff_id = v_checkin.staff_id
+        and reviewed.exception_type = 'missed_checkout'
+        and reviewed.status = 'open'
+        and reviewed.resolution_status = 'reviewed'
+        and reviewed.reviewed_by is not null
+        and reviewed.reviewed_at is not null
+    ) then
       continue;
     end if;
 
@@ -149,7 +173,13 @@ begin
   if old.status = 'checked_in'
      and (new.status <> 'checked_in' or new.checked_out_at is not null) then
     update public.workspace_notifications
-    set status = 'resolved', resolved_at = now(), requires_action = false
+    set status = 'resolved', resolved_at = now(), requires_action = false,
+        metadata = metadata || jsonb_build_object(
+          'attendance_resolution', case
+            when new.provisional_auto_closed_at is not null then 'provisionally_closed'
+            else 'clocked_out'
+          end
+        )
     where type = 'attendance_clock_out_reminder'
       and entity_type = 'attendance_record'
       and entity_id = new.id
@@ -168,12 +198,87 @@ create trigger resolve_attendance_reminder_on_completion
   for each row
   execute function public.resolve_attendance_reminder_on_completion();
 
+-- Reviewing a linked exception acknowledges the notice without changing the
+-- canonical attendance record. The exception update and notice resolution are
+-- atomic; a repeated review cannot resolve the same notice twice.
+create or replace function public.resolve_attendance_reminder_on_review()
+returns trigger
+language plpgsql
+security definer
+set search_path = pg_catalog, public
+as $$
+begin
+  if new.status = 'open'
+     and new.exception_type = 'missed_checkout'
+     and new.resolution_status = 'reviewed'
+     and new.reviewed_by is not null
+     and new.reviewed_at is not null
+     and (old.resolution_status is distinct from new.resolution_status
+          or old.reviewed_at is distinct from new.reviewed_at)
+     and new.checkin_id is not null then
+    perform 1 from public.staff_shift_checkins as checkin
+    where checkin.id = new.checkin_id for update;
+    update public.workspace_notifications as notice
+    set status = 'resolved', resolved_at = new.reviewed_at,
+        requires_action = false, actor_staff_id = new.reviewed_by,
+        metadata = notice.metadata || jsonb_build_object(
+          'attendance_resolution', 'exception_reviewed',
+          'attendance_exception_id', new.id,
+          'reviewed_by', new.reviewed_by
+        )
+    where notice.type = 'attendance_clock_out_reminder'
+      and notice.entity_type = 'attendance_record'
+      and notice.entity_id = new.checkin_id
+      and notice.branch_id = new.branch_id
+      and notice.recipient_staff_id = new.staff_id
+      and notice.status in ('unread', 'read')
+      and notice.resolved_at is null;
+  end if;
+  return new;
+end;
+$$;
+revoke all on function public.resolve_attendance_reminder_on_review()
+  from public, anon, authenticated;
+create trigger resolve_attendance_reminder_on_review
+  after update of resolution_status, reviewed_by, reviewed_at
+  on public.attendance_exceptions
+  for each row
+  execute function public.resolve_attendance_reminder_on_review();
+
+-- Existing CRM branch-wide policies otherwise expose personal CRM notices to
+-- coworkers. Preserve broad access to legacy Closing notices.
+drop policy if exists notif_crm_branch on public.workspace_notifications;
+create policy notif_crm_branch
+  on public.workspace_notifications for select to authenticated
+  using (
+    (select public.get_auth_role()) in ('crm', 'csr', 'csr_head', 'csr_staff')
+    and target_workspace = 'crm'
+    and branch_id = (select public.get_auth_branch_id())
+    and (dedupe_key is null or dedupe_key not like 'staff-clock-out-reminder:%')
+  );
+drop policy if exists notif_crm_branch_update on public.workspace_notifications;
+create policy notif_crm_branch_update
+  on public.workspace_notifications for update to authenticated
+  using (
+    (select public.get_auth_role()) in ('crm', 'csr', 'csr_head', 'csr_staff')
+    and target_workspace = 'crm'
+    and branch_id = (select public.get_auth_branch_id())
+    and (dedupe_key is null or dedupe_key not like 'staff-clock-out-reminder:%')
+  )
+  with check (
+    (select public.get_auth_role()) in ('crm', 'csr', 'csr_head', 'csr_staff')
+    and target_workspace = 'crm'
+    and branch_id = (select public.get_auth_branch_id())
+    and (dedupe_key is null or dedupe_key not like 'staff-clock-out-reminder:%')
+  );
+
 -- Legacy role/type combinations can render a different mobile workspace than
 -- system_role alone. A reminder is accessible only to its own recipient.
 create policy attendance_reminder_recipient_read
   on public.workspace_notifications for select to authenticated
   using (
     type = 'attendance_clock_out_reminder'
+    and dedupe_key like 'staff-clock-out-reminder:%'
     and recipient_staff_id = (select public.get_auth_staff_id())
     and branch_id = (select public.get_auth_branch_id())
   );
@@ -182,11 +287,13 @@ create policy attendance_reminder_recipient_update
   on public.workspace_notifications for update to authenticated
   using (
     type = 'attendance_clock_out_reminder'
+    and dedupe_key like 'staff-clock-out-reminder:%'
     and recipient_staff_id = (select public.get_auth_staff_id())
     and branch_id = (select public.get_auth_branch_id())
   )
   with check (
     type = 'attendance_clock_out_reminder'
+    and dedupe_key like 'staff-clock-out-reminder:%'
     and recipient_staff_id = (select public.get_auth_staff_id())
     and branch_id = (select public.get_auth_branch_id())
   );

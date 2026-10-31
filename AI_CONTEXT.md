@@ -5,10 +5,13 @@
 > and personal forgotten clock-out reminders on an isolated `fix/*` branch from
 > verified main `3decb4cc35af9da3151e690e118eb386aea7ae1a`. See
 > [the review handoff](docs/reports/ATTENDANCE-COMPLETION-HANDOFF-2026-10-31.md).
-> The implementation is **CORRECTION REQUIRED** pending classified TEST/STAGING
-> database verification, the existing CRM Closing active-work reminder gap,
-> independent release re-review, and owner acceptance. No production SQL, Cron
-> activation, merge, deployment, or real mobile acceptance has been authorized.
+> The final correction pass is **CORRECTION REQUIRED for release**. The Owner
+> authorized a narrow CRM Closing reminder guard; local PostgreSQL 17.11 TEST
+> migration/RLS/operation checks and independent read-only code review found no
+> remaining P0/P1 SQL defect. The test schema and policy resolver were synthetic
+> stand-ins, and authenticated installed-PWA acceptance is **NOT VERIFIED**.
+> See the handoff for exact evidence and remaining gates. No production SQL,
+> Cron activation, merge, deployment, or real mobile acceptance was performed.
 
 > **2026-10-25 Owner-approved Operations Center foundation:** The Owner accepted an Operations Center for diagnosing and routing branch-level Attendance, account/identity and configuration issues; an initial review-branch UI implementation is authorized, including existing server-authorized Attendance correction dialogs opened inline on `stage/operations-center-foundation-20261025` at accepted main baseline `2b3bab3c9e71274c25d747daf37d7928ee670e2c`. The Owner explicitly deferred contextual Settings consolidation until the last UI pass. See `OPS-GOV-001/002/003` in `docs/11-DECISION-LOG.md` and `docs/reports/OPERATIONS-CENTER-FOUNDATION-HANDOFF-2026-10-25.md`. This is a review branch only. No new mutation APIs, schema or database edits, account merge/deletion, production data access/deployment, merge or further stage is authorized. Existing Attendance actions remain guarded by their established server permissions; any resulting mutation requires a deliberately confirmed authorized user action. Existing Marketing decisions remain unaffected.
 
