@@ -373,6 +373,12 @@ describe("CRM quick payment modal", () => {
             externalReference: null,
           },
         ],
+        orderBalance: {
+          totalPayable: 1086,
+          totalPaid: 1086,
+          remainingBalance: 0,
+          paymentState: "paid",
+        },
       },
     });
 
@@ -1000,5 +1006,136 @@ describe("CRM quick payment modal", () => {
     // Clicking does not call server
     fireEvent.click(screen.getByRole("button", { name: "Record Payment" }));
     expect(mocks.recordOrder).not.toHaveBeenCalled();
+  });
+
+  it("clears unresolved attempt and permits correction or restart on proven pre-commit validation rejection", async () => {
+    mocks.recordOrder.mockResolvedValueOnce({
+      ok: false,
+      error: "ORDER_NOT_PAYABLE: All bookings for this order are closed. Cannot record payment.",
+      code: "ORDER_NOT_PAYABLE",
+    });
+
+    render(
+      <CradleFlowQuickPaymentModal
+        data={data}
+        loading={false}
+        requestedOrderId="order-dawn"
+        {...callbacks}
+      />
+    );
+
+    await waitFor(() => expect(screen.getByLabelText("Tender 1 amount")).toBeTruthy());
+    fireEvent.click(screen.getByRole("button", { name: "Record Payment" }));
+
+    // Shows pre-commit validation error
+    await waitFor(() => {
+      expect(screen.getByText(/ORDER_NOT_PAYABLE/i)).toBeTruthy();
+    });
+
+    // Pre-commit rejection conclusively did not commit; must NOT lock screen into unresolved attempt
+    expect(screen.queryByText(/Payment Status Unresolved/i)).toBeNull();
+    expect(screen.queryByRole("button", { name: /Verify Transaction Status/i })).toBeNull();
+    // Cashier is permitted to correct or restart
+    expect((screen.getByRole("button", { name: "Record Payment" }) as HTMLButtonElement).disabled).toBe(false);
+  });
+
+  it("retains confirmed transaction identity, displays verification warning, and suppresses printing when order balances cannot be established during recovery", async () => {
+    mocks.recordOrder.mockRejectedValueOnce(new Error("Network timeout"));
+
+    render(
+      <CradleFlowQuickPaymentModal
+        data={data}
+        loading={false}
+        requestedOrderId="order-dawn"
+        {...callbacks}
+      />
+    );
+
+    await waitFor(() => expect(screen.getByLabelText("Tender 1 amount")).toBeTruthy());
+    fireEvent.click(screen.getByRole("button", { name: "Record Payment" }));
+
+    await waitFor(() => expect(screen.getByRole("button", { name: /Verify Transaction Status/i })).toBeTruthy());
+
+    mocks.verifyPayment.mockResolvedValueOnce({
+      ok: true,
+      status: "committed",
+      transaction: {
+        id: "tx-unbalanced-100",
+        branchId: "branch-main",
+        transactionType: "customer_payment",
+        status: "posted",
+        businessDate: "2026-10-26",
+        occurredAt: "2026-10-26T10:00:00Z",
+        sourceType: "booking_order",
+        sourceId: "order-dawn",
+        externalReference: null,
+        notes: null,
+        movements: [
+          {
+            id: "mov-1",
+            financialAccountId: "drawer",
+            amount: 1086,
+            paymentMethod: "cash",
+            externalReference: null,
+          },
+        ],
+        orderBalance: null, // Balances cannot be established
+      },
+    });
+
+    fireEvent.click(screen.getByRole("button", { name: /Verify Transaction Status/i }));
+
+    await waitFor(() => expect(mocks.verifyPayment).toHaveBeenCalledTimes(1));
+
+    // Must display verification warning with confirmed transaction ID
+    await waitFor(() => {
+      expect(screen.getByText(/Payment Verification Required:/i)).toBeTruthy();
+      expect(
+        screen.getByText(
+          /Transaction tx-unbalanced-100 confirmed on ledger, but authoritative payable balances could not be established/i
+        )
+      ).toBeTruthy();
+    });
+
+    expect(mocks.printReceipt).not.toHaveBeenCalled();
+    expect(screen.queryByText(/Payment Status Unresolved/i)).toBeNull();
+  });
+
+  it("rejects verification and retains unresolved attempt when movements total does not match expected collection", async () => {
+    mocks.recordOrder.mockRejectedValueOnce(new Error("Network timeout"));
+
+    render(
+      <CradleFlowQuickPaymentModal
+        data={data}
+        loading={false}
+        requestedOrderId="order-dawn"
+        {...callbacks}
+      />
+    );
+
+    await waitFor(() => expect(screen.getByLabelText("Tender 1 amount")).toBeTruthy());
+    fireEvent.click(screen.getByRole("button", { name: "Record Payment" }));
+
+    await waitFor(() => expect(screen.getByRole("button", { name: /Verify Transaction Status/i })).toBeTruthy());
+
+    mocks.verifyPayment.mockResolvedValueOnce({
+      ok: false,
+      error: "AMOUNT_MISMATCH: Transaction movements total ₱500.00, expected ₱1,086.00.",
+      code: "AMOUNT_MISMATCH",
+    });
+
+    fireEvent.click(screen.getByRole("button", { name: /Verify Transaction Status/i }));
+
+    await waitFor(() => expect(mocks.verifyPayment).toHaveBeenCalledTimes(1));
+
+    await waitFor(() => {
+      expect(
+        screen.getByText(/AMOUNT_MISMATCH: Transaction movements total ₱500.00, expected ₱1,086.00/i)
+      ).toBeTruthy();
+    });
+
+    expect(screen.getByText(/Payment Status Unresolved/i)).toBeTruthy();
+    expect(screen.getByRole("button", { name: /Verify Transaction Status/i })).toBeTruthy();
+    expect(mocks.printReceipt).not.toHaveBeenCalled();
   });
 });

@@ -97,6 +97,48 @@ const php = (amount: number) =>
 
 const cents = (amount: number) => Math.round(amount * 100);
 
+export function isProvenPrecommitRejection(error: string, code?: string): boolean {
+  const normError = (error || "").toUpperCase();
+  const normCode = (code || "").toUpperCase();
+
+  const rejectionPatterns = [
+    "VALIDATION_FAILED",
+    "AUTH_REQUIRED",
+    "STAFF_NOT_FOUND",
+    "STAFF_INACTIVE",
+    "STAFF_UNAUTHORIZED",
+    "PAYMENT_ROLE_UNAUTHORIZED",
+    "BRANCH_UNAUTHORIZED",
+    "ORDER_CHECK_FAILED",
+    "ORDER_NOT_FOUND",
+    "ORDER_NOT_PAYABLE",
+    "BOOKING_NOT_FOUND",
+    "BOOKING_NOT_PAYABLE",
+    "BOOKING_BRANCH_MISMATCH",
+    "CASH_DRAWER_REQUIRED",
+    "DRAWER_REQUIRED",
+    "DRAWER_CLOSED",
+    "DRAWER_NOT_FOUND",
+    "ACCOUNT_NOT_FOUND",
+    "ACCOUNT_INACTIVE",
+    "ACCOUNT_BRANCH_MISMATCH",
+    "ACCOUNT_CURRENCY_MISMATCH",
+    "ACCOUNT_INVALID",
+    "PAYMENT_AMOUNT_INVALID",
+    "AMOUNT_EXCEEDS_REMAINING",
+    "AMOUNT_MISMATCH",
+    "BOOKING_PRICE_SNAPSHOT_REQUIRED",
+    "ORDER_FEE_SNAPSHOT_INVALID",
+    "UNSUPPORTED_ORDER_CURRENCY",
+    "PAYMENTS_REQUIRED",
+    "IDEMPOTENCY_KEY_REQUIRED",
+  ];
+
+  return rejectionPatterns.some(
+    (p) => normCode.includes(p) || normError.includes(p)
+  );
+}
+
 export function CradleFlowQuickPaymentModal({
   data,
   loading,
@@ -322,11 +364,18 @@ export function CradleFlowQuickPaymentModal({
     setReconcileResult(null);
 
     try {
+      const expectedTenderCents = unresolvedAttempt.payments.reduce(
+        (sum, p) => sum + Math.round(p.amount * 100),
+        0
+      );
+
       const res = await verifyPaymentTransactionAction({
         idempotencyKey: unresolvedAttempt.idempotencyKey,
         branchId: unresolvedAttempt.branchId,
         sourceId: unresolvedAttempt.orderId,
         sourceType: unresolvedAttempt.sourceKind === "legacy_booking" ? "legacy_booking" : "booking_order",
+        expectedAmount: expectedTenderCents / 100,
+        expectedAmountCents: expectedTenderCents,
       });
 
       if (!res.ok) {
@@ -356,11 +405,60 @@ export function CradleFlowQuickPaymentModal({
           return;
         }
 
-        const movementsTotal = tx.movements.reduce((sum, m) => sum + m.amount, 0);
-        const amountPaid = movementsTotal > 0 ? movementsTotal : (unresolvedAttempt.totalCashTenderCents / 100);
-        const remaining = Math.max(
+        // Require all movements to contain valid, finite, positive amounts
+        if (!Array.isArray(tx.movements) || tx.movements.length === 0) {
+          setPaymentError("Transaction has no financial movements. Receipt cannot be printed.");
+          return;
+        }
+
+        let totalMovementsCents = 0;
+        for (const m of tx.movements) {
+          if (typeof m.amount !== "number" || !Number.isFinite(m.amount) || m.amount <= 0) {
+            setPaymentError(`Financial movement ${m.id} has invalid amount ${m.amount}. Receipt cannot be printed.`);
+            return;
+          }
+          totalMovementsCents += Math.round(m.amount * 100);
+        }
+
+        if (totalMovementsCents !== expectedTenderCents) {
+          setPaymentError(
+            `Transaction movements total ₱${(totalMovementsCents / 100).toFixed(2)} does not match expected collection of ₱${(expectedTenderCents / 100).toFixed(2)}. Receipt cannot be printed.`
+          );
+          return;
+        }
+
+        const amountPaidThisTx = totalMovementsCents / 100;
+
+        // Authoritative check on posted ledger balances
+        const bal = tx.orderBalance;
+        const isBalanceReliable =
+          bal &&
+          typeof bal.totalPayable === "number" &&
+          Number.isFinite(bal.totalPayable) &&
+          bal.totalPayable >= 0 &&
+          typeof bal.totalPaid === "number" &&
+          Number.isFinite(bal.totalPaid) &&
+          bal.totalPaid >= 0 &&
+          typeof bal.remainingBalance === "number" &&
+          Number.isFinite(bal.remainingBalance) &&
+          bal.remainingBalance >= 0;
+
+        if (!isBalanceReliable) {
+          // Retain confirmed transaction identity, display verification warning, do NOT print receipt
+          setUnresolvedAttempt(null);
+          setVerificationWarning(
+            `Transaction ${tx.id} confirmed on ledger, but authoritative payable balances could not be established. Check the Cash Flow ledger to verify the transaction before printing a receipt.`
+          );
+          setConfirmedReceipt(null);
+          onSuccess();
+          return;
+        }
+
+        const confirmedTotalPayable = bal.totalPayable;
+        const confirmedRemainingBalance = bal.remainingBalance;
+        const confirmedAlreadyPaid = Math.max(
           0,
-          Math.round((unresolvedAttempt.totalAmount - (unresolvedAttempt.amountPaid + amountPaid)) * 100) / 100
+          Math.round((bal.totalPaid - amountPaidThisTx) * 100) / 100
         );
 
         const receiptData: PrintableReceiptData = {
@@ -385,27 +483,21 @@ export function CradleFlowQuickPaymentModal({
                 description: item.description,
                 amount: item.amount,
               }))
-            : [{ description: unresolvedAttempt.serviceDescription, amount: unresolvedAttempt.totalAmount }],
-          totalPayable: unresolvedAttempt.totalAmount,
-          alreadyPaid: unresolvedAttempt.amountPaid,
-          amountPaid,
-          remainingBalance: remaining,
-          payments: tx.movements.length > 0
-            ? tx.movements.map((m) => {
-                const isCash = m.paymentMethod.toLowerCase().includes("cash");
-                return {
-                  method: methodLabels[m.paymentMethod as FinancialPaymentMethod] || m.paymentMethod,
-                  amount: m.amount,
-                  reference: m.externalReference ?? null,
-                  cashReceived: isCash && unresolvedAttempt.hasAnyCashReceivedEntered ? unresolvedAttempt.totalCashReceivedCents / 100 : null,
-                  change: isCash ? unresolvedAttempt.changeCents / 100 : null,
-                };
-              })
-            : unresolvedAttempt.submittedTenders.map((t) => ({
-                method: methodLabels[t.method] || t.method,
-                amount: Number(t.amount) || 0,
-                reference: t.reference.trim() || null,
-              })),
+            : [{ description: unresolvedAttempt.serviceDescription, amount: confirmedTotalPayable }],
+          totalPayable: confirmedTotalPayable,
+          alreadyPaid: confirmedAlreadyPaid,
+          amountPaid: amountPaidThisTx,
+          remainingBalance: confirmedRemainingBalance,
+          payments: tx.movements.map((m) => {
+            const isCash = m.paymentMethod.toLowerCase().includes("cash");
+            return {
+              method: methodLabels[m.paymentMethod as FinancialPaymentMethod] || m.paymentMethod,
+              amount: m.amount,
+              reference: m.externalReference ?? null,
+              cashReceived: isCash && unresolvedAttempt.hasAnyCashReceivedEntered ? unresolvedAttempt.totalCashReceivedCents / 100 : null,
+              change: isCash ? unresolvedAttempt.changeCents / 100 : null,
+            };
+          }),
           totalCashReceived:
             unresolvedAttempt.hasCashTender && unresolvedAttempt.hasAnyCashReceivedEntered
               ? unresolvedAttempt.totalCashReceivedCents / 100
@@ -528,7 +620,22 @@ export function CradleFlowQuickPaymentModal({
             });
 
       if (!result.ok) {
-        setPaymentError(result.error || "Payment could not be recorded. Refresh before retrying.");
+        const errorMsg = result.error || "Payment could not be recorded.";
+        const errorCode = "code" in result ? result.code : undefined;
+
+        if (isProvenPrecommitRejection(errorMsg, errorCode)) {
+          // Proven pre-commit validation rejection: payment conclusively did NOT commit.
+          // Permit correction or restart: clear unresolved attempt and discard attempt key.
+          setUnresolvedAttempt(null);
+          attempt.current = null;
+          setPaymentError(errorMsg);
+        } else {
+          // Uncertain commit status: retain original key and frozen request for same-key recovery.
+          setUnresolvedAttempt(frozenAttempt);
+          setPaymentError(
+            `${errorMsg} (Commit status uncertain. Please verify with ledger or retry with the identical key.)`
+          );
+        }
         return;
       }
 
@@ -609,38 +716,37 @@ export function CradleFlowQuickPaymentModal({
               : 0;
 
             if (Array.isArray(orderData.movements) && orderData.movements.length > 0) {
-              confirmedAmountPaid = orderData.movements.reduce(
-                (sum, m) => sum + (Number(m.amount) || 0),
-                0
-              );
-              confirmedMovements = orderData.movements.map((m) => {
-                const methodKey = (m.paymentMethod || "") as FinancialPaymentMethod;
-                const displayMethod =
-                  (methodKey in methodLabels ? methodLabels[methodKey] : methodKey) || "Payment";
-                return {
-                  method: displayMethod,
-                  amount: Number(m.amount) || 0,
-                  reference: m.externalReference ?? null,
-                };
-              });
-            } else {
-              const netAllocVal = Number.isFinite(orderData.netAllocated)
-                ? orderData.netAllocated
-                : Number(orderData.net_allocated);
-              if (Number.isFinite(netAllocVal) && netAllocVal > 0) {
-                confirmedAmountPaid = netAllocVal;
-              } else {
-                confirmedAmountPaid = totalTenderCents / 100;
+              let movementsValid = true;
+              let movementsSumCents = 0;
+              for (const m of orderData.movements) {
+                const amt = Number(m.amount);
+                if (!Number.isFinite(amt) || amt <= 0) {
+                  movementsValid = false;
+                  break;
+                }
+                movementsSumCents += Math.round(amt * 100);
               }
-              confirmedMovements = frozenAttempt.payments.map((line) => ({
-                method: methodLabels[line.paymentMethod] || line.paymentMethod,
-                amount: line.amount,
-                reference: line.externalReference ?? null,
-              }));
-            }
 
-            if (Math.round(confirmedAmountPaid * 100) !== totalTenderCents && !isIdempotentReplay) {
-              unverifiedReason = `Posting amount mismatch: expected ${php(totalTenderCents / 100)}, but server recorded ${php(confirmedAmountPaid)}.`;
+              if (!movementsValid) {
+                unverifiedReason = "Canonical ledger returned invalid or non-finite movement amounts.";
+              } else if (movementsSumCents !== totalTenderCents && !isIdempotentReplay) {
+                unverifiedReason = `Posting amount mismatch: expected ${php(totalTenderCents / 100)}, but movements totaled ${php(movementsSumCents / 100)}.`;
+              } else {
+                confirmedAmountPaid = movementsSumCents / 100;
+                confirmedMovements = orderData.movements.map((m) => {
+                  const methodKey = (m.paymentMethod || "") as FinancialPaymentMethod;
+                  const displayMethod =
+                    (methodKey in methodLabels ? methodLabels[methodKey] : methodKey) || "Payment";
+                  return {
+                    method: displayMethod,
+                    amount: Number(m.amount) || 0,
+                    reference: m.externalReference ?? null,
+                  };
+                });
+              }
+            } else {
+              // Canonical ledger did not return movements: do NOT substitute browser estimates!
+              unverifiedReason = "Canonical ledger did not return financial movements for this payment.";
             }
 
             const netAllocVal = Number.isFinite(orderData.netAllocated)
@@ -671,7 +777,7 @@ export function CradleFlowQuickPaymentModal({
       if (unverifiedReason || !confirmedTxnId) {
         setUnresolvedAttempt(null);
         setVerificationWarning(
-          `Payment was processed by server, but receipt confirmation is unverified (${unverifiedReason ?? "Missing confirmed transaction ID"}). Check the Cash Flow ledger to verify the transaction before printing a receipt.`
+          `Payment was processed by server (Transaction: ${confirmedTxnId || "N/A"}), but receipt confirmation is unverified (${unverifiedReason ?? "Missing confirmed transaction ID"}). Check the Cash Flow ledger to verify the transaction before printing a receipt.`
         );
         setConfirmedReceipt(null);
         onSuccess();
@@ -735,8 +841,8 @@ export function CradleFlowQuickPaymentModal({
     } catch (err) {
       setPaymentError(
         err instanceof Error
-          ? err.message
-          : "Payment submission interrupted or timed out. Please verify transaction status."
+          ? `${err.message} (Submission interrupted or timed out. Status is uncertain. Please verify with ledger or retry with the identical key.)`
+          : "Payment submission interrupted or timed out. Status is uncertain. Please verify with ledger or retry with the identical key."
       );
       setUnresolvedAttempt(frozenAttempt);
     } finally {

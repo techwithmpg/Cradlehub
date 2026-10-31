@@ -1006,6 +1006,7 @@ const VerifyPaymentTransactionInputSchema = z
     sourceType: z.enum(['booking_order', 'legacy_booking']).optional(),
     sourceKind: z.enum(['order', 'legacy_booking']).optional(),
     expectedAmount: z.number().positive().optional(),
+    expectedAmountCents: z.number().int().positive().optional(),
   })
   .refine((data) => Boolean(data.sourceId || data.orderId), {
     message: 'Either sourceId or orderId must be provided',
@@ -1021,6 +1022,13 @@ export interface VerifiedFinancialMovement {
   externalReference: string | null;
 }
 
+export interface VerifiedOrderBalance {
+  totalPayable: number;
+  totalPaid: number;
+  remainingBalance: number;
+  paymentState?: string;
+}
+
 export interface VerifiedFinancialTransaction {
   id: string;
   branchId: string;
@@ -1033,6 +1041,7 @@ export interface VerifiedFinancialTransaction {
   externalReference: string | null;
   notes: string | null;
   movements: VerifiedFinancialMovement[];
+  orderBalance?: VerifiedOrderBalance | null;
 }
 
 export type VerifyPaymentTransactionResult =
@@ -1193,23 +1202,17 @@ export async function verifyPaymentTransactionAction(
     };
   }
 
-  const movements: VerifiedFinancialMovement[] = Array.isArray(tx.financial_account_movements)
+  const rawMovements = Array.isArray(tx.financial_account_movements)
     ? (tx.financial_account_movements as unknown as Array<{
-        id: string;
-        financial_account_id: string;
-        amount: number | string;
-        payment_method: string;
-        external_reference: string | null;
-      }>).map((m) => ({
-        id: String(m.id),
-        financialAccountId: String(m.financial_account_id),
-        amount: Number(m.amount) || 0,
-        paymentMethod: String(m.payment_method),
-        externalReference: m.external_reference ? String(m.external_reference) : null,
-      }))
+        id: unknown;
+        financial_account_id: unknown;
+        amount: unknown;
+        payment_method: unknown;
+        external_reference: unknown;
+      }>)
     : [];
 
-  if (movements.length === 0) {
+  if (rawMovements.length === 0) {
     return {
       ok: false,
       error: 'NO_MOVEMENTS_FOUND: Posted transaction has no financial movements.',
@@ -1217,14 +1220,97 @@ export async function verifyPaymentTransactionAction(
     };
   }
 
-  if (payload.expectedAmount !== undefined) {
-    const totalMovements = movements.reduce((sum, m) => sum + m.amount, 0);
-    if (Math.round(totalMovements * 100) !== Math.round(payload.expectedAmount * 100)) {
+  const movements: VerifiedFinancialMovement[] = [];
+  for (const m of rawMovements) {
+    const amountNum = Number(m.amount);
+    if (!Number.isFinite(amountNum) || amountNum <= 0) {
       return {
         ok: false,
-        error: `AMOUNT_MISMATCH: Transaction movements total ₱${totalMovements.toFixed(2)}, expected ₱${payload.expectedAmount.toFixed(2)}.`,
+        error: `INVALID_MOVEMENT_AMOUNT: Financial movement ${String(m.id)} has invalid or non-finite amount.`,
+        code: 'INVALID_MOVEMENT_AMOUNT',
+      };
+    }
+    movements.push({
+      id: String(m.id),
+      financialAccountId: String(m.financial_account_id),
+      amount: amountNum,
+      paymentMethod: String(m.payment_method),
+      externalReference: m.external_reference ? String(m.external_reference) : null,
+    });
+  }
+
+  const totalMovementsCents = movements.reduce((sum, m) => sum + Math.round(m.amount * 100), 0);
+
+  const expectedCents =
+    payload.expectedAmountCents !== undefined
+      ? payload.expectedAmountCents
+      : payload.expectedAmount !== undefined
+      ? Math.round(payload.expectedAmount * 100)
+      : undefined;
+
+  if (expectedCents !== undefined) {
+    if (totalMovementsCents !== expectedCents) {
+      return {
+        ok: false,
+        error: `AMOUNT_MISMATCH: Transaction movements total ₱${(totalMovementsCents / 100).toFixed(2)}, expected ₱${(expectedCents / 100).toFixed(2)}.`,
         code: 'AMOUNT_MISMATCH',
       };
+    }
+  }
+
+  // Authoritative query for payable order/booking balance from canonical read model
+  let orderBalance: VerifiedOrderBalance | null = null;
+  if (targetSourceType === 'booking_order') {
+    const { data: summary, error: summaryError } = await supabase
+      .from('v_booking_order_financial_summaries')
+      .select('total_payable, net_allocated, remaining_balance, payment_state')
+      .eq('order_id', targetSourceId)
+      .maybeSingle();
+
+    if (!summaryError && summary) {
+      const totalPayable = Number(summary.total_payable);
+      const totalPaid = Number(summary.net_allocated);
+      const remainingBalance = Number(summary.remaining_balance);
+      if (
+        Number.isFinite(totalPayable) &&
+        Number.isFinite(totalPaid) &&
+        Number.isFinite(remainingBalance) &&
+        totalPayable >= 0 &&
+        totalPaid >= 0 &&
+        remainingBalance >= 0
+      ) {
+        orderBalance = {
+          totalPayable,
+          totalPaid,
+          remainingBalance,
+          paymentState: summary.payment_state ? String(summary.payment_state) : undefined,
+        };
+      }
+    }
+  } else if (targetSourceType === 'legacy_booking') {
+    const { data: booking, error: bookingError } = await supabase
+      .from('bookings')
+      .select('id, amount_paid, payment_status, metadata')
+      .eq('id', targetSourceId)
+      .maybeSingle();
+
+    if (!bookingError && booking) {
+      const rawTotal = (booking.metadata as Record<string, unknown> | null)?.total_amount;
+      const totalPayable = Number(rawTotal);
+      const totalPaid = Number(booking.amount_paid);
+      if (
+        Number.isFinite(totalPayable) &&
+        Number.isFinite(totalPaid) &&
+        totalPayable >= 0 &&
+        totalPaid >= 0
+      ) {
+        orderBalance = {
+          totalPayable,
+          totalPaid,
+          remainingBalance: Math.max(0, Math.round((totalPayable - totalPaid) * 100) / 100),
+          paymentState: booking.payment_status ? String(booking.payment_status) : undefined,
+        };
+      }
     }
   }
 
@@ -1243,6 +1329,7 @@ export async function verifyPaymentTransactionAction(
       externalReference: tx.external_reference ? String(tx.external_reference) : null,
       notes: tx.notes ? String(tx.notes) : null,
       movements,
+      orderBalance,
     },
   };
 }

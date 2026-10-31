@@ -9,6 +9,8 @@ vi.mock("@/lib/bookings/revalidate-booking-surfaces", () => ({
 const mockAuthGetUser = vi.fn();
 const mockStaffSelect = vi.fn();
 const mockTxSelect = vi.fn();
+const mockSummarySelect = vi.fn();
+const mockBookingSelect = vi.fn();
 
 vi.mock("@/lib/supabase/server", () => ({
   createClient: vi.fn(async () => ({
@@ -30,6 +32,24 @@ vi.mock("@/lib/supabase/server", () => ({
           select: () => ({
             eq: () => ({
               maybeSingle: mockTxSelect,
+            }),
+          }),
+        };
+      }
+      if (table === "v_booking_order_financial_summaries") {
+        return {
+          select: () => ({
+            eq: () => ({
+              maybeSingle: mockSummarySelect,
+            }),
+          }),
+        };
+      }
+      if (table === "bookings") {
+        return {
+          select: () => ({
+            eq: () => ({
+              maybeSingle: mockBookingSelect,
             }),
           }),
         };
@@ -59,6 +79,26 @@ describe("verifyPaymentTransactionAction - Transaction Identity Verification", (
         branch_id: "branch-main-1",
         system_role: "crm",
         is_active: true,
+      },
+      error: null,
+    });
+
+    mockSummarySelect.mockResolvedValue({
+      data: {
+        total_payable: 1000,
+        net_allocated: 1000,
+        remaining_balance: 0,
+        payment_state: "paid",
+      },
+      error: null,
+    });
+
+    mockBookingSelect.mockResolvedValue({
+      data: {
+        id: "booking-123",
+        amount_paid: 1000,
+        payment_status: "paid",
+        metadata: { total_amount: 1000 },
       },
       error: null,
     });
@@ -360,6 +400,84 @@ describe("verifyPaymentTransactionAction - Transaction Identity Verification", (
       expect(result.transaction.movements.length).toBe(2);
       expect(result.transaction.movements[0]?.amount).toBe(750);
       expect(result.transaction.movements[1]?.amount).toBe(250);
+      expect(result.transaction.orderBalance).toBeDefined();
+      expect(result.transaction.orderBalance?.totalPayable).toBe(1000);
+      expect(result.transaction.orderBalance?.remainingBalance).toBe(0);
+    }
+  });
+
+  it("rejects when financial movement has invalid or non-finite amount (INVALID_MOVEMENT_AMOUNT)", async () => {
+    mockTxSelect.mockResolvedValueOnce({
+      data: {
+        id: "tx-bad-movement",
+        branch_id: "branch-main-1",
+        source_id: "order-123",
+        source_type: "booking_order",
+        transaction_type: "customer_payment",
+        status: "posted",
+        business_date: "2026-10-31",
+        occurred_at: new Date().toISOString(),
+        financial_account_movements: [
+          {
+            id: "m-bad",
+            financial_account_id: "acc-drawer-1",
+            amount: 0, // Invalid: must be positive finite number
+            payment_method: "cash",
+            external_reference: null,
+          },
+        ],
+      },
+      error: null,
+    });
+
+    const result = await verifyPaymentTransactionAction({
+      idempotencyKey: "key-123",
+      branchId: "branch-main-1",
+      sourceId: "order-123",
+      sourceType: "booking_order",
+    });
+
+    expect(result.ok).toBe(false);
+    if (!result.ok) {
+      expect(result.code).toBe("INVALID_MOVEMENT_AMOUNT");
+    }
+  });
+
+  it("rejects when movements total does not match expected amount in integer cents (AMOUNT_MISMATCH)", async () => {
+    mockTxSelect.mockResolvedValueOnce({
+      data: {
+        id: "tx-amount-mismatch",
+        branch_id: "branch-main-1",
+        source_id: "order-123",
+        source_type: "booking_order",
+        transaction_type: "customer_payment",
+        status: "posted",
+        business_date: "2026-10-31",
+        occurred_at: new Date().toISOString(),
+        financial_account_movements: [
+          {
+            id: "m-1",
+            financial_account_id: "acc-drawer-1",
+            amount: 500, // Movements sum is 500
+            payment_method: "cash",
+            external_reference: null,
+          },
+        ],
+      },
+      error: null,
+    });
+
+    const result = await verifyPaymentTransactionAction({
+      idempotencyKey: "key-123",
+      branchId: "branch-main-1",
+      sourceId: "order-123",
+      sourceType: "booking_order",
+      expectedAmountCents: 100000, // Expected 1000.00 (100000 cents)
+    });
+
+    expect(result.ok).toBe(false);
+    if (!result.ok) {
+      expect(result.code).toBe("AMOUNT_MISMATCH");
     }
   });
 });
