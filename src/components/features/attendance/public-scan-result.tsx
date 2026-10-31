@@ -345,6 +345,9 @@ export function PublicScanResultView({
         <p className={styles.eyebrow}>{result.ok ? "Scan complete" : "Action needed"}</p>
         <h1>{result.title}</h1>
         <p>{result.message}</p>
+        {!result.ok && result.reasonCode === "location_outside" ? (
+          <p>If you are already at your assigned branch, enable Precise Location, keep Wi-Fi on, and move to an area with better reception before trying again. Ask CRM for Attendance Recovery if you are still rejected.</p>
+        ) : null}
         {!result.ok ? <strong className="mt-3 block text-sm">Attendance changed: No</strong> : null}
       </div>
 

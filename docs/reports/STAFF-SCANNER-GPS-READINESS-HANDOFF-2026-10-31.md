@@ -81,3 +81,25 @@ PWA and SM Branch acceptance, then owner approval. Do not merge, deploy, alter
 production SQL, or operate Cron from this PR. Revert the implementation commit
 and the original PR candidate commit on the fix branch if the scanner correction
 must be withdrawn. No Attendance data rollback or migration rollback is needed.
+
+## P1 `location_outside` retry follow-up
+
+The review of PR #55 at `dcd45178d8fa754cbc9a1ceaecd19f6ef8e69181`
+found that the definite server `location_outside` rejection displayed
+**On-site scan required** without the existing **Try location again** control.
+The processor now includes that reason in its location-retry eligibility, and
+the result explains how an on-site employee can improve GPS reception or ask
+CRM for Attendance Recovery. The button uses the existing full-page retry to
+the same QR route. That route obtains a new high-accuracy GPS reading and sends
+a new request ID through normal server authorization. The rejected attempt
+does not mutate Attendance; geofence validation remains before attendance
+processing. No server, database, branch-coordinate, or radius file changed.
+
+The new processor regression shows the outside rejection and guidance, then
+models the browser navigation with a remount because jsdom cannot navigate to
+another document. It verifies a second fresh GPS fix, a different request ID,
+one request per attempt, and a successful authorized result. Follow-up gates:
+6 relevant suites / 58 tests, TypeScript, scoped ESLint, and `git diff --check`
+passed. Independent read-only review returned **PASS**, no actionable P0/P1.
+The full-page click and installed PWA still need the controlled SM Branch
+device acceptance above. Owner approval remains required before merge/deploy.

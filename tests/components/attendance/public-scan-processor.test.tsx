@@ -117,6 +117,54 @@ describe("PublicScanProcessor first-device continuation", () => {
     expect(screen.getByRole("button", { name: "Try location again" })).toBeTruthy();
   });
 
+  it("offers on-site GPS guidance and recovers with a new fix and authorized scan", async () => {
+    const outside: PublicScanResult = {
+      ok: false,
+      outcome: "blocked",
+      reasonCode: "location_outside",
+      severity: "warning",
+      title: "On-site scan required",
+      message: "You must be on-site to scan attendance. No Attendance change was made.",
+    };
+    const initialFix = { latitude: 10.672, longitude: 122.944, accuracy: 20, timestamp: Date.now() };
+    const recoveredFix = { latitude: 10.6713191, longitude: 122.9437447,
+      accuracy: 12, timestamp: Date.now() + 1_000 };
+    browserLocationMocks.freshAttendanceLocation
+      .mockResolvedValueOnce(initialFix)
+      .mockResolvedValueOnce(recoveredFix);
+    const fetchMock = vi.fn()
+      .mockResolvedValueOnce(response(outside))
+      .mockResolvedValueOnce(response(finalAttendance));
+    vi.stubGlobal("fetch", fetchMock);
+
+    render(<PublicScanProcessor mode="scan" publicCode="SM-QR" scanBasePath="/staff/scan/process" locationRequired />);
+    await finishTimers();
+    expect(screen.getByRole("heading", { name: "On-site scan required" })).toBeTruthy();
+    expect(screen.getByText(/already at your assigned branch, enable Precise Location/)).toBeTruthy();
+    const retry = screen.getByRole("button", { name: "Try location again" });
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+
+    // jsdom cannot navigate with location.replace; remount at the same QR route
+    // to model the full-page retry initiated by the visible button.
+    const navigationLog = vi.spyOn(console, "error").mockImplementation(() => {});
+    try {
+      fireEvent.click(retry);
+    } finally {
+      navigationLog.mockRestore();
+    }
+    cleanup();
+    render(<PublicScanProcessor mode="scan" publicCode="SM-QR" scanBasePath="/staff/scan/process" locationRequired />);
+    await finishTimers();
+    expect(screen.getByRole("heading", { name: "Clocked in" })).toBeTruthy();
+    expect(browserLocationMocks.freshAttendanceLocation).toHaveBeenCalledTimes(2);
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+    const first = JSON.parse(String((fetchMock.mock.calls[0]?.[1] as RequestInit | undefined)?.body));
+    const second = JSON.parse(String((fetchMock.mock.calls[1]?.[1] as RequestInit | undefined)?.body));
+    expect(first.location).toEqual(initialFix);
+    expect(second.location).toEqual(recoveredFix);
+    expect(second.requestId).not.toBe(first.requestId);
+  });
+
   it("opens the connection form automatically and hides the technical unknown-device result", async () => {
     render(<PublicScanProcessor mode="scan" publicCode="MAIN-QR" />);
     await finishTimers();

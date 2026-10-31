@@ -382,7 +382,7 @@ export function PublicScanProcessor(props: PublicScanProcessorProps) {
           onDisconnectPhone={handleDisconnectPhone}
           onRetryLocation={locationRequired && [
             "location_permission_denied", "location_unavailable", "location_inaccurate",
-            "location_invalid", "location_stale", "location_required",
+            "location_invalid", "location_stale", "location_required", "location_outside",
           ].includes(result.reasonCode ?? "") ? restartScan : undefined}
         />
       ) : stage === "location_permission" ? (
