@@ -15,6 +15,7 @@ import {
 import {
   recordLegacyBookingPaymentAction,
   recordOrderPaymentAction,
+  verifyPaymentTransactionAction,
 } from "@/lib/cash-flow/cash-flow-actions";
 import {
   isQuickPaymentEligible,
@@ -94,6 +95,9 @@ export function CradleFlowQuickPaymentModal({
   const [notes, setNotes] = useState("");
   const [showNotes, setShowNotes] = useState(false);
   const [busy, setBusy] = useState(false);
+  const [reconciling, setReconciling] = useState(false);
+  const [reconcileResult, setReconcileResult] = useState<string | null>(null);
+  const [unresolvedAttemptKey, setUnresolvedAttemptKey] = useState<string | null>(null);
   const [paymentError, setPaymentError] = useState<string | null>(null);
   const [verificationWarning, setVerificationWarning] = useState<string | null>(null);
   const [printWarning, setPrintWarning] = useState<string | null>(null);
@@ -210,6 +214,8 @@ export function CradleFlowQuickPaymentModal({
     !error &&
     !loading &&
     !busy &&
+    !reconciling &&
+    !unresolvedAttemptKey &&
     !invalidTender &&
     !cashReceivedError &&
     !confirmedReceipt &&
@@ -250,6 +256,94 @@ export function CradleFlowQuickPaymentModal({
     setPaymentError(null);
   }
 
+  async function handleVerifyTransaction() {
+    if (!unresolvedAttemptKey || !data || !selected || reconciling) return;
+    setReconciling(true);
+    setPaymentError(null);
+    setReconcileResult(null);
+
+    try {
+      const res = await verifyPaymentTransactionAction({
+        idempotencyKey: unresolvedAttemptKey,
+        branchId: data.branchId,
+        orderId: selected.id,
+      });
+
+      if (!res.ok) {
+        setPaymentError(res.error || "Failed to verify transaction status.");
+        return;
+      }
+
+      if (res.status === "committed" && res.transaction) {
+        const tx = res.transaction;
+        const totalAmount = selected.totalAmount;
+        const movementsTotal = tx.movements.reduce((sum, m) => sum + m.amount, 0);
+        const amountPaid = movementsTotal > 0 ? movementsTotal : totalCents / 100;
+        const remaining = Math.max(0, Math.round((totalAmount - (selected.amountPaid + amountPaid)) * 100) / 100);
+
+        const receiptData: PrintableReceiptData = {
+          companyName: "CRADLE WELLNESS LIVING INC.",
+          branchName: selected.branchName || "Main Spa",
+          transactionId: tx.id,
+          orderNumber: selected.orderNumber,
+          customerName: selected.customerName,
+          customerPhone: selected.customerPhone,
+          formattedDateTime: new Date(tx.occurredAt || Date.now()).toLocaleString("en-PH", {
+            year: "numeric",
+            month: "short",
+            day: "numeric",
+            hour: "2-digit",
+            minute: "2-digit",
+            hour12: true,
+          }),
+          serviceDescription: selected.serviceDescription,
+          visitType: selected.visitType,
+          items: selected.payableItems?.length
+            ? selected.payableItems.map((item) => ({
+                description: item.description,
+                amount: item.amount,
+              }))
+            : [{ description: selected.serviceDescription, amount: totalAmount }],
+          totalPayable: totalAmount,
+          alreadyPaid: selected.amountPaid,
+          amountPaid,
+          remainingBalance: remaining,
+          payments: tx.movements.length > 0
+            ? tx.movements.map((m) => ({
+                method: m.paymentMethod,
+                amount: m.amount,
+                reference: m.externalReference,
+              }))
+            : tenders.map((t) => ({
+                method: methodLabels[t.method] || t.method,
+                amount: Number(t.amount) || 0,
+                reference: t.reference.trim() || null,
+              })),
+          totalCashReceived: hasCashTender && hasAnyCashReceivedEntered ? totalCashReceivedCents / 100 : null,
+          changeGiven: hasCashTender ? changeCents / 100 : null,
+          isIdempotentReplay: true,
+        };
+
+        setConfirmedReceipt(receiptData);
+        setUnresolvedAttemptKey(null);
+        const printed = printThermalReceipt(receiptData);
+        if (!printed) {
+          setPrintWarning(
+            "Transaction confirmed on ledger, but browser print dialog could not be opened automatically. Click 'Print Again' to retry."
+          );
+        }
+        onSuccess();
+      } else {
+        setUnresolvedAttemptKey(null);
+        setReconcileResult("Transaction not found in ledger. The previous attempt was not committed. You may safely retry payment with the same parameters or cancel.");
+      }
+    } catch (err) {
+      setPaymentError(err instanceof Error ? err.message : "Reconciliation query failed.");
+    } finally {
+      setReconciling(false);
+    }
+  }
+
   async function recordPayment() {
     if (submitting.current || !canSubmit || !data || !selected) return;
     submitting.current = true;
@@ -274,8 +368,12 @@ export function CradleFlowQuickPaymentModal({
       notes: notes.trim(),
     });
 
-    if (attempt.current?.signature !== signature)
-      attempt.current = { signature, key: crypto.randomUUID() };
+    const keyToUse =
+      attempt.current?.signature === signature && attempt.current.key
+        ? attempt.current.key
+        : crypto.randomUUID();
+    attempt.current = { signature, key: keyToUse };
+    setUnresolvedAttemptKey(keyToUse);
 
     try {
       const result =
@@ -411,22 +509,33 @@ export function CradleFlowQuickPaymentModal({
               unverifiedReason = `Posting amount mismatch: expected ${php(totalCents / 100)}, but server recorded ${php(confirmedAmountPaid)}.`;
             }
 
-            const totalPaidVal = Number.isFinite(orderData.totalPaid)
-              ? orderData.totalPaid
-              : Number(orderData.total_paid);
-            if (Number.isFinite(totalPaidVal)) {
+            const netAllocVal = Number.isFinite(orderData.netAllocated)
+              ? orderData.netAllocated
+              : Number(orderData.net_allocated);
+            if (Number.isFinite(netAllocVal) && netAllocVal > 0) {
               confirmedAlreadyPaid = Math.max(
                 0,
-                Math.round((totalPaidVal - confirmedAmountPaid) * 100) / 100
+                Math.round((netAllocVal - confirmedAmountPaid) * 100) / 100
               );
             } else {
-              confirmedAlreadyPaid = selected.amountPaid;
+              const totalPaidVal = Number.isFinite(orderData.totalPaid)
+                ? orderData.totalPaid
+                : Number(orderData.total_paid);
+              if (Number.isFinite(totalPaidVal)) {
+                confirmedAlreadyPaid = Math.max(
+                  0,
+                  Math.round((totalPaidVal - confirmedAmountPaid) * 100) / 100
+                );
+              } else {
+                confirmedAlreadyPaid = selected.amountPaid;
+              }
             }
           }
         }
       }
 
       if (unverifiedReason || !confirmedTxnId) {
+        setUnresolvedAttemptKey(null);
         setVerificationWarning(
           `Payment was processed by server, but receipt confirmation is unverified (${unverifiedReason ?? "Missing confirmed transaction ID"}). Check the Cash Flow ledger to verify the transaction before printing a receipt.`
         );
@@ -479,6 +588,7 @@ export function CradleFlowQuickPaymentModal({
       };
 
       setConfirmedReceipt(receiptData);
+      setUnresolvedAttemptKey(null);
       const printed = printThermalReceipt(receiptData);
       if (!printed) {
         setPrintWarning(
@@ -492,8 +602,9 @@ export function CradleFlowQuickPaymentModal({
       setPaymentError(
         err instanceof Error
           ? err.message
-          : "Payment result unknown. Verify the ledger before retrying."
+          : "Payment submission interrupted or timed out. Please verify transaction status."
       );
+      setUnresolvedAttemptKey(attempt.current?.key || null);
     } finally {
       submitting.current = false;
       setBusy(false);
@@ -528,6 +639,36 @@ export function CradleFlowQuickPaymentModal({
             <X size={18} />
           </button>
         </header>
+
+        {unresolvedAttemptKey ? (
+          <div
+            role="alert"
+            className="flex items-start justify-between gap-3 border-b border-amber-300 bg-amber-50 px-5 py-3 text-xs text-amber-950"
+          >
+            <div className="flex items-start gap-2">
+              <AlertTriangle size={18} className="mt-0.5 shrink-0 text-amber-700" />
+              <div>
+                <span className="font-bold">Payment Status Unresolved: </span>
+                <span>
+                  The previous payment submission encountered an interruption or timeout. Do not re-enter payment without verifying transaction status.
+                </span>
+                {reconcileResult ? (
+                  <p className="mt-1 font-medium text-amber-800">{reconcileResult}</p>
+                ) : null}
+              </div>
+            </div>
+            <div className="flex items-center gap-2">
+              <button
+                type="button"
+                onClick={() => void handleVerifyTransaction()}
+                disabled={reconciling}
+                className="rounded-lg border border-amber-400 bg-white px-3 py-1 font-semibold text-amber-900 hover:bg-amber-100 disabled:opacity-50"
+              >
+                {reconciling ? "Verifying…" : "Verify Transaction Status"}
+              </button>
+            </div>
+          </div>
+        ) : null}
 
         {verificationWarning ? (
           <div
@@ -962,8 +1103,8 @@ export function CradleFlowQuickPaymentModal({
                   <p className="text-sm font-semibold">{selected.serviceDescription}</p>
                   {selected.payableItems?.length ? (
                     <div className="mt-2 space-y-1">
-                      {selected.payableItems.map((item) => (
-                        <div key={item.id} className="flex justify-between gap-2 text-[11px]">
+                      {selected.payableItems.map((item, itemIdx) => (
+                        <div key={item.id || `payable-${itemIdx}`} className="flex justify-between gap-2 text-[11px]">
                           <span className="min-w-0 truncate">{item.description}</span>
                           <span>{php(item.amount)}</span>
                         </div>
@@ -1111,7 +1252,7 @@ export function CradleFlowQuickPaymentModal({
                   onClick={() => void recordPayment()}
                   className="rounded-lg bg-[#14543e] px-5 py-2 text-xs font-bold text-white hover:bg-[#0f402f] disabled:opacity-40"
                 >
-                  {busy ? "Recording…" : "Record Payment"}
+                  {unresolvedAttemptKey ? "Payment Unresolved" : (busy ? "Recording…" : "Record Payment")}
                 </button>
               </div>
             </>

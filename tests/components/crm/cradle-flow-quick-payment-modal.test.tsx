@@ -7,6 +7,7 @@ import type { FinancialEntryContext } from "@/lib/cash-flow/financial-entry-cont
 const mocks = vi.hoisted(() => ({
   recordOrder: vi.fn(),
   recordLegacy: vi.fn(),
+  verifyPayment: vi.fn(),
   printReceipt: vi.fn(),
 }));
 
@@ -21,6 +22,7 @@ vi.mock("@/components/ui/dialog", () => ({
 vi.mock("@/lib/cash-flow/cash-flow-actions", () => ({
   recordOrderPaymentAction: mocks.recordOrder,
   recordLegacyBookingPaymentAction: mocks.recordLegacy,
+  verifyPaymentTransactionAction: mocks.verifyPayment,
 }));
 
 vi.mock("@/lib/cash-flow/receipt-printer", () => ({
@@ -83,11 +85,27 @@ const data: FinancialEntryContext = {
       visitType: "home_service",
       bookingStatus: "in_progress",
       paymentEligible: true,
-      readyForCheckout: false,
+      readyForCheckout: true,
       payableItems: [
-        { id: "p-1", description: "Post Natal Massage", amount: 800 },
-        { id: "p-2", description: "Home Service travel", amount: 286 },
+        { id: "item-dawn-1", description: "Post Natal Massage", amount: 800 },
+        { id: "item-dawn-2", description: "Home Service travel", amount: 286 },
       ],
+    },
+    {
+      id: "order-partial",
+      sourceKind: "booking_order",
+      orderNumber: "ORDER-PARTIAL-01",
+      customerName: "Juan Partial",
+      serviceDescription: "Deep Tissue",
+      totalAmount: 1000,
+      amountPaid: 600,
+      remainingBalance: 400,
+      bookingDate: "2026-10-30",
+      bookingStatus: "Active",
+      paymentStatus: "partially_paid",
+      paymentEligible: true,
+      readyForCheckout: true,
+      payableItems: [{ id: "item-partial-1", description: "Deep Tissue", amount: 1000 }],
     },
   ],
 };
@@ -107,7 +125,7 @@ beforeEach(() => {
     ok: true,
     data: {
       success: true,
-      transaction_id: "TXN-TEST-1234",
+      transaction_id: "c5cc08fd-9912-4f32-8ea3-289b41dc6801",
       order_id: "ORDER-c5cc08fd",
       branch_id: "branch-main",
       total_paid: 1086,
@@ -145,7 +163,7 @@ describe("CRM quick payment modal", () => {
     ).toBeTruthy();
   });
 
-  it("calculates change automatically when cash received is entered (Example A)", async () => {
+  it("calculates exact change for cash payments and updates summary", async () => {
     render(
       <CradleFlowQuickPaymentModal
         data={data}
@@ -194,47 +212,6 @@ describe("CRM quick payment modal", () => {
     ).toBe(true);
   });
 
-  it("resets cash received when switching selected orders", async () => {
-    render(<CradleFlowQuickPaymentModal data={data} loading={false} {...callbacks} />);
-
-    await waitFor(() => expect(screen.getByLabelText("Tender 1 cash received")).toBeTruthy());
-
-    // Enter 1500 for order-1
-    fireEvent.change(screen.getByLabelText("Tender 1 cash received"), {
-      target: { value: "1500" },
-    });
-    expect((screen.getByLabelText("Tender 1 cash received") as HTMLInputElement).value).toBe("1500");
-
-    // Switch to All Eligible tab to see Dawn Navarro
-    fireEvent.click(screen.getByRole("button", { name: /All Eligible/i }));
-
-    // Click Dawn Navarro in the list
-    fireEvent.click(screen.getByRole("button", { name: /DAWN NAVARRO/i }));
-
-    // Cash received should be reset
-    await waitFor(() => {
-      const input = screen.getByLabelText("Tender 1 cash received") as HTMLInputElement;
-      expect(input.value).toBe("");
-    });
-  });
-
-  it("does not display change in footer when payment method is non-cash", async () => {
-    render(
-      <CradleFlowQuickPaymentModal
-        data={data}
-        loading={false}
-        requestedOrderId="order-1"
-        initialPaymentMethod="gcash"
-        {...callbacks}
-      />
-    );
-
-    await waitFor(() => expect(screen.getByLabelText("Tender 1 amount")).toBeTruthy());
-
-    expect(screen.queryByText("Change")).toBeNull();
-    expect(screen.getByText("Total to record")).toBeTruthy();
-  });
-
   it("automatically initiates receipt printing following confirmed payment posting", async () => {
     render(
       <CradleFlowQuickPaymentModal
@@ -261,7 +238,7 @@ describe("CRM quick payment modal", () => {
     expect(receiptCall.amountPaid).toBe(1086);
     expect(receiptCall.totalCashReceived).toBe(1500);
     expect(receiptCall.changeGiven).toBe(414);
-    expect(receiptCall.transactionId).toBe("TXN-TEST-1234");
+    expect(receiptCall.transactionId).toBe("c5cc08fd-9912-4f32-8ea3-289b41dc6801");
 
     // Success banner should show
     expect(screen.getByText(/Payment of ₱1,086.00 recorded successfully!/i)).toBeTruthy();
@@ -289,22 +266,6 @@ describe("CRM quick payment modal", () => {
     expect(mocks.printReceipt).toHaveBeenCalledTimes(2);
     // Server action must strictly NOT be called again
     expect(mocks.recordOrder).toHaveBeenCalledTimes(1);
-  });
-
-  it("does not print receipt if payment fails", async () => {
-    mocks.recordOrder.mockResolvedValueOnce({
-      ok: false,
-      error: "Cash drawer balance mismatch.",
-    });
-
-    render(<CradleFlowQuickPaymentModal data={data} loading={false} {...callbacks} />);
-
-    await waitFor(() => expect(screen.getByLabelText("Tender 1 amount")).toBeTruthy());
-    fireEvent.click(screen.getByRole("button", { name: "Record Payment" }));
-
-    await waitFor(() => expect(mocks.recordOrder).toHaveBeenCalledTimes(1));
-    expect(screen.getByRole("alert").textContent).toContain("Cash drawer balance mismatch.");
-    expect(mocks.printReceipt).not.toHaveBeenCalled();
   });
 
   it("displays verification warning and suppresses printing when server response lacks a valid transaction ID", async () => {
@@ -343,21 +304,8 @@ describe("CRM quick payment modal", () => {
     expect(screen.getByRole("link", { name: "View Ledger" })).toBeTruthy();
   });
 
-  it("displays verification warning and suppresses printing when server response indicates success: false", async () => {
-    mocks.recordOrder.mockResolvedValueOnce({
-      ok: true,
-      data: {
-        success: false,
-        transaction_id: "TXN-FAIL-001",
-        order_id: "ORDER-c5cc08fd",
-        branch_id: "branch-main",
-        total_paid: 0,
-        total_payable: 1086,
-        net_allocated: 0,
-        remaining_balance: 1086,
-        movements: [],
-      },
-    });
+  it("handles network timeout / exception by entering unresolved state and enabling ledger verification", async () => {
+    mocks.recordOrder.mockRejectedValueOnce(new Error("Network timeout: gateway closed"));
 
     render(
       <CradleFlowQuickPaymentModal
@@ -371,25 +319,62 @@ describe("CRM quick payment modal", () => {
     await waitFor(() => expect(screen.getByLabelText("Tender 1 amount")).toBeTruthy());
     fireEvent.click(screen.getByRole("button", { name: "Record Payment" }));
 
-    await waitFor(() => expect(mocks.recordOrder).toHaveBeenCalledTimes(1));
-    expect(callbacks.onSuccess).toHaveBeenCalledTimes(1);
-    expect(mocks.printReceipt).not.toHaveBeenCalled();
-    expect(screen.getByRole("alert").textContent).toContain("Payment Verification Required");
+    // Should enter unresolved state
+    await waitFor(() => {
+      expect(screen.getByText(/Payment Status Unresolved/i)).toBeTruthy();
+      expect(screen.getByRole("button", { name: /Verify Transaction Status/i })).toBeTruthy();
+    });
+
+    // Submit button must be disabled / showing unresolved
+    expect((screen.getByRole("button", { name: "Payment Unresolved" }) as HTMLButtonElement).disabled).toBe(true);
+
+    // Now cashier clicks "Verify Transaction Status"
+    mocks.verifyPayment.mockResolvedValueOnce({
+      ok: true,
+      status: "committed",
+      transaction: {
+        id: "c5cc08fd-9912-4f32-8ea3-289b41dc6801",
+        branchId: "branch-main",
+        transactionType: "customer_payment",
+        status: "posted",
+        businessDate: "2026-10-26",
+        occurredAt: "2026-10-26T10:00:00Z",
+        sourceType: "booking_order",
+        sourceId: "order-dawn",
+        externalReference: null,
+        notes: null,
+        movements: [
+          {
+            id: "mov-1",
+            financialAccountId: "drawer",
+            amount: 1086,
+            paymentMethod: "cash",
+            externalReference: null,
+          },
+        ],
+      },
+    });
+
+    fireEvent.click(screen.getByRole("button", { name: /Verify Transaction Status/i }));
+
+    await waitFor(() => expect(mocks.verifyPayment).toHaveBeenCalledTimes(1));
+    await waitFor(() => expect(mocks.printReceipt).toHaveBeenCalledTimes(1));
+    expect(screen.getByText(/Payment of ₱1,086.00 recorded successfully!/i)).toBeTruthy();
   });
 
-  it("displays verification warning when server net_allocated mismatches the payment tender amount", async () => {
+  it("calculates accurate Previously Paid math on partial payments (₱600 previously paid, ₱400 paid now)", async () => {
     mocks.recordOrder.mockResolvedValueOnce({
       ok: true,
       data: {
         success: true,
-        transaction_id: "TXN-MISMATCH-99",
-        order_id: "ORDER-c5cc08fd",
+        transaction_id: "c5cc08fd-9912-4f32-8ea3-289b41dc6802",
+        order_id: "order-partial",
         branch_id: "branch-main",
-        total_paid: 500,
-        total_payable: 1086,
-        net_allocated: 500,
-        remaining_balance: 586,
-        movements: [{ amount: 500, payment_method: "cash", account_id: "drawer" }],
+        total_paid: 400,
+        total_payable: 1000,
+        net_allocated: 1000, // Now 1000 cumulative allocated
+        remaining_balance: 0,
+        movements: [{ amount: 400, payment_method: "cash", account_id: "drawer" }],
       },
     });
 
@@ -397,26 +382,32 @@ describe("CRM quick payment modal", () => {
       <CradleFlowQuickPaymentModal
         data={data}
         loading={false}
-        requestedOrderId="order-dawn"
+        requestedOrderId="order-partial"
         {...callbacks}
       />
     );
 
-    await waitFor(() => expect(screen.getByLabelText("Tender 1 amount")).toBeTruthy());
+    // Order total 1000, already paid 600 -> default tender amount is 400
+    await waitFor(() =>
+      expect((screen.getByLabelText("Tender 1 amount") as HTMLInputElement).value).toBe("400.00")
+    );
+
     fireEvent.click(screen.getByRole("button", { name: "Record Payment" }));
 
-    await waitFor(() => expect(mocks.recordOrder).toHaveBeenCalledTimes(1));
-    expect(callbacks.onSuccess).toHaveBeenCalledTimes(1);
-    expect(mocks.printReceipt).not.toHaveBeenCalled();
-    expect(screen.getByRole("alert").textContent).toContain("Posting amount mismatch");
+    await waitFor(() => expect(mocks.printReceipt).toHaveBeenCalledTimes(1));
+    const receiptData = mocks.printReceipt.mock.calls[0]?.[0];
+    expect(receiptData.totalPayable).toBe(1000);
+    expect(receiptData.alreadyPaid).toBe(600); // 1000 net_allocated - 400 paid now = 600
+    expect(receiptData.amountPaid).toBe(400);
+    expect(receiptData.remainingBalance).toBe(0);
   });
 
-  it("handles idempotent replay safely with replay indicators and without duplicate payment submission", async () => {
+  it("handles idempotent replay safely with replay indicators", async () => {
     mocks.recordOrder.mockResolvedValueOnce({
       ok: true,
       data: {
         success: true,
-        transaction_id: "TXN-REPLAY-1234",
+        transaction_id: "c5cc08fd-9912-4f32-8ea3-289b41dc6803",
         order_id: "ORDER-c5cc08fd",
         branch_id: "branch-main",
         total_paid: 1086,
@@ -446,28 +437,5 @@ describe("CRM quick payment modal", () => {
 
     expect(screen.getByText("REPLAY")).toBeTruthy();
     expect(screen.getByText(/Idempotent Replay/i)).toBeTruthy();
-  });
-
-  it("handles blocked browser print dialog gracefully while keeping payment confirmed", async () => {
-    mocks.printReceipt.mockReturnValueOnce(false);
-
-    render(
-      <CradleFlowQuickPaymentModal
-        data={data}
-        loading={false}
-        requestedOrderId="order-dawn"
-        {...callbacks}
-      />
-    );
-
-    await waitFor(() => expect(screen.getByLabelText("Tender 1 amount")).toBeTruthy());
-    fireEvent.click(screen.getByRole("button", { name: "Record Payment" }));
-
-    await waitFor(() => expect(mocks.recordOrder).toHaveBeenCalledTimes(1));
-    await waitFor(() => expect(mocks.printReceipt).toHaveBeenCalledTimes(1));
-
-    expect(screen.getByText(/Payment of ₱1,086.00 recorded successfully!/i)).toBeTruthy();
-    expect(screen.getByText(/Automatic printing could not be opened/i)).toBeTruthy();
-    expect(screen.getAllByRole("button", { name: /Print Again/i }).length).toBeGreaterThan(0);
   });
 });

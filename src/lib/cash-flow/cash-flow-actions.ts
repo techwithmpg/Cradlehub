@@ -996,3 +996,181 @@ export async function handoverCashSessionAction(
     },
   };
 }
+
+export const VerifyPaymentTransactionInputSchema = z.object({
+  idempotencyKey: z.string().trim().min(1).max(255),
+  branchId: z.string().trim().min(1),
+  orderId: z.string().trim().optional(),
+});
+
+export type VerifyPaymentTransactionInput = z.infer<typeof VerifyPaymentTransactionInputSchema>;
+
+export interface VerifiedFinancialMovement {
+  id: string;
+  financialAccountId: string;
+  amount: number;
+  paymentMethod: string;
+  externalReference: string | null;
+}
+
+export interface VerifiedFinancialTransaction {
+  id: string;
+  branchId: string;
+  transactionType: string;
+  status: string;
+  businessDate: string;
+  occurredAt: string;
+  sourceType: string | null;
+  sourceId: string | null;
+  externalReference: string | null;
+  notes: string | null;
+  movements: VerifiedFinancialMovement[];
+}
+
+export type VerifyPaymentTransactionResult =
+  | {
+      ok: true;
+      status: 'committed';
+      transaction: VerifiedFinancialTransaction;
+    }
+  | {
+      ok: true;
+      status: 'not_found';
+    }
+  | {
+      ok: false;
+      error: string;
+      code?: string;
+    };
+
+export async function verifyPaymentTransactionAction(
+  input: VerifyPaymentTransactionInput
+): Promise<VerifyPaymentTransactionResult> {
+  const parsed = VerifyPaymentTransactionInputSchema.safeParse(input);
+  if (!parsed.success) {
+    return {
+      ok: false,
+      error: 'VALIDATION_FAILED: ' + parsed.error.issues.map((i) => i.message).join('; '),
+      code: 'VALIDATION_FAILED',
+    };
+  }
+  const payload = parsed.data;
+  const supabase = await createClient();
+
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+
+  if (!user) {
+    return {
+      ok: false,
+      error: 'AUTH_REQUIRED: Authentication required to verify transactions.',
+      code: 'AUTH_REQUIRED',
+    };
+  }
+
+  // Verify staff role & branch access
+  const { data: staff, error: staffError } = await supabase
+    .from('staff')
+    .select('id, branch_id, system_role, is_active')
+    .eq('auth_user_id', user.id)
+    .maybeSingle();
+
+  if (staffError || !staff || !staff.is_active) {
+    return {
+      ok: false,
+      error: 'STAFF_NOT_FOUND: Active staff record required.',
+      code: 'STAFF_UNAUTHORIZED',
+    };
+  }
+
+  if (!['owner', 'manager', 'assistant_manager', 'store_manager', 'crm'].includes(staff.system_role)) {
+    return {
+      ok: false,
+      error: 'PAYMENT_ROLE_UNAUTHORIZED: Role cannot verify transactions.',
+      code: 'PAYMENT_ROLE_UNAUTHORIZED',
+    };
+  }
+
+  if (staff.system_role !== 'owner' && staff.branch_id !== payload.branchId) {
+    return {
+      ok: false,
+      error: 'BRANCH_UNAUTHORIZED: Caller branch does not match transaction branch.',
+      code: 'BRANCH_UNAUTHORIZED',
+    };
+  }
+
+  // Authoritative query against public.financial_transactions governed by RLS
+  const { data: tx, error: txError } = await supabase
+    .from('financial_transactions')
+    .select(`
+      id,
+      branch_id,
+      transaction_type,
+      status,
+      business_date,
+      occurred_at,
+      source_type,
+      source_id,
+      external_reference,
+      notes,
+      financial_account_movements (
+        id,
+        financial_account_id,
+        amount,
+        payment_method,
+        external_reference
+      )
+    `)
+    .eq('idempotency_key', payload.idempotencyKey)
+    .maybeSingle();
+
+  if (txError) {
+    return {
+      ok: false,
+      error: `QUERY_FAILED: ${txError.message}`,
+      code: txError.code || 'QUERY_FAILED',
+    };
+  }
+
+  if (!tx) {
+    return {
+      ok: true,
+      status: 'not_found',
+    };
+  }
+
+  const movements: VerifiedFinancialMovement[] = Array.isArray(tx.financial_account_movements)
+    ? (tx.financial_account_movements as unknown as Array<{
+        id: string;
+        financial_account_id: string;
+        amount: number | string;
+        payment_method: string;
+        external_reference: string | null;
+      }>).map((m) => ({
+        id: String(m.id),
+        financialAccountId: String(m.financial_account_id),
+        amount: Number(m.amount) || 0,
+        paymentMethod: String(m.payment_method),
+        externalReference: m.external_reference ? String(m.external_reference) : null,
+      }))
+    : [];
+
+  return {
+    ok: true,
+    status: 'committed',
+    transaction: {
+      id: String(tx.id),
+      branchId: String(tx.branch_id),
+      transactionType: String(tx.transaction_type),
+      status: String(tx.status),
+      businessDate: String(tx.business_date),
+      occurredAt: String(tx.occurred_at),
+      sourceType: tx.source_type ? String(tx.source_type) : null,
+      sourceId: tx.source_id ? String(tx.source_id) : null,
+      externalReference: tx.external_reference ? String(tx.external_reference) : null,
+      notes: tx.notes ? String(tx.notes) : null,
+      movements,
+    },
+  };
+}
