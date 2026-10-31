@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import { AlertTriangle, CheckCircle2, Info, Plus, Printer, X } from "lucide-react";
 import { Dialog, DialogContent, DialogTitle } from "@/components/ui/dialog";
@@ -104,6 +104,25 @@ export function CradleFlowQuickPaymentModal({
   const [confirmedReceipt, setConfirmedReceipt] = useState<PrintableReceiptData | null>(null);
   const submitting = useRef(false);
   const attempt = useRef<{ signature: string; key: string } | null>(null);
+  const printedTxIdsRef = useRef<Set<string>>(new Set());
+  const autoCloseTimerRef = useRef<NodeJS.Timeout | null>(null);
+
+  useEffect(() => {
+    return () => {
+      if (autoCloseTimerRef.current) {
+        clearTimeout(autoCloseTimerRef.current);
+        autoCloseTimerRef.current = null;
+      }
+    };
+  }, []);
+
+  const handleClose = () => {
+    if (autoCloseTimerRef.current) {
+      clearTimeout(autoCloseTimerRef.current);
+      autoCloseTimerRef.current = null;
+    }
+    if (!busy) onClose();
+  };
 
   const eligible = useMemo(() => (data?.payableOrders ?? []).filter(isQuickPaymentEligible), [data]);
   const ready = eligible.filter((order) => order.readyForCheckout && order.amountPaid === 0);
@@ -326,13 +345,30 @@ export function CradleFlowQuickPaymentModal({
 
         setConfirmedReceipt(receiptData);
         setUnresolvedAttemptKey(null);
-        const printed = printThermalReceipt(receiptData);
+
+        let printed = false;
+        if (!printedTxIdsRef.current.has(receiptData.transactionId)) {
+          printedTxIdsRef.current.add(receiptData.transactionId);
+          printed = printThermalReceipt(receiptData);
+        } else {
+          printed = true;
+        }
+
         if (!printed) {
           setPrintWarning(
             "Transaction confirmed on ledger, but browser print dialog could not be opened automatically. Click 'Print Again' to retry."
           );
+        } else {
+          setPrintWarning(null);
         }
         onSuccess();
+
+        if (printed) {
+          if (autoCloseTimerRef.current) clearTimeout(autoCloseTimerRef.current);
+          autoCloseTimerRef.current = setTimeout(() => {
+            handleClose();
+          }, 1200);
+        }
       } else {
         setUnresolvedAttemptKey(null);
         setReconcileResult("Transaction not found in ledger. The previous attempt was not committed. You may safely retry payment with the same parameters or cancel.");
@@ -589,7 +625,15 @@ export function CradleFlowQuickPaymentModal({
 
       setConfirmedReceipt(receiptData);
       setUnresolvedAttemptKey(null);
-      const printed = printThermalReceipt(receiptData);
+
+      let printed = false;
+      if (!printedTxIdsRef.current.has(receiptData.transactionId)) {
+        printedTxIdsRef.current.add(receiptData.transactionId);
+        printed = printThermalReceipt(receiptData);
+      } else {
+        printed = true;
+      }
+
       if (!printed) {
         setPrintWarning(
           "Automatic printing could not be opened. Click 'Print Again' to retry, or check browser print permissions."
@@ -598,6 +642,13 @@ export function CradleFlowQuickPaymentModal({
         setPrintWarning(null);
       }
       onSuccess();
+
+      if (printed) {
+        if (autoCloseTimerRef.current) clearTimeout(autoCloseTimerRef.current);
+        autoCloseTimerRef.current = setTimeout(() => {
+          handleClose();
+        }, 1200);
+      }
     } catch (err) {
       setPaymentError(
         err instanceof Error
@@ -615,7 +666,7 @@ export function CradleFlowQuickPaymentModal({
     <Dialog
       open
       onOpenChange={(open) => {
-        if (!open && !busy) onClose();
+        if (!open && !busy) handleClose();
       }}
     >
       <DialogContent
@@ -631,7 +682,7 @@ export function CradleFlowQuickPaymentModal({
           </div>
           <button
             type="button"
-            onClick={onClose}
+            onClick={handleClose}
             disabled={busy}
             aria-label="Close payment"
             className="rounded-lg p-1 text-[#786d61] hover:bg-[#f5f0e9]"
@@ -691,7 +742,7 @@ export function CradleFlowQuickPaymentModal({
               </Link>
               <button
                 type="button"
-                onClick={onClose}
+                onClick={handleClose}
                 className="rounded-lg bg-amber-800 px-3 py-1 font-bold text-white hover:bg-amber-900"
               >
                 Close
@@ -729,7 +780,7 @@ export function CradleFlowQuickPaymentModal({
                 </button>
                 <button
                   type="button"
-                  onClick={onClose}
+                  onClick={handleClose}
                   className="rounded-lg bg-[#14543e] px-4 py-1 font-bold text-white hover:bg-[#0f402f]"
                 >
                   Done
@@ -1211,7 +1262,7 @@ export function CradleFlowQuickPaymentModal({
                 </button>
                 <button
                   type="button"
-                  onClick={onClose}
+                  onClick={handleClose}
                   className="rounded-lg bg-[#14543e] px-5 py-2 text-xs font-bold text-white hover:bg-[#0f402f]"
                 >
                   Done
@@ -1240,7 +1291,7 @@ export function CradleFlowQuickPaymentModal({
               <div className="flex gap-2">
                 <button
                   type="button"
-                  onClick={onClose}
+                  onClick={handleClose}
                   disabled={busy}
                   className="rounded-lg border border-[#e9e2d8] px-4 py-2 text-xs font-semibold hover:bg-[#FAF8F5]"
                 >

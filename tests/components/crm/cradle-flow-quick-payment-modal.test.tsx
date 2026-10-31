@@ -764,4 +764,112 @@ describe("CRM quick payment modal", () => {
     fireEvent.click(screen.getByRole("button", { name: "Record Payment" }));
     expect(mocks.recordOrder).not.toHaveBeenCalled();
   });
+
+  it("does not render any download or save as PDF buttons in normal checkout", async () => {
+    render(<CradleFlowQuickPaymentModal data={data} loading={false} {...callbacks} />);
+    expect(screen.queryByText(/download/i)).toBeNull();
+    expect(screen.queryByText(/save as pdf/i)).toBeNull();
+    expect(screen.queryByText(/export pdf/i)).toBeNull();
+  });
+
+  it("automatically auto-closes the modal after successful payment and print dispatch", async () => {
+    vi.useFakeTimers({ shouldAdvanceTime: true });
+    try {
+      render(
+        <CradleFlowQuickPaymentModal
+          data={data}
+          loading={false}
+          requestedOrderId="order-dawn"
+          {...callbacks}
+        />
+      );
+
+      await waitFor(() => expect(screen.getByLabelText("Tender 1 cash received")).toBeTruthy());
+      fireEvent.change(screen.getByLabelText("Tender 1 cash received"), {
+        target: { value: "1500" },
+      });
+      fireEvent.click(screen.getByRole("button", { name: "Record Payment" }));
+
+      await waitFor(() => expect(mocks.recordOrder).toHaveBeenCalledTimes(1));
+      await waitFor(() => expect(mocks.printReceipt).toHaveBeenCalledTimes(1));
+
+      expect(callbacks.onClose).not.toHaveBeenCalled();
+
+      // Advance timers by 1300ms
+      vi.advanceTimersByTime(1300);
+
+      expect(callbacks.onClose).toHaveBeenCalledTimes(1);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it("deduplicates automatic printing per transaction ID across re-renders", async () => {
+    const { rerender } = render(
+      <CradleFlowQuickPaymentModal
+        data={data}
+        loading={false}
+        requestedOrderId="order-dawn"
+        {...callbacks}
+      />
+    );
+
+    await waitFor(() => expect(screen.getByLabelText("Tender 1 cash received")).toBeTruthy());
+    fireEvent.change(screen.getByLabelText("Tender 1 cash received"), {
+      target: { value: "1500" },
+    });
+    fireEvent.click(screen.getByRole("button", { name: "Record Payment" }));
+
+    await waitFor(() => expect(mocks.recordOrder).toHaveBeenCalledTimes(1));
+    await waitFor(() => expect(mocks.printReceipt).toHaveBeenCalledTimes(1));
+
+    // Force re-render with new data reference
+    rerender(
+      <CradleFlowQuickPaymentModal
+        data={{ ...data }}
+        loading={false}
+        requestedOrderId="order-dawn"
+        {...callbacks}
+      />
+    );
+
+    // printReceipt should still only have been called once
+    expect(mocks.printReceipt).toHaveBeenCalledTimes(1);
+  });
+
+  it("keeps payment confirmed and modal open when print dialog fails, showing Print Again", async () => {
+    mocks.printReceipt.mockReturnValue(false);
+
+    render(
+      <CradleFlowQuickPaymentModal
+        data={data}
+        loading={false}
+        requestedOrderId="order-dawn"
+        {...callbacks}
+      />
+    );
+
+    await waitFor(() => expect(screen.getByLabelText("Tender 1 cash received")).toBeTruthy());
+    fireEvent.change(screen.getByLabelText("Tender 1 cash received"), {
+      target: { value: "1500" },
+    });
+    fireEvent.click(screen.getByRole("button", { name: "Record Payment" }));
+
+    await waitFor(() => expect(mocks.recordOrder).toHaveBeenCalledTimes(1));
+    await waitFor(() => expect(mocks.printReceipt).toHaveBeenCalledTimes(1));
+
+    // Notice text that print was blocked
+    expect(screen.getByText(/Automatic printing could not be opened/i)).toBeTruthy();
+
+    // Modal is NOT closed
+    expect(callbacks.onClose).not.toHaveBeenCalled();
+
+    // User can manually click Print Again
+    const printAgainButtons = screen.getAllByRole("button", { name: /Print Again/i });
+    expect(printAgainButtons.length).toBeGreaterThan(0);
+
+    mocks.printReceipt.mockReturnValue(true);
+    fireEvent.click(printAgainButtons[0]!);
+    expect(mocks.printReceipt).toHaveBeenCalledTimes(2);
+  });
 });

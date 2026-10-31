@@ -75,6 +75,7 @@ export interface LedgerKpiSummary {
 
 export interface LedgerRecordItem {
   id: string;
+  transactionId?: string;
   dateTime: string;
   reference: string;
   customerSource: string;

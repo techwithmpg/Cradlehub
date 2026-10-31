@@ -8,6 +8,10 @@ import { z } from 'zod';
 import { recordBookingPaymentChange } from '@/lib/bookings/payment-transaction';
 import { validatedLegacyBookingPrice } from './legacy-booking-price';
 import {
+  isValidAuthoritativeTransactionId,
+  type PrintableReceiptData,
+} from './receipt-printer';
+import {
   EXPENSE_RECEIPT_BUCKET,
   makeExpenseReceiptPath,
   validateExpenseReceipt,
@@ -1172,5 +1176,260 @@ export async function verifyPaymentTransactionAction(
       notes: tx.notes ? String(tx.notes) : null,
       movements,
     },
+  };
+}
+
+const GetPrintableReceiptInputSchema = z.string().trim().refine(isValidAuthoritativeTransactionId, {
+  message: 'Invalid authoritative transaction ID',
+});
+
+export type GetPrintableReceiptResult =
+  | {
+      ok: true;
+      data: PrintableReceiptData;
+    }
+  | {
+      ok: false;
+      error: string;
+      code?: string;
+    };
+
+export async function getPrintableReceiptAction(
+  transactionId: string
+): Promise<GetPrintableReceiptResult> {
+  const parsed = GetPrintableReceiptInputSchema.safeParse(transactionId);
+  if (!parsed.success) {
+    return {
+      ok: false,
+      error: 'VALIDATION_FAILED: Invalid transaction ID.',
+      code: 'VALIDATION_FAILED',
+    };
+  }
+
+  const supabase = await createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+
+  if (!user) {
+    return {
+      ok: false,
+      error: 'AUTH_REQUIRED: Authentication required to retrieve receipts.',
+      code: 'AUTH_REQUIRED',
+    };
+  }
+
+  // Verify staff role & branch access
+  const { data: staff, error: staffError } = await supabase
+    .from('staff')
+    .select('id, branch_id, system_role, is_active')
+    .eq('auth_user_id', user.id)
+    .maybeSingle();
+
+  if (staffError || !staff || !staff.is_active) {
+    return {
+      ok: false,
+      error: 'STAFF_NOT_FOUND: Active staff record required.',
+      code: 'STAFF_UNAUTHORIZED',
+    };
+  }
+
+  if (!['owner', 'manager', 'assistant_manager', 'store_manager', 'crm'].includes(staff.system_role)) {
+    return {
+      ok: false,
+      error: 'PAYMENT_ROLE_UNAUTHORIZED: Role cannot retrieve receipts.',
+      code: 'PAYMENT_ROLE_UNAUTHORIZED',
+    };
+  }
+
+  // Fetch transaction with movements and branch
+  const { data: tx, error: txError } = await supabase
+    .from('financial_transactions')
+    .select(`
+      id,
+      branch_id,
+      transaction_type,
+      status,
+      business_date,
+      occurred_at,
+      source_type,
+      source_id,
+      external_reference,
+      notes,
+      branches ( name ),
+      financial_account_movements (
+        id,
+        financial_account_id,
+        amount,
+        payment_method,
+        external_reference
+      )
+    `)
+    .eq('id', transactionId)
+    .maybeSingle();
+
+  if (txError) {
+    return {
+      ok: false,
+      error: `QUERY_FAILED: ${txError.message}`,
+      code: txError.code || 'QUERY_FAILED',
+    };
+  }
+
+  if (!tx) {
+    return {
+      ok: false,
+      error: 'TRANSACTION_NOT_FOUND: Financial transaction not found.',
+      code: 'TRANSACTION_NOT_FOUND',
+    };
+  }
+
+  if (staff.system_role !== 'owner' && staff.branch_id !== tx.branch_id) {
+    return {
+      ok: false,
+      error: 'BRANCH_UNAUTHORIZED: Caller branch does not match transaction branch.',
+      code: 'BRANCH_UNAUTHORIZED',
+    };
+  }
+
+  const movements = Array.isArray(tx.financial_account_movements)
+    ? (tx.financial_account_movements as unknown as Array<{
+        id: string;
+        financial_account_id: string;
+        amount: number | string;
+        payment_method: string;
+        external_reference: string | null;
+      }>).map((m) => ({
+        method: String(m.payment_method),
+        amount: Math.abs(Number(m.amount) || 0),
+        reference: m.external_reference ? String(m.external_reference) : null,
+      }))
+    : [];
+
+  const amountPaid = movements.reduce((acc, m) => acc + m.amount, 0);
+
+  // Retrieve order or booking details
+  let orderNumber = tx.external_reference || `TXN-${String(tx.id).slice(0, 8)}`;
+  let customerName = tx.notes || 'Guest';
+  let customerPhone: string | null = null;
+  let serviceDescription = 'Spa Services';
+  let visitType: 'in_spa' | 'home_service' = 'in_spa';
+  let items: Array<{ description: string; amount: number }> = [];
+  let totalPayable = amountPaid;
+  let remainingBalance = 0;
+  let alreadyPaid = 0;
+
+  if (tx.source_type === 'booking_order' && tx.source_id) {
+    const { data: order } = await supabase
+      .from('booking_orders')
+      .select(`
+        id,
+        order_number,
+        delivery_type,
+        customers:organizer_customer_id ( full_name, phone )
+      `)
+      .eq('id', tx.source_id)
+      .maybeSingle();
+
+    if (order) {
+      if (order.order_number) orderNumber = order.order_number;
+      if (order.delivery_type === 'home_service') visitType = 'home_service';
+      const cust = Array.isArray(order.customers) ? order.customers[0] : order.customers;
+      if (cust?.full_name) customerName = cust.full_name;
+      if (cust?.phone) customerPhone = cust.phone;
+    }
+
+    const { data: summary } = await supabase
+      .from('v_booking_order_financial_summaries')
+      .select('total_payable, net_allocated, remaining_balance')
+      .eq('order_id', tx.source_id)
+      .maybeSingle();
+
+    if (summary) {
+      totalPayable = Number(summary.total_payable) || totalPayable;
+      const netAllocated = Number(summary.net_allocated) || amountPaid;
+      alreadyPaid = Math.max(0, Math.round((netAllocated - amountPaid) * 100) / 100);
+      remainingBalance = Number(summary.remaining_balance) || 0;
+    }
+
+    const { data: payableItems } = await supabase
+      .from('order_payable_items')
+      .select('description, amount')
+      .eq('order_id', tx.source_id)
+      .order('sequence');
+
+    if (payableItems && payableItems.length > 0) {
+      items = payableItems.map((item) => ({
+        description: item.description || 'Service',
+        amount: Number(item.amount) || 0,
+      }));
+      serviceDescription = items.map((i) => i.description).join(', ');
+    }
+  } else if (tx.source_type === 'legacy_booking' && tx.source_id) {
+    const { data: b } = await supabase
+      .from('bookings')
+      .select(`
+        id,
+        delivery_type,
+        metadata,
+        customers:customer_id ( full_name, phone ),
+        services:service_id ( name )
+      `)
+      .eq('id', tx.source_id)
+      .maybeSingle();
+
+    if (b) {
+      orderNumber = `BK-${b.id.slice(0, 8)}`;
+      const cust = Array.isArray(b.customers) ? b.customers[0] : b.customers;
+      if (cust?.full_name) customerName = cust.full_name;
+      if (cust?.phone) customerPhone = cust.phone;
+      const svc = Array.isArray(b.services) ? b.services[0] : b.services;
+      if (svc?.name) serviceDescription = svc.name;
+      if (b.delivery_type === 'home_service') visitType = 'home_service';
+      const validatedPrice = validatedLegacyBookingPrice(b.metadata as Record<string, unknown> | null);
+      if (validatedPrice != null) {
+        totalPayable = validatedPrice;
+        remainingBalance = Math.max(0, Math.round((totalPayable - amountPaid) * 100) / 100);
+      }
+    }
+  }
+
+  if (items.length === 0) {
+    items = [{ description: serviceDescription, amount: totalPayable }];
+  }
+
+  const branchObj = Array.isArray(tx.branches) ? tx.branches[0] : tx.branches;
+  const branchName = branchObj?.name || 'Main Spa';
+
+  const receiptData: PrintableReceiptData = {
+    companyName: 'CRADLE WELLNESS LIVING INC.',
+    branchName,
+    transactionId: String(tx.id),
+    orderNumber,
+    customerName,
+    customerPhone,
+    formattedDateTime: new Date(String(tx.occurred_at)).toLocaleString('en-PH', {
+      year: 'numeric',
+      month: 'short',
+      day: 'numeric',
+      hour: '2-digit',
+      minute: '2-digit',
+      hour12: true,
+    }),
+    serviceDescription,
+    visitType,
+    items,
+    totalPayable,
+    alreadyPaid,
+    amountPaid,
+    remainingBalance,
+    payments: movements,
+    isReprint: true,
+    receiptLabel: 'PAYMENT ACKNOWLEDGMENT',
+  };
+
+  return {
+    ok: true,
+    data: receiptData,
   };
 }

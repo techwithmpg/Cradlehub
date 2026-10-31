@@ -831,6 +831,7 @@ export async function getCashFlowData(
       const isInflow = amt > 0;
       allLedgerRecords.push({
         id: m.id,
+        transactionId: tx.id,
         dateTime: formatDateTimeString(m.created_at || tx.occurred_at),
         reference: m.external_reference || tx.external_reference || `TX-${tx.id.slice(0, 8)}`,
         customerSource:

@@ -13,9 +13,14 @@ import {
   ChevronLeft,
   ChevronRight,
   Filter,
+  Printer,
+  Loader2,
+  AlertCircle,
 } from "lucide-react";
 import { CashFlowKpiCard } from "./cash-flow-kpi-card";
 import { useSheetNativeReferences } from "@/components/features/crm/master-sheet/use-sheet-native-references";
+import { printThermalReceipt } from "@/lib/cash-flow/receipt-printer";
+import { getPrintableReceiptAction } from "@/lib/cash-flow/cash-flow-actions";
 import type { SheetTransactionReference } from "@/lib/integrations/google-sheets/sheet-native-types";
 import type { LedgerKpiSummary, LedgerRecordItem } from "@/lib/cash-flow/cash-flow-types";
 
@@ -48,7 +53,29 @@ export function LedgerTab({ kpis, records, businessDate }: LedgerTabProps) {
   const [statusFilter, setStatusFilter] = useState("all");
   const [pageSize, setPageSize] = useState(12);
   const [currentPage, setCurrentPage] = useState(1);
+  const [reprintingId, setReprintingId] = useState<string | null>(null);
+  const [reprintError, setReprintError] = useState<string | null>(null);
   const { state: sheetState, isLoading: sheetLoading } = useSheetNativeReferences(businessDate);
+
+  const handleReprint = async (transactionId: string) => {
+    setReprintingId(transactionId);
+    setReprintError(null);
+    try {
+      const res = await getPrintableReceiptAction(transactionId);
+      if (!res.ok) {
+        setReprintError(res.error || "Failed to retrieve receipt");
+        return;
+      }
+      const printed = printThermalReceipt({ ...res.data, isReprint: true });
+      if (!printed) {
+        setReprintError("Print dialog could not be opened automatically. Please check printer connection or browser permissions.");
+      }
+    } catch (err) {
+      setReprintError(err instanceof Error ? err.message : "Failed to print receipt");
+    } finally {
+      setReprintingId(null);
+    }
+  };
 
   const formatPeso = (val: number) =>
     `₱${val.toLocaleString("en-PH", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
@@ -286,6 +313,22 @@ export function LedgerTab({ kpis, records, businessDate }: LedgerTabProps) {
         </div>
 
         {/* Ledger Table */}
+        {reprintError ? (
+          <div className="mb-3 flex items-center justify-between rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-800">
+            <div className="flex items-center gap-2">
+              <AlertCircle className="w-4 h-4 shrink-0 text-amber-600" />
+              <span>{reprintError}</span>
+            </div>
+            <button
+              type="button"
+              onClick={() => setReprintError(null)}
+              className="text-amber-700 hover:text-amber-900 font-semibold"
+            >
+              Dismiss
+            </button>
+          </div>
+        ) : null}
+
         {presentationRows.length === 0 ? (
           <div className="py-16 text-center">
             <Filter className="w-8 h-8 text-[#9C8878] mx-auto mb-2 opacity-50" />
@@ -309,7 +352,7 @@ export function LedgerTab({ kpis, records, businessDate }: LedgerTabProps) {
                   <th className="py-2.5 px-3 text-right font-semibold">NET EFFECT</th>
                   <th className="py-2.5 px-3 text-right font-semibold">EVIDENCE AMOUNT</th>
                   <th className="py-2.5 px-3 text-center font-semibold">STATUS</th>
-                  <th className="py-2.5 pl-3 text-right font-semibold">MENU</th>
+                  <th className="py-2.5 pl-3 text-right font-semibold">ACTION</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-[#F0ECE5]">
@@ -403,9 +446,26 @@ export function LedgerTab({ kpis, records, businessDate }: LedgerTabProps) {
                             </span>
                           </td>
                           <td className="py-3 pl-3 text-right">
-                            <button className="p-1 rounded hover:bg-[#EAE4DC] text-[#9C8878] hover:text-[#1E1916]">
-                              <MoreHorizontal className="w-4 h-4" />
-                            </button>
+                            {item.transactionId && (item.category === "Booking Payment" || item.category === "Deposit" || item.inflow) ? (
+                              <button
+                                type="button"
+                                onClick={() => handleReprint(item.transactionId!)}
+                                disabled={reprintingId === item.transactionId}
+                                className="inline-flex items-center gap-1 px-2 py-0.5 rounded border border-[#E9E2D8] bg-white text-[11px] font-semibold text-[#14543e] hover:bg-[#FAF8F5] disabled:opacity-50 transition-colors"
+                                title="Reprint thermal receipt"
+                              >
+                                {reprintingId === item.transactionId ? (
+                                  <Loader2 className="w-3 h-3 animate-spin" />
+                                ) : (
+                                  <Printer className="w-3 h-3" />
+                                )}
+                                <span>Receipt</span>
+                              </button>
+                            ) : (
+                              <button className="p-1 rounded hover:bg-[#EAE4DC] text-[#9C8878] hover:text-[#1E1916]">
+                                <MoreHorizontal className="w-4 h-4" />
+                              </button>
+                            )}
                           </td>
                         </tr>
                       );

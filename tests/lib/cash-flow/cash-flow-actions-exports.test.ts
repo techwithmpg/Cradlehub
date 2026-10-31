@@ -18,11 +18,13 @@ describe("cash-flow-actions Next.js Server Components Export Boundary", () => {
     }
   });
 
-  it("does not export VerifyPaymentTransactionInputSchema as a runtime object", () => {
+  it("does not export VerifyPaymentTransactionInputSchema or GetPrintableReceiptInputSchema as a runtime object", () => {
     expect("VerifyPaymentTransactionInputSchema" in cashFlowActions).toBe(false);
+    expect("GetPrintableReceiptInputSchema" in cashFlowActions).toBe(false);
   });
 
-  it("exports verifyPaymentTransactionAction as a function", () => {
+  it("exports verifyPaymentTransactionAction and getPrintableReceiptAction as functions", () => {
     expect(typeof cashFlowActions.verifyPaymentTransactionAction).toBe("function");
+    expect(typeof cashFlowActions.getPrintableReceiptAction).toBe("function");
   });
 });

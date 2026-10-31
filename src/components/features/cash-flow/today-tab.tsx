@@ -1,15 +1,19 @@
 'use client';
 
-import React from 'react';
+import React, { useState } from 'react';
 import {
   Banknote,
   CreditCard,
   CalendarCheck,
   Clock,
-  MoreHorizontal,
   ChevronDown,
+  Printer,
+  Loader2,
+  AlertCircle,
 } from 'lucide-react';
 import { CashFlowKpiCard } from './cash-flow-kpi-card';
+import { printThermalReceipt } from '@/lib/cash-flow/receipt-printer';
+import { getPrintableReceiptAction } from '@/lib/cash-flow/cash-flow-actions';
 import type {
   TodayKpiSummary,
   PaymentMixItem,
@@ -46,6 +50,29 @@ export function TodayTab({
   const netOperationalFlow = totalInflow - expenseOutflow;
   const unreconciledBookingCount = kpis.unreconciledBookingCount || 0;
   const attentionCount = kpis.needsPaymentCount + unreconciledBookingCount;
+
+  const [reprintingId, setReprintingId] = useState<string | null>(null);
+  const [reprintError, setReprintError] = useState<string | null>(null);
+
+  const handleReprint = async (transactionId: string) => {
+    setReprintingId(transactionId);
+    setReprintError(null);
+    try {
+      const res = await getPrintableReceiptAction(transactionId);
+      if (!res.ok) {
+        setReprintError(res.error || 'Failed to retrieve receipt');
+        return;
+      }
+      const printed = printThermalReceipt({ ...res.data, isReprint: true });
+      if (!printed) {
+        setReprintError('Print dialog could not be opened automatically. Please check printer connection or browser permissions.');
+      }
+    } catch (err) {
+      setReprintError(err instanceof Error ? err.message : 'Failed to print receipt');
+    } finally {
+      setReprintingId(null);
+    }
+  };
 
   return (
     <div className="space-y-4">
@@ -347,6 +374,22 @@ export function TodayTab({
           </button>
         </div>
 
+        {reprintError ? (
+          <div className="mt-3 flex items-center justify-between rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-800">
+            <div className="flex items-center gap-2">
+              <AlertCircle className="w-4 h-4 shrink-0 text-amber-600" />
+              <span>{reprintError}</span>
+            </div>
+            <button
+              type="button"
+              onClick={() => setReprintError(null)}
+              className="text-amber-700 hover:text-amber-900 font-semibold"
+            >
+              Dismiss
+            </button>
+          </div>
+        ) : null}
+
         {recentPayments.length === 0 ? (
           <div className="py-12 text-center">
             <p className="text-sm font-medium text-[#1E1916]">No financial activity recorded today</p>
@@ -372,7 +415,7 @@ export function TodayTab({
                   <th className="py-2.5 px-3 font-semibold">PAYMENT METHOD</th>
                   <th className="py-2.5 px-3 text-right font-semibold">AMOUNT</th>
                   <th className="py-2.5 px-3 text-center font-semibold">STATUS</th>
-                  <th className="py-2.5 pl-3 text-right font-semibold">MENU</th>
+                  <th className="py-2.5 pl-3 text-right font-semibold">RECEIPT</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-[#F0ECE5]">
@@ -416,8 +459,19 @@ export function TodayTab({
                       </span>
                     </td>
                     <td className="py-3 pl-3 text-right">
-                      <button className="p-1 rounded hover:bg-[#EAE4DC] text-[#9C8878] hover:text-[#1E1916]">
-                        <MoreHorizontal className="w-4 h-4" />
+                      <button
+                        type="button"
+                        onClick={() => handleReprint(item.id)}
+                        disabled={reprintingId === item.id}
+                        className="inline-flex items-center gap-1 px-2.5 py-1 rounded border border-[#E9E2D8] bg-white text-xs font-semibold text-[#14543e] hover:bg-[#FAF8F5] disabled:opacity-50 transition-colors"
+                        title="Reprint thermal receipt"
+                      >
+                        {reprintingId === item.id ? (
+                          <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                        ) : (
+                          <Printer className="w-3.5 h-3.5" />
+                        )}
+                        <span>Reprint</span>
                       </button>
                     </td>
                   </tr>
