@@ -6,7 +6,7 @@ import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { addDaysToYmd } from "@/lib/attendance/time";
 import { getAttendanceSettingsReadOnly } from "@/lib/attendance/queries";
-import { getAttendanceBranchNow } from "@/lib/attendance/shift-instance";
+import { branchDateTimeToIsoInTimezone, getAttendanceBranchNow } from "@/lib/attendance/shift-instance";
 import {
   resolveAttendanceDayStaffStates,
   type AttendanceDayStaffState,
@@ -63,6 +63,7 @@ type CheckinRow = {
   id: string;
   branch_id: string;
   shift_date: string;
+  attendance_business_date: string | null;
   shift_type: string;
   scheduled_start_at: string | null;
   scheduled_end_at: string | null;
@@ -231,7 +232,7 @@ export const getPureAttendanceSnapshot = cache(async (
     supabase
       .from("staff_shift_checkins")
       .select(
-        "id, branch_id, shift_date, shift_type, scheduled_start_at, scheduled_end_at, checked_in_at, checked_out_at, status, attendance_status, exception_state, worked_minutes, late_minutes, early_leave_minutes, overtime_minutes, attendance_expected_end_at, earliest_normal_clock_out_at, latest_normal_clock_out_at, attendance_policy_source, attendance_policy_snapshot, provisional_auto_closed_at, clock_out_confirmation_required, actual_clock_out_reconciled_at"
+        "id, branch_id, shift_date, attendance_business_date, shift_type, scheduled_start_at, scheduled_end_at, checked_in_at, checked_out_at, status, attendance_status, exception_state, worked_minutes, late_minutes, early_leave_minutes, overtime_minutes, attendance_expected_end_at, earliest_normal_clock_out_at, latest_normal_clock_out_at, attendance_policy_source, attendance_policy_snapshot, provisional_auto_closed_at, clock_out_confirmation_required, actual_clock_out_reconciled_at"
       )
       .eq("staff_id", staff.id)
       .eq("is_test", false)
@@ -274,13 +275,39 @@ export const getPureAttendanceSnapshot = cache(async (
 
   const history = ((checkinsResult.data ?? []) as CheckinRow[]).map(mapCheckin);
   const rawCheckins = (checkinsResult.data ?? []) as CheckinRow[];
-  const todayRecords = history.filter((record) => record.shiftDate === today);
-  // An overnight shift keeps its original Attendance business date after midnight.
+  const currentBusinessDateRows = rawCheckins.filter(
+    (row) => (row.attendance_business_date ?? row.shift_date) === today
+  );
+  const currentBusinessDateRow = currentBusinessDateRows[0] ?? null;
+  const previousBusinessDate = addDaysToYmd(today, -1);
+  const nowMs = Date.now();
+  const localMidnightMs = Date.parse(branchDateTimeToIsoInTimezone({
+    date: today,
+    time: "00:00:00",
+    timezone: branchNow.timezone,
+  }));
+  const maximumOvernightAgeMs = 36 * 60 * 60 * 1000;
+  // An overdue overnight shift can still need a real clock-out. Bound the
+  // fallback by business date, a recorded end crossing midnight, and shift age.
+  const overnightOpenRow = currentBusinessDateRow === null && branchNow.localDate === today
+    ? rawCheckins.find((row) =>
+        (row.attendance_business_date ?? row.shift_date) === previousBusinessDate &&
+        row.status === "checked_in" && !row.checked_out_at &&
+        Date.parse(row.checked_in_at) <= nowMs &&
+        Date.parse(row.checked_in_at) >= nowMs - maximumOvernightAgeMs &&
+        [row.scheduled_end_at, row.attendance_expected_end_at, row.latest_normal_clock_out_at]
+          .some((endAt) => endAt !== null && Date.parse(endAt) >= localMidnightMs)
+      ) ?? null
+    : null;
   const currentOpenRow =
-    rawCheckins.find((row) => row.status === "checked_in" && !row.checked_out_at) ?? null;
+    currentBusinessDateRow?.status === "checked_in" && !currentBusinessDateRow.checked_out_at
+      ? currentBusinessDateRow
+      : overnightOpenRow;
   const currentRecord =
     (currentOpenRow ? history.find((record) => record.id === currentOpenRow.id) : null) ??
-    todayRecords[0] ??
+    (currentBusinessDateRow
+      ? history.find((record) => record.id === currentBusinessDateRow.id)
+      : null) ??
     null;
   const currentClockState =
     currentRecord?.status === "checked_in"
@@ -441,18 +468,21 @@ export const getPureAttendanceSnapshot = cache(async (
     }
   }
 
+  const displayedClockState = currentRecord
+    ? currentClockState
+    : todayState.operationalStatus === "clocked_in" || todayState.operationalStatus === "on_service"
+      ? "clocked_in"
+      : todayState.operationalStatus === "clocked_out"
+        ? "clocked_out"
+        : currentClockState;
+
   return {
     staffId: staff.id,
     staffName: staff.full_name,
     today,
     scheduleLabel,
     scheduleState,
-    currentClockState:
-      currentOpenRow || todayState.operationalStatus === "clocked_in" || todayState.operationalStatus === "on_service"
-        ? "clocked_in"
-        : todayState.operationalStatus === "clocked_out"
-          ? "clocked_out"
-          : currentClockState,
+    currentClockState: displayedClockState,
     currentRecord,
     todayState,
     history,

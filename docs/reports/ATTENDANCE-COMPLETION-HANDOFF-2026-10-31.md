@@ -29,8 +29,9 @@ catalog checks must be repeated before any deployment.
   calls the existing `clockOutFromStaffPortalAction`, which delegates to
   `commit_attendance_portal_clock_out`. The client sends no staff, branch,
   attendance, assignment, timestamp, or eligibility value.
-- The read-only attendance snapshot now prioritizes an open prior-business-date
-  record after midnight. Success displays the recorded clock-out time, refreshes
+- The read-only attendance snapshot now prioritizes the current business-date
+  record and an in-window overnight open shift when no current-date record
+  exists. Success displays the recorded clock-out time, refreshes
   state, and prevents a second tap; rejection and network failure remain visible.
 - A proposed additive migration adds an activation-gated, bounded personal
   reminder processor using the dynamic policy's latest-normal time and fresh
@@ -189,3 +190,36 @@ policies from the accepted migration definitions, and drop only the new review
 and completion triggers/functions plus reminder tables/indexes under a reviewed
 rollback migration. Preserve the four existing jobs, attendance records,
 clock-in/out timestamps, corrections and payroll data.
+
+## PR #54 reader correction review — 2026-10-31
+
+The review of pushed head `fe94054040bedb62850e66b40f1963841a454dcf`
+found that the read-only Staff attendance snapshot selected the first open row
+from up to 90 days of history. A stale open row could therefore appear as
+today's active shift and override a newer completed record. This was a display
+and availability selection error; no historical row was changed.
+
+The correction selects the newest record for the current authoritative
+Attendance business date first. If no current-date record exists, it accepts
+an open row from only the immediately preceding business date when the recorded
+scheduled, expected, or latest-normal end crosses local midnight and check-in
+is within 36 hours. This preserves an overdue legitimate overnight clock-out
+after its reminder deadline. Older open rows remain in history and do not
+enable the portal action. The reader remains read-only and the clock-out server
+authorization is unchanged.
+
+Five mocked authenticated-reader regressions cover a legitimate overnight open
+shift before and after its reminder deadline, stale adjacent-date and older
+open shifts, an older open shift alongside a newer completed current-day shift,
+and a fresh current-day open shift. Each asserts no insert, update, delete,
+upsert or RPC mutation. The affected focused suite passed 5 files / 31 tests;
+scoped ESLint, TypeScript, and `git diff --check` passed. Full lint retained
+the accepted baseline error in
+`tests/components/cash-flow/cash-flow-today-operations.test.tsx:162`
+(`no-explicit-any`) and 26 unrelated warnings. The production-equivalent
+webpack build with isolated placeholder Supabase configuration exited 0;
+unreachable local placeholder fetches logged during static generation. This
+does not verify production behavior.
+Installed authenticated Staff PWA acceptance remains NOT
+VERIFIED; no TEST/STAGING accounts were available. No production SQL, Cron,
+merge or deployment was performed.
