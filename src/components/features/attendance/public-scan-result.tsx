@@ -46,6 +46,7 @@ type PublicScanResultViewProps = {
   onRequestBranchCorrection?: (details: BranchCorrectionScanDetails) => void;
   onSwitchAccount?: () => void;
   onDisconnectPhone?: () => void;
+  onRetryLocation?: () => void;
 };
 
 function supportReceipt(result: PublicScanResult): string {
@@ -175,6 +176,7 @@ export function PublicScanResultView({
   onRequestBranchCorrection,
   onSwitchAccount,
   onDisconnectPhone,
+  onRetryLocation,
 }: PublicScanResultViewProps) {
   const attendance = result.attendance;
   const isClockIn = attendance?.action === "clock_in";
@@ -345,6 +347,16 @@ export function PublicScanResultView({
         <p>{result.message}</p>
         {!result.ok ? <strong className="mt-3 block text-sm">Attendance changed: No</strong> : null}
       </div>
+
+      {onRetryLocation && !result.ok ? (
+        <button
+          type="button"
+          onClick={onRetryLocation}
+          className="inline-flex min-h-11 items-center justify-center rounded-lg bg-[#115D47] px-4 py-2 text-sm font-bold text-white"
+        >
+          Try location again
+        </button>
+      ) : null}
 
       {result.nextHref ? (
         <a

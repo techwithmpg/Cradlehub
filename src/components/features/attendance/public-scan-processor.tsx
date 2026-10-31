@@ -380,6 +380,10 @@ export function PublicScanProcessor(props: PublicScanProcessorProps) {
           onRequestBranchCorrection={handleBranchCorrectionRequest}
           onSwitchAccount={handleSwitchAccount}
           onDisconnectPhone={handleDisconnectPhone}
+          onRetryLocation={locationRequired && [
+            "location_permission_denied", "location_unavailable", "location_inaccurate",
+            "location_invalid", "location_stale", "location_required",
+          ].includes(result.reasonCode ?? "") ? restartScan : undefined}
         />
       ) : stage === "location_permission" ? (
         <section className="mx-auto flex min-h-[60svh] max-w-md flex-col items-center justify-center gap-5 p-8 text-center">
