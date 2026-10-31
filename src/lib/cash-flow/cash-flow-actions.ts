@@ -4,6 +4,15 @@ import { revalidatePath } from 'next/cache';
 import { revalidateOperationalBookingSurfaces } from '@/lib/bookings/revalidate-booking-surfaces';
 import { createClient } from '@/lib/supabase/server';
 import { createAdminClient } from '@/lib/supabase/admin';
+import type { Json } from '@/types/supabase';
+
+function getPrivilegedClient(fallbackClient: unknown): ReturnType<typeof createAdminClient> {
+  try {
+    return createAdminClient();
+  } catch {
+    return fallbackClient as ReturnType<typeof createAdminClient>;
+  }
+}
 import { z } from 'zod';
 import { recordBookingPaymentChange } from '@/lib/bookings/payment-transaction';
 import { validatedLegacyBookingPrice } from './legacy-booking-price';
@@ -163,11 +172,94 @@ export async function recordOrderPaymentAction(
     };
   }
 
-  // 4. Delegate to canonical CF4 atomic payment writer
+  // 4. Concurrency check: Ensure no active unresolved payment attempt exists under a different key
+  const admin = getPrivilegedClient(supabase);
+  let orderRow: { id?: string; branch_id?: string; metadata?: unknown } | null = null;
+  try {
+    const orderQuery = supabase
+      .from('booking_orders')
+      .select('id, branch_id, metadata')
+      .eq('id', parsed.data.orderId);
+    const hasMaybeSingle = Boolean(
+      orderQuery &&
+        typeof (orderQuery as unknown as { maybeSingle?: unknown }).maybeSingle === 'function'
+    );
+    const orderRes = hasMaybeSingle
+      ? await (orderQuery as unknown as { maybeSingle: () => Promise<{ data?: unknown }> }).maybeSingle()
+      : await (orderQuery as unknown as Promise<{ data?: unknown }>);
+    const resData = orderRes?.data;
+    orderRow = (Array.isArray(resData) ? resData[0] : resData) as { id?: string; branch_id?: string; metadata?: unknown } | null;
+  } catch {
+    // Non-blocking query failure fallback for mocked environments
+  }
+
+  const currentMeta = ((orderRow?.metadata as Record<string, unknown> | null) ?? {});
+  const existingAttempt = currentMeta.active_payment_attempt as Record<string, unknown> | undefined;
+
+  if (
+    existingAttempt &&
+    existingAttempt.idempotency_key &&
+    existingAttempt.idempotency_key !== parsed.data.idempotencyKey
+  ) {
+    const initiatedAt = new Date(String(existingAttempt.initiated_at || 0)).getTime();
+    if (Date.now() - initiatedAt < 30_000) {
+      return {
+        ok: false,
+        error: 'CONCURRENT_PAYMENT_IN_PROGRESS: Another payment attempt is currently unresolved for this order. Please verify the ledger before attempting a new payment.',
+        code: 'CONCURRENT_PAYMENT_IN_PROGRESS',
+      };
+    }
+  }
+
+  // Record active payment attempt in booking_orders.metadata
+  const totalAmount = parsed.data.payments.reduce((s, p) => s + p.amount, 0);
+  try {
+    await admin.from('booking_orders').update({
+      metadata: {
+        ...currentMeta,
+        active_payment_attempt: {
+          idempotency_key: parsed.data.idempotencyKey,
+          amount: totalAmount,
+          initiated_at: new Date().toISOString(),
+          staff_id: user.id,
+          branch_id: orderRow?.branch_id,
+        },
+      } as unknown as Json,
+    }).eq('id', parsed.data.orderId);
+  } catch {
+    // Non-blocking metadata write
+  }
+
+  // 5. Delegate to canonical CF4 atomic payment writer
   const result = await recordOrderPayment(supabase, parsed.data);
 
   if (result.ok) {
+    try {
+      const updatedMeta = { ...currentMeta };
+      delete updatedMeta.active_payment_attempt;
+      await admin.from('booking_orders').update({ metadata: updatedMeta as unknown as Json }).eq('id', parsed.data.orderId);
+    } catch {
+      // ignore
+    }
     revalidateOperationalBookingSurfaces(result.data.branchId);
+  } else {
+    const isPreWriteRejection =
+      result.code === 'VALIDATION_FAILED' ||
+      result.code === 'AUTH_REQUIRED' ||
+      result.code === 'ORDER_NOT_PAYABLE' ||
+      result.code === 'ORDER_CHECK_FAILED' ||
+      result.code === 'SOURCE_MISMATCH' ||
+      result.code === 'BOOKING_PRICE_INVALID';
+
+    if (isPreWriteRejection) {
+      try {
+        const updatedMeta = { ...currentMeta };
+        delete updatedMeta.active_payment_attempt;
+        await admin.from('booking_orders').update({ metadata: updatedMeta as unknown as Json }).eq('id', parsed.data.orderId);
+      } catch {
+        // ignore
+      }
+    }
   }
 
   return result;
@@ -255,6 +347,44 @@ export async function recordLegacyBookingPaymentAction(
     return { ok: false, error: 'PAYMENT_STATE_CHANGED: Refresh the booking balance before posting.', code: 'PAYMENT_STATE_CHANGED' };
   }
 
+  const currentMeta = ((booking.metadata as Record<string, unknown> | null) ?? {});
+  const existingAttempt = currentMeta.active_payment_attempt as Record<string, unknown> | undefined;
+
+  if (
+    existingAttempt &&
+    existingAttempt.idempotency_key &&
+    existingAttempt.idempotency_key !== payload.idempotencyKey
+  ) {
+    const initiatedAt = new Date(String(existingAttempt.initiated_at || 0)).getTime();
+    if (Date.now() - initiatedAt < 30_000) {
+      return {
+        ok: false,
+        error: 'CONCURRENT_PAYMENT_IN_PROGRESS: Another payment attempt is currently unresolved for this booking. Please verify the ledger before attempting a new payment.',
+        code: 'CONCURRENT_PAYMENT_IN_PROGRESS',
+      };
+    }
+  }
+
+  // Record active payment attempt in bookings.metadata
+  const admin = getPrivilegedClient(supabase);
+  const totalAmount = payload.payments.reduce((s, p) => s + p.amount, 0);
+  try {
+    await admin.from('bookings').update({
+      metadata: {
+        ...currentMeta,
+        active_payment_attempt: {
+          idempotency_key: payload.idempotencyKey,
+          amount: totalAmount,
+          initiated_at: new Date().toISOString(),
+          staff_id: user.id,
+          branch_id: payload.branchId,
+        },
+      } as unknown as Json,
+    }).eq('id', booking.id);
+  } catch {
+    // Non-blocking metadata write
+  }
+
   const isFullPayment = targetCents === Math.round(total * 100);
   const shouldConfirm = isFullPayment && booking.status === 'pending_payment';
   const result = await recordBookingPaymentChange(supabase, {
@@ -271,7 +401,26 @@ export async function recordLegacyBookingPaymentAction(
     payments: payload.payments,
     businessDate: payload.businessDate,
   });
-  if (!result.ok) return { ok: false, error: result.error, code: 'PAYMENT_REJECTED' };
+
+  if (!result.ok) {
+    try {
+      const updatedMeta = { ...currentMeta };
+      delete updatedMeta.active_payment_attempt;
+      await admin.from('bookings').update({ metadata: updatedMeta as unknown as Json }).eq('id', booking.id);
+    } catch {
+      // ignore
+    }
+    return { ok: false, error: result.error, code: 'PAYMENT_REJECTED' };
+  }
+
+  try {
+    const updatedMeta = { ...currentMeta };
+    delete updatedMeta.active_payment_attempt;
+    await admin.from('bookings').update({ metadata: updatedMeta as unknown as Json }).eq('id', booking.id);
+  } catch {
+    // ignore
+  }
+
   revalidateOperationalBookingSurfaces(result.booking.branch_id);
 
   let movements: Array<{
@@ -1071,4 +1220,337 @@ export async function handoverCashSessionAction(
       recordedAt: data.recordedAt || new Date().toISOString(),
     },
   };
+}
+
+export const VerifyPaymentAttemptInputSchema = z.object({
+  orderId: z.string().trim().min(1),
+  sourceKind: z.enum(['booking_order', 'legacy_booking']),
+  branchId: z.string().trim().min(1),
+  idempotencyKey: z.string().trim().min(1).max(255),
+  expectedAmount: z.number().positive(),
+});
+
+export type VerifyPaymentAttemptInput = z.infer<typeof VerifyPaymentAttemptInputSchema>;
+
+export type VerifyPaymentAttemptResult =
+  | {
+      ok: true;
+      status: 'confirmed';
+      transactionId: string;
+      isIdempotentReplay: boolean;
+      branchId: string;
+      totalPayable: number;
+      totalPaid: number;
+      alreadyPaid: number;
+      amountPaid: number;
+      remainingBalance: number;
+      movements: Array<{
+        id: string;
+        amount: number;
+        paymentMethod: string;
+        externalReference: string | null;
+      }>;
+    }
+  | {
+      ok: true;
+      status: 'in_flight';
+      message: string;
+    }
+  | {
+      ok: true;
+      status: 'not_posted';
+      message: string;
+    }
+  | {
+      ok: true;
+      status: 'unrelated_payment';
+      message: string;
+      unrelatedTransactionId?: string;
+    }
+  | {
+      ok: false;
+      error: string;
+      code?: string;
+    };
+
+export async function verifyPaymentAttemptAction(
+  input: VerifyPaymentAttemptInput
+): Promise<VerifyPaymentAttemptResult> {
+  const parsed = VerifyPaymentAttemptInputSchema.safeParse(input);
+  if (!parsed.success) {
+    return { ok: false, error: 'VALIDATION_FAILED: Invalid verification request.', code: 'VALIDATION_FAILED' };
+  }
+  const payload = parsed.data;
+  const supabase = await createClient();
+
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+
+  if (!user) {
+    return {
+      ok: false,
+      error: 'AUTH_REQUIRED: Authentication required to verify payment attempts.',
+      code: 'AUTH_REQUIRED',
+    };
+  }
+
+  // Authoritative check in financial_transactions
+  const possibleKeys = [payload.idempotencyKey, `cf8:${payload.orderId}:${payload.idempotencyKey}`];
+  const { data: txns, error: txError } = await supabase
+    .from('financial_transactions')
+    .select('id, branch_id, business_date, transaction_type, source_type, source_id, status, created_at, recorded_at')
+    .in('idempotency_key', possibleKeys);
+
+  if (txError) {
+    return {
+      ok: false,
+      error: `LEDGER_READ_FAILED: ${txError.message}`,
+      code: 'LEDGER_READ_FAILED',
+    };
+  }
+
+  if (txns && txns.length > 0) {
+    const confirmedTxn = txns[0]!;
+
+    if (confirmedTxn.status !== 'posted') {
+      return {
+        ok: false,
+        error: `TRANSACTION_STATUS_INVALID: Transaction status is ${confirmedTxn.status}, expected posted.`,
+        code: 'TRANSACTION_STATUS_INVALID',
+      };
+    }
+
+    if (confirmedTxn.branch_id !== payload.branchId) {
+      return {
+        ok: false,
+        error: `BRANCH_MISMATCH: Transaction branch ${confirmedTxn.branch_id} does not match expected branch ${payload.branchId}.`,
+        code: 'BRANCH_MISMATCH',
+      };
+    }
+
+    if (confirmedTxn.source_id !== payload.orderId) {
+      return {
+        ok: false,
+        error: `SOURCE_MISMATCH: Transaction source ${confirmedTxn.source_id} does not match order ${payload.orderId}.`,
+        code: 'SOURCE_MISMATCH',
+      };
+    }
+
+    const { data: movementsData, error: movErr } = await supabase
+      .from('financial_account_movements')
+      .select('id, amount, payment_method, external_reference')
+      .eq('transaction_id', confirmedTxn.id);
+
+    if (movErr || !movementsData || movementsData.length === 0) {
+      return {
+        ok: false,
+        error: 'MOVEMENTS_UNAVAILABLE: Financial movements for transaction could not be retrieved.',
+        code: 'MOVEMENTS_UNAVAILABLE',
+      };
+    }
+
+    const movementSum = movementsData.reduce((sum, m) => sum + Number(m.amount), 0);
+    if (Math.round(movementSum * 100) !== Math.round(payload.expectedAmount * 100)) {
+      return {
+        ok: false,
+        error: `TRANSACTION_AMOUNT_MISMATCH: Authoritative transaction amount ${movementSum} does not match expected amount ${payload.expectedAmount}.`,
+        code: 'TRANSACTION_AMOUNT_MISMATCH',
+      };
+    }
+
+    let totalPayable = 0;
+    let remainingBalance = 0;
+    let alreadyPaid = 0;
+
+    if (payload.sourceKind === 'booking_order') {
+      const { data: summaryData } = await supabase
+        .from('v_booking_order_financial_summaries')
+        .select('total_payable, net_allocated, remaining_balance')
+        .eq('order_id', payload.orderId)
+        .maybeSingle();
+
+      if (summaryData) {
+        totalPayable = Number(summaryData.total_payable);
+        const netAllocated = Number(summaryData.net_allocated);
+        remainingBalance = Number(summaryData.remaining_balance);
+        alreadyPaid = Math.max(0, Math.round((netAllocated - movementSum) * 100) / 100);
+      } else {
+        const [{ data: items }, { data: allocs }] = await Promise.all([
+          supabase.from('order_payable_items').select('amount').eq('order_id', payload.orderId),
+          supabase.from('financial_order_allocations').select('amount').eq('order_id', payload.orderId),
+        ]);
+        totalPayable = (items ?? []).reduce((s, i) => s + Number(i.amount), 0);
+        const netAllocated = (allocs ?? []).reduce((s, a) => s + Number(a.amount), 0);
+        remainingBalance = Math.max(0, Math.round((totalPayable - netAllocated) * 100) / 100);
+        alreadyPaid = Math.max(0, Math.round((netAllocated - movementSum) * 100) / 100);
+      }
+    } else {
+      const { data: bookingData } = await supabase
+        .from('bookings')
+        .select('amount_paid, metadata')
+        .eq('id', payload.orderId)
+        .maybeSingle();
+
+      const total = validatedLegacyBookingPrice(bookingData?.metadata as Record<string, unknown> | null) ?? payload.expectedAmount;
+      const cumulativePaid = Number(bookingData?.amount_paid ?? movementSum);
+      alreadyPaid = Math.max(0, Math.round((cumulativePaid - movementSum) * 100) / 100);
+      remainingBalance = Math.max(0, Math.round((total - cumulativePaid) * 100) / 100);
+      totalPayable = total;
+    }
+
+    try {
+      const admin = getPrivilegedClient(supabase);
+      if (payload.sourceKind === 'booking_order') {
+        const { data: bOrder } = await admin.from('booking_orders').select('metadata').eq('id', payload.orderId).maybeSingle();
+        if (bOrder && bOrder.metadata && typeof bOrder.metadata === 'object') {
+          const meta = { ...(bOrder.metadata as Record<string, unknown>) };
+          delete meta.active_payment_attempt;
+          await admin.from('booking_orders').update({ metadata: meta as unknown as Json }).eq('id', payload.orderId);
+        }
+      } else {
+        const { data: bRow } = await admin.from('bookings').select('metadata').eq('id', payload.orderId).maybeSingle();
+        if (bRow && bRow.metadata && typeof bRow.metadata === 'object') {
+          const meta = { ...(bRow.metadata as Record<string, unknown>) };
+          delete meta.active_payment_attempt;
+          await admin.from('bookings').update({ metadata: meta as unknown as Json }).eq('id', payload.orderId);
+        }
+      }
+    } catch {
+      // Non-blocking cleanup
+    }
+
+    return {
+      ok: true,
+      status: 'confirmed',
+      transactionId: confirmedTxn.id,
+      isIdempotentReplay: true,
+      branchId: confirmedTxn.branch_id,
+      totalPayable,
+      totalPaid: alreadyPaid + movementSum,
+      alreadyPaid,
+      amountPaid: movementSum,
+      remainingBalance,
+      movements: movementsData.map((m) => ({
+        id: m.id,
+        amount: Number(m.amount),
+        paymentMethod: m.payment_method,
+        externalReference: m.external_reference ?? null,
+      })),
+    };
+  }
+
+  // Transaction not in financial_transactions: check attempt timestamp and unrelated transactions
+  let attemptInitiatedAt: string | null = null;
+  if (payload.sourceKind === 'booking_order') {
+    const { data: bOrder } = await supabase.from('booking_orders').select('metadata').eq('id', payload.orderId).maybeSingle();
+    const meta = bOrder?.metadata as Record<string, unknown> | null;
+    const att = meta?.active_payment_attempt as Record<string, unknown> | null;
+    if (att?.initiated_at) attemptInitiatedAt = String(att.initiated_at);
+  } else {
+    const { data: bRow } = await supabase.from('bookings').select('metadata').eq('id', payload.orderId).maybeSingle();
+    const meta = bRow?.metadata as Record<string, unknown> | null;
+    const att = meta?.active_payment_attempt as Record<string, unknown> | null;
+    if (att?.initiated_at) attemptInitiatedAt = String(att.initiated_at);
+  }
+
+  const elapsedMs = attemptInitiatedAt ? Date.now() - new Date(attemptInitiatedAt).getTime() : 30_000;
+  if (elapsedMs < 15_000) {
+    return {
+      ok: true,
+      status: 'in_flight',
+      message: 'Payment attempt is still in-flight in the database. Please wait a moment and verify again.',
+    };
+  }
+
+  const { data: otherTxns } = await supabase
+    .from('financial_transactions')
+    .select('id, idempotency_key, recorded_at')
+    .eq('source_id', payload.orderId)
+    .eq('status', 'posted')
+    .order('recorded_at', { ascending: false })
+    .limit(1);
+
+  if (otherTxns && otherTxns.length > 0 && !possibleKeys.includes(otherTxns[0]!.idempotency_key)) {
+    return {
+      ok: true,
+      status: 'unrelated_payment',
+      message: 'The balance was updated by an unrelated transaction. Your payment attempt was not recorded in the financial ledger.',
+      unrelatedTransactionId: otherTxns[0]!.id,
+    };
+  }
+
+  return {
+    ok: true,
+    status: 'not_posted',
+    message: 'No transaction was recorded in the financial ledger for this attempt.',
+  };
+}
+
+export const ClearPaymentAttemptInputSchema = z.object({
+  orderId: z.string().trim().min(1),
+  sourceKind: z.enum(['booking_order', 'legacy_booking']),
+  branchId: z.string().trim().min(1),
+  idempotencyKey: z.string().trim().min(1).max(255),
+});
+
+export type ClearPaymentAttemptInput = z.infer<typeof ClearPaymentAttemptInputSchema>;
+
+export async function clearPaymentAttemptAction(
+  input: ClearPaymentAttemptInput
+): Promise<{ ok: true } | { ok: false; error: string; code?: string }> {
+  const parsed = ClearPaymentAttemptInputSchema.safeParse(input);
+  if (!parsed.success) {
+    return { ok: false, error: 'VALIDATION_FAILED: Invalid clear attempt request.', code: 'VALIDATION_FAILED' };
+  }
+  const payload = parsed.data;
+  const supabase = await createClient();
+
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+
+  if (!user) {
+    return {
+      ok: false,
+      error: 'AUTH_REQUIRED: Authentication required to clear payment attempts.',
+      code: 'AUTH_REQUIRED',
+    };
+  }
+
+  // Double check financial_transactions: never clear an attempt that committed!
+  const possibleKeys = [payload.idempotencyKey, `cf8:${payload.orderId}:${payload.idempotencyKey}`];
+  const { data: existingTx } = await supabase
+    .from('financial_transactions')
+    .select('id')
+    .in('idempotency_key', possibleKeys)
+    .maybeSingle();
+
+  if (existingTx) {
+    return {
+      ok: false,
+      error: 'ATTEMPT_ALREADY_COMMITTED: Transaction has already posted to the financial ledger. Please verify and print receipt instead of clearing.',
+      code: 'ATTEMPT_ALREADY_COMMITTED',
+    };
+  }
+
+  const admin = getPrivilegedClient(supabase);
+  if (payload.sourceKind === 'booking_order') {
+    const { data: bOrder } = await admin.from('booking_orders').select('metadata').eq('id', payload.orderId).maybeSingle();
+    if (bOrder && bOrder.metadata) {
+      const meta = { ...(bOrder.metadata as Record<string, unknown>) };
+      delete meta.active_payment_attempt;
+      await admin.from('booking_orders').update({ metadata: meta as unknown as Json }).eq('id', payload.orderId);
+    }
+  } else {
+    const { data: bRow } = await admin.from('bookings').select('metadata').eq('id', payload.orderId).maybeSingle();
+    if (bRow && bRow.metadata) {
+      const meta = { ...(bRow.metadata as Record<string, unknown>) };
+      delete meta.active_payment_attempt;
+      await admin.from('bookings').update({ metadata: meta as unknown as Json }).eq('id', payload.orderId);
+    }
+  }
+
+  revalidateOperationalBookingSurfaces(payload.branchId);
+  return { ok: true };
 }

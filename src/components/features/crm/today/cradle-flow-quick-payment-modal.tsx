@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import { AlertTriangle, CheckCircle2, Info, Plus, Printer, X } from "lucide-react";
 import { Dialog, DialogContent, DialogTitle } from "@/components/ui/dialog";
@@ -13,8 +13,10 @@ import {
   type PostOrderPaymentResult,
 } from "@/lib/cash-flow/financial-contract";
 import {
+  clearPaymentAttemptAction,
   recordLegacyBookingPaymentAction,
   recordOrderPaymentAction,
+  verifyPaymentAttemptAction,
 } from "@/lib/cash-flow/cash-flow-actions";
 import {
   isQuickPaymentEligible,
@@ -100,6 +102,9 @@ export function CradleFlowQuickPaymentModal({
   const [printWarning, setPrintWarning] = useState<string | null>(null);
   const [confirmedReceipt, setConfirmedReceipt] = useState<PrintableReceiptData | null>(null);
   const [unresolvedAttempt, setUnresolvedAttempt] = useState<boolean>(false);
+  const [reconciling, setReconciling] = useState(false);
+  const [canUnlock, setCanUnlock] = useState(false);
+  const [unlocking, setUnlocking] = useState(false);
   const submitting = useRef(false);
   const attempt = useRef<{
     signature: string;
@@ -112,42 +117,6 @@ export function CradleFlowQuickPaymentModal({
     amount?: number;
   } | null>(null);
 
-  const isLocked = Boolean(verificationWarning || unresolvedAttempt);
-
-  useEffect(() => {
-    if (!unresolvedAttempt || !data || !attempt.current) return;
-
-    const attemptedId = attempt.current.orderId;
-    const attemptedAmount = attempt.current.amount ?? 0;
-    const paidBefore = attempt.current.paidBefore ?? 0;
-    const totalPayable = attempt.current.totalPayable ?? 0;
-
-    const refreshedOrder = data.payableOrders.find((o) => o.id === attemptedId);
-
-    if (refreshedOrder) {
-      const currentPaid = refreshedOrder.amountPaid;
-      if (Math.round(currentPaid * 100) >= Math.round((paidBefore + attemptedAmount) * 100)) {
-        // Authoritatively confirmed posted in the refreshed ledger
-        attempt.current.unresolved = false;
-        setUnresolvedAttempt(false);
-        setVerificationWarning(null);
-        setPaymentError(null);
-        onSuccess();
-      }
-    } else if (
-      !loading &&
-      !error &&
-      Math.round((paidBefore + attemptedAmount) * 100) >= Math.round(totalPayable * 100)
-    ) {
-      // Order was fully paid and closed out of payable orders
-      attempt.current.unresolved = false;
-      setUnresolvedAttempt(false);
-      setVerificationWarning(null);
-      setPaymentError(null);
-      onSuccess();
-    }
-  }, [unresolvedAttempt, data, loading, error, onSuccess]);
-
   const eligible = useMemo(() => (data?.payableOrders ?? []).filter(isQuickPaymentEligible), [data]);
   const ready = eligible.filter((order) => order.readyForCheckout && order.amountPaid === 0);
   const partial = eligible.filter((order) => order.amountPaid > 0);
@@ -156,6 +125,14 @@ export function CradleFlowQuickPaymentModal({
   const selected = requestedOrderEligible
     ? visible.find((order) => order.id === selectedId) ?? (selectedId ? undefined : visible[0])
     : undefined;
+
+  const serverAttempt = selected?.activePaymentAttempt ?? null;
+  const effectiveVerificationWarning =
+    verificationWarning ??
+    (serverAttempt
+      ? `Payment status requires verification: An unresolved payment attempt of ${php(serverAttempt.amount)} was initiated. Payment submission is locked until the transaction is authoritatively reconciled in the ledger.`
+      : null);
+  const isLocked = Boolean(effectiveVerificationWarning || unresolvedAttempt || serverAttempt);
   const accounts = useMemo(() => data?.accounts ?? [], [data]);
   const accountChoices = (method: FinancialPaymentMethod): MaskedAccountOption[] =>
     accounts.filter(
@@ -178,15 +155,15 @@ export function CradleFlowQuickPaymentModal({
 
   const defaultTenders: Tender[] = selected
     ? [
-        {
-          id: `default-${selected.id}`,
-          method: initialMethod,
-          accountId: firstAccount(initialMethod),
-          amount: selected.remainingBalance.toFixed(2),
-          cashReceived: "",
-          reference: "",
-        },
-      ]
+      {
+        id: `default-${selected.id}`,
+        method: initialMethod,
+        accountId: firstAccount(initialMethod),
+        amount: selected.remainingBalance.toFixed(2),
+        cashReceived: "",
+        reference: "",
+      },
+    ]
     : [];
 
   const tenders = tenderDraft?.key === tenderKey ? tenderDraft.lines : defaultTenders;
@@ -301,6 +278,145 @@ export function CradleFlowQuickPaymentModal({
     setPaymentError(null);
   }
 
+  async function handleReconciliation() {
+    if (onRetry) onRetry();
+    if (!data || !selected) {
+      return;
+    }
+    const targetKey = attempt.current?.key || serverAttempt?.idempotencyKey;
+    const targetAmount = attempt.current?.amount ?? serverAttempt?.amount ?? totalCents / 100;
+    if (!targetKey) {
+      return;
+    }
+    setReconciling(true);
+    setPaymentError(null);
+    try {
+      const res = await verifyPaymentAttemptAction({
+        orderId: selected.id,
+        sourceKind: selected.sourceKind,
+        branchId: data.branchId,
+        idempotencyKey: targetKey,
+        expectedAmount: targetAmount,
+      });
+
+      if (!res.ok) {
+        setVerificationWarning(`Verification failed: ${res.error}`);
+        return;
+      }
+
+      if (res.status === "confirmed") {
+        if (attempt.current) attempt.current.unresolved = false;
+        setUnresolvedAttempt(false);
+        setVerificationWarning(null);
+        setCanUnlock(false);
+
+        const receiptData: PrintableReceiptData = {
+          companyName: "CRADLE WELLNESS LIVING INC.",
+          branchName: selected.branchName || "Main Spa",
+          transactionId: res.transactionId,
+          orderNumber: selected.orderNumber,
+          customerName: selected.customerName,
+          customerPhone: selected.customerPhone,
+          formattedDateTime: new Date().toLocaleString("en-PH", {
+            year: "numeric",
+            month: "short",
+            day: "numeric",
+            hour: "2-digit",
+            minute: "2-digit",
+            hour12: true,
+          }),
+          serviceDescription: selected.serviceDescription,
+          visitType: selected.visitType,
+          items: selected.payableItems?.length
+            ? selected.payableItems.map((item) => ({
+                description: item.description,
+                amount: item.amount,
+              }))
+            : [{ description: selected.serviceDescription, amount: res.totalPayable }],
+          totalPayable: res.totalPayable,
+          alreadyPaid: res.alreadyPaid,
+          amountPaid: res.amountPaid,
+          remainingBalance: res.remainingBalance,
+          payments: res.movements.map((m) => {
+            const isCash = m.paymentMethod.toLowerCase().includes("cash");
+            return {
+              method: m.paymentMethod,
+              amount: m.amount,
+              reference: m.externalReference ?? null,
+              cashReceived: isCash && hasAnyCashReceivedEntered ? totalCashReceivedCents / 100 : null,
+              change: isCash ? changeCents / 100 : null,
+            };
+          }),
+          totalCashReceived:
+            hasCashTender && hasAnyCashReceivedEntered ? totalCashReceivedCents / 100 : null,
+          changeGiven: hasCashTender ? changeCents / 100 : null,
+          isIdempotentReplay: true,
+        };
+
+        setConfirmedReceipt(receiptData);
+        printThermalReceipt(receiptData);
+        onSuccess();
+        return;
+      }
+
+      if (res.status === "in_flight") {
+        setVerificationWarning(res.message);
+        setCanUnlock(false);
+        return;
+      }
+
+      if (res.status === "unrelated_payment") {
+        setVerificationWarning(res.message);
+        setCanUnlock(false);
+        if (onRetry) onRetry();
+        return;
+      }
+
+      if (res.status === "not_posted") {
+        setVerificationWarning(
+          `${res.message} You may safely unlock this booking to retry payment.`
+        );
+        setCanUnlock(true);
+      }
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : "Verification request failed";
+      setVerificationWarning(`Verification error: ${msg}. Payment submission remains locked.`);
+    } finally {
+      setReconciling(false);
+      if (onRetry) onRetry();
+    }
+  }
+
+  async function handleUnlock() {
+    if (!data || !selected) return;
+    const targetKey = attempt.current?.key || serverAttempt?.idempotencyKey;
+    if (!targetKey) return;
+    setUnlocking(true);
+    setPaymentError(null);
+    try {
+      const res = await clearPaymentAttemptAction({
+        orderId: selected.id,
+        sourceKind: selected.sourceKind,
+        branchId: data.branchId,
+        idempotencyKey: targetKey,
+      });
+      if (res.ok) {
+        if (attempt.current) attempt.current.unresolved = false;
+        setUnresolvedAttempt(false);
+        setVerificationWarning(null);
+        setCanUnlock(false);
+        if (onRetry) onRetry();
+      } else {
+        setPaymentError(res.error || "Failed to unlock attempt.");
+      }
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : "Network error while unlocking payment attempt.";
+      setPaymentError(msg);
+    } finally {
+      setUnlocking(false);
+    }
+  }
+
   async function recordPayment() {
     if (confirmedReceipt || isLocked || submitting.current || !canSubmit || !data || !selected) return;
     submitting.current = true;
@@ -325,9 +441,9 @@ export function CradleFlowQuickPaymentModal({
     });
 
     const key =
-      attempt.current?.unresolved && attempt.current.orderId === selected.id
+      (attempt.current?.unresolved && attempt.current.orderId === selected.id
         ? attempt.current.key
-        : crypto.randomUUID();
+        : serverAttempt?.idempotencyKey) || crypto.randomUUID();
 
     attempt.current = {
       signature,
@@ -345,21 +461,21 @@ export function CradleFlowQuickPaymentModal({
       const result =
         selected.sourceKind === "legacy_booking"
           ? await recordLegacyBookingPaymentAction({
-              bookingId: selected.id,
-              branchId: data.branchId,
-              expectedAmountPaid: selected.amountPaid,
-              idempotencyKey: key,
-              payments,
-              businessDate: data.businessDate,
-              notes: notes.trim() || null,
-            })
+            bookingId: selected.id,
+            branchId: data.branchId,
+            expectedAmountPaid: selected.amountPaid,
+            idempotencyKey: key,
+            payments,
+            businessDate: data.businessDate,
+            notes: notes.trim() || null,
+          })
           : await recordOrderPaymentAction({
-              orderId: selected.id,
-              idempotencyKey: key,
-              payments,
-              businessDate: data.businessDate,
-              notes: notes.trim() || null,
-            });
+            orderId: selected.id,
+            idempotencyKey: key,
+            payments,
+            businessDate: data.businessDate,
+            notes: notes.trim() || null,
+          });
 
       if (!result.ok) {
         const isPreWriteRejection =
@@ -398,21 +514,21 @@ export function CradleFlowQuickPaymentModal({
         const legacyData =
           "data" in result && result.data && "paymentDelta" in result.data
             ? (result.data as {
-                transactionId: string | null;
-                paymentDelta: number;
-                isIdempotentReplay: boolean;
-                branchId: string;
-                totalPayable?: number;
-                totalPaid?: number;
-                alreadyPaid?: number;
-                remainingBalance?: number;
-                movements?: Array<{
-                  id: string;
-                  amount: number;
-                  paymentMethod: string;
-                  externalReference: string | null;
-                }>;
-              })
+              transactionId: string | null;
+              paymentDelta: number;
+              isIdempotentReplay: boolean;
+              branchId: string;
+              totalPayable?: number;
+              totalPaid?: number;
+              alreadyPaid?: number;
+              remainingBalance?: number;
+              movements?: Array<{
+                id: string;
+                amount: number;
+                paymentMethod: string;
+                externalReference: string | null;
+              }>;
+            })
             : null;
         const rawId = legacyData?.transactionId;
 
@@ -592,9 +708,9 @@ export function CradleFlowQuickPaymentModal({
         visitType: selected.visitType,
         items: selected.payableItems?.length
           ? selected.payableItems.map((item) => ({
-              description: item.description,
-              amount: item.amount,
-            }))
+            description: item.description,
+            amount: item.amount,
+          }))
           : [{ description: selected.serviceDescription, amount: confirmedTotalPayable }],
         totalPayable: confirmedTotalPayable,
         alreadyPaid: confirmedAlreadyPaid,
@@ -674,7 +790,7 @@ export function CradleFlowQuickPaymentModal({
           </button>
         </header>
 
-        {verificationWarning ? (
+        {effectiveVerificationWarning ? (
           <div
             role="alert"
             className="flex items-start justify-between gap-3 border-b border-amber-300 bg-amber-50 px-5 py-3 text-xs text-amber-950"
@@ -683,7 +799,7 @@ export function CradleFlowQuickPaymentModal({
               <AlertTriangle size={18} className="mt-0.5 shrink-0 text-amber-700" />
               <div>
                 <span className="font-bold">Payment Verification Required: </span>
-                <span>{verificationWarning}</span>
+                <span>{effectiveVerificationWarning}</span>
               </div>
             </div>
             <div className="flex items-center gap-2">
@@ -1226,7 +1342,7 @@ export function CradleFlowQuickPaymentModal({
                 </button>
               </div>
             </>
-          ) : verificationWarning ? (
+          ) : isLocked ? (
             <>
               <div className="flex items-center gap-2 text-xs text-amber-900">
                 <AlertTriangle size={16} className="shrink-0 text-amber-700" />
@@ -1243,16 +1359,22 @@ export function CradleFlowQuickPaymentModal({
                 >
                   View Ledger
                 </Link>
-                {onRetry ? (
+                <button
+                  type="button"
+                  disabled={loading || reconciling || unlocking}
+                  onClick={handleReconciliation}
+                  className="rounded-lg border border-[#e9e2d8] px-4 py-2 text-xs font-semibold hover:bg-[#FAF8F5] disabled:opacity-50"
+                >
+                  {loading || reconciling ? "Verifying…" : "Verify & Refresh"}
+                </button>
+                {canUnlock ? (
                   <button
                     type="button"
-                    disabled={loading}
-                    onClick={() => {
-                      onRetry();
-                    }}
-                    className="rounded-lg border border-[#e9e2d8] px-4 py-2 text-xs font-semibold hover:bg-[#FAF8F5] disabled:opacity-50"
+                    disabled={unlocking}
+                    onClick={handleUnlock}
+                    className="rounded-lg border border-red-300 bg-red-50 px-4 py-2 text-xs font-semibold text-red-800 hover:bg-red-100 disabled:opacity-50"
                   >
-                    {loading ? "Verifying…" : "Verify & Refresh"}
+                    {unlocking ? "Unlocking…" : "Unlock & Re-try"}
                   </button>
                 ) : null}
                 <button

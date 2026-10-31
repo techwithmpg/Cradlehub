@@ -162,6 +162,8 @@ const mockData: CashFlowWorkspaceData = {
         status: "open",
         openingFloat: 1000,
         openedBy: "user-1",
+        openedAt: "2026-10-30T08:00:00Z",
+        expectedCash: 1000,
       } satisfies CashSessionSummary,
     ],
     availableDrawers: [],

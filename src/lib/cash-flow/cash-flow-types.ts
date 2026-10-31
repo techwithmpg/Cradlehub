@@ -171,6 +171,14 @@ export interface PayableOrderPreviousPayment {
   method: string;
 }
 
+export interface ActivePaymentAttempt {
+  idempotencyKey: string;
+  amount: number;
+  initiatedAt: string;
+  staffId?: string;
+  branchId?: string;
+}
+
 export interface PayableOrderOption {
   id: string;
   sourceKind: "booking_order" | "legacy_booking";
@@ -193,6 +201,8 @@ export interface PayableOrderOption {
   paymentStatus?: "unpaid" | "partially_paid" | "paid";
   payableItems?: PayableOrderItemDetail[];
   previousPayments?: PayableOrderPreviousPayment[];
+  /** Server-authoritative unresolved payment attempt, if any exists. */
+  activePaymentAttempt?: ActivePaymentAttempt | null;
 }
 
 export interface ExpenseCategoryOption {

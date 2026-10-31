@@ -434,6 +434,7 @@ export async function getCashFlowData(
   const orderSummaryById = new Map<string, OrderSummary>();
   const orderQuoteById = new Map<string, number>();
   const orderFeeById = new Map<string, unknown>();
+  const orderMetadataById = new Map<string, Record<string, unknown> | null>();
   const orderItemsById = new Map<string, PayableOrderItemDetail[]>();
   const orderRawItemsById = new Map<string, OrderPaymentItem[]>();
   const orderChildrenById = new Map<string, OrderPaymentChild[]>();
@@ -475,10 +476,12 @@ export async function getCashFlowData(
       orderSummaryById.set(row.order_id, row);
     }
     for (const row of orders ?? []) {
-      const raw = (row.metadata as Record<string, unknown> | null)?.total_amount;
+      const meta = row.metadata as Record<string, unknown> | null;
+      orderMetadataById.set(row.id, meta);
+      const raw = meta?.total_amount;
       const quote = Number(raw);
       if (Number.isFinite(quote) && quote > 0) orderQuoteById.set(row.id, quote);
-      orderFeeById.set(row.id, (row.metadata as Record<string, unknown> | null)?.home_service_fee);
+      orderFeeById.set(row.id, meta?.home_service_fee);
     }
     for (const row of orderItems ?? []) {
       const list = orderItemsById.get(row.order_id) ?? [];
@@ -1060,6 +1063,28 @@ export async function getCashFlowData(
       paymentStatus: isPaid ? "paid" : isPartial ? "partially_paid" : "unpaid",
       payableItems,
       previousPayments,
+      activePaymentAttempt: (() => {
+        const rawAttempt = (
+          b.order_id
+            ? orderMetadataById.get(b.order_id)?.active_payment_attempt
+            : (b.metadata as Record<string, unknown> | null)?.active_payment_attempt
+        ) as Record<string, unknown> | null | undefined;
+
+        if (
+          rawAttempt &&
+          typeof rawAttempt.idempotency_key === "string" &&
+          rawAttempt.idempotency_key.trim()
+        ) {
+          return {
+            idempotencyKey: String(rawAttempt.idempotency_key).trim(),
+            amount: Number(rawAttempt.amount ?? 0),
+            initiatedAt: String(rawAttempt.initiated_at ?? ""),
+            staffId: rawAttempt.staff_id ? String(rawAttempt.staff_id) : undefined,
+            branchId: rawAttempt.branch_id ? String(rawAttempt.branch_id) : undefined,
+          };
+        }
+        return null;
+      })(),
     });
   }
 

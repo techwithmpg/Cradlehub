@@ -8,6 +8,8 @@ const mocks = vi.hoisted(() => ({
   recordOrder: vi.fn(),
   recordLegacy: vi.fn(),
   printReceipt: vi.fn(),
+  verifyPaymentAttempt: vi.fn(),
+  clearPaymentAttempt: vi.fn(),
 }));
 
 vi.mock("@/components/ui/dialog", () => ({
@@ -21,6 +23,8 @@ vi.mock("@/components/ui/dialog", () => ({
 vi.mock("@/lib/cash-flow/cash-flow-actions", () => ({
   recordOrderPaymentAction: mocks.recordOrder,
   recordLegacyBookingPaymentAction: mocks.recordLegacy,
+  verifyPaymentAttemptAction: mocks.verifyPaymentAttempt,
+  clearPaymentAttemptAction: mocks.clearPaymentAttempt,
 }));
 
 vi.mock("@/lib/cash-flow/receipt-printer", async (importOriginal) => {
@@ -141,6 +145,12 @@ const callbacks = {
 afterEach(cleanup);
 beforeEach(() => {
   vi.clearAllMocks();
+  mocks.clearPaymentAttempt.mockResolvedValue({ ok: true });
+  mocks.verifyPaymentAttempt.mockResolvedValue({
+    ok: true,
+    status: "not_posted",
+    message: "No transaction was recorded in the financial ledger for this attempt.",
+  });
   mocks.printReceipt.mockReturnValue(true);
   mocks.recordOrder.mockResolvedValue({
     ok: true,
@@ -1255,7 +1265,7 @@ describe("CRM quick payment modal", () => {
     expect(screen.queryByRole("button", { name: "Record Payment" })).toBeNull();
   });
 
-  it("authoritatively resolves and completes when refresh returns updated balance reflecting payment", async () => {
+  it("proves amountPaid increase alone does NOT clear lock without authoritative verification (Requirement 2 & 3)", async () => {
     mocks.recordOrder.mockRejectedValueOnce(new Error("Connection reset"));
 
     const { rerender } = render(
@@ -1274,7 +1284,7 @@ describe("CRM quick payment modal", () => {
       expect(screen.getByText("Payment submission locked until verified in ledger.")).toBeTruthy();
     });
 
-    // Parent provides refreshed data where order has amountPaid: 1000 (reconciled!)
+    // Parent provides refreshed data where order has amountPaid: 1000 (e.g. from an unrelated transaction)
     const updatedData: FinancialEntryContext = {
       ...data,
       payableOrders: data.payableOrders.map((o) =>
@@ -1291,8 +1301,228 @@ describe("CRM quick payment modal", () => {
       />
     );
 
-    // Lock is cleared and onSuccess is called
-    await waitFor(() => expect(callbacks.onSuccess).toHaveBeenCalledTimes(1));
+    // Lock MUST NOT clear merely because balance changed!
+    expect(screen.getByText("Payment submission locked until verified in ledger.")).toBeTruthy();
+    expect(callbacks.onSuccess).not.toHaveBeenCalled();
+    expect(mocks.printReceipt).not.toHaveBeenCalled();
+  });
+
+  it("authoritatively resolves, prints receipt, and completes when Verify & Refresh confirms transaction (Requirement 1 & 6)", async () => {
+    mocks.recordOrder.mockRejectedValueOnce(new Error("Network timeout"));
+
+    mocks.verifyPaymentAttempt.mockResolvedValueOnce({
+      ok: true,
+      status: "confirmed",
+      transactionId: "c5cc08fd-9912-4f32-8ea3-289b41dc6801",
+      isIdempotentReplay: true,
+      branchId: "branch-main",
+      totalPayable: 1000,
+      totalPaid: 1000,
+      alreadyPaid: 600,
+      amountPaid: 400,
+      remainingBalance: 0,
+      movements: [
+        {
+          id: "mov-confirmed-1",
+          amount: 400,
+          paymentMethod: "cash",
+          externalReference: null,
+        },
+      ],
+    });
+
+    render(
+      <CradleFlowQuickPaymentModal
+        data={data}
+        loading={false}
+        requestedOrderId="order-deposit-test"
+        {...callbacks}
+      />
+    );
+
+    await waitFor(() => expect(screen.getByLabelText("Tender 1 amount")).toBeTruthy());
+    fireEvent.click(screen.getByRole("button", { name: "Record Payment" }));
+
+    await waitFor(() => {
+      expect(screen.getByText("Payment submission locked until verified in ledger.")).toBeTruthy();
+    });
+
+    // CSR clicks Verify & Refresh
+    const verifyBtn = screen.getByRole("button", { name: "Verify & Refresh" });
+    fireEvent.click(verifyBtn);
+
+    await waitFor(() => expect(mocks.verifyPaymentAttempt).toHaveBeenCalledTimes(1));
+    expect(mocks.verifyPaymentAttempt).toHaveBeenCalledWith(
+      expect.objectContaining({
+        orderId: "order-deposit-test",
+        sourceKind: "booking_order",
+        branchId: "branch-main",
+        expectedAmount: 400,
+      })
+    );
+
+    // On confirmed verification: receipt is printed and onSuccess is called
+    await waitFor(() => expect(mocks.printReceipt).toHaveBeenCalledTimes(1));
+    expect(mocks.printReceipt.mock.calls[0]?.[0].transactionId).toBe(
+      "c5cc08fd-9912-4f32-8ea3-289b41dc6801"
+    );
+    expect(callbacks.onSuccess).toHaveBeenCalledTimes(1);
+    expect(screen.getByText(/Payment of ₱400.00 recorded successfully!/)).toBeTruthy();
+  });
+
+  it("restores locked attempt from server-authoritative activePaymentAttempt when closing and reopening modal (Requirement 4)", async () => {
+    // Order has an existing unresolved activePaymentAttempt recorded on the server
+    const dataWithActiveAttempt: FinancialEntryContext = {
+      ...data,
+      payableOrders: [
+        {
+          ...data.payableOrders[0]!,
+          activePaymentAttempt: {
+            idempotencyKey: "idem-prev-attempt-uuid",
+            amount: 1200,
+            initiatedAt: "2026-10-31T01:00:00Z",
+            staffId: "staff-1",
+            branchId: "branch-main",
+          },
+        },
+      ],
+    };
+
+    // Modal mounts with this order
+    render(
+      <CradleFlowQuickPaymentModal
+        data={dataWithActiveAttempt}
+        loading={false}
+        requestedOrderId="order-1"
+        {...callbacks}
+      />
+    );
+
+    // Modal must immediately lock on server authority
+    expect(
+      screen.getByText(/An unresolved payment attempt of ₱1,200.00 was initiated/)
+    ).toBeTruthy();
+    expect(screen.getByText("Payment submission locked until verified in ledger.")).toBeTruthy();
+    expect(screen.queryByRole("button", { name: "Record Payment" })).toBeNull();
+  });
+
+  it("handles unrelated payment: informs cashier and suppresses receipt when another transaction settled balance (Requirement 3 & 8)", async () => {
+    mocks.recordOrder.mockRejectedValueOnce(new Error("Timeout"));
+
+    // Server verification finds an unrelated transaction settled the order
+    mocks.verifyPaymentAttempt.mockResolvedValueOnce({
+      ok: true,
+      status: "unrelated_payment",
+      message:
+        "The balance was updated by an unrelated transaction. Your payment attempt was not recorded in the financial ledger.",
+      unrelatedTransactionId: "txn-unrelated-999",
+    });
+
+    render(
+      <CradleFlowQuickPaymentModal
+        data={data}
+        loading={false}
+        requestedOrderId="order-deposit-test"
+        {...callbacks}
+      />
+    );
+
+    await waitFor(() => expect(screen.getByLabelText("Tender 1 amount")).toBeTruthy());
+    fireEvent.click(screen.getByRole("button", { name: "Record Payment" }));
+
+    await waitFor(() => {
+      expect(screen.getByText("Payment submission locked until verified in ledger.")).toBeTruthy();
+    });
+
+    const verifyBtn = screen.getByRole("button", { name: "Verify & Refresh" });
+    fireEvent.click(verifyBtn);
+
+    await waitFor(() => {
+      expect(
+        screen.getByText(/The balance was updated by an unrelated transaction/)
+      ).toBeTruthy();
+    });
+
+    // Receipt must NOT be printed for an unrelated payment
+    expect(mocks.printReceipt).not.toHaveBeenCalled();
+    expect(callbacks.onSuccess).not.toHaveBeenCalled();
+  });
+
+  it("allows safe verified unlock & retry when attempt is authoritatively verified not posted (Requirement 7 & 8)", async () => {
+    mocks.recordOrder.mockRejectedValueOnce(new Error("Network drop"));
+
+    mocks.verifyPaymentAttempt.mockResolvedValueOnce({
+      ok: true,
+      status: "not_posted",
+      message: "No transaction was recorded in the financial ledger for this attempt.",
+    });
+
+    mocks.clearPaymentAttempt.mockResolvedValueOnce({ ok: true });
+
+    render(
+      <CradleFlowQuickPaymentModal
+        data={data}
+        loading={false}
+        requestedOrderId="order-deposit-test"
+        {...callbacks}
+      />
+    );
+
+    await waitFor(() => expect(screen.getByLabelText("Tender 1 amount")).toBeTruthy());
+    fireEvent.click(screen.getByRole("button", { name: "Record Payment" }));
+
+    await waitFor(() => {
+      expect(screen.getByText("Payment submission locked until verified in ledger.")).toBeTruthy();
+    });
+
+    // Click Verify & Refresh -> server reports not_posted
+    fireEvent.click(screen.getByRole("button", { name: "Verify & Refresh" }));
+
+    await waitFor(() => {
+      expect(
+        screen.getByText(/You may safely unlock this booking to retry payment/)
+      ).toBeTruthy();
+    });
+
+    // Unlock & Re-try button must appear
+    const unlockBtn = screen.getByRole("button", { name: "Unlock & Re-try" });
+    fireEvent.click(unlockBtn);
+
+    await waitFor(() => expect(mocks.clearPaymentAttempt).toHaveBeenCalledTimes(1));
+
+    // Lock is cleared and Record Payment button is restored
+    await waitFor(() => {
+      expect(screen.getByRole("button", { name: "Record Payment" })).toBeTruthy();
+    });
+  });
+
+  it("handles cancelled or expired booking rejection cleanly without locking (Requirement 8)", async () => {
+    mocks.recordOrder.mockResolvedValueOnce({
+      ok: false,
+      code: "ORDER_NOT_PAYABLE",
+      error: "ORDER_NOT_PAYABLE: All bookings for this order are closed (cancelled, expired, or no-show). Cannot record payment.",
+    });
+
+    render(
+      <CradleFlowQuickPaymentModal
+        data={data}
+        loading={false}
+        requestedOrderId="order-deposit-test"
+        {...callbacks}
+      />
+    );
+
+    await waitFor(() => expect(screen.getByLabelText("Tender 1 amount")).toBeTruthy());
+    fireEvent.click(screen.getByRole("button", { name: "Record Payment" }));
+
+    await waitFor(() => {
+      expect(
+        screen.getByText(/All bookings for this order are closed/)
+      ).toBeTruthy();
+    });
+
+    // Modal shows error but is NOT permanently locked
     expect(screen.queryByText("Payment submission locked until verified in ledger.")).toBeNull();
+    expect(screen.getByRole("button", { name: "Record Payment" })).toBeTruthy();
   });
 });
