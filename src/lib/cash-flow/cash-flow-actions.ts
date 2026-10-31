@@ -997,7 +997,7 @@ export async function handoverCashSessionAction(
   };
 }
 
-export const VerifyPaymentTransactionInputSchema = z.object({
+const VerifyPaymentTransactionInputSchema = z.object({
   idempotencyKey: z.string().trim().min(1).max(255),
   branchId: z.string().trim().min(1),
   orderId: z.string().trim().optional(),

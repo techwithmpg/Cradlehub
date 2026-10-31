@@ -383,6 +383,71 @@ describe("CRM quick payment modal", () => {
     expect(screen.getByText(/Payment of ₱1,086.00 recorded successfully!/i)).toBeTruthy();
   });
 
+  it("keeps attempt unresolved when ledger verification returns not_found and allows safe retry with same idempotency key", async () => {
+    mocks.recordOrder.mockRejectedValueOnce(new Error("Network timeout: gateway closed"));
+
+    render(
+      <CradleFlowQuickPaymentModal
+        data={data}
+        loading={false}
+        requestedOrderId="order-dawn"
+        {...callbacks}
+      />
+    );
+
+    await waitFor(() => expect(screen.getByLabelText("Tender 1 amount")).toBeTruthy());
+    fireEvent.click(screen.getByRole("button", { name: "Record Payment" }));
+
+    // Should enter unresolved state
+    await waitFor(() => {
+      expect(screen.getByText(/Payment Status Unresolved/i)).toBeTruthy();
+      expect(screen.getByRole("button", { name: /Verify Transaction Status/i })).toBeTruthy();
+    });
+
+    const initialKey = mocks.recordOrder.mock.calls[0]?.[0]?.idempotencyKey;
+    expect(initialKey).toBeTruthy();
+
+    // Now cashier clicks "Verify Transaction Status" which returns not_found
+    mocks.verifyPayment.mockResolvedValueOnce({
+      ok: true,
+      status: "not_found",
+    });
+
+    fireEvent.click(screen.getByRole("button", { name: /Verify Transaction Status/i }));
+
+    await waitFor(() => expect(mocks.verifyPayment).toHaveBeenCalledTimes(1));
+
+    // MUST remain unresolved, banner still present, message explains in-flight possibility
+    expect(screen.getByText(/Payment Status Unresolved/i)).toBeTruthy();
+    expect(screen.getByText(/Transaction not found yet in ledger/i)).toBeTruthy();
+    expect((screen.getByRole("button", { name: "Payment Unresolved" }) as HTMLButtonElement).disabled).toBe(true);
+
+    // Now cashier clicks "Retry Same Attempt"
+    mocks.recordOrder.mockResolvedValueOnce({
+      ok: true,
+      data: {
+        success: true,
+        transaction_id: "c5cc08fd-9912-4f32-8ea3-289b41dc6809",
+        order_id: "order-dawn",
+        branch_id: "branch-main",
+        total_paid: 1086,
+        total_payable: 1086,
+        net_allocated: 1086,
+        remaining_balance: 0,
+        movements: [{ amount: 1086, payment_method: "cash", account_id: "drawer" }],
+      },
+    });
+
+    fireEvent.click(screen.getByRole("button", { name: /Retry Same Attempt/i }));
+
+    await waitFor(() => expect(mocks.recordOrder).toHaveBeenCalledTimes(2));
+    const retryKey = mocks.recordOrder.mock.calls[1]?.[0]?.idempotencyKey;
+    expect(retryKey).toBe(initialKey); // MUST reuse the exact same idempotency key
+
+    await waitFor(() => expect(mocks.printReceipt).toHaveBeenCalledTimes(1));
+    expect(screen.getByText(/Payment of ₱1,086.00 recorded successfully!/i)).toBeTruthy();
+  });
+
   it("calculates accurate Previously Paid math on partial payments (₱600 previously paid, ₱400 paid now)", async () => {
     mocks.recordOrder.mockResolvedValueOnce({
       ok: true,

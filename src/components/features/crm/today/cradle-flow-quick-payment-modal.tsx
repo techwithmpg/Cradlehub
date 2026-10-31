@@ -334,8 +334,11 @@ export function CradleFlowQuickPaymentModal({
         }
         onSuccess();
       } else {
-        setUnresolvedAttemptKey(null);
-        setReconcileResult("Transaction not found in ledger. The previous attempt was not committed. You may safely retry payment with the same parameters or cancel.");
+        // Do not clear unresolvedAttemptKey on not_found.
+        // A not_found lookup is not proof that the transaction cannot still commit.
+        setReconcileResult(
+          "Transaction not found yet in ledger. The previous attempt may still be in flight or delayed. Keep verifying until confirmed, or retry with the identical key."
+        );
       }
     } catch (err) {
       setPaymentError(err instanceof Error ? err.message : "Reconciliation query failed.");
@@ -344,8 +347,9 @@ export function CradleFlowQuickPaymentModal({
     }
   }
 
-  async function recordPayment() {
-    if (submitting.current || !canSubmit || !data || !selected) return;
+  async function recordPayment(retryKey?: string) {
+    if (submitting.current || !data || !selected) return;
+    if (!retryKey && !canSubmit) return;
     submitting.current = true;
     setBusy(true);
     setPaymentError(null);
@@ -369,9 +373,11 @@ export function CradleFlowQuickPaymentModal({
     });
 
     const keyToUse =
-      attempt.current?.signature === signature && attempt.current.key
+      retryKey ??
+      unresolvedAttemptKey ??
+      (attempt.current?.signature === signature && attempt.current.key
         ? attempt.current.key
-        : crypto.randomUUID();
+        : crypto.randomUUID());
     attempt.current = { signature, key: keyToUse };
     setUnresolvedAttemptKey(keyToUse);
 
@@ -661,10 +667,18 @@ export function CradleFlowQuickPaymentModal({
               <button
                 type="button"
                 onClick={() => void handleVerifyTransaction()}
-                disabled={reconciling}
+                disabled={reconciling || busy}
                 className="rounded-lg border border-amber-400 bg-white px-3 py-1 font-semibold text-amber-900 hover:bg-amber-100 disabled:opacity-50"
               >
                 {reconciling ? "Verifying…" : "Verify Transaction Status"}
+              </button>
+              <button
+                type="button"
+                onClick={() => void recordPayment(unresolvedAttemptKey)}
+                disabled={reconciling || busy}
+                className="rounded-lg bg-amber-800 px-3 py-1 font-semibold text-white hover:bg-amber-900 disabled:opacity-50"
+              >
+                {busy ? "Retrying…" : "Retry Same Attempt"}
               </button>
             </div>
           </div>
