@@ -6,7 +6,7 @@ import { Camera, CameraOff, Loader2, QrCode, RefreshCw, ShieldAlert, XCircle } f
 import { useStaffScanner } from "./use-staff-scanner";
 import type { ScannerState } from "./use-staff-scanner";
 import { resolveStaffScanTargetAction } from "@/app/(dashboard)/staff/scan/actions";
-import { warmAttendanceLocation } from "@/lib/attendance/browser-location";
+import { useStaffScanLocation } from "./use-staff-scan-location";
 
 // ---------------------------------------------------------------------------
 // Types
@@ -297,15 +297,9 @@ function Actions({
  * Architecture: PWA-GOV-009 / C6
  */
 export function StaffQrScanner({ returnHref, locationRequired = false }: StaffQrScannerProps) {
-  useEffect(() => {
-    if (!locationRequired) return;
-    void warmAttendanceLocation();
-    const onVisible = () => {
-      if (document.visibilityState === "visible") void warmAttendanceLocation();
-    };
-    document.addEventListener("visibilitychange", onVisible);
-    return () => document.removeEventListener("visibilitychange", onVisible);
-  }, [locationRequired]);
+  const location = useStaffScanLocation(locationRequired);
+  const scanReady = !locationRequired || location.state === "ready";
+  const wasScanReady = useRef(scanReady);
   const router = useRouter();
 
   /**
@@ -351,10 +345,20 @@ export function StaffQrScanner({ returnHref, locationRequired = false }: StaffQr
     [router]
   );
 
-  const { state, videoRef, canvasRef, scanAgain, setState } = useStaffScanner({
+  const { state, videoRef, canvasRef, scanAgain, setState, stopScan } = useStaffScanner({
     onDecode: handleDecode,
-    autoStart: true,
+    autoStart: scanReady,
   });
+
+  useEffect(() => {
+    if (!scanReady) {
+      stopScan();
+      if (wasScanReady.current) queueMicrotask(() => {
+        if (mountedRef.current) setState("paused");
+      });
+    }
+    wasScanReady.current = scanReady;
+  }, [scanReady, setState, stopScan]);
 
   // Decode callbacks run after mount; keep their setter reference current in an effect.
   useEffect(() => {
@@ -363,12 +367,52 @@ export function StaffQrScanner({ returnHref, locationRequired = false }: StaffQr
 
   return (
     <div className="flex flex-col gap-5 py-4">
-      <Viewfinder state={state} videoRef={videoRef} canvasRef={canvasRef} />
-      <StatusMessage state={state} />
-      <Actions state={state} onScanAgain={scanAgain} returnHref={returnHref} />
-      <p className="mt-auto text-center text-[11px] text-[#64748B]">
-        🔒 Camera active only while scanning · Camera images are not saved
-      </p>
+      {!scanReady ? (
+        <section aria-live="polite" className="mx-auto flex w-full max-w-md flex-col gap-4 rounded-xl border bg-white p-5 text-center">
+          {location.state === "checking" ? (
+            <>
+              <Loader2 size={24} className="mx-auto animate-spin text-[#163A2B]" aria-hidden="true" />
+              <h2 className="text-base font-semibold">Preparing your location…</h2>
+              <p className="text-sm text-[#475569]">Checking GPS before opening the QR scanner.</p>
+            </>
+          ) : (
+            <>
+              <h2 className="text-base font-semibold">
+                {location.state === "permission_needed" ? "Enable location for attendance"
+                  : location.state === "denied" ? "Location permission is blocked"
+                  : location.state === "inaccurate" ? "Improve location accuracy"
+                  : "Location is unavailable"}
+              </h2>
+              <p className="text-sm text-[#475569]">
+                {location.state === "permission_needed"
+                  ? "CradleHub needs your location to verify that you are at your assigned branch."
+                  : location.state === "denied"
+                    ? "Open your phone's app or browser settings, allow precise location for CradleHub, then return and retry."
+                    : location.state === "inaccurate"
+                      ? `Your phone cannot confirm your location accurately enough for attendance. Reported accuracy: ±${location.accuracyMeters ?? "?"} m (75 m required). Enable Precise Location, keep Wi-Fi and device location on, move near a window or another area with better reception, then retry.`
+                      : "Turn on device location and Precise Location, move where reception is better, then retry."}
+              </p>
+              <button type="button" onClick={location.request}
+                className="min-h-11 rounded-lg bg-[#163A2B] px-5 py-3 text-sm font-semibold text-white">
+                {location.state === "permission_needed" ? "Enable Location"
+                  : location.state === "inaccurate" ? "Try Location Again" : "Try Again"}
+              </button>
+            </>
+          )}
+          <a href={returnHref} className="rounded-lg border px-4 py-3 text-sm font-semibold text-[#163A2B]">
+            Return to Workspace
+          </a>
+        </section>
+      ) : (
+        <>
+          <Viewfinder state={state} videoRef={videoRef} canvasRef={canvasRef} />
+          <StatusMessage state={state} />
+          <Actions state={state} onScanAgain={scanAgain} returnHref={returnHref} />
+          <p className="mt-auto text-center text-[11px] text-[#64748B]">
+            🔒 Camera active only while scanning · Camera images are not saved
+          </p>
+        </>
+      )}
     </div>
   );
 }
