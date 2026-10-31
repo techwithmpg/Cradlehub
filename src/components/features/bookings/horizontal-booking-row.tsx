@@ -28,6 +28,7 @@ import {
   readBookingPrice,
 } from "@/lib/bookings/booking-display";
 import { isHomeServiceBooking } from "@/lib/bookings/bookings-workspace-filters";
+import { isBookingLineCompleted } from "@/lib/bookings/operational-booking-eligibility";
 import { formatTime12h } from "@/lib/utils/time-format";
 import { PaymentActionMenu } from "@/components/features/dashboard/payment-action-menu";
 import {
@@ -87,26 +88,69 @@ export function HorizontalBookingRow({
 
   const [isActionPending, startActionTransition] = useTransition();
 
-  // Operational status resolution
+  // Multi-guest & line-aware lifecycle resolution:
+  // Find the active actionable unfinished line:
+  // 1. In-service line
+  // 2. Checked-in / waiting line
+  // 3. Upcoming non-completed line
+  // 4. Fallback to primaryLine
+  const activeUnfinishedLine =
+    group.lines.find(
+      (line) =>
+        !isBookingLineCompleted(line) &&
+        line.status !== "cancelled" &&
+        (line.status === "in_progress" ||
+          line.booking_progress_status === "session_started" ||
+          line.booking_progress_status === "in_service" ||
+          Boolean(line.session_started_at))
+    ) ??
+    group.lines.find(
+      (line) =>
+        !isBookingLineCompleted(line) &&
+        line.status !== "cancelled" &&
+        (line.booking_progress_status === "checked_in" ||
+          line.booking_progress_status === "arrived" ||
+          Boolean(line.checked_in_at) ||
+          Boolean(line.arrived_at))
+    ) ??
+    group.lines.find((line) => !isBookingLineCompleted(line) && line.status !== "cancelled") ??
+    primaryLine;
+
+  const targetLine = activeUnfinishedLine;
+
+  const allLinesCompleted =
+    group.lines.filter((line) => line.status !== "cancelled").length > 0 &&
+    group.lines.filter((line) => line.status !== "cancelled").every(isBookingLineCompleted);
+
+  const isCancelled =
+    group.lines.every((line) => line.status === "cancelled" || line.booking_progress_status === "cancelled");
+
+  const isCompleted = !isCancelled && allLinesCompleted;
+
   const isInService =
-    primaryLine.status === "in_progress" ||
-    primaryLine.booking_progress_status === "session_started" ||
-    primaryLine.booking_progress_status === "in_service" ||
-    (Boolean(primaryLine.session_started_at) && !primaryLine.session_completed_at);
+    !isCancelled &&
+    !isCompleted &&
+    group.lines.some(
+      (line) =>
+        !isBookingLineCompleted(line) &&
+        (line.status === "in_progress" ||
+          line.booking_progress_status === "session_started" ||
+          line.booking_progress_status === "in_service" ||
+          (Boolean(line.session_started_at) && !line.session_completed_at))
+    );
 
   const isCheckedIn =
+    !isCancelled &&
+    !isCompleted &&
     !isInService &&
-    (primaryLine.booking_progress_status === "checked_in" ||
-      primaryLine.booking_progress_status === "arrived" ||
-      Boolean(primaryLine.checked_in_at) ||
-      Boolean(primaryLine.arrived_at));
-
-  const isCompleted =
-    primaryLine.status === "completed" ||
-    primaryLine.booking_progress_status === "completed" ||
-    Boolean(primaryLine.session_completed_at);
-
-  const isCancelled = primaryLine.status === "cancelled";
+    group.lines.some(
+      (line) =>
+        !isBookingLineCompleted(line) &&
+        (line.booking_progress_status === "checked_in" ||
+          line.booking_progress_status === "arrived" ||
+          Boolean(line.checked_in_at) ||
+          Boolean(line.arrived_at))
+    );
 
   // Calculate duration
   const totalDurationMinutes = group.lines.reduce((sum, line) => {
@@ -114,12 +158,37 @@ export function HorizontalBookingRow({
     return sum + (duration > 0 ? duration : 60);
   }, 0);
 
+  // Payment pill resolution
+  const paymentStatus = group.payment.status ?? primaryLine.payment_status;
+  const isPaid =
+    paymentStatus === "paid" ||
+    (group.payment.due !== null && group.payment.due !== undefined && group.payment.due <= 0);
+  const isPartial =
+    paymentStatus === "partial" ||
+    (group.payment.due !== null &&
+      group.payment.due !== undefined &&
+      group.payment.due > 0 &&
+      (group.payment.paid ?? 0) > 0);
+  const isPaymentDue = isCompleted && !isPaid;
+
   // Time substatus label and color
   let timeSubstatusLabel = "Upcoming";
   let timeSubstatusDotColor = "bg-slate-400";
   let timeSubstatusTextColor = "text-slate-600";
 
-  if (isInService) {
+  if (isCancelled) {
+    timeSubstatusLabel = "Cancelled";
+    timeSubstatusDotColor = "bg-rose-500";
+    timeSubstatusTextColor = "text-rose-600";
+  } else if (isPaymentDue) {
+    timeSubstatusLabel = "Payment Due";
+    timeSubstatusDotColor = "bg-amber-500";
+    timeSubstatusTextColor = "text-amber-700";
+  } else if (isCompleted) {
+    timeSubstatusLabel = "Completed";
+    timeSubstatusDotColor = "bg-slate-300";
+    timeSubstatusTextColor = "text-slate-500";
+  } else if (isInService) {
     timeSubstatusLabel = "In service";
     timeSubstatusDotColor = "bg-emerald-500";
     timeSubstatusTextColor = "text-emerald-700";
@@ -127,14 +196,6 @@ export function HorizontalBookingRow({
     timeSubstatusLabel = "Waiting";
     timeSubstatusDotColor = "bg-amber-500";
     timeSubstatusTextColor = "text-amber-700";
-  } else if (isCompleted) {
-    timeSubstatusLabel = "Completed";
-    timeSubstatusDotColor = "bg-slate-300";
-    timeSubstatusTextColor = "text-slate-500";
-  } else if (isCancelled) {
-    timeSubstatusLabel = "Cancelled";
-    timeSubstatusDotColor = "bg-rose-500";
-    timeSubstatusTextColor = "text-rose-600";
   }
 
   // Type badge resolution
@@ -160,33 +221,30 @@ export function HorizontalBookingRow({
   let statusPillLabel = "Upcoming";
   let statusPillClass = "bg-slate-100 text-slate-700 border-slate-200";
 
-  if (isInService) {
+  if (isCancelled) {
+    statusPillLabel = "Cancelled";
+    statusPillClass = "bg-rose-50 text-rose-600 border-rose-200";
+  } else if (isCompleted) {
+    statusPillLabel = "Completed";
+    statusPillClass = "bg-slate-100 text-slate-500 border-slate-200";
+  } else if (isInService) {
     statusPillLabel = "In Service";
     statusPillClass = "bg-[#e6f4ee] text-[#006044] border-[#a7d7c5]";
   } else if (isCheckedIn) {
     statusPillLabel = "Checked In";
     statusPillClass = "bg-sky-50 text-sky-700 border-sky-200";
-  } else if (isCompleted) {
-    statusPillLabel = "Completed";
-    statusPillClass = "bg-slate-100 text-slate-500 border-slate-200";
-  } else if (isCancelled) {
-    statusPillLabel = "Cancelled";
-    statusPillClass = "bg-rose-50 text-rose-600 border-rose-200";
   }
-
-  // Payment pill resolution
-  const paymentStatus = group.payment.status ?? primaryLine.payment_status;
-  const isPaid = paymentStatus === "paid";
-  const isPartial = paymentStatus === "partial";
 
   // Action button resolution
   let actionButtonLabel = "Start Service";
-  if (isInService) {
+  if (isCancelled) {
+    actionButtonLabel = "Cancelled";
+  } else if (isCompleted) {
+    actionButtonLabel = "Completed";
+  } else if (isInService) {
     actionButtonLabel = "Complete Service";
   } else if (isCheckedIn) {
     actionButtonLabel = "Start Service";
-  } else if (isCompleted) {
-    actionButtonLabel = "Completed";
   }
 
   function handleActionClick() {
@@ -195,7 +253,7 @@ export function HorizontalBookingRow({
     startActionTransition(async () => {
       try {
         if (isInService) {
-          const res = await crmCompleteServiceAction({ bookingId: primaryLine.id });
+          const res = await crmCompleteServiceAction({ bookingId: targetLine.id });
           if (res.success) {
             toast.success("Service completed", {
               description: `Completed service for ${customer?.full_name ?? "customer"}.`,
@@ -206,7 +264,7 @@ export function HorizontalBookingRow({
           }
         } else {
           // If not checked in, we start service (which also checks in if required)
-          const res = await crmStartServiceAction({ bookingId: primaryLine.id });
+          const res = await crmStartServiceAction({ bookingId: targetLine.id });
           if (res.success) {
             toast.success("Service started", {
               description: `Service session started for ${customer?.full_name ?? "customer"}.`,
@@ -396,7 +454,7 @@ export function HorizontalBookingRow({
             onClick={handleActionClick}
             disabled={isActionPending || isCompleted || isCancelled}
             className={`rounded-lg px-3.5 py-1.5 text-xs font-semibold transition active:scale-[0.98] ${
-              isCompleted
+              isCompleted || isCancelled
                 ? "bg-slate-100 text-slate-400 cursor-default"
                 : "bg-[#006044] text-white shadow-sm hover:bg-[#004d37] disabled:opacity-50"
             }`}

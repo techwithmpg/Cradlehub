@@ -44,6 +44,43 @@ export function isBookingLineCompleted(line: WorkspaceBookingRow): boolean {
   );
 }
 
+export type BookingLifecycleState =
+  | "cancelled"
+  | "completed"
+  | "in_service"
+  | "checked_in"
+  | "upcoming";
+
+/**
+ * Resolves the authoritative lifecycle state of an individual booking line.
+ * Precedence: cancelled -> completed -> in_service -> checked_in -> upcoming
+ */
+export function resolveBookingLifecycleState(line: WorkspaceBookingRow): BookingLifecycleState {
+  if (line.status === "cancelled" || line.booking_progress_status === "cancelled") {
+    return "cancelled";
+  }
+  if (isBookingLineCompleted(line)) {
+    return "completed";
+  }
+  if (
+    line.status === "in_progress" ||
+    line.booking_progress_status === "session_started" ||
+    line.booking_progress_status === "in_service" ||
+    (Boolean(line.session_started_at) && !line.session_completed_at)
+  ) {
+    return "in_service";
+  }
+  if (
+    line.booking_progress_status === "checked_in" ||
+    line.booking_progress_status === "arrived" ||
+    Boolean(line.checked_in_at) ||
+    Boolean(line.arrived_at)
+  ) {
+    return "checked_in";
+  }
+  return "upcoming";
+}
+
 /**
  * Determines whether a CrmBookingGroup represents an operationally actionable booking.
  *
@@ -79,8 +116,28 @@ export function isOperationalBookingGroup(
   const activeLines = lines.filter((line) => line.status !== "cancelled");
   if (activeLines.length === 0) return false;
 
-  // 2. In-service bookings: show immediately
-  const hasInService = activeLines.some(
+  // 2. Completion and Payment status evaluation:
+  // When every active service in the group has completed, the only remaining operational
+  // question is whether payment has been settled.
+  const allActiveCompleted = activeLines.every(isBookingLineCompleted);
+  const isFullyPaid =
+    group.payment.status === "paid" ||
+    (group.payment.due !== null && group.payment.due <= 0);
+
+  if (allActiveCompleted) {
+    // If every active service is completed and fully paid, there is no operational work left -> hide!
+    if (isFullyPaid) {
+      return false;
+    }
+    // If every active service is completed but payment is still due/partial -> show for cashier collection!
+    return true;
+  }
+
+  // 3. For groups with unfinished services (single booking not yet completed, or multi-guest with remaining work):
+  const unfinishedLines = activeLines.filter((line) => !isBookingLineCompleted(line));
+
+  // 3a. In-service bookings: show immediately
+  const hasInService = unfinishedLines.some(
     (line) =>
       line.status === "in_progress" ||
       line.booking_progress_status === "session_started" ||
@@ -91,8 +148,8 @@ export function isOperationalBookingGroup(
     return true;
   }
 
-  // 3. Checked-in or waiting customers: show immediately
-  const hasCheckedInOrWaiting = activeLines.some(
+  // 3b. Checked-in or waiting customers on unfinished lines: show immediately
+  const hasCheckedInOrWaiting = unfinishedLines.some(
     (line) =>
       line.booking_progress_status === "checked_in" ||
       line.booking_progress_status === "arrived" ||
@@ -103,8 +160,8 @@ export function isOperationalBookingGroup(
     return true;
   }
 
-  // 4. Home Service with active dispatch/service: show immediately
-  const hasActiveHomeService = activeLines.some(
+  // 3c. Home Service with active dispatch/service on unfinished lines: show immediately
+  const hasActiveHomeService = unfinishedLines.some(
     (line) =>
       (line.delivery_type === "home_service" || line.type === "home_service") &&
       line.status !== "completed" &&
@@ -115,23 +172,7 @@ export function isOperationalBookingGroup(
     return true;
   }
 
-  // 5. Completion and Payment status evaluation
-  const allActiveCompleted = activeLines.every(isBookingLineCompleted);
-  const isFullyPaid =
-    group.payment.status === "paid" ||
-    (group.payment.due !== null && group.payment.due <= 0);
-
-  // If every active service is completed and fully paid, there is no operational work left -> hide!
-  if (allActiveCompleted && isFullyPaid) {
-    return false;
-  }
-
-  // If completed services have an outstanding or partial payment balance -> show for payment collection!
-  if (allActiveCompleted && !isFullyPaid) {
-    return true;
-  }
-
-  // 6. Check for expired unattended appointment:
+  // 4. Check for expired unattended appointment:
   // An appointment where no guest checked in, arrived, or started service.
   const hasAnyAttendance = activeLines.some(hasBookingStartedOrAttended);
 

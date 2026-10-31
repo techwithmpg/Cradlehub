@@ -615,4 +615,142 @@ describe("Horizontal Bookings Workspace & Quick Edit Integration", () => {
       expect(onBookingsChanged).toHaveBeenCalled();
     });
   });
+
+  it("displays Payment Due and Completed pill for completed service with unpaid balance, not Waiting", () => {
+    const booking = makeBooking({
+      id: "booking-unpaid-done",
+      status: "completed",
+      booking_progress_status: "completed",
+      checked_in_at: "2026-10-29T10:00:00Z",
+      session_started_at: "2026-10-29T10:05:00Z",
+      session_completed_at: "2026-10-29T11:05:00Z",
+      payment_status: "unpaid",
+      metadata: { price: 1200 },
+      customers: {
+        id: "cust-unpaid",
+        full_name: "Unpaid Completed Customer",
+        phone: "09179998888",
+        email: "unpaid@example.com",
+      },
+    });
+
+    render(
+      <BookingsDesktopWorkspace
+        workspaceContext="crm"
+        viewerRole="admin"
+        date="2026-10-29"
+        initialQuickFilter="all"
+        bookings={[booking]}
+      />
+    );
+
+    // Assert "Payment Due" appears in time substatus
+    expect(screen.getByText("Payment Due")).toBeTruthy();
+
+    // Assert "Completed" appears in status pill and button
+    const completedElements = screen.getAllByText("Completed");
+    expect(completedElements.length).toBeGreaterThanOrEqual(1);
+
+    // Assert "Waiting" does NOT appear
+    expect(screen.queryByText("Waiting")).toBeNull();
+  });
+
+  it("does not display Waiting or Start Service for completed service with historical check-in timestamp", () => {
+    const booking = makeBooking({
+      id: "booking-hist-checkin",
+      status: "completed",
+      booking_progress_status: "completed",
+      checked_in_at: "2026-10-29T09:00:00Z",
+      arrived_at: "2026-10-29T09:00:00Z",
+      session_started_at: "2026-10-29T09:05:00Z",
+      session_completed_at: "2026-10-29T10:05:00Z",
+      payment_status: "paid",
+      customers: {
+        id: "cust-hist",
+        full_name: "Historical Checkin Customer",
+        phone: "09171234567",
+        email: "hist@example.com",
+      },
+    });
+
+    // In a non-filtered or workspace context="owner" where completed+paid is rendered
+    render(
+      <BookingsDesktopWorkspace
+        workspaceContext="owner"
+        viewerRole="admin"
+        date="2026-10-29"
+        initialQuickFilter="all"
+        bookings={[booking]}
+      />
+    );
+
+    // Assert row shows Completed
+    const completedElements = screen.getAllByText("Completed");
+    expect(completedElements.length).toBeGreaterThanOrEqual(1);
+
+    // Assert "Waiting" and "Start Service" do NOT appear
+    expect(screen.queryByText("Waiting")).toBeNull();
+    expect(screen.queryByText("Start Service")).toBeNull();
+  });
+
+  it("handles multi-guest order where guest 1 is completed and guest 2 is waiting by keeping group actionable and targeting unfinished line", async () => {
+    const line1 = makeBooking({
+      id: "booking-multi-1",
+      order_id: "ORD-MULTI-99",
+      status: "completed",
+      booking_progress_status: "completed",
+      checked_in_at: "2026-10-29T10:00:00Z",
+      session_started_at: "2026-10-29T10:05:00Z",
+      session_completed_at: "2026-10-29T11:00:00Z",
+      payment_status: "unpaid",
+      customers: {
+        id: "cust-1",
+        full_name: "Elena Navarro",
+        phone: "09171112233",
+        email: "elena@example.com",
+      },
+    });
+
+    const line2 = makeBooking({
+      id: "booking-multi-2",
+      order_id: "ORD-MULTI-99",
+      status: "confirmed",
+      booking_progress_status: "checked_in",
+      checked_in_at: "2026-10-29T10:00:00Z",
+      session_started_at: null,
+      session_completed_at: null,
+      payment_status: "unpaid",
+      customers: {
+        id: "cust-2",
+        full_name: "Marco Navarro",
+        phone: "09174445566",
+        email: "marco@example.com",
+      },
+    });
+
+    mocks.crmStartServiceAction.mockResolvedValueOnce({ success: true });
+
+    render(
+      <BookingsDesktopWorkspace
+        workspaceContext="crm"
+        viewerRole="admin"
+        date="2026-10-29"
+        initialQuickFilter="all"
+        bookings={[line1, line2]}
+      />
+    );
+
+    // Group should NOT be marked completed because line 2 is still waiting
+    expect(screen.getByText("Waiting")).toBeTruthy();
+    expect(screen.getByText("Start Service")).toBeTruthy();
+
+    // Clicking Start Service should target line2 (the unfinished waiting line), NOT line1
+    fireEvent.click(screen.getByRole("button", { name: "Start Service" }));
+
+    await waitFor(() => {
+      expect(mocks.crmStartServiceAction).toHaveBeenCalledWith({
+        bookingId: "booking-multi-2",
+      });
+    });
+  });
 });

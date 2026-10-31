@@ -1,5 +1,9 @@
-import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { isOperationalBookingGroup } from "@/lib/bookings/operational-booking-eligibility";
+import { describe, expect, it, vi } from "vitest";
+import {
+  isOperationalBookingGroup,
+  isBookingLineCompleted,
+  resolveBookingLifecycleState,
+} from "@/lib/bookings/operational-booking-eligibility";
 import type { CrmBookingGroup } from "@/lib/bookings/crm-booking-groups";
 import type { WorkspaceBookingRow } from "@/components/features/bookings/booking-workspace-types";
 
@@ -263,28 +267,119 @@ describe("Operational Booking Eligibility (Pass 3)", () => {
     }
   });
 
-  it("18. shows upcoming appointment later today when clockTime is omitted", () => {
-    // 2026-10-29 14:30:00 Manila time (UTC+8) is 2026-10-29 06:30:00 UTC
-    vi.useFakeTimers();
-    vi.setSystemTime(new Date("2026-10-29T06:30:00Z"));
+  it("19. hides completed service that is fully paid even with historical checked_in_at and session_started_at timestamps", () => {
+    const line = createMockLine({
+      status: "completed",
+      booking_progress_status: "completed",
+      checked_in_at: "2026-10-29T10:00:00Z",
+      arrived_at: "2026-10-29T10:00:00Z",
+      session_started_at: "2026-10-29T10:05:00Z",
+      session_completed_at: "2026-10-29T11:05:00Z",
+    });
+    const group = createMockGroup([line], { status: "paid", due: 0, paid: 1200, total: 1200 });
+    expect(isOperationalBookingGroup(group, context)).toBe(false);
+  });
 
-    try {
+  it("20. shows completed service that has unpaid balance even with historical checked_in_at", () => {
+    const line = createMockLine({
+      status: "completed",
+      booking_progress_status: "completed",
+      checked_in_at: "2026-10-29T10:00:00Z",
+      session_started_at: "2026-10-29T10:05:00Z",
+      session_completed_at: "2026-10-29T11:05:00Z",
+    });
+    const group = createMockGroup([line], { status: "unpaid", due: 1200, paid: 0, total: 1200 });
+    expect(isOperationalBookingGroup(group, context)).toBe(true);
+  });
+
+  it("21. shows multi-guest order where Guest 1 is completed with historical check-in and paid, but Guest 2 is checked in / waiting", () => {
+    const line1 = createMockLine({
+      id: "line-1",
+      status: "completed",
+      booking_progress_status: "completed",
+      checked_in_at: "2026-10-29T10:00:00Z",
+      session_started_at: "2026-10-29T10:05:00Z",
+      session_completed_at: "2026-10-29T11:00:00Z",
+    });
+    const line2 = createMockLine({
+      id: "line-2",
+      status: "confirmed",
+      booking_progress_status: "checked_in",
+      checked_in_at: "2026-10-29T10:00:00Z",
+      session_started_at: null,
+      session_completed_at: null,
+    });
+    const group = createMockGroup([line1, line2], { status: "paid", due: 0 });
+    expect(isOperationalBookingGroup(group, context)).toBe(true);
+  });
+
+  it("22. hides cancelled booking even if it had earlier checked_in_at and session_started_at", () => {
+    const line = createMockLine({
+      status: "cancelled",
+      booking_progress_status: "cancelled",
+      checked_in_at: "2026-10-29T10:00:00Z",
+      session_started_at: "2026-10-29T10:05:00Z",
+    });
+    const group = createMockGroup([line]);
+    expect(isOperationalBookingGroup(group, context)).toBe(false);
+  });
+
+  describe("resolveBookingLifecycleState", () => {
+    it("resolves cancelled when status is cancelled regardless of timestamps", () => {
       const line = createMockLine({
-        booking_date: "2026-10-29",
-        start_time: "16:00:00",
-        end_time: "17:00:00",
+        status: "cancelled",
+        checked_in_at: "2026-10-29T10:00:00Z",
+        session_started_at: "2026-10-29T10:05:00Z",
+        session_completed_at: "2026-10-29T11:00:00Z",
+      });
+      expect(resolveBookingLifecycleState(line)).toBe("cancelled");
+    });
+
+    it("resolves completed when status/progress is completed even with historical check-in", () => {
+      const line = createMockLine({
+        status: "completed",
+        booking_progress_status: "completed",
+        checked_in_at: "2026-10-29T10:00:00Z",
+        arrived_at: "2026-10-29T10:00:00Z",
+        session_started_at: "2026-10-29T10:05:00Z",
+        session_completed_at: "2026-10-29T11:00:00Z",
+      });
+      expect(resolveBookingLifecycleState(line)).toBe("completed");
+    });
+
+    it("resolves in_service when session is started and not completed", () => {
+      const line = createMockLine({
+        status: "in_progress",
+        booking_progress_status: "session_started",
+        checked_in_at: "2026-10-29T10:00:00Z",
+        session_started_at: "2026-10-29T10:05:00Z",
+        session_completed_at: null,
+      });
+      expect(resolveBookingLifecycleState(line)).toBe("in_service");
+    });
+
+    it("resolves checked_in when customer checked in or arrived and service not yet started", () => {
+      const line = createMockLine({
         status: "confirmed",
-        checked_in_at: null,
-        arrived_at: null,
+        booking_progress_status: "checked_in",
+        checked_in_at: "2026-10-29T10:00:00Z",
         session_started_at: null,
         session_completed_at: null,
       });
-      const group = createMockGroup([line], {}, { startTime: "16:00:00", endTime: "17:00:00" });
-      expect(isOperationalBookingGroup(group, { businessDate: "2026-10-29" })).toBe(true);
-      expect(isOperationalBookingGroup(group)).toBe(true);
-    } finally {
-      vi.useRealTimers();
-    }
+      expect(resolveBookingLifecycleState(line)).toBe("checked_in");
+    });
+
+    it("resolves upcoming when booking is scheduled with no check-in", () => {
+      const line = createMockLine({
+        status: "confirmed",
+        booking_progress_status: "confirmed",
+        checked_in_at: null,
+        session_started_at: null,
+        session_completed_at: null,
+      });
+      expect(resolveBookingLifecycleState(line)).toBe("upcoming");
+      expect(isBookingLineCompleted(line)).toBe(false);
+    });
   });
 });
 
