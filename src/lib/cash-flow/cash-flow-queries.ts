@@ -12,6 +12,7 @@ import type {
   PayableOrderItemDetail,
   PayableOrderPreviousPayment,
   CashSessionSummary,
+  ActivePaymentAttempt,
 } from "./cash-flow-types";
 import type { FinancialPaymentMethod } from "./financial-contract";
 import { findUnmatchedBookingPayments, isCashFlowReceiptTransactionType } from "./payment-evidence";
@@ -521,6 +522,36 @@ export async function getCashFlowData(
         homeServiceFee: orderFeeById.get(orderId),
       })
     );
+  }
+
+  // Authoritative active payment attempts from public.payment_attempts (CF9)
+  const activeAttemptByOrderId = new Map<string, ActivePaymentAttempt>();
+  const activeAttemptByBookingId = new Map<string, ActivePaymentAttempt>();
+  try {
+    const { data: attemptRows } = await supabase
+      .from("payment_attempts")
+      .select("id, order_id, booking_id, idempotency_key, amount, created_at, staff_id, branch_id, status, transaction_id")
+      .eq("branch_id", branchId)
+      .eq("status", "in_flight");
+
+    for (const row of attemptRows ?? []) {
+      const att: ActivePaymentAttempt = {
+        idempotencyKey: row.idempotency_key,
+        amount: Number(row.amount) || 0,
+        initiatedAt: row.created_at,
+        staffId: row.staff_id ?? undefined,
+        branchId: row.branch_id ?? undefined,
+        status: row.status as "in_flight" | "posted" | "reconciled_abandoned",
+        transactionId: row.transaction_id ?? null,
+      };
+      if (row.order_id) {
+        activeAttemptByOrderId.set(row.order_id, att);
+      } else if (row.booking_id) {
+        activeAttemptByBookingId.set(row.booking_id, att);
+      }
+    }
+  } catch {
+    // Non-blocking query failure fallback for mocked or test environments
   }
   const orderPayment = (orderId: string) => {
     const collectible = orderEligibilityById.get(orderId);
@@ -1064,6 +1095,11 @@ export async function getCashFlowData(
       payableItems,
       previousPayments,
       activePaymentAttempt: (() => {
+        const dbAttempt = b.order_id
+          ? activeAttemptByOrderId.get(b.order_id)
+          : activeAttemptByBookingId.get(b.id);
+        if (dbAttempt) return dbAttempt;
+
         const rawAttempt = (
           b.order_id
             ? orderMetadataById.get(b.order_id)?.active_payment_attempt
@@ -1081,6 +1117,7 @@ export async function getCashFlowData(
             initiatedAt: String(rawAttempt.initiated_at ?? ""),
             staffId: rawAttempt.staff_id ? String(rawAttempt.staff_id) : undefined,
             branchId: rawAttempt.branch_id ? String(rawAttempt.branch_id) : undefined,
+            status: "in_flight",
           };
         }
         return null;

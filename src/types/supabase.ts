@@ -3098,6 +3098,93 @@ export type Database = {
           },
         ]
       }
+      payment_attempts: {
+        Row: {
+          abandoned_at: string | null
+          abandoned_by: string | null
+          abandoned_reason: string | null
+          amount: number
+          booking_id: string | null
+          branch_id: string
+          created_at: string
+          id: string
+          idempotency_key: string
+          order_id: string | null
+          staff_id: string
+          status: 'in_flight' | 'posted' | 'reconciled_abandoned'
+          transaction_id: string | null
+          updated_at: string
+        }
+        Insert: {
+          abandoned_at?: string | null
+          abandoned_by?: string | null
+          abandoned_reason?: string | null
+          amount: number
+          booking_id?: string | null
+          branch_id: string
+          created_at?: string
+          id?: string
+          idempotency_key: string
+          order_id?: string | null
+          staff_id: string
+          status?: 'in_flight' | 'posted' | 'reconciled_abandoned'
+          transaction_id?: string | null
+          updated_at?: string
+        }
+        Update: {
+          abandoned_at?: string | null
+          abandoned_by?: string | null
+          abandoned_reason?: string | null
+          amount?: number
+          booking_id?: string | null
+          branch_id?: string
+          created_at?: string
+          id?: string
+          idempotency_key?: string
+          order_id?: string | null
+          staff_id?: string
+          status?: 'in_flight' | 'posted' | 'reconciled_abandoned'
+          transaction_id?: string | null
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: 'payment_attempts_booking_id_fkey'
+            columns: ['booking_id']
+            isOneToOne: false
+            referencedRelation: 'bookings'
+            referencedColumns: ['id']
+          },
+          {
+            foreignKeyName: 'payment_attempts_branch_id_fkey'
+            columns: ['branch_id']
+            isOneToOne: false
+            referencedRelation: 'branches'
+            referencedColumns: ['id']
+          },
+          {
+            foreignKeyName: 'payment_attempts_order_id_fkey'
+            columns: ['order_id']
+            isOneToOne: false
+            referencedRelation: 'booking_orders'
+            referencedColumns: ['id']
+          },
+          {
+            foreignKeyName: 'payment_attempts_staff_id_fkey'
+            columns: ['staff_id']
+            isOneToOne: false
+            referencedRelation: 'staff'
+            referencedColumns: ['id']
+          },
+          {
+            foreignKeyName: 'payment_attempts_transaction_id_fkey'
+            columns: ['transaction_id']
+            isOneToOne: false
+            referencedRelation: 'financial_transactions'
+            referencedColumns: ['id']
+          }
+        ]
+      }
       payroll_adjustments: {
         Row: {
           adjustment_type: string
@@ -7115,6 +7202,13 @@ export type Database = {
       }
     }
     Functions: {
+      reconcile_abandon_payment_attempt: {
+        Args: {
+          p_idempotency_key: string
+          p_reason: string
+        }
+        Returns: Json
+      }
       post_order_payment_atomic: {
         Args: {
           p_order_id: string

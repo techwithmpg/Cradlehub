@@ -177,6 +177,8 @@ export interface ActivePaymentAttempt {
   initiatedAt: string;
   staffId?: string;
   branchId?: string;
+  status?: "in_flight" | "posted" | "reconciled_abandoned";
+  transactionId?: string | null;
 }
 
 export interface PayableOrderOption {

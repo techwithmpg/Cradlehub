@@ -18,6 +18,7 @@ vi.mock('@/lib/supabase/admin', () => ({ createAdminClient: mocks.createAdminCli
 import {
   verifyPaymentAttemptAction,
   clearPaymentAttemptAction,
+  reconcileAbandonPaymentAttemptAction,
 } from '@/lib/cash-flow/cash-flow-actions';
 
 describe('Payment Reconciliation Actions', () => {
@@ -29,15 +30,18 @@ describe('Payment Reconciliation Actions', () => {
   let mockFinancialTxns: Array<Record<string, unknown>>;
   let mockMovements: Array<Record<string, unknown>>;
   let mockOrderSummaries: Array<Record<string, unknown>>;
+  let mockPaymentAttempts: Array<Record<string, unknown>>;
   let mockBookingOrders: Record<string, unknown>;
   let mockBookings: Record<string, unknown>;
   let mockAdminUpdate: ReturnType<typeof vi.fn>;
+  let mockRpc: ReturnType<typeof vi.fn>;
 
   beforeEach(() => {
     vi.clearAllMocks();
     mockFinancialTxns = [];
     mockMovements = [];
     mockOrderSummaries = [];
+    mockPaymentAttempts = [];
     mockBookingOrders = {
       id: orderId,
       branch_id: branchId,
@@ -55,6 +59,11 @@ describe('Payment Reconciliation Actions', () => {
 
     mockAdminUpdate = vi.fn().mockReturnValue({
       eq: vi.fn().mockResolvedValue({ data: null, error: null }),
+    });
+
+    mockRpc = vi.fn().mockResolvedValue({
+      data: { success: true, status: 'reconciled_abandoned' },
+      error: null,
     });
 
     mocks.createAdminClient.mockReturnValue({
@@ -150,6 +159,23 @@ describe('Payment Reconciliation Actions', () => {
             }),
           };
         }
+        if (table === 'payment_attempts') {
+          return {
+            select: vi.fn().mockReturnValue({
+              in: vi.fn().mockImplementation((col: string, vals: string[]) => {
+                const found = mockPaymentAttempts.filter((a) => vals.includes(String(a[col])));
+                return {
+                  data: found,
+                  error: null,
+                  maybeSingle: async () => ({ data: found[0] ?? null, error: null }),
+                };
+              }),
+            }),
+            update: vi.fn().mockReturnValue({
+              in: vi.fn().mockResolvedValue({ data: null, error: null }),
+            }),
+          };
+        }
         if (table === 'bookings') {
           return {
             select: vi.fn().mockReturnValue({
@@ -161,6 +187,7 @@ describe('Payment Reconciliation Actions', () => {
         }
         throw new Error(`Unexpected client table: ${table}`);
       }),
+      rpc: mockRpc,
     });
   });
 
@@ -325,10 +352,82 @@ describe('Payment Reconciliation Actions', () => {
       expect(res.status).toBe('not_posted');
       expect(res.message).toContain('No transaction was recorded');
     });
+
+    it('queries authoritative payment_attempts table and returns in_flight when under 30s', async () => {
+      mockPaymentAttempts.push({
+        id: 'att-1',
+        order_id: orderId,
+        idempotency_key: idempotencyKey,
+        amount: 400,
+        status: 'in_flight',
+        created_at: new Date(Date.now() - 5_000).toISOString(),
+      });
+
+      const res = await verifyPaymentAttemptAction({
+        orderId,
+        sourceKind: 'booking_order',
+        branchId,
+        idempotencyKey,
+        expectedAmount: 400,
+      });
+
+      expect(res.ok).toBe(true);
+      if (!res.ok || res.status !== 'in_flight') throw new Error('Expected in_flight status');
+      expect(res.status).toBe('in_flight');
+      expect(res.message).toContain('still in-flight');
+    });
+
+    it('queries authoritative payment_attempts table and returns needs_investigation when >= 30s', async () => {
+      mockPaymentAttempts.push({
+        id: 'att-2',
+        order_id: orderId,
+        idempotency_key: idempotencyKey,
+        amount: 400,
+        status: 'in_flight',
+        created_at: new Date(Date.now() - 35_000).toISOString(),
+      });
+
+      const res = await verifyPaymentAttemptAction({
+        orderId,
+        sourceKind: 'booking_order',
+        branchId,
+        idempotencyKey,
+        expectedAmount: 400,
+      });
+
+      expect(res.ok).toBe(true);
+      if (!res.ok || res.status !== 'needs_investigation') throw new Error('Expected needs_investigation status');
+      expect(res.status).toBe('needs_investigation');
+      expect(res.message).toContain('unresolved after 30 seconds');
+    });
+
+    it('queries authoritative payment_attempts table and returns abandoned when attempt was reconciled', async () => {
+      mockPaymentAttempts.push({
+        id: 'att-3',
+        order_id: orderId,
+        idempotency_key: idempotencyKey,
+        amount: 400,
+        status: 'reconciled_abandoned',
+        created_at: new Date(Date.now() - 60_000).toISOString(),
+      });
+
+      const res = await verifyPaymentAttemptAction({
+        orderId,
+        sourceKind: 'booking_order',
+        branchId,
+        idempotencyKey,
+        expectedAmount: 400,
+      });
+
+      expect(res.ok).toBe(true);
+      if (!res.ok || res.status !== 'abandoned') throw new Error('Expected abandoned status');
+      expect(res.status).toBe('abandoned');
+      expect(res.message).toContain('reconciled and abandoned');
+    });
   });
 
   describe('clearPaymentAttemptAction', () => {
-    it('safely clears active_payment_attempt when transaction has not committed', async () => {
+    it('safely clears active_payment_attempt and calls reconcile_abandon_payment_attempt RPC', async () => {
       mockBookingOrders.metadata = {
         active_payment_attempt: {
           idempotency_key: idempotencyKey,
@@ -341,9 +440,14 @@ describe('Payment Reconciliation Actions', () => {
         sourceKind: 'booking_order',
         branchId,
         idempotencyKey,
+        reason: 'Customer cancelled transaction',
       });
 
       expect(res.ok).toBe(true);
+      expect(mockRpc).toHaveBeenCalledWith('reconcile_abandon_payment_attempt', {
+        p_idempotency_key: idempotencyKey,
+        p_reason: 'Customer cancelled transaction',
+      });
       expect(mockAdminUpdate).toHaveBeenCalled();
     });
 
@@ -363,6 +467,58 @@ describe('Payment Reconciliation Actions', () => {
       expect(res.ok).toBe(false);
       if (res.ok) throw new Error('Expected failure');
       expect(res.code).toBe('ATTEMPT_ALREADY_COMMITTED');
+    });
+  });
+
+  describe('reconcileAbandonPaymentAttemptAction', () => {
+    it('invokes reconcile_abandon_payment_attempt RPC with validated reason and key', async () => {
+      const res = await reconcileAbandonPaymentAttemptAction({
+        idempotencyKey,
+        reason: 'Physical card terminal declined payment',
+        branchId,
+        orderId,
+      });
+
+      expect(res.ok).toBe(true);
+      if (!res.ok) throw new Error('Expected success');
+      expect(res.status).toBe('reconciled_abandoned');
+      expect(mockRpc).toHaveBeenCalledWith('reconcile_abandon_payment_attempt', {
+        p_idempotency_key: idempotencyKey,
+        p_reason: 'Physical card terminal declined payment',
+      });
+      expect(mocks.revalidateBookingSurfaces).toHaveBeenCalledWith(branchId);
+    });
+
+    it('rejects blank or missing reason with VALIDATION_FAILED', async () => {
+      const res = await reconcileAbandonPaymentAttemptAction({
+        idempotencyKey,
+        reason: '   ',
+        branchId,
+        orderId,
+      });
+
+      expect(res.ok).toBe(false);
+      if (res.ok) throw new Error('Expected failure');
+      expect(res.code).toBe('VALIDATION_FAILED');
+      expect(mockRpc).not.toHaveBeenCalled();
+    });
+
+    it('handles RPC database errors cleanly', async () => {
+      mockRpc.mockResolvedValueOnce({
+        data: null,
+        error: { message: 'CANNOT_ABANDON_COMMITTED_TRANSACTION', code: 'P0001' },
+      });
+
+      const res = await reconcileAbandonPaymentAttemptAction({
+        idempotencyKey,
+        reason: 'Attempted abandonment after commit',
+        branchId,
+        orderId,
+      });
+
+      expect(res.ok).toBe(false);
+      if (res.ok) throw new Error('Expected failure');
+      expect(res.error).toContain('CANNOT_ABANDON_COMMITTED_TRANSACTION');
     });
   });
 });

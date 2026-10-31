@@ -365,8 +365,25 @@ export function CradleFlowQuickPaymentModal({
         return;
       }
 
+      if (res.status === "needs_investigation") {
+        setVerificationWarning(
+          `${res.message} Submission remains locked. You may retry payment with the same key, or reconcile and abandon the uncommitted attempt.`
+        );
+        setCanUnlock(true);
+        return;
+      }
+
       if (res.status === "unrelated_payment") {
         setVerificationWarning(res.message);
+        setCanUnlock(false);
+        if (onRetry) onRetry();
+        return;
+      }
+
+      if (res.status === "abandoned") {
+        if (attempt.current) attempt.current.unresolved = false;
+        setUnresolvedAttempt(false);
+        setVerificationWarning(null);
         setCanUnlock(false);
         if (onRetry) onRetry();
         return;
@@ -391,6 +408,25 @@ export function CradleFlowQuickPaymentModal({
     if (!data || !selected) return;
     const targetKey = attempt.current?.key || serverAttempt?.idempotencyKey;
     if (!targetKey) return;
+
+    let reason = "Customer switched payment method / uncollected attempt";
+    if (typeof window !== "undefined" && typeof window.prompt === "function") {
+      try {
+        const entered = window.prompt(
+          "Enter an audit reason for abandoning this uncommitted payment attempt:",
+          reason
+        );
+        if (entered === null) {
+          return; // Cashier clicked Cancel
+        }
+        if (typeof entered === "string" && entered.trim()) {
+          reason = entered.trim();
+        }
+      } catch {
+        // Fall back to default reason if prompt not implemented in browser/test environment
+      }
+    }
+
     setUnlocking(true);
     setPaymentError(null);
     try {
@@ -399,6 +435,7 @@ export function CradleFlowQuickPaymentModal({
         sourceKind: selected.sourceKind,
         branchId: data.branchId,
         idempotencyKey: targetKey,
+        reason,
       });
       if (res.ok) {
         if (attempt.current) attempt.current.unresolved = false;

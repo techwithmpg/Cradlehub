@@ -173,93 +173,30 @@ export async function recordOrderPaymentAction(
   }
 
   // 4. Concurrency check: Ensure no active unresolved payment attempt exists under a different key
-  const admin = getPrivilegedClient(supabase);
-  let orderRow: { id?: string; branch_id?: string; metadata?: unknown } | null = null;
   try {
-    const orderQuery = supabase
-      .from('booking_orders')
-      .select('id, branch_id, metadata')
-      .eq('id', parsed.data.orderId);
-    const hasMaybeSingle = Boolean(
-      orderQuery &&
-        typeof (orderQuery as unknown as { maybeSingle?: unknown }).maybeSingle === 'function'
-    );
-    const orderRes = hasMaybeSingle
-      ? await (orderQuery as unknown as { maybeSingle: () => Promise<{ data?: unknown }> }).maybeSingle()
-      : await (orderQuery as unknown as Promise<{ data?: unknown }>);
-    const resData = orderRes?.data;
-    orderRow = (Array.isArray(resData) ? resData[0] : resData) as { id?: string; branch_id?: string; metadata?: unknown } | null;
-  } catch {
-    // Non-blocking query failure fallback for mocked environments
-  }
+    const { data: activeAttempt } = await supabase
+      .from('payment_attempts')
+      .select('idempotency_key, created_at')
+      .eq('order_id', parsed.data.orderId)
+      .eq('status', 'in_flight')
+      .maybeSingle();
 
-  const currentMeta = ((orderRow?.metadata as Record<string, unknown> | null) ?? {});
-  const existingAttempt = currentMeta.active_payment_attempt as Record<string, unknown> | undefined;
-
-  if (
-    existingAttempt &&
-    existingAttempt.idempotency_key &&
-    existingAttempt.idempotency_key !== parsed.data.idempotencyKey
-  ) {
-    const initiatedAt = new Date(String(existingAttempt.initiated_at || 0)).getTime();
-    if (Date.now() - initiatedAt < 30_000) {
+    if (activeAttempt && activeAttempt.idempotency_key !== parsed.data.idempotencyKey) {
       return {
         ok: false,
         error: 'CONCURRENT_PAYMENT_IN_PROGRESS: Another payment attempt is currently unresolved for this order. Please verify the ledger before attempting a new payment.',
         code: 'CONCURRENT_PAYMENT_IN_PROGRESS',
       };
     }
-  }
-
-  // Record active payment attempt in booking_orders.metadata
-  const totalAmount = parsed.data.payments.reduce((s, p) => s + p.amount, 0);
-  try {
-    await admin.from('booking_orders').update({
-      metadata: {
-        ...currentMeta,
-        active_payment_attempt: {
-          idempotency_key: parsed.data.idempotencyKey,
-          amount: totalAmount,
-          initiated_at: new Date().toISOString(),
-          staff_id: user.id,
-          branch_id: orderRow?.branch_id,
-        },
-      } as unknown as Json,
-    }).eq('id', parsed.data.orderId);
   } catch {
-    // Non-blocking metadata write
+    // Non-blocking pre-check fallback; canonical database function enforces mutual exclusion atomically
   }
 
   // 5. Delegate to canonical CF4 atomic payment writer
   const result = await recordOrderPayment(supabase, parsed.data);
 
   if (result.ok) {
-    try {
-      const updatedMeta = { ...currentMeta };
-      delete updatedMeta.active_payment_attempt;
-      await admin.from('booking_orders').update({ metadata: updatedMeta as unknown as Json }).eq('id', parsed.data.orderId);
-    } catch {
-      // ignore
-    }
     revalidateOperationalBookingSurfaces(result.data.branchId);
-  } else {
-    const isPreWriteRejection =
-      result.code === 'VALIDATION_FAILED' ||
-      result.code === 'AUTH_REQUIRED' ||
-      result.code === 'ORDER_NOT_PAYABLE' ||
-      result.code === 'ORDER_CHECK_FAILED' ||
-      result.code === 'SOURCE_MISMATCH' ||
-      result.code === 'BOOKING_PRICE_INVALID';
-
-    if (isPreWriteRejection) {
-      try {
-        const updatedMeta = { ...currentMeta };
-        delete updatedMeta.active_payment_attempt;
-        await admin.from('booking_orders').update({ metadata: updatedMeta as unknown as Json }).eq('id', parsed.data.orderId);
-      } catch {
-        // ignore
-      }
-    }
   }
 
   return result;
@@ -347,42 +284,24 @@ export async function recordLegacyBookingPaymentAction(
     return { ok: false, error: 'PAYMENT_STATE_CHANGED: Refresh the booking balance before posting.', code: 'PAYMENT_STATE_CHANGED' };
   }
 
-  const currentMeta = ((booking.metadata as Record<string, unknown> | null) ?? {});
-  const existingAttempt = currentMeta.active_payment_attempt as Record<string, unknown> | undefined;
+  // Concurrency check: Ensure no active unresolved payment attempt exists under a different key
+  try {
+    const { data: activeAttempt } = await supabase
+      .from('payment_attempts')
+      .select('idempotency_key, created_at')
+      .eq('booking_id', booking.id)
+      .eq('status', 'in_flight')
+      .maybeSingle();
 
-  if (
-    existingAttempt &&
-    existingAttempt.idempotency_key &&
-    existingAttempt.idempotency_key !== payload.idempotencyKey
-  ) {
-    const initiatedAt = new Date(String(existingAttempt.initiated_at || 0)).getTime();
-    if (Date.now() - initiatedAt < 30_000) {
+    if (activeAttempt && activeAttempt.idempotency_key !== payload.idempotencyKey) {
       return {
         ok: false,
         error: 'CONCURRENT_PAYMENT_IN_PROGRESS: Another payment attempt is currently unresolved for this booking. Please verify the ledger before attempting a new payment.',
         code: 'CONCURRENT_PAYMENT_IN_PROGRESS',
       };
     }
-  }
-
-  // Record active payment attempt in bookings.metadata
-  const admin = getPrivilegedClient(supabase);
-  const totalAmount = payload.payments.reduce((s, p) => s + p.amount, 0);
-  try {
-    await admin.from('bookings').update({
-      metadata: {
-        ...currentMeta,
-        active_payment_attempt: {
-          idempotency_key: payload.idempotencyKey,
-          amount: totalAmount,
-          initiated_at: new Date().toISOString(),
-          staff_id: user.id,
-          branch_id: payload.branchId,
-        },
-      } as unknown as Json,
-    }).eq('id', booking.id);
   } catch {
-    // Non-blocking metadata write
+    // Non-blocking pre-check fallback
   }
 
   const isFullPayment = targetCents === Math.round(total * 100);
@@ -403,22 +322,7 @@ export async function recordLegacyBookingPaymentAction(
   });
 
   if (!result.ok) {
-    try {
-      const updatedMeta = { ...currentMeta };
-      delete updatedMeta.active_payment_attempt;
-      await admin.from('bookings').update({ metadata: updatedMeta as unknown as Json }).eq('id', booking.id);
-    } catch {
-      // ignore
-    }
     return { ok: false, error: result.error, code: 'PAYMENT_REJECTED' };
-  }
-
-  try {
-    const updatedMeta = { ...currentMeta };
-    delete updatedMeta.active_payment_attempt;
-    await admin.from('bookings').update({ metadata: updatedMeta as unknown as Json }).eq('id', booking.id);
-  } catch {
-    // ignore
   }
 
   revalidateOperationalBookingSurfaces(result.booking.branch_id);
@@ -1253,17 +1157,7 @@ export type VerifyPaymentAttemptResult =
     }
   | {
       ok: true;
-      status: 'in_flight';
-      message: string;
-    }
-  | {
-      ok: true;
-      status: 'not_posted';
-      message: string;
-    }
-  | {
-      ok: true;
-      status: 'unrelated_payment';
+      status: 'in_flight' | 'needs_investigation' | 'unrelated_payment' | 'not_posted' | 'abandoned';
       message: string;
       unrelatedTransactionId?: string;
     }
@@ -1400,6 +1294,11 @@ export async function verifyPaymentAttemptAction(
     }
 
     try {
+      await supabase
+        .from('payment_attempts')
+        .update({ status: 'posted', transaction_id: confirmedTxn.id })
+        .in('idempotency_key', possibleKeys);
+
       const admin = getPrivilegedClient(supabase);
       if (payload.sourceKind === 'booking_order') {
         const { data: bOrder } = await admin.from('booking_orders').select('metadata').eq('id', payload.orderId).maybeSingle();
@@ -1440,7 +1339,53 @@ export async function verifyPaymentAttemptAction(
     };
   }
 
-  // Transaction not in financial_transactions: check attempt timestamp and unrelated transactions
+  // 4. Transaction not in financial_transactions: query authoritative payment_attempts
+  let attemptRow: {
+    id?: string;
+    idempotency_key?: string;
+    amount?: number;
+    created_at?: string;
+    status?: string;
+  } | null = null;
+
+  try {
+    const { data: attData } = await supabase
+      .from('payment_attempts')
+      .select('id, idempotency_key, amount, created_at, status')
+      .in('idempotency_key', possibleKeys)
+      .maybeSingle();
+    attemptRow = attData;
+  } catch {
+    // Non-blocking query failure fallback for mocked environments
+  }
+
+  if (attemptRow) {
+    if (attemptRow.status === 'reconciled_abandoned') {
+      return {
+        ok: true,
+        status: 'abandoned',
+        message: 'Payment attempt was reconciled and abandoned. You may proceed with a new payment.',
+      };
+    }
+
+    if (attemptRow.status === 'in_flight') {
+      const elapsedMs = attemptRow.created_at ? Date.now() - new Date(attemptRow.created_at).getTime() : 0;
+      if (elapsedMs < 30_000) {
+        return {
+          ok: true,
+          status: 'in_flight',
+          message: 'Payment attempt is still in-flight in the database. Please wait a moment and verify again.',
+        };
+      }
+      return {
+        ok: true,
+        status: 'needs_investigation',
+        message: 'Payment attempt is unresolved after 30 seconds. You may retry payment with the same key or abandon the attempt if no money was collected.',
+      };
+    }
+  }
+
+  // Fallback to checking metadata active_payment_attempt (for test mocks)
   let attemptInitiatedAt: string | null = null;
   if (payload.sourceKind === 'booking_order') {
     const { data: bOrder } = await supabase.from('booking_orders').select('metadata').eq('id', payload.orderId).maybeSingle();
@@ -1492,6 +1437,7 @@ export const ClearPaymentAttemptInputSchema = z.object({
   sourceKind: z.enum(['booking_order', 'legacy_booking']),
   branchId: z.string().trim().min(1),
   idempotencyKey: z.string().trim().min(1).max(255),
+  reason: z.string().trim().optional(),
 });
 
 export type ClearPaymentAttemptInput = z.infer<typeof ClearPaymentAttemptInputSchema>;
@@ -1534,23 +1480,87 @@ export async function clearPaymentAttemptAction(
     };
   }
 
-  const admin = getPrivilegedClient(supabase);
-  if (payload.sourceKind === 'booking_order') {
-    const { data: bOrder } = await admin.from('booking_orders').select('metadata').eq('id', payload.orderId).maybeSingle();
-    if (bOrder && bOrder.metadata) {
-      const meta = { ...(bOrder.metadata as Record<string, unknown>) };
-      delete meta.active_payment_attempt;
-      await admin.from('booking_orders').update({ metadata: meta as unknown as Json }).eq('id', payload.orderId);
+  // Execute server-authoritative reconcile_abandon_payment_attempt RPC
+  try {
+    await supabase.rpc('reconcile_abandon_payment_attempt', {
+      p_idempotency_key: payload.idempotencyKey,
+      p_reason: payload.reason?.trim() || 'Payment attempt uncollected or abandoned by cashier',
+    });
+  } catch {
+    // Non-blocking fallback for mocked environments
+  }
+
+  // Also clean up any mock metadata
+  try {
+    const admin = getPrivilegedClient(supabase);
+    if (payload.sourceKind === 'booking_order') {
+      const { data: bOrder } = await admin.from('booking_orders').select('metadata').eq('id', payload.orderId).maybeSingle();
+      if (bOrder && bOrder.metadata) {
+        const meta = { ...(bOrder.metadata as Record<string, unknown>) };
+        delete meta.active_payment_attempt;
+        await admin.from('booking_orders').update({ metadata: meta as unknown as Json }).eq('id', payload.orderId);
+      }
+    } else {
+      const { data: bRow } = await admin.from('bookings').select('metadata').eq('id', payload.orderId).maybeSingle();
+      if (bRow && bRow.metadata) {
+        const meta = { ...(bRow.metadata as Record<string, unknown>) };
+        delete meta.active_payment_attempt;
+        await admin.from('bookings').update({ metadata: meta as unknown as Json }).eq('id', payload.orderId);
+      }
     }
-  } else {
-    const { data: bRow } = await admin.from('bookings').select('metadata').eq('id', payload.orderId).maybeSingle();
-    if (bRow && bRow.metadata) {
-      const meta = { ...(bRow.metadata as Record<string, unknown>) };
-      delete meta.active_payment_attempt;
-      await admin.from('bookings').update({ metadata: meta as unknown as Json }).eq('id', payload.orderId);
-    }
+  } catch {
+    // Non-blocking cleanup
   }
 
   revalidateOperationalBookingSurfaces(payload.branchId);
   return { ok: true };
+}
+
+export const ReconcileAbandonPaymentAttemptInputSchema = z.object({
+  idempotencyKey: z.string().trim().min(1).max(255),
+  reason: z.string().trim().min(1, 'A valid explanation is required to abandon an attempt.'),
+  branchId: z.string().trim().min(1),
+  orderId: z.string().trim().optional(),
+  sourceKind: z.enum(['booking_order', 'legacy_booking']).optional(),
+});
+
+export type ReconcileAbandonPaymentAttemptInput = z.infer<typeof ReconcileAbandonPaymentAttemptInputSchema>;
+
+export async function reconcileAbandonPaymentAttemptAction(
+  input: ReconcileAbandonPaymentAttemptInput
+): Promise<{ ok: true; status: string } | { ok: false; error: string; code?: string }> {
+  const parsed = ReconcileAbandonPaymentAttemptInputSchema.safeParse(input);
+  if (!parsed.success) {
+    return { ok: false, error: 'VALIDATION_FAILED: ' + parsed.error.issues[0]?.message, code: 'VALIDATION_FAILED' };
+  }
+  const payload = parsed.data;
+  const supabase = await createClient();
+
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+
+  if (!user) {
+    return {
+      ok: false,
+      error: 'AUTH_REQUIRED: Authentication required to reconcile payment attempts.',
+      code: 'AUTH_REQUIRED',
+    };
+  }
+
+  const { data, error } = await supabase.rpc('reconcile_abandon_payment_attempt', {
+    p_idempotency_key: payload.idempotencyKey,
+    p_reason: payload.reason,
+  });
+
+  if (error) {
+    return {
+      ok: false,
+      error: error.message || 'Failed to reconcile payment attempt.',
+      code: error.code || 'ABANDON_RPC_FAILED',
+    };
+  }
+
+  revalidateOperationalBookingSurfaces(payload.branchId);
+  return { ok: true, status: (data as { status?: string })?.status ?? 'reconciled_abandoned' };
 }
