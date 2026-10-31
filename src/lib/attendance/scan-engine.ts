@@ -50,13 +50,40 @@ import {
 } from "@/lib/notifications/workflow-signals";
 import { recalculateAttendanceClockOutPolicy } from "@/lib/attendance/dynamic-clock-out";
 import { resolveStaleAttendanceRecoveryClockOutAt } from "@/lib/attendance/stale-recovery";
+import { verifyAttendanceGeofence } from "@/lib/attendance/geofence-server";
+import type { AttendanceLocation, GeofenceFailure } from "@/lib/attendance/geofence";
 
 export type ScanRequestContext = {
   requestId?: string | null;
   rawDeviceCredential?: string | null;
   userAgent?: string | null;
   ipAddress?: string | null;
+  location?: AttendanceLocation | null;
 };
+
+function blockedGeofenceResult(reason: GeofenceFailure): PublicScanResult {
+  const configuration = reason === "geofence_configuration";
+  const outside = reason === "location_outside";
+  return {
+    ok: false,
+    outcome: "blocked",
+    reasonCode: reason,
+    severity: configuration ? "critical" : "warning",
+    title: configuration
+      ? "Attendance location unavailable"
+      : outside
+        ? "On-site scan required"
+        : "Location needed",
+    message: configuration
+      ? "Attendance location is not configured for this branch. Please ask the front desk for help."
+      : outside
+        ? "You must be on-site to scan attendance. Please go to your assigned Cradle Wellness branch and scan the attendance QR again."
+        : reason === "location_required"
+          ? "Location access is required for attendance. Please enable location permission for CradleHub and try again."
+          : "We couldn't verify your location accurately. Please enable Precise Location, move to an area with better reception, and try again.",
+    securityNote: "No attendance change was recorded from this scan.",
+  };
+}
 
 export type ActivationResult = PublicScanResult & {
   rawDeviceCredential?: string;
@@ -556,12 +583,13 @@ async function commitAttendanceScanTransaction(
 
 async function loadCommittedScanResult(
   admin: AttendanceDb,
-  requestId: string | null | undefined
+  requestId: string | null | undefined,
+  qrPointId: string | null
 ): Promise<PublicScanResult | null> {
   if (!requestId) return null;
   const { data, error } = await admin
     .from("qr_scan_events")
-    .select("id, operation_result, metadata")
+    .select("id, qr_point_id, operation_result, metadata")
     .eq("request_id", requestId)
     .maybeSingle();
 
@@ -574,7 +602,18 @@ async function loadCommittedScanResult(
     });
   }
 
-  const row = data as { id?: string; operation_result?: unknown; metadata?: unknown } | null;
+  const row = data as {
+    id?: string;
+    qr_point_id?: string | null;
+    operation_result?: unknown;
+    metadata?: unknown;
+  } | null;
+  if (row && row.qr_point_id !== qrPointId) {
+    return blocked("Scan changed", "Scan the attendance QR again to start a new request.", {
+      reasonCode: "scan_request_mismatch",
+      securityNote: "No new attendance change was recorded.",
+    });
+  }
   if (isPublicScanResult(row?.operation_result))
     return withOperationId(row.operation_result, requestId);
   const metadata =
@@ -4205,8 +4244,30 @@ export async function processQrScan(
   const admin = asAttendanceDb(createAdminClient());
   const operationId = normalizeAttendanceOperationId(ctx.requestId);
   const scanCtx: ScanRequestContext = { ...ctx, requestId: operationId };
-  const replayed = await loadCommittedScanResult(admin, operationId);
-  if (replayed) return replayed;
+  // Check every request before idempotent replay, so an old operation ID cannot
+  // return a successful attendance result without a fresh location reading.
+  const pointForGeofence = await loadQrPoint(admin, publicCode);
+  if (pointForGeofence?.is_active && pointForGeofence.point_type === "attendance") {
+    const failure = await verifyAttendanceGeofence({
+      admin,
+      branchId: pointForGeofence.branch_id,
+      location: scanCtx.location,
+    });
+    if (failure) return withOperationId(blockedGeofenceResult(failure), operationId);
+  }
+  const replayed = await loadCommittedScanResult(admin, operationId, pointForGeofence?.id ?? null);
+  if (replayed) {
+    if (!pointForGeofence?.is_active) {
+      return withOperationId(
+        blocked("QR not recognized", "This QR code is not active in CradleHub.", {
+          reasonCode: "invalid_qr",
+          securityNote: "No attendance change was recorded from this scan.",
+        }),
+        operationId
+      );
+    }
+    return withOperationId(replayed, operationId);
+  }
 
   if (!isAttendanceScanningEnabled()) {
     return withOperationId(

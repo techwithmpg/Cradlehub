@@ -17,7 +17,7 @@ describe("first attendance scan continuation contract", () => {
   it("uses the original operation id for registration and attendance child operations", () => {
     expect(actions).toContain('appendRequestStep(rootOperationId, "register")');
     expect(actions).toContain('appendRequestStep(rootOperationId, "attendance")');
-    expect(processor.replace(/\r\n/g, "\n")).toMatch(/requestId,\n\s*\}\);/);
+    expect(processor.replace(/\r\n/g, "\n")).toMatch(/requestId,\n\s*location,\n\s*\}\);/);
   });
 
   it("returns the final attendance result without a cookie-backed reload", () => {

@@ -313,6 +313,8 @@ describe("W1A: Scanner Shell Isolation & Foundation", () => {
     // StaffAppShell is rendered with hideNav={true}
     expect(scanPageSource).toContain("<StaffAppShell");
     expect(scanPageSource).toContain("hideNav={true}");
-    expect(scanPageSource).toContain("<StaffQrScanner returnHref={returnHref} />");
+    expect(scanPageSource).toContain(
+      "<StaffQrScanner returnHref={returnHref} locationRequired={attendanceGeofenceRequired()} />"
+    );
   });
 });

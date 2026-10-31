@@ -6,6 +6,7 @@ import {
 } from "@/components/features/staff-pwa/role-navigation";
 import { StaffRoleResolutionSplash } from "@/components/features/staff-pwa/role-resolution-splash";
 import { StaffQrScanner } from "@/components/features/scanner/staff-qr-scanner";
+import { attendanceGeofenceRequired } from "@/lib/attendance/geofence-server";
 
 export const metadata = {
   title: "Scan Code | CradleHub Staff",
@@ -37,7 +38,7 @@ export default async function StaffScanPage() {
       activeNavKey="scan"
       hideNav={true}
     >
-      <StaffQrScanner returnHref={returnHref} />
+      <StaffQrScanner returnHref={returnHref} locationRequired={attendanceGeofenceRequired()} />
     </StaffAppShell>
   );
 }

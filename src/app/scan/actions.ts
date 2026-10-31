@@ -28,6 +28,7 @@ import {
 import { createClient } from "@/lib/supabase/server";
 import type { PublicScanResult } from "@/lib/attendance/types";
 import { withAttendanceScanResolution } from "@/lib/attendance/scan-resolution";
+import type { AttendanceLocation } from "@/lib/attendance/geofence";
 import type {
   BranchCorrectionRequestResult,
   BranchCorrectionReviewResult,
@@ -37,6 +38,7 @@ import type {
 type PublicScanInput = {
   publicCode: string;
   requestId?: string | null;
+  location?: AttendanceLocation | null;
 };
 
 type ActivationInput = {
@@ -53,6 +55,7 @@ type FirstTimeScanLoginInput = {
   email: string;
   password: string;
   requestId?: string | null;
+  location?: AttendanceLocation | null;
 };
 
 type BranchCorrectionRequestInput = {
@@ -380,10 +383,10 @@ export async function signInAndRegisterAttendanceDeviceAction(
     const attendanceOperationId = normalizeAttendanceOperationId(
       appendRequestStep(rootOperationId, "attendance")
     );
-    const attendanceResult = await processQrScan(
-      parsed.publicCode,
-      await getRequestContext(attendanceOperationId, registration.rawDeviceCredential)
-    );
+    const attendanceResult = await processQrScan(parsed.publicCode, {
+      ...(await getRequestContext(attendanceOperationId, registration.rawDeviceCredential)),
+      location: input.location,
+    });
     revalidatePublicScanResult(attendanceResult);
 
     return {
@@ -528,7 +531,10 @@ export async function processPublicQrScanAction(input: PublicScanInput): Promise
   }
 
   try {
-    const result = await processQrScan(publicCode, await getRequestContext(operationId));
+    const result = await processQrScan(publicCode, {
+      ...(await getRequestContext(operationId)),
+      location: input.location,
+    });
     revalidatePublicScanResult(result);
     return result;
   } catch (error) {

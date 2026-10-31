@@ -9,18 +9,37 @@ import { DeviceRecoveryScreen } from "@/components/features/attendance/device-re
 import { getRecoveryTokenPreview } from "@/lib/attendance/device-recovery";
 
 vi.mock("server-only", () => ({}));
-vi.mock("@/components/features/attendance/public-scan-processor", () => ({ PublicScanProcessor: vi.fn() }));
-vi.mock("@/components/features/attendance/device-recovery-screen", () => ({ DeviceRecoveryScreen: vi.fn() }));
+vi.mock("@/components/features/attendance/public-scan-processor", () => ({
+  PublicScanProcessor: vi.fn(),
+}));
+vi.mock("@/components/features/attendance/device-recovery-screen", () => ({
+  DeviceRecoveryScreen: vi.fn(),
+}));
 vi.mock("@/lib/attendance/device-recovery", () => ({ getRecoveryTokenPreview: vi.fn() }));
 const source = (path: string) => readFileSync(path, "utf8");
-beforeAll(() => { vi.stubGlobal("React", React); });
-afterAll(() => { vi.unstubAllGlobals(); });
+beforeAll(() => {
+  vi.stubGlobal("React", React);
+});
+afterAll(() => {
+  vi.unstubAllGlobals();
+});
 
 describe("Staff server boundary and adapter reuse", () => {
   it("executes real normalization through the async server action with no business outcome", async () => {
-    expect(await resolveStaffScanTargetAction(" att_test ")).toEqual({ ok: true, target: "public_scan", publicCode: "att_test" });
-    expect(await resolveStaffScanTargetAction("act_test")).toEqual({ ok: true, target: "activation", token: "act_test" });
-    expect(await resolveStaffScanTargetAction("javascript:bad")).toMatchObject({ ok: false, target: "invalid" });
+    expect(await resolveStaffScanTargetAction(" att_test ")).toEqual({
+      ok: true,
+      target: "public_scan",
+      publicCode: "att_test",
+    });
+    expect(await resolveStaffScanTargetAction("act_test")).toEqual({
+      ok: true,
+      target: "activation",
+      token: "act_test",
+    });
+    expect(await resolveStaffScanTargetAction("javascript:bad")).toMatchObject({
+      ok: false,
+      target: "invalid",
+    });
   });
   it("poisons resolver client imports; hook only emits raw payload and component uses server action", () => {
     expect(source("src/lib/scanner/resolve-scan-target.ts")).toContain('import "server-only"');
@@ -36,7 +55,12 @@ describe("Staff server boundary and adapter reuse", () => {
   it("renders the existing scan processor in Staff scope and passes the scope to account retries", async () => {
     const element = await ProcessPage({ params: Promise.resolve({ publicCode: "att_test%20" }) });
     expect(element.props.children.type).toBe(PublicScanProcessor);
-    expect(element.props.children.props).toEqual({ mode: "scan", publicCode: "att_test%20", scanBasePath: "/staff/scan/process" });
+    expect(element.props.children.props).toEqual({
+      mode: "scan",
+      publicCode: "att_test%20",
+      scanBasePath: "/staff/scan/process",
+      locationRequired: false,
+    });
     const adapter = source("src/app/(dashboard)/staff/scan/process/[publicCode]/page.tsx");
     expect(adapter).not.toMatch(/redirect|decodeURIComponent/);
     const processor = source("src/components/features/attendance/public-scan-processor.tsx");
@@ -45,12 +69,16 @@ describe("Staff server boundary and adapter reuse", () => {
     expect(processor).toContain('fetch("/api/attendance/public-scan"');
   });
   it("uses the existing recovery preview and screen without a root-scope redirect", async () => {
-    const preview = { ok: false, message: "Test rejection" } as Awaited<ReturnType<typeof getRecoveryTokenPreview>>;
+    const preview = { ok: false, message: "Test rejection" } as Awaited<
+      ReturnType<typeof getRecoveryTokenPreview>
+    >;
     vi.mocked(getRecoveryTokenPreview).mockResolvedValue(preview);
     const element = await ActivatePage({ params: Promise.resolve({ token: "act_test%20" }) });
     expect(getRecoveryTokenPreview).toHaveBeenCalledExactlyOnceWith("act_test%20");
     expect(element.props.children.type).toBe(DeviceRecoveryScreen);
     expect(element.props.children.props).toEqual({ token: "act_test%20", preview });
-    expect(source("src/app/(dashboard)/staff/scan/activate/[token]/page.tsx")).not.toMatch(/redirect|decodeURIComponent/);
+    expect(source("src/app/(dashboard)/staff/scan/activate/[token]/page.tsx")).not.toMatch(
+      /redirect|decodeURIComponent/
+    );
   });
 });

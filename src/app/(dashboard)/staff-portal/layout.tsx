@@ -8,6 +8,8 @@
 import type { Metadata } from "next";
 import type { ReactNode } from "react";
 import { WorkspaceRoutePrefetcher } from "@/components/features/workspace/workspace-route-prefetcher";
+import { AttendanceLocationRefresh } from "@/components/features/staff-pwa/attendance-location-refresh";
+import { attendanceGeofenceMode } from "@/lib/attendance/geofence-server";
 import { STAFF_PORTAL_PREFETCH } from "@/components/features/workspace/workspace-prefetch-config";
 import { DriverMobileShell } from "@/components/features/staff-portal/driver/driver-mobile-shell";
 import { StaffMobileShell } from "@/components/features/staff-portal/mobile/staff-mobile-shell";
@@ -26,11 +28,7 @@ export const metadata: Metadata = {
   },
 };
 
-export default async function StaffPortalLayout({
-  children,
-}: {
-  children: ReactNode;
-}) {
+export default async function StaffPortalLayout({ children }: { children: ReactNode }) {
   const profileResult = await getMyProfileAction().catch(() => null);
   const staff = profileResult && "staff" in profileResult ? profileResult.staff : null;
   let content: ReactNode = children;
@@ -57,6 +55,7 @@ export default async function StaffPortalLayout({
     <>
       {/* Background route warm-up for Staff Portal workspace */}
       <WorkspaceRoutePrefetcher config={STAFF_PORTAL_PREFETCH} />
+      <AttendanceLocationRefresh enabled={attendanceGeofenceMode() === "enabled"} />
       {content}
     </>
   );
