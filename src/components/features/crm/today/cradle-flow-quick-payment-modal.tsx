@@ -97,46 +97,80 @@ const php = (amount: number) =>
 
 const cents = (amount: number) => Math.round(amount * 100);
 
+/**
+ * Strict, documented set of trusted pre-commit rejection codes.
+ *
+ * PROVEN ROLLBACK GUARANTEES:
+ * 1. Action Layer Guards: Raised deterministically before any database RPC is invoked
+ *    (e.g., VALIDATION_FAILED, AUTH_REQUIRED, STAFF_INACTIVE, ORDER_NOT_PAYABLE).
+ * 2. Database Advisory Lock & Parameter Guards: Raised by PostgreSQL PL/pgSQL functions
+ *    prior to any financial_transactions or financial_account_movements row insertion.
+ *    Any PL/pgSQL RAISE EXCEPTION rolls back the entire atomic transaction block.
+ *
+ * CONSEQUENCE:
+ * When an error matches one of these trusted codes, the transaction conclusively did NOT commit.
+ * The cashier is safely permitted to correct input or restart with a new idempotency key.
+ * Conversely, any unlisted code, network error, or generic message is treated as UNCERTAIN,
+ * requiring the original key and frozen attempt payload to be retained for safe recovery.
+ */
+export const TRUSTED_PRECOMMIT_REJECTION_CODES = new Set([
+  // Action layer schema & authentication validation
+  "VALIDATION_FAILED",
+  "AUTH_REQUIRED",
+  "STAFF_NOT_FOUND",
+  "STAFF_INACTIVE",
+  "STAFF_UNAUTHORIZED",
+  "PAYMENT_ROLE_UNAUTHORIZED",
+  "BRANCH_UNAUTHORIZED",
+  "BRANCH_REQUIRED",
+  "BRANCH_NOT_FOUND",
+  "ORDER_ID_REQUIRED",
+  "IDEMPOTENCY_KEY_REQUIRED",
+  "PAYMENTS_REQUIRED",
+  "PAYMENT_AMOUNT_INVALID",
+  "INVALID_PAYMENT_METHOD",
+  "BUSINESS_DATE_INVALID",
+
+  // Booking & order payable guards (evaluated before transaction creation)
+  "ORDER_NOT_FOUND",
+  "ORDER_CHECK_FAILED",
+  "ORDER_NOT_PAYABLE",
+  "BOOKING_NOT_FOUND",
+  "BOOKING_NOT_PAYABLE",
+  "BOOKING_BRANCH_MISMATCH",
+  "BOOKING_PRICE_INVALID",
+  "BOOKING_PRICE_SNAPSHOT_REQUIRED",
+  "ORDER_FEE_SNAPSHOT_INVALID",
+  "UNSUPPORTED_ORDER_CURRENCY",
+
+  // Financial account & cash drawer pre-conditions
+  "CASH_DRAWER_REQUIRED",
+  "DRAWER_REQUIRED",
+  "DRAWER_CLOSED",
+  "DRAWER_NOT_FOUND",
+  "ACCOUNT_NOT_FOUND",
+  "ACCOUNT_INACTIVE",
+  "ACCOUNT_BRANCH_MISMATCH",
+  "ACCOUNT_CURRENCY_MISMATCH",
+  "ACCOUNT_INVALID",
+
+  // Ledger pre-commit arithmetic & balance checks
+  "AMOUNT_EXCEEDS_REMAINING",
+  "AMOUNT_MISMATCH",
+] as const);
+
+export type TrustedPrecommitRejectionCode = typeof TRUSTED_PRECOMMIT_REJECTION_CODES extends Set<infer T> ? T : never;
+
 export function isProvenPrecommitRejection(error: string, code?: string): boolean {
-  const normError = (error || "").toUpperCase();
-  const normCode = (code || "").toUpperCase();
-
-  const rejectionPatterns = [
-    "VALIDATION_FAILED",
-    "AUTH_REQUIRED",
-    "STAFF_NOT_FOUND",
-    "STAFF_INACTIVE",
-    "STAFF_UNAUTHORIZED",
-    "PAYMENT_ROLE_UNAUTHORIZED",
-    "BRANCH_UNAUTHORIZED",
-    "ORDER_CHECK_FAILED",
-    "ORDER_NOT_FOUND",
-    "ORDER_NOT_PAYABLE",
-    "BOOKING_NOT_FOUND",
-    "BOOKING_NOT_PAYABLE",
-    "BOOKING_BRANCH_MISMATCH",
-    "CASH_DRAWER_REQUIRED",
-    "DRAWER_REQUIRED",
-    "DRAWER_CLOSED",
-    "DRAWER_NOT_FOUND",
-    "ACCOUNT_NOT_FOUND",
-    "ACCOUNT_INACTIVE",
-    "ACCOUNT_BRANCH_MISMATCH",
-    "ACCOUNT_CURRENCY_MISMATCH",
-    "ACCOUNT_INVALID",
-    "PAYMENT_AMOUNT_INVALID",
-    "AMOUNT_EXCEEDS_REMAINING",
-    "AMOUNT_MISMATCH",
-    "BOOKING_PRICE_SNAPSHOT_REQUIRED",
-    "ORDER_FEE_SNAPSHOT_INVALID",
-    "UNSUPPORTED_ORDER_CURRENCY",
-    "PAYMENTS_REQUIRED",
-    "IDEMPOTENCY_KEY_REQUIRED",
-  ];
-
-  return rejectionPatterns.some(
-    (p) => normCode.includes(p) || normError.includes(p)
-  );
+  if (code && TRUSTED_PRECOMMIT_REJECTION_CODES.has(code as TrustedPrecommitRejectionCode)) {
+    return true;
+  }
+  // Strict prefix check: Server actions format errors as "CODE: message"
+  const prefixMatch = (error || "").trim().match(/^([A-Z0-9_]+):/);
+  if (prefixMatch && prefixMatch[1] && TRUSTED_PRECOMMIT_REJECTION_CODES.has(prefixMatch[1] as TrustedPrecommitRejectionCode)) {
+    return true;
+  }
+  return false;
 }
 
 export function CradleFlowQuickPaymentModal({

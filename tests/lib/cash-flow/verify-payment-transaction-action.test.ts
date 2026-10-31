@@ -480,5 +480,108 @@ describe("verifyPaymentTransactionAction - Transaction Identity Verification", (
       expect(result.code).toBe("AMOUNT_MISMATCH");
     }
   });
+
+  it("returns authoritative order balance for legacy booking using validatedLegacyBookingPrice contract (price_paid snapshot)", async () => {
+    mockTxSelect.mockResolvedValueOnce({
+      data: {
+        id: "tx-legacy-balance",
+        branch_id: "branch-main-1",
+        source_id: "booking-legacy-1",
+        source_type: "legacy_booking",
+        transaction_type: "customer_payment",
+        status: "posted",
+        business_date: "2026-10-31",
+        occurred_at: new Date().toISOString(),
+        financial_account_movements: [
+          {
+            id: "m-leg-1",
+            financial_account_id: "acc-drawer-1",
+            amount: 500,
+            payment_method: "cash",
+            external_reference: null,
+          },
+        ],
+      },
+      error: null,
+    });
+
+    // Mock bookings row with valid metadata.price_paid snapshot and partial payment amount_paid = 500
+    mockBookingSelect.mockResolvedValueOnce({
+      data: {
+        id: "booking-legacy-1",
+        amount_paid: 500,
+        payment_status: "partially_paid",
+        metadata: { price_paid: 1500 }, // Total payable 1500
+      },
+      error: null,
+    });
+
+    const result = await verifyPaymentTransactionAction({
+      idempotencyKey: "key-legacy-1",
+      branchId: "branch-main-1",
+      sourceId: "booking-legacy-1",
+      sourceType: "legacy_booking",
+      expectedAmountCents: 50000,
+    });
+
+    expect(result.ok).toBe(true);
+    if (result.ok && result.status === "committed") {
+      expect(result.transaction.orderBalance).toBeDefined();
+      expect(result.transaction.orderBalance?.totalPayable).toBe(1500);
+      expect(result.transaction.orderBalance?.totalPaid).toBe(500);
+      expect(result.transaction.orderBalance?.remainingBalance).toBe(1000);
+      expect(result.transaction.orderBalance?.paymentState).toBe("partially_paid");
+    }
+  });
+
+  it("returns null order balance for legacy booking when price_paid snapshot is missing or invalid", async () => {
+    mockTxSelect.mockResolvedValueOnce({
+      data: {
+        id: "tx-legacy-invalid-price",
+        branch_id: "branch-main-1",
+        source_id: "booking-legacy-2",
+        source_type: "legacy_booking",
+        transaction_type: "customer_payment",
+        status: "posted",
+        business_date: "2026-10-31",
+        occurred_at: new Date().toISOString(),
+        financial_account_movements: [
+          {
+            id: "m-leg-2",
+            financial_account_id: "acc-drawer-1",
+            amount: 500,
+            payment_method: "cash",
+            external_reference: null,
+          },
+        ],
+      },
+      error: null,
+    });
+
+    // Missing or invalid price snapshot
+    mockBookingSelect.mockResolvedValueOnce({
+      data: {
+        id: "booking-legacy-2",
+        amount_paid: 500,
+        payment_status: "partially_paid",
+        metadata: { price_paid: "invalid_string" }, // Invalid price snapshot
+      },
+      error: null,
+    });
+
+    const result = await verifyPaymentTransactionAction({
+      idempotencyKey: "key-legacy-2",
+      branchId: "branch-main-1",
+      sourceId: "booking-legacy-2",
+      sourceType: "legacy_booking",
+      expectedAmountCents: 50000,
+    });
+
+    expect(result.ok).toBe(true);
+    if (result.ok && result.status === "committed") {
+      // Must be null because price snapshot could not be validated
+      expect(result.transaction.orderBalance).toBeNull();
+    }
+  });
 });
 

@@ -1138,4 +1138,28 @@ describe("CRM quick payment modal", () => {
     expect(screen.getByRole("button", { name: /Verify Transaction Status/i })).toBeTruthy();
     expect(mocks.printReceipt).not.toHaveBeenCalled();
   });
+
+  it("strictly distinguishes trusted pre-commit rejection codes from uncertain failures without loose substring matching", async () => {
+    const { isProvenPrecommitRejection, TRUSTED_PRECOMMIT_REJECTION_CODES } = await import(
+      "@/components/features/crm/today/cradle-flow-quick-payment-modal"
+    );
+
+    // Explicit trusted codes return true
+    expect(isProvenPrecommitRejection("Validation failed on client", "VALIDATION_FAILED")).toBe(true);
+    expect(isProvenPrecommitRejection("Auth required", "AUTH_REQUIRED")).toBe(true);
+    expect(isProvenPrecommitRejection("All bookings closed", "ORDER_NOT_PAYABLE")).toBe(true);
+
+    // Prefix match "CODE: message" returns true
+    expect(isProvenPrecommitRejection("BOOKING_NOT_PAYABLE: Booking is closed")).toBe(true);
+    expect(isProvenPrecommitRejection("CASH_DRAWER_REQUIRED: Drawer is not open")).toBe(true);
+
+    // Loose substring matches without trusted code or prefix return FALSE (treated as uncertain)
+    expect(isProvenPrecommitRejection("The door is closed for the evening")).toBe(false);
+    expect(isProvenPrecommitRejection("Network error: connection reset")).toBe(false);
+    expect(isProvenPrecommitRejection("504 Gateway Timeout")).toBe(false);
+    expect(isProvenPrecommitRejection("RPC_ERROR: Internal server failure", "RPC_ERROR")).toBe(false);
+
+    // Documented size of trusted pre-commit rejection codes
+    expect(TRUSTED_PRECOMMIT_REJECTION_CODES.size).toBeGreaterThanOrEqual(25);
+  });
 });

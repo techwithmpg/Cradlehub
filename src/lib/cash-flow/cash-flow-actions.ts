@@ -1295,13 +1295,13 @@ export async function verifyPaymentTransactionAction(
       .maybeSingle();
 
     if (!bookingError && booking) {
-      const rawTotal = (booking.metadata as Record<string, unknown> | null)?.total_amount;
-      const totalPayable = Number(rawTotal);
+      const totalPayable = validatedLegacyBookingPrice(
+        booking.metadata as Record<string, unknown> | null
+      );
       const totalPaid = Number(booking.amount_paid);
       if (
-        Number.isFinite(totalPayable) &&
+        totalPayable !== null &&
         Number.isFinite(totalPaid) &&
-        totalPayable >= 0 &&
         totalPaid >= 0
       ) {
         orderBalance = {
