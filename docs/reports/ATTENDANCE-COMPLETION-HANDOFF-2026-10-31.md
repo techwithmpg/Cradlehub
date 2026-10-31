@@ -108,9 +108,11 @@ reviewed linked exception blocks a new personal or CRM Closing reminder.
 
 ## Final correction evidence and release status
 
-- `origin/main` was fetched and verified at
-  `3decb4cc35af9da3151e690e118eb386aea7ae1a`; the correction branch has
-  that merge base and contains no unrelated merge.
+- `origin/main` advanced from the initial accepted
+  `3decb4cc35af9da3151e690e118eb386aea7ae1a` to
+  `04f0abadc01f2d76f1724729dc3c41e42a0894e4` during this pass. The latter
+  was merged into the correction branch with no conflict; its cash-flow change
+  is unrelated to Attendance.
 - The CRM Closing reminder stage now rechecks the authoritative dynamic
   deadline and assignment flags under the attendance row lock. It also checks
   branch Home Service activity and upcoming dispatches within the Attendance
@@ -142,15 +144,20 @@ reviewed linked exception blocks a new personal or CRM Closing reminder.
   existing CRM policy names, no notification INSERT RLS policy, and the
   established processor. No customer/staff rows, credentials, or SQL writes
   were copied to or applied against the local target.
-- `pnpm type-check` — PASS. Scoped ESLint — PASS. Focused Vitest — 5 files,
-  90 tests PASS, including mocked `/staff/attendance` therapist (375px) and
+- `pnpm type-check` — PASS after reconciling main. Scoped ESLint — PASS.
+  Focused Vitest — 6 files, 93 tests PASS after reconciling main, including
+  the unrelated new main cash-flow export test and mocked `/staff/attendance`
+  therapist (375px) and
   driver (390px) route states, server refusal, QR-only and network failure.
   These are viewport simulations, not rendered installed-PWA acceptance.
+- Canonical clock-out, pure attendance reader and geofence regressions — 3
+  files, 75 tests PASS after reconciling main.
 - Full `pnpm lint` — baseline FAIL: the unrelated cash-flow test at
   `tests/components/cash-flow/cash-flow-today-operations.test.tsx:162` has one
   explicit-`any` error; 26 warnings remain. No attendance lint error.
-- `pnpm exec next build --webpack` with isolated loopback Supabase URL and
-  placeholder test keys — exit **0**; compiled, TypeScript checked and
+- `pnpm exec next build --webpack` after reconciling main, with isolated
+  loopback Supabase URL and placeholder test keys — exit **0**; compiled,
+  TypeScript checked and
   generated all static pages. Static data fetches reported expected connection
   failures because no Supabase API ran at the placeholder URL. The default
   Turbopack build remains blocked by the worktree's external dependency

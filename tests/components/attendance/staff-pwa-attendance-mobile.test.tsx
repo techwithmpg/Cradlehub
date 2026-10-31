@@ -105,7 +105,10 @@ describe("/staff/attendance in simulated mobile authenticated states", () => {
     render(await LegacyAttendancePage());
     expect(screen.getByRole("heading", { name: "My Attendance" })).toBeTruthy();
     expect(screen.getByRole("region", { name: "Today's Attendance" })).toBeTruthy();
-    fireEvent.click(screen.getByRole("button", { name: "Clock out" }));
+    const button = screen.getByRole("button", { name: "Clock out" });
+    expect(button.className).toContain("min-h-11");
+    expect(button.parentElement?.className).toContain("flex-col");
+    fireEvent.click(button);
     await waitFor(() => expect(screen.getByText("Finish the trip first.")).toBeTruthy());
     expect(mocks.clockOut).toHaveBeenCalledWith();
     expect(mocks.refresh).not.toHaveBeenCalled();

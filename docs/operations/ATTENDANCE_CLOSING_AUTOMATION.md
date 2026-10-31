@@ -214,11 +214,18 @@ one recipient-scoped notice for an open live shift. Active or upcoming assignmen
 block delivery. A dedicated activation row prevents historical overdue shifts
 from receiving notices on first enablement. Canonical record completion resolves
 the notice, including QR, portal, manual correction, and provisional close.
+The follow-up `20261031074005_crm_closing_reminder_eligibility.sql` migration
+narrows only the existing CRM Closing reminder stage: it rechecks the dynamic
+deadline and active/upcoming work, including branch Home Service dispatches,
+before delivery. It rotates deferred rows so a bounded pass reaches later due
+staff. A reviewed linked `missed_checkout` exception resolves its notice while
+the attendance record remains open. The four Closing jobs and escalation and
+provisional-close stages remain unchanged.
 
-This migration and `supabase/operations/enable-staff-attendance-reminders.sql`
+Both migrations and `supabase/operations/enable-staff-attendance-reminders.sql`
 are **proposals only**. Neither is applied by an application deploy. The
 operation must be reviewed against a classified target, then executed separately
-after migration and TEST/STAGING verification. It adds one hourly job without
+after both migrations and TEST/STAGING verification. It adds one hourly job without
 editing any of the four Closing jobs. A reviewed rollback unschedules only
 `attendance-staff-clock-out-reminder` and removes its activation row. The
 migration's completion trigger remains installed until a separately reviewed
