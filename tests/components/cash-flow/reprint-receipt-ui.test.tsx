@@ -55,13 +55,11 @@ describe('Reprint Receipt UI in Cash Flow Views', () => {
 
   describe('TodayTab Recent Payments', () => {
     const kpis: TodayKpiSummary = {
-      openingFund: 5000,
-      totalInflow: 1500,
-      totalOutflow: 0,
-      expectedCash: 6500,
+      recordedPayments: 1500,
+      outstandingBalance: 0,
+      paidBookingsCount: 1,
       needsPaymentCount: 0,
       unreconciledBookingCount: 0,
-      pendingExpensesCount: 0,
     };
 
     const recentPayments: RecentPaymentItem[] = [

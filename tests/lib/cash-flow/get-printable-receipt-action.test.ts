@@ -16,14 +16,35 @@ const validTxId = 'a1b2c3d4-e5f6-4a1b-8c2d-3e4f5a6b7c8d';
 const branchId = '11111111-2222-4333-8444-555555555555';
 const otherBranchId = '99999999-8888-4777-8666-555555555555';
 
+type MockTx = {
+  id: string;
+  branch_id: string;
+  transaction_type: string;
+  status: string;
+  business_date: string;
+  occurred_at: string;
+  source_type: string;
+  source_id: string;
+  external_reference: string | null;
+  notes: string | null;
+  branches: { name: string };
+  financial_account_movements: Array<{
+    id: string;
+    financial_account_id: string;
+    amount: number;
+    payment_method: string;
+    external_reference: string | null;
+  }>;
+};
+
 describe('getPrintableReceiptAction', () => {
   let authenticatedUser: { id: string } | null;
   let staffRecord: { id: string; branch_id: string; system_role: string; is_active: boolean } | null;
-  let txRecord: any;
-  let orderRecord: any;
-  let summaryRecord: any;
-  let payableItemsRecord: any[];
-  let legacyBookingRecord: any;
+  let txRecord: MockTx | null;
+  let orderRecord: Record<string, unknown> | null;
+  let summaryRecord: Record<string, unknown> | null;
+  let payableItemsRecord: Array<{ description: string; amount: number }>;
+  let legacyBookingRecord: Record<string, unknown> | null;
 
   beforeEach(() => {
     vi.clearAllMocks();
@@ -79,7 +100,7 @@ describe('getPrintableReceiptAction', () => {
       from: (table: string) => {
         return {
           select: () => ({
-            eq: (_col: string, val: any) => ({
+            eq: (_col: string, val: unknown) => ({
               eq: () => ({
                 maybeSingle: async () => ({ data: null, error: null }),
               }),
@@ -108,33 +129,33 @@ describe('getPrintableReceiptAction', () => {
   it('rejects invalid or non-authoritative transaction IDs', async () => {
     const resEmpty = await getPrintableReceiptAction('');
     expect(resEmpty.ok).toBe(false);
-    expect(resEmpty.code).toBe('VALIDATION_FAILED');
+    if (!resEmpty.ok) expect(resEmpty.code).toBe('VALIDATION_FAILED');
 
     const resPrefix = await getPrintableReceiptAction('TXN-12345678');
     expect(resPrefix.ok).toBe(false);
-    expect(resPrefix.code).toBe('VALIDATION_FAILED');
+    if (!resPrefix.ok) expect(resPrefix.code).toBe('VALIDATION_FAILED');
 
     const resSentinel = await getPrintableReceiptAction('null');
     expect(resSentinel.ok).toBe(false);
-    expect(resSentinel.code).toBe('VALIDATION_FAILED');
+    if (!resSentinel.ok) expect(resSentinel.code).toBe('VALIDATION_FAILED');
 
     const resZeroUuid = await getPrintableReceiptAction('00000000-0000-0000-0000-000000000000');
     expect(resZeroUuid.ok).toBe(false);
-    expect(resZeroUuid.code).toBe('VALIDATION_FAILED');
+    if (!resZeroUuid.ok) expect(resZeroUuid.code).toBe('VALIDATION_FAILED');
   });
 
   it('requires authenticated session', async () => {
     authenticatedUser = null;
     const res = await getPrintableReceiptAction(validTxId);
     expect(res.ok).toBe(false);
-    expect(res.code).toBe('AUTH_REQUIRED');
+    if (!res.ok) expect(res.code).toBe('AUTH_REQUIRED');
   });
 
   it('requires active staff record', async () => {
     staffRecord = null;
     const res = await getPrintableReceiptAction(validTxId);
     expect(res.ok).toBe(false);
-    expect(res.code).toBe('STAFF_UNAUTHORIZED');
+    if (!res.ok) expect(res.code).toBe('STAFF_UNAUTHORIZED');
 
     staffRecord = {
       id: 'staff-1',
@@ -144,33 +165,33 @@ describe('getPrintableReceiptAction', () => {
     };
     const resInactive = await getPrintableReceiptAction(validTxId);
     expect(resInactive.ok).toBe(false);
-    expect(resInactive.code).toBe('STAFF_UNAUTHORIZED');
+    if (!resInactive.ok) expect(resInactive.code).toBe('STAFF_UNAUTHORIZED');
   });
 
   it('rejects unauthorized system roles like therapist', async () => {
     staffRecord!.system_role = 'therapist';
     const res = await getPrintableReceiptAction(validTxId);
     expect(res.ok).toBe(false);
-    expect(res.code).toBe('PAYMENT_ROLE_UNAUTHORIZED');
+    if (!res.ok) expect(res.code).toBe('PAYMENT_ROLE_UNAUTHORIZED');
   });
 
   it('returns TRANSACTION_NOT_FOUND when transaction is missing', async () => {
     txRecord = null;
     const res = await getPrintableReceiptAction(validTxId);
     expect(res.ok).toBe(false);
-    expect(res.code).toBe('TRANSACTION_NOT_FOUND');
+    if (!res.ok) expect(res.code).toBe('TRANSACTION_NOT_FOUND');
   });
 
   it('enforces branch isolation for branch staff', async () => {
-    txRecord.branch_id = otherBranchId;
+    txRecord!.branch_id = otherBranchId;
     const res = await getPrintableReceiptAction(validTxId);
     expect(res.ok).toBe(false);
-    expect(res.code).toBe('BRANCH_UNAUTHORIZED');
+    if (!res.ok) expect(res.code).toBe('BRANCH_UNAUTHORIZED');
   });
 
   it('allows owner role to retrieve receipts across any branch', async () => {
     staffRecord!.system_role = 'owner';
-    txRecord.branch_id = otherBranchId;
+    txRecord!.branch_id = otherBranchId;
     const res = await getPrintableReceiptAction(validTxId);
     expect(res.ok).toBe(true);
     if (res.ok) {
@@ -204,8 +225,8 @@ describe('getPrintableReceiptAction', () => {
   });
 
   it('reconstructs authoritative receipt data for legacy_booking with validated price', async () => {
-    txRecord.source_type = 'legacy_booking';
-    txRecord.source_id = 'booking-uuid-99';
+    txRecord!.source_type = 'legacy_booking';
+    txRecord!.source_id = 'booking-uuid-99';
     legacyBookingRecord = {
       id: 'booking-uuid-99',
       delivery_type: 'in_spa',
@@ -213,7 +234,7 @@ describe('getPrintableReceiptAction', () => {
       customers: { full_name: 'Juan Dela Cruz', phone: '09181112233' },
       services: { name: 'Deep Tissue Massage' },
     };
-    txRecord.financial_account_movements = [
+    txRecord!.financial_account_movements = [
       {
         id: 'mov-legacy-1',
         financial_account_id: 'acc-legacy',
