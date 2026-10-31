@@ -104,7 +104,8 @@ export function CradleFlowQuickPaymentModal({
   const [confirmedReceipt, setConfirmedReceipt] = useState<PrintableReceiptData | null>(null);
   const submitting = useRef(false);
   const attempt = useRef<{ signature: string; key: string } | null>(null);
-  const printedTxIdsRef = useRef<Set<string>>(new Set());
+  const successfulPrintTxIdsRef = useRef<Set<string>>(new Set());
+  const attemptedPrintTxIdsRef = useRef<Set<string>>(new Set());
   const autoCloseTimerRef = useRef<NodeJS.Timeout | null>(null);
 
   useEffect(() => {
@@ -122,6 +123,25 @@ export function CradleFlowQuickPaymentModal({
       autoCloseTimerRef.current = null;
     }
     if (!busy) onClose();
+  };
+
+  const dispatchAutomaticReceiptPrint = (receipt: PrintableReceiptData): boolean => {
+    const txId = receipt.transactionId;
+    if (successfulPrintTxIdsRef.current.has(txId)) {
+      // Already successfully dispatched in this checkout session
+      return true;
+    }
+    if (attemptedPrintTxIdsRef.current.has(txId)) {
+      // Previously attempted in this mounted checkout but failed;
+      // suppress duplicate automatic re-triggering, and NEVER report as successful
+      return false;
+    }
+    attemptedPrintTxIdsRef.current.add(txId);
+    const printed = printThermalReceipt(receipt);
+    if (printed) {
+      successfulPrintTxIdsRef.current.add(txId);
+    }
+    return printed;
   };
 
   const eligible = useMemo(() => (data?.payableOrders ?? []).filter(isQuickPaymentEligible), [data]);
@@ -346,14 +366,7 @@ export function CradleFlowQuickPaymentModal({
         setConfirmedReceipt(receiptData);
         setUnresolvedAttemptKey(null);
 
-        let printed = false;
-        if (!printedTxIdsRef.current.has(receiptData.transactionId)) {
-          printedTxIdsRef.current.add(receiptData.transactionId);
-          printed = printThermalReceipt(receiptData);
-        } else {
-          printed = true;
-        }
-
+        const printed = dispatchAutomaticReceiptPrint(receiptData);
         if (!printed) {
           setPrintWarning(
             "Transaction confirmed on ledger, but browser print dialog could not be opened automatically. Click 'Print Again' to retry."
@@ -626,14 +639,7 @@ export function CradleFlowQuickPaymentModal({
       setConfirmedReceipt(receiptData);
       setUnresolvedAttemptKey(null);
 
-      let printed = false;
-      if (!printedTxIdsRef.current.has(receiptData.transactionId)) {
-        printedTxIdsRef.current.add(receiptData.transactionId);
-        printed = printThermalReceipt(receiptData);
-      } else {
-        printed = true;
-      }
-
+      const printed = dispatchAutomaticReceiptPrint(receiptData);
       if (!printed) {
         setPrintWarning(
           "Automatic printing could not be opened. Click 'Print Again' to retry, or check browser print permissions."
@@ -772,7 +778,10 @@ export function CradleFlowQuickPaymentModal({
                   type="button"
                   onClick={() => {
                     const ok = printThermalReceipt({ ...confirmedReceipt, isReprint: true });
-                    if (ok) setPrintWarning(null);
+                    if (ok) {
+                      successfulPrintTxIdsRef.current.add(confirmedReceipt.transactionId);
+                      setPrintWarning(null);
+                    }
                   }}
                   className="rounded-lg border border-[#14543e] bg-white px-3 py-1 font-semibold text-[#14543e] hover:bg-[#edf6f0]"
                 >
@@ -1136,6 +1145,7 @@ export function CradleFlowQuickPaymentModal({
                         "Browser print dialog could not be opened. You can click 'Print Receipt Again' anytime."
                       );
                     } else {
+                      successfulPrintTxIdsRef.current.add(confirmedReceipt.transactionId);
                       setPrintWarning(null);
                     }
                   }}
@@ -1253,6 +1263,7 @@ export function CradleFlowQuickPaymentModal({
                         "Browser print dialog could not be opened. You can click 'Print Receipt Again' anytime."
                       );
                     } else {
+                      successfulPrintTxIdsRef.current.add(confirmedReceipt.transactionId);
                       setPrintWarning(null);
                     }
                   }}

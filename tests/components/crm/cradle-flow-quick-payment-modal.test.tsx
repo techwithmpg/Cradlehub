@@ -872,4 +872,62 @@ describe("CRM quick payment modal", () => {
     fireEvent.click(printAgainButtons[0]!);
     expect(mocks.printReceipt).toHaveBeenCalledTimes(2);
   });
+
+  it("does not report failed dispatch as successful or auto-close on a second automatic confirmation attempt", async () => {
+    vi.useFakeTimers({ shouldAdvanceTime: true });
+    try {
+      mocks.printReceipt.mockReturnValue(false);
+
+      const { rerender } = render(
+        <CradleFlowQuickPaymentModal
+          data={data}
+          loading={false}
+          requestedOrderId="order-dawn"
+          {...callbacks}
+        />
+      );
+
+      await waitFor(() => expect(screen.getByLabelText("Tender 1 cash received")).toBeTruthy());
+      fireEvent.change(screen.getByLabelText("Tender 1 cash received"), {
+        target: { value: "1500" },
+      });
+      fireEvent.click(screen.getByRole("button", { name: "Record Payment" }));
+
+      await waitFor(() => expect(mocks.recordOrder).toHaveBeenCalledTimes(1));
+      await waitFor(() => expect(mocks.printReceipt).toHaveBeenCalledTimes(1));
+
+      // First attempt failed: warning displayed and modal kept open
+      expect(screen.getByText(/Automatic printing could not be opened/i)).toBeTruthy();
+      expect(callbacks.onClose).not.toHaveBeenCalled();
+
+      // Second automatic confirmation attempt / re-render for the same transaction
+      rerender(
+        <CradleFlowQuickPaymentModal
+          data={{ ...data }}
+          loading={false}
+          requestedOrderId="order-dawn"
+          {...callbacks}
+        />
+      );
+
+      // Verify print was NOT called again (suppresses duplicate automatic attempts)
+      expect(mocks.printReceipt).toHaveBeenCalledTimes(1);
+
+      // Verify failure warning is STILL displayed and NOT cleared
+      expect(screen.getByText(/Automatic printing could not be opened/i)).toBeTruthy();
+
+      // Advance timers by 2000ms: modal must NOT auto-close
+      vi.advanceTimersByTime(2000);
+      expect(callbacks.onClose).not.toHaveBeenCalled();
+
+      // Cashier can still manually click Print Again to recover
+      mocks.printReceipt.mockReturnValue(true);
+      const printAgainButtons = screen.getAllByRole("button", { name: /Print Again/i });
+      fireEvent.click(printAgainButtons[0]!);
+      expect(mocks.printReceipt).toHaveBeenCalledTimes(2);
+      expect(screen.queryByText(/Automatic printing could not be opened/i)).toBeNull();
+    } finally {
+      vi.useRealTimers();
+    }
+  });
 });
