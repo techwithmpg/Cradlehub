@@ -267,6 +267,30 @@ describe("Operational Booking Eligibility (Pass 3)", () => {
     }
   });
 
+  it("18. shows upcoming appointment later today when clockTime is omitted", () => {
+    // 2026-10-29 14:30:00 Manila time (UTC+8) is 2026-10-29 06:30:00 UTC
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date("2026-10-29T06:30:00Z"));
+
+    try {
+      const line = createMockLine({
+        booking_date: "2026-10-29",
+        start_time: "16:00:00",
+        end_time: "17:00:00",
+        status: "confirmed",
+        checked_in_at: null,
+        arrived_at: null,
+        session_started_at: null,
+        session_completed_at: null,
+      });
+      const group = createMockGroup([line], {}, { startTime: "16:00:00", endTime: "17:00:00" });
+      expect(isOperationalBookingGroup(group, { businessDate: "2026-10-29" })).toBe(true);
+      expect(isOperationalBookingGroup(group)).toBe(true);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
   it("19. hides completed service that is fully paid even with historical checked_in_at and session_started_at timestamps", () => {
     const line = createMockLine({
       status: "completed",
