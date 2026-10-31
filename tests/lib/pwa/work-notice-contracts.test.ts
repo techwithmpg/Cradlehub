@@ -55,7 +55,8 @@ describe("Cross-role notice authority", () => {
     expect(staffNoticeHref(notice, "staff")).toBe("/staff/progress");
     expect(staffNoticeHref({ ...notice, type: "attendance_clock_out_reminder" }, "driver")).toBe("/staff/attendance");
   });
-  it("never tells staff to clock out from stale notification copy", () => {
-    expect(safeAttendanceNoticeCopy({ type: "attendance_clock_out_reminder", title: "Clock out now", body: "End shift" })).toMatchObject({ title: "Attendance needs review", body: expect.stringContaining("checked by the server") });
+  it("routes a forgotten clock-out to personal attendance without promising remote eligibility", () => {
+    expect(safeAttendanceNoticeCopy({ type: "attendance_clock_out_reminder", dedupe_key: "staff-clock-out-reminder:shift", title: "Clock out now", body: "End shift" })).toMatchObject({ title: "You forgot to clock out", body: expect.stringContaining("if eligible") });
+    expect(safeAttendanceNoticeCopy({ type: "attendance_clock_out_reminder", dedupe_key: "crm-closing:shift", title: "Clock out now", body: "End shift" })).toMatchObject({ title: "Attendance needs review" });
   });
 });

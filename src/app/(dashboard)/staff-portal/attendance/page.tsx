@@ -4,6 +4,7 @@ import { PageHeader } from "@/components/features/dashboard/page-header";
 import { AttendanceReadinessCard } from "@/components/features/staff-portal/attendance-readiness-card";
 import { StaffAttendanceHistory } from "@/components/features/staff-portal/staff-attendance-history";
 import { StaffAttendanceRealtime } from "@/components/features/staff-portal/staff-attendance-realtime";
+import { StaffAttendanceClockOut } from "@/components/features/staff-portal/staff-attendance-clock-out";
 import { getOwnAttendancePhoneState } from "@/lib/attendance/device-registration";
 import { ATTENDANCE_REGISTRATION_COOKIE_NAME } from "@/lib/attendance/scan-continuation";
 import { DEVICE_COOKIE_NAME } from "@/lib/attendance/tokens";
@@ -32,6 +33,7 @@ export default async function StaffAttendancePage() {
         icon="🕒"
       />
       <div className="mt-6 space-y-5">
+        {data.portalClockOut ? <section aria-label="Today's Attendance" className="rounded-xl border bg-card p-4"><p className="text-sm font-semibold">Today&apos;s Attendance — {data.currentClockState === "clocked_in" ? "Clocked In" : data.currentClockState === "clocked_out" ? "Clocked Out" : "Not Clocked In"}</p><StaffAttendanceClockOut availability={data.portalClockOut} timezone={data.todayState.timezone} /></section> : null}
         <AttendanceReadinessCard data={data} phoneState={phoneState} />
         <StaffAttendanceHistory data={data} />
       </div>

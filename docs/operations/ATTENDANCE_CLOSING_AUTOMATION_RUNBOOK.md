@@ -47,3 +47,27 @@ Disable all four jobs first. If removal is required, call `cron.unschedule(jobid
 - [ ] Exactly four jobs active with expected schedules and commands
 - [ ] First production executions monitored and archived
 - [ ] Attendance enforcement remains explicitly configured
+
+## Proposed staff-wide reminder activation
+
+Keep the four Closing jobs and their schedules. Before enabling the proposed
+hourly staff reminder, verify a classified TEST/STAGING run of both
+`20261031074004_staff_clock_out_reminders.sql` and
+`20261031074005_crm_closing_reminder_eligibility.sql`, reminder eligibility,
+deduplication, recipient RLS, overnight dates,
+manual-correction resolution, and a >50-row blocked-work batch. Confirm the
+production migration body independently of historical version drift.
+
+After separate owner approval, apply only the two reviewed reminder migrations,
+verify both function ACLs, the triggers and partial indexes, then run
+`supabase/operations/enable-staff-attendance-reminders.sql` in a reviewed
+window. The operation inserts the activation time and creates exactly one new
+`attendance-staff-clock-out-reminder` job at minute 7 of each hour. Verify all
+four existing Closing jobs are still active and unchanged, plus the fifth job's
+command and first runs. No manual invocation against live open staff records is
+part of testing.
+
+For rollback, use `cron.unschedule(jobid)` only for the verified new job ID,
+then delete the singleton activation row. Leave the four Closing jobs alone.
+If the migration itself must be rolled back, separately review the trigger,
+function, policies, indexes and reminder state before dropping them.

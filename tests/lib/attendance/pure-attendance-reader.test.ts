@@ -1,5 +1,5 @@
 import { readFileSync } from "node:fs";
-import { describe, expect, it, vi, beforeEach } from "vitest";
+import { describe, expect, it, vi, beforeEach, afterEach } from "vitest";
 
 vi.mock("server-only", () => ({}));
 
@@ -105,12 +105,19 @@ vi.mock("next/headers", () => ({
   })),
 }));
 
-vi.mock("@/lib/attendance/shift-instance", () => ({
+vi.mock("@/lib/attendance/shift-instance", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("@/lib/attendance/shift-instance")>()),
   getAttendanceBranchNow: vi.fn(() => ({
+    localDate: "2026-09-13",
     businessDate: "2026-09-13",
+    time: "08:00:00",
+    minutesIntoDay: 480,
     timezone: "Asia/Manila",
+    dayBoundary: "06:00:00",
   })),
 }));
+
+import { getAttendanceBranchNow } from "@/lib/attendance/shift-instance";
 
 vi.mock("@/lib/queries/resolved-staff-schedules", () => ({
   getResolvedStaffSchedulesForDate: vi.fn(async () => new Map()),
@@ -145,6 +152,164 @@ describe("W1A: Pure Attendance Reader — Static Contract & Dependency Integrity
     const actionsSource = readFileSync("src/app/(dashboard)/staff-portal/actions.ts", "utf8");
     expect(actionsSource).toContain("export async function resolvePortalClockOutEligibilityAction(");
     expect(actionsSource).toContain("export async function clockOutFromStaffPortalAction(");
+  });
+});
+
+describe("current Attendance shift selection", () => {
+  const businessDate = "2026-09-14";
+  const now = "2026-09-14T00:00:00Z"; // 08:00 in Asia/Manila
+  const baseCheckin = {
+    branch_id: "branch-uuid-1",
+    shift_type: "regular",
+    scheduled_start_at: "2026-09-13T13:00:00Z",
+    scheduled_end_at: "2026-09-13T22:00:00Z",
+    checked_in_at: "2026-09-13T13:00:00Z",
+    checked_out_at: null,
+    status: "checked_in",
+    attendance_status: "present",
+    exception_state: null,
+    worked_minutes: 0,
+    late_minutes: 0,
+    early_leave_minutes: 0,
+    overtime_minutes: 0,
+    attendance_expected_end_at: "2026-09-13T22:00:00Z",
+    earliest_normal_clock_out_at: "2026-09-13T21:55:00Z",
+    latest_normal_clock_out_at: "2026-09-13T22:15:00Z",
+    attendance_policy_source: "schedule",
+    attendance_policy_snapshot: {},
+    provisional_auto_closed_at: null,
+    clock_out_confirmation_required: false,
+    actual_clock_out_reconciled_at: null,
+  };
+
+  async function readWithCheckins(rows: Record<string, unknown>[]) {
+    mockGetUser.mockResolvedValueOnce({ data: { user: { id: "auth-staff-123" } } });
+    mockStaffSelect.mockResolvedValueOnce({ data: {
+      id: "staff-uuid-1", full_name: "Maria Santos", nickname: "Maria",
+      branch_id: "branch-uuid-1", staff_type: "therapist", system_role: "staff",
+    }, error: null });
+    mockAttendanceSettingsSelect.mockResolvedValueOnce({
+      data: { branch_id: "branch-uuid-1", timezone: "Asia/Manila",
+        attendance_day_boundary: "06:00:00" }, error: null,
+    });
+    mockRuleVersionsSelect.mockResolvedValueOnce({ data: null, error: null });
+    mockCheckinsSelect.mockResolvedValueOnce({ data: rows, error: null });
+    mockExceptionsSelect.mockResolvedValueOnce({ data: [], error: null });
+    mockBookingsSelect.mockResolvedValueOnce({ data: [], error: null });
+    mockStaffDevicesSelect.mockResolvedValue({ data: { id: "device-1" }, error: null });
+    const { getPureAttendanceSnapshot } = await import("@/lib/staff-portal/attendance");
+    return getPureAttendanceSnapshot(30);
+  }
+
+  beforeEach(() => {
+    vi.clearAllMocks();
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date(now));
+    vi.mocked(getAttendanceBranchNow).mockReturnValueOnce({
+      localDate: businessDate, businessDate, time: "08:00:00",
+      minutesIntoDay: 480, timezone: "Asia/Manila", dayBoundary: "06:00:00",
+    });
+  });
+  afterEach(() => {
+    vi.useRealTimers();
+    expect(mockInsertSpy).not.toHaveBeenCalled();
+    expect(mockUpdateSpy).not.toHaveBeenCalled();
+    expect(mockDeleteSpy).not.toHaveBeenCalled();
+    expect(mockUpsertSpy).not.toHaveBeenCalled();
+    expect(mockRpcSpy).not.toHaveBeenCalled();
+  });
+
+  it("keeps a legitimate overnight open shift active on the following business date", async () => {
+    const overnight = {
+      ...baseCheckin, id: "overnight", shift_date: "2026-09-13",
+      attendance_business_date: "2026-09-13",
+      scheduled_end_at: "2026-09-14T02:00:00Z",
+      attendance_expected_end_at: "2026-09-14T02:00:00Z",
+      latest_normal_clock_out_at: "2026-09-14T02:15:00Z",
+    };
+    const result = await readWithCheckins([overnight]);
+    expect(result?.currentRecord?.id).toBe("overnight");
+    expect(result?.currentClockState).toBe("clocked_in");
+    expect(result?.history.map((row) => row.id)).toEqual(["overnight"]);
+    expect(mockUpdateSpy).not.toHaveBeenCalled();
+  });
+
+  it("keeps an eligible overnight shift available after its reminder deadline", async () => {
+    const overdueOvernight = {
+      ...baseCheckin, id: "overdue-overnight", shift_date: "2026-09-13",
+      attendance_business_date: "2026-09-13",
+      attendance_policy_snapshot: {
+        portalClockOutEligible: true,
+        portalEligibilityReason: "final_home_service_complete",
+        expectedEndAt: "2026-09-13T22:00:00Z",
+      },
+    };
+    const result = await readWithCheckins([overdueOvernight]);
+    expect(result?.currentRecord?.id).toBe("overdue-overnight");
+    expect(result?.currentClockState).toBe("clocked_in");
+    expect(result?.portalClockOut?.enabled).toBe(true);
+    expect(result?.portalClockOut?.code).toBe("final_home_service_complete");
+  });
+
+  it("keeps a stale open shift in history without displaying it as today's shift", async () => {
+    const staleYesterday = {
+      ...baseCheckin, id: "stale-yesterday", shift_date: "2026-09-13",
+      attendance_business_date: "2026-09-13",
+      scheduled_end_at: "2026-09-13T15:00:00Z",
+      attendance_expected_end_at: "2026-09-13T15:00:00Z",
+      latest_normal_clock_out_at: "2026-09-13T15:15:00Z",
+    };
+    const staleOlder = {
+      ...baseCheckin, id: "stale-older", shift_date: "2026-09-10",
+      attendance_business_date: "2026-09-10",
+      scheduled_end_at: "2026-09-10T10:00:00Z",
+    };
+    const result = await readWithCheckins([staleYesterday, staleOlder]);
+    expect(result?.currentRecord).toBeNull();
+    expect(result?.currentClockState).toBe("not_clocked_in");
+    expect(result?.history.map((row) => row.id)).toEqual(["stale-yesterday", "stale-older"]);
+    expect(result?.portalClockOut?.code).toBe("no_open_attendance");
+    expect(mockUpdateSpy).not.toHaveBeenCalled();
+  });
+
+  it("prefers today's completed shift over an older open shift", async () => {
+    const completed = {
+      ...baseCheckin, id: "completed-today", shift_date: businessDate,
+      attendance_business_date: businessDate,
+      scheduled_start_at: "2026-09-13T22:00:00Z",
+      scheduled_end_at: "2026-09-14T06:00:00Z",
+      checked_in_at: "2026-09-13T22:00:00Z",
+      checked_out_at: "2026-09-13T23:30:00Z", status: "checked_out",
+    };
+    const stale = {
+      ...baseCheckin, id: "stale-same-day", shift_date: businessDate,
+      attendance_business_date: businessDate,
+      checked_in_at: "2026-09-13T21:00:00Z",
+    };
+    const result = await readWithCheckins([completed, stale]);
+    expect(result?.currentRecord?.id).toBe("completed-today");
+    expect(result?.currentClockState).toBe("clocked_out");
+    expect(result?.history.map((row) => row.id)).toEqual(["completed-today", "stale-same-day"]);
+    expect(mockUpdateSpy).not.toHaveBeenCalled();
+  });
+
+  it("prioritizes a fresh open current-business-date shift", async () => {
+    const fresh = {
+      ...baseCheckin, id: "fresh-today", shift_date: businessDate,
+      attendance_business_date: businessDate,
+      scheduled_start_at: "2026-09-13T22:00:00Z",
+      scheduled_end_at: "2026-09-14T06:00:00Z",
+      checked_in_at: "2026-09-13T22:00:00Z",
+    };
+    const stale = {
+      ...baseCheckin, id: "stale-yesterday", shift_date: "2026-09-13",
+      attendance_business_date: "2026-09-13",
+    };
+    const result = await readWithCheckins([fresh, stale]);
+    expect(result?.currentRecord?.id).toBe("fresh-today");
+    expect(result?.currentClockState).toBe("clocked_in");
+    expect(result?.history.map((row) => row.id)).toEqual(["fresh-today", "stale-yesterday"]);
+    expect(mockUpdateSpy).not.toHaveBeenCalled();
   });
 });
 
