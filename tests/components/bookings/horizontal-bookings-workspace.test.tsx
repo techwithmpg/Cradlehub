@@ -1345,8 +1345,143 @@ describe("Horizontal Bookings Workspace & Quick Edit Integration", () => {
       "Order evidence requires review. Reconcile details before collecting."
     );
 
-    // Verify section header is updated to Reconcile / Mark Paid
-    expect(screen.getByText("Reconcile / Mark Paid")).toBeTruthy();
+    // Verify read-only details are displayed
+    const details = screen.getByTestId("payment-review-details");
+    expect(details).toBeTruthy();
+    expect(details.textContent).toContain("Price:");
+    expect(details.textContent).toContain("Recorded Paid:");
+    expect(details.textContent).toContain("Status:");
+
+    // Verify authorized reconciliation workflow links are displayed
+    const recLink = screen.getByTestId("link-reconciliation");
+    expect(recLink).toBeTruthy();
+    expect(recLink.getAttribute("href")).toBe("/crm/reconciliation");
+    expect(recLink.textContent).toBe("Open Reconciliation");
+
+    const cashFlowLink = screen.getByTestId("link-cash-flow");
+    expect(cashFlowLink).toBeTruthy();
+    expect(cashFlowLink.getAttribute("href")).toBe("/crm/cash-flow");
+    expect(cashFlowLink.textContent).toBe("View Cash Flow Ledger");
+
+    // Verify that NO payment mutation controls are exposed while unverified
     expect(screen.queryByText("Quick Mark Paid")).toBeNull();
+    expect(screen.queryByText("Reconcile / Mark Paid")).toBeNull();
+    expect(screen.queryByRole("button", { name: "Cash" })).toBeNull();
+    expect(screen.queryByRole("button", { name: "GCash" })).toBeNull();
+    expect(screen.queryByRole("button", { name: "Maya" })).toBeNull();
+    expect(screen.queryByRole("button", { name: "Card" })).toBeNull();
+    expect(screen.queryByRole("button", { name: "Mark Unpaid" })).toBeNull();
+    expect(screen.queryByRole("button", { name: "Edit Details…" })).toBeNull();
+
+    // Verify payment action was NEVER invoked
+    expect(mockPaymentAction).not.toHaveBeenCalled();
+  });
+
+  it("ordinary verified unpaid booking exposes full payment actions and invokes mutation", () => {
+    const mockPaymentAction = vi.fn().mockResolvedValue({ success: true });
+    const booking = makeBooking({
+      id: "booking-verified-unpaid-actions",
+      order_id: "ORD-VERIFIED-UNPAID",
+      order_total_amount: 1200,
+      order_amount_paid: 0,
+      order_payment_status: "unpaid",
+      status: "confirmed",
+      booking_progress_status: "confirmed",
+      customers: {
+        id: "cust-unpaid-act",
+        full_name: "Unpaid Action Customer",
+        phone: "09170003333",
+        email: "unpaidact@example.com",
+      },
+    });
+
+    render(
+      <BookingsDesktopWorkspace
+        workspaceContext="crm"
+        viewerRole="admin"
+        date="2026-10-29"
+        initialQuickFilter="all"
+        bookings={[booking]}
+        paymentAction={mockPaymentAction}
+      />
+    );
+
+    // Select row
+    fireEvent.click(screen.getByText("Unpaid Action Customer"));
+
+    // Manage ▾ is shown
+    const manageBtn = screen.getByRole("button", { name: "Manage ▾" });
+    expect(manageBtn).toBeTruthy();
+
+    // Open dropdown
+    fireEvent.click(manageBtn);
+
+    // Verified unpaid shows standard Quick Mark Paid controls
+    expect(screen.getByText("Quick Mark Paid")).toBeTruthy();
+    expect(screen.getByRole("button", { name: "Cash" })).toBeTruthy();
+    expect(screen.getByRole("button", { name: "GCash" })).toBeTruthy();
+    expect(screen.getByRole("button", { name: "Maya" })).toBeTruthy();
+    expect(screen.getByRole("button", { name: "Card" })).toBeTruthy();
+    expect(screen.getByRole("button", { name: "Edit Details…" })).toBeTruthy();
+
+    // Warning and review links are NOT shown
+    expect(screen.queryByTestId("payment-review-warning")).toBeNull();
+    expect(screen.queryByTestId("link-reconciliation")).toBeNull();
+
+    // Click Cash to invoke mutation
+    fireEvent.click(screen.getByRole("button", { name: "Cash" }));
+    expect(mockPaymentAction).toHaveBeenCalledWith(
+      expect.objectContaining({
+        bookingId: "booking-verified-unpaid-actions",
+        paymentMethod: "cash",
+        paymentStatus: "paid",
+      })
+    );
+  });
+
+  it("restores standard payment actions once authoritative evidence establishes verified paid state", () => {
+    const mockPaymentAction = vi.fn().mockResolvedValue({ success: true });
+    const booking = makeBooking({
+      id: "booking-refreshed-paid",
+      order_id: "ORD-REFRESHED-PAID",
+      order_total_amount: 1200,
+      order_amount_paid: 1200,
+      order_payment_status: "paid",
+      status: "confirmed",
+      booking_progress_status: "confirmed",
+      customers: {
+        id: "cust-refreshed-paid",
+        full_name: "Refreshed Paid Customer",
+        phone: "09170004444",
+        email: "refreshed@example.com",
+      },
+    });
+
+    render(
+      <BookingsDesktopWorkspace
+        workspaceContext="crm"
+        viewerRole="admin"
+        date="2026-10-29"
+        initialQuickFilter="all"
+        bookings={[booking]}
+        paymentAction={mockPaymentAction}
+      />
+    );
+
+    // Select row
+    fireEvent.click(screen.getByText("Refreshed Paid Customer"));
+
+    // Manage ▾ is shown
+    const manageBtn = screen.getByRole("button", { name: "Manage ▾" });
+    expect(manageBtn).toBeTruthy();
+
+    // Open dropdown
+    fireEvent.click(manageBtn);
+
+    // Verified paid shows standard Quick Mark Paid, Mark Unpaid, and Edit Details
+    expect(screen.getByText("Quick Mark Paid")).toBeTruthy();
+    expect(screen.getByRole("button", { name: "Mark Unpaid" })).toBeTruthy();
+    expect(screen.getByRole("button", { name: "Edit Details…" })).toBeTruthy();
+    expect(screen.queryByTestId("payment-review-warning")).toBeNull();
   });
 });

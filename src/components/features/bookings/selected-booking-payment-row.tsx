@@ -10,6 +10,7 @@ import { SelectedBookingPaymentConfirmation } from "./selected-booking-payment-c
 import { readBookingPrice } from "@/lib/bookings/booking-display";
 import { isCrmPendingBookingStatus } from "@/lib/bookings/crm-booking-status";
 import { formatCurrency } from "@/lib/utils";
+import { getBookingPaymentDisplayState } from "@/lib/bookings/crm-booking-groups";
 
 export function SelectedBookingPaymentRow({
   booking,
@@ -31,6 +32,22 @@ export function SelectedBookingPaymentRow({
   const setExpanded = onExpandedChange ?? setLocalExpanded;
   const price = readBookingPrice(booking.metadata);
   const balance = Math.max(0, price - Number(booking.amount_paid ?? 0));
+  const isPaymentReview = Boolean(
+    booking.order_id &&
+      getBookingPaymentDisplayState(
+        {
+          total: booking.order_total_amount ?? null,
+          paid: booking.order_amount_paid ?? null,
+          due:
+            booking.order_total_amount != null && booking.order_amount_paid != null
+              ? Math.max(0, booking.order_total_amount - booking.order_amount_paid)
+              : null,
+          status: booking.order_payment_status ?? null,
+        },
+        booking
+      ).isPaymentReview
+  );
+
   const summary = (
     <span className="inline-flex items-center gap-1.5">
       <span className="capitalize">{booking.payment_status.replaceAll("_", " ")}</span>
@@ -48,10 +65,20 @@ export function SelectedBookingPaymentRow({
       summary={summary}
       action={
         <div className="flex items-center gap-2">
-          {isCrmPendingBookingStatus(booking.status) && confirmPaymentAction ? (
+          {isCrmPendingBookingStatus(booking.status) && confirmPaymentAction && !isPaymentReview ? (
             <button type="button" onClick={() => setExpanded(!isExpanded)} className={overviewActionClass}>{isExpanded ? "Close" : "Review"}</button>
           ) : null}
-          <PaymentActionMenu bookingId={booking.id} paymentStatus={booking.payment_status} paymentMethod={booking.payment_method} amountPaid={booking.amount_paid} pricePaid={price} paymentAction={paymentAction} triggerLabel="Manage" triggerVariant="panelSecondary" />
+          <PaymentActionMenu
+            bookingId={booking.id}
+            paymentStatus={booking.payment_status}
+            paymentMethod={booking.payment_method}
+            amountPaid={booking.amount_paid}
+            pricePaid={price}
+            paymentAction={paymentAction}
+            triggerLabel={isPaymentReview ? "Review" : "Manage"}
+            triggerVariant="panelSecondary"
+            reviewRequired={isPaymentReview}
+          />
         </div>
       }
     >
