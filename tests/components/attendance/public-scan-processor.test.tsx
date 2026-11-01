@@ -20,8 +20,10 @@ const browserLocationMocks = vi.hoisted(() => ({
   needsLocationExplanation: vi.fn(),
   warmAttendanceLocation: vi.fn(),
 }));
+const grantMocks = vi.hoisted(() => ({ claimStaffScanGrantAction: vi.fn() }));
 
 vi.mock("@/app/scan/actions", () => actionMocks);
+vi.mock("@/app/(dashboard)/staff/scan/actions", () => grantMocks);
 vi.mock("@/lib/attendance/browser-location", async (importOriginal) => ({
   ...(await importOriginal<typeof import("@/lib/attendance/browser-location")>()),
   ...browserLocationMocks,
@@ -67,6 +69,9 @@ function response(result: PublicScanResult, ok = true): Response {
 
 async function finishTimers(): Promise<void> {
   await act(async () => {
+    await Promise.resolve();
+    await vi.runAllTimersAsync();
+    await Promise.resolve();
     await vi.runAllTimersAsync();
   });
 }
@@ -76,9 +81,13 @@ beforeEach(() => {
   vi.stubGlobal("fetch", vi.fn().mockResolvedValue(response(unknownDevice)));
   Object.values(actionMocks).forEach((mock) => mock.mockReset());
   Object.values(browserLocationMocks).forEach((mock) => mock.mockReset());
+  grantMocks.claimStaffScanGrantAction.mockReset().mockResolvedValue(null);
   browserLocationMocks.needsLocationExplanation.mockResolvedValue("ready");
   browserLocationMocks.freshAttendanceLocation.mockResolvedValue({
-    latitude: 10.6713191, longitude: 122.9437447, accuracy: 15, timestamp: Date.now(),
+    latitude: 10.6713191,
+    longitude: 122.9437447,
+    accuracy: 15,
+    timestamp: Date.now(),
   });
 });
 
@@ -89,10 +98,235 @@ afterEach(() => {
 });
 
 describe("PublicScanProcessor first-device continuation", () => {
+  it("does not auto-retry a consumed scanner grant after a failed location attempt", async () => {
+    grantMocks.claimStaffScanGrantAction
+      .mockResolvedValueOnce({ operationId: "scanner-one-use" })
+      .mockResolvedValueOnce(null);
+    browserLocationMocks.freshAttendanceLocation.mockRejectedValueOnce("location_unavailable");
+    const fetchMock = vi.fn().mockResolvedValue(response(finalAttendance));
+    vi.stubGlobal("fetch", fetchMock);
+    const first = render(
+      <PublicScanProcessor
+        mode="scan"
+        publicCode="att_main"
+        scanBasePath="/staff/scan/process"
+        locationRequired
+      />
+    );
+    await act(async () => {
+      await Promise.resolve();
+    });
+    await finishTimers();
+    expect(screen.getByRole("heading", { name: "Location needed" })).toBeTruthy();
+    expect(fetchMock).not.toHaveBeenCalled();
+    first.unmount();
+    render(
+      <PublicScanProcessor
+        mode="scan"
+        publicCode="att_main"
+        scanBasePath="/staff/scan/process"
+        locationRequired
+      />
+    );
+    await finishTimers();
+    expect(screen.getByRole("heading", { name: "QR code recognized" })).toBeTruthy();
+    expect(fetchMock).not.toHaveBeenCalled();
+    expect(grantMocks.claimStaffScanGrantAction).toHaveBeenCalledTimes(2);
+    fireEvent.click(screen.getByRole("button", { name: "Record attendance" }));
+    await finishTimers();
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+  });
+
+  it("keeps manual attendance unavailable while a scanner grant claim is pending", async () => {
+    let resolveClaim!: (value: { operationId: string } | null) => void;
+    grantMocks.claimStaffScanGrantAction.mockReturnValue(
+      new Promise((resolve) => {
+        resolveClaim = resolve;
+      })
+    );
+    const fetchMock = vi.fn().mockResolvedValue(response(finalAttendance));
+    vi.stubGlobal("fetch", fetchMock);
+    render(
+      <PublicScanProcessor
+        mode="scan"
+        publicCode="att_main"
+        scanBasePath="/staff/scan/process"
+        locationRequired
+      />
+    );
+    expect(screen.getByRole("status").textContent).toContain("Preparing this scan");
+    expect(screen.queryByRole("button", { name: "Record attendance" })).toBeNull();
+    expect(fetchMock).not.toHaveBeenCalled();
+    await act(async () => resolveClaim(null));
+    fireEvent.click(screen.getByRole("button", { name: "Record attendance" }));
+    await finishTimers();
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+  });
+
+  it("fails closed after a stalled grant claim and ignores a late grant during manual processing", async () => {
+    let resolveClaim!: (value: { operationId: string } | null) => void;
+    grantMocks.claimStaffScanGrantAction.mockReturnValue(
+      new Promise((resolve) => {
+        resolveClaim = resolve;
+      })
+    );
+    let resolveResponse!: (value: Response) => void;
+    const fetchMock = vi.fn().mockReturnValue(
+      new Promise((resolve) => {
+        resolveResponse = resolve;
+      })
+    );
+    vi.stubGlobal("fetch", fetchMock);
+    render(
+      <PublicScanProcessor
+        mode="scan"
+        publicCode="att_main"
+        scanBasePath="/staff/scan/process"
+        locationRequired
+      />
+    );
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(8_100);
+    });
+    expect(screen.getByRole("button", { name: "Record attendance" })).toBeTruthy();
+    expect(fetchMock).not.toHaveBeenCalled();
+    fireEvent.click(screen.getByRole("button", { name: "Record attendance" }));
+    await act(async () => {
+      await Promise.resolve();
+    });
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+    const requestId = JSON.parse(
+      String((fetchMock.mock.calls[0]?.[1] as RequestInit).body)
+    ).requestId;
+    await act(async () => resolveClaim({ operationId: "too-late" }));
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+    expect(JSON.parse(String((fetchMock.mock.calls[0]?.[1] as RequestInit).body)).requestId).toBe(
+      requestId
+    );
+    await act(async () => resolveResponse(response(finalAttendance)));
+    await finishTimers();
+    expect(screen.getByRole("heading", { name: "Clocked in" })).toBeTruthy();
+  });
+
+  it("shows QR, location, and attendance stages in order before a successful result", async () => {
+    let resolveLocation!: (value: {
+      latitude: number;
+      longitude: number;
+      accuracy: number;
+      timestamp: number;
+    }) => void;
+    let resolveResponse!: (value: Response) => void;
+    browserLocationMocks.freshAttendanceLocation.mockReturnValue(
+      new Promise((resolve) => {
+        resolveLocation = resolve;
+      })
+    );
+    const fetchMock = vi.fn().mockReturnValue(
+      new Promise((resolve) => {
+        resolveResponse = resolve;
+      })
+    );
+    vi.stubGlobal("fetch", fetchMock);
+    render(<PublicScanProcessor mode="scan" autoProcess publicCode="att_main" locationRequired />);
+    expect(screen.getByRole("heading", { name: "QR code recognized" })).toBeTruthy();
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(250);
+    });
+    expect(screen.getByRole("heading", { name: "Verifying location..." })).toBeTruthy();
+    expect(fetchMock).not.toHaveBeenCalled();
+    await act(async () =>
+      resolveLocation({
+        latitude: 10.6713191,
+        longitude: 122.9437447,
+        accuracy: 15,
+        timestamp: Date.now(),
+      })
+    );
+    expect(screen.getByRole("heading", { name: "Validating attendance..." })).toBeTruthy();
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+    await act(async () => resolveResponse(response(finalAttendance)));
+    await finishTimers();
+    expect(screen.getByRole("heading", { name: "Clocked in" })).toBeTruthy();
+  });
+
+  it("asks for location permission after QR recognition and before any scan request", async () => {
+    browserLocationMocks.needsLocationExplanation.mockResolvedValue("explain");
+    const fetchMock = vi.fn().mockResolvedValue(response(finalAttendance));
+    vi.stubGlobal("fetch", fetchMock);
+    render(<PublicScanProcessor mode="scan" autoProcess publicCode="att_main" locationRequired />);
+    await finishTimers();
+    expect(screen.getByRole("heading", { name: "Enable location for attendance" })).toBeTruthy();
+    expect(fetchMock).not.toHaveBeenCalled();
+    expect(browserLocationMocks.freshAttendanceLocation).not.toHaveBeenCalled();
+    fireEvent.click(screen.getByRole("button", { name: "Enable Location" }));
+    await finishTimers();
+    expect(browserLocationMocks.freshAttendanceLocation).toHaveBeenCalledTimes(1);
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+  });
+
+  it("keeps a direct printed QR URL inert until an explicit attendance action", async () => {
+    const fetchMock = vi.fn().mockResolvedValue(response(finalAttendance));
+    vi.stubGlobal("fetch", fetchMock);
+    const first = render(
+      <PublicScanProcessor mode="scan" publicCode="att_main" locationRequired />
+    );
+    await finishTimers();
+    expect(screen.getByRole("heading", { name: "QR code recognized" })).toBeTruthy();
+    expect(screen.getByRole("button", { name: "Record attendance" })).toBeTruthy();
+    expect(browserLocationMocks.freshAttendanceLocation).not.toHaveBeenCalled();
+    expect(fetchMock).not.toHaveBeenCalled();
+    first.unmount();
+
+    // A refresh, bookmark, or history entry starts from the same inert state.
+    render(<PublicScanProcessor mode="scan" publicCode="att_main" locationRequired />);
+    await finishTimers();
+    expect(fetchMock).not.toHaveBeenCalled();
+    fireEvent.click(screen.getByRole("button", { name: "Record attendance" }));
+    await finishTimers();
+    expect(browserLocationMocks.freshAttendanceLocation).toHaveBeenCalledTimes(1);
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+    expect(screen.getByRole("heading", { name: "Clocked in" })).toBeTruthy();
+  });
+
+  it("reuses the scanner operation ID on a route refresh", async () => {
+    const fetchMock = vi.fn().mockResolvedValue(response(finalAttendance));
+    vi.stubGlobal("fetch", fetchMock);
+    const first = render(
+      <PublicScanProcessor
+        mode="scan"
+        autoProcess
+        operationId="scanner-operation-1"
+        publicCode="att_main"
+        locationRequired
+      />
+    );
+    await finishTimers();
+    first.unmount();
+    render(
+      <PublicScanProcessor
+        mode="scan"
+        autoProcess
+        operationId="scanner-operation-1"
+        publicCode="att_main"
+        locationRequired
+      />
+    );
+    await finishTimers();
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+    const requests = fetchMock.mock.calls.map((call) =>
+      JSON.parse(String((call[1] as RequestInit).body))
+    );
+    expect(requests.map((request) => request.requestId)).toEqual([
+      "scanner-operation-1",
+      "scanner-operation-1",
+    ]);
+    expect(browserLocationMocks.freshAttendanceLocation).toHaveBeenCalledTimes(2);
+  });
+
   it("reacquires fresh GPS after QR decode before sending a scan", async () => {
     const fetchMock = vi.fn().mockResolvedValue(response(finalAttendance));
     vi.stubGlobal("fetch", fetchMock);
-    render(<PublicScanProcessor mode="scan" publicCode="MAIN-QR" locationRequired />);
+    render(<PublicScanProcessor mode="scan" autoProcess publicCode="MAIN-QR" locationRequired />);
     await finishTimers();
     expect(browserLocationMocks.freshAttendanceLocation).toHaveBeenCalledTimes(1);
     expect(fetchMock).toHaveBeenCalledTimes(1);
@@ -110,7 +344,7 @@ describe("PublicScanProcessor first-device continuation", () => {
     browserLocationMocks.freshAttendanceLocation.mockRejectedValue("location_unavailable");
     const fetchMock = vi.fn();
     vi.stubGlobal("fetch", fetchMock);
-    render(<PublicScanProcessor mode="scan" publicCode="MAIN-QR" locationRequired />);
+    render(<PublicScanProcessor mode="scan" autoProcess publicCode="MAIN-QR" locationRequired />);
     await finishTimers();
     expect(fetchMock).not.toHaveBeenCalled();
     expect(screen.getByRole("heading", { name: "Location needed" })).toBeTruthy();
@@ -126,47 +360,62 @@ describe("PublicScanProcessor first-device continuation", () => {
       title: "On-site scan required",
       message: "You must be on-site to scan attendance. No Attendance change was made.",
     };
-    const initialFix = { latitude: 10.672, longitude: 122.944, accuracy: 20, timestamp: Date.now() };
-    const recoveredFix = { latitude: 10.6713191, longitude: 122.9437447,
-      accuracy: 12, timestamp: Date.now() + 1_000 };
+    const initialFix = {
+      latitude: 10.672,
+      longitude: 122.944,
+      accuracy: 20,
+      timestamp: Date.now(),
+    };
+    const recoveredFix = {
+      latitude: 10.6713191,
+      longitude: 122.9437447,
+      accuracy: 12,
+      timestamp: Date.now() + 1_000,
+    };
     browserLocationMocks.freshAttendanceLocation
       .mockResolvedValueOnce(initialFix)
       .mockResolvedValueOnce(recoveredFix);
-    const fetchMock = vi.fn()
+    const fetchMock = vi
+      .fn()
       .mockResolvedValueOnce(response(outside))
       .mockResolvedValueOnce(response(finalAttendance));
     vi.stubGlobal("fetch", fetchMock);
 
-    render(<PublicScanProcessor mode="scan" publicCode="SM-QR" scanBasePath="/staff/scan/process" locationRequired />);
+    render(
+      <PublicScanProcessor
+        mode="scan"
+        autoProcess
+        publicCode="SM-QR"
+        scanBasePath="/staff/scan/process"
+        locationRequired
+      />
+    );
     await finishTimers();
     expect(screen.getByRole("heading", { name: "On-site scan required" })).toBeTruthy();
-    expect(screen.getByText(/already at your assigned branch, enable Precise Location/)).toBeTruthy();
+    expect(
+      screen.getByText(/already at your assigned branch, enable Precise Location/)
+    ).toBeTruthy();
     const retry = screen.getByRole("button", { name: "Try location again" });
     expect(fetchMock).toHaveBeenCalledTimes(1);
 
-    // jsdom cannot navigate with location.replace; remount at the same QR route
-    // to model the full-page retry initiated by the visible button.
-    const navigationLog = vi.spyOn(console, "error").mockImplementation(() => {});
-    try {
-      fireEvent.click(retry);
-    } finally {
-      navigationLog.mockRestore();
-    }
-    cleanup();
-    render(<PublicScanProcessor mode="scan" publicCode="SM-QR" scanBasePath="/staff/scan/process" locationRequired />);
+    fireEvent.click(retry);
     await finishTimers();
     expect(screen.getByRole("heading", { name: "Clocked in" })).toBeTruthy();
     expect(browserLocationMocks.freshAttendanceLocation).toHaveBeenCalledTimes(2);
     expect(fetchMock).toHaveBeenCalledTimes(2);
-    const first = JSON.parse(String((fetchMock.mock.calls[0]?.[1] as RequestInit | undefined)?.body));
-    const second = JSON.parse(String((fetchMock.mock.calls[1]?.[1] as RequestInit | undefined)?.body));
+    const first = JSON.parse(
+      String((fetchMock.mock.calls[0]?.[1] as RequestInit | undefined)?.body)
+    );
+    const second = JSON.parse(
+      String((fetchMock.mock.calls[1]?.[1] as RequestInit | undefined)?.body)
+    );
     expect(first.location).toEqual(initialFix);
     expect(second.location).toEqual(recoveredFix);
-    expect(second.requestId).not.toBe(first.requestId);
+    expect(second.requestId).toBe(first.requestId);
   });
 
   it("opens the connection form automatically and hides the technical unknown-device result", async () => {
-    render(<PublicScanProcessor mode="scan" publicCode="MAIN-QR" />);
+    render(<PublicScanProcessor mode="scan" autoProcess publicCode="MAIN-QR" />);
     await finishTimers();
 
     expect(screen.getByRole("heading", { name: "Connect this phone" })).toBeTruthy();
@@ -189,7 +438,7 @@ describe("PublicScanProcessor first-device continuation", () => {
       result: finalAttendance,
     });
 
-    render(<PublicScanProcessor mode="scan" publicCode="MAIN-QR" />);
+    render(<PublicScanProcessor mode="scan" autoProcess publicCode="MAIN-QR" />);
     await finishTimers();
     fireEvent.change(screen.getByLabelText("Your staff email"), {
       target: { value: "nikki@example.com" },
@@ -219,7 +468,7 @@ describe("PublicScanProcessor first-device continuation", () => {
       error: "Check your email and password, then try again.",
     });
 
-    render(<PublicScanProcessor mode="scan" publicCode="MAIN-QR" />);
+    render(<PublicScanProcessor mode="scan" autoProcess publicCode="MAIN-QR" />);
     await finishTimers();
     fireEvent.change(screen.getByLabelText("Your staff email"), {
       target: { value: "wrong@example.com" },
@@ -248,7 +497,7 @@ describe("PublicScanProcessor first-device continuation", () => {
       )
     );
 
-    render(<PublicScanProcessor mode="scan" publicCode="MAIN-QR" />);
+    render(<PublicScanProcessor mode="scan" autoProcess publicCode="MAIN-QR" />);
     await finishTimers();
 
     expect(screen.getByRole("heading", { name: "This phone is no longer approved" })).toBeTruthy();
@@ -282,7 +531,7 @@ describe("PublicScanProcessor first-device continuation", () => {
       )
     );
 
-    render(<PublicScanProcessor mode="scan" publicCode="MAIN-QR" />);
+    render(<PublicScanProcessor mode="scan" autoProcess publicCode="MAIN-QR" />);
     await finishTimers();
 
     expect(screen.getByRole("heading", { name: "Clocked in" })).toBeTruthy();

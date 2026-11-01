@@ -25,6 +25,7 @@ import {
   warmAttendanceLocation,
 } from "@/lib/attendance/browser-location";
 import type { AttendanceLocation } from "@/lib/attendance/geofence";
+import { claimStaffScanGrantAction } from "@/app/(dashboard)/staff/scan/actions";
 
 type PublicScanProcessorProps =
   | {
@@ -32,10 +33,13 @@ type PublicScanProcessorProps =
       publicCode: string;
       scanBasePath?: "/scan" | "/staff/scan/process";
       locationRequired?: boolean;
+      autoProcess?: boolean;
+      operationId?: string;
     }
   | { mode: "activation"; token: string };
 
 const RECOGNITION_DURATION_MS = 250;
+const SCANNER_GRANT_CLAIM_TIMEOUT_MS = 8_000;
 const MINIMUM_FLOW_DURATION_MS = 450;
 const DEVICE_STAGE_DURATION_MS = 350;
 const ATTENDANCE_STAGE_DURATION_MS = 450;
@@ -108,8 +112,12 @@ function getShellTone(stage: ProcessorStage, result: PublicScanResult | null): s
 export function PublicScanProcessor(props: PublicScanProcessorProps) {
   const mode = props.mode;
   const scanPublicCode = mode === "scan" ? props.publicCode : null;
+  const scanBasePath = mode === "scan" ? props.scanBasePath : undefined;
+  const autoProcess = mode === "scan" && props.autoProcess === true;
   const activationToken = mode === "activation" ? props.token : null;
-  const [stage, setStage] = useState<ProcessorStage>("recognizing");
+  const [stage, setStage] = useState<ProcessorStage>(
+    mode === "scan" ? "qr_recognized" : "recognizing"
+  );
   const [result, setResult] = useState<PublicScanResult | null>(null);
   const [loginCredentials, setLoginCredentials] = useState({ email: "", password: "" });
   const [loginError, setLoginError] = useState<string | null>(null);
@@ -118,10 +126,22 @@ export function PublicScanProcessor(props: PublicScanProcessorProps) {
     status: "idle" | "pending" | "success" | "error";
     message: string | null;
   }>({ status: "idle", message: null });
-  const [requestId] = useState(() => createRequestId());
+  const [requestId, setRequestId] = useState(() =>
+    mode === "scan" ? (props.operationId ?? createRequestId()) : createRequestId()
+  );
+  const [confirmed, setConfirmed] = useState(() => mode !== "scan" || props.autoProcess === true);
+  const [claimPending, setClaimPending] = useState(
+    () => mode === "scan" && props.scanBasePath === "/staff/scan/process" && !props.autoProcess
+  );
+  const [retryCount, setRetryCount] = useState(0);
   const startedRef = useRef(false);
+  const qrFeedbackShownRef = useRef(false);
   const mountedRef = useRef(true);
   const loginInFlightRef = useRef(false);
+  const claimRef = useRef<{
+    code: string;
+    promise: ReturnType<typeof claimStaffScanGrantAction>;
+  } | null>(null);
   const [locationPromptAccepted, setLocationPromptAccepted] = useState(false);
   const locationRequired = mode === "scan" && props.locationRequired === true;
 
@@ -141,13 +161,58 @@ export function PublicScanProcessor(props: PublicScanProcessorProps) {
   }, [locationRequired]);
 
   useEffect(() => {
-    if (startedRef.current) return;
+    if (mode !== "scan" || scanBasePath !== "/staff/scan/process" || autoProcess || !scanPublicCode)
+      return;
+    let active = true;
+    if (claimRef.current?.code !== scanPublicCode) {
+      claimRef.current = {
+        code: scanPublicCode,
+        promise: claimStaffScanGrantAction(scanPublicCode),
+      };
+    }
+    let timedOut = false;
+    const timeout = window.setTimeout(() => {
+      timedOut = true;
+      if (active) setClaimPending(false);
+    }, SCANNER_GRANT_CLAIM_TIMEOUT_MS);
+    void claimRef.current.promise
+      .then((grant) => {
+        if (!active || timedOut) return;
+        window.clearTimeout(timeout);
+        if (grant) {
+          setRequestId(grant.operationId);
+          setConfirmed(true);
+        }
+        setClaimPending(false);
+      })
+      .catch(() => {
+        if (!active || timedOut) return;
+        window.clearTimeout(timeout);
+        setClaimPending(false);
+      });
+    return () => {
+      active = false;
+      window.clearTimeout(timeout);
+    };
+  }, [mode, scanBasePath, autoProcess, scanPublicCode]);
+
+  useEffect(() => {
+    if (!confirmed || startedRef.current) return;
     let active = true;
     let processingTimer: number | undefined;
 
     async function runScan(): Promise<void> {
       let nextResult: PublicScanResult;
       let location: AttendanceLocation | undefined;
+
+      if (mode === "scan") {
+        if (!qrFeedbackShownRef.current) {
+          qrFeedbackShownRef.current = true;
+          await wait(RECOGNITION_DURATION_MS);
+          if (!active) return;
+        }
+        if (locationRequired) setStage("verifying_location");
+      }
 
       if (mode === "scan" && locationRequired) {
         const permission = await needsLocationExplanation();
@@ -183,9 +248,13 @@ export function PublicScanProcessor(props: PublicScanProcessorProps) {
       if (!active) return;
       startedRef.current = true;
       const startedAt = Date.now();
-      processingTimer = window.setTimeout(() => {
-        if (active) setStage("processing");
-      }, RECOGNITION_DURATION_MS);
+      if (mode === "scan") {
+        setStage("processing");
+      } else {
+        processingTimer = window.setTimeout(() => {
+          if (active) setStage("processing");
+        }, RECOGNITION_DURATION_MS);
+      }
 
       try {
         nextResult =
@@ -242,7 +311,16 @@ export function PublicScanProcessor(props: PublicScanProcessorProps) {
       active = false;
       if (processingTimer !== undefined) window.clearTimeout(processingTimer);
     };
-  }, [activationToken, mode, requestId, scanPublicCode, locationRequired, locationPromptAccepted]);
+  }, [
+    activationToken,
+    mode,
+    requestId,
+    scanPublicCode,
+    locationRequired,
+    locationPromptAccepted,
+    confirmed,
+    retryCount,
+  ]);
 
   async function handleFirstTimeSignIn() {
     if (mode !== "scan" || !scanPublicCode || loginInFlightRef.current) return;
@@ -359,6 +437,15 @@ export function PublicScanProcessor(props: PublicScanProcessorProps) {
     window.location.reload();
   }
 
+  function retryLocation() {
+    startedRef.current = false;
+    qrFeedbackShownRef.current = true;
+    setResult(null);
+    setStage("verifying_location");
+    setLocationPromptAccepted(true);
+    setRetryCount((current) => current + 1);
+  }
+
   async function handleSwitchAccount() {
     await switchScanAccountAction();
     restartScan();
@@ -373,31 +460,61 @@ export function PublicScanProcessor(props: PublicScanProcessorProps) {
 
   return (
     <div className={cn(styles.shell, shellTone)}>
-      {stage === "result" && result ? (
+      {mode === "scan" && !confirmed ? (
+        <section className="mx-auto flex min-h-[60svh] max-w-md flex-col items-center justify-center gap-5 p-8 text-center">
+          <h1 className="text-xl font-semibold">QR code recognized</h1>
+          <p>
+            {scanPublicCode?.startsWith("att_")
+              ? "Record attendance at your assigned location using a fresh location reading."
+              : "Continue this QR scan using a fresh location reading when required."}
+          </p>
+          {claimPending ? (
+            <p role="status">Preparing this scan…</p>
+          ) : (
+            <button
+              type="button"
+              className="rounded-lg bg-[#31523d] px-5 py-3 font-semibold text-white"
+              onClick={() => {
+                qrFeedbackShownRef.current = true;
+                setConfirmed(true);
+              }}
+            >
+              {scanPublicCode?.startsWith("att_") ? "Record attendance" : "Continue scan"}
+            </button>
+          )}
+        </section>
+      ) : stage === "result" && result ? (
         <PublicScanResultView
           result={result}
           branchCorrectionState={branchCorrectionState}
           onRequestBranchCorrection={handleBranchCorrectionRequest}
           onSwitchAccount={handleSwitchAccount}
           onDisconnectPhone={handleDisconnectPhone}
-          onRetryLocation={locationRequired && [
-            "location_permission_denied", "location_unavailable", "location_inaccurate",
-            "location_invalid", "location_stale", "location_required", "location_outside",
-          ].includes(result.reasonCode ?? "") ? restartScan : undefined}
+          onRetryLocation={
+            locationRequired &&
+            [
+              "location_permission_denied",
+              "location_unavailable",
+              "location_inaccurate",
+              "location_invalid",
+              "location_stale",
+              "location_required",
+              "location_outside",
+            ].includes(result.reasonCode ?? "")
+              ? retryLocation
+              : undefined
+          }
         />
       ) : stage === "location_permission" ? (
         <section className="mx-auto flex min-h-[60svh] max-w-md flex-col items-center justify-center gap-5 p-8 text-center">
-          <h1 className="text-xl font-semibold">Location access for attendance</h1>
-          <p>
-            CradleHub checks your location when you scan the branch attendance QR. Your phone will
-            ask for location permission.
-          </p>
+          <h1 className="text-xl font-semibold">Enable location for attendance</h1>
+          <p>CradleHub needs your location to verify that you are at your assigned branch.</p>
           <button
             type="button"
             className="rounded-lg bg-[#31523d] px-5 py-3 font-semibold text-white"
             onClick={() => setLocationPromptAccepted(true)}
           >
-            Allow location and continue
+            Enable Location
           </button>
         </section>
       ) : (stage === "sign_in_required" || stage === "signing_in") && mode === "scan" ? (
