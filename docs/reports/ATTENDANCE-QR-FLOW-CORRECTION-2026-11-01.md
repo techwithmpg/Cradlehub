@@ -43,4 +43,6 @@ The only database change proposed is a dedicated `staff_scan_grants` table and `
 
 ## Release and rollback
 
+The [PR #58 integration verification and release plan](PR58-QR-RELEASE-READINESS-2026-11-01.md) records the final repository comparison, 197-test local gate, classified production exclusion, TEST/device acceptance procedure, separate retention proposal, and database-first deployment/rollback sequence. It is release preparation only.
+
 This branch is review evidence only. Controlled installed-PWA/native-camera acceptance, a ledger retention decision, production migration approval, and owner release approval remain. Merge, deployment, production migration, Cron operations, and live attendance tests are not authorized by this handoff. To roll back before merge, close the review branch. After an authorized migration/merge, stop grant issuance, revert the app change through the normal reviewed process, and then review grant-table retention/removal separately; existing printed QR codes and attendance records need no data rollback.
