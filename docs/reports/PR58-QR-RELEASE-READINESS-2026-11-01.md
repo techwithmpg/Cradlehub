@@ -49,6 +49,8 @@
 
 ## TEST and installed-PWA acceptance — NOT VERIFIED
 
+The [isolated TEST readiness plan](PR58-ISOLATED-TEST-READINESS-2026-11-01.md) records the current project inventory, minimal schema contracts, synthetic fixture and hosting proposal, real-device script, cost boundary, and proposed retention decision. No TEST project is provisioned yet.
+
 **Prerequisites:** Owner supplies a positively classified isolated Supabase TEST project, its migration-history/schema and Auth configuration, a TEST deployment of the exact reviewed commit, approved synthetic attendance/QR/device fixtures, and therapist/driver accounts. Record the TEST project ref and URL before any connection. Do not replay or mark the 84 historical local-only migrations.
 
 1. In TEST, inspect existing `qr_points`, attendance and device tables, `auth.users`, roles, migration history, and the absence or exact shape of `staff_scan_grants`. Apply only the approved ledger migration if needed. Verify RLS, grants, RPC signature/search path and PostgREST availability before testing the app.
