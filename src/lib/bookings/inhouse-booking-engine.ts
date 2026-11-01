@@ -586,14 +586,19 @@ export async function executeInhouseBookingCreation(
     const combinedEndTime = computeEndTimeLocal(startTime, Math.max(...attendeeDurations));
     const attendeeEndTimes = attendeeDurations.map((minutes) => computeEndTimeLocal(startTime, minutes));
     if (!combinedEndTime) {
+      const closingTime = deliveryType === "home_service"
+        ? rulesCheck.rules.homeServiceEndTime
+        : rulesCheck.rules.inSpaEndTime;
       return {
         ok: false,
         code: "TIME_TOO_LATE",
-        title: "Booking crosses midnight",
+        title: "Service exceeds operating hours",
         message:
-          "This booking crosses midnight. Choose an earlier time until overnight booking is enabled.",
+          "This booking extends past permitted operating limits and crosses midnight. Choose an earlier start time.",
         field: "time",
-        correctiveAction: "Select an earlier start time so the service finishes before midnight.",
+        correctiveAction: closingTime
+          ? `Select an earlier start time so the service finishes within branch operating hours (by ${closingTime}).`
+          : "Select an earlier start time so the service finishes within permitted branch operating hours.",
         retrySafety: "safe",
       };
     }
