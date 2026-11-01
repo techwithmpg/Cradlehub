@@ -223,7 +223,7 @@ describe("Unified CRM booking modes", () => {
     expect(mocks.createBooking.mock.calls[0]?.[0].staffId).toBeUndefined();
   });
 
-  it("keeps guest therapist choices isolated and blocks unsupported exact group save", async () => {
+  it("enforces automatic therapist allocation in group mode and saves cleanly", async () => {
     render(<QuickBookingForm {...props} initialMode="standard_future" />);
     fireEvent.click(screen.getByRole("button", { name: "Add Guest" }));
     const first = within(screen.getByRole("region", { name: "Guest 1 booking details" }));
@@ -232,28 +232,20 @@ describe("Unified CRM booking modes", () => {
       target: { value: "Guest Two" },
     });
     fireEvent.click(second.getByRole("button", { name: /^Swedish Massage,/ }));
-    const firstSelector = first.getByRole("combobox", {
-      name: "Guest 1 therapist",
-    }) as HTMLSelectElement;
-    const secondSelector = second.getByRole("combobox", {
-      name: "Guest 2 therapist",
-    }) as HTMLSelectElement;
-    await waitFor(() => expect(secondSelector.hasAttribute("disabled")).toBe(false));
-    await waitFor(() =>
-      expect(
-        within(firstSelector).getByRole("option", { name: /Maria Santos · Suggested/ })
-      ).toBeTruthy()
-    );
-    await waitFor(() =>
-      expect(
-        within(secondSelector).getByRole("option", { name: /Anna Reyes · Suggested/ })
-      ).toBeTruthy()
-    );
-    fireEvent.change(secondSelector, { target: { value: secondStaffId } });
-    expect(firstSelector.value).toBe("");
+    expect(first.getByLabelText("Guest 1 therapist")).toBeTruthy();
+    expect(second.getByLabelText("Guest 2 therapist")).toBeTruthy();
+    expect(screen.getAllByText(/Assigned automatically on Save/).length).toBe(2);
     fireEvent.click(screen.getByRole("button", { name: "Save Booking" }));
-    expect(screen.getByText(/Exact per-guest therapist selection is not supported/)).toBeTruthy();
-    expect(mocks.createBooking).not.toHaveBeenCalled();
+    await waitFor(() => expect(mocks.createBooking).toHaveBeenCalledOnce());
+    expect(mocks.createBooking.mock.calls[0]?.[0]).toMatchObject({
+      bookingFor: "me_and_others",
+      staffId: undefined,
+      customerRequestedTherapist: false,
+      attendees: [
+        { name: "Test Guest", isOrganizer: true, serviceIds: [service.id] },
+        { name: "Guest Two", isOrganizer: false, serviceIds: [service.id] },
+      ],
+    });
   });
 
   it("paginates four guest summaries while keeping Save available", () => {

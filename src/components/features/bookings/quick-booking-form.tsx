@@ -1081,8 +1081,12 @@ export function QuickBookingForm({
         serviceIds: [],
       },
     ]);
+    setStaffId("");
+    setTherapistSelectionMode("automatic");
+    setCustomerRequestedTherapist(false);
+    setGuestSelectedStaffIds({});
     setResourceId("");
-    setFieldErrors((current) => ({ ...current, service: undefined }));
+    setFieldErrors((current) => ({ ...current, service: undefined, staffId: undefined }));
   }
 
   function removeGuest(id: string) {
@@ -1096,7 +1100,7 @@ export function QuickBookingForm({
       delete next[id];
       return next;
     });
-    setFieldErrors((current) => ({ ...current, service: undefined }));
+    setFieldErrors((current) => ({ ...current, service: undefined, staffId: undefined }));
   }
 
   function copyServicesToNextGuest(sourceId: string) {
@@ -1274,14 +1278,19 @@ export function QuickBookingForm({
       nextErrors.service =
         "Service or duration changes require financial adjustment and cannot be applied during a schedule update.";
     }
-    if (
-      additionalGuests.some(
-        (guest) =>
-          !guest.name?.trim() || guest.name.trim().length < 2 || guest.serviceIds.length === 0
-      )
-    ) {
-      nextErrors.service =
-        "Enter each guest's name and select at least one service for each guest.";
+    if (groupBooking) {
+      const missingGuestIndex = attendeeDrafts.findIndex(
+        (guest, idx) => idx > 0 && guest.serviceIds.length === 0
+      );
+      if (missingGuestIndex > 0) {
+        nextErrors.service = `Select at least one service for Guest ${missingGuestIndex + 1}.`;
+      }
+      const invalidNameGuest = additionalGuests.find(
+        (guest) => guest.name?.trim() && guest.name.trim().length < 2
+      );
+      if (invalidNameGuest) {
+        nextErrors.fullName = "Guest names must be at least 2 characters.";
+      }
     }
     if (!date) nextErrors.date = "Choose a valid date and time.";
     if (!time) nextErrors.time = "Choose a valid date and time.";
@@ -1389,20 +1398,13 @@ export function QuickBookingForm({
     setFormError("");
     if (Object.values(nextErrors).some(Boolean)) {
       const incompleteGuest = additionalGuests.find(
-        (guest) =>
-          !guest.name?.trim() || guest.name.trim().length < 2 || guest.serviceIds.length === 0
+        (guest) => guest.serviceIds.length === 0 || (guest.name?.trim() && guest.name.trim().length < 2)
       );
       if (incompleteGuest && guestScrollRef.current) {
         guestScrollRef.current.scrollTop = guestScrollRef.current.scrollHeight;
       } else if (nextErrors.service && guestScrollRef.current) {
         guestScrollRef.current.scrollTop = 0;
       }
-      return;
-    }
-    if (groupBooking && (staffId || Object.values(guestSelectedStaffIds).some(Boolean))) {
-      setFormError(
-        "Exact per-guest therapist selection is not supported by the current CRM server contract. Restore Automatic for every guest before saving."
-      );
       return;
     }
 
@@ -1568,9 +1570,11 @@ export function QuickBookingForm({
         }),
         ...(groupBooking && {
           bookingFor: "me_and_others" as const,
-          attendees: attendeeDrafts.map((attendee) => ({
+          attendees: attendeeDrafts.map((attendee, index) => ({
             id: attendee.id,
-            name: attendee.name?.trim() ?? "",
+            name:
+              attendee.name?.trim() ||
+              (attendee.isOrganizer ? fullName.trim() : `Guest ${index + 1}`),
             isOrganizer: attendee.isOrganizer ?? false,
             serviceIds: attendee.serviceIds,
             serviceLines: attendee.serviceIds.map((serviceId) => ({
@@ -1583,8 +1587,8 @@ export function QuickBookingForm({
             })),
           })),
         }),
-        staffId: staffId || undefined,
-        customerRequestedTherapist: Boolean(staffId && customerRequestedTherapist),
+        staffId: groupBooking ? undefined : staffId || undefined,
+        customerRequestedTherapist: groupBooking ? false : Boolean(staffId && customerRequestedTherapist),
         resourceId: isHomeService || groupBooking ? undefined : resourceId || undefined,
         date,
         startTime: normalizeTime(time),
@@ -1715,7 +1719,7 @@ export function QuickBookingForm({
                 )
               }
               disabled={isSaving}
-              placeholder="Guest name (optional)"
+              placeholder={`Guest name (e.g. Guest ${index + 1})`}
               maxLength={100}
               className="h-7 min-w-0 max-w-44 rounded-md border border-[var(--cs-border)] bg-white px-2 text-xs"
             />
@@ -1812,35 +1816,56 @@ export function QuickBookingForm({
           <div className="min-w-0">
             <FieldLabel icon={<User size={13} />} label="Therapist" />
             {(() => {
-              const providers = isOrganizer
-                ? providerAvailability
-                : (guestProviderAvailability[attendee.id] ?? []);
-              const selectedId = isOrganizer ? staffId : (guestSelectedStaffIds[attendee.id] ?? "");
+              if (groupBooking) {
+                const waiting = isOrganizer
+                  ? therapistAvailabilityStatus === "loading"
+                  : guestAvailabilityPending;
+                const suggested = provisionalGuestStaff.get(attendee.id);
+                const statusText =
+                  index >= 4
+                    ? "Layout preview · availability not checked"
+                    : waiting
+                      ? "Checking therapists…"
+                      : suggested
+                        ? `${suggested.nickname || suggested.fullName} · Suggested · Automatic`
+                        : attendee.serviceIds.length === 0
+                          ? "Select service first"
+                          : "Automatic assignment on Save";
+                return (
+                  <div>
+                    <div
+                      aria-label={`Guest ${index + 1} therapist`}
+                      className={cn(
+                        selectClassName(false),
+                        "flex h-8 items-center bg-[#f7f6f2] text-xs text-[var(--cs-text-muted)] cursor-default"
+                      )}
+                    >
+                      <span className="truncate">{statusText}</span>
+                    </div>
+                    <span className="mt-1 block text-[10px] text-[var(--cs-text-muted)]">
+                      Assigned automatically on Save
+                    </span>
+                  </div>
+                );
+              }
+
+              const providers = providerAvailability;
+              const selectedId = staffId;
               const suggested = provisionalGuestStaff.get(attendee.id);
-              const waiting = isOrganizer
-                ? therapistAvailabilityStatus === "loading"
-                : guestAvailabilityPending;
+              const waiting = therapistAvailabilityStatus === "loading";
               return (
                 <>
                   <select
                     value={selectedId}
                     onChange={(event) => {
-                      if (isOrganizer) {
-                        setStaffId(event.target.value);
-                        setTherapistSelectionMode(event.target.value ? "manual" : "automatic");
-                        setCustomerRequestedTherapist(false);
-                      } else {
-                        setGuestSelectedStaffIds((current) => ({
-                          ...current,
-                          [attendee.id]: event.target.value,
-                        }));
-                      }
+                      setStaffId(event.target.value);
+                      setTherapistSelectionMode(event.target.value ? "manual" : "automatic");
+                      setCustomerRequestedTherapist(false);
                       setFieldErrors((current) => ({ ...current, staffId: undefined }));
                     }}
                     disabled={
                       isSaving ||
                       waiting ||
-                      index >= 4 ||
                       attendee.serviceIds.length === 0 ||
                       !date ||
                       !time
@@ -1849,15 +1874,13 @@ export function QuickBookingForm({
                     className={cn(selectClassName(false), "h-8 text-xs")}
                   >
                     <option value="">
-                      {index >= 4
-                        ? "Layout preview · availability not checked"
-                        : waiting
-                          ? "Checking therapists…"
-                          : suggested
-                            ? `${suggested.nickname || suggested.fullName} · Suggested · ${suggested.statusLabel}`
-                            : attendee.serviceIds.length === 0
-                              ? "Select service first"
-                              : "No available recommendation · Automatic"}
+                      {waiting
+                        ? "Checking therapists…"
+                        : suggested
+                          ? `${suggested.nickname || suggested.fullName} · Suggested · ${suggested.statusLabel}`
+                          : attendee.serviceIds.length === 0
+                            ? "Select service first"
+                            : "No available recommendation · Automatic"}
                     </option>
                     {selectedId &&
                     !providers.some((provider) => provider.staffId === selectedId) ? (
@@ -1867,26 +1890,15 @@ export function QuickBookingForm({
                         · Unavailable
                       </option>
                     ) : null}
-                    {providers.map((provider) => {
-                      const conflict =
-                        groupBooking &&
-                        [...provisionalGuestStaff].some(
-                          ([guestId, assigned]) =>
-                            guestId !== attendee.id && assigned.staffId === provider.staffId
-                        );
-                      return (
-                        <option
-                          key={provider.staffId}
-                          value={provider.staffId}
-                          disabled={!provider.selectable || conflict}
-                        >
-                          {provider.nickname || provider.fullName} ·{" "}
-                          {conflict
-                            ? "Provisionally assigned to another guest"
-                            : provider.statusLabel}
-                        </option>
-                      );
-                    })}
+                    {providers.map((provider) => (
+                      <option
+                        key={provider.staffId}
+                        value={provider.staffId}
+                        disabled={!provider.selectable}
+                      >
+                        {provider.nickname || provider.fullName} · {provider.statusLabel}
+                      </option>
+                    ))}
                   </select>
                   {selectedId &&
                   !providers.some(
@@ -1895,23 +1907,6 @@ export function QuickBookingForm({
                   !waiting ? (
                     <p role="alert" className="mt-1 text-[10px] text-[var(--cs-danger-text)]">
                       Selected therapist is unavailable for these services and time.
-                    </p>
-                  ) : null}
-                  {selectedId &&
-                  groupBooking &&
-                  [...provisionalGuestStaff].some(
-                    ([guestId, assigned]) =>
-                      guestId !== attendee.id && assigned.staffId === selectedId
-                  ) ? (
-                    <p role="alert" className="mt-1 text-[10px] text-[var(--cs-danger-text)]">
-                      Therapist is provisionally assigned to another guest at this shared start
-                      time.
-                    </p>
-                  ) : null}
-                  {groupBooking && selectedId ? (
-                    <p role="status" className="mt-1 text-[10px] text-[var(--cs-warning-text)]">
-                      Exact group selection cannot be saved until the per-guest server contract is
-                      approved.
                     </p>
                   ) : null}
                 </>
@@ -2580,15 +2575,7 @@ export function QuickBookingForm({
                     Shared start time applies to every guest.
                   </p>
                 ) : null}
-                {groupBooking && (staffId || Object.values(guestSelectedStaffIds).some(Boolean)) ? (
-                  <p
-                    role="alert"
-                    className="mt-1 text-xs font-semibold text-[var(--cs-danger-text)]"
-                  >
-                    Exact group therapist selections cannot be saved yet. Restore Automatic for
-                    every guest.
-                  </p>
-                ) : null}
+
                 {formError ? <WorkspaceNotice tone="error">{formError}</WorkspaceNotice> : null}
               </div>
             }

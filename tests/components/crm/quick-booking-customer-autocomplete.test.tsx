@@ -137,7 +137,7 @@ describe("Quick Booking customer name autocomplete", () => {
     expect(screen.queryByRole("dialog", { name: /services/i })).toBeNull();
   });
 
-  it("does not submit a customer-requested single therapist as a soft group preference", () => {
+  it("does not submit a customer-requested single therapist as a soft group preference", async () => {
     render(
       <QuickBookingForm
         {...props}
@@ -156,8 +156,9 @@ describe("Quick Booking customer name autocomplete", () => {
     });
     fireEvent.click(screen.getByRole("button", { name: "Copy to Guest 2" }));
     fireEvent.click(screen.getByRole("button", { name: "Save Booking" }));
-    expect(screen.getByText(/Exact per-guest therapist selection is not supported/i)).toBeTruthy();
-    expect(mocks.createBooking).not.toHaveBeenCalled();
+    await waitFor(() => expect(mocks.createBooking).toHaveBeenCalledOnce());
+    expect(mocks.createBooking.mock.calls[0]?.[0].staffId).toBeUndefined();
+    expect(mocks.createBooking.mock.calls[0]?.[0].customerRequestedTherapist).toBe(false);
   });
   it("keeps Phone/Future guests expanded and submits attendee service associations", async () => {
     render(
@@ -194,7 +195,7 @@ describe("Quick Booking customer name autocomplete", () => {
     );
     expect(screen.queryByRole("tablist", { name: "Guest sessions" })).toBeNull();
     expect(screen.queryByRole("combobox", { name: "Room" })).toBeNull();
-    expect(second.getByText(/Assigned automatically/)).toBeTruthy();
+    expect(second.getAllByText(/Assigned automatically/).length).toBeGreaterThanOrEqual(1);
     fireEvent.click(screen.getByRole("button", { name: "Save Booking" }));
     await waitFor(() => expect(mocks.createBooking).toHaveBeenCalledOnce());
     expect(mocks.createBooking.mock.calls[0]?.[0]).toMatchObject({
