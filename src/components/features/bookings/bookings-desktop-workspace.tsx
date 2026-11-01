@@ -604,8 +604,6 @@ export function BookingsDesktopWorkspace(props: DesktopWorkspaceProps) {
             <option value="upcoming">Upcoming</option>
             <option value="completed">Completed</option>
             <option value="cancelled">Cancelled</option>
-            <option value="no_show">No-Show</option>
-            <option value="expired">Expired</option>
           </select>
           <div className="pointer-events-none absolute right-2.5 top-1/2 -translate-y-1/2 text-neutral-400 text-xs">
             ▼

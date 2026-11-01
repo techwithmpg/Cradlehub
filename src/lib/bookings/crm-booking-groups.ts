@@ -73,40 +73,48 @@ export function groupCrmBookings(rows: readonly WorkspaceBookingRow[], groupOrde
     {
       organizerName: (line) => firstBookingRelation(line.customers)?.full_name ?? "Customer",
       payment: (line) => {
-        const orderTotal =
-          line.order_total_amount != null && Number.isFinite(Number(line.order_total_amount))
-            ? Number(line.order_total_amount)
-            : null;
+        if (line.order_id) {
+          // When order_id exists, authoritative order financial evidence is required.
+          // Do not classify an order as fully paid using legacy line-level payment status,
+          // amount, or price when authoritative order-financial evidence is absent.
+          const total =
+            line.order_total_amount != null && Number.isFinite(Number(line.order_total_amount))
+              ? Number(line.order_total_amount)
+              : null;
+          const paid =
+            line.order_amount_paid != null && Number.isFinite(Number(line.order_amount_paid))
+              ? Number(line.order_amount_paid)
+              : null;
+          const due =
+            total === null || paid === null
+              ? null
+              : Math.max(0, total - paid);
+          const status = line.order_payment_status ?? null;
+
+          return {
+            total,
+            paid,
+            due,
+            status,
+          };
+        }
+
+        // Legacy booking behavior where order_id is absent:
         const linePriceRaw = (line as Record<string, unknown>).price;
         const linePrice =
           linePriceRaw != null && Number.isFinite(Number(linePriceRaw)) && Number(linePriceRaw) >= 0
             ? Number(linePriceRaw)
             : null;
-        const lineTotal = getVerifiedBookingPrice(line.metadata) ?? linePrice;
-        const total = line.order_id ? (orderTotal ?? lineTotal) : lineTotal;
-
-        const orderPaid =
-          line.order_amount_paid != null && Number.isFinite(Number(line.order_amount_paid))
-            ? Number(line.order_amount_paid)
-            : null;
-        const linePaid =
+        const total = getVerifiedBookingPrice(line.metadata) ?? linePrice;
+        const paid =
           line.amount_paid != null && Number.isFinite(Number(line.amount_paid))
             ? Number(line.amount_paid)
-            : null;
-        const fallbackPaid =
-          line.payment_status === "paid" && total !== null ? total : null;
-        const paid = line.order_id
-          ? (orderPaid ?? linePaid ?? fallbackPaid)
-          : (linePaid ?? fallbackPaid ?? 0);
-
-        const status = line.order_id
-          ? (line.order_payment_status ?? line.payment_status ?? null)
-          : (line.payment_status ?? null);
-
+            : 0;
         const due =
           total === null || paid === null
             ? null
             : Math.max(0, total - paid);
+        const status = line.payment_status ?? null;
 
         return {
           total,

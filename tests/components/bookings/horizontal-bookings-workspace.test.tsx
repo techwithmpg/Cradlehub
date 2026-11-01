@@ -110,6 +110,8 @@ import { QuickBookingForm } from "@/components/features/bookings/quick-booking-f
 import type { WorkspaceBookingRow } from "@/components/features/bookings/booking-workspace-types";
 
 function makeBooking(overrides: Partial<WorkspaceBookingRow> = {}): WorkspaceBookingRow {
+  const isPaid = overrides.payment_status ? overrides.payment_status === "paid" : true;
+  const isPartial = overrides.payment_status === "partial";
   return {
     id: "booking-101",
     order_id: "ORD-2026-101",
@@ -127,6 +129,9 @@ function makeBooking(overrides: Partial<WorkspaceBookingRow> = {}): WorkspaceBoo
     delivery_type: "in_spa",
     price: 1200,
     pricing_status: "locked",
+    order_total_amount: 1200,
+    order_amount_paid: isPaid ? 1200 : isPartial ? 600 : 0,
+    order_payment_status: isPaid ? "paid" : (overrides.payment_status ?? "unpaid"),
     payment_status: "paid",
     payment_method: "gcash",
     payment_intent_status: "succeeded",
@@ -222,6 +227,9 @@ describe("Horizontal Bookings Workspace & Quick Edit Integration", () => {
     const booking2 = makeBooking({
       id: "booking-102",
       order_id: "ORD-2026-102",
+      order_total_amount: 1800,
+      order_amount_paid: 900,
+      order_payment_status: "partial",
       start_time: "16:00:00",
       end_time: "17:30:00",
       payment_status: "partial",
@@ -848,10 +856,14 @@ describe("Horizontal Bookings Workspace & Quick Edit Integration", () => {
       />
     );
 
-    expect(screen.getAllByText("No-Show").length).toBeGreaterThanOrEqual(2);
+    expect(screen.getAllByText("No-Show").length).toBe(3);
     const actionBtn = screen.getByRole("button", { name: "No-Show" });
     expect(actionBtn).toBeTruthy();
     expect(actionBtn.hasAttribute("disabled")).toBe(true);
+
+    // Verify misleading No-Show and Expired options are NOT in the workspace status dropdown
+    expect(screen.queryByRole("option", { name: "No-Show" })).toBeNull();
+    expect(screen.queryByRole("option", { name: "Expired" })).toBeNull();
 
     expect(screen.queryByText("Waiting")).toBeNull();
     expect(screen.queryByText("Start Service")).toBeNull();
@@ -882,10 +894,14 @@ describe("Horizontal Bookings Workspace & Quick Edit Integration", () => {
       />
     );
 
-    expect(screen.getAllByText("Expired").length).toBeGreaterThanOrEqual(2);
+    expect(screen.getAllByText("Expired").length).toBe(3);
     const actionBtn = screen.getByRole("button", { name: "Expired" });
     expect(actionBtn).toBeTruthy();
     expect(actionBtn.hasAttribute("disabled")).toBe(true);
+
+    // Verify misleading No-Show and Expired options are NOT in the workspace status dropdown
+    expect(screen.queryByRole("option", { name: "No-Show" })).toBeNull();
+    expect(screen.queryByRole("option", { name: "Expired" })).toBeNull();
 
     expect(screen.queryByText("Waiting")).toBeNull();
     expect(screen.queryByText("Start Service")).toBeNull();
@@ -946,5 +962,147 @@ describe("Horizontal Bookings Workspace & Quick Edit Integration", () => {
         bookingId: "booking-multi-waiting-2",
       });
     });
+  });
+
+  it("order with missing financial summary renders Unpaid badge and Payment Due time substatus, NOT Paid", () => {
+    const booking = makeBooking({
+      id: "booking-order-missing-fin",
+      order_id: "ORD-MISSING-FIN",
+      order_total_amount: null,
+      order_amount_paid: null,
+      order_payment_status: null,
+      status: "completed",
+      booking_progress_status: "completed",
+      checked_in_at: "2026-10-29T10:00:00Z",
+      session_started_at: "2026-10-29T10:05:00Z",
+      session_completed_at: "2026-10-29T11:05:00Z",
+      payment_status: "paid", // legacy line status conflicting
+      amount_paid: 1200,
+      customers: {
+        id: "cust-order-missing",
+        full_name: "Order Missing Fin Customer",
+        phone: "09170005555",
+        email: "ordermissing@example.com",
+      },
+    });
+
+    render(
+      <BookingsDesktopWorkspace
+        workspaceContext="crm"
+        viewerRole="admin"
+        date="2026-10-29"
+        initialQuickFilter="all"
+        bookings={[booking]}
+      />
+    );
+
+    // Because order_id exists and authoritative order financial evidence is absent, it must NOT show Paid
+    expect(screen.getByText("Unpaid")).toBeTruthy();
+    expect(screen.getByText("Payment Due")).toBeTruthy();
+    expect(screen.queryByText("Paid")).toBeNull();
+  });
+
+  it("order with conflicting legacy Paid status renders Unpaid and Payment Due when order_payment_status is unpaid", () => {
+    const booking = makeBooking({
+      id: "booking-order-conflict",
+      order_id: "ORD-CONFLICT",
+      order_total_amount: 1200,
+      order_amount_paid: 0,
+      order_payment_status: "unpaid",
+      payment_status: "paid", // legacy line status
+      amount_paid: 1200,
+      status: "completed",
+      booking_progress_status: "completed",
+      checked_in_at: "2026-10-29T10:00:00Z",
+      session_completed_at: "2026-10-29T11:05:00Z",
+      customers: {
+        id: "cust-order-conflict",
+        full_name: "Order Conflict Customer",
+        phone: "09170006666",
+        email: "orderconflict@example.com",
+      },
+    });
+
+    render(
+      <BookingsDesktopWorkspace
+        workspaceContext="crm"
+        viewerRole="admin"
+        date="2026-10-29"
+        initialQuickFilter="all"
+        bookings={[booking]}
+      />
+    );
+
+    expect(screen.getByText("Unpaid")).toBeTruthy();
+    expect(screen.getByText("Payment Due")).toBeTruthy();
+    expect(screen.queryByText("Paid")).toBeNull();
+  });
+
+  it("order with incomplete order amount renders Partial badge and Payment Due", () => {
+    const booking = makeBooking({
+      id: "booking-order-partial",
+      order_id: "ORD-PARTIAL",
+      order_total_amount: 1500,
+      order_amount_paid: 800,
+      order_payment_status: "partial",
+      status: "completed",
+      booking_progress_status: "completed",
+      checked_in_at: "2026-10-29T10:00:00Z",
+      session_completed_at: "2026-10-29T11:05:00Z",
+      customers: {
+        id: "cust-order-partial",
+        full_name: "Order Partial Customer",
+        phone: "09170007777",
+        email: "orderpartial@example.com",
+      },
+    });
+
+    render(
+      <BookingsDesktopWorkspace
+        workspaceContext="crm"
+        viewerRole="admin"
+        date="2026-10-29"
+        initialQuickFilter="all"
+        bookings={[booking]}
+      />
+    );
+
+    expect(screen.getByText("Partial")).toBeTruthy();
+    expect(screen.getByText("Payment Due")).toBeTruthy();
+    expect(screen.queryByText("Paid")).toBeNull();
+  });
+
+  it("normal paid order renders Paid badge and Completed substatus when completed", () => {
+    const booking = makeBooking({
+      id: "booking-order-paid",
+      order_id: "ORD-PAID",
+      order_total_amount: 1500,
+      order_amount_paid: 1500,
+      order_payment_status: "paid",
+      status: "completed",
+      booking_progress_status: "completed",
+      checked_in_at: "2026-10-29T10:00:00Z",
+      session_completed_at: "2026-10-29T11:05:00Z",
+      customers: {
+        id: "cust-order-paid",
+        full_name: "Order Paid Customer",
+        phone: "09170008888",
+        email: "orderpaid@example.com",
+      },
+    });
+
+    render(
+      <BookingsDesktopWorkspace
+        workspaceContext="owner"
+        viewerRole="admin"
+        date="2026-10-29"
+        initialQuickFilter="all"
+        bookings={[booking]}
+      />
+    );
+
+    expect(screen.getByText("Paid")).toBeTruthy();
+    expect(screen.getAllByText("Completed").length).toBeGreaterThanOrEqual(1);
+    expect(screen.queryByText("Payment Due")).toBeNull();
   });
 });

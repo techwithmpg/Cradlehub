@@ -8,6 +8,7 @@ import {
 import {
   getVerifiedBookingPrice,
   isPaymentFullySettled,
+  groupCrmBookings,
   type CrmBookingGroup,
 } from "@/lib/bookings/crm-booking-groups";
 import type { WorkspaceBookingRow } from "@/components/features/bookings/booking-workspace-types";
@@ -645,6 +646,127 @@ describe("Operational Booking Eligibility (Pass 3)", () => {
       expect(isPaymentFullySettled({ total: 0, paid: 0, due: 0, status: "paid" })).toBe(true);
       // Normal fully settled service
       expect(isPaymentFullySettled({ total: 1200, paid: 1200, due: 0, status: "paid" })).toBe(true);
+    });
+  });
+
+  describe("Order-Level Payment Authority Tests", () => {
+    it("order with missing financial summary is NOT settled even if completed, and stays visible in operational queue for review", () => {
+      const line = createMockLine({
+        order_id: "order-missing-fin",
+        order_total_amount: null,
+        order_amount_paid: null,
+        order_payment_status: null,
+        status: "completed",
+        booking_progress_status: "completed",
+        session_completed_at: "2026-10-29T11:00:00Z",
+      });
+      const group = createMockGroup([line], { total: null, paid: null, due: null, status: null }, { orderId: "order-missing-fin" });
+      expect(isPaymentFullySettled(group.payment)).toBe(false);
+      expect(isOperationalBookingGroup(group, context)).toBe(true);
+    });
+
+    it("order with conflicting legacy Paid status is NOT settled when authoritative order evidence is missing or unpaid", () => {
+      // Legacy line fields say 'paid' and 1200 paid, but order_payment_status is 'unpaid'
+      const line = createMockLine({
+        order_id: "order-conflicting-status",
+        payment_status: "paid",
+        amount_paid: 1200,
+        metadata: { price_paid: 1200 },
+        order_total_amount: 1200,
+        order_amount_paid: 0,
+        order_payment_status: "unpaid",
+        status: "completed",
+        booking_progress_status: "completed",
+        session_completed_at: "2026-10-29T11:00:00Z",
+      });
+      const group = createMockGroup([line], { total: 1200, paid: 0, due: 1200, status: "unpaid" }, { orderId: "order-conflicting-status" });
+      expect(isPaymentFullySettled(group.payment)).toBe(false);
+      expect(isOperationalBookingGroup(group, context)).toBe(true);
+    });
+
+    it("order with incomplete order amount (partial) is NOT settled and stays visible in operational queue", () => {
+      const line = createMockLine({
+        order_id: "order-partial-amt",
+        order_total_amount: 1500,
+        order_amount_paid: 800,
+        order_payment_status: "partial",
+        status: "completed",
+        booking_progress_status: "completed",
+        session_completed_at: "2026-10-29T11:00:00Z",
+      });
+      const group = createMockGroup([line], { total: 1500, paid: 800, due: 700, status: "partial" }, { orderId: "order-partial-amt" });
+      expect(isPaymentFullySettled(group.payment)).toBe(false);
+      expect(isOperationalBookingGroup(group, context)).toBe(true);
+    });
+
+    it("normal paid order with authoritative payment evidence is settled and hides when completed", () => {
+      const line = createMockLine({
+        order_id: "order-normal-paid",
+        order_total_amount: 1500,
+        order_amount_paid: 1500,
+        order_payment_status: "paid",
+        status: "completed",
+        booking_progress_status: "completed",
+        session_completed_at: "2026-10-29T11:00:00Z",
+      });
+      const group = createMockGroup([line], { total: 1500, paid: 1500, due: 0, status: "paid" }, { orderId: "order-normal-paid" });
+      expect(isPaymentFullySettled(group.payment)).toBe(true);
+      expect(isOperationalBookingGroup(group, context)).toBe(false);
+    });
+
+    it("normal unpaid order with authoritative payment evidence is NOT settled and stays visible for cashier collection", () => {
+      const line = createMockLine({
+        order_id: "order-normal-unpaid",
+        order_total_amount: 1500,
+        order_amount_paid: 0,
+        order_payment_status: "unpaid",
+        status: "completed",
+        booking_progress_status: "completed",
+        session_completed_at: "2026-10-29T11:00:00Z",
+      });
+      const group = createMockGroup([line], { total: 1500, paid: 0, due: 1500, status: "unpaid" }, { orderId: "order-normal-unpaid" });
+      expect(isPaymentFullySettled(group.payment)).toBe(false);
+      expect(isOperationalBookingGroup(group, context)).toBe(true);
+    });
+
+    it("groupCrmBookings enforces order financial authority when order_id is present and ignores legacy line fields", () => {
+      const orderBooking = createMockLine({
+        id: "b-order-1",
+        order_id: "order-auth-check",
+        payment_status: "paid",
+        amount_paid: 2000,
+        metadata: { price_paid: 2000 },
+        order_total_amount: 2000,
+        order_amount_paid: 500,
+        order_payment_status: "partial",
+      });
+      const groups = groupCrmBookings([orderBooking]);
+      expect(groups[0]?.payment).toEqual({
+        total: 2000,
+        paid: 500,
+        due: 1500,
+        status: "partial",
+      });
+    });
+
+    it("groupCrmBookings preserves legacy booking behavior when order_id is absent", () => {
+      const legacyBooking = createMockLine({
+        id: "b-legacy-1",
+        order_id: null,
+        payment_status: "paid",
+        amount_paid: 800,
+        metadata: { price_paid: 800 },
+        order_total_amount: null,
+        order_amount_paid: null,
+        order_payment_status: null,
+      });
+      const groups = groupCrmBookings([legacyBooking]);
+      expect(groups[0]?.payment).toEqual({
+        total: 800,
+        paid: 800,
+        due: 0,
+        status: "paid",
+      });
     });
   });
 });
