@@ -752,5 +752,400 @@ describe("CRM Booking Creation Diagnostics & Structured Feedback Contract", () =
         expect(result.retrySafety).toBe("verify_first");
       }
     });
+
+    it("reports SERVICE_NOT_CONFIGURED_FOR_BRANCH when branch_services lacks configuration for service", async () => {
+      createAdmin.mockReturnValue({
+        from: vi.fn().mockImplementation((table: string) => {
+          const queryObj: Record<string, unknown> = {};
+          queryObj.eq = vi.fn().mockReturnValue(queryObj);
+          queryObj.not = vi.fn().mockReturnValue(queryObj);
+          queryObj.order = vi.fn().mockReturnValue(queryObj);
+          queryObj.in = vi.fn().mockReturnValue(queryObj);
+          queryObj.maybeSingle = vi.fn().mockImplementation(async () => {
+            if (table === "customers") return { data: { id: customerId }, error: null };
+            return { data: null, error: null };
+          });
+          queryObj.then = (resolve: (v: unknown) => void) => {
+            if (table === "services") {
+              return resolve({
+                data: [
+                  { id: serviceA, name: "Swedish Massage", price: 600, duration_minutes: 60, buffer_before: 0, buffer_after: 0, is_active: true, metadata: null, service_categories: { name: "Massages" } },
+                ],
+                error: null,
+              });
+            }
+            if (table === "branch_services") {
+              return resolve({ data: [], error: null }); // Not configured for branch
+            }
+            return resolve({ data: [], error: null });
+          };
+          return { select: vi.fn().mockReturnValue(queryObj) };
+        }),
+        rpc,
+      });
+
+      const result = await executeInhouseBookingCreation(
+        {
+          branchId,
+          customerId,
+          fullName: "Solo Guest",
+          phone: "09171234567",
+          date: "2026-11-02",
+          startTime: "14:00",
+          serviceIds: [serviceA],
+          type: "walkin",
+        },
+        operator
+      );
+
+      expect(result.ok).toBe(false);
+      if (!result.ok) {
+        expect(result.code).toBe("SERVICE_NOT_CONFIGURED_FOR_BRANCH");
+        expect(result.title).toBe("Service not configured for branch");
+        expect(result.field).toBe("service");
+        expect(result.retrySafety).toBe("safe");
+      }
+    });
+
+    it("reports SERVICE_UNAVAILABLE when requested catalog service is inactive or missing", async () => {
+      createAdmin.mockReturnValue({
+        from: vi.fn().mockImplementation((table: string) => {
+          const queryObj: Record<string, unknown> = {};
+          queryObj.eq = vi.fn().mockReturnValue(queryObj);
+          queryObj.not = vi.fn().mockReturnValue(queryObj);
+          queryObj.order = vi.fn().mockReturnValue(queryObj);
+          queryObj.in = vi.fn().mockReturnValue(queryObj);
+          queryObj.maybeSingle = vi.fn().mockImplementation(async () => {
+            if (table === "customers") return { data: { id: customerId }, error: null };
+            return { data: null, error: null };
+          });
+          queryObj.then = (resolve: (v: unknown) => void) => {
+            if (table === "services") {
+              return resolve({ data: [], error: null }); // Inactive or not found
+            }
+            return resolve({ data: [], error: null });
+          };
+          return { select: vi.fn().mockReturnValue(queryObj) };
+        }),
+        rpc,
+      });
+
+      const result = await executeInhouseBookingCreation(
+        {
+          branchId,
+          customerId,
+          fullName: "Solo Guest",
+          phone: "09171234567",
+          date: "2026-11-02",
+          startTime: "14:00",
+          serviceIds: [serviceA],
+          type: "walkin",
+        },
+        operator
+      );
+
+      expect(result.ok).toBe(false);
+      if (!result.ok) {
+        expect(result.code).toBe("SERVICE_UNAVAILABLE");
+        expect(result.title).toBe("Service inactive");
+        expect(result.field).toBe("service");
+        expect(result.retrySafety).toBe("safe");
+      }
+    });
+
+    it("reports MISSING_SERVICE_CAPABILITY when selected therapist lacks skill qualification", async () => {
+      vi.mocked(resolveExactCrmBookingTime).mockResolvedValueOnce({
+        available: false,
+        reasonCode: "missing_service_capability",
+        message: "Therapist does not possess required skill capability.",
+      } as unknown as Awaited<ReturnType<typeof resolveExactCrmBookingTime>>);
+
+      const result = await executeInhouseBookingCreation(
+        {
+          branchId,
+          customerId,
+          fullName: "Solo Guest",
+          phone: "09171234567",
+          date: "2026-11-02",
+          startTime: "14:00",
+          serviceIds: [serviceA],
+          staffId: staffId1,
+          type: "walkin",
+        },
+        operator
+      );
+
+      expect(result.ok).toBe(false);
+      if (!result.ok) {
+        expect(result.code).toBe("MISSING_SERVICE_CAPABILITY");
+        expect(result.title).toBe("Therapist qualification mismatch");
+        expect(result.field).toBe("staffId");
+        expect(result.retrySafety).toBe("safe");
+      }
+    });
+
+    it("reports NO_SCHEDULE_AT_START when therapist is not on duty at the requested time", async () => {
+      vi.mocked(resolveExactCrmBookingTime).mockResolvedValueOnce({
+        available: false,
+        reasonCode: "no_schedule_for_time",
+        message: "No therapist shift schedule covers the requested start time.",
+      } as unknown as Awaited<ReturnType<typeof resolveExactCrmBookingTime>>);
+
+      const result = await executeInhouseBookingCreation(
+        {
+          branchId,
+          customerId,
+          fullName: "Solo Guest",
+          phone: "09171234567",
+          date: "2026-11-02",
+          startTime: "14:00",
+          serviceIds: [serviceA],
+          staffId: staffId1,
+          type: "walkin",
+        },
+        operator
+      );
+
+      expect(result.ok).toBe(false);
+      if (!result.ok) {
+        expect(result.code).toBe("NO_SCHEDULE_AT_START");
+        expect(result.title).toBe("Therapist not scheduled");
+        expect(result.retrySafety).toBe("safe");
+      }
+    });
+
+    it("reports RESOURCE_INVALID when selected treatment room is inactive or does not belong to branch", async () => {
+      createAdmin.mockReturnValue({
+        from: vi.fn().mockImplementation((table: string) => {
+          const queryObj: Record<string, unknown> = {};
+          queryObj.eq = vi.fn().mockReturnValue(queryObj);
+          queryObj.not = vi.fn().mockReturnValue(queryObj);
+          queryObj.order = vi.fn().mockReturnValue(queryObj);
+          queryObj.in = vi.fn().mockReturnValue(queryObj);
+          queryObj.maybeSingle = vi.fn().mockImplementation(async () => {
+            if (table === "branch_resources") return { data: null, error: null }; // Invalid room
+            if (table === "customers") return { data: { id: customerId }, error: null };
+            return { data: null, error: null };
+          });
+          queryObj.then = (resolve: (v: unknown) => void) => {
+            if (table === "branch_resources") return resolve({ data: [], error: null });
+            return resolve({ data: [], error: null });
+          };
+          return { select: vi.fn().mockReturnValue(queryObj) };
+        }),
+        rpc,
+      });
+
+      const result = await executeInhouseBookingCreation(
+        {
+          branchId,
+          customerId,
+          fullName: "Solo Guest",
+          phone: "09171234567",
+          date: "2026-11-02",
+          startTime: "14:00",
+          serviceIds: [serviceA],
+          resourceId: "55555555-5555-4555-8555-999999999999",
+          type: "walkin",
+        },
+        operator
+      );
+
+      expect(result.ok).toBe(false);
+      if (!result.ok) {
+        expect(result.code).toBe("RESOURCE_INVALID");
+        expect(result.title).toBe("Invalid room selected");
+        expect(result.field).toBe("resourceId");
+        expect(result.retrySafety).toBe("safe");
+      }
+    });
+
+    it("reports HOME_SERVICE_DISABLED when branch does not support home service delivery", async () => {
+      vi.mocked(validateBookingAgainstBranchRules).mockResolvedValueOnce({
+        ok: false,
+        code: "HOME_SERVICE_DISABLED",
+        message: "Home service is currently disabled for this branch.",
+        field: "general",
+      } as unknown as Awaited<ReturnType<typeof validateBookingAgainstBranchRules>>);
+
+      const result = await executeInhouseBookingCreation(
+        {
+          branchId,
+          customerId,
+          fullName: "Home Guest",
+          phone: "09171234567",
+          date: "2026-11-02",
+          startTime: "14:00",
+          serviceIds: [serviceA],
+          type: "home_service",
+          deliveryType: "home_service",
+          homeServiceAddress: "123 Main St",
+          homeServiceFormattedAddress: "123 Main St, Bacolod City",
+          homeServicePlaceId: "place-1",
+          homeServiceLat: 14.5,
+          homeServiceLng: 121.0,
+        },
+        operator
+      );
+
+      expect(result.ok).toBe(false);
+      if (!result.ok) {
+        expect(result.code).toBe("HOME_SERVICE_DISABLED");
+        expect(result.retrySafety).toBe("safe");
+      }
+    });
+
+    it("reports CUSTOMER_ERROR when customer upsert fails due to database error", async () => {
+      rpc.mockImplementation(async (name: string) => {
+        if (name === "upsert_customer") {
+          return { data: null, error: { message: "Invalid phone number constraint", code: "23514" } };
+        }
+        return { data: null, error: null };
+      });
+
+      const result = await executeInhouseBookingCreation(
+        {
+          branchId,
+          fullName: "New Customer",
+          phone: "09171234567",
+          date: "2026-11-02",
+          startTime: "14:00",
+          serviceIds: [serviceA],
+          type: "walkin",
+        },
+        operator
+      );
+
+      expect(result.ok).toBe(false);
+      if (!result.ok) {
+        expect(result.code).toBe("CUSTOMER_ERROR");
+        expect(result.title).toBe("Customer details error");
+        expect(result.field).toBe("phone");
+        expect(result.retrySafety).toBe("safe");
+      }
+    });
+
+    it("reports VALIDATION_ERROR when customer name or phone is invalid", async () => {
+      const shortNameResult = await executeInhouseBookingCreation(
+        {
+          branchId,
+          fullName: "X",
+          phone: "09171234567",
+          date: "2026-11-02",
+          startTime: "14:00",
+          serviceIds: [serviceA],
+          type: "walkin",
+        },
+        operator
+      );
+
+      expect(shortNameResult.ok).toBe(false);
+      if (!shortNameResult.ok) {
+        expect(shortNameResult.code).toBe("VALIDATION_ERROR");
+        expect(shortNameResult.field).toBe("fullName");
+        expect(shortNameResult.retrySafety).toBe("safe");
+      }
+
+      const shortPhoneResult = await executeInhouseBookingCreation(
+        {
+          branchId,
+          fullName: "Valid Name",
+          phone: "123",
+          date: "2026-11-02",
+          startTime: "14:00",
+          serviceIds: [serviceA],
+          type: "walkin",
+        },
+        operator
+      );
+
+      expect(shortPhoneResult.ok).toBe(false);
+      if (!shortPhoneResult.ok) {
+        expect(shortPhoneResult.code).toBe("VALIDATION_ERROR");
+        expect(shortPhoneResult.field).toBe("phone");
+        expect(shortPhoneResult.retrySafety).toBe("safe");
+      }
+    });
+
+    it("reports TIME_TOO_LATE with midnight rollover feedback when booking finishes after midnight", async () => {
+      const result = await executeInhouseBookingCreation(
+        {
+          branchId,
+          customerId,
+          fullName: "Late Guest",
+          phone: "09171234567",
+          date: "2026-11-02",
+          startTime: "23:30",
+          serviceIds: [serviceA], // 60 mins -> 00:30 rollover
+          type: "walkin",
+        },
+        operator
+      );
+
+      expect(result.ok).toBe(false);
+      if (!result.ok) {
+        expect(result.code).toBe("TIME_TOO_LATE");
+        expect(result.title).toBe("Booking crosses midnight");
+        expect(result.message).toContain("crosses midnight");
+        expect(result.field).toBe("time");
+        expect(result.retrySafety).toBe("safe");
+      }
+    });
+
+    it("classifies unexpected atomic persistence failure as BOOKING_ATOMIC_PERSISTENCE_FAILED with verify_first retry safety", async () => {
+      rpc.mockImplementation(async (name: string) => {
+        if (name === "create_inhouse_booking_atomic_v2") {
+          return { data: null, error: { message: "Internal transaction failure in atomic RPC", code: "XX000" } };
+        }
+        return { data: null, error: null };
+      });
+
+      const result = await executeInhouseBookingCreation(
+        {
+          branchId,
+          customerId,
+          fullName: "Solo Guest",
+          phone: "09171234567",
+          date: "2026-11-02",
+          startTime: "14:00",
+          serviceIds: [serviceA],
+          type: "walkin",
+        },
+        operator
+      );
+
+      expect(result.ok).toBe(false);
+      if (!result.ok) {
+        expect(result.code).toBe("BOOKING_ATOMIC_PERSISTENCE_FAILED");
+        expect(result.title).toBe("Booking submission unresolved");
+        expect(result.field).toBe("general");
+        expect(result.retrySafety).toBe("verify_first");
+      }
+    });
+
+    it("classifies unhandled runtime exception as UNKNOWN_ERROR with verify_first retry safety", async () => {
+      rpc.mockRejectedValueOnce(new Error("Unexpected network abort during RPC invocation"));
+
+      const result = await executeInhouseBookingCreation(
+        {
+          branchId,
+          customerId,
+          fullName: "Solo Guest",
+          phone: "09171234567",
+          date: "2026-11-02",
+          startTime: "14:00",
+          serviceIds: [serviceA],
+          type: "walkin",
+        },
+        operator
+      );
+
+      expect(result.ok).toBe(false);
+      if (!result.ok) {
+        expect(result.code).toBe("UNKNOWN_ERROR");
+        expect(result.title).toBe("Booking submission unconfirmed");
+        expect(result.retrySafety).toBe("verify_first");
+      }
+    });
   });
 });

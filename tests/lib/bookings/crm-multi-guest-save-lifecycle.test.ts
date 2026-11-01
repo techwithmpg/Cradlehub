@@ -746,7 +746,8 @@ describe("CRM Multi-Guest Booking Save Lifecycle", () => {
     expect(result).toMatchObject({
       ok: false,
       code: "BOOKING_ATOMIC_PERSISTENCE_FAILED",
-      message: "Could not create the booking and payment together. Please review the booking and try again.",
+      message: "Could not verify whether the booking was created. Please check existing bookings before trying again.",
+      retrySafety: "verify_first",
     });
   });
 });
