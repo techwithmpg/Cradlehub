@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import Link from "next/link";
 import { CreditCard } from "lucide-react";
 import { PaymentActionMenu } from "@/components/features/dashboard/payment-action-menu";
 import { PaymentMethodBadge } from "@/components/features/dashboard/payment-method-badge";
@@ -48,7 +49,16 @@ export function SelectedBookingPaymentRow({
       ).isPaymentReview
   );
 
-  const summary = (
+  const summary = isPaymentReview ? (
+    <span
+      data-testid="selected-payment-review-summary"
+      className="inline-flex items-center gap-1.5 font-medium text-purple-700"
+    >
+      <span>Payment Review</span>
+      <span>·</span>
+      <span>Evidence requires review before collecting</span>
+    </span>
+  ) : (
     <span className="inline-flex items-center gap-1.5">
       <span className="capitalize">{booking.payment_status.replaceAll("_", " ")}</span>
       <span>·</span>
@@ -66,7 +76,21 @@ export function SelectedBookingPaymentRow({
       action={
         <div className="flex items-center gap-2">
           {isCrmPendingBookingStatus(booking.status) && confirmPaymentAction && !isPaymentReview ? (
-            <button type="button" onClick={() => setExpanded(!isExpanded)} className={overviewActionClass}>{isExpanded ? "Close" : "Review"}</button>
+            <button
+              type="button"
+              onClick={() => setExpanded(!isExpanded)}
+              className={overviewActionClass}
+            >
+              {isExpanded ? "Close" : "Review"}
+            </button>
+          ) : isExpanded ? (
+            <button
+              type="button"
+              onClick={() => setExpanded(false)}
+              className={overviewActionClass}
+            >
+              Close
+            </button>
           ) : null}
           <PaymentActionMenu
             bookingId={booking.id}
@@ -82,7 +106,41 @@ export function SelectedBookingPaymentRow({
         </div>
       }
     >
-      {isExpanded ? <SelectedBookingPaymentConfirmation booking={booking} confirmPaymentAction={confirmPaymentAction} onConfirmed={onChanged} /> : null}
+      {isExpanded ? (
+        isPaymentReview ? (
+          <div
+            data-testid="selected-payment-review-explanation"
+            className="rounded-lg border border-purple-200 bg-purple-50 p-3 text-xs text-purple-900"
+          >
+            <div className="font-semibold text-purple-950">
+              Payment Evidence Requires Review
+            </div>
+            <p className="mt-1 leading-relaxed text-purple-800/90">
+              Authoritative order financial evidence is missing or inconsistent. Payment confirmation is locked until the discrepancy is resolved in reconciliation.
+            </p>
+            <div className="mt-2.5 flex items-center gap-2">
+              <Link
+                href="/crm/reconciliation"
+                className="inline-flex items-center justify-center rounded-md border border-purple-300 bg-white px-2.5 py-1 text-xs font-semibold text-purple-700 hover:bg-purple-50"
+              >
+                Open Reconciliation
+              </Link>
+              <Link
+                href="/crm/cash-flow"
+                className="inline-flex items-center justify-center rounded-md border border-purple-200 bg-white px-2.5 py-1 text-xs font-medium text-purple-700 hover:bg-purple-50"
+              >
+                View Cash Flow Ledger
+              </Link>
+            </div>
+          </div>
+        ) : (
+          <SelectedBookingPaymentConfirmation
+            booking={booking}
+            confirmPaymentAction={confirmPaymentAction}
+            onConfirmed={onChanged}
+          />
+        )
+      ) : null}
     </SelectedBookingOverviewRow>
   );
 }
