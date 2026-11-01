@@ -32,9 +32,16 @@ type ActionResult =
   | { success: true; rules: BranchBookingRules }
   | { success: false; error: string };
 
-type BranchRulesValidationResult =
+export type BranchRulesValidationResult =
   | { ok: true; rules: BranchBookingRules }
-  | { ok: false; message: string; rules: BranchBookingRules };
+  | {
+      ok: false;
+      message: string;
+      rules: BranchBookingRules;
+      code?: string;
+      field?: "date" | "time" | "homeServiceAddress" | "general";
+      correctiveAction?: string;
+    };
 
 type StaffAuthContext = {
   branch_id: string | null;
@@ -298,15 +305,15 @@ export function isBookingTimeAllowedByRules({
   );
 }
 
-export function isBookingDateAllowedByRules({
+export function checkBookingDateAgainstRules({
   date,
   rules,
 }: {
   date: string;
   rules: BranchBookingRules;
-}): boolean {
+}): { allowed: boolean; reason?: "past_date" | "advance_limit_exceeded" } {
   const requested = dateFromYmd(date);
-  if (!requested) return false;
+  if (!requested) return { allowed: false, reason: "past_date" };
 
   const today = new Date(`${getBranchBusinessDate()}T00:00:00`);
   today.setHours(0, 0, 0, 0);
@@ -314,7 +321,23 @@ export function isBookingDateAllowedByRules({
   const maxDate = new Date(today);
   maxDate.setDate(maxDate.getDate() + rules.maxAdvanceBookingDays);
 
-  return requested >= today && requested <= maxDate;
+  if (requested < today) {
+    return { allowed: false, reason: "past_date" };
+  }
+  if (requested > maxDate) {
+    return { allowed: false, reason: "advance_limit_exceeded" };
+  }
+  return { allowed: true };
+}
+
+export function isBookingDateAllowedByRules({
+  date,
+  rules,
+}: {
+  date: string;
+  rules: BranchBookingRules;
+}): boolean {
+  return checkBookingDateAgainstRules({ date, rules }).allowed;
 }
 
 export async function validateBookingAgainstBranchRules({
@@ -335,15 +358,27 @@ export async function validateBookingAgainstBranchRules({
     return {
       ok: false,
       rules,
+      code: "HOME_SERVICE_DISABLED",
+      field: "general",
+      correctiveAction: "Choose an in-spa service or select a branch with home service enabled.",
       message: "Home service is not available for this branch. Please choose in-spa or another branch.",
     };
   }
 
-  if (!isBookingDateAllowedByRules({ date, rules })) {
+  const dateCheck = checkBookingDateAgainstRules({ date, rules });
+  if (!dateCheck.allowed) {
+    const isPast = dateCheck.reason === "past_date";
     return {
       ok: false,
       rules,
-      message: `Bookings for this branch can be made up to ${rules.maxAdvanceBookingDays} days in advance.`,
+      code: isPast ? "PAST_DATE" : "ADVANCE_LIMIT_EXCEEDED",
+      field: "date",
+      correctiveAction: isPast
+        ? "Choose today or a future date for this booking."
+        : `Choose a date within ${rules.maxAdvanceBookingDays} days from today.`,
+      message: isPast
+        ? "The selected booking date has already passed. Please choose today or a future date."
+        : `Bookings for this branch can be made up to ${rules.maxAdvanceBookingDays} days in advance.`,
     };
   }
 
@@ -357,6 +392,9 @@ export async function validateBookingAgainstBranchRules({
     return {
       ok: false,
       rules,
+      code: "OPERATING_HOURS_VIOLATION",
+      field: "time",
+      correctiveAction: `Select an appointment time between ${formatTimeForMessage(start)} and ${formatTimeForMessage(end)}.`,
       message: `${label} appointments at this branch are available from ${formatTimeForMessage(start)} to ${formatTimeForMessage(end)}.`,
     };
   }

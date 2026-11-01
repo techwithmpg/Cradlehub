@@ -94,7 +94,7 @@ describe("Inhouse Booking Engine Authorization & Branch Boundary", () => {
 
     const result = await executeInhouseBookingCreation(crossBranchPayload, nonOwnerOperator);
 
-    expect(result).toEqual({
+    expect(result).toMatchObject({
       ok: false,
       code: "CRM_BRANCH_FORBIDDEN",
       message: "You can only create bookings for your assigned branch.",
@@ -137,7 +137,7 @@ describe("Inhouse Booking Engine Authorization & Branch Boundary", () => {
 
     const result = await executeInhouseBookingCreation(crossBranchPayload, nonOwnerOperator);
 
-    expect(result).toEqual({
+    expect(result).toMatchObject({
       ok: false,
       code: "CRM_BRANCH_FORBIDDEN",
       message: "You can only create bookings for your assigned branch.",
@@ -262,7 +262,7 @@ describe("Inhouse Booking Engine Authorization & Branch Boundary", () => {
 
     const result = await executeInhouseBookingCreation(payload, unauthorizedOperator);
 
-    expect(result).toEqual({
+    expect(result).toMatchObject({
       ok: false,
       code: "UNAUTHORIZED",
       message: "You do not have permission to create bookings.",
@@ -294,7 +294,7 @@ describe("Inhouse Booking Engine Authorization & Branch Boundary", () => {
 
     const result = await executeInhouseBookingCreation(payloadWithoutBranch, unassignedOperator);
 
-    expect(result).toEqual({
+    expect(result).toMatchObject({
       ok: false,
       code: "BRANCH_MISSING",
       message: "You are not assigned to a branch. Please contact an administrator.",

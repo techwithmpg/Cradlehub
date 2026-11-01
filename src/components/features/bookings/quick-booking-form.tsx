@@ -468,6 +468,17 @@ export function QuickBookingForm({
   const [therapistAvailabilityMessage, setTherapistAvailabilityMessage] = useState("");
   const [fieldErrors, setFieldErrors] = useState<FieldErrors>({});
   const [formError, setFormError] = useState("");
+  const [formDiagnostic, setFormDiagnostic] = useState<{
+    title: string;
+    message: string;
+    correctiveAction?: string;
+    field?: string;
+    guestIndex?: number;
+    guestName?: string;
+    serviceName?: string;
+    target?: string;
+    retrySafety?: "safe" | "verify_first" | "do_not_retry";
+  } | null>(null);
   const [loadingNextSlot, setLoadingNextSlot] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
   const [slotChecking, setSlotChecking] = useState(false);
@@ -1414,6 +1425,12 @@ export function QuickBookingForm({
     setFieldErrors(nextErrors);
     setFormError("");
     if (Object.values(nextErrors).some(Boolean)) {
+      setFormDiagnostic({
+        title: "Incomplete booking details",
+        message: "Please complete the highlighted fields before saving.",
+        correctiveAction: "Review and complete the highlighted fields above.",
+        retrySafety: "safe",
+      });
       const incompleteGuest = additionalGuests.find(
         (guest) => guest.serviceIds.length === 0 || (guest.name?.trim() && guest.name.trim().length < 2)
       );
@@ -1424,6 +1441,7 @@ export function QuickBookingForm({
       }
       return;
     }
+    setFormDiagnostic(null);
 
     if (!groupBooking) {
       setSlotChecking(true);
@@ -1435,6 +1453,13 @@ export function QuickBookingForm({
         const message = "Unable to check CRM availability. Choose another time or try again.";
         setFieldErrors((current) => ({ ...current, time: message }));
         setFormError(message);
+        setFormDiagnostic({
+          title: "Availability check failed",
+          message,
+          field: "time",
+          correctiveAction: "Check your network connection and select another time or try again.",
+          retrySafety: "safe",
+        });
         return;
       }
       setSlotChecking(false);
@@ -1442,6 +1467,13 @@ export function QuickBookingForm({
         const message = availability.message ?? NO_SCHEDULED_THERAPIST_MESSAGE;
         setFieldErrors((current) => ({ ...current, time: message }));
         setFormError(message);
+        setFormDiagnostic({
+          title: "Time slot unavailable",
+          message,
+          field: "time",
+          correctiveAction: "Choose another available time or select a different therapist.",
+          retrySafety: "safe",
+        });
         return;
       }
     }
@@ -1645,9 +1677,31 @@ export function QuickBookingForm({
 
       if (!result.ok) {
         const message = result.message || "Could not save booking. Please try again.";
-        setFieldErrors(mapServerErrorToFields(message));
+        const fallbackErrors = mapServerErrorToFields(message);
+        const nextFieldErrors = { ...fallbackErrors };
+        if (result.field && result.field !== "general") {
+          nextFieldErrors[result.field as keyof FieldErrors] = message;
+        }
+        setFieldErrors(nextFieldErrors);
         setFormError(message);
-        toast.error("Booking not saved", { description: message });
+        setFormDiagnostic({
+          title: result.title ?? "Booking could not be saved",
+          message,
+          correctiveAction: result.correctiveAction ?? "Review the details above and choose an available alternative.",
+          field: result.field,
+          guestIndex: result.guestIndex,
+          guestName: result.guestName,
+          serviceName: result.serviceName,
+          target: result.guestName && result.serviceName
+            ? `${result.guestName} — ${result.serviceName}`
+            : result.guestName ?? result.serviceName,
+          retrySafety: result.retrySafety ?? "safe",
+        });
+        toast.error(result.title ?? "Booking not saved", { description: message });
+
+        if (result.guestIndex !== undefined && guestScrollRef.current) {
+          guestScrollRef.current.scrollTop = result.guestIndex > 0 ? guestScrollRef.current.scrollHeight : 0;
+        }
         return;
       }
 
@@ -1671,9 +1725,16 @@ export function QuickBookingForm({
         router.push(`/crm/bookings?${params.toString()}`);
       }
     } catch {
-      const message = "Could not save booking. Please try again.";
+      const message = "The request may have reached the server, but confirmation was interrupted.";
       setFormError(message);
-      toast.error("Booking not saved", { description: message });
+      setFormDiagnostic({
+        title: "Booking confirmation could not be verified",
+        message,
+        correctiveAction: "Check existing bookings or refresh before attempting to submit again to prevent duplicate bookings.",
+        field: "general",
+        retrySafety: "verify_first",
+      });
+      toast.error("Confirmation unverified", { description: message });
     } finally {
       setIsSaving(false);
     }
@@ -2975,6 +3036,50 @@ export function QuickBookingForm({
                   <FieldError message={fieldErrors.paymentMethod} />
                 </>
               )}
+              {formDiagnostic ? (
+                <div
+                  role="alert"
+                  aria-live="polite"
+                  data-testid="crm-booking-failure-card"
+                  className={cn(
+                    "mt-3 rounded-lg border p-2.5 text-xs shadow-xs transition-all",
+                    formDiagnostic.retrySafety === "verify_first"
+                      ? "border-amber-300 bg-amber-50 text-amber-950"
+                      : formDiagnostic.retrySafety === "do_not_retry"
+                        ? "border-red-300 bg-red-50 text-red-950"
+                        : "border-red-200 bg-red-50/90 text-red-950"
+                  )}
+                >
+                  <div className="flex items-start gap-2">
+                    <AlertTriangle
+                      className={cn(
+                        "mt-0.5 h-4 w-4 shrink-0",
+                        formDiagnostic.retrySafety === "verify_first" ? "text-amber-600" : "text-red-600"
+                      )}
+                    />
+                    <div className="min-w-0 flex-1 space-y-1">
+                      <div className="font-semibold text-[13px]">{formDiagnostic.title}</div>
+                      {formDiagnostic.target ? (
+                        <div className="inline-block rounded border border-black/10 bg-white/70 px-1.5 py-0.5 text-[11px] font-medium text-[var(--cs-text)]">
+                          {formDiagnostic.target}
+                        </div>
+                      ) : null}
+                      <p className="leading-snug text-[var(--cs-text)]">{formDiagnostic.message}</p>
+                      {formDiagnostic.correctiveAction ? (
+                        <div className="border-t border-black/5 pt-1.5 text-[11px] text-[var(--cs-text-muted)]">
+                          <span className="font-semibold text-[var(--cs-text)]">Suggested action: </span>
+                          {formDiagnostic.correctiveAction}
+                        </div>
+                      ) : null}
+                      {formDiagnostic.retrySafety === "verify_first" ? (
+                        <div className="mt-1 text-[11px] font-semibold text-amber-800">
+                          ⚠️ Do not resubmit blindly. Check whether the booking was already created before trying again.
+                        </div>
+                      ) : null}
+                    </div>
+                  </div>
+                </div>
+              ) : null}
               <div className="mt-2 flex gap-2">
                 <button
                   type="button"

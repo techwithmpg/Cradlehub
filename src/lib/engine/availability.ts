@@ -1,6 +1,6 @@
 import { createAdminClient } from "@/lib/supabase/admin";
 import type { AvailabilitySlot, StaffTier } from "@/types";
-import { SlotUnavailableError } from "@/types/errors";
+import { GroupTherapistAllocationError, SlotUnavailableError } from "@/types/errors";
 import {
   canActAsBookingServiceProvider,
   staffTypeCanPerformService,
@@ -1083,6 +1083,8 @@ export async function getAvailableSlotsForOrder(params: {
   });
 }
 
+export { GroupTherapistAllocationError };
+
 /**
  * Assigns distinct therapists to each attendee concurrently at startTime.
  * Prioritizes seniority and ensures no therapist is double-booked across attendees.
@@ -1139,9 +1141,26 @@ export async function assignTherapistsForOrder(params: {
     })
   );
 
+  // Check if any individual attendee has 0 qualified therapists
+  for (let idx = 0; idx < attendees.length; idx++) {
+    if (candidateLists[idx]!.length === 0) {
+      throw new GroupTherapistAllocationError(
+        "INDIVIDUAL_THERAPIST_UNAVAILABLE",
+        idx,
+        attendees[idx]!.serviceIds,
+        `No qualified therapist is available for attendee ${idx + 1} at this time.`
+      );
+    }
+  }
+
   const assignment = findDistinctStaffAssignment(candidateLists);
   if (!assignment || assignment.length !== attendees.length) {
-    throw new SlotUnavailableError();
+    throw new GroupTherapistAllocationError(
+      "GROUP_THERAPIST_CAPACITY_EXCEEDED",
+      undefined,
+      undefined,
+      `Not enough distinct therapists are available to serve all ${attendees.length} guests simultaneously.`
+    );
   }
 
   return attendees.map((attendee, idx) => ({

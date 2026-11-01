@@ -22,8 +22,10 @@ import {
 } from "@/lib/home-service/distance-service";
 import { buildGoogleMapsSearchUrl } from "@/lib/maps/google-maps";
 import { isResourceAvailable, autoAssignBookingResource, allocateResourcesForAttendees } from "@/lib/engine/resource-availability";
-import { assignTherapistsForOrder } from "@/lib/engine/availability";
-import { AppError, SlotUnavailableError } from "@/types/errors";
+import {
+  assignTherapistsForOrder,
+} from "@/lib/engine/availability";
+import { AppError, GroupTherapistAllocationError, SlotUnavailableError } from "@/types/errors";
 import { createNotification } from "@/lib/notifications/create";
 import { logError, logBusinessEvent } from "@/lib/logger";
 import { revalidateOperationalBookingSurfaces } from "@/lib/bookings/revalidate-booking-surfaces";
@@ -34,9 +36,44 @@ import { validateBranchServiceEligibility } from "@/lib/services/service-catalog
 import { resolveBookingLineQuotes } from "@/lib/services/resolve-booking-line-quotes";
 import { ServiceLineQuoteError, toServiceLineCommercialSnapshot } from "@/lib/services/service-line-quote";
 
+export type BookingFailureDiagnostics = {
+  ok: false;
+  code: string;
+  message: string;
+  title?: string;
+  field?:
+    | "fullName"
+    | "phone"
+    | "date"
+    | "time"
+    | "staffId"
+    | "service"
+    | "resourceId"
+    | "homeServiceAddress"
+    | "paymentMethod"
+    | "general";
+  guestIndex?: number;
+  guestName?: string;
+  serviceId?: string;
+  serviceName?: string;
+  correctiveAction?: string;
+  retrySafety?: "safe" | "verify_first" | "do_not_retry";
+  diagnosticId?: string;
+};
+
 export type CreateInhouseBookingResult =
-  | { ok: true; bookingId: string; orderId?: string; orderNumber?: string; serviceLineIds?: string[]; attendeeIds?: string[]; serviceCount?: number; attendeeCount?: number; warning?: string }
-  | { ok: false; code: string; message: string };
+  | {
+      ok: true;
+      bookingId: string;
+      orderId?: string;
+      orderNumber?: string;
+      serviceLineIds?: string[];
+      attendeeIds?: string[];
+      serviceCount?: number;
+      attendeeCount?: number;
+      warning?: string;
+    }
+  | BookingFailureDiagnostics;
 
 export type InhouseBookingOperator = {
   authUserId: string;
@@ -109,17 +146,48 @@ export async function executeInhouseBookingCreation(
   const parsed = createInhouseBookingMultiSchema.safeParse(normalizedInput);
   if (!parsed.success) {
     const firstIssue = parsed.error.issues[0];
+    const fieldName = firstIssue?.path[0];
+    let guestIndex: number | undefined = undefined;
+    let field: BookingFailureDiagnostics["field"] = undefined;
+    if (fieldName === "attendees" && typeof firstIssue?.path[1] === "number") {
+      guestIndex = firstIssue.path[1];
+      const subField = firstIssue.path[2];
+      if (subField === "serviceIds") field = "service";
+      else if (subField === "name") field = "fullName";
+    } else if (fieldName === "fullName") field = "fullName";
+    else if (fieldName === "phone") field = "phone";
+    else if (fieldName === "serviceIds") field = "service";
+    else if (fieldName === "date") field = "date";
+    else if (fieldName === "startTime") field = "time";
+    else if (fieldName === "staffId") field = "staffId";
+    else if (fieldName === "resourceId") field = "resourceId";
+    else if (fieldName === "paymentMethod") field = "paymentMethod";
+    else if (typeof fieldName === "string" && fieldName.startsWith("homeService")) field = "homeServiceAddress";
+
     console.error("[CRM_BOOKING] validation failed", parsed.error.flatten());
     return {
       ok: false,
       code: "VALIDATION_ERROR",
+      title: "Please check your booking details",
       message: firstIssue?.message ?? "Please check your input and try again.",
+      field,
+      guestIndex,
+      correctiveAction: "Review and correct the highlighted fields.",
+      retrySafety: "safe",
     };
   }
 
   const d: CreateInhouseBookingMultiInput = parsed.data;
   if (d.customerRequestedTherapist && !d.staffId) {
-    return { ok: false, code: "VALIDATION_ERROR", message: "Select a therapist requested by the customer." };
+    return {
+      ok: false,
+      code: "VALIDATION_ERROR",
+      title: "Therapist selection required",
+      message: "Select a therapist requested by the customer.",
+      field: "staffId",
+      correctiveAction: "Select a therapist or uncheck the customer request.",
+      retrySafety: "safe",
+    };
   }
   const attendees = d.attendees ?? [{
     id: crypto.randomUUID(), name: d.fullName, isOrganizer: true, serviceIds: d.serviceIds,
@@ -129,8 +197,12 @@ export async function executeInhouseBookingCreation(
     return {
       ok: false,
       code: "EXACT_THERAPIST_UNSUPPORTED_FOR_GROUP",
+      title: "Exact therapist unsupported for group",
       message:
         "Exact therapist allocation is unsupported for group bookings. Proceed with a non-guaranteed preference after customer agreement, or return to single booking.",
+      field: "staffId",
+      correctiveAction: "Proceed with a non-guaranteed preference after customer agreement, or return to single booking.",
+      retrySafety: "safe",
     };
   }
   const groupInputHash = groupBooking ? createHash("sha256").update(JSON.stringify(d)).digest("hex") : null;
@@ -144,7 +216,11 @@ export async function executeInhouseBookingCreation(
     return {
       ok: false,
       code: "INVALID_BOOKING_TIME",
+      title: "Invalid booking time",
       message: parsedStartTime.error,
+      field: "time",
+      correctiveAction: "Select a valid time format (HH:MM).",
+      retrySafety: "safe",
     };
   }
   const startTime = parsedStartTime.value.canonicalTime;
@@ -159,14 +235,22 @@ export async function executeInhouseBookingCreation(
       return {
         ok: false,
         code: "BRANCH_MISSING",
+        title: "Branch missing",
         message: "Dev bypass active — please provide an explicit branchId in the booking form.",
+        field: "general",
+        correctiveAction: "Select a branch before saving.",
+        retrySafety: "safe",
       };
     }
   } else if (!staff || !staffRole || !canAccessCrmWorkspace(staffRole)) {
     return {
       ok: false,
       code: "UNAUTHORIZED",
+      title: "Access restricted",
       message: "You do not have permission to create bookings.",
+      field: "general",
+      correctiveAction: "Sign in with an account authorized to create bookings.",
+      retrySafety: "do_not_retry",
     };
   }
 
@@ -175,7 +259,11 @@ export async function executeInhouseBookingCreation(
     return {
       ok: false,
       code: "BRANCH_MISSING",
+      title: "Branch missing",
       message: "You are not assigned to a branch. Please contact an administrator.",
+      field: "general",
+      correctiveAction: "Contact an administrator to assign a branch.",
+      retrySafety: "do_not_retry",
     };
   }
 
@@ -183,7 +271,11 @@ export async function executeInhouseBookingCreation(
     return {
       ok: false,
       code: "CRM_BRANCH_FORBIDDEN",
+      title: "Branch forbidden",
       message: "You can only create bookings for your assigned branch.",
+      field: "general",
+      correctiveAction: "Switch to your assigned branch before creating bookings.",
+      retrySafety: "do_not_retry",
     };
   }
 
@@ -193,7 +285,11 @@ export async function executeInhouseBookingCreation(
       return {
         ok: false,
         code: "HS_ADDRESS_MISSING",
+        title: "Home service address required",
         message: "Enter the complete home-service address.",
+        field: "homeServiceAddress",
+        correctiveAction: "Select a complete address using Google Places search.",
+        retrySafety: "safe",
       };
     }
     if (
@@ -204,7 +300,11 @@ export async function executeInhouseBookingCreation(
       return {
         ok: false,
         code: "HS_LOCATION_MISSING",
+        title: "Precise location required",
         message: CRM_PRECISE_HOME_SERVICE_LOCATION_MESSAGE,
+        field: "homeServiceAddress",
+        correctiveAction: "Select an address with verified coordinates from the dropdown.",
+        retrySafety: "safe",
       };
     }
   }
@@ -232,7 +332,15 @@ export async function executeInhouseBookingCreation(
       if (existingOrder) {
         const metadata = existingOrder.metadata as Record<string, unknown> | null;
         if (metadata?.crm_input_hash !== groupInputHash) {
-          return { ok: false, code: "IDEMPOTENCY_CONFLICT", message: "This booking request key was already used for different details." };
+          return {
+            ok: false,
+            code: "IDEMPOTENCY_CONFLICT",
+            title: "Conflicting booking submission",
+            message: "This booking request key was already used for different details.",
+            field: "general",
+            correctiveAction: "Check existing bookings to confirm whether the order was already saved.",
+            retrySafety: "verify_first",
+          };
         }
         const [attendeeRows, bookingRows] = await Promise.all([
           replayClient.from("booking_attendees").select("id, sequence").eq("booking_order_id", existingOrder.id),
@@ -262,10 +370,15 @@ export async function executeInhouseBookingCreation(
     });
     if (!rulesCheck.ok) {
       console.error("[CRM_BOOKING] branch rules failed", { ...logContext, rulesCheck });
+      const isPast = rulesCheck.code === "PAST_DATE" || rulesCheck.message.includes("passed");
       return {
         ok: false,
-        code: "BOOKING_RULES_ERROR",
+        code: rulesCheck.code ?? "BOOKING_RULES_ERROR",
+        title: isPast ? "Selected date has passed" : "Branch booking rule limit",
         message: rulesCheck.message,
+        field: rulesCheck.field ?? (isPast || rulesCheck.message.includes("advance") ? "date" : "time"),
+        correctiveAction: rulesCheck.correctiveAction ?? "Select a valid booking date and time within branch hours.",
+        retrySafety: "safe",
       };
     }
 
@@ -280,8 +393,12 @@ export async function executeInhouseBookingCreation(
       return {
         ok: false,
         code: "SERVICE_INELIGIBLE",
+        title: "Service unavailable",
         message:
           "One or more selected services are not available for this booking type at this branch.",
+        field: "service",
+        correctiveAction: "Review the selected services and choose services offered at this branch.",
+        retrySafety: "safe",
       };
     }
 
@@ -304,8 +421,12 @@ export async function executeInhouseBookingCreation(
       return {
         ok: false,
         code: "MANUAL_ARRANGEMENT_REQUIRED",
+        title: "Coordinating provider required",
         message:
           "Select a coordinating provider and confirm the full participant and staffing arrangement manually.",
+        field: "staffId",
+        correctiveAction: "Select an available staff member to coordinate this consultation package.",
+        retrySafety: "safe",
       };
     }
 
@@ -359,18 +480,62 @@ export async function executeInhouseBookingCreation(
             : 0,
       });
       if (!exactAvailability.available) {
+        let code = "EXACT_TIME_UNAVAILABLE";
+        let title = "Time unavailable";
+        let field: BookingFailureDiagnostics["field"] = "time";
+        let correctiveAction = "Choose another available start time.";
+
+        if (exactAvailability.reasonCode === "outside_in_spa_hours") {
+          code = "OPERATING_HOURS_VIOLATION";
+          title = "Outside operating hours";
+          correctiveAction = "Select a start time within branch in-spa operating hours.";
+        } else if (exactAvailability.reasonCode === "outside_home_service_hours") {
+          code = "OPERATING_HOURS_VIOLATION";
+          title = "Outside home service hours";
+          correctiveAction = "Select a start time within home service dispatch hours.";
+        } else if (exactAvailability.reasonCode === "past_time") {
+          code = "PAST_TIME_PROHIBITED";
+          title = "Selected time has passed";
+          correctiveAction = "Choose a future time.";
+        } else if (exactAvailability.reasonCode === "missing_service_capability") {
+          code = "MISSING_SERVICE_CAPABILITY";
+          title = "Therapist qualification mismatch";
+          field = "staffId";
+          correctiveAction = "Choose an available qualified therapist or select Automatic.";
+        } else if (exactAvailability.reasonCode === "blocked_by_booking") {
+          code = "THERAPIST_BOOKING_CONFLICT";
+          title = "Therapist already booked";
+          field = "staffId";
+          correctiveAction = "Choose another therapist or select a different start time.";
+        } else if (exactAvailability.reasonCode === "no_schedule_for_time") {
+          code = "NO_SCHEDULE_AT_START";
+          title = "Therapist not scheduled";
+          correctiveAction = "Choose a time during scheduled staff shifts.";
+        }
+
         return {
           ok: false,
-          code: exactAvailability.reasonCode === "no_schedule_for_time"
-            ? "NO_SCHEDULE_AT_START" : "EXACT_TIME_UNAVAILABLE",
+          code,
+          title,
           message: exactAvailability.message ?? "No qualified therapist can start at the selected exact time.",
+          field,
+          correctiveAction,
+          retrySafety: "safe",
         };
       }
       selectedExactProvider = d.staffId
         ? exactAvailability.providers.find((provider) => provider.staffId === d.staffId && provider.selectable)
         : exactAvailability.providers.find((provider) => provider.selectable);
       if (!selectedExactProvider) {
-        return { ok: false, code: "EXACT_TIME_UNAVAILABLE", message: "No qualified therapist can start at the selected exact time." };
+        return {
+          ok: false,
+          code: "EXACT_TIME_UNAVAILABLE",
+          title: "Therapist unavailable",
+          message: "No qualified therapist can start at the selected exact time.",
+          field: "staffId",
+          correctiveAction: "Choose another available therapist or select another time.",
+          retrySafety: "safe",
+        };
       }
       attendeeStaffIds = [selectedExactProvider.staffId];
       availabilityWarning = Array.from(new Set([
@@ -403,7 +568,11 @@ export async function executeInhouseBookingCreation(
       return {
         ok: false,
         code: "SERVICE_TIMING_ERROR",
+        title: "Service timing error",
         message: "Could not calculate the service duration. Please refresh and try again.",
+        field: "general",
+        correctiveAction: "Refresh the page and reselect your services.",
+        retrySafety: "safe",
       };
     }
 
@@ -417,11 +586,20 @@ export async function executeInhouseBookingCreation(
     const combinedEndTime = computeEndTimeLocal(startTime, Math.max(...attendeeDurations));
     const attendeeEndTimes = attendeeDurations.map((minutes) => computeEndTimeLocal(startTime, minutes));
     if (!combinedEndTime) {
+      const closingTime = deliveryType === "home_service"
+        ? rulesCheck.rules.homeServiceEndTime
+        : rulesCheck.rules.inSpaEndTime;
       return {
         ok: false,
         code: "TIME_TOO_LATE",
+        title: "Service exceeds operating hours",
         message:
-          "This booking crosses midnight. Choose an earlier time until overnight booking is enabled.",
+          "This booking extends past permitted operating limits and crosses midnight. Choose an earlier start time.",
+        field: "time",
+        correctiveAction: closingTime
+          ? `Select an earlier start time so the service finishes within branch operating hours (by ${closingTime}).`
+          : "Select an earlier start time so the service finishes within permitted branch operating hours.",
+        retrySafety: "safe",
       };
     }
 
@@ -429,7 +607,15 @@ export async function executeInhouseBookingCreation(
     let attendeeResourceIds: Array<string | null> = attendees.map(() => null);
     if (groupBooking && deliveryType !== "home_service") {
       if (d.resourceId) {
-        return { ok: false, code: "RESOURCE_INVALID", message: "Use automatic room assignment when booking multiple guests." };
+        return {
+          ok: false,
+          code: "RESOURCE_INVALID",
+          title: "Automatic room allocation required",
+          message: "Use automatic room assignment when booking multiple guests.",
+          field: "resourceId",
+          correctiveAction: "Clear manual room selection and use Automatic for groups.",
+          retrySafety: "safe",
+        };
       }
       const allocated = await allocateResourcesForAttendees({
         branchId: resolvedBranchId,
@@ -437,7 +623,15 @@ export async function executeInhouseBookingCreation(
         windows: attendeeEndTimes.map((endTime) => ({ startTime, endTime: endTime ?? startTime })),
       });
       if (!allocated) {
-        return { ok: false, code: "RESOURCE_UNAVAILABLE", message: "Not enough rooms are available for all guests." };
+        return {
+          ok: false,
+          code: "RESOURCE_UNAVAILABLE",
+          title: "Treatment rooms unavailable",
+          message: "Not enough rooms are available for all guests.",
+          field: "resourceId",
+          correctiveAction: "Choose another start time or consider staggering the appointments.",
+          retrySafety: "safe",
+        };
       }
       attendeeResourceIds = allocated;
     }
@@ -466,7 +660,11 @@ export async function executeInhouseBookingCreation(
           return {
             ok: false,
             code: "RESOURCE_UNAVAILABLE",
+            title: "Treatment room unavailable",
             message: "No room is available at the selected time.",
+            field: "resourceId",
+            correctiveAction: "Choose another start time when a treatment room is free.",
+            retrySafety: "safe",
           };
         }
       }
@@ -486,7 +684,11 @@ export async function executeInhouseBookingCreation(
         return {
           ok: false,
           code: "RESOURCE_INVALID",
+          title: "Invalid room selected",
           message: "The selected room does not belong to this branch or is inactive.",
+          field: "resourceId",
+          correctiveAction: "Select Automatic room assignment or choose an active room.",
+          retrySafety: "safe",
         };
       }
     }
@@ -507,7 +709,11 @@ export async function executeInhouseBookingCreation(
         return {
           ok: false,
           code: "RESOURCE_UNAVAILABLE",
+          title: "Treatment room occupied",
           message: "The selected room is unavailable.",
+          field: "resourceId",
+          correctiveAction: "Select Automatic room assignment or choose another room.",
+          retrySafety: "safe",
         };
       }
     }
@@ -529,7 +735,11 @@ export async function executeInhouseBookingCreation(
         return {
           ok: false,
           code: "CUSTOMER_ERROR",
+          title: "Customer not found",
           message: "Select a customer.",
+          field: "fullName",
+          correctiveAction: "Search for a registered customer or enter complete new customer details.",
+          retrySafety: "safe",
         };
       }
     } else {
@@ -549,13 +759,25 @@ export async function executeInhouseBookingCreation(
         return {
           ok: false,
           code: "CUSTOMER_ERROR",
+          title: "Customer details error",
           message: "Could not save customer details. Please check the phone number.",
+          field: "phone",
+          correctiveAction: "Ensure the customer phone number is valid and contains at least 7 digits.",
+          retrySafety: "safe",
         };
       }
       resolvedCustomerId = String(customerId);
     }
     if (!resolvedCustomerId) {
-      return { ok: false, code: "CUSTOMER_ERROR", message: "Select a customer." };
+      return {
+        ok: false,
+        code: "CUSTOMER_ERROR",
+        title: "Customer not selected",
+        message: "Select a customer.",
+        field: "fullName",
+        correctiveAction: "Enter customer name and contact details.",
+        retrySafety: "safe",
+      };
     }
 
     const { data: servicesData, error: servicesError } = await admin
@@ -570,7 +792,11 @@ export async function executeInhouseBookingCreation(
       return {
         ok: false,
         code: "SERVICES_LOAD_ERROR",
+        title: "Services load error",
         message: "Could not load service details. Please refresh and try again.",
+        field: "service",
+        correctiveAction: "Refresh the page and reselect your services.",
+        retrySafety: "safe",
       };
     }
 
@@ -585,7 +811,11 @@ export async function executeInhouseBookingCreation(
       return {
         ok: false,
         code: "SERVICE_UNAVAILABLE",
+        title: "Service inactive",
         message: "One or more selected services are unavailable. Please choose different services.",
+        field: "service",
+        correctiveAction: "Choose active services from the catalog.",
+        retrySafety: "safe",
       };
     }
 
@@ -605,7 +835,11 @@ export async function executeInhouseBookingCreation(
       return {
         ok: false,
         code: "PRICING_LOAD_ERROR",
+        title: "Pricing load error",
         message: "Could not load branch pricing. Please refresh and try again.",
+        field: "service",
+        correctiveAction: "Refresh the page and reselect your services.",
+        retrySafety: "safe",
       };
     }
 
@@ -617,7 +851,11 @@ export async function executeInhouseBookingCreation(
       return {
         ok: false,
         code: "SERVICE_NOT_CONFIGURED_FOR_BRANCH",
+        title: "Service not configured for branch",
         message: "One or more selected services are not configured for this branch.",
+        field: "service",
+        correctiveAction: "Choose services that are offered at this branch.",
+        retrySafety: "safe",
       };
     }
 
@@ -641,7 +879,11 @@ export async function executeInhouseBookingCreation(
         return {
           ok: false,
           code: "HS_LOCATION_MISSING",
+          title: "Precise location required",
           message: CRM_PRECISE_HOME_SERVICE_LOCATION_MESSAGE,
+          field: "homeServiceAddress",
+          correctiveAction: "Select an address from the dropdown suggestions.",
+          retrySafety: "safe",
         };
       }
 
@@ -654,7 +896,11 @@ export async function executeInhouseBookingCreation(
         return {
           ok: false,
           code: distanceResult.code,
+          title: "Address out of range",
           message: distanceResult.message,
+          field: "homeServiceAddress",
+          correctiveAction: "Verify the address or choose an In-Spa appointment.",
+          retrySafety: "safe",
         };
       }
 
@@ -703,7 +949,15 @@ export async function executeInhouseBookingCreation(
       });
 
       if (dispatchResult.conflict === "hard") {
-        return { ok: false, code: "DISPATCH_CONFLICT", message: dispatchResult.message };
+        return {
+          ok: false,
+          code: "DISPATCH_CONFLICT",
+          title: "Home service dispatch conflict",
+          message: dispatchResult.message,
+          field: "time",
+          correctiveAction: "Select another start time to allow sufficient driver travel buffer.",
+          retrySafety: "safe",
+        };
       }
 
       dispatchData = {
@@ -889,19 +1143,72 @@ export async function executeInhouseBookingCreation(
         "IDEMPOTENCY_CONFLICT",
         "BOOKING_STAFF_TIME_CONFLICT",
         "BOOKING_RESOURCE_TIME_CONFLICT",
+        "CASH_DRAWER_SESSION_REQUIRED",
+        "BRANCH_UNAUTHORIZED",
+        "CREATION_ROLE_UNAUTHORIZED",
       ];
       const code =
         knownCodes.find((known) => message.includes(known)) ?? "BOOKING_ATOMIC_PERSISTENCE_FAILED";
       logBookingError(logContext, atomicError ?? new Error(message));
+
+      let title = "Booking could not be saved";
+      let displayMessage = "Could not create the booking and payment together. Please review the booking and try again.";
+      let field: BookingFailureDiagnostics["field"] = "general";
+      let correctiveAction = "Review all booking details and retry saving.";
+      let retrySafety: BookingFailureDiagnostics["retrySafety"] = "safe";
+
+      if (code === "BOOKING_STAFF_TIME_CONFLICT") {
+        title = "Therapist booked concurrently";
+        displayMessage = "The selected therapist was just reserved by another booking during save.";
+        field = "staffId";
+        correctiveAction = "Choose another therapist or select a different start time.";
+        retrySafety = "safe";
+      } else if (code === "BOOKING_RESOURCE_TIME_CONFLICT") {
+        title = "Treatment room conflict";
+        displayMessage = "The treatment room was just reserved by another booking during save.";
+        field = "resourceId";
+        correctiveAction = "Choose Automatic room assignment or select another room.";
+        retrySafety = "safe";
+      } else if (code === "CASH_DRAWER_SESSION_REQUIRED") {
+        title = "Cash drawer session required";
+        displayMessage = "A cash drawer session must be open before recording a cash payment.";
+        field = "paymentMethod";
+        correctiveAction = "Open a cash drawer session in Cash Flow, or choose an electronic payment method.";
+        retrySafety = "safe";
+      } else if (code === "IDEMPOTENCY_CONFLICT") {
+        title = "Conflicting booking submission";
+        displayMessage = "This booking request conflicts with an existing submitted booking.";
+        field = "general";
+        correctiveAction = "Check existing bookings to confirm whether the appointment was already created before resubmitting.";
+        retrySafety = "verify_first";
+      } else if (code === "ACCOUNT_SELECTION_REQUIRED") {
+        title = "Payment account selection required";
+        displayMessage = "Select the payment account before collecting this payment.";
+        field = "paymentMethod";
+        correctiveAction = "Select the payment account in Cash Flow or collect payment at checkout.";
+        retrySafety = "safe";
+      } else if (code === "ACCOUNT_NOT_CONFIGURED") {
+        title = "Payment account not configured";
+        displayMessage = "No compatible payment account is configured for this branch.";
+        field = "paymentMethod";
+        correctiveAction = "Uncheck advance payment to save as Unpaid, or configure branch payment accounts.";
+        retrySafety = "safe";
+      } else if (code === "BRANCH_UNAUTHORIZED" || code === "CREATION_ROLE_UNAUTHORIZED") {
+        title = "Permission denied";
+        displayMessage = "You are not authorized to create bookings for this branch.";
+        field = "general";
+        correctiveAction = "Switch to your assigned branch or contact your administrator.";
+        retrySafety = "do_not_retry";
+      }
+
       return {
         ok: false,
         code,
-        message:
-          code === "ACCOUNT_SELECTION_REQUIRED"
-            ? "Select the payment account before collecting this payment."
-            : code === "ACCOUNT_NOT_CONFIGURED"
-              ? "No compatible payment account is configured for this branch."
-              : "Could not create the booking and payment together. Please review the booking and try again.",
+        title,
+        message: displayMessage,
+        field,
+        correctiveAction,
+        retrySafety,
       };
     }
     const insertedIds = atomicData.service_line_ids;
@@ -1035,19 +1342,74 @@ export async function executeInhouseBookingCreation(
     };
   } catch (error) {
     if (error instanceof ServiceLineQuoteError) {
-      return { ok: false, code: error.code, message: "Service duration configuration needs review. Refresh and review the selected services." };
+      return {
+        ok: false,
+        code: error.code,
+        title: "Service duration configuration error",
+        message: "Service duration configuration needs review. Refresh and review the selected services.",
+        field: "service",
+        correctiveAction: "Reselect the service or check service duration options.",
+        retrySafety: "safe",
+      };
     }
     console.error("[CRM_BOOKING] caught error", { ...logContext, error });
 
+    const isGroupTherapistClass = typeof GroupTherapistAllocationError === "function";
+    const groupReason =
+      isGroupTherapistClass && error instanceof GroupTherapistAllocationError
+        ? error.reason
+        : typeof error === "object" && error !== null && "reason" in error
+          ? (error as { reason?: unknown }).reason
+          : undefined;
+    const isGroupTherapistError =
+      (isGroupTherapistClass && error instanceof GroupTherapistAllocationError) ||
+      (error instanceof Error &&
+        (error.name === "GroupTherapistAllocationError" ||
+          groupReason === "INDIVIDUAL_THERAPIST_UNAVAILABLE" ||
+          groupReason === "GROUP_THERAPIST_CAPACITY_EXCEEDED"));
+
+    if (isGroupTherapistError) {
+      const gError = error as GroupTherapistAllocationError;
+      if (groupReason === "INDIVIDUAL_THERAPIST_UNAVAILABLE") {
+        const attendeeIdx = gError.attendeeIndex ?? 0;
+        const attendeeName = attendees[attendeeIdx]?.name || `Guest ${attendeeIdx + 1}`;
+        return {
+          ok: false,
+          code: "INDIVIDUAL_THERAPIST_UNAVAILABLE",
+          title: "Therapist unavailable",
+          message: `${attendeeName}: No qualified therapist is available at this time.`,
+          guestIndex: attendeeIdx,
+          guestName: attendeeName,
+          serviceId: gError.serviceIds?.[0],
+          field: "staffId",
+          correctiveAction: "Choose another available start time or review the selected service.",
+          retrySafety: "safe",
+        };
+      }
+      return {
+        ok: false,
+        code: "GROUP_THERAPIST_CAPACITY_EXCEEDED",
+        title: "Not enough therapists for this group",
+        message: `Not enough distinct qualified therapists are available to serve all ${attendees.length} guests simultaneously.`,
+        field: "staffId",
+        correctiveAction: "Choose another start time or adjust the number of concurrent guests.",
+        retrySafety: "safe",
+      };
+    }
+
     if (
-      error instanceof SlotUnavailableError ||
+      (typeof SlotUnavailableError === "function" && error instanceof SlotUnavailableError) ||
       (error instanceof AppError && error.code === "SLOT_UNAVAILABLE")
     ) {
       return {
         ok: false,
         code: "SLOT_UNAVAILABLE",
+        title: "Therapist unavailable",
         message:
           "No scheduled therapist is available at this time. Try another time or check staff schedules.",
+        field: "staffId",
+        correctiveAction: "Choose another available start time or check staff schedules.",
+        retrySafety: "safe",
       };
     }
 
@@ -1065,7 +1427,15 @@ export async function executeInhouseBookingCreation(
           "This service is not available for the selected booking type at this branch.",
       };
       if (safeMessages[errCode]) {
-        return { ok: false, code: errCode, message: safeMessages[errCode] };
+        return {
+          ok: false,
+          code: errCode,
+          title: "Booking validation error",
+          message: safeMessages[errCode]!,
+          field: errCode === "CUSTOMER_ERROR" ? "fullName" : errCode === "RESOURCE_UNAVAILABLE" ? "resourceId" : "general",
+          correctiveAction: "Review booking details and retry saving.",
+          retrySafety: "safe",
+        };
       }
     }
 
@@ -1076,14 +1446,22 @@ export async function executeInhouseBookingCreation(
         return {
           ok: false,
           code: "REFERENCE_ERROR",
+          title: "Related record missing",
           message: "A related record could not be found. Please refresh and try again.",
+          field: "general",
+          correctiveAction: "Refresh the form and verify customer and branch records.",
+          retrySafety: "safe",
         };
       }
       if (msg.includes("unique") || msg.includes("duplicate")) {
         return {
           ok: false,
           code: "DUPLICATE_ERROR",
+          title: "Duplicate booking detected",
           message: "This booking appears to be a duplicate. Please check existing bookings.",
+          field: "general",
+          correctiveAction: "Check existing bookings to confirm whether this booking was already created.",
+          retrySafety: "verify_first",
         };
       }
     }
@@ -1091,7 +1469,11 @@ export async function executeInhouseBookingCreation(
     return {
       ok: false,
       code: "UNKNOWN_ERROR",
+      title: "Unexpected booking error",
       message: "Could not save booking. Please refresh and try again.",
+      field: "general",
+      correctiveAction: "Refresh the page and try again. If the issue persists, contact technical support.",
+      retrySafety: "safe",
     };
   }
 }
