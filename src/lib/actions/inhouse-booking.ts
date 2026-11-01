@@ -32,7 +32,15 @@ export async function createInhouseBookingMultiAction(
   } = await supabase.auth.getUser();
 
   if (!user) {
-    return { ok: false, code: "UNAUTHORIZED", message: "Please sign in and try again." };
+    return {
+      ok: false,
+      code: "UNAUTHORIZED",
+      title: "Session expired",
+      message: "Please sign in and try again.",
+      field: "general",
+      correctiveAction: "Sign in to CradleHub again before submitting this booking.",
+      retrySafety: "do_not_retry",
+    };
   }
 
   const { data: me } = await supabase
@@ -57,7 +65,11 @@ export async function createInhouseBookingMultiAction(
       return {
         ok: false,
         code: "CRM_BRANCH_FORBIDDEN",
+        title: "Branch context changed",
         message: "Front Desk branch changed. Refresh and try again.",
+        field: "general",
+        correctiveAction: "Refresh the page and reselect your active branch before saving.",
+        retrySafety: "do_not_retry",
       };
     }
   }

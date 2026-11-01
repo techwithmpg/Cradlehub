@@ -1083,6 +1083,21 @@ export async function getAvailableSlotsForOrder(params: {
   });
 }
 
+export class GroupTherapistAllocationError extends SlotUnavailableError {
+  constructor(
+    public readonly reason: "INDIVIDUAL_THERAPIST_UNAVAILABLE" | "GROUP_THERAPIST_CAPACITY_EXCEEDED",
+    public readonly attendeeIndex?: number,
+    public readonly serviceIds?: string[],
+    message?: string
+  ) {
+    super();
+    this.name = "GroupTherapistAllocationError";
+    if (message) {
+      this.message = message;
+    }
+  }
+}
+
 /**
  * Assigns distinct therapists to each attendee concurrently at startTime.
  * Prioritizes seniority and ensures no therapist is double-booked across attendees.
@@ -1139,9 +1154,26 @@ export async function assignTherapistsForOrder(params: {
     })
   );
 
+  // Check if any individual attendee has 0 qualified therapists
+  for (let idx = 0; idx < attendees.length; idx++) {
+    if (candidateLists[idx]!.length === 0) {
+      throw new GroupTherapistAllocationError(
+        "INDIVIDUAL_THERAPIST_UNAVAILABLE",
+        idx,
+        attendees[idx]!.serviceIds,
+        `No qualified therapist is available for attendee ${idx + 1} at this time.`
+      );
+    }
+  }
+
   const assignment = findDistinctStaffAssignment(candidateLists);
   if (!assignment || assignment.length !== attendees.length) {
-    throw new SlotUnavailableError();
+    throw new GroupTherapistAllocationError(
+      "GROUP_THERAPIST_CAPACITY_EXCEEDED",
+      undefined,
+      undefined,
+      `Not enough distinct therapists are available to serve all ${attendees.length} guests simultaneously.`
+    );
   }
 
   return attendees.map((attendee, idx) => ({
