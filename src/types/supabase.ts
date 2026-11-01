@@ -3512,6 +3512,36 @@ export type Database = {
         }
         Relationships: []
       }
+      staff_scan_grants: {
+        Row: {
+          claimed_at: string | null
+          created_at: string
+          expires_at: string
+          operation_id: string
+          public_code: string
+          token_hash: string
+          user_id: string
+        }
+        Insert: {
+          claimed_at?: string | null
+          created_at?: string
+          expires_at: string
+          operation_id: string
+          public_code: string
+          token_hash: string
+          user_id: string
+        }
+        Update: {
+          claimed_at?: string | null
+          created_at?: string
+          expires_at?: string
+          operation_id?: string
+          public_code?: string
+          token_hash?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
       qr_points: {
         Row: {
           branch_id: string
@@ -7115,6 +7145,15 @@ export type Database = {
       }
     }
     Functions: {
+      claim_staff_scan_grant: {
+        Args: {
+          p_token_hash: string
+          p_user_id: string
+          p_public_code: string
+          p_operation_id: string
+        }
+        Returns: string | null
+      }
       post_order_payment_atomic: {
         Args: {
           p_order_id: string

@@ -98,6 +98,52 @@ afterEach(() => {
 });
 
 describe("PublicScanProcessor first-device continuation", () => {
+  it.each(["room_suite", "res_suite"])(
+    "continues direct %s service scans without an attendance confirmation",
+    async (publicCode) => {
+      const fetchMock = vi.fn().mockResolvedValue(
+        response({
+          ok: true,
+          outcome: "success",
+          reasonCode: "session_started",
+          severity: "success",
+          title: "Session started",
+          message: "Service session started.",
+        })
+      );
+      vi.stubGlobal("fetch", fetchMock);
+      render(<PublicScanProcessor mode="scan" publicCode={publicCode} locationRequired />);
+      await finishTimers();
+      expect(screen.queryByRole("button", { name: /Record attendance|Continue scan/ })).toBeNull();
+      expect(browserLocationMocks.freshAttendanceLocation).toHaveBeenCalledTimes(1);
+      expect(fetchMock).toHaveBeenCalledTimes(1);
+      expect(JSON.parse(String((fetchMock.mock.calls[0]?.[1] as RequestInit).body))).toMatchObject({
+        publicCode,
+        location: { latitude: 10.6713191, longitude: 122.9437447, accuracy: 15 },
+      });
+      expect(screen.getByRole("heading", { name: "Session started" })).toBeTruthy();
+    }
+  );
+
+  it.each(["room_suite", "res_suite"])(
+    "continues Staff %s service scans without claiming an attendance grant",
+    async (publicCode) => {
+      const fetchMock = vi.fn().mockResolvedValue(response(finalAttendance));
+      vi.stubGlobal("fetch", fetchMock);
+      render(
+        <PublicScanProcessor
+          mode="scan"
+          publicCode={publicCode}
+          scanBasePath="/staff/scan/process"
+          locationRequired
+        />
+      );
+      await finishTimers();
+      expect(grantMocks.claimStaffScanGrantAction).not.toHaveBeenCalled();
+      expect(fetchMock).toHaveBeenCalledTimes(1);
+    }
+  );
+
   it("does not auto-retry a consumed scanner grant after a failed location attempt", async () => {
     grantMocks.claimStaffScanGrantAction
       .mockResolvedValueOnce({ operationId: "scanner-one-use" })

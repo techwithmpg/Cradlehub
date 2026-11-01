@@ -114,6 +114,7 @@ export function PublicScanProcessor(props: PublicScanProcessorProps) {
   const scanPublicCode = mode === "scan" ? props.publicCode : null;
   const scanBasePath = mode === "scan" ? props.scanBasePath : undefined;
   const autoProcess = mode === "scan" && props.autoProcess === true;
+  const attendanceCode = mode === "scan" && props.publicCode.startsWith("att_");
   const activationToken = mode === "activation" ? props.token : null;
   const [stage, setStage] = useState<ProcessorStage>(
     mode === "scan" ? "qr_recognized" : "recognizing"
@@ -129,9 +130,11 @@ export function PublicScanProcessor(props: PublicScanProcessorProps) {
   const [requestId, setRequestId] = useState(() =>
     mode === "scan" ? (props.operationId ?? createRequestId()) : createRequestId()
   );
-  const [confirmed, setConfirmed] = useState(() => mode !== "scan" || props.autoProcess === true);
+  const [confirmed, setConfirmed] = useState(
+    () => !attendanceCode || props.autoProcess === true
+  );
   const [claimPending, setClaimPending] = useState(
-    () => mode === "scan" && props.scanBasePath === "/staff/scan/process" && !props.autoProcess
+    () => attendanceCode && scanBasePath === "/staff/scan/process" && !autoProcess
   );
   const [retryCount, setRetryCount] = useState(0);
   const startedRef = useRef(false);
@@ -161,7 +164,7 @@ export function PublicScanProcessor(props: PublicScanProcessorProps) {
   }, [locationRequired]);
 
   useEffect(() => {
-    if (mode !== "scan" || scanBasePath !== "/staff/scan/process" || autoProcess || !scanPublicCode)
+    if (!attendanceCode || scanBasePath !== "/staff/scan/process" || autoProcess || !scanPublicCode)
       return;
     let active = true;
     if (claimRef.current?.code !== scanPublicCode) {
@@ -194,7 +197,7 @@ export function PublicScanProcessor(props: PublicScanProcessorProps) {
       active = false;
       window.clearTimeout(timeout);
     };
-  }, [mode, scanBasePath, autoProcess, scanPublicCode]);
+  }, [attendanceCode, scanBasePath, autoProcess, scanPublicCode]);
 
   useEffect(() => {
     if (!confirmed || startedRef.current) return;
