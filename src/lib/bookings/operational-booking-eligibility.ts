@@ -1,4 +1,5 @@
 import type { CrmBookingGroup } from "./crm-booking-groups";
+import { isPaymentFullySettled } from "./crm-booking-groups";
 import type { WorkspaceBookingRow } from "@/components/features/bookings/booking-workspace-types";
 import { BRANCH_TIMEZONE, getBranchBusinessDate, getBranchClockTime } from "@/lib/engine/slot-time";
 
@@ -17,9 +18,24 @@ function toComparableTime(timeStr: string): string {
 }
 
 /**
+ * Checks if a booking line is in a terminal closed state (cancelled, no_show, expired).
+ */
+export function isBookingLineClosed(line: WorkspaceBookingRow): boolean {
+  return (
+    line.status === "cancelled" ||
+    line.status === "no_show" ||
+    line.status === "expired" ||
+    line.booking_progress_status === "cancelled" ||
+    line.booking_progress_status === "no_show"
+  );
+}
+
+/**
  * Checks if a booking line has active attendance or started service.
+ * Operationally closed lines (cancelled, no_show, expired) never count as active attendance.
  */
 export function hasBookingStartedOrAttended(line: WorkspaceBookingRow): boolean {
+  if (isBookingLineClosed(line)) return false;
   return (
     line.booking_progress_status === "checked_in" ||
     line.booking_progress_status === "arrived" ||
@@ -44,6 +60,55 @@ export function isBookingLineCompleted(line: WorkspaceBookingRow): boolean {
   );
 }
 
+export type BookingLifecycleState =
+  | "cancelled"
+  | "no_show"
+  | "expired"
+  | "completed"
+  | "in_service"
+  | "checked_in"
+  | "upcoming";
+
+/**
+ * Resolves the authoritative lifecycle state of an individual booking line.
+ * Precedence: cancelled -> no_show -> expired -> completed -> in_service -> checked_in -> upcoming
+ *
+ * Terminal statuses (cancelled, no_show, expired) always take precedence over historical
+ * arrival, check-in, or session timestamps to prevent closed appointments from reviving into
+ * active operational queues.
+ */
+export function resolveBookingLifecycleState(line: WorkspaceBookingRow): BookingLifecycleState {
+  if (line.status === "cancelled" || line.booking_progress_status === "cancelled") {
+    return "cancelled";
+  }
+  if (line.status === "no_show" || line.booking_progress_status === "no_show") {
+    return "no_show";
+  }
+  if (line.status === "expired") {
+    return "expired";
+  }
+  if (isBookingLineCompleted(line)) {
+    return "completed";
+  }
+  if (
+    line.status === "in_progress" ||
+    line.booking_progress_status === "session_started" ||
+    line.booking_progress_status === "in_service" ||
+    (Boolean(line.session_started_at) && !line.session_completed_at)
+  ) {
+    return "in_service";
+  }
+  if (
+    line.booking_progress_status === "checked_in" ||
+    line.booking_progress_status === "arrived" ||
+    Boolean(line.checked_in_at) ||
+    Boolean(line.arrived_at)
+  ) {
+    return "checked_in";
+  }
+  return "upcoming";
+}
+
 /**
  * Determines whether a CrmBookingGroup represents an operationally actionable booking.
  *
@@ -52,13 +117,13 @@ export function isBookingLineCompleted(line: WorkspaceBookingRow): boolean {
  * - Checked-in customers
  * - Waiting customers
  * - In-service bookings
- * - Completed services with an outstanding or partial payment balance
+ * - Completed services with an outstanding, partial, unverified, or inconsistent payment balance
  * - Multi-guest orders where at least one guest/service still requires operational attention or payment collection
  * - Home Service with active dispatch/service
  *
  * Operational Bookings hide:
- * - Completed and fully paid bookings with no remaining operational work
- * - Cancelled bookings (`status === "cancelled"`)
+ * - Completed and fully paid bookings with authoritative settlement evidence and no remaining operational work
+ * - Terminal closed bookings (cancelled, no_show, expired)
  * - Expired unattended appointments without active work (never treating an unattended appointment
  *   with no delivered service as a payment-ready completed service)
  */
@@ -69,18 +134,35 @@ export function isOperationalBookingGroup(
   const lines = group.lines;
   if (!lines || lines.length === 0) return false;
 
-  // 1. If all lines in the group are cancelled, hide.
-  const allCancelled = lines.every((line) => line.status === "cancelled");
-  if (allCancelled) {
+  // 1. If all lines in the group are closed (cancelled, no_show, expired), hide from operational queue.
+  if (lines.every(isBookingLineClosed)) {
     return false;
   }
 
-  // Active / non-cancelled lines
-  const activeLines = lines.filter((line) => line.status !== "cancelled");
+  // Active / non-closed lines
+  const activeLines = lines.filter((line) => !isBookingLineClosed(line));
   if (activeLines.length === 0) return false;
 
-  // 2. In-service bookings: show immediately
-  const hasInService = activeLines.some(
+  // 2. Completion and Payment status evaluation:
+  // When every active service in the group has completed, the only remaining operational
+  // question is whether payment has been settled authoritatively.
+  const allActiveCompleted = activeLines.every(isBookingLineCompleted);
+  const isFullyPaid = isPaymentFullySettled(group.payment);
+
+  if (allActiveCompleted) {
+    // If every active service is completed and fully paid, there is no operational work left -> hide!
+    if (isFullyPaid) {
+      return false;
+    }
+    // If every active service is completed but payment is still due/partial/unverified -> show for review/cashier!
+    return true;
+  }
+
+  // 3. For groups with unfinished services (single booking not yet completed, or multi-guest with remaining work):
+  const unfinishedLines = activeLines.filter((line) => !isBookingLineCompleted(line));
+
+  // 3a. In-service bookings: show immediately
+  const hasInService = unfinishedLines.some(
     (line) =>
       line.status === "in_progress" ||
       line.booking_progress_status === "session_started" ||
@@ -91,8 +173,8 @@ export function isOperationalBookingGroup(
     return true;
   }
 
-  // 3. Checked-in or waiting customers: show immediately
-  const hasCheckedInOrWaiting = activeLines.some(
+  // 3b. Checked-in or waiting customers on unfinished lines: show immediately
+  const hasCheckedInOrWaiting = unfinishedLines.some(
     (line) =>
       line.booking_progress_status === "checked_in" ||
       line.booking_progress_status === "arrived" ||
@@ -103,44 +185,22 @@ export function isOperationalBookingGroup(
     return true;
   }
 
-  // 4. Home Service with active dispatch/service: show immediately
-  const hasActiveHomeService = activeLines.some(
+  // 3c. Home Service with active dispatch/service on unfinished lines: show immediately
+  const hasActiveHomeService = unfinishedLines.some(
     (line) =>
       (line.delivery_type === "home_service" || line.type === "home_service") &&
       line.status !== "completed" &&
-      line.status !== "cancelled" &&
-      line.status !== "no_show"
+      !isBookingLineClosed(line)
   );
   if (hasActiveHomeService) {
     return true;
   }
 
-  // 5. Completion and Payment status evaluation
-  const allActiveCompleted = activeLines.every(isBookingLineCompleted);
-  const isFullyPaid =
-    group.payment.status === "paid" ||
-    (group.payment.due !== null && group.payment.due <= 0);
-
-  // If every active service is completed and fully paid, there is no operational work left -> hide!
-  if (allActiveCompleted && isFullyPaid) {
-    return false;
-  }
-
-  // If completed services have an outstanding or partial payment balance -> show for payment collection!
-  if (allActiveCompleted && !isFullyPaid) {
-    return true;
-  }
-
-  // 6. Check for expired unattended appointment:
-  // An appointment where no guest checked in, arrived, or started service.
+  // 4. Check for expired unattended appointment:
+  // An appointment where no active guest checked in, arrived, or started service.
   const hasAnyAttendance = activeLines.some(hasBookingStartedOrAttended);
 
   if (!hasAnyAttendance) {
-    // If explicitly marked as no_show or expired
-    if (activeLines.every((line) => line.status === "no_show" || line.status === "expired")) {
-      return false;
-    }
-
     const today = getBranchBusinessDate(new Date(), context?.timezone ?? BRANCH_TIMEZONE);
     const businessDate = context?.businessDate ?? today;
     const clockTime =
@@ -166,4 +226,3 @@ export function isOperationalBookingGroup(
   // If none of the hide criteria met, it's an actionable upcoming booking
   return true;
 }
-

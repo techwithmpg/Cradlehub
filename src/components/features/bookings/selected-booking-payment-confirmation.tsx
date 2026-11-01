@@ -3,6 +3,7 @@
 import { useState, useTransition } from "react";
 import type { BookingActionFn, WorkspaceBookingRow } from "./booking-workspace-types";
 import { cn } from "@/lib/utils";
+import { getBookingPaymentDisplayState } from "@/lib/bookings/crm-booking-groups";
 
 const METHODS = [
   ["cash", "Cash"],
@@ -29,8 +30,24 @@ export function SelectedBookingPaymentConfirmation({
   const [feedback, setFeedback] = useState<{ ok: boolean; message: string } | null>(null);
   const [isPending, startTransition] = useTransition();
 
+  const isPaymentReview = Boolean(
+    booking.order_id &&
+      getBookingPaymentDisplayState(
+        {
+          total: booking.order_total_amount ?? null,
+          paid: booking.order_amount_paid ?? null,
+          due:
+            booking.order_total_amount != null && booking.order_amount_paid != null
+              ? Math.max(0, booking.order_total_amount - booking.order_amount_paid)
+              : null,
+          status: booking.order_payment_status ?? null,
+        },
+        booking
+      ).isPaymentReview
+  );
+
   function confirm() {
-    if (!confirmPaymentAction) return;
+    if (isPaymentReview || !confirmPaymentAction) return;
     setFeedback(null);
     startTransition(async () => {
       const result = await confirmPaymentAction({
@@ -46,7 +63,22 @@ export function SelectedBookingPaymentConfirmation({
       setFeedback({ ok: true, message: "Payment confirmed. Booking is now active." });
       onConfirmed?.();
     });
-}
+  }
+
+  if (isPaymentReview) {
+    return (
+      <div
+        data-testid="payment-confirmation-review-locked"
+        className="col-span-2 rounded-lg border border-purple-200 bg-purple-50 p-3 text-xs text-purple-900"
+      >
+        <div className="font-semibold text-purple-950">Payment Confirmation Locked</div>
+        <p className="mt-1 leading-relaxed text-purple-800/90">
+          Order financial evidence requires review. Reconcile details before confirming payment.
+        </p>
+      </div>
+    );
+  }
+
   return (
     <div className="grid grid-cols-2 gap-2">
       <select value={method} onChange={(event) => setMethod(event.target.value)} disabled={isPending} aria-label="Payment method" className={controlClass}>

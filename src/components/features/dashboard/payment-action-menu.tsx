@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useTransition } from "react";
+import Link from "next/link";
 import { Loader2 } from "lucide-react";
 import { toast } from "sonner";
 import { updateBookingPaymentAction } from "@/app/(dashboard)/manager/bookings/actions";
@@ -23,6 +24,7 @@ type Props = {
   triggerAriaLabel?: string;
   triggerVariant?:  "default" | "panelSecondary";
   fullWidth?:       boolean;
+  reviewRequired?:  boolean;
 };
 
 type ViewState = "idle" | "quickPay" | "editForm" | "confirmUnpaid";
@@ -39,6 +41,7 @@ export function PaymentActionMenu({
   triggerAriaLabel,
   triggerVariant = "default",
   fullWidth = false,
+  reviewRequired = false,
 }: Props) {
   const callPaymentAction = paymentAction ?? updateBookingPaymentAction;
   const [isPending, startTransition] = useTransition();
@@ -60,6 +63,7 @@ export function PaymentActionMenu({
   }
 
   function handleQuickPay(method: PaymentMethod) {
+    if (reviewRequired) return;
     setView("idle");
     startTransition(async () => {
       const result = await callPaymentAction({
@@ -80,11 +84,13 @@ export function PaymentActionMenu({
   }
 
   function handleMarkUnpaid() {
+    if (reviewRequired) return;
     setReason("");
     setView("confirmUnpaid");
   }
 
   function handleConfirmUnpaid() {
+    if (reviewRequired) return;
     setView("idle");
     startTransition(async () => {
       const result = await callPaymentAction({
@@ -107,6 +113,7 @@ export function PaymentActionMenu({
   }
 
   function handleEditSave() {
+    if (reviewRequired) return;
     const amount = parseFloat(editAmount);
     if (isNaN(amount) || amount < 0) {
       showFeedback("Amount must be a non-negative number");
@@ -140,7 +147,7 @@ export function PaymentActionMenu({
     });
   }
 
-  if (view === "confirmUnpaid") {
+  if (view === "confirmUnpaid" && !reviewRequired) {
     return (
       <div style={{ position: "relative", display: fullWidth ? "block" : "inline-flex", width: fullWidth ? "100%" : undefined }}>
         <div
@@ -193,7 +200,7 @@ export function PaymentActionMenu({
     );
   }
 
-  if (view === "editForm") {
+  if (view === "editForm" && !reviewRequired) {
     return (
       <div style={{ position: "relative", display: fullWidth ? "block" : "inline-flex", gap: 4, alignItems: "center", width: fullWidth ? "100%" : undefined }}>
         <div
@@ -305,22 +312,150 @@ export function PaymentActionMenu({
       {view === "quickPay" && (
         <>
           <div onClick={() => setView("idle")} style={{ position: "fixed", inset: 0, zIndex: 20 }} />
-          <div style={dropdownStyle}>
-            <div style={sectionLabelStyle}>Quick Mark Paid</div>
-            {QUICK_METHODS.map((method) => (
-              <button key={method} type="button" onClick={() => handleQuickPay(method)} style={menuItemStyle}>
-                {PAYMENT_METHOD_LABELS[method]}
-              </button>
-            ))}
-            <div style={{ borderTop: "1px solid var(--cs-border)", margin: "4px 0" }} />
-            {paymentStatus !== "unpaid" && (
-              <button type="button" onClick={handleMarkUnpaid} style={{ ...menuItemStyle, color: "#92400E" }}>
-                Mark Unpaid
-              </button>
+          <div
+            style={{
+              ...dropdownStyle,
+              minWidth: reviewRequired ? 240 : 150,
+              padding: reviewRequired ? "10px 12px" : "4px 0",
+            }}
+          >
+            {reviewRequired ? (
+              <>
+                <div
+                  data-testid="payment-review-warning"
+                  style={{
+                    fontSize: "0.75rem",
+                    color: "#6b21a8",
+                    backgroundColor: "#f5f3ff",
+                    border: "1px solid #ddd6fe",
+                    borderRadius: 6,
+                    padding: "6px 8px",
+                    marginBottom: 8,
+                    fontWeight: 500,
+                    lineHeight: 1.3,
+                  }}
+                >
+                  Order evidence requires review. Reconcile details before collecting.
+                </div>
+
+                <div
+                  data-testid="payment-review-details"
+                  style={{
+                    display: "flex",
+                    flexDirection: "column",
+                    gap: 4,
+                    fontSize: "0.75rem",
+                    color: "var(--cs-text)",
+                    padding: "2px 0 8px",
+                  }}
+                >
+                  <div style={{ display: "flex", justifyContent: "space-between" }}>
+                    <span style={{ color: "var(--cs-text-muted)" }}>Price:</span>
+                    <span style={{ fontWeight: 600 }}>
+                      ₱{Number(pricePaid || 0).toLocaleString("en-PH", { minimumFractionDigits: 2 })}
+                    </span>
+                  </div>
+                  <div style={{ display: "flex", justifyContent: "space-between" }}>
+                    <span style={{ color: "var(--cs-text-muted)" }}>Recorded Paid:</span>
+                    <span style={{ fontWeight: 600 }}>
+                      ₱{Number(amountPaid || 0).toLocaleString("en-PH", { minimumFractionDigits: 2 })}
+                    </span>
+                  </div>
+                  <div style={{ display: "flex", justifyContent: "space-between" }}>
+                    <span style={{ color: "var(--cs-text-muted)" }}>Status:</span>
+                    <span style={{ fontWeight: 600, textTransform: "capitalize" }}>
+                      {paymentStatus}
+                    </span>
+                  </div>
+                  <div style={{ display: "flex", justifyContent: "space-between" }}>
+                    <span style={{ color: "var(--cs-text-muted)" }}>Method:</span>
+                    <span style={{ fontWeight: 500 }}>
+                      {PAYMENT_METHOD_LABELS[paymentMethod as PaymentMethod] ?? paymentMethod}
+                    </span>
+                  </div>
+                </div>
+
+                <div
+                  style={{
+                    borderTop: "1px solid var(--cs-border)",
+                    paddingTop: 8,
+                    display: "flex",
+                    flexDirection: "column",
+                    gap: 6,
+                  }}
+                >
+                  <Link
+                    href="/crm/reconciliation"
+                    data-testid="link-reconciliation"
+                    onClick={() => setView("idle")}
+                    style={{
+                      display: "block",
+                      textAlign: "center",
+                      padding: "6px 10px",
+                      fontSize: "0.75rem",
+                      fontWeight: 600,
+                      color: "#6b21a8",
+                      backgroundColor: "#f5f3ff",
+                      border: "1px solid #ddd6fe",
+                      borderRadius: 6,
+                      textDecoration: "none",
+                    }}
+                  >
+                    Open Reconciliation
+                  </Link>
+                  <Link
+                    href="/crm/cash-flow"
+                    data-testid="link-cash-flow"
+                    onClick={() => setView("idle")}
+                    style={{
+                      display: "block",
+                      textAlign: "center",
+                      padding: "6px 10px",
+                      fontSize: "0.75rem",
+                      fontWeight: 500,
+                      color: "var(--cs-text)",
+                      backgroundColor: "var(--cs-surface)",
+                      border: "1px solid var(--cs-border)",
+                      borderRadius: 6,
+                      textDecoration: "none",
+                    }}
+                  >
+                    View Cash Flow Ledger
+                  </Link>
+                  <button
+                    type="button"
+                    onClick={() => setView("idle")}
+                    style={{
+                      ...menuItemStyle,
+                      textAlign: "center",
+                      fontSize: "0.75rem",
+                      color: "var(--cs-text-muted)",
+                      padding: "4px 0 0",
+                    }}
+                  >
+                    Close
+                  </button>
+                </div>
+              </>
+            ) : (
+              <>
+                <div style={sectionLabelStyle}>Quick Mark Paid</div>
+                {QUICK_METHODS.map((method) => (
+                  <button key={method} type="button" onClick={() => handleQuickPay(method)} style={menuItemStyle}>
+                    {PAYMENT_METHOD_LABELS[method]}
+                  </button>
+                ))}
+                <div style={{ borderTop: "1px solid var(--cs-border)", margin: "4px 0" }} />
+                {paymentStatus !== "unpaid" && (
+                  <button type="button" onClick={handleMarkUnpaid} style={{ ...menuItemStyle, color: "#92400E" }}>
+                    Mark Unpaid
+                  </button>
+                )}
+                <button type="button" onClick={() => setView("editForm")} style={{ ...menuItemStyle, color: "var(--cs-text-muted)" }}>
+                  Edit Details…
+                </button>
+              </>
             )}
-            <button type="button" onClick={() => setView("editForm")} style={{ ...menuItemStyle, color: "var(--cs-text-muted)" }}>
-              Edit Details…
-            </button>
           </div>
         </>
       )}

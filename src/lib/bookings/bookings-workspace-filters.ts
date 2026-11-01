@@ -34,8 +34,11 @@ export function isBookingOperationallyClosed(booking: WorkspaceBookingRow): bool
     booking.status === "completed" ||
     booking.status === "cancelled" ||
     booking.status === "no_show" ||
+    booking.status === "expired" ||
     progress === "completed" ||
-    progress === "no_show"
+    progress === "cancelled" ||
+    progress === "no_show" ||
+    Boolean(booking.session_completed_at)
   );
 }
 

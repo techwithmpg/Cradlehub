@@ -110,6 +110,8 @@ import { QuickBookingForm } from "@/components/features/bookings/quick-booking-f
 import type { WorkspaceBookingRow } from "@/components/features/bookings/booking-workspace-types";
 
 function makeBooking(overrides: Partial<WorkspaceBookingRow> = {}): WorkspaceBookingRow {
+  const isPaid = overrides.payment_status ? overrides.payment_status === "paid" : true;
+  const isPartial = overrides.payment_status === "partial";
   return {
     id: "booking-101",
     order_id: "ORD-2026-101",
@@ -127,7 +129,10 @@ function makeBooking(overrides: Partial<WorkspaceBookingRow> = {}): WorkspaceBoo
     delivery_type: "in_spa",
     price: 1200,
     pricing_status: "locked",
-    payment_status: "paid",
+    order_total_amount: 1200,
+    order_amount_paid: isPaid ? 1200 : isPartial ? 600 : 0,
+    order_payment_status: isPaid ? "paid" : (overrides.payment_status ?? "unpaid"),
+    payment_status: overrides.payment_status ?? overrides.order_payment_status ?? "paid",
     payment_method: "gcash",
     payment_intent_status: "succeeded",
     metadata: {
@@ -222,6 +227,9 @@ describe("Horizontal Bookings Workspace & Quick Edit Integration", () => {
     const booking2 = makeBooking({
       id: "booking-102",
       order_id: "ORD-2026-102",
+      order_total_amount: 1800,
+      order_amount_paid: 900,
+      order_payment_status: "partial",
       start_time: "16:00:00",
       end_time: "17:30:00",
       payment_status: "partial",
@@ -614,5 +622,866 @@ describe("Horizontal Bookings Workspace & Quick Edit Integration", () => {
       expect(mocks.toastSuccess).toHaveBeenCalledWith("Booking cancelled.");
       expect(onBookingsChanged).toHaveBeenCalled();
     });
+  });
+
+  it("displays Payment Due and Completed pill for completed service with unpaid balance, not Waiting", () => {
+    const booking = makeBooking({
+      id: "booking-unpaid-done",
+      status: "completed",
+      booking_progress_status: "completed",
+      checked_in_at: "2026-10-29T10:00:00Z",
+      session_started_at: "2026-10-29T10:05:00Z",
+      session_completed_at: "2026-10-29T11:05:00Z",
+      payment_status: "unpaid",
+      metadata: { price: 1200 },
+      customers: {
+        id: "cust-unpaid",
+        full_name: "Unpaid Completed Customer",
+        phone: "09179998888",
+        email: "unpaid@example.com",
+      },
+    });
+
+    render(
+      <BookingsDesktopWorkspace
+        workspaceContext="crm"
+        viewerRole="admin"
+        date="2026-10-29"
+        initialQuickFilter="all"
+        bookings={[booking]}
+      />
+    );
+
+    // Assert "Payment Due" appears in time substatus
+    expect(screen.getByText("Payment Due")).toBeTruthy();
+
+    // Assert "Completed" appears in status pill and button
+    const completedElements = screen.getAllByText("Completed");
+    expect(completedElements.length).toBeGreaterThanOrEqual(1);
+
+    // Assert "Waiting" does NOT appear
+    expect(screen.queryByText("Waiting")).toBeNull();
+  });
+
+  it("does not display Waiting or Start Service for completed service with historical check-in timestamp", () => {
+    const booking = makeBooking({
+      id: "booking-hist-checkin",
+      status: "completed",
+      booking_progress_status: "completed",
+      checked_in_at: "2026-10-29T09:00:00Z",
+      arrived_at: "2026-10-29T09:00:00Z",
+      session_started_at: "2026-10-29T09:05:00Z",
+      session_completed_at: "2026-10-29T10:05:00Z",
+      payment_status: "paid",
+      customers: {
+        id: "cust-hist",
+        full_name: "Historical Checkin Customer",
+        phone: "09171234567",
+        email: "hist@example.com",
+      },
+    });
+
+    // In a non-filtered or workspace context="owner" where completed+paid is rendered
+    render(
+      <BookingsDesktopWorkspace
+        workspaceContext="owner"
+        viewerRole="admin"
+        date="2026-10-29"
+        initialQuickFilter="all"
+        bookings={[booking]}
+      />
+    );
+
+    // Assert row shows Completed
+    const completedElements = screen.getAllByText("Completed");
+    expect(completedElements.length).toBeGreaterThanOrEqual(1);
+
+    // Assert "Waiting" and "Start Service" do NOT appear
+    expect(screen.queryByText("Waiting")).toBeNull();
+    expect(screen.queryByText("Start Service")).toBeNull();
+  });
+
+  it("handles multi-guest order where guest 1 is completed and guest 2 is waiting by keeping group actionable and targeting unfinished line", async () => {
+    const line1 = makeBooking({
+      id: "booking-multi-1",
+      order_id: "ORD-MULTI-99",
+      status: "completed",
+      booking_progress_status: "completed",
+      checked_in_at: "2026-10-29T10:00:00Z",
+      session_started_at: "2026-10-29T10:05:00Z",
+      session_completed_at: "2026-10-29T11:00:00Z",
+      payment_status: "unpaid",
+      customers: {
+        id: "cust-1",
+        full_name: "Elena Navarro",
+        phone: "09171112233",
+        email: "elena@example.com",
+      },
+    });
+
+    const line2 = makeBooking({
+      id: "booking-multi-2",
+      order_id: "ORD-MULTI-99",
+      status: "confirmed",
+      booking_progress_status: "checked_in",
+      checked_in_at: "2026-10-29T10:00:00Z",
+      session_started_at: null,
+      session_completed_at: null,
+      payment_status: "unpaid",
+      customers: {
+        id: "cust-2",
+        full_name: "Marco Navarro",
+        phone: "09174445566",
+        email: "marco@example.com",
+      },
+    });
+
+    mocks.crmStartServiceAction.mockResolvedValueOnce({ success: true });
+
+    render(
+      <BookingsDesktopWorkspace
+        workspaceContext="crm"
+        viewerRole="admin"
+        date="2026-10-29"
+        initialQuickFilter="all"
+        bookings={[line1, line2]}
+      />
+    );
+
+    // Group should NOT be marked completed because line 2 is still waiting
+    expect(screen.getByText("Waiting")).toBeTruthy();
+    expect(screen.getByText("Start Service")).toBeTruthy();
+
+    // Clicking Start Service should target line2 (the unfinished waiting line), NOT line1
+    fireEvent.click(screen.getByRole("button", { name: "Start Service" }));
+
+    await waitFor(() => {
+      expect(mocks.crmStartServiceAction).toHaveBeenCalledWith({
+        bookingId: "booking-multi-2",
+      });
+    });
+  });
+
+  it("unpaid completed service with missing price metadata renders Unpaid badge and Payment Due time substatus, NOT Paid", () => {
+    const booking = makeBooking({
+      id: "booking-unpaid-missing-price",
+      order_id: null,
+      status: "completed",
+      booking_progress_status: "completed",
+      checked_in_at: "2026-10-29T10:00:00Z",
+      session_started_at: "2026-10-29T10:05:00Z",
+      session_completed_at: "2026-10-29T11:05:00Z",
+      payment_status: "unpaid",
+      metadata: {},
+      customers: {
+        id: "cust-unpaid-missing",
+        full_name: "Unpaid Missing Customer",
+        phone: "09170001111",
+        email: "unpaid-missing@example.com",
+      },
+    });
+
+    render(
+      <BookingsDesktopWorkspace
+        workspaceContext="crm"
+        viewerRole="admin"
+        date="2026-10-29"
+        initialQuickFilter="all"
+        bookings={[booking]}
+      />
+    );
+
+    expect(screen.getByText("Unpaid")).toBeTruthy();
+    expect(screen.getByText("Payment Due")).toBeTruthy();
+    expect(screen.queryByText("Paid")).toBeNull();
+  });
+
+  it("completed zero-price service with unpaid status renders Unpaid badge and Payment Due substatus, NOT Paid", () => {
+    const booking = makeBooking({
+      id: "booking-zero-price-unpaid",
+      order_id: null,
+      status: "completed",
+      booking_progress_status: "completed",
+      checked_in_at: "2026-10-29T10:00:00Z",
+      session_started_at: "2026-10-29T10:05:00Z",
+      session_completed_at: "2026-10-29T11:05:00Z",
+      payment_status: "unpaid",
+      metadata: { price_paid: 0 },
+      customers: {
+        id: "cust-zero-unpaid",
+        full_name: "Zero Price Unpaid Customer",
+        phone: "09170002222",
+        email: "zero-unpaid@example.com",
+      },
+    });
+
+    render(
+      <BookingsDesktopWorkspace
+        workspaceContext="crm"
+        viewerRole="admin"
+        date="2026-10-29"
+        initialQuickFilter="all"
+        bookings={[booking]}
+      />
+    );
+
+    expect(screen.getByText("Unpaid")).toBeTruthy();
+    expect(screen.getByText("Payment Due")).toBeTruthy();
+    expect(screen.queryByText("Paid")).toBeNull();
+  });
+
+  it("closed no-show booking with historical check-in timestamp renders No-Show pill and disabled No-Show action button, NOT Waiting or Start Service", () => {
+    const booking = makeBooking({
+      id: "booking-no-show-hist",
+      order_id: null,
+      status: "no_show",
+      booking_progress_status: "no_show",
+      checked_in_at: "2026-10-29T10:00:00Z",
+      session_started_at: "2026-10-29T10:05:00Z",
+      customers: {
+        id: "cust-noshow",
+        full_name: "No Show Customer",
+        phone: "09170003333",
+        email: "noshow@example.com",
+      },
+    });
+
+    render(
+      <BookingsDesktopWorkspace
+        workspaceContext="owner"
+        viewerRole="admin"
+        date="2026-10-29"
+        initialQuickFilter="all"
+        bookings={[booking]}
+      />
+    );
+
+    expect(screen.getAllByText("No-Show").length).toBe(3);
+    const actionBtn = screen.getByRole("button", { name: "No-Show" });
+    expect(actionBtn).toBeTruthy();
+    expect(actionBtn.hasAttribute("disabled")).toBe(true);
+
+    // Verify misleading No-Show and Expired options are NOT in the workspace status dropdown
+    expect(screen.queryByRole("option", { name: "No-Show" })).toBeNull();
+    expect(screen.queryByRole("option", { name: "Expired" })).toBeNull();
+
+    expect(screen.queryByText("Waiting")).toBeNull();
+    expect(screen.queryByText("Start Service")).toBeNull();
+    expect(screen.queryByText("In service")).toBeNull();
+  });
+
+  it("closed expired booking with historical check-in timestamp renders Expired pill and disabled Expired action button", () => {
+    const booking = makeBooking({
+      id: "booking-expired-hist",
+      order_id: null,
+      status: "expired",
+      checked_in_at: "2026-10-29T10:00:00Z",
+      customers: {
+        id: "cust-expired",
+        full_name: "Expired Customer",
+        phone: "09170004444",
+        email: "expired@example.com",
+      },
+    });
+
+    render(
+      <BookingsDesktopWorkspace
+        workspaceContext="owner"
+        viewerRole="admin"
+        date="2026-10-29"
+        initialQuickFilter="all"
+        bookings={[booking]}
+      />
+    );
+
+    expect(screen.getAllByText("Expired").length).toBe(3);
+    const actionBtn = screen.getByRole("button", { name: "Expired" });
+    expect(actionBtn).toBeTruthy();
+    expect(actionBtn.hasAttribute("disabled")).toBe(true);
+
+    // Verify misleading No-Show and Expired options are NOT in the workspace status dropdown
+    expect(screen.queryByRole("option", { name: "No-Show" })).toBeNull();
+    expect(screen.queryByRole("option", { name: "Expired" })).toBeNull();
+
+    expect(screen.queryByText("Waiting")).toBeNull();
+    expect(screen.queryByText("Start Service")).toBeNull();
+  });
+
+  it("multi-guest order where guest 1 is closed no-show with old check-in timestamp and guest 2 is waiting targets guest 2 for Start Service, NOT guest 1", async () => {
+    const line1 = makeBooking({
+      id: "booking-multi-noshow-1",
+      order_id: "ORD-MULTI-NOSHOW",
+      status: "no_show",
+      booking_progress_status: "no_show",
+      checked_in_at: "2026-10-29T10:00:00Z",
+      session_started_at: "2026-10-29T10:05:00Z",
+      customers: {
+        id: "cust-1",
+        full_name: "Guest One",
+        phone: "09171110000",
+        email: "g1@example.com",
+      },
+    });
+
+    const line2 = makeBooking({
+      id: "booking-multi-waiting-2",
+      order_id: "ORD-MULTI-NOSHOW",
+      status: "confirmed",
+      booking_progress_status: "checked_in",
+      checked_in_at: "2026-10-29T10:00:00Z",
+      session_started_at: null,
+      session_completed_at: null,
+      customers: {
+        id: "cust-2",
+        full_name: "Guest Two",
+        phone: "09172220000",
+        email: "g2@example.com",
+      },
+    });
+
+    mocks.crmStartServiceAction.mockResolvedValueOnce({ success: true });
+
+    render(
+      <BookingsDesktopWorkspace
+        workspaceContext="crm"
+        viewerRole="admin"
+        date="2026-10-29"
+        initialQuickFilter="all"
+        bookings={[line1, line2]}
+      />
+    );
+
+    expect(screen.getByText("Waiting")).toBeTruthy();
+    const startBtn = screen.getByRole("button", { name: "Start Service" });
+    expect(startBtn).toBeTruthy();
+
+    // Verify visible target indicator is present
+    expect(screen.getByTestId("action-target-indicator").textContent).toContain("Guest Two");
+
+    fireEvent.click(startBtn);
+
+    await waitFor(() => {
+      expect(mocks.crmStartServiceAction).toHaveBeenCalledWith({
+        bookingId: "booking-multi-waiting-2",
+      });
+      expect(mocks.toastSuccess).toHaveBeenCalledWith(
+        "Service started",
+        expect.objectContaining({
+          description: expect.stringContaining("Guest Two"),
+        })
+      );
+    });
+  });
+
+  it("multi-guest booking verifies displayed action target, action booking ID and confirmation name all agree when target line differs from primary line", async () => {
+    const line1 = makeBooking({
+      id: "booking-mg-1",
+      order_id: "ORD-MG-TARGET",
+      status: "completed",
+      booking_progress_status: "completed",
+      checked_in_at: "2026-10-29T10:00:00Z",
+      session_started_at: "2026-10-29T10:05:00Z",
+      session_completed_at: "2026-10-29T11:05:00Z",
+      services: {
+        id: "svc-1",
+        name: "Swedish Massage",
+        duration_minutes: 60,
+      },
+      customers: {
+        id: "cust-mg-1",
+        full_name: "Primary Organizer",
+        phone: "09171112222",
+        email: "organizer@example.com",
+      },
+    });
+
+    const line2 = makeBooking({
+      id: "booking-mg-2",
+      order_id: "ORD-MG-TARGET",
+      status: "confirmed",
+      booking_progress_status: "checked_in",
+      checked_in_at: "2026-10-29T10:00:00Z",
+      session_started_at: null,
+      session_completed_at: null,
+      services: {
+        id: "svc-foot",
+        name: "Foot Reflexology",
+        duration_minutes: 45,
+      },
+      customers: {
+        id: "cust-mg-2",
+        full_name: "Guest Two",
+        phone: "09173334444",
+        email: "guest2@example.com",
+      },
+    });
+
+    mocks.crmStartServiceAction.mockResolvedValueOnce({ success: true });
+
+    render(
+      <BookingsDesktopWorkspace
+        workspaceContext="crm"
+        viewerRole="admin"
+        date="2026-10-29"
+        initialQuickFilter="all"
+        bookings={[line1, line2]}
+      />
+    );
+
+    // 1. Verify displayed action target explicitly identifies Guest Two and Foot Reflexology
+    const actionTarget = screen.getByTestId("action-target-indicator");
+    expect(actionTarget).toBeTruthy();
+    expect(actionTarget.textContent).toContain("Guest Two");
+    expect(actionTarget.textContent).toContain("Foot Reflexology");
+
+    // Also check customer column action helper
+    const customerActionTarget = screen.getByTestId("customer-action-target");
+    expect(customerActionTarget.textContent).toContain("Guest Two");
+    expect(customerActionTarget.textContent).toContain("Foot Reflexology");
+
+    // 2. Click Start Service button
+    const startBtn = screen.getByRole("button", { name: "Start Service" });
+    fireEvent.click(startBtn);
+
+    // 3. Verify action booking ID and confirmation name all agree
+    await waitFor(() => {
+      // Dispatches with line2's booking ID
+      expect(mocks.crmStartServiceAction).toHaveBeenCalledWith({
+        bookingId: "booking-mg-2",
+      });
+      // Toast confirmation explicitly uses Guest Two's name
+      expect(mocks.toastSuccess).toHaveBeenCalledWith(
+        "Service started",
+        expect.objectContaining({
+          description: expect.stringContaining("Guest Two"),
+        })
+      );
+    });
+  });
+
+  it("order with missing financial summary renders Payment Review badge and Payment Review time substatus, NOT Unpaid or Paid", () => {
+    const booking = makeBooking({
+      id: "booking-order-missing-fin",
+      order_id: "ORD-MISSING-FIN",
+      order_total_amount: null,
+      order_amount_paid: null,
+      order_payment_status: null,
+      status: "completed",
+      booking_progress_status: "completed",
+      checked_in_at: "2026-10-29T10:00:00Z",
+      session_started_at: "2026-10-29T10:05:00Z",
+      session_completed_at: "2026-10-29T11:05:00Z",
+      payment_status: "paid", // legacy line status conflicting
+      amount_paid: 1200,
+      customers: {
+        id: "cust-order-missing",
+        full_name: "Order Missing Fin Customer",
+        phone: "09170005555",
+        email: "ordermissing@example.com",
+      },
+    });
+
+    render(
+      <BookingsDesktopWorkspace
+        workspaceContext="crm"
+        viewerRole="admin"
+        date="2026-10-29"
+        initialQuickFilter="all"
+        bookings={[booking]}
+      />
+    );
+
+    // Because order_id exists and authoritative order financial evidence is absent, it must NOT show Paid or Unpaid
+    expect(screen.getAllByText("Payment Review").length).toBeGreaterThanOrEqual(1);
+    expect(screen.queryByText("Unpaid")).toBeNull();
+    expect(screen.queryByText("Paid")).toBeNull();
+    expect(screen.queryByText("Payment Due")).toBeNull();
+  });
+
+  it("order with conflicting legacy Paid status renders Payment Review when order_payment_status is unpaid, NOT Unpaid or Paid", () => {
+    const booking = makeBooking({
+      id: "booking-order-conflict",
+      order_id: "ORD-CONFLICT",
+      order_total_amount: 1200,
+      order_amount_paid: 0,
+      order_payment_status: "unpaid",
+      payment_status: "paid", // legacy line status conflicting
+      amount_paid: 1200,
+      status: "completed",
+      booking_progress_status: "completed",
+      checked_in_at: "2026-10-29T10:00:00Z",
+      session_completed_at: "2026-10-29T11:05:00Z",
+      customers: {
+        id: "cust-order-conflict",
+        full_name: "Order Conflict Customer",
+        phone: "09170006666",
+        email: "orderconflict@example.com",
+      },
+    });
+
+    render(
+      <BookingsDesktopWorkspace
+        workspaceContext="crm"
+        viewerRole="admin"
+        date="2026-10-29"
+        initialQuickFilter="all"
+        bookings={[booking]}
+      />
+    );
+
+    // Conflicting evidence: line says paid, order says unpaid.
+    // Must display Payment Review so staff cannot mistake it for an instruction to collect another payment.
+    expect(screen.getAllByText("Payment Review").length).toBeGreaterThanOrEqual(1);
+    expect(screen.queryByText("Unpaid")).toBeNull();
+    expect(screen.queryByText("Paid")).toBeNull();
+    expect(screen.queryByText("Payment Due")).toBeNull();
+  });
+
+  it("normal unpaid order renders Unpaid badge and Payment Due time substatus when completed", () => {
+    const booking = makeBooking({
+      id: "booking-order-normal-unpaid",
+      order_id: "ORD-NORMAL-UNPAID",
+      order_total_amount: 1500,
+      order_amount_paid: 0,
+      order_payment_status: "unpaid",
+      payment_status: "unpaid",
+      amount_paid: 0,
+      status: "completed",
+      booking_progress_status: "completed",
+      checked_in_at: "2026-10-29T10:00:00Z",
+      session_completed_at: "2026-10-29T11:05:00Z",
+      customers: {
+        id: "cust-order-unpaid",
+        full_name: "Order Normal Unpaid Customer",
+        phone: "09170009999",
+        email: "orderunpaid@example.com",
+      },
+    });
+
+    render(
+      <BookingsDesktopWorkspace
+        workspaceContext="crm"
+        viewerRole="admin"
+        date="2026-10-29"
+        initialQuickFilter="all"
+        bookings={[booking]}
+      />
+    );
+
+    expect(screen.getByText("Unpaid")).toBeTruthy();
+    expect(screen.getByText("Payment Due")).toBeTruthy();
+    expect(screen.queryByText("Paid")).toBeNull();
+    expect(screen.queryByText("Payment Review")).toBeNull();
+  });
+
+  it("order with incomplete order amount renders Partial badge and Payment Due", () => {
+    const booking = makeBooking({
+      id: "booking-order-partial",
+      order_id: "ORD-PARTIAL",
+      order_total_amount: 1500,
+      order_amount_paid: 800,
+      order_payment_status: "partial",
+      status: "completed",
+      booking_progress_status: "completed",
+      checked_in_at: "2026-10-29T10:00:00Z",
+      session_completed_at: "2026-10-29T11:05:00Z",
+      customers: {
+        id: "cust-order-partial",
+        full_name: "Order Partial Customer",
+        phone: "09170007777",
+        email: "orderpartial@example.com",
+      },
+    });
+
+    render(
+      <BookingsDesktopWorkspace
+        workspaceContext="crm"
+        viewerRole="admin"
+        date="2026-10-29"
+        initialQuickFilter="all"
+        bookings={[booking]}
+      />
+    );
+
+    expect(screen.getByText("Partial")).toBeTruthy();
+    expect(screen.getByText("Payment Due")).toBeTruthy();
+    expect(screen.queryByText("Paid")).toBeNull();
+  });
+
+  it("normal paid order renders Paid badge and Completed substatus when completed", () => {
+    const booking = makeBooking({
+      id: "booking-order-paid",
+      order_id: "ORD-PAID",
+      order_total_amount: 1500,
+      order_amount_paid: 1500,
+      order_payment_status: "paid",
+      status: "completed",
+      booking_progress_status: "completed",
+      checked_in_at: "2026-10-29T10:00:00Z",
+      session_completed_at: "2026-10-29T11:05:00Z",
+      customers: {
+        id: "cust-order-paid",
+        full_name: "Order Paid Customer",
+        phone: "09170008888",
+        email: "orderpaid@example.com",
+      },
+    });
+
+    render(
+      <BookingsDesktopWorkspace
+        workspaceContext="owner"
+        viewerRole="admin"
+        date="2026-10-29"
+        initialQuickFilter="all"
+        bookings={[booking]}
+      />
+    );
+
+    expect(screen.getByText("Paid")).toBeTruthy();
+    expect(screen.getAllByText("Completed").length).toBeGreaterThanOrEqual(1);
+    expect(screen.queryByText("Payment Due")).toBeNull();
+  });
+
+  it("actual production unpaid order with positive metadata.price_paid snapshot renders Unpaid and Manage action", () => {
+    const mockPaymentAction = vi.fn().mockResolvedValue({ success: true });
+    const booking = makeBooking({
+      id: "booking-prod-unpaid-shape",
+      order_id: "ORD-PROD-UNPAID-1",
+      order_total_amount: 1200,
+      order_amount_paid: 0,
+      order_payment_status: "unpaid",
+      status: "completed",
+      booking_progress_status: "completed",
+      checked_in_at: "2026-10-29T10:00:00Z",
+      session_completed_at: "2026-10-29T11:05:00Z",
+      metadata: {
+        price_paid: 1200, // positive price snapshot locked in at booking time
+        duration_minutes: 60,
+      },
+      customers: {
+        id: "cust-prod-unpaid",
+        full_name: "Prod Unpaid Customer",
+        phone: "09170001111",
+        email: "produnpaid@example.com",
+      },
+    });
+
+    render(
+      <BookingsDesktopWorkspace
+        workspaceContext="crm"
+        viewerRole="admin"
+        date="2026-10-29"
+        initialQuickFilter="all"
+        bookings={[booking]}
+        paymentAction={mockPaymentAction}
+      />
+    );
+
+    // Assert badges: normal Unpaid and Payment Due, NOT Payment Review
+    expect(screen.getByText("Unpaid")).toBeTruthy();
+    expect(screen.getByText("Payment Due")).toBeTruthy();
+    expect(screen.queryByTestId("payment-review-badge")).toBeNull();
+    expect(screen.queryByText("Payment Review")).toBeNull();
+
+    // Select row by clicking customer name
+    fireEvent.click(screen.getByText("Prod Unpaid Customer"));
+
+    // When selected, Manage ▾ action button is visible, NOT Review ▾
+    expect(screen.getByRole("button", { name: "Manage ▾" })).toBeTruthy();
+    expect(screen.queryByRole("button", { name: "Review ▾" })).toBeNull();
+  });
+
+  it("order requiring payment review renders Payment Review badge and shows reconciliation warning in menu", () => {
+    const mockPaymentAction = vi.fn().mockResolvedValue({ success: true });
+    const booking = makeBooking({
+      id: "booking-review-shape",
+      order_id: "ORD-INCOMPLETE",
+      order_total_amount: null,
+      order_amount_paid: null,
+      order_payment_status: null,
+      status: "completed",
+      booking_progress_status: "completed",
+      checked_in_at: "2026-10-29T10:00:00Z",
+      session_completed_at: "2026-10-29T11:05:00Z",
+      customers: {
+        id: "cust-review",
+        full_name: "Review Required Customer",
+        phone: "09170002222",
+        email: "review@example.com",
+      },
+    });
+
+    render(
+      <BookingsDesktopWorkspace
+        workspaceContext="crm"
+        viewerRole="admin"
+        date="2026-10-29"
+        initialQuickFilter="all"
+        bookings={[booking]}
+        paymentAction={mockPaymentAction}
+      />
+    );
+
+    // Assert Payment Review badge is present
+    expect(screen.getByTestId("payment-review-badge")).toBeTruthy();
+    expect(screen.getAllByText("Payment Review").length).toBeGreaterThanOrEqual(1);
+    expect(screen.queryByText("Unpaid")).toBeNull();
+
+    // Select row by clicking customer name
+    fireEvent.click(screen.getByText("Review Required Customer"));
+
+    // When selected, Review ▾ action button is visible, NOT Manage ▾
+    const reviewBtn = screen.getByRole("button", { name: "Review ▾" });
+    expect(reviewBtn).toBeTruthy();
+    expect(screen.queryByRole("button", { name: "Manage ▾" })).toBeNull();
+
+    // Open the dropdown menu
+    fireEvent.click(reviewBtn);
+
+    // Verify reconciliation warning banner is displayed
+    const warningBanner = screen.getByTestId("payment-review-warning");
+    expect(warningBanner).toBeTruthy();
+    expect(warningBanner.textContent).toContain(
+      "Order evidence requires review. Reconcile details before collecting."
+    );
+
+    // Verify read-only details are displayed
+    const details = screen.getByTestId("payment-review-details");
+    expect(details).toBeTruthy();
+    expect(details.textContent).toContain("Price:");
+    expect(details.textContent).toContain("Recorded Paid:");
+    expect(details.textContent).toContain("Status:");
+
+    // Verify authorized reconciliation workflow links are displayed
+    const recLink = screen.getByTestId("link-reconciliation");
+    expect(recLink).toBeTruthy();
+    expect(recLink.getAttribute("href")).toBe("/crm/reconciliation");
+    expect(recLink.textContent).toBe("Open Reconciliation");
+
+    const cashFlowLink = screen.getByTestId("link-cash-flow");
+    expect(cashFlowLink).toBeTruthy();
+    expect(cashFlowLink.getAttribute("href")).toBe("/crm/cash-flow");
+    expect(cashFlowLink.textContent).toBe("View Cash Flow Ledger");
+
+    // Verify that NO payment mutation controls are exposed while unverified
+    expect(screen.queryByText("Quick Mark Paid")).toBeNull();
+    expect(screen.queryByText("Reconcile / Mark Paid")).toBeNull();
+    expect(screen.queryByRole("button", { name: "Cash" })).toBeNull();
+    expect(screen.queryByRole("button", { name: "GCash" })).toBeNull();
+    expect(screen.queryByRole("button", { name: "Maya" })).toBeNull();
+    expect(screen.queryByRole("button", { name: "Card" })).toBeNull();
+    expect(screen.queryByRole("button", { name: "Mark Unpaid" })).toBeNull();
+    expect(screen.queryByRole("button", { name: "Edit Details…" })).toBeNull();
+
+    // Verify payment action was NEVER invoked
+    expect(mockPaymentAction).not.toHaveBeenCalled();
+  });
+
+  it("ordinary verified unpaid booking exposes full payment actions and invokes mutation", () => {
+    const mockPaymentAction = vi.fn().mockResolvedValue({ success: true });
+    const booking = makeBooking({
+      id: "booking-verified-unpaid-actions",
+      order_id: "ORD-VERIFIED-UNPAID",
+      order_total_amount: 1200,
+      order_amount_paid: 0,
+      order_payment_status: "unpaid",
+      status: "confirmed",
+      booking_progress_status: "confirmed",
+      customers: {
+        id: "cust-unpaid-act",
+        full_name: "Unpaid Action Customer",
+        phone: "09170003333",
+        email: "unpaidact@example.com",
+      },
+    });
+
+    render(
+      <BookingsDesktopWorkspace
+        workspaceContext="crm"
+        viewerRole="admin"
+        date="2026-10-29"
+        initialQuickFilter="all"
+        bookings={[booking]}
+        paymentAction={mockPaymentAction}
+      />
+    );
+
+    // Select row
+    fireEvent.click(screen.getByText("Unpaid Action Customer"));
+
+    // Manage ▾ is shown
+    const manageBtn = screen.getByRole("button", { name: "Manage ▾" });
+    expect(manageBtn).toBeTruthy();
+
+    // Open dropdown
+    fireEvent.click(manageBtn);
+
+    // Verified unpaid shows standard Quick Mark Paid controls
+    expect(screen.getByText("Quick Mark Paid")).toBeTruthy();
+    expect(screen.getByRole("button", { name: "Cash" })).toBeTruthy();
+    expect(screen.getByRole("button", { name: "GCash" })).toBeTruthy();
+    expect(screen.getByRole("button", { name: "Maya" })).toBeTruthy();
+    expect(screen.getByRole("button", { name: "Card" })).toBeTruthy();
+    expect(screen.getByRole("button", { name: "Edit Details…" })).toBeTruthy();
+
+    // Warning and review links are NOT shown
+    expect(screen.queryByTestId("payment-review-warning")).toBeNull();
+    expect(screen.queryByTestId("link-reconciliation")).toBeNull();
+
+    // Click Cash to invoke mutation
+    fireEvent.click(screen.getByRole("button", { name: "Cash" }));
+    expect(mockPaymentAction).toHaveBeenCalledWith(
+      expect.objectContaining({
+        bookingId: "booking-verified-unpaid-actions",
+        paymentMethod: "cash",
+        paymentStatus: "paid",
+      })
+    );
+  });
+
+  it("restores standard payment actions once authoritative evidence establishes verified paid state", () => {
+    const mockPaymentAction = vi.fn().mockResolvedValue({ success: true });
+    const booking = makeBooking({
+      id: "booking-refreshed-paid",
+      order_id: "ORD-REFRESHED-PAID",
+      order_total_amount: 1200,
+      order_amount_paid: 1200,
+      order_payment_status: "paid",
+      status: "confirmed",
+      booking_progress_status: "confirmed",
+      customers: {
+        id: "cust-refreshed-paid",
+        full_name: "Refreshed Paid Customer",
+        phone: "09170004444",
+        email: "refreshed@example.com",
+      },
+    });
+
+    render(
+      <BookingsDesktopWorkspace
+        workspaceContext="crm"
+        viewerRole="admin"
+        date="2026-10-29"
+        initialQuickFilter="all"
+        bookings={[booking]}
+        paymentAction={mockPaymentAction}
+      />
+    );
+
+    // Select row
+    fireEvent.click(screen.getByText("Refreshed Paid Customer"));
+
+    // Manage ▾ is shown
+    const manageBtn = screen.getByRole("button", { name: "Manage ▾" });
+    expect(manageBtn).toBeTruthy();
+
+    // Open dropdown
+    fireEvent.click(manageBtn);
+
+    // Verified paid shows standard Quick Mark Paid, Mark Unpaid, and Edit Details
+    expect(screen.getByText("Quick Mark Paid")).toBeTruthy();
+    expect(screen.getByRole("button", { name: "Mark Unpaid" })).toBeTruthy();
+    expect(screen.getByRole("button", { name: "Edit Details…" })).toBeTruthy();
+    expect(screen.queryByTestId("payment-review-warning")).toBeNull();
   });
 });
