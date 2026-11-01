@@ -1,6 +1,6 @@
 import { createAdminClient } from "@/lib/supabase/admin";
 import type { AvailabilitySlot, StaffTier } from "@/types";
-import { SlotUnavailableError } from "@/types/errors";
+import { GroupTherapistAllocationError, SlotUnavailableError } from "@/types/errors";
 import {
   canActAsBookingServiceProvider,
   staffTypeCanPerformService,
@@ -1083,20 +1083,7 @@ export async function getAvailableSlotsForOrder(params: {
   });
 }
 
-export class GroupTherapistAllocationError extends SlotUnavailableError {
-  constructor(
-    public readonly reason: "INDIVIDUAL_THERAPIST_UNAVAILABLE" | "GROUP_THERAPIST_CAPACITY_EXCEEDED",
-    public readonly attendeeIndex?: number,
-    public readonly serviceIds?: string[],
-    message?: string
-  ) {
-    super();
-    this.name = "GroupTherapistAllocationError";
-    if (message) {
-      this.message = message;
-    }
-  }
-}
+export { GroupTherapistAllocationError };
 
 /**
  * Assigns distinct therapists to each attendee concurrently at startTime.

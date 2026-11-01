@@ -24,9 +24,8 @@ import { buildGoogleMapsSearchUrl } from "@/lib/maps/google-maps";
 import { isResourceAvailable, autoAssignBookingResource, allocateResourcesForAttendees } from "@/lib/engine/resource-availability";
 import {
   assignTherapistsForOrder,
-  GroupTherapistAllocationError,
 } from "@/lib/engine/availability";
-import { AppError, SlotUnavailableError } from "@/types/errors";
+import { AppError, GroupTherapistAllocationError, SlotUnavailableError } from "@/types/errors";
 import { createNotification } from "@/lib/notifications/create";
 import { logError, logBusinessEvent } from "@/lib/logger";
 import { revalidateOperationalBookingSurfaces } from "@/lib/bookings/revalidate-booking-surfaces";
@@ -1350,14 +1349,15 @@ export async function executeInhouseBookingCreation(
     }
     console.error("[CRM_BOOKING] caught error", { ...logContext, error });
 
+    const isGroupTherapistClass = typeof GroupTherapistAllocationError === "function";
     const groupReason =
-      error instanceof GroupTherapistAllocationError
+      isGroupTherapistClass && error instanceof GroupTherapistAllocationError
         ? error.reason
         : typeof error === "object" && error !== null && "reason" in error
           ? (error as { reason?: unknown }).reason
           : undefined;
     const isGroupTherapistError =
-      error instanceof GroupTherapistAllocationError ||
+      (isGroupTherapistClass && error instanceof GroupTherapistAllocationError) ||
       (error instanceof Error &&
         (error.name === "GroupTherapistAllocationError" ||
           groupReason === "INDIVIDUAL_THERAPIST_UNAVAILABLE" ||
@@ -1393,7 +1393,7 @@ export async function executeInhouseBookingCreation(
     }
 
     if (
-      error instanceof SlotUnavailableError ||
+      (typeof SlotUnavailableError === "function" && error instanceof SlotUnavailableError) ||
       (error instanceof AppError && error.code === "SLOT_UNAVAILABLE")
     ) {
       return {
