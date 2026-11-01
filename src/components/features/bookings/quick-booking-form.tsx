@@ -48,6 +48,7 @@ import type { ServiceLineQuote } from "@/lib/services/service-line-quote";
 import { WorkspaceNotice } from "@/components/features/attendance/attendance-ui";
 import type { BranchBookingRules } from "@/lib/validations/booking-rules";
 import type { BookingOrderAttendeeInput } from "@/lib/bookings/booking-order-contract";
+import { isConsultationOnlyService } from "@/lib/bookings/consultation-only-service";
 
 export type QuickBookingMode = "walkin" | "phone" | "standard_future" | "home_service";
 
@@ -286,6 +287,13 @@ function mapServerErrorToFields(message: string): FieldErrors {
   const normalized = message.toLowerCase();
   if (normalized.includes("customer")) return { customer: message };
   if (normalized.includes("phone")) return { phone: message };
+  if (
+    normalized.includes("coordinating provider") ||
+    normalized.includes("provider") ||
+    normalized.includes("therapist")
+  ) {
+    return { staffId: message };
+  }
   if (normalized.includes("service")) return { service: message };
   if (normalized.includes("date") || normalized.includes("time") || normalized.includes("slot")) {
     return { time: message };
@@ -533,6 +541,12 @@ export function QuickBookingForm({
       )
     : selectedQuotedServices;
   const groupTotalPrice = groupServices.reduce((sum, service) => sum + service.price, 0);
+  const hasConsultationService = groupServices.some((service) =>
+    isConsultationOnlyService({
+      name: service.name,
+      categoryName: service.categoryName,
+    })
+  );
   const serviceSummaryLabel =
     selectedServiceCount === 0
       ? "Not selected"
@@ -1081,9 +1095,6 @@ export function QuickBookingForm({
         serviceIds: [],
       },
     ]);
-    setStaffId("");
-    setTherapistSelectionMode("automatic");
-    setCustomerRequestedTherapist(false);
     setGuestSelectedStaffIds({});
     setResourceId("");
     setFieldErrors((current) => ({ ...current, service: undefined, staffId: undefined }));
@@ -1294,7 +1305,9 @@ export function QuickBookingForm({
     }
     if (!date) nextErrors.date = "Choose a valid date and time.";
     if (!time) nextErrors.time = "Choose a valid date and time.";
-    if (!groupBooking && therapistSelectionMode === "manual" && !staffId) {
+    if (hasConsultationService && !staffId) {
+      nextErrors.staffId = "Select a coordinating provider for this package.";
+    } else if (!groupBooking && therapistSelectionMode === "manual" && !staffId) {
       nextErrors.staffId = "Choose an available therapist or select Automatic.";
     }
     if (isHomeService) {
@@ -1587,8 +1600,8 @@ export function QuickBookingForm({
             })),
           })),
         }),
-        staffId: groupBooking ? undefined : staffId || undefined,
-        customerRequestedTherapist: groupBooking ? false : Boolean(staffId && customerRequestedTherapist),
+        staffId: staffId || undefined,
+        customerRequestedTherapist: Boolean(staffId && customerRequestedTherapist),
         resourceId: isHomeService || groupBooking ? undefined : resourceId || undefined,
         date,
         startTime: normalizeTime(time),
@@ -1814,12 +1827,19 @@ export function QuickBookingForm({
             )}
           </div>
           <div className="min-w-0">
-            <FieldLabel icon={<User size={13} />} label="Therapist" />
+            <FieldLabel
+              icon={<User size={13} />}
+              label={
+                isOrganizer && hasConsultationService
+                  ? "Coordinating provider"
+                  : isOrganizer && groupBooking
+                    ? "Therapist (Organizer)"
+                    : "Therapist"
+              }
+            />
             {(() => {
-              if (groupBooking) {
-                const waiting = isOrganizer
-                  ? therapistAvailabilityStatus === "loading"
-                  : guestAvailabilityPending;
+              if (groupBooking && !isOrganizer) {
+                const waiting = guestAvailabilityPending;
                 const suggested = provisionalGuestStaff.get(attendee.id);
                 const statusText =
                   index >= 4
@@ -1858,9 +1878,12 @@ export function QuickBookingForm({
                   <select
                     value={selectedId}
                     onChange={(event) => {
-                      setStaffId(event.target.value);
-                      setTherapistSelectionMode(event.target.value ? "manual" : "automatic");
-                      setCustomerRequestedTherapist(false);
+                      const nextStaffId = event.target.value;
+                      setStaffId(nextStaffId);
+                      setTherapistSelectionMode(nextStaffId ? "manual" : "automatic");
+                      if (!nextStaffId) {
+                        setCustomerRequestedTherapist(false);
+                      }
                       setFieldErrors((current) => ({ ...current, staffId: undefined }));
                     }}
                     disabled={
@@ -1871,16 +1894,18 @@ export function QuickBookingForm({
                       !time
                     }
                     aria-label={`Guest ${index + 1} therapist`}
-                    className={cn(selectClassName(false), "h-8 text-xs")}
+                    className={cn(selectClassName(Boolean(fieldErrors.staffId)), "h-8 text-xs")}
                   >
                     <option value="">
                       {waiting
                         ? "Checking therapists…"
-                        : suggested
-                          ? `${suggested.nickname || suggested.fullName} · Suggested · ${suggested.statusLabel}`
-                          : attendee.serviceIds.length === 0
-                            ? "Select service first"
-                            : "No available recommendation · Automatic"}
+                        : hasConsultationService
+                          ? "Select coordinating provider…"
+                          : suggested
+                            ? `${suggested.nickname || suggested.fullName} · Suggested · ${suggested.statusLabel}`
+                            : attendee.serviceIds.length === 0
+                              ? "Select service first"
+                              : "No available recommendation · Automatic"}
                     </option>
                     {selectedId &&
                     !providers.some((provider) => provider.staffId === selectedId) ? (
@@ -1909,11 +1934,20 @@ export function QuickBookingForm({
                       Selected therapist is unavailable for these services and time.
                     </p>
                   ) : null}
+                  {hasConsultationService ? (
+                    <span className="mt-1 block text-[10px] text-[var(--cs-text-muted)]">
+                      Coordinating provider required for consultation packages
+                    </span>
+                  ) : groupBooking ? (
+                    <span className="mt-1 block text-[10px] text-[var(--cs-text-muted)]">
+                      Preferred therapist for Organizer (remaining guests assigned automatically)
+                    </span>
+                  ) : null}
                 </>
               );
             })()}
-            {!groupBooking ? <FieldError message={fieldErrors.staffId} /> : null}
-            {!groupBooking && therapistSelectionMode === "manual" && staffId ? (
+            {isOrganizer ? <FieldError message={fieldErrors.staffId} /> : null}
+            {isOrganizer && staffId ? (
               <label className="mt-1 flex items-center gap-1 text-[11px]">
                 <input
                   type="checkbox"

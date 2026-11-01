@@ -24,9 +24,11 @@ vi.mock("@/lib/services/resolve-booking-line-quotes", () => ({
     serviceLines?: Array<{ requestedDurationMinutes?: number }>;
   }) => serviceIds.map((id, index) => {
     const baseDuration = id === "cccccccc-cccc-4ccc-8ccc-cccccccccccc" ? 30
-      : id === "dddddddd-dddd-4ddd-8ddd-dddddddddddd" ? 90 : 60;
+      : id === "dddddddd-dddd-4ddd-8ddd-dddddddddddd" ? 90
+      : id === "55555555-5555-4555-8555-555555555555" ? 120 : 60;
     const basePrice = id === "cccccccc-cccc-4ccc-8ccc-cccccccccccc" ? 300
-      : id === "dddddddd-dddd-4ddd-8ddd-dddddddddddd" ? 800 : 600;
+      : id === "dddddddd-dddd-4ddd-8ddd-dddddddddddd" ? 800
+      : id === "55555555-5555-4555-8555-555555555555" ? 2500 : 600;
     const selectedDurationMinutes = serviceLines?.[index]?.requestedDurationMinutes ?? baseDuration;
     return {
       serviceId: id,
@@ -43,9 +45,6 @@ vi.mock("@/lib/services/resolve-booking-line-quotes", () => ({
     };
   })),
 }));
-vi.mock("@/lib/bookings/consultation-only-service", () => ({
-  isConsultationOnlyService: vi.fn().mockReturnValue(false),
-}));
 vi.mock("@/lib/engine/exact-crm-booking-time", () => ({
   resolveExactCrmBookingTime: vi.fn().mockResolvedValue({
     available: true,
@@ -60,10 +59,10 @@ vi.mock("@/lib/engine/resource-availability", () => ({
   ),
 }));
 vi.mock("@/lib/engine/availability", () => ({
-  assignTherapistsForOrder: vi.fn().mockImplementation(async ({ attendees }: { attendees: Array<{ id: string }> }) =>
+  assignTherapistsForOrder: vi.fn().mockImplementation(async ({ attendees, preferredStaffId }: { attendees: Array<{ id: string }>; preferredStaffId?: string }) =>
     attendees.map((attendee, index) => ({
       attendeeId: attendee.id,
-      staffId: `staff-${index + 1}`,
+      staffId: index === 0 && preferredStaffId ? preferredStaffId : `staff-${index + 1}`,
     }))
   ),
 }));
@@ -101,6 +100,7 @@ const customerId = "22222222-2222-4222-8222-222222222222";
 const serviceA = "33333333-3333-4333-8333-333333333333";
 const serviceB = "cccccccc-cccc-4ccc-8ccc-cccccccccccc";
 const serviceC = "dddddddd-dddd-4ddd-8ddd-dddddddddddd";
+const serviceConsultation = "55555555-5555-4555-8555-555555555555";
 const att1 = "11111111-aaaa-4aaa-8aaa-aaaaaaaaaaaa";
 const att2 = "22222222-aaaa-4aaa-8aaa-aaaaaaaaaaaa";
 const att3 = "33333333-aaaa-4aaa-8aaa-aaaaaaaaaaaa";
@@ -119,9 +119,10 @@ function setupMockDatabase(options?: {
   bookingRows?: unknown[];
 }) {
   const services = [
-    { id: serviceA, name: "Massage 60", price: 600, duration_minutes: 60, buffer_before: 0, buffer_after: 0, is_active: true },
-    { id: serviceB, name: "Massage 30", price: 300, duration_minutes: 30, buffer_before: 0, buffer_after: 0, is_active: true },
-    { id: serviceC, name: "Facial 90", price: 800, duration_minutes: 90, buffer_before: 0, buffer_after: 0, is_active: true },
+    { id: serviceA, name: "Massage 60", price: 600, duration_minutes: 60, buffer_before: 0, buffer_after: 0, is_active: true, metadata: null, service_categories: { name: "Massages" } },
+    { id: serviceB, name: "Massage 30", price: 300, duration_minutes: 30, buffer_before: 0, buffer_after: 0, is_active: true, metadata: null, service_categories: { name: "Massages" } },
+    { id: serviceC, name: "Facial 90", price: 800, duration_minutes: 90, buffer_before: 0, buffer_after: 0, is_active: true, metadata: null, service_categories: { name: "Facials" } },
+    { id: serviceConsultation, name: "Heavenly Harmony Couples or Besties Spa", price: 2500, duration_minutes: 120, buffer_before: 0, buffer_after: 0, is_active: true, metadata: null, service_categories: { name: "Spa Packages" } },
   ];
   const overrides = services.map((s) => ({
     service_id: s.id,
@@ -471,6 +472,185 @@ describe("CRM Multi-Guest Booking Save Lifecycle", () => {
       ok: false,
       code: "IDEMPOTENCY_CONFLICT",
       message: "This booking request key was already used for different details.",
+    });
+  });
+
+  it("rejects a consultation-required group booking with MANUAL_ARRANGEMENT_REQUIRED when staffId is missing", async () => {
+    const input = {
+      idempotencyKey: "123e4567-e89b-12d3-a456-426614174099",
+      branchId,
+      customerId,
+      bookingFor: "me_and_others" as const,
+      serviceIds: [serviceConsultation, serviceA],
+      date: "2026-11-02",
+      startTime: "14:00",
+      type: "walkin" as const,
+      fullName: "Organizer Name",
+      phone: "09171234567",
+      staffId: undefined,
+      attendees: [
+        { id: att1, name: "Organizer Name", isOrganizer: true, serviceIds: [serviceConsultation] },
+        { id: att2, name: "Guest 2", isOrganizer: false, serviceIds: [serviceA] },
+      ],
+    };
+
+    const result = await executeInhouseBookingCreation(input, operator);
+    expect(result).toMatchObject({
+      ok: false,
+      code: "MANUAL_ARRANGEMENT_REQUIRED",
+      message:
+        "Select a coordinating provider and confirm the full participant and staffing arrangement manually.",
+    });
+    expect(rpc).not.toHaveBeenCalled();
+  });
+
+  it("accepts a consultation-required group booking when coordinating staffId is provided, propagating preferred staff and provenance", async () => {
+    const coordinatingStaffId = "44444444-4444-4444-8444-444444444444";
+    const input = {
+      idempotencyKey: "123e4567-e89b-12d3-a456-426614174098",
+      branchId,
+      customerId,
+      bookingFor: "me_and_others" as const,
+      serviceIds: [serviceConsultation, serviceA],
+      date: "2026-11-02",
+      startTime: "14:00",
+      type: "walkin" as const,
+      fullName: "Organizer Name",
+      phone: "09171234567",
+      staffId: coordinatingStaffId,
+      customerRequestedTherapist: true,
+      attendees: [
+        { id: att1, name: "Organizer Name", isOrganizer: true, serviceIds: [serviceConsultation] },
+        { id: att2, name: "Guest 2", isOrganizer: false, serviceIds: [serviceA] },
+      ],
+    };
+
+    const result = await executeInhouseBookingCreation(input, operator);
+    expect(result).toMatchObject({
+      ok: true,
+      orderId: "order-uuid-1",
+      warning:
+        "Manual arrangement required: confirm every participant, provider, room, and time before finalizing.",
+    });
+    expect(assignTherapistsForOrder).toHaveBeenCalledWith(
+      expect.objectContaining({
+        preferredStaffId: coordinatingStaffId,
+      })
+    );
+    expect(rpc).toHaveBeenCalledOnce();
+    const rpcPayload = rpc.mock.calls[0]?.[1];
+    const lines = rpcPayload.p_service_lines;
+    expect(lines).toHaveLength(2);
+    expect(lines[0].metadata._therapist_provenance).toMatchObject({
+      requested_staff_id: coordinatingStaffId,
+      therapist_selection_source: "customer_selected",
+    });
+    expect(lines[1].metadata._therapist_provenance).toMatchObject({
+      requested_staff_id: null,
+      therapist_selection_source: "system_assigned",
+    });
+  });
+
+  it("processes normal automatic group booking when staffId is undefined without manual warning", async () => {
+    const input = {
+      idempotencyKey: "123e4567-e89b-12d3-a456-426614174097",
+      branchId,
+      customerId,
+      bookingFor: "me_and_others" as const,
+      serviceIds: [serviceA, serviceB],
+      date: "2026-11-02",
+      startTime: "14:00",
+      type: "walkin" as const,
+      fullName: "Organizer Name",
+      phone: "09171234567",
+      staffId: undefined,
+      customerRequestedTherapist: false,
+      attendees: [
+        { id: att1, name: "Organizer Name", isOrganizer: true, serviceIds: [serviceA] },
+        { id: att2, name: "Guest 2", isOrganizer: false, serviceIds: [serviceB] },
+      ],
+    };
+
+    const result = await executeInhouseBookingCreation(input, operator);
+    expect(result).toMatchObject({
+      ok: true,
+      orderId: "order-uuid-1",
+    });
+    expect((result as { warning?: string }).warning).toBeUndefined();
+    expect(assignTherapistsForOrder).toHaveBeenCalledWith(
+      expect.objectContaining({
+        preferredStaffId: undefined,
+      })
+    );
+    const rpcPayload = rpc.mock.calls[0]?.[1];
+    const lines = rpcPayload.p_service_lines;
+    expect(lines[0].metadata._therapist_provenance).toMatchObject({
+      requested_staff_id: null,
+      therapist_selection_source: "system_assigned",
+    });
+    expect(lines[1].metadata._therapist_provenance).toMatchObject({
+      requested_staff_id: null,
+      therapist_selection_source: "system_assigned",
+    });
+  });
+
+  it("returns SLOT_UNAVAILABLE when therapist assignment fails due to insufficient staff", async () => {
+    vi.mocked(assignTherapistsForOrder).mockRejectedValueOnce(new SlotUnavailableError());
+
+    const input = {
+      idempotencyKey: "123e4567-e89b-12d3-a456-426614174096",
+      branchId,
+      customerId,
+      bookingFor: "me_and_others" as const,
+      serviceIds: [serviceA, serviceB],
+      date: "2026-11-02",
+      startTime: "14:00",
+      type: "walkin" as const,
+      fullName: "Organizer Name",
+      phone: "09171234567",
+      attendees: [
+        { id: att1, name: "Organizer Name", isOrganizer: true, serviceIds: [serviceA] },
+        { id: att2, name: "Guest 2", isOrganizer: false, serviceIds: [serviceB] },
+      ],
+    };
+
+    const result = await executeInhouseBookingCreation(input, operator);
+    expect(result).toMatchObject({
+      ok: false,
+      code: "SLOT_UNAVAILABLE",
+      message: "No scheduled therapist is available at this time. Try another time or check staff schedules.",
+    });
+    expect(rpc).not.toHaveBeenCalled();
+  });
+
+  it("rolls back and returns BOOKING_ATOMIC_PERSISTENCE_FAILED when the atomic RPC fails", async () => {
+    rpc.mockResolvedValueOnce({
+      data: null,
+      error: { message: "Atomic transaction constraint violation" },
+    });
+
+    const input = {
+      idempotencyKey: "123e4567-e89b-12d3-a456-426614174095",
+      branchId,
+      customerId,
+      bookingFor: "me_and_others" as const,
+      serviceIds: [serviceA, serviceB],
+      date: "2026-11-02",
+      startTime: "14:00",
+      type: "walkin" as const,
+      fullName: "Organizer Name",
+      phone: "09171234567",
+      attendees: [
+        { id: att1, name: "Organizer Name", isOrganizer: true, serviceIds: [serviceA] },
+        { id: att2, name: "Guest 2", isOrganizer: false, serviceIds: [serviceB] },
+      ],
+    };
+
+    const result = await executeInhouseBookingCreation(input, operator);
+    expect(result).toMatchObject({
+      ok: false,
+      code: "BOOKING_ATOMIC_PERSISTENCE_FAILED",
+      message: "Could not create the booking and payment together. Please review the booking and try again.",
     });
   });
 });

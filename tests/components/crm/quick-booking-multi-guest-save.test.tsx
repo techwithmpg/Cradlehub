@@ -82,11 +82,12 @@ beforeEach(() => {
     }
     return { ok: true, json: async () => ({}) };
   });
+  vi.stubGlobal("fetch", mocks.fetch);
 });
 afterEach(cleanup);
 
 describe("CRM Multi-Guest Booking Save Component Lifecycle", () => {
-  it("clears preexisting staffId and customerRequestedTherapist upon adding a guest", () => {
+  it("preserves preexisting staffId and customerRequestedTherapist for Guest 1 upon adding a guest", () => {
     render(
       <QuickBookingForm
         {...baseProps}
@@ -99,10 +100,14 @@ describe("CRM Multi-Guest Booking Save Component Lifecycle", () => {
     // Click Add Guest
     fireEvent.click(screen.getByRole("button", { name: "Add Guest" }));
 
-    // Customer requested therapist checkbox is hidden/cleared in group mode
-    expect(screen.queryByRole("checkbox", { name: "Customer requested this therapist" })).toBeNull();
-    // Pre-existing therapist combobox is replaced by Automatic indicator
-    expect(screen.getAllByText(/Assigned automatically on Save/).length).toBe(2);
+    // Customer requested therapist checkbox remains checked for Guest 1 in group mode
+    const guest1Region = within(screen.getByRole("region", { name: "Guest 1 booking details" }));
+    expect((guest1Region.getByRole("checkbox", { name: "Customer requested this therapist" }) as HTMLInputElement).checked).toBe(true);
+    // Guest 1 retains interactive therapist combobox
+    expect(guest1Region.getByRole("combobox", { name: "Guest 1 therapist" })).toBeTruthy();
+    // Guest 2 gets Automatic indicator
+    const guest2Region = within(screen.getByRole("region", { name: "Guest 2 booking details" }));
+    expect(guest2Region.getByText(/Assigned automatically on Save/)).toBeTruthy();
   });
 
   it("submits 2 guests with blank guest name safely defaulted to Guest 2", async () => {
@@ -234,10 +239,11 @@ describe("CRM Multi-Guest Booking Save Component Lifecycle", () => {
     render(<QuickBookingForm {...baseProps} initialMode="walkin" />);
     fireEvent.click(screen.getByRole("button", { name: "Add Guest" }));
 
-    expect(screen.getAllByText(/Assigned automatically on Save/).length).toBe(2);
+    // Guest 2 has Automatic indicator
+    const secondGuestRegion = within(screen.getByRole("region", { name: "Guest 2 booking details" }));
+    expect(secondGuestRegion.getByText(/Assigned automatically on Save/)).toBeTruthy();
 
     // Remove Guest 2
-    const secondGuestRegion = within(screen.getByRole("region", { name: "Guest 2 booking details" }));
     fireEvent.click(secondGuestRegion.getByRole("button", { name: "Remove" }));
 
     // Back to 1 guest: the single-guest therapist combobox is restored
@@ -245,5 +251,61 @@ describe("CRM Multi-Guest Booking Save Component Lifecycle", () => {
     const combobox = guest1Region.getByRole("combobox", { name: "Guest 1 therapist" });
     expect(combobox).toBeTruthy();
     expect(screen.queryByText(/Assigned automatically on Save/)).toBeNull();
+  });
+
+  it("requires a coordinating provider when a consultation package is selected in a group booking", async () => {
+    const consultationPackage = {
+      id: "44444444-4444-4444-4444-444444444444",
+      name: "Heavenly Harmony Couples or Besties Spa",
+      durationMinutes: 120,
+      price: 2500,
+      durationPolicy: "fixed" as const,
+      availableInSpa: true,
+      availableHomeService: false,
+      categoryName: "Spa Packages",
+    };
+
+    render(
+      <QuickBookingForm
+        {...baseProps}
+        services={[...baseProps.services, consultationPackage]}
+        staff={baseProps.staff.map((s) => ({
+          ...s,
+          serviceIds: [...s.serviceIds, consultationPackage.id],
+        }))}
+        initialServiceId={consultationPackage.id}
+        initialStaffId=""
+      />
+    );
+
+    // Add Guest 2
+    fireEvent.click(screen.getByRole("button", { name: "Add Guest" }));
+    const secondGuestRegion = within(screen.getByRole("region", { name: "Guest 2 booking details" }));
+    fireEvent.click(secondGuestRegion.getByRole("button", { name: /^Signature Facial,/ }));
+
+    // Verify Guest 1 has label "Coordinating provider"
+    const guest1Region = within(screen.getByRole("region", { name: "Guest 1 booking details" }));
+    expect(guest1Region.getByText("Coordinating provider")).toBeTruthy();
+
+    // Click Save without choosing coordinating provider -> validation error
+    fireEvent.click(screen.getByRole("button", { name: "Save Booking" }));
+    expect(screen.getByText("Select a coordinating provider for this package.")).toBeTruthy();
+    expect(mocks.createBooking).not.toHaveBeenCalled();
+
+    // Select coordinating provider for Guest 1
+    const staffSelect = guest1Region.getByRole("combobox", { name: "Guest 1 therapist" });
+    await waitFor(() =>
+      expect(within(staffSelect).getByRole("option", { name: /Maria Santos/ })).toBeTruthy()
+    );
+    fireEvent.change(staffSelect, { target: { value: "staff-1" } });
+
+    // Now Save Booking -> succeeds with staffId: "staff-1"
+    fireEvent.click(screen.getByRole("button", { name: "Save Booking" }));
+    await waitFor(() => expect(mocks.createBooking).toHaveBeenCalledOnce());
+    expect(mocks.createBooking.mock.calls[0]?.[0]).toMatchObject({
+      bookingFor: "me_and_others",
+      staffId: "staff-1",
+      customerRequestedTherapist: false,
+    });
   });
 });

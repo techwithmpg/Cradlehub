@@ -232,9 +232,9 @@ describe("Unified CRM booking modes", () => {
       target: { value: "Guest Two" },
     });
     fireEvent.click(second.getByRole("button", { name: /^Swedish Massage,/ }));
-    expect(first.getByLabelText("Guest 1 therapist")).toBeTruthy();
+    expect(first.getByRole("combobox", { name: "Guest 1 therapist" })).toBeTruthy();
     expect(second.getByLabelText("Guest 2 therapist")).toBeTruthy();
-    expect(screen.getAllByText(/Assigned automatically on Save/).length).toBe(2);
+    expect(second.getByText(/Assigned automatically on Save/)).toBeTruthy();
     fireEvent.click(screen.getByRole("button", { name: "Save Booking" }));
     await waitFor(() => expect(mocks.createBooking).toHaveBeenCalledOnce());
     expect(mocks.createBooking.mock.calls[0]?.[0]).toMatchObject({
