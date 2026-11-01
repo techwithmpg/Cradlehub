@@ -25,14 +25,21 @@ function Probe({ required = true }: { required?: boolean }) {
     <section>
       <span data-testid="state">{ready.state}</span>
       <span data-testid="accuracy">{ready.accuracyMeters ?? "-"}</span>
-      <button type="button" onClick={ready.request}>Enable or retry</button>
+      <button type="button" onClick={ready.request}>
+        Enable or retry
+      </button>
     </section>
   );
 }
 
 function CameraProbe() {
   const camera = useStaffScanner({ onDecode: vi.fn(), autoStart: true });
-  return <section><output>{camera.state}</output><button onClick={camera.scanAgain}>Resume camera</button></section>;
+  return (
+    <section>
+      <output>{camera.state}</output>
+      <button onClick={camera.scanAgain}>Resume camera</button>
+    </section>
+  );
 }
 
 beforeEach(() => {
@@ -40,7 +47,10 @@ beforeEach(() => {
   Object.defineProperty(document, "visibilityState", { configurable: true, value: "visible" });
   location.needsLocationExplanation.mockResolvedValue("ready");
   location.freshAttendanceLocation.mockResolvedValue({
-    latitude: 10.6713191, longitude: 122.9437447, accuracy: 15, timestamp: Date.now(),
+    latitude: 10.6713191,
+    longitude: 122.9437447,
+    accuracy: 15,
+    timestamp: Date.now(),
   });
 });
 afterEach(() => {
@@ -69,7 +79,10 @@ describe("Staff PWA scanner location readiness", () => {
 
   it("requires action for an inaccurate indoor GPS fix, then retries", async () => {
     location.freshAttendanceLocation.mockResolvedValueOnce({
-      latitude: 10.6713191, longitude: 122.9437447, accuracy: 160, timestamp: Date.now(),
+      latitude: 10.6713191,
+      longitude: 122.9437447,
+      accuracy: 160,
+      timestamp: Date.now(),
     });
     render(<Probe />);
     await waitFor(() => expect(screen.getByTestId("state").textContent).toBe("inaccurate"));
@@ -116,14 +129,29 @@ describe("Staff PWA scanner location readiness", () => {
   });
 
   it("ignores an in-flight reading after the scanner is backgrounded", async () => {
-    let resolveFix!: (fix: { latitude: number; longitude: number; accuracy: number; timestamp: number }) => void;
-    location.freshAttendanceLocation.mockReturnValueOnce(new Promise((resolve) => { resolveFix = resolve; }));
+    let resolveFix!: (fix: {
+      latitude: number;
+      longitude: number;
+      accuracy: number;
+      timestamp: number;
+    }) => void;
+    location.freshAttendanceLocation.mockReturnValueOnce(
+      new Promise((resolve) => {
+        resolveFix = resolve;
+      })
+    );
     render(<Probe />);
     await waitFor(() => expect(location.freshAttendanceLocation).toHaveBeenCalledTimes(1));
     Object.defineProperty(document, "visibilityState", { configurable: true, value: "hidden" });
     document.dispatchEvent(new Event("visibilitychange"));
-    await act(async () => resolveFix({ latitude: 10.6713191, longitude: 122.9437447,
-      accuracy: 15, timestamp: Date.now() }));
+    await act(async () =>
+      resolveFix({
+        latitude: 10.6713191,
+        longitude: 122.9437447,
+        accuracy: 15,
+        timestamp: Date.now(),
+      })
+    );
     expect(screen.getByTestId("state").textContent).not.toBe("ready");
   });
 
@@ -131,7 +159,9 @@ describe("Staff PWA scanner location readiness", () => {
     vi.useFakeTimers();
     location.freshAttendanceLocation.mockReturnValueOnce(new Promise(() => {}));
     render(<Probe />);
-    await act(async () => { await vi.advanceTimersByTimeAsync(20_100); });
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(20_100);
+    });
     expect(screen.getByTestId("state").textContent).toBe("unavailable");
     vi.useRealTimers();
   });
@@ -143,20 +173,23 @@ describe("Staff QR camera handoff", () => {
     Object.defineProperty(document, "visibilityState", { configurable: true, value: "visible" });
     location.needsLocationExplanation.mockResolvedValue("ready");
     location.freshAttendanceLocation.mockResolvedValue({
-      latitude: 10.6713191, longitude: 122.9437447, accuracy: 15, timestamp: Date.now(),
+      latitude: 10.6713191,
+      longitude: 122.9437447,
+      accuracy: 15,
+      timestamp: Date.now(),
     });
   });
 
-  it("mounts the viewfinder and starts the camera once after automatic GPS readiness", async () => {
+  it("mounts the viewfinder and starts the camera without waiting for GPS", async () => {
     const stop = vi.fn();
     const stream = { getTracks: () => [{ stop }] } as unknown as MediaStream;
     const getUserMedia = vi.fn().mockResolvedValue(stream);
     Object.defineProperty(navigator, "mediaDevices", {
-      configurable: true, value: { getUserMedia },
+      configurable: true,
+      value: { getUserMedia },
     });
     const { unmount } = render(<StaffQrScanner returnHref="/staff" locationRequired />);
-    expect(screen.getByText("Preparing your location…")).toBeTruthy();
-    expect(getUserMedia).not.toHaveBeenCalled();
+    expect(screen.getByRole("img", { name: "QR code viewfinder" })).toBeTruthy();
     await waitFor(() => expect(getUserMedia).toHaveBeenCalledTimes(1));
     const video = screen.getByRole("img", { name: "QR code viewfinder" }).querySelector("video");
     expect(video).toBeTruthy();
@@ -172,7 +205,8 @@ describe("Staff QR camera handoff", () => {
     const stream = { getTracks: () => [{ stop }] } as unknown as MediaStream;
     const getUserMedia = vi.fn().mockResolvedValue(stream);
     Object.defineProperty(navigator, "mediaDevices", {
-      configurable: true, value: { getUserMedia },
+      configurable: true,
+      value: { getUserMedia },
     });
     render(<StaffQrScanner returnHref="/staff" locationRequired />);
     await waitFor(() => expect(getUserMedia).toHaveBeenCalledTimes(1));
@@ -189,23 +223,39 @@ describe("Staff QR camera handoff", () => {
     await waitFor(() => expect(getUserMedia).toHaveBeenCalledTimes(2));
   });
 
-  it("shows a resume action if renewed GPS readiness stops an active camera", async () => {
+  it("keeps the camera active while foreground GPS readiness is renewed", async () => {
     const stop = vi.fn();
     const stream = { getTracks: () => [{ stop }] } as unknown as MediaStream;
     const getUserMedia = vi.fn().mockResolvedValue(stream);
     Object.defineProperty(navigator, "mediaDevices", {
-      configurable: true, value: { getUserMedia },
+      configurable: true,
+      value: { getUserMedia },
     });
     render(<StaffQrScanner returnHref="/staff" locationRequired />);
     await waitFor(() => expect(getUserMedia).toHaveBeenCalledTimes(1));
-    let resolveFix!: (fix: { latitude: number; longitude: number; accuracy: number; timestamp: number }) => void;
-    location.freshAttendanceLocation.mockReturnValueOnce(new Promise((resolve) => { resolveFix = resolve; }));
+    let resolveFix!: (fix: {
+      latitude: number;
+      longitude: number;
+      accuracy: number;
+      timestamp: number;
+    }) => void;
+    location.freshAttendanceLocation.mockReturnValueOnce(
+      new Promise((resolve) => {
+        resolveFix = resolve;
+      })
+    );
     document.dispatchEvent(new Event("visibilitychange"));
-    await waitFor(() => expect(screen.getByText("Preparing your location…")).toBeTruthy());
-    expect(stop).toHaveBeenCalled();
-    await act(async () => resolveFix({ latitude: 10.6713191, longitude: 122.9437447,
-      accuracy: 15, timestamp: Date.now() }));
-    await waitFor(() => expect(screen.getByText(/Camera paused/)).toBeTruthy());
+    await waitFor(() => expect(location.freshAttendanceLocation).toHaveBeenCalledTimes(2));
+    expect(stop).not.toHaveBeenCalled();
+    await act(async () =>
+      resolveFix({
+        latitude: 10.6713191,
+        longitude: 122.9437447,
+        accuracy: 15,
+        timestamp: Date.now(),
+      })
+    );
+    expect(screen.queryByText(/Camera paused/)).toBeNull();
     expect(getUserMedia).toHaveBeenCalledTimes(1);
   });
 
@@ -213,12 +263,17 @@ describe("Staff QR camera handoff", () => {
     vi.useFakeTimers();
     const getUserMedia = vi.fn().mockReturnValue(new Promise(() => {}));
     Object.defineProperty(navigator, "mediaDevices", {
-      configurable: true, value: { getUserMedia },
+      configurable: true,
+      value: { getUserMedia },
     });
     render(<StaffQrScanner returnHref="/staff" locationRequired />);
-    await act(async () => { await vi.advanceTimersByTimeAsync(0); });
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(0);
+    });
     expect(getUserMedia).toHaveBeenCalledTimes(1);
-    await act(async () => { await vi.advanceTimersByTimeAsync(20_100); });
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(20_100);
+    });
     expect(screen.getByText("Camera unavailable")).toBeTruthy();
     expect(screen.getByRole("button", { name: /Scan again/i })).toBeTruthy();
     vi.useRealTimers();
@@ -229,18 +284,28 @@ describe("Staff QR camera handoff", () => {
     const stream = { getTracks: () => [{ stop }] } as unknown as MediaStream;
     const getUserMedia = vi.fn().mockResolvedValue(stream);
     Object.defineProperty(navigator, "mediaDevices", {
-      configurable: true, value: { getUserMedia },
+      configurable: true,
+      value: { getUserMedia },
     });
     Object.defineProperty(HTMLMediaElement.prototype, "play", {
-      configurable: true, value: vi.fn().mockResolvedValue(undefined),
+      configurable: true,
+      value: vi.fn().mockResolvedValue(undefined),
     });
-    vi.stubGlobal("BarcodeDetector", class {
-      detect = vi.fn().mockResolvedValue([{ rawValue: "SM-QR" }]);
-    });
+    vi.stubGlobal(
+      "BarcodeDetector",
+      class {
+        detect = vi.fn().mockResolvedValue([{ rawValue: "SM-QR" }]);
+      }
+    );
     vi.stubGlobal("requestAnimationFrame", (callback: FrameRequestCallback) =>
-      window.setTimeout(() => callback(0), 0));
+      window.setTimeout(() => callback(0), 0)
+    );
     vi.stubGlobal("cancelAnimationFrame", (id: number) => window.clearTimeout(id));
-    scanner.resolveTarget.mockResolvedValue({ ok: true, target: "public_scan", publicCode: "SM-QR" });
+    scanner.resolveTarget.mockResolvedValue({
+      ok: true,
+      target: "public_scan",
+      publicCode: "SM-QR",
+    });
     render(<StaffQrScanner returnHref="/staff" locationRequired />);
     await waitFor(() => expect(getUserMedia).toHaveBeenCalledTimes(1));
     const video = screen.getByRole("img", { name: "QR code viewfinder" }).querySelector("video");
@@ -254,7 +319,8 @@ describe("Staff QR camera handoff", () => {
   it("leaves a camera start interrupted by backgrounding recoverable", async () => {
     const getUserMedia = vi.fn().mockReturnValue(new Promise(() => {}));
     Object.defineProperty(navigator, "mediaDevices", {
-      configurable: true, value: { getUserMedia },
+      configurable: true,
+      value: { getUserMedia },
     });
     Object.defineProperty(document, "hidden", { configurable: true, value: true });
     render(<CameraProbe />);

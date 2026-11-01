@@ -1,12 +1,27 @@
 import React from "react";
 import { readFileSync } from "node:fs";
 import { beforeAll, afterAll, describe, expect, it, vi } from "vitest";
-import { resolveStaffScanTargetAction } from "@/app/(dashboard)/staff/scan/actions";
+import {
+  claimStaffScanGrantAction,
+  resolveStaffScanTargetAction,
+} from "@/app/(dashboard)/staff/scan/actions";
 import ProcessPage from "@/app/(dashboard)/staff/scan/process/[publicCode]/page";
 import ActivatePage from "@/app/(dashboard)/staff/scan/activate/[token]/page";
 import { PublicScanProcessor } from "@/components/features/attendance/public-scan-processor";
 import { DeviceRecoveryScreen } from "@/components/features/attendance/device-recovery-screen";
 import { getRecoveryTokenPreview } from "@/lib/attendance/device-recovery";
+import {
+  STAFF_SCAN_GRANT_COOKIE,
+  createStaffScanGrant,
+  readStaffScanGrant,
+} from "@/lib/scanner/staff-scan-grant";
+
+const cookieStore = vi.hoisted(() => ({ get: vi.fn(), set: vi.fn() }));
+const auth = vi.hoisted(() => ({
+  getUser: vi.fn(async () => ({ data: { user: { id: "user-1" } } })),
+}));
+vi.mock("next/headers", () => ({ cookies: vi.fn(async () => cookieStore) }));
+vi.mock("@/lib/supabase/server", () => ({ createClient: async () => ({ auth }) }));
 
 vi.mock("server-only", () => ({}));
 vi.mock("@/components/features/attendance/public-scan-processor", () => ({
@@ -26,6 +41,7 @@ afterAll(() => {
 
 describe("Staff server boundary and adapter reuse", () => {
   it("executes real normalization through the async server action with no business outcome", async () => {
+    cookieStore.set.mockClear();
     expect(await resolveStaffScanTargetAction(" att_test ")).toEqual({
       ok: true,
       target: "public_scan",
@@ -40,12 +56,18 @@ describe("Staff server boundary and adapter reuse", () => {
       ok: false,
       target: "invalid",
     });
+    expect(cookieStore.set).toHaveBeenCalledTimes(1);
+    expect(cookieStore.set).toHaveBeenCalledWith(
+      STAFF_SCAN_GRANT_COOKIE,
+      expect.any(String),
+      expect.objectContaining({ httpOnly: true, path: "/staff/scan/process", maxAge: 120 })
+    );
   });
   it("poisons resolver client imports; hook only emits raw payload and component uses server action", () => {
     expect(source("src/lib/scanner/resolve-scan-target.ts")).toContain('import "server-only"');
     const action = source("src/app/(dashboard)/staff/scan/actions.ts");
     expect(action.trimStart()).toMatch(/^"use server"/);
-    expect(action).toContain("return resolveStaffScanTarget(raw)");
+    expect(action).toContain("resolveStaffScanTarget(raw)");
     const hook = source("src/components/features/scanner/use-staff-scanner.ts");
     expect(hook).not.toMatch(/resolveStaffScanTarget|resolve-scan-target|supabase|fetch\(/);
     const component = source("src/components/features/scanner/staff-qr-scanner.tsx");
@@ -67,6 +89,24 @@ describe("Staff server boundary and adapter reuse", () => {
     expect(processor).toContain('scanBasePath?: "/scan" | "/staff/scan/process"');
     expect(processor).toContain('props.scanBasePath ?? "/scan"');
     expect(processor).toContain('fetch("/api/attendance/public-scan"');
+  });
+  it("consumes a user-bound scanner grant before processing and rejects replay", async () => {
+    const token = createStaffScanGrant("att_test", "user-1");
+    cookieStore.get.mockReturnValue({ value: token });
+    cookieStore.set.mockImplementationOnce((_name, value) => {
+      if (value === "") cookieStore.get.mockReturnValue(undefined);
+    });
+    expect(await claimStaffScanGrantAction("att_test")).toEqual(
+      readStaffScanGrant(token, "att_test", "user-1")
+    );
+    expect(cookieStore.set).toHaveBeenCalledWith(
+      STAFF_SCAN_GRANT_COOKIE,
+      "",
+      expect.objectContaining({ path: "/staff/scan/process", maxAge: 0 })
+    );
+    expect(await claimStaffScanGrantAction("att_test")).toBeNull();
+    cookieStore.get.mockReturnValue({ value: createStaffScanGrant("att_test", "user-2") });
+    expect(await claimStaffScanGrantAction("att_test")).toBeNull();
   });
   it("uses the existing recovery preview and screen without a root-scope redirect", async () => {
     const preview = { ok: false, message: "Test rejection" } as Awaited<

@@ -1,5 +1,7 @@
 # CradleHub AI Context
 
+> **2026-11-01 Owner-authorized Attendance QR correction:** The Owner approved the QR-before-GPS flow correction and separately approved a fail-closed static printed QR URL contract. Direct/native-camera entry requires one explicit attendance tap; Staff PWA camera decode may auto-continue through a short-lived user-bound, consumed scanner grant. Work is isolated on `fix/attendance-qr-flow-20261101` from accepted `origin/main` `aa30aa732351e9e81e567d189562f4ca815d5bd2`. See [the QR correction handoff](docs/reports/ATTENDANCE-QR-FLOW-CORRECTION-2026-11-01.md). No merge, deployment, production data/migration/Cron operation, or operational sign-off is authorized; real-device acceptance remains required.
+
 > **2026-10-31 Owner-authorized attendance completion review:** The Owner
 > authorized only Home Service remote clock-out access in the installed Staff PWA
 > and personal forgotten clock-out reminders on an isolated `fix/*` branch from
