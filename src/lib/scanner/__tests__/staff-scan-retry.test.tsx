@@ -61,7 +61,7 @@ describe("Reused processor account retries", () => {
     ["/staff/scan/process", "/staff/scan/process/att_a%20b"],
   ] as const)("keeps the existing default or supplied Staff scope: %s", async (base, expected) => {
     render(
-      <PublicScanProcessor mode="scan" autoProcess publicCode="att_a b" scanBasePath={base} />
+      <PublicScanProcessor mode="scan" qrType="room" publicCode="att_a b" scanBasePath={base} />
     );
     await act(async () => {
       await vi.runAllTimersAsync();

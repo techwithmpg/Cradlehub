@@ -98,9 +98,15 @@ afterEach(() => {
 });
 
 describe("PublicScanProcessor first-device continuation", () => {
-  it.each(["room_suite", "res_suite"])(
+  it.each([
+    ["room_suite", "room"],
+    ["res_suite", "resource"],
+    ["legacy-room-code", "room"],
+    ["legacy-resource-code", "resource"],
+    ["att_misleading_room", "room"],
+  ] as const)(
     "continues direct %s service scans without an attendance confirmation",
-    async (publicCode) => {
+    async (publicCode, qrType) => {
       const fetchMock = vi.fn().mockResolvedValue(
         response({
           ok: true,
@@ -112,7 +118,7 @@ describe("PublicScanProcessor first-device continuation", () => {
         })
       );
       vi.stubGlobal("fetch", fetchMock);
-      render(<PublicScanProcessor mode="scan" publicCode={publicCode} locationRequired />);
+      render(<PublicScanProcessor mode="scan" qrType={qrType} publicCode={publicCode} locationRequired />);
       await finishTimers();
       expect(screen.queryByRole("button", { name: /Record attendance|Continue scan/ })).toBeNull();
       expect(browserLocationMocks.freshAttendanceLocation).toHaveBeenCalledTimes(1);
@@ -125,14 +131,17 @@ describe("PublicScanProcessor first-device continuation", () => {
     }
   );
 
-  it.each(["room_suite", "res_suite"])(
+  it.each([
+    ["room_suite", "room"],
+    ["res_suite", "resource"],
+  ] as const)(
     "continues Staff %s service scans without claiming an attendance grant",
-    async (publicCode) => {
+    async (publicCode, qrType) => {
       const fetchMock = vi.fn().mockResolvedValue(response(finalAttendance));
       vi.stubGlobal("fetch", fetchMock);
       render(
         <PublicScanProcessor
-          mode="scan"
+          mode="scan" qrType={qrType}
           publicCode={publicCode}
           scanBasePath="/staff/scan/process"
           locationRequired
@@ -153,7 +162,7 @@ describe("PublicScanProcessor first-device continuation", () => {
     vi.stubGlobal("fetch", fetchMock);
     const first = render(
       <PublicScanProcessor
-        mode="scan"
+        mode="scan" qrType="attendance"
         publicCode="att_main"
         scanBasePath="/staff/scan/process"
         locationRequired
@@ -168,7 +177,7 @@ describe("PublicScanProcessor first-device continuation", () => {
     first.unmount();
     render(
       <PublicScanProcessor
-        mode="scan"
+        mode="scan" qrType="attendance"
         publicCode="att_main"
         scanBasePath="/staff/scan/process"
         locationRequired
@@ -194,7 +203,7 @@ describe("PublicScanProcessor first-device continuation", () => {
     vi.stubGlobal("fetch", fetchMock);
     render(
       <PublicScanProcessor
-        mode="scan"
+        mode="scan" qrType="attendance"
         publicCode="att_main"
         scanBasePath="/staff/scan/process"
         locationRequired
@@ -225,7 +234,7 @@ describe("PublicScanProcessor first-device continuation", () => {
     vi.stubGlobal("fetch", fetchMock);
     render(
       <PublicScanProcessor
-        mode="scan"
+        mode="scan" qrType="attendance"
         publicCode="att_main"
         scanBasePath="/staff/scan/process"
         locationRequired
@@ -273,7 +282,7 @@ describe("PublicScanProcessor first-device continuation", () => {
       })
     );
     vi.stubGlobal("fetch", fetchMock);
-    render(<PublicScanProcessor mode="scan" autoProcess publicCode="att_main" locationRequired />);
+    render(<PublicScanProcessor mode="scan" qrType="room" publicCode="att_main" locationRequired />);
     expect(screen.getByRole("heading", { name: "QR code recognized" })).toBeTruthy();
     await act(async () => {
       await vi.advanceTimersByTimeAsync(250);
@@ -299,7 +308,7 @@ describe("PublicScanProcessor first-device continuation", () => {
     browserLocationMocks.needsLocationExplanation.mockResolvedValue("explain");
     const fetchMock = vi.fn().mockResolvedValue(response(finalAttendance));
     vi.stubGlobal("fetch", fetchMock);
-    render(<PublicScanProcessor mode="scan" autoProcess publicCode="att_main" locationRequired />);
+    render(<PublicScanProcessor mode="scan" qrType="room" publicCode="att_main" locationRequired />);
     await finishTimers();
     expect(screen.getByRole("heading", { name: "Enable location for attendance" })).toBeTruthy();
     expect(fetchMock).not.toHaveBeenCalled();
@@ -310,11 +319,13 @@ describe("PublicScanProcessor first-device continuation", () => {
     expect(fetchMock).toHaveBeenCalledTimes(1);
   });
 
-  it("keeps a direct printed QR URL inert until an explicit attendance action", async () => {
+  it.each(["att_main", "legacy-code", "room_misleading_attendance"])(
+    "keeps direct attendance %s inert through refresh/history until confirmation",
+    async (publicCode) => {
     const fetchMock = vi.fn().mockResolvedValue(response(finalAttendance));
     vi.stubGlobal("fetch", fetchMock);
     const first = render(
-      <PublicScanProcessor mode="scan" publicCode="att_main" locationRequired />
+      <PublicScanProcessor mode="scan" qrType="attendance" publicCode={publicCode} locationRequired />
     );
     await finishTimers();
     expect(screen.getByRole("heading", { name: "QR code recognized" })).toBeTruthy();
@@ -324,14 +335,63 @@ describe("PublicScanProcessor first-device continuation", () => {
     first.unmount();
 
     // A refresh, bookmark, or history entry starts from the same inert state.
-    render(<PublicScanProcessor mode="scan" publicCode="att_main" locationRequired />);
+    render(<PublicScanProcessor mode="scan" qrType="attendance" publicCode={publicCode} locationRequired />);
     await finishTimers();
     expect(fetchMock).not.toHaveBeenCalled();
     fireEvent.click(screen.getByRole("button", { name: "Record attendance" }));
     await finishTimers();
     expect(browserLocationMocks.freshAttendanceLocation).toHaveBeenCalledTimes(1);
     expect(fetchMock).toHaveBeenCalledTimes(1);
+    expect(JSON.parse(String((fetchMock.mock.calls[0]?.[1] as RequestInit).body)).publicCode).toBe(publicCode);
     expect(screen.getByRole("heading", { name: "Clocked in" })).toBeTruthy();
+    }
+  );
+
+  it("blocks an unverified QR before GPS, grant claim, or scan submission", async () => {
+    const fetchMock = vi.fn();
+    vi.stubGlobal("fetch", fetchMock);
+    render(<PublicScanProcessor mode="scan" qrType={null} publicCode="att_unknown" scanBasePath="/staff/scan/process" locationRequired />);
+    await finishTimers();
+    expect(screen.getByRole("heading", { name: "QR code unavailable" })).toBeTruthy();
+    expect(screen.queryByRole("button", { name: "Record attendance" })).toBeNull();
+    expect(grantMocks.claimStaffScanGrantAction).not.toHaveBeenCalled();
+    expect(browserLocationMocks.freshAttendanceLocation).not.toHaveBeenCalled();
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
+
+  it("auto-continues a legacy attendance code only after a valid one-use Staff grant", async () => {
+    grantMocks.claimStaffScanGrantAction.mockResolvedValueOnce({ operationId: "legacy-grant-operation" });
+    const fetchMock = vi.fn().mockResolvedValue(response(finalAttendance));
+    vi.stubGlobal("fetch", fetchMock);
+    render(<PublicScanProcessor mode="scan" qrType="attendance" publicCode="room_misleading_attendance" scanBasePath="/staff/scan/process" locationRequired />);
+    await act(async () => { await Promise.resolve(); });
+    await finishTimers();
+    expect(grantMocks.claimStaffScanGrantAction).toHaveBeenCalledExactlyOnceWith("room_misleading_attendance");
+    expect(browserLocationMocks.freshAttendanceLocation).toHaveBeenCalledTimes(1);
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+    expect(JSON.parse(String((fetchMock.mock.calls[0]?.[1] as RequestInit).body))).toMatchObject({
+      publicCode: "room_misleading_attendance",
+      requestId: "legacy-grant-operation",
+    });
+  });
+
+  it("keeps a server-authorized attendance rejection final after one confirmed request", async () => {
+    const fetchMock = vi.fn().mockResolvedValue(response({
+      ok: false,
+      outcome: "blocked",
+      reasonCode: "device_revoked",
+      severity: "critical",
+      title: "This phone is no longer approved",
+      message: "Ask CRM to review this phone.",
+    }));
+    vi.stubGlobal("fetch", fetchMock);
+    render(<PublicScanProcessor mode="scan" qrType="attendance" publicCode="legacy-code" locationRequired />);
+    await finishTimers();
+    expect(fetchMock).not.toHaveBeenCalled();
+    fireEvent.click(screen.getByRole("button", { name: "Record attendance" }));
+    await finishTimers();
+    expect(screen.getByRole("heading", { name: "This phone is no longer approved" })).toBeTruthy();
+    expect(fetchMock).toHaveBeenCalledTimes(1);
   });
 
   it("reuses the scanner operation ID on a route refresh", async () => {
@@ -339,8 +399,7 @@ describe("PublicScanProcessor first-device continuation", () => {
     vi.stubGlobal("fetch", fetchMock);
     const first = render(
       <PublicScanProcessor
-        mode="scan"
-        autoProcess
+        mode="scan" qrType="room"
         operationId="scanner-operation-1"
         publicCode="att_main"
         locationRequired
@@ -350,8 +409,7 @@ describe("PublicScanProcessor first-device continuation", () => {
     first.unmount();
     render(
       <PublicScanProcessor
-        mode="scan"
-        autoProcess
+        mode="scan" qrType="room"
         operationId="scanner-operation-1"
         publicCode="att_main"
         locationRequired
@@ -372,7 +430,7 @@ describe("PublicScanProcessor first-device continuation", () => {
   it("reacquires fresh GPS after QR decode before sending a scan", async () => {
     const fetchMock = vi.fn().mockResolvedValue(response(finalAttendance));
     vi.stubGlobal("fetch", fetchMock);
-    render(<PublicScanProcessor mode="scan" autoProcess publicCode="MAIN-QR" locationRequired />);
+    render(<PublicScanProcessor mode="scan" qrType="room" publicCode="MAIN-QR" locationRequired />);
     await finishTimers();
     expect(browserLocationMocks.freshAttendanceLocation).toHaveBeenCalledTimes(1);
     expect(fetchMock).toHaveBeenCalledTimes(1);
@@ -390,7 +448,7 @@ describe("PublicScanProcessor first-device continuation", () => {
     browserLocationMocks.freshAttendanceLocation.mockRejectedValue("location_unavailable");
     const fetchMock = vi.fn();
     vi.stubGlobal("fetch", fetchMock);
-    render(<PublicScanProcessor mode="scan" autoProcess publicCode="MAIN-QR" locationRequired />);
+    render(<PublicScanProcessor mode="scan" qrType="room" publicCode="MAIN-QR" locationRequired />);
     await finishTimers();
     expect(fetchMock).not.toHaveBeenCalled();
     expect(screen.getByRole("heading", { name: "Location needed" })).toBeTruthy();
@@ -429,8 +487,7 @@ describe("PublicScanProcessor first-device continuation", () => {
 
     render(
       <PublicScanProcessor
-        mode="scan"
-        autoProcess
+        mode="scan" qrType="room"
         publicCode="SM-QR"
         scanBasePath="/staff/scan/process"
         locationRequired
@@ -461,7 +518,7 @@ describe("PublicScanProcessor first-device continuation", () => {
   });
 
   it("opens the connection form automatically and hides the technical unknown-device result", async () => {
-    render(<PublicScanProcessor mode="scan" autoProcess publicCode="MAIN-QR" />);
+    render(<PublicScanProcessor mode="scan" qrType="room" publicCode="MAIN-QR" />);
     await finishTimers();
 
     expect(screen.getByRole("heading", { name: "Connect this phone" })).toBeTruthy();
@@ -484,7 +541,7 @@ describe("PublicScanProcessor first-device continuation", () => {
       result: finalAttendance,
     });
 
-    render(<PublicScanProcessor mode="scan" autoProcess publicCode="MAIN-QR" />);
+    render(<PublicScanProcessor mode="scan" qrType="room" publicCode="MAIN-QR" />);
     await finishTimers();
     fireEvent.change(screen.getByLabelText("Your staff email"), {
       target: { value: "nikki@example.com" },
@@ -514,7 +571,7 @@ describe("PublicScanProcessor first-device continuation", () => {
       error: "Check your email and password, then try again.",
     });
 
-    render(<PublicScanProcessor mode="scan" autoProcess publicCode="MAIN-QR" />);
+    render(<PublicScanProcessor mode="scan" qrType="room" publicCode="MAIN-QR" />);
     await finishTimers();
     fireEvent.change(screen.getByLabelText("Your staff email"), {
       target: { value: "wrong@example.com" },
@@ -543,7 +600,7 @@ describe("PublicScanProcessor first-device continuation", () => {
       )
     );
 
-    render(<PublicScanProcessor mode="scan" autoProcess publicCode="MAIN-QR" />);
+    render(<PublicScanProcessor mode="scan" qrType="room" publicCode="MAIN-QR" />);
     await finishTimers();
 
     expect(screen.getByRole("heading", { name: "This phone is no longer approved" })).toBeTruthy();
@@ -577,7 +634,7 @@ describe("PublicScanProcessor first-device continuation", () => {
       )
     );
 
-    render(<PublicScanProcessor mode="scan" autoProcess publicCode="MAIN-QR" />);
+    render(<PublicScanProcessor mode="scan" qrType="room" publicCode="MAIN-QR" />);
     await finishTimers();
 
     expect(screen.getByRole("heading", { name: "Clocked in" })).toBeTruthy();

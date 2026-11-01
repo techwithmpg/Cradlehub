@@ -26,14 +26,15 @@ import {
 } from "@/lib/attendance/browser-location";
 import type { AttendanceLocation } from "@/lib/attendance/geofence";
 import { claimStaffScanGrantAction } from "@/app/(dashboard)/staff/scan/actions";
+import type { PublicQrType } from "@/lib/scanner/classify-public-qr";
 
 type PublicScanProcessorProps =
   | {
       mode: "scan";
       publicCode: string;
+      qrType: PublicQrType | null;
       scanBasePath?: "/scan" | "/staff/scan/process";
       locationRequired?: boolean;
-      autoProcess?: boolean;
       operationId?: string;
     }
   | { mode: "activation"; token: string };
@@ -113,8 +114,7 @@ export function PublicScanProcessor(props: PublicScanProcessorProps) {
   const mode = props.mode;
   const scanPublicCode = mode === "scan" ? props.publicCode : null;
   const scanBasePath = mode === "scan" ? props.scanBasePath : undefined;
-  const autoProcess = mode === "scan" && props.autoProcess === true;
-  const attendanceCode = mode === "scan" && props.publicCode.startsWith("att_");
+  const attendanceCode = mode === "scan" && props.qrType === "attendance";
   const activationToken = mode === "activation" ? props.token : null;
   const [stage, setStage] = useState<ProcessorStage>(
     mode === "scan" ? "qr_recognized" : "recognizing"
@@ -131,10 +131,10 @@ export function PublicScanProcessor(props: PublicScanProcessorProps) {
     mode === "scan" ? (props.operationId ?? createRequestId()) : createRequestId()
   );
   const [confirmed, setConfirmed] = useState(
-    () => !attendanceCode || props.autoProcess === true
+    () => mode !== "scan" || (props.qrType !== null && !attendanceCode)
   );
   const [claimPending, setClaimPending] = useState(
-    () => attendanceCode && scanBasePath === "/staff/scan/process" && !autoProcess
+    () => attendanceCode && scanBasePath === "/staff/scan/process"
   );
   const [retryCount, setRetryCount] = useState(0);
   const startedRef = useRef(false);
@@ -146,7 +146,7 @@ export function PublicScanProcessor(props: PublicScanProcessorProps) {
     promise: ReturnType<typeof claimStaffScanGrantAction>;
   } | null>(null);
   const [locationPromptAccepted, setLocationPromptAccepted] = useState(false);
-  const locationRequired = mode === "scan" && props.locationRequired === true;
+  const locationRequired = mode === "scan" && props.qrType !== null && props.locationRequired === true;
 
   useEffect(() => {
     return () => {
@@ -164,7 +164,7 @@ export function PublicScanProcessor(props: PublicScanProcessorProps) {
   }, [locationRequired]);
 
   useEffect(() => {
-    if (!attendanceCode || scanBasePath !== "/staff/scan/process" || autoProcess || !scanPublicCode)
+    if (!attendanceCode || scanBasePath !== "/staff/scan/process" || !scanPublicCode)
       return;
     let active = true;
     if (claimRef.current?.code !== scanPublicCode) {
@@ -197,7 +197,7 @@ export function PublicScanProcessor(props: PublicScanProcessorProps) {
       active = false;
       window.clearTimeout(timeout);
     };
-  }, [attendanceCode, scanBasePath, autoProcess, scanPublicCode]);
+  }, [attendanceCode, scanBasePath, scanPublicCode]);
 
   useEffect(() => {
     if (!confirmed || startedRef.current) return;
@@ -463,11 +463,16 @@ export function PublicScanProcessor(props: PublicScanProcessorProps) {
 
   return (
     <div className={cn(styles.shell, shellTone)}>
-      {mode === "scan" && !confirmed ? (
+      {mode === "scan" && props.qrType === null ? (
+        <section className="mx-auto flex min-h-[60svh] max-w-md flex-col items-center justify-center gap-5 p-8 text-center">
+          <h1 className="text-xl font-semibold">QR code unavailable</h1>
+          <p>This QR code could not be verified. Please ask the front desk for help.</p>
+        </section>
+      ) : mode === "scan" && !confirmed ? (
         <section className="mx-auto flex min-h-[60svh] max-w-md flex-col items-center justify-center gap-5 p-8 text-center">
           <h1 className="text-xl font-semibold">QR code recognized</h1>
           <p>
-            {scanPublicCode?.startsWith("att_")
+            {attendanceCode
               ? "Record attendance at your assigned location using a fresh location reading."
               : "Continue this QR scan using a fresh location reading when required."}
           </p>
@@ -482,7 +487,7 @@ export function PublicScanProcessor(props: PublicScanProcessorProps) {
                 setConfirmed(true);
               }}
             >
-              {scanPublicCode?.startsWith("att_") ? "Record attendance" : "Continue scan"}
+              {attendanceCode ? "Record attendance" : "Continue scan"}
             </button>
           )}
         </section>

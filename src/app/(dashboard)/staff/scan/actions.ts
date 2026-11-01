@@ -5,6 +5,7 @@ import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { hashSecret } from "@/lib/attendance/tokens";
 import { resolveStaffScanTarget } from "@/lib/scanner/resolve-scan-target";
+import { classifyPublicQr } from "@/lib/scanner/classify-public-qr";
 import {
   createStaffScanGrant,
   readStaffScanGrant,
@@ -26,7 +27,10 @@ async function expireStaffScanGrantCookie() {
 /** Normalize scanner input and issue a short-lived navigation intent. Attendance remains server-authorized. */
 export async function resolveStaffScanTargetAction(raw: string) {
   const result = resolveStaffScanTarget(raw);
-  if (result.ok && result.target === "public_scan" && result.publicCode.startsWith("att_")) {
+  if (result.ok && result.target === "public_scan") {
+    const qrType = await classifyPublicQr(result.publicCode);
+    if (!qrType) return { ok: false as const, target: "invalid" as const, reason: "qr_unavailable" };
+    if (qrType !== "attendance") return result;
     const {
       data: { user },
     } = await (await createClient()).auth.getUser();

@@ -6,6 +6,7 @@ import {
   resolveStaffScanTargetAction,
 } from "@/app/(dashboard)/staff/scan/actions";
 import ProcessPage from "@/app/(dashboard)/staff/scan/process/[publicCode]/page";
+import PublicQrScanPage from "@/app/scan/[publicCode]/page";
 import ActivatePage from "@/app/(dashboard)/staff/scan/activate/[token]/page";
 import { PublicScanProcessor } from "@/components/features/attendance/public-scan-processor";
 import { DeviceRecoveryScreen } from "@/components/features/attendance/device-recovery-screen";
@@ -27,12 +28,26 @@ const ledger = vi.hoisted(() => ({
   failInsert: false,
   claimCalls: 0,
 }));
+const qrTypes = vi.hoisted(() => new Map<string, "attendance" | "room" | "resource">([
+  ["att_test", "attendance"],
+  ["att_test%20", "attendance"],
+  ["room_test", "room"],
+  ["res_test", "resource"],
+  ["att_room", "room"],
+  ["room_attendance", "attendance"],
+  ["legacy-code", "attendance"],
+  ["legacy-room-code", "room"],
+  ["legacy-resource-code", "resource"],
+]));
 const cookieStore = vi.hoisted(() => ({ get: vi.fn(), set: vi.fn() }));
 const auth = vi.hoisted(() => ({
   getUser: vi.fn(async () => ({ data: { user: { id: "user-1" } } })),
 }));
 vi.mock("next/headers", () => ({ cookies: vi.fn(async () => cookieStore) }));
 vi.mock("@/lib/supabase/server", () => ({ createClient: async () => ({ auth }) }));
+vi.mock("@/lib/scanner/classify-public-qr", () => ({
+  classifyPublicQr: async (code: string) => qrTypes.get(code) ?? null,
+}));
 vi.mock("@/lib/supabase/admin", () => ({
   createAdminClient: () => ({
     from: () => ({
@@ -137,6 +152,7 @@ describe("Staff server boundary and adapter reuse", () => {
     expect(element.props.children.props).toEqual({
       mode: "scan",
       publicCode: "att_test%20",
+      qrType: "attendance",
       scanBasePath: "/staff/scan/process",
       locationRequired: false,
     });
@@ -146,6 +162,51 @@ describe("Staff server boundary and adapter reuse", () => {
     expect(processor).toContain('scanBasePath?: "/scan" | "/staff/scan/process"');
     expect(processor).toContain('props.scanBasePath ?? "/scan"');
     expect(processor).toContain('fetch("/api/attendance/public-scan"');
+  });
+  it("uses the database type for misleading prefixes and rejects unavailable QR codes", async () => {
+    cookieStore.set.mockReset();
+    expect(await resolveStaffScanTargetAction("att_room")).toMatchObject({
+      ok: true, target: "public_scan", publicCode: "att_room",
+    });
+    expect(cookieStore.set).not.toHaveBeenCalled();
+    expect(await resolveStaffScanTargetAction("room_attendance")).toMatchObject({
+      ok: true, target: "public_scan", publicCode: "room_attendance",
+    });
+    expect(cookieStore.set).toHaveBeenCalledOnce();
+    expect(await resolveStaffScanTargetAction("room_unknown")).toMatchObject({
+      ok: false, reason: "qr_unavailable",
+    });
+    expect(cookieStore.set).toHaveBeenCalledOnce();
+  });
+  it("routes a same-origin printed legacy attendance URL after database classification", async () => {
+    const previous = process.env.NEXT_PUBLIC_APP_URL;
+    process.env.NEXT_PUBLIC_APP_URL = "https://app.example.com";
+    try {
+      cookieStore.set.mockReset();
+      expect(await resolveStaffScanTargetAction("https://app.example.com/scan/legacy-code")).toEqual({
+        ok: true, target: "public_scan", publicCode: "legacy-code",
+      });
+      expect(cookieStore.set).toHaveBeenCalledOnce();
+    } finally {
+      if (previous === undefined) delete process.env.NEXT_PUBLIC_APP_URL;
+      else process.env.NEXT_PUBLIC_APP_URL = previous;
+    }
+  });
+  it.each([
+    ["att_test", "attendance"],
+    ["legacy-code", "attendance"],
+    ["room_test", "room"],
+    ["res_test", "resource"],
+    ["legacy-room-code", "room"],
+    ["legacy-resource-code", "resource"],
+    ["att_room", "room"],
+    ["room_attendance", "attendance"],
+    ["unknown-code", null],
+  ] as const)("classifies direct and Staff routes for %s", async (code, qrType) => {
+    const direct = await PublicQrScanPage({ params: Promise.resolve({ publicCode: code }) });
+    const staff = await ProcessPage({ params: Promise.resolve({ publicCode: code }) });
+    expect(direct.props.children.props.qrType).toBe(qrType);
+    expect(staff.props.children.props.qrType).toBe(qrType);
   });
   it("expires the browser cookie after a user-bound claim", async () => {
     cookieStore.set.mockReset();

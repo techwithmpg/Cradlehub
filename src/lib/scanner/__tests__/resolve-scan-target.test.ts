@@ -184,11 +184,11 @@ describe("resolveStaffScanTarget", () => {
       }
     });
 
-    it("rejects /scan/{code} URL with unknown prefix", () => {
+    it("accepts an opaque code only within a validated same-origin scan URL", () => {
       const result = resolveStaffScanTarget(
         "https://app.example.com/scan/unknown_code"
       );
-      expect(result.ok).toBe(false);
+      expect(result).toEqual({ ok: true, target: "public_scan", publicCode: "unknown_code" });
     });
 
     it("rejects unknown path on same origin", () => {

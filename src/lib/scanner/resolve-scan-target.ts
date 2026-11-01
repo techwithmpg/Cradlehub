@@ -124,10 +124,7 @@ export function resolveStaffScanTarget(raw: string): ScanTargetResult {
       const rawCode = scanMatch[1] ?? "";
       const publicCode = decodeURIComponentSafe(rawCode);
       if (!publicCode) return { ok: false, target: "invalid", reason: "malformed_code" };
-      // Accept only known public-code prefixes from URL paths as well
-      if (!isKnownPublicCode(publicCode)) {
-        return { ok: false, target: "invalid", reason: "unknown_code_prefix" };
-      }
+      // Printed QR URLs carry opaque codes; the server action checks the active database row.
       return { ok: true, target: "public_scan", publicCode };
     }
 
