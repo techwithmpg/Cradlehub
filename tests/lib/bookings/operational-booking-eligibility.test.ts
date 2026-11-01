@@ -8,6 +8,7 @@ import {
 import {
   getVerifiedBookingPrice,
   isPaymentFullySettled,
+  getBookingPaymentDisplayState,
   groupCrmBookings,
   type CrmBookingGroup,
 } from "@/lib/bookings/crm-booking-groups";
@@ -766,6 +767,125 @@ describe("Operational Booking Eligibility (Pass 3)", () => {
         paid: 800,
         due: 0,
         status: "paid",
+      });
+    });
+
+    describe("getBookingPaymentDisplayState", () => {
+      it("resolves to Payment Review when order_id exists but financial summary is missing", () => {
+        const line = createMockLine({
+          order_id: "order-missing",
+          order_total_amount: null,
+          order_amount_paid: null,
+          order_payment_status: null,
+        });
+        const payment = { total: null, paid: null, due: null, status: null };
+        const display = getBookingPaymentDisplayState(payment, line);
+        expect(display).toEqual({
+          status: "payment_review",
+          label: "Payment Review",
+          isPaid: false,
+          isPartial: false,
+          isUnpaid: false,
+          isPaymentReview: true,
+        });
+      });
+
+      it("resolves to Payment Review when legacy line says Paid but order_payment_status is unpaid", () => {
+        const line = createMockLine({
+          order_id: "order-conflict",
+          payment_status: "paid",
+          amount_paid: 1200,
+          metadata: { price_paid: 1200 },
+          order_total_amount: 1200,
+          order_amount_paid: 0,
+          order_payment_status: "unpaid",
+        });
+        const payment = { total: 1200, paid: 0, due: 1200, status: "unpaid" };
+        const display = getBookingPaymentDisplayState(payment, line);
+        expect(display).toEqual({
+          status: "payment_review",
+          label: "Payment Review",
+          isPaid: false,
+          isPartial: false,
+          isUnpaid: false,
+          isPaymentReview: true,
+        });
+      });
+
+      it("resolves to Unpaid when normal order has verified unpaid evidence", () => {
+        const line = createMockLine({
+          order_id: "order-unpaid",
+          payment_status: "unpaid",
+          amount_paid: 0,
+          order_total_amount: 1500,
+          order_amount_paid: 0,
+          order_payment_status: "unpaid",
+        });
+        const payment = { total: 1500, paid: 0, due: 1500, status: "unpaid" };
+        const display = getBookingPaymentDisplayState(payment, line);
+        expect(display).toEqual({
+          status: "unpaid",
+          label: "Unpaid",
+          isPaid: false,
+          isPartial: false,
+          isUnpaid: true,
+          isPaymentReview: false,
+        });
+      });
+
+      it("resolves to Partial when normal order has verified partial evidence", () => {
+        const line = createMockLine({
+          order_id: "order-partial",
+          payment_status: "partial",
+          amount_paid: 800,
+          order_total_amount: 1500,
+          order_amount_paid: 800,
+          order_payment_status: "partial",
+        });
+        const payment = { total: 1500, paid: 800, due: 700, status: "partial" };
+        const display = getBookingPaymentDisplayState(payment, line);
+        expect(display).toEqual({
+          status: "partial",
+          label: "Partial",
+          isPaid: false,
+          isPartial: true,
+          isUnpaid: false,
+          isPaymentReview: false,
+        });
+      });
+
+      it("resolves to Paid when normal order has verified settled evidence", () => {
+        const line = createMockLine({
+          order_id: "order-paid",
+          payment_status: "paid",
+          amount_paid: 1500,
+          order_total_amount: 1500,
+          order_amount_paid: 1500,
+          order_payment_status: "paid",
+        });
+        const payment = { total: 1500, paid: 1500, due: 0, status: "paid" };
+        const display = getBookingPaymentDisplayState(payment, line);
+        expect(display).toEqual({
+          status: "paid",
+          label: "Paid",
+          isPaid: true,
+          isPartial: false,
+          isUnpaid: false,
+          isPaymentReview: false,
+        });
+      });
+
+      it("resolves legacy standalone booking with missing price and ambiguous status to Payment Review", () => {
+        const line = createMockLine({
+          id: "b-legacy-missing",
+          order_id: null,
+          payment_status: "unknown",
+          metadata: {},
+        });
+        const payment = { total: null, paid: 0, due: null, status: null };
+        const display = getBookingPaymentDisplayState(payment, line);
+        expect(display.isPaymentReview).toBe(true);
+        expect(display.label).toBe("Payment Review");
       });
     });
   });

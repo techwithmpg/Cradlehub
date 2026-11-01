@@ -743,8 +743,8 @@ export function BookingsDesktopWorkspace(props: DesktopWorkspaceProps) {
         <div className="w-[95px] shrink-0">Room</div>
         <div className="w-[100px] shrink-0">Type</div>
         <div className="w-[95px] shrink-0">Status</div>
-        <div className="w-[85px] shrink-0">Payment</div>
-        <div className="shrink-0 w-[145px]">Action</div>
+        <div className="w-[105px] shrink-0">Payment</div>
+        <div className="shrink-0 w-[150px]">Action</div>
       </div>
 
       {/* ── Booking List Rows ────────────────────────────────────────── */}

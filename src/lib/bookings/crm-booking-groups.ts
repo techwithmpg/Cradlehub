@@ -67,6 +67,168 @@ export function isPaymentFullySettled(payment: {
   return false;
 }
 
+export type BookingPaymentDisplayStatus = "paid" | "partial" | "unpaid" | "payment_review";
+
+export type BookingPaymentDisplayState = {
+  status: BookingPaymentDisplayStatus;
+  label: "Paid" | "Partial" | "Unpaid" | "Payment Review";
+  isPaid: boolean;
+  isPartial: boolean;
+  isUnpaid: boolean;
+  isPaymentReview: boolean;
+};
+
+/**
+ * Resolves the presentation status for booking payments.
+ *
+ * Rules:
+ * - If authoritatively and fully settled, returns "paid" ("Paid").
+ * - When order_id exists:
+ *   - If authoritative order payment evidence is missing (total === null, paid === null, or status === null)
+ *     or inconsistent (e.g. legacy line says "paid" while order evidence is missing or unpaid),
+ *     returns "payment_review" ("Payment Review").
+ *     This ensures staff cannot mistake unverified information for an instruction to collect another payment.
+ *   - If authoritative evidence shows verified partial payment (status === "partial" or paid > 0 with due > 0),
+ *     returns "partial" ("Partial").
+ *   - If authoritative evidence shows verified unpaid (status === "unpaid" and no conflicting legacy paid status),
+ *     returns "unpaid" ("Unpaid").
+ * - When order_id is absent (legacy standalone booking):
+ *   - If price is unverified/missing (total === null), returns "payment_review" ("Payment Review").
+ *   - If status is "partial", returns "partial" ("Partial").
+ *   - If status is "unpaid", returns "unpaid" ("Unpaid").
+ *   - Otherwise returns "payment_review" if status is missing or ambiguous.
+ */
+export function getBookingPaymentDisplayState(
+  payment: {
+    total: number | null;
+    paid: number | null;
+    due: number | null;
+    status: string | null;
+  },
+  primaryLine?: WorkspaceBookingRow | null
+): BookingPaymentDisplayState {
+  if (isPaymentFullySettled(payment)) {
+    return {
+      status: "paid",
+      label: "Paid",
+      isPaid: true,
+      isPartial: false,
+      isUnpaid: false,
+      isPaymentReview: false,
+    };
+  }
+
+  const hasOrderId = Boolean(primaryLine?.order_id);
+
+  if (hasOrderId) {
+    // Check for conflicting legacy payment evidence (e.g. legacy line says paid but order is unpaid)
+    const hasConflictingLegacyPaid =
+      (primaryLine?.payment_status === "paid" ||
+        (primaryLine?.metadata?.price_paid !== undefined &&
+          primaryLine.metadata.price_paid !== null &&
+          Number(primaryLine.metadata.price_paid) > 0)) &&
+      payment.status === "unpaid";
+
+    const isMissingOrderEvidence =
+      payment.total === null ||
+      payment.paid === null ||
+      payment.status === null;
+
+    if (isMissingOrderEvidence || hasConflictingLegacyPaid) {
+      return {
+        status: "payment_review",
+        label: "Payment Review",
+        isPaid: false,
+        isPartial: false,
+        isUnpaid: false,
+        isPaymentReview: true,
+      };
+    }
+
+    if (
+      payment.status === "partial" ||
+      (payment.paid !== null && payment.paid > 0 && payment.due !== null && payment.due > 0)
+    ) {
+      return {
+        status: "partial",
+        label: "Partial",
+        isPaid: false,
+        isPartial: true,
+        isUnpaid: false,
+        isPaymentReview: false,
+      };
+    }
+
+    if (payment.status === "unpaid") {
+      return {
+        status: "unpaid",
+        label: "Unpaid",
+        isPaid: false,
+        isPartial: false,
+        isUnpaid: true,
+        isPaymentReview: false,
+      };
+    }
+
+    // Any other unverified status
+    return {
+      status: "payment_review",
+      label: "Payment Review",
+      isPaid: false,
+      isPartial: false,
+      isUnpaid: false,
+      isPaymentReview: true,
+    };
+  }
+
+  // Legacy standalone booking (order_id absent)
+  if (
+    payment.status === "partial" ||
+    primaryLine?.payment_status === "partial" ||
+    (payment.paid !== null && payment.paid > 0 && payment.due !== null && payment.due > 0)
+  ) {
+    return {
+      status: "partial",
+      label: "Partial",
+      isPaid: false,
+      isPartial: true,
+      isUnpaid: false,
+      isPaymentReview: false,
+    };
+  }
+
+  if (payment.status === "unpaid" || primaryLine?.payment_status === "unpaid") {
+    return {
+      status: "unpaid",
+      label: "Unpaid",
+      isPaid: false,
+      isPartial: false,
+      isUnpaid: true,
+      isPaymentReview: false,
+    };
+  }
+
+  if (payment.total === null) {
+    return {
+      status: "payment_review",
+      label: "Payment Review",
+      isPaid: false,
+      isPartial: false,
+      isUnpaid: false,
+      isPaymentReview: true,
+    };
+  }
+
+  return {
+    status: "payment_review",
+    label: "Payment Review",
+    isPaid: false,
+    isPartial: false,
+    isUnpaid: false,
+    isPaymentReview: true,
+  };
+}
+
 export function groupCrmBookings(rows: readonly WorkspaceBookingRow[], groupOrders = true) {
   return groupBookingsByOrder(
     rows,

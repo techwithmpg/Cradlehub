@@ -32,7 +32,7 @@ import {
   isBookingLineClosed,
   isBookingLineCompleted,
 } from "@/lib/bookings/operational-booking-eligibility";
-import { isPaymentFullySettled } from "@/lib/bookings/crm-booking-groups";
+import { getBookingPaymentDisplayState } from "@/lib/bookings/crm-booking-groups";
 import { formatTime12h } from "@/lib/utils/time-format";
 import { PaymentActionMenu } from "@/components/features/dashboard/payment-action-menu";
 import {
@@ -121,6 +121,23 @@ export function HorizontalBookingRow({
     primaryLine;
 
   const targetLine = activeUnfinishedLine;
+  const isDifferentTarget = targetLine.id !== primaryLine.id;
+
+  const targetCustomer = firstBookingRelation(targetLine.customers);
+  const targetAttendee = firstBookingRelation(targetLine.booking_attendees);
+  const targetService = firstBookingRelation(targetLine.services);
+
+  const targetIndex = group.lines.findIndex((l) => l.id === targetLine.id);
+  const targetGuestName =
+    targetAttendee?.display_name?.trim() ||
+    targetCustomer?.full_name?.trim() ||
+    (targetIndex === 0
+      ? group.organizerName ?? "Organizer"
+      : targetIndex > 0
+      ? `Guest ${targetIndex + 1}`
+      : "Guest");
+
+  const targetServiceName = targetService?.name?.trim() || "Standard Service";
 
   const activeLines = group.lines.filter((line) => !isBookingLineClosed(line));
 
@@ -177,18 +194,13 @@ export function HorizontalBookingRow({
     return sum + (duration > 0 ? duration : 60);
   }, 0);
 
-  // Payment pill resolution:
-  // Use authoritative settlement verification rather than unverified 0-due assumptions.
-  const isPaid = isPaymentFullySettled(group.payment);
-  const isPartial =
-    !isPaid &&
-    (group.payment.status === "partial" ||
-      primaryLine.payment_status === "partial" ||
-      (group.payment.due !== null &&
-        group.payment.due > 0 &&
-        group.payment.paid !== null &&
-        group.payment.paid > 0));
-  const isPaymentDue = isCompleted && !isPaid;
+  // Payment display resolution:
+  // Use authoritative settlement verification and separate unverified states into Payment Review
+  const paymentState = getBookingPaymentDisplayState(group.payment, primaryLine);
+  const isPaid = paymentState.isPaid;
+  const isPartial = paymentState.isPartial;
+  const isPaymentReview = paymentState.isPaymentReview;
+  const isPaymentDue = isCompleted && !isPaid && !isPaymentReview;
 
   // Time substatus label and color
   let timeSubstatusLabel = "Upcoming";
@@ -211,6 +223,10 @@ export function HorizontalBookingRow({
     timeSubstatusLabel = "Payment Due";
     timeSubstatusDotColor = "bg-amber-500";
     timeSubstatusTextColor = "text-amber-700";
+  } else if (isCompleted && isPaymentReview) {
+    timeSubstatusLabel = "Payment Review";
+    timeSubstatusDotColor = "bg-purple-500";
+    timeSubstatusTextColor = "text-purple-700";
   } else if (isCompleted) {
     timeSubstatusLabel = "Completed";
     timeSubstatusDotColor = "bg-slate-300";
@@ -293,7 +309,7 @@ export function HorizontalBookingRow({
           const res = await crmCompleteServiceAction({ bookingId: targetLine.id });
           if (res.success) {
             toast.success("Service completed", {
-              description: `Completed service for ${customer?.full_name ?? "customer"}.`,
+              description: `Completed service for ${targetGuestName}.`,
             });
             onBookingsChanged?.();
           } else {
@@ -304,7 +320,7 @@ export function HorizontalBookingRow({
           const res = await crmStartServiceAction({ bookingId: targetLine.id });
           if (res.success) {
             toast.success("Service started", {
-              description: `Service session started for ${customer?.full_name ?? "customer"}.`,
+              description: `Service session started for ${targetGuestName}.`,
             });
             onBookingsChanged?.();
           } else {
@@ -364,6 +380,14 @@ export function HorizontalBookingRow({
               <span className="ml-1 text-xs font-normal text-neutral-500">
                 (+{group.lines.length - 1} guests)
               </span>
+            ) : null}
+            {isDifferentTarget && !isCompleted && !isClosed ? (
+              <div
+                data-testid="customer-action-target"
+                className="mt-0.5 truncate text-[11px] font-medium text-emerald-700"
+              >
+                Next action: {targetGuestName} ({targetServiceName})
+              </div>
             ) : null}
           </div>
           <div className="mt-0.5 truncate text-xs text-neutral-500">
@@ -439,7 +463,7 @@ export function HorizontalBookingRow({
 
         {/* 9. Payment */}
         <div
-          className="flex w-[85px] shrink-0 items-center gap-1"
+          className="flex min-w-[105px] shrink-0 items-center gap-1"
           onClick={(e) => e.stopPropagation()}
         >
           {isPaid ? (
@@ -451,6 +475,15 @@ export function HorizontalBookingRow({
             <span className="inline-flex items-center gap-1 rounded-full border border-amber-200 bg-amber-50 px-2.5 py-1 text-xs font-semibold text-amber-700">
               <CircleAlert className="size-3.5 text-amber-600" />
               Partial
+            </span>
+          ) : isPaymentReview ? (
+            <span
+              data-testid="payment-review-badge"
+              title="Payment evidence requires review before collecting"
+              className="inline-flex items-center gap-1 rounded-full border border-purple-200 bg-purple-50 px-2.5 py-1 text-xs font-semibold text-purple-700"
+            >
+              <CircleAlert className="size-3.5 text-purple-600" />
+              Payment Review
             </span>
           ) : (
             <span className="inline-flex items-center gap-1 rounded-full border border-rose-200 bg-rose-50 px-2.5 py-1 text-xs font-semibold text-rose-600">
@@ -474,51 +507,75 @@ export function HorizontalBookingRow({
 
         {/* 10. Action & Chevron */}
         <div
-          className="flex shrink-0 items-center gap-2"
+          className="flex shrink-0 flex-col items-end justify-center gap-1 min-w-[150px]"
           onClick={(e) => e.stopPropagation()}
         >
-          {isSelected && !isExpanded && onOpenFallbackReschedule ? (
+          <div className="flex items-center gap-2">
+            {isSelected && !isExpanded && onOpenFallbackReschedule ? (
+              <button
+                type="button"
+                onClick={() => onOpenFallbackReschedule(primaryLine)}
+                className="rounded-lg border border-neutral-200 bg-white px-2.5 py-1.5 text-xs font-medium text-neutral-700 transition hover:bg-neutral-50"
+              >
+                Reschedule
+              </button>
+            ) : null}
             <button
               type="button"
-              onClick={() => onOpenFallbackReschedule(primaryLine)}
-              className="rounded-lg border border-neutral-200 bg-white px-2.5 py-1.5 text-xs font-medium text-neutral-700 transition hover:bg-neutral-50"
+              onClick={handleActionClick}
+              disabled={isActionPending || isCompleted || isClosed}
+              aria-describedby={
+                isDifferentTarget && !isCompleted && !isClosed
+                  ? `action-target-${targetLine.id}`
+                  : undefined
+              }
+              title={
+                isDifferentTarget && !isCompleted && !isClosed
+                  ? `Action target: ${targetGuestName} · ${targetServiceName}`
+                  : undefined
+              }
+              className={`rounded-lg px-3.5 py-1.5 text-xs font-semibold transition active:scale-[0.98] ${
+                isCompleted || isClosed
+                  ? "bg-slate-100 text-slate-400 cursor-default"
+                  : "bg-[#006044] text-white shadow-sm hover:bg-[#004d37] disabled:opacity-50"
+              }`}
             >
-              Reschedule
+              {isActionPending ? (
+                <span className="flex items-center gap-1">
+                  <Loader2 className="size-3.5 animate-spin" />
+                  Working...
+                </span>
+              ) : (
+                actionButtonLabel
+              )}
             </button>
-          ) : null}
-          <button
-            type="button"
-            onClick={handleActionClick}
-            disabled={isActionPending || isCompleted || isClosed}
-            className={`rounded-lg px-3.5 py-1.5 text-xs font-semibold transition active:scale-[0.98] ${
-              isCompleted || isClosed
-                ? "bg-slate-100 text-slate-400 cursor-default"
-                : "bg-[#006044] text-white shadow-sm hover:bg-[#004d37] disabled:opacity-50"
-            }`}
-          >
-            {isActionPending ? (
-              <span className="flex items-center gap-1">
-                <Loader2 className="size-3.5 animate-spin" />
-                Working...
-              </span>
-            ) : (
-              actionButtonLabel
-            )}
-          </button>
 
-          <button
-            type="button"
-            onClick={onToggleExpand}
-            className="grid size-8 place-items-center rounded-lg border border-neutral-200 text-neutral-500 transition hover:bg-neutral-100 hover:text-neutral-800"
-            aria-label={isExpanded ? "Collapse quick edit" : "Expand quick edit"}
-            aria-expanded={isExpanded}
-          >
-            {isExpanded ? (
-              <ChevronUp className="size-4" />
-            ) : (
-              <ChevronDown className="size-4" />
-            )}
-          </button>
+            <button
+              type="button"
+              onClick={onToggleExpand}
+              className="grid size-8 place-items-center rounded-lg border border-neutral-200 text-neutral-500 transition hover:bg-neutral-100 hover:text-neutral-800"
+              aria-label={isExpanded ? "Collapse quick edit" : "Expand quick edit"}
+              aria-expanded={isExpanded}
+            >
+              {isExpanded ? (
+                <ChevronUp className="size-4" />
+              ) : (
+                <ChevronDown className="size-4" />
+              )}
+            </button>
+          </div>
+
+          {/* Explicit Multi-Guest Action Target Indicator */}
+          {isDifferentTarget && !isCompleted && !isClosed ? (
+            <div
+              id={`action-target-${targetLine.id}`}
+              data-testid="action-target-indicator"
+              className="max-w-[155px] truncate rounded bg-emerald-50 px-1.5 py-0.5 text-[11px] font-medium text-emerald-800 border border-emerald-200/90"
+              title={`Target: ${targetGuestName} · ${targetServiceName}`}
+            >
+              Target: <span className="font-semibold">{targetGuestName}</span> · {targetServiceName}
+            </div>
+          ) : null}
         </div>
       </div>
 
