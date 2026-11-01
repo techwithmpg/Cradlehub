@@ -4,6 +4,7 @@ import { useCallback, useEffect, useId, useMemo, useRef, useState, type ReactNod
 import { useRouter } from "next/navigation";
 import Image from "next/image";
 import {
+  AlertTriangle,
   CalendarDays,
   Clock,
   Home,
@@ -1305,7 +1306,10 @@ export function QuickBookingForm({
     }
     if (!date) nextErrors.date = "Choose a valid date and time.";
     if (!time) nextErrors.time = "Choose a valid date and time.";
-    if (hasConsultationService && !staffId) {
+    if (groupBooking && customerRequestedTherapist) {
+      nextErrors.staffId =
+        "Exact therapist allocation is unsupported for group bookings. Proceed with a non-guaranteed preference after customer agreement, or return to single booking.";
+    } else if (hasConsultationService && !staffId) {
       nextErrors.staffId = "Select a coordinating provider for this package.";
     } else if (!groupBooking && therapistSelectionMode === "manual" && !staffId) {
       nextErrors.staffId = "Choose an available therapist or select Automatic.";
@@ -1601,7 +1605,7 @@ export function QuickBookingForm({
           })),
         }),
         staffId: staffId || undefined,
-        customerRequestedTherapist: Boolean(staffId && customerRequestedTherapist),
+        customerRequestedTherapist: groupBooking ? false : Boolean(staffId && customerRequestedTherapist),
         resourceId: isHomeService || groupBooking ? undefined : resourceId || undefined,
         date,
         startTime: normalizeTime(time),
@@ -1833,7 +1837,7 @@ export function QuickBookingForm({
                 isOrganizer && hasConsultationService
                   ? "Coordinating provider"
                   : isOrganizer && groupBooking
-                    ? "Therapist (Organizer)"
+                    ? "Preferred therapist (Organizer)"
                     : "Therapist"
               }
             />
@@ -1936,18 +1940,62 @@ export function QuickBookingForm({
                   ) : null}
                   {hasConsultationService ? (
                     <span className="mt-1 block text-[10px] text-[var(--cs-text-muted)]">
-                      Coordinating provider required for consultation packages
+                      Coordinating provider oversees package requirements and participant arrangements. Treatment staff is assigned automatically.
                     </span>
                   ) : groupBooking ? (
                     <span className="mt-1 block text-[10px] text-[var(--cs-text-muted)]">
-                      Preferred therapist for Organizer (remaining guests assigned automatically)
+                      Soft preference for Organizer — not guaranteed. Final allocation depends on group availability.
                     </span>
                   ) : null}
                 </>
               );
             })()}
             {isOrganizer ? <FieldError message={fieldErrors.staffId} /> : null}
-            {isOrganizer && staffId ? (
+            {isOrganizer && groupBooking && customerRequestedTherapist ? (
+              <div
+                role="alert"
+                aria-label="Exact therapist unsupported"
+                className="mt-2 rounded-lg border border-amber-300 bg-amber-50 p-2.5 text-xs text-amber-900"
+              >
+                <div className="flex items-start gap-2">
+                  <AlertTriangle size={15} className="mt-0.5 shrink-0 text-amber-600" />
+                  <div className="min-w-0 flex-1">
+                    <p className="font-semibold text-amber-900">
+                      Exact therapist allocation is unsupported for group bookings.
+                    </p>
+                    <p className="mt-0.5 text-[11px] text-amber-800">
+                      Final assignments depend on joint availability across all guests. You may proceed with a non-guaranteed preference after customer agreement, or return to single-guest booking.
+                    </p>
+                    <div className="mt-2 flex flex-wrap gap-2">
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setCustomerRequestedTherapist(false);
+                          setFieldErrors((current) => ({ ...current, staffId: undefined }));
+                        }}
+                        disabled={isSaving}
+                        className="rounded bg-amber-200 px-2 py-1 text-[11px] font-semibold text-amber-900 hover:bg-amber-300"
+                      >
+                        Proceed with non-guaranteed preference
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setAdditionalGuests([]);
+                          setGuestSelectedStaffIds({});
+                          setFieldErrors((current) => ({ ...current, staffId: undefined }));
+                        }}
+                        disabled={isSaving}
+                        className="rounded border border-amber-400 bg-white px-2 py-1 text-[11px] font-medium text-amber-900 hover:bg-amber-100"
+                      >
+                        Return to single booking
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            ) : null}
+            {isOrganizer && !groupBooking && !hasConsultationService && staffId ? (
               <label className="mt-1 flex items-center gap-1 text-[11px]">
                 <input
                   type="checkbox"

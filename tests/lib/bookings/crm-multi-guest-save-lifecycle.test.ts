@@ -58,14 +58,18 @@ vi.mock("@/lib/engine/resource-availability", () => ({
     windows.map((_, idx) => `room-${idx + 1}`)
   ),
 }));
-vi.mock("@/lib/engine/availability", () => ({
-  assignTherapistsForOrder: vi.fn().mockImplementation(async ({ attendees, preferredStaffId }: { attendees: Array<{ id: string }>; preferredStaffId?: string }) =>
-    attendees.map((attendee, index) => ({
-      attendeeId: attendee.id,
-      staffId: index === 0 && preferredStaffId ? preferredStaffId : `staff-${index + 1}`,
-    }))
-  ),
-}));
+vi.mock("@/lib/engine/availability", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("@/lib/engine/availability")>();
+  return {
+    ...actual,
+    assignTherapistsForOrder: vi.fn().mockImplementation(async ({ attendees, preferredStaffId }: { attendees: Array<{ id: string }>; preferredStaffId?: string }) =>
+      attendees.map((attendee, index) => ({
+        attendeeId: attendee.id,
+        staffId: index === 0 && preferredStaffId ? preferredStaffId : `staff-${index + 1}`,
+      }))
+    ),
+  };
+});
 vi.mock("@/lib/home-service/distance-service", () => ({
   calculateHomeServiceDistanceQuote: vi.fn().mockResolvedValue({
     ok: true,
@@ -91,7 +95,7 @@ vi.mock("@/lib/bookings/revalidate-booking-surfaces", () => ({
 }));
 
 import { executeInhouseBookingCreation } from "@/lib/bookings/inhouse-booking-engine";
-import { assignTherapistsForOrder } from "@/lib/engine/availability";
+import { assignTherapistsForOrder, findDistinctStaffAssignment } from "@/lib/engine/availability";
 import { allocateResourcesForAttendees } from "@/lib/engine/resource-availability";
 import { SlotUnavailableError } from "@/types/errors";
 
@@ -504,6 +508,98 @@ describe("CRM Multi-Guest Booking Save Lifecycle", () => {
     expect(rpc).not.toHaveBeenCalled();
   });
 
+  it("rejects group booking with EXACT_THERAPIST_UNSUPPORTED_FOR_GROUP when customerRequestedTherapist is true", async () => {
+    const input = {
+      idempotencyKey: "123e4567-e89b-12d3-a456-426614174090",
+      branchId,
+      customerId,
+      bookingFor: "me_and_others" as const,
+      serviceIds: [serviceA, serviceB],
+      date: "2026-11-02",
+      startTime: "14:00",
+      type: "walkin" as const,
+      fullName: "Organizer Name",
+      phone: "09171234567",
+      staffId: "44444444-4444-4444-8444-444444444444",
+      customerRequestedTherapist: true,
+      attendees: [
+        { id: att1, name: "Organizer Name", isOrganizer: true, serviceIds: [serviceA] },
+        { id: att2, name: "Guest 2", isOrganizer: false, serviceIds: [serviceB] },
+      ],
+    };
+
+    const result = await executeInhouseBookingCreation(input, operator);
+    expect(result).toMatchObject({
+      ok: false,
+      code: "EXACT_THERAPIST_UNSUPPORTED_FOR_GROUP",
+      message:
+        "Exact therapist allocation is unsupported for group bookings. Proceed with a non-guaranteed preference after customer agreement, or return to single booking.",
+    });
+    expect(rpc).not.toHaveBeenCalled();
+  });
+
+  it("never promises A to Guest 1 when Guest 2 can only use A, assigning A to Guest 2 and B to Guest 1 with system_assigned provenance", async () => {
+    const staffA = "aaaaaaaa-1111-4111-8111-111111111111";
+    const staffB = "bbbbbbbb-2222-4222-8222-222222222222";
+
+    // 1. Verify bipartite matching solver directly
+    const candidates = [
+      [staffA, staffB], // Guest 1 can take A or B (A is preferred)
+      [staffA],         // Guest 2 can only take A
+    ];
+    const assigned = findDistinctStaffAssignment(candidates);
+    expect(assigned).toEqual([staffB, staffA]);
+
+    // 2. Verify lifecycle behavior:
+    // When Guest 1 expresses soft preference for staffA, but availability forces staffB for Guest 1 and staffA for Guest 2:
+    vi.mocked(assignTherapistsForOrder).mockResolvedValueOnce([
+      { attendeeId: att1, staffId: staffB },
+      { attendeeId: att2, staffId: staffA },
+    ]);
+
+    const input = {
+      idempotencyKey: "123e4567-e89b-12d3-a456-426614174091",
+      branchId,
+      customerId,
+      bookingFor: "me_and_others" as const,
+      serviceIds: [serviceA, serviceB],
+      date: "2026-11-02",
+      startTime: "14:00",
+      type: "walkin" as const,
+      fullName: "Organizer Name",
+      phone: "09171234567",
+      staffId: staffA, // Soft preference for Organizer
+      customerRequestedTherapist: false,
+      attendees: [
+        { id: att1, name: "Organizer Name", isOrganizer: true, serviceIds: [serviceA] },
+        { id: att2, name: "Guest 2", isOrganizer: false, serviceIds: [serviceB] },
+      ],
+    };
+
+    const result = await executeInhouseBookingCreation(input, operator);
+    expect(result.ok).toBe(true);
+
+    expect(rpc).toHaveBeenCalledOnce();
+    const rpcPayload = rpc.mock.calls[0]?.[1];
+    const lines = rpcPayload.p_service_lines;
+    expect(lines).toHaveLength(2);
+
+    // Guest 1 was given staffB (since staffA went to Guest 2)
+    expect(lines[0].staff_id).toBe(staffB);
+    // Ensure system never promised A to Guest 1: requested_staff_id is null, provenance is system_assigned
+    expect(lines[0].metadata._therapist_provenance).toEqual({
+      requested_staff_id: null,
+      therapist_selection_source: "system_assigned",
+    });
+
+    // Guest 2 was given staffA
+    expect(lines[1].staff_id).toBe(staffA);
+    expect(lines[1].metadata._therapist_provenance).toEqual({
+      requested_staff_id: null,
+      therapist_selection_source: "system_assigned",
+    });
+  });
+
   it("accepts a consultation-required group booking when coordinating staffId is provided, propagating preferred staff and provenance", async () => {
     const coordinatingStaffId = "44444444-4444-4444-8444-444444444444";
     const input = {
@@ -518,7 +614,7 @@ describe("CRM Multi-Guest Booking Save Lifecycle", () => {
       fullName: "Organizer Name",
       phone: "09171234567",
       staffId: coordinatingStaffId,
-      customerRequestedTherapist: true,
+      customerRequestedTherapist: false,
       attendees: [
         { id: att1, name: "Organizer Name", isOrganizer: true, serviceIds: [serviceConsultation] },
         { id: att2, name: "Guest 2", isOrganizer: false, serviceIds: [serviceA] },
@@ -542,8 +638,8 @@ describe("CRM Multi-Guest Booking Save Lifecycle", () => {
     const lines = rpcPayload.p_service_lines;
     expect(lines).toHaveLength(2);
     expect(lines[0].metadata._therapist_provenance).toMatchObject({
-      requested_staff_id: coordinatingStaffId,
-      therapist_selection_source: "customer_selected",
+      requested_staff_id: null,
+      therapist_selection_source: "front_desk_selected",
     });
     expect(lines[1].metadata._therapist_provenance).toMatchObject({
       requested_staff_id: null,

@@ -87,7 +87,7 @@ beforeEach(() => {
 afterEach(cleanup);
 
 describe("CRM Multi-Guest Booking Save Component Lifecycle", () => {
-  it("preserves preexisting staffId and customerRequestedTherapist for Guest 1 upon adding a guest", () => {
+  it("shows inline explanation, blocks save, and offers deliberate preference/return choices when adding guest after customer requested therapist", async () => {
     render(
       <QuickBookingForm
         {...baseProps}
@@ -100,14 +100,47 @@ describe("CRM Multi-Guest Booking Save Component Lifecycle", () => {
     // Click Add Guest
     fireEvent.click(screen.getByRole("button", { name: "Add Guest" }));
 
-    // Customer requested therapist checkbox remains checked for Guest 1 in group mode
-    const guest1Region = within(screen.getByRole("region", { name: "Guest 1 booking details" }));
-    expect((guest1Region.getByRole("checkbox", { name: "Customer requested this therapist" }) as HTMLInputElement).checked).toBe(true);
-    // Guest 1 retains interactive therapist combobox
-    expect(guest1Region.getByRole("combobox", { name: "Guest 1 therapist" })).toBeTruthy();
-    // Guest 2 gets Automatic indicator
+    // Inline explanation appears
+    expect(screen.getByRole("alert", { name: "Exact therapist unsupported" })).toBeTruthy();
+    expect(screen.getByText(/Exact therapist allocation is unsupported for group bookings/i)).toBeTruthy();
+
+    // Select service for Guest 2
     const guest2Region = within(screen.getByRole("region", { name: "Guest 2 booking details" }));
-    expect(guest2Region.getByText(/Assigned automatically on Save/)).toBeTruthy();
+    fireEvent.click(guest2Region.getByRole("button", { name: /^Signature Facial,/ }));
+
+    // Attempting Save is blocked
+    fireEvent.click(screen.getByRole("button", { name: "Save Booking" }));
+    expect(mocks.createBooking).not.toHaveBeenCalled();
+    expect(screen.getAllByText(/Exact therapist allocation is unsupported for group bookings/i).length).toBeGreaterThanOrEqual(1);
+
+    // Click "Return to single booking"
+    fireEvent.click(screen.getByRole("button", { name: "Return to single booking" }));
+    // Guest 2 is removed, returning to single-guest mode with customer request intact
+    expect(screen.queryByRole("region", { name: "Guest 2 booking details" })).toBeNull();
+    const restoredCheckbox = screen.getByRole("checkbox", { name: "Customer requested this therapist" }) as HTMLInputElement;
+    expect(restoredCheckbox).toBeTruthy();
+    expect(restoredCheckbox.checked).toBe(true);
+
+    // Click Add Guest again
+    fireEvent.click(screen.getByRole("button", { name: "Add Guest" }));
+    const guest2RegionAgain = within(screen.getByRole("region", { name: "Guest 2 booking details" }));
+    fireEvent.click(guest2RegionAgain.getByRole("button", { name: /^Signature Facial,/ }));
+
+    // Now click "Proceed with non-guaranteed preference"
+    fireEvent.click(screen.getByRole("button", { name: "Proceed with non-guaranteed preference" }));
+    expect(screen.queryByText(/Exact therapist allocation is unsupported for group bookings/i)).toBeNull();
+
+    // Label reflects soft preference
+    expect(screen.getByText("Preferred therapist (Organizer)")).toBeTruthy();
+    expect(screen.getByText(/Soft preference for Organizer — not guaranteed/i)).toBeTruthy();
+
+    // Save Booking now succeeds with staffId as soft preference and customerRequestedTherapist: false
+    fireEvent.click(screen.getByRole("button", { name: "Save Booking" }));
+    await waitFor(() => expect(mocks.createBooking).toHaveBeenCalledOnce());
+    expect(mocks.createBooking.mock.calls[0]?.[0]).toMatchObject({
+      staffId: "staff-1",
+      customerRequestedTherapist: false,
+    });
   });
 
   it("submits 2 guests with blank guest name safely defaulted to Guest 2", async () => {

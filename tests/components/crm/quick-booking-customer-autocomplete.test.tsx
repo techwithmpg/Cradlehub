@@ -137,7 +137,7 @@ describe("Quick Booking customer name autocomplete", () => {
     expect(screen.queryByRole("dialog", { name: /services/i })).toBeNull();
   });
 
-  it("preserves customer-requested therapist for Organizer across addGuest and submits preferred staff", async () => {
+  it("preserves customer-requested therapist for Organizer across addGuest and submits preferred staff after deliberate preference confirmation", async () => {
     render(
       <QuickBookingForm
         {...props}
@@ -151,7 +151,12 @@ describe("Quick Booking customer name autocomplete", () => {
     );
     fireEvent.click(screen.getByRole("checkbox", { name: "Customer requested this therapist" }));
     fireEvent.click(screen.getByRole("button", { name: "Add Guest" }));
-    expect((screen.getByRole("checkbox", { name: "Customer requested this therapist" }) as HTMLInputElement).checked).toBe(true);
+    expect(screen.getByText(/Exact therapist allocation is unsupported for group bookings/i)).toBeTruthy();
+
+    // Confirm proceeding with non-guaranteed preference
+    fireEvent.click(screen.getByRole("button", { name: "Proceed with non-guaranteed preference" }));
+    expect(screen.queryByText(/Exact therapist allocation is unsupported for group bookings/i)).toBeNull();
+
     fireEvent.change(screen.getByRole("textbox", { name: "Guest 2 name" }), {
       target: { value: "Second Guest" },
     });
@@ -159,7 +164,7 @@ describe("Quick Booking customer name autocomplete", () => {
     fireEvent.click(screen.getByRole("button", { name: "Save Booking" }));
     await waitFor(() => expect(mocks.createBooking).toHaveBeenCalledOnce());
     expect(mocks.createBooking.mock.calls[0]?.[0].staffId).toBe("staff-1");
-    expect(mocks.createBooking.mock.calls[0]?.[0].customerRequestedTherapist).toBe(true);
+    expect(mocks.createBooking.mock.calls[0]?.[0].customerRequestedTherapist).toBe(false);
   });
   it("keeps Phone/Future guests expanded and submits attendee service associations", async () => {
     render(
