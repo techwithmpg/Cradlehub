@@ -39,6 +39,7 @@ import {
 } from "@/lib/integrations/google-sheets/sheet-native-match";
 import { sortSheetReferencesRecentFirst } from "@/lib/bookings/booking-recency";
 import {
+  isBookingLineClosed,
   isBookingLineCompleted,
   isOperationalBookingGroup,
 } from "@/lib/bookings/operational-booking-eligibility";
@@ -240,17 +241,35 @@ export function BookingsDesktopWorkspace(props: DesktopWorkspaceProps) {
 
         // Status filter
         if (statusFilter !== "all") {
-          const isCancelled = group.lines.every(
-            (line) => line.status === "cancelled" || line.booking_progress_status === "cancelled"
-          );
+          const isCancelled =
+            group.lines.length > 0 &&
+            group.lines.every(
+              (line) => line.status === "cancelled" || line.booking_progress_status === "cancelled"
+            );
+          const isNoShow =
+            !isCancelled &&
+            group.lines.length > 0 &&
+            group.lines.every(
+              (line) => line.status === "no_show" || line.booking_progress_status === "no_show"
+            );
+          const isExpired =
+            !isCancelled &&
+            !isNoShow &&
+            group.lines.length > 0 &&
+            group.lines.every((line) => line.status === "expired");
+          const isClosed = isCancelled || isNoShow || isExpired;
+
+          const activeLines = group.lines.filter((line) => !isBookingLineClosed(line));
+
           const isCompleted =
-            !isCancelled &&
-            group.lines.filter((line) => line.status !== "cancelled").length > 0 &&
-            group.lines.filter((line) => line.status !== "cancelled").every(isBookingLineCompleted);
+            !isClosed &&
+            activeLines.length > 0 &&
+            activeLines.every(isBookingLineCompleted);
+
           const isInService =
-            !isCancelled &&
+            !isClosed &&
             !isCompleted &&
-            group.lines.some(
+            activeLines.some(
               (line) =>
                 !isBookingLineCompleted(line) &&
                 (line.status === "in_progress" ||
@@ -258,11 +277,12 @@ export function BookingsDesktopWorkspace(props: DesktopWorkspaceProps) {
                   line.booking_progress_status === "in_service" ||
                   (Boolean(line.session_started_at) && !line.session_completed_at))
             );
+
           const isCheckedIn =
-            !isCancelled &&
+            !isClosed &&
             !isCompleted &&
             !isInService &&
-            group.lines.some(
+            activeLines.some(
               (line) =>
                 !isBookingLineCompleted(line) &&
                 (line.booking_progress_status === "checked_in" ||
@@ -275,9 +295,11 @@ export function BookingsDesktopWorkspace(props: DesktopWorkspaceProps) {
           if (statusFilter === "checked_in" && !isCheckedIn) return false;
           if (statusFilter === "completed" && !isCompleted) return false;
           if (statusFilter === "cancelled" && !isCancelled) return false;
+          if (statusFilter === "no_show" && !isNoShow) return false;
+          if (statusFilter === "expired" && !isExpired) return false;
           if (
             statusFilter === "upcoming" &&
-            (isInService || isCheckedIn || isCompleted || isCancelled)
+            (isInService || isCheckedIn || isCompleted || isClosed)
           ) {
             return false;
           }
@@ -582,6 +604,8 @@ export function BookingsDesktopWorkspace(props: DesktopWorkspaceProps) {
             <option value="upcoming">Upcoming</option>
             <option value="completed">Completed</option>
             <option value="cancelled">Cancelled</option>
+            <option value="no_show">No-Show</option>
+            <option value="expired">Expired</option>
           </select>
           <div className="pointer-events-none absolute right-2.5 top-1/2 -translate-y-1/2 text-neutral-400 text-xs">
             ▼

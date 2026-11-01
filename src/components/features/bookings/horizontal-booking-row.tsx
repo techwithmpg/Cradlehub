@@ -28,7 +28,11 @@ import {
   readBookingPrice,
 } from "@/lib/bookings/booking-display";
 import { isHomeServiceBooking } from "@/lib/bookings/bookings-workspace-filters";
-import { isBookingLineCompleted } from "@/lib/bookings/operational-booking-eligibility";
+import {
+  isBookingLineClosed,
+  isBookingLineCompleted,
+} from "@/lib/bookings/operational-booking-eligibility";
+import { isPaymentFullySettled } from "@/lib/bookings/crm-booking-groups";
 import { formatTime12h } from "@/lib/utils/time-format";
 import { PaymentActionMenu } from "@/components/features/dashboard/payment-action-menu";
 import {
@@ -98,7 +102,7 @@ export function HorizontalBookingRow({
     group.lines.find(
       (line) =>
         !isBookingLineCompleted(line) &&
-        line.status !== "cancelled" &&
+        !isBookingLineClosed(line) &&
         (line.status === "in_progress" ||
           line.booking_progress_status === "session_started" ||
           line.booking_progress_status === "in_service" ||
@@ -107,30 +111,45 @@ export function HorizontalBookingRow({
     group.lines.find(
       (line) =>
         !isBookingLineCompleted(line) &&
-        line.status !== "cancelled" &&
+        !isBookingLineClosed(line) &&
         (line.booking_progress_status === "checked_in" ||
           line.booking_progress_status === "arrived" ||
           Boolean(line.checked_in_at) ||
           Boolean(line.arrived_at))
     ) ??
-    group.lines.find((line) => !isBookingLineCompleted(line) && line.status !== "cancelled") ??
+    group.lines.find((line) => !isBookingLineCompleted(line) && !isBookingLineClosed(line)) ??
     primaryLine;
 
   const targetLine = activeUnfinishedLine;
 
-  const allLinesCompleted =
-    group.lines.filter((line) => line.status !== "cancelled").length > 0 &&
-    group.lines.filter((line) => line.status !== "cancelled").every(isBookingLineCompleted);
+  const activeLines = group.lines.filter((line) => !isBookingLineClosed(line));
 
   const isCancelled =
+    group.lines.length > 0 &&
     group.lines.every((line) => line.status === "cancelled" || line.booking_progress_status === "cancelled");
 
-  const isCompleted = !isCancelled && allLinesCompleted;
+  const isNoShow =
+    !isCancelled &&
+    group.lines.length > 0 &&
+    group.lines.every((line) => line.status === "no_show" || line.booking_progress_status === "no_show");
+
+  const isExpired =
+    !isCancelled &&
+    !isNoShow &&
+    group.lines.length > 0 &&
+    group.lines.every((line) => line.status === "expired");
+
+  const isClosed = isCancelled || isNoShow || isExpired;
+
+  const allActiveCompleted =
+    activeLines.length > 0 && activeLines.every(isBookingLineCompleted);
+
+  const isCompleted = !isClosed && allActiveCompleted;
 
   const isInService =
-    !isCancelled &&
+    !isClosed &&
     !isCompleted &&
-    group.lines.some(
+    activeLines.some(
       (line) =>
         !isBookingLineCompleted(line) &&
         (line.status === "in_progress" ||
@@ -140,10 +159,10 @@ export function HorizontalBookingRow({
     );
 
   const isCheckedIn =
-    !isCancelled &&
+    !isClosed &&
     !isCompleted &&
     !isInService &&
-    group.lines.some(
+    activeLines.some(
       (line) =>
         !isBookingLineCompleted(line) &&
         (line.booking_progress_status === "checked_in" ||
@@ -158,17 +177,17 @@ export function HorizontalBookingRow({
     return sum + (duration > 0 ? duration : 60);
   }, 0);
 
-  // Payment pill resolution
-  const paymentStatus = group.payment.status ?? primaryLine.payment_status;
-  const isPaid =
-    paymentStatus === "paid" ||
-    (group.payment.due !== null && group.payment.due !== undefined && group.payment.due <= 0);
+  // Payment pill resolution:
+  // Use authoritative settlement verification rather than unverified 0-due assumptions.
+  const isPaid = isPaymentFullySettled(group.payment);
   const isPartial =
-    paymentStatus === "partial" ||
-    (group.payment.due !== null &&
-      group.payment.due !== undefined &&
-      group.payment.due > 0 &&
-      (group.payment.paid ?? 0) > 0);
+    !isPaid &&
+    (group.payment.status === "partial" ||
+      primaryLine.payment_status === "partial" ||
+      (group.payment.due !== null &&
+        group.payment.due > 0 &&
+        group.payment.paid !== null &&
+        group.payment.paid > 0));
   const isPaymentDue = isCompleted && !isPaid;
 
   // Time substatus label and color
@@ -180,6 +199,14 @@ export function HorizontalBookingRow({
     timeSubstatusLabel = "Cancelled";
     timeSubstatusDotColor = "bg-rose-500";
     timeSubstatusTextColor = "text-rose-600";
+  } else if (isNoShow) {
+    timeSubstatusLabel = "No-Show";
+    timeSubstatusDotColor = "bg-stone-500";
+    timeSubstatusTextColor = "text-stone-600";
+  } else if (isExpired) {
+    timeSubstatusLabel = "Expired";
+    timeSubstatusDotColor = "bg-stone-400";
+    timeSubstatusTextColor = "text-stone-500";
   } else if (isPaymentDue) {
     timeSubstatusLabel = "Payment Due";
     timeSubstatusDotColor = "bg-amber-500";
@@ -224,6 +251,12 @@ export function HorizontalBookingRow({
   if (isCancelled) {
     statusPillLabel = "Cancelled";
     statusPillClass = "bg-rose-50 text-rose-600 border-rose-200";
+  } else if (isNoShow) {
+    statusPillLabel = "No-Show";
+    statusPillClass = "bg-stone-100 text-stone-600 border-stone-200";
+  } else if (isExpired) {
+    statusPillLabel = "Expired";
+    statusPillClass = "bg-stone-100 text-stone-500 border-stone-200";
   } else if (isCompleted) {
     statusPillLabel = "Completed";
     statusPillClass = "bg-slate-100 text-slate-500 border-slate-200";
@@ -239,6 +272,10 @@ export function HorizontalBookingRow({
   let actionButtonLabel = "Start Service";
   if (isCancelled) {
     actionButtonLabel = "Cancelled";
+  } else if (isNoShow) {
+    actionButtonLabel = "No-Show";
+  } else if (isExpired) {
+    actionButtonLabel = "Expired";
   } else if (isCompleted) {
     actionButtonLabel = "Completed";
   } else if (isInService) {
@@ -248,7 +285,7 @@ export function HorizontalBookingRow({
   }
 
   function handleActionClick() {
-    if (isCompleted || isCancelled) return;
+    if (isCompleted || isClosed) return;
 
     startActionTransition(async () => {
       try {
@@ -452,9 +489,9 @@ export function HorizontalBookingRow({
           <button
             type="button"
             onClick={handleActionClick}
-            disabled={isActionPending || isCompleted || isCancelled}
+            disabled={isActionPending || isCompleted || isClosed}
             className={`rounded-lg px-3.5 py-1.5 text-xs font-semibold transition active:scale-[0.98] ${
-              isCompleted || isCancelled
+              isCompleted || isClosed
                 ? "bg-slate-100 text-slate-400 cursor-default"
                 : "bg-[#006044] text-white shadow-sm hover:bg-[#004d37] disabled:opacity-50"
             }`}

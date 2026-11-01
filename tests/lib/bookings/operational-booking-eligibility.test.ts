@@ -2,9 +2,14 @@ import { describe, expect, it, vi } from "vitest";
 import {
   isOperationalBookingGroup,
   isBookingLineCompleted,
+  isBookingLineClosed,
   resolveBookingLifecycleState,
 } from "@/lib/bookings/operational-booking-eligibility";
-import type { CrmBookingGroup } from "@/lib/bookings/crm-booking-groups";
+import {
+  getVerifiedBookingPrice,
+  isPaymentFullySettled,
+  type CrmBookingGroup,
+} from "@/lib/bookings/crm-booking-groups";
 import type { WorkspaceBookingRow } from "@/components/features/bookings/booking-workspace-types";
 
 function createMockLine(overrides: Partial<WorkspaceBookingRow> = {}): WorkspaceBookingRow {
@@ -348,6 +353,162 @@ describe("Operational Booking Eligibility (Pass 3)", () => {
     expect(isOperationalBookingGroup(group, context)).toBe(false);
   });
 
+  it("23. keeps completed service with missing legacy price visible for review rather than silently dropping it", () => {
+    const line = createMockLine({
+      status: "completed",
+      booking_progress_status: "completed",
+      session_completed_at: "2026-10-29T11:00:00Z",
+      payment_status: "unpaid",
+      metadata: {}, // Missing price_paid
+    });
+    const group = createMockGroup([line], { total: null, paid: 0, due: null, status: "unpaid" });
+    expect(isOperationalBookingGroup(group, context)).toBe(true);
+  });
+
+  it("24. keeps completed service with missing legacy price visible for review even if status is paid (inconsistent balance evidence)", () => {
+    const line = createMockLine({
+      status: "completed",
+      booking_progress_status: "completed",
+      session_completed_at: "2026-10-29T11:00:00Z",
+      payment_status: "paid",
+      metadata: {}, // Missing price_paid
+    });
+    const group = createMockGroup([line], { total: null, paid: 0, due: null, status: "paid" });
+    expect(isOperationalBookingGroup(group, context)).toBe(true);
+  });
+
+  it("25. hides completed service with legitimate zero-price when authoritative settlement is paid", () => {
+    const line = createMockLine({
+      status: "completed",
+      booking_progress_status: "completed",
+      session_completed_at: "2026-10-29T11:00:00Z",
+      payment_status: "paid",
+      metadata: { price_paid: 0 },
+    });
+    const group = createMockGroup([line], { total: 0, paid: 0, due: 0, status: "paid" });
+    expect(isOperationalBookingGroup(group, context)).toBe(false);
+  });
+
+  it("26. keeps completed service with zero derived balance visible when status is unpaid", () => {
+    const line = createMockLine({
+      status: "completed",
+      booking_progress_status: "completed",
+      session_completed_at: "2026-10-29T11:00:00Z",
+      payment_status: "unpaid",
+      metadata: { price_paid: 0 },
+    });
+    const group = createMockGroup([line], { total: 0, paid: 0, due: 0, status: "unpaid" });
+    expect(isOperationalBookingGroup(group, context)).toBe(true);
+  });
+
+  it("27. hides completed service when fully paid with verified non-zero balance", () => {
+    const line = createMockLine({
+      status: "completed",
+      booking_progress_status: "completed",
+      session_completed_at: "2026-10-29T11:00:00Z",
+      payment_status: "paid",
+      metadata: { price_paid: 1200 },
+    });
+    const group = createMockGroup([line], { total: 1200, paid: 1200, due: 0, status: "paid" });
+    expect(isOperationalBookingGroup(group, context)).toBe(false);
+  });
+
+  it("28. keeps completed service visible when payment is partial", () => {
+    const line = createMockLine({
+      status: "completed",
+      booking_progress_status: "completed",
+      session_completed_at: "2026-10-29T11:00:00Z",
+      payment_status: "partial",
+      metadata: { price_paid: 1200 },
+    });
+    const group = createMockGroup([line], { total: 1200, paid: 500, due: 700, status: "partial" });
+    expect(isOperationalBookingGroup(group, context)).toBe(true);
+  });
+
+  it("29. keeps completed service visible when payment status is paid but remaining due balance is positive", () => {
+    const line = createMockLine({
+      status: "completed",
+      booking_progress_status: "completed",
+      session_completed_at: "2026-10-29T11:00:00Z",
+      payment_status: "paid",
+      metadata: { price_paid: 1200 },
+    });
+    const group = createMockGroup([line], { total: 1200, paid: 600, due: 600, status: "paid" });
+    expect(isOperationalBookingGroup(group, context)).toBe(true);
+  });
+
+  it("30. hides terminal no-show booking even with historical check-in and session start timestamps", () => {
+    const line = createMockLine({
+      status: "no_show",
+      booking_progress_status: "no_show",
+      checked_in_at: "2026-10-29T10:00:00Z",
+      session_started_at: "2026-10-29T10:05:00Z",
+    });
+    const group = createMockGroup([line]);
+    expect(isOperationalBookingGroup(group, context)).toBe(false);
+  });
+
+  it("31. hides terminal expired booking even with historical check-in timestamps", () => {
+    const line = createMockLine({
+      status: "expired",
+      checked_in_at: "2026-10-29T10:00:00Z",
+      arrived_at: "2026-10-29T10:00:00Z",
+    });
+    const group = createMockGroup([line]);
+    expect(isOperationalBookingGroup(group, context)).toBe(false);
+  });
+
+  it("32. keeps mixed multi-guest order actionable when Guest 1 is closed no-show with old timestamps but Guest 2 is waiting", () => {
+    const line1 = createMockLine({
+      id: "line-1",
+      status: "no_show",
+      booking_progress_status: "no_show",
+      checked_in_at: "2026-10-29T10:00:00Z",
+      session_started_at: "2026-10-29T10:05:00Z",
+    });
+    const line2 = createMockLine({
+      id: "line-2",
+      status: "confirmed",
+      booking_progress_status: "checked_in",
+      checked_in_at: "2026-10-29T10:00:00Z",
+    });
+    const group = createMockGroup([line1, line2], { status: "unpaid", due: 1200 });
+    expect(isOperationalBookingGroup(group, context)).toBe(true);
+  });
+
+  it("33. keeps mixed multi-guest order actionable when Guest 1 is closed expired and Guest 2 is completed with unpaid balance", () => {
+    const line1 = createMockLine({
+      id: "line-1",
+      status: "expired",
+      checked_in_at: "2026-10-29T09:00:00Z",
+    });
+    const line2 = createMockLine({
+      id: "line-2",
+      status: "completed",
+      booking_progress_status: "completed",
+      session_completed_at: "2026-10-29T11:00:00Z",
+    });
+    const group = createMockGroup([line1, line2], { status: "unpaid", due: 800, total: 800, paid: 0 });
+    expect(isOperationalBookingGroup(group, context)).toBe(true);
+  });
+
+  it("34. hides mixed multi-guest order when Guest 1 is closed no-show and Guest 2 is completed & fully paid", () => {
+    const line1 = createMockLine({
+      id: "line-1",
+      status: "no_show",
+      booking_progress_status: "no_show",
+      checked_in_at: "2026-10-29T10:00:00Z",
+    });
+    const line2 = createMockLine({
+      id: "line-2",
+      status: "completed",
+      booking_progress_status: "completed",
+      session_completed_at: "2026-10-29T11:00:00Z",
+    });
+    const group = createMockGroup([line1, line2], { status: "paid", due: 0, total: 1000, paid: 1000 });
+    expect(isOperationalBookingGroup(group, context)).toBe(false);
+  });
+
   describe("resolveBookingLifecycleState", () => {
     it("resolves cancelled when status is cancelled regardless of timestamps", () => {
       const line = createMockLine({
@@ -357,6 +518,28 @@ describe("Operational Booking Eligibility (Pass 3)", () => {
         session_completed_at: "2026-10-29T11:00:00Z",
       });
       expect(resolveBookingLifecycleState(line)).toBe("cancelled");
+    });
+
+    it("resolves no_show when status/progress is no_show regardless of earlier timestamps", () => {
+      const line = createMockLine({
+        status: "no_show",
+        booking_progress_status: "no_show",
+        checked_in_at: "2026-10-29T10:00:00Z",
+        arrived_at: "2026-10-29T10:00:00Z",
+        session_started_at: "2026-10-29T10:05:00Z",
+        session_completed_at: "2026-10-29T11:00:00Z",
+      });
+      expect(resolveBookingLifecycleState(line)).toBe("no_show");
+    });
+
+    it("resolves expired when status is expired regardless of earlier timestamps", () => {
+      const line = createMockLine({
+        status: "expired",
+        checked_in_at: "2026-10-29T10:00:00Z",
+        arrived_at: "2026-10-29T10:00:00Z",
+        session_started_at: "2026-10-29T10:05:00Z",
+      });
+      expect(resolveBookingLifecycleState(line)).toBe("expired");
     });
 
     it("resolves completed when status/progress is completed even with historical check-in", () => {
@@ -403,6 +586,65 @@ describe("Operational Booking Eligibility (Pass 3)", () => {
       });
       expect(resolveBookingLifecycleState(line)).toBe("upcoming");
       expect(isBookingLineCompleted(line)).toBe(false);
+    });
+  });
+
+  describe("isBookingLineClosed", () => {
+    it("returns true for cancelled status or progress", () => {
+      expect(isBookingLineClosed(createMockLine({ status: "cancelled" }))).toBe(true);
+      expect(isBookingLineClosed(createMockLine({ booking_progress_status: "cancelled" }))).toBe(true);
+    });
+
+    it("returns true for no_show status or progress", () => {
+      expect(isBookingLineClosed(createMockLine({ status: "no_show" }))).toBe(true);
+      expect(isBookingLineClosed(createMockLine({ booking_progress_status: "no_show" }))).toBe(true);
+    });
+
+    it("returns true for expired status", () => {
+      expect(isBookingLineClosed(createMockLine({ status: "expired" }))).toBe(true);
+    });
+
+    it("returns false for active or completed states", () => {
+      expect(isBookingLineClosed(createMockLine({ status: "confirmed" }))).toBe(false);
+      expect(isBookingLineClosed(createMockLine({ status: "in_progress" }))).toBe(false);
+      expect(isBookingLineClosed(createMockLine({ status: "completed" }))).toBe(false);
+    });
+  });
+
+  describe("Verified Payment Settlement Unit Rules", () => {
+    it("getVerifiedBookingPrice returns null for missing or invalid price metadata", () => {
+      expect(getVerifiedBookingPrice(null)).toBeNull();
+      expect(getVerifiedBookingPrice(undefined)).toBeNull();
+      expect(getVerifiedBookingPrice({})).toBeNull();
+      expect(getVerifiedBookingPrice({ price_paid: null })).toBeNull();
+      expect(getVerifiedBookingPrice({ price_paid: "invalid" })).toBeNull();
+      expect(getVerifiedBookingPrice({ price_paid: -100 })).toBeNull();
+    });
+
+    it("getVerifiedBookingPrice returns parsed non-negative number for valid price_paid or price", () => {
+      expect(getVerifiedBookingPrice({ price_paid: 0 })).toBe(0);
+      expect(getVerifiedBookingPrice({ price_paid: 1200 })).toBe(1200);
+      expect(getVerifiedBookingPrice({ price_paid: "1500" })).toBe(1500);
+      expect(getVerifiedBookingPrice({ price: 800 })).toBe(800);
+    });
+
+    it("isPaymentFullySettled rejects unpaid, partial, or missing price data", () => {
+      // Unpaid with zero derived due
+      expect(isPaymentFullySettled({ total: 0, paid: 0, due: 0, status: "unpaid" })).toBe(false);
+      // Missing price total
+      expect(isPaymentFullySettled({ total: null, paid: 0, due: null, status: "paid" })).toBe(false);
+      expect(isPaymentFullySettled({ total: null, paid: 0, due: null, status: "unpaid" })).toBe(false);
+      // Partial payment
+      expect(isPaymentFullySettled({ total: 1000, paid: 500, due: 500, status: "partial" })).toBe(false);
+      // Status paid but positive due
+      expect(isPaymentFullySettled({ total: 1000, paid: 500, due: 500, status: "paid" })).toBe(false);
+    });
+
+    it("isPaymentFullySettled accepts authoritative paid settlements including legitimate zero-price", () => {
+      // Legitimate free service
+      expect(isPaymentFullySettled({ total: 0, paid: 0, due: 0, status: "paid" })).toBe(true);
+      // Normal fully settled service
+      expect(isPaymentFullySettled({ total: 1200, paid: 1200, due: 0, status: "paid" })).toBe(true);
     });
   });
 });

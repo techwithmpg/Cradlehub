@@ -753,4 +753,198 @@ describe("Horizontal Bookings Workspace & Quick Edit Integration", () => {
       });
     });
   });
+
+  it("unpaid completed service with missing price metadata renders Unpaid badge and Payment Due time substatus, NOT Paid", () => {
+    const booking = makeBooking({
+      id: "booking-unpaid-missing-price",
+      order_id: null,
+      status: "completed",
+      booking_progress_status: "completed",
+      checked_in_at: "2026-10-29T10:00:00Z",
+      session_started_at: "2026-10-29T10:05:00Z",
+      session_completed_at: "2026-10-29T11:05:00Z",
+      payment_status: "unpaid",
+      metadata: {},
+      customers: {
+        id: "cust-unpaid-missing",
+        full_name: "Unpaid Missing Customer",
+        phone: "09170001111",
+        email: "unpaid-missing@example.com",
+      },
+    });
+
+    render(
+      <BookingsDesktopWorkspace
+        workspaceContext="crm"
+        viewerRole="admin"
+        date="2026-10-29"
+        initialQuickFilter="all"
+        bookings={[booking]}
+      />
+    );
+
+    expect(screen.getByText("Unpaid")).toBeTruthy();
+    expect(screen.getByText("Payment Due")).toBeTruthy();
+    expect(screen.queryByText("Paid")).toBeNull();
+  });
+
+  it("completed zero-price service with unpaid status renders Unpaid badge and Payment Due substatus, NOT Paid", () => {
+    const booking = makeBooking({
+      id: "booking-zero-price-unpaid",
+      order_id: null,
+      status: "completed",
+      booking_progress_status: "completed",
+      checked_in_at: "2026-10-29T10:00:00Z",
+      session_started_at: "2026-10-29T10:05:00Z",
+      session_completed_at: "2026-10-29T11:05:00Z",
+      payment_status: "unpaid",
+      metadata: { price_paid: 0 },
+      customers: {
+        id: "cust-zero-unpaid",
+        full_name: "Zero Price Unpaid Customer",
+        phone: "09170002222",
+        email: "zero-unpaid@example.com",
+      },
+    });
+
+    render(
+      <BookingsDesktopWorkspace
+        workspaceContext="crm"
+        viewerRole="admin"
+        date="2026-10-29"
+        initialQuickFilter="all"
+        bookings={[booking]}
+      />
+    );
+
+    expect(screen.getByText("Unpaid")).toBeTruthy();
+    expect(screen.getByText("Payment Due")).toBeTruthy();
+    expect(screen.queryByText("Paid")).toBeNull();
+  });
+
+  it("closed no-show booking with historical check-in timestamp renders No-Show pill and disabled No-Show action button, NOT Waiting or Start Service", () => {
+    const booking = makeBooking({
+      id: "booking-no-show-hist",
+      order_id: null,
+      status: "no_show",
+      booking_progress_status: "no_show",
+      checked_in_at: "2026-10-29T10:00:00Z",
+      session_started_at: "2026-10-29T10:05:00Z",
+      customers: {
+        id: "cust-noshow",
+        full_name: "No Show Customer",
+        phone: "09170003333",
+        email: "noshow@example.com",
+      },
+    });
+
+    render(
+      <BookingsDesktopWorkspace
+        workspaceContext="owner"
+        viewerRole="admin"
+        date="2026-10-29"
+        initialQuickFilter="all"
+        bookings={[booking]}
+      />
+    );
+
+    expect(screen.getAllByText("No-Show").length).toBeGreaterThanOrEqual(2);
+    const actionBtn = screen.getByRole("button", { name: "No-Show" });
+    expect(actionBtn).toBeTruthy();
+    expect(actionBtn.hasAttribute("disabled")).toBe(true);
+
+    expect(screen.queryByText("Waiting")).toBeNull();
+    expect(screen.queryByText("Start Service")).toBeNull();
+    expect(screen.queryByText("In service")).toBeNull();
+  });
+
+  it("closed expired booking with historical check-in timestamp renders Expired pill and disabled Expired action button", () => {
+    const booking = makeBooking({
+      id: "booking-expired-hist",
+      order_id: null,
+      status: "expired",
+      checked_in_at: "2026-10-29T10:00:00Z",
+      customers: {
+        id: "cust-expired",
+        full_name: "Expired Customer",
+        phone: "09170004444",
+        email: "expired@example.com",
+      },
+    });
+
+    render(
+      <BookingsDesktopWorkspace
+        workspaceContext="owner"
+        viewerRole="admin"
+        date="2026-10-29"
+        initialQuickFilter="all"
+        bookings={[booking]}
+      />
+    );
+
+    expect(screen.getAllByText("Expired").length).toBeGreaterThanOrEqual(2);
+    const actionBtn = screen.getByRole("button", { name: "Expired" });
+    expect(actionBtn).toBeTruthy();
+    expect(actionBtn.hasAttribute("disabled")).toBe(true);
+
+    expect(screen.queryByText("Waiting")).toBeNull();
+    expect(screen.queryByText("Start Service")).toBeNull();
+  });
+
+  it("multi-guest order where guest 1 is closed no-show with old check-in timestamp and guest 2 is waiting targets guest 2 for Start Service, NOT guest 1", async () => {
+    const line1 = makeBooking({
+      id: "booking-multi-noshow-1",
+      order_id: "ORD-MULTI-NOSHOW",
+      status: "no_show",
+      booking_progress_status: "no_show",
+      checked_in_at: "2026-10-29T10:00:00Z",
+      session_started_at: "2026-10-29T10:05:00Z",
+      customers: {
+        id: "cust-1",
+        full_name: "Guest One",
+        phone: "09171110000",
+        email: "g1@example.com",
+      },
+    });
+
+    const line2 = makeBooking({
+      id: "booking-multi-waiting-2",
+      order_id: "ORD-MULTI-NOSHOW",
+      status: "confirmed",
+      booking_progress_status: "checked_in",
+      checked_in_at: "2026-10-29T10:00:00Z",
+      session_started_at: null,
+      session_completed_at: null,
+      customers: {
+        id: "cust-2",
+        full_name: "Guest Two",
+        phone: "09172220000",
+        email: "g2@example.com",
+      },
+    });
+
+    mocks.crmStartServiceAction.mockResolvedValueOnce({ success: true });
+
+    render(
+      <BookingsDesktopWorkspace
+        workspaceContext="crm"
+        viewerRole="admin"
+        date="2026-10-29"
+        initialQuickFilter="all"
+        bookings={[line1, line2]}
+      />
+    );
+
+    expect(screen.getByText("Waiting")).toBeTruthy();
+    const startBtn = screen.getByRole("button", { name: "Start Service" });
+    expect(startBtn).toBeTruthy();
+
+    fireEvent.click(startBtn);
+
+    await waitFor(() => {
+      expect(mocks.crmStartServiceAction).toHaveBeenCalledWith({
+        bookingId: "booking-multi-waiting-2",
+      });
+    });
+  });
 });
