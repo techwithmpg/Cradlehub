@@ -266,4 +266,123 @@ describe("QuickBookingForm Failure Diagnostics & Form State Retention", () => {
     expect(screen.getByDisplayValue("Sarah Organizer")).toBeDefined();
     expect(screen.getByDisplayValue("09171234567")).toBeDefined();
   });
+
+  it("enforces uncertain-submission retry safety: preserves idempotency key on lost server confirmation, blocks edited drafts, and recovers via idempotent replay", async () => {
+    const onSuccess = vi.fn();
+    // 1. First submission fails with network drop
+    mocks.createBooking.mockRejectedValueOnce(new Error("Network connection dropped during save"));
+
+    render(<QuickBookingForm {...baseProps} onSuccess={onSuccess} />);
+
+    const saveButton = screen.getByRole("button", { name: /Save Booking/i });
+    fireEvent.click(saveButton);
+
+    await waitFor(() => {
+      expect(screen.getByTestId("crm-booking-failure-card")).toBeDefined();
+    });
+
+    const firstKey = mocks.createBooking.mock.calls[0]?.[0]?.idempotencyKey;
+    expect(firstKey).toBeDefined();
+
+    // Verify button switches to "Verify & Replay Booking"
+    const replayButton = screen.getByRole("button", { name: /Verify & Replay Booking/i });
+    expect((replayButton as HTMLButtonElement).disabled).toBe(false);
+
+    // 2. Repeated save click reuses the same idempotency key (idempotent replay)
+    mocks.createBooking.mockRejectedValueOnce(new Error("Network still down"));
+    fireEvent.click(replayButton);
+
+    await waitFor(() => {
+      expect(mocks.createBooking).toHaveBeenCalledTimes(2);
+    });
+    const secondKey = mocks.createBooking.mock.calls[1]?.[0]?.idempotencyKey;
+    expect(secondKey).toBe(firstKey);
+
+    // 3. User edits draft while unresolved: disables Save and prevents bypassing unresolved submission
+    const nameInput = screen.getByDisplayValue("Sarah Organizer");
+    fireEvent.change(nameInput, { target: { value: "Modified Sarah" } });
+
+    await waitFor(() => {
+      expect(screen.getByText(/Draft modified during unresolved submission/i)).toBeDefined();
+    });
+
+    const pendingBtn = screen.getByRole("button", { name: /Pending Submission Unresolved/i });
+    expect((pendingBtn as HTMLButtonElement).disabled).toBe(true);
+
+    // 4. Restore original draft restores inputs and re-enables "Verify & Replay Booking"
+    fireEvent.click(screen.getByRole("button", { name: "Restore Submitted Draft" }));
+    expect(screen.getByDisplayValue("Sarah Organizer")).toBeDefined();
+
+    const restoredReplayBtn = screen.getByRole("button", { name: /Verify & Replay Booking/i });
+    expect((restoredReplayBtn as HTMLButtonElement).disabled).toBe(false);
+
+    // 5. Successful idempotent replay confirms booking and clears unresolved state
+    mocks.createBooking.mockResolvedValueOnce({
+      ok: true,
+      bookingId: "replayed-order-1",
+      warning: "Replayed existing booking order.",
+    });
+
+    fireEvent.click(restoredReplayBtn);
+
+    await waitFor(() => {
+      expect(mocks.createBooking).toHaveBeenCalledTimes(3);
+    });
+    const thirdKey = mocks.createBooking.mock.calls[2]?.[0]?.idempotencyKey;
+    expect(thirdKey).toBe(firstKey);
+
+    await waitFor(() => {
+      expect(onSuccess).toHaveBeenCalledWith(
+        expect.objectContaining({ bookingId: "replayed-order-1" })
+      );
+    });
+  });
+
+  it("permits starting a fresh draft after explicitly acknowledging verification that booking was not created", async () => {
+    mocks.createBooking.mockRejectedValueOnce(new Error("Network drop"));
+
+    render(<QuickBookingForm {...baseProps} />);
+
+    fireEvent.click(screen.getByRole("button", { name: /Save Booking/i }));
+
+    await waitFor(() => {
+      expect(screen.getByTestId("crm-booking-failure-card")).toBeDefined();
+    });
+
+    const firstKey = mocks.createBooking.mock.calls[0]?.[0]?.idempotencyKey;
+
+    // Edit draft
+    fireEvent.change(screen.getByDisplayValue("Sarah Organizer"), { target: { value: "New Customer" } });
+
+    await waitFor(() => {
+      const btn = screen.getByRole("button", { name: /Pending Submission Unresolved/i }) as HTMLButtonElement;
+      expect(btn.disabled).toBe(true);
+    });
+
+    // Staff acknowledges verification
+    fireEvent.click(screen.getByRole("button", { name: /I Verified: Not Created/i }));
+
+    // Form returns to clean editable state with normal Save button
+    await waitFor(() => {
+      expect(screen.queryByTestId("crm-booking-failure-card")).toBeNull();
+    });
+
+    const normalSaveBtn = screen.getByRole("button", { name: /Save Booking/i });
+    expect((normalSaveBtn as HTMLButtonElement).disabled).toBe(false);
+
+    mocks.createBooking.mockResolvedValueOnce({
+      ok: true,
+      bookingId: "brand-new-booking-id",
+    });
+
+    fireEvent.click(normalSaveBtn);
+
+    await waitFor(() => {
+      expect(mocks.createBooking).toHaveBeenCalledTimes(2);
+    });
+
+    const newKey = mocks.createBooking.mock.calls[1]?.[0]?.idempotencyKey;
+    expect(newKey).toBeDefined();
+    expect(newKey).not.toBe(firstKey);
+  });
 });

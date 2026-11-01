@@ -586,19 +586,14 @@ export async function executeInhouseBookingCreation(
     const combinedEndTime = computeEndTimeLocal(startTime, Math.max(...attendeeDurations));
     const attendeeEndTimes = attendeeDurations.map((minutes) => computeEndTimeLocal(startTime, minutes));
     if (!combinedEndTime) {
-      const closingTime = deliveryType === "home_service"
-        ? rulesCheck.rules.homeServiceEndTime
-        : rulesCheck.rules.inSpaEndTime;
       return {
         ok: false,
         code: "TIME_TOO_LATE",
-        title: "Service exceeds operating hours",
+        title: "Booking crosses midnight",
         message:
-          "This booking extends past permitted operating limits and crosses midnight. Choose an earlier start time.",
+          "This booking crosses midnight. Choose an earlier start time until overnight booking is supported.",
         field: "time",
-        correctiveAction: closingTime
-          ? `Select an earlier start time so the service finishes within branch operating hours (by ${closingTime}).`
-          : "Select an earlier start time so the service finishes within permitted branch operating hours.",
+        correctiveAction: "Select an earlier start time so the service finishes before midnight.",
         retrySafety: "safe",
       };
     }
@@ -1151,11 +1146,13 @@ export async function executeInhouseBookingCreation(
         knownCodes.find((known) => message.includes(known)) ?? "BOOKING_ATOMIC_PERSISTENCE_FAILED";
       logBookingError(logContext, atomicError ?? new Error(message));
 
-      let title = "Booking could not be saved";
-      let displayMessage = "Could not create the booking and payment together. Please review the booking and try again.";
+      let title = "Booking submission unresolved";
+      let displayMessage =
+        "Could not verify whether the booking was created. Please check existing bookings before trying again.";
       let field: BookingFailureDiagnostics["field"] = "general";
-      let correctiveAction = "Review all booking details and retry saving.";
-      let retrySafety: BookingFailureDiagnostics["retrySafety"] = "safe";
+      let correctiveAction =
+        "Check existing bookings to confirm whether the appointment was already created before resubmitting.";
+      let retrySafety: BookingFailureDiagnostics["retrySafety"] = "verify_first";
 
       if (code === "BOOKING_STAFF_TIME_CONFLICT") {
         title = "Therapist booked concurrently";
@@ -1469,11 +1466,13 @@ export async function executeInhouseBookingCreation(
     return {
       ok: false,
       code: "UNKNOWN_ERROR",
-      title: "Unexpected booking error",
-      message: "Could not save booking. Please refresh and try again.",
+      title: "Booking submission unconfirmed",
+      message:
+        "An unexpected error occurred while saving. The booking may have been partially or fully processed.",
       field: "general",
-      correctiveAction: "Refresh the page and try again. If the issue persists, contact technical support.",
-      retrySafety: "safe",
+      correctiveAction:
+        "Check existing bookings or refresh before attempting to submit again to prevent duplicate bookings.",
+      retrySafety: "verify_first",
     };
   }
 }
