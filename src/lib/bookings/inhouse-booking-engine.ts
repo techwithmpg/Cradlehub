@@ -125,6 +125,14 @@ export async function executeInhouseBookingCreation(
     id: crypto.randomUUID(), name: d.fullName, isOrganizer: true, serviceIds: d.serviceIds,
   }];
   const groupBooking = attendees.length > 1;
+  if (groupBooking && d.customerRequestedTherapist) {
+    return {
+      ok: false,
+      code: "EXACT_THERAPIST_UNSUPPORTED_FOR_GROUP",
+      message:
+        "Exact therapist allocation is unsupported for group bookings. Proceed with a non-guaranteed preference after customer agreement, or return to single booking.",
+    };
+  }
   const groupInputHash = groupBooking ? createHash("sha256").update(JSON.stringify(d)).digest("hex") : null;
   const allServiceIds = [...new Set(attendees.flatMap((attendee) => attendee.serviceIds))];
   const orderedServiceIds = attendees.flatMap((attendee) => attendee.serviceIds);
