@@ -1,0 +1,62 @@
+# PR #58 — candidate TEST schema manifest and provisioning checkpoint
+
+**State:** REVIEW CANDIDATE; **not executable**. No TEST project has been created. No TEST or PRODUCTION SQL was run for this manifest. The object list below is a dependency map, not permission to replay its source migrations.
+
+## Proposed target and capacity evidence
+
+| Field | Proposed value / evidence |
+| --- | --- |
+| Supabase account | Connected `Primary` account only; separate from the other connected account's unrelated applications. |
+| Organization | `techwithmpg's Org`, id `vjjgnftdpdpqbwilmqzm`, reported `free` by Supabase organization metadata. |
+| Existing project | `lsrbwqhvzjfpiabeolkv`, classified **PRODUCTION**; exclude from TEST writes, Auth, keys, QR codes, and hosting. |
+| New project | `CradleHub Attendance TEST`, a **standalone Free project** in that organization; choose `ap-northeast-1` and default Free compute, no add-ons or production branch. Its ref/URL are generated only on creation and therefore cannot be predeclared. |
+| Free capacity and quote | The connected account lists one organization and one active project. Supabase `get_cost` for a **new project in organization `vjjgnftdpdpqbwilmqzm` returned `$0/month`**. This verifies the current project quote, not a reserved slot. Recheck immediately before creation and stop if the quote or create screen shows any charge. No cost confirmation or creation call was made. |
+| Application | Separate HTTPS TEST hosting project and owner-approved TEST hostname; exact hostname, hosting tier, and cost must be approved before creation. No Git connection that auto-deploys PR #58. |
+
+The [Supabase billing guide](https://supabase.com/docs/guides/platform/billing-on-supabase) defines the two-active-Free-project limit; the [pricing page](https://supabase.com/pricing) lists $0 Free and paid alternatives. The current organization-specific project quote is $0/month within Free quotas. Hosting/DNS/email costs are not yet established. Paid branching is excluded.
+
+The proposed TEST application settings are fixed by role, with generated values filled only after an approved project exists:
+
+| Setting | TEST value and boundary |
+| --- | --- |
+| `APP_URL`, `NEXT_PUBLIC_APP_URL`, `NEXT_PUBLIC_SITE_URL` | The **same dedicated HTTPS TEST origin**, not the production URL; this is the printed QR base. Exact hostname awaits approved hosting allocation. |
+| `NEXT_PUBLIC_SUPABASE_URL`, `NEXT_PUBLIC_SUPABASE_ANON_KEY` | New TEST project URL and its publishable/anon key only. These values cannot be known before project creation. |
+| `SUPABASE_SERVICE_ROLE_KEY`, `ATTENDANCE_DEVICE_SECRET` | New TEST-only server secrets held in the TEST host secret store; never `NEXT_PUBLIC_`, repo files, or a production host. |
+| `NEXT_PUBLIC_ATTENDANCE_SCANNING_ENABLED` | `true` for the controlled acceptance run. |
+| `ATTENDANCE_GEOFENCE_MODE` | `enabled` only after TEST branch IDs/coordinates and on-site accuracy are verified; otherwise keep disabled and do not claim geofence acceptance. |
+| `NEXT_PUBLIC_ATTENDANCE_ENFORCEMENT_ENABLED` | `false` unless the owner separately includes broader attendance availability enforcement in this TEST run. |
+| `ATTENDANCE_CLOSING_AUTOMATION_VERIFIED` | `false`; do not schedule the four Closing jobs or any grant cleanup. |
+| Supabase Auth Site URL/redirect allowlist | Exact TEST origin and callback only; no production callback or OAuth credentials. |
+
+## Object-level contract to build and review locally
+
+The connected **PRODUCTION** project's read-only `list_tables` metadata shows the established tables below and no `staff_scan_grants` table. Its read-only migration-history listing contains 74 applied versions; the worktree contains 167 SQL migration files, which are not an apply queue. No rows, function bodies, policies, or credentials were read. The column and SQL provenance must be checked against the accepted application contract in a dependency-closed **LOCAL** baseline, then against the newly created empty TEST catalog before any TEST write.
+
+| Layer | Required objects and role in scan flow | Repository provenance (not an apply list) |
+| --- | --- | --- |
+| Managed foundation | Supabase Auth `auth.users`, `anon`/`authenticated`/`service_role`, PostgREST public schema, PostgreSQL 17 UUID support. TEST Auth must be a separate tenant. | Platform-managed; `supabase/config.toml` declares PostgreSQL 17. |
+| Core identity and scheduling | `branches` with `latitude`/`longitude`; `staff` with `auth_user_id`, active role/type and branch; `staff_schedules`, `schedule_overrides`; `services` and its category, `customers`, `bookings`. Required for authenticated staff resolution, shift selection, and synthetic service starts. | `20260429000001_core_tables.sql`; branch location columns `20260709114038_branch_location_settings.sql`; later extensions must be included in the final baseline. |
+| Attendance and QR | `staff_shift_checkins`, `branch_resources`, `qr_points`, `qr_scan_events` with unique request/operation identity, `staff_devices`, `device_activation_tokens`, `attendance_settings`, `attendance_exceptions`, `attendance_corrections`. Required for QR classification, registered device, geofence, attendance persistence, recovery, and room/resource handling. | `20260505000001_branch_resources.sql`, `20260523000001_staff_shift_checkins.sql`, `20260702075213_attendance_qr_system.sql`, plus later column/constraint/RLS repairs. |
+| Schedule/branch/recovery | `staff_device_registration_requests`, `attendance_device_audit_events` and its `audit_attendance_device_lifecycle` trigger on `staff_devices`, `staff_attendance_branch_assignments`, `staff_branch_assignment_issues`, `staff_duty_assignments`, and related branch audit/transfer objects. Required by first-scan registration, device writes, effective branch, and wrong-branch recovery. | `20260714050554_attendance_staff_self_service.sql`, `20260714143000_attendance_fluid_operations.sql`, `20260715113002_staff_branch_assignment_integrity_resolver.sql`, `20260821034409_repair_attendance_branch_authority.sql`. **No `CREATE TABLE staff_duty_assignments` exists in the repository migration tree.** |
+| Dynamic policy and closure | `attendance_rule_versions`, `attendance_staff_category_rules`, `attendance_closing_interventions`, `workspace_notifications`, `workflow_tasks`. Clock-out policy and signal resolution may reach them. | `20260714180000_attendance_crm_closing_policy.sql`, `20260715021703_attendance_smart_dynamic_clock_out.sql`, `20260512000001_workspace_notifications.sql`, `20260519000001_workflow_signal_foundation.sql`; later repairs apply. |
+| Transactional functions | `commit_attendance_scan_transaction`, `resolve_effective_attendance_branch`, `recalculate_attendance_clock_out_policy`, `recover_stale_attendance_and_clock_in`, `reconcile_provisional_attendance_clock_out`, `start_booking_service_session`; device registration and branch-resolution RPCs as reached by the fixture path. | Initial and replacement definitions span `20260712044527`, `20260714143000`, `20260714180000`, `20260715021703`, `20260721190000`, `20260724133000`, `20260821023717`, `20260821034409`, `20260913100000`, and related device/branch files. Use exact final signatures, privileges, RLS assumptions, and trigger contracts. |
+| New scanner grant | `staff_scan_grants`, primary token hash, unique operation ID, Auth-user FK, unclaimed-expiry index, `claim_staff_scan_grant(text,uuid,text,uuid)`; RLS on, `service_role` table/RPC privileges, no browser role privileges, `SECURITY INVOKER`, empty search path. | Only `20261101043000_staff_scan_grant_ledger.sql`, applied **after** a reviewed TEST baseline. Do not add retention cleanup yet. |
+
+### Baseline gaps requiring closure before TEST schema writes
+
+1. The repository migration history is not a reproducible fresh-project baseline: `staff_duty_assignments` creation is absent, while accepted code and SQL reference it. Later attendance columns, constraints, triggers, RLS, and function replacements span many migration files. Applying selected old files without their dependencies would produce a misleading partial schema.
+2. `supabase/config.toml` enables a `./seed.sql` path, though that file is absent in this worktree; automatic reset/seed behavior is not a safe baseline and other environments may differ. Do not use `db reset`, blanket `db push`, `--include-all`, automatic seed, or migration-history repair/marking. No production customer, staff credential, or attendance export is permitted.
+3. Prepare a **curated schema-only SQL baseline** in a separate review step, with every object above and its dependent types, FKs, indexes, functions, triggers, grants, and RLS policies. Use accepted repository source plus read-only catalog metadata as reference; do not copy production rows, Auth users, keys, or secrets. Verify the baseline on disposable **LOCAL** PostgreSQL 17 and have it independently reviewed before proposing its exact SQL for TEST execution. The current object map is insufficient to approve a TEST database write.
+4. Supabase's post-2026 [Data API exposure default](https://supabase.com/changelog/45329-breaking-change-tables-not-exposed-to-data-and-graphql-api-automatically) requires explicit grants on newly created public objects. Preserve server-only mutation access and RLS; do not grant `anon` or `authenticated` access merely to make a TEST query pass.
+
+## Smallest safe execution sequence after a later explicit approval
+
+1. Recheck Supabase's organization-specific project quote (currently $0/month) on the project-create screen and confirm the separate host's $0 tier. If either is unavailable or charges are shown, **stop**. Owner approves the exact organization, project name/region, hosting URL/tier, and operators; then create the standalone project. Record the generated TEST ref, URL, plan, and project creation event.
+2. Inspect the empty TEST catalog and Auth configuration read-only. Verify it is not `lsrbwqhvzjfpiabeolkv`. Keep it unlinked from repository migrations/production and disable automatic seeds/integrations. Create no users yet.
+3. Review and execute only the dependency-closed baseline SQL approved by filename and hash, in defined batches, recording each catalog effect. Run grants/RLS/function preflight. Stop on any unexpected object or error; do not mark unrelated migrations applied.
+4. Apply only `20261101043000_staff_scan_grant_ledger.sql` to TEST after the baseline passes. Verify table constraints, RLS, revoked client privileges, `service_role` access, function signature/`SECURITY INVOKER`/search path, PostgREST availability, one-winner concurrent claim, replay, wrong-user/code/operation, expiry, and no attendance side effect on claim failure.
+5. Create only approved synthetic Auth/staff/branch/schedule/QR/device/resource/service/customer/booking fixtures. Verify the two fixed geofence branch UUIDs and on-site coordinates. Use TEST-only email identities and device cookies.
+6. Configure a separately approved HTTPS TEST app with its own hostname, build SHA, TEST Supabase URL/keys, TEST device pepper, TEST Auth Site URL/callbacks, and TEST QR base URL. Inspect a generated QR URL for TEST origin before printing. Do not push PR #58 or trigger its automatic preview.
+7. Execute the real-device script in [the TEST readiness plan](PR58-ISOLATED-TEST-READINESS-2026-11-01.md#real-device-acceptance-script--run-only-on-approved-test), reconcile operation IDs and row counts, and preserve the evidence. Keep Cron, grant cleanup, and production operations off.
+
+**Approval boundary:** Steps 1–7 are a proposal. This file does not authorize project creation, payment, remote SQL, fixtures, hosting deployment, or attendance writes. The Supabase project quote is verified at $0/month but not reserved; an exact reviewed schema SQL file and a confirmed no-charge hosting target are still missing. The current readiness verdict is **CORRECTION REQUIRED**.
