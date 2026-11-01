@@ -121,13 +121,10 @@ export function getBookingPaymentDisplayState(
   const hasOrderId = Boolean(primaryLine?.order_id);
 
   if (hasOrderId) {
-    // Check for conflicting legacy payment evidence (e.g. legacy line says paid but order is unpaid)
+    // Check for conflicting legacy payment evidence (e.g. legacy line explicitly marked paid while order summary is unpaid)
+    // Note: metadata.price_paid is a booking price snapshot, not proof of payment received.
     const hasConflictingLegacyPaid =
-      (primaryLine?.payment_status === "paid" ||
-        (primaryLine?.metadata?.price_paid !== undefined &&
-          primaryLine.metadata.price_paid !== null &&
-          Number(primaryLine.metadata.price_paid) > 0)) &&
-      payment.status === "unpaid";
+      primaryLine?.payment_status === "paid" && payment.status === "unpaid";
 
     const isMissingOrderEvidence =
       payment.total === null ||

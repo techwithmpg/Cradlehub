@@ -134,8 +134,8 @@ export function HorizontalBookingRow({
     (targetIndex === 0
       ? group.organizerName ?? "Organizer"
       : targetIndex > 0
-      ? `Guest ${targetIndex + 1}`
-      : "Guest");
+        ? `Guest ${targetIndex + 1}`
+        : "Guest");
 
   const targetServiceName = targetService?.name?.trim() || "Standard Service";
 
@@ -336,11 +336,10 @@ export function HorizontalBookingRow({
 
   return (
     <div
-      className={`rounded-xl border bg-white shadow-[0_1px_3px_rgba(0,0,0,0.04)] transition-all ${
-        isExpanded
+      className={`rounded-xl border bg-white shadow-[0_1px_3px_rgba(0,0,0,0.04)] transition-all ${isExpanded
           ? "border-[#a7d7c5] ring-1 ring-[#a7d7c5]/50 shadow-md mb-3"
           : "border-neutral-200/80 hover:border-neutral-300 hover:shadow-sm mb-2"
-      }`}
+        }`}
     >
       {/* Row Header Content */}
       <div
@@ -499,8 +498,9 @@ export function HorizontalBookingRow({
               amountPaid={primaryLine.amount_paid}
               pricePaid={readBookingPrice(primaryLine.metadata)}
               paymentAction={paymentAction}
-              triggerLabel="Manage"
+              triggerLabel={isPaymentReview ? "Review" : "Manage"}
               triggerVariant="panelSecondary"
+              reviewRequired={isPaymentReview}
             />
           ) : null}
         </div>
@@ -534,11 +534,10 @@ export function HorizontalBookingRow({
                   ? `Action target: ${targetGuestName} · ${targetServiceName}`
                   : undefined
               }
-              className={`rounded-lg px-3.5 py-1.5 text-xs font-semibold transition active:scale-[0.98] ${
-                isCompleted || isClosed
+              className={`rounded-lg px-3.5 py-1.5 text-xs font-semibold transition active:scale-[0.98] ${isCompleted || isClosed
                   ? "bg-slate-100 text-slate-400 cursor-default"
                   : "bg-[#006044] text-white shadow-sm hover:bg-[#004d37] disabled:opacity-50"
-              }`}
+                }`}
             >
               {isActionPending ? (
                 <span className="flex items-center gap-1">

@@ -23,6 +23,7 @@ type Props = {
   triggerAriaLabel?: string;
   triggerVariant?:  "default" | "panelSecondary";
   fullWidth?:       boolean;
+  reviewRequired?:  boolean;
 };
 
 type ViewState = "idle" | "quickPay" | "editForm" | "confirmUnpaid";
@@ -39,6 +40,7 @@ export function PaymentActionMenu({
   triggerAriaLabel,
   triggerVariant = "default",
   fullWidth = false,
+  reviewRequired = false,
 }: Props) {
   const callPaymentAction = paymentAction ?? updateBookingPaymentAction;
   const [isPending, startTransition] = useTransition();
@@ -306,7 +308,27 @@ export function PaymentActionMenu({
         <>
           <div onClick={() => setView("idle")} style={{ position: "fixed", inset: 0, zIndex: 20 }} />
           <div style={dropdownStyle}>
-            <div style={sectionLabelStyle}>Quick Mark Paid</div>
+            {reviewRequired ? (
+              <div
+                data-testid="payment-review-warning"
+                style={{
+                  fontSize: "0.75rem",
+                  color: "#6b21a8",
+                  backgroundColor: "#f5f3ff",
+                  border: "1px solid #ddd6fe",
+                  borderRadius: 6,
+                  padding: "6px 8px",
+                  marginBottom: 6,
+                  fontWeight: 500,
+                  lineHeight: 1.3,
+                }}
+              >
+                Order evidence requires review. Reconcile details before collecting.
+              </div>
+            ) : null}
+            <div style={sectionLabelStyle}>
+              {reviewRequired ? "Reconcile / Mark Paid" : "Quick Mark Paid"}
+            </div>
             {QUICK_METHODS.map((method) => (
               <button key={method} type="button" onClick={() => handleQuickPay(method)} style={menuItemStyle}>
                 {PAYMENT_METHOD_LABELS[method]}

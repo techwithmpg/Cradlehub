@@ -1241,4 +1241,112 @@ describe("Horizontal Bookings Workspace & Quick Edit Integration", () => {
     expect(screen.getAllByText("Completed").length).toBeGreaterThanOrEqual(1);
     expect(screen.queryByText("Payment Due")).toBeNull();
   });
+
+  it("actual production unpaid order with positive metadata.price_paid snapshot renders Unpaid and Manage action", () => {
+    const mockPaymentAction = vi.fn().mockResolvedValue({ success: true });
+    const booking = makeBooking({
+      id: "booking-prod-unpaid-shape",
+      order_id: "ORD-PROD-UNPAID-1",
+      order_total_amount: 1200,
+      order_amount_paid: 0,
+      order_payment_status: "unpaid",
+      status: "completed",
+      booking_progress_status: "completed",
+      checked_in_at: "2026-10-29T10:00:00Z",
+      session_completed_at: "2026-10-29T11:05:00Z",
+      metadata: {
+        price_paid: 1200, // positive price snapshot locked in at booking time
+        duration_minutes: 60,
+      },
+      customers: {
+        id: "cust-prod-unpaid",
+        full_name: "Prod Unpaid Customer",
+        phone: "09170001111",
+        email: "produnpaid@example.com",
+      },
+    });
+
+    render(
+      <BookingsDesktopWorkspace
+        workspaceContext="crm"
+        viewerRole="admin"
+        date="2026-10-29"
+        initialQuickFilter="all"
+        bookings={[booking]}
+        paymentAction={mockPaymentAction}
+      />
+    );
+
+    // Assert badges: normal Unpaid and Payment Due, NOT Payment Review
+    expect(screen.getByText("Unpaid")).toBeTruthy();
+    expect(screen.getByText("Payment Due")).toBeTruthy();
+    expect(screen.queryByTestId("payment-review-badge")).toBeNull();
+    expect(screen.queryByText("Payment Review")).toBeNull();
+
+    // Select row by clicking customer name
+    fireEvent.click(screen.getByText("Prod Unpaid Customer"));
+
+    // When selected, Manage ▾ action button is visible, NOT Review ▾
+    expect(screen.getByRole("button", { name: "Manage ▾" })).toBeTruthy();
+    expect(screen.queryByRole("button", { name: "Review ▾" })).toBeNull();
+  });
+
+  it("order requiring payment review renders Payment Review badge and shows reconciliation warning in menu", () => {
+    const mockPaymentAction = vi.fn().mockResolvedValue({ success: true });
+    const booking = makeBooking({
+      id: "booking-review-shape",
+      order_id: "ORD-INCOMPLETE",
+      order_total_amount: null,
+      order_amount_paid: null,
+      order_payment_status: null,
+      status: "completed",
+      booking_progress_status: "completed",
+      checked_in_at: "2026-10-29T10:00:00Z",
+      session_completed_at: "2026-10-29T11:05:00Z",
+      customers: {
+        id: "cust-review",
+        full_name: "Review Required Customer",
+        phone: "09170002222",
+        email: "review@example.com",
+      },
+    });
+
+    render(
+      <BookingsDesktopWorkspace
+        workspaceContext="crm"
+        viewerRole="admin"
+        date="2026-10-29"
+        initialQuickFilter="all"
+        bookings={[booking]}
+        paymentAction={mockPaymentAction}
+      />
+    );
+
+    // Assert Payment Review badge is present
+    expect(screen.getByTestId("payment-review-badge")).toBeTruthy();
+    expect(screen.getAllByText("Payment Review").length).toBeGreaterThanOrEqual(1);
+    expect(screen.queryByText("Unpaid")).toBeNull();
+
+    // Select row by clicking customer name
+    fireEvent.click(screen.getByText("Review Required Customer"));
+
+    // When selected, Review ▾ action button is visible, NOT Manage ▾
+    const reviewBtn = screen.getByRole("button", { name: "Review ▾" });
+    expect(reviewBtn).toBeTruthy();
+    expect(screen.queryByRole("button", { name: "Manage ▾" })).toBeNull();
+
+    // Open the dropdown menu
+    fireEvent.click(reviewBtn);
+
+    // Verify reconciliation warning banner is displayed
+    const warningBanner = screen.getByTestId("payment-review-warning");
+    expect(warningBanner).toBeTruthy();
+    expect(warningBanner.textContent).toContain(
+      "Order evidence requires review. Reconcile details before collecting."
+    );
+
+    // Verify section header is updated to Reconcile / Mark Paid
+    expect(screen.getByText("Reconcile / Mark Paid")).toBeTruthy();
+    expect(screen.queryByText("Quick Mark Paid")).toBeNull();
+  });
 });

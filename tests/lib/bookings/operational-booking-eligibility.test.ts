@@ -833,6 +833,34 @@ describe("Operational Booking Eligibility (Pass 3)", () => {
         });
       });
 
+      it("resolves to Unpaid for actual production unpaid order containing positive metadata.price_paid snapshot", () => {
+        const line = createMockLine({
+          id: "booking-prod-unpaid-1",
+          order_id: "ORD-PROD-UNPAID-1",
+          status: "confirmed",
+          booking_progress_status: "confirmed",
+          payment_status: "unpaid",
+          amount_paid: 0,
+          order_total_amount: 1200,
+          order_amount_paid: 0,
+          order_payment_status: "unpaid",
+          metadata: {
+            price_paid: 1200, // positive price snapshot, NOT proof of payment
+            duration_minutes: 60,
+          },
+        });
+        const payment = { total: 1200, paid: 0, due: 1200, status: "unpaid" };
+        const display = getBookingPaymentDisplayState(payment, line);
+        expect(display).toEqual({
+          status: "unpaid",
+          label: "Unpaid",
+          isPaid: false,
+          isPartial: false,
+          isUnpaid: true,
+          isPaymentReview: false,
+        });
+      });
+
       it("resolves to Partial when normal order has verified partial evidence", () => {
         const line = createMockLine({
           order_id: "order-partial",
