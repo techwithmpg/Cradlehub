@@ -147,4 +147,3 @@ Final build result, review HEAD, exact changed-file manifest and port3000 page/p
 - Actual browser http://localhost:3000/crm/cash-flow: HTTP200; existing Record Payment modal opens; all three discount buttons are present; no runtime overlay. No real payment or print action was submitted. Production checkout functionality is not certified by this preview check.
 - Browser screenshot localhost-payment-controls.png captures only the non-private discount controls. Final full workflow screenshots use synthetic TEST data exclusively.
 - Both application pages respond from this review branch; the server is left running. The separate TEST fixture remains available at http://127.0.0.1:4317. No merge into main or production release was performed.
-
