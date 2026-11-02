@@ -2,6 +2,7 @@ import "server-only";
 
 import type { AttendanceDb } from "@/lib/attendance/db";
 import {
+  ATTENDANCE_GEOFENCE_BRANCHES,
   validateAttendanceLocation,
   type AttendanceLocation,
   type GeofenceFailure,
@@ -25,6 +26,9 @@ export async function verifyAttendanceGeofence(input: {
   const mode = attendanceGeofenceMode();
   if (mode === "disabled") return null;
   if (mode === "invalid") return "geofence_configuration";
+  const branchPolicy =
+    ATTENDANCE_GEOFENCE_BRANCHES[input.branchId as keyof typeof ATTENDANCE_GEOFENCE_BRANCHES];
+  if (!branchPolicy) return "geofence_configuration";
   const radiusVariable =
     input.branchId === "c1000000-0000-0000-0000-000000000001"
       ? process.env.ATTENDANCE_GEOFENCE_MAIN_RADIUS_METERS
@@ -37,7 +41,7 @@ export async function verifyAttendanceGeofence(input: {
     (!/^\d+(?:\.\d+)?$/.test(radiusVariable) ||
       !Number.isFinite(configuredRadius) ||
       !configuredRadius ||
-      configuredRadius > 1_000)
+      configuredRadius > branchPolicy.radiusMeters)
   )
     return "geofence_configuration";
   const { data, error } = await input.admin

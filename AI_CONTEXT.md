@@ -1,5 +1,7 @@
 # CradleHub AI Context
 
+> **2026-11-01 Owner-authorized Attendance QR correction:** The Owner approved the QR-before-GPS flow correction, a fail-closed static printed attendance QR URL contract, and a dedicated server-enforced atomic scanner-grant ledger on `fix/attendance-qr-flow-20261101`. Direct/native-camera attendance entry requires one explicit tap; Staff PWA camera decode may auto-continue through a short-lived user-bound single-use grant. Room/resource QR service starts remain automatic. The ledger migration is authorized for LOCAL/TEST execution only; see `ATT-GOV-001/002` and [the QR correction handoff](docs/reports/ATTENDANCE-QR-FLOW-CORRECTION-2026-11-01.md). No merge, deployment, production data/migration/Cron operation, or operational sign-off is authorized; real-device acceptance remains required.
+
 > **2026-10-31 Owner-authorized attendance completion review:** The Owner
 > authorized only Home Service remote clock-out access in the installed Staff PWA
 > and personal forgotten clock-out reminders on an isolated `fix/*` branch from

@@ -4,6 +4,8 @@ import styles from "./public-scan-processor.module.css";
 
 export type PublicScanStageName =
   | "recognizing"
+  | "qr_recognized"
+  | "verifying_location"
   | "processing"
   | "signing_in"
   | "registering_device"
@@ -19,9 +21,17 @@ const STAGE_COPY: Record<PublicScanStageName, { title: string; description: stri
     title: "Recognizing you...",
     description: "Please wait while we securely verify this device.",
   },
+  qr_recognized: {
+    title: "QR code recognized",
+    description: "Preparing to verify your attendance location.",
+  },
+  verifying_location: {
+    title: "Verifying location...",
+    description: "Checking a fresh GPS reading for this attendance scan.",
+  },
   processing: {
-    title: "Processing scan...",
-    description: "We are checking your current attendance session.",
+    title: "Validating attendance...",
+    description: "We are checking your device, branch, and attendance session.",
   },
   signing_in: {
     title: "Signing in...",
@@ -50,6 +60,8 @@ const EXTENDED_STAGE_ORDER: PublicScanStageName[] = [
 
 function getStageEyebrow(stage: PublicScanStageName): string {
   if (stage === "recognizing") return "Secure scan";
+  if (stage === "qr_recognized") return "Scan received";
+  if (stage === "verifying_location") return "Location check";
   if (stage === "processing") return "One moment";
   if (stage === "device_registered") return "Ready";
   if (stage === "processing_attendance") return "Attendance";
@@ -57,7 +69,7 @@ function getStageEyebrow(stage: PublicScanStageName): string {
 }
 
 function StageVisual({ stage }: { stage: PublicScanStageName }) {
-  if (stage === "recognizing" || stage === "signing_in") {
+  if (stage === "recognizing" || stage === "qr_recognized" || stage === "signing_in") {
     return (
       <div className={styles.identityRing}>
         <span className={styles.identityPulse} />
@@ -115,8 +127,14 @@ function ProgressDots({ stage }: { stage: PublicScanStageName }) {
   return (
     <div className={styles.progressDots} aria-hidden="true">
       <span className={styles.progressDotActive} />
+      <span
+        className={
+          stage === "verifying_location" || stage === "processing"
+            ? styles.progressDotActive
+            : styles.progressDot
+        }
+      />
       <span className={stage === "processing" ? styles.progressDotActive : styles.progressDot} />
-      <span className={styles.progressDot} />
     </div>
   );
 }
