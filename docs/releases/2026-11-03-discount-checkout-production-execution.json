@@ -1,0 +1,208 @@
+{
+  "verdict": "PASS",
+  "target": {
+    "classification": "PRODUCTION",
+    "project": "Creadlehub",
+    "reference": "lsrbwqhvzjfpiabeolkv",
+    "postgresVersion": "17.6",
+    "database": "postgres"
+  },
+  "approvedSql": {
+    "path": "E:\\cradlehub\\docs\\releases\\2026-11-03-discount-checkout-production.sql",
+    "sha256": "3149c979d1bdc06fec3fa330b87e0df4f660b3ee06c8668778490325ee08f897",
+    "bytes": 33404,
+    "sourceSha256": "048e938b1a49aef7d6820820d35176688ad55163c3c27a64a2b4ea3c2060c9ee"
+  },
+  "execution": {
+    "mechanism": "Supabase execute_sql, Primary authorized connection, postgres administrative session",
+    "submittedPackageCount": 1,
+    "unchanged": true,
+    "startUtc": "2026-11-02 17:16:06 UTC",
+    "endUtc": "2026-11-02 17:16:10 UTC",
+    "response": {
+      "status": "Discount database objects installed; application server release flag and restart still required"
+    }
+  },
+  "verification": {
+    "rpc": [
+      {
+        "function_name": "public.quote_order_discounts(uuid,jsonb)",
+        "installed": true,
+        "authenticated_can_call": true,
+        "anonymous_blocked": true
+      },
+      {
+        "function_name": "public.post_order_payment_with_discounts_atomic(uuid,text,jsonb,jsonb,text,jsonb,date,text,text)",
+        "installed": true,
+        "authenticated_can_call": true,
+        "anonymous_blocked": true
+      },
+      {
+        "function_name": "public.customer_discount_history(uuid)",
+        "installed": true,
+        "authenticated_can_call": true,
+        "anonymous_blocked": true
+      },
+      {
+        "function_name": "public.discount_payment_receipt(text)",
+        "installed": true,
+        "authenticated_can_call": true,
+        "anonymous_blocked": true
+      }
+    ],
+    "audit": {
+      "audit_table_installed": true,
+      "audit_rls_enabled": true,
+      "direct_staff_access_blocked": true,
+      "direct_anonymous_access_blocked": true
+    },
+    "privateSecurity": {
+      "schema_exists": true,
+      "anon_usage_blocked": true,
+      "anon_create_blocked": true,
+      "anon_helper_execute_blocked": true,
+      "authenticated_usage_blocked": true,
+      "authenticated_create_blocked": true,
+      "authenticated_helper_execute_blocked": true
+    },
+    "canonicalFunctions": [
+      {
+        "signature": "public.derive_order_payment_state(numeric,numeric)",
+        "actual_hash": "1bc296ef67ac554360b11f5831cb5a3c",
+        "expected_hash": "1bc296ef67ac554360b11f5831cb5a3c"
+      },
+      {
+        "signature": "public.post_order_payment_atomic(uuid,text,jsonb,jsonb,date,text,text)",
+        "actual_hash": "167e73d79d14c66e73f4061f2adf07f6",
+        "expected_hash": "167e73d79d14c66e73f4061f2adf07f6"
+      },
+      {
+        "signature": "public.reconcile_closed_booking_service_charge(uuid,uuid)",
+        "actual_hash": "d28b686b3a72001def1f4e05bea35680",
+        "expected_hash": "d28b686b3a72001def1f4e05bea35680"
+      }
+    ],
+    "columnsChecked": 81,
+    "columnMismatches": [],
+    "constraintsChecked": 34,
+    "constraintMismatches": [],
+    "installedFunctions": [
+      {
+        "name": "authorized_actor",
+        "owner": "postgres",
+        "config": [
+          "search_path=\"\""
+        ],
+        "schema": "discount_private",
+        "definition_md5": "e0ba605bc4fe06977c2130d85665d8e0",
+        "security_definer": true
+      },
+      {
+        "name": "customer_discount_history",
+        "owner": "postgres",
+        "config": [
+          "search_path=\"\""
+        ],
+        "schema": "public",
+        "definition_md5": "4287310c1358e1932853d6be1cc240ce",
+        "security_definer": true
+      },
+      {
+        "name": "discount_payment_receipt",
+        "owner": "postgres",
+        "config": [
+          "search_path=\"\""
+        ],
+        "schema": "public",
+        "definition_md5": "ea692f1fd24a8c3c65140ee701cb4e73",
+        "security_definer": true
+      },
+      {
+        "name": "post_order_payment_with_discounts_atomic",
+        "owner": "postgres",
+        "config": [
+          "search_path=\"\""
+        ],
+        "schema": "public",
+        "definition_md5": "5cc43909f6c1b63353ac998e065b32be",
+        "security_definer": true
+      },
+      {
+        "name": "quote_order_discounts",
+        "owner": "postgres",
+        "config": [
+          "search_path=\"\""
+        ],
+        "schema": "public",
+        "definition_md5": "db6e0f07291c555fac93f1e7271fa09f",
+        "security_definer": true
+      }
+    ],
+    "postgrest": {
+      "schemaCacheRecognizesRpc": true,
+      "message": "permission denied for function quote_order_discounts",
+      "httpStatus": 401,
+      "code": "42501"
+    },
+    "historyBefore": {
+      "migration_version_count": 75,
+      "migration_versions_hash": "95e11799f64439a915dd815aefa9385b",
+      "discount_version_recorded": false
+    },
+    "historyAfter": {
+      "migration_version_count": 75,
+      "migration_versions_hash": "95e11799f64439a915dd815aefa9385b",
+      "discount_version_recorded": false
+    },
+    "historyUnchanged": true,
+    "advisorFindings": [
+      {
+        "name": "rls_enabled_no_policy",
+        "level": "INFO",
+        "object": "order_discount_audits",
+        "remediation": "https://supabase.com/docs/guides/database/database-linter?lint=0008_rls_enabled_no_policy"
+      },
+      {
+        "name": "authenticated_security_definer_function_executable",
+        "level": "WARN",
+        "object": "customer_discount_history",
+        "remediation": "https://supabase.com/docs/guides/database/database-linter?lint=0029_authenticated_security_definer_function_executable"
+      },
+      {
+        "name": "authenticated_security_definer_function_executable",
+        "level": "WARN",
+        "object": "discount_payment_receipt",
+        "remediation": "https://supabase.com/docs/guides/database/database-linter?lint=0029_authenticated_security_definer_function_executable"
+      },
+      {
+        "name": "authenticated_security_definer_function_executable",
+        "level": "WARN",
+        "object": "post_order_payment_with_discounts_atomic",
+        "remediation": "https://supabase.com/docs/guides/database/database-linter?lint=0029_authenticated_security_definer_function_executable"
+      },
+      {
+        "name": "authenticated_security_definer_function_executable",
+        "level": "WARN",
+        "object": "quote_order_discounts",
+        "remediation": "https://supabase.com/docs/guides/database/database-linter?lint=0029_authenticated_security_definer_function_executable"
+      }
+    ]
+  },
+  "applicationState": {
+    "localEnvironmentFileValue": "true",
+    "localPort3000Listening": false,
+    "flagChangedByThisTask": false,
+    "serverStartedOrRestartedByThisTask": false,
+    "hostedDeploymentFlag": "NOT_INSPECTED",
+    "deploymentPerformed": false,
+    "applicationReleaseAndEnablementStillOutstanding": true
+  },
+  "scope": {
+    "noLiveTestPayments": true,
+    "noExistingBusinessRowDmlInInstallation": true,
+    "noMigrationHistoryMutation": true,
+    "noApplicationFlagChange": true,
+    "noApplicationRestartOrDeployment": true,
+    "noMergeOrPush": true
+  }
+}

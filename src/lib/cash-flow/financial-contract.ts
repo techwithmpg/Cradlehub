@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { DiscountSelectionsSchema, type DiscountReceipt } from './discount-contract';
 
 /**
  * CF2: Financial Accounts + Canonical Transaction & Movement Foundation
@@ -476,6 +477,10 @@ export const PostOrderPaymentPayloadSchema = z
       .optional(),
     externalReference: z.string().trim().max(255).nullish(),
     notes: z.string().trim().max(1000).nullish(),
+    discount: z.object({
+      quoteVersion: z.string().min(1).max(128),
+      selections: DiscountSelectionsSchema.refine((rows) => rows.length > 0, "A discount selection is required"),
+    }).optional(),
   })
   .refine(
     (data) => {
@@ -517,6 +522,7 @@ export interface PostOrderPaymentResult {
     payableItemId: string | null;
     amount: number;
   }>;
+  discountReceipt?: DiscountReceipt;
 }
 
 /**

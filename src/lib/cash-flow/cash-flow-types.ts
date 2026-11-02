@@ -152,6 +152,7 @@ export interface HistoryTabSummary {
 
 export interface PayableOrderItemDetail {
   id: string;
+  bookingId?: string | null;
   description: string;
   amount: number;
   itemType?:
@@ -181,6 +182,8 @@ export interface PayableOrderOption {
   orderNumber: string;
   customerName: string;
   customerPhone?: string | null;
+  /** Authorized CRM loyalty segment; a suggestion, not discount authorization. */
+  customerLoyaltyTier?: string | null;
   serviceDescription: string;
   totalAmount: number;
   amountPaid: number;

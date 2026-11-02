@@ -2,7 +2,11 @@
 import React from "react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { cleanup, fireEvent, render, screen } from "@testing-library/react";
-import type { CashFlowWorkspaceData, PayableOrderOption } from "@/lib/cash-flow/cash-flow-types";
+import type {
+  CashFlowWorkspaceData,
+  CashSessionSummary,
+  PayableOrderOption,
+} from "@/lib/cash-flow/cash-flow-types";
 import { CashFlowTodayOperations } from "@/components/features/cash-flow/cash-flow-today-operations";
 
 const makePayableOrder = (overrides: Partial<PayableOrderOption> = {}): PayableOrderOption => ({
@@ -159,7 +163,7 @@ const mockData: CashFlowWorkspaceData = {
         opened_at: "2026-10-30T08:00:00Z",
         status: "open",
         branch_id: "branch-main",
-      } as any,
+      } as unknown as CashSessionSummary,
     ],
     availableDrawers: [],
   },

@@ -17,13 +17,16 @@ import {
   recordOrderPaymentAction,
   verifyPaymentTransactionAction,
 } from "@/lib/cash-flow/cash-flow-actions";
+import { isQuickPaymentEligible } from "@/components/features/cash-flow/cash-flow-today-eligibility";
+import { printThermalReceipt, type PrintableReceiptData } from "@/lib/cash-flow/receipt-printer";
 import {
-  isQuickPaymentEligible,
-} from "@/components/features/cash-flow/cash-flow-today-eligibility";
-import {
-  printThermalReceipt,
-  type PrintableReceiptData,
-} from "@/lib/cash-flow/receipt-printer";
+  PAYMENT_DISCOUNTS,
+  PAYMENT_DISCOUNT_KEYS,
+  getSuggestedCustomerDiscount,
+} from "@/lib/cash-flow/payment-discounts";
+import { usePaymentDiscounts } from "./use-payment-discounts";
+import { getCommittedDiscountReceiptAction } from "@/lib/cash-flow/discount-actions";
+import { retargetDiscountTenders } from "@/lib/cash-flow/retarget-tenders";
 
 export { isQuickPaymentEligible };
 
@@ -91,7 +94,12 @@ export function CradleFlowQuickPaymentModal({
 }) {
   const [tab, setTab] = useState<QueueTab>(requestedOrderId ? "all" : "ready");
   const [selectedId, setSelectedId] = useState(requestedOrderId ?? "");
-  const [tenderDraft, setTenderDraft] = useState<{ key: string; lines: Tender[] } | null>(null);
+  const [tenderDraft, setTenderDraft] = useState<{
+    key: string;
+    identity: string;
+    balance: number;
+    lines: Tender[];
+  } | null>(null);
   const [notes, setNotes] = useState("");
   const [showNotes, setShowNotes] = useState(false);
   const [busy, setBusy] = useState(false);
@@ -103,7 +111,13 @@ export function CradleFlowQuickPaymentModal({
   const [printWarning, setPrintWarning] = useState<string | null>(null);
   const [confirmedReceipt, setConfirmedReceipt] = useState<PrintableReceiptData | null>(null);
   const submitting = useRef(false);
-  const attempt = useRef<{ signature: string; key: string } | null>(null);
+  const attempt = useRef<{
+    signature: string;
+    key: string;
+    discounted: boolean;
+    cashReceived: number | null;
+    change: number | null;
+  } | null>(null);
   const successfulPrintTxIdsRef = useRef<Set<string>>(new Set());
   const attemptedPrintTxIdsRef = useRef<Set<string>>(new Set());
   const autoCloseTimerRef = useRef<NodeJS.Timeout | null>(null);
@@ -144,13 +158,17 @@ export function CradleFlowQuickPaymentModal({
     return printed;
   };
 
-  const eligible = useMemo(() => (data?.payableOrders ?? []).filter(isQuickPaymentEligible), [data]);
+  const eligible = useMemo(
+    () => (data?.payableOrders ?? []).filter(isQuickPaymentEligible),
+    [data]
+  );
   const ready = eligible.filter((order) => order.readyForCheckout && order.amountPaid === 0);
   const partial = eligible.filter((order) => order.amountPaid > 0);
   const visible = tab === "ready" ? ready : tab === "partial" ? partial : eligible;
-  const requestedOrderEligible = !requestedOrderId || eligible.some((order) => order.id === requestedOrderId);
+  const requestedOrderEligible =
+    !requestedOrderId || eligible.some((order) => order.id === requestedOrderId);
   const selected = requestedOrderEligible
-    ? visible.find((order) => order.id === selectedId) ?? (selectedId ? undefined : visible[0])
+    ? (visible.find((order) => order.id === selectedId) ?? (selectedId ? undefined : visible[0]))
     : undefined;
   const accounts = useMemo(() => data?.accounts ?? [], [data]);
   const accountChoices = (method: FinancialPaymentMethod): MaskedAccountOption[] =>
@@ -165,12 +183,26 @@ export function CradleFlowQuickPaymentModal({
     initialPaymentMethod && accountChoices(initialPaymentMethod).length > 0
       ? initialPaymentMethod
       : "cash";
+  const discountKey = selected
+    ? `${data?.branchId}:${selected.sourceKind}:${selected.id}:${selected.totalAmount}:${selected.amountPaid}`
+    : "";
+  const discounts = usePaymentDiscounts(selected, discountKey);
+  const selectedDiscount = discounts.selectedDiscount;
+  const suggestedDiscount = getSuggestedCustomerDiscount(selected?.customerLoyaltyTier);
+  const discountBlocked = discounts.blocked;
+  const payableTotal = discounts.command
+    ? discounts.quote!.totalPayable
+    : (selected?.totalAmount ?? 0);
+  const payableRemaining = discounts.command
+    ? discounts.quote!.remainingBalance
+    : (selected?.remainingBalance ?? 0);
 
   // Derive the default payment line from the selected payable order.
   // Only user edits are stored as state, eliminating the reset effect.
   const tenderKey = selected
-    ? `${data?.branchId ?? ""}:${data?.businessDate ?? ""}:${selected.sourceKind}:${selected.id}:${selected.remainingBalance}:${initialMethod}`
+    ? `${data?.branchId ?? ""}:${data?.businessDate ?? ""}:${selected.sourceKind}:${selected.id}:${payableRemaining}:${initialMethod}`
     : "";
+  const tenderIdentity = `${discountKey}:${data?.businessDate}:${initialMethod}`;
 
   const defaultTenders: Tender[] = selected
     ? [
@@ -178,25 +210,35 @@ export function CradleFlowQuickPaymentModal({
           id: `default-${selected.id}`,
           method: initialMethod,
           accountId: firstAccount(initialMethod),
-          amount: selected.remainingBalance.toFixed(2),
+          amount: payableRemaining.toFixed(2),
           cashReceived: "",
           reference: "",
         },
       ]
     : [];
 
-  const tenders = tenderDraft?.key === tenderKey ? tenderDraft.lines : defaultTenders;
+  const tenders =
+    tenderDraft?.key === tenderKey
+      ? tenderDraft.lines
+      : tenderDraft?.identity === tenderIdentity
+        ? retargetDiscountTenders(tenderDraft.lines, tenderDraft.balance, payableRemaining)
+        : defaultTenders;
 
   function setTenders(next: Tender[] | ((previous: Tender[]) => Tender[])) {
     setTenderDraft((previous) => {
-      const current = previous?.key === tenderKey ? previous.lines : defaultTenders;
+      const current =
+        previous?.key === tenderKey
+          ? previous.lines
+          : previous?.identity === tenderIdentity
+            ? retargetDiscountTenders(previous.lines, previous.balance, payableRemaining)
+            : defaultTenders;
       const lines = typeof next === "function" ? next(current) : next;
-      return { key: tenderKey, lines };
+      return { key: tenderKey, identity: tenderIdentity, balance: payableRemaining, lines };
     });
   }
 
   const totalCents = tenders.reduce((sum, line) => sum + cents(Number(line.amount) || 0), 0);
-  const remainingCents = selected ? cents(selected.remainingBalance) : 0;
+  const remainingCents = selected ? cents(payableRemaining) : 0;
   const invalidTender =
     tenders.length === 0 ||
     tenders.some((line) => {
@@ -258,6 +300,7 @@ export function CradleFlowQuickPaymentModal({
     !invalidTender &&
     !cashReceivedError &&
     !confirmedReceipt &&
+    !discountBlocked &&
     totalCents > 0 &&
     totalCents <= remainingCents
   );
@@ -315,10 +358,30 @@ export function CradleFlowQuickPaymentModal({
 
       if (res.status === "committed" && res.transaction) {
         const tx = res.transaction;
-        const totalAmount = selected.totalAmount;
+        const submittedAttempt =
+          attempt.current?.key === unresolvedAttemptKey ? attempt.current : null;
+        const recovered = submittedAttempt?.discounted
+          ? await getCommittedDiscountReceiptAction(unresolvedAttemptKey)
+          : null;
+        if (
+          submittedAttempt?.discounted &&
+          (!recovered ||
+            recovered.transaction_id !== tx.id ||
+            cents(recovered.discount_receipt.items.reduce((sum, item) => sum + item.amount, 0)) !==
+              cents(recovered.total_payable))
+        ) {
+          setVerificationWarning(
+            "Payment is on the ledger. Its committed discount receipt could not be verified; do not print a receipt or collect again. Review Cash Flow."
+          );
+          return;
+        }
+        const totalAmount = recovered?.total_payable ?? selected.totalAmount;
         const movementsTotal = tx.movements.reduce((sum, m) => sum + m.amount, 0);
-        const amountPaid = movementsTotal > 0 ? movementsTotal : totalCents / 100;
-        const remaining = Math.max(0, Math.round((totalAmount - (selected.amountPaid + amountPaid)) * 100) / 100);
+        const amountPaid =
+          recovered?.total_paid ?? (movementsTotal > 0 ? movementsTotal : totalCents / 100);
+        const remaining =
+          recovered?.remaining_balance ??
+          Math.max(0, Math.round((totalAmount - (selected.amountPaid + amountPaid)) * 100) / 100);
 
         const receiptData: PrintableReceiptData = {
           companyName: "CRADLE WELLNESS LIVING INC.",
@@ -337,29 +400,32 @@ export function CradleFlowQuickPaymentModal({
           }),
           serviceDescription: selected.serviceDescription,
           visitType: selected.visitType,
-          items: selected.payableItems?.length
-            ? selected.payableItems.map((item) => ({
-                description: item.description,
-                amount: item.amount,
-              }))
-            : [{ description: selected.serviceDescription, amount: totalAmount }],
+          items:
+            recovered?.discount_receipt.items ??
+            (selected.payableItems?.length
+              ? selected.payableItems.map((item) => ({
+                  description: item.description,
+                  amount: item.amount,
+                }))
+              : [{ description: selected.serviceDescription, amount: totalAmount }]),
           totalPayable: totalAmount,
-          alreadyPaid: selected.amountPaid,
+          alreadyPaid: recovered?.discount_receipt.alreadyPaid ?? selected.amountPaid,
           amountPaid,
           remainingBalance: remaining,
-          payments: tx.movements.length > 0
-            ? tx.movements.map((m) => ({
-                method: m.paymentMethod,
-                amount: m.amount,
-                reference: m.externalReference,
-              }))
-            : tenders.map((t) => ({
-                method: methodLabels[t.method] || t.method,
-                amount: Number(t.amount) || 0,
-                reference: t.reference.trim() || null,
-              })),
-          totalCashReceived: hasCashTender && hasAnyCashReceivedEntered ? totalCashReceivedCents / 100 : null,
-          changeGiven: hasCashTender ? changeCents / 100 : null,
+          payments:
+            tx.movements.length > 0
+              ? tx.movements.map((m) => ({
+                  method: m.paymentMethod,
+                  amount: m.amount,
+                  reference: m.externalReference,
+                }))
+              : tenders.map((t) => ({
+                  method: methodLabels[t.method] || t.method,
+                  amount: Number(t.amount) || 0,
+                  reference: t.reference.trim() || null,
+                })),
+          totalCashReceived: submittedAttempt?.cashReceived ?? null,
+          changeGiven: submittedAttempt?.change ?? null,
           isIdempotentReplay: true,
         };
 
@@ -384,7 +450,9 @@ export function CradleFlowQuickPaymentModal({
         }
       } else {
         setUnresolvedAttemptKey(null);
-        setReconcileResult("Transaction not found in ledger. The previous attempt was not committed. You may safely retry payment with the same parameters or cancel.");
+        setReconcileResult(
+          "Transaction not found in ledger. The previous attempt was not committed. You may safely retry payment with the same parameters or cancel."
+        );
       }
     } catch (err) {
       setPaymentError(err instanceof Error ? err.message : "Reconciliation query failed.");
@@ -394,6 +462,9 @@ export function CradleFlowQuickPaymentModal({
   }
 
   async function recordPayment() {
+    // A selection cannot be converted to a smaller tender or free-text discount.
+    // The server has no atomic discount command yet.
+    if (discountBlocked) return;
     if (submitting.current || !canSubmit || !data || !selected) return;
     submitting.current = true;
     setBusy(true);
@@ -415,13 +486,21 @@ export function CradleFlowQuickPaymentModal({
       date: data.businessDate,
       payments,
       notes: notes.trim(),
+      discount: discounts.command,
     });
 
     const keyToUse =
       attempt.current?.signature === signature && attempt.current.key
         ? attempt.current.key
         : crypto.randomUUID();
-    attempt.current = { signature, key: keyToUse };
+    attempt.current = {
+      signature,
+      key: keyToUse,
+      discounted: !!discounts.command,
+      cashReceived:
+        hasCashTender && hasAnyCashReceivedEntered ? totalCashReceivedCents / 100 : null,
+      change: hasCashTender ? changeCents / 100 : null,
+    };
     setUnresolvedAttemptKey(keyToUse);
 
     try {
@@ -442,6 +521,7 @@ export function CradleFlowQuickPaymentModal({
               payments,
               businessDate: data.businessDate,
               notes: notes.trim() || null,
+              ...(discounts.command ? { discount: discounts.command } : {}),
             });
 
       if (!result.ok) {
@@ -455,7 +535,8 @@ export function CradleFlowQuickPaymentModal({
       let confirmedTotalPayable = selected.totalAmount;
       let confirmedAlreadyPaid = selected.amountPaid;
       let confirmedRemainingBalance = 0;
-      let confirmedMovements: Array<{ method: string; amount: number; reference?: string | null }> = [];
+      let confirmedMovements: Array<{ method: string; amount: number; reference?: string | null }> =
+        [];
       let isIdempotentReplay = false;
       let unverifiedReason: string | null = null;
 
@@ -475,7 +556,11 @@ export function CradleFlowQuickPaymentModal({
 
         if (!confirmedTxnId) {
           unverifiedReason = "Authoritative transaction ID is missing from server response.";
-        } else if (!legacyData || typeof legacyData.paymentDelta !== "number" || !Number.isFinite(legacyData.paymentDelta)) {
+        } else if (
+          !legacyData ||
+          typeof legacyData.paymentDelta !== "number" ||
+          !Number.isFinite(legacyData.paymentDelta)
+        ) {
           unverifiedReason = "Invalid payment delta in server response.";
         } else {
           confirmedAmountPaid = legacyData.paymentDelta;
@@ -486,7 +571,9 @@ export function CradleFlowQuickPaymentModal({
           confirmedTotalPayable = selected.totalAmount;
           confirmedRemainingBalance = Math.max(
             0,
-            Math.round((confirmedTotalPayable - (confirmedAlreadyPaid + confirmedAmountPaid)) * 100) / 100
+            Math.round(
+              (confirmedTotalPayable - (confirmedAlreadyPaid + confirmedAmountPaid)) * 100
+            ) / 100
           );
           confirmedMovements = tenders.map((line) => ({
             method: methodLabels[line.method] || line.method,
@@ -503,8 +590,11 @@ export function CradleFlowQuickPaymentModal({
           unverifiedReason = "Server reported unconfirmed payment posting status.";
         } else {
           const rawId = orderData.transactionId || orderData.transaction_id;
-          confirmedTxnId = typeof rawId === "string" && rawId.trim().length > 0 ? rawId.trim() : null;
-          isIdempotentReplay = Boolean(orderData.isIdempotentReplay || orderData.is_idempotent_replay);
+          confirmedTxnId =
+            typeof rawId === "string" && rawId.trim().length > 0 ? rawId.trim() : null;
+          isIdempotentReplay = Boolean(
+            orderData.isIdempotentReplay || orderData.is_idempotent_replay
+          );
 
           if (!confirmedTxnId) {
             unverifiedReason = "Authoritative transaction ID is missing from server response.";
@@ -519,9 +609,7 @@ export function CradleFlowQuickPaymentModal({
             const remBalVal = Number.isFinite(orderData.remainingBalance)
               ? orderData.remainingBalance
               : Number(orderData.remaining_balance);
-            confirmedRemainingBalance = Number.isFinite(remBalVal)
-              ? remBalVal
-              : 0;
+            confirmedRemainingBalance = Number.isFinite(remBalVal) ? remBalVal : 0;
 
             if (Array.isArray(orderData.movements) && orderData.movements.length > 0) {
               confirmedAmountPaid = orderData.movements.reduce(
@@ -583,6 +671,18 @@ export function CradleFlowQuickPaymentModal({
         }
       }
 
+      const committedDiscountReceipt =
+        selected.sourceKind === "booking_order"
+          ? (result.data as PostOrderPaymentResult).discountReceipt
+          : undefined;
+      if (
+        discounts.command &&
+        (!committedDiscountReceipt ||
+          cents(committedDiscountReceipt.items.reduce((sum, item) => sum + item.amount, 0)) !==
+            cents(confirmedTotalPayable))
+      ) {
+        unverifiedReason = "Missing or inconsistent committed discount receipt";
+      }
       if (unverifiedReason || !confirmedTxnId) {
         setUnresolvedAttemptKey(null);
         setVerificationWarning(
@@ -610,12 +710,14 @@ export function CradleFlowQuickPaymentModal({
         }),
         serviceDescription: selected.serviceDescription,
         visitType: selected.visitType,
-        items: selected.payableItems?.length
-          ? selected.payableItems.map((item) => ({
-              description: item.description,
-              amount: item.amount,
-            }))
-          : [{ description: selected.serviceDescription, amount: confirmedTotalPayable }],
+        items:
+          committedDiscountReceipt?.items ??
+          (selected.payableItems?.length
+            ? selected.payableItems.map((item) => ({
+                description: item.description,
+                amount: item.amount,
+              }))
+            : [{ description: selected.serviceDescription, amount: confirmedTotalPayable }]),
         totalPayable: confirmedTotalPayable,
         alreadyPaid: confirmedAlreadyPaid,
         amountPaid: confirmedAmountPaid,
@@ -707,7 +809,8 @@ export function CradleFlowQuickPaymentModal({
               <div>
                 <span className="font-bold">Payment Status Unresolved: </span>
                 <span>
-                  The previous payment submission encountered an interruption or timeout. Do not re-enter payment without verifying transaction status.
+                  The previous payment submission encountered an interruption or timeout. Do not
+                  re-enter payment without verifying transaction status.
                 </span>
                 {reconcileResult ? (
                   <p className="mt-1 font-medium text-amber-800">{reconcileResult}</p>
@@ -799,8 +902,8 @@ export function CradleFlowQuickPaymentModal({
           </div>
         ) : null}
 
-        <div className="grid min-h-0 flex-1 gap-3 overflow-y-auto p-3 lg:grid-cols-[minmax(0,1.8fr)_minmax(270px,0.85fr)] lg:overflow-hidden">
-          <div className="flex min-h-0 min-w-0 flex-col gap-3">
+        <div className="grid min-h-0 flex-1 auto-rows-max gap-3 overflow-y-auto p-3 lg:auto-rows-auto lg:grid-cols-[minmax(0,1.8fr)_minmax(270px,0.85fr)] lg:overflow-hidden">
+          <div className="flex min-w-0 flex-col gap-3 lg:min-h-0">
             <div className="grid shrink-0 grid-cols-3 rounded-xl border border-[#e9e2d8] bg-white p-1 text-xs">
               {(
                 [
@@ -884,7 +987,7 @@ export function CradleFlowQuickPaymentModal({
                   <span className="shrink-0 text-right">
                     <span className="block text-[10px] text-[#786d61]">Balance</span>
                     <span className="text-sm font-bold text-[#12553f]">
-                      {php(order.remainingBalance)}
+                      {php(order.id === selected?.id ? payableRemaining : order.remainingBalance)}
                     </span>
                   </span>
                 </button>
@@ -892,32 +995,115 @@ export function CradleFlowQuickPaymentModal({
             </div>
             <div className="shrink-0 rounded-xl border border-[#e9e2d8] bg-white p-3">
               <h3 className="mb-2 text-sm font-bold">Payment methods</h3>
-              <div className="mb-3 flex flex-wrap gap-1.5">
-                {FINANCIAL_PAYMENT_RAILS.map((method) => (
+              <div className="mb-3 flex flex-wrap items-start justify-between gap-2.5">
+                <div className="flex flex-wrap gap-1.5">
+                  {FINANCIAL_PAYMENT_RAILS.map((method) => (
+                    <button
+                      key={method}
+                      type="button"
+                      disabled={!selected || busy || tenders.length === 0}
+                      onClick={() =>
+                        updateTender(tenders[0]!.id, {
+                          method,
+                          accountId: firstAccount(method),
+                        })
+                      }
+                      className={`rounded-lg border px-3 py-2 text-xs font-semibold ${tenders[0]?.method === method ? "border-[#116044] bg-[#eaf5ee] text-[#14543e]" : "border-[#e9e2d8]"}`}
+                    >
+                      {methodLabels[method]}
+                    </button>
+                  ))}
                   <button
-                    key={method}
                     type="button"
-                    disabled={!selected || busy || tenders.length === 0}
-                    onClick={() =>
-                      updateTender(tenders[0]!.id, {
-                        method,
-                        accountId: firstAccount(method),
-                      })
-                    }
-                    className={`rounded-lg border px-3 py-2 text-xs font-semibold ${tenders[0]?.method === method ? "border-[#116044] bg-[#eaf5ee] text-[#14543e]" : "border-[#e9e2d8]"}`}
+                    disabled={!selected || busy}
+                    onClick={addTender}
+                    className="rounded-lg border border-dashed border-[#116044] px-3 py-2 text-xs font-semibold text-[#14543e]"
                   >
-                    {methodLabels[method]}
+                    Split +
                   </button>
-                ))}
-                <button
-                  type="button"
-                  disabled={!selected || busy}
-                  onClick={addTender}
-                  className="rounded-lg border border-dashed border-[#116044] px-3 py-2 text-xs font-semibold text-[#14543e]"
-                >
-                  Split +
-                </button>
+                </div>
+                <div role="group" aria-label="Payment discount" className="flex flex-wrap gap-1.5">
+                  {PAYMENT_DISCOUNT_KEYS.map((type) => (
+                    <button
+                      key={type}
+                      type="button"
+                      aria-pressed={selectedDiscount === type}
+                      disabled={
+                        !selected ||
+                        !discounts.catalogReady ||
+                        busy ||
+                        reconciling ||
+                        !!unresolvedAttemptKey ||
+                        !!confirmedReceipt
+                      }
+                      onClick={() => discounts.toggle(type)}
+                      className={`min-h-9 rounded-lg border px-3 py-2 text-xs font-semibold ${selectedDiscount === type ? "border-[#116044] bg-[#14543e] text-white" : "border-[#e9e2d8] bg-[#faf8f5] text-[#14543e]"}`}
+                    >
+                      {PAYMENT_DISCOUNTS[type].label}
+                    </button>
+                  ))}
+                </div>
               </div>
+              {discounts.recipients.length > 1 && discounts.catalogReady ? (
+                <label className="mb-2 flex flex-wrap items-center gap-2 text-xs font-semibold text-[#14543e]">
+                  Discount recipient
+                  <select
+                    aria-label="Discount recipient"
+                    value={discounts.recipientId ?? ""}
+                    disabled={busy || !!unresolvedAttemptKey || !!confirmedReceipt}
+                    onChange={(event) => discounts.selectRecipient(event.target.value)}
+                    className="min-h-10 max-w-full rounded-lg border border-[#e9e2d8] bg-white px-2"
+                  >
+                    {discounts.recipients.map((recipient) => (
+                      <option key={recipient.bookingId} value={recipient.bookingId}>
+                        {recipient.recipientName} · {recipient.serviceName ?? "Service"}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+              ) : null}
+              {selected && !discounts.catalogReady ? (
+                <p role="status" className="mb-2 text-xs text-amber-950">
+                  {discounts.pending
+                    ? "Loading service recipients…"
+                    : (discounts.error ??
+                      "Service recipients could not be verified for discounts.")}
+                </p>
+              ) : null}
+              {discounts.catalogReady && discounts.recipients.length === 1 ? (
+                <p className="mb-2 text-xs text-[#14543e]">
+                  Service recipient: {discounts.recipients[0]!.recipientName} ·{" "}
+                  {discounts.recipients[0]!.serviceName ?? "Service"}
+                </p>
+              ) : null}
+              {suggestedDiscount ? (
+                <p className="mb-2 text-xs text-[#14543e]">
+                  VIP loyalty status on file. Verify the service recipient before applying a
+                  discount.
+                </p>
+              ) : null}
+              {discountBlocked ? (
+                <p
+                  role="status"
+                  className="mb-3 rounded-lg border border-amber-200 bg-amber-50 p-2 text-xs text-amber-950"
+                >
+                  {discounts.pending
+                    ? "Calculating discount… No discount has been applied yet."
+                    : (discounts.error ??
+                      "Discount preview only. No discount has been applied.")}{" "}
+                  Remove the selection to record payment at the current balance.
+                </p>
+              ) : null}
+              {discounts.hasSelection && discounts.quote && !discountBlocked ? (
+                <p
+                  role="status"
+                  className="mb-3 rounded-lg bg-emerald-50 p-2 text-xs text-emerald-950"
+                >
+                  Subtotal {php(discounts.quote.subtotal)} · Discount −
+                  {php(discounts.quote.discountAmount)} · Payable{" "}
+                  {php(discounts.quote.totalPayable)}. Eligibility confirmed by staff selection.
+                </p>
+              ) : null}
 
               {/* Tender row header matching approved UI reference */}
               <div className="mb-1 hidden grid-cols-[110px_minmax(0,1fr)_minmax(0,1fr)_28px] items-center gap-2 px-1 text-[11px] font-semibold text-[#786d61] sm:grid">
@@ -973,7 +1159,9 @@ export function CradleFlowQuickPaymentModal({
                     </div>
 
                     <div className="relative min-w-0">
-                      <span className="pointer-events-none absolute left-2 top-2 text-xs text-[#786d61]">₱</span>
+                      <span className="pointer-events-none absolute left-2 top-2 text-xs text-[#786d61]">
+                        ₱
+                      </span>
                       <input
                         aria-label={`Tender ${index + 1} amount`}
                         type="number"
@@ -989,7 +1177,9 @@ export function CradleFlowQuickPaymentModal({
 
                     {line.method === "cash" ? (
                       <div className="relative col-span-2 min-w-0 sm:col-span-1">
-                        <span className="pointer-events-none absolute left-2 top-2 text-xs text-[#786d61]">₱</span>
+                        <span className="pointer-events-none absolute left-2 top-2 text-xs text-[#786d61]">
+                          ₱
+                        </span>
                         <input
                           aria-label={`Tender ${index + 1} cash received`}
                           type="number"
@@ -1165,7 +1355,10 @@ export function CradleFlowQuickPaymentModal({
                   {selected.payableItems?.length ? (
                     <div className="mt-2 space-y-1">
                       {selected.payableItems.map((item, itemIdx) => (
-                        <div key={item.id || `payable-${itemIdx}`} className="flex justify-between gap-2 text-[11px]">
+                        <div
+                          key={item.id || `payable-${itemIdx}`}
+                          className="flex justify-between gap-2 text-[11px]"
+                        >
                           <span className="min-w-0 truncate">{item.description}</span>
                           <span>{php(item.amount)}</span>
                         </div>
@@ -1174,9 +1367,15 @@ export function CradleFlowQuickPaymentModal({
                   ) : null}
                 </div>
                 <div className="space-y-2 text-xs">
+                  {discounts.command && discounts.quote ? (
+                    <div className="flex justify-between text-emerald-800">
+                      <span>Discount</span>
+                      <strong>−{php(discounts.quote.discountAmount)}</strong>
+                    </div>
+                  ) : null}
                   <div className="flex justify-between">
                     <span>Total payable</span>
-                    <strong>{php(selected.totalAmount)}</strong>
+                    <strong>{php(payableTotal)}</strong>
                   </div>
                   <div className="flex justify-between">
                     <span>Already paid</span>
@@ -1184,7 +1383,7 @@ export function CradleFlowQuickPaymentModal({
                   </div>
                   <div className="flex justify-between rounded-lg bg-[#edf6ef] p-2 font-bold text-[#14543e]">
                     <span>Remaining balance</span>
-                    <span>{php(selected.remainingBalance)}</span>
+                    <span>{php(payableRemaining)}</span>
                   </div>
                 </div>
                 <div className="rounded-xl bg-[#eff8f2] p-3">
@@ -1215,12 +1414,6 @@ export function CradleFlowQuickPaymentModal({
               Amounts come from the current Cash Flow payable-order context. The server validates
               financial writes.
             </p>
-            <Link
-              href="/crm/cash-flow?entry=payment"
-              className="block rounded-lg border border-[#e9e2d8] px-3 py-2 text-center text-xs font-semibold"
-            >
-              Advanced Cash Flow options
-            </Link>
           </aside>
         </div>
         {paymentError ? (
@@ -1231,7 +1424,7 @@ export function CradleFlowQuickPaymentModal({
             {paymentError}
           </p>
         ) : null}
-        <footer className="flex shrink-0 items-center justify-between gap-3 border-t border-[#e9e2d8] bg-white px-5 py-3">
+        <footer className="flex shrink-0 flex-wrap items-center justify-between gap-3 border-t border-[#e9e2d8] bg-white px-4 py-3 sm:px-5">
           {confirmedReceipt ? (
             <>
               <div className="flex items-center gap-4">
@@ -1253,7 +1446,7 @@ export function CradleFlowQuickPaymentModal({
                   </>
                 ) : null}
               </div>
-              <div className="flex gap-2">
+              <div className="flex w-full justify-end gap-2 sm:w-auto">
                 <button
                   type="button"
                   onClick={() => {
@@ -1292,14 +1485,12 @@ export function CradleFlowQuickPaymentModal({
                     <div className="h-8 w-px bg-[#e9e2d8]" aria-hidden="true" />
                     <div>
                       <p className="text-[11px] text-[#786d61]">Change</p>
-                      <p className="text-lg font-bold text-[#14543e]">
-                        {php(changeCents / 100)}
-                      </p>
+                      <p className="text-lg font-bold text-[#14543e]">{php(changeCents / 100)}</p>
                     </div>
                   </>
                 ) : null}
               </div>
-              <div className="flex gap-2">
+              <div className="flex w-full justify-end gap-2 sm:w-auto">
                 <button
                   type="button"
                   onClick={handleClose}
@@ -1314,7 +1505,11 @@ export function CradleFlowQuickPaymentModal({
                   onClick={() => void recordPayment()}
                   className="rounded-lg bg-[#14543e] px-5 py-2 text-xs font-bold text-white hover:bg-[#0f402f] disabled:opacity-40"
                 >
-                  {unresolvedAttemptKey ? "Payment Unresolved" : (busy ? "Recording…" : "Record Payment")}
+                  {unresolvedAttemptKey
+                    ? "Payment Unresolved"
+                    : busy
+                      ? "Recording…"
+                      : "Record Payment"}
                 </button>
               </div>
             </>

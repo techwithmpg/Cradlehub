@@ -393,7 +393,7 @@ export async function getCashFlowData(
       amount_paid,
       metadata,
       order_id,
-      customers:customer_id ( full_name, phone ),
+      customers:customer_id ( full_name, phone, loyalty_tier ),
       services:service_id ( name, duration_minutes )
     `
     )
@@ -413,8 +413,8 @@ export async function getCashFlowData(
     metadata: Record<string, unknown> | null;
     order_id: string | null;
     customers:
-      | { full_name: string; phone: string | null }
-      | { full_name: string; phone: string | null }[]
+      | { full_name: string; phone: string | null; loyalty_tier?: string | null }
+      | { full_name: string; phone: string | null; loyalty_tier?: string | null }[]
       | null;
     services:
       | { name: string; duration_minutes: number | null }
@@ -484,6 +484,7 @@ export async function getCashFlowData(
       const list = orderItemsById.get(row.order_id) ?? [];
       list.push({
         id: row.id,
+        bookingId: row.booking_id,
         description: row.description,
         amount: Number(row.amount) || 0,
         itemType:
@@ -1028,6 +1029,7 @@ export async function getCashFlowData(
       orderNumber: b.order_id ? `ORDER-${b.order_id.slice(0, 8)}` : `BK-${b.id.slice(0, 8)}`,
       customerName: cust?.full_name || "Guest",
       customerPhone: cust?.phone ?? null,
+      customerLoyaltyTier: cust?.loyalty_tier ?? null,
       serviceDescription: svc?.name || "Spa Service",
       totalAmount: total,
       amountPaid: paid,

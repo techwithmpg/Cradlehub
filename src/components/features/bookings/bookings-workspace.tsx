@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
-import { useEffect, useMemo, useState, type KeyboardEvent } from "react";
+import { useMemo, useState, type KeyboardEvent } from "react";
 import {
   Activity,
   AlertCircle,
@@ -335,9 +335,6 @@ export function BookingsWorkspace({
 }: BookingsWorkspaceProps) {
   const searchParams = useSearchParams();
   const router = useRouter();
-  const [isDesktop, setIsDesktop] = useState<boolean | null>(() =>
-    workspaceContext === "crm" ? null : false
-  );
   const basePath = `/${workspaceContext === "owner" ? "owner" : workspaceContext === "manager" ? "manager" : "crm"}/bookings`;
   const isCrm = workspaceContext === "crm";
   const dispatchHref = basePath.replace(/\/bookings$/, "/dispatch");
@@ -403,18 +400,6 @@ export function BookingsWorkspace({
   }, [bookings, referenceSource, search, sheetExcludedByCanonicalFilter, sheetState]);
   const needsActionCount = tabItems.find((tab) => tab.key === "needs-action")?.count ?? 0;
 
-  useEffect(() => {
-    if (workspaceContext !== "crm") return;
-    const mediaQuery = window.matchMedia("(min-width: 768px)");
-    const updateViewport = () => setIsDesktop(mediaQuery.matches);
-    const initialTimer = window.setTimeout(updateViewport, 0);
-    mediaQuery.addEventListener("change", updateViewport);
-    return () => {
-      window.clearTimeout(initialTimer);
-      mediaQuery.removeEventListener("change", updateViewport);
-    };
-  }, [workspaceContext]);
-
   function handleTabChange(nextTab: BookingWorkspaceTab) {
     setActiveTab(nextTab);
 
@@ -436,17 +421,12 @@ export function BookingsWorkspace({
     }
   }
 
-  if (isDesktop === null) {
-    return (
-      <div
-        className="min-h-[690px] animate-pulse rounded-xl border border-[var(--cs-border-soft)] bg-white"
-        aria-label="Loading bookings workspace"
-        aria-busy="true"
-      />
-    );
-  }
-
-  if (isDesktop) {
+  const hasSheetReferences =
+    referenceSource === "master_sheet" ||
+    (referenceSource === "all" &&
+      sheetState?.status === "available" &&
+      sheetState.bookings.length > 0);
+  if (isCrm && !hasSheetReferences) {
     return (
       <BookingsDesktopWorkspace
         key={initialQuickFilter === "upcoming" ? "upcoming" : "daily"}
