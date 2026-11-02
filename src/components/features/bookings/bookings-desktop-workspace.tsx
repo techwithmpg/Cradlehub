@@ -23,10 +23,15 @@ import {
   bookingMatchesQuickFilter,
   type BookingQuickFilter,
 } from "@/lib/bookings/bookings-workspace-filters";
-import { groupCrmBookings, matchesCrmBookingGroupSearch } from "@/lib/bookings/crm-booking-groups";
+import { groupCrmBookings } from "@/lib/bookings/crm-booking-groups";
 import { findBookingGroup } from "@/lib/bookings/group-bookings-by-order";
 import { firstBookingRelation } from "@/lib/bookings/booking-display";
 import { HorizontalBookingRow } from "./horizontal-booking-row";
+import { GroupedBookingCard } from "./grouped-booking-card";
+import {
+  bookingGuestCount,
+  sessionMatchesPresentationFilters,
+} from "@/lib/bookings/bookings-presentation";
 import { BookingsQuickFilters } from "./bookings-quick-filters";
 import { useAdministrativeBookingModal } from "./administrative-booking-modal-provider";
 import { BookingsModalStack, type BookingModalState } from "./bookings-modal-stack";
@@ -38,11 +43,7 @@ import {
   withPossibleMatch,
 } from "@/lib/integrations/google-sheets/sheet-native-match";
 import { sortSheetReferencesRecentFirst } from "@/lib/bookings/booking-recency";
-import {
-  isBookingLineClosed,
-  isBookingLineCompleted,
-  isOperationalBookingGroup,
-} from "@/lib/bookings/operational-booking-eligibility";
+import { isOperationalBookingGroup } from "@/lib/bookings/operational-booking-eligibility";
 import type { SheetNativeReferencesState } from "@/lib/integrations/google-sheets/sheet-native-types";
 
 const NO_SELECTION = "__no_booking_selected__";
@@ -128,6 +129,7 @@ export function BookingsDesktopWorkspace(props: DesktopWorkspaceProps) {
   const [therapistFilter, setTherapistFilter] = useState<string>(props.assignmentFilter ?? "all");
   const [roomFilter, setRoomFilter] = useState<string>("all");
   const [sortBy, setSortBy] = useState<"time-asc" | "time-desc" | "name-asc">("time-asc");
+  const [displayMode, setDisplayMode] = useState<"grouped" | "individual">("grouped");
   const [viewMode, setViewMode] = useState<"list" | "calendar">("list");
 
   // Single expanded Quick Edit row ID
@@ -220,124 +222,25 @@ export function BookingsDesktopWorkspace(props: DesktopWorkspaceProps) {
   const selectedSheet =
     sheetReferences.find((reference) => reference.source.sourceKey === selectedSheetKey) ?? null;
 
+  const sessionFilters = useMemo(
+    () => ({
+      quickFilter,
+      status: statusFilter,
+      service: serviceFilter,
+      therapist: therapistFilter,
+      room: roomFilter,
+      search: searchQuery,
+    }),
+    [quickFilter, statusFilter, serviceFilter, therapistFilter, roomFilter, searchQuery]
+  );
   // Filter groups
   const filteredGroups = useMemo(() => {
     if (props.referenceSource === "master_sheet") return [];
 
     return operationalGroups
-      .filter((group) => {
-        if (quickFilter === "needs-attention" && group.attentionSummary.length === 0) return false;
-        if (
-          quickFilter === "active-now" &&
-          !group.lines.some((line) => bookingMatchesQuickFilter(line, "active-now"))
-        ) {
-          return false;
-        }
-
-        // Status filter
-        if (statusFilter !== "all") {
-          const isCancelled =
-            group.lines.length > 0 &&
-            group.lines.every(
-              (line) => line.status === "cancelled" || line.booking_progress_status === "cancelled"
-            );
-          const isNoShow =
-            !isCancelled &&
-            group.lines.length > 0 &&
-            group.lines.every(
-              (line) => line.status === "no_show" || line.booking_progress_status === "no_show"
-            );
-          const isExpired =
-            !isCancelled &&
-            !isNoShow &&
-            group.lines.length > 0 &&
-            group.lines.every((line) => line.status === "expired");
-          const isClosed = isCancelled || isNoShow || isExpired;
-
-          const activeLines = group.lines.filter((line) => !isBookingLineClosed(line));
-
-          const isCompleted =
-            !isClosed && activeLines.length > 0 && activeLines.every(isBookingLineCompleted);
-
-          const isInService =
-            !isClosed &&
-            !isCompleted &&
-            activeLines.some(
-              (line) =>
-                !isBookingLineCompleted(line) &&
-                (line.status === "in_progress" ||
-                  line.booking_progress_status === "session_started" ||
-                  line.booking_progress_status === "in_service" ||
-                  (Boolean(line.session_started_at) && !line.session_completed_at))
-            );
-
-          const isCheckedIn =
-            !isClosed &&
-            !isCompleted &&
-            !isInService &&
-            activeLines.some(
-              (line) =>
-                !isBookingLineCompleted(line) &&
-                (line.booking_progress_status === "checked_in" ||
-                  line.booking_progress_status === "arrived" ||
-                  Boolean(line.checked_in_at) ||
-                  Boolean(line.arrived_at))
-            );
-
-          if (statusFilter === "in_service" && !isInService) return false;
-          if (statusFilter === "checked_in" && !isCheckedIn) return false;
-          if (statusFilter === "completed" && !isCompleted) return false;
-          if (statusFilter === "cancelled" && !isCancelled) return false;
-          if (statusFilter === "no_show" && !isNoShow) return false;
-          if (statusFilter === "expired" && !isExpired) return false;
-          if (
-            statusFilter === "upcoming" &&
-            (isInService || isCheckedIn || isCompleted || isClosed)
-          ) {
-            return false;
-          }
-        }
-
-        // Service filter
-        if (serviceFilter !== "all") {
-          const matchesService = group.lines.some((line) => {
-            const svc = firstBookingRelation(line.services);
-            return svc?.id === serviceFilter || svc?.name === serviceFilter;
-          });
-          if (!matchesService) return false;
-        }
-
-        // Therapist filter
-        if (therapistFilter !== "all") {
-          const matchesStaff = group.lines.some((line) => {
-            const st = firstBookingRelation(line.staff);
-            return (
-              line.staff_id === therapistFilter ||
-              st?.id === therapistFilter ||
-              st?.full_name === therapistFilter
-            );
-          });
-          if (!matchesStaff) return false;
-        }
-
-        // Room filter
-        if (roomFilter !== "all") {
-          const matchesRoom = group.lines.some((line) => {
-            const r = firstBookingRelation(line.branch_resources);
-            return (
-              line.resource_id === roomFilter || r?.id === roomFilter || r?.name === roomFilter
-            );
-          });
-          if (!matchesRoom) return false;
-        }
-
-        // Search text
-        if (searchQuery.trim()) {
-          return matchesCrmBookingGroupSearch(group, searchQuery.trim());
-        }
-
-        return true;
-      })
+      .filter((group) =>
+        group.lines.some((line) => sessionMatchesPresentationFilters(line, sessionFilters))
+      )
       .sort((a, b) => {
         if (sortBy === "time-desc") {
           return b.startTime.localeCompare(a.startTime);
@@ -347,17 +250,7 @@ export function BookingsDesktopWorkspace(props: DesktopWorkspaceProps) {
         }
         return a.startTime.localeCompare(b.startTime);
       });
-  }, [
-    operationalGroups,
-    props.referenceSource,
-    quickFilter,
-    statusFilter,
-    serviceFilter,
-    therapistFilter,
-    roomFilter,
-    searchQuery,
-    sortBy,
-  ]);
+  }, [operationalGroups, props.referenceSource, sortBy, sessionFilters]);
 
   const requestedId =
     searchParams?.get("bookingId") ?? searchParams?.get("highlight") ?? props.initialSelectedId;
@@ -435,12 +328,26 @@ export function BookingsDesktopWorkspace(props: DesktopWorkspaceProps) {
     }
   }
 
-  // Pagination calculation
-  const totalPages = Math.max(1, Math.ceil(filteredGroups.length / PAGE_SIZE));
-  const paginatedGroups = useMemo(() => {
-    const start = (currentPage - 1) * PAGE_SIZE;
-    return filteredGroups.slice(start, start + PAGE_SIZE);
-  }, [filteredGroups, currentPage, PAGE_SIZE]);
+  const displayEntries = useMemo(() => {
+    if (displayMode === "grouped") return filteredGroups.map((group) => ({ group, parent: group }));
+    const entries = filteredGroups.flatMap((parent) =>
+      parent.lines
+        .filter((line) => sessionMatchesPresentationFilters(line, sessionFilters))
+        .map((line) => ({ group: groupCrmBookings([line], false)[0]!, parent }))
+    );
+    return entries.sort((a, b) =>
+      sortBy === "name-asc"
+        ? a.group.organizerName.localeCompare(b.group.organizerName)
+        : (sortBy === "time-desc" ? -1 : 1) *
+          (a.group.bookingDate.localeCompare(b.group.bookingDate) ||
+            a.group.startTime.localeCompare(b.group.startTime))
+    );
+  }, [displayMode, filteredGroups, sessionFilters, sortBy]);
+  const totalPages = Math.max(1, Math.ceil(displayEntries.length / PAGE_SIZE));
+  const safePage = Math.min(currentPage, totalPages);
+  const paginatedEntries = displayEntries.slice((safePage - 1) * PAGE_SIZE, safePage * PAGE_SIZE);
+  const guestCount = filteredGroups.reduce((sum, group) => sum + bookingGuestCount(group), 0);
+  const sessionCount = filteredGroups.reduce((sum, group) => sum + group.lines.length, 0);
 
   // Date Navigation handlers
   function navigateDate(days: number) {
@@ -471,7 +378,7 @@ export function BookingsDesktopWorkspace(props: DesktopWorkspaceProps) {
 
   return (
     <div className="mx-auto w-full max-w-[1600px] px-4 py-6 sm:px-6 lg:px-8">
-      {/* ── Page Header ─────────────────────────────────────────────── */}
+      {/* â”€â”€ Page Header â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */}
       <div className="mb-6 flex flex-wrap items-center justify-between gap-4">
         <div>
           <h1 className="text-2xl font-bold tracking-tight text-neutral-900 sm:text-3xl">
@@ -528,7 +435,7 @@ export function BookingsDesktopWorkspace(props: DesktopWorkspaceProps) {
         </div>
       ) : null}
 
-      {/* ── Filter Bar ─────────────────────────────────────────────── */}
+      {/* â”€â”€ Filter Bar â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */}
       <div className="mb-5 flex flex-wrap items-center gap-2.5">
         {/* Date Selector with < and > controls */}
         <div className="flex items-center gap-1.5">
@@ -582,6 +489,7 @@ export function BookingsDesktopWorkspace(props: DesktopWorkspaceProps) {
         {/* Status Filter Dropdown */}
         <div className="relative">
           <select
+            aria-label="Booking status"
             value={statusFilter}
             onChange={(e) => {
               setStatusFilter(e.target.value);
@@ -604,6 +512,7 @@ export function BookingsDesktopWorkspace(props: DesktopWorkspaceProps) {
         {/* Services Filter Dropdown */}
         <div className="relative">
           <select
+            aria-label="Service"
             value={serviceFilter}
             onChange={(e) => {
               setServiceFilter(e.target.value);
@@ -626,6 +535,7 @@ export function BookingsDesktopWorkspace(props: DesktopWorkspaceProps) {
         {/* Therapists Filter Dropdown */}
         <div className="relative">
           <select
+            aria-label="Therapist"
             value={therapistFilter}
             onChange={(e) => {
               setTherapistFilter(e.target.value);
@@ -648,6 +558,7 @@ export function BookingsDesktopWorkspace(props: DesktopWorkspaceProps) {
         {/* Rooms Filter Dropdown */}
         <div className="relative">
           <select
+            aria-label="Room"
             value={roomFilter}
             onChange={(e) => {
               setRoomFilter(e.target.value);
@@ -668,13 +579,36 @@ export function BookingsDesktopWorkspace(props: DesktopWorkspaceProps) {
         </div>
       </div>
 
-      {/* ── Sub-bar: Count on left, Sort and View switch on right ───── */}
-      <div className="mb-3 flex items-center justify-between">
+      {/* â”€â”€ Sub-bar: Count on left, Sort and View switch on right â”€â”€â”€â”€â”€ */}
+      <div className="mb-3 flex flex-wrap items-center justify-between gap-3">
         <div className="text-xs font-semibold text-neutral-600">
-          {filteredGroups.length} {filteredGroups.length === 1 ? "booking" : "bookings"}
+          {filteredGroups.length} {filteredGroups.length === 1 ? "booking" : "bookings"} ·{" "}
+          {guestCount} {guestCount === 1 ? "guest" : "guests"} · {sessionCount}{" "}
+          {sessionCount === 1 ? "session" : "sessions"}
         </div>
 
-        <div className="flex items-center gap-2">
+        <div className="flex flex-wrap items-center gap-2">
+          <div
+            role="group"
+            aria-label="Booking display mode"
+            className="inline-flex rounded-lg border border-neutral-200 bg-white p-1"
+          >
+            {(["grouped", "individual"] as const).map((mode) => (
+              <button
+                key={mode}
+                type="button"
+                aria-pressed={displayMode === mode}
+                onClick={() => {
+                  setDisplayMode(mode);
+                  setCurrentPage(1);
+                  setExpandedBookingId(null);
+                }}
+                className={`min-h-9 rounded-md px-3 text-xs font-semibold focus-visible:ring-2 focus-visible:ring-emerald-700 ${displayMode === mode ? "bg-emerald-50 text-emerald-900" : "text-neutral-600"}`}
+              >
+                {mode === "grouped" ? "Grouped" : "Individual"}
+              </button>
+            ))}
+          </div>
           {/* Sort Dropdown */}
           <div className="flex items-center gap-1.5 text-xs text-neutral-600">
             <span>Sort by</span>
@@ -722,13 +656,13 @@ export function BookingsDesktopWorkspace(props: DesktopWorkspaceProps) {
         </div>
       </div>
 
-      {/* ── Booking List Rows ────────────────────────────────────────── */}
+      {/* â”€â”€ Booking List Rows â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */}
       {props.referenceSource === "master_sheet" && selectedSheet ? (
         <SheetBookingReferenceDetail
           reference={selectedSheet}
           onClose={() => setSelectedSheetKey(null)}
         />
-      ) : paginatedGroups.length === 0 ? (
+      ) : paginatedEntries.length === 0 ? (
         <div className="flex min-h-[300px] flex-col items-center justify-center rounded-xl border border-dashed border-neutral-200 bg-white p-8 text-center shadow-sm">
           <p className="text-sm font-semibold text-neutral-800">No bookings found</p>
           <p className="mt-1 text-xs text-neutral-500">
@@ -748,48 +682,86 @@ export function BookingsDesktopWorkspace(props: DesktopWorkspaceProps) {
         </div>
       ) : (
         <div className="space-y-2">
-          {paginatedGroups.map((group) => {
+          {paginatedEntries.map(({ group, parent }) => {
             const isExpanded = expandedBookingId === group.primaryBookingId;
-            const isSelected = selectedGroup?.displayId === group.displayId;
+            const select = (line: WorkspaceBookingRow) => {
+              setSelectedSheetKey(null);
+              setSelectedId(parent.displayId);
+              setSelectedLineId(line.id);
+              replaceSelectionQuery(line.id);
+            };
+            const toggle = () =>
+              setExpandedBookingId((id) =>
+                id === group.primaryBookingId ? null : group.primaryBookingId
+              );
+            if (displayMode === "grouped" && group.lines.length > 1)
+              return (
+                <GroupedBookingCard
+                  key={group.displayId}
+                  group={group}
+                  matchingLines={group.lines.filter((line) =>
+                    sessionMatchesPresentationFilters(line, sessionFilters)
+                  )}
+                  expanded={isExpanded}
+                  onToggle={toggle}
+                  onSelect={select}
+                  onChanged={props.onBookingsChanged}
+                  onReschedule={(booking) => setModalState({ type: "reschedule", booking })}
+                  paymentAction={props.paymentAction}
+                  isSelected={selectedGroup?.displayId === group.displayId}
+                />
+              );
             return (
-              <HorizontalBookingRow
-                key={group.displayId}
-                group={group}
-                isExpanded={isExpanded}
-                isSelected={isSelected}
-                onSelect={() => {
-                  setSelectedSheetKey(null);
-                  setSelectedId(group.displayId);
-                  setSelectedLineId(group.primaryBookingId);
-                  replaceSelectionQuery(group.primaryBookingId);
-                }}
-                onToggleExpand={() =>
-                  setExpandedBookingId((prev) =>
-                    prev === group.primaryBookingId ? null : group.primaryBookingId
-                  )
-                }
-                onBookingsChanged={props.onBookingsChanged}
-                paymentAction={props.paymentAction}
-                onOpenFallbackReschedule={(booking) =>
-                  setModalState({ type: "reschedule", booking })
-                }
-              />
+              <div key={group.displayId}>
+                {displayMode === "individual" && parent.lines.length > 1 ? (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setDisplayMode("grouped");
+                      setExpandedBookingId(parent.primaryBookingId);
+                      select(group.lines[0]!);
+                    }}
+                    className="mb-1 min-h-8 text-xs font-semibold text-emerald-800 underline"
+                  >
+                    Parent booking: {parent.orderNumber ?? parent.orderId}
+                  </button>
+                ) : null}
+                <HorizontalBookingRow
+                  group={group}
+                  isExpanded={isExpanded}
+                  isSelected={
+                    selectedGroup?.displayId === parent.displayId &&
+                    (!selectedLineId || selectedLineId === group.primaryBookingId)
+                  }
+                  onSelect={() => select(group.lines[0]!)}
+                  onToggleExpand={toggle}
+                  onBookingsChanged={props.onBookingsChanged}
+                  paymentAction={
+                    displayMode === "individual" && parent.lines.length > 1
+                      ? undefined
+                      : props.paymentAction
+                  }
+                  onOpenFallbackReschedule={(booking) =>
+                    setModalState({ type: "reschedule", booking })
+                  }
+                />
+              </div>
             );
           })}
         </div>
       )}
 
-      {/* ── Pagination ──────────────────────────────────────────────── */}
+      {/* â”€â”€ Pagination â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */}
       {totalPages > 1 ? (
         <div className="mt-6 flex items-center justify-between border-t border-neutral-200 pt-4">
           <span className="text-xs text-neutral-500">
-            Page {currentPage} of {totalPages}
+            Page {safePage} of {totalPages}
           </span>
           <div className="flex items-center gap-1.5">
             <button
               type="button"
               onClick={() => setCurrentPage((p) => Math.max(1, p - 1))}
-              disabled={currentPage <= 1}
+              disabled={safePage <= 1}
               className="rounded-lg border border-neutral-200 bg-white px-3 py-1.5 text-xs font-medium text-neutral-700 shadow-sm transition hover:bg-neutral-50 disabled:opacity-40"
             >
               Previous
@@ -797,7 +769,7 @@ export function BookingsDesktopWorkspace(props: DesktopWorkspaceProps) {
             <button
               type="button"
               onClick={() => setCurrentPage((p) => Math.min(totalPages, p + 1))}
-              disabled={currentPage >= totalPages}
+              disabled={safePage >= totalPages}
               className="rounded-lg border border-neutral-200 bg-white px-3 py-1.5 text-xs font-medium text-neutral-700 shadow-sm transition hover:bg-neutral-50 disabled:opacity-40"
             >
               Next

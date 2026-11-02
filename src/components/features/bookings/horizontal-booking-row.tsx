@@ -6,7 +6,6 @@ import { toast } from "sonner";
 import {
   ChevronDown,
   ChevronUp,
-  Clock,
   User,
   MapPin,
   Calendar,
@@ -52,15 +51,6 @@ type HorizontalBookingRowProps = {
   paymentAction?: BookingActionFn;
   onOpenFallbackReschedule?: (booking: WorkspaceBookingRow) => void;
 };
-
-function formatDuration(minutes: number | null | undefined): string {
-  if (!minutes || minutes <= 0) return "1h";
-  const h = Math.floor(minutes / 60);
-  const m = minutes % 60;
-  if (h > 0 && m > 0) return `${h}h ${m}m`;
-  if (h > 0) return `${h}h`;
-  return `${m}m`;
-}
 
 function getServiceIcon(name: string) {
   const lower = name.toLowerCase();
@@ -360,7 +350,7 @@ export function HorizontalBookingRow({
         role="row"
         aria-selected={isSelected}
         onClick={onSelect}
-        className="flex flex-wrap items-center gap-x-4 gap-y-3 px-4 py-3 sm:px-5"
+        className="flex flex-wrap items-center gap-x-3 gap-y-2 px-4 py-3 sm:px-5"
       >
         {/* 1. Time */}
         <div className="w-[90px] shrink-0">
@@ -376,7 +366,7 @@ export function HorizontalBookingRow({
         </div>
 
         {/* 2. Customer */}
-        <div className="flex min-w-[190px] flex-[1.3] items-center gap-2.5">
+        <div className="flex min-w-[180px] flex-[1.3] items-center gap-2.5">
           <span
             aria-hidden="true"
             className="grid size-10 shrink-0 place-items-center rounded-full bg-emerald-100 text-sm font-bold text-emerald-900"
@@ -419,7 +409,7 @@ export function HorizontalBookingRow({
         </div>
 
         {/* 3. Service */}
-        <div className="flex min-w-[160px] flex-[1.2] items-center gap-2.5">
+        <div className="flex min-w-[140px] flex-[1.2] items-center gap-2.5">
           <div className="grid size-8 shrink-0 place-items-center rounded-full bg-[#e6f4ee]">
             {getServiceIcon(service?.name ?? "")}
           </div>
@@ -435,14 +425,8 @@ export function HorizontalBookingRow({
           </div>
         </div>
 
-        {/* 4. Duration */}
-        <div className="flex shrink-0 items-center gap-1.5 text-xs text-neutral-700">
-          <Clock className="size-3.5 text-neutral-400" />
-          <span className="font-medium">{formatDuration(totalDurationMinutes)}</span>
-        </div>
-
         {/* 5. Therapist */}
-        <div className="flex min-w-[100px] max-w-[170px] shrink-0 items-center gap-1.5 text-xs text-neutral-800">
+        <div className="flex min-w-[90px] max-w-[140px] shrink-0 items-center gap-1.5 text-xs text-neutral-800">
           <User className="size-3.5 text-neutral-400" />
           <span className="truncate font-medium">
             {staff?.full_name || staff?.nickname || "Unassigned"}
@@ -518,7 +502,7 @@ export function HorizontalBookingRow({
               amountPaid={primaryLine.amount_paid}
               pricePaid={readBookingPrice(primaryLine.metadata)}
               paymentAction={paymentAction}
-              triggerLabel={isPaymentReview ? "Review" : "Manage"}
+              triggerLabel={isPaymentReview ? "Review payment" : "Payment"}
               triggerVariant="panelSecondary"
               reviewRequired={isPaymentReview}
             />
@@ -531,15 +515,6 @@ export function HorizontalBookingRow({
           onClick={(e) => e.stopPropagation()}
         >
           <div className="flex items-center gap-2">
-            {isSelected && !isExpanded && onOpenFallbackReschedule ? (
-              <button
-                type="button"
-                onClick={() => onOpenFallbackReschedule(primaryLine)}
-                className="rounded-lg border border-neutral-200 bg-white px-2.5 py-1.5 text-xs font-medium text-neutral-700 transition hover:bg-neutral-50"
-              >
-                Reschedule
-              </button>
-            ) : null}
             <button
               type="button"
               onClick={handleActionClick}
@@ -554,7 +529,7 @@ export function HorizontalBookingRow({
                   ? `Action target: ${targetGuestName} · ${targetServiceName}`
                   : undefined
               }
-              className={`rounded-lg px-3.5 py-1.5 text-xs font-semibold transition active:scale-[0.98] ${
+              className={`min-h-10 rounded-lg px-3 py-1.5 text-xs font-semibold transition active:scale-[0.98] ${
                 isCompleted || isClosed
                   ? "bg-slate-100 text-slate-400 cursor-default"
                   : "bg-[#006044] text-white shadow-sm hover:bg-[#004d37] disabled:opacity-50"
@@ -570,21 +545,47 @@ export function HorizontalBookingRow({
               )}
             </button>
 
-            {isInService && targetLine.session_started_at && targetLine.session_due_at ? (
-              <button
-                type="button"
-                onClick={() => {
-                  if (!isExpanded) onToggleExpand();
-                }}
-                className="min-h-10 rounded-lg border border-emerald-200 bg-emerald-50 px-3 text-xs font-semibold text-emerald-900"
-              >
-                Extend Session
-              </button>
-            ) : null}
+            <details className="relative">
+              <summary className="cursor-pointer list-none rounded-lg border border-neutral-200 bg-neutral-50 px-3 py-2 text-xs font-semibold focus-visible:ring-2 focus-visible:ring-emerald-700">
+                Manage
+              </summary>
+              <div className="absolute right-0 z-20 mt-1 w-44 rounded-lg border border-neutral-200 bg-white p-1 shadow-lg">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setShowDetails(true);
+                    if (!isExpanded) onToggleExpand();
+                  }}
+                  className="min-h-10 w-full rounded px-3 text-left text-sm hover:bg-neutral-50"
+                >
+                  Booking Details
+                </button>
+                {onOpenFallbackReschedule ? (
+                  <button
+                    type="button"
+                    onClick={() => onOpenFallbackReschedule(targetLine)}
+                    className="min-h-10 w-full rounded px-3 text-left text-sm hover:bg-neutral-50"
+                  >
+                    Reschedule
+                  </button>
+                ) : null}
+                {isInService ? (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      if (!isExpanded) onToggleExpand();
+                    }}
+                    className="min-h-10 w-full rounded px-3 text-left text-sm hover:bg-neutral-50"
+                  >
+                    Extend Session
+                  </button>
+                ) : null}
+              </div>
+            </details>
             <button
               type="button"
               onClick={onToggleExpand}
-              className="grid size-8 place-items-center rounded-lg border border-neutral-200 text-neutral-500 transition hover:bg-neutral-100 hover:text-neutral-800"
+              className="grid size-10 place-items-center rounded-lg border border-neutral-200 text-neutral-500 transition hover:bg-neutral-100 hover:text-neutral-800 focus-visible:ring-2 focus-visible:ring-emerald-700"
               aria-label={isExpanded ? "Collapse quick edit" : "Expand quick edit"}
               aria-expanded={isExpanded}
             >
@@ -649,7 +650,7 @@ export function HorizontalBookingRow({
               aria-expanded={showDetails}
               className="inline-flex min-h-10 items-center gap-2 text-sm font-semibold text-emerald-800"
             >
-              Booking details and editing{" "}
+              Booking Details{" "}
               {showDetails ? <ChevronUp className="size-4" /> : <ChevronDown className="size-4" />}
             </button>
           </div>
