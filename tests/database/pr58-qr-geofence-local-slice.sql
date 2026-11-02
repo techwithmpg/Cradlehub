@@ -1000,4 +1000,3 @@ revoke all on function public.commit_attendance_scan_transaction(
 grant execute on function public.commit_attendance_scan_transaction(
   text, uuid, uuid, uuid, uuid, text, text, text, text, text, text, text, jsonb, boolean, jsonb, uuid, jsonb, jsonb, jsonb, text
 ) to service_role;
-

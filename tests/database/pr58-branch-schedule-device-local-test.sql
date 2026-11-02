@@ -466,7 +466,7 @@ do $$ begin
       now() + interval '24 hours',
       2 -- limit = 2
     );
-    raise exception '3rd device approved when active limit is 2';
+    raise exception '3rd device approved when active limit is 2' using errcode = 'P0002';
   exception when sqlstate 'P0001' then null; end;
 end $$;
 

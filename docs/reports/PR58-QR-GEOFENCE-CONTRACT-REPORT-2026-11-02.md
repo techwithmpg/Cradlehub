@@ -1,10 +1,10 @@
 # PR #58 Attendance Dependency Slice Report — QR Points, Scan Events & Geofence Authorization Boundaries
 
-**Repository:** `techwithmpg/Cradlehub`  
-**Target Worktree:** `E:\cradlehub\.tmp\attendance-qr-flow-20261101`  
-**Branch:** `fix/attendance-qr-flow-20261101`  
-**Verified Base HEAD:** `69266ba4041698b7464510777d59ae7b8ce9af2c`  
-**Accepted Baseline (`main`):** `18bfb406bdfbd94c0a56581446bce9b74e131162`  
+**Repository:** `techwithmpg/Cradlehub`\
+**Target Worktree:** `E:\cradlehub\.tmp\attendance-qr-flow-20261101`\
+**Branch:** `fix/attendance-qr-flow-20261101`\
+**Verified Base HEAD:** `69266ba4041698b7464510777d59ae7b8ce9af2c`\
+**Accepted Baseline (`main`):** `18bfb406bdfbd94c0a56581446bce9b74e131162`\
 **Database Target:** Disposable LOCAL PostgreSQL 17.11 (`127.0.0.1:55444`). Strictly zero production database access or remote writes.
 
 ---
@@ -114,7 +114,7 @@ PR58 TEST privilege overlay LOCAL checks passed
 PR58 branch authority, schedules, and device dependency slice LOCAL checks passed
 PR58 QR points, scan events, and geofence dependency slice LOCAL checks passed
 ```
-**Exit Code:** `0` (Success).  
+**Exit Code:** `0` (Success).\
 The disposable verification database was dropped cleanly via `dropdb.exe`.
 
 ---
@@ -137,4 +137,3 @@ The disposable verification database was dropped cleanly via `dropdb.exe`.
 - **Initial Verdict:** CORRECTION REQUIRED (two test-script improvements identified: session-level role syntax standardization and non-vacuous peer RLS seeding).
 - **Remediation:** Both corrections applied in `tests/database/pr58-qr-geofence-local-test.sql`.
 - **Final Re-inspection Verdict:** **PASS** (Confirmed 100% compliant across provenance, security, constraints, and test coverage).
-

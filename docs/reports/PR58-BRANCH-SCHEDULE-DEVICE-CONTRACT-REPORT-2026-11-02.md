@@ -1,10 +1,10 @@
 # PR #58 Attendance Dependency Slice Report — Branch Authority, Staff Schedules, and Device Registration
 
-**Repository:** `techwithmpg/Cradlehub`  
-**Target Worktree:** `E:\cradlehub\.tmp\attendance-qr-flow-20261101`  
-**Branch:** `fix/attendance-qr-flow-20261101`  
-**Verified HEAD:** `6f67e56ff3ea72920996c1a8be157e714c761cf5`  
-**Accepted Baseline (`main`):** `18bfb406bdfbd94c0a56581446bce9b74e131162` (Merge base: `f3291826a1fb1a61107e5ce87591cd9e0b7524ef`)  
+**Repository:** `techwithmpg/Cradlehub`\
+**Target Worktree:** `E:\cradlehub\.tmp\attendance-qr-flow-20261101`\
+**Branch:** `fix/attendance-qr-flow-20261101`\
+**Verified HEAD:** `6f67e56ff3ea72920996c1a8be157e714c761cf5`\
+**Accepted Baseline (`main`):** `18bfb406bdfbd94c0a56581446bce9b74e131162` (Merge base: `f3291826a1fb1a61107e5ce87591cd9e0b7524ef`)\
 **Database Target:** Disposable LOCAL PostgreSQL 17.11 (`127.0.0.1:55444`). Strictly zero production database access or remote changes.
 
 ---
@@ -96,7 +96,7 @@ PR58 current staff contract LOCAL checks passed
 PR58 TEST privilege overlay LOCAL checks passed
 PR58 branch authority, schedules, and device dependency slice LOCAL checks passed
 ```
-**Exit Code:** `0` (Success).  
+**Exit Code:** `0` (Success).\
 Both disposable verification databases (`pr58_evidence_verification_20261102` and `pr58_branch_schedule_device_stage_20261102`) were subsequently dropped cleanly via `dropdb.exe`.
 
 ---
