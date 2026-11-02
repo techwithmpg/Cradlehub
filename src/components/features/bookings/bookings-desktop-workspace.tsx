@@ -125,9 +125,7 @@ export function BookingsDesktopWorkspace(props: DesktopWorkspaceProps) {
   const [searchQuery, setSearchQuery] = useState(props.search ?? "");
   const [statusFilter, setStatusFilter] = useState<string>(props.statusFilter ?? "all");
   const [serviceFilter, setServiceFilter] = useState<string>("all");
-  const [therapistFilter, setTherapistFilter] = useState<string>(
-    props.assignmentFilter ?? "all"
-  );
+  const [therapistFilter, setTherapistFilter] = useState<string>(props.assignmentFilter ?? "all");
   const [roomFilter, setRoomFilter] = useState<string>("all");
   const [sortBy, setSortBy] = useState<"time-asc" | "time-desc" | "name-asc">("time-asc");
   const [viewMode, setViewMode] = useState<"list" | "calendar">("list");
@@ -203,10 +201,7 @@ export function BookingsDesktopWorkspace(props: DesktopWorkspaceProps) {
 
   // Master sheet references
   const sheetReferences = useMemo(() => {
-    if (
-      props.referenceSource === "cradlehub" ||
-      props.sheetState?.status !== "available"
-    ) {
+    if (props.referenceSource === "cradlehub" || props.sheetState?.status !== "available") {
       return [];
     }
     return sortSheetReferencesRecentFirst(
@@ -262,9 +257,7 @@ export function BookingsDesktopWorkspace(props: DesktopWorkspaceProps) {
           const activeLines = group.lines.filter((line) => !isBookingLineClosed(line));
 
           const isCompleted =
-            !isClosed &&
-            activeLines.length > 0 &&
-            activeLines.every(isBookingLineCompleted);
+            !isClosed && activeLines.length > 0 && activeLines.every(isBookingLineCompleted);
 
           const isInService =
             !isClosed &&
@@ -332,9 +325,7 @@ export function BookingsDesktopWorkspace(props: DesktopWorkspaceProps) {
           const matchesRoom = group.lines.some((line) => {
             const r = firstBookingRelation(line.branch_resources);
             return (
-              line.resource_id === roomFilter ||
-              r?.id === roomFilter ||
-              r?.name === roomFilter
+              line.resource_id === roomFilter || r?.id === roomFilter || r?.name === roomFilter
             );
           });
           if (!matchesRoom) return false;
@@ -689,9 +680,7 @@ export function BookingsDesktopWorkspace(props: DesktopWorkspaceProps) {
             <span>Sort by</span>
             <select
               value={sortBy}
-              onChange={(e) =>
-                setSortBy(e.target.value as "time-asc" | "time-desc" | "name-asc")
-              }
+              onChange={(e) => setSortBy(e.target.value as "time-asc" | "time-desc" | "name-asc")}
               className="rounded-lg border border-neutral-200 bg-white px-2 py-1 text-xs font-medium text-neutral-800 shadow-sm focus:border-[#006044] focus:outline-none"
             >
               <option value="time-asc">Time (earliest)</option>
@@ -731,20 +720,6 @@ export function BookingsDesktopWorkspace(props: DesktopWorkspaceProps) {
             </button>
           </div>
         </div>
-      </div>
-
-      {/* ── Table Column Headers matching approved screenshot ──────── */}
-      <div className="mb-2 flex items-center gap-3 px-4 py-1.5 sm:px-5 text-xs font-semibold text-neutral-500">
-        <div className="w-[100px] shrink-0">Time</div>
-        <div className="min-w-0 flex-[1.1]">Customer</div>
-        <div className="min-w-0 flex-[1.3]">Service</div>
-        <div className="w-[85px] shrink-0">Duration</div>
-        <div className="w-[125px] shrink-0">Therapist</div>
-        <div className="w-[95px] shrink-0">Room</div>
-        <div className="w-[100px] shrink-0">Type</div>
-        <div className="w-[95px] shrink-0">Status</div>
-        <div className="w-[105px] shrink-0">Payment</div>
-        <div className="shrink-0 w-[150px]">Action</div>
       </div>
 
       {/* ── Booking List Rows ────────────────────────────────────────── */}

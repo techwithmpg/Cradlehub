@@ -168,6 +168,88 @@ beforeEach(() => {
 });
 
 describe("CRM quick payment modal", () => {
+  it.each(["Senior −20%", "PWD −20%", "VIP −10%"])(
+    "blocks posting and printing while %s awaits an authoritative contract",
+    (label) => {
+      render(
+        <CradleFlowQuickPaymentModal
+          data={data}
+          loading={false}
+          requestedOrderId="order-dawn"
+          {...callbacks}
+        />
+      );
+      const button = screen.getByRole("button", { name: label });
+      fireEvent.click(button);
+      expect(button.getAttribute("aria-pressed")).toBe("true");
+      expect(screen.getByRole("status").textContent).toContain("No discount has been applied");
+      expect((screen.getByLabelText("Tender 1 amount") as HTMLInputElement).value).toBe("1086.00");
+      const record = screen.getByRole("button", { name: "Record Payment" }) as HTMLButtonElement;
+      expect(record.disabled).toBe(true);
+      fireEvent.click(record);
+      fireEvent.click(record);
+      expect(mocks.recordOrder).not.toHaveBeenCalled();
+      expect(mocks.recordLegacy).not.toHaveBeenCalled();
+      expect(mocks.printReceipt).not.toHaveBeenCalled();
+      fireEvent.click(button);
+      expect(button.getAttribute("aria-pressed")).toBe("false");
+      expect(record.disabled).toBe(false);
+    }
+  );
+
+  it("allows only one discount selection and preserves partial/split cash math", () => {
+    render(
+      <CradleFlowQuickPaymentModal
+        data={data}
+        loading={false}
+        requestedOrderId="order-partial"
+        {...callbacks}
+      />
+    );
+    fireEvent.click(screen.getByRole("button", { name: "Senior −20%" }));
+    fireEvent.click(screen.getByRole("button", { name: "PWD −20%" }));
+    expect(screen.getByRole("button", { name: "Senior −20%" }).getAttribute("aria-pressed")).toBe(
+      "false"
+    );
+    expect(screen.getByRole("button", { name: "PWD −20%" }).getAttribute("aria-pressed")).toBe(
+      "true"
+    );
+    expect((screen.getByLabelText("Tender 1 amount") as HTMLInputElement).value).toBe("400.00");
+    fireEvent.change(screen.getByLabelText("Tender 1 amount"), { target: { value: "250" } });
+    fireEvent.click(screen.getByRole("button", { name: "Split +" }));
+    expect((screen.getByLabelText("Tender 2 amount") as HTMLInputElement).value).toBe("150.00");
+    expect(
+      (screen.getByRole("button", { name: "Record Payment" }) as HTMLButtonElement).disabled
+    ).toBe(true);
+  });
+
+  it("uses authorized VIP loyalty as a suggestion without auto selecting or trusting local eligibility", () => {
+    localStorage.setItem(
+      "cradlehub_verified_customer_discounts",
+      JSON.stringify({ "09171234567": "pwd" })
+    );
+    const vipData = {
+      ...data,
+      payableOrders: data.payableOrders.map((order) => ({ ...order, customerLoyaltyTier: "vip" })),
+    };
+    render(
+      <CradleFlowQuickPaymentModal
+        data={vipData}
+        loading={false}
+        requestedOrderId="order-dawn"
+        {...callbacks}
+      />
+    );
+    expect(screen.getByText(/VIP loyalty status on file/)).toBeTruthy();
+    for (const label of ["Senior −20%", "PWD −20%", "VIP −10%"]) {
+      expect(screen.getByRole("button", { name: label }).getAttribute("aria-pressed")).toBe(
+        "false"
+      );
+    }
+    expect(localStorage.getItem("cradlehub_verified_customer_discounts")).toContain("pwd");
+    localStorage.removeItem("cradlehub_verified_customer_discounts");
+  });
+
   it("opens one payment modal immediately while data is pending", () => {
     render(<CradleFlowQuickPaymentModal data={null} loading {...callbacks} />);
     expect(screen.getByRole("heading", { name: "Record Payment" })).toBeTruthy();
@@ -347,7 +429,9 @@ describe("CRM quick payment modal", () => {
     });
 
     // Submit button must be disabled / showing unresolved
-    expect((screen.getByRole("button", { name: "Payment Unresolved" }) as HTMLButtonElement).disabled).toBe(true);
+    expect(
+      (screen.getByRole("button", { name: "Payment Unresolved" }) as HTMLButtonElement).disabled
+    ).toBe(true);
 
     // Now cashier clicks "Verify Transaction Status"
     mocks.verifyPayment.mockResolvedValueOnce({
@@ -472,7 +556,14 @@ describe("CRM quick payment modal", () => {
         total_payable: 1086,
         net_allocated: 1086,
         remaining_balance: 0,
-        movements: [{ amount: 1086, payment_method: "gcash", account_id: "gcash", external_reference: "GCASH-REF-9988" }],
+        movements: [
+          {
+            amount: 1086,
+            payment_method: "gcash",
+            account_id: "gcash",
+            external_reference: "GCASH-REF-9988",
+          },
+        ],
       },
     });
 
@@ -522,7 +613,14 @@ describe("CRM quick payment modal", () => {
         total_payable: 1086,
         net_allocated: 1086,
         remaining_balance: 0,
-        movements: [{ amount: 1086, payment_method: "maya", account_id: "maya", external_reference: "MAYA-REF-5544" }],
+        movements: [
+          {
+            amount: 1086,
+            payment_method: "maya",
+            account_id: "maya",
+            external_reference: "MAYA-REF-5544",
+          },
+        ],
       },
     });
 
@@ -572,7 +670,14 @@ describe("CRM quick payment modal", () => {
         total_payable: 1086,
         net_allocated: 1086,
         remaining_balance: 0,
-        movements: [{ amount: 1086, payment_method: "card", account_id: "card", external_reference: "AUTH-8822" }],
+        movements: [
+          {
+            amount: 1086,
+            payment_method: "card",
+            account_id: "card",
+            external_reference: "AUTH-8822",
+          },
+        ],
       },
     });
 
@@ -622,7 +727,14 @@ describe("CRM quick payment modal", () => {
         total_payable: 1086,
         net_allocated: 1086,
         remaining_balance: 0,
-        movements: [{ amount: 1086, payment_method: "bank_transfer", account_id: "bank", external_reference: "BDO-DEP-1122" }],
+        movements: [
+          {
+            amount: 1086,
+            payment_method: "bank_transfer",
+            account_id: "bank",
+            external_reference: "BDO-DEP-1122",
+          },
+        ],
       },
     });
 
@@ -638,7 +750,9 @@ describe("CRM quick payment modal", () => {
     await waitFor(() => expect(screen.getByLabelText("Tender 1 amount")).toBeTruthy());
 
     // Switch tender 1 to Bank Transfer
-    fireEvent.change(screen.getByLabelText("Tender 1 method"), { target: { value: "bank_transfer" } });
+    fireEvent.change(screen.getByLabelText("Tender 1 method"), {
+      target: { value: "bank_transfer" },
+    });
 
     // Enter bank reference
     const refInput = screen.getByLabelText("Tender 1 reference");
@@ -674,7 +788,12 @@ describe("CRM quick payment modal", () => {
         remaining_balance: 0,
         movements: [
           { amount: 500, payment_method: "cash", account_id: "drawer" },
-          { amount: 586, payment_method: "gcash", account_id: "gcash", external_reference: "GCASH-SPLIT-1" },
+          {
+            amount: 586,
+            payment_method: "gcash",
+            account_id: "gcash",
+            external_reference: "GCASH-SPLIT-1",
+          },
         ],
       },
     });
@@ -701,7 +820,9 @@ describe("CRM quick payment modal", () => {
     // Set Tender 2 to GCash, amount ₱586, with reference
     fireEvent.change(screen.getByLabelText("Tender 2 method"), { target: { value: "gcash" } });
     fireEvent.change(screen.getByLabelText("Tender 2 amount"), { target: { value: "586" } });
-    fireEvent.change(screen.getByLabelText("Tender 2 reference"), { target: { value: "GCASH-SPLIT-1" } });
+    fireEvent.change(screen.getByLabelText("Tender 2 reference"), {
+      target: { value: "GCASH-SPLIT-1" },
+    });
 
     fireEvent.click(screen.getByRole("button", { name: "Record Payment" }));
 
@@ -758,7 +879,9 @@ describe("CRM quick payment modal", () => {
     expect(screen.getByRole("alert").textContent).toContain("No compatible account");
 
     // Submit button must be disabled
-    expect((screen.getByRole("button", { name: "Record Payment" }) as HTMLButtonElement).disabled).toBe(true);
+    expect(
+      (screen.getByRole("button", { name: "Record Payment" }) as HTMLButtonElement).disabled
+    ).toBe(true);
 
     // Clicking does not call server
     fireEvent.click(screen.getByRole("button", { name: "Record Payment" }));

@@ -1,6 +1,6 @@
 "use client";
 
-import { useTransition } from "react";
+import { useState, useTransition } from "react";
 import Link from "next/link";
 import { toast } from "sonner";
 import {
@@ -40,6 +40,7 @@ import {
   crmCompleteServiceAction,
 } from "@/app/(dashboard)/crm/bookings/actions";
 import { HorizontalBookingQuickEdit } from "./horizontal-booking-quick-edit";
+import { BookingSessionWorkspace } from "./booking-session-workspace";
 
 type HorizontalBookingRowProps = {
   group: CrmBookingGroup;
@@ -83,12 +84,8 @@ export function HorizontalBookingRow({
   onOpenFallbackReschedule,
 }: HorizontalBookingRowProps) {
   const primaryLine: WorkspaceBookingRow = group.lines[0]!;
-  const isHomeService = isHomeServiceBooking(primaryLine);
 
-  const customer = firstBookingRelation(primaryLine.customers);
-  const service = firstBookingRelation(primaryLine.services);
-  const staff = firstBookingRelation(primaryLine.staff);
-  const resource = firstBookingRelation(primaryLine.branch_resources);
+  const [showDetails, setShowDetails] = useState(false);
 
   const [isActionPending, startActionTransition] = useTransition();
 
@@ -121,34 +118,54 @@ export function HorizontalBookingRow({
     primaryLine;
 
   const targetLine = activeUnfinishedLine;
+  const isHomeService = isHomeServiceBooking(targetLine);
   const isDifferentTarget = targetLine.id !== primaryLine.id;
 
   const targetCustomer = firstBookingRelation(targetLine.customers);
   const targetAttendee = firstBookingRelation(targetLine.booking_attendees);
   const targetService = firstBookingRelation(targetLine.services);
+  const staff = firstBookingRelation(targetLine.staff);
+  const resource = firstBookingRelation(targetLine.branch_resources);
+  const customer = targetCustomer;
+  const service = targetService;
 
   const targetIndex = group.lines.findIndex((l) => l.id === targetLine.id);
   const targetGuestName =
     targetAttendee?.display_name?.trim() ||
     targetCustomer?.full_name?.trim() ||
     (targetIndex === 0
-      ? group.organizerName ?? "Organizer"
+      ? (group.organizerName ?? "Organizer")
       : targetIndex > 0
         ? `Guest ${targetIndex + 1}`
         : "Guest");
+  const recipientMatchesCustomer =
+    !targetAttendee?.display_name?.trim() ||
+    targetAttendee.display_name.trim().toLocaleLowerCase() ===
+      targetCustomer?.full_name?.trim().toLocaleLowerCase();
 
   const targetServiceName = targetService?.name?.trim() || "Standard Service";
+  const recipientInitials = targetGuestName
+    .trim()
+    .split(/\s+/)
+    .map((part) => part[0])
+    .filter(Boolean);
+  const avatarLabel =
+    `${recipientInitials[0] ?? "C"}${recipientInitials.length > 1 ? recipientInitials.at(-1) : ""}`.toUpperCase();
 
   const activeLines = group.lines.filter((line) => !isBookingLineClosed(line));
 
   const isCancelled =
     group.lines.length > 0 &&
-    group.lines.every((line) => line.status === "cancelled" || line.booking_progress_status === "cancelled");
+    group.lines.every(
+      (line) => line.status === "cancelled" || line.booking_progress_status === "cancelled"
+    );
 
   const isNoShow =
     !isCancelled &&
     group.lines.length > 0 &&
-    group.lines.every((line) => line.status === "no_show" || line.booking_progress_status === "no_show");
+    group.lines.every(
+      (line) => line.status === "no_show" || line.booking_progress_status === "no_show"
+    );
 
   const isExpired =
     !isCancelled &&
@@ -158,8 +175,7 @@ export function HorizontalBookingRow({
 
   const isClosed = isCancelled || isNoShow || isExpired;
 
-  const allActiveCompleted =
-    activeLines.length > 0 && activeLines.every(isBookingLineCompleted);
+  const allActiveCompleted = activeLines.length > 0 && activeLines.every(isBookingLineCompleted);
 
   const isCompleted = !isClosed && allActiveCompleted;
 
@@ -189,10 +205,7 @@ export function HorizontalBookingRow({
     );
 
   // Calculate duration
-  const totalDurationMinutes = group.lines.reduce((sum, line) => {
-    const duration = getBookingDurationMinutes(line);
-    return sum + (duration > 0 ? duration : 60);
-  }, 0);
+  const totalDurationMinutes = getBookingDurationMinutes(targetLine);
 
   // Payment display resolution:
   // Use authoritative settlement verification and separate unverified states into Payment Review
@@ -250,11 +263,11 @@ export function HorizontalBookingRow({
     typeLabel = "Home Service";
     typeBadgeClass = "bg-purple-50 text-purple-700 border-purple-200";
     TypeIcon = Home;
-  } else if (primaryLine.type === "walkin" || primaryLine.type === "walk_in") {
+  } else if (targetLine.type === "walkin" || targetLine.type === "walk_in") {
     typeLabel = "Walk-in";
     typeBadgeClass = "bg-amber-50/80 text-amber-800 border-amber-200/80";
     TypeIcon = Footprints;
-  } else if (primaryLine.metadata?.membership || primaryLine.type === "membership") {
+  } else if (targetLine.metadata?.membership || targetLine.type === "membership") {
     typeLabel = "Membership";
     typeBadgeClass = "bg-teal-50 text-teal-800 border-teal-200";
     TypeIcon = Tag;
@@ -336,22 +349,23 @@ export function HorizontalBookingRow({
 
   return (
     <div
-      className={`rounded-xl border bg-white shadow-[0_1px_3px_rgba(0,0,0,0.04)] transition-all ${isExpanded
+      className={`rounded-xl border bg-white shadow-[0_1px_3px_rgba(0,0,0,0.04)] transition-all ${
+        isExpanded
           ? "border-[#a7d7c5] ring-1 ring-[#a7d7c5]/50 shadow-md mb-3"
           : "border-neutral-200/80 hover:border-neutral-300 hover:shadow-sm mb-2"
-        }`}
+      }`}
     >
       {/* Row Header Content */}
       <div
         role="row"
         aria-selected={isSelected}
         onClick={onSelect}
-        className="flex items-center gap-3 px-4 py-3 sm:px-5"
+        className="flex flex-wrap items-center gap-x-4 gap-y-3 px-4 py-3 sm:px-5"
       >
         {/* 1. Time */}
-        <div className="w-[100px] shrink-0">
+        <div className="w-[90px] shrink-0">
           <div className="text-sm font-bold text-neutral-900 tracking-tight">
-            {formatTime12h(primaryLine.start_time)}
+            {formatTime12h(targetLine.start_time)}
           </div>
           <div className="mt-0.5 flex items-center gap-1.5">
             <span className={`size-2 shrink-0 rounded-full ${timeSubstatusDotColor}`} />
@@ -362,64 +376,73 @@ export function HorizontalBookingRow({
         </div>
 
         {/* 2. Customer */}
-        <div className="min-w-0 flex-[1.1]">
-          <div className="truncate text-sm font-semibold text-neutral-900">
-            {customer?.id ? (
-              <Link
-                href={`/crm/${customer.id}`}
-                onClick={(e) => e.stopPropagation()}
-                className="hover:text-[#006044] hover:underline"
-              >
-                {customer?.full_name ?? group.organizerName ?? "Walk-in Guest"}
-              </Link>
-            ) : (
-              customer?.full_name ?? group.organizerName ?? "Walk-in Guest"
-            )}
-            {group.lines.length > 1 ? (
-              <span className="ml-1 text-xs font-normal text-neutral-500">
-                (+{group.lines.length - 1} guests)
-              </span>
-            ) : null}
-            {isDifferentTarget && !isCompleted && !isClosed ? (
-              <div
-                data-testid="customer-action-target"
-                className="mt-0.5 truncate text-[11px] font-medium text-emerald-700"
-              >
-                Next action: {targetGuestName} ({targetServiceName})
-              </div>
-            ) : null}
-          </div>
-          <div className="mt-0.5 truncate text-xs text-neutral-500">
-            {customer?.phone || "No phone on file"}
+        <div className="flex min-w-[190px] flex-[1.3] items-center gap-2.5">
+          <span
+            aria-hidden="true"
+            className="grid size-10 shrink-0 place-items-center rounded-full bg-emerald-100 text-sm font-bold text-emerald-900"
+          >
+            {avatarLabel}
+          </span>
+          <div className="min-w-0">
+            <div className="text-sm font-semibold text-neutral-900">
+              {customer?.id && recipientMatchesCustomer ? (
+                <Link
+                  href={`/crm/${customer.id}`}
+                  onClick={(e) => e.stopPropagation()}
+                  className="hover:text-[#006044] hover:underline"
+                >
+                  {targetGuestName}
+                </Link>
+              ) : (
+                targetGuestName
+              )}
+              {group.lines.length > 1 ? (
+                <span className="ml-1 text-xs font-normal text-neutral-500">
+                  (+{group.lines.length - 1} service lines)
+                </span>
+              ) : null}
+              {isDifferentTarget && !isCompleted && !isClosed ? (
+                <div
+                  data-testid="customer-action-target"
+                  className="mt-0.5 truncate text-[11px] font-medium text-emerald-700"
+                >
+                  Next action: {targetGuestName} ({targetServiceName})
+                </div>
+              ) : null}
+            </div>
+            <div className="mt-0.5 text-xs text-neutral-500">
+              {recipientMatchesCustomer
+                ? customer?.phone || "No phone on file"
+                : "Guest contact not on file"}
+            </div>
           </div>
         </div>
 
         {/* 3. Service */}
-        <div className="min-w-0 flex-[1.3] flex items-center gap-2.5">
+        <div className="flex min-w-[160px] flex-[1.2] items-center gap-2.5">
           <div className="grid size-8 shrink-0 place-items-center rounded-full bg-[#e6f4ee]">
             {getServiceIcon(service?.name ?? "")}
           </div>
           <div className="min-w-0">
-            <div className="truncate text-sm font-semibold text-neutral-900">
+            <div className="text-sm font-semibold text-neutral-900">
               {service?.name ?? "Standard Service"}
             </div>
             <div className="mt-0.5 truncate text-xs text-neutral-500">
-              {(service?.metadata?.description as string) ||
-                (group.lines.length > 1
-                  ? `${group.lines.length} services booked`
-                  : "Wellness spa treatment")}
+              {group.lines.length > 1
+                ? `${group.lines.length} services booked`
+                : `${totalDurationMinutes} min`}
             </div>
           </div>
         </div>
 
         {/* 4. Duration */}
-        <div className="flex w-[85px] shrink-0 items-center gap-1.5 text-xs text-neutral-700">
+        <div className="flex shrink-0 items-center gap-1.5 text-xs text-neutral-700">
           <Clock className="size-3.5 text-neutral-400" />
           <span className="font-medium">{formatDuration(totalDurationMinutes)}</span>
         </div>
 
         {/* 5. Therapist */}
-        <div className="flex w-[125px] shrink-0 items-center gap-1.5 text-xs text-neutral-800">
+        <div className="flex min-w-[100px] max-w-[170px] shrink-0 items-center gap-1.5 text-xs text-neutral-800">
           <User className="size-3.5 text-neutral-400" />
           <span className="truncate font-medium">
             {staff?.full_name || staff?.nickname || "Unassigned"}
@@ -427,7 +450,7 @@ export function HorizontalBookingRow({
         </div>
 
         {/* 6. Room */}
-        <div className="flex w-[95px] shrink-0 items-center gap-1.5 text-xs text-neutral-800">
+        <div className="flex min-w-[90px] shrink-0 items-center gap-1.5 text-xs text-neutral-800">
           {isHomeService ? (
             <>
               <Home className="size-3.5 text-purple-500" />
@@ -442,7 +465,7 @@ export function HorizontalBookingRow({
         </div>
 
         {/* 7. Type */}
-        <div className="w-[100px] shrink-0">
+        <div className="shrink-0">
           <span
             className={`inline-flex items-center gap-1 rounded-md border px-2 py-0.5 text-xs font-medium ${typeBadgeClass}`}
           >
@@ -452,7 +475,7 @@ export function HorizontalBookingRow({
         </div>
 
         {/* 8. Status */}
-        <div className="w-[95px] shrink-0">
+        <div className="shrink-0">
           <span
             className={`inline-block rounded-full border px-2.5 py-1 text-xs font-semibold ${statusPillClass}`}
           >
@@ -461,10 +484,7 @@ export function HorizontalBookingRow({
         </div>
 
         {/* 9. Payment */}
-        <div
-          className="flex min-w-[105px] shrink-0 items-center gap-1"
-          onClick={(e) => e.stopPropagation()}
-        >
+        <div className="flex shrink-0 items-center gap-1" onClick={(e) => e.stopPropagation()}>
           {isPaid ? (
             <span className="inline-flex items-center gap-1 rounded-full border border-[#a7d7c5] bg-[#e6f4ee] px-2.5 py-1 text-xs font-semibold text-[#006044]">
               <CheckCircle2 className="size-3.5 text-[#006044]" />
@@ -507,7 +527,7 @@ export function HorizontalBookingRow({
 
         {/* 10. Action & Chevron */}
         <div
-          className="flex shrink-0 flex-col items-end justify-center gap-1 min-w-[150px]"
+          className="ml-auto flex shrink-0 flex-col items-end justify-center gap-1"
           onClick={(e) => e.stopPropagation()}
         >
           <div className="flex items-center gap-2">
@@ -534,10 +554,11 @@ export function HorizontalBookingRow({
                   ? `Action target: ${targetGuestName} · ${targetServiceName}`
                   : undefined
               }
-              className={`rounded-lg px-3.5 py-1.5 text-xs font-semibold transition active:scale-[0.98] ${isCompleted || isClosed
+              className={`rounded-lg px-3.5 py-1.5 text-xs font-semibold transition active:scale-[0.98] ${
+                isCompleted || isClosed
                   ? "bg-slate-100 text-slate-400 cursor-default"
                   : "bg-[#006044] text-white shadow-sm hover:bg-[#004d37] disabled:opacity-50"
-                }`}
+              }`}
             >
               {isActionPending ? (
                 <span className="flex items-center gap-1">
@@ -549,6 +570,17 @@ export function HorizontalBookingRow({
               )}
             </button>
 
+            {isInService && targetLine.session_started_at && targetLine.session_due_at ? (
+              <button
+                type="button"
+                onClick={() => {
+                  if (!isExpanded) onToggleExpand();
+                }}
+                className="min-h-10 rounded-lg border border-emerald-200 bg-emerald-50 px-3 text-xs font-semibold text-emerald-900"
+              >
+                Extend Session
+              </button>
+            ) : null}
             <button
               type="button"
               onClick={onToggleExpand}
@@ -556,11 +588,7 @@ export function HorizontalBookingRow({
               aria-label={isExpanded ? "Collapse quick edit" : "Expand quick edit"}
               aria-expanded={isExpanded}
             >
-              {isExpanded ? (
-                <ChevronUp className="size-4" />
-              ) : (
-                <ChevronDown className="size-4" />
-              )}
+              {isExpanded ? <ChevronUp className="size-4" /> : <ChevronDown className="size-4" />}
             </button>
           </div>
 
@@ -578,8 +606,57 @@ export function HorizontalBookingRow({
         </div>
       </div>
 
-      {/* Expandable Quick Edit directly below the row */}
       {isExpanded ? (
+        <>
+          <BookingSessionWorkspace
+            line={targetLine}
+            recipientName={targetGuestName}
+            onClose={onToggleExpand}
+          />
+          {group.lines.length > 1 ? (
+            <div className="border-t border-neutral-200 px-4 py-3 sm:px-5">
+              <h3 className="mb-2 text-xs font-bold uppercase tracking-wide text-neutral-500">
+                Recipients and services
+              </h3>
+              <ul className="grid gap-2 sm:grid-cols-2">
+                {group.lines.map((line, index) => {
+                  const attendee = firstBookingRelation(line.booking_attendees);
+                  const lineCustomer = firstBookingRelation(line.customers);
+                  return (
+                    <li
+                      key={line.id}
+                      className="rounded-lg border border-neutral-200 px-3 py-2 text-sm"
+                    >
+                      <strong>
+                        {attendee?.display_name?.trim() ||
+                          lineCustomer?.full_name?.trim() ||
+                          `Guest ${index + 1}`}
+                      </strong>
+                      <span className="ml-2 text-neutral-600">
+                        {firstBookingRelation(line.services)?.name ?? "Service"} ·{" "}
+                        {getBookingDurationMinutes(line)} min
+                      </span>
+                    </li>
+                  );
+                })}
+              </ul>
+            </div>
+          ) : null}
+          <div className="border-t border-neutral-200 px-4 py-3 sm:px-5">
+            <button
+              type="button"
+              onClick={() => setShowDetails((value) => !value)}
+              aria-expanded={showDetails}
+              className="inline-flex min-h-10 items-center gap-2 text-sm font-semibold text-emerald-800"
+            >
+              Booking details and editing{" "}
+              {showDetails ? <ChevronUp className="size-4" /> : <ChevronDown className="size-4" />}
+            </button>
+          </div>
+        </>
+      ) : null}
+      {/* Existing quick edit retains its server validation. */}
+      {isExpanded && showDetails ? (
         <HorizontalBookingQuickEdit
           group={group}
           onCancel={onToggleExpand}

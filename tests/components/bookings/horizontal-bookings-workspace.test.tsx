@@ -192,7 +192,13 @@ describe("Horizontal Bookings Workspace & Quick Edit Integration", () => {
       notApplicable: false,
       resources: [
         { id: "room-1", name: "Suite 1", isAvailable: true, isCurrent: true, isRecommended: false },
-        { id: "room-2", name: "Suite 2", isAvailable: false, isCurrent: false, isRecommended: false },
+        {
+          id: "room-2",
+          name: "Suite 2",
+          isAvailable: false,
+          isCurrent: false,
+          isRecommended: false,
+        },
       ],
     });
     mocks.rescheduleBookingAction.mockResolvedValue({ success: true });
@@ -270,6 +276,7 @@ describe("Horizontal Bookings Workspace & Quick Edit Integration", () => {
 
     // Expand first booking Quick Edit and verify preloaded booking fields
     fireEvent.click(expandButtons[0]!);
+    fireEvent.click(screen.getByRole("button", { name: /Booking details and editing/i }));
     expect(await screen.findByDisplayValue("Prefers warm oil and quiet room")).toBeTruthy();
     expect((screen.getByLabelText("Booking date") as HTMLInputElement).value).toBe("2026-10-29");
     expect((screen.getByLabelText("Booking time") as HTMLInputElement).value).toBe("14:00");
@@ -277,6 +284,7 @@ describe("Horizontal Bookings Workspace & Quick Edit Integration", () => {
     // Expanding second booking collapses the first booking's Quick Edit
     const nextExpandButton = screen.getByRole("button", { name: /Expand quick edit/i });
     fireEvent.click(nextExpandButton);
+    fireEvent.click(screen.getByRole("button", { name: /Booking details and editing/i }));
     expect(await screen.findByDisplayValue("Second booking note")).toBeTruthy();
     expect(screen.queryByDisplayValue("Prefers warm oil and quiet room")).toBeNull();
 
@@ -300,6 +308,7 @@ describe("Horizontal Bookings Workspace & Quick Edit Integration", () => {
     );
 
     fireEvent.click(screen.getByRole("button", { name: /Expand quick edit/i }));
+    fireEvent.click(screen.getByRole("button", { name: /Booking details and editing/i }));
 
     await waitFor(() => {
       expect(mocks.getTherapistRecommendationsAction).toHaveBeenCalled();
@@ -354,6 +363,7 @@ describe("Horizontal Bookings Workspace & Quick Edit Integration", () => {
     );
 
     fireEvent.click(screen.getByRole("button", { name: /Expand quick edit/i }));
+    fireEvent.click(screen.getByRole("button", { name: /Booking details and editing/i }));
     fireEvent.click(await screen.findByRole("button", { name: /Reschedule/i }));
 
     expect(mocks.openBookingModal).toHaveBeenCalledWith({
@@ -406,6 +416,7 @@ describe("Horizontal Bookings Workspace & Quick Edit Integration", () => {
     );
 
     fireEvent.click(screen.getByRole("button", { name: /Expand quick edit/i }));
+    fireEvent.click(screen.getByRole("button", { name: /Booking details and editing/i }));
 
     const timeInput = await screen.findByLabelText("Booking time");
     fireEvent.change(timeInput, { target: { value: "15:30" } });
@@ -594,6 +605,7 @@ describe("Horizontal Bookings Workspace & Quick Edit Integration", () => {
     );
 
     fireEvent.click(screen.getByRole("button", { name: /Expand quick edit/i }));
+    fireEvent.click(screen.getByRole("button", { name: /Booking details and editing/i }));
 
     // Verify all four buttons in approved order
     expect(screen.getByRole("button", { name: "Cancel Booking" })).toBeTruthy();
@@ -997,6 +1009,7 @@ describe("Horizontal Bookings Workspace & Quick Edit Integration", () => {
 
     const line2 = makeBooking({
       id: "booking-mg-2",
+      start_time: "16:00",
       order_id: "ORD-MG-TARGET",
       status: "confirmed",
       booking_progress_status: "checked_in",
@@ -1038,6 +1051,13 @@ describe("Horizontal Bookings Workspace & Quick Edit Integration", () => {
     const customerActionTarget = screen.getByTestId("customer-action-target");
     expect(customerActionTarget.textContent).toContain("Guest Two");
     expect(customerActionTarget.textContent).toContain("Foot Reflexology");
+    expect(screen.getByRole("link", { name: "Guest Two" })).toBeTruthy();
+    expect(screen.getByText("4:00 PM")).toBeTruthy();
+
+    fireEvent.click(screen.getByRole("button", { name: /Expand quick edit/i }));
+    expect(screen.getByText("Recipients and services")).toBeTruthy();
+    expect(screen.getByText("Primary Organizer")).toBeTruthy();
+    expect(screen.getAllByText("Foot Reflexology").length).toBeGreaterThan(0);
 
     // 2. Click Start Service button
     const startBtn = screen.getByRole("button", { name: "Start Service" });

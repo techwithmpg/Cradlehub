@@ -181,6 +181,8 @@ export interface PayableOrderOption {
   orderNumber: string;
   customerName: string;
   customerPhone?: string | null;
+  /** Authorized CRM loyalty segment; a suggestion, not discount authorization. */
+  customerLoyaltyTier?: string | null;
   serviceDescription: string;
   totalAmount: number;
   amountPaid: number;
