@@ -152,6 +152,7 @@ export interface HistoryTabSummary {
 
 export interface PayableOrderItemDetail {
   id: string;
+  bookingId?: string | null;
   description: string;
   amount: number;
   itemType?:

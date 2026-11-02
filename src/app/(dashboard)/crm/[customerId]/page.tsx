@@ -13,6 +13,7 @@ import { getAllStaff } from "@/lib/queries/staff";
 import { getStaffAdminName } from "@/lib/staff/display-name";
 import { formatCurrency, formatDate, formatTime } from "@/lib/utils";
 import type { Database } from "@/types/supabase";
+import { getCustomerDiscountHistoryAction } from "@/lib/cash-flow/discount-actions";
 
 type CustomerRow = Database["public"]["Tables"]["customers"]["Row"];
 type BookingRow = Database["public"]["Tables"]["bookings"]["Row"];
@@ -169,6 +170,7 @@ export default async function CustomerProfilePage({
 
   const segment = computeSegment(customer);
   const topService = mostBookedService(bookings);
+  const discountHistory = await getCustomerDiscountHistoryAction(customer.id);
 
   return (
     <div>
@@ -214,6 +216,17 @@ export default async function CustomerProfilePage({
         }
       />
 
+      {discountHistory.available ? (
+        <section aria-label="Discount history" className="mb-5 rounded-xl border border-neutral-200 bg-white p-4">
+          <h2 className="text-sm font-semibold">Discount history</h2>
+          <p className="mt-1 text-xs text-neutral-600">Check identification at each visit before selecting Senior Citizen or PWD.</p>
+          {discountHistory.entries.length ? <ul className="mt-2 space-y-1 text-sm">
+            {discountHistory.entries.map((entry,index)=><li key={`${entry.transactionId}-${index}`}>
+              {entry.category === "senior" ? "Senior Citizen" : entry.category.toUpperCase()} · {formatCurrency(entry.amount)} · {formatDate(entry.appliedAt)}
+            </li>)}
+          </ul> : <p className="mt-2 text-sm text-neutral-500">No committed discounts on file.</p>}
+        </section>
+      ) : null}
       {/* Stats */}
       <div
         style={{

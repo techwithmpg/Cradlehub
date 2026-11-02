@@ -8,9 +8,8 @@ export const PAYMENT_DISCOUNTS = {
 export type PaymentDiscountType = keyof typeof PAYMENT_DISCOUNTS;
 export const PAYMENT_DISCOUNT_KEYS = Object.keys(PAYMENT_DISCOUNTS) as PaymentDiscountType[];
 
-// The current post_order_payment_atomic contract accepts tenders/allocations, not
-// a verified discount command. Enable only after its replacement is reviewed and tested.
-export const DISCOUNT_POSTING_AVAILABLE = false;
+// Posting is controlled by the server-only CRADLEHUB_DISCOUNTS_ENABLED release gate.
+// A successful authoritative quote is required; these labels never change money.
 
 export function getSuggestedCustomerDiscount(loyaltyTier?: string | null): "vip" | null {
   return loyaltyTier === "vip" ? "vip" : null;

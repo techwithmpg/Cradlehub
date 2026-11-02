@@ -1,4 +1,5 @@
 import 'server-only';
+import { DiscountReceiptSchema, type DiscountSelection } from './discount-contract';
 
 import {
   PostOrderPaymentPayloadSchema,
@@ -12,7 +13,7 @@ export type RecordOrderPaymentResult =
 
 interface SupabaseRpcClient {
   rpc: (
-    fn: 'post_order_payment_atomic',
+    fn: 'post_order_payment_atomic' | 'post_order_payment_with_discounts_atomic',
     args: {
       p_order_id: string;
       p_idempotency_key: string;
@@ -29,6 +30,8 @@ interface SupabaseRpcClient {
       p_business_date: string | null;
       p_external_reference: string | null;
       p_notes: string | null;
+      p_selections?: DiscountSelection[];
+      p_quote_version?: string;
     }
   ) => Promise<{ data: unknown; error: { message: string; code?: string } | null }>;
 }
@@ -49,6 +52,9 @@ export async function recordOrderPayment(
   }
 
   const data = parsed.data;
+  if (data.discount && process.env.CRADLEHUB_DISCOUNTS_ENABLED !== 'true') {
+    return {ok: false, error: 'DISCOUNT_RELEASE_PENDING: Discount checkout is awaiting backend release.'};
+  }
 
   const paymentsJson = data.payments.map((p) => ({
     amount: p.amount,
@@ -66,7 +72,7 @@ export async function recordOrderPayment(
       : null;
 
   const { data: rpcData, error } = await (client as SupabaseRpcClient).rpc(
-    'post_order_payment_atomic',
+    data.discount ? 'post_order_payment_with_discounts_atomic' : 'post_order_payment_atomic',
     {
       p_order_id: data.orderId,
       p_idempotency_key: data.idempotencyKey,
@@ -75,6 +81,7 @@ export async function recordOrderPayment(
       p_business_date: data.businessDate ?? null,
       p_external_reference: data.externalReference ?? null,
       p_notes: data.notes ?? null,
+      ...(data.discount ? {p_selections: data.discount.selections, p_quote_version: data.discount.quoteVersion} : {}),
     }
   );
 
@@ -87,8 +94,10 @@ export async function recordOrderPayment(
   }
 
   const raw = rpcData as Record<string, unknown>;
+  const receipt = DiscountReceiptSchema.safeParse(raw.discount_receipt);
 
   const result: PostOrderPaymentResult = {
+    ...(receipt.success ? {discountReceipt: receipt.data} : {}),
     success: Boolean(raw.success),
     isIdempotentReplay: Boolean(raw.is_idempotent_replay),
     transactionId:

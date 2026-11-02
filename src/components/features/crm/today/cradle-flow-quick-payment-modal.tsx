@@ -20,12 +20,13 @@ import {
 import { isQuickPaymentEligible } from "@/components/features/cash-flow/cash-flow-today-eligibility";
 import { printThermalReceipt, type PrintableReceiptData } from "@/lib/cash-flow/receipt-printer";
 import {
-  DISCOUNT_POSTING_AVAILABLE,
   PAYMENT_DISCOUNTS,
   PAYMENT_DISCOUNT_KEYS,
   getSuggestedCustomerDiscount,
-  type PaymentDiscountType,
 } from "@/lib/cash-flow/payment-discounts";
+import { usePaymentDiscounts } from "./use-payment-discounts";
+import { getCommittedDiscountReceiptAction } from "@/lib/cash-flow/discount-actions";
+import { retargetDiscountTenders } from "@/lib/cash-flow/retarget-tenders";
 
 export { isQuickPaymentEligible };
 
@@ -93,11 +94,12 @@ export function CradleFlowQuickPaymentModal({
 }) {
   const [tab, setTab] = useState<QueueTab>(requestedOrderId ? "all" : "ready");
   const [selectedId, setSelectedId] = useState(requestedOrderId ?? "");
-  const [discountDraft, setDiscountDraft] = useState<{
+  const [tenderDraft, setTenderDraft] = useState<{
     key: string;
-    type: PaymentDiscountType;
+    identity: string;
+    balance: number;
+    lines: Tender[];
   } | null>(null);
-  const [tenderDraft, setTenderDraft] = useState<{ key: string; lines: Tender[] } | null>(null);
   const [notes, setNotes] = useState("");
   const [showNotes, setShowNotes] = useState(false);
   const [busy, setBusy] = useState(false);
@@ -109,7 +111,13 @@ export function CradleFlowQuickPaymentModal({
   const [printWarning, setPrintWarning] = useState<string | null>(null);
   const [confirmedReceipt, setConfirmedReceipt] = useState<PrintableReceiptData | null>(null);
   const submitting = useRef(false);
-  const attempt = useRef<{ signature: string; key: string } | null>(null);
+  const attempt = useRef<{
+    signature: string;
+    key: string;
+    discounted: boolean;
+    cashReceived: number | null;
+    change: number | null;
+  } | null>(null);
   const successfulPrintTxIdsRef = useRef<Set<string>>(new Set());
   const attemptedPrintTxIdsRef = useRef<Set<string>>(new Set());
   const autoCloseTimerRef = useRef<NodeJS.Timeout | null>(null);
@@ -178,15 +186,23 @@ export function CradleFlowQuickPaymentModal({
   const discountKey = selected
     ? `${data?.branchId}:${selected.sourceKind}:${selected.id}:${selected.totalAmount}:${selected.amountPaid}`
     : "";
-  const selectedDiscount = discountDraft?.key === discountKey ? discountDraft.type : null;
+  const discounts = usePaymentDiscounts(selected, discountKey);
+  const selectedDiscount = discounts.selectedDiscount;
   const suggestedDiscount = getSuggestedCustomerDiscount(selected?.customerLoyaltyTier);
-  const discountBlocked = selectedDiscount !== null && !DISCOUNT_POSTING_AVAILABLE;
+  const discountBlocked = discounts.blocked;
+  const payableTotal = discounts.command
+    ? discounts.quote!.totalPayable
+    : (selected?.totalAmount ?? 0);
+  const payableRemaining = discounts.command
+    ? discounts.quote!.remainingBalance
+    : (selected?.remainingBalance ?? 0);
 
   // Derive the default payment line from the selected payable order.
   // Only user edits are stored as state, eliminating the reset effect.
   const tenderKey = selected
-    ? `${data?.branchId ?? ""}:${data?.businessDate ?? ""}:${selected.sourceKind}:${selected.id}:${selected.remainingBalance}:${initialMethod}`
+    ? `${data?.branchId ?? ""}:${data?.businessDate ?? ""}:${selected.sourceKind}:${selected.id}:${payableRemaining}:${initialMethod}`
     : "";
+  const tenderIdentity = `${discountKey}:${data?.businessDate}:${initialMethod}`;
 
   const defaultTenders: Tender[] = selected
     ? [
@@ -194,25 +210,35 @@ export function CradleFlowQuickPaymentModal({
           id: `default-${selected.id}`,
           method: initialMethod,
           accountId: firstAccount(initialMethod),
-          amount: selected.remainingBalance.toFixed(2),
+          amount: payableRemaining.toFixed(2),
           cashReceived: "",
           reference: "",
         },
       ]
     : [];
 
-  const tenders = tenderDraft?.key === tenderKey ? tenderDraft.lines : defaultTenders;
+  const tenders =
+    tenderDraft?.key === tenderKey
+      ? tenderDraft.lines
+      : tenderDraft?.identity === tenderIdentity
+        ? retargetDiscountTenders(tenderDraft.lines, tenderDraft.balance, payableRemaining)
+        : defaultTenders;
 
   function setTenders(next: Tender[] | ((previous: Tender[]) => Tender[])) {
     setTenderDraft((previous) => {
-      const current = previous?.key === tenderKey ? previous.lines : defaultTenders;
+      const current =
+        previous?.key === tenderKey
+          ? previous.lines
+          : previous?.identity === tenderIdentity
+            ? retargetDiscountTenders(previous.lines, previous.balance, payableRemaining)
+            : defaultTenders;
       const lines = typeof next === "function" ? next(current) : next;
-      return { key: tenderKey, lines };
+      return { key: tenderKey, identity: tenderIdentity, balance: payableRemaining, lines };
     });
   }
 
   const totalCents = tenders.reduce((sum, line) => sum + cents(Number(line.amount) || 0), 0);
-  const remainingCents = selected ? cents(selected.remainingBalance) : 0;
+  const remainingCents = selected ? cents(payableRemaining) : 0;
   const invalidTender =
     tenders.length === 0 ||
     tenders.some((line) => {
@@ -332,13 +358,30 @@ export function CradleFlowQuickPaymentModal({
 
       if (res.status === "committed" && res.transaction) {
         const tx = res.transaction;
-        const totalAmount = selected.totalAmount;
+        const submittedAttempt =
+          attempt.current?.key === unresolvedAttemptKey ? attempt.current : null;
+        const recovered = submittedAttempt?.discounted
+          ? await getCommittedDiscountReceiptAction(unresolvedAttemptKey)
+          : null;
+        if (
+          submittedAttempt?.discounted &&
+          (!recovered ||
+            recovered.transaction_id !== tx.id ||
+            cents(recovered.discount_receipt.items.reduce((sum, item) => sum + item.amount, 0)) !==
+              cents(recovered.total_payable))
+        ) {
+          setVerificationWarning(
+            "Payment is on the ledger. Its committed discount receipt could not be verified; do not print a receipt or collect again. Review Cash Flow."
+          );
+          return;
+        }
+        const totalAmount = recovered?.total_payable ?? selected.totalAmount;
         const movementsTotal = tx.movements.reduce((sum, m) => sum + m.amount, 0);
-        const amountPaid = movementsTotal > 0 ? movementsTotal : totalCents / 100;
-        const remaining = Math.max(
-          0,
-          Math.round((totalAmount - (selected.amountPaid + amountPaid)) * 100) / 100
-        );
+        const amountPaid =
+          recovered?.total_paid ?? (movementsTotal > 0 ? movementsTotal : totalCents / 100);
+        const remaining =
+          recovered?.remaining_balance ??
+          Math.max(0, Math.round((totalAmount - (selected.amountPaid + amountPaid)) * 100) / 100);
 
         const receiptData: PrintableReceiptData = {
           companyName: "CRADLE WELLNESS LIVING INC.",
@@ -357,14 +400,16 @@ export function CradleFlowQuickPaymentModal({
           }),
           serviceDescription: selected.serviceDescription,
           visitType: selected.visitType,
-          items: selected.payableItems?.length
-            ? selected.payableItems.map((item) => ({
-                description: item.description,
-                amount: item.amount,
-              }))
-            : [{ description: selected.serviceDescription, amount: totalAmount }],
+          items:
+            recovered?.discount_receipt.items ??
+            (selected.payableItems?.length
+              ? selected.payableItems.map((item) => ({
+                  description: item.description,
+                  amount: item.amount,
+                }))
+              : [{ description: selected.serviceDescription, amount: totalAmount }]),
           totalPayable: totalAmount,
-          alreadyPaid: selected.amountPaid,
+          alreadyPaid: recovered?.discount_receipt.alreadyPaid ?? selected.amountPaid,
           amountPaid,
           remainingBalance: remaining,
           payments:
@@ -379,9 +424,8 @@ export function CradleFlowQuickPaymentModal({
                   amount: Number(t.amount) || 0,
                   reference: t.reference.trim() || null,
                 })),
-          totalCashReceived:
-            hasCashTender && hasAnyCashReceivedEntered ? totalCashReceivedCents / 100 : null,
-          changeGiven: hasCashTender ? changeCents / 100 : null,
+          totalCashReceived: submittedAttempt?.cashReceived ?? null,
+          changeGiven: submittedAttempt?.change ?? null,
           isIdempotentReplay: true,
         };
 
@@ -442,13 +486,21 @@ export function CradleFlowQuickPaymentModal({
       date: data.businessDate,
       payments,
       notes: notes.trim(),
+      discount: discounts.command,
     });
 
     const keyToUse =
       attempt.current?.signature === signature && attempt.current.key
         ? attempt.current.key
         : crypto.randomUUID();
-    attempt.current = { signature, key: keyToUse };
+    attempt.current = {
+      signature,
+      key: keyToUse,
+      discounted: !!discounts.command,
+      cashReceived:
+        hasCashTender && hasAnyCashReceivedEntered ? totalCashReceivedCents / 100 : null,
+      change: hasCashTender ? changeCents / 100 : null,
+    };
     setUnresolvedAttemptKey(keyToUse);
 
     try {
@@ -469,6 +521,7 @@ export function CradleFlowQuickPaymentModal({
               payments,
               businessDate: data.businessDate,
               notes: notes.trim() || null,
+              ...(discounts.command ? { discount: discounts.command } : {}),
             });
 
       if (!result.ok) {
@@ -618,6 +671,18 @@ export function CradleFlowQuickPaymentModal({
         }
       }
 
+      const committedDiscountReceipt =
+        selected.sourceKind === "booking_order"
+          ? (result.data as PostOrderPaymentResult).discountReceipt
+          : undefined;
+      if (
+        discounts.command &&
+        (!committedDiscountReceipt ||
+          cents(committedDiscountReceipt.items.reduce((sum, item) => sum + item.amount, 0)) !==
+            cents(confirmedTotalPayable))
+      ) {
+        unverifiedReason = "Missing or inconsistent committed discount receipt";
+      }
       if (unverifiedReason || !confirmedTxnId) {
         setUnresolvedAttemptKey(null);
         setVerificationWarning(
@@ -645,12 +710,14 @@ export function CradleFlowQuickPaymentModal({
         }),
         serviceDescription: selected.serviceDescription,
         visitType: selected.visitType,
-        items: selected.payableItems?.length
-          ? selected.payableItems.map((item) => ({
-              description: item.description,
-              amount: item.amount,
-            }))
-          : [{ description: selected.serviceDescription, amount: confirmedTotalPayable }],
+        items:
+          committedDiscountReceipt?.items ??
+          (selected.payableItems?.length
+            ? selected.payableItems.map((item) => ({
+                description: item.description,
+                amount: item.amount,
+              }))
+            : [{ description: selected.serviceDescription, amount: confirmedTotalPayable }]),
         totalPayable: confirmedTotalPayable,
         alreadyPaid: confirmedAlreadyPaid,
         amountPaid: confirmedAmountPaid,
@@ -920,7 +987,7 @@ export function CradleFlowQuickPaymentModal({
                   <span className="shrink-0 text-right">
                     <span className="block text-[10px] text-[#786d61]">Balance</span>
                     <span className="text-sm font-bold text-[#12553f]">
-                      {php(order.remainingBalance)}
+                      {php(order.id === selected?.id ? payableRemaining : order.remainingBalance)}
                     </span>
                   </span>
                 </button>
@@ -963,16 +1030,13 @@ export function CradleFlowQuickPaymentModal({
                       aria-pressed={selectedDiscount === type}
                       disabled={
                         !selected ||
+                        !discounts.catalogReady ||
                         busy ||
                         reconciling ||
                         !!unresolvedAttemptKey ||
                         !!confirmedReceipt
                       }
-                      onClick={() =>
-                        setDiscountDraft(
-                          selectedDiscount === type ? null : { key: discountKey, type }
-                        )
-                      }
+                      onClick={() => discounts.toggle(type)}
                       className={`min-h-9 rounded-lg border px-3 py-2 text-xs font-semibold ${selectedDiscount === type ? "border-[#116044] bg-[#14543e] text-white" : "border-[#e9e2d8] bg-[#faf8f5] text-[#14543e]"}`}
                     >
                       {PAYMENT_DISCOUNTS[type].label}
@@ -980,6 +1044,38 @@ export function CradleFlowQuickPaymentModal({
                   ))}
                 </div>
               </div>
+              {discounts.recipients.length > 1 && discounts.catalogReady ? (
+                <label className="mb-2 flex flex-wrap items-center gap-2 text-xs font-semibold text-[#14543e]">
+                  Discount recipient
+                  <select
+                    aria-label="Discount recipient"
+                    value={discounts.recipientId ?? ""}
+                    disabled={busy || !!unresolvedAttemptKey || !!confirmedReceipt}
+                    onChange={(event) => discounts.selectRecipient(event.target.value)}
+                    className="min-h-10 max-w-full rounded-lg border border-[#e9e2d8] bg-white px-2"
+                  >
+                    {discounts.recipients.map((recipient) => (
+                      <option key={recipient.bookingId} value={recipient.bookingId}>
+                        {recipient.recipientName} · {recipient.serviceName ?? "Service"}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+              ) : null}
+              {selected && !discounts.catalogReady ? (
+                <p role="status" className="mb-2 text-xs text-amber-950">
+                  {discounts.pending
+                    ? "Loading service recipients…"
+                    : (discounts.error ??
+                      "Service recipients could not be verified for discounts.")}
+                </p>
+              ) : null}
+              {discounts.catalogReady && discounts.recipients.length === 1 ? (
+                <p className="mb-2 text-xs text-[#14543e]">
+                  Service recipient: {discounts.recipients[0]!.recipientName} ·{" "}
+                  {discounts.recipients[0]!.serviceName ?? "Service"}
+                </p>
+              ) : null}
               {suggestedDiscount ? (
                 <p className="mb-2 text-xs text-[#14543e]">
                   VIP loyalty status on file. Verify the service recipient before applying a
@@ -991,10 +1087,21 @@ export function CradleFlowQuickPaymentModal({
                   role="status"
                   className="mb-3 rounded-lg border border-amber-200 bg-amber-50 p-2 text-xs text-amber-950"
                 >
-                  {PAYMENT_DISCOUNTS[selectedDiscount!].description} selected. Discounted checkout
-                  is unavailable until eligibility, service coverage and tax treatment can be
-                  verified and recorded together. No discount has been applied. Remove this
-                  selection to record payment at the current balance.
+                  {discounts.pending
+                    ? "Calculating discount… No discount has been applied yet."
+                    : (discounts.error ??
+                      "Discount preview only. No discount has been applied.")}{" "}
+                  Remove the selection to record payment at the current balance.
+                </p>
+              ) : null}
+              {discounts.hasSelection && discounts.quote && !discountBlocked ? (
+                <p
+                  role="status"
+                  className="mb-3 rounded-lg bg-emerald-50 p-2 text-xs text-emerald-950"
+                >
+                  Subtotal {php(discounts.quote.subtotal)} · Discount −
+                  {php(discounts.quote.discountAmount)} · Payable{" "}
+                  {php(discounts.quote.totalPayable)}. Eligibility confirmed by staff selection.
                 </p>
               ) : null}
 
@@ -1260,9 +1367,15 @@ export function CradleFlowQuickPaymentModal({
                   ) : null}
                 </div>
                 <div className="space-y-2 text-xs">
+                  {discounts.command && discounts.quote ? (
+                    <div className="flex justify-between text-emerald-800">
+                      <span>Discount</span>
+                      <strong>−{php(discounts.quote.discountAmount)}</strong>
+                    </div>
+                  ) : null}
                   <div className="flex justify-between">
                     <span>Total payable</span>
-                    <strong>{php(selected.totalAmount)}</strong>
+                    <strong>{php(payableTotal)}</strong>
                   </div>
                   <div className="flex justify-between">
                     <span>Already paid</span>
@@ -1270,7 +1383,7 @@ export function CradleFlowQuickPaymentModal({
                   </div>
                   <div className="flex justify-between rounded-lg bg-[#edf6ef] p-2 font-bold text-[#14543e]">
                     <span>Remaining balance</span>
-                    <span>{php(selected.remainingBalance)}</span>
+                    <span>{php(payableRemaining)}</span>
                   </div>
                 </div>
                 <div className="rounded-xl bg-[#eff8f2] p-3">
@@ -1317,7 +1430,7 @@ export function CradleFlowQuickPaymentModal({
             {paymentError}
           </p>
         ) : null}
-        <footer className="flex shrink-0 items-center justify-between gap-3 border-t border-[#e9e2d8] bg-white px-5 py-3">
+        <footer className="flex shrink-0 flex-wrap items-center justify-between gap-3 border-t border-[#e9e2d8] bg-white px-4 py-3 sm:px-5">
           {confirmedReceipt ? (
             <>
               <div className="flex items-center gap-4">
@@ -1339,7 +1452,7 @@ export function CradleFlowQuickPaymentModal({
                   </>
                 ) : null}
               </div>
-              <div className="flex gap-2">
+              <div className="flex w-full justify-end gap-2 sm:w-auto">
                 <button
                   type="button"
                   onClick={() => {
@@ -1383,7 +1496,7 @@ export function CradleFlowQuickPaymentModal({
                   </>
                 ) : null}
               </div>
-              <div className="flex gap-2">
+              <div className="flex w-full justify-end gap-2 sm:w-auto">
                 <button
                   type="button"
                   onClick={handleClose}

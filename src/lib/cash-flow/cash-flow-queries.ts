@@ -484,6 +484,7 @@ export async function getCashFlowData(
       const list = orderItemsById.get(row.order_id) ?? [];
       list.push({
         id: row.id,
+        bookingId: row.booking_id,
         description: row.description,
         amount: Number(row.amount) || 0,
         itemType:
