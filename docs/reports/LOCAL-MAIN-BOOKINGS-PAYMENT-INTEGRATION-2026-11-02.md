@@ -30,6 +30,16 @@ Independent reviewer `/root/payment_integration_review` initially required three
 
 ## Preservation and rollback
 
+## Completed local result
+
+Reviewed implementation commit: `711d04363e3c8845f7c2ad988fe3635d96d02c69`. Local main was fast-forwarded first to accepted origin/main and then to this commit. No push or deployment occurred; origin/main remains `9a232f9e13bde5eca8c9ec714e05116781d3c689`. A documentation-only follow-up records this result.
+
+The root checkout `E:/cradlehub` is on local main and serves `http://localhost:3000` using its existing `.env.local`, classified PRODUCTION for the previously authorized read-only preview. Auth bypass is disabled. Final listener PID 11924 points to `E:/cradlehub/node_modules/.../next/dist/server/lib/start-server.js`. Only the verified root `.next` cache was removed after switching source; environment files, dependencies, databases and original worktrees were preserved.
+
+Actual final browser verification: `/crm/bookings` loaded with compact workspace controls and no Runtime Error; `/crm/cash-flow` opened Record Payment and showed Senior/PWD/VIP choices with no Runtime Error. The first cold Bookings navigation exceeded the browser's 30-second load timeout while Next compiled; server subsequently returned HTTP 200 in 35.4 seconds and the existing page successfully passed the heading/control check. No lifecycle, payment or database mutation was used for verification. Refresh old localhost tabs after the source handover.
+
+## Preservation and rollback details
+
 Original Bookings and safe-discount worktrees retain their uncommitted source and original launchers. The root's previous original-discount branch remains available. Existing pre-integration status/diff evidence is under `.tmp/payment-modal-reconcile-evidence`. No worktree is deleted or reset.
 
 The local-main result is intentionally ahead of origin/main. Do not push it without the separate owner release gate. To review accepted production-connected source again, use a separate worktree at the recorded accepted remote SHA and deliberately hand over port 3000; do not reset main or discard preserved work. Original Bookings preview can be restored with its saved launcher. Any rollback of the combined local commit should be a reviewed revert, not a force push or history rewrite.
