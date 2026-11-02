@@ -439,6 +439,24 @@ export function QuickBookingForm({
     useState<HomeServiceDistanceQuote | null>(null);
   const [paymentReceived, setPaymentReceived] = useState(false);
   const submissionKey = useRef<{ fingerprint: string; key: string } | null>(null);
+  const [unresolvedSubmission, setUnresolvedSubmission] = useState<{
+    key: string;
+    fingerprint: string;
+    snapshot: {
+      fullName: string;
+      phone: string;
+      email: string;
+      notes: string;
+      date: string;
+      time: string;
+      staffId: string;
+      resourceId: string;
+      paymentMethod: "cash" | "gcash" | "maya" | "card" | "";
+      paymentReceived: boolean;
+      selectedServiceIds: string[];
+      additionalGuests: BookingOrderAttendeeInput[];
+    };
+  } | null>(null);
   const [paymentMethod, setPaymentMethod] = useState<"cash" | "gcash" | "maya" | "card" | "">("");
   const [staffId, setStaffId] = useState(initialStaffId);
   const [therapistSelectionMode, setTherapistSelectionMode] = useState<"automatic" | "manual">(
@@ -468,6 +486,17 @@ export function QuickBookingForm({
   const [therapistAvailabilityMessage, setTherapistAvailabilityMessage] = useState("");
   const [fieldErrors, setFieldErrors] = useState<FieldErrors>({});
   const [formError, setFormError] = useState("");
+  const [formDiagnostic, setFormDiagnostic] = useState<{
+    title: string;
+    message: string;
+    correctiveAction?: string;
+    field?: string;
+    guestIndex?: number;
+    guestName?: string;
+    serviceName?: string;
+    target?: string;
+    retrySafety?: "safe" | "verify_first" | "do_not_retry";
+  } | null>(null);
   const [loadingNextSlot, setLoadingNextSlot] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
   const [slotChecking, setSlotChecking] = useState(false);
@@ -1401,8 +1430,104 @@ export function QuickBookingForm({
     });
   }
 
+  function buildBookingInputDraft() {
+    return {
+      branchId,
+      customerId: selectedCustomer?.id,
+      serviceIds: groupBooking ? allSelectedServiceIds : selectedServiceIds,
+      ...(!groupBooking && {
+        serviceLines: selectedServiceIds.map((serviceId) => ({
+          serviceId,
+          requestedDurationMinutes:
+            lineQuotes[`${firstAttendeeId}:${serviceId}`]?.selectedDurationMinutes,
+          expectedQuoteVersion:
+            lineQuotes[`${firstAttendeeId}:${serviceId}`]?.quoteVersion ??
+            services.find((service) => service.id === serviceId)?.quoteVersion,
+        })),
+      }),
+      ...(groupBooking && {
+        bookingFor: "me_and_others" as const,
+        attendees: attendeeDrafts.map((attendee, index) => ({
+          id: attendee.id,
+          name:
+            attendee.name?.trim() ||
+            (attendee.isOrganizer ? fullName.trim() : `Guest ${index + 1}`),
+          isOrganizer: attendee.isOrganizer ?? false,
+          serviceIds: attendee.serviceIds,
+          serviceLines: attendee.serviceIds.map((serviceId) => ({
+            serviceId,
+            requestedDurationMinutes:
+              lineQuotes[`${attendee.id}:${serviceId}`]?.selectedDurationMinutes,
+            expectedQuoteVersion:
+              lineQuotes[`${attendee.id}:${serviceId}`]?.quoteVersion ??
+              services.find((service) => service.id === serviceId)?.quoteVersion,
+          })),
+        })),
+      }),
+      staffId: staffId || undefined,
+      customerRequestedTherapist: groupBooking ? false : Boolean(staffId && customerRequestedTherapist),
+      resourceId: isHomeService || groupBooking ? undefined : resourceId || undefined,
+      date,
+      startTime: normalizeTime(time),
+      type: isHomeService ? "home_service" : "walkin",
+      deliveryType: isHomeService ? "home_service" : "in_spa",
+      crmBookingMode: mode,
+      markArrived: mode === "walkin",
+      fullName: fullName.trim(),
+      phone: phone.trim(),
+      email: email.trim() || undefined,
+      notes: notes.trim() || undefined,
+      paymentReceived,
+      paymentMethod: paymentReceived && paymentMethod ? paymentMethod : undefined,
+      homeServiceAddress: isHomeService ? homeServiceAddress.trim() : undefined,
+      homeServiceBarangay: isHomeService ? homeServiceBarangay.trim() || undefined : undefined,
+      homeServiceCity: isHomeService ? homeServiceCity.trim() : undefined,
+      homeServiceAccessNote: isHomeService
+        ? homeServiceAccessNote.trim() || undefined
+        : undefined,
+      homeServiceLat: isHomeService ? homeServicePlace?.lat : undefined,
+      homeServiceLng: isHomeService ? homeServicePlace?.lng : undefined,
+      homeServicePlaceId: isHomeService ? homeServicePlace?.placeId : undefined,
+      homeServiceFormattedAddress: isHomeService ? homeServicePlace?.formattedAddress : undefined,
+      homeServiceAddressComponents: isHomeService
+        ? homeServicePlace?.addressComponents
+        : undefined,
+      homeServiceMapUrl: isHomeService ? homeServicePlace?.mapUrl : undefined,
+    };
+  }
+
+  const currentDraftFingerprint = JSON.stringify(buildBookingInputDraft());
+  const isDraftModifiedSinceSubmission = Boolean(
+    unresolvedSubmission && unresolvedSubmission.fingerprint !== currentDraftFingerprint
+  );
+
+  function restoreSubmittedDraft() {
+    if (!unresolvedSubmission) return;
+    const s = unresolvedSubmission.snapshot;
+    setFullName(s.fullName);
+    setCustomerQuery(s.fullName);
+    setPhone(s.phone);
+    setEmail(s.email);
+    setNotes(s.notes);
+    setDate(s.date);
+    setTime(s.time);
+    setStaffId(s.staffId);
+    setResourceId(s.resourceId);
+    setPaymentReceived(s.paymentReceived);
+    setPaymentMethod(s.paymentMethod);
+    setSelectedServiceIds(s.selectedServiceIds);
+    setAdditionalGuests(s.additionalGuests);
+  }
+
+  function clearUnresolvedSubmissionState() {
+    submissionKey.current = null;
+    setUnresolvedSubmission(null);
+    setFormDiagnostic(null);
+    setFormError("");
+  }
+
   async function submit() {
-    if (isSaving || slotChecking || loadingCustomerIdentity) return;
+    if (isSaving || slotChecking || loadingCustomerIdentity || isDraftModifiedSinceSubmission) return;
     if (attendeeDrafts.length > 4) {
       setFormError(
         "Current CRM booking contract supports up to 4 guests. This larger group is a layout preview only."
@@ -1414,6 +1539,12 @@ export function QuickBookingForm({
     setFieldErrors(nextErrors);
     setFormError("");
     if (Object.values(nextErrors).some(Boolean)) {
+      setFormDiagnostic({
+        title: "Incomplete booking details",
+        message: "Please complete the highlighted fields before saving.",
+        correctiveAction: "Review and complete the highlighted fields above.",
+        retrySafety: "safe",
+      });
       const incompleteGuest = additionalGuests.find(
         (guest) => guest.serviceIds.length === 0 || (guest.name?.trim() && guest.name.trim().length < 2)
       );
@@ -1424,6 +1555,7 @@ export function QuickBookingForm({
       }
       return;
     }
+    setFormDiagnostic(null);
 
     if (!groupBooking) {
       setSlotChecking(true);
@@ -1435,6 +1567,13 @@ export function QuickBookingForm({
         const message = "Unable to check CRM availability. Choose another time or try again.";
         setFieldErrors((current) => ({ ...current, time: message }));
         setFormError(message);
+        setFormDiagnostic({
+          title: "Availability check failed",
+          message,
+          field: "time",
+          correctiveAction: "Check your network connection and select another time or try again.",
+          retrySafety: "safe",
+        });
         return;
       }
       setSlotChecking(false);
@@ -1442,6 +1581,13 @@ export function QuickBookingForm({
         const message = availability.message ?? NO_SCHEDULED_THERAPIST_MESSAGE;
         setFieldErrors((current) => ({ ...current, time: message }));
         setFormError(message);
+        setFormDiagnostic({
+          title: "Time slot unavailable",
+          message,
+          field: "time",
+          correctiveAction: "Choose another available time or select a different therapist.",
+          retrySafety: "safe",
+        });
         return;
       }
     }
@@ -1571,83 +1717,69 @@ export function QuickBookingForm({
         return;
       }
 
-      const bookingInput = {
-        branchId,
-        customerId: selectedCustomer?.id,
-        serviceIds: groupBooking ? allSelectedServiceIds : selectedServiceIds,
-        ...(!groupBooking && {
-          serviceLines: selectedServiceIds.map((serviceId) => ({
-            serviceId,
-            requestedDurationMinutes:
-              lineQuotes[`${firstAttendeeId}:${serviceId}`]?.selectedDurationMinutes,
-            expectedQuoteVersion:
-              lineQuotes[`${firstAttendeeId}:${serviceId}`]?.quoteVersion ??
-              services.find((service) => service.id === serviceId)?.quoteVersion,
-          })),
-        }),
-        ...(groupBooking && {
-          bookingFor: "me_and_others" as const,
-          attendees: attendeeDrafts.map((attendee, index) => ({
-            id: attendee.id,
-            name:
-              attendee.name?.trim() ||
-              (attendee.isOrganizer ? fullName.trim() : `Guest ${index + 1}`),
-            isOrganizer: attendee.isOrganizer ?? false,
-            serviceIds: attendee.serviceIds,
-            serviceLines: attendee.serviceIds.map((serviceId) => ({
-              serviceId,
-              requestedDurationMinutes:
-                lineQuotes[`${attendee.id}:${serviceId}`]?.selectedDurationMinutes,
-              expectedQuoteVersion:
-                lineQuotes[`${attendee.id}:${serviceId}`]?.quoteVersion ??
-                services.find((service) => service.id === serviceId)?.quoteVersion,
-            })),
-          })),
-        }),
-        staffId: staffId || undefined,
-        customerRequestedTherapist: groupBooking ? false : Boolean(staffId && customerRequestedTherapist),
-        resourceId: isHomeService || groupBooking ? undefined : resourceId || undefined,
-        date,
-        startTime: normalizeTime(time),
-        type: isHomeService ? "home_service" : "walkin",
-        deliveryType: isHomeService ? "home_service" : "in_spa",
-        crmBookingMode: mode,
-        markArrived: mode === "walkin",
-        fullName: fullName.trim(),
-        phone: phone.trim(),
-        email: email.trim() || undefined,
-        notes: notes.trim() || undefined,
-        paymentReceived,
-        paymentMethod: paymentReceived && paymentMethod ? paymentMethod : undefined,
-        homeServiceAddress: isHomeService ? homeServiceAddress.trim() : undefined,
-        homeServiceBarangay: isHomeService ? homeServiceBarangay.trim() || undefined : undefined,
-        homeServiceCity: isHomeService ? homeServiceCity.trim() : undefined,
-        homeServiceAccessNote: isHomeService
-          ? homeServiceAccessNote.trim() || undefined
-          : undefined,
-        homeServiceLat: isHomeService ? homeServicePlace?.lat : undefined,
-        homeServiceLng: isHomeService ? homeServicePlace?.lng : undefined,
-        homeServicePlaceId: isHomeService ? homeServicePlace?.placeId : undefined,
-        homeServiceFormattedAddress: isHomeService ? homeServicePlace?.formattedAddress : undefined,
-        homeServiceAddressComponents: isHomeService
-          ? homeServicePlace?.addressComponents
-          : undefined,
-        homeServiceMapUrl: isHomeService ? homeServicePlace?.mapUrl : undefined,
-      };
-      const fingerprint = JSON.stringify(bookingInput);
-      if (submissionKey.current?.fingerprint !== fingerprint) {
+      const bookingInput = buildBookingInputDraft();
+      const fingerprint = currentDraftFingerprint;
+      if (unresolvedSubmission) {
+        submissionKey.current = { fingerprint: unresolvedSubmission.fingerprint, key: unresolvedSubmission.key };
+      } else if (submissionKey.current?.fingerprint !== fingerprint) {
         submissionKey.current = { fingerprint, key: crypto.randomUUID() };
       }
+      const activeSubmissionKey = submissionKey.current.key;
       const result = await createInhouseBookingMultiAction({
         ...bookingInput,
-        idempotencyKey: submissionKey.current.key,
+        idempotencyKey: activeSubmissionKey,
       });
 
       if (!result.ok) {
         const message = result.message || "Could not save booking. Please try again.";
-        setFieldErrors(mapServerErrorToFields(message));
+        const fallbackErrors = mapServerErrorToFields(message);
+        const nextFieldErrors = { ...fallbackErrors };
+        if (result.field && result.field !== "general") {
+          nextFieldErrors[result.field as keyof FieldErrors] = message;
+        }
+        setFieldErrors(nextFieldErrors);
         setFormError(message);
-        toast.error("Booking not saved", { description: message });
+        setFormDiagnostic({
+          title: result.title ?? "Booking could not be saved",
+          message,
+          correctiveAction: result.correctiveAction ?? "Review the details above and choose an available alternative.",
+          field: result.field,
+          guestIndex: result.guestIndex,
+          guestName: result.guestName,
+          serviceName: result.serviceName,
+          target: result.guestName && result.serviceName
+            ? `${result.guestName} — ${result.serviceName}`
+            : result.guestName ?? result.serviceName,
+          retrySafety: result.retrySafety ?? "safe",
+        });
+        toast.error(result.title ?? "Booking not saved", { description: message });
+
+        if (result.retrySafety === "verify_first") {
+          setUnresolvedSubmission({
+            key: activeSubmissionKey,
+            fingerprint,
+            snapshot: {
+              fullName,
+              phone,
+              email,
+              notes,
+              date,
+              time,
+              staffId,
+              resourceId,
+              paymentMethod,
+              paymentReceived,
+              selectedServiceIds,
+              additionalGuests,
+            },
+          });
+        } else {
+          setUnresolvedSubmission(null);
+        }
+
+        if (result.guestIndex !== undefined && guestScrollRef.current) {
+          guestScrollRef.current.scrollTop = result.guestIndex > 0 ? guestScrollRef.current.scrollHeight : 0;
+        }
         return;
       }
 
@@ -1655,6 +1787,7 @@ export function QuickBookingForm({
         description: result.warning ?? "The booking is now in the CRM workspace.",
       });
       submissionKey.current = null;
+      setUnresolvedSubmission(null);
       onSuccess?.({
         bookingId: result.bookingId,
         date,
@@ -1671,9 +1804,36 @@ export function QuickBookingForm({
         router.push(`/crm/bookings?${params.toString()}`);
       }
     } catch {
-      const message = "Could not save booking. Please try again.";
+      const message = "The request may have reached the server, but confirmation was interrupted.";
+      if (submissionKey.current) {
+        setUnresolvedSubmission({
+          key: submissionKey.current.key,
+          fingerprint: submissionKey.current.fingerprint,
+          snapshot: {
+            fullName,
+            phone,
+            email,
+            notes,
+            date,
+            time,
+            staffId,
+            resourceId,
+            paymentMethod,
+            paymentReceived,
+            selectedServiceIds,
+            additionalGuests,
+          },
+        });
+      }
       setFormError(message);
-      toast.error("Booking not saved", { description: message });
+      setFormDiagnostic({
+        title: "Booking confirmation could not be verified",
+        message,
+        correctiveAction: "Check existing bookings or refresh before attempting to submit again to prevent duplicate bookings.",
+        field: "general",
+        retrySafety: "verify_first",
+      });
+      toast.error("Confirmation unverified", { description: message });
     } finally {
       setIsSaving(false);
     }
@@ -2975,6 +3135,79 @@ export function QuickBookingForm({
                   <FieldError message={fieldErrors.paymentMethod} />
                 </>
               )}
+              {formDiagnostic ? (
+                <div
+                  role="alert"
+                  aria-live="polite"
+                  data-testid="crm-booking-failure-card"
+                  className={cn(
+                    "mt-3 rounded-lg border p-2.5 text-xs shadow-xs transition-all",
+                    (unresolvedSubmission || formDiagnostic.retrySafety === "verify_first")
+                      ? "border-amber-300 bg-amber-50 text-amber-950"
+                      : formDiagnostic.retrySafety === "do_not_retry"
+                        ? "border-red-300 bg-red-50 text-red-950"
+                        : "border-red-200 bg-red-50/90 text-red-950"
+                  )}
+                >
+                  <div className="flex items-start gap-2">
+                    <AlertTriangle
+                      className={cn(
+                        "mt-0.5 h-4 w-4 shrink-0",
+                        (unresolvedSubmission || formDiagnostic.retrySafety === "verify_first") ? "text-amber-600" : "text-red-600"
+                      )}
+                    />
+                    <div className="min-w-0 flex-1 space-y-1">
+                      <div className="font-semibold text-[13px]">{formDiagnostic.title}</div>
+                      {formDiagnostic.target ? (
+                        <div className="inline-block rounded border border-black/10 bg-white/70 px-1.5 py-0.5 text-[11px] font-medium text-[var(--cs-text)]">
+                          {formDiagnostic.target}
+                        </div>
+                      ) : null}
+                      <p className="leading-snug text-[var(--cs-text)]">{formDiagnostic.message}</p>
+                      {formDiagnostic.correctiveAction ? (
+                        <div className="border-t border-black/5 pt-1.5 text-[11px] text-[var(--cs-text-muted)]">
+                          <span className="font-semibold text-[var(--cs-text)]">Suggested action: </span>
+                          {formDiagnostic.correctiveAction}
+                        </div>
+                      ) : null}
+                      {unresolvedSubmission ? (
+                        isDraftModifiedSinceSubmission ? (
+                          <div className="mt-2 rounded-md border border-amber-300 bg-amber-100/90 p-2 text-[11px] text-amber-950">
+                            <div className="font-semibold">⚠️ Draft modified during unresolved submission</div>
+                            <p className="mt-0.5 leading-snug">
+                              Changes to this draft cannot bypass the pending submission. You must verify whether the original submission committed before submitting new booking details.
+                            </p>
+                            <div className="mt-2 flex flex-wrap gap-2">
+                              <button
+                                type="button"
+                                onClick={restoreSubmittedDraft}
+                                className="rounded bg-amber-800 px-2.5 py-1 text-white hover:bg-amber-900 font-medium"
+                              >
+                                Restore Submitted Draft
+                              </button>
+                              <button
+                                type="button"
+                                onClick={clearUnresolvedSubmissionState}
+                                className="rounded border border-amber-800/40 bg-white px-2 py-1 text-amber-900 hover:bg-amber-50"
+                              >
+                                I Verified: Not Created (Start New Submission)
+                              </button>
+                            </div>
+                          </div>
+                        ) : (
+                          <div className="mt-1 text-[11px] font-semibold text-amber-800">
+                            ⚠️ Do not resubmit blindly. Check whether the booking was already created before trying again, or use &ldquo;Verify &amp; Replay Booking&rdquo; to safely check if it was saved.
+                          </div>
+                        )
+                      ) : formDiagnostic.retrySafety === "verify_first" ? (
+                        <div className="mt-1 text-[11px] font-semibold text-amber-800">
+                          ⚠️ Do not resubmit blindly. Check whether the booking was already created before trying again.
+                        </div>
+                      ) : null}
+                    </div>
+                  </div>
+                </div>
+              ) : null}
               <div className="mt-2 flex gap-2">
                 <button
                   type="button"
@@ -2988,11 +3221,29 @@ export function QuickBookingForm({
                   type="button"
                   onClick={submit}
                   disabled={
-                    isSaving || slotChecking || loadingCustomerIdentity || attendeeDrafts.length > 4
+                    isSaving ||
+                    slotChecking ||
+                    loadingCustomerIdentity ||
+                    attendeeDrafts.length > 4 ||
+                    isDraftModifiedSinceSubmission
                   }
                   className="cs-btn h-9 flex-1 rounded-lg bg-[#006044] text-xs text-white disabled:opacity-60"
                 >
-                  {isSaving ? "Saving…" : slotChecking ? "Checking…" : rescheduleBookingId ? "Save Changes" : "Save Booking"}
+                  {isSaving
+                    ? unresolvedSubmission
+                      ? "Verifying…"
+                      : "Saving…"
+                    : slotChecking
+                      ? "Checking…"
+                      : isDraftModifiedSinceSubmission
+                        ? "Pending Submission Unresolved"
+                        : unresolvedSubmission
+                          ? rescheduleBookingId
+                            ? "Verify & Replay Changes"
+                            : "Verify & Replay Booking"
+                          : rescheduleBookingId
+                            ? "Save Changes"
+                            : "Save Booking"}
                 </button>
               </div>
             </div>

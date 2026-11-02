@@ -38,3 +38,25 @@ export class SlotUnavailableError extends AppError {
     );
   }
 }
+
+export class GroupTherapistAllocationError extends SlotUnavailableError {
+  readonly reason: "INDIVIDUAL_THERAPIST_UNAVAILABLE" | "GROUP_THERAPIST_CAPACITY_EXCEEDED";
+  readonly attendeeIndex?: number;
+  readonly serviceIds?: string[];
+
+  constructor(
+    reason: "INDIVIDUAL_THERAPIST_UNAVAILABLE" | "GROUP_THERAPIST_CAPACITY_EXCEEDED",
+    attendeeIndex?: number,
+    serviceIds?: string[],
+    message?: string
+  ) {
+    super();
+    this.name = "GroupTherapistAllocationError";
+    this.reason = reason;
+    this.attendeeIndex = attendeeIndex;
+    this.serviceIds = serviceIds;
+    if (message) {
+      this.message = message;
+    }
+  }
+}

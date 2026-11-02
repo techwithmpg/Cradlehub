@@ -221,7 +221,9 @@ describe("Quick Booking payment intent", () => {
     renderMode("walkin");
     fireEvent.click(modeButton("Phone / Future"));
     fireEvent.click(screen.getByRole("button", { name: "Save Booking" }));
-    await waitFor(() => expect(screen.getByText("Selected time is unavailable.")).toBeTruthy());
+    await waitFor(() =>
+      expect(screen.getAllByText("Selected time is unavailable.").length).toBeGreaterThan(0)
+    );
     expect(mocks.createBooking).not.toHaveBeenCalled();
   });
 
