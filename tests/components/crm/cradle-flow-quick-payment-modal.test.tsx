@@ -144,8 +144,33 @@ const callbacks = {
   onLegacyCheckout: vi.fn(),
 };
 
+const storageMap = new Map<string, string>();
+const memoryStorage: Storage = {
+  getItem: (key: string) => storageMap.get(key) ?? null,
+  setItem: (key: string, value: string) => {
+    storageMap.set(key, String(value));
+  },
+  removeItem: (key: string) => {
+    storageMap.delete(key);
+  },
+  clear: () => {
+    storageMap.clear();
+  },
+  key: (index: number) => Array.from(storageMap.keys())[index] ?? null,
+  length: 0,
+};
+Object.defineProperty(memoryStorage, "length", {
+  get: () => storageMap.size,
+});
+Object.defineProperty(window, "localStorage", {
+  value: memoryStorage,
+  writable: true,
+  configurable: true,
+});
+
 afterEach(cleanup);
 beforeEach(() => {
+  storageMap.clear();
   vi.clearAllMocks();
   mocks.printReceipt.mockReturnValue(true);
   mocks.quote.mockResolvedValue({

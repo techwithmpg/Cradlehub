@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-require-imports */
 // Isolated TEST harness. Explicit loopback cluster; never loads .env or remote URLs.
 const { readFileSync, writeFileSync, mkdirSync } = require("node:fs");
 const { resolve } = require("node:path");
