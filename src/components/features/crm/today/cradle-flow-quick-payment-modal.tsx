@@ -1414,12 +1414,6 @@ export function CradleFlowQuickPaymentModal({
               Amounts come from the current Cash Flow payable-order context. The server validates
               financial writes.
             </p>
-            <Link
-              href="/crm/cash-flow?entry=payment"
-              className="block rounded-lg border border-[#e9e2d8] px-3 py-2 text-center text-xs font-semibold"
-            >
-              Advanced Cash Flow options
-            </Link>
           </aside>
         </div>
         {paymentError ? (
