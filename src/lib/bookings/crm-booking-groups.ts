@@ -230,7 +230,11 @@ export function groupCrmBookings(rows: readonly WorkspaceBookingRow[], groupOrde
   return groupBookingsByOrder(
     rows,
     {
-      organizerName: (line) => firstBookingRelation(line.customers)?.full_name ?? "Customer",
+      organizerName: (line) => {
+        const attendeeName = firstBookingRelation(line.booking_attendees)?.display_name?.trim();
+        const customerName = firstBookingRelation(line.customers)?.full_name?.trim();
+        return attendeeName || customerName || "Customer";
+      },
       payment: (line) => {
         if (line.order_id) {
           // When order_id exists, authoritative order financial evidence is required.

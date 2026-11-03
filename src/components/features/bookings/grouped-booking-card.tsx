@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { ChevronDown, ChevronUp, Users } from "lucide-react";
+import { ChevronDown, ChevronUp, User, Users } from "lucide-react";
 import {
   groupCrmBookings,
   getBookingPaymentDisplayState,
@@ -42,6 +42,8 @@ export function GroupedBookingCard({
   const payment = getBookingPaymentDisplayState(group.payment, group.lines[0]);
   const lines = showAll ? group.lines : matchingLines;
   const visibleLines = lines.slice(0, visibleLineCount);
+  const guestCount = bookingGuestCount(group);
+  const isMultiGuest = guestCount > 1;
   const status = summary.active
     ? "In Service"
     : summary.waiting
@@ -53,7 +55,7 @@ export function GroupedBookingCard({
   return (
     <article
       className={`rounded-xl border bg-white shadow-sm ${expanded ? "border-emerald-200 ring-1 ring-emerald-100" : "border-neutral-200"}`}
-      aria-label={`Group booking ${group.organizerName}`}
+      aria-label={isMultiGuest ? `Group booking ${group.organizerName}` : `Appointment for ${group.organizerName}`}
     >
       <header
         onClick={() => onSelect(primary)}
@@ -69,12 +71,14 @@ export function GroupedBookingCard({
         </div>
         <div className="flex min-w-[190px] flex-1 items-center gap-3">
           <span className="grid size-10 shrink-0 place-items-center rounded-full bg-emerald-100 text-emerald-900">
-            <Users className="size-5" />
+            {isMultiGuest ? <Users className="size-5" /> : <User className="size-5" />}
           </span>
           <div>
             <h2 className="text-sm font-bold text-neutral-950">{group.organizerName}</h2>
             <p className="text-xs text-neutral-500">
-              Group booking · {bookingGuestCount(group)} guests · {group.lines.length} sessions
+              {isMultiGuest
+                ? `Group booking · ${guestCount} guests · ${group.lines.length} sessions`
+                : `Single guest · 1 guest · ${group.lines.length} ${group.lines.length === 1 ? "service" : "services"}`}
             </p>
             {group.orderNumber ? <p className="text-xs text-neutral-500">{group.orderNumber}</p> : null}
           </div>
