@@ -19,6 +19,7 @@ export function BookingDetailsModal({
   onReschedule: (booking: WorkspaceBookingRow) => void;
 }) {
   const [resetKey, setResetKey] = useState(0);
+  const [editResetKey, setEditResetKey] = useState(0);
   const line = group?.lines[0];
   const attendee = line ? firstBookingRelation(line.booking_attendees) : null;
   const customer = line ? firstBookingRelation(line.customers) : null;
@@ -74,9 +75,9 @@ export function BookingDetailsModal({
               onClose={() => setResetKey((value) => value + 1)}
             />
             <HorizontalBookingQuickEdit
-              key={line.id}
+              key={`${line.id}:${editResetKey}`}
               group={group}
-              onCancel={() => onOpenChange(false)}
+              onCancel={() => setEditResetKey((value) => value + 1)}
               onPartialSave={onChanged}
               onOpenFallbackReschedule={onReschedule}
               onSaved={() => {
