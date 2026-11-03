@@ -55,6 +55,10 @@ const confirm = (key) =>
   `SELECT public.confirm_online_booking_order_atomic(${bookingId(key)}, '${branch}');`;
 
 await run(
+  "DELETE FROM public.bookings WHERE order_id IN (SELECT id FROM public.booking_orders WHERE idempotency_key IN ('race-a', 'race-b', 'race-idempotency', 'config-race')); DELETE FROM public.booking_orders WHERE idempotency_key IN ('race-a', 'race-b', 'race-idempotency', 'config-race');"
+);
+
+await run(
   "UPDATE public.branch_resources SET is_active = (sort_order <= 5) WHERE branch_id = '00000000-0000-4000-8000-000000000001';"
 );
 
