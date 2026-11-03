@@ -1,4 +1,6 @@
 import type { WorkspaceBookingRow } from "./booking-workspace-types";
+import type { CrmBookingGroup } from "@/lib/bookings/crm-booking-groups";
+import { BookingDetailsModal } from "./booking-details-modal";
 import { CustomerArrivedModal } from "./customer-arrived-modal";
 import { RescheduleBookingModal } from "./reschedule-booking-modal";
 import { RoomAssignmentModal } from "./room-assignment-modal";
@@ -7,6 +9,7 @@ export type BookingModalState =
   | { type: "arrival"; booking: WorkspaceBookingRow }
   | { type: "room"; booking: WorkspaceBookingRow }
   | { type: "reschedule"; booking: WorkspaceBookingRow }
+  | { type: "details"; group: CrmBookingGroup }
   | null;
 
 export function BookingsModalStack({
@@ -22,6 +25,14 @@ export function BookingsModalStack({
 }) {
   return (
     <>
+      <BookingDetailsModal
+        key={state?.type === "details" ? state.group.primaryBookingId : "details-closed"}
+        open={state?.type === "details"}
+        group={state?.type === "details" ? state.group : null}
+        onOpenChange={(open) => { if (!open) onStateChange(null); }}
+        onChanged={onChanged}
+        onReschedule={(booking) => onStateChange({ type: "reschedule", booking })}
+      />
       <CustomerArrivedModal
         key={state?.type === "arrival" ? state.booking.id : "arrival-closed"}
         open={state?.type === "arrival"}
