@@ -40,6 +40,7 @@ import {
 } from "@/app/(dashboard)/crm/bookings/actions";
 import { HorizontalBookingQuickEdit } from "./horizontal-booking-quick-edit";
 import { BookingSessionWorkspace } from "./booking-session-workspace";
+import { AnimatedSessionTimer } from "./animated-session-timer";
 
 type HorizontalBookingRowProps = {
   group: CrmBookingGroup;
@@ -50,6 +51,7 @@ type HorizontalBookingRowProps = {
   onBookingsChanged?: () => void;
   paymentAction?: BookingActionFn;
   onOpenFallbackReschedule?: (booking: WorkspaceBookingRow) => void;
+  onOpenDetails?: (booking: WorkspaceBookingRow) => void;
 };
 
 function getServiceIcon(name: string) {
@@ -72,6 +74,7 @@ export function HorizontalBookingRow({
   onBookingsChanged,
   paymentAction,
   onOpenFallbackReschedule,
+  onOpenDetails,
 }: HorizontalBookingRowProps) {
   const primaryLine: WorkspaceBookingRow = group.lines[0]!;
 
@@ -553,8 +556,11 @@ export function HorizontalBookingRow({
                 <button
                   type="button"
                   onClick={() => {
-                    setShowDetails(true);
-                    if (!isExpanded) onToggleExpand();
+                    if (onOpenDetails) onOpenDetails(targetLine);
+                    else {
+                      setShowDetails(true);
+                      if (!isExpanded) onToggleExpand();
+                    }
                   }}
                   className="min-h-10 w-full rounded px-3 text-left text-sm hover:bg-neutral-50"
                 >
@@ -573,7 +579,8 @@ export function HorizontalBookingRow({
                   <button
                     type="button"
                     onClick={() => {
-                      if (!isExpanded) onToggleExpand();
+                      if (onOpenDetails) onOpenDetails(targetLine);
+                      else if (!isExpanded) onToggleExpand();
                     }}
                     className="min-h-10 w-full rounded px-3 text-left text-sm hover:bg-neutral-50"
                   >
@@ -586,7 +593,7 @@ export function HorizontalBookingRow({
               type="button"
               onClick={onToggleExpand}
               className="grid size-10 place-items-center rounded-lg border border-neutral-200 text-neutral-500 transition hover:bg-neutral-100 hover:text-neutral-800 focus-visible:ring-2 focus-visible:ring-emerald-700"
-              aria-label={isExpanded ? "Collapse quick edit" : "Expand quick edit"}
+              aria-label={isExpanded ? "Collapse booking preview" : "Expand booking preview"}
               aria-expanded={isExpanded}
             >
               {isExpanded ? <ChevronUp className="size-4" /> : <ChevronDown className="size-4" />}
@@ -607,7 +614,43 @@ export function HorizontalBookingRow({
         </div>
       </div>
 
-      {isExpanded ? (
+      {isExpanded && onOpenDetails ? (
+        <section
+          data-testid="booking-inline-preview"
+          aria-label={`Service summary for ${targetGuestName}`}
+          className="grid gap-3 border-t border-neutral-200 bg-stone-50/40 px-4 py-3 sm:grid-cols-[auto_minmax(0,1fr)_auto] sm:items-center sm:px-5"
+        >
+          <div className="flex items-center gap-3">
+            {isInService || isCompleted ? (
+              <AnimatedSessionTimer session={{ ...targetLine, durationMinutes: totalDurationMinutes }} />
+            ) : (
+              <span className="grid size-16 place-items-center rounded-full border-4 border-neutral-200 bg-white text-center text-[11px] font-semibold text-neutral-600">
+                Not started
+              </span>
+            )}
+            <div className="text-xs text-neutral-600">
+              <p className="font-semibold text-neutral-900">{statusPillLabel}</p>
+              <p>{totalDurationMinutes} min planned</p>
+              {targetLine.session_due_at ? (
+                <p>Due: {new Intl.DateTimeFormat("en-PH", { timeZone: "Asia/Manila", hour: "numeric", minute: "2-digit" }).format(new Date(targetLine.session_due_at))}</p>
+              ) : null}
+            </div>
+          </div>
+          <div className="min-w-0 space-y-1 text-xs text-neutral-700">
+            <p><span className="font-semibold text-neutral-900">{targetGuestName}</span> · {targetServiceName}</p>
+            <p>Therapist: {staff?.full_name || staff?.nickname || "Unassigned"} · Room: {isHomeService ? "Home Service" : resource?.name || "Unassigned"}</p>
+            <p>Payment: {paymentState.label}</p>
+          </div>
+          <button
+            type="button"
+            onClick={() => onOpenDetails(targetLine)}
+            className="min-h-9 rounded-lg border border-emerald-700 bg-white px-4 text-xs font-semibold text-emerald-800 hover:bg-emerald-50"
+          >
+            View Details
+          </button>
+        </section>
+      ) : null}
+      {isExpanded && !onOpenDetails ? (
         <>
           <BookingSessionWorkspace
             line={targetLine}
@@ -657,7 +700,7 @@ export function HorizontalBookingRow({
         </>
       ) : null}
       {/* Existing quick edit retains its server validation. */}
-      {isExpanded && showDetails ? (
+      {isExpanded && !onOpenDetails && showDetails ? (
         <HorizontalBookingQuickEdit
           group={group}
           onCancel={onToggleExpand}
