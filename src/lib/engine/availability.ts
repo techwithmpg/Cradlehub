@@ -25,6 +25,8 @@ import {
   validateBranchServiceEligibility,
 } from "@/lib/services/service-catalog";
 import type { ServiceDeliveryMode } from "@/lib/services/service-types";
+import { findDistinctStaffAssignment } from "./staff-assignment";
+export { findDistinctStaffAssignment } from "./staff-assignment";
 
 type StaffProviderRow = {
   id: string;
@@ -963,28 +965,6 @@ export type OrderAttendeeRequirement = {
   selectedDurationMinutes?: number[];
 };
 
-export function findDistinctStaffAssignment(
-  candidateStaffPerAttendee: string[][],
-  assignedStaff: string[] = []
-): string[] | null {
-  const attendeeIdx = assignedStaff.length;
-  if (attendeeIdx === candidateStaffPerAttendee.length) {
-    return assignedStaff;
-  }
-
-  const candidates = candidateStaffPerAttendee[attendeeIdx]!;
-  for (const staffId of candidates) {
-    if (!assignedStaff.includes(staffId)) {
-      const result = findDistinctStaffAssignment(candidateStaffPerAttendee, [
-        ...assignedStaff,
-        staffId,
-      ]);
-      if (result) return result;
-    }
-  }
-  return null;
-}
-
 /**
  * Calculates availability for a multi-attendee booking order.
  * - Same attendee's services run sequentially (handled by getAvailableSlotsMulti)
@@ -1155,11 +1135,14 @@ export async function assignTherapistsForOrder(params: {
 
   const assignment = findDistinctStaffAssignment(candidateLists);
   if (!assignment || assignment.length !== attendees.length) {
+    const availableCount = new Set(candidateLists.flat()).size;
     throw new GroupTherapistAllocationError(
       "GROUP_THERAPIST_CAPACITY_EXCEEDED",
       undefined,
       undefined,
-      `Not enough distinct therapists are available to serve all ${attendees.length} guests simultaneously.`
+      availableCount < attendees.length
+        ? `Only ${availableCount} qualified therapists are available at this time. This group requires ${attendees.length} simultaneous therapist assignments.`
+        : `The available therapists cannot cover every guest's service requirements simultaneously at this time.`
     );
   }
 

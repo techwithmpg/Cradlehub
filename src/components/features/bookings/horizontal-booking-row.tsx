@@ -405,6 +405,7 @@ export function HorizontalBookingRow({
                 ? customer?.phone || "No phone on file"
                 : "Guest contact not on file"}
             </div>
+            {group.orderNumber ? <div className="text-[11px] text-neutral-500">Booking {group.orderNumber}</div> : null}
           </div>
         </div>
 

@@ -16,6 +16,7 @@ import {
   assignTherapistsForOrder,
 } from "@/lib/engine/availability";
 import { computeEndTimeForResolvedDuration } from "@/lib/engine/booking-time";
+import { allocateResourcesForAttendees } from "@/lib/engine/resource-availability";
 import { buildBookingSnapshot } from "@/lib/engine/snapshot";
 import {
   validateBookingAgainstBranchRules,
@@ -23,7 +24,7 @@ import {
 } from "@/lib/queries/branch-booking-rules";
 import { checkHomeServiceDispatchConflict } from "@/lib/bookings/dispatch-conflict";
 import { buildGoogleMapsSearchUrl } from "@/lib/maps/google-maps";
-import { SlotUnavailableError } from "@/types/errors";
+import { GroupTherapistAllocationError, SlotUnavailableError } from "@/types/errors";
 import { createNotification } from "@/lib/notifications/create";
 import { logError, logBusinessEvent } from "@/lib/logger";
 import { revalidateOperationalBookingSurfaces } from "@/lib/bookings/revalidate-booking-surfaces";
@@ -97,7 +98,9 @@ export type CreateOnlineBookingResult =
   | { ok: false; code: string; message: string };
 
 const PUBLIC_BOOKING_COOLDOWN_MS = 5 * 60 * 1000;
-const MAX_PUBLIC_BOOKING_PAYLOAD_BYTES = 12_000;
+// Request-size protection for abusive payloads; booking acceptance is based on
+// service availability, not an attendee or service-line count.
+const MAX_PUBLIC_BOOKING_PAYLOAD_BYTES = 512_000;
 
 function normalizePhone(value: string): string {
   return value.replace(/\D/g, "");
@@ -164,7 +167,7 @@ export async function createOnlineBookingAction(
     return {
       ok: false,
       code: "PAYLOAD_TOO_LARGE",
-      message: "Please shorten your request and try again.",
+      message: "This booking request exceeds the 512 KB request-size limit. Please contact the branch to arrange a submission method for this group.",
     };
   }
   const parsed = createOnlineBookingSchema.safeParse(input);
@@ -558,7 +561,7 @@ export async function createOnlineBookingMultiAction(
     return {
       ok: false,
       code: "PAYLOAD_TOO_LARGE",
-      message: "Please shorten your request and try again.",
+      message: "This booking request exceeds the 512 KB request-size limit. Please contact the branch to arrange a submission method for this group.",
     };
   }
   const parsed = createOnlineBookingMultiSchema.safeParse(input);
@@ -797,6 +800,25 @@ export async function createOnlineBookingMultiAction(
         preferredStaffId: d.staffId,
         requireStaffServiceAssignment: true,
       });
+    }
+
+    if (deliveryType === "in_spa" && attendees.length > 1) {
+      const roomWindows = attendees.map((attendee, attendeeIndex) => {
+        let endTime = d.startTime;
+        attendee.serviceIds.forEach((serviceId, lineIndex) => {
+          const service = servicesMap.get(serviceId)!;
+          endTime = computeEndTimeForResolvedDuration({
+            startTime: endTime,
+            selectedDurationMinutes: attendeeQuotes[attendeeIndex]![lineIndex]!.selectedDurationMinutes,
+            bufferBeforeMinutes: service.buffer_before,
+            bufferAfterMinutes: service.buffer_after,
+          });
+        });
+        return { startTime: d.startTime, endTime };
+      });
+      if (!await allocateResourcesForAttendees({ branchId: d.branchId, date: d.date, windows: roomWindows })) {
+        return { ok: false, code: "RESOURCE_UNAVAILABLE", message: "Not enough treatment room capacity is available for every guest at this time. Please choose another time or contact the branch." };
+      }
     }
 
     const { data: customerId, error: custErr } = await supabase.rpc("upsert_customer", {
@@ -1137,6 +1159,12 @@ export async function createOnlineBookingMultiAction(
       };
     }
 
+    if (rpcResult.service_line_ids?.length !== atomicServiceLines.length ||
+      rpcResult.attendee_ids?.length !== attendees.length) {
+      logBookingError(logContext, new Error("Atomic booking response did not contain every guest and service line"));
+      return { ok: false, code: "BOOKING_SUBMISSION_UNVERIFIED", message: "We could not verify the complete booking. Please contact the branch with your request details before submitting again." };
+    }
+
     const primaryBookingId = rpcResult.service_line_ids[0] ?? "";
     const orderId = rpcResult.order_id;
     const orderNumber = rpcResult.order_number;
@@ -1280,6 +1308,9 @@ export async function createOnlineBookingMultiAction(
   } catch (err) {
     if (err instanceof ServiceLineQuoteError) {
       return { ok: false, code: err.code, message: "Service duration or price changed. Please review your services and try again." };
+    }
+    if (err instanceof GroupTherapistAllocationError) {
+      return { ok: false, code: err.reason, message: err.message };
     }
     if (err instanceof SlotUnavailableError) {
       return {

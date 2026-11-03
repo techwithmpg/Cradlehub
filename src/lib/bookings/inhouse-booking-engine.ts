@@ -1209,6 +1209,17 @@ export async function executeInhouseBookingCreation(
       };
     }
     const insertedIds = atomicData.service_line_ids;
+    if (insertedIds.length !== serviceLines.length || atomicData.attendee_ids?.length !== attendees.length) {
+      return {
+        ok: false,
+        code: "BOOKING_SUBMISSION_UNVERIFIED",
+        title: "Booking submission unresolved",
+        message: "Could not verify that every guest and service was saved. Check the booking order before retrying.",
+        field: "general",
+        correctiveAction: "Check the booking order and guest sessions before resubmitting.",
+        retrySafety: "verify_first",
+      };
+    }
     const isReplay = atomicData.idempotency_status === "replayed";
 
     const isHomeService = deliveryType === "home_service";
@@ -1387,7 +1398,7 @@ export async function executeInhouseBookingCreation(
         ok: false,
         code: "GROUP_THERAPIST_CAPACITY_EXCEEDED",
         title: "Not enough therapists for this group",
-        message: `Not enough distinct qualified therapists are available to serve all ${attendees.length} guests simultaneously.`,
+        message: gError.message,
         field: "staffId",
         correctiveAction: "Choose another start time or adjust the number of concurrent guests.",
         retrySafety: "safe",

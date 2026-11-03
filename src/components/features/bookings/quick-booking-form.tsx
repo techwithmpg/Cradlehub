@@ -131,8 +131,6 @@ type QuickBookingFormProps = {
   }) => void;
   onDirtyChange?: (dirty: boolean) => void;
   onGroupBookingChange?: (groupBooking: boolean) => void;
-  /** Non-submitting layout previews only. CRM creation remains capped at four attendees. */
-  previewGuestCapacity?: number;
 };
 
 type CustomerSearchRow = {
@@ -371,7 +369,6 @@ export function QuickBookingForm({
   onSuccess,
   onDirtyChange,
   onGroupBookingChange,
-  previewGuestCapacity,
 }: QuickBookingFormProps) {
   const router = useRouter();
   const formId = useId();
@@ -403,13 +400,13 @@ export function QuickBookingForm({
   const [lineQuotes, setLineQuotes] = useState<Record<string, ServiceLineQuote>>({});
   const [firstAttendeeId] = useState(() => crypto.randomUUID());
   const [additionalGuests, setAdditionalGuests] = useState<BookingOrderAttendeeInput[]>([]);
+  const [activeGuestId, setActiveGuestId] = useState(firstAttendeeId);
   const [durationEditorServiceByGuest, setDurationEditorServiceByGuest] = useState<
     Record<string, string>
   >({});
   const [summaryGuestPage, setSummaryGuestPage] = useState(0);
   const guestScrollRef = useRef<HTMLDivElement>(null);
   const groupBooking = additionalGuests.length > 0;
-  const guestCardCapacity = Math.max(4, Math.min(20, previewGuestCapacity ?? 4));
   const organizerDraft: BookingOrderAttendeeInput = {
     id: firstAttendeeId,
     name: fullName.trim(),
@@ -870,9 +867,9 @@ export function QuickBookingForm({
   useEffect(() => {
     const controller = new AbortController();
     if (!groupBooking || !date || !time) return;
-    const guestsToCheck = additionalGuests
-      .slice(0, 3)
-      .filter((guest) => guest.serviceIds.length > 0);
+    const guestsToCheck = additionalGuests.filter(
+      (guest) => guest.id === activeGuestId && guest.serviceIds.length > 0
+    );
     if (guestsToCheck.length === 0) return;
     const id = window.setTimeout(() => {
       setGuestAvailabilityPending(true);
@@ -915,6 +912,7 @@ export function QuickBookingForm({
     };
   }, [
     additionalGuests,
+    activeGuestId,
     branchId,
     date,
     time,
@@ -1114,7 +1112,6 @@ export function QuickBookingForm({
   }
 
   function addGuest() {
-    if (additionalGuests.length + 1 >= guestCardCapacity) return;
     const id = crypto.randomUUID();
     setAdditionalGuests((current) => [
       ...current,
@@ -1125,12 +1122,14 @@ export function QuickBookingForm({
         serviceIds: [],
       },
     ]);
+    setActiveGuestId(id);
     setGuestSelectedStaffIds({});
     setResourceId("");
     setFieldErrors((current) => ({ ...current, service: undefined, staffId: undefined }));
   }
 
   function removeGuest(id: string) {
+    if (activeGuestId === id) setActiveGuestId(firstAttendeeId);
     setSummaryGuestPage(0);
     setLineQuotes((current) =>
       Object.fromEntries(Object.entries(current).filter(([key]) => !key.startsWith(`${id}:`)))
@@ -1167,6 +1166,7 @@ export function QuickBookingForm({
   }
 
   function clearBookingGuests() {
+    setActiveGuestId(firstAttendeeId);
     setSummaryGuestPage(0);
     setSelectedServiceIds([]);
     setAdditionalGuests([]);
@@ -1306,8 +1306,6 @@ export function QuickBookingForm({
     }
     if (selectedServiceIds.length === 0) {
       nextErrors.service = "Select at least one service.";
-    } else if (selectedServiceIds.length > 5) {
-      nextErrors.service = "You can select up to 5 services per booking.";
     } else if (
       rescheduleBookingId &&
       initialServiceId &&
@@ -1326,11 +1324,9 @@ export function QuickBookingForm({
       if (missingGuestIndex > 0) {
         nextErrors.service = `Select at least one service for Guest ${missingGuestIndex + 1}.`;
       }
-      const invalidNameGuest = additionalGuests.find(
-        (guest) => guest.name?.trim() && guest.name.trim().length < 2
-      );
+      const invalidNameGuest = additionalGuests.find((guest) => (guest.name?.trim().length ?? 0) < 2);
       if (invalidNameGuest) {
-        nextErrors.fullName = "Guest names must be at least 2 characters.";
+        nextErrors.fullName = "Enter each guest's name (at least 2 characters).";
       }
     }
     if (!date) nextErrors.date = "Choose a valid date and time.";
@@ -1447,11 +1443,9 @@ export function QuickBookingForm({
       }),
       ...(groupBooking && {
         bookingFor: "me_and_others" as const,
-        attendees: attendeeDrafts.map((attendee, index) => ({
+        attendees: attendeeDrafts.map((attendee) => ({
           id: attendee.id,
-          name:
-            attendee.name?.trim() ||
-            (attendee.isOrganizer ? fullName.trim() : `Guest ${index + 1}`),
+          name: attendee.name?.trim() ?? "",
           isOrganizer: attendee.isOrganizer ?? false,
           serviceIds: attendee.serviceIds,
           serviceLines: attendee.serviceIds.map((serviceId) => ({
@@ -1528,12 +1522,6 @@ export function QuickBookingForm({
 
   async function submit() {
     if (isSaving || slotChecking || loadingCustomerIdentity || isDraftModifiedSinceSubmission) return;
-    if (attendeeDrafts.length > 4) {
-      setFormError(
-        "Current CRM booking contract supports up to 4 guests. This larger group is a layout preview only."
-      );
-      return;
-    }
 
     const nextErrors = validate();
     setFieldErrors(nextErrors);
@@ -1546,8 +1534,11 @@ export function QuickBookingForm({
         retrySafety: "safe",
       });
       const incompleteGuest = additionalGuests.find(
-        (guest) => guest.serviceIds.length === 0 || (guest.name?.trim() && guest.name.trim().length < 2)
+        (guest) => guest.serviceIds.length === 0 || (guest.name?.trim().length ?? 0) < 2
       );
+      if (incompleteGuest) {
+        setActiveGuestId(incompleteGuest.id);
+      }
       if (incompleteGuest && guestScrollRef.current) {
         guestScrollRef.current.scrollTop = guestScrollRef.current.scrollHeight;
       } else if (nextErrors.service && guestScrollRef.current) {
@@ -2743,7 +2734,7 @@ export function QuickBookingForm({
                     <button
                       type="button"
                       onClick={addGuest}
-                      disabled={isSaving || attendeeDrafts.length >= guestCardCapacity}
+                      disabled={isSaving}
                       className="inline-flex h-8 items-center gap-1 rounded-lg border border-[#006044] bg-white px-2 text-xs font-semibold text-[#006044] disabled:opacity-50"
                     >
                       <Plus size={13} /> Add Guest
@@ -2794,20 +2785,25 @@ export function QuickBookingForm({
                       {therapistAvailabilityMessage}
                     </p>
                   ) : null}
-                  {attendeeDrafts.map((attendee, index) => (
+                  <div className="flex max-h-36 flex-wrap gap-1 overflow-y-auto" aria-label="Guest list">
+                    {attendeeDrafts.map((attendee, index) => (
+                      <button
+                        key={attendee.id}
+                        type="button"
+                        onClick={() => setActiveGuestId(attendee.id)}
+                        aria-pressed={activeGuestId === attendee.id}
+                        className={cn("min-h-8 max-w-full truncate rounded-md border px-2 text-xs", activeGuestId === attendee.id ? "border-[#006044] bg-[#e0f3e9] text-[#006044]" : "border-[var(--cs-border)] bg-white")}
+                      >
+                        {index + 1}. {attendee.name || `Guest ${index + 1}`} · {attendee.serviceIds.length} services
+                      </button>
+                    ))}
+                  </div>
+                  {attendeeDrafts.map((attendee, index) => activeGuestId === attendee.id ? (
                     <div key={attendee.id} className="min-w-0 w-full">
                       {renderBookingGuest(attendee, index)}
                     </div>
-                  ))}
+                  ) : null)}
                 </div>
-                {attendeeDrafts.length >= 4 ? (
-                  <p className="mt-1 text-xs text-[var(--cs-warning-text)]">
-                    Current CRM booking contract supports up to 4 guests.
-                    {attendeeDrafts.length > 4
-                      ? " This larger group is a layout preview only and cannot be saved."
-                      : ""}
-                  </p>
-                ) : null}
                 {groupBooking ? (
                   <p className="mt-1 text-[11px] text-[var(--cs-text-muted)]">
                     Group therapist suggestions are provisional; the server assigns them on Save.{" "}
@@ -3224,7 +3220,6 @@ export function QuickBookingForm({
                     isSaving ||
                     slotChecking ||
                     loadingCustomerIdentity ||
-                    attendeeDrafts.length > 4 ||
                     isDraftModifiedSinceSubmission
                   }
                   className="cs-btn h-9 flex-1 rounded-lg bg-[#006044] text-xs text-white disabled:opacity-60"
