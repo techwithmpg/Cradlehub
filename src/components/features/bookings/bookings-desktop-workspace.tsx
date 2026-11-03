@@ -736,6 +736,10 @@ export function BookingsDesktopWorkspace(props: DesktopWorkspaceProps) {
                   onSelect={() => select(group.lines[0]!)}
                   onToggleExpand={toggle}
                   onBookingsChanged={props.onBookingsChanged}
+                  onOpenDetails={props.workspaceContext === "crm" ? (booking) => {
+                    select(booking);
+                    setModalState({ type: "details", group: groupCrmBookings([booking], false)[0]! });
+                  } : undefined}
                   paymentAction={
                     displayMode === "individual" && parent.lines.length > 1
                       ? undefined
