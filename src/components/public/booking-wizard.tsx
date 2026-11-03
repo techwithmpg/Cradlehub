@@ -2374,6 +2374,7 @@ export function BookingForSection({
             {attendees.map((att, idx) => {
               const isSelected = att.id === activeAttendeeId;
               const svcCount = att.serviceIds.length;
+              const guestLabel = att.isOrganizer ? "You" : att.name.trim() || `Guest ${idx + 1}`;
               return (
                 <div
                   key={att.id}
@@ -2387,10 +2388,10 @@ export function BookingForSection({
                     type="button"
                     onClick={() => onSelectAttendee(att.id)}
                     aria-pressed={isSelected}
-                    aria-label={`${att.isOrganizer ? "You" : att.name}, ${svcCount} ${svcCount === 1 ? "service" : "services"} selected`}
+                    aria-label={`${guestLabel}, ${svcCount} ${svcCount === 1 ? "service" : "services"} selected`}
                     className="flex min-h-11 flex-col justify-center px-3 text-left font-medium focus-visible:outline-2 focus-visible:outline-offset-[-2px] focus-visible:outline-[#D4B57A]"
                   >
-                    <span>{att.isOrganizer ? "You" : att.name}</span>
+                    <span>{guestLabel}</span>
                     <span
                       className={`text-[10px] ${svcCount > 0 ? "text-[#D4B57A]" : "text-[#F6EBD6]/65"}`}
                     >
@@ -2404,7 +2405,7 @@ export function BookingForSection({
                       type="button"
                       onClick={() => onRemoveAttendee(att.id)}
                       className="flex min-h-11 min-w-10 items-center justify-center border-l border-[#D4B57A]/20 text-[#F6EBD6]/75 hover:text-rose-300 focus-visible:outline-2 focus-visible:outline-offset-[-2px] focus-visible:outline-[#D4B57A]"
-                      aria-label={`Remove ${att.name}`}
+                      aria-label={`Remove ${guestLabel}`}
                     >
                       <X className="h-3.5 w-3.5" aria-hidden="true" />
                     </button>

@@ -6,6 +6,7 @@ import { createNotification, resolveNotificationsForEntity } from "@/lib/notific
 import { getNotificationTargetPath } from "@/lib/notifications/notification-targets";
 import { isResourceAvailable } from "@/lib/engine/resource-availability";
 import { revalidateOperationalBookingSurfaces } from "@/lib/bookings/revalidate-booking-surfaces";
+import { onlineConfirmationErrorMessage } from "@/lib/bookings/online-confirmation-error";
 import { revalidatePath } from "next/cache";
 import { triggerUtilityRoomTurnoverOnServiceCompletion } from "@/lib/staff-pwa/utility-turnover";
 import { logError } from "@/lib/logger";
@@ -1848,7 +1849,7 @@ export async function confirmCrmBooking(
         args: { p_booking_id: string; p_branch_id: string }
       ) => Promise<{
         data: { ok: boolean; changed_ids: string[] } | null;
-        error: { message: string } | null;
+        error: { message: string; details?: string | null } | null;
       }>;
     };
     const { data, error } = await atomicAdmin.rpc("confirm_online_booking_order_atomic", {
@@ -1864,8 +1865,7 @@ export async function confirmCrmBooking(
       });
       return {
         success: false,
-        error:
-          "This booking request could not be confirmed. Review its schedule and current status, then try again.",
+        error: onlineConfirmationErrorMessage(error),
       };
     }
     for (const id of data.changed_ids) {
