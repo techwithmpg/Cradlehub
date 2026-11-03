@@ -53,6 +53,18 @@ const bookingId = (key) =>
   `(SELECT b.id FROM public.bookings b JOIN public.booking_orders o ON o.id = b.order_id WHERE o.idempotency_key = '${key}' LIMIT 1)`;
 const confirm = (key) =>
   `SELECT public.confirm_online_booking_order_atomic(${bookingId(key)}, '${branch}');`;
+
+await run(
+  "UPDATE public.branch_resources SET is_active = (sort_order <= 5) WHERE branch_id = '00000000-0000-4000-8000-000000000001';"
+);
+
+await run(
+  "SELECT public.test_make_order('race-a', 5, 70, current_date + 500)->>'idempotency_status';"
+);
+await run(
+  "SELECT public.test_make_order('race-b', 5, 80, current_date + 500)->>'idempotency_status';"
+);
+
 const winner = run(`BEGIN; ${confirm("race-a")} SELECT pg_sleep(2); COMMIT;`);
 await new Promise((resolve) => setTimeout(resolve, 200));
 const competitor = run(
