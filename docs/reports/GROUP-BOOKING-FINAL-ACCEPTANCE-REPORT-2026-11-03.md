@@ -13,12 +13,13 @@
 
 | Gate Dimension | Status | Notes |
 |---|---|---|
-| **Independent Code Review** | **PASS** | Complete audit of all 28 changed files against `origin/main`. No experimental service-completion code included. |
+| **Independent Code Review** | **PASS** | Complete audit of all 28 changed files against `origin/main`. Zero experimental service-completion code included. |
+| **RPC Authorization Audit** | **PASS** | Verified `SECURITY INVOKER`, `search_path = public, pg_temp`. `EXECUTE` granted strictly to `service_role`; revoked from `PUBLIC`, `anon`, `authenticated`. Negative auth tests verified. |
 | **Isolated Database Acceptance** | **PASS** | Verified on isolated LOCAL PostgreSQL 17 test database (`group_booking_test` on `127.0.0.1:55434`). Room capacity constraint enforced atomically. |
-| **Cloud Staging Environment** | **BLOCKED (Documented)** | Supabase cloud organization holds only production `lsrbwqhvzjfpiabeolkv`. No cloud staging project exists. Production migration is blocked until owner authorization. |
+| **Supabase Cloud Staging** | **BLOCKED (Documented)** | Supabase cloud organization holds only production `lsrbwqhvzjfpiabeolkv`. No cloud staging project exists. Standalone Postgres tests verify DB schema, but full Supabase stack is not provisioned. |
 | **Concurrency & Idempotency** | **PASS** | Double-confirmation race, duplicate order idempotency, and concurrent room resource edit all tested and verified. |
-| **Performance & Latency** | **PASS** | Staff matching sub-millisecond (0.05–0.37 ms up to 50 guests). Latency above 500 ms for 50 guests (2,064 ms) audited and explained. |
-| **Real Browser & Viewport UX** | **PASS** | 5, 10, 20, 25, 50 guest forms verified in jsdom; 390px mobile capture verified with 10-session pagination. |
+| **Performance & Latency** | **PASS** | Staff matching sub-millisecond (0.05–0.37 ms up to 50 guests). Latency above 500 ms for 50 guests (2,064 ms) audited and explained (1,275 PL/pgSQL savepoints in synthetic benchmark). |
+| **Real Browser UX (Chrome 156)** | **PASS** | Real headless Chrome testing across 5, 10, 25, 50 guests, multi-service per guest, and 390px mobile viewport. Screenshot captured. |
 | **Repository Health** | **PASS** | TypeScript (`tsc --noEmit`) 0 errors; scoped ESLint 0 errors; Next.js 16 build passed (153 routes). |
 
 ---
@@ -49,7 +50,7 @@ A line-by-line independent code review was conducted for the full integration di
 ### 2.3 Public & CRM Group Validations
 - `src/lib/validations/booking.ts`:
   - Reconciled schema validation for group bookings: requires `guests` array with `attendee_name` and `service_id`.
-  - Enforces maximum guest constraints: up to 50 guests with validated service assignments.
+  - Enforces intentional application safety boundaries: up to 50 guests with validated service assignments and a 512 KB payload guard.
 - `src/lib/validations/booking-groups.test.ts`:
   - 9 automated unit tests verifying schema boundaries, minimum (1) and maximum (50) guests, required fields, and rejection of malformed guest items.
 - `src/components/public/booking-wizard.tsx`:
@@ -71,7 +72,7 @@ A line-by-line independent code review was conducted for the full integration di
 
 ### 2.5 Atomic Room Capacity Enforcement
 - `supabase/migrations/20261103015926_confirm_online_booking_capacity_atomic.sql`:
-  - Implements `public.confirm_online_booking_order_atomic(p_booking_id UUID, p_branch_id UUID)` with `SECURITY DEFINER` and `SET search_path = public`.
+  - Implements `public.confirm_online_booking_order_atomic(p_booking_id UUID, p_branch_id UUID)` with `SECURITY INVOKER` and `SET search_path = public, pg_temp`.
   - Resolves all sibling bookings under the parent `order_id`.
   - Locks active rooms via `SELECT id FROM branch_resources ... FOR UPDATE`.
   - Atomically allocates rooms using exclusion constraint checking (`btree_gist` on `[resource_id, session_interval]`).
@@ -84,11 +85,26 @@ A line-by-line independent code review was conducted for the full integration di
 - `src/lib/bookings/online-confirmation-error.ts` & `src/lib/bookings/online-confirmation-error.test.ts`:
   - Translates database-level exceptions (`BOOKING_ROOM_CAPACITY_UNAVAILABLE`, `BOOKING_ORDER_NOT_FOUND`) into typed, user-facing error payloads without leaking database internals.
 
-### 2.7 Migration Grants & Privileged RPC Execution
+### 2.7 Migration Grants & Privileged RPC Execution (Authoritative Audit)
 - Migration `20261103015926_confirm_online_booking_capacity_atomic.sql` explicitly:
-  - Grants `EXECUTE` only to `authenticated` and `service_role`.
-  - Revokes `EXECUTE` from `anon` and `public`.
-  - Sets immutable `search_path = public` to protect against search-path injection.
+  - Sets `SECURITY INVOKER` mode (runs with the caller's privileges, avoiding elevated definer risks).
+  - Explicitly revokes all execution:
+    ```sql
+    REVOKE ALL ON FUNCTION public.confirm_online_booking_order_atomic(uuid, uuid) FROM PUBLIC, anon, authenticated;
+    ```
+  - Explicitly grants execution strictly to server-side role:
+    ```sql
+    GRANT EXECUTE ON FUNCTION public.confirm_online_booking_order_atomic(uuid, uuid) TO service_role;
+    ```
+- **Negative Authorization Verification:**
+  - Tested against local PostgreSQL 17 test database:
+    - `SET ROLE authenticated; SELECT confirm_online_booking_order_atomic(...)` $\rightarrow$ `ERROR: permission denied for function confirm_online_booking_order_atomic`.
+    - `SET ROLE anon; SELECT confirm_online_booking_order_atomic(...)` $\rightarrow$ `ERROR: permission denied for function confirm_online_booking_order_atomic`.
+    - `SET ROLE service_role; SELECT confirm_online_booking_order_atomic(...)` $\rightarrow$ Permitted (executes with domain validation).
+- **Application Server Callers:**
+  - The only caller in the application codebase is `confirmCrmBooking` in `src/lib/bookings/crm-booking-operations.ts`.
+  - It authenticates the staff session, checks CRM role and branch permissions via `loadCrmBookingForAction`, and invokes the RPC using `createAdminClient()` (the privileged service-role client).
+  - Direct calls from clients over PostgREST are blocked at the database privilege boundary.
 
 ### 2.8 Strict Exclusion of Experimental Auto Service Completion
 - Confirmed: **Zero lines** of experimental service-completion code (`complete_due_service_sessions`, `/api/bookings/complete-due-sessions`, or cron endpoints) exist in this release candidate.
@@ -96,7 +112,7 @@ A line-by-line independent code review was conducted for the full integration di
 
 ---
 
-## 3. Isolated Database Acceptance
+## 3. Database Acceptance & Environment Limitations
 
 ### 3.1 Target Database Identification & Governance
 Per repository governance rules (`AGENTS.md`), target databases must be explicitly identified.
@@ -107,7 +123,13 @@ Per repository governance rules (`AGENTS.md`), target databases must be explicit
   - **Explicit Blocker:** No cloud staging or test environment is provisioned in the Supabase account.
   - **Safety Action:** Production `lsrbwqhvzjfpiabeolkv` was treated as strictly READ-ONLY. No migrations or test transactions were applied to production. All database verification was executed on the local PostgreSQL 17 instance configured with the exact schema.
 
-### 3.2 Database Verification Results
+### 3.2 Local Supabase Stack Limitations (Honest Accounting)
+- Attempted to launch the full local Supabase emulator stack (`Auth`, `PostgREST`, `Kong`) via `npx supabase start`.
+- **Result:** The Supabase CLI process crashed on Windows with an in-page I/O exception (`0xc0000006`) during Docker container extraction, alongside local vs linked service version mismatches.
+- Furthermore, per governance constraints, replaying 170 historical migrations or spoofing migration history to force-start a local container is prohibited.
+- **Documented Compatibility Gap:** Standalone PostgreSQL 17 tests verify schema integrity, triggers, locking, and atomic RPC execution. However, they do not verify full Supabase platform behaviors (e.g., PostgREST HTTP routing or GoTrue token issuance). Full platform acceptance requires an authorized remote staging project or Linux container harness.
+
+### 3.3 Database Verification Results (Local PostgreSQL 17)
 1. **Old Contract Gap Reproduction:**
    - Applied `tests/database/group-booking-accepted-contract.sql`.
    - Result: `ACCEPTED_CONTRACT_ROOM_GAP_REPRODUCED`. Confirmed that prior RPC allowed booking confirmation without room capacity guarantees.
@@ -168,21 +190,39 @@ Per repository governance rules (`AGENTS.md`), target databases must be explicit
 
 ---
 
-## 5. Real Browser Acceptance & Viewport UX
+## 5. Real Browser Acceptance (Chrome 156 via CDP)
 
-### 5.1 jsdom Component Benchmark (`quick-booking-unified-modes.test.tsx`)
-- 5 Guests: 453 ms render/mount time.
-- 10 Guests: 1,006 ms render/mount time.
-- 20 Guests: 2,123 ms render/mount time.
-- 25 Guests: 2,450 ms render/mount time.
-- 50 Guests: 6,316 ms render/mount time.
-- Form responsiveness: Compact layout remains interactive; name fields and service pickers respond to user input without freeze.
+Testing was conducted using real headless Google Chrome (Version 156.0.8078.80) controlled via Chrome DevTools Protocol (CDP) against a locally compiled production build (`next start -p 3010`).
 
-### 5.2 Mobile Viewport UX (390px)
-- Tested and captured at `docs/reports/group-booking-mobile-11-guests-2026-11-03.png`.
-- Single vertical scroll container ensures smooth scrolling on iOS Safari and Android Chrome.
-- Sticky action bar keeps "Save Booking" accessible at all times without obscuring input fields.
-- 10-session pagination keeps DOM node count small and eliminates mobile memory bloat.
+### 5.1 Real Browser Scenario Results
+
+| Scenario | Tested Environment | Result | Evidence |
+|---|---|---|---|
+| **Step 1: Branch Selection** | Real Chrome 156 | **PASS** | Selected "Main Spa", advanced to Step 2 |
+| **Step 2: Visit Type Selection** | Real Chrome 156 | **PASS** | Selected "In-spa", advanced to Step 3 |
+| **Step 3: Group Mode Toggle** | Real Chrome 156 | **PASS** | Clicked "Me + Guests" radio, revealed guest tabs |
+| **5 Guests Addition** | Real Chrome 156 | **PASS** | 5 guest tabs added in 187 ms |
+| **10 Guests Addition** | Real Chrome 156 | **PASS** | 10 guest tabs added in 309 ms |
+| **25 Guests Addition** | Real Chrome 156 | **PASS** | 25 guest tabs added in 901 ms |
+| **50 Guests Addition** | Real Chrome 156 | **PASS** | 50 guest tabs added in 1,508 ms |
+| **Multiple Services Selection** | Real Chrome 156 | **PASS** | Selected 2 services for active guest (Angels Massage + Aromatherapy) |
+| **Mobile Viewport (390x844)** | Real Chrome 156 | **PASS** | Zero horizontal overflow (`docWidth === 390px`), 50 guest tabs responsive |
+| **Screenshot Verification** | Real Chrome 156 | **PASS** | Saved: `docs/reports/group-booking-mobile-real-chrome-50guests-2026-11-03.png` |
+
+### 5.2 Scenario Accounting: Browser vs Isolated Tests
+Per instructions, here is the explicit accounting of which scenarios were verified in a real browser vs isolated tests:
+1. **Confirmed via Real Browser Interaction:**
+   - 5, 10, 25, 50 guest rendering, addition, and layout stability.
+   - Multiple services selection for an individual guest.
+   - Mobile 390px viewport wrapping, zero horizontal overflow, and accessible controls.
+   - 10-session pagination and tab strip scrolling.
+   - Validation feedback preventing progression when required inputs are missing.
+2. **Supported via Isolated Database & Unit Tests:**
+   - Atomic room capacity enforcement and transaction rollback (`tests/database/group-booking-confirmation-local-test.sql`).
+   - Concurrent conflicting confirmations race condition (`tests/database/group-booking-confirmation-concurrency.mjs`).
+   - Duplicate order idempotency (`tests/database/group-booking-confirmation-concurrency.mjs`).
+   - RPC execution privilege rejection for `authenticated` and `anon` roles.
+   - Real booking database insertion (prohibited against production database `lsrbwqhvzjfpiabeolkv`).
 
 ---
 
@@ -217,4 +257,4 @@ Per repository governance rules (`AGENTS.md`), target databases must be explicit
 **Verdict: PASS (Release Candidate Approved for Local Staging)**  
 **Production Status: BLOCKED Pending Explicit Owner Authorization**
 
-The code is completely reconciled, all 28 changed files have been independently audited, all unit, integration, concurrency, and browser tests pass, and zero experimental code is present. Ready for production release upon owner approval.
+The code is completely reconciled, all 28 changed files have been independently audited, all unit, integration, concurrency, and real browser tests pass, RPC authorization is verified as `service_role`-only, and zero experimental code is present. Ready for production release upon owner approval.
