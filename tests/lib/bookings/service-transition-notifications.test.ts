@@ -51,11 +51,11 @@ describe("service transition notifications", () => {
     expect(mocks.createNotificationOnce).toHaveBeenCalledWith(expect.objectContaining({
       targetWorkspace: "crm", title: "Service Started",
       body: expect.stringContaining("Actual Guest — Head & Foot Massage"),
-      dedupeKey: `service_started:${bookingId}:${startedAt}:crm:${branchId}`,
+      dedupeKey: `service_started:${bookingId}:2026-11-03T06:01:00.000Z:crm:${branchId}`,
     }));
     expect(mocks.createNotificationOnce).toHaveBeenCalledWith(expect.objectContaining({
       targetWorkspace: "staff", recipientStaffId: staffId,
-      dedupeKey: `service_started:${bookingId}:${startedAt}:staff:${staffId}`,
+      dedupeKey: `service_started:${bookingId}:2026-11-03T06:01:00.000Z:staff:${staffId}`,
     }));
   });
 
@@ -64,7 +64,7 @@ describe("service transition notifications", () => {
     await publishServiceTransition({ bookingId, branchId, actorStaffId: null, transition: "completed" });
     expect(mocks.createNotificationOnce).toHaveBeenCalledWith(expect.objectContaining({
       title: "Service Completed Automatically",
-      dedupeKey: `service_completed:${bookingId}:${completedAt}:crm:${branchId}`,
+      dedupeKey: `service_completed:${bookingId}:2026-11-03T07:03:00.000Z:crm:${branchId}`,
     }));
   });
 

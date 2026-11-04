@@ -69,6 +69,9 @@ begin
       and b.session_started_at >= policy.eligible_started_after
       and b.session_started_at >= policy.activated_at
       and b.delivery_type = 'in_spa'
+      -- A canonical parent order is required before any chargeable continuation
+      -- can be safely reconciled. Legacy orphan lines require staff review.
+      and b.order_id is not null
       and b.resource_id is not null
       and b.session_start_source in ('crm', 'staff_portal', 'room_qr', 'manager')
       and b.booking_date = (b.session_started_at at time zone 'Asia/Manila')::date
@@ -108,7 +111,7 @@ begin
     v_body := v_recipient || ' · ' || v_service || ' · ' ||
       to_char(v_completed_at at time zone 'Asia/Manila', 'HH12:MI AM');
     v_event_id := 'service_completed:' || v_booking.id::text || ':' ||
-      to_char(v_completed_at at time zone 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS.US"Z"');
+      to_char(v_completed_at at time zone 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS.MS"Z"');
     v_metadata := jsonb_build_object(
       'service_transition', 'completed',
       'service_transition_event_id', v_event_id,

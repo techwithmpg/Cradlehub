@@ -58,6 +58,24 @@ where id in (
   '60000000-0000-0000-0000-000000000003'
 );
 
+-- Legacy active line: otherwise due, but without a canonical parent order.
+insert into public.bookings (
+  id, branch_id, staff_id, customer_id, service_id, resource_id,
+  booking_date, delivery_type, status, booking_progress_status,
+  session_start_source, session_started_at, session_due_at
+) values (
+  '60000000-0000-0000-0000-000000000005',
+  '10000000-0000-0000-0000-000000000001',
+  '20000000-0000-0000-0000-000000000001',
+  '30000000-0000-0000-0000-000000000001',
+  '40000000-0000-0000-0000-000000000001',
+  '70000000-0000-0000-0000-000000000001',
+  (clock_timestamp() at time zone 'Asia/Manila')::date,
+  'in_spa', 'in_progress', 'session_started', 'crm',
+  clock_timestamp() - interval '9 minutes',
+  clock_timestamp() - interval '3 minutes'
+);
+
 do $assert_disabled$
 begin
   if not exists (
@@ -102,6 +120,10 @@ begin
   end if;
   if (select count(*) from public.bookings where status = 'completed') <> 1 then
     raise exception 'incorrect number of completed service lines';
+  end if;
+  if (select status from public.bookings
+      where id = '60000000-0000-0000-0000-000000000005') <> 'in_progress' then
+    raise exception 'legacy booking without order was auto-completed';
   end if;
   if not exists (
     select 1 from public.bookings
