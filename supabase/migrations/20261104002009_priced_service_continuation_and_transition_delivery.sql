@@ -16,6 +16,21 @@ alter table public.fixed_service_continuation_options enable row level security;
 revoke all on public.fixed_service_continuation_options from public, anon, authenticated;
 grant select, insert, update on public.fixed_service_continuation_options to service_role;
 
+-- Existing extendable catalogue prices also require an explicit owner approval.
+-- A subsequent catalogue edit invalidates the snapshot until reapproved.
+create table public.extendable_service_continuation_approvals (
+  service_id uuid primary key references public.services(id) on delete restrict,
+  increment_minutes integer not null check (increment_minutes between 1 and 180),
+  price_per_increment numeric(10,2) not null check (price_per_increment > 0),
+  maximum_total_minutes integer not null check (maximum_total_minutes between 15 and 720),
+  approved_by uuid not null references public.staff(id) on delete restrict,
+  approved_at timestamptz not null default clock_timestamp()
+);
+alter table public.extendable_service_continuation_approvals enable row level security;
+revoke all on public.extendable_service_continuation_approvals
+  from public, anon, authenticated;
+grant select, insert, update on public.extendable_service_continuation_approvals to service_role;
+
 -- Appointment start cutoff is not a treatment closing time. No default is safe.
 create table public.branch_treatment_closing_policy (
   branch_id uuid primary key references public.branches(id) on delete restrict,
@@ -93,6 +108,51 @@ end $$;
 revoke all on function public.set_fixed_service_continuation_option(uuid,integer,numeric,integer)
   from public, anon, authenticated;
 grant execute on function public.set_fixed_service_continuation_option(uuid,integer,numeric,integer)
+  to authenticated;
+
+create or replace function public.approve_extendable_service_continuation(
+  p_service_id uuid, p_enabled boolean
+) returns void language plpgsql security definer set search_path = '' as $$
+declare v_actor uuid; v_service public.services%rowtype;
+begin
+  select id into v_actor from public.staff
+  where auth_user_id = auth.uid() and system_role = 'owner'
+    and is_active and archived_at is null and merged_into_staff_id is null;
+  if v_actor is null then
+    raise exception 'SERVICE_CONTINUATION_OWNER_REQUIRED' using errcode = '42501';
+  end if;
+  if p_service_id is null or p_enabled is null then
+    raise exception 'SERVICE_CONTINUATION_APPROVAL_INVALID' using errcode = '22023';
+  end if;
+  if not p_enabled then
+    delete from public.extendable_service_continuation_approvals
+      where service_id = p_service_id;
+    return;
+  end if;
+  select * into v_service from public.services where id = p_service_id for share;
+  if not found or not v_service.is_active or v_service.duration_policy <> 'extendable'
+    or v_service.extension_increment_minutes is null
+    or v_service.extension_increment_minutes not between 1 and 180
+    or v_service.extension_price is null or v_service.extension_price <= 0
+    or v_service.maximum_duration_minutes is null
+    or v_service.maximum_duration_minutes <= v_service.duration_minutes
+    or v_service.maximum_duration_minutes > 720 then
+    raise exception 'SERVICE_CONTINUATION_CATALOG_INVALID' using errcode = '22023';
+  end if;
+  insert into public.extendable_service_continuation_approvals
+    (service_id, increment_minutes, price_per_increment, maximum_total_minutes,
+     approved_by)
+  values (p_service_id, v_service.extension_increment_minutes,
+    v_service.extension_price, v_service.maximum_duration_minutes, v_actor)
+  on conflict (service_id) do update set
+    increment_minutes = excluded.increment_minutes,
+    price_per_increment = excluded.price_per_increment,
+    maximum_total_minutes = excluded.maximum_total_minutes,
+    approved_by = excluded.approved_by, approved_at = clock_timestamp();
+end $$;
+revoke all on function public.approve_extendable_service_continuation(uuid,boolean)
+  from public, anon, authenticated;
+grant execute on function public.approve_extendable_service_continuation(uuid,boolean)
   to authenticated;
 
 create or replace function public.set_branch_treatment_closing_time(
@@ -235,6 +295,16 @@ begin
     -- Do not apply a current catalogue maximum to a different purchased base.
     if v_base_duration <> v_service.duration_minutes then
       raise exception 'SERVICE_CONTINUATION_CATALOG_REVIEW_REQUIRED' using errcode = 'P0001';
+    end if;
+    perform 1 from public.extendable_service_continuation_approvals approval
+    where approval.service_id = v_service.id
+      and approval.increment_minutes = v_increment
+      and approval.price_per_increment = v_price
+      and approval.maximum_total_minutes = v_maximum
+    for share;
+    if not found then
+      raise exception 'SERVICE_CONTINUATION_OWNER_APPROVAL_REQUIRED'
+        using errcode = 'P0001';
     end if;
   elsif v_service.duration_policy = 'fixed' then
     if v_base_duration <> v_service.duration_minutes then

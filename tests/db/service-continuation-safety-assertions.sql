@@ -17,6 +17,7 @@ do $$ begin
   end;
 end $$;
 reset role;
+
 update public.branch_treatment_closing_policy set closing_time = '23:59'
 where branch_id = '00000000-0000-4000-8000-000000000001';
 
@@ -121,6 +122,89 @@ do $$ begin
     raise exception 'unassigned therapist was authorized';
   exception when sqlstate '42501' then
     if sqlerrm <> 'SERVICE_CONTINUATION_NOT_AUTHORIZED' then raise; end if;
+  end;
+end $$;
+reset role;
+
+-- Extendable catalogue charges require a current owner approval snapshot.
+insert into public.staff(id,auth_user_id,system_role,branch_id)
+values ('00000000-0000-4000-8000-000000000042',null,'staff',
+  '00000000-0000-4000-8000-000000000001');
+insert into public.services
+  (id,name,duration_minutes,duration_policy,extension_increment_minutes,
+   extension_price,maximum_duration_minutes)
+values ('00000000-0000-4000-8000-000000000041','Extendable service',60,
+  'extendable',15,80,90);
+insert into public.branch_resources(id,branch_id,capacity)
+values ('00000000-0000-4000-8000-000000000043',
+  '00000000-0000-4000-8000-000000000001',1);
+insert into public.booking_orders(id,branch_id,metadata)
+values ('00000000-0000-4000-8000-000000000044',
+  '00000000-0000-4000-8000-000000000001','{"total_amount":120}');
+insert into public.bookings (
+  id,order_id,branch_id,staff_id,service_id,resource_id,booking_date,
+  delivery_type,status,booking_progress_status,start_time,end_time,
+  session_started_at,session_due_at,session_duration_minutes_snapshot,
+  session_extension_minutes_total,metadata)
+values (
+  '00000000-0000-4000-8000-000000000040',
+  '00000000-0000-4000-8000-000000000044',
+  '00000000-0000-4000-8000-000000000001',
+  '00000000-0000-4000-8000-000000000042',
+  '00000000-0000-4000-8000-000000000041',
+  '00000000-0000-4000-8000-000000000043',
+  (clock_timestamp() at time zone 'Asia/Manila')::date,
+  'in_spa','in_progress','session_started',
+  ((clock_timestamp() - interval '10 minutes') at time zone 'Asia/Manila')::time,
+  ((clock_timestamp() + interval '50 minutes') at time zone 'Asia/Manila')::time,
+  clock_timestamp() - interval '10 minutes',
+  clock_timestamp() + interval '50 minutes',60,0,'{"price_paid":120}');
+insert into public.staff_schedules(staff_id,day_of_week,start_time,end_time,is_active)
+values ('00000000-0000-4000-8000-000000000042',
+  extract(dow from (clock_timestamp() at time zone 'Asia/Manila')::date),
+  '00:00','23:59',true);
+select set_config('request.jwt.claim.sub','00000000-0000-4000-8000-000000000013',false);
+set role authenticated;
+do $$ begin
+  begin
+    perform public.continue_booking_service_session(
+      '00000000-0000-4000-8000-000000000040',15,'before owner approval',
+      '00000000-0000-4000-8000-000000000045');
+    raise exception 'unapproved extendable price was charged';
+  exception when sqlstate 'P0001' then
+    if sqlerrm <> 'SERVICE_CONTINUATION_OWNER_APPROVAL_REQUIRED' then raise; end if;
+  end;
+end $$;
+reset role;
+select set_config('request.jwt.claim.sub','00000000-0000-4000-8000-000000000012',false);
+set role authenticated;
+select public.approve_extendable_service_continuation(
+  '00000000-0000-4000-8000-000000000041',true);
+reset role;
+select set_config('request.jwt.claim.sub','00000000-0000-4000-8000-000000000013',false);
+set role authenticated;
+select public.continue_booking_service_session(
+  '00000000-0000-4000-8000-000000000040',15,'approved extendable price',
+  '00000000-0000-4000-8000-000000000046');
+reset role;
+do $$ begin
+  if not exists (select 1 from public.order_payable_items
+    where booking_id = '00000000-0000-4000-8000-000000000040'
+      and charge_type = 'surcharge' and amount = 80) then
+    raise exception 'owner-approved extendable surcharge absent';
+  end if;
+end $$;
+update public.services set extension_price = 100
+where id = '00000000-0000-4000-8000-000000000041';
+set role authenticated;
+do $$ begin
+  begin
+    perform public.continue_booking_service_session(
+      '00000000-0000-4000-8000-000000000040',15,'changed catalogue price',
+      '00000000-0000-4000-8000-000000000047');
+    raise exception 'changed catalogue price bypassed owner approval';
+  exception when sqlstate 'P0001' then
+    if sqlerrm <> 'SERVICE_CONTINUATION_OWNER_APPROVAL_REQUIRED' then raise; end if;
   end;
 end $$;
 reset role;
