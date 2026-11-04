@@ -9,6 +9,23 @@
 - Kept the physically enforced `CHECK (NOT enabled)` completion latch. The accepted booking status triggers use unqualified public tables; the privileged worker now uses `pg_catalog, public, pg_temp` search path so those triggers resolve. The LOCAL accepted schema confirms application roles lack `CREATE` on `public`. No scheduler was created.
 - A notification or outbox insertion failure rolls back the booking transition. LOCAL failure injection confirmed no partial booking, payable or continuation mutation. This preserves notification evidence but can delay a real service transition during a notification-table outage; the operational response needs an explicit release decision and alerting.
 
+The correction changes exactly these 12 paths relative to its starting HEAD:
+
+```text
+docs/reports/bookings-details-preview/SERVICE-LIFECYCLE-FINAL-STABILIZATION-CORRECTION-2026-11-04.md
+src/components/features/bookings/bookings-workspace.tsx
+src/components/features/bookings/crm-bookings-operations-grid.tsx
+src/lib/attendance/queries.ts
+src/lib/bookings/service-transition-notifications.ts
+src/lib/notifications/push/delivery.ts
+src/lib/notifications/push/service-transition-outbox.ts
+supabase/migrations/20261103140629_guarded_service_auto_completion.sql
+supabase/migrations/20261104002009_priced_service_continuation_and_transition_delivery.sql
+tests/db/service-lifecycle-accepted-schema-local.sql
+tests/lib/bookings/service-transition-notifications.test.ts
+tests/lib/notifications/service-transition-push-outbox.test.ts
+```
+
 ## Node 24 test comparison
 
 Both full suites used Node 24.22.1, Vitest 4.1.5, `--maxWorkers=4 --reporter=verbose --exclude '**/.tmp/**'`, the same repository dependency tree and separate per-worktree TEMP directories. Initial shared sandbox TEMP cache errors were discarded before this comparison. The isolated accepted-main worktree was detached at the exact accepted SHA. Logs remain local as `vitest-integration-node24-isolated.log`, `vitest-main-node24-isolated.log` in the comparison worktree, and `.tmp/vitest-final-node24.log` here.
