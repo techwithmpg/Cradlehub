@@ -120,4 +120,3 @@ do $$ begin
     raise exception 'Release latch was enabled';
   end if;
 end $$;
-

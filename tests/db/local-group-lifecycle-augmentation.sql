@@ -58,4 +58,3 @@ create table public.workspace_notifications (
 create unique index workspace_notifications_open_dedupe_key_uidx
   on public.workspace_notifications(dedupe_key)
   where dedupe_key is not null and status in ('unread', 'read');
-

@@ -36,4 +36,3 @@ do $$ begin
     raise exception 'Denied continuation left an event';
   end if;
 end $$;
-
