@@ -79,8 +79,11 @@ describe("BookingSessionWorkspace", () => {
     const view = render(
       <BookingSessionWorkspace line={active} recipientName="Rhea Mendoza" onClose={onClose} />
     );
-    await waitFor(() => expect(screen.getByText(/^30m$/)).toBeTruthy());
-    expect(screen.getByText(/^30m$/)).toBeTruthy();
+    await waitFor(() =>
+      expect(screen.getByRole("timer").getAttribute("aria-label")).toMatch(
+        /^00:(29|30):\d{2} left$/
+      )
+    );
     fireEvent.click(screen.getByRole("button", { name: "+30 min" }));
     expect(screen.getByText(/cannot yet be verified together/i)).toBeTruthy();
     expect(
@@ -93,6 +96,10 @@ describe("BookingSessionWorkspace", () => {
     render(
       <BookingSessionWorkspace line={active} recipientName="Rhea Mendoza" onClose={vi.fn()} />
     );
-    await waitFor(() => expect(screen.getByText(/^30m$/)).toBeTruthy());
+    await waitFor(() =>
+      expect(screen.getByRole("timer").getAttribute("aria-label")).toMatch(
+        /^00:(29|30):\d{2} left$/
+      )
+    );
   });
 });
