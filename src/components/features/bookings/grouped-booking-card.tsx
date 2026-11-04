@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { ChevronDown, ChevronUp, Users } from "lucide-react";
+import { ChevronDown, ChevronUp, User, Users } from "lucide-react";
 import {
   groupCrmBookings,
   getBookingPaymentDisplayState,
@@ -37,9 +37,13 @@ export function GroupedBookingCard({
 }) {
   const [expandedLine, setExpandedLine] = useState<string | null>(null);
   const [showAll, setShowAll] = useState(false);
+  const [visibleLineCount, setVisibleLineCount] = useState(10);
   const summary = bookingSessionSummary(group);
   const payment = getBookingPaymentDisplayState(group.payment, group.lines[0]);
   const lines = showAll ? group.lines : matchingLines;
+  const visibleLines = lines.slice(0, visibleLineCount);
+  const guestCount = bookingGuestCount(group);
+  const isMultiGuest = guestCount > 1;
   const status = summary.active
     ? "In Service"
     : summary.waiting
@@ -51,7 +55,7 @@ export function GroupedBookingCard({
   return (
     <article
       className={`rounded-xl border bg-white shadow-sm ${expanded ? "border-emerald-200 ring-1 ring-emerald-100" : "border-neutral-200"}`}
-      aria-label={`Group booking ${group.organizerName}`}
+      aria-label={isMultiGuest ? `Group booking ${group.organizerName}` : `Appointment for ${group.organizerName}`}
     >
       <header
         onClick={() => onSelect(primary)}
@@ -67,13 +71,16 @@ export function GroupedBookingCard({
         </div>
         <div className="flex min-w-[190px] flex-1 items-center gap-3">
           <span className="grid size-10 shrink-0 place-items-center rounded-full bg-emerald-100 text-emerald-900">
-            <Users className="size-5" />
+            {isMultiGuest ? <Users className="size-5" /> : <User className="size-5" />}
           </span>
           <div>
             <h2 className="text-sm font-bold text-neutral-950">{group.organizerName}</h2>
             <p className="text-xs text-neutral-500">
-              Group booking · {bookingGuestCount(group)} guests · {group.lines.length} sessions
+              {isMultiGuest
+                ? `Group booking · ${guestCount} guests · ${group.lines.length} sessions`
+                : `Single guest · 1 guest · ${group.lines.length} ${group.lines.length === 1 ? "service" : "services"}`}
             </p>
+            {group.orderNumber ? <p className="text-xs text-neutral-500">{group.orderNumber}</p> : null}
           </div>
         </div>
         <p className="text-xs text-neutral-600">
@@ -128,7 +135,7 @@ export function GroupedBookingCard({
         <div className="border-t border-neutral-100 bg-neutral-50/60 p-3">
           <div className="mb-2 flex flex-wrap items-center justify-between gap-2 text-xs text-neutral-600">
             <h3 className="font-semibold">
-              Guest sessions · {lines.length} of {group.lines.length}
+              Guest sessions · {visibleLines.length} shown of {lines.length} matching · {group.lines.length} total
             </h3>
             {matchingLines.length < group.lines.length ? (
               <button
@@ -140,7 +147,7 @@ export function GroupedBookingCard({
               </button>
             ) : null}
           </div>
-          {lines.map((line) => (
+          {visibleLines.map((line) => (
             <HorizontalBookingRow
               key={line.id}
               group={groupCrmBookings([line], false)[0]!}
@@ -155,6 +162,11 @@ export function GroupedBookingCard({
               onOpenFallbackReschedule={onReschedule}
             />
           ))}
+          {visibleLines.length < lines.length ? (
+            <button type="button" onClick={() => setVisibleLineCount((count) => count + 10)} className="mt-2 min-h-9 rounded-lg border border-neutral-200 bg-white px-3 text-xs font-semibold text-emerald-800">
+              Show 10 more sessions
+            </button>
+          ) : null}
           <p className="mt-2 text-xs text-neutral-500">
             Payment belongs to {group.orderNumber ?? "the parent booking"}. Each guest’s service is
             managed separately.

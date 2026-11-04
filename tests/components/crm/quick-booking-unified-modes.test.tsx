@@ -226,15 +226,15 @@ describe("Unified CRM booking modes", () => {
   it("enforces automatic therapist allocation in group mode and saves cleanly", async () => {
     render(<QuickBookingForm {...props} initialMode="standard_future" />);
     fireEvent.click(screen.getByRole("button", { name: "Add Guest" }));
-    const first = within(screen.getByRole("region", { name: "Guest 1 booking details" }));
     const second = within(screen.getByRole("region", { name: "Guest 2 booking details" }));
     fireEvent.change(second.getByRole("textbox", { name: "Guest 2 name" }), {
       target: { value: "Guest Two" },
     });
     fireEvent.click(second.getByRole("button", { name: /^Swedish Massage,/ }));
-    expect(first.getByRole("combobox", { name: "Guest 1 therapist" })).toBeTruthy();
     expect(second.getByLabelText("Guest 2 therapist")).toBeTruthy();
     expect(second.getByText(/Assigned automatically on Save/)).toBeTruthy();
+    fireEvent.click(within(screen.getByLabelText("Guest list")).getByRole("button", { name: /^1\./ }));
+    expect(within(screen.getByRole("region", { name: "Guest 1 booking details" })).getByRole("combobox", { name: "Guest 1 therapist" })).toBeTruthy();
     fireEvent.click(screen.getByRole("button", { name: "Save Booking" }));
     await waitFor(() => expect(mocks.createBooking).toHaveBeenCalledOnce());
     expect(mocks.createBooking.mock.calls[0]?.[0]).toMatchObject({
@@ -260,31 +260,34 @@ describe("Unified CRM booking modes", () => {
     expect(screen.getByText("Guests 1–2 of 4")).toBeTruthy();
   });
 
-  it.each([5, 10, 20])(
-    "renders %i vertically stacked guest cards in a non-submitting preview",
+  it("requires a real name for every added guest", () => {
+    render(<QuickBookingForm {...props} initialMode="walkin" />);
+    fireEvent.click(screen.getByRole("button", { name: "Add Guest" }));
+    fireEvent.click(screen.getByRole("button", { name: "Save Booking" }));
+    expect(screen.getByText(/Enter each guest's name/)).toBeTruthy();
+    expect(mocks.createBooking).not.toHaveBeenCalled();
+  });
+
+  it.each([5, 10, 20, 25, 50])(
+    "keeps %i guests in a compact, editable booking form",
     (count: number) => {
       const started = performance.now();
-      render(<QuickBookingForm {...props} initialMode="walkin" previewGuestCapacity={count} />);
+      render(<QuickBookingForm {...props} initialMode="walkin" />);
       for (let index = 1; index < count; index += 1)
         fireEvent.click(screen.getByRole("button", { name: "Add Guest" }));
-      expect(screen.getAllByRole("region", { name: /^Guest \d+ booking details$/ })).toHaveLength(
-        count
-      );
-      expect(screen.getByRole("region", { name: "Guest 1 booking details" })).toBeTruthy();
+      expect(screen.getAllByRole("region", { name: /^Guest \d+ booking details$/ })).toHaveLength(1);
       expect(screen.getByRole("region", { name: `Guest ${count} booking details` })).toBeTruthy();
+      expect(screen.getByRole("button", { name: "Add Guest" }).hasAttribute("disabled")).toBe(false);
       expect(screen.getByLabelText("Expanded guest booking cards").className).toContain(
         "lg:overflow-y-auto"
       );
       expect(screen.getByText(new RegExp(`Guests & services \\(${count}\\)`))).toBeTruthy();
-      expect(screen.getByRole("button", { name: "Save Booking" }).hasAttribute("disabled")).toBe(
-        true
-      );
-      expect(screen.getByText(/layout preview only and cannot be saved/)).toBeTruthy();
+      expect(screen.getByRole("button", { name: "Save Booking" })).toBeTruthy();
       console.info(
-        `Guest layout ${count}: ${(performance.now() - started).toFixed(0)} ms in jsdom`
+        `Guest editor ${count}: ${(performance.now() - started).toFixed(0)} ms in jsdom`
       );
     },
-    15000
+    30000
   );
 
   it("offers only server-returned Phone/Future time slots", async () => {

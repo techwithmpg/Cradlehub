@@ -50,7 +50,7 @@ export function QuickBookingServiceSelector({
   isHomeService,
   disabled = false,
   error,
-  maxServices = 5,
+  maxServices = Number.POSITIVE_INFINITY,
   durationPresentation = "dropdown",
 }: QuickBookingServiceSelectorProps) {
   const searchId = useId();
@@ -403,7 +403,7 @@ export function QuickBookingServiceSelector({
           </button>
         </div>
       ) : null}
-      {selectedServiceIds.length >= maxServices ? (
+      {Number.isFinite(maxServices) && selectedServiceIds.length >= maxServices ? (
         <p className="text-[11px] text-[var(--cs-warning-text)]">
           Maximum {maxServices} services per guest.
         </p>

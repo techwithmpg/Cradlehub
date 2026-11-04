@@ -806,7 +806,7 @@ export function BookingWizard({
   useEffect(() => {
     const hasServicesSelected =
       bookingFor === "me_and_others"
-        ? attendees.some((a) => a.serviceIds.length > 0)
+        ? attendees.length > 0 && attendees.every((a) => a.serviceIds.length > 0)
         : selectedServices.length > 0;
 
     if (!selectedBranch || !hasServicesSelected || !selectedDate) {
@@ -820,10 +820,8 @@ export function BookingWizard({
       deliveryType: visitType,
     });
 
-    if (bookingFor === "me_and_others") {
-      const attendeePayload = attendees
-        .filter((a) => a.serviceIds.length > 0)
-        .map((a) => ({
+    const attendeePayload = bookingFor === "me_and_others"
+      ? attendees.map((a) => ({
           id: a.id,
           name: a.name,
           isOrganizer: a.isOrganizer,
@@ -831,10 +829,9 @@ export function BookingWizard({
           serviceLines: a.serviceIds.map((serviceId) => ({ serviceId,
             requestedDurationMinutes: lineQuotes[`${a.id}:${serviceId}`]?.selectedDurationMinutes,
             expectedQuoteVersion: lineQuotes[`${a.id}:${serviceId}`]?.quoteVersion ?? services.find((service) => service.id === serviceId)?.quoteVersion })),
-        }));
-      params.set("attendees", JSON.stringify(attendeePayload));
-      params.set("serviceIds", allSelectedServiceIds.join(","));
-    } else {
+        }))
+      : null;
+    if (!attendeePayload) {
       params.set("serviceIds", selectedServices.map((s) => s.id).join(","));
       params.set("serviceLines", JSON.stringify(selectedServices.map((service) => ({
         serviceId: service.id,
@@ -843,7 +840,12 @@ export function BookingWizard({
       }))));
     }
 
-    fetch(`/api/booking/available-slots?${params.toString()}`)
+    fetch(attendeePayload ? "/api/booking/available-slots" : `/api/booking/available-slots?${params.toString()}`,
+      attendeePayload ? {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ branchId: selectedBranch.id, date: dateStr, deliveryType: visitType, attendees: attendeePayload }),
+      } : undefined)
       .then(async (r) => {
         const data = await r.json();
         if (!r.ok) {
@@ -859,10 +861,10 @@ export function BookingWizard({
         setAvailabilityMessage(data.reason?.message ?? "");
         setLoadingSlots(false);
       })
-      .catch(() => {
+      .catch((error) => {
         setRawSlots([]);
         setSlots([]);
-        setAvailabilityMessage("Unable to load branch availability. Please try again.");
+        setAvailabilityMessage(error instanceof Error ? error.message : "Unable to load branch availability. Please try again.");
         setLoadingSlots(false);
       });
     return () => clearTimeout(id);
@@ -982,14 +984,12 @@ export function BookingWizard({
 
   const handleAddAttendee = useCallback(() => {
     setAttendees((prev) => {
-      if (prev.length >= 10) return prev;
-      const nextNum = prev.length + 1;
-      const nextId = `att-${Date.now()}-${nextNum}`;
+      const nextId = crypto.randomUUID();
       const next = [
         ...prev,
         {
           id: nextId,
-          name: `Guest ${nextNum}`,
+          name: "",
           isOrganizer: false,
           serviceIds: [],
         },
@@ -1156,7 +1156,7 @@ export function BookingWizard({
         bookingFor === "me_and_others"
           ? attendees.map((a) => ({
               id: a.id,
-              name: a.name.trim() || (a.isOrganizer ? form.fullName || "Organizer" : "Guest"),
+              name: a.isOrganizer ? form.fullName.trim() : a.name.trim(),
               isOrganizer: a.isOrganizer,
               serviceIds: a.serviceIds,
               serviceLines: a.serviceIds.map((serviceId) => ({ serviceId,
@@ -1342,7 +1342,7 @@ export function BookingWizard({
             ? selectedServices.length > 0
             : bookingFor === "someone_else"
               ? selectedServices.length > 0 && recipientName.trim().length >= 2
-              : attendees.length >= 2 && attendees.every((a) => a.serviceIds.length > 0)
+              : attendees.length >= 2 && attendees.every((a) => a.serviceIds.length > 0 && a.name.trim().length >= 2)
           : currentStepName === "location"
             ? locationValid
             : currentStepName === "date_time"
@@ -1694,7 +1694,7 @@ export function BookingWizard({
                     setSelectedDate(d);
                     const hasSelected =
                       bookingFor === "me_and_others"
-                        ? attendees.some((a) => a.serviceIds.length > 0)
+                        ? attendees.length > 0 && attendees.every((a) => a.serviceIds.length > 0)
                         : selectedServices.length > 0;
                     setLoadingSlots(Boolean(d && selectedBranch && hasSelected));
                     setRawSlots([]);
@@ -2355,7 +2355,6 @@ export function BookingForSection({
             <p className="text-[11px] font-semibold uppercase tracking-wider text-[#D4B57A]">
               Guest Sessions
             </p>
-            {attendees.length < 10 && (
               <button
                 type="button"
                 onClick={onAddAttendee}
@@ -2364,7 +2363,6 @@ export function BookingForSection({
                 <Plus className="h-3.5 w-3.5" aria-hidden="true" />
                 Add Guest
               </button>
-            )}
           </div>
 
           {/* Guest Tabs */}
@@ -2376,6 +2374,7 @@ export function BookingForSection({
             {attendees.map((att, idx) => {
               const isSelected = att.id === activeAttendeeId;
               const svcCount = att.serviceIds.length;
+              const guestLabel = att.isOrganizer ? "You" : att.name.trim() || `Guest ${idx + 1}`;
               return (
                 <div
                   key={att.id}
@@ -2389,10 +2388,10 @@ export function BookingForSection({
                     type="button"
                     onClick={() => onSelectAttendee(att.id)}
                     aria-pressed={isSelected}
-                    aria-label={`${att.isOrganizer ? "You" : att.name}, ${svcCount} ${svcCount === 1 ? "service" : "services"} selected`}
+                    aria-label={`${guestLabel}, ${svcCount} ${svcCount === 1 ? "service" : "services"} selected`}
                     className="flex min-h-11 flex-col justify-center px-3 text-left font-medium focus-visible:outline-2 focus-visible:outline-offset-[-2px] focus-visible:outline-[#D4B57A]"
                   >
-                    <span>{att.isOrganizer ? "You" : att.name}</span>
+                    <span>{guestLabel}</span>
                     <span
                       className={`text-[10px] ${svcCount > 0 ? "text-[#D4B57A]" : "text-[#F6EBD6]/65"}`}
                     >
@@ -2406,7 +2405,7 @@ export function BookingForSection({
                       type="button"
                       onClick={() => onRemoveAttendee(att.id)}
                       className="flex min-h-11 min-w-10 items-center justify-center border-l border-[#D4B57A]/20 text-[#F6EBD6]/75 hover:text-rose-300 focus-visible:outline-2 focus-visible:outline-offset-[-2px] focus-visible:outline-[#D4B57A]"
-                      aria-label={`Remove ${att.name}`}
+                      aria-label={`Remove ${guestLabel}`}
                     >
                       <X className="h-3.5 w-3.5" aria-hidden="true" />
                     </button>
@@ -4197,7 +4196,7 @@ function StepSuccess({
           </p>
 
           {bookingFor === "me_and_others" && attendees && attendees.length > 0 ? (
-            <div className="flex flex-col gap-3">
+            <div className="flex max-h-80 flex-col gap-3 overflow-y-auto pr-1" aria-label="Booked guest treatments">
               {attendees.map((att, idx) => {
                 const attServices = services.filter((s) => att.serviceIds.includes(s.id));
                 return (

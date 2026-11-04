@@ -17,8 +17,8 @@ const anyDate = z.string().regex(/^\d{4}-\d{2}-\d{2}$/, "Date must be YYYY-MM-DD
 
 const multiSlotsSchema = z.object({
   branchId:   uuid,
-  serviceIds: z.array(uuid).min(1).max(25),
-  serviceLines: z.array(serviceLineRequestSchema).max(25).optional(),
+  serviceIds: z.array(uuid).min(1),
+  serviceLines: z.array(serviceLineRequestSchema).optional(),
   date:       anyDate,
   deliveryType: z.enum(["in_spa", "home_service"]).optional(),
 });
@@ -30,11 +30,73 @@ const attendeeOrderSlotsSchema = z.object({
   attendees: z.array(
     z.object({
       id: z.string().optional(),
-      serviceIds: z.array(uuid).min(1).max(5),
-      serviceLines: z.array(serviceLineRequestSchema).max(5).optional(),
+      serviceIds: z.array(uuid).min(1),
+      serviceLines: z.array(serviceLineRequestSchema).optional(),
     })
-  ).min(1).max(10),
+  ).min(1),
 });
+
+const MAX_AVAILABILITY_REQUEST_BYTES = 512_000;
+
+async function loadOrderSlots(raw: unknown) {
+  const parsed = attendeeOrderSlotsSchema.safeParse(raw);
+  if (!parsed.success) {
+    return NextResponse.json(
+      { error: "Invalid parameters", details: parsed.error.flatten() },
+      { status: 400 }
+    );
+  }
+
+  try {
+    const deliveryType = parsed.data.deliveryType ?? "in_spa";
+    const allServiceIds = Array.from(new Set(parsed.data.attendees.flatMap((a) => a.serviceIds)));
+    const serviceEligibility = await validateBranchServiceEligibility({
+      branchId: parsed.data.branchId,
+      serviceIds: allServiceIds,
+      audience: "public",
+      deliveryMode: deliveryType,
+      useAdminClient: true,
+    });
+    if (!serviceEligibility.ok) {
+      return NextResponse.json({ slots: [], error: "One or more selected services are not available for this booking type.", reason: { code: "service_ineligible" } }, { status: 400 });
+    }
+
+    const slots = await getAvailableSlotsForOrder({
+      branchId: parsed.data.branchId,
+      attendees: await Promise.all(parsed.data.attendees.map(async (attendee) => ({
+        id: attendee.id,
+        serviceIds: attendee.serviceIds,
+        selectedDurationMinutes: (await resolveBookingLineQuotes({
+          branchId: parsed.data.branchId,
+          serviceIds: attendee.serviceIds,
+          serviceLines: attendee.serviceLines,
+          audience: "public",
+          deliveryMode: deliveryType,
+        })).map((quote) => quote.selectedDurationMinutes),
+      }))),
+      date: parsed.data.date,
+      deliveryMode: deliveryType,
+      requireStaffServiceAssignment: true,
+    });
+    return NextResponse.json({ slots });
+  } catch (error) {
+    logError("slots.query_failed", { path: "order", error });
+    const message = error instanceof Error ? error.message : "Failed to fetch available slots";
+    return NextResponse.json({ error: message }, { status: 500 });
+  }
+}
+
+export async function POST(request: NextRequest) {
+  const body = await request.text();
+  if (new TextEncoder().encode(body).length > MAX_AVAILABILITY_REQUEST_BYTES) {
+    return NextResponse.json({ error: "Availability request exceeds the 512 KB request-size limit. Please contact the branch for help with this group." }, { status: 413 });
+  }
+  try {
+    return await loadOrderSlots(JSON.parse(body));
+  } catch {
+    return NextResponse.json({ error: "Invalid parameters" }, { status: 400 });
+  }
+}
 
 export async function GET(request: NextRequest) {
   const { searchParams } = new URL(request.url);
@@ -52,58 +114,7 @@ export async function GET(request: NextRequest) {
         attendees: parsedAttendees,
       };
 
-      const parsed = attendeeOrderSlotsSchema.safeParse(raw);
-      if (!parsed.success) {
-        return NextResponse.json(
-          { error: "Invalid parameters", details: parsed.error.flatten() },
-          { status: 400 }
-        );
-      }
-
-      const deliveryType = parsed.data.deliveryType ?? "in_spa";
-      const allServiceIds = Array.from(
-        new Set(parsed.data.attendees.flatMap((a) => a.serviceIds))
-      );
-
-      const serviceEligibility = await validateBranchServiceEligibility({
-        branchId: parsed.data.branchId,
-        serviceIds: allServiceIds,
-        audience: "public",
-        deliveryMode: deliveryType,
-        useAdminClient: true,
-      });
-
-      if (!serviceEligibility.ok) {
-        return NextResponse.json(
-          {
-            slots: [],
-            error:
-              "One or more selected services are not available for this booking type.",
-            reason: { code: "service_ineligible" },
-          },
-          { status: 400 }
-        );
-      }
-
-      const slots = await getAvailableSlotsForOrder({
-        branchId: parsed.data.branchId,
-        attendees: await Promise.all(parsed.data.attendees.map(async (attendee) => ({
-          id: attendee.id,
-          serviceIds: attendee.serviceIds,
-          selectedDurationMinutes: (await resolveBookingLineQuotes({
-            branchId: parsed.data.branchId,
-            serviceIds: attendee.serviceIds,
-            serviceLines: attendee.serviceLines,
-            audience: "public",
-            deliveryMode: deliveryType,
-          })).map((quote) => quote.selectedDurationMinutes),
-        }))),
-        date: parsed.data.date,
-        deliveryMode: deliveryType,
-        requireStaffServiceAssignment: true,
-      });
-
-      return NextResponse.json({ slots });
+      return loadOrderSlots(raw);
     } catch (error) {
       logError("slots.query_failed", { path: "order", error });
       const message =

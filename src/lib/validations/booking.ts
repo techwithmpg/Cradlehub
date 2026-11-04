@@ -105,16 +105,16 @@ export const createInhouseBookingMultiSchema = z
     idempotencyKey: uuid.optional(),
     branchId: uuid.optional(), // defaults to operator's branch when omitted
     customerId: uuid.optional(),
-    serviceIds: z.array(uuid).min(1, "Select a service.").max(20, "Maximum 20 services per booking"),
-    serviceLines: z.array(serviceLineRequestSchema).max(20).optional(),
+    serviceIds: z.array(uuid).min(1, "Select a service."),
+    serviceLines: z.array(serviceLineRequestSchema).optional(),
     bookingFor: z.enum(["me", "me_and_others", "someone_else"]).optional(),
     attendees: z.array(z.object({
       id: uuid,
       name: z.string().trim().min(2, "Enter each guest's name.").max(100),
       isOrganizer: z.boolean(),
-      serviceIds: z.array(uuid).min(1, "Select a service for each guest.").max(5),
-      serviceLines: z.array(serviceLineRequestSchema).max(5).optional(),
-    }).strict()).min(1).max(4).optional(),
+      serviceIds: z.array(uuid).min(1, "Select a service for each guest."),
+      serviceLines: z.array(serviceLineRequestSchema).optional(),
+    }).strict()).min(1).optional(),
     staffId: uuid.optional(), // undefined = auto-assign by seniority
     customerRequestedTherapist: z.boolean().optional(),
     resourceId: uuid.optional().nullable(),
@@ -190,8 +190,14 @@ export const createInhouseBookingMultiSchema = z
       if (data.attendees.length > 1 && data.bookingFor !== "me_and_others") {
         ctx.addIssue({ code: "custom", message: "Choose booking for me and others when adding guests.", path: ["bookingFor"] });
       }
-    } else if (data.serviceIds.length > 5) {
-      ctx.addIssue({ code: "custom", message: "Maximum 5 services per booking", path: ["serviceIds"] });
+      if (data.bookingFor === "me_and_others" &&
+        (!data.attendees[0]?.isOrganizer || data.attendees.slice(1).some((attendee) => attendee.isOrganizer))) {
+        ctx.addIssue({ code: "custom", message: "The first guest must be the organizer.", path: ["attendees"] });
+      }
+      if (data.bookingFor === "me_and_others" &&
+        data.attendees[0]?.name.toLocaleLowerCase() !== data.fullName.trim().toLocaleLowerCase()) {
+        ctx.addIssue({ code: "custom", message: "The organizer name must match the customer.", path: ["attendees", 0, "name"] });
+      }
     }
     const deliveryType =
       data.deliveryType ?? (data.type === "home_service" ? "home_service" : "in_spa");
@@ -274,14 +280,13 @@ export type HomeServiceAddressInput = z.infer<typeof homeServiceAddressSchema>;
 
 // ── Attendee input for multi-guest booking orders ───────────────────────────
 export const bookingAttendeeInputSchema = z.object({
-  id: z.string().max(100),
-  name: z.string().max(100).optional(),
+  id: z.string().min(1).max(100),
+  name: z.string().trim().min(2, "Enter each guest's name.").max(100),
   isOrganizer: z.boolean().optional(),
   serviceIds: z
     .array(uuid)
-    .min(1, "Select at least one service")
-    .max(5, "Maximum 5 services per guest"),
-  serviceLines: z.array(serviceLineRequestSchema).max(5).optional(),
+    .min(1, "Select at least one service"),
+  serviceLines: z.array(serviceLineRequestSchema).optional(),
   notes: z.string().max(500).optional(),
 });
 export type BookingAttendeeInput = z.infer<typeof bookingAttendeeInputSchema>;
@@ -293,9 +298,8 @@ export const createOnlineBookingMultiSchema = z
     branchId: uuid,
     serviceIds: z
       .array(uuid)
-      .min(1, "Select at least one service")
-      .max(25, "Maximum 25 services per booking order"),
-    serviceLines: z.array(serviceLineRequestSchema).max(25).optional(),
+      .min(1, "Select at least one service"),
+    serviceLines: z.array(serviceLineRequestSchema).optional(),
     staffId: uuid.optional(),
     idempotencyKey: z.string().uuid("Invalid idempotency key").optional(),
     date: onlineBookingDate,
@@ -305,7 +309,7 @@ export const createOnlineBookingMultiSchema = z
     travelBufferMins: z.number().int().min(0).max(240).optional(),
     bookingFor: z.enum(["me", "me_and_others", "someone_else"]).optional(),
     recipientName: z.string().max(100).optional(),
-    attendees: z.array(bookingAttendeeInputSchema).max(10).optional(),
+    attendees: z.array(bookingAttendeeInputSchema).min(1).optional(),
     paymentChoice: z.enum(["pay_later", "pay_now"]).optional(),
     fullName: z.string().min(2, "Name must be at least 2 characters").max(100),
     phone,
@@ -331,6 +335,19 @@ export const createOnlineBookingMultiSchema = z
   })
   .strict()
   .superRefine((data, ctx) => {
+    if (data.attendees) {
+      const ids = data.attendees.map((attendee) => attendee.id);
+      if (new Set(ids).size !== ids.length) {
+        ctx.addIssue({ code: "custom", message: "Each guest must have a distinct ID.", path: ["attendees"] });
+      }
+      const selected = new Set(data.attendees.flatMap((attendee) => attendee.serviceIds));
+      if (selected.size !== new Set(data.serviceIds).size || [...selected].some((id) => !data.serviceIds.includes(id))) {
+        ctx.addIssue({ code: "custom", message: "Guest services must match the selected services.", path: ["serviceIds"] });
+      }
+      if (data.attendees.length > 1 && data.bookingFor !== "me_and_others") {
+        ctx.addIssue({ code: "custom", message: "Choose booking for me and others when adding guests.", path: ["bookingFor"] });
+      }
+    }
     const deliveryType =
       data.deliveryType ?? (data.type === "home_service" ? "home_service" : "in_spa");
 
