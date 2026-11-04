@@ -13,6 +13,7 @@ import { AgentCoachProvider } from "@/components/agent/agent-context-provider";
 import { CoachBubble } from "@/components/agent/coach-bubble";
 import { InlineTip } from "@/components/agent/inline-tip";
 import { AdministrativeBookingModalProvider } from "@/components/features/bookings/administrative-booking-modal-provider";
+import { GlobalServiceStartProvider } from "@/components/features/bookings/global-service-start-provider";
 import { getAgentCoachAvailability } from "@/lib/agents/config";
 import { RetainedWorkspaceProvider } from "@/components/features/dashboard/retained-workspace-provider";
 import { isRetainedWorkspaceEnabled } from "@/lib/config/mvp-flags";
@@ -43,7 +44,9 @@ export default async function CrmLayout({ children }: { children: React.ReactNod
     );
   const workspaceContent = branchId ? (
     <AdministrativeBookingModalProvider key={branchId} branchId={branchId} branchName={branchName}>
-      {retainedChildren}
+      {process.env.CRADLEHUB_SERVICE_REMINDERS_ENABLED === "true"
+        ? <GlobalServiceStartProvider key={branchId} branchId={branchId}>{retainedChildren}</GlobalServiceStartProvider>
+        : retainedChildren}
     </AdministrativeBookingModalProvider>
   ) : (
     retainedChildren

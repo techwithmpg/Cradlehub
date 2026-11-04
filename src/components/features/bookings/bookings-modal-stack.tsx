@@ -1,4 +1,4 @@
-import type { WorkspaceBookingRow } from "./booking-workspace-types";
+import type { BookingActionFn, WorkspaceBookingRow } from "./booking-workspace-types";
 import type { CrmBookingGroup } from "@/lib/bookings/crm-booking-groups";
 import { BookingDetailsModal } from "./booking-details-modal";
 import { CustomerArrivedModal } from "./customer-arrived-modal";
@@ -9,7 +9,7 @@ export type BookingModalState =
   | { type: "arrival"; booking: WorkspaceBookingRow }
   | { type: "room"; booking: WorkspaceBookingRow }
   | { type: "reschedule"; booking: WorkspaceBookingRow }
-  | { type: "details"; group: CrmBookingGroup }
+  | { type: "details"; group: CrmBookingGroup; selectedLineId?: string }
   | null;
 
 export function BookingsModalStack({
@@ -17,11 +17,13 @@ export function BookingsModalStack({
   onStateChange,
   onChanged,
   onArrived,
+  paymentAction,
 }: {
   state: BookingModalState;
   onStateChange: (state: BookingModalState) => void;
   onChanged?: () => void;
   onArrived: () => void;
+  paymentAction?: BookingActionFn;
 }) {
   return (
     <>
@@ -29,9 +31,12 @@ export function BookingsModalStack({
         key={state?.type === "details" ? state.group.primaryBookingId : "details-closed"}
         open={state?.type === "details"}
         group={state?.type === "details" ? state.group : null}
+        initialSelectedLineId={state?.type === "details" ? state.selectedLineId : undefined}
         onOpenChange={(open) => { if (!open) onStateChange(null); }}
         onChanged={onChanged}
         onReschedule={(booking) => onStateChange({ type: "reschedule", booking })}
+        onArrive={(booking) => onStateChange({ type: "arrival", booking })}
+        paymentAction={paymentAction}
       />
       <CustomerArrivedModal
         key={state?.type === "arrival" ? state.booking.id : "arrival-closed"}

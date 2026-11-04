@@ -10,6 +10,7 @@ import {
   AdminOverlayHeader,
 } from "@/components/shared/overlays";
 import { crmCompleteServiceAction } from "@/app/(dashboard)/crm/bookings/actions";
+import { serviceTransitionEventId } from "@/lib/bookings/service-transition-event";
 import type { CradleFlowBooking } from "@/lib/crm/cradle-flow";
 
 function time(value: string | null | undefined): string {
@@ -47,10 +48,11 @@ export function CradleFlowCompleteDialog({
           toast.error(result.error ?? "Could not complete service.");
           return;
         }
-        const completedAt = new Date().toISOString();
+        const completedAt = result.completedAt ?? new Date().toISOString();
         onCompleted(currentBooking, completedAt);
         onOpenChange(false);
-        toast.success("Service completed", {
+        if (!result.alreadyCompleted) toast.success("Service Completed", {
+          ...(result.completedAt ? { id: serviceTransitionEventId("completed", currentBooking.id, result.completedAt) } : {}),
           description: "The booking is now ready for payment.",
         });
       } catch (error) {

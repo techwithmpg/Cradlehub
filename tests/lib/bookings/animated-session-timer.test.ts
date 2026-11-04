@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { getSessionTimerDisplay } from "@/lib/bookings/animated-session-timer";
+import { formatSessionCountdown, getSessionTimerDisplay } from "@/lib/bookings/animated-session-timer";
 const start = Date.parse("2026-11-02T15:30:00Z");
 const session = {
   status: "in_progress",
@@ -27,7 +27,25 @@ describe("persisted session timer", () => {
       active: true,
       phase: "running",
       minutes: 30,
+      displayTime: "00:30:00",
       progress: 50,
+    });
+  });
+  it("updates visible seconds from persisted due time", () => {
+    expect(getSessionTimerDisplay(session, start + 59_000).displayTime).toBe("00:59:01");
+    expect(getSessionTimerDisplay(session, start + 60_000).displayTime).toBe("00:59:00");
+    expect(formatSessionCountdown(45 * 60, false)).toBe("45:00");
+  });
+  it("shows the two-minute automatic-completion grace only when enabled", () => {
+    const enabled = { ...session, autoCompletionEnabled: true };
+    expect(getSessionTimerDisplay(enabled, start + 60 * 60_000)).toMatchObject({
+      phase: "grace", displayTime: "02:00", graceSeconds: 120,
+    });
+    expect(getSessionTimerDisplay(enabled, start + 61 * 60_000)).toMatchObject({
+      phase: "grace", displayTime: "01:00", graceSeconds: 60,
+    });
+    expect(getSessionTimerDisplay(enabled, start + 62 * 60_000)).toMatchObject({
+      phase: "overtime", displayTime: "+00:02:00",
     });
   });
   it("enters the five-minute urgency window", () =>

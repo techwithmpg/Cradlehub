@@ -54,14 +54,14 @@ function clamp(value: number): number {
   return Math.min(100, Math.max(0, value));
 }
 
-export function fmtServiceSecs(secs: number, prefix: "+" | "" = ""): string {
+export function fmtServiceSecs(secs: number, prefix: "+" | "" = "", forceHours = false): string {
   const s = Math.abs(Math.floor(secs));
   const h = Math.floor(s / 3600);
   const m = Math.floor((s % 3600) / 60);
   const sec = s % 60;
   const mm  = String(m).padStart(2, "0");
   const ss  = String(sec).padStart(2, "0");
-  const base = h > 0 ? `${h}:${mm}:${ss}` : `${mm}:${ss}`;
+  const base = h > 0 || forceHours ? `${String(h).padStart(2, "0")}:${mm}:${ss}` : `${mm}:${ss}`;
   return `${prefix}${base}`;
 }
 

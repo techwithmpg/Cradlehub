@@ -44,6 +44,7 @@ import {
 } from "@/lib/integrations/google-sheets/sheet-native-match";
 import { sortSheetReferencesRecentFirst } from "@/lib/bookings/booking-recency";
 import { isOperationalBookingGroup } from "@/lib/bookings/operational-booking-eligibility";
+import { CrmBookingsOperationsGrid } from "./crm-bookings-operations-grid";
 import type { SheetNativeReferencesState } from "@/lib/integrations/google-sheets/sheet-native-types";
 
 const NO_SELECTION = "__no_booking_selected__";
@@ -374,6 +375,25 @@ export function BookingsDesktopWorkspace(props: DesktopWorkspaceProps) {
     } else {
       router.push("/crm/bookings/new");
     }
+  }
+
+  if (props.workspaceContext === "crm" && props.referenceSource !== "master_sheet") {
+    return <CrmBookingsOperationsGrid
+      bookings={props.bookings}
+      date={props.date}
+      businessDate={props.businessDate}
+      initialQuickFilter={props.initialQuickFilter}
+      initialSelectedId={props.initialSelectedId}
+      services={availableServices}
+      staff={availableStaff}
+      rooms={availableRooms}
+      onNewBooking={handleNewBooking}
+      onChanged={props.onBookingsChanged}
+      onRefresh={props.onRefresh ?? props.onBookingsChanged}
+      isRefreshing={props.isRefreshing}
+      paymentAction={props.paymentAction}
+      hasSheetReferences={props.sheetState?.status === "available" && props.sheetState.bookings.length > 0}
+    />;
   }
 
   return (
@@ -738,7 +758,7 @@ export function BookingsDesktopWorkspace(props: DesktopWorkspaceProps) {
                   onBookingsChanged={props.onBookingsChanged}
                   onOpenDetails={props.workspaceContext === "crm" ? (booking) => {
                     select(booking);
-                    setModalState({ type: "details", group: groupCrmBookings([booking], false)[0]! });
+                    setModalState({ type: "details", group: groupCrmBookings([booking])[0]! });
                   } : undefined}
                   paymentAction={
                     displayMode === "individual" && parent.lines.length > 1

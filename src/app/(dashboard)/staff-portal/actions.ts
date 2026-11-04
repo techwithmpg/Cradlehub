@@ -35,6 +35,7 @@ import {
   type StaffPortalClockOutAvailability,
 } from "@/lib/staff-portal/attendance";
 import { triggerUtilityRoomTurnoverOnServiceCompletion } from "@/lib/staff-pwa/utility-turnover";
+import { publishServiceTransition } from "@/lib/bookings/service-transition-notifications";
 import { getProviderBusinessDate } from "@/lib/staff-pwa/provider-date";
 
 const STAFF_PORTAL_PATHS = [
@@ -1019,6 +1020,7 @@ export async function updateBookingProgressAction({
   let rpcError: { message: string } | null = null;
   let timestamp = new Date().toISOString();
   let requiresTimestampRead = true;
+  let alreadyTransitioned = false;
 
   if (nextStatus === "session_started") {
     const result = await supabase.rpc("start_booking_service_session", {
@@ -1034,6 +1036,7 @@ export async function updateBookingProgressAction({
     if (typeof payload?.started_at === "string") {
       timestamp = payload.started_at;
     }
+    alreadyTransitioned = payload?.already_started === true;
     requiresTimestampRead = false;
   } else if (nextStatus === "completed") {
     const result = await supabase.rpc("complete_booking_service_session", {
@@ -1049,6 +1052,7 @@ export async function updateBookingProgressAction({
     if (typeof payload?.completed_at === "string") {
       timestamp = payload.completed_at;
     }
+    alreadyTransitioned = payload?.already_completed === true;
     requiresTimestampRead = false;
   } else {
     // Early checks provide useful errors. The RPC repeats role, assignment,
@@ -1075,6 +1079,13 @@ export async function updateBookingProgressAction({
       code: "DATABASE_ERROR",
       message: rpcError.message,
     };
+  }
+
+  if ((nextStatus === "session_started" || nextStatus === "completed") && !alreadyTransitioned) {
+    await publishServiceTransition({
+      bookingId, branchId: booking.branch_id, actorStaffId: me.id,
+      transition: nextStatus === "session_started" ? "started" : "completed",
+    }).catch((error) => logError("staff_progress.transition_notification_failed", { bookingId, error }));
   }
 
   if (requiresTimestampRead) {

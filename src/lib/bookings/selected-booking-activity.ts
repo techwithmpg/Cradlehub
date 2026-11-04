@@ -23,6 +23,7 @@ function readTimestamp(value: unknown): string | null {
 function followupLabel(result: unknown): string | null {
   if (result === "confirmed") return "Confirmation recorded";
   if (result === "no_answer") return "No answer recorded";
+  if (result === "not_arrived") return "Customer not arrived";
   if (result === "confirm_later") return "Follow-up scheduled";
   if (result === "reschedule" || result === "rescheduled") {
     return "Booking rescheduled";
@@ -56,7 +57,7 @@ function appendFollowupEvents(
     events,
     readTimestamp(followup.updated_at),
     label,
-    followup.result === "no_answer" ? "warning" : "neutral"
+    followup.result === "no_answer" || followup.result === "not_arrived" ? "warning" : "neutral"
   );
 }
 

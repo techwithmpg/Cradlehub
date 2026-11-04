@@ -142,7 +142,7 @@ function hasFollowUpMetadata(booking: WorkspaceBookingRow): boolean {
   const followup = booking.metadata?.crm_followup;
   if (!followup || typeof followup !== "object" || Array.isArray(followup)) return false;
   const result = (followup as { result?: unknown }).result;
-  return result === "no_answer" || result === "reschedule" || result === "confirm_later";
+  return result === "no_answer" || result === "not_arrived" || result === "reschedule" || result === "confirm_later";
 }
 
 function bookingNeedsAction(booking: WorkspaceBookingRow): boolean {
@@ -421,11 +421,7 @@ export function BookingsWorkspace({
     }
   }
 
-  const hasSheetReferences =
-    referenceSource === "master_sheet" ||
-    (referenceSource === "all" &&
-      sheetState?.status === "available" &&
-      sheetState.bookings.length > 0);
+  const hasSheetReferences = referenceSource === "master_sheet";
   if (isCrm && !hasSheetReferences) {
     return (
       <BookingsDesktopWorkspace

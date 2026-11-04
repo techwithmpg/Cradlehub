@@ -709,7 +709,7 @@ export async function prepareHomeServiceDispatchAction(
 
 export async function crmStartServiceAction(
   rawInput: unknown
-): Promise<{ success: boolean; error?: string }> {
+): Promise<BookingOperationResult> {
   const ctx = await getCrmActionsContext();
   if (!ctx) return { success: false, error: "Unauthorized" };
   return startCrmBookingService(ctx, rawInput);
@@ -723,7 +723,7 @@ export async function crmStartServiceAction(
 // This is the correct way for CRM to complete a service session.
 export async function crmCompleteServiceAction(
   rawInput: unknown
-): Promise<{ success: boolean; error?: string }> {
+): Promise<BookingOperationResult> {
   const ctx = await getCrmActionsContext();
   if (!ctx) return { success: false, error: "Unauthorized" };
   return completeCrmBookingService(ctx, rawInput);

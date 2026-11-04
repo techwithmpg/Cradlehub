@@ -7,6 +7,7 @@ import { toast } from "sonner";
 
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { cn } from "@/lib/utils";
+import { notifyBookingsChanged } from "@/lib/bookings/bookings-client-events";
 import {
   dismissNotificationAction,
   getNotificationBellSnapshot,
@@ -56,12 +57,20 @@ const BOOKING_NOTIFICATION_TYPES = new Set([
 ]);
 
 function isBookingNotification(notification: WorkspaceNotification) {
+  if (serviceTransitionEventId(notification)) return false;
   return (
     notification.entity_type === "booking" || BOOKING_NOTIFICATION_TYPES.has(notification.type)
   );
 }
 
-export function NotificationBell({ role }: { role: string }) {
+function serviceTransitionEventId(notification: WorkspaceNotification): string | null {
+  const metadata = notification.metadata;
+  if (!metadata || Array.isArray(metadata) || typeof metadata !== "object") return null;
+  const id = metadata.service_transition_event_id;
+  return typeof id === "string" ? id : null;
+}
+
+export function NotificationBell({ role, toastOnly = false }: { role: string; toastOnly?: boolean }) {
   const router = useRouter();
   const [count, setCount] = useState(0);
   const [items, setItems] = useState<WorkspaceNotification[]>([]);
@@ -115,6 +124,12 @@ export function NotificationBell({ role }: { role: string }) {
       const description = [notification.body?.trim() || display.detail, display.meta]
         .filter(Boolean)
         .join(" · ");
+      const transitionId = serviceTransitionEventId(notification);
+      if (transitionId) {
+        toast.success(notification.title, { id: transitionId, description: notification.body || undefined, duration: 5_000 });
+        notifyBookingsChanged();
+        return;
+      }
       toast(notification.title || display.title, {
         description,
         duration:
@@ -213,6 +228,8 @@ export function NotificationBell({ role }: { role: string }) {
     for (const item of items) knownStatusRef.current.set(item.id, "read");
     broadcastNotificationReconciliation();
   }, [items]);
+
+  if (toastOnly) return null;
 
   return (
     <Popover open={open} onOpenChange={handleOpenChange}>

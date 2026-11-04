@@ -594,7 +594,9 @@ export function HorizontalBookingRow({
               type="button"
               onClick={onToggleExpand}
               className="grid size-10 place-items-center rounded-lg border border-neutral-200 text-neutral-500 transition hover:bg-neutral-100 hover:text-neutral-800 focus-visible:ring-2 focus-visible:ring-emerald-700"
-              aria-label={isExpanded ? "Collapse booking preview" : "Expand booking preview"}
+              aria-label={isExpanded
+                ? onOpenDetails ? "Collapse booking preview" : "Collapse quick edit"
+                : onOpenDetails ? "Expand booking preview" : "Expand quick edit"}
               aria-expanded={isExpanded}
             >
               {isExpanded ? <ChevronUp className="size-4" /> : <ChevronDown className="size-4" />}

@@ -2,6 +2,7 @@ import "server-only";
 
 import type { CreateNotificationInput, NotificationWorkspace } from "./types";
 import { createOrUpdateNotification, markNotificationResolved } from "./workflow-signals";
+import { createNotificationOnce as insertNotificationOnce } from "./workflow-notifications-store";
 import { logError } from "@/lib/logger";
 
 // Fire-and-forget: logs errors but never throws so a notification failure
@@ -11,6 +12,15 @@ export async function createNotification(input: CreateNotificationInput): Promis
     await createOrUpdateNotification(input);
   } catch (err) {
     logError("notification.create_failed", { type: input.type, error: err });
+  }
+}
+
+
+export async function createNotificationOnce(input: CreateNotificationInput): Promise<void> {
+  try {
+    await insertNotificationOnce(input);
+  } catch (err) {
+    logError("notification.once_create_failed", { type: input.type, error: err });
   }
 }
 

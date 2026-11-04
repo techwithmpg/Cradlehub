@@ -7,6 +7,7 @@ const mocks = vi.hoisted(() => ({
   from: vi.fn(),
   logError: vi.fn(),
   revalidateServiceSurfaces: vi.fn(),
+  publishServiceTransition: vi.fn(),
 }));
 
 vi.mock("@/lib/supabase/admin", () => ({
@@ -28,6 +29,9 @@ vi.mock("@/lib/logger", () => ({
 vi.mock("@/lib/bookings/service-session", () => ({
   revalidateServiceSurfaces: mocks.revalidateServiceSurfaces,
 }));
+vi.mock("@/lib/bookings/service-transition-notifications", () => ({
+  publishServiceTransition: mocks.publishServiceTransition,
+}));
 
 import { startCrmBookingService, type CrmActionContext } from "@/lib/bookings/crm-booking-operations";
 
@@ -40,6 +44,7 @@ const RESOURCE_ID = "5ea3ce31-6ead-49e0-9ff4-43501d5cf211";
 describe("CRM Start Service RPC hardening", () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    mocks.publishServiceTransition.mockResolvedValue(undefined);
   });
 
   const makeCtx = (bookingId: string): CrmActionContext => ({
@@ -110,12 +115,16 @@ describe("CRM Start Service RPC hardening", () => {
 
     const result = await startCrmBookingService(ctx, { bookingId: BOOKING_1 });
 
-    expect(result).toEqual({ success: true });
+    expect(result).toEqual({ success: true, startedAt: "2026-09-13T10:05:00Z" });
     expect(mocks.rpc).toHaveBeenCalledWith("start_booking_service_session", {
       p_booking_id: BOOKING_1,
       p_source: "crm",
       p_actor_staff_id: STAFF_ID,
       p_resource_id: RESOURCE_ID,
+    });
+    expect(mocks.publishServiceTransition).toHaveBeenCalledWith({
+      bookingId: BOOKING_1, branchId: BRANCH_ID,
+      actorStaffId: STAFF_ID, transition: "started",
     });
   });
 
@@ -158,7 +167,7 @@ describe("CRM Start Service RPC hardening", () => {
 
     const result = await startCrmBookingService(ctx, { bookingId: BOOKING_2 });
 
-    expect(result).toEqual({ success: true });
+    expect(result).toEqual({ success: true, startedAt: "2026-09-13T10:05:00Z" });
     expect(mocks.rpc).toHaveBeenCalledWith("start_booking_service_session", {
       p_booking_id: BOOKING_2,
       p_source: "crm",

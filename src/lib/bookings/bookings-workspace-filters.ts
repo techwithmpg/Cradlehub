@@ -65,7 +65,7 @@ function hasFollowUpRequired(booking: WorkspaceBookingRow): boolean {
     return false;
   }
   const result = (followup as { result?: unknown }).result;
-  return result === "no_answer" || result === "reschedule" || result === "confirm_later";
+  return result === "no_answer" || result === "not_arrived" || result === "reschedule" || result === "confirm_later";
 }
 
 export function bookingNeedsAttention(booking: WorkspaceBookingRow): boolean {
