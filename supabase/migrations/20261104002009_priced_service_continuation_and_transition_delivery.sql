@@ -569,4 +569,107 @@ create trigger trg_record_service_transition_notifications
   after update of session_started_at, session_completed_at on public.bookings
   for each row execute function public.record_service_transition_notifications();
 
+-- The booking transaction also records push work. Only post-cutover lifecycle
+-- notices enter this queue; old notification history is never backfilled.
+create table public.service_transition_push_outbox (
+  notification_id uuid primary key references public.workspace_notifications(id) on delete cascade,
+  delivered_subscription_ids uuid[] not null default '{}',
+  attempts integer not null default 0 check (attempts >= 0),
+  next_attempt_at timestamptz not null default now(),
+  lease_token uuid,
+  lease_until timestamptz,
+  completed_at timestamptz,
+  last_error text,
+  created_at timestamptz not null default now(),
+  constraint service_transition_push_outbox_lease_pair_check
+    check ((lease_token is null) = (lease_until is null))
+);
+create index service_transition_push_outbox_due_idx
+  on public.service_transition_push_outbox(next_attempt_at, created_at)
+  where completed_at is null;
+alter table public.service_transition_push_outbox enable row level security;
+revoke all on public.service_transition_push_outbox from public, anon, authenticated;
+grant select, insert, update on public.service_transition_push_outbox to service_role;
+
+create function public.enqueue_service_transition_push()
+returns trigger language plpgsql security definer set search_path = '' as $$
+declare
+  v_cutover timestamptz;
+  v_event_at timestamptz;
+begin
+  if new.metadata->>'service_transition_event_id' is null then
+    return new;
+  end if;
+  select installed_at into v_cutover
+  from public.service_transition_notification_cutover where singleton;
+  v_event_at := nullif(new.metadata->>'service_transition_at', '')::timestamptz;
+  if v_cutover is null or v_event_at is null or v_event_at < v_cutover then
+    return new;
+  end if;
+  insert into public.service_transition_push_outbox(notification_id) values (new.id)
+    on conflict (notification_id) do nothing;
+  return new;
+end $$;
+revoke all on function public.enqueue_service_transition_push()
+  from public, anon, authenticated;
+create trigger trg_enqueue_service_transition_push
+  after insert on public.workspace_notifications
+  for each row execute function public.enqueue_service_transition_push();
+
+create function public.claim_service_transition_push_jobs(
+  p_limit integer default 20, p_event_id text default null
+)
+returns table(notification_id uuid, delivered_subscription_ids uuid[], lease_token uuid)
+language plpgsql security definer set search_path = '' as $$
+begin
+  if p_limit is null or p_limit < 1 or p_limit > 100 then
+    raise exception 'SERVICE_TRANSITION_PUSH_LIMIT_INVALID' using errcode = '22023';
+  end if;
+  return query
+  with due as (
+    select o.notification_id from public.service_transition_push_outbox o
+    join public.workspace_notifications n on n.id = o.notification_id
+    where o.completed_at is null and o.next_attempt_at <= now()
+      and (o.lease_until is null or o.lease_until < now())
+      and (p_event_id is null or n.metadata->>'service_transition_event_id' = p_event_id)
+    order by o.next_attempt_at, o.created_at
+    for update skip locked limit p_limit
+  )
+  update public.service_transition_push_outbox o
+  set lease_token = gen_random_uuid(), lease_until = now() + interval '2 minutes',
+      attempts = o.attempts + 1
+  from due where o.notification_id = due.notification_id
+  returning o.notification_id, o.delivered_subscription_ids, o.lease_token;
+end $$;
+revoke all on function public.claim_service_transition_push_jobs(integer, text)
+  from public, anon, authenticated;
+grant execute on function public.claim_service_transition_push_jobs(integer, text) to service_role;
+
+create function public.finish_service_transition_push_job(
+  p_notification_id uuid, p_lease_token uuid, p_delivered_subscription_ids uuid[],
+  p_completed boolean, p_error text default null
+) returns boolean language plpgsql security definer set search_path = '' as $$
+declare
+  v_updated integer;
+begin
+  update public.service_transition_push_outbox o
+  set delivered_subscription_ids = array(
+        select distinct delivered.id from unnest(o.delivered_subscription_ids ||
+          coalesce(p_delivered_subscription_ids, '{}'::uuid[])) as delivered(id)
+      ),
+      completed_at = case when p_completed then now() else null end,
+      next_attempt_at = case when p_completed then o.next_attempt_at
+        else now() + make_interval(secs => least(300, power(2, least(o.attempts, 8))::integer)) end,
+      lease_token = null, lease_until = null,
+      last_error = case when p_completed then null else left(coalesce(p_error, 'push_delivery_pending'), 200) end
+  where o.notification_id = p_notification_id and o.lease_token = p_lease_token
+    and o.completed_at is null;
+  get diagnostics v_updated = row_count;
+  return v_updated = 1;
+end $$;
+revoke all on function public.finish_service_transition_push_job(uuid, uuid, uuid[], boolean, text)
+  from public, anon, authenticated;
+grant execute on function public.finish_service_transition_push_job(uuid, uuid, uuid[], boolean, text)
+  to service_role;
+
 commit;

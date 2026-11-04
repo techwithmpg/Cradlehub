@@ -3,6 +3,7 @@ import "server-only";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { createNotificationOnce } from "@/lib/notifications/create";
 import { logError } from "@/lib/logger";
+import { drainServiceTransitionPushOutbox } from "@/lib/notifications/push/service-transition-outbox";
 import { serviceTransitionEventId } from "./service-transition-event";
 
 type Transition = "started" | "completed";
@@ -75,4 +76,12 @@ export async function publishServiceTransition(input: {
       dedupeKey: `${eventId}:staff:${data.staff_id}`,
     })] : []),
   ]);
+  try {
+    await drainServiceTransitionPushOutbox({ eventId, limit: 3 });
+    // Each committed transition also gives older failed or automatic-completion
+    // jobs a bounded retry opportunity without adding a browser privilege.
+    await drainServiceTransitionPushOutbox({ limit: 3 });
+  } catch (error) {
+    logError("service_transition.push_retry_failed", { bookingId: input.bookingId, error });
+  }
 }

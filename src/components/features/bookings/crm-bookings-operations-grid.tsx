@@ -10,6 +10,7 @@ import { toast } from "sonner";
 import { firstBookingRelation, getBookingDurationMinutes } from "@/lib/bookings/booking-display";
 import { groupCrmBookings, getBookingPaymentDisplayState, type CrmBookingGroup } from "@/lib/bookings/crm-booking-groups";
 import { bookingGuestCount } from "@/lib/bookings/bookings-presentation";
+import { bookingMatchesQuickFilter, resolveBookingQuickFilter, type BookingQuickFilter } from "@/lib/bookings/bookings-workspace-filters";
 import { resolveBookingLifecycleState } from "@/lib/bookings/operational-booking-eligibility";
 import { formatTime12h } from "@/lib/utils/time-format";
 import { crmStartServiceAction, markBookingArrivedAction, recordBookingFollowupAction } from "@/app/(dashboard)/crm/bookings/actions";
@@ -249,6 +250,10 @@ export function CrmBookingsOperationsGrid({
     : searchParams.get("tab") === "active" ? "in_service"
     : initialQuickFilter === "upcoming" ? "upcoming" : "today";
   const [tab, setTab] = useState<Tab>(initialTab);
+  const [quickFilter, setQuickFilter] = useState<BookingQuickFilter>(() => resolveBookingQuickFilter(initialQuickFilter).quickFilter);
+  const incomingSelectedId = initialSelectedId || searchParams.get("bookingId");
+  const [selection, setSelection] = useState(() => ({ id: incomingSelectedId, source: incomingSelectedId }));
+  const selectedId = incomingSelectedId !== selection.source ? incomingSelectedId : selection.id;
   const [search, setSearch] = useState(searchParams.get("search") || "");
   const [statusFilter, setStatusFilter] = useState("all");
   const [serviceFilter, setServiceFilter] = useState("all");
@@ -268,6 +273,7 @@ export function CrmBookingsOperationsGrid({
       const candidates = grouped ? group.lines : [line];
       return candidates.some((candidate) => {
         const state = resolveBookingLifecycleState(candidate);
+        if (!bookingMatchesQuickFilter(candidate, quickFilter)) return false;
         if (tab === "today" && candidate.booking_date !== date) return false;
         if (tab === "upcoming" && state !== "upcoming" && state !== "checked_in") return false;
         if (tab === "in_service" && state !== "in_service") return false;
@@ -284,7 +290,14 @@ export function CrmBookingsOperationsGrid({
       const order = a.line.booking_date.localeCompare(b.line.booking_date) || a.line.start_time.localeCompare(b.line.start_time);
       return sort === "desc" ? -order : order;
     });
-  }, [groups, mode, search, tab, date, statusFilter, serviceFilter, staffFilter, roomFilter, sort]);
+  }, [groups, mode, search, tab, date, quickFilter, statusFilter, serviceFilter, staffFilter, roomFilter, sort]);
+
+  function selectLine(id: string) {
+    setSelection({ id, source: incomingSelectedId });
+    const params = new URLSearchParams(window.location.search);
+    params.set("bookingId", id);
+    window.history.replaceState(null, "", `${window.location.pathname}?${params.toString()}`);
+  }
 
   function chooseTab(next: Tab) {
     setTab(next); setExpanded(null);
@@ -296,6 +309,7 @@ export function CrmBookingsOperationsGrid({
     else window.history.replaceState(null, "", url);
   }
   function openDetails(group: CrmBookingGroup, line: WorkspaceBookingRow) {
+    selectLine(line.id);
     setModal({ type: "details", group, selectedLineId: line.id });
   }
   function changeDate(value: string) {
@@ -324,6 +338,13 @@ export function CrmBookingsOperationsGrid({
     </div>
     <div className="grid min-w-0 gap-4 xl:grid-cols-[minmax(0,1fr)_290px]">
       <section className="min-w-0" aria-label="Booking schedule">
+        <div className="mb-3 flex flex-wrap gap-2" role="group" aria-label="Booking quick filters">
+          {(["all", "needs-attention", "active-now"] as const).map((filter) =>
+            <button key={filter} type="button" aria-pressed={quickFilter === filter} onClick={() => setQuickFilter(filter)}
+              className={`min-h-9 rounded-lg border px-3 text-xs font-semibold focus-visible:outline-2 focus-visible:outline-emerald-700 ${quickFilter === filter ? "border-emerald-700 bg-emerald-50 text-emerald-900" : "border-neutral-200 bg-white text-neutral-700 hover:bg-neutral-50"}`}>
+              {filter === "all" ? "All" : filter === "needs-attention" ? "Needs attention" : "Active now"}
+            </button>)}
+        </div>
         <div className="mb-3 flex flex-wrap items-center gap-2">
           <label className="relative min-w-[155px] flex-1"><Search className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-slate-500" />
             <span className="sr-only">Search bookings</span>
@@ -373,7 +394,8 @@ export function CrmBookingsOperationsGrid({
                   const therapist = firstBookingRelation(line.staff);
                   const room = firstBookingRelation(line.branch_resources);
                   const payment = getBookingPaymentDisplayState(group.payment, line);
-                  return <FragmentRow key={id} entry={{ group, line, grouped }} open={open} paymentLabel={payment.label}
+                  return <FragmentRow key={id} entry={{ group, line, grouped }} open={open} selected={selectedId === line.id} paymentLabel={payment.label}
+                    onSelect={() => selectLine(line.id)}
                     onToggle={() => setExpanded(open ? null : id)} onDetails={() => openDetails(group, line)}
                     customer={grouped ? group.organizerName : recipient(line)} service={grouped ? `${group.lines.length} services · ${bookingGuestCount(group)} guests` : `${service?.name || "Service"} (${getBookingDurationMinutes(line)} min)`}
                     therapist={grouped ? "Multiple" : therapist?.full_name || therapist?.nickname || "Unassigned"}
@@ -430,14 +452,16 @@ export function CrmBookingsOperationsGrid({
 }
 
 function FragmentRow({
-  entry, open, paymentLabel, onToggle, onDetails, customer, service, therapist, room,
+  entry, open, selected, paymentLabel, onSelect, onToggle, onDetails, customer, service, therapist, room,
 }: {
-  entry: Entry; open: boolean; paymentLabel: string; onToggle: () => void; onDetails: () => void;
+  entry: Entry; open: boolean; selected: boolean; paymentLabel: string; onSelect: () => void; onToggle: () => void; onDetails: () => void;
   customer: string; service: string; therapist: string; room: string;
 }) {
   const { line, grouped } = entry;
   return <>
-    <tr className={`border-t border-neutral-100 ${open ? "bg-amber-50/50" : "hover:bg-neutral-50"}`}>
+    <tr aria-selected={selected} tabIndex={0} onClick={onSelect}
+      onKeyDown={(event) => { if (event.key === "Enter" || event.key === " ") { event.preventDefault(); onSelect(); } }}
+      className={`border-t border-neutral-100 ${open || selected ? "bg-amber-50/50" : "hover:bg-neutral-50"}`}>
       <td className="whitespace-nowrap px-4 py-3 font-medium">{formatTime12h(line.start_time)}</td>
       <td className="min-w-0 px-4 py-3"><button type="button" onClick={onDetails} title={customer} className="block w-full truncate text-left font-semibold text-neutral-950 hover:text-emerald-800 hover:underline focus-visible:outline-2 focus-visible:outline-emerald-700">{customer}</button>{grouped && <span className="rounded-full bg-emerald-50 px-2 py-0.5 text-[11px] text-emerald-900">Group</span>}</td>
       <td className="truncate px-4 py-3" title={service}>{service}</td>

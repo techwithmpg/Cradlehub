@@ -36,7 +36,9 @@ create or replace function public.complete_due_service_sessions(p_limit integer 
 returns table (booking_id uuid, branch_id uuid, completed_at timestamptz)
 language plpgsql
 security definer
-set search_path = ''
+-- Accepted booking status triggers use unqualified public tables. None of the
+-- application roles can CREATE in public; pg_catalog remains first, pg_temp last.
+set search_path = pg_catalog, public, pg_temp
 as $complete_due$
 declare
   v_booking public.bookings%rowtype;

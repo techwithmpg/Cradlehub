@@ -1,9 +1,10 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 vi.mock("server-only", () => ({}));
-const mocks = vi.hoisted(() => ({ from: vi.fn(), createNotificationOnce: vi.fn(), logError: vi.fn() }));
+const mocks = vi.hoisted(() => ({ from: vi.fn(), createNotificationOnce: vi.fn(), drainOutbox: vi.fn(), logError: vi.fn() }));
 vi.mock("@/lib/supabase/admin", () => ({ createAdminClient: () => ({ from: mocks.from }) }));
 vi.mock("@/lib/notifications/create", () => ({ createNotificationOnce: mocks.createNotificationOnce }));
+vi.mock("@/lib/notifications/push/service-transition-outbox", () => ({ drainServiceTransitionPushOutbox: mocks.drainOutbox }));
 vi.mock("@/lib/logger", () => ({ logError: mocks.logError }));
 
 import { publishServiceTransition } from "@/lib/bookings/service-transition-notifications";
@@ -29,6 +30,7 @@ function row(overrides: Record<string, unknown> = {}) {
 beforeEach(() => {
   vi.clearAllMocks();
   mocks.createNotificationOnce.mockResolvedValue(undefined);
+  mocks.drainOutbox.mockResolvedValue({ claimed: 0, completed: 0, pending: 0 });
 });
 
 function setup(data: Record<string, unknown> | null) {
@@ -57,6 +59,9 @@ describe("service transition notifications", () => {
       targetWorkspace: "staff", recipientStaffId: staffId,
       dedupeKey: `service_started:${bookingId}:2026-11-03T06:01:00.000Z:staff:${staffId}`,
     }));
+    expect(mocks.drainOutbox).toHaveBeenCalledWith({
+      eventId: `service_started:${bookingId}:2026-11-03T06:01:00.000Z`, limit: 3,
+    });
   });
 
   it("labels authoritative automatic completion and uses its persisted timestamp", async () => {

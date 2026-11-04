@@ -421,7 +421,11 @@ export function BookingsWorkspace({
     }
   }
 
-  const hasSheetReferences = referenceSource === "master_sheet";
+  const hasSheetReferences =
+    referenceSource === "master_sheet" ||
+    (referenceSource === "all" &&
+      sheetState?.status === "available" &&
+      sheetState.bookings.length > 0);
   if (isCrm && !hasSheetReferences) {
     return (
       <BookingsDesktopWorkspace
