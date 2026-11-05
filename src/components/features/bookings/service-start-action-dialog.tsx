@@ -22,7 +22,7 @@ export function ServiceStartActionDialog({
     <Dialog open={Boolean(action)} onOpenChange={(open) => { if (!open && !busy) onClose(); }}>
       <DialogContent
         data-testid="service-start-action-dialog"
-        className="w-[min(95vw,555px)] max-w-none gap-0 overflow-hidden rounded-[20px] border border-neutral-200 bg-white p-0 shadow-2xl"
+        className="w-[min(95vw,555px)] max-w-none gap-0 overflow-hidden rounded-[20px] border border-neutral-200 bg-white p-0 shadow-2xl sm:max-w-[555px]"
       >
         <DialogHeader className="border-b border-neutral-200 border-l-4 border-l-amber-400 bg-gradient-to-r from-amber-50 via-white to-neutral-50 px-4 py-3 pr-12">
           <div className="flex items-center gap-3">
