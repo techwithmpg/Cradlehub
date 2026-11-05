@@ -77,6 +77,7 @@ export default async function CrmSchedulePage({
         schedulingRules={schedulingRules}
         dailyTimelineError={dailyScheduleResult.error}
         dailyTimelineNow={new Date().toISOString()}
+        assistanceEnabled={process.env.CRADLEHUB_INTERBRANCH_ASSISTANCE_ENABLED === "true"}
       />
     </RetainedWorkspaceModule>
   );
