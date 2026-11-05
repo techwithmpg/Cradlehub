@@ -148,6 +148,21 @@ export function subscriptionMatchesNotification(
   return true;
 }
 
+/** Limit scheduled service start notices to the assigned staff workspace. */
+export function candidatePushWorkspaces(
+  notification: Pick<WorkspaceNotification, "target_workspace" | "metadata">
+): string[] {
+  const metadata = notification.metadata;
+  const staffStartReminder = notification.target_workspace === "staff" &&
+    metadata !== null && typeof metadata === "object" && !Array.isArray(metadata) &&
+    metadata.service_start_reminder === true;
+  const candidates = staffStartReminder ? [] : ["owner"];
+  if (["crm", "staff", "driver", "utility"].includes(notification.target_workspace)) {
+    candidates.push(notification.target_workspace);
+  }
+  return [...new Set(candidates)];
+}
+
 function safeActionHref(
   notification: WorkspaceNotification,
   workspace: PushSubscriptionRow["workspace"]
@@ -286,20 +301,7 @@ export async function deliverWorkspaceNotificationPush(
 
   try {
     const admin = createAdminClient();
-    const metadata = notification.metadata;
-    const staffStartReminder = notification.target_workspace === "staff" &&
-      metadata !== null && typeof metadata === "object" && !Array.isArray(metadata) &&
-      metadata.service_start_reminder === true;
-    // A two-minute therapist reminder belongs only to its assigned staff member.
-    // Do not escalate this routine notice to opted-in Owner booking devices.
-    const candidateWorkspaces = staffStartReminder ? [] : ["owner"];
-    if (
-      ["crm", "staff", "driver", "utility"].includes(
-        notification.target_workspace
-      )
-    ) {
-      candidateWorkspaces.push(notification.target_workspace);
-    }
+    const candidateWorkspaces = candidatePushWorkspaces(notification);
     const subscriptionsResult = await admin
       .from("web_push_subscriptions")
       .select("*")
