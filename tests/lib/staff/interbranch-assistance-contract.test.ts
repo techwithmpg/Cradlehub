@@ -50,11 +50,12 @@ describe("interbranch assistance foundation", () => {
     })).toBe(true);
   });
 
-  it("only permits manager approval at the lending branch, or owner", () => {
-    expect(canApproveAssistance({ role: "crm", branchId: "sm" }, request)).toBe(false);
-    expect(canApproveAssistance({ role: "manager", branchId: "main" }, request)).toBe(false);
-    expect(canApproveAssistance({ role: "manager", branchId: "sm" }, request)).toBe(true);
-    expect(canApproveAssistance({ role: "owner", branchId: "main" }, request)).toBe(true);
+  it("permits only lending-branch CSR to approve; manager and owner have no workflow bypass", () => {
+    expect(canApproveAssistance({ role: "crm", branchId: "sm" }, request)).toBe(true);
+    expect(canApproveAssistance({ role: "crm", branchId: "main" }, request)).toBe(false);
+    expect(canApproveAssistance({ role: "manager", branchId: "sm" }, request)).toBe(false);
+    expect(canApproveAssistance({ role: "owner", branchId: "sm" }, request)).toBe(false);
+    expect(canApproveAssistance({ role: "crm", branchId: null }, request)).toBe(false);
   });
 
   it("does not skip the travelling and arrival stages", () => {

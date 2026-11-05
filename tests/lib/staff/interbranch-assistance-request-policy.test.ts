@@ -34,20 +34,26 @@ describe("Staff Assistance Stage B safety policy", () => {
     expect(assistanceSubmitSchema.safeParse({ ...valid, count: 21 }).success).toBe(false);
     expect(assistanceSubmitSchema.safeParse({ ...valid, notes: "x".repeat(201) }).success).toBe(false);
   });
-  it("lets CSR request but never approve; only lending-branch manager or owner may approve", () => {
+  it("lets each branch CSR request and approve only incoming requests, never manager or owner", () => {
     expect(canSubmitAssistance("crm")).toBe(true);
     expect(canSubmitAssistance("driver")).toBe(false);
-    expect(canReviewAssistance({ role: "crm", branchId: sm }, { requestingBranchId: main, lendingBranchId: sm })).toBe(false);
-    expect(canReviewAssistance({ role: "manager", branchId: main }, { requestingBranchId: main, lendingBranchId: sm })).toBe(false);
-    expect(canReviewAssistance({ role: "manager", branchId: sm }, { requestingBranchId: main, lendingBranchId: sm })).toBe(true);
-    expect(canReviewAssistance({ role: "owner", branchId: main }, { requestingBranchId: main, lendingBranchId: sm })).toBe(true);
+    expect(canSubmitAssistance("manager")).toBe(false);
+    expect(canSubmitAssistance("owner")).toBe(false);
+    expect(canReviewAssistance({ role: "crm", branchId: sm }, { requestingBranchId: main, lendingBranchId: sm })).toBe(true);
+    expect(canReviewAssistance({ role: "crm", branchId: main }, { requestingBranchId: main, lendingBranchId: sm })).toBe(false);
+    expect(canReviewAssistance({ role: "crm", branchId: main }, { requestingBranchId: sm, lendingBranchId: main })).toBe(true);
+    expect(canReviewAssistance({ role: "manager", branchId: sm }, { requestingBranchId: main, lendingBranchId: sm })).toBe(false);
+    expect(canReviewAssistance({ role: "owner", branchId: sm }, { requestingBranchId: main, lendingBranchId: sm })).toBe(false);
+    expect(canReviewAssistance({ role: "crm", branchId: null }, { requestingBranchId: main, lendingBranchId: sm })).toBe(false);
+    expect(canReviewAssistance({ role: "crm", branchId: sm }, { requestingBranchId: sm, lendingBranchId: sm })).toBe(false);
   });
   it("allows requester cancellation only while pending, not after approval", () => {
     expect(canCancelAssistance({ role: "crm", branchId: main }, { requestingBranchId: main, status: "requested" })).toBe(true);
     expect(canCancelAssistance({ role: "crm", branchId: sm }, { requestingBranchId: main, status: "requested" })).toBe(false);
     expect(canCancelAssistance({ role: "crm", branchId: main }, { requestingBranchId: main, status: "approved_pending_arrival" })).toBe(false);
+    expect(canCancelAssistance({ role: "owner", branchId: main }, { requestingBranchId: main, status: "requested" })).toBe(false);
   });
-  it("validates manager decisions and rejects repeated staff IDs upstream", () => {
+  it("validates CSR decision payloads", () => {
     const id = "11111111-1111-4111-8111-111111111111";
     expect(assistanceDecisionSchema.safeParse({ requestId: id, decision: "approve", staffIds: [id] }).success).toBe(true);
     expect(assistanceDecisionSchema.safeParse({ requestId: id, decision: "revise", staffIds: [] }).success).toBe(false);

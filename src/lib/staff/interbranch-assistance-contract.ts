@@ -102,13 +102,14 @@ export function canAdvanceAssistanceStatus(
   return TRANSITIONS[from].includes(to);
 }
 
-/** Only the lending-branch management team can authorize releasing staff. */
+/** Only CSR at the lending branch can authorize a provisional release. */
 export function canApproveAssistance(actor: {
   role: string;
   branchId: string | null;
 }, request: AssistanceRequest): boolean {
-  const manager = ["owner", "manager", "assistant_manager", "store_manager"].includes(actor.role);
-  return manager && (actor.role === "owner" || actor.branchId === request.lendingBranchId);
+  return actor.role === "crm" && actor.branchId !== null &&
+    actor.branchId === request.lendingBranchId &&
+    request.requestingBranchId !== request.lendingBranchId;
 }
 
 export function evaluateAssistanceCandidate(

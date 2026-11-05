@@ -228,7 +228,7 @@ export async function loadStaffAssistanceCandidatesAction(
   if (request.status !== "requested" ||
       !canReviewAssistance(actor, {
         requestingBranchId: request.requesting_branch_id, lendingBranchId: request.lending_branch_id,
-      })) return failure("Only the lending branch manager can review this request.");
+      })) return failure("Only CSR at the lending branch can review this request.");
   return loadCandidates(db, request);
 }
 
@@ -304,7 +304,7 @@ export async function decideStaffAssistanceAction(
     requestingBranchId: request.requesting_branch_id,
     lendingBranchId: request.lending_branch_id,
   })) {
-    return failure("Only the lending branch manager can approve or decline.");
+    return failure("Only CSR at the lending branch can approve or decline.");
   }
 
   if (value.decision !== "approve" && value.staffIds.length) return failure("No staff should be selected.");
@@ -338,7 +338,7 @@ export async function decideStaffAssistanceAction(
     type: value.decision === "approve" ? "interbranch_assistance_approved" : "interbranch_assistance_closed",
     title: value.decision === "approve" ? "Assistance request approved" : "Assistance request updated",
     body: value.decision === "approve"
-      ? "The lending manager has selected staff. Booking and attendance activation are not yet enabled."
+      ? "The lending branch CSR has selected staff. Booking and attendance activation are not yet enabled."
       : `Staff assistance request ${next}.`,
     entityType: "staff_assistance_request",
     entityId: request.id,
