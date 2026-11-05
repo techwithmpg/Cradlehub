@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { isServiceStartReminderEligible, serviceStartReminderQueue } from "@/lib/bookings/service-start-reminders";
+import { isServiceStartReminderEligible, isTherapistStartPushEligible, serviceStartReminderQueue } from "@/lib/bookings/service-start-reminders";
 
 const due = Date.parse("2026-11-03T14:00:00+08:00");
 const candidate = {
@@ -37,5 +37,28 @@ describe("server-time service start reminder eligibility", () => {
     const second = { ...candidate, id: "booking-2", start_time: "14:02:00" };
     expect(serviceStartReminderQueue([second, candidate], due).map((entry) => entry.id))
       .toEqual(["booking-1", "booking-2"]);
+  });
+});
+
+
+describe("two-minute therapist phone push window", () => {
+  it("does not send early or after the scheduled start", () => {
+    expect(isTherapistStartPushEligible(candidate, due - 3 * 60_000)).toBe(false);
+    expect(isTherapistStartPushEligible(candidate, due - 2 * 60_000)).toBe(true);
+    expect(isTherapistStartPushEligible(candidate, due - 1_000)).toBe(true);
+    expect(isTherapistStartPushEligible(candidate, due)).toBe(false);
+    expect(isTherapistStartPushEligible(candidate, due + 60_000)).toBe(false);
+  });
+
+  it("does not push cancelled, unassigned, or already-started bookings", () => {
+    for (const change of [
+      { status: "cancelled" },
+      { staff_id: null },
+      { resource_id: null },
+      { delivery_type: "home_service" },
+      { booking_progress_status: "session_started" },
+    ]) {
+      expect(isTherapistStartPushEligible({ ...candidate, ...change }, due - 60_000)).toBe(false);
+    }
   });
 });
