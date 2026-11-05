@@ -2,8 +2,8 @@
 
 import { useCallback, useEffect, useMemo, useState, useTransition } from "react";
 import {
-  ArrowLeftRight, ArrowRight, Building2, CheckCircle2,
-  Clock3, Hourglass, Plus, Send, ShieldCheck, UsersRound,
+  ArrowLeftRight, ArrowRight, Building2,
+  Clock3, Plus, Send, ShieldCheck, UsersRound,
 } from "lucide-react";
 import { toast } from "sonner";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
