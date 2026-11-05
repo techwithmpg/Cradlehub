@@ -114,12 +114,21 @@ alter table public.staff_assistance_events enable row level security;
 
 -- Frontend clients can READ relevant branch requests. All WRITES are
 -- server-side only, using verified actor identities and a restricted backend key.
-revoke all on public.staff_assistance_requests from public, anon, authenticated;
-revoke all on public.staff_assistance_events from public, anon, authenticated;
+revoke all on public.staff_assistance_requests from public, anon, authenticated, service_role;
+revoke all on public.staff_assistance_events from public, anon, authenticated, service_role;
 grant select on public.staff_assistance_requests to authenticated;
 grant select on public.staff_assistance_events to authenticated;
 grant select, insert, update on public.staff_assistance_requests to service_role;
 grant select, insert on public.staff_assistance_events to service_role;
+
+-- Trigger functions are not client APIs. Do not leave accidental function
+-- EXECUTE grants for anon or authenticated roles.
+revoke execute on function public.audit_staff_assistance_request()
+  from public, anon, authenticated;
+revoke execute on function public.insert_staff_assistance_audit()
+  from public, anon, authenticated;
+grant execute on function public.audit_staff_assistance_request() to service_role;
+grant execute on function public.insert_staff_assistance_audit() to service_role;
 
 create policy "assistance_branch_read" on public.staff_assistance_requests
 for select to authenticated
