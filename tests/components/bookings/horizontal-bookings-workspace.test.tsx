@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 import React from "react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { cleanup, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 
 const mocks = vi.hoisted(() => ({
   openBookingModal: vi.fn(),
@@ -11,6 +11,7 @@ const mocks = vi.hoisted(() => ({
   getRoomAssignmentOptionsAction: vi.fn(),
   getTherapistRecommendationsAction: vi.fn(),
   crmStartServiceAction: vi.fn(),
+  markBookingArrivedAction: vi.fn(),
   crmCompleteServiceAction: vi.fn(),
   recordBookingFollowupAction: vi.fn(),
   createInhouseBookingMultiAction: vi.fn(),
@@ -85,6 +86,7 @@ vi.mock("@/app/(dashboard)/crm/bookings/actions", () => ({
   assignBookingRoomAction: mocks.assignBookingRoomAction,
   getRoomAssignmentOptionsAction: mocks.getRoomAssignmentOptionsAction,
   crmStartServiceAction: mocks.crmStartServiceAction,
+  markBookingArrivedAction: mocks.markBookingArrivedAction,
   crmCompleteServiceAction: mocks.crmCompleteServiceAction,
   recordBookingFollowupAction: mocks.recordBookingFollowupAction,
 }));
@@ -228,6 +230,100 @@ describe("Horizontal Bookings Workspace & Quick Edit Integration", () => {
     vi.unstubAllGlobals();
   });
 
+  it("renders the CRM operations grid, action panel, compact preview and management modal", async () => {
+    const scheduled = makeBooking({ payment_status: "unpaid" });
+    const waiting = makeBooking({
+      id: "booking-waiting",
+      order_id: "ORD-WAITING",
+      booking_progress_status: "checked_in",
+      checked_in_at: "2026-10-29T04:00:00Z",
+      start_time: "15:00:00",
+      customers: { id: "cust-waiting", full_name: "Waiting Guest" },
+    });
+    render(<BookingsDesktopWorkspace workspaceContext="crm" viewerRole="admin"
+      date="2026-10-29" initialQuickFilter="all" bookings={[scheduled, waiting]} />);
+
+    expect(screen.getByRole("tab", { name: "Today", selected: true })).toBeTruthy();
+    expect(screen.getByRole("tab", { name: "In Service" })).toBeTruthy();
+    expect(screen.getByRole("columnheader", { name: "Therapist" })).toBeTruthy();
+    expect(screen.getByRole("columnheader", { name: "Room" })).toBeTruthy();
+    expect(screen.getByRole("complementary", { name: "Service Actions" })).toBeTruthy();
+    expect(screen.getByText("Arrived — Waiting")).toBeTruthy();
+
+    fireEvent.click(screen.getAllByRole("button", { name: "Expand Elena Navarro preview" })[0]!);
+    expect(screen.getAllByRole("region", { name: "Service summary for Elena Navarro" }).length).toBeGreaterThan(0);
+    expect(screen.queryByLabelText("Booking date")).toBeNull();
+    fireEvent.click(screen.getAllByRole("button", { name: "View Details" })[0]!);
+    expect(screen.getByRole("dialog")).toBeTruthy();
+    expect(screen.getByRole("heading", { name: "Booking Details" })).toBeTruthy();
+    expect(screen.getByLabelText("Booking date")).toBeTruthy();
+    expect(screen.getByRole("button", { name: "Start Service" })).toBeTruthy();
+    expect(screen.getByRole("link", { name: "Customer Profile" })).toBeTruthy();
+    expect(mocks.crmStartServiceAction).not.toHaveBeenCalled();
+  });
+
+  it("filters CRM grid rows without changing booking records", () => {
+    render(<BookingsDesktopWorkspace workspaceContext="crm" viewerRole="admin"
+      date="2026-10-29" initialQuickFilter="all" bookings={[
+        makeBooking(),
+        makeBooking({ id: "booking-102", order_id: "ORD-102", customers: { id: "cust-2", full_name: "Second Guest" } }),
+      ]} />);
+    fireEvent.change(screen.getByRole("searchbox", { name: "Search bookings" }), { target: { value: "Second Guest" } });
+    expect(screen.getByRole("status").textContent).toContain("1 session");
+    expect(screen.queryByRole("button", { name: "Elena Navarro" })).toBeNull();
+    expect(screen.getAllByRole("button", { name: "Second Guest" }).length).toBeGreaterThan(0);
+    expect(mocks.rescheduleBookingAction).not.toHaveBeenCalled();
+  });
+
+  it("shows one payment action for a completed group order", () => {
+    const first = makeBooking({
+      booking_progress_status: "completed", status: "completed",
+      payment_status: "unpaid", order_payment_status: "unpaid", order_amount_paid: 0,
+    });
+    const second = makeBooking({
+      id: "booking-102", booking_progress_status: "completed", status: "completed",
+      payment_status: "unpaid", order_payment_status: "unpaid", order_amount_paid: 0,
+      customers: { id: "cust-2", full_name: "Second Guest" },
+    });
+    render(<BookingsDesktopWorkspace workspaceContext="crm" viewerRole="admin"
+      date="2026-10-29" initialQuickFilter="all" bookings={[first, second]} />);
+    const panel = screen.getByRole("complementary", { name: "Service Actions" });
+    expect(within(panel).getByRole("heading", { name: /Payment Due/ })).toBeTruthy();
+    expect(within(panel).getAllByRole("button")).toHaveLength(1);
+  });
+
+  it("opens the three-choice Service Start dialog and records absence without starting service", async () => {
+    const booking = makeBooking({ start_time: "11:59:00", payment_status: "unpaid" });
+    mocks.recordBookingFollowupAction.mockResolvedValueOnce({ success: true });
+    render(<BookingsDesktopWorkspace workspaceContext="crm" viewerRole="admin"
+      date="2026-10-29" initialQuickFilter="all" bookings={[booking]} />);
+    const panel = screen.getByRole("complementary", { name: "Service Actions" });
+    fireEvent.click(within(panel).getByRole("button", { name: /Elena Navarro/ }));
+    const dialog = screen.getByRole("dialog");
+    expect(within(dialog).getByRole("heading", { name: "Service Start — Action Required" })).toBeTruthy();
+    expect(within(dialog).getByRole("button", { name: /Start Service Now/ })).toBeTruthy();
+    expect(within(dialog).getByRole("button", { name: /Customer Arrived — Waiting/ })).toBeTruthy();
+    fireEvent.click(within(dialog).getByRole("button", { name: /Customer Not Arrived/ }));
+    await waitFor(() => expect(mocks.recordBookingFollowupAction).toHaveBeenCalledWith({
+      bookingId: booking.id,
+      result: "not_arrived",
+      note: "Customer not yet arrived for scheduled service.",
+    }));
+    expect(mocks.crmStartServiceAction).not.toHaveBeenCalled();
+    expect(mocks.markBookingArrivedAction).not.toHaveBeenCalled();
+  });
+
+  it("finds a grouped booking by another guest's name", () => {
+    const first = makeBooking();
+    const second = makeBooking({ id: "booking-102", customers: { id: "cust-2", full_name: "Second Guest" } });
+    render(<BookingsDesktopWorkspace workspaceContext="crm" viewerRole="admin"
+      date="2026-10-29" initialQuickFilter="all" bookings={[first, second]} />);
+    fireEvent.click(screen.getByRole("button", { name: "Grouped" }));
+    fireEvent.change(screen.getByRole("searchbox", { name: "Search bookings" }), { target: { value: "Second Guest" } });
+    expect(screen.getByRole("status").textContent).toContain("1 booking");
+    expect(screen.getAllByRole("button", { name: "Elena Navarro" }).length).toBeGreaterThan(0);
+  });
+
   it("renders horizontal booking rows with payment status, therapist, room, and expands only one Quick Edit at a time", async () => {
     const booking1 = makeBooking();
     const booking2 = makeBooking({
@@ -258,7 +354,7 @@ describe("Horizontal Bookings Workspace & Quick Edit Integration", () => {
 
     render(
       <BookingsDesktopWorkspace
-        workspaceContext="crm"
+        workspaceContext="manager"
         viewerRole="admin"
         date="2026-10-29"
         initialQuickFilter="all"
@@ -299,7 +395,7 @@ describe("Horizontal Bookings Workspace & Quick Edit Integration", () => {
 
     render(
       <BookingsDesktopWorkspace
-        workspaceContext="crm"
+        workspaceContext="manager"
         viewerRole="admin"
         date="2026-10-29"
         initialQuickFilter="all"
@@ -362,8 +458,7 @@ describe("Horizontal Bookings Workspace & Quick Edit Integration", () => {
       />
     );
 
-    fireEvent.click(screen.getByRole("button", { name: /Expand quick edit/i }));
-    fireEvent.click(screen.getByRole("button", { name: /Booking Details/i, expanded: false }));
+    fireEvent.click(screen.getAllByRole("button", { name: "Elena Navarro" })[0]!);
     fireEvent.click((await screen.findAllByRole("button", { name: /Reschedule/i })).at(-1)!);
 
     expect(mocks.openBookingModal).toHaveBeenCalledWith({
@@ -406,7 +501,7 @@ describe("Horizontal Bookings Workspace & Quick Edit Integration", () => {
 
     render(
       <BookingsDesktopWorkspace
-        workspaceContext="crm"
+        workspaceContext="manager"
         viewerRole="admin"
         date="2026-10-29"
         initialQuickFilter="all"
@@ -567,7 +662,7 @@ describe("Horizontal Bookings Workspace & Quick Edit Integration", () => {
 
     render(
       <BookingsDesktopWorkspace
-        workspaceContext="crm"
+        workspaceContext="manager"
         viewerRole="admin"
         date="2026-10-29"
         initialQuickFilter="all"
@@ -595,7 +690,7 @@ describe("Horizontal Bookings Workspace & Quick Edit Integration", () => {
 
     render(
       <BookingsDesktopWorkspace
-        workspaceContext="crm"
+        workspaceContext="manager"
         viewerRole="admin"
         date="2026-10-29"
         initialQuickFilter="all"
@@ -656,7 +751,7 @@ describe("Horizontal Bookings Workspace & Quick Edit Integration", () => {
 
     render(
       <BookingsDesktopWorkspace
-        workspaceContext="crm"
+        workspaceContext="manager"
         viewerRole="admin"
         date="2026-10-29"
         initialQuickFilter="all"
@@ -760,10 +855,11 @@ describe("Horizontal Bookings Workspace & Quick Edit Integration", () => {
       />
     );
 
-    fireEvent.click(screen.getByRole("button", { name: "Expand group booking" }));
-    // Each recipient retains its own action.
-    expect(screen.getAllByText("Waiting").length).toBeGreaterThan(0);
-    expect(screen.getByText("Start Service")).toBeTruthy();
+    fireEvent.click(screen.getByRole("button", { name: "Grouped" }));
+    fireEvent.click(screen.getAllByRole("button", { name: "Elena Navarro" })[0]!);
+    fireEvent.click(screen.getByRole("button", { name: "Marco Navarro" }));
+    expect(screen.getByRole("heading", { name: "Group Booking Details" })).toBeTruthy();
+    expect(screen.getByRole("button", { name: "Start Service" })).toBeTruthy();
 
     // Clicking Start Service should target line2 (the unfinished waiting line), NOT line1
     fireEvent.click(screen.getByRole("button", { name: "Start Service" }));
@@ -796,7 +892,7 @@ describe("Horizontal Bookings Workspace & Quick Edit Integration", () => {
 
     render(
       <BookingsDesktopWorkspace
-        workspaceContext="crm"
+        workspaceContext="manager"
         viewerRole="admin"
         date="2026-10-29"
         initialQuickFilter="all"
@@ -830,7 +926,7 @@ describe("Horizontal Bookings Workspace & Quick Edit Integration", () => {
 
     render(
       <BookingsDesktopWorkspace
-        workspaceContext="crm"
+        workspaceContext="manager"
         viewerRole="admin"
         date="2026-10-29"
         initialQuickFilter="all"
@@ -964,13 +1060,14 @@ describe("Horizontal Bookings Workspace & Quick Edit Integration", () => {
       />
     );
 
-    expect(screen.getAllByText("Waiting").length).toBeGreaterThan(0);
-    fireEvent.click(screen.getByRole("button", { name: "Expand group booking" }));
+    fireEvent.click(screen.getByRole("button", { name: "Grouped" }));
+    fireEvent.click(screen.getAllByRole("button", { name: "Guest One" })[0]!);
+    fireEvent.click(screen.getByRole("button", { name: "Guest Two" }));
     const startBtn = screen.getByRole("button", { name: "Start Service" });
     expect(startBtn).toBeTruthy();
 
     // Verify this action belongs to the waiting recipient
-    expect(screen.getByRole("link", { name: "Guest Two" })).toBeTruthy();
+    expect(screen.getByRole("button", { name: "Guest Two", pressed: true })).toBeTruthy();
 
     fireEvent.click(startBtn);
 
@@ -979,7 +1076,7 @@ describe("Horizontal Bookings Workspace & Quick Edit Integration", () => {
         bookingId: "booking-multi-waiting-2",
       });
       expect(mocks.toastSuccess).toHaveBeenCalledWith(
-        "Service started",
+        "Service Started",
         expect.objectContaining({
           description: expect.stringContaining("Guest Two"),
         })
@@ -1043,12 +1140,13 @@ describe("Horizontal Bookings Workspace & Quick Edit Integration", () => {
       />
     );
 
-    fireEvent.click(screen.getByRole("button", { name: "Expand group booking" }));
-    expect(screen.getByRole("link", { name: "Guest Two" })).toBeTruthy();
+    fireEvent.click(screen.getByRole("button", { name: "Grouped" }));
+    fireEvent.click(screen.getAllByRole("button", { name: "Primary Organizer" })[0]!);
+    fireEvent.click(screen.getByRole("button", { name: "Guest Two" }));
+    expect(screen.getByRole("heading", { name: "Group Booking Details" })).toBeTruthy();
     expect(screen.getByText("Foot Reflexology")).toBeTruthy();
     expect(screen.getAllByText("4:00 PM").length).toBeGreaterThan(0);
-    expect(screen.getByRole("link", { name: "Primary Organizer" })).toBeTruthy();
-    expect(screen.queryByRole("timer")).toBeNull();
+    expect(screen.getAllByText("Primary Organizer").length).toBeGreaterThan(0);
     // 2. Click Start Service button
     const startBtn = screen.getByRole("button", { name: "Start Service" });
     fireEvent.click(startBtn);
@@ -1061,7 +1159,7 @@ describe("Horizontal Bookings Workspace & Quick Edit Integration", () => {
       });
       // Toast confirmation explicitly uses Guest Two's name
       expect(mocks.toastSuccess).toHaveBeenCalledWith(
-        "Service started",
+        "Service Started",
         expect.objectContaining({
           description: expect.stringContaining("Guest Two"),
         })
@@ -1093,7 +1191,7 @@ describe("Horizontal Bookings Workspace & Quick Edit Integration", () => {
 
     render(
       <BookingsDesktopWorkspace
-        workspaceContext="crm"
+        workspaceContext="manager"
         viewerRole="admin"
         date="2026-10-29"
         initialQuickFilter="all"
@@ -1131,7 +1229,7 @@ describe("Horizontal Bookings Workspace & Quick Edit Integration", () => {
 
     render(
       <BookingsDesktopWorkspace
-        workspaceContext="crm"
+        workspaceContext="manager"
         viewerRole="admin"
         date="2026-10-29"
         initialQuickFilter="all"
@@ -1170,7 +1268,7 @@ describe("Horizontal Bookings Workspace & Quick Edit Integration", () => {
 
     render(
       <BookingsDesktopWorkspace
-        workspaceContext="crm"
+        workspaceContext="manager"
         viewerRole="admin"
         date="2026-10-29"
         initialQuickFilter="all"
@@ -1205,7 +1303,7 @@ describe("Horizontal Bookings Workspace & Quick Edit Integration", () => {
 
     render(
       <BookingsDesktopWorkspace
-        workspaceContext="crm"
+        workspaceContext="manager"
         viewerRole="admin"
         date="2026-10-29"
         initialQuickFilter="all"
@@ -1278,7 +1376,7 @@ describe("Horizontal Bookings Workspace & Quick Edit Integration", () => {
 
     render(
       <BookingsDesktopWorkspace
-        workspaceContext="crm"
+        workspaceContext="manager"
         viewerRole="admin"
         date="2026-10-29"
         initialQuickFilter="all"
@@ -1323,7 +1421,7 @@ describe("Horizontal Bookings Workspace & Quick Edit Integration", () => {
 
     render(
       <BookingsDesktopWorkspace
-        workspaceContext="crm"
+        workspaceContext="manager"
         viewerRole="admin"
         date="2026-10-29"
         initialQuickFilter="all"
@@ -1407,7 +1505,7 @@ describe("Horizontal Bookings Workspace & Quick Edit Integration", () => {
 
     render(
       <BookingsDesktopWorkspace
-        workspaceContext="crm"
+        workspaceContext="manager"
         viewerRole="admin"
         date="2026-10-29"
         initialQuickFilter="all"
@@ -1469,7 +1567,7 @@ describe("Horizontal Bookings Workspace & Quick Edit Integration", () => {
 
     render(
       <BookingsDesktopWorkspace
-        workspaceContext="crm"
+        workspaceContext="manager"
         viewerRole="admin"
         date="2026-10-29"
         initialQuickFilter="all"

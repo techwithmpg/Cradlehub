@@ -3,6 +3,8 @@ import "server-only";
 
 import { revalidatePath } from "next/cache";
 import { createAdminClient } from "@/lib/supabase/admin";
+import { logError } from "@/lib/logger";
+import { drainServiceTransitionPushOutbox } from "@/lib/notifications/push/service-transition-outbox";
 import { createClient } from "@/lib/supabase/server";
 import { isDevAuthBypassEnabled } from "@/lib/dev-bypass";
 import { getDevBypassBranchContext } from "@/lib/dev-bypass-server";
@@ -643,6 +645,13 @@ export async function completeDueServiceSessionsNow(): Promise<number> {
   const admin = asAttendanceDb(createAdminClient());
   const { data, error } = await admin.rpc("complete_due_service_sessions", { p_limit: 100 });
   if (error) throw new Error(error.message);
+  // The database commits transition notices first. Drain their durable push
+  // jobs after the RPC, including work retained from earlier failed sends.
+  try {
+    await drainServiceTransitionPushOutbox({ limit: 20 });
+  } catch (pushError) {
+    logError("service_transition.push_retry_failed", { pushError });
+  }
   return Array.isArray(data) ? data.length : 0;
 }
 

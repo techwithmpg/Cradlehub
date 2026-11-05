@@ -3,6 +3,7 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import type { Database } from "@/types/supabase";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { createNotification, resolveNotificationsForEntity } from "@/lib/notifications/create";
+import { publishServiceTransition } from "@/lib/bookings/service-transition-notifications";
 import { getNotificationTargetPath } from "@/lib/notifications/notification-targets";
 import { isResourceAvailable } from "@/lib/engine/resource-availability";
 import { revalidateOperationalBookingSurfaces } from "@/lib/bookings/revalidate-booking-surfaces";
@@ -38,6 +39,10 @@ export type CrmActionContext = {
 };
 export type BookingOperationResult = {
   success: boolean;
+  startedAt?: string;
+  alreadyStarted?: boolean;
+  completedAt?: string;
+  alreadyCompleted?: boolean;
   error?: string;
   code?: string;
   bookingId?: string;
@@ -58,7 +63,7 @@ export const bookingIdSchema = z.object({
 });
 
 export const recordBookingFollowupSchema = bookingIdSchema.extend({
-  result: z.enum(["no_answer", "reschedule", "confirm_later", "cancel"]),
+  result: z.enum(["no_answer", "not_arrived", "reschedule", "confirm_later", "cancel"]),
   note: z.string().max(500).optional(),
   followUpAt: z.string().max(100).optional(),
   cancellationReason: z.enum(BOOKING_CANCELLATION_REASON_VALUES).optional(),
@@ -329,6 +334,7 @@ export function withRescheduleMetadata(
 
 export function followupResultLabel(result: string): string {
   if (result === "no_answer") return "No Answer";
+  if (result === "not_arrived") return "Customer Not Arrived";
   if (result === "reschedule") return "Reschedule";
   if (result === "confirm_later") return "Confirm Later";
   if (result === "cancel") return "Cancel";
@@ -2051,11 +2057,11 @@ export async function startCrmBookingService(
     (booking.booking_progress_status === "session_started" || booking.status === "in_progress") &&
     (booking as { session_started_at?: string | null }).session_started_at
   ) {
-    return { success: true };
+    return { success: true, startedAt: booking.session_started_at!, alreadyStarted: true };
   }
 
   const admin = createAdminClient();
-  const { error } = await admin.rpc("start_booking_service_session", {
+  const { data, error } = await admin.rpc("start_booking_service_session", {
     p_booking_id: parsed.data.bookingId,
     p_source: "crm",
     p_actor_staff_id: ctx.me.id,
@@ -2071,7 +2077,19 @@ export async function startCrmBookingService(
   }
 
   revalidateServiceSurfaces(booking.branch_id);
-  return { success: true };
+  const payload = data && typeof data === "object" && !Array.isArray(data)
+    ? data as Record<string, unknown> : null;
+  if (payload?.already_started !== true) {
+    await publishServiceTransition({
+      bookingId: booking.id, branchId: booking.branch_id,
+      actorStaffId: ctx.me.id, transition: "started",
+    }).catch((error) => logError("crm.start_service_notification_failed", { bookingId: booking.id, error }));
+  }
+  return {
+    success: true,
+    ...(typeof payload?.started_at === "string" ? { startedAt: payload.started_at } : {}),
+    ...(typeof payload?.already_started === "boolean" ? { alreadyStarted: payload.already_started } : {}),
+  };
 }
 
 export async function completeCrmBookingService(
@@ -2133,7 +2151,7 @@ export async function completeCrmBookingService(
   }
 
   const admin = createAdminClient();
-  const { error } = await admin.rpc("complete_booking_service_session", {
+  const { data, error } = await admin.rpc("complete_booking_service_session", {
     p_booking_id: parsed.data.bookingId,
     p_completion_source: "crm_manual",
     p_actor_staff_id: ctx.me.id,
@@ -2145,6 +2163,15 @@ export async function completeCrmBookingService(
       error,
     });
     return { success: false, error: error.message };
+  }
+
+  const payload = data && typeof data === "object" && !Array.isArray(data)
+    ? data as Record<string, unknown> : null;
+  if (payload?.already_completed !== true) {
+    await publishServiceTransition({
+      bookingId: booking.id, branchId: booking.branch_id,
+      actorStaffId: ctx.me.id, transition: "completed",
+    }).catch((error) => logError("crm.complete_service_notification_failed", { bookingId: booking.id, error }));
   }
 
   const turnoverResult = await triggerUtilityRoomTurnoverOnServiceCompletion({
@@ -2177,6 +2204,8 @@ export async function completeCrmBookingService(
   revalidateServiceSurfaces(booking.branch_id);
   return {
     success: true,
+    ...(typeof payload?.completed_at === "string" ? { completedAt: payload.completed_at } : {}),
+    ...(typeof payload?.already_completed === "boolean" ? { alreadyCompleted: payload.already_completed } : {}),
     turnoverSyncStatus,
     ...(turnoverSyncStatus === "failed"
       ? {

@@ -1,0 +1,102 @@
+# Service Lifecycle final stabilization correction — 2026-11-04
+
+**Release verdict: CORRECTION REQUIRED.** The Owner authorized a LOCAL-only correction on `fix/service-lifecycle-group-integration-20261104` from `7298a7c1005441e51da191cf12a782d5fb38566a`, reconciled with accepted `origin/main` `41e8001c2eef3f4c7814a74ae935944ee2fbd2cc`. This handoff records working-tree evidence before its final local commit; the final HEAD is recorded in the task response. No push, merge, deployment, production database write, Cron installation, reminder-flag change, Owner configuration, or automatic-completion activation occurred.
+
+## Correction and decisions
+
+- Restored the accepted Bookings reference-source route for `all`, local quick-filter behavior, and selected-line survival through background reconciliation and URL updates. The four integration-only assertion failures listed below now pass. No Group Booking capacity guard or accepted confirmation RPC changed.
+- Added a transactional, cutover-scoped `service_transition_push_outbox` row for each SQL-created service notice. Service-role-only claim/finish RPCs lease jobs, retain successful subscription IDs, and back off failed sends. The server publisher drains the current event plus bounded older work; CRM's server-side due-completion action also drains after commit. Dismissed/read notices are not resent. There is no historical backfill. A failed or unconfigured push leaves durable work and is logged. A process crash between a successful external push and recording its subscription ID can retry that push; the notification's stable ID/tag mitigates presentation duplication but delivery is at least once, not exactly once.
+- Kept the physically enforced `CHECK (NOT enabled)` completion latch. The accepted booking status triggers use unqualified public tables; the privileged worker now uses `pg_catalog, public, pg_temp` search path so those triggers resolve. The LOCAL accepted schema confirms application roles lack `CREATE` on `public`. No scheduler was created.
+- A notification or outbox insertion failure rolls back the booking transition. LOCAL failure injection confirmed no partial booking, payable or continuation mutation. This preserves notification evidence but can delay a real service transition during a notification-table outage; the operational response needs an explicit release decision and alerting.
+
+The correction changes exactly these 12 paths relative to its starting HEAD:
+
+```text
+docs/reports/bookings-details-preview/SERVICE-LIFECYCLE-FINAL-STABILIZATION-CORRECTION-2026-11-04.md
+src/components/features/bookings/bookings-workspace.tsx
+src/components/features/bookings/crm-bookings-operations-grid.tsx
+src/lib/attendance/queries.ts
+src/lib/bookings/service-transition-notifications.ts
+src/lib/notifications/push/delivery.ts
+src/lib/notifications/push/service-transition-outbox.ts
+supabase/migrations/20261103140629_guarded_service_auto_completion.sql
+supabase/migrations/20261104002009_priced_service_continuation_and_transition_delivery.sql
+tests/db/service-lifecycle-accepted-schema-local.sql
+tests/lib/bookings/service-transition-notifications.test.ts
+tests/lib/notifications/service-transition-push-outbox.test.ts
+```
+
+## Node 24 test comparison
+
+Both full suites used Node 24.22.1, Vitest 4.1.5, `--maxWorkers=4 --reporter=verbose --exclude '**/.tmp/**'`, the same repository dependency tree and separate per-worktree TEMP directories. Initial shared sandbox TEMP cache errors were discarded before this comparison. The isolated accepted-main worktree was detached at the exact accepted SHA. Logs remain local as `vitest-integration-node24-isolated.log`, `vitest-main-node24-isolated.log` in the comparison worktree, and `.tmp/vitest-final-node24.log` here.
+
+| Run | Passed | Failed | Skipped | Other error |
+| --- | ---: | ---: | ---: | --- |
+| Integration before correction | 3,669 | 32 | 2 | 2 Vitest worker errors |
+| Accepted main comparison | 3,639 | 30 | 2 | 1 Vitest worker timeout |
+| Integration after correction | 3,680 | 28 | 2 | none |
+
+The **32 original failures** classify as **27 existing accepted-main failures**, **4 genuine integration regressions now fixed**, and **1 load-sensitive fixture/environment timeout** (the five-guest compact CRM form). The main suite instead timed out on the corresponding 20-guest case and two retained Staff tests. No test assertion was changed merely to pass. The 27 shared failures are: desktop Home Service operations (1), CRM Bookings generation/payment/modal (4), CRM Quick Booking customer/guest/duration/failure forms (14), CRM booking failure diagnostics (1), in-house atomic boundary source assertions (6), and CRM Staff retained mutation source assertion (1). The appendix names every original failure.
+
+The final 28 comprise the same 27 accepted-main failures plus one full-suite-only payroll pagination timeout; that payroll test passed in the focused rerun. The four original Bookings regressions and the five-guest timeout were absent from the final full run. A focused run of five suites passed 33 and failed on the same four accepted-main CRM payment/modal assertions. The full run preceded the last two narrow edits: the post-commit manual completion drain and selected-row prop synchronization. After those edits, Node 24 `tsc --noEmit` and targeted ESLint passed; a two-suite Bookings rerun passed 20 and failed on the same four accepted-main CRM assertions. `git diff --check` passed. The 27 baseline failures still require contract reconciliation on their own authorized scope, especially Quick Booking, in-house creation and Home Service. This correction does not claim a clean suite.
+
+## Accepted-schema LOCAL database evidence
+
+The securely stored application backup was read only to produce a **schema-only, data-free** LOCAL artifact. All 92 COPY data blocks and its sequence `setval` were excluded; the backup itself and its data were not copied into the repository. The base restored 88 `public` tables (the backup has 92 tables across schemas), 112 `public` functions and 77 user triggers with zero bookings/customers/orders. Supabase platform roles and an empty `auth.users`/`auth.uid()` stand-in were added only to the disposable PostgreSQL 17 LOCAL container. This is the accepted application schema, but not a running Supabase Auth/PostgREST/Realtime stack.
+
+Fresh LOCAL database `cradlehub_lifecycle_fresh_local` applied the accepted `20261103015926_confirm_online_booking_capacity_atomic.sql` Group Booking guard, then **exactly** `20261103140629_guarded_service_auto_completion.sql`, then `20261104002009_priced_service_continuation_and_transition_delivery.sql`, all with `ON_ERROR_STOP=1` and exit 0. The tracked [LOCAL fixture](../../../tests/db/service-lifecycle-accepted-schema-local.sql) refuses another database or TCP target, uses synthetic identities and amounts, and rolls its full transaction back. It passed on the fresh restored schema. Post-fixture counts were zero bookings, continuation events, notifications and outbox jobs; the release latch constraint remained installed and no policy row was enabled.
+
+The fixture confirms two Group Booking guests receive separate rooms; a sibling stays independent; start/manual/automatic completion each inserts three role-targeted notices and three outbox jobs; a synthetic Owner approves a fixed price and closing time; CRM continuation creates one positive parent-order surcharge and one audit event, and a retry creates neither twice. It exercises Owner-only price denial, extendable approval and invalidation after catalog edits, maximum duration, closing time, therapist schedule/block, competing booking/room capacity, cross-branch denial, legacy no-order rejection, and service-role-only outbox claim/finish with persisted subscription IDs. The two-minute grace and idempotent auto completion pass after a **test-only savepoint removal** of the latch; rollback restores the physical constraint. Notification and outbox failure injection roll transitions back without partial financial writes.
+
+This is transaction-level evidence, not a real payment, discount, Cash Flow, Supabase RLS/Auth request or concurrent lock-load acceptance. The original payable snapshot is materialized and validated in the fixture before the surcharge, but payment writers, discount application, Cash Flow projections, simultaneous continuation/payment/completion, and real Group Booking load remain release gates. Direct database tests did not exercise the CRM/therapist service-start RPCs.
+
+## Notification and browser limits
+
+Existing `workspace_notifications` rows are the in-app source of truth; the bell's branch-scoped realtime subscription and server snapshot/reconnect path remain unchanged. SQL now commits the notice and push job together before the application publisher sees the existing notice. The service-only consumer routes through the existing web-push subscription matching and avoids successful subscription IDs on retry. CRM, manager and assigned therapist notices are asserted in LOCAL SQL. Actual phone push, cross-CSR, cross-device, reconnect, dismissal, and modal/countdown synchronization require authenticated browser/device testing.
+
+No isolated LOCAL Supabase Auth/PostgREST/Realtime identities or device push subscriptions were available. The requested 15-step CRM → therapist → paid continuation → due-plus-two browser sequence, simultaneous starts, and denied browser actions were **not demonstrated**. The corrected code remains a review candidate, not a released lifecycle. The automatic completion SQL path records jobs, but timely autonomous push and retries still need a separately authorized server consumer/scheduler. The manual due-completion action drains at most 20 jobs per invocation, while its RPC can complete 100 bookings and create up to 300 notices; excess work stays durable and pending. No scheduler was installed.
+
+## Release prerequisites and recovery
+
+The Owner must decide which fixed services permit continuation and enter their positive increment, price and maximum; explicitly approve current extendable catalog terms; and set actual treatment closing times for both active branches. No production values were invented. Legacy active lines without a canonical order remain fail-closed pending financial review. Before production migration, review the two proposed SQL files against the current accepted schema and migration ledger, resolve the remaining baseline suite failures, run full authenticated LOCAL/TEST browser and payment/discount/Cash Flow/concurrency acceptance, verify real phone subscriptions, and approve a reliable outbox consumer. Obtain a separate Owner gate for migration installation, CRM reminder activation, the completion-latch removal and Cron; this handoff authorizes none of them.
+
+For a later approved release, pause any completion/push worker and disable branch completion policies before rollback. Preserve committed bookings, payable surcharges, audit events and notifications. Failed push jobs can be retried from the durable outbox; reconcile missed or duplicate external delivery by notification/subscription ID. Repair financial discrepancies forward after review rather than deleting or replaying transaction history. No production rollback is needed from this LOCAL work.
+
+**Independent read-only reviewer verdict: CORRECTION REQUIRED.** The reviewer found no new critical SQL authorization or financial defect in this correction, but confirmed that an authorized autonomous outbox consumer, real authenticated browser/device delivery, Supabase runtime checks, and concurrent payment/continuation acceptance remain release gates.
+
+## Original 32 failure inventory
+
+The following names are copied from the original isolated Node 24 integration log. Each line is classified by its prefix: `BASELINE`, `REGRESSION FIXED`, or `ENVIRONMENT TIMEOUT`.
+
+- **BASELINE** — tests/api/desktop-v1-home-service-operations.test.ts > general Bookings mutations > reschedules home_service with updated destination coordinates when provided
+- **REGRESSION FIXED** — tests/components/bookings/bookings-workspace-source-routing.test.tsx > Bookings reference source routing > keeps read-only references reachable for all
+- **REGRESSION FIXED** — tests/components/crm/bookings-generation-swr.test.tsx > CrmBookingsView generation-aware operational lifecycle > 8. local desktop filter changes do not trigger server fetch when dataset unchanged
+- **REGRESSION FIXED** — tests/components/crm/bookings-generation-swr.test.tsx > CrmBookingsView generation-aware operational lifecycle > 9. selection survival: selected group and line survive background reconciliation
+- **BASELINE** — tests/components/crm/bookings-generation-swr.test.tsx > CrmBookingsView generation-aware operational lifecycle > 16. integration: successful payment through PaymentActionMenu triggers exactly one authoritative Bookings reconciliation
+- **BASELINE** — tests/components/crm/bookings-generation-swr.test.tsx > CrmBookingsView generation-aware operational lifecycle > 17. integration: failed payment triggers zero false state updates and zero reconciliations
+- **BASELINE** — tests/components/crm/bookings-generation-swr.test.tsx > CrmBookingsView generation-aware operational lifecycle > 18. integration: mobile table payment confirmation triggers exactly one authoritative Bookings reconciliation
+- **REGRESSION FIXED** — tests/components/crm/bookings-generation-swr.test.tsx > CrmBookingsView generation-aware operational lifecycle > 19. selection change inside loaded dataset triggers zero authoritative reads across A -> B -> A with searchParams synchronization
+- **BASELINE** — tests/components/crm/bookings-generation-swr.test.tsx > CrmBookingsView generation-aware operational lifecycle > 21. workspace and modal state survive row selection and searchParams updates without remounting
+- **BASELINE** — tests/components/crm/quick-booking-customer-autocomplete.test.tsx > Quick Booking customer name autocomplete > keeps two Walk-in guest cards expanded with independent service choices and a shared start
+- **BASELINE** — tests/components/crm/quick-booking-customer-autocomplete.test.tsx > Quick Booking customer name autocomplete > preserves customer-requested therapist for Organizer across addGuest and submits preferred staff after deliberate preference confirmation
+- **BASELINE** — tests/components/crm/quick-booking-customer-autocomplete.test.tsx > Quick Booking customer name autocomplete > keeps Phone/Future guests expanded and submits attendee service associations
+- **BASELINE** — tests/components/crm/quick-booking-customer-autocomplete.test.tsx > Quick Booking customer name autocomplete > keeps four Phone/Future guest cards expanded with one vertical scroll area
+- **BASELINE** — tests/components/crm/quick-booking-failure-diagnostics.test.tsx > QuickBookingForm Failure Diagnostics & Form State Retention > displays persistent diagnostic card with affected guest and preserves entered form details when individual therapist is unavailable
+- **BASELINE** — tests/components/crm/quick-booking-failure-diagnostics.test.tsx > QuickBookingForm Failure Diagnostics & Form State Retention > displays group capacity explanation without misattributing to a single guest and preserves group draft
+- **BASELINE** — tests/components/crm/quick-booking-multi-guest-save.test.tsx > CRM Multi-Guest Booking Save Component Lifecycle > shows inline explanation, blocks save, and offers deliberate preference/return choices when adding guest after customer requested therapist
+- **BASELINE** — tests/components/crm/quick-booking-multi-guest-save.test.tsx > CRM Multi-Guest Booking Save Component Lifecycle > submits 2 guests with blank guest name safely defaulted to Guest 2
+- **BASELINE** — tests/components/crm/quick-booking-multi-guest-save.test.tsx > CRM Multi-Guest Booking Save Component Lifecycle > submits 3 guests with custom names and sequential multi-services
+- **BASELINE** — tests/components/crm/quick-booking-multi-guest-save.test.tsx > CRM Multi-Guest Booking Save Component Lifecycle > submits 4 guests in a single modal interaction
+- **BASELINE** — tests/components/crm/quick-booking-multi-guest-save.test.tsx > CRM Multi-Guest Booking Save Component Lifecycle > validates guest name length when a single character is entered
+- **BASELINE** — tests/components/crm/quick-booking-multi-guest-save.test.tsx > CRM Multi-Guest Booking Save Component Lifecycle > requires a coordinating provider when a consultation package is selected in a group booking
+- **BASELINE** — tests/components/crm/quick-booking-service-duration-dropdown.test.tsx > CRM Quick Booking inline service duration dropdown > retains separate duration selections for different guests
+- **BASELINE** — tests/components/crm/quick-booking-service-duration-dropdown.test.tsx > CRM Quick Booking inline service duration dropdown > stacks four expanded Walk-in guests, reveals additions, and enforces the server limit
+- **ENVIRONMENT TIMEOUT** — tests/components/crm/quick-booking-unified-modes.test.tsx > Unified CRM booking modes > keeps 5 guests in a compact, editable booking form
+- **BASELINE** — tests/lib/bookings/crm-booking-failure-diagnostics.test.ts > CRM Booking Creation Diagnostics & Structured Feedback Contract > A & B. Therapist Qualification, Availability & Group Contention > reports group-level capacity explanation when distinct therapists cannot be assigned concurrently
+- **BASELINE** — tests/lib/bookings/inhouse-atomic-boundary.test.ts > in-house server to atomic database boundary > creates an unpaid order with pay-on-site intent and no tender
+- **BASELINE** — tests/lib/bookings/inhouse-atomic-boundary.test.ts > in-house server to atomic database boundary > sends paid walk-in creation, price and rail through one RPC
+- **BASELINE** — tests/lib/bookings/inhouse-atomic-boundary.test.ts > in-house server to atomic database boundary > keeps Home Service travel as an order-level fee in the atomic payload
+- **BASELINE** — tests/lib/bookings/inhouse-atomic-boundary.test.ts > in-house server to atomic database boundary > preserves split tender amounts and selected accounts
+- **BASELINE** — tests/lib/bookings/inhouse-atomic-boundary.test.ts > in-house server to atomic database boundary > includes service buffers in each attendee chain and takes the longest elapsed range
+- **BASELINE** — tests/lib/bookings/inhouse-atomic-boundary.test.ts > in-house server to atomic database boundary > persists an extended guest line once and schedules guest chains independently
+- **BASELINE** — tests/lib/crm/crm-staff-retained-mutation-contract.test.ts > PERF-7 retained CRM Staff mutation contract > does not directly revalidate /crm/staff from mutation actions that reconcile through the generation store

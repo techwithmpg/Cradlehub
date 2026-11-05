@@ -2,6 +2,7 @@ import { redirect } from "next/navigation";
 import { headers } from "next/headers";
 import { Sidebar } from "@/components/features/dashboard/sidebar";
 import { Header } from "@/components/features/dashboard/header";
+import { NotificationBell } from "@/components/features/notifications/notification-bell";
 import { OfflineBanner } from "@/components/shared/offline-banner";
 import { isDevAuthBypassEnabled, getDevBypassLayoutStaff } from "@/lib/dev-bypass";
 import { getLayoutStaffContext } from "@/lib/queries/staff-context";
@@ -42,6 +43,7 @@ export default async function DashboardLayout({ children }: { children: React.Re
       }}
     >
       <OfflineBanner />
+      {staffPwaRoute && <NotificationBell role={resolvedMe.system_role} toastOnly />}
       {!staffPwaRoute && (
         <Sidebar
           role={resolvedMe.system_role}

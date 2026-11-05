@@ -382,6 +382,24 @@ describe("CRM direct follow-up and cancellation actions", () => {
     expect(updateQuery.update).toHaveBeenCalledWith(expect.objectContaining({ status: "pending" }));
   });
 
+  it("records not-arrived as a follow-up observation without closing the booking", async () => {
+    const { updateQuery, eventQuery } = setup();
+    const result = await recordBookingFollowupAction({
+      bookingId: BOOKING_ID,
+      result: "not_arrived",
+      note: "Customer not yet arrived for scheduled service.",
+    });
+
+    expect(result).toEqual({ success: true });
+    expect(updateQuery.update).toHaveBeenCalledWith(expect.objectContaining({
+      status: "pending",
+      metadata: expect.objectContaining({
+        crm_followup: expect.objectContaining({ result: "not_arrived" }),
+      }),
+    }));
+    expect(eventQuery.insert).toHaveBeenCalled();
+  });
+
   it("blocks already-cancelled and completed bookings", async () => {
     setup({
       baseData: {

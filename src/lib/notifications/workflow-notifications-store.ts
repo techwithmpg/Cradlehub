@@ -81,6 +81,33 @@ export async function createOrUpdateNotification(input: CreateNotificationInput)
   return false;
 }
 
+/** A transition event is immutable: a dismissed notification must not reappear on retry. */
+export async function createNotificationOnce(input: CreateNotificationInput): Promise<boolean> {
+  const admin = createAdminClient();
+  const dedupeKey = notificationDedupeKey(input);
+  const existing = await admin.from("workspace_notifications")
+    .select("id")
+    .eq("dedupe_key", dedupeKey)
+    .limit(1);
+  if (existing.error) {
+    logError("notification.once_lookup_failed", { type: input.type, error: existing.error });
+    return false;
+  }
+  if (existing.data?.length) return true;
+
+  const { data: inserted, error } = await admin.from("workspace_notifications")
+    .insert(notificationPayload(input, dedupeKey))
+    .select("*")
+    .single();
+  if (isUniqueViolation(error)) return true;
+  if (error || !inserted) {
+    logError("notification.once_insert_failed", { type: input.type, error });
+    return false;
+  }
+  await deliverWorkspaceNotificationPush(inserted);
+  return true;
+}
+
 export async function markNotificationResolved(input: MarkNotificationResolvedInput): Promise<void> {
   const admin = createAdminClient();
   let query = admin

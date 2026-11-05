@@ -58,7 +58,7 @@ export function getBookingListIssueLabel(booking: WorkspaceBookingRow): string |
     followup && typeof followup === "object" && !Array.isArray(followup)
       ? (followup as { result?: unknown }).result
       : null;
-  if (["no_answer", "reschedule", "confirm_later"].includes(String(followupResult))) {
+  if (["no_answer", "not_arrived", "reschedule", "confirm_later"].includes(String(followupResult))) {
     issues.push("follow-up required");
   }
 

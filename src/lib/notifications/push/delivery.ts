@@ -34,6 +34,9 @@ export type PushDeliveryResult = {
   delivered: number;
   failed: number;
   deactivated: number;
+  configured: boolean;
+  dispatchFailed: boolean;
+  deliveredSubscriptionIds: string[];
 };
 
 const BOOKING_TYPES = new Set([
@@ -200,13 +203,14 @@ export function pushFailureOutcome(
 
 async function recordSuccess(subscription: PushSubscriptionRow) {
   const admin = createAdminClient();
-  await admin
+  const { error } = await admin
     .from("web_push_subscriptions")
     .update({
       last_success_at: new Date().toISOString(),
       failure_count: 0,
     })
     .eq("id", subscription.id);
+  if (error) logError("notification.push_success_record_failed", { subscriptionId: subscription.id, error });
 }
 
 async function recordFailure(
@@ -260,15 +264,19 @@ export async function sendWebPushToSubscription(input: {
 }
 
 export async function deliverWorkspaceNotificationPush(
-  notification: WorkspaceNotification
+  notification: WorkspaceNotification,
+  options?: { skipSubscriptionIds?: ReadonlySet<string> }
 ): Promise<PushDeliveryResult> {
   const result: PushDeliveryResult = {
     attempted: 0,
     delivered: 0,
     failed: 0,
     deactivated: 0,
+    configured: isWebPushConfigured(),
+    dispatchFailed: false,
+    deliveredSubscriptionIds: [],
   };
-  if (!isWebPushConfigured()) {
+  if (!result.configured) {
     logWarn("notification.push_skipped_unconfigured", {
       notificationId: notification.id,
       workspace: notification.target_workspace,
@@ -335,7 +343,7 @@ export async function deliverWorkspaceNotificationPush(
           : undefined,
         ownerPreferences.get(subscription.auth_user_id) ??
           "home_service_and_urgent"
-      )
+      ) && !options?.skipSubscriptionIds?.has(subscription.id)
     );
     result.attempted = eligible.length;
 
@@ -347,8 +355,13 @@ export async function deliverWorkspaceNotificationPush(
             payload: pushPayload(notification, subscription),
             priority: notification.priority,
           });
-          await recordSuccess(subscription);
           result.delivered += 1;
+          result.deliveredSubscriptionIds.push(subscription.id);
+          try {
+            await recordSuccess(subscription);
+          } catch (error) {
+            logError("notification.push_success_record_failed", { subscriptionId: subscription.id, error });
+          }
           logInfo("notification.push_delivered", {
             notificationId: notification.id,
             subscriptionId: subscription.id,
@@ -372,6 +385,7 @@ export async function deliverWorkspaceNotificationPush(
       })
     );
   } catch (error) {
+    result.dispatchFailed = true;
     logError("notification.push_dispatch_failed", {
       notificationId: notification.id,
       workspace: notification.target_workspace,

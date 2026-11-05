@@ -51,7 +51,9 @@ export function AnimatedSessionTimer({ session }: { session: SessionTimerInput }
         ? "Closed"
         : display.active && !clock
           ? "—"
-          : `${display.phase === "overtime" ? "+" : ""}${display.minutes}m`;
+          : display.active
+            ? display.displayTime ?? "—"
+            : "—";
   const label =
     display.phase === "completed"
       ? "completed"
@@ -59,6 +61,8 @@ export function AnimatedSessionTimer({ session }: { session: SessionTimerInput }
         ? "not active"
         : display.phase === "scheduled"
           ? "not started"
+          : display.phase === "grace"
+            ? "auto completes"
           : display.phase === "overtime"
             ? "over"
             : "left";
@@ -67,6 +71,7 @@ export function AnimatedSessionTimer({ session }: { session: SessionTimerInput }
       ref={root}
       className={styles.timer}
       data-phase={display.phase}
+      data-long={value.length >= 7}
       data-paused={clock?.paused ?? true}
       role="timer"
       aria-live="off"
@@ -92,10 +97,11 @@ export function AnimatedSessionTimer({ session }: { session: SessionTimerInput }
         />
       </svg>
       <div className={styles.center}>
-        <span key={value} className={styles.number}>
+        <span className={styles.number}>
           {value}
         </span>
         <span className={styles.label}>{label}</span>
+        {display.phase === "grace" && <span className={styles.grace}>Service time ended</span>}
       </div>
     </div>
   );

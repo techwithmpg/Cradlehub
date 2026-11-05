@@ -24,7 +24,7 @@ type PhaseViz = {
   label: string;
   helper: string;
   badge: string;
-  timer: (s: number) => string;
+  timer: (s: number, showHours: boolean) => string;
   bg: string;
   accent: string;
   bar: string;
@@ -43,7 +43,7 @@ const VIZ: Record<ServiceTimerPhase, PhaseViz> = {
   },
   running: {
     Icon: Timer,         label: "Time remaining", helper: "Service in progress",
-    badge: "In Service",   timer: (s) => fmtServiceSecs(s),
+    badge: "In Service",   timer: (s, showHours) => fmtServiceSecs(s, "", showHours),
     bg: "var(--cs-success-bg)", accent: "var(--cs-success-text)", bar: "var(--cs-success)",
   },
   grace: {
@@ -53,7 +53,7 @@ const VIZ: Record<ServiceTimerPhase, PhaseViz> = {
   },
   overtime: {
     Icon: AlertTriangle, label: "Overtime",       helper: "Needs attention",
-    badge: "Overtime",     timer: (s) => fmtServiceSecs(s, "+"),
+    badge: "Overtime",     timer: (s, showHours) => fmtServiceSecs(s, "+", showHours),
     bg: "var(--cs-error-bg)", accent: "var(--cs-error-text)", bar: "var(--cs-error)",
   },
   done: {
@@ -164,7 +164,7 @@ export function ServiceSessionCountdown({
       {/* Big timer */}
       <div style={{ marginTop: 6, paddingLeft: 21 }}>
         <div style={{ fontSize: 36, fontWeight: 800, lineHeight: 1, fontVariantNumeric: "tabular-nums", color: v.accent }}>
-          {v.timer(state.displaySecs)}
+          {v.timer(state.displaySecs, state.totalSecs >= 3600)}
         </div>
         <div style={{ marginTop: 4, fontSize: 12, color: "var(--cs-text-muted)" }}>
           {v.helper}

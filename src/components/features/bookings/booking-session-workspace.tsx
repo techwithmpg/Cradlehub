@@ -108,6 +108,11 @@ export function BookingSessionWorkspace({
           </div>
           {active ? (
             <>
+              {!line.order_id ? (
+                <p className="mt-3 rounded-lg border border-amber-200 bg-amber-50 p-3 text-sm text-amber-950" role="status">
+                  This booking has no linked order. Ask a manager to review payment before adding time.
+                </p>
+              ) : null}
               <div
                 className="mt-3 flex flex-wrap gap-2"
                 role="group"

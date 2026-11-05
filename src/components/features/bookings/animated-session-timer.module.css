@@ -11,6 +11,9 @@
 .timer[data-phase="overtime"] {
   color: #d12b37;
 }
+.timer[data-phase="grace"] {
+  color: #b86a05;
+}
 .timer[data-phase="scheduled"],
 .timer[data-phase="closed"],
 .timer[data-phase="completed"] {
@@ -40,7 +43,14 @@
   font-weight: 750;
   line-height: 1.1;
   font-variant-numeric: tabular-nums;
-  animation: minute-in 220ms cubic-bezier(0.16, 1, 0.3, 1) both;
+}
+.timer[data-long="true"] .number {
+  font-size: 21px;
+}
+.grace {
+  margin-top: 2px;
+  font-size: 10px;
+  font-weight: 600;
 }
 .label {
   font-size: 12px;
@@ -88,7 +98,6 @@
   .stroke {
     transition: none;
   }
-  .number,
   .timer[data-phase] .glow {
     animation: none;
   }
