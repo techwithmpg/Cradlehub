@@ -6,7 +6,7 @@ import {
   AdminOverlayFooter,
   AdminOverlayHeader,
 } from "@/components/shared/overlays";
-import { formatCradleFlowMoney, type CradleFlowBooking } from "@/lib/crm/cradle-flow";
+import { formatCradleFlowMoney, getCradleFlowServiceRecipientName, type CradleFlowBooking } from "@/lib/crm/cradle-flow";
 import { TherapistProvenanceBadge } from "@/components/features/bookings/therapist-provenance-badge";
 import type { CradleFlowGroup } from "./cradle-flow-display";
 
@@ -57,9 +57,6 @@ export function CradleFlowGroupDialog({
         </div>
         <div className="grid gap-2">
           {group.lines.map((line) => {
-            const attendee = Array.isArray(line.booking_attendees)
-              ? line.booking_attendees[0]
-              : line.booking_attendees;
             return (
               <button
                 key={line.id}
@@ -68,7 +65,7 @@ export function CradleFlowGroupDialog({
                 className="rounded-lg border border-[var(--cs-border-soft)] p-3 text-left hover:bg-[var(--cs-surface-warm)]"
               >
                 <div className="flex items-center justify-between gap-2 text-sm">
-                  <strong>{attendee?.display_name ?? line.customer_name ?? "Guest"}</strong>
+                  <strong>{getCradleFlowServiceRecipientName(line)}</strong>
                   <span className="capitalize text-xs">
                     {line.booking_progress_status?.replaceAll("_", " ") ??
                       line.status.replaceAll("_", " ")}
