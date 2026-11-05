@@ -64,15 +64,21 @@ export function StaffAssistanceTab({ branchId, branchName, date }: {
   const [notes, setNotes] = useState("");
 
   const refresh = useCallback(async () => {
-    const result = await loadStaffAssistanceAction();
-    if (!result.success) {
-      setLoadError(result.error);
+    try {
+      const result = await loadStaffAssistanceAction();
+      if (!result.success) {
+        setLoadError(result.error);
+        setSnapshot(null);
+      } else {
+        setSnapshot(result.data);
+        setLoadError(null);
+      }
+    } catch {
+      setLoadError("Staff Assistance is temporarily unavailable. Please refresh.");
       setSnapshot(null);
-    } else {
-      setSnapshot(result.data);
-      setLoadError(null);
+    } finally {
+      setLoading(false);
     }
-    setLoading(false);
   }, []);
   useEffect(() => { void refresh(); }, [refresh]);
 
@@ -99,21 +105,25 @@ export function StaffAssistanceTab({ branchId, branchName, date }: {
     let endMs = Date.parse(`${requestDate}T${endTime}:00+08:00`);
     if (endMs <= startMs) endMs += 86400000;
     begin(async () => {
-      const result = await submitStaffAssistanceAction({
-        requestingBranchId: branchId,
-        lendingBranchId: selectedLender,
-        role, count: quantity, visitType,
-        startAt, endAt: new Date(endMs).toISOString(), notes: notes.trim(),
-      });
-      if (!result.success) {
-        toast.error(result.error);
-        return;
+      try {
+        const result = await submitStaffAssistanceAction({
+          requestingBranchId: branchId,
+          lendingBranchId: selectedLender,
+          role, count: quantity, visitType,
+          startAt, endAt: new Date(endMs).toISOString(), notes: notes.trim(),
+        });
+        if (!result.success) {
+          toast.error(result.error);
+          return;
+        }
+        setRequestOpen(false);
+        setNotes("");
+        toast.success("Request sent to the other branch.");
+        await refresh();
+        setFilter("outgoing");
+      } catch {
+        toast.error("Request could not be sent. Please retry.");
       }
-      setRequestOpen(false);
-      setNotes("");
-      toast.success("Request sent to the other branch.");
-      await refresh();
-      setFilter("outgoing");
     });
   }
 
@@ -124,26 +134,35 @@ export function StaffAssistanceTab({ branchId, branchName, date }: {
     setCandidates([]);
     setCandidateError(null);
     setLoadingCandidates(true);
-    const result = await loadStaffAssistanceCandidatesAction(request.id);
-    if (result.success) setCandidates(result.data);
-    else setCandidateError(result.error);
-    setLoadingCandidates(false);
+    try {
+      const result = await loadStaffAssistanceCandidatesAction(request.id);
+      if (result.success) setCandidates(result.data);
+      else setCandidateError(result.error);
+    } catch {
+      setCandidateError("Staff could not be checked. Please reopen the request.");
+    } finally {
+      setLoadingCandidates(false);
+    }
   }
 
   function decide(decision: "approve" | "decline" | "cancel", request: AssistanceView) {
     begin(async () => {
-      const result = await decideStaffAssistanceAction({
-        requestId: request.id, decision,
-        staffIds: decision === "approve" ? selectedStaff : [],
-        reason: decisionNote,
-      });
-      if (!result.success) {
-        toast.error(result.error);
-        return;
+      try {
+        const result = await decideStaffAssistanceAction({
+          requestId: request.id, decision,
+          staffIds: decision === "approve" ? selectedStaff : [],
+          reason: decisionNote,
+        });
+        if (!result.success) {
+          toast.error(result.error);
+          return;
+        }
+        toast.success(decision === "approve" ? "Decision saved; staff are not yet bookable." : "Request updated.");
+        setReviewing(null);
+        await refresh();
+      } catch {
+        toast.error("The decision could not be saved. Please refresh and retry.");
       }
-      toast.success(decision === "approve" ? "Decision saved; staff are not yet bookable." : "Request updated.");
-      setReviewing(null);
-      await refresh();
     });
   }
 
