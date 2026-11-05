@@ -82,7 +82,7 @@ export async function runTherapistServiceStartPush(input: { now?: Date } = {}) {
       booking.staff_id !== candidate.staff_id ||
       booking.booking_date !== candidate.booking_date ||
       booking.start_time !== candidate.start_time ||
-      !isTherapistStartPushEligible(booking, Date.now())) {
+      !isTherapistStartPushEligible(booking, input.now ? nowMs : Date.now())) {
       stale += 1;
       continue;
     }
