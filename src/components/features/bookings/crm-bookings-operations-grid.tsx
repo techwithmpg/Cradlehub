@@ -8,6 +8,7 @@ import {
 } from "lucide-react";
 import { toast } from "sonner";
 import { firstBookingRelation, getBookingDurationMinutes } from "@/lib/bookings/booking-display";
+import { resolveBookingPartyIdentity } from "@/lib/bookings/booking-party-identity";
 import { groupCrmBookings, getBookingPaymentDisplayState, type CrmBookingGroup } from "@/lib/bookings/crm-booking-groups";
 import { bookingGuestCount } from "@/lib/bookings/bookings-presentation";
 import { bookingMatchesQuickFilter, resolveBookingQuickFilter, type BookingQuickFilter } from "@/lib/bookings/bookings-workspace-filters";
@@ -29,6 +30,13 @@ type Option = { id: string; name: string };
 function recipient(line: WorkspaceBookingRow): string {
   return firstBookingRelation(line.booking_attendees)?.display_name?.trim()
     || firstBookingRelation(line.customers)?.full_name?.trim() || "Guest";
+}
+
+function party(line: WorkspaceBookingRow) {
+  return resolveBookingPartyIdentity({
+    bookedBy: firstBookingRelation(line.customers)?.full_name,
+    serviceRecipient: recipient(line),
+  });
 }
 
 function lifecycle(line: WorkspaceBookingRow) {
@@ -197,6 +205,7 @@ function ServiceActions({
                     className="flex min-h-16 w-full items-center gap-2 px-3 py-2 text-left hover:bg-neutral-50 focus-visible:outline-2 focus-visible:outline-emerald-700">
                     <Clock3 className="size-4 shrink-0 text-slate-500" aria-hidden="true" />
                     <span className="min-w-0 flex-1"><span className="block truncate text-sm font-semibold text-neutral-900">{recipient(line)}</span>
+                      {party(line).isGuest && <span className="block truncate text-[11px] text-amber-800">Guest · Booked by {party(line).bookedBy}</span>}
                       <span className="block truncate text-xs text-neutral-600">{firstBookingRelation(line.services)?.name || "Service"} · {formatTime12h(line.start_time)}</span>
                       <span className="block truncate text-[11px] text-neutral-500">{firstBookingRelation(line.staff)?.full_name || "Unassigned"} · {firstBookingRelation(line.branch_resources)?.name || "No room"}</span>
                     </span>
@@ -381,9 +390,9 @@ export function CrmBookingsOperationsGrid({
         <div className="overflow-hidden rounded-xl border border-neutral-200 bg-white shadow-sm">
           <div className="hidden overflow-x-auto md:block">
             <table className="w-full min-w-[700px] table-fixed border-collapse text-left text-sm">
-              <colgroup><col className="w-[11%]" /><col className="w-[18%]" /><col className="w-[23%]" /><col className="w-[17%]" /><col className="w-[12%]" /><col className="w-[14%]" /><col className="w-[5%]" /></colgroup>
+              <colgroup><col className="w-[11%]" /><col className="w-[23%]" /><col className="w-[19%]" /><col className="w-[16%]" /><col className="w-[12%]" /><col className="w-[14%]" /><col className="w-[5%]" /></colgroup>
               <thead className="bg-neutral-100 text-xs font-bold text-neutral-900"><tr>
-                <th scope="col" className="px-4 py-3">Time</th><th scope="col" className="px-4 py-3">Customer</th><th scope="col" className="px-4 py-3">Service</th>
+                <th scope="col" className="px-4 py-3">Time</th><th scope="col" className="px-4 py-3">Service for / Booked by</th><th scope="col" className="px-4 py-3">Service</th>
                 <th scope="col" className="px-4 py-3">Therapist</th><th scope="col" className="px-4 py-3">Room</th><th scope="col" className="px-4 py-3">Status</th><th scope="col" className="w-10"><span className="sr-only">Expand</span></th>
               </tr></thead>
               <tbody>
@@ -408,7 +417,9 @@ export function CrmBookingsOperationsGrid({
             {entries.map(({ group, line, grouped }) => {
               const id = grouped ? group.displayId : line.id;
               const open = expanded === id;
-              const customer = grouped ? group.organizerName : recipient(line);
+              const partyIdentity = party(line);
+              const customer = grouped ? group.organizerName : partyIdentity.serviceFor;
+              const guests = [...new Set(group.lines.map(recipient))];
               const service = grouped
                 ? `${group.lines.length} services · ${bookingGuestCount(group)} guests`
                 : `${firstBookingRelation(line.services)?.name || "Service"} (${getBookingDurationMinutes(line)} min)`;
@@ -419,6 +430,8 @@ export function CrmBookingsOperationsGrid({
                   <div className="min-w-0 flex-1">
                     <p className="text-xs font-semibold text-neutral-600">{formatTime12h(line.start_time)}{grouped && " · Group"}</p>
                     <button type="button" onClick={() => openDetails(group, line)} className="mt-1 text-left font-bold text-neutral-950 underline-offset-2 hover:underline">{customer}</button>
+                    <p className="mt-0.5 text-xs font-semibold text-neutral-600">{grouped ? `Booked by · ${guests.length} guests: ${guests.slice(0,2).join(", ")}${guests.length > 2 ? "…" : ""}` : `${partyIdentity.roleLabel} · Booked by ${partyIdentity.bookedBy ?? "Not recorded"}`}</p>
+                    {group.orderNumber && <p className="text-[11px] text-neutral-500">Order {group.orderNumber}</p>}
                     <p className="mt-0.5 text-sm text-neutral-700">{service}</p>
                     <p className="mt-1 text-xs text-neutral-500">{therapist} · {room}</p>
                   </div>
@@ -463,7 +476,19 @@ function FragmentRow({
       onKeyDown={(event) => { if (event.key === "Enter" || event.key === " ") { event.preventDefault(); onSelect(); } }}
       className={`border-t border-neutral-100 ${open || selected ? "bg-amber-50/50" : "hover:bg-neutral-50"}`}>
       <td className="whitespace-nowrap px-4 py-3 font-medium">{formatTime12h(line.start_time)}</td>
-      <td className="min-w-0 px-4 py-3"><button type="button" onClick={onDetails} title={customer} className="block w-full truncate text-left font-semibold text-neutral-950 hover:text-emerald-800 hover:underline focus-visible:outline-2 focus-visible:outline-emerald-700">{customer}</button>{grouped && <span className="rounded-full bg-emerald-50 px-2 py-0.5 text-[11px] text-emerald-900">Group</span>}</td>
+      <td className="min-w-0 px-4 py-3">
+        <button type="button" onClick={onDetails} title={customer} className="block w-full truncate text-left font-semibold text-neutral-950 hover:text-emerald-800 hover:underline focus-visible:outline-2 focus-visible:outline-emerald-700">{customer}</button>
+        {grouped ? (
+          <p className="truncate text-[11px] text-neutral-600" title={entry.group.lines.map(recipient).join(", ")}>
+            Booked by · Group · {entry.group.lines.length} services · {entry.group.lines.map(recipient).filter((name, i, arr) => arr.indexOf(name) === i).join(", ")}
+          </p>
+        ) : (
+          <p className="truncate text-[11px] text-neutral-600" title={party(line).bookedBy ?? undefined}>
+            {party(line).roleLabel} · Booked by {party(line).bookedBy ?? "Not recorded"}
+          </p>
+        )}
+        {entry.group.orderNumber && <p className="truncate text-[10px] text-neutral-500">Order {entry.group.orderNumber}</p>}
+      </td>
       <td className="truncate px-4 py-3" title={service}>{service}</td>
       <td className="truncate px-4 py-3" title={therapist}>{therapist}</td>
       <td className="truncate px-4 py-3" title={room}>{room}</td>

@@ -4,6 +4,7 @@ import { useState } from "react";
 import Link from "next/link";
 import { Clock3, Home, MapPin, Phone, Truck, UserRound } from "lucide-react";
 import { toast } from "sonner";
+import { resolveBookingPartyIdentity } from "@/lib/bookings/booking-party-identity";
 import { AssignmentRecommendationPanel } from "@/components/features/assignments/assignment-recommendation-panel";
 import { assignBookingTherapistAction } from "@/app/(dashboard)/crm/bookings/actions";
 import { assignBookingDriverAction } from "@/lib/actions/driver-actions";
@@ -85,11 +86,14 @@ export function CradleFlowBookingDialog({
   const [assignmentOpen, setAssignmentOpen] = useState(false);
   if (!booking) return null;
   const recipientName = getCradleFlowServiceRecipientName(booking);
-  const bookingContactName = booking.customer_name?.trim() || null;
-  const contactDiffers = Boolean(bookingContactName &&
-    bookingContactName.toLocaleLowerCase("en-PH") !== recipientName.toLocaleLowerCase("en-PH"));
+  const partyIdentity = resolveBookingPartyIdentity({
+    bookedBy: booking.customer_name,
+    serviceRecipient: recipientName,
+  });
   const homeService = booking.type === "home_service" || booking.delivery_type === "home_service";
   const stage = getCradleFlowStage(booking);
+  const orderPayable = booking.order_id ? booking.order_total_amount ?? null : null;
+  const displayTotal = booking.order_id ? orderPayable : booking.price_paid ?? null;
   const metadata = booking.metadata ?? {};
   const notes = typeof metadata.customer_notes === "string" ? metadata.customer_notes : "No notes";
 
@@ -136,7 +140,8 @@ export function CradleFlowBookingDialog({
           </div>
           <div className="text-right">
             <div className="text-xl font-extrabold text-[var(--cs-text)]">
-              {formatCradleFlowMoney(booking.price_paid ?? 0)}
+              {displayTotal === null ? "Total unavailable" : formatCradleFlowMoney(displayTotal)}
+              <span className="ml-1 text-xs font-medium text-[var(--cs-text-muted)]">{booking.order_id ? "Order payable" : "Service total"}</span>
             </div>
             <div className="text-xs font-bold uppercase text-[var(--cs-text-muted)]">
               {getCradleFlowPaymentStatus(booking) === "paid" ? "Paid" : "Payment pending"}
@@ -152,13 +157,11 @@ export function CradleFlowBookingDialog({
 
         <div className="grid gap-3 sm:grid-cols-2">
           <Detail
-            label="Service recipient"
+            label={`Service for · ${partyIdentity.roleLabel}`}
             value={recipientName}
             icon={<UserRound className="size-3" />}
           />
-          {contactDiffers && bookingContactName ? (
-            <Detail label="Booked by" value={bookingContactName} />
-          ) : null}
+          <Detail label="Booked by (main contact)" value={partyIdentity.bookedBy ?? "Not recorded"} />
           <Detail
             label="Booking contact phone"
             value={booking.customer_phone ?? "Not recorded"}

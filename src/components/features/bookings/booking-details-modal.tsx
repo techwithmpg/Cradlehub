@@ -4,6 +4,7 @@ import { useState } from "react";
 import Link from "next/link";
 import { toast } from "sonner";
 import { firstBookingRelation, readBookingPrice } from "@/lib/bookings/booking-display";
+import { resolveBookingPartyIdentity } from "@/lib/bookings/booking-party-identity";
 import { getBookingPaymentDisplayState, groupCrmBookings, type CrmBookingGroup } from "@/lib/bookings/crm-booking-groups";
 import { bookingGuestCount } from "@/lib/bookings/bookings-presentation";
 import { resolveBookingLifecycleState } from "@/lib/bookings/operational-booking-eligibility";
@@ -39,6 +40,10 @@ export function BookingDetailsModal({
   const staff = line ? firstBookingRelation(line.staff) : null;
   const room = line ? firstBookingRelation(line.branch_resources) : null;
   const recipient = attendee?.display_name?.trim() || customer?.full_name?.trim() || "Customer";
+  const partyIdentity = resolveBookingPartyIdentity({
+    bookedBy: customer?.full_name,
+    serviceRecipient: recipient,
+  });
   const payment = group && line ? getBookingPaymentDisplayState(group.payment, line) : null;
   const isGroup = Boolean(group && bookingGuestCount(group) > 1);
   const editGroup = line ? groupCrmBookings([line])[0] : null;
@@ -87,7 +92,7 @@ export function BookingDetailsModal({
         {line && group ? (
           <div className="min-h-0 overflow-y-auto overscroll-contain">
             {isGroup ? <section aria-label="Parent booking order" className="flex flex-wrap items-center gap-x-6 gap-y-2 border-b border-neutral-200 bg-amber-50/60 px-5 py-3 text-sm">
-              <div><span className="block text-xs text-neutral-600">Payer / organizer</span><strong>{group.organizerName}</strong></div>
+              <div><span className="block text-xs text-neutral-600">Booked by (main contact)</span><strong>{group.organizerName}</strong></div>
               <div><span className="block text-xs text-neutral-600">Booking reference</span><strong>{group.orderNumber || group.orderId || "Unavailable"}</strong></div>
               <div><span className="block text-xs text-neutral-600">Guests / sessions</span><strong>{bookingGuestCount(group)} / {group.lines.length}</strong></div>
               <div><span className="block text-xs text-neutral-600">Parent payment</span><strong>{payment?.label || "Payment Review"}</strong></div>
@@ -128,8 +133,9 @@ export function BookingDetailsModal({
               className="grid gap-3 border-b border-neutral-200 bg-stone-50/70 px-5 py-4 text-sm sm:grid-cols-2 xl:grid-cols-4"
             >
               <div className="min-w-0">
-                <p className="text-xs text-neutral-500">Service recipient</p>
+                <p className="text-xs text-neutral-500">Service for · {partyIdentity.roleLabel}</p>
                 <p className="truncate font-semibold text-neutral-950">{recipient}</p>
+                <p className="truncate text-xs text-neutral-600" title={partyIdentity.bookedBy ?? undefined}>Booked by: {partyIdentity.bookedBy ?? "Not recorded"}</p>
               </div>
               <div className="min-w-0">
                 <p className="text-xs text-neutral-500">Service / scheduled start</p>
