@@ -55,4 +55,37 @@ describe("Cradle Flow single-service recipient identity", () => {
     expect(screen.getByText("Booked by:")).toBeTruthy();
     expect(screen.getByText(/Booked by:.*Booking Contact/)).toBeTruthy();
   });
+  it("shows the financial order payable after a discount, not the earlier quote", () => {
+    const booking = {
+      id: "booking-discounted",
+      booking_date: "2026-11-05",
+      start_time: "11:30:00",
+      end_time: "12:30:00",
+      status: "completed",
+      type: "walkin",
+      delivery_type: "in_spa",
+      travel_buffer_mins: null,
+      customer_name: "Main Booker",
+      service_name: "Massage",
+      price_paid: 700,
+      order_id: "order-paid",
+      order_total_amount: 560,
+      order_amount_paid: 560,
+      order_payment_status: "paid",
+    } as CradleFlowBooking;
+    render(
+      <CradleFlowTicket
+        booking={booking}
+        businessDate="2026-11-05"
+        onOpen={vi.fn()}
+        onPrimary={vi.fn()}
+        onAssignRoom={vi.fn()}
+        onAssignTherapist={vi.fn()}
+      />
+    );
+    expect(screen.getByText("order payable")).toBeTruthy();
+    expect(screen.getByText("₱560.00")).toBeTruthy();
+    expect(screen.queryByText("₱700.00")).toBeNull();
+  });
+
 });
