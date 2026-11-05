@@ -286,7 +286,13 @@ export async function deliverWorkspaceNotificationPush(
 
   try {
     const admin = createAdminClient();
-    const candidateWorkspaces = ["owner"];
+    const metadata = notification.metadata;
+    const staffStartReminder = notification.target_workspace === "staff" &&
+      metadata !== null && typeof metadata === "object" && !Array.isArray(metadata) &&
+      metadata.service_start_reminder === true;
+    // A two-minute therapist reminder belongs only to its assigned staff member.
+    // Do not escalate this routine notice to opted-in Owner booking devices.
+    const candidateWorkspaces = staffStartReminder ? [] : ["owner"];
     if (
       ["crm", "staff", "driver", "utility"].includes(
         notification.target_workspace
