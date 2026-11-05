@@ -2,21 +2,24 @@
 
 import { useRef, useEffect, useState } from "react";
 
-export type ScheduleTabKey = "daily" | "setup";
+export type ScheduleTabKey = "daily" | "setup" | "assistance";
 
 const TABS: { key: ScheduleTabKey; label: string; badge?: number }[] = [
   { key: "daily", label: "Daily Timeline" },
   { key: "setup", label: "Schedule Setup" },
+  { key: "assistance", label: "Assistance" },
 ];
 
 export function ScheduleWorkspaceTabs({
   activeTab,
   onTabChange,
   tabBadges,
+  assistanceEnabled = false,
 }: {
   activeTab: ScheduleTabKey;
   onTabChange: (tab: ScheduleTabKey) => void;
   tabBadges?: Partial<Record<ScheduleTabKey, number>>;
+  assistanceEnabled?: boolean;
 }) {
   const containerRef = useRef<HTMLDivElement>(null);
   const [indicator, setIndicator] = useState({ left: 0, width: 0 });
@@ -49,7 +52,7 @@ export function ScheduleWorkspaceTabs({
     >
       <style>{`div::-webkit-scrollbar { display: none; }`}</style>
 
-      {TABS.map((tab) => {
+      {TABS.filter((tab) => tab.key !== "assistance" || assistanceEnabled).map((tab) => {
         const isActive = activeTab === tab.key;
         const badge = tabBadges?.[tab.key];
         return (
