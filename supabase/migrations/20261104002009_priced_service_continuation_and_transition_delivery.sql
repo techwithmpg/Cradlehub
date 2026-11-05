@@ -672,4 +672,19 @@ revoke all on function public.finish_service_transition_push_job(uuid, uuid, uui
 grant execute on function public.finish_service_transition_push_job(uuid, uuid, uuid[], boolean, text)
   to service_role;
 
+create function public.service_transition_push_outbox_health()
+returns jsonb language sql stable security definer set search_path = '' as $$
+  select jsonb_build_object(
+    'pending', count(*),
+    'ready', count(*) filter (where next_attempt_at <= now()
+      and (lease_until is null or lease_until < now())),
+    'overdue', count(*) filter (where created_at < now() - interval '5 minutes'),
+    'repeated_failures', count(*) filter (where attempts >= 3),
+    'oldest_created_at', min(created_at)
+  ) from public.service_transition_push_outbox where completed_at is null;
+$$;
+revoke all on function public.service_transition_push_outbox_health()
+  from public, anon, authenticated;
+grant execute on function public.service_transition_push_outbox_health() to service_role;
+
 commit;

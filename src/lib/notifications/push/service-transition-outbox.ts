@@ -1,6 +1,6 @@
 import "server-only";
 
-import { logError } from "@/lib/logger";
+import { logError, logInfo, logWarn } from "@/lib/logger";
 import { createAdminClient } from "@/lib/supabase/admin";
 import type { WorkspaceNotification } from "@/lib/notifications/types";
 import { deliverWorkspaceNotificationPush } from "./delivery";
@@ -9,6 +9,14 @@ type ClaimedJob = {
   notification_id: string;
   delivered_subscription_ids: string[];
   lease_token: string;
+};
+
+type OutboxHealth = {
+  pending: number;
+  ready: number;
+  overdue: number;
+  repeated_failures: number;
+  oldest_created_at: string | null;
 };
 
 /** Service-role-only retry consumer. A failed push remains in the transactional outbox. */
@@ -24,12 +32,12 @@ export async function drainServiceTransitionPushOutbox(input: {
   } as never);
   if (claim.error) {
     logError("service_transition.push_claim_failed", { error: claim.error });
-    return { claimed: 0, completed: 0, pending: 0 };
+    throw claim.error;
   }
 
   const jobs = (claim.data ?? []) as ClaimedJob[];
   const outcome = { claimed: jobs.length, completed: 0, pending: 0 };
-  for (const job of jobs) {
+  async function deliverJob(job: ClaimedJob) {
     let deliveredIds: string[] = [];
     let complete = false;
     let reason: string | null = null;
@@ -76,5 +84,46 @@ export async function drainServiceTransitionPushOutbox(input: {
       outcome.pending += 1;
     }
   }
+  // Bound concurrent network sends even when the database claims a larger batch.
+  for (let index = 0; index < jobs.length; index += 3) {
+    await Promise.all(jobs.slice(index, index + 3).map(deliverJob));
+  }
   return outcome;
+}
+
+/** Invoked by a protected server job. No scheduler is installed by this module. */
+export async function runServiceTransitionPushConsumer(input: {
+  batchSize?: number;
+  maxBatches?: number;
+} = {}): Promise<{
+  claimed: number;
+  completed: number;
+  pending: number;
+  batches: number;
+  health: OutboxHealth;
+}> {
+  const batchSize = Math.max(1, Math.min(20, Math.floor(input.batchSize ?? 6)));
+  const maxBatches = Math.max(1, Math.min(10, Math.floor(input.maxBatches ?? 4)));
+  const totals = { claimed: 0, completed: 0, pending: 0, batches: 0 };
+  for (let batch = 0; batch < maxBatches; batch += 1) {
+    const result = await drainServiceTransitionPushOutbox({ limit: batchSize });
+    totals.claimed += result.claimed;
+    totals.completed += result.completed;
+    totals.pending += result.pending;
+    totals.batches += 1;
+    if (result.claimed < batchSize) break;
+  }
+
+  const healthResult = await createAdminClient().rpc("service_transition_push_outbox_health" as never, {} as never);
+  if (healthResult.error || !healthResult.data) {
+    logError("service_transition.push_health_failed", { error: healthResult.error });
+    throw healthResult.error ?? new Error("Service transition push health unavailable");
+  }
+  const health = healthResult.data as OutboxHealth;
+  if (health.overdue > 0 || health.repeated_failures > 0) {
+    logWarn("service_transition.push_backlog_alert", { ...health, ...totals });
+  } else {
+    logInfo("service_transition.push_consumer_completed", { ...health, ...totals });
+  }
+  return { ...totals, health };
 }

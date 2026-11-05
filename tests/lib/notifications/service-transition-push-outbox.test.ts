@@ -1,12 +1,12 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 vi.mock("server-only", () => ({}));
-const mocks = vi.hoisted(() => ({ rpc: vi.fn(), from: vi.fn(), deliver: vi.fn(), logError: vi.fn() }));
+const mocks = vi.hoisted(() => ({ rpc: vi.fn(), from: vi.fn(), deliver: vi.fn(), logError: vi.fn(), logInfo: vi.fn(), logWarn: vi.fn() }));
 vi.mock("@/lib/supabase/admin", () => ({ createAdminClient: () => ({ rpc: mocks.rpc, from: mocks.from }) }));
 vi.mock("@/lib/notifications/push/delivery", () => ({ deliverWorkspaceNotificationPush: mocks.deliver }));
-vi.mock("@/lib/logger", () => ({ logError: mocks.logError }));
+vi.mock("@/lib/logger", () => ({ logError: mocks.logError, logInfo: mocks.logInfo, logWarn: mocks.logWarn }));
 
-import { drainServiceTransitionPushOutbox } from "@/lib/notifications/push/service-transition-outbox";
+import { drainServiceTransitionPushOutbox, runServiceTransitionPushConsumer } from "@/lib/notifications/push/service-transition-outbox";
 
 const notification = { id: "notice-1", status: "unread", target_workspace: "staff" };
 const job = { notification_id: "notice-1", delivered_subscription_ids: [], lease_token: "lease-1" };
@@ -77,5 +77,36 @@ describe("service transition phone-push outbox", () => {
     expect(mocks.rpc).toHaveBeenCalledWith("finish_service_transition_push_job", expect.objectContaining({
       p_completed: false, p_error: "push_unconfigured",
     }));
+  });
+
+  it("continues past one batch when seven automatic completions create 21 jobs", async () => {
+    const jobs = Array.from({ length: 21 }, (_, index) => ({
+      ...job, notification_id: `auto-notice-${index}`,
+    }));
+    let next = 0;
+    mocks.rpc.mockImplementation((name: string, args?: { p_limit?: number }) => {
+      if (name === "claim_service_transition_push_jobs") {
+        const batch = jobs.slice(next, next + (args?.p_limit ?? 6));
+        next += batch.length;
+        return Promise.resolve({ data: batch, error: null });
+      }
+      if (name === "service_transition_push_outbox_health") {
+        return Promise.resolve({ data: { pending: 0, ready: 0, overdue: 0,
+          repeated_failures: 0, oldest_created_at: null }, error: null });
+      }
+      return Promise.resolve({ data: true, error: null });
+    });
+    mocks.deliver.mockResolvedValue({ configured: true, dispatchFailed: false,
+      failed: 0, deliveredSubscriptionIds: [] });
+    await expect(runServiceTransitionPushConsumer({ batchSize: 6, maxBatches: 4 }))
+      .resolves.toMatchObject({ claimed: 21, completed: 21, pending: 0, batches: 4 });
+    expect(mocks.rpc.mock.calls.filter((call: unknown[]) => call[0] === "claim_service_transition_push_jobs"))
+      .toHaveLength(4);
+  });
+
+  it("surfaces claim failure instead of reporting an empty queue", async () => {
+    mocks.rpc.mockResolvedValueOnce({ data: null, error: new Error("LOCAL claim failure") });
+    await expect(runServiceTransitionPushConsumer()).rejects.toThrow("LOCAL claim failure");
+    expect(mocks.logError).toHaveBeenCalled();
   });
 });

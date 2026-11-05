@@ -5,6 +5,7 @@ do $$ begin
  end if;
 end $$;
 begin;
+select set_config('request.jwt.claim.role','authenticated',true);
 insert into auth.users(id) values
  ('11111111-1111-4111-8111-111111111111'),
  ('22222222-2222-4222-8222-222222222222');
@@ -53,6 +54,47 @@ do $$ begin
   raise exception 'LOCAL_GROUP_CONFIRMATION_FAILED';
  end if;
 end $$;
+savepoint local_installed_session_rpc_probe;
+update public.booking_orders set booking_date=(now() at time zone 'Asia/Manila')::date
+ where id='70000000-0000-4000-8000-000000000001';
+update public.bookings set booking_date=(now() at time zone 'Asia/Manila')::date,
+ start_time=((now() at time zone 'Asia/Manila')-interval '5 minutes')::time,
+ end_time=((now() at time zone 'Asia/Manila')+interval '55 minutes')::time
+ where id='90000000-0000-4000-8000-000000000002';
+select set_config('request.jwt.claim.sub','99999999-9999-4999-8999-999999999999',true);
+set role authenticated;
+do $$ begin
+ begin
+  perform public.start_booking_service_session('90000000-0000-4000-8000-000000000002',
+   'crm','40000000-0000-4000-8000-000000000002',
+   '50000000-0000-4000-8000-000000000002');
+  raise exception 'LOCAL_UNAUTHORIZED_START_UNEXPECTED';
+ exception when others then
+  if sqlerrm <> 'SERVICE_SESSION_START_NOT_AUTHORIZED' then raise; end if;
+ end;
+end $$;
+reset role;
+select set_config('request.jwt.claim.sub','22222222-2222-4222-8222-222222222222',true);
+set role authenticated;
+select public.start_booking_service_session('90000000-0000-4000-8000-000000000002',
+ 'crm','40000000-0000-4000-8000-000000000002',
+ '50000000-0000-4000-8000-000000000002');
+select public.start_booking_service_session('90000000-0000-4000-8000-000000000002',
+ 'crm','40000000-0000-4000-8000-000000000002',
+ '50000000-0000-4000-8000-000000000002');
+select public.complete_booking_service_session('90000000-0000-4000-8000-000000000002',
+ 'crm_manual','40000000-0000-4000-8000-000000000002');
+select public.complete_booking_service_session('90000000-0000-4000-8000-000000000002',
+ 'crm_manual','40000000-0000-4000-8000-000000000002');
+reset role;
+do $$ begin
+ if (select count(*) from public.workspace_notifications
+     where entity_id='90000000-0000-4000-8000-000000000002') <> 6
+   or (select count(*) from public.service_transition_push_outbox) <> 6 then
+  raise exception 'LOCAL_INSTALLED_SESSION_RPCS_DID_NOT_DEDUPE';
+ end if;
+end $$;
+rollback to savepoint local_installed_session_rpc_probe;
 update public.booking_orders set booking_date=(now() at time zone 'Asia/Manila')::date
  where id='70000000-0000-4000-8000-000000000001';
 update public.bookings set booking_date=(now() at time zone 'Asia/Manila')::date,
@@ -113,6 +155,53 @@ do $$ begin
   raise exception 'LOCAL_SURCHARGE_NOT_UNIQUE';
  end if;
 end $$;
+savepoint local_discount_split_payment_probe;
+insert into public.financial_accounts(id,branch_id,name,account_type,identifier_mask)
+values
+ ('a1000000-0000-4000-8000-000000000001','10000000-0000-4000-8000-000000000001',
+  'LOCAL GCash','gcash','LOCAL-1'),
+ ('a1000000-0000-4000-8000-000000000002','10000000-0000-4000-8000-000000000001',
+  'LOCAL Maya','maya','LOCAL-2');
+select set_config('request.jwt.claim.sub','22222222-2222-4222-8222-222222222222',true);
+set role authenticated;
+do $$ declare v_quote jsonb; v_paid jsonb; v_replay jsonb; begin
+ v_quote := public.quote_order_discounts('70000000-0000-4000-8000-000000000001',
+  '[{"bookingId":"90000000-0000-4000-8000-000000000001","category":"senior","attested":true}]');
+ if (v_quote->>'subtotal')::numeric <> 1100
+   or (v_quote->>'discountAmount')::numeric <> 100 then
+  raise exception 'LOCAL_DISCOUNT_INCLUDED_SURCHARGE';
+ end if;
+ v_paid := public.post_order_payment_with_discounts_atomic(
+  '70000000-0000-4000-8000-000000000001','local-discount-split-payment-1',
+  '[{"amount":300,"payment_method":"gcash","financial_account_id":"a1000000-0000-4000-8000-000000000001","external_reference":"LOCAL-G1"},
+    {"amount":200,"payment_method":"maya","financial_account_id":"a1000000-0000-4000-8000-000000000002","external_reference":"LOCAL-M1"}]',
+  '[{"bookingId":"90000000-0000-4000-8000-000000000001","category":"senior","attested":true}]',
+  v_quote->>'version');
+ v_replay := public.post_order_payment_with_discounts_atomic(
+  '70000000-0000-4000-8000-000000000001','local-discount-split-payment-1',
+  '[{"amount":300,"payment_method":"gcash","financial_account_id":"a1000000-0000-4000-8000-000000000001","external_reference":"LOCAL-G1"},
+    {"amount":200,"payment_method":"maya","financial_account_id":"a1000000-0000-4000-8000-000000000002","external_reference":"LOCAL-M1"}]',
+  '[{"bookingId":"90000000-0000-4000-8000-000000000001","category":"senior","attested":true}]',
+  v_quote->>'version');
+ if (v_paid->>'success')::boolean is distinct from true
+   or (v_replay->>'is_idempotent_replay')::boolean is distinct from true then
+  raise exception 'LOCAL_DISCOUNT_SPLIT_PAYMENT_FAILED';
+ end if;
+end $$;
+reset role;
+do $$ begin
+ if (select total_payable from public.v_booking_order_financial_summaries
+      where order_id='70000000-0000-4000-8000-000000000001') <> 1000
+   or (select net_allocated from public.v_booking_order_financial_summaries
+      where order_id='70000000-0000-4000-8000-000000000001') <> 500
+   or (select remaining_balance from public.v_booking_order_financial_summaries
+      where order_id='70000000-0000-4000-8000-000000000001') <> 500
+   or (select count(*) from public.order_discount_audits) <> 1
+   or (select count(*) from public.financial_account_movements) <> 2 then
+  raise exception 'LOCAL_CASH_FLOW_PROJECTION_OR_SPLIT_INTEGRITY_FAILED';
+ end if;
+end $$;
+rollback to savepoint local_discount_split_payment_probe;
 select set_config('request.jwt.claim.sub','22222222-2222-4222-8222-222222222222',true);
 set role authenticated;
 do $$ begin
@@ -296,9 +385,82 @@ do $$ begin
  end if;
 end $$;
 rollback to savepoint local_auto_completion_probe;
+-- Seven automatic completions produce 21 notices, exceeding one 20-job claim.
+savepoint local_auto_outbox_batch_probe;
+alter table public.service_auto_completion_policy
+ drop constraint service_auto_completion_release_gate;
+insert into public.service_auto_completion_policy(branch_id,enabled,eligible_started_after,activated_at)
+ values ('10000000-0000-4000-8000-000000000001',true,
+  clock_timestamp()-interval '10 minutes',clock_timestamp()-interval '10 minutes');
+update public.branch_resources set capacity=10
+ where id='50000000-0000-4000-8000-000000000001';
+insert into public.staff(id,branch_id,full_name,system_role,staff_type,is_active)
+select ('41000000-0000-4000-8000-'||lpad(i::text,12,'0'))::uuid,
+ '10000000-0000-4000-8000-000000000001','LOCAL Batch Therapist '||i,
+ 'staff','therapist',true from generate_series(1,7) as g(i);
+insert into public.booking_attendees(id,booking_order_id,display_name,sequence)
+select ('81000000-0000-4000-8000-'||lpad(i::text,12,'0'))::uuid,
+ '70000000-0000-4000-8000-000000000001','LOCAL Batch Guest '||i,i+2
+from generate_series(1,7) as g(i);
+insert into public.bookings(id,order_id,attendee_id,line_sequence,branch_id,service_id,
+ staff_id,customer_id,resource_id,booking_date,start_time,end_time,type,delivery_type,
+ status,booking_progress_status,metadata,session_started_at,session_due_at,
+ session_start_source,session_started_by,session_duration_minutes_snapshot)
+select ('91000000-0000-4000-8000-'||lpad(i::text,12,'0'))::uuid,
+ '70000000-0000-4000-8000-000000000001',
+ ('81000000-0000-4000-8000-'||lpad(i::text,12,'0'))::uuid,i+2,
+ '10000000-0000-4000-8000-000000000001','30000000-0000-4000-8000-000000000001',
+ ('41000000-0000-4000-8000-'||lpad(i::text,12,'0'))::uuid,
+ '60000000-0000-4000-8000-000000000001',
+ '50000000-0000-4000-8000-000000000001',
+ (now() at time zone 'Asia/Manila')::date,
+ ((now() at time zone 'Asia/Manila')-interval '5 minutes')::time,
+ ((now() at time zone 'Asia/Manila')+interval '55 minutes')::time,
+ 'online','in_spa','in_progress','session_started','{"price_paid":500}',
+ clock_timestamp()-interval '5 minutes',clock_timestamp()-interval '3 minutes',
+ 'crm','40000000-0000-4000-8000-000000000002',60
+from generate_series(1,7) as g(i);
+set role service_role;
+do $$ begin
+ if (select count(*) from public.complete_due_service_sessions(10)) <> 7 then
+  raise exception 'LOCAL_AUTO_BATCH_COMPLETION_COUNT_WRONG';
+ end if;
+end $$;
+reset role;
+do $$ begin
+ if (select count(*) from public.workspace_notifications
+      where title='Service Completed Automatically') <> 21
+    or (select count(*) from public.service_transition_push_outbox) <> 24 then
+  raise exception 'LOCAL_AUTO_BATCH_OUTBOX_COUNT_WRONG';
+ end if;
+end $$;
+set role service_role;
+do $$ begin
+ if (select count(*) from public.claim_service_transition_push_jobs(20,null)) <> 20
+   or (select count(*) from public.claim_service_transition_push_jobs(20,null)) <> 4
+   or (select count(*) from public.claim_service_transition_push_jobs(20,null)) <> 0 then
+  raise exception 'LOCAL_AUTO_BATCH_CLAIM_DID_NOT_CONTINUE';
+ end if;
+end $$;
+update public.service_transition_push_outbox
+set attempts=3, created_at=clock_timestamp()-interval '6 minutes',
+ lease_until=clock_timestamp()-interval '1 second'
+where notification_id=(select notification_id from public.service_transition_push_outbox limit 1);
+do $$ declare v_health jsonb; begin
+ v_health := public.service_transition_push_outbox_health();
+ if (v_health->>'pending')::integer <> 24
+    or (v_health->>'overdue')::integer < 1
+    or (v_health->>'repeated_failures')::integer < 1
+    or (select count(*) from public.claim_service_transition_push_jobs(1,null)) <> 1 then
+  raise exception 'LOCAL_PUSH_HEALTH_OR_LEASE_RECOVERY_FAILED';
+ end if;
+end $$;
+reset role;
+rollback to savepoint local_auto_outbox_batch_probe;
 do $$ begin
  if has_function_privilege('authenticated','public.claim_service_transition_push_jobs(integer,text)','EXECUTE')
-    or has_function_privilege('anon','public.finish_service_transition_push_job(uuid,uuid,uuid[],boolean,text)','EXECUTE') then
+     or has_function_privilege('anon','public.finish_service_transition_push_job(uuid,uuid,uuid[],boolean,text)','EXECUTE')
+     or has_function_privilege('authenticated','public.service_transition_push_outbox_health()','EXECUTE') then
   raise exception 'LOCAL_PUSH_OUTBOX_CLIENT_ACCESS_EXPOSED';
  end if;
 end $$;
