@@ -1,9 +1,5 @@
 import { z } from "zod";
-import {
-  canApproveAssistance,
-  validAssistanceWindow,
-  type AssistanceRequest,
-} from "@/lib/staff/interbranch-assistance-contract";
+import { validAssistanceWindow } from "@/lib/staff/interbranch-assistance-contract";
 
 export const assistanceSubmitSchema = z.object({
   requestingBranchId: z.string().uuid(),
@@ -38,17 +34,10 @@ export function canSubmitAssistance(role: string): boolean {
 
 export function canReviewAssistance(
   actor: { role: string; branchId: string | null },
-  request: Pick<AssistanceRequest, "requestingBranchId" | "lendingBranchId">,
+  request: { requestingBranchId: string; lendingBranchId: string },
 ): boolean {
-  return canApproveAssistance(actor, {
-    ...request,
-    id: "",
-    role: "therapist",
-    count: 1,
-    visitType: "in_spa",
-    window: { startAt: "2026-11-05T00:00:00+08:00", endAt: "2026-11-05T01:00:00+08:00" },
-    status: "requested",
-  });
+  return ["owner", "manager", "assistant_manager", "store_manager"].includes(actor.role) &&
+    (actor.role === "owner" || actor.branchId === request.lendingBranchId);
 }
 
 export function canCancelAssistance(
