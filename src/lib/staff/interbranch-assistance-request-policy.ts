@@ -1,9 +1,12 @@
 import { z } from "zod";
+
+// CradleHub has PostgreSQL UUID branch IDs with non-RFC version/variant bits.
+// z.guid() validates the canonical 8-4-4-4-12 hex shape without rejecting those IDs.
 import { validAssistanceWindow } from "@/lib/staff/interbranch-assistance-contract";
 
 export const assistanceSubmitSchema = z.object({
-  requestingBranchId: z.string().uuid(),
-  lendingBranchId: z.string().uuid(),
+  requestingBranchId: z.guid(),
+  lendingBranchId: z.guid(),
   role: z.enum(["therapist", "nail_tech", "aesthetician"]),
   count: z.number().int().min(1).max(20),
   visitType: z.enum(["in_spa", "home_service"]),
@@ -22,9 +25,9 @@ export const assistanceSubmitSchema = z.object({
 });
 
 export const assistanceDecisionSchema = z.object({
-  requestId: z.string().uuid(),
+  requestId: z.guid(),
   decision: z.enum(["approve", "decline", "cancel"]),
-  staffIds: z.array(z.string().uuid()).max(20).default([]),
+  staffIds: z.array(z.guid()).max(20).default([]),
   reason: z.string().trim().max(200).default(""),
 });
 
