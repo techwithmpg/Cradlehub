@@ -390,7 +390,7 @@ export function CrmBookingsOperationsGrid({
         <div className="overflow-hidden rounded-xl border border-neutral-200 bg-white shadow-sm">
           <div className="hidden overflow-x-auto md:block">
             <table className="w-full min-w-[700px] table-fixed border-collapse text-left text-sm">
-              <colgroup><col className="w-[11%]" /><col className="w-[18%]" /><col className="w-[23%]" /><col className="w-[17%]" /><col className="w-[12%]" /><col className="w-[14%]" /><col className="w-[5%]" /></colgroup>
+              <colgroup><col className="w-[11%]" /><col className="w-[23%]" /><col className="w-[19%]" /><col className="w-[16%]" /><col className="w-[12%]" /><col className="w-[14%]" /><col className="w-[5%]" /></colgroup>
               <thead className="bg-neutral-100 text-xs font-bold text-neutral-900"><tr>
                 <th scope="col" className="px-4 py-3">Time</th><th scope="col" className="px-4 py-3">Service for / Booked by</th><th scope="col" className="px-4 py-3">Service</th>
                 <th scope="col" className="px-4 py-3">Therapist</th><th scope="col" className="px-4 py-3">Room</th><th scope="col" className="px-4 py-3">Status</th><th scope="col" className="w-10"><span className="sr-only">Expand</span></th>
