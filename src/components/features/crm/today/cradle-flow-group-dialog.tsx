@@ -7,6 +7,7 @@ import {
   AdminOverlayHeader,
 } from "@/components/shared/overlays";
 import { formatCradleFlowMoney, getCradleFlowServiceRecipientName, type CradleFlowBooking } from "@/lib/crm/cradle-flow";
+import { resolveBookingPartyIdentity } from "@/lib/bookings/booking-party-identity";
 import { TherapistProvenanceBadge } from "@/components/features/bookings/therapist-provenance-badge";
 import type { CradleFlowGroup } from "./cradle-flow-display";
 
@@ -32,7 +33,7 @@ export function CradleFlowGroupDialog({
       className="max-h-[88dvh]"
     >
       <AdminOverlayHeader
-        title={group.organizerName}
+        title={`Booked by ${group.organizerName}`}
         description={`Order ${group.orderNumber ?? group.orderId?.slice(0, 8)} · ${group.guestCount} guest${group.guestCount === 1 ? "" : "s"} · ${group.serviceCount} services`}
       />
       <AdminOverlayBody className="grid gap-3">
@@ -65,7 +66,8 @@ export function CradleFlowGroupDialog({
                 className="rounded-lg border border-[var(--cs-border-soft)] p-3 text-left hover:bg-[var(--cs-surface-warm)]"
               >
                 <div className="flex items-center justify-between gap-2 text-sm">
-                  <strong>{getCradleFlowServiceRecipientName(line)}</strong>
+                  <strong>Service for: {getCradleFlowServiceRecipientName(line)}</strong>
+                  <span className="ml-2 rounded-full bg-amber-50 px-2 py-0.5 text-[10px] font-bold text-amber-900">{resolveBookingPartyIdentity({ bookedBy: line.customer_name, serviceRecipient: getCradleFlowServiceRecipientName(line) }).roleLabel}</span>
                   <span className="capitalize text-xs">
                     {line.booking_progress_status?.replaceAll("_", " ") ??
                       line.status.replaceAll("_", " ")}
