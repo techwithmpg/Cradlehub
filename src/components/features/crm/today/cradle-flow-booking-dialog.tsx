@@ -4,6 +4,7 @@ import { useState } from "react";
 import Link from "next/link";
 import { Clock3, Home, MapPin, Phone, Truck, UserRound } from "lucide-react";
 import { toast } from "sonner";
+import { resolveBookingPartyIdentity } from "@/lib/bookings/booking-party-identity";
 import { AssignmentRecommendationPanel } from "@/components/features/assignments/assignment-recommendation-panel";
 import { assignBookingTherapistAction } from "@/app/(dashboard)/crm/bookings/actions";
 import { assignBookingDriverAction } from "@/lib/actions/driver-actions";
@@ -85,9 +86,10 @@ export function CradleFlowBookingDialog({
   const [assignmentOpen, setAssignmentOpen] = useState(false);
   if (!booking) return null;
   const recipientName = getCradleFlowServiceRecipientName(booking);
-  const bookingContactName = booking.customer_name?.trim() || null;
-  const contactDiffers = Boolean(bookingContactName &&
-    bookingContactName.toLocaleLowerCase("en-PH") !== recipientName.toLocaleLowerCase("en-PH"));
+  const partyIdentity = resolveBookingPartyIdentity({
+    bookedBy: booking.customer_name,
+    serviceRecipient: recipientName,
+  });
   const homeService = booking.type === "home_service" || booking.delivery_type === "home_service";
   const stage = getCradleFlowStage(booking);
   const metadata = booking.metadata ?? {};
@@ -152,13 +154,11 @@ export function CradleFlowBookingDialog({
 
         <div className="grid gap-3 sm:grid-cols-2">
           <Detail
-            label="Service recipient"
+            label={`Service for · ${partyIdentity.roleLabel}`}
             value={recipientName}
             icon={<UserRound className="size-3" />}
           />
-          {contactDiffers && bookingContactName ? (
-            <Detail label="Booked by" value={bookingContactName} />
-          ) : null}
+          <Detail label="Booked by (main contact)" value={partyIdentity.bookedBy ?? "Not recorded"} />
           <Detail
             label="Booking contact phone"
             value={booking.customer_phone ?? "Not recorded"}
