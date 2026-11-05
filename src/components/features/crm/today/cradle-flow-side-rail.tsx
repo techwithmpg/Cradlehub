@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { AlertTriangle, CalendarDays, ClipboardPlus, WalletCards } from "lucide-react";
+import { AlertTriangle, ArrowLeftRight, CalendarDays, ClipboardPlus, WalletCards } from "lucide-react";
 import { AttendanceScanFeedPanel } from "@/components/features/attendance/attendance-scan-feed-card";
 import type { AttendanceRealtimeStatus } from "@/components/features/attendance/use-attendance-scan-realtime";
 import type { AttendanceScanFeedData, RecentAttendanceScan } from "@/lib/attendance/types";
@@ -59,6 +59,7 @@ function RailLink({
 }
 
 export function CradleFlowSideRail({
+  assistanceEnabled = false,
   branchName,
   attendanceDate,
   attendanceFeed,
@@ -79,6 +80,7 @@ export function CradleFlowSideRail({
   onShowReadyToPay,
   onViewTotals,
 }: {
+  assistanceEnabled?: boolean;
   branchName: string;
   attendanceDate: string;
   attendanceFeed: AttendanceScanFeedData;
@@ -191,6 +193,12 @@ export function CradleFlowSideRail({
           <p className="text-xs text-[var(--cs-text-muted)]">No visits need attention right now.</p>
         )}
       </RailPanel>
+      {assistanceEnabled ? (
+        <RailPanel title="Staff Coverage">
+          <p className="mb-2 text-xs text-[var(--cs-text-muted)]">Short on therapists, nail technicians, or aestheticians? Ask the other branch for support.</p>
+          <RailLink href="/crm/schedule?tab=assistance" title="Request Staff Assistance" helper="Schedule → Assistance" icon={<ArrowLeftRight className="size-4" />} />
+        </RailPanel>
+      ) : null}
       <RailPanel title="Quick Actions">
         <div className="grid gap-1.5">
           <RailLink
