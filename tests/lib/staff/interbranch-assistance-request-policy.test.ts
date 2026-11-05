@@ -17,6 +17,11 @@ describe("Staff Assistance Stage B safety policy", () => {
   it("accepts a branch-scoped bounded request", () => {
     expect(assistanceSubmitSchema.safeParse(valid).success).toBe(true);
   });
+  it("accepts existing PostgreSQL branch GUIDs but rejects malformed identifiers", () => {
+    expect(assistanceSubmitSchema.safeParse({ ...valid, requestingBranchId: main, lendingBranchId: sm }).success).toBe(true);
+    expect(assistanceSubmitSchema.safeParse({ ...valid, requestingBranchId: "not-a-guid" }).success).toBe(false);
+    expect(assistanceSubmitSchema.safeParse({ ...valid, lendingBranchId: "c1000000-0000-0000-0000-00000000000x" }).success).toBe(false);
+  });
   it("rejects a request to the same branch or an impossible timeframe", () => {
     expect(assistanceSubmitSchema.safeParse({ ...valid, lendingBranchId: main }).success).toBe(false);
     expect(assistanceSubmitSchema.safeParse({ ...valid, endAt: "2026-11-05T14:00:00+08:00" }).success).toBe(false);
