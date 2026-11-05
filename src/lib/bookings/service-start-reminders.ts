@@ -46,3 +46,11 @@ export function serviceStartReminderQueue<T extends ServiceStartCandidate>(candi
   return candidates.filter((candidate) => isServiceStartReminderEligible(candidate, serverNowMs))
     .sort((a, b) => scheduledStartMs(a) - scheduledStartMs(b) || a.id.localeCompare(b.id));
 }
+
+/** Scheduled phone reminders are sent only before start; late CRM dialogs remain in-app. */
+export function isTherapistStartPushEligible(candidate: ServiceStartCandidate, serverNowMs: number): boolean {
+  const start = scheduledStartMs(candidate);
+  return isServiceStartReminderEligible(candidate, serverNowMs)
+    && Number.isFinite(start)
+    && serverNowMs < start;
+}
