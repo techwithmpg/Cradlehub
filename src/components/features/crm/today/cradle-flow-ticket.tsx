@@ -13,6 +13,7 @@ import {
 import { getCradleFlowDisplayStatus, isHomeServiceVisit } from "./cradle-flow-display";
 import { formatBranchYmd } from "@/lib/engine/slot-time";
 import type { CradleFlowGroup } from "./cradle-flow-display";
+import { resolveBookingPartyIdentity } from "@/lib/bookings/booking-party-identity";
 import { TherapistProvenanceBadge } from "@/components/features/bookings/therapist-provenance-badge";
 
 function formatTime(value: string | null | undefined): string {
@@ -46,6 +47,7 @@ export function CradleFlowTicket({
   primaryPending?: boolean;
 }) {
   if (group && group.orderId && group.serviceCount > 1) {
+    const guests = [...new Set(group.lines.map(getCradleFlowServiceRecipientName))];
     const stageLabel = {
       waiting: "Waiting",
       in_service: "In Service",
@@ -57,6 +59,7 @@ export function CradleFlowTicket({
         <div className="text-sm font-extrabold tabular-nums">{formatTime(group.startTime)}</div>
         <div className="min-w-0">
           <div className="flex flex-wrap items-center gap-2">
+            <span className="text-[10px] font-bold uppercase text-[var(--cs-text-muted)]">Booked by</span>
             <button
               type="button"
               className="truncate text-left text-sm font-extrabold hover:underline"
@@ -72,6 +75,9 @@ export function CradleFlowTicket({
             <span className="rounded-full bg-[var(--cs-surface-warm)] px-2 py-0.5 text-[10px] font-bold">
               {stageLabel}
             </span>
+          </div>
+          <div className="mt-1 text-xs text-[var(--cs-text-secondary)]" title={guests.join(", ")}>
+            <span className="font-semibold">Service for:</span> {guests.slice(0, 3).join(", ")}{guests.length > 3 ? ` +${guests.length - 3} more` : ""}
           </div>
           <div className="mt-1 text-xs text-[var(--cs-text-muted)]">
             Order {group.orderNumber ?? group.orderId.slice(0, 8)} · {group.serviceCount} services ·{" "}
@@ -110,6 +116,10 @@ export function CradleFlowTicket({
       </article>
     );
   }
+  const party = resolveBookingPartyIdentity({
+    bookedBy: booking.customer_name,
+    serviceRecipient: getCradleFlowServiceRecipientName(booking),
+  });
   const stage = getCradleFlowStage(booking);
   const homeService = isHomeServiceVisit(booking);
   const missingRoom = !homeService && !booking.resource_id && stage === "waiting";
@@ -158,8 +168,11 @@ export function CradleFlowTicket({
             onClick={() => onOpen(booking)}
             className="truncate text-left text-sm font-extrabold text-[var(--cs-text)] hover:underline"
           >
-            {getCradleFlowServiceRecipientName(booking)}
+            {party.serviceFor}
           </button>
+          <span className={`rounded-full px-2 py-0.5 text-[10px] font-bold ${party.isGuest ? "bg-amber-50 text-amber-900" : "bg-emerald-50 text-emerald-900"}`}>
+            {party.roleLabel}
+          </span>
           <span
             className={`rounded-full px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide ${statusTone}`}
           >
@@ -170,6 +183,9 @@ export function CradleFlowTicket({
               <Home className="size-3" aria-hidden="true" /> Home Service
             </span>
           ) : null}
+        </div>
+        <div className="mt-1 text-xs text-[var(--cs-text-secondary)]">
+          <span className="font-semibold">Booked by:</span> {party.bookedBy ?? "Not recorded"}
         </div>
         <div className="mt-1 flex flex-wrap gap-x-2 gap-y-0.5 text-[11px] text-[var(--cs-text-muted)]">
           <span>
