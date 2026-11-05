@@ -49,7 +49,7 @@ describe("global CRM service start queue", () => {
     const view = render(<GlobalServiceStartProvider branchId="branch-1"><div>Cash Flow</div></GlobalServiceStartProvider>);
     expect(screen.getByText("Cash Flow")).toBeTruthy();
     const dialog = await screen.findByRole("dialog");
-    expect(screen.getByRole("heading", { name: "Service Start — Action Required" })).toBeTruthy();
+    expect(screen.getByRole("heading", { name: "Action Required" })).toBeTruthy();
     expect(dialog.textContent).toContain("Guest A");
     fireEvent.click(screen.getByRole("button", { name: "Close" }));
     await waitFor(() => expect(screen.queryByRole("dialog")).toBeNull());
