@@ -7,6 +7,7 @@ import {
   getCradleFlowBalance,
   getCradleFlowPrimaryLabel,
   getCradleFlowStage,
+  getCradleFlowServiceRecipientName,
   type CradleFlowBooking,
 } from "@/lib/crm/cradle-flow";
 import { getCradleFlowDisplayStatus, isHomeServiceVisit } from "./cradle-flow-display";
@@ -157,7 +158,7 @@ export function CradleFlowTicket({
             onClick={() => onOpen(booking)}
             className="truncate text-left text-sm font-extrabold text-[var(--cs-text)] hover:underline"
           >
-            {booking.customer_name ?? "Unnamed customer"}
+            {getCradleFlowServiceRecipientName(booking)}
           </button>
           <span
             className={`rounded-full px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide ${statusTone}`}
@@ -252,7 +253,7 @@ export function CradleFlowTicket({
           type="button"
           onClick={() => onOpen(booking)}
           className="grid size-9 place-items-center rounded-lg border border-[var(--cs-border)] text-[var(--cs-text-muted)] hover:bg-[var(--cs-surface-warm)]"
-          aria-label={`More actions for ${booking.customer_name ?? "booking"}`}
+          aria-label={`More actions for ${getCradleFlowServiceRecipientName(booking)}`}
         >
           <MoreHorizontal className="size-4" />
         </button>
