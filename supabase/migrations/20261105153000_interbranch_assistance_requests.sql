@@ -59,7 +59,9 @@ create index staff_assistance_events_request_idx on public.staff_assistance_even
 create function public.audit_staff_assistance_request()
 returns trigger language plpgsql security invoker
 set search_path = ''
-as $$
+as $
+declare
+  v_staff_id uuid;
 begin
   if tg_op = 'UPDATE' then
     if new.requesting_branch_id is distinct from old.requesting_branch_id or
@@ -78,6 +80,46 @@ begin
     if old.status <> 'requested' or
        new.status not in ('approved_pending_arrival','declined','cancelled') then
       raise exception 'Invalid assistance status transition';
+    end if;
+
+    if new.status = 'approved_pending_arrival' then
+      -- Defend against duplicate IDs, wrong home branches, or stale staff roles.
+      if cardinality(new.selected_staff_ids) <>
+         (select count(distinct selected.id) from unnest(new.selected_staff_ids) as selected(id)) then
+        raise exception 'Selected staff must be unique';
+      end if;
+      if exists (
+        select 1
+        from unnest(new.selected_staff_ids) as selected(id)
+        left join public.staff s on s.id = selected.id
+        where s.id is null or s.branch_id is distinct from new.lending_branch_id
+           or s.staff_type is distinct from new.requested_role
+           or s.is_active is distinct from true
+           or s.archived_at is not null or s.merged_into_staff_id is not null
+      ) then
+        raise exception 'Selected staff do not belong to the active lending branch roster';
+      end if;
+
+      -- Transaction-scoped locks for each selected staff member serialize
+      -- simultaneous approvals of *different* requests with overlapping windows.
+      for v_staff_id in
+        select distinct selected.id
+        from unnest(new.selected_staff_ids) as selected(id)
+        order by selected.id
+      loop
+        perform pg_catalog.pg_advisory_xact_lock(
+          pg_catalog.hashtextextended(v_staff_id::text, 20261105)
+        );
+      end loop;
+      if exists (
+        select 1 from public.staff_assistance_requests other
+        where other.id <> new.id
+          and other.status = 'approved_pending_arrival'
+          and other.start_at < new.end_at and other.end_at > new.start_at
+          and other.selected_staff_ids && new.selected_staff_ids
+      ) then
+        raise exception 'Selected staff already have overlapping assistance approval';
+      end if;
     end if;
     new.updated_at := now();
   end if;
