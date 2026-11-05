@@ -11,7 +11,7 @@ import {
 } from "@/components/shared/overlays";
 import { crmCompleteServiceAction } from "@/app/(dashboard)/crm/bookings/actions";
 import { serviceTransitionEventId } from "@/lib/bookings/service-transition-event";
-import type { CradleFlowBooking } from "@/lib/crm/cradle-flow";
+import { getCradleFlowServiceRecipientName, type CradleFlowBooking } from "@/lib/crm/cradle-flow";
 
 function time(value: string | null | undefined): string {
   if (!value) return "Not recorded";
@@ -78,7 +78,7 @@ export function CradleFlowCompleteDialog({
       <AdminOverlayBody className="grid gap-4">
         <div className="rounded-xl border border-emerald-200 bg-emerald-50/70 p-4">
           <div className="text-lg font-extrabold text-emerald-950">
-            {booking.customer_name ?? "Customer"}
+            {getCradleFlowServiceRecipientName(booking)}
           </div>
           <div className="mt-1 text-sm text-emerald-900/75">
             {booking.service_name ?? "Service"} · {booking.staff_name ?? "Therapist"}

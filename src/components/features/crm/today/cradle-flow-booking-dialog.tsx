@@ -24,6 +24,7 @@ import {
   getCradleFlowAmountPaid,
   getCradleFlowBalance,
   type CradleFlowBooking,
+  getCradleFlowServiceRecipientName,
 } from "@/lib/crm/cradle-flow";
 
 function timeLabel(value: string | null | undefined): string {
@@ -83,6 +84,10 @@ export function CradleFlowBookingDialog({
 }) {
   const [assignmentOpen, setAssignmentOpen] = useState(false);
   if (!booking) return null;
+  const recipientName = getCradleFlowServiceRecipientName(booking);
+  const bookingContactName = booking.customer_name?.trim() || null;
+  const contactDiffers = Boolean(bookingContactName &&
+    bookingContactName.toLocaleLowerCase("en-PH") !== recipientName.toLocaleLowerCase("en-PH"));
   const homeService = booking.type === "home_service" || booking.delivery_type === "home_service";
   const stage = getCradleFlowStage(booking);
   const metadata = booking.metadata ?? {};
@@ -116,7 +121,7 @@ export function CradleFlowBookingDialog({
       className="max-h-[88dvh]"
     >
       <AdminOverlayHeader
-        title={booking.customer_name ?? "Booking details"}
+        title={recipientName}
         description={`${homeService ? "Home Service" : "In-spa"} · ${booking.booking_date} · ${timeLabel(booking.start_time)}`}
       />
       <AdminOverlayBody className="grid gap-4">
@@ -147,12 +152,15 @@ export function CradleFlowBookingDialog({
 
         <div className="grid gap-3 sm:grid-cols-2">
           <Detail
-            label="Customer"
-            value={booking.customer_name ?? "Unnamed customer"}
+            label="Service recipient"
+            value={recipientName}
             icon={<UserRound className="size-3" />}
           />
+          {contactDiffers && bookingContactName ? (
+            <Detail label="Booked by" value={bookingContactName} />
+          ) : null}
           <Detail
-            label="Phone"
+            label="Booking contact phone"
             value={booking.customer_phone ?? "Not recorded"}
             icon={<Phone className="size-3" />}
           />
