@@ -126,6 +126,8 @@ export function CradleFlowTicket({
   const missingTherapist = !booking.staff_name && stage === "waiting";
   const due = getCradleFlowBalance(booking);
   const paid = getCradleFlowAmountPaid(booking);
+  const orderPayable = booking.order_id ? booking.order_total_amount ?? null : null;
+  const displayTotal = booking.order_id ? orderPayable : booking.price_paid ?? null;
   const accent =
     stage === "ready_to_pay"
       ? "bg-violet-500"
@@ -220,12 +222,12 @@ export function CradleFlowTicket({
 
       <div className="border-t border-[var(--cs-border-soft)] pt-2 text-xs sm:col-start-2 lg:col-auto lg:border-l lg:border-t-0 lg:pl-3 lg:pt-0">
         <div className="font-extrabold tabular-nums text-[var(--cs-text)]">
-          {formatCradleFlowMoney(booking.price_paid ?? 0)}
-          <span className="ml-1 font-normal text-[var(--cs-text-muted)]">service total</span>
+          {displayTotal === null ? "Total unavailable" : formatCradleFlowMoney(displayTotal)}
+          <span className="ml-1 font-normal text-[var(--cs-text-muted)]">{booking.order_id ? "order payable" : "service total"}</span>
         </div>
         <div className="mt-0.5 tabular-nums text-[var(--cs-text-muted)]">
-          {booking.order_id ? "Order " : ""}
-          {formatCradleFlowMoney(paid)} paid · {formatCradleFlowMoney(due)} due
+          {booking.order_id ? "Order · " : ""}
+          {formatCradleFlowMoney(paid)} paid · {booking.order_id && orderPayable === null ? "Balance unavailable" : `${formatCradleFlowMoney(due)} due`}
         </div>
       </div>
 
