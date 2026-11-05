@@ -35,6 +35,13 @@
 - Existing notifications types extended with three interbranch events; existing workflow notification delivery reused.
 - Unit tests `tests/lib/staff/interbranch-assistance-request-policy.test.ts`.
 
+## Live governance blocker found (read-only query on 2026-11-05)
+- Main Spa currently has 1 active staff account with system role `manager`, and 2 with system role `owner`; SM currently has 2 active accounts with role `crm` and **no active management-role accounts**.
+- A Main-to-SM assistance request therefore cannot be approved by an SM manager **using existing role assignments**. An owner can approve cross-branch through the explicitly permitted owner path. Decide whether to provision the appropriate SM manager account/role (separate audited staff permission workflow) before enabling this stage.
+- Do NOT silently grant manager rights to ordinary SM CSR or loosen the server role policy as a workaround.
+- Live branch booking rules show Main Home Service enabled and SM Home Service disabled, consistent with the owner's stated policy.
+- These are live catalog/role observations, not browser verification of assistance behavior.
+
 ## Release blockers / verification checklist (not claims)
 1. **Migration history**: inspect production migration catalog and local-only migrations; do not bulk replay, mark applied or push anything for cleanup. Review the new SQL DDL alone. Regenerate TypeScript DB types after authorized apply.
 2. **Security**: review SQL grants and both RLS policies against active staff identity, role and branch; test owner, manager (right/wrong branch), ordinary CSR (submit/deny approval), disabled/inactive staff, anon, service role and unauthorized branch. Test direct Data API INSERT/UPDATE/DELETE denial.
