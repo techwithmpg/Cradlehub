@@ -1,4 +1,4 @@
--- Stage B: Request / manager-decision records ONLY.
+-- Stage B: Request / branch-CSR decision records ONLY.
 -- Review-only migration. DO NOT apply until local tests, independent review,
 -- owner approval, and production migration state are reconciled.
 -- NO changes to staff.branch_id, booking availability, attendance or payroll.
@@ -195,6 +195,6 @@ using (
 );
 
 comment on table public.staff_assistance_requests is
-  'Stage B only: human requests and provisional manager decisions. Not staff availability or attendance authorization.';
+  'Stage B only: human requests and provisional branch CSR decisions. Not staff availability or attendance authorization.';
 comment on column public.staff_assistance_requests.selected_staff_ids is
   'Provisional decision evidence only; must NOT be used by booking, dispatch, scheduling, or attendance eligibility.';
