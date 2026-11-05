@@ -2,12 +2,14 @@ import { describe, expect, it } from "vitest";
 import {
   futureCradleFlowHref,
   getCradleFlowPrimaryLabel,
+  getCradleFlowServiceRecipientName,
   type CradleFlowBooking,
 } from "@/lib/crm/cradle-flow";
 import {
   getCradleFlowAttention,
   getCradleFlowDisplayCounts,
   getCradleFlowDisplayStatus,
+  groupCradleFlowBookings,
   matchesCradleFlowFilter,
 } from "@/components/features/crm/today/cradle-flow-display";
 
@@ -36,6 +38,23 @@ function visit(overrides: Partial<CradleFlowBooking> = {}): CradleFlowBooking {
 }
 
 describe("Cradle Flow display organization", () => {
+
+  it("keeps the payer on the multi-guest order header, but each service has its own recipient", () => {
+    const attendee = (id: string, name: string) => ({
+      id, sequence: 1, display_name: name, customer_id: null,
+    });
+    const rows = [
+      visit({ id: "line-1", order_id: "order-1", customer_name: "Booking Contact",
+        attendee_id: "guest-1", booking_attendees: attendee("guest-1", "Guest One") }),
+      visit({ id: "line-2", order_id: "order-1", customer_name: "Booking Contact",
+        attendee_id: "guest-2", booking_attendees: attendee("guest-2", "Guest Two") }),
+    ];
+    const groups = groupCradleFlowBookings(rows);
+    expect(groups).toHaveLength(1);
+    expect(groups[0]!.organizerName).toBe("Booking Contact");
+    expect(groups[0]!.lines.map(getCradleFlowServiceRecipientName)).toEqual(["Guest One", "Guest Two"]);
+  });
+
   it("separates not-arrived visits from checked-in waiting visits using existing facts", () => {
     const booked = visit();
     const arrived = visit({ id: "visit-2", checked_in_at: "2026-09-30T02:00:00Z" });
