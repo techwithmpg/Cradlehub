@@ -178,6 +178,10 @@ async function candidateConflicts(
   for (const raw of bookings.data ?? []) {
     const b = raw as { staff_id: string | null; booking_date: string; start_time: string; end_time: string; status: string; hold_expires_at: string | null };
     if (!b.staff_id || !bookingBlocksAvailability(b)) continue;
+    if (!b.start_time || !b.end_time || !b.booking_date) {
+      booked.add(b.staff_id); // fail closed on incomplete legacy booking timing
+      continue;
+    }
     const range = bookingWindow(b);
     if (range.start < Date.parse(request.end_at) && Date.parse(request.start_at) < range.end) {
       booked.add(b.staff_id);
