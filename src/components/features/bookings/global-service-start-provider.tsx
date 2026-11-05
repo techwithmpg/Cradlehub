@@ -94,7 +94,11 @@ export function GlobalServiceStartProvider({ children, branchId }: { children: R
   const dueMinutes = active
     ? Math.ceil((Date.parse(active.scheduledAtIso) - clock.now - clock.offset) / 60_000)
     : 0;
-  const dueLabel = dueMinutes >= 0 ? `Due in ${dueMinutes} min` : `Overdue ${Math.abs(dueMinutes)} min`;
+  const dueLabel = dueMinutes > 0
+    ? `Service due to start in ${dueMinutes} ${dueMinutes === 1 ? "minute" : "minutes"}.`
+    : dueMinutes === 0
+      ? "Service scheduled to start now."
+      : `Service start overdue by ${Math.abs(dueMinutes)} ${Math.abs(dueMinutes) === 1 ? "minute" : "minutes"}.`;
 
   function dismiss() {
     if (active) window.sessionStorage.setItem(dismissalKey(branchId, active), "1");
