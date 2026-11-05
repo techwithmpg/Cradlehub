@@ -219,7 +219,7 @@ export function StaffAssistanceTab({ branchId, branchName, date }: {
        ) : (
         <div className="space-y-2">
           {visible.map((request) => {
-            const canReview = Boolean(manager && request.lending_branch_id === branchId && request.status === "requested");
+            const canReview = Boolean(manager && (snapshot?.role === "owner" || request.lending_branch_id === branchId) && request.status === "requested");
             const canCancel = request.requesting_branch_id === branchId && request.status === "requested";
             return (
               <article key={request.id} className="flex flex-col gap-3 rounded-xl border border-[var(--cs-border-soft)] bg-[var(--cs-surface)] p-4 shadow-sm sm:flex-row sm:items-center sm:justify-between">
