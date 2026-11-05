@@ -114,7 +114,10 @@ export async function runServiceTransitionPushConsumer(input: {
     if (result.claimed < batchSize) break;
   }
 
-  const healthResult = await createAdminClient().rpc("service_transition_push_outbox_health" as never, {} as never);
+  const healthResult = (await createAdminClient().rpc(
+    "service_transition_push_outbox_health" as never,
+    {} as never
+  )) as unknown as { data: OutboxHealth | null; error: Error | null };
   if (healthResult.error || !healthResult.data) {
     logError("service_transition.push_health_failed", { error: healthResult.error });
     throw healthResult.error ?? new Error("Service transition push health unavailable");
