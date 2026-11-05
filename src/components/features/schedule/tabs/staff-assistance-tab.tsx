@@ -80,9 +80,12 @@ export function StaffAssistanceTab({ branchId, branchName, date }: {
       setLoading(false);
     }
   }, []);
-  useEffect(() => { void refresh(); }, [refresh]);
+  useEffect(() => {
+    // Defer the initial remote read so effects do not synchronously enqueue React state updates.
+    void Promise.resolve().then(refresh);
+  }, [refresh]);
 
-  const requests = snapshot?.requests ?? [];
+  const requests = useMemo(() => snapshot?.requests ?? [], [snapshot?.requests]);
   const outgoing = requests.filter((r) => r.requesting_branch_id === branchId);
   const incoming = requests.filter((r) => r.lending_branch_id === branchId);
   const pending = incoming.filter((r) => r.status === "requested");
@@ -343,7 +346,7 @@ export function StaffAssistanceTab({ branchId, branchName, date }: {
             <p className="text-sm font-semibold">{reviewing.requesting_branch_name} requests {reviewing.quantity} {ROLE_LABEL[reviewing.requested_role]}{reviewing.quantity > 1 ? "s" : ""}</p>
             <p className="text-xs text-[var(--cs-text-secondary)]">{period(reviewing)}</p>
             <div className="rounded-lg border border-amber-200 bg-amber-50 p-3 text-xs text-amber-900">
-              Verify each person's shift, qualifications and your own branch coverage before approving. This is a provisional decision; no live transfer or bookability is activated.
+              Verify each person&apos;s shift, qualifications and your own branch coverage before approving. This is a provisional decision; no live transfer or bookability is activated.
             </div>
             <p className="text-xs font-bold">Select {reviewing.quantity} staff ({selectedStaff.length} selected)</p>
             {loadingCandidates ? <p className="p-4 text-sm">Checking staff availability…</p> :
