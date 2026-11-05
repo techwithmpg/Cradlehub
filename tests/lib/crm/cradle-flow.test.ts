@@ -3,6 +3,7 @@ import {
   getCradleFlowCounts,
   getCradleFlowPrimaryLabel,
   getCradleFlowStage,
+  getCradleFlowServiceRecipientName,
   matchesCradleFlowSearch,
   type CradleFlowBooking,
 } from "@/lib/crm/cradle-flow";
@@ -128,6 +129,38 @@ describe("Cradle Flow lifecycle", () => {
         })
       )
     ).toBe("Open Home Service");
+  });
+
+
+  it("shows the named service recipient, not the person who booked and pays", () => {
+    const row = booking({
+      customer_name: "Booking Contact",
+      attendee_id: "guest-1",
+      booking_attendees: {
+        id: "guest-1", sequence: 1, display_name: "Treatment Recipient",
+        customer_id: null,
+      },
+    });
+    expect(getCradleFlowServiceRecipientName(row)).toBe("Treatment Recipient");
+    expect(row.customer_name).toBe("Booking Contact");
+    expect(matchesCradleFlowSearch(row, "treatment recipient")).toBe(true);
+    expect(matchesCradleFlowSearch(row, "booking contact")).toBe(true);
+  });
+
+  it("handles relation arrays and falls back safely for legacy single-person bookings", () => {
+    const attendee = {
+      id: "guest-1", sequence: 1, display_name: "  Guest A  ", customer_id: null,
+    };
+    expect(getCradleFlowServiceRecipientName(booking({
+      booking_attendees: [attendee],
+    }))).toBe("Guest A");
+    expect(getCradleFlowServiceRecipientName(booking({
+      booking_attendees: [{ ...attendee, display_name: " " }],
+    }))).toBe("Ana Santos");
+    expect(getCradleFlowServiceRecipientName(booking({
+      customer_name: null,
+      booking_attendees: null,
+    }))).toBe("Unnamed customer");
   });
 
   it("searches customer, phone, booking id, service, staff, and address", () => {
