@@ -96,7 +96,7 @@ export function StaffAssistanceTab({ branchId, branchName, date }: {
   }, [filter, incoming, outgoing, requests, approved]);
   const otherBranches = (snapshot?.branches ?? []).filter((b) => b.id !== branchId);
   const selectedLender = otherBranches.find((b) => b.id === lendingBranch)?.id ?? otherBranches[0]?.id ?? "";
-  const manager = snapshot && ["owner", "manager", "assistant_manager", "store_manager"].includes(snapshot.role);
+  const isCrmStaff = snapshot?.role === "crm";
 
   function handleRequest() {
     if (!selectedLender) return toast.error("No other active branch is available.");
@@ -210,7 +210,7 @@ export function StaffAssistanceTab({ branchId, branchName, date }: {
 
       <div role="note" className="flex items-start gap-2 rounded-lg border border-amber-200 bg-amber-50/70 px-3 py-2 text-xs text-amber-900">
         <ShieldCheck className="mt-0.5 size-4 shrink-0" />
-        <p>Stage B: requests and manager decisions only. Approved staff are <strong>not automatically bookable</strong> and attendance does not transfer yet.</p>
+        <p>Stage B: CSR requests and branch-to-branch CSR decisions only. Approved staff are <strong>not automatically bookable</strong> and attendance does not transfer yet.</p>
       </div>
 
       <div className="flex flex-wrap items-center justify-between gap-3">
@@ -238,7 +238,7 @@ export function StaffAssistanceTab({ branchId, branchName, date }: {
        ) : (
         <div className="space-y-2">
           {visible.map((request) => {
-            const canReview = Boolean(manager && (snapshot?.role === "owner" || request.lending_branch_id === branchId) && request.status === "requested");
+            const canReview = Boolean(isCrmStaff && request.lending_branch_id === branchId && request.status === "requested");
             const canCancel = request.requesting_branch_id === branchId && request.status === "requested";
             return (
               <article key={request.id} className="flex flex-col gap-3 rounded-xl border border-[var(--cs-border-soft)] bg-[var(--cs-surface)] p-4 shadow-sm sm:flex-row sm:items-center sm:justify-between">
@@ -306,7 +306,7 @@ export function StaffAssistanceTab({ branchId, branchName, date }: {
                 <input id="assistance-end" type="time" value={endTime} onChange={(e) => setEndTime(e.target.value)}
                   className="min-h-10 w-full rounded-lg border px-2 text-xs" /></div>
             </div>
-            <p className="text-[11px] text-[var(--cs-text-muted)]">The lending manager confirms the actual staff shift. An end time earlier than the start time means the next day.</p>
+            <p className="text-[11px] text-[var(--cs-text-muted)]">The lending branch CSR confirms the requested duty period with the staff member. An end time earlier than the start time means the next day.</p>
             <fieldset className="rounded-lg border border-[var(--cs-border-soft)] p-3">
               <legend className="px-1 text-xs font-semibold">Work location</legend>
               <label className="flex items-center gap-2 py-1 text-sm"><input type="radio" checked={visitType === "in_spa"} onChange={() => setVisitType("in_spa")}/> In-spa at {branchName}</label>
@@ -319,7 +319,7 @@ export function StaffAssistanceTab({ branchId, branchName, date }: {
                 className="w-full resize-none rounded-lg border p-3 text-sm" />
               <p className="text-right text-[11px] text-[var(--cs-text-muted)]">{notes.length}/200</p></div>
             <div className="rounded-lg border border-amber-200 bg-amber-50 p-3 text-xs text-amber-900">
-              The lending branch manager decides which staff can be released. Approval does not yet activate cross-branch bookings or attendance.
+              CSR at the lending branch selects and approves staff. Approval does not yet activate cross-branch bookings or attendance.
             </div>
             <div className="flex items-center justify-end gap-2">
               <button type="button" onClick={() => setRequestOpen(false)} className="min-h-10 rounded-lg border px-4 text-sm">Cancel</button>
@@ -334,7 +334,7 @@ export function StaffAssistanceTab({ branchId, branchName, date }: {
         <DialogContent className="max-h-[92dvh] w-[min(96vw,570px)] max-w-none overflow-y-auto rounded-2xl p-5 sm:max-w-[570px]">
           <DialogHeader>
             <DialogTitle>Review Assistance Request</DialogTitle>
-            <DialogDescription>Only the lending branch manager can select and approve staff.</DialogDescription>
+            <DialogDescription>Only CSR at the lending branch can select and approve staff.</DialogDescription>
           </DialogHeader>
           {reviewing && <div className="space-y-3 pt-2">
             <p className="text-sm font-semibold">{reviewing.requesting_branch_name} requests {reviewing.quantity} {ROLE_LABEL[reviewing.requested_role]}{reviewing.quantity > 1 ? "s" : ""}</p>
@@ -358,7 +358,7 @@ export function StaffAssistanceTab({ branchId, branchName, date }: {
                   </label>;
                 })}
               </div>}
-            <div><label htmlFor="assistance-decision-note" className="mb-1 block text-xs font-semibold">Manager note (optional)</label>
+            <div><label htmlFor="assistance-decision-note" className="mb-1 block text-xs font-semibold">CSR note (optional)</label>
               <textarea id="assistance-decision-note" value={decisionNote} onChange={(e) => setDecisionNote(e.target.value.slice(0, 200))}
                 rows={2} className="w-full resize-none rounded-lg border p-2 text-sm" placeholder="Optional reason or instructions"/></div>
             <div className="flex flex-wrap justify-end gap-2">
