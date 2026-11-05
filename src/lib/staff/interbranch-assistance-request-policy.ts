@@ -29,15 +29,19 @@ export const assistanceDecisionSchema = z.object({
 });
 
 export function canSubmitAssistance(role: string): boolean {
-  return ["owner", "manager", "assistant_manager", "store_manager", "crm"].includes(role);
+  // Only branch-scoped CRM staff initiate and coordinate assistance.
+  return role === "crm";
 }
 
 export function canReviewAssistance(
   actor: { role: string; branchId: string | null },
   request: { requestingBranchId: string; lendingBranchId: string },
 ): boolean {
-  return ["owner", "manager", "assistant_manager", "store_manager"].includes(actor.role) &&
-    (actor.role === "owner" || actor.branchId === request.lendingBranchId);
+  // The receiving CSR requests; the lending branch CSR decides.
+  // No manager/owner escalation or cross-branch approval bypass.
+  return actor.role === "crm" && actor.branchId !== null &&
+    actor.branchId === request.lendingBranchId &&
+    request.requestingBranchId !== request.lendingBranchId;
 }
 
 export function canCancelAssistance(
@@ -46,5 +50,5 @@ export function canCancelAssistance(
 ): boolean {
   return request.status === "requested" &&
     canSubmitAssistance(actor.role) &&
-    (actor.role === "owner" || actor.branchId === request.requestingBranchId);
+    actor.branchId !== null && actor.branchId === request.requestingBranchId;
 }
