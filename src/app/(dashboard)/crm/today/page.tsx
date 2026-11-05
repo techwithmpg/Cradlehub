@@ -73,6 +73,7 @@ export default async function CrmTodayPage({
         readinessStatus={operationalData.readinessStatus}
         paymentAction={updateBookingPaymentAction}
         statusAction={updateWorkQueueBookingStatusAction}
+        assistanceEnabled={process.env.CRADLEHUB_INTERBRANCH_ASSISTANCE_ENABLED === "true"}
       />
     </RetainedWorkspaceModule>
   );

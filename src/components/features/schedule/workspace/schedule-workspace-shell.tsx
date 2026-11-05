@@ -16,6 +16,9 @@ import { useScheduleRealtime } from "../hooks/use-schedule-realtime";
 const DailyTimelineTab = dynamic(() => import("../tabs/daily-timeline-tab").then((m) => m.DailyTimelineTab), {
   loading: () => <TabSkeleton rows={6} />,
 });
+const StaffAssistanceTab = dynamic(() => import("../tabs/staff-assistance-tab").then((m) => m.StaffAssistanceTab), {
+  loading: () => <TabSkeleton rows={4} />,
+});
 const ScheduleSetupTab = dynamic(() => import("../tabs/schedule-setup-tab").then((m) => m.ScheduleSetupTab), {
   loading: () => <TabSkeleton rows={4} />,
 });
@@ -43,9 +46,9 @@ import {
 const TAB_PARAM = "tab";
 const DEFAULT_TAB: ScheduleTabKey = "daily";
 
-function getTabFromSearchParams(sp: URLSearchParams): ScheduleTabKey {
+function getTabFromSearchParams(sp: URLSearchParams, assistanceEnabled: boolean): ScheduleTabKey {
   const raw = sp.get(TAB_PARAM);
-  const valid: ScheduleTabKey[] = ["daily", "setup"];
+  const valid: ScheduleTabKey[] = assistanceEnabled ? ["daily", "setup", "assistance"] : ["daily", "setup"];
   return valid.includes(raw as ScheduleTabKey) ? (raw as ScheduleTabKey) : DEFAULT_TAB;
 }
 
@@ -63,6 +66,7 @@ export function ScheduleWorkspaceShell({
   schedulingRules,
   dailyTimelineError,
   dailyTimelineNow,
+  assistanceEnabled = false,
 }: {
   branchId: string;
   branchName: string;
@@ -75,10 +79,11 @@ export function ScheduleWorkspaceShell({
   schedulingRules: SchedulingRules | null;
   dailyTimelineError: string | null;
   dailyTimelineNow: string;
+  assistanceEnabled?: boolean;
 }) {
   const router = useRouter();
   const searchParams = useSearchParams();
-  const activeTab = getTabFromSearchParams(searchParams);
+  const activeTab = getTabFromSearchParams(searchParams, assistanceEnabled);
   const [mountedTabs, setMountedTabs] = useState<Set<ScheduleTabKey>>(
     () => new Set([activeTab])
   );
@@ -239,6 +244,11 @@ export function ScheduleWorkspaceShell({
           />
         </div>
       ) : null}
+      {assistanceEnabled && mountedTabs.has("assistance") ? (
+        <div hidden={activeTab !== "assistance"} aria-hidden={activeTab !== "assistance"}>
+          <StaffAssistanceTab branchId={branchId} branchName={branchName} date={date} />
+        </div>
+      ) : null}
       {mountedTabs.has("setup") ? (
         <div hidden={activeTab !== "setup"} aria-hidden={activeTab !== "setup"}>
           <ScheduleSetupTab branchId={branchId} onScheduleChanged={handleScheduleChanged} />
@@ -256,7 +266,7 @@ export function ScheduleWorkspaceShell({
         onDateChange={handleDateChange}
       />
 
-      <ScheduleWorkspaceTabs activeTab={activeTab} onTabChange={setTab} />
+      <ScheduleWorkspaceTabs activeTab={activeTab} onTabChange={setTab} assistanceEnabled={assistanceEnabled} />
 
       {renderTabContent()}
     </div>

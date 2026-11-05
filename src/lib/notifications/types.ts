@@ -59,7 +59,10 @@ export type NotificationType =
   | "branch_correction_decided"
   | "branch_assignment_issue_resolved"
   | "branch_assignment_issue_review_required"
-  | "staff_branch_transfer_completed";
+  | "staff_branch_transfer_completed"
+  | "interbranch_assistance_requested"
+  | "interbranch_assistance_approved"
+  | "interbranch_assistance_closed";
 
 export type NotificationWorkspace = "owner" | "manager" | "crm" | "staff" | "driver" | "utility";
 

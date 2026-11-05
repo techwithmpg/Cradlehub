@@ -65,6 +65,7 @@ type CradleFlowDashboardProps = {
   readinessStatus: ReadinessStatus;
   paymentAction?: MutationAction;
   statusAction?: MutationAction;
+  assistanceEnabled?: boolean;
   onRefresh?: () => Promise<unknown> | unknown;
   isRefreshing?: boolean;
   refreshError?: unknown;
@@ -275,6 +276,7 @@ export function CradleFlowDashboard(props: CradleFlowDashboardProps) {
         </main>
         <div className="w-full min-w-0 shrink-0 xl:w-76 2xl:w-80">
           <CradleFlowSideRail
+            assistanceEnabled={props.assistanceEnabled ?? false}
             branchName={props.branchName}
             attendanceDate={props.attendanceScanDate}
             attendanceFeed={attendanceState.feed}

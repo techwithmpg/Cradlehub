@@ -29,6 +29,7 @@ export type CrmTodayShellProps = {
   readinessStatus: ReadinessStatus;
   paymentAction?: CrmTodayMutationAction;
   statusAction?: CrmTodayMutationAction;
+  assistanceEnabled?: boolean;
   refreshAction?: () => Promise<CrmTodayOperationalData>;
 };
 
@@ -47,6 +48,7 @@ export function CrmTodayShell({
   readinessStatus,
   paymentAction,
   statusAction,
+  assistanceEnabled = false,
   refreshAction = refreshCrmTodayOperationalDataAction,
 }: CrmTodayShellProps) {
   const fallbackOperationalData: CrmTodayOperationalData = useMemo(
@@ -87,6 +89,7 @@ export function CrmTodayShell({
       readinessStatus={activeData.readinessStatus}
       paymentAction={paymentAction}
       statusAction={statusAction}
+      assistanceEnabled={assistanceEnabled}
       onRefresh={revalidate}
       isRefreshing={generation.isRefreshing}
       refreshError={error}
