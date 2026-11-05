@@ -105,7 +105,10 @@ export function StaffAssistanceTab({ branchId, branchName, date }: {
         role, count: quantity, visitType,
         startAt, endAt: new Date(endMs).toISOString(), notes: notes.trim(),
       });
-      if (!result.success) return toast.error(result.error);
+      if (!result.success) {
+        toast.error(result.error);
+        return;
+      }
       setRequestOpen(false);
       setNotes("");
       toast.success("Request sent to the other branch.");
@@ -134,7 +137,10 @@ export function StaffAssistanceTab({ branchId, branchName, date }: {
         staffIds: decision === "approve" ? selectedStaff : [],
         reason: decisionNote,
       });
-      if (!result.success) return toast.error(result.error);
+      if (!result.success) {
+        toast.error(result.error);
+        return;
+      }
       toast.success(decision === "approve" ? "Decision saved; staff are not yet bookable." : "Request updated.");
       setReviewing(null);
       await refresh();
