@@ -42,6 +42,16 @@ export type CradleFlowBooking = ControlBooking & {
   metadata?: Record<string, unknown> | null;
 };
 
+/** A service line belongs to the named attendee; the customer record can be its payer/booker. */
+export function getCradleFlowServiceRecipientName(
+  booking: Pick<CradleFlowBooking, "booking_attendees" | "customer_name">
+): string {
+  const attendee = Array.isArray(booking.booking_attendees)
+    ? booking.booking_attendees[0]
+    : booking.booking_attendees;
+  return attendee?.display_name?.trim() || booking.customer_name?.trim() || "Unnamed customer";
+}
+
 export type CradleFlowCounts = Record<CradleFlowStage, number> & {
   homeService: number;
 };
@@ -171,6 +181,7 @@ export function matchesCradleFlowSearch(booking: CradleFlowBooking, rawQuery: st
   const query = rawQuery.trim().toLocaleLowerCase("en-PH");
   if (!query) return true;
   return [
+    getCradleFlowServiceRecipientName(booking),
     booking.customer_name,
     booking.customer_phone,
     booking.id,
