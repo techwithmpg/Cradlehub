@@ -152,6 +152,16 @@ function formattedAmount(metadata: Record<string, unknown>): string | undefined 
 
 function bookingDisplay(notification: WorkspaceNotification): NotificationDisplay {
   const metadata = metadataObject(notification.metadata);
+  if (metadata.service_start_reminder === true) {
+    return {
+      title: "Service Starting Soon",
+      detail: safeDetail(notification),
+      actionLabel: "Open My Services",
+      tone: "booking",
+      href: resolvedHref(notification),
+      iconName: "calendar",
+    };
+  }
   const customer =
     readString(metadata, ["customer_name", "customerName", "customer", "full_name", "fullName"]) ??
     titleSubject(notification.title);
