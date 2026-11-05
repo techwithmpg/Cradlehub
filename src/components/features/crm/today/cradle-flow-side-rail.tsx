@@ -5,7 +5,7 @@ import { AlertTriangle, CalendarDays, ClipboardPlus, WalletCards } from "lucide-
 import { AttendanceScanFeedPanel } from "@/components/features/attendance/attendance-scan-feed-card";
 import type { AttendanceRealtimeStatus } from "@/components/features/attendance/use-attendance-scan-realtime";
 import type { AttendanceScanFeedData, RecentAttendanceScan } from "@/lib/attendance/types";
-import type { CradleFlowBooking } from "@/lib/crm/cradle-flow";
+import { getCradleFlowServiceRecipientName, type CradleFlowBooking } from "@/lib/crm/cradle-flow";
 import type { CrmTodayPayment } from "@/lib/queries/crm-today";
 import type { ReadinessIssue } from "@/types/readiness";
 import { groupCradleFlowBookings, type CradleFlowGroup } from "./cradle-flow-display";
@@ -104,7 +104,9 @@ export function CradleFlowSideRail({
     group.attentionSummary.map((title) => ({
       key: `${group.displayId}-${title}`,
       title,
-      detail: group.organizerName,
+      detail: group.orderId && group.serviceCount > 1
+        ? group.organizerName
+        : getCradleFlowServiceRecipientName(group.lines[0]!),
       onClick: () =>
         group.orderId && group.serviceCount > 1
           ? onOpenGroup?.(group)
