@@ -233,7 +233,9 @@ export function groupCrmBookings(rows: readonly WorkspaceBookingRow[], groupOrde
       organizerName: (line) => {
         const attendeeName = firstBookingRelation(line.booking_attendees)?.display_name?.trim();
         const customerName = firstBookingRelation(line.customers)?.full_name?.trim();
-        return attendeeName || customerName || "Customer";
+        // An order's main booker is the linked customer; the attendee receives the service.
+        // Legacy stand-alone rows retain their existing recipient-first fallback.
+        return (line.order_id ? customerName || attendeeName : attendeeName || customerName) || "Customer";
       },
       payment: (line) => {
         if (line.order_id) {
