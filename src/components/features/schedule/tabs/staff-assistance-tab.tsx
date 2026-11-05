@@ -99,7 +99,10 @@ export function StaffAssistanceTab({ branchId, branchName, date }: {
   const isCrmStaff = snapshot?.role === "crm";
 
   function handleRequest() {
-    if (!selectedLender) return toast.error("No other active branch is available.");
+    if (!selectedLender) {
+      toast.error("No other active branch is available.");
+      return;
+    }
     const startAt = `${requestDate}T${startTime}:00+08:00`;
     const startMs = Date.parse(startAt);
     let endMs = Date.parse(`${requestDate}T${endTime}:00+08:00`);
