@@ -51,5 +51,8 @@ describe("Cradle Flow single-service recipient identity", () => {
     expect(screen.getByRole("button", { name: "Treatment Recipient" })).toBeTruthy();
     expect(screen.queryByRole("button", { name: "Booking Contact" })).toBeNull();
     expect(screen.getByText("Swedish Massage 90min")).toBeTruthy();
+    expect(screen.getByText("Guest")).toBeTruthy();
+    expect(screen.getByText("Booked by:")).toBeTruthy();
+    expect(screen.getByText("Booking Contact")).toBeTruthy();
   });
 });
