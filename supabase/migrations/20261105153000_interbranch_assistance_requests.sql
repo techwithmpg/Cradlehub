@@ -59,7 +59,7 @@ create index staff_assistance_events_request_idx on public.staff_assistance_even
 create function public.audit_staff_assistance_request()
 returns trigger language plpgsql security invoker
 set search_path = ''
-as $
+as $$
 declare
   v_staff_id uuid;
 begin
