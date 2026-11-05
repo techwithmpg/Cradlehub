@@ -2,8 +2,8 @@
 
 import { useCallback, useEffect, useMemo, useState, useTransition } from "react";
 import {
-  ArrowLeftRight, ArrowRight, Building2, CheckCircle2,
-  Clock3, Hourglass, Plus, Send, ShieldCheck, UsersRound,
+  ArrowLeftRight, ArrowRight, Building2,
+  Clock3, Plus, Send, ShieldCheck, UsersRound,
 } from "lucide-react";
 import { toast } from "sonner";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
@@ -187,7 +187,7 @@ export function StaffAssistanceTab({ branchId, branchName, date }: {
           <div className="mb-1 inline-flex items-center gap-2 text-[11px] font-bold uppercase tracking-widest text-emerald-800">
             <ArrowLeftRight className="size-4" /> Branch collaboration
           </div>
-          <h2 className="text-xl font-extrabold text-[var(--cs-text)]">Staff Assistance</h2>
+          <h2 className="text-xl font-extrabold text-[var(--cs-text)]">Staff Assistance Requests</h2>
           <p className="mt-1 text-xs text-[var(--cs-text-muted)]">
             Request temporary therapists, nail technicians, or aestheticians from another branch.
           </p>
@@ -197,21 +197,6 @@ export function StaffAssistanceTab({ branchId, branchName, date }: {
           className="inline-flex min-h-10 items-center justify-center gap-2 rounded-lg bg-[#155f43] px-4 py-2 text-sm font-bold text-white hover:bg-[#104934] disabled:opacity-50">
           <Plus className="size-4" /> Request Staff Assistance
         </button>
-      </div>
-
-      <div className="grid grid-cols-2 gap-2 lg:grid-cols-4">
-        {[
-          { title: "My Requests", count: outgoing.length, icon: <Send className="size-5" />, tone: "bg-emerald-50 text-emerald-800" },
-          { title: "Awaiting My Branch", count: pending.length, icon: <Hourglass className="size-5" />, tone: "bg-amber-50 text-amber-800" },
-          { title: "Approved", count: approved.length, icon: <UsersRound className="size-5" />, tone: "bg-teal-50 text-teal-800" },
-          { title: "Closed", count: requests.filter((r) => ["cancelled", "declined"].includes(r.status)).length, icon: <CheckCircle2 className="size-5" />, tone: "bg-stone-100 text-stone-700" },
-        ].map((metric) => (
-          <div key={metric.title} className="rounded-xl border border-[var(--cs-border-soft)] bg-[var(--cs-surface)] p-3 sm:p-4">
-            <span className={`mb-2 inline-flex size-9 items-center justify-center rounded-full ${metric.tone}`}>{metric.icon}</span>
-            <p className="text-xs font-semibold text-[var(--cs-text-secondary)]">{metric.title}</p>
-            <p className="mt-1 text-2xl font-extrabold tabular-nums">{metric.count}</p>
-          </div>
-        ))}
       </div>
 
       <div role="note" className="flex items-start gap-2 rounded-lg border border-amber-200 bg-amber-50/70 px-3 py-2 text-xs text-amber-900">
