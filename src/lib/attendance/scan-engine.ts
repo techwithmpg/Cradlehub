@@ -50,6 +50,7 @@ import {
 } from "@/lib/notifications/workflow-signals";
 import { recalculateAttendanceClockOutPolicy } from "@/lib/attendance/dynamic-clock-out";
 import { resolveStaleAttendanceRecoveryClockOutAt } from "@/lib/attendance/stale-recovery";
+import { shouldBlockCompletedShiftRescan } from "@/lib/attendance/completed-shift-rescan";
 import { verifyAttendanceGeofence } from "@/lib/attendance/geofence-server";
 import type { AttendanceLocation, GeofenceFailure } from "@/lib/attendance/geofence";
 
@@ -3082,6 +3083,73 @@ async function processAttendanceScan(
         recommendedAction: "review_clock_out",
         priority: "high",
       },
+      deviceScanType: "attendance",
+    });
+    return committed.result;
+  }
+
+  // A previously completed shift must not be reopened by a late QR rescan,
+  // even if an edited schedule generates a different shift-instance key.
+  // The same-branch / same-business-day scope deliberately permits legitimate
+  // inter-branch assistance and a new shift on the next business date.
+  const completedCheckinsResult = await admin
+    .from("staff_shift_checkins")
+    .select("shift_instance_key, shift_date, shift_type, checked_out_at")
+    .eq("staff_id", device.staff_id)
+    .eq("branch_id", point.branch_id)
+    .eq("is_test", isTest)
+    .eq("attendance_business_date", branchNow.businessDate)
+    .eq("status", "checked_out")
+    .order("checked_out_at", { ascending: false })
+    .limit(100);
+
+  if (completedCheckinsResult.error) {
+    throwAttendanceDataError({
+      error: completedCheckinsResult.error,
+      fallback: "ATTENDANCE_TRANSACTION_FAILED",
+      stage: "completed_shift_rescan_lookup",
+      operationId: ctx.requestId,
+    });
+  }
+
+  if (shouldBlockCompletedShiftRescan({
+    completed: completedCheckinsResult.data ?? [],
+    incoming: {
+      key: shiftInstance.key,
+      shiftDate: attendanceSchedule.shiftDate,
+      shiftType: attendanceSchedule.shiftType,
+      scheduledStartAt: attendanceSchedule.scheduledStartAt,
+    },
+    intentAction: scanIntent.action,
+    requiresRecovery: scanIntent.requiresRecovery,
+  })) {
+    const result = success(
+      "Already checked out",
+      "The completed shift is already recorded. No new attendance was opened.",
+      {
+        outcome: "noop",
+        reasonCode: "already_checked_out",
+        securityNote: "The completed attendance record was not changed.",
+      }
+    );
+    const committed = await commit(admin, {
+      event: {
+        branchId: point.branch_id,
+        qrPointId: point.id,
+        staffId: device.staff_id,
+        deviceId: device.id,
+        scanType: "attendance",
+        action: "duplicate_scan",
+        outcome: "noop",
+        reasonCode: "already_checked_out",
+        message: "Repeated scan after completed shift ignored.",
+        requestId: ctx.requestId,
+        userAgent: ctx.userAgent,
+        ipAddress: ctx.ipAddress,
+        metadata: { shiftInstance, ...testMetadata },
+        isTest,
+      },
+      result,
       deviceScanType: "attendance",
     });
     return committed.result;
