@@ -5,9 +5,11 @@ const mocks = vi.hoisted(() => ({
   ownerAccess: vi.fn(),
   frontDesk: vi.fn(),
   notFound: vi.fn(() => { throw new Error("B1_NOT_FOUND"); }),
+  devBypass: vi.fn(() => false),
 }));
 
 vi.mock("next/navigation", () => ({ notFound: mocks.notFound }));
+vi.mock("@/lib/dev-bypass", () => ({ isDevAuthBypassEnabled: mocks.devBypass }));
 vi.mock("@/lib/auth/get-user-workspace-access", () => ({
   getCurrentUserWorkspaceAccess: mocks.ownerAccess,
 }));
@@ -25,6 +27,7 @@ afterEach(() => vi.unstubAllEnvs());
 
 beforeEach(() => {
   vi.clearAllMocks();
+  mocks.devBypass.mockReturnValue(false);
   vi.stubEnv("NEXT_PUBLIC_CRADLEHUB_BOUTIQUE_B1_PREVIEW", "true");
 });
 
@@ -49,6 +52,14 @@ describe("Boutique B1 server entrypoint denials", () => {
     expect(view).toMatchObject({
       props: { branchLabel: "SM Branch", workspace: "crm" },
     });
+  });
+
+  it("denies local development authorization bypasses even with preview enabled", async () => {
+    mocks.devBypass.mockReturnValue(true);
+    await expect(OwnerPage()).rejects.toThrow("B1_NOT_FOUND");
+    await expect(CrmPage()).rejects.toThrow("B1_NOT_FOUND");
+    expect(mocks.frontDesk).not.toHaveBeenCalled();
+    expect(mocks.ownerAccess).not.toHaveBeenCalled();
   });
 
   it("keeps both routes gated off unless preview is explicitly enabled", async () => {

@@ -1,4 +1,5 @@
 import { notFound } from "next/navigation";
+import { isDevAuthBypassEnabled } from "@/lib/dev-bypass";
 import { BoutiqueAdminPreview } from "@/components/features/boutique/boutique-admin-preview";
 import {
   canViewBoutiquePreviewWorkspace,
@@ -7,7 +8,7 @@ import {
 import { getFrontDeskContext } from "@/lib/queries/crm-context";
 
 export default async function CrmBoutiquePreviewPage() {
-  if (!isBoutiqueB1PreviewEnabled()) notFound();
+  if (!isBoutiqueB1PreviewEnabled() || isDevAuthBypassEnabled()) notFound();
 
   // This resolver authenticates staff and determines their real operational branch.
   // Never accept a branch ID or role from URL/search params or the browser.
