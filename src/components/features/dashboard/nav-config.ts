@@ -5,6 +5,7 @@ export type NavItem = {
   href: string;
   icon: string; // Lucide icon name
   masterSheetAccessOnly?: boolean;
+  boutiqueB1CrmOnly?: boolean;
 };
 
 export type NavGroup = {
@@ -67,7 +68,7 @@ const CRM_NAV_ITEMS: NavItem[] = [
   { label: "Bookings", href: "/crm/bookings", icon: "ClipboardList" },
   { label: "Cash Flow", href: "/crm/cash-flow", icon: "DollarSign" },
   ...(process.env.NEXT_PUBLIC_CRADLEHUB_BOUTIQUE_B1_PREVIEW === "true"
-    ? [{ label: "Boutique", href: "/crm/boutique", icon: "ShoppingBag" }]
+    ? [{ label: "Boutique", href: "/crm/boutique", icon: "ShoppingBag", boutiqueB1CrmOnly: true }]
     : []),
   { label: "Schedule", href: "/crm/schedule", icon: "CalendarDays" },
   { label: "Attendance", href: "/crm/attendance", icon: "ClipboardCheck" },
@@ -85,9 +86,14 @@ const CRM_NAV_ITEMS: NavItem[] = [
 
 export function visibleNavItems(
   items: readonly NavItem[],
-  canReviewMasterSheet: boolean
+  canReviewMasterSheet: boolean,
+  role?: string
 ): NavItem[] {
-  return items.filter((item) => !item.masterSheetAccessOnly || canReviewMasterSheet);
+  return items.filter(
+    (item) =>
+      (!item.masterSheetAccessOnly || canReviewMasterSheet) &&
+      (!item.boutiqueB1CrmOnly || (role && canonicalizeSystemRole(role) === "crm"))
+  );
 }
 
 const CRM_SYSTEM_NAV_ITEMS: NavItem[] = [
