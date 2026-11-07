@@ -16,6 +16,9 @@ const navLinks = [
   { href: "/", label: "Home" },
   { href: "/services", label: "Services" },
   { href: "/book", label: "Book" },
+  ...(process.env.NEXT_PUBLIC_CRADLEHUB_BOUTIQUE_B1_PREVIEW === "true"
+    ? [{ href: "/products", label: "Boutique" }]
+    : []),
   { href: "/branches", label: "Branches" },
   { href: "/about", label: "About" },
   { href: "/contact", label: "Contact" },

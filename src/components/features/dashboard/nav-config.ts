@@ -5,6 +5,7 @@ export type NavItem = {
   href: string;
   icon: string; // Lucide icon name
   masterSheetAccessOnly?: boolean;
+  boutiqueB1CrmOnly?: boolean;
 };
 
 export type NavGroup = {
@@ -27,6 +28,9 @@ const OWNER_NAV_ITEMS: NavItem[] = [
   { label: "Schedule", href: "/owner/schedule", icon: "CalendarDays" },
   { label: "Bookings", href: "/owner/bookings", icon: "CalendarDays" },
   { label: "Cash Flow", href: "/owner/cash-flow", icon: "DollarSign" },
+  ...(process.env.NEXT_PUBLIC_CRADLEHUB_BOUTIQUE_B1_PREVIEW === "true"
+    ? [{ label: "Boutique", href: "/owner/boutique", icon: "ShoppingBag" }]
+    : []),
   { label: "Reports", href: "/owner/reports", icon: "BarChart2" },
   { label: "Marketing Studio", href: "/owner/marketing", icon: "Sparkles" },
   { label: "Dispatch", href: "/owner/dispatch", icon: "Truck" },
@@ -63,6 +67,9 @@ const CRM_NAV_ITEMS: NavItem[] = [
   { label: "Cradle Flow", href: "/crm/today", icon: "LayoutDashboard" },
   { label: "Bookings", href: "/crm/bookings", icon: "ClipboardList" },
   { label: "Cash Flow", href: "/crm/cash-flow", icon: "DollarSign" },
+  ...(process.env.NEXT_PUBLIC_CRADLEHUB_BOUTIQUE_B1_PREVIEW === "true"
+    ? [{ label: "Boutique", href: "/crm/boutique", icon: "ShoppingBag", boutiqueB1CrmOnly: true }]
+    : []),
   { label: "Schedule", href: "/crm/schedule", icon: "CalendarDays" },
   { label: "Attendance", href: "/crm/attendance", icon: "ClipboardCheck" },
   { label: "Customers", href: "/crm/customers", icon: "Users" },
@@ -79,9 +86,14 @@ const CRM_NAV_ITEMS: NavItem[] = [
 
 export function visibleNavItems(
   items: readonly NavItem[],
-  canReviewMasterSheet: boolean
+  canReviewMasterSheet: boolean,
+  role?: string
 ): NavItem[] {
-  return items.filter((item) => !item.masterSheetAccessOnly || canReviewMasterSheet);
+  return items.filter(
+    (item) =>
+      (!item.masterSheetAccessOnly || canReviewMasterSheet) &&
+      (!item.boutiqueB1CrmOnly || (role && canonicalizeSystemRole(role) === "crm"))
+  );
 }
 
 const CRM_SYSTEM_NAV_ITEMS: NavItem[] = [

@@ -2,6 +2,9 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { buildMetadata } from "@/lib/seo/metadata";
 import { BreadcrumbJsonLd } from "@/components/seo/structured-data";
+import { BoutiqueStorefront } from "@/components/public/boutique/boutique-storefront";
+import { BOUTIQUE_PREVIEW_PRODUCTS } from "@/lib/boutique/catalogue-preview";
+import { isBoutiqueB1PreviewEnabled } from "@/lib/boutique/preview-access";
 
 export const metadata: Metadata = buildMetadata({
   title: "Products | Cradle Wellness Living — Bacolod Spa & Wellness",
@@ -11,6 +14,15 @@ export const metadata: Metadata = buildMetadata({
 });
 
 export default function ProductsPage() {
+  if (isBoutiqueB1PreviewEnabled()) {
+    return (
+      <>
+        <BoutiqueStorefront products={BOUTIQUE_PREVIEW_PRODUCTS} />
+        <BreadcrumbJsonLd items={[{ name: "Home", path: "/" }, { name: "Products", path: "/products" }]} />
+      </>
+    );
+  }
+
   return (
     <>
       <main className="min-h-screen bg-[#FCFAF5] text-[#163A2B]">
