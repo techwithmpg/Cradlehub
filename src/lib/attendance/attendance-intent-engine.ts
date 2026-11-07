@@ -67,11 +67,13 @@ export type ResolveAttendanceScanIntentInput = {
   scanIso: string;
   scanDate: string;
   scanTime: string;
+  businessDate?: string | null;
   timezone?: string | null;
   settings: AttendanceSettings;
   schedule: ResolvedStaffSchedule;
   duplicateScan?: boolean;
   activeCheckin?: ActiveAttendanceIntentCheckin | null;
+  completedCheckins?: OpenAttendanceIntentCheckin[];
 };
 
 export type OpenAttendanceIntentCheckin = ActiveAttendanceIntentCheckin & {
@@ -196,7 +198,8 @@ export function classifyOpenAttendanceCheckins(params: {
 
 function absoluteScanMinutesForWindow(
   time: string,
-  window: ResolvedStaffScheduleWindow
+  window: ResolvedStaffScheduleWindow,
+  options?: { scanDate?: string; businessDate?: string | null }
 ): number | null {
   const current = timeToMinutes(time);
   const start = timeToMinutes(window.startTime);
@@ -204,7 +207,10 @@ function absoluteScanMinutesForWindow(
   if (current === null || start === null || end === null) return null;
 
   const crossesMidnight = window.endsNextDay ?? end <= start;
-  if (crossesMidnight && current <= end) {
+  const isPostMidnightSameBusinessDate = Boolean(
+    options?.businessDate && options?.scanDate && options.businessDate < options.scanDate
+  );
+  if ((crossesMidnight && current <= end) || (!crossesMidnight && isPostMidnightSameBusinessDate)) {
     return current + DAY_MINUTES;
   }
 
@@ -223,8 +229,13 @@ function inWindowMinutes(params: {
   window: ResolvedStaffScheduleWindow;
   start: number;
   end: number;
+  scanDate?: string;
+  businessDate?: string | null;
 }): boolean {
-  const current = absoluteScanMinutesForWindow(params.scanTime, params.window);
+  const current = absoluteScanMinutesForWindow(params.scanTime, params.window, {
+    scanDate: params.scanDate,
+    businessDate: params.businessDate,
+  });
   if (current === null) return false;
   return current >= params.start && current <= params.end;
 }
@@ -248,6 +259,8 @@ function isInClockOutWindow(params: {
   scanTime: string;
   settings: AttendanceSettings;
   window: ResolvedStaffScheduleWindow;
+  scanDate?: string;
+  businessDate?: string | null;
 }): boolean {
   const end = absoluteWindowEndMinutes(params.window);
   if (end === null) return false;
@@ -258,6 +271,8 @@ function isInClockOutWindow(params: {
     window: params.window,
     start,
     end: windowEnd,
+    scanDate: params.scanDate,
+    businessDate: params.businessDate,
   });
 }
 
@@ -265,14 +280,22 @@ function isInClockInWindow(params: {
   scanTime: string;
   settings: AttendanceSettings;
   window: ResolvedStaffScheduleWindow;
+  scanDate?: string;
+  businessDate?: string | null;
 }): boolean {
   const start = timeToMinutes(params.window.startTime);
   if (start === null) return false;
+  const beforeMinutes = Math.max(
+    params.settings.clock_in_window_before_shift_minutes,
+    params.settings.early_clock_in_allowed_minutes
+  );
   return inWindowMinutes({
     scanTime: params.scanTime,
     window: params.window,
-    start: start - params.settings.clock_in_window_before_shift_minutes,
+    start: start - beforeMinutes,
     end: start + params.settings.clock_in_window_after_shift_start_minutes,
+    scanDate: params.scanDate,
+    businessDate: params.businessDate,
   });
 }
 
@@ -280,8 +303,15 @@ function clockInIntentForWindow(params: {
   scanTime: string;
   settings: AttendanceSettings;
   schedule: AttendanceScheduleSelection;
+  scanDate?: string;
+  businessDate?: string | null;
 }): AttendanceScanIntentType {
-  const current = timeToMinutes(params.scanTime);
+  const current = params.schedule.selectedWindow
+    ? absoluteScanMinutesForWindow(params.scanTime, params.schedule.selectedWindow, {
+        scanDate: params.scanDate,
+        businessDate: params.businessDate,
+      })
+    : timeToMinutes(params.scanTime);
   const start = params.schedule.selectedWindow
     ? timeToMinutes(params.schedule.selectedWindow.startTime)
     : null;
@@ -294,6 +324,7 @@ function clockInIntentForWindow(params: {
 function scheduleSelectionFromWindow(params: {
   scanDate: string;
   scanTime: string;
+  businessDate?: string | null;
   timezone?: string | null;
   schedule: ResolvedStaffSchedule;
   window: ResolvedStaffScheduleWindow;
@@ -309,13 +340,17 @@ function scheduleSelectionFromWindow(params: {
   const crossesMidnight =
     effectiveWindow.endsNextDay ??
     isOvernightWindow(effectiveWindow.startTime, effectiveWindow.endTime);
-  const shiftDate =
-    crossesMidnight &&
-    scanMinutes !== null &&
-    startMinutes !== null &&
-    (openCloseClosing
-      ? openCloseEndMinutes !== null && scanMinutes <= openCloseEndMinutes
-      : scanMinutes < startMinutes)
+  const isPostMidnightSameBusinessDate = Boolean(
+    params.businessDate && params.businessDate < params.scanDate
+  );
+  const shiftDate = isPostMidnightSameBusinessDate
+    ? params.businessDate!
+    : crossesMidnight &&
+        scanMinutes !== null &&
+        startMinutes !== null &&
+        (openCloseClosing
+          ? openCloseEndMinutes !== null && scanMinutes <= openCloseEndMinutes
+          : scanMinutes < startMinutes)
       ? addDaysToYmd(params.scanDate, -1)
       : params.scanDate;
 
@@ -343,10 +378,11 @@ function scheduleSelectionFromWindow(params: {
 
 function emptyScheduleSelection(params: {
   scanDate: string;
+  businessDate?: string | null;
   schedule: ResolvedStaffSchedule;
 }): AttendanceScheduleSelection {
   return {
-    shiftDate: params.scanDate,
+    shiftDate: params.businessDate ?? params.scanDate,
     shiftType: "single",
     scheduledStartAt: null,
     scheduledEndAt: null,
@@ -358,28 +394,235 @@ function emptyScheduleSelection(params: {
   };
 }
 
+export function isScheduleWindowCompleted(params: {
+  window: ResolvedStaffScheduleWindow;
+  windowIndex: number;
+  totalWindows: number;
+  scanDate: string;
+  scanTime: string;
+  businessDate?: string | null;
+  timezone?: string | null;
+  schedule: ResolvedStaffSchedule;
+  completedCheckins?: OpenAttendanceIntentCheckin[];
+}): boolean {
+  const completed = (params.completedCheckins ?? []).filter(
+    (checkin) => checkin.status === "checked_out" || Boolean(checkin.checkedOutAt)
+  );
+  if (completed.length === 0) return false;
+
+  const windowSelection = scheduleSelectionFromWindow({
+    scanDate: params.scanDate,
+    scanTime: params.scanTime,
+    businessDate: params.businessDate,
+    timezone: params.timezone,
+    schedule: params.schedule,
+    window: params.window,
+  });
+  const windowOrder = params.window.windowOrder ?? params.windowIndex + 1;
+  const windowToken = `|window:${windowOrder}|`;
+
+  return completed.some((checkin) => {
+    if (checkin.shiftInstanceKey?.includes(windowToken)) return true;
+    const checkinShiftType = normalizedShiftType(checkin.shiftType);
+    const windowShiftType = normalizedShiftType(params.window.shiftType);
+    if (
+      checkinShiftType &&
+      windowShiftType &&
+      !isGenericShiftType(checkinShiftType) &&
+      checkinShiftType === windowShiftType
+    ) {
+      return true;
+    }
+    if (params.totalWindows <= 1) {
+      return checkin.shiftDate === windowSelection.shiftDate;
+    }
+    return (
+      scheduledWindowsOverlap({ checkin, schedule: windowSelection }) ||
+      checkinFallsInsideScheduleWindow({ checkin, schedule: windowSelection })
+    );
+  });
+}
+
+function hasStrictSplitSeparationFromPriorWindows(
+  windows: ResolvedStaffScheduleWindow[],
+  candidateIndex: number
+): boolean {
+  if (candidateIndex <= 0) return false;
+  const candidate = windows[candidateIndex]!;
+  const candidateStart = timeToMinutes(candidate.startTime);
+  if (candidateStart === null) return false;
+
+  for (let i = 0; i < candidateIndex; i += 1) {
+    const prior = windows[i]!;
+    const priorStart = timeToMinutes(prior.startTime);
+    const priorEnd = timeToMinutes(prior.endTime);
+    const priorCrossesMidnight =
+      prior.endsNextDay ?? (priorStart !== null && priorEnd !== null && priorEnd <= priorStart);
+    if (priorStart === null || priorEnd === null || priorCrossesMidnight) {
+      return false;
+    }
+    if (priorEnd >= candidateStart) {
+      return false;
+    }
+  }
+
+  return true;
+}
+
+export function isEligibleSplitShiftClockInAfterCompletion(params: {
+  scanDate: string;
+  scanTime: string;
+  businessDate?: string | null;
+  timezone?: string | null;
+  settings: AttendanceSettings;
+  schedule: ResolvedStaffSchedule;
+  completedCheckins: OpenAttendanceIntentCheckin[];
+}): boolean {
+  if (params.schedule.coverageKind === "open_close") return false;
+  if (params.schedule.source !== "individual") return false;
+
+  const windows = getAttendanceScheduleWindows(params.schedule);
+  if (windows.length <= 1) return false;
+
+  const completed = (params.completedCheckins ?? []).filter(
+    (checkin) => checkin.status === "checked_out" || Boolean(checkin.checkedOutAt)
+  );
+  if (completed.length === 0) return false;
+
+  const earliestBeforeMinutes = Math.max(
+    params.settings.clock_in_window_before_shift_minutes,
+    params.settings.early_clock_in_allowed_minutes
+  );
+  const latestAfterMinutes = params.settings.clock_in_window_after_shift_start_minutes;
+
+  return windows.some((window, index) => {
+    if (
+      isScheduleWindowCompleted({
+        window,
+        windowIndex: index,
+        totalWindows: windows.length,
+        scanDate: params.scanDate,
+        scanTime: params.scanTime,
+        businessDate: params.businessDate,
+        timezone: params.timezone,
+        schedule: params.schedule,
+        completedCheckins: completed,
+      })
+    ) {
+      return false;
+    }
+
+    if (!hasStrictSplitSeparationFromPriorWindows(windows, index)) {
+      return false;
+    }
+
+    const selection = scheduleSelectionFromWindow({
+      scanDate: params.scanDate,
+      scanTime: params.scanTime,
+      businessDate: params.businessDate,
+      timezone: params.timezone ?? params.settings.timezone,
+      schedule: params.schedule,
+      window,
+    });
+    const nextStartMs = toMillis(selection.scheduledStartAt);
+    if (nextStartMs === null) return false;
+
+    const startsAfterAllCompletedCheckouts = completed.every((checkin) => {
+      const checkedOutMs = toMillis(checkin.checkedOutAt);
+      return checkedOutMs !== null && nextStartMs > checkedOutMs;
+    });
+    if (!startsAfterAllCompletedCheckouts) return false;
+
+    const start = timeToMinutes(window.startTime);
+    const end = absoluteWindowEndMinutes(window);
+    const current = absoluteScanMinutesForWindow(params.scanTime, window, {
+      scanDate: params.scanDate,
+      businessDate: params.businessDate,
+    });
+    if (start === null || end === null || current === null) return false;
+    const latestAllowedMinutes = Math.min(end, start + latestAfterMinutes);
+    return current >= start - earliestBeforeMinutes && current <= latestAllowedMinutes;
+  });
+}
+
+function selectClosestWindow(
+  windows: ResolvedStaffScheduleWindow[],
+  scanTime: string,
+  options?: { scanDate?: string; businessDate?: string | null }
+): ResolvedStaffScheduleWindow | null {
+  if (windows.length === 0) return null;
+  if (windows.length === 1) return windows[0]!;
+
+  let bestWindow = windows[0]!;
+  let bestDistance = Number.POSITIVE_INFINITY;
+
+  for (const window of windows) {
+    const start = timeToMinutes(window.startTime);
+    const end = absoluteWindowEndMinutes(window);
+    const current = absoluteScanMinutesForWindow(scanTime, window, options);
+    if (start === null || end === null || current === null) continue;
+    const distance =
+      current >= start && current <= end
+        ? 0
+        : Math.min(Math.abs(current - start), Math.abs(current - end));
+    if (distance <= bestDistance) {
+      bestDistance = distance;
+      bestWindow = window;
+    }
+  }
+
+  return bestWindow;
+}
+
 export function resolveStaffAttendanceSchedule(params: {
   scanDate: string;
   scanTime: string;
+  businessDate?: string | null;
   timezone?: string | null;
   schedule: ResolvedStaffSchedule;
+  completedCheckins?: OpenAttendanceIntentCheckin[];
 }): AttendanceScheduleSelection {
   const windows = getAttendanceScheduleWindows(params.schedule);
+  const candidateWindows =
+    windows.length > 1 && (params.completedCheckins?.length ?? 0) > 0
+      ? windows.filter(
+          (window, index) =>
+            !isScheduleWindowCompleted({
+              window,
+              windowIndex: index,
+              totalWindows: windows.length,
+              scanDate: params.scanDate,
+              scanTime: params.scanTime,
+              businessDate: params.businessDate,
+              timezone: params.timezone,
+              schedule: params.schedule,
+              completedCheckins: params.completedCheckins,
+            })
+        )
+      : windows;
+  const searchPool = candidateWindows.length > 0 ? candidateWindows : windows;
+
   const selected =
-    windows.find((window) => isTimeWithinScheduleWindows(params.scanTime, [window])) ??
-    windows.find((window) => {
+    searchPool.find((window) => isTimeWithinScheduleWindows(params.scanTime, [window])) ??
+    searchPool.find((window) => {
       const start = timeToMinutes(window.startTime);
       const end = absoluteWindowEndMinutes(window);
-      const current = absoluteScanMinutesForWindow(params.scanTime, window);
+      const current = absoluteScanMinutesForWindow(params.scanTime, window, {
+        scanDate: params.scanDate,
+        businessDate: params.businessDate,
+      });
       if (start === null || end === null || current === null) return false;
       return current >= start - 120 && current <= end + 120;
     }) ??
-    windows[0] ??
-    null;
+    selectClosestWindow(searchPool, params.scanTime, {
+      scanDate: params.scanDate,
+      businessDate: params.businessDate,
+    });
 
   if (!selected) {
     return emptyScheduleSelection({
       scanDate: params.scanDate,
+      businessDate: params.businessDate,
       schedule: params.schedule,
     });
   }
@@ -387,6 +630,7 @@ export function resolveStaffAttendanceSchedule(params: {
   return scheduleSelectionFromWindow({
     scanDate: params.scanDate,
     scanTime: params.scanTime,
+    businessDate: params.businessDate,
     timezone: params.timezone,
     schedule: params.schedule,
     window: selected,
@@ -429,11 +673,14 @@ function isUnsupportedScheduleState(schedule: ResolvedStaffSchedule): boolean {
 export function resolveAttendanceScanIntent(
   input: ResolveAttendanceScanIntentInput
 ): AttendanceScanIntent {
+  const effectiveTimezone = input.timezone ?? input.settings.timezone;
   const schedule = resolveStaffAttendanceSchedule({
     scanDate: input.scanDate,
     scanTime: input.scanTime,
-    timezone: input.timezone ?? input.settings.timezone,
+    businessDate: input.businessDate,
+    timezone: effectiveTimezone,
     schedule: input.schedule,
+    completedCheckins: input.completedCheckins,
   });
 
   if (input.duplicateScan) {
@@ -546,11 +793,70 @@ export function resolveAttendanceScanIntent(
   }
 
   const attendanceWindows = getAttendanceScheduleWindows(input.schedule);
-  const clockOutWindow = attendanceWindows.find((window) =>
+  const uncompletedWindows =
+    (input.completedCheckins?.length ?? 0) > 0
+      ? attendanceWindows.filter(
+          (window, index) =>
+            !isScheduleWindowCompleted({
+              window,
+              windowIndex: index,
+              totalWindows: attendanceWindows.length,
+              scanDate: input.scanDate,
+              scanTime: input.scanTime,
+              businessDate: input.businessDate,
+              timezone: effectiveTimezone,
+              schedule: input.schedule,
+              completedCheckins: input.completedCheckins,
+            })
+        )
+      : attendanceWindows;
+
+  const uncompletedClockInWindow =
+    (input.completedCheckins?.length ?? 0) > 0
+      ? uncompletedWindows.find((window) =>
+          isInClockInWindow({
+            scanTime: input.scanTime,
+            settings: input.settings,
+            window,
+            scanDate: input.scanDate,
+            businessDate: input.businessDate,
+          })
+        )
+      : undefined;
+
+  if (uncompletedClockInWindow) {
+    const clockInSchedule = scheduleSelectionFromWindow({
+      scanDate: input.scanDate,
+      scanTime: input.scanTime,
+      businessDate: input.businessDate,
+      timezone: effectiveTimezone,
+      schedule: input.schedule,
+      window: uncompletedClockInWindow,
+    });
+    const type = clockInIntentForWindow({
+      scanTime: input.scanTime,
+      settings: input.settings,
+      schedule: clockInSchedule,
+      scanDate: input.scanDate,
+      businessDate: input.businessDate,
+    });
+
+    return intent({
+      type,
+      action: "clock_in",
+      schedule: clockInSchedule,
+      title: type === "late_clock_in" ? "Late clock-in" : "Clock-in",
+      message: "Attendance can be opened for this scheduled shift.",
+    });
+  }
+
+  const clockOutWindow = uncompletedWindows.find((window) =>
     isInClockOutWindow({
       scanTime: input.scanTime,
       settings: input.settings,
       window,
+      scanDate: input.scanDate,
+      businessDate: input.businessDate,
     })
   );
   if (clockOutWindow) {
@@ -558,25 +864,29 @@ export function resolveAttendanceScanIntent(
       schedule: scheduleSelectionFromWindow({
         scanDate: input.scanDate,
         scanTime: input.scanTime,
-        timezone: input.timezone ?? input.settings.timezone,
+        businessDate: input.businessDate,
+        timezone: effectiveTimezone,
         schedule: input.schedule,
         window: clockOutWindow,
       }),
     });
   }
 
-  const clockInWindow = attendanceWindows.find((window) =>
+  const clockInWindow = uncompletedWindows.find((window) =>
     isInClockInWindow({
       scanTime: input.scanTime,
       settings: input.settings,
       window,
+      scanDate: input.scanDate,
+      businessDate: input.businessDate,
     })
   );
   if (clockInWindow) {
     const clockInSchedule = scheduleSelectionFromWindow({
       scanDate: input.scanDate,
       scanTime: input.scanTime,
-      timezone: input.timezone ?? input.settings.timezone,
+      businessDate: input.businessDate,
+      timezone: effectiveTimezone,
       schedule: input.schedule,
       window: clockInWindow,
     });
@@ -584,6 +894,8 @@ export function resolveAttendanceScanIntent(
       scanTime: input.scanTime,
       settings: input.settings,
       schedule: clockInSchedule,
+      scanDate: input.scanDate,
+      businessDate: input.businessDate,
     });
 
     return intent({

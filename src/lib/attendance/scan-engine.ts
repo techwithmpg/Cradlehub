@@ -36,12 +36,14 @@ import { getResolvedStaffSchedulesForDate } from "@/lib/queries/resolved-staff-s
 import type { ResolvedStaffSchedule } from "@/lib/schedule/resolve-staff-schedule";
 import {
   classifyOpenAttendanceCheckins,
+  isEligibleSplitShiftClockInAfterCompletion,
   resolveAttendanceScanIntent,
   resolveStaffAttendanceSchedule,
   type AttendanceScheduleSelection,
   type AttendanceScanIntent,
   type OpenAttendanceIntentCheckin,
 } from "@/lib/attendance/attendance-intent-engine";
+import { shouldBlockCompletedShiftRescan } from "@/lib/attendance/completed-shift-rescan";
 import type { PublicScanResult, QrScanOutcome, QrScanType } from "@/lib/attendance/types";
 import type { Database, Json } from "@/types/supabase";
 import {
@@ -2037,6 +2039,58 @@ async function findRecentDuplicate(
   return (data?.length ?? 0) > 0;
 }
 
+async function findRecentAttendanceDuplicate(
+  admin: AttendanceDb,
+  params: {
+    branchId: string;
+    staffId: string;
+    pointId: string;
+    deviceId: string;
+    seconds: number;
+    isTest: boolean;
+    excludeScanEventId?: string | null;
+  }
+): Promise<{ isDuplicate: boolean; recentAction: string | null }> {
+  const cutoff = new Date(Date.now() - params.seconds * 1000).toISOString();
+  let query = admin
+    .from("qr_scan_events")
+    .select("id, action, qr_point_id")
+    .eq("branch_id", params.branchId)
+    .eq("staff_id", params.staffId)
+    .eq("device_id", params.deviceId)
+    .eq("is_test", params.isTest)
+    .in("outcome", ["success", "exception"])
+    .gte("created_at", cutoff);
+  if (params.excludeScanEventId) query = query.neq("id", params.excludeScanEventId);
+  const { data, error } = await query.limit(5);
+
+  if (error) {
+    throwAttendanceDataError({
+      error,
+      fallback: "ATTENDANCE_TRANSACTION_FAILED",
+      stage: "find_recent_duplicate",
+    });
+  }
+
+  const rows = Array.isArray(data)
+    ? (data as Array<{ id?: string; action?: string | null; qr_point_id?: string | null }>)
+    : [];
+  const matching = rows.find(
+    (row) =>
+      row.qr_point_id === params.pointId ||
+      !row.qr_point_id ||
+      row.action === "portal_clock_out" ||
+      row.action === "clock_out"
+  );
+  if (!matching) {
+    return { isDuplicate: false, recentAction: null };
+  }
+  return {
+    isDuplicate: true,
+    recentAction: matching.action ?? null,
+  };
+}
+
 async function getOpenCheckins(
   admin: AttendanceDb,
   params: {
@@ -2356,6 +2410,7 @@ async function selectScheduleWindow(
     ...resolveStaffAttendanceSchedule({
       scanDate: params.scanDate,
       scanTime: params.branchTime,
+      businessDate: params.scheduleDate,
       timezone: params.timezone,
       schedule: resolvedSchedule,
     }),
@@ -2494,26 +2549,45 @@ async function processAttendanceScan(
   const commit = options.commit ?? commitAttendanceScanTransaction;
   const settings = await getAttendanceSettings(point.branch_id);
   const isTest = settings.test_mode_enabled;
-  const testMetadata = testModeMetadata(settings);
+  const testMetadata = {
+    ...testModeMetadata(settings),
+    ...(options.excludeDuplicateScanEventId
+      ? { sourceScanEventId: options.excludeDuplicateScanEventId }
+      : {}),
+  };
   const staff = first(device.staff);
   const staffName = staff?.full_name ?? "Staff member";
   const staffNickname = staff?.nickname ?? null;
   const branchName = first(point.branches)?.name ?? "Branch";
 
-  if (
-    await findRecentDuplicate(admin, {
-      pointId: point.id,
-      deviceId: device.id,
-      seconds: settings.duplicate_scan_window_seconds,
-      isTest,
-      excludeScanEventId: options.excludeDuplicateScanEventId,
-    })
-  ) {
-    const result = success("Already recorded", "A recent attendance scan was already accepted.", {
-      outcome: "noop",
-      reasonCode: "duplicate_scan",
-      securityNote: "No new attendance record was created.",
-    });
+  const recentDuplicate = await findRecentAttendanceDuplicate(admin, {
+    branchId: point.branch_id,
+    staffId: device.staff_id,
+    pointId: point.id,
+    deviceId: device.id,
+    seconds: settings.duplicate_scan_window_seconds,
+    isTest,
+    excludeScanEventId: options.excludeDuplicateScanEventId,
+  });
+  if (recentDuplicate.isDuplicate) {
+    const isCompletedClockOut =
+      recentDuplicate.recentAction === "clock_out" ||
+      recentDuplicate.recentAction === "portal_clock_out";
+    const result = isCompletedClockOut
+      ? success(
+          "Attendance is already complete",
+          "A clock-out is already recorded for this shift. No new attendance record was created.",
+          {
+            outcome: "noop",
+            reasonCode: "already_checked_out",
+            securityNote: "The completed attendance record was not changed.",
+          }
+        )
+      : success("Already recorded", "A recent attendance scan was already accepted.", {
+          outcome: "noop",
+          reasonCode: "duplicate_scan",
+          securityNote: "No new attendance record was created.",
+        });
     const committed = await commit(admin, {
       event: {
         branchId: point.branch_id,
@@ -2523,8 +2597,10 @@ async function processAttendanceScan(
         scanType: "attendance",
         action: "duplicate_scan",
         outcome: "noop",
-        reasonCode: "duplicate_scan",
-        message: "Duplicate scan ignored.",
+        reasonCode: isCompletedClockOut ? "already_checked_out" : "duplicate_scan",
+        message: isCompletedClockOut
+          ? "A completed shift received another scan."
+          : "Duplicate scan ignored.",
         requestId: ctx.requestId,
         userAgent: ctx.userAgent,
         ipAddress: ctx.ipAddress,
@@ -2618,29 +2694,31 @@ async function processAttendanceScan(
     scanIso: nowIso,
     scanDate: branchNow.localDate,
     scanTime: branchNow.time,
+    businessDate: branchNow.businessDate,
     timezone: branchNow.timezone,
     settings,
     schedule: schedule.resolvedSchedule,
     activeCheckin: activeCheckin ? toOpenIntentCheckin(activeCheckin) : null,
   });
-  const scanIntent =
+  let scanIntent =
     activeCheckin && !activeCheckinMatchesSchedule
       ? resolveAttendanceScanIntent({
           scanIso: nowIso,
           scanDate: branchNow.localDate,
           scanTime: branchNow.time,
+          businessDate: branchNow.businessDate,
           timezone: branchNow.timezone,
           settings,
           schedule: schedule.resolvedSchedule,
           activeCheckin: null,
         })
       : inferredScanIntent;
-  const attendanceSchedule = {
+  let attendanceSchedule = {
     ...schedule,
     ...scanIntent.schedule,
     resolvedSchedule: schedule.resolvedSchedule,
   };
-  const shiftInstance = buildAttendanceShiftInstance({
+  let shiftInstance = buildAttendanceShiftInstance({
     staffId: device.staff_id,
     branchId: point.branch_id,
     schedule: attendanceSchedule,
@@ -3087,40 +3165,18 @@ async function processAttendanceScan(
     return committed.result;
   }
 
-  if (scanIntent.requiresRecovery && !scanIntent.shouldWriteAttendance) {
-    return recordAttendanceRecoveryIntent({
-      admin,
-      point,
-      device,
-      ctx,
-      staffName,
-      staffNickname,
-      intent: scanIntent,
-      scannedAt: nowIso,
-      branchLocalTime: branchNow.time,
-      branchTimezone: branchNow.timezone,
-      businessDate: branchNow.businessDate,
-      isTest,
-      testMetadata,
-      commit,
-    });
-  }
-
   const existingForShiftQuery = admin
     .from("staff_shift_checkins")
-    .select("id, status")
+    .select(
+      "id, staff_id, branch_id, shift_date, shift_type, shift_instance_key, checked_in_at, checked_out_at, status, scheduled_start_at, scheduled_end_at, schedule_source, schedule_source_id, attendance_business_date, is_test"
+    )
     .eq("staff_id", device.staff_id)
     .eq("branch_id", point.branch_id)
     .eq("is_test", isTest)
     .neq("status", "voided")
-    .limit(1);
-  const existingForShift = await (
-    shiftInstance.key
-      ? existingForShiftQuery.eq("shift_instance_key", shiftInstance.key)
-      : existingForShiftQuery
-          .eq("shift_date", attendanceSchedule.shiftDate)
-          .eq("shift_type", attendanceSchedule.shiftType)
-  ).maybeSingle();
+    .order("checked_in_at", { ascending: false })
+    .limit(20);
+  const existingForShift = await existingForShiftQuery;
 
   if (existingForShift.error) {
     throwAttendanceDataError({
@@ -3131,7 +3187,34 @@ async function processAttendanceScan(
     });
   }
 
-  if (existingForShift.data?.status === "checked_in") {
+  const existingBranchRows: CheckinRow[] = Array.isArray(existingForShift.data)
+    ? (existingForShift.data as CheckinRow[])
+    : existingForShift.data
+      ? [existingForShift.data as CheckinRow]
+      : [];
+
+  const sameBusinessDayRows = existingBranchRows.filter((row) => {
+    const rowBusinessDate = row.attendance_business_date ?? row.shift_date;
+    return (
+      rowBusinessDate === branchNow.businessDate ||
+      Boolean(
+        shiftInstance.key &&
+          row.shift_instance_key &&
+          row.shift_instance_key === shiftInstance.key
+      )
+    );
+  });
+
+  const checkedInForShift = sameBusinessDayRows.find(
+    (row) =>
+      row.status === "checked_in" &&
+      !row.checked_out_at &&
+      (shiftInstance.key
+        ? row.shift_instance_key === shiftInstance.key || !row.shift_instance_key
+        : row.shift_date === attendanceSchedule.shiftDate)
+  );
+
+  if (checkedInForShift) {
     const result = success(
       "Already clocked in",
       "Attendance is already open for this scheduled shift.",
@@ -3147,6 +3230,7 @@ async function processAttendanceScan(
         qrPointId: point.id,
         staffId: device.staff_id,
         deviceId: device.id,
+        checkinId: checkedInForShift.id,
         scanType: "attendance",
         action: "duplicate_scan",
         outcome: "noop",
@@ -3164,42 +3248,132 @@ async function processAttendanceScan(
     return committed.result;
   }
 
-  if (existingForShift.data?.status === "checked_out") {
-    const result = captured(
-      "Scan captured",
-      "This shift is already closed. The new scan was preserved for manager review.",
-      {
-        reasonCode: "already_checked_out",
-        securityNote: "The completed attendance record was not changed.",
-      }
-    );
-    const committed = await commit(admin, {
-      event: {
-        branchId: point.branch_id,
-        qrPointId: point.id,
-        staffId: device.staff_id,
-        deviceId: device.id,
-        scanType: "attendance",
-        action: "scan_captured",
-        outcome: "exception",
-        reasonCode: "already_checked_out",
-        message: "A completed shift received another scan.",
-        requestId: ctx.requestId,
-        userAgent: ctx.userAgent,
-        ipAddress: ctx.ipAddress,
-        metadata: { shiftInstance, ...testMetadata },
-        isTest,
-      },
-      result,
-      exception: {
-        exceptionType: "already_checked_out",
-        message: `${staffName} scanned again after this attendance shift was closed.`,
-        metadata: { shiftInstance, ...testMetadata },
-        recommendedAction: "review_scan",
-      },
-      deviceScanType: "attendance",
+  const completedRows = sameBusinessDayRows.filter(
+    (row) => row.status === "checked_out" || Boolean(row.checked_out_at)
+  );
+  if (completedRows.length > 0) {
+    const completedIntentCheckins = completedRows.map(toOpenIntentCheckin);
+    const eligibleForNextSplitShiftWindow = isEligibleSplitShiftClockInAfterCompletion({
+      scanDate: branchNow.localDate,
+      scanTime: branchNow.time,
+      businessDate: branchNow.businessDate,
+      timezone: branchNow.timezone,
+      settings,
+      schedule: schedule.resolvedSchedule,
+      completedCheckins: completedIntentCheckins,
     });
-    return committed.result;
+
+    if (eligibleForNextSplitShiftWindow) {
+      scanIntent = resolveAttendanceScanIntent({
+        scanIso: nowIso,
+        scanDate: branchNow.localDate,
+        scanTime: branchNow.time,
+        businessDate: branchNow.businessDate,
+        timezone: branchNow.timezone,
+        settings,
+        schedule: schedule.resolvedSchedule,
+        activeCheckin: null,
+        completedCheckins: completedIntentCheckins,
+      });
+      attendanceSchedule = {
+        ...schedule,
+        ...scanIntent.schedule,
+        resolvedSchedule: schedule.resolvedSchedule,
+      };
+      shiftInstance = buildAttendanceShiftInstance({
+        staffId: device.staff_id,
+        branchId: point.branch_id,
+        schedule: attendanceSchedule,
+        businessDate: branchNow.businessDate,
+        branchTimezone: branchNow.timezone,
+      });
+    }
+
+    const blockedByCompletedShiftGuard =
+      !eligibleForNextSplitShiftWindow ||
+      shouldBlockCompletedShiftRescan({
+        completed: completedRows.map((row) => ({
+          shift_instance_key: row.shift_instance_key ?? null,
+          shift_date: row.shift_date,
+          shift_type: row.shift_type,
+          checked_out_at: row.checked_out_at ?? null,
+          attendance_business_date: row.attendance_business_date ?? null,
+        })),
+        incoming: {
+          key: shiftInstance.key,
+          shiftDate: attendanceSchedule.shiftDate,
+          shiftType: attendanceSchedule.shiftType,
+          scheduledStartAt: attendanceSchedule.scheduledStartAt,
+          scheduledEndAt: attendanceSchedule.scheduledEndAt,
+          attendanceBusinessDate: branchNow.businessDate,
+        },
+        intentAction: scanIntent.action,
+        requiresRecovery: scanIntent.requiresRecovery,
+        scanIso: nowIso,
+        clockInWindowBeforeMinutes: Math.max(
+          settings.clock_in_window_before_shift_minutes,
+          settings.early_clock_in_allowed_minutes
+        ),
+        clockInWindowAfterMinutes: settings.clock_in_window_after_shift_start_minutes,
+      });
+
+    if (blockedByCompletedShiftGuard) {
+      const completedShift = completedRows[0]!;
+      const result = success(
+        "Attendance is already complete",
+        "A clock-out is already recorded for this shift. No new attendance record was created.",
+        {
+          outcome: "noop",
+          reasonCode: "already_checked_out",
+          securityNote: "The completed attendance record was not changed.",
+        }
+      );
+      const committed = await commit(admin, {
+        event: {
+          branchId: point.branch_id,
+          qrPointId: point.id,
+          staffId: device.staff_id,
+          deviceId: device.id,
+          checkinId: completedShift.id,
+          scanType: "attendance",
+          action: "duplicate_scan",
+          outcome: "noop",
+          reasonCode: "already_checked_out",
+          message: "A completed shift received another scan.",
+          requestId: ctx.requestId,
+          userAgent: ctx.userAgent,
+          ipAddress: ctx.ipAddress,
+          metadata: {
+            completedCheckinId: completedShift.id,
+            shiftInstance,
+            ...testMetadata,
+          },
+          isTest,
+        },
+        result,
+        deviceScanType: "attendance",
+      });
+      return committed.result;
+    }
+  }
+
+  if (scanIntent.requiresRecovery && !scanIntent.shouldWriteAttendance) {
+    return recordAttendanceRecoveryIntent({
+      admin,
+      point,
+      device,
+      ctx,
+      staffName,
+      staffNickname,
+      intent: scanIntent,
+      scannedAt: nowIso,
+      branchLocalTime: branchNow.time,
+      branchTimezone: branchNow.timezone,
+      businessDate: branchNow.businessDate,
+      isTest,
+      testMetadata,
+      commit,
+    });
   }
 
   const metrics = computeAttendanceMetrics({
