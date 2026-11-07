@@ -1,5 +1,5 @@
 import React from "react";
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 const mocks = vi.hoisted(() => ({
   ownerAccess: vi.fn(),
@@ -20,6 +20,8 @@ vi.mock("@/components/features/boutique/boutique-admin-preview", () => ({
 
 import OwnerPage from "@/app/(dashboard)/owner/boutique/page";
 import CrmPage from "@/app/(dashboard)/crm/boutique/page";
+
+afterEach(() => vi.unstubAllEnvs());
 
 beforeEach(() => {
   vi.clearAllMocks();
@@ -44,8 +46,9 @@ describe("Boutique B1 server entrypoint denials", () => {
     await expect(CrmPage()).rejects.toThrow("B1_NOT_FOUND");
     mocks.frontDesk.mockResolvedValue({ role: "csr_staff", branchId: "branch-sm", branchName: "SM Branch" });
     const view = await CrmPage();
-    expect(view.props.branchLabel).toBe("SM Branch");
-    expect(view.props.workspace).toBe("crm");
+    expect(view).toMatchObject({
+      props: { branchLabel: "SM Branch", workspace: "crm" },
+    });
   });
 
   it("keeps both routes gated off unless preview is explicitly enabled", async () => {
