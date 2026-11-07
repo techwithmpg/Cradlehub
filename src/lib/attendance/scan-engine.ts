@@ -418,6 +418,11 @@ function rpcRejectionCode(code: string | null | undefined): AttendanceSafeErrorC
     case "checkin_required":
     case "checkin_not_open":
     case "invalid_checkin_insert":
+    case "invalid_checkin_update":
+    case "invalid_checkin_timestamp":
+    case "invalid_checkout_timestamp":
+    case "checkout_before_checkin":
+    case "invalid_business_date":
     case "invalid_request":
     case "invalid_scan_type":
     case "invalid_outcome":
@@ -3026,6 +3031,8 @@ async function processAttendanceScan(
           activeCheckinMatchesSchedule,
           scannedBranchId: point.branch_id,
           attendanceRecordBranchId: activeCheckin.branch_id,
+          scannedAt: nowIso,
+          ...testMetadata,
         },
         isTest,
       },
