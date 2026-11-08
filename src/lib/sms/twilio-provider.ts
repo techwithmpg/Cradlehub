@@ -34,6 +34,10 @@ function config(): { account: string; token: string; service: string } {
   return { account, token, service };
 }
 
+export function assertTwilioConfigured(): void {
+  config();
+}
+
 function state(value: unknown): TwilioMessageState {
   if (typeof value === "string" && [
     "accepted", "queued", "sending", "sent", "delivered", "failed",
