@@ -4,6 +4,7 @@ import {
   INVALID_PH_MOBILE_MESSAGE,
   REQUIRED_PH_MOBILE_MESSAGE,
   getPhilippineMobileNumberError,
+  getPublicPhoneFieldFeedback,
   isClearlyForeignMobilePrefix,
   isValidPhilippineMobileNumber,
 } from "./philippine-mobile";
@@ -48,6 +49,22 @@ describe("public booking Philippine mobile contact", () => {
     expect(isClearlyForeignMobilePrefix("+63")).toBe(false);
     expect(isClearlyForeignMobilePrefix("+1")).toBe(true);
     expect(isClearlyForeignMobilePrefix("+237")).toBe(true);
+  });
+
+  it("updates inline guidance immediately from the current input", () => {
+    expect(getPublicPhoneFieldFeedback("").status).toBe("hint");
+    expect(getPublicPhoneFieldFeedback("").message).toContain("09");
+    expect(getPublicPhoneFieldFeedback("+6").status).toBe("error");
+    expect(getPublicPhoneFieldFeedback("+6").message).toBe(INVALID_PH_MOBILE_MESSAGE);
+    expect(getPublicPhoneFieldFeedback("+237612345678")).toEqual({
+      status: "error",
+      message: FOREIGN_MOBILE_MESSAGE,
+    });
+    expect(getPublicPhoneFieldFeedback("12345678").status).toBe("error");
+    expect(getPublicPhoneFieldFeedback("0912345678").status).toBe("error");
+    expect(getPublicPhoneFieldFeedback("09123456789").status).toBe("valid");
+    expect(getPublicPhoneFieldFeedback("09123456789").message).toContain("accepted");
+    expect(getPublicPhoneFieldFeedback("0912345678").status).toBe("error");
   });
 
   it("requires a nonempty number", () => {

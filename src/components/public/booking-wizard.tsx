@@ -55,8 +55,7 @@ import {
 import { createInhouseBookingMultiAction } from "@/lib/actions/inhouse-booking";
 import { validateBookingDraft } from "@/lib/bookings/booking-wizard-validation";
 import {
-  getPhilippineMobileNumberError,
-  isClearlyForeignMobilePrefix,
+  getPublicPhoneFieldFeedback,
   isValidPhilippineMobileNumber,
 } from "@/lib/bookings/philippine-mobile";
 import type { BookingForChoice, BookingPaymentChoice } from "@/lib/bookings/booking-order-contract";
@@ -1103,6 +1102,12 @@ export function BookingWizard({
     });
 
     if (!validation.ok) {
+      // Phone feedback belongs to the field, not a toast or a page-level banner.
+      if (mode === "public" && validation.focusField === "phone") {
+        setFormError("");
+        document.getElementById("wizard-phone")?.focus();
+        return;
+      }
       const message = validation.message || "Please check your booking details.";
       setFormError(message);
       toast.error("Please check your details", { description: message });
@@ -1368,6 +1373,7 @@ export function BookingWizard({
     currentStepName === "location"
       ? locationValid && (!preciseLocationRequired || (!hsQuoteLoading && !hsQuoteError && !!hsQuote))
       : canProceed;
+  const confirmDisabled = submitting || (mode === "public" && !canProceed);
   const mobileProgressIndex = getMobileProgressIndex(currentStepName);
 
   const handleContinue = useCallback(() => {
@@ -1740,7 +1746,12 @@ export function BookingWizard({
               {currentStepName === "details" && (
                 <StepDetails
                   form={form}
-                  onChange={setForm}
+                  onChange={(nextForm) => {
+                    if (mode === "public" && nextForm.phone !== form.phone) {
+                      setFormError("");
+                    }
+                    setForm(nextForm);
+                  }}
                   error={formError}
                   visitType={visitType}
                   mode={mode}
@@ -1827,12 +1838,12 @@ export function BookingWizard({
                   <button
                     type="button"
                     onClick={handleConfirmBooking}
-                    disabled={submitting}
+                    disabled={confirmDisabled}
                     aria-busy={submitting}
                     className={[
                       "inline-flex min-h-12 flex-1 items-center justify-center gap-2 rounded-[7px] px-8 py-3 text-[12px] font-semibold tracking-widest uppercase transition-all duration-300 disabled:cursor-not-allowed disabled:opacity-50 hover:shadow-lg focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#D4B57A] md:flex-none md:rounded-full",
                       mode === "public" && "md:max-w-[260px]",
-                      submitting ? WARM_DISABLED_BUTTON_CLS : WARM_PRIMARY_BUTTON_CLS,
+                      confirmDisabled ? WARM_DISABLED_BUTTON_CLS : WARM_PRIMARY_BUTTON_CLS,
                     ].join(" ")}
                   >
                     {submitting ? (
@@ -3513,10 +3524,9 @@ export function PublicStepDetails({
   onSelectStaff: (choice: "auto" | string) => void;
 }) {
   const [therapistOpen, setTherapistOpen] = useState(false);
-  const [phoneTouched, setPhoneTouched] = useState(false);
-  // Flag foreign country codes immediately; show other format errors after blur.
-  const showPhoneError = phoneTouched || isClearlyForeignMobilePrefix(form.phone);
-  const phoneError = showPhoneError ? getPhilippineMobileNumberError(form.phone) : null;
+  // Recompute on every keystroke, including paste and autofill.
+  const phoneFeedback = getPublicPhoneFieldFeedback(form.phone);
+  const phoneError = phoneFeedback.status === "error";
   const [optionalExpanded, setOptionalExpanded] = useState(
     Boolean(form.email.trim() || form.notes.trim())
   );
@@ -3588,20 +3598,26 @@ export function PublicStepDetails({
             inputMode="tel"
             autoComplete="tel-national"
             aria-describedby="wizard-phone-help"
-            aria-invalid={Boolean(phoneError)}
+            aria-invalid={phoneError}
             required
             value={form.phone}
             onChange={(event) => onChange({ ...form, phone: event.target.value })}
-            onBlur={() => setPhoneTouched(true)}
             placeholder="e.g. 0917 123 4567"
-            className={PUBLIC_INPUT_CLS}
+            className={`${PUBLIC_INPUT_CLS} ${phoneError ? "border-red-400/70" : ""}`}
           />
           <p
             id="wizard-phone-help"
-            role={phoneError ? "alert" : undefined}
-            className={`mt-1 text-[12px] leading-5 ${phoneError ? "text-red-200" : "text-[#F6EBD6]/75"}`}
+            aria-live="polite"
+            aria-atomic="true"
+            className={`mt-1 min-h-5 text-[12px] leading-5 ${
+              phoneError
+                ? "text-red-200"
+                : phoneFeedback.status === "valid"
+                  ? "text-emerald-200"
+                  : "text-[#F6EBD6]/75"
+            }`}
           >
-            {phoneError ?? "Philippine mobile number only (09XX XXX XXXX or +63 9XX XXX XXXX)."}
+            {phoneFeedback.message}
           </p>
         </div>
       </div>
