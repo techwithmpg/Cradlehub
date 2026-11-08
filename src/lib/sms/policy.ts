@@ -120,8 +120,9 @@ export function smsMessage(kind: SmsKind, visit: SmsVisit): string {
     : "booked services";
   const location = visit.homeService ? "home service" : branch;
   if (kind === "confirmation") {
-    return "Hi " + name + "! Your Cradle Spa " + location +
-      " appointment is confirmed for " + visit.date + " at " + time + ". Thank you!";
+    return "Hi " + name + "! Your Cradle Spa " + service +
+      (visit.homeService ? " home service" : " at " + location) +
+      " is confirmed for " + visit.date + " at " + time + ". Thank you!";
   }
   if (kind === "morning") {
     return "Good morning, " + name + "! Your Cradle Spa " + location +
