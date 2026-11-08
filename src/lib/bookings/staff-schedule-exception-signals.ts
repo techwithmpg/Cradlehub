@@ -4,10 +4,8 @@ import {
   getStaffScheduleExceptionMessage,
   type StaffScheduleException,
 } from "@/lib/bookings/staff-schedule-exception";
-import {
-  createNotification,
-  resolveNotificationsForEntity,
-} from "@/lib/notifications/create";
+import { createNotification } from "@/lib/notifications/create";
+import { markNotificationResolved } from "@/lib/notifications/workflow-notifications-store";
 import {
   createOrUpdateWorkflowTask,
   resolveWorkflowTask,
@@ -94,12 +92,16 @@ export async function resolveStaffScheduleExceptionSignals(params: {
 }): Promise<void> {
   const dedupeKey = staffScheduleExceptionDedupeKey(params);
   await Promise.all([
-    resolveNotificationsForEntity(
-      "booking",
-      params.bookingId,
-      "crm",
-      "staff_schedule_exception"
-    ),
+    // Multiple independent schedule exceptions can share one booking.
+    // Resolve the exact dedupe identity, not every exception on this booking.
+    markNotificationResolved({
+      branchId: params.branchId,
+      entityType: "booking",
+      entityId: params.bookingId,
+      targetWorkspace: "crm",
+      type: "staff_schedule_exception",
+      dedupeKey,
+    }),
     resolveWorkflowTask({
       branchId: params.branchId,
       workspaceScope: "crm",

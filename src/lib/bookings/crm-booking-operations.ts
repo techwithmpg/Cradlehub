@@ -3,6 +3,7 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import type { Database } from "@/types/supabase";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { createNotification, resolveNotificationsForEntity } from "@/lib/notifications/create";
+import { resolveConfirmedBookingRequestAlerts } from "@/lib/notifications/shared-resolution";
 import { publishServiceTransition } from "@/lib/bookings/service-transition-notifications";
 import { getNotificationTargetPath } from "@/lib/notifications/notification-targets";
 import { isResourceAvailable } from "@/lib/engine/resource-availability";
@@ -1885,6 +1886,13 @@ export async function confirmCrmBooking(
         nextStatus: "confirmed",
       });
     }
+    // The order confirmation RPC has committed. Clear the shared CRM review
+    // alert for every confirmed line, including the primary notification key.
+    // This does not dismiss therapist/driver assignments or unpaid balances.
+    await resolveConfirmedBookingRequestAlerts({
+      branchId: booking.branch_id,
+      bookingIds: [booking.id, ...data.changed_ids],
+    });
     revalidateOperationalBookingSurfaces(booking.branch_id);
     if (isHomeServiceBooking(booking)) revalidatePath("/crm/dispatch");
     return {
@@ -1895,13 +1903,20 @@ export async function confirmCrmBooking(
     };
   }
 
-  if (booking.status === "confirmed")
+  if (booking.status === "confirmed") {
+    // Idempotent retry: the previous confirmation may have committed before
+    // notification cleanup completed. Never clear any payment task here.
+    await resolveConfirmedBookingRequestAlerts({
+      branchId: booking.branch_id,
+      bookingIds: [booking.id],
+    });
     return {
       success: true,
       bookingId: booking.id,
       bookingDate: booking.booking_date,
       deliveryType: booking.delivery_type,
     };
+  }
 
   const currentProgress = normalizeProgress(booking.booking_progress_status);
   const updatePayload: Database["public"]["Tables"]["bookings"]["Update"] = {
@@ -1957,6 +1972,12 @@ export async function confirmCrmBooking(
     nextStatus: "confirmed",
   });
 
+  // CRM confirmation is now persisted; the old "booking awaits review"
+  // alert is no longer actionable for any CSR in this branch.
+  await resolveConfirmedBookingRequestAlerts({
+    branchId: booking.branch_id,
+    bookingIds: [booking.id],
+  });
   revalidateOperationalBookingSurfaces(booking.branch_id);
   return {
     success: true,

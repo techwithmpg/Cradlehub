@@ -5,6 +5,7 @@ import { revalidatePath } from "next/cache";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { logError } from "@/lib/logger";
 import { drainServiceTransitionPushOutbox } from "@/lib/notifications/push/service-transition-outbox";
+import { resolveClosedAttendanceExceptionAlerts } from "@/lib/notifications/shared-resolution";
 import { createClient } from "@/lib/supabase/server";
 import { isDevAuthBypassEnabled } from "@/lib/dev-bypass";
 import { getDevBypassBranchContext } from "@/lib/dev-bypass-server";
@@ -609,7 +610,9 @@ export async function resolveAttendanceException(params: {
   resolutionNote?: string | null;
 }): Promise<void> {
   const admin = asAttendanceDb(createAdminClient());
-  const { error } = await admin
+  // A nonexistent, out-of-branch, or already-closed exception is not a
+  // successful new resolution. Do not clear alerts unless the write committed.
+  const { data: resolvedRows, error } = await admin
     .from("attendance_exceptions")
     .update({
       status: "resolved",
@@ -618,9 +621,22 @@ export async function resolveAttendanceException(params: {
       resolution_note: params.resolutionNote?.trim() || null,
     })
     .eq("id", params.exceptionId)
-    .eq("branch_id", params.ctx.branchId);
+    .eq("branch_id", params.ctx.branchId)
+    .eq("status", "open")
+    .select("id");
 
   if (error) throw new Error(error.message);
+  if (!resolvedRows?.length) {
+    throw new Error("This Attendance exception is no longer open.");
+  }
+
+  // The source exception has committed as resolved. Clear only dependent
+  // prompts/review tasks; leave independent prevention follow-ups untouched.
+  await resolveClosedAttendanceExceptionAlerts({
+    branchId: params.ctx.branchId,
+    exceptionId: params.exceptionId,
+    actorStaffId: params.ctx.actorStaffId,
+  });
 }
 
 export async function reviewAttendanceException(params: {
