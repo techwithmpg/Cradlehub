@@ -1,5 +1,15 @@
 # Project Status
 
+## Web Boutique B1 — owner-authorized review branch (2026-11-07)
+
+- **Selected Web work:** Boutique B1 foundation **AUTHORIZED FOR REVIEW-BRANCH IMPLEMENTATION ONLY**, branch `stage/boutique-b1-foundation-20261107` from accepted `main` `be22a262b2298103a71f5cf33905f8f010dc9e89`.
+- **Prior Web C5 Marketing Pass 4:** **PAUSED FOR THIS B1 REVIEW**, not completed, superseded in implementation, merged or discarded. Its existing evidence and branches are retained; resume requires a deliberate governance decision.
+- **Authorized:** Public /products preview, navigation, presentation-only three-item product catalogue and in-memory bag, and read-only Owner/CRM Boutique preview; default-off flag; focus and regression tests, independent review.
+- **Forbidden:** schema/migrations, RLS/Auth/Storage, permanent carts, booking/order/payment/voucher/stock writes, production data/test transactions, feature activation, deploy, PR merge or main write.
+- **Production:** No live verification undertaken by this branch record. Accepted `main` remains production-connected authority.
+- **Exit:** B1 handoff with exact commit and checks, external review verdict then explicit owner merge/release gate; later stages separately authorized.
+
+
 ## Staff PWA workstream — 2026-09-12
 
 - Program: **OWNER APPROVED**. Current stage: **PWA-C6 — Scanner correction / external re-review**, on `stage/pwa-c6-scanner`.

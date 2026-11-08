@@ -1,5 +1,11 @@
 # Decision Log
 
+## Cradle Boutique B1 — Owner authorization (review-branch record, 2026-11-07)
+
+| ID | Date | Status | Decision | Rationale and impact | Supersedes |
+| --- | --- | --- | --- | --- | --- |
+| BQ-GOV-001 | 2026-11-07 | OWNER AUTHORIZED / REVIEW BRANCH ONLY | Start Cradle Boutique Web B1 on `stage/boutique-b1-foundation-20261107`, based on `be22a262b2298103a71f5cf33905f8f010dc9e89`. Pause active Web C5 Marketing Pass 4 for this branch only; preserve all C5 branches, changes and evidence without merge. The B1 preview is feature-gated and default-off; build responsive public catalogue/cart presentation and a read-only Owner/CRM workspace with branch-scoped server checks and nonproduction fixtures. | One explicitly scoped Web activity while protecting the production-connected accepted baseline; reviews and separate owner merge/release decisions remain mandatory. No schema/migrations, Auth/RLS/Storage edits, booking, payment, retail, voucher or inventory mutations, production deployment or merge. | Temporarily pauses C5 Pass 4 work selection for B1 only; does not supersede or close its accepted product contract, historical evidence, branches or completed stages. |
+
 ## Attendance QR flow — 2026-11-01
 
 | ID | Date | Status | Decision | Rationale and impact | Supersedes |

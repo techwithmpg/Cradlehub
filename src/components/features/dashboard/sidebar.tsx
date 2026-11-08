@@ -503,7 +503,7 @@ function SidebarContent({
                 ))}
               </div>
             ))
-          : visibleNavItems(nav.items ?? [], canReviewMasterSheet).map((item: NavItem) => (
+          : visibleNavItems(nav.items ?? [], canReviewMasterSheet, role).map((item: NavItem) => (
               <NavLink
                 key={item.href}
                 item={item}
