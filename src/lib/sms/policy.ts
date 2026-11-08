@@ -116,7 +116,7 @@ export function smsMessage(kind: SmsKind, visit: SmsVisit): string {
   const time = displayTime(visit.startTime);
   const branch = compact(visit.branchName, 25) || "Cradle Spa";
   const service = visit.serviceNames.length === 1
-    ? compact(visit.serviceNames[0], 36)
+    ? compact(visit.serviceNames[0] ?? "service", 36)
     : "booked services";
   const location = visit.homeService ? "home service" : branch;
   if (kind === "confirmation") {
