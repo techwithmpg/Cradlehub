@@ -246,16 +246,21 @@ function smsState(state: TwilioMessageState): string {
 }
 
 async function recentSiblingSent(client: SmsDb, item: SmsCandidate, now: Date): Promise<boolean> {
-  const keys = (["confirmation", "morning", "one_hour"] as SmsKind[])
-    .filter((kind) => kind !== item.kind)
-    .map((kind) => smsDedupeKey(kind, item.visit));
+  const kinds = (["confirmation", "morning", "one_hour"] as SmsKind[])
+    .filter((kind) => kind !== item.kind);
+  const keys = kinds.map((kind) => smsDedupeKey(kind, item.visit));
   const result = await client.from("booking_sms_messages")
-    .select("id")
+    .select("kind,submitted_at")
     .in("dedupe_key", keys)
-    .in("state", ["accepted", "sent", "delivered"])
-    .gte("submitted_at", new Date(now.getTime() - COOLDOWN_MS).toISOString())
-    .limit(1);
-  return requireRows(result.data, result.error).length > 0;
+    .in("state", ["accepted", "sent", "delivered"]);
+  const prior = requireRows(result.data as Array<{ kind: SmsKind; submitted_at: string }> | null, result.error);
+  // Once a customer has received a reminder, a later/stale confirmation is noise.
+  if (item.kind === "confirmation" && prior.length > 0) return true;
+  // Morning cannot follow the time-sensitive one-hour reminder.
+  if (item.kind === "morning" && prior.some((row) => row.kind === "one_hour")) return true;
+  // Avoid two different SMS events within a 30-minute span.
+  return prior.some((row) => row.submitted_at &&
+    Date.parse(row.submitted_at) >= now.getTime() - COOLDOWN_MS);
 }
 
 async function remainsEligible(client: SmsDb, item: SmsCandidate, now: Date) {
