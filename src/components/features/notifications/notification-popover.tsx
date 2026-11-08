@@ -71,6 +71,9 @@ export function NotificationPopover({
   const [markingAll, setMarkingAll] = useState(false);
   const orderedItems = sortNewestFirst(items);
   const hasUnread = unreadCount > 0;
+  const hasMarkableUnread = orderedItems.some(
+    (item) => item.status === "unread" && !item.requires_action
+  );
 
   async function handleMarkAll() {
     setMarkingAll(true);
@@ -103,7 +106,7 @@ export function NotificationPopover({
           </div>
         </div>
 
-        {hasUnread ? (
+        {hasMarkableUnread ? (
           <Button
             type="button"
             variant="ghost"

@@ -227,9 +227,11 @@ export async function markAllNotificationsReadAction(ownerOnly = false): Promise
   let query = supabase
     .from("workspace_notifications")
     .update({ status: "read", read_at: new Date().toISOString() })
-    .eq("status", "unread");
+    .eq("status", "unread")
+    .eq("requires_action", false);
   if (ownerOnly) query = query.eq("target_workspace", "owner");
-  await query;
+  const { error } = await query;
+  if (error) throw new Error("Could not mark informational notifications as read.");
 }
 
 export async function dismissNotificationAction(id: string): Promise<void> {

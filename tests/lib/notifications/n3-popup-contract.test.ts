@@ -20,6 +20,11 @@ describe("N3 popup safety contracts", () => {
     const dismiss = queries.slice(queries.indexOf("export async function dismissNotificationAction("));
     expect(dismiss).toContain('.eq("requires_action", false)');
     expect(dismiss).toContain('.in("status", ["unread", "read"])');
+    const markAll = queries.slice(
+      queries.indexOf("export async function markAllNotificationsReadAction("),
+      queries.indexOf("export async function dismissNotificationAction(")
+    );
+    expect(markAll).toContain('.eq("requires_action", false)');
   });
   it("isolates popup history by logged-in user and workspace", () => {
     expect(hook).toContain("presentationScope");

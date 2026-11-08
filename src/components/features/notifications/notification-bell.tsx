@@ -297,13 +297,11 @@ export function NotificationBell({ role, userId, toastOnly = false }: { role: st
   );
 
   const markAllRead = useCallback(() => {
-    setItems((prev) =>
-      prev.map((item) => (item.status === "unread" ? { ...item, status: "read" as const } : item))
-    );
-    setCount(0);
-    for (const item of items) knownStatusRef.current.set(item.id, "read");
+    // The server only marks informational updates read. Never optimistically
+    // clear the action-required unread count for other CSR users.
+    void refreshNotifications();
     broadcastNotificationReconciliation(presentationScope);
-  }, [items, presentationScope]);
+  }, [presentationScope, refreshNotifications]);
 
   if (toastOnly) return null;
 

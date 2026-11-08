@@ -18,7 +18,7 @@
 - Only fresh, unread, **high/critical actionable** notifications may trigger Sonner popups and booking chimes. Informational and read notifications remain in the bell.
 - Defer popups during focused form entry, content editing or another open dialog; queued popups are shown when safe, one at a time, and dropped after a server resolution. No automatic business mutation is performed when the popup closes.
 - Visible toasts have stable notification IDs and close on resolved/dismissed realtime updates; service-transition realtime refreshes booking state in every authorized tab without its duplicate toast. Updates to rows outside the visible bell snapshot reconcile the unread count.
-- Close action only closes the local popup. Hide Dismiss on active actionable rows in bell/list/card, and add a server-enforced `requires_action=false` and active-status filter to the existing dismissal action.
+- Close action only closes the local popup. Hide Dismiss on active actionable rows in bell/list/card, and add a server-enforced `requires_action=false` and active-status filter to the existing dismissal action. Bulk "Mark all read" applies only to informational notifications, not outstanding actions, and the bell reconciles its badge from the server.
 - Notification presentation dedupe is scoped to authenticated user and workspace; keep existing inter-tab coordination within a single user's scope and RLS as server authority.
 - Add targeted unit/source contract tests.
 
