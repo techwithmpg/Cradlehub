@@ -1,5 +1,14 @@
 # Project Status
 
+
+## Customer SMS Web slice — 2026-11-08
+
+- Owner-authorized isolated foundation on stage/customer-sms-foundation-20261108 from accepted main c263ebf835339948d0e4d47f368eb527e1d51313.
+- Target Web only; Boutique B1 review preserved and parked for the authorized SMS slice; Desktop untouched.
+- Three customer transactional event rules and server dispatcher written with unapplied SQL draft, disabled feature, no Cron registration.
+- **CORRECTION REQUIRED / NOT RELEASE READY**: consent capture, migration TEST, full repository tests, staff visibility, Twilio sender registration, plan verification, owner approval.
+- No production SMS, database operation, deployment or merge. [Handoff](reports/CUSTOMER-SMS-FOUNDATION-HANDOFF-2026-11-08.md).
+
 ## Staff PWA workstream — 2026-09-12
 
 - Program: **OWNER APPROVED**. Current stage: **PWA-C6 — Scanner correction / external re-review**, on `stage/pwa-c6-scanner`.
