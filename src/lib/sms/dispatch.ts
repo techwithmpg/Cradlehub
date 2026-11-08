@@ -174,6 +174,9 @@ async function findBookingCandidates(client: SmsDb, now: Date, launchAt: number)
     const first = [...group].sort((a, b) =>
       a.booking_date.localeCompare(b.booking_date) ||
       a.start_time.localeCompare(b.start_time) || a.id.localeCompare(b.id))[0];
+    // An empty or malformed group must be skipped; TypeScript cannot infer
+    // that index 0 exists from the group.length check above.
+    if (!first) continue;
     // All group lines must share the intended date, branch and organizer.
     if (group.some((line) => line.booking_date !== first.booking_date ||
       line.branch_id !== first.branch_id || line.customer_id !== first.customer_id)) continue;
