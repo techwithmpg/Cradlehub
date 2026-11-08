@@ -4,6 +4,7 @@ import {
   INVALID_PH_MOBILE_MESSAGE,
   REQUIRED_PH_MOBILE_MESSAGE,
   getPhilippineMobileNumberError,
+  isClearlyForeignMobilePrefix,
   isValidPhilippineMobileNumber,
 } from "./philippine-mobile";
 
@@ -39,6 +40,14 @@ describe("public booking Philippine mobile contact", () => {
   ])("rejects an invalid local format: %s", (value) => {
     expect(isValidPhilippineMobileNumber(value)).toBe(false);
     expect(getPhilippineMobileNumberError(value)).toBe(INVALID_PH_MOBILE_MESSAGE);
+  });
+
+  it("does not flag a partially typed +63 prefix as international", () => {
+    expect(isClearlyForeignMobilePrefix("+")).toBe(false);
+    expect(isClearlyForeignMobilePrefix("+6")).toBe(false);
+    expect(isClearlyForeignMobilePrefix("+63")).toBe(false);
+    expect(isClearlyForeignMobilePrefix("+1")).toBe(true);
+    expect(isClearlyForeignMobilePrefix("+237")).toBe(true);
   });
 
   it("requires a nonempty number", () => {
