@@ -56,6 +56,7 @@ import { createInhouseBookingMultiAction } from "@/lib/actions/inhouse-booking";
 import { validateBookingDraft } from "@/lib/bookings/booking-wizard-validation";
 import {
   getPhilippineMobileNumberError,
+  isClearlyForeignMobilePrefix,
   isValidPhilippineMobileNumber,
 } from "@/lib/bookings/philippine-mobile";
 import type { BookingForChoice, BookingPaymentChoice } from "@/lib/bookings/booking-order-contract";
@@ -3514,8 +3515,7 @@ export function PublicStepDetails({
   const [therapistOpen, setTherapistOpen] = useState(false);
   const [phoneTouched, setPhoneTouched] = useState(false);
   // Flag foreign country codes immediately; show other format errors after blur.
-  const showPhoneError =
-    phoneTouched || /^\s*\+(?!63)/.test(form.phone) || /^\s*00/.test(form.phone);
+  const showPhoneError = phoneTouched || isClearlyForeignMobilePrefix(form.phone);
   const phoneError = showPhoneError ? getPhilippineMobileNumberError(form.phone) : null;
   const [optionalExpanded, setOptionalExpanded] = useState(
     Boolean(form.email.trim() || form.notes.trim())
