@@ -18,14 +18,18 @@ export function isValidPhilippineMobileNumber(value: string): boolean {
   return /^(?:09\d{9}|639\d{9}|\+639\d{9})$/.test(compact);
 }
 
+/** Only report a foreign prefix once the user has typed enough to rule out +63. */
+export function isClearlyForeignMobilePrefix(value: string): boolean {
+  const compact = value.trim().replace(/[\s()-]/g, "");
+  if (compact.startsWith("+")) {
+    return compact.length > 1 && !"+63".startsWith(compact) && !compact.startsWith("+63");
+  }
+  return /^00\d{2}/.test(compact);
+}
+
 export function getPhilippineMobileNumberError(value: string): string | null {
   if (!value.trim()) return REQUIRED_PH_MOBILE_MESSAGE;
   if (isValidPhilippineMobileNumber(value)) return null;
-
-  const compact = value.trim().replace(/[\s()-]/g, "");
-  if ((compact.startsWith("+") && !compact.startsWith("+63")) || compact.startsWith("00")) {
-    return FOREIGN_MOBILE_MESSAGE;
-  }
-
+  if (isClearlyForeignMobilePrefix(value)) return FOREIGN_MOBILE_MESSAGE;
   return INVALID_PH_MOBILE_MESSAGE;
 }
