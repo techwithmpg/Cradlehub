@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { getPhilippineMobileNumberError } from "@/lib/bookings/philippine-mobile";
 
 // Accept canonical Postgres UUID/GUID format used by seeded and live records.
 // z.string().uuid() is stricter in Zod v4 and can reject some existing IDs.
@@ -8,6 +9,13 @@ const phone = z
   .min(7, "Phone number too short")
   .max(20, "Phone number too long")
   .regex(/^[0-9+\-\s()]+$/, "Invalid phone number");
+
+// Only anonymous/public booking submissions require a Philippine mobile contact.
+// CRM/manual booking schemas intentionally retain their existing phone policy.
+const publicPhone = z.string().max(32, "Phone number too long").superRefine((value, ctx) => {
+  const error = getPhilippineMobileNumberError(value);
+  if (error) ctx.addIssue({ code: "custom", message: error });
+});
 
 // Online booking: today ≤ date ≤ today + 365 days.
 // Branch-level max advance rules are enforced in the booking actions.
@@ -75,7 +83,7 @@ export const createOnlineBookingSchema = z
     deliveryType: z.enum(["in_spa", "home_service"]).optional(),
     travelBufferMins: z.number().int().min(0).max(240).optional(),
     fullName: z.string().min(2, "Name must be at least 2 characters").max(100),
-    phone,
+    phone: publicPhone,
     email: z.string().email("Invalid email").optional().or(z.literal("")),
     notes: z.string().max(500).optional(),
   })
@@ -312,7 +320,7 @@ export const createOnlineBookingMultiSchema = z
     attendees: z.array(bookingAttendeeInputSchema).min(1).optional(),
     paymentChoice: z.enum(["pay_later", "pay_now"]).optional(),
     fullName: z.string().min(2, "Name must be at least 2 characters").max(100),
-    phone,
+    phone: publicPhone,
     email: z.string().email("Invalid email").optional().or(z.literal("")),
     notes: z.string().max(500).optional(),
     // Home service address (required when type=home_service, validated in action)
