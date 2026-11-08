@@ -2,12 +2,11 @@ import "server-only";
 
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { createAdminClient } from "@/lib/supabase/admin";
-import { getBranchBusinessDate } from "@/lib/engine/slot-time";
 import {
   businessDate, isSmsDue, smsDedupeKey, smsMessage, smsPhoneE164,
   type SmsKind, type SmsVisit,
 } from "./policy";
-import { readTwilioSms, sendTwilioSms, TwilioRejected, type TwilioMessageState } from "./twilio-provider";
+import { assertTwilioConfigured, readTwilioSms, sendTwilioSms, TwilioRejected, type TwilioMessageState } from "./twilio-provider";
 
 /**
  * Feature-gated appointment SMS worker.
@@ -62,6 +61,7 @@ function ensureEnabled(now: Date): number {
   if (process.env.CRADLE_SMS_ENABLED !== "true") {
     throw new Error("Customer SMS disabled");
   }
+  assertTwilioConfigured();
   const launchAt = Date.parse(process.env.CRADLE_SMS_LAUNCH_AT ?? "");
   if (!Number.isFinite(launchAt) || launchAt > now.getTime()) {
     throw new Error("Customer SMS activation date not configured");
@@ -285,7 +285,8 @@ async function remainsEligible(client: SmsDb, item: SmsCandidate, now: Date) {
     .select("consented_phone_e164,transactional_opt_in_at,opted_out_at")
     .eq("customer_id", visit.customerId).maybeSingle();
   if (opt.error) throw new Error("SMS consent recheck failed");
-  return opt.data?.consented_phone_e164 === visit.phone &&
+  if (!opt.data) return false;
+  return opt.data.consented_phone_e164 === visit.phone &&
     Boolean(opt.data.transactional_opt_in_at) && !opt.data.opted_out_at;
 }
 
@@ -294,7 +295,7 @@ async function pollDeliveryStates(client: SmsDb): Promise<number> {
     .select("id,provider_sid,state")
     .in("state", ["accepted", "sent"])
     .not("provider_sid", "is", null)
-    .order("submitted_at", { ascending: false })
+    .order("polled_at", { ascending: true, nullsFirst: true })
     .limit(POLL_LIMIT_PER_RUN);
   const logs = requireRows(result.data as SmsLog[] | null, result.error);
   let checked = 0;
@@ -308,15 +309,19 @@ async function pollDeliveryStates(client: SmsDb): Promise<number> {
         !(log.state === "sent" && next === "accepted")) {
         const changed = await client.from("booking_sms_messages")
           .update({ state: next, provider_error_code: message.errorCode,
-            updated_at: new Date().toISOString() })
+            updated_at: new Date().toISOString(), polled_at: new Date().toISOString() })
           .eq("id", log.id).eq("provider_sid", message.sid)
           .eq("state", log.state);
         if (changed.error) throw new Error("SMS delivery state update failed");
       }
+      if (next === log.state || (log.state === "sent" && next === "accepted")) {
+        await client.from("booking_sms_messages").update({ polled_at: new Date().toISOString() }).eq("id", log.id);
+      }
       checked++;
     } catch {
-      // Missing or temporarily unavailable provider status must not resend SMS.
-      // Keep the previous state for a subsequent status poll.
+      // Provider failures must not resend SMS. Advance the poll cursor so
+      // one provider outage does not starve newer deliveries.
+      await client.from("booking_sms_messages").update({ polled_at: new Date().toISOString() }).eq("id", log.id);
     }
   }
   return checked;
