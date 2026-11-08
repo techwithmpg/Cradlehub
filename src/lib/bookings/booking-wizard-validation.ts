@@ -1,4 +1,5 @@
 import { isPastSlot, BRANCH_TIMEZONE } from "@/lib/engine/slot-time";
+import { getPhilippineMobileNumberError } from "@/lib/bookings/philippine-mobile";
 import {
   isVisitTypeEnabled,
   isTimeAllowedForVisitType,
@@ -273,20 +274,28 @@ export function validateBookingDraft(
     };
   }
 
-  if (!params.form.phone || params.form.phone.trim().length < 7) {
-    return {
-      ok: false,
-      message: "Please enter your phone number.",
-      focusField: "phone",
-    };
-  }
+  if (params.mode === "public") {
+    const phoneError = getPhilippineMobileNumberError(params.form.phone);
+    if (phoneError) {
+      return { ok: false, message: phoneError, focusField: "phone" };
+    }
+  } else {
+    // Existing CRM/manual booking behavior is intentionally unchanged.
+    if (!params.form.phone || params.form.phone.trim().length < 7) {
+      return {
+        ok: false,
+        message: "Please enter your phone number.",
+        focusField: "phone",
+      };
+    }
 
-  if (!/^[0-9+\-\s()]+$/.test(params.form.phone.trim())) {
-    return {
-      ok: false,
-      message: "Please enter a valid phone number using only numbers and punctuation.",
-      focusField: "phone",
-    };
+    if (!/^[0-9+\-\s()]+$/.test(params.form.phone.trim())) {
+      return {
+        ok: false,
+        message: "Please enter a valid phone number using only numbers and punctuation.",
+        focusField: "phone",
+      };
+    }
   }
 
   if (params.form.email && params.form.email.trim().length > 0) {
