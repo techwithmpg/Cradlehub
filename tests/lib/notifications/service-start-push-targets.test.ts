@@ -11,14 +11,11 @@ describe("two-minute therapist reminder recipient isolation", () => {
     })).toEqual(["staff"]);
   });
 
-  it("retains existing owner-copy behavior for other booking notices", () => {
-    expect(candidatePushWorkspaces({
-      target_workspace: "staff",
-      metadata: {},
-    })).toEqual(["owner", "staff"]);
-    expect(candidatePushWorkspaces({
-      target_workspace: "crm",
-      metadata: {},
-    })).toEqual(["owner", "crm"]);
+  it("does not copy routine CRM or staff pushes to the Owner", () => {
+    expect(candidatePushWorkspaces({ target_workspace: "staff", metadata: {} })).toEqual(["staff"]);
+    expect(candidatePushWorkspaces({ target_workspace: "crm", metadata: {} })).toEqual(["crm"]);
+    expect(candidatePushWorkspaces({ target_workspace: "owner", metadata: {} })).toEqual(["owner"]);
+    expect(candidatePushWorkspaces({ target_workspace: "manager", metadata: {} })).toEqual([]);
   });
+
 });
