@@ -1,5 +1,8 @@
 # Known Issues Register
 
+
+> **SMS-001 (P1 operational communications, 2026-11-08):** Customer booking SMS foundation is code-only and DISABLED pending verified consent capture, Philippine sender registration, reviewed new migration/isolated DB, scheduler and real Twilio tests, authorized status visibility, full repo quality gates and owner release approval. No customer SMS is currently verified. See reports/CUSTOMER-SMS-FOUNDATION-HANDOFF-2026-11-08.md.
+
 | ID | Severity | Status | Area | Evidence | Impact | Next stage if authorized | Notes |
 | --- | --- | --- | --- | --- | --- | --- | --- |
 | C0B-001 | P2 | RESOLVED / C1 VERIFIED | Local environment | Accepted main tracks a placeholder-only `.env.example`; C1 restored its exact blob and confirmed no content diff. | The local configuration template contract is restored. | None | The prior deletion was checkout drift, not repository policy. |

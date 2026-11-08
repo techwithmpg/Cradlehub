@@ -1,5 +1,12 @@
 # Decision Log
 
+
+## Customer booking SMS — 2026-11-08
+
+| ID | Date | Status | Decision | Rationale and limits |
+| --- | --- | --- | --- | --- |
+| SMS-GOV-001 | 2026-11-08 | OWNER APPROVED / ISOLATED REVIEW | Build transactional Twilio booking confirmation, 08:00 morning batch and one-hour reminder on stage/customer-sms-foundation-20261108 from main c263ebf8. | Preserve booking-state and notification ownership, require service-side consent and dedupe, no production SQL, SMS send, Cron, merge or deploy; prior Boutique B1 branch parked without deletion or merge. Review gates documented in handoff. |
+
 ## Attendance QR flow — 2026-11-01
 
 | ID | Date | Status | Decision | Rationale and impact | Supersedes |

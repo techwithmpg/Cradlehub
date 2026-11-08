@@ -1,5 +1,8 @@
 # ChatGPT Live Context
 
+
+> 2026-11-08: Owner-authorized isolated Web Customer SMS foundation branch stage/customer-sms-foundation-20261108 from verified main c263ebf835339948d0e4d47f368eb527e1d51313. Boutique B1 review is preserved/parked, not merged; new code is unverified for release and disabled. Read reports/CUSTOMER-SMS-FOUNDATION-HANDOFF-2026-11-08.md before SMS release work. No SQL, Twilio, Cron or production action was authorized by this implementation pass.
+
 For substantial future decisions or reviews, ChatGPT must:
 
 1. identify the canonical CradleHub repository;
