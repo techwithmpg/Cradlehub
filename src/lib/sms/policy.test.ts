@@ -87,6 +87,13 @@ describe("CradleHub appointment SMS policy", () => {
     expect(smsMessage("one_hour", home)).not.toContain("driver");
   });
 
+  it("uses safe service wording when service details are absent or malformed", () => {
+    expect(smsMessage("confirmation", { ...original, serviceNames: [] }))
+      .toContain("booked services");
+    expect(smsMessage("one_hour", { ...original, serviceNames: [undefined] as unknown as string[] }))
+      .toContain("Cradle Spa service");
+  });
+
   it("does not expose a message URL or include internal booking details", () => {
     const message = smsMessage("one_hour", original);
     expect(message).toContain("Swedish Massage");
