@@ -2,6 +2,7 @@
 
 import { useEffect, useRef, useState, type ReactNode } from "react";
 import { useRouter } from "next/navigation";
+import { notifyBookingsChanged } from "@/lib/bookings/bookings-client-events";
 import { CheckCircle2 } from "lucide-react";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { getCrmPaymentReadySnapshotAction, type CrmPaymentReadyItem } from "@/app/(dashboard)/crm/service-completion-actions";
@@ -14,6 +15,7 @@ export function GlobalServiceCompletionProvider({ children, branchId }: { childr
   const [items, setItems] = useState<CrmPaymentReadyItem[]>([]);
   const [show, setShow] = useState(false);
   const inFlight = useRef(false);
+  const previouslySeenCompletionIds = useRef<Set<string> | null>(null);
 
   useEffect(() => {
     let mounted = true;
@@ -23,6 +25,13 @@ export function GlobalServiceCompletionProvider({ children, branchId }: { childr
       try {
         const snapshot = await getCrmPaymentReadySnapshotAction();
         if (!mounted || !snapshot.ok) return;
+        const newIds = new Set(snapshot.items.map((item) => item.notificationId));
+        const previousIds = previouslySeenCompletionIds.current;
+        if (previousIds && [...newIds].some((id) => !previousIds.has(id))) {
+          // The server has completed a booking; refresh the displayed countdowns.
+          notifyBookingsChanged();
+        }
+        previouslySeenCompletionIds.current = newIds;
         const eligible = snapshot.items.filter((item) => !sessionStorage.getItem(seenKey(branchId, item.notificationId)));
         setItems(eligible);
         // Do not interrupt another modal or a staff member editing a form.
