@@ -206,15 +206,15 @@ export function NotificationBell({ role, userId, toastOnly = false }: { role: st
         if (!alreadyKnown && notification.status === "unread") {
           setCount((current) => current + 1);
         }
+        // All authorized tabs need the booking refresh, even when another
+        // tab owns the single visible popup presentation.
+        if (serviceTransitionEventId(notification)) notifyBookingsChanged();
         return;
       }
 
       // Service transition presentation belongs to the existing service
       // lifecycle provider; keep booking refresh but avoid a duplicate toast.
-      if (serviceTransitionEventId(notification)) {
-        notifyBookingsChanged();
-        return;
-      }
+      if (serviceTransitionEventId(notification)) return;
       if (!shouldPresentActionPopup(notification)) return;
       if (knownStatusRef.current.get(notification.id) !== "unread") return;
 
@@ -231,6 +231,11 @@ export function NotificationBell({ role, userId, toastOnly = false }: { role: st
     if (ownerOnly && notification.target_workspace !== "owner") return;
     const previousStatus = knownStatusRef.current.get(notification.id);
     knownStatusRef.current.set(notification.id, notification.status);
+    if (previousStatus === undefined) {
+      // Rows outside the 20 visible items may still contribute to the unread
+      // total. Reconcile instead of guessing the badge delta.
+      void refreshNotifications();
+    }
     if (notification.status === "resolved" || notification.status === "dismissed") {
       deferredRef.current.delete(notification.id);
       displayedToastIdsRef.current.delete(notification.id);
@@ -245,7 +250,7 @@ export function NotificationBell({ role, userId, toastOnly = false }: { role: st
     );
     const delta = notificationUnreadDelta(previousStatus, notification.status);
     if (delta !== 0) setCount((current) => Math.max(0, current + delta));
-  }, [ownerOnly]);
+  }, [ownerOnly, refreshNotifications]);
 
   useWorkspaceNotificationRealtime({
     presentationScope,
