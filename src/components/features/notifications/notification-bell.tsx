@@ -8,10 +8,8 @@ import { toast } from "sonner";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { cn } from "@/lib/utils";
 import { notifyBookingsChanged } from "@/lib/bookings/bookings-client-events";
-import {
-  dismissNotificationAction,
-  getNotificationBellSnapshot,
-} from "@/lib/notifications/queries";
+import { getNotificationBellSnapshot } from "@/lib/notifications/queries";
+import { shouldPresentActionPopup } from "@/lib/notifications/presentation-policy";
 import type { WorkspaceNotification } from "@/lib/notifications/types";
 import { NotificationBellDropdown } from "./notification-bell-dropdown";
 import { BookingNotificationSound } from "./booking-notification-sound";
@@ -70,7 +68,7 @@ function serviceTransitionEventId(notification: WorkspaceNotification): string |
   return typeof id === "string" ? id : null;
 }
 
-export function NotificationBell({ role, toastOnly = false }: { role: string; toastOnly?: boolean }) {
+export function NotificationBell({ role, userId, toastOnly = false }: { role: string; userId?: string; toastOnly?: boolean }) {
   const router = useRouter();
   const [count, setCount] = useState(0);
   const [items, setItems] = useState<WorkspaceNotification[]>([]);
@@ -78,9 +76,13 @@ export function NotificationBell({ role, toastOnly = false }: { role: string; to
   const [fetching, setFetching] = useState(false);
   const knownIdsRef = useRef(new Set<string>());
   const knownStatusRef = useRef(new Map<string, WorkspaceNotification["status"]>());
+  const deferredRef = useRef(new Map<string, WorkspaceNotification>());
+  const shownToastRef = useRef<string | null>(null);
+  const displayedToastIdsRef = useRef(new Set<string>());
 
   const canonicalRole = canonicalizeSystemRole(role);
   const ownerOnly = canonicalRole === "owner";
+  const presentationScope = `${userId ?? "anonymous"}:${canonicalRole}`;
   const href = WORKSPACE_HREF[canonicalRole] ?? "/owner/notifications";
 
   const refreshNotifications = useCallback(async () => {
@@ -108,6 +110,90 @@ export function NotificationBell({ role, toastOnly = false }: { role: string; to
     return () => window.clearTimeout(timeoutId);
   }, [refreshNotifications]);
 
+  // A payment form, focused input or open workflow dialog has priority over
+  // informational popups. Pending action remains visible in the bell.
+  const isSafePresentationMoment = useCallback(() => {
+    if (document.visibilityState !== "visible") return false;
+    if (document.querySelector('[role="dialog"][data-state="open"], [role="alertdialog"][data-state="open"]')) {
+      return false;
+    }
+    const active = document.activeElement;
+    return !(active instanceof HTMLInputElement ||
+      active instanceof HTMLTextAreaElement ||
+      active instanceof HTMLSelectElement ||
+      (active instanceof HTMLElement && active.isContentEditable));
+  }, []);
+
+  const showActionPopup = useCallback((notification: WorkspaceNotification) => {
+    const display = getNotificationDisplay(notification);
+    const description = [notification.body?.trim() || display.detail, display.meta]
+      .filter(Boolean)
+      .join(" · ");
+    shownToastRef.current = notification.id;
+    displayedToastIdsRef.current.add(notification.id);
+    const release = () => {
+      if (shownToastRef.current === notification.id) shownToastRef.current = null;
+    };
+    toast(notification.title || display.title, {
+      id: notification.id,
+      description,
+      duration: notification.priority === "critical" ? 15_000 : 10_000,
+      action: {
+        label: display.actionLabel,
+        onClick: () => {
+          toast.dismiss(notification.id);
+          router.push(display.href);
+        },
+      },
+      // Close affects this desktop popup only; it must not dismiss the
+      // shared branch notification or resolve any underlying work.
+      cancel: {
+        label: "Close",
+        onClick: () => toast.dismiss(notification.id),
+      },
+      onDismiss: release,
+      onAutoClose: release,
+    });
+    if (isBookingNotification(notification)) {
+      dispatchBookingNotificationSound(notification.id);
+    }
+  }, [router]);
+
+  const flushDeferred = useCallback(() => {
+    if (!isSafePresentationMoment() || shownToastRef.current) return;
+    for (const [id, notification] of deferredRef.current) {
+      deferredRef.current.delete(id);
+      // Another CSR might have already resolved it while this user was busy.
+      if (knownStatusRef.current.get(id) !== "unread") continue;
+      showActionPopup(notification);
+      break;
+    }
+  }, [isSafePresentationMoment, showActionPopup]);
+
+  useEffect(() => {
+    const onIdle = () => window.setTimeout(flushDeferred, 0);
+    const interval = window.setInterval(flushDeferred, 2_000);
+    document.addEventListener("focusout", onIdle);
+    document.addEventListener("visibilitychange", onIdle);
+    window.addEventListener("focus", onIdle);
+    return () => {
+      window.clearInterval(interval);
+      document.removeEventListener("focusout", onIdle);
+      document.removeEventListener("visibilitychange", onIdle);
+      window.removeEventListener("focus", onIdle);
+    };
+  }, [flushDeferred]);
+
+  useEffect(() => {
+    return () => {
+      // Never leave a previous account's popup visible after the bell unmounts.
+      deferredRef.current.clear();
+      for (const id of displayedToastIdsRef.current) toast.dismiss(id);
+      displayedToastIdsRef.current.clear();
+      shownToastRef.current = null;
+    };
+  }, [presentationScope]);
+
   const handleRealtimeInsert = useCallback(
     (notification: WorkspaceNotification, { present }: { present: boolean }) => {
       if (ownerOnly && notification.target_workspace !== "owner") return;
@@ -120,58 +206,41 @@ export function NotificationBell({ role, toastOnly = false }: { role: string; to
         if (!alreadyKnown && notification.status === "unread") {
           setCount((current) => current + 1);
         }
+        // All authorized tabs need the booking refresh, even when another
+        // tab owns the single visible popup presentation.
+        if (serviceTransitionEventId(notification)) notifyBookingsChanged();
         return;
       }
 
-      const display = getNotificationDisplay(notification);
-      const description = [notification.body?.trim() || display.detail, display.meta]
-        .filter(Boolean)
-        .join(" · ");
-      const transitionId = serviceTransitionEventId(notification);
-      if (transitionId) {
-        toast.success(notification.title, { id: transitionId, description: notification.body || undefined, duration: 5_000 });
-        notifyBookingsChanged();
+      // Service transition presentation belongs to the existing service
+      // lifecycle provider; keep booking refresh but avoid a duplicate toast.
+      if (serviceTransitionEventId(notification)) return;
+      if (!shouldPresentActionPopup(notification)) return;
+      if (knownStatusRef.current.get(notification.id) !== "unread") return;
+
+      if (!isSafePresentationMoment() || shownToastRef.current) {
+        deferredRef.current.set(notification.id, notification);
         return;
       }
-      toast(notification.title || display.title, {
-        description,
-        duration:
-          notification.priority === "critical"
-            ? 15_000
-            : notification.priority === "high"
-              ? 10_000
-              : 7_000,
-        action: {
-          label: display.actionLabel,
-          onClick: () => router.push(display.href),
-        },
-        cancel: {
-          label: "Dismiss",
-          onClick: () => {
-            const previousStatus = knownStatusRef.current.get(notification.id);
-            knownStatusRef.current.set(notification.id, "dismissed");
-            setItems((current) => current.filter((item) => item.id !== notification.id));
-            if (previousStatus === "unread") {
-              setCount((current) => Math.max(0, current - 1));
-            }
-            void dismissNotificationAction(notification.id).then(() => {
-              broadcastNotificationReconciliation();
-            });
-          },
-        },
-      });
-
-      if (isBookingNotification(notification)) {
-        dispatchBookingNotificationSound(notification.id);
-      }
+      showActionPopup(notification);
     },
-    [router, ownerOnly]
+    [ownerOnly, isSafePresentationMoment, showActionPopup]
   );
 
   const handleRealtimeUpdate = useCallback((notification: WorkspaceNotification) => {
     if (ownerOnly && notification.target_workspace !== "owner") return;
     const previousStatus = knownStatusRef.current.get(notification.id);
     knownStatusRef.current.set(notification.id, notification.status);
+    if (previousStatus === undefined) {
+      // Rows outside the 20 visible items may still contribute to the unread
+      // total. Reconcile instead of guessing the badge delta.
+      void refreshNotifications();
+    }
+    if (notification.status === "resolved" || notification.status === "dismissed") {
+      deferredRef.current.delete(notification.id);
+      displayedToastIdsRef.current.delete(notification.id);
+      toast.dismiss(notification.id);
+    }
     setItems((current) =>
       notification.status === "resolved" || notification.status === "dismissed"
         ? current.filter((item) => item.id !== notification.id)
@@ -181,9 +250,10 @@ export function NotificationBell({ role, toastOnly = false }: { role: string; to
     );
     const delta = notificationUnreadDelta(previousStatus, notification.status);
     if (delta !== 0) setCount((current) => Math.max(0, current + delta));
-  }, [ownerOnly]);
+  }, [ownerOnly, refreshNotifications]);
 
   useWorkspaceNotificationRealtime({
+    presentationScope,
     onInsert: handleRealtimeInsert,
     onUpdate: handleRealtimeUpdate,
     onReconcile: refreshNotifications,
@@ -221,19 +291,17 @@ export function NotificationBell({ role, toastOnly = false }: { role: string; to
         setCount((current) => Math.max(0, current - 1));
       }
       knownStatusRef.current.set(id, "read");
-      broadcastNotificationReconciliation();
+      broadcastNotificationReconciliation(presentationScope);
     },
-    [items]
+    [items, presentationScope]
   );
 
   const markAllRead = useCallback(() => {
-    setItems((prev) =>
-      prev.map((item) => (item.status === "unread" ? { ...item, status: "read" as const } : item))
-    );
-    setCount(0);
-    for (const item of items) knownStatusRef.current.set(item.id, "read");
-    broadcastNotificationReconciliation();
-  }, [items]);
+    // The server only marks informational updates read. Never optimistically
+    // clear the action-required unread count for other CSR users.
+    void refreshNotifications();
+    broadcastNotificationReconciliation(presentationScope);
+  }, [presentationScope, refreshNotifications]);
 
   if (toastOnly) return null;
 

@@ -22,6 +22,7 @@ async function logoutAction() {
 
 type HeaderProps = {
   role: string;
+  userId?: string;
   fullName: string;
   displayName?: string;
   avatarUrl?: string | null;
@@ -45,6 +46,7 @@ function settingsHref(role: string): string | null {
 
 export function Header({
   role,
+  userId,
   fullName,
   displayName,
   avatarUrl,
@@ -102,7 +104,7 @@ export function Header({
 
         <div style={{ width: 1, height: 16, background: "var(--cs-border)", margin: "0 4px" }} />
 
-        <NotificationBell role={role} />
+        <NotificationBell role={role} userId={userId} />
 
         <div style={{ width: 1, height: 16, background: "var(--cs-border)", margin: "0 2px" }} />
 
