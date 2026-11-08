@@ -43,6 +43,7 @@ CREATE TABLE IF NOT EXISTS public.booking_sms_messages (
   provider_error_code text,
   created_at timestamptz NOT NULL DEFAULT now(),
   submitted_at timestamptz,
+  polled_at timestamptz,
   updated_at timestamptz NOT NULL DEFAULT now(),
   CONSTRAINT booking_sms_messages_dedupe_nonempty CHECK (length(dedupe_key) > 10)
 );
