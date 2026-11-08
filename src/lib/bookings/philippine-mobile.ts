@@ -33,3 +33,27 @@ export function getPhilippineMobileNumberError(value: string): string | null {
   if (isClearlyForeignMobilePrefix(value)) return FOREIGN_MOBILE_MESSAGE;
   return INVALID_PH_MOBILE_MESSAGE;
 }
+
+/**
+ * User-facing feedback for the public contact field. Computed on every value
+ * change; no blur or attempted submission is needed to see an invalid number.
+ */
+export function getPublicPhoneFieldFeedback(value: string): {
+  status: "hint" | "error" | "valid";
+  message: string;
+} {
+  if (!value.trim()) {
+    return {
+      status: "hint",
+      message: "Enter a Philippine mobile number starting with 09 (11 digits) or +63 9XX XXX XXXX. International numbers cannot be contacted.",
+    };
+  }
+
+  const error = getPhilippineMobileNumberError(value);
+  if (error) return { status: "error", message: error };
+
+  return {
+    status: "valid",
+    message: "Philippine mobile number format accepted.",
+  };
+}
