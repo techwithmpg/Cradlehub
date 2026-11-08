@@ -28,7 +28,7 @@ import {
 } from "./use-workspace-notification-realtime";
 
 // Roles that handle booking payments and should hear actionable-booking sounds.
-const SOUND_ROLES = new Set(["crm", "manager", "owner"]);
+const SOUND_ROLES = new Set(["crm", "manager"]);
 
 const WORKSPACE_HREF: Record<string, string> = {
   owner: "/owner/notifications",
@@ -80,12 +80,13 @@ export function NotificationBell({ role, toastOnly = false }: { role: string; to
   const knownStatusRef = useRef(new Map<string, WorkspaceNotification["status"]>());
 
   const canonicalRole = canonicalizeSystemRole(role);
+  const ownerOnly = canonicalRole === "owner";
   const href = WORKSPACE_HREF[canonicalRole] ?? "/owner/notifications";
 
   const refreshNotifications = useCallback(async () => {
     setFetching(true);
     try {
-      const snapshot = await getNotificationBellSnapshot(20);
+      const snapshot = await getNotificationBellSnapshot(20, ownerOnly);
       knownIdsRef.current = new Set(snapshot.items.map((notification) => notification.id));
       knownStatusRef.current = new Map(
         snapshot.items.map((notification) => [notification.id, notification.status])
@@ -97,7 +98,7 @@ export function NotificationBell({ role, toastOnly = false }: { role: string; to
     } finally {
       setFetching(false);
     }
-  }, []);
+  }, [ownerOnly]);
 
   // Establish the initial unread baseline without presenting old rows as alerts.
   useEffect(() => {
@@ -109,6 +110,8 @@ export function NotificationBell({ role, toastOnly = false }: { role: string; to
 
   const handleRealtimeInsert = useCallback(
     (notification: WorkspaceNotification, { present }: { present: boolean }) => {
+      if (ownerOnly && notification.target_workspace !== "owner") return;
+      if (notification.status === "resolved" || notification.status === "dismissed") return;
       if (!present) {
         const alreadyKnown = knownIdsRef.current.has(notification.id);
         knownIdsRef.current.add(notification.id);
@@ -162,20 +165,23 @@ export function NotificationBell({ role, toastOnly = false }: { role: string; to
         dispatchBookingNotificationSound(notification.id);
       }
     },
-    [router]
+    [router, ownerOnly]
   );
 
   const handleRealtimeUpdate = useCallback((notification: WorkspaceNotification) => {
+    if (ownerOnly && notification.target_workspace !== "owner") return;
     const previousStatus = knownStatusRef.current.get(notification.id);
     knownStatusRef.current.set(notification.id, notification.status);
     setItems((current) =>
-      current.some((item) => item.id === notification.id)
-        ? upsertNotificationItems(current, notification)
-        : current
+      notification.status === "resolved" || notification.status === "dismissed"
+        ? current.filter((item) => item.id !== notification.id)
+        : current.some((item) => item.id === notification.id)
+          ? upsertNotificationItems(current, notification)
+          : current
     );
     const delta = notificationUnreadDelta(previousStatus, notification.status);
     if (delta !== 0) setCount((current) => Math.max(0, current + delta));
-  }, []);
+  }, [ownerOnly]);
 
   useWorkspaceNotificationRealtime({
     onInsert: handleRealtimeInsert,

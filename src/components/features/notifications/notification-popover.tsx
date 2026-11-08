@@ -75,7 +75,7 @@ export function NotificationPopover({
   async function handleMarkAll() {
     setMarkingAll(true);
     try {
-      await markAllNotificationsReadAction();
+      await markAllNotificationsReadAction(role === "owner");
       onMarkAllRead();
     } catch {
       toast.error("Could not mark notifications as read.");

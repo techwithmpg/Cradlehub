@@ -35,6 +35,15 @@ export async function createOrUpdateWorkflowTask(input: CreateWorkflowTaskInput)
   const admin = createAdminClient();
   const dedupeKey = taskDedupeKey(input);
   const payload = taskPayload(input, dedupeKey);
+  // Re-emission must not unclaim an in-progress task or overwrite its owner.
+  const refresh = {
+    title: payload.title,
+    body: payload.body,
+    action_href: payload.action_href,
+    priority: payload.priority,
+    due_at: payload.due_at,
+    metadata: payload.metadata,
+  };
   const existing = await admin
     .from("workflow_tasks")
     .select("id")
@@ -45,8 +54,9 @@ export async function createOrUpdateWorkflowTask(input: CreateWorkflowTaskInput)
   if (existing.data) {
     const { error } = await admin
       .from("workflow_tasks")
-      .update(payload)
-      .eq("id", existing.data.id);
+      .update(refresh)
+      .eq("id", existing.data.id)
+      .in("status", [...OPEN_TASK_STATUSES]);
     if (error) {
       logError("workflow_task.update_failed", { taskType: input.taskType, error });
       return false;
@@ -57,7 +67,7 @@ export async function createOrUpdateWorkflowTask(input: CreateWorkflowTaskInput)
   const { error } = await admin.from("workflow_tasks").insert(payload);
   if (!error) return true;
   if (isUniqueViolation(error)) {
-    const retry = await admin.from("workflow_tasks").update(payload).eq("dedupe_key", dedupeKey);
+    const retry = await admin.from("workflow_tasks").update(refresh).eq("dedupe_key", dedupeKey).in("status", [...OPEN_TASK_STATUSES]);
     if (retry.error) {
       logError("workflow_task.race_update_failed", { taskType: input.taskType, error: retry.error });
       return false;

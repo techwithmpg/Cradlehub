@@ -162,23 +162,28 @@ export async function getUnreadCountAction(): Promise<number> {
   return count ?? 0;
 }
 
-export async function getNotificationBellSnapshot(limit = 20): Promise<NotificationBellSnapshot> {
+export async function getNotificationBellSnapshot(limit = 20, ownerOnly = false): Promise<NotificationBellSnapshot> {
   const supabase = await createClient();
   const thirtyDaysAgo = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString();
   const safeLimit = Math.max(1, Math.min(50, Math.floor(limit)));
-  const [itemsResult, countResult] = await Promise.all([
-    supabase
-      .from("workspace_notifications")
-      .select("*")
-      .in("status", ["unread", "read", "resolved"])
-      .gte("created_at", thirtyDaysAgo)
-      .order("created_at", { ascending: false })
-      .limit(safeLimit),
-    supabase
-      .from("workspace_notifications")
-      .select("id", { count: "exact", head: true })
-      .eq("status", "unread"),
-  ]);
+  // The bell shows current work, not resolved history. Owner-only filtering
+  // narrows an already RLS-authorized result; it grants no additional access.
+  let itemsQuery = supabase
+    .from("workspace_notifications")
+    .select("*")
+    .in("status", ["unread", "read"])
+    .gte("created_at", thirtyDaysAgo)
+    .order("created_at", { ascending: false })
+    .limit(safeLimit);
+  let countQuery = supabase
+    .from("workspace_notifications")
+    .select("id", { count: "exact", head: true })
+    .eq("status", "unread");
+  if (ownerOnly) {
+    itemsQuery = itemsQuery.eq("target_workspace", "owner");
+    countQuery = countQuery.eq("target_workspace", "owner");
+  }
+  const [itemsResult, countResult] = await Promise.all([itemsQuery, countQuery]);
   if (itemsResult.error || countResult.error) {
     logError("notification.query_failed", {
       action: "getNotificationBellSnapshot",
@@ -216,12 +221,15 @@ export async function markNotificationReadAction(id: string): Promise<void> {
     .eq("status", "unread");
 }
 
-export async function markAllNotificationsReadAction(): Promise<void> {
+export async function markAllNotificationsReadAction(ownerOnly = false): Promise<void> {
   const supabase = await createClient();
-  await supabase
+  // The Owner bell's "mark all" must not clear CRM/staff work.
+  let query = supabase
     .from("workspace_notifications")
     .update({ status: "read", read_at: new Date().toISOString() })
     .eq("status", "unread");
+  if (ownerOnly) query = query.eq("target_workspace", "owner");
+  await query;
 }
 
 export async function dismissNotificationAction(id: string): Promise<void> {

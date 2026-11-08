@@ -116,11 +116,10 @@ export function subscriptionMatchesNotification(
   if (!isCurrentNotice(notification) || !workspaceMatchesStaff(subscription, staff)) return false;
 
   if (subscription.workspace === "owner") {
-    const ownerRelevant =
-      notification.target_workspace === "owner" ||
-      notification.priority === "critical" ||
-      isBookingNotification(notification);
-    return ownerRelevant && ownerPreferenceAllows(ownerPreference, notification);
+    // Only explicit Owner-directed notifications may reach Owner devices.
+    // A critical CRM item or ordinary booking must not fan out automatically.
+    return notification.target_workspace === "owner" &&
+      ownerPreferenceAllows(ownerPreference, notification);
   }
 
   if (subscription.workspace !== notification.target_workspace) return false;
@@ -152,15 +151,11 @@ export function subscriptionMatchesNotification(
 export function candidatePushWorkspaces(
   notification: Pick<WorkspaceNotification, "target_workspace" | "metadata">
 ): string[] {
-  const metadata = notification.metadata;
-  const staffStartReminder = notification.target_workspace === "staff" &&
-    metadata !== null && typeof metadata === "object" && !Array.isArray(metadata) &&
-    metadata.service_start_reminder === true;
-  const candidates = staffStartReminder ? [] : ["owner"];
-  if (["crm", "staff", "driver", "utility"].includes(notification.target_workspace)) {
-    candidates.push(notification.target_workspace);
-  }
-  return [...new Set(candidates)];
+  const workspace = notification.target_workspace;
+  // Target workspace decides recipient; no automatic Owner copy.
+  return ["owner", "crm", "staff", "driver", "utility"].includes(workspace)
+    ? [workspace]
+    : [];
 }
 
 function safeActionHref(

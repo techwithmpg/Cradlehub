@@ -38,6 +38,16 @@ export async function createOrUpdateNotification(input: CreateNotificationInput)
   const admin = createAdminClient();
   const dedupeKey = notificationDedupeKey(input);
   const payload = notificationPayload(input, dedupeKey);
+  // Repeated signals may refresh copy, never revive an already-read alert or
+  // rewrite its original event time, ownership, assignment, or resolution.
+  const refresh = {
+    title: payload.title,
+    body: payload.body,
+    action_href: payload.action_href,
+    priority: payload.priority,
+    requires_action: payload.requires_action,
+    metadata: payload.metadata,
+  };
   const existing = await admin
     .from("workspace_notifications")
     .select("id")
@@ -46,7 +56,7 @@ export async function createOrUpdateNotification(input: CreateNotificationInput)
     .maybeSingle();
 
   if (existing.data) {
-    const { error } = await admin.from("workspace_notifications").update(payload).eq("id", existing.data.id);
+    const { error } = await admin.from("workspace_notifications").update(refresh).eq("id", existing.data.id).in("status", [...OPEN_NOTIFICATION_STATUSES]);
     if (error) {
       logError("notification.update_failed", { type: input.type, error });
       return false;
@@ -69,8 +79,9 @@ export async function createOrUpdateNotification(input: CreateNotificationInput)
   if (isUniqueViolation(error)) {
     const retry = await admin
       .from("workspace_notifications")
-      .update(payload)
-      .eq("dedupe_key", dedupeKey);
+      .update(refresh)
+      .eq("dedupe_key", dedupeKey)
+      .in("status", [...OPEN_NOTIFICATION_STATUSES]);
     if (retry.error) {
       logError("notification.race_update_failed", { type: input.type, error: retry.error });
       return false;

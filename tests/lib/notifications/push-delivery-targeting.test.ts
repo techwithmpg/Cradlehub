@@ -138,6 +138,18 @@ describe("Web Push recipient targeting", () => {
     expect(ownerPreferenceAllows("disabled", notification as never)).toBe(false);
   });
 
+  it("keeps CRM booking alerts off Owner devices unless explicitly targeted", () => {
+    const ownerSubscription = subscription({ workspace: "owner", branch_id: null });
+    const ownerStaff = staff({ system_role: "owner" });
+    expect(subscriptionMatchesNotification(
+      ownerSubscription as never, notification as never, ownerStaff as never, "all"
+    )).toBe(false);
+    expect(subscriptionMatchesNotification(
+      ownerSubscription as never, { ...notification, target_workspace: "owner" } as never,
+      ownerStaff as never, "all"
+    )).toBe(true);
+  });
+
   it("rejects stale staff-less Owner subscriptions unless the account is a current super-admin", () => {
     const ownerNotification = {
       ...notification,

@@ -64,12 +64,18 @@ describe("workspace notification push deduplication", () => {
     };
     const update = {
       update: vi.fn().mockReturnThis(),
-      eq: vi.fn().mockResolvedValue({ error: null }),
+      eq: vi.fn().mockReturnThis(),
+      in: vi.fn().mockResolvedValue({ error: null }),
     };
     const from = vi.fn().mockReturnValueOnce(lookup).mockReturnValueOnce(update);
     mocks.createAdminClient.mockReturnValue({ from });
 
     await expect(createOrUpdateNotification(input)).resolves.toBe(true);
     expect(mocks.deliverWorkspaceNotificationPush).not.toHaveBeenCalled();
+    const refreshed = update.update.mock.calls[0]![0];
+    for (const field of ["status", "created_at", "read_at", "resolved_at", "recipient_staff_id"]) {
+      expect(refreshed).not.toHaveProperty(field);
+    }
+    expect(update.in).toHaveBeenCalledWith("status", ["unread", "read"]);
   });
 });
