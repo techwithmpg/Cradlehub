@@ -21,6 +21,8 @@ type NotificationChannelMessage =
   | { type: "reconcile" };
 
 type UseWorkspaceNotificationRealtimeInput = {
+  /** Trusted account/workspace identity from the authenticated dashboard layout. */
+  presentationScope?: string;
   onInsert: (notification: WorkspaceNotification, context: RealtimeInsertContext) => void;
   onUpdate: (notification: WorkspaceNotification) => void;
   onReconcile: () => void;
@@ -66,6 +68,7 @@ function isFreshInsert(notification: WorkspaceNotification, mountedAt: number) {
 }
 
 export function useWorkspaceNotificationRealtime({
+  presentationScope = "unscoped",
   onInsert,
   onUpdate,
   onReconcile,
@@ -78,17 +81,22 @@ export function useWorkspaceNotificationRealtime({
 
   useEffect(() => {
     const mountedAt = Date.now();
-    const handledInTab = readIds(sessionStorage, SESSION_HANDLED_KEY);
+    // Scope per authenticated user AND workspace, not just browser/device.
+    // Front desk computers may be shared by different employees.
+    const handledKey = `${SESSION_HANDLED_KEY}:${presentationScope}`;
+    const browserKey = `${BROWSER_HANDLED_KEY}:${presentationScope}`;
+    const channelName = `${CHANNEL_NAME}:${presentationScope}`;
+    const handledInTab = readIds(sessionStorage, handledKey);
     const supabase = createClient();
     const coordinationChannel =
-      typeof BroadcastChannel === "undefined" ? null : new BroadcastChannel(CHANNEL_NAME);
+      typeof BroadcastChannel === "undefined" ? null : new BroadcastChannel(channelName);
     let subscribedOnce = false;
     let disposed = false;
     let hiddenAt: number | null = null;
 
     const rememberInTab = (notificationId: string) => {
       handledInTab.add(notificationId);
-      writeIds(sessionStorage, SESSION_HANDLED_KEY, handledInTab);
+      writeIds(sessionStorage, handledKey, handledInTab);
     };
 
     const claimVisiblePresentation = async (notification: WorkspaceNotification) => {
@@ -100,14 +108,14 @@ export function useWorkspaceNotificationRealtime({
       const claim = () => {
         if (handledInTab.has(notification.id)) return;
 
-        const browserHandled = readIds(localStorage, BROWSER_HANDLED_KEY);
+        const browserHandled = readIds(localStorage, browserKey);
         if (browserHandled.has(notification.id)) {
           rememberInTab(notification.id);
           return;
         }
 
         browserHandled.add(notification.id);
-        writeIds(localStorage, BROWSER_HANDLED_KEY, browserHandled);
+        writeIds(localStorage, browserKey, browserHandled);
         rememberInTab(notification.id);
         coordinationChannel?.postMessage({
           type: "handled",
@@ -117,7 +125,7 @@ export function useWorkspaceNotificationRealtime({
       };
 
       if ("locks" in navigator && navigator.locks) {
-        await navigator.locks.request(`cradlehub-notification:${notification.id}`, claim);
+        await navigator.locks.request(`cradlehub-notification:${presentationScope}:${notification.id}`, claim);
         return;
       }
 
@@ -202,12 +210,12 @@ export function useWorkspaceNotificationRealtime({
       coordinationChannel?.close();
       void supabase.removeChannel(channel);
     };
-  }, []);
+  }, [presentationScope]);
 }
 
-export function broadcastNotificationReconciliation() {
+export function broadcastNotificationReconciliation(presentationScope = "unscoped") {
   if (typeof BroadcastChannel === "undefined") return;
-  const channel = new BroadcastChannel(CHANNEL_NAME);
+  const channel = new BroadcastChannel(`${CHANNEL_NAME}:${presentationScope}`);
   channel.postMessage({ type: "reconcile" } satisfies NotificationChannelMessage);
   channel.close();
 }

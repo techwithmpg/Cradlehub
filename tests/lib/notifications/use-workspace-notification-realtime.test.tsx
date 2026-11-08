@@ -163,6 +163,36 @@ describe("useWorkspaceNotificationRealtime", () => {
     ).toHaveLength(0);
   });
 
+  it("does not reuse handled-popup IDs between employees sharing a front-desk browser", () => {
+    const firstInsert = vi.fn();
+    const first = renderHook(() =>
+      useWorkspaceNotificationRealtime({
+        presentationScope: "user-a:crm",
+        onInsert: firstInsert,
+        onUpdate: vi.fn(),
+        onReconcile: vi.fn(),
+      })
+    );
+    const event = notification();
+    const insertA = mocks.handlers.filter((entry) => entry.event === "INSERT").at(-1)!;
+    act(() => insertA.handler({ new: event }));
+    expect(firstInsert.mock.calls.filter(([, ctx]) => ctx.present)).toHaveLength(1);
+    first.unmount();
+
+    const secondInsert = vi.fn();
+    renderHook(() =>
+      useWorkspaceNotificationRealtime({
+        presentationScope: "user-b:crm",
+        onInsert: secondInsert,
+        onUpdate: vi.fn(),
+        onReconcile: vi.fn(),
+      })
+    );
+    const insertB = mocks.handlers.filter((entry) => entry.event === "INSERT").at(-1)!;
+    act(() => insertB.handler({ new: event }));
+    expect(secondInsert.mock.calls.filter(([, ctx]) => ctx.present)).toHaveLength(1);
+  });
+
   it("applies UPDATE events and reconciles after a Realtime reconnect", () => {
     const onUpdate = vi.fn();
     const onReconcile = vi.fn();

@@ -3,6 +3,7 @@
 import { useTransition } from "react";
 import Link from "next/link";
 import type { WorkspaceNotification } from "@/lib/notifications/types";
+import { canDismissNotification } from "@/lib/notifications/presentation-policy";
 import {
   markNotificationReadAction,
   dismissNotificationAction,
@@ -179,7 +180,7 @@ export function NotificationCard({ notification: n, onMarkRead, onDismiss }: Pro
               Mark read
             </button>
           )}
-          <button
+          {canDismissNotification(n) ? <button
             type="button"
             onClick={handleDismiss}
             style={{
@@ -192,7 +193,7 @@ export function NotificationCard({ notification: n, onMarkRead, onDismiss }: Pro
             }}
           >
             Dismiss
-          </button>
+          </button> : null}
         </div>
       </div>
     </div>

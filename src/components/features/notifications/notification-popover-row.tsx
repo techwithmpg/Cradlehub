@@ -18,6 +18,7 @@ import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import type { WorkspaceNotification } from "@/lib/notifications/types";
+import { canDismissNotification } from "@/lib/notifications/presentation-policy";
 import {
   dismissNotificationAction,
   markNotificationReadAction,
@@ -214,7 +215,7 @@ export function NotificationPopoverRow({
             </button>
           ) : null}
 
-          <button
+          {canDismissNotification(notification) ? <button
             type="button"
             onClick={handleDismiss}
             disabled={isPending || isDismissing}
@@ -223,7 +224,7 @@ export function NotificationPopoverRow({
           >
             <X className="size-3.5" aria-hidden="true" />
             <span className="sr-only">Dismiss notification</span>
-          </button>
+          </button> : null}
         </div>
       </div>
 
