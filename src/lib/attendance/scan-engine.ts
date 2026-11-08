@@ -2744,7 +2744,15 @@ async function processAttendanceScan(
     activeCheckin.attendance_policy_source = dynamicPolicy.source;
     activeCheckin.attendance_policy_snapshot = dynamicPolicy.snapshot;
 
-    if (!activeCheckinMatchesSchedule) {
+    // A current-day open check-in at this branch must be clocked out,
+    // even when there is no matching schedule (e.g. an unscheduled shift).
+    // A prior-day or different-branch open check-in still needs recovery/review.
+    const activeCheckinIsCurrentBusinessDayAtThisBranch =
+      (activeCheckin.attendance_business_date ?? activeCheckin.shift_date) ===
+        branchNow.businessDate &&
+      activeCheckin.branch_id === point.branch_id;
+
+    if (!activeCheckinMatchesSchedule && !activeCheckinIsCurrentBusinessDayAtThisBranch) {
       const recoveryClockOutAt = resolveStaleAttendanceRecoveryClockOutAt({
         checkedInAt: activeCheckin.checked_in_at,
         provisionalAutoClosedAt: activeCheckin.provisional_auto_closed_at,

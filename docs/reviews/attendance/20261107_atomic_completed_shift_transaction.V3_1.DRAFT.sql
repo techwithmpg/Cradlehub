@@ -669,9 +669,9 @@ begin
               and split_part(v_shift_instance_key, '|', 5) ~ '^window:[0-9]+$'
               and split_part(checkin_row.shift_instance_key, '|', 5) ~ '^window:[0-9]+$'
               and split_part(v_shift_instance_key, '|', 5) <> split_part(checkin_row.shift_instance_key, '|', 5)
-              and split_part(v_shift_instance_key, '|', 8) = 'weekly'
-              and split_part(checkin_row.shift_instance_key, '|', 8) = 'weekly'
-              and nullif(p_checkin_insert->>'schedule_source', '') = 'weekly'
+              and split_part(v_shift_instance_key, '|', 8) in ('weekly', 'override')
+              and split_part(checkin_row.shift_instance_key, '|', 8) in ('weekly', 'override')
+              and nullif(p_checkin_insert->>'schedule_source', '') = split_part(v_shift_instance_key, '|', 8)
               and split_part(v_shift_instance_key, '|', 1) = p_staff_id::text
               and split_part(v_shift_instance_key, '|', 2) = p_branch_id::text
               and split_part(v_shift_instance_key, '|', 3) = v_eval_business_date::text

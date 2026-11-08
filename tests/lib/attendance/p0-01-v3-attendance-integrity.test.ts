@@ -115,6 +115,15 @@ const overnightShiftSchedule = {
   ],
 };
 
+const unscheduledStaffSchedule = {
+  source: "individual" as const,
+  status: "resolved" as const,
+  state: "VALID_SCHEDULE" as const,
+  isWorking: false,
+  isDayOff: false,
+  windows: [],
+};
+
 const splitShiftSchedule = {
   source: "individual" as const,
   status: "resolved" as const,
@@ -166,6 +175,7 @@ const adjacentOpenCloseSchedule = {
 function queryChain(result: unknown) {
   const chain: Record<string, unknown> = {
     select: vi.fn(() => chain),
+    update: vi.fn(() => chain),
     eq: vi.fn(() => chain),
     neq: vi.fn(() => chain),
     in: vi.fn(() => chain),
@@ -260,6 +270,36 @@ const adminClient = {
       return queryChain({ data: harness.existingShiftRows, error: null });
     }
     return queryChain({ data: null, error: null });
+  }),
+  rpc: vi.fn((funcName: string) => {
+    const res =
+      funcName === "recalculate_attendance_clock_out_policy"
+        ? {
+            data: {
+              checkin_id: "test",
+              attendance_policy_source: "schedule",
+            },
+            error: null,
+          }
+        : {
+            data: {
+              success: true,
+              operation_result: {
+                ok: true,
+                outcome: "success",
+                title: "All set",
+                message: "Recovered",
+                reasonCode: "stale_checkin_recovered_and_clocked_in",
+              },
+            },
+            error: null,
+          };
+    return {
+      ...res,
+      maybeSingle: vi.fn(async () => res),
+      then: (onFulfilled: (value: unknown) => unknown, onRejected?: (error: unknown) => unknown) =>
+        Promise.resolve(res).then(onFulfilled, onRejected),
+    };
   }),
 };
 
@@ -711,5 +751,83 @@ describe("P0-01 V3: Consolidated attendance integrity", () => {
         ],
       })
     ).toBe(false);
+  });
+
+  it("13. allows unscheduled staff member to clock out cleanly on the same business date and branch", async () => {
+    harness.activeSchedule = unscheduledStaffSchedule;
+    harness.openCheckinRows = [
+      {
+        id: "checkin-unscheduled-today",
+        staff_id: "staff-p0a",
+        branch_id: "branch-p0a",
+        shift_date: "2026-11-05",
+        shift_type: "single",
+        shift_instance_key:
+          "staff-p0a|branch-p0a|2026-11-05|single|none|none|none|unscheduled|none",
+        checked_in_at: "2026-11-05T03:00:00.000Z",
+        checked_out_at: null,
+        status: "checked_in",
+        attendance_business_date: "2026-11-05",
+        is_test: false,
+      },
+    ];
+
+    const result = await runScanAt("2026-11-05T11:00:00.000Z");
+
+    expect(result.outcome).toBe("success");
+    expect(result.attendance?.action).toBe("clock_out");
+    expect(result.title).toContain("checked out");
+    const committed = harness.commitInputs[0] as unknown as AttendanceScanCommitInput;
+    expect(committed.checkinUpdate).toBeDefined();
+    expect(committed.checkinUpdate?.status).toBe("checked_out");
+    expect(committed.checkinInsert).toBeUndefined();
+  });
+
+  it("14. routes prior-business-day open check-in to stale recovery even when unscheduled", async () => {
+    harness.activeSchedule = unscheduledStaffSchedule;
+    harness.openCheckinRows = [
+      {
+        id: "checkin-stale-yesterday",
+        staff_id: "staff-p0a",
+        branch_id: "branch-p0a",
+        shift_date: "2026-11-04",
+        shift_type: "single",
+        shift_instance_key:
+          "staff-p0a|branch-p0a|2026-11-04|single|none|none|none|unscheduled|none",
+        checked_in_at: "2026-11-04T03:00:00.000Z",
+        checked_out_at: null,
+        status: "checked_in",
+        attendance_business_date: "2026-11-04",
+        is_test: false,
+      },
+    ];
+
+    const result = await runScanAt("2026-11-05T03:00:00.000Z");
+
+    expect(result.reasonCode).toBe("stale_checkin_recovered_and_clocked_in");
+  });
+
+  it("15. does not clock out open check-in from another branch", async () => {
+    harness.activeSchedule = unscheduledStaffSchedule;
+    harness.openCheckinRows = [
+      {
+        id: "checkin-other-branch",
+        staff_id: "staff-p0a",
+        branch_id: "branch-other",
+        shift_date: "2026-11-05",
+        shift_type: "single",
+        shift_instance_key:
+          "staff-p0a|branch-other|2026-11-05|single|none|none|none|unscheduled|none",
+        checked_in_at: "2026-11-05T03:00:00.000Z",
+        checked_out_at: null,
+        status: "checked_in",
+        attendance_business_date: "2026-11-05",
+        is_test: false,
+      },
+    ];
+
+    const result = await runScanAt("2026-11-05T05:00:00.000Z");
+
+    expect(result.attendance?.action).not.toBe("clock_out");
   });
 });
