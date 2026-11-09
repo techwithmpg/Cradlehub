@@ -14,6 +14,7 @@ on:
       - "public/cradlehub-push-sw.js"
       - "tests/lib/home-service/confirmed-driver-notification.test.ts"
       - "tests/lib/pwa/driver-dispatch-policy.test.ts"
+      - "tests/lib/pwa/driver-dispatch-actions.test.ts"
       - "tests/lib/notifications/cradlehub-push-service-worker.test.ts"
       - ".github/workflows/driver-home-service-hotfix-qa.yml"
   workflow_dispatch:
@@ -38,7 +39,7 @@ jobs:
       - name: TypeScript type-check
         run: pnpm type-check
       - name: Targeted driver / push regression tests
-        run: pnpm exec vitest run tests/lib/home-service/confirmed-driver-notification.test.ts tests/lib/pwa/driver-dispatch-policy.test.ts tests/lib/notifications/cradlehub-push-service-worker.test.ts tests/lib/notifications/push-delivery-targeting.test.ts tests/lib/pwa/driver-wiring.test.ts tests/lib/pwa/driver-native-ui.test.tsx
+        run: pnpm exec vitest run tests/lib/home-service/confirmed-driver-notification.test.ts tests/lib/pwa/driver-dispatch-policy.test.ts tests/lib/pwa/driver-dispatch-actions.test.ts tests/lib/notifications/cradlehub-push-service-worker.test.ts tests/lib/notifications/push-delivery-targeting.test.ts tests/lib/pwa/driver-wiring.test.ts tests/lib/pwa/driver-native-ui.test.tsx
       - name: Targeted ESLint
         run: >
           pnpm exec eslint
@@ -49,6 +50,7 @@ jobs:
           src/components/features/staff-pwa/driver/driver-dispatch-wake-listener.tsx
           src/components/features/staff-portal/driver/driver-mobile-shell.tsx
           tests/lib/pwa/driver-dispatch-policy.test.ts
+          tests/lib/pwa/driver-dispatch-actions.test.ts
           src/app/'(dashboard)'/staff/driver/map
           src/app/'(dashboard)'/staff/driver/routes
           src/components/features/staff-pwa/driver/driver-live-route.tsx
