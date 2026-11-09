@@ -235,12 +235,13 @@ function ServiceActions({
 }
 
 export function CrmBookingsOperationsGrid({
-  bookings, date, businessDate, initialQuickFilter, initialSelectedId,
+  bookings, date, businessDate, overdueReview = false, initialQuickFilter, initialSelectedId,
   services, staff, rooms, onNewBooking, onChanged, onRefresh, isRefreshing, paymentAction, hasSheetReferences,
 }: {
   bookings: WorkspaceBookingRow[];
   date: string;
   businessDate?: string;
+  overdueReview?: boolean;
   initialQuickFilter: string;
   initialSelectedId?: string;
   services: Option[];
@@ -283,7 +284,7 @@ export function CrmBookingsOperationsGrid({
       return candidates.some((candidate) => {
         const state = resolveBookingLifecycleState(candidate);
         if (!bookingMatchesQuickFilter(candidate, quickFilter)) return false;
-        if (tab === "today" && candidate.booking_date !== date) return false;
+        if (tab === "today" && !overdueReview && candidate.booking_date !== date) return false;
         if (tab === "upcoming" && state !== "upcoming" && state !== "checked_in") return false;
         if (tab === "in_service" && state !== "in_service") return false;
         if (tab === "completed" && state !== "completed") return false;
@@ -299,7 +300,7 @@ export function CrmBookingsOperationsGrid({
       const order = a.line.booking_date.localeCompare(b.line.booking_date) || a.line.start_time.localeCompare(b.line.start_time);
       return sort === "desc" ? -order : order;
     });
-  }, [groups, mode, search, tab, date, quickFilter, statusFilter, serviceFilter, staffFilter, roomFilter, sort]);
+  }, [groups, mode, search, tab, date, overdueReview, quickFilter, statusFilter, serviceFilter, staffFilter, roomFilter, sort]);
 
   function selectLine(id: string) {
     setSelection({ id, source: incomingSelectedId });
