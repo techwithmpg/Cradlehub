@@ -162,10 +162,14 @@ function safeActionHref(
   notification: WorkspaceNotification,
   workspace: PushSubscriptionRow["workspace"]
 ) {
-  // CRM links resolve within the authenticated CRM workspace. A consolidated
-  // pending queue has no individual booking ID and must not open /staff/work.
-  if (workspace === "crm") return resolveNotificationHref({ ...notification, target_workspace: "crm" }) ?? "/crm";
-  if (["staff", "driver", "utility"].includes(workspace)) return staffNoticeHref(notification, workspace);
+  // Only the new pending-confirmation digest needs a branch-wide CRM queue
+  // route. Leave every other existing workspace routing contract untouched.
+  const metadata = notification.metadata;
+  if (workspace === "crm" && metadata && typeof metadata === "object" && !Array.isArray(metadata) &&
+      (metadata as Record<string, unknown>).pending_confirmation_digest === true) {
+    return resolveNotificationHref({ ...notification, target_workspace: "crm" }) ?? "/crm";
+  }
+  if (["staff", "driver", "utility", "crm"].includes(workspace)) return staffNoticeHref(notification, workspace);
   const context = workspace as NotificationWorkspaceContext;
   return (
     resolveNotificationHref({
