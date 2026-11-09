@@ -50,6 +50,10 @@ import {
 } from "@/lib/notifications/workflow-signals";
 import { recalculateAttendanceClockOutPolicy } from "@/lib/attendance/dynamic-clock-out";
 import { resolveStaleAttendanceRecoveryClockOutAt } from "@/lib/attendance/stale-recovery";
+import {
+  isOpenShiftForCurrentAttendanceDay,
+  mayOpenScheduledAttendance,
+} from "@/lib/attendance/clock-in-authority";
 import { verifyAttendanceGeofence } from "@/lib/attendance/geofence-server";
 import type { AttendanceLocation, GeofenceFailure } from "@/lib/attendance/geofence";
 
@@ -2388,6 +2392,21 @@ function buildCountdown(
   };
 }
 
+function blockedClockInIntent(scanIntent: AttendanceScanIntent): AttendanceScanIntent {
+  return {
+    ...scanIntent,
+    type: "outside_schedule_window",
+    action: "recovery_required",
+    reasonCode: "outside_schedule_window",
+    requiresRecovery: true,
+    shouldWriteAttendance: false,
+    severity: "warning",
+    title: "Clock-in not recorded",
+    message:
+      "Clock-in is allowed from one hour before the authorized shift until shift end. This scan was captured for CSR review; no new attendance session was opened.",
+  };
+}
+
 async function recordAttendanceRecoveryIntent(params: {
   admin: AttendanceDb;
   point: QrPointRow;
@@ -2647,6 +2666,48 @@ async function processAttendanceScan(
     businessDate: branchNow.businessDate,
     branchTimezone: branchNow.timezone,
   });
+  const canOpenNewShift = mayOpenScheduledAttendance({
+    scanIso: nowIso,
+    schedule: scanIntent.schedule,
+    resolvedSchedule: schedule.resolvedSchedule,
+  });
+  const openShiftIsCurrentBusinessDay = activeCheckin
+    ? isOpenShiftForCurrentAttendanceDay({
+        openBranchId: activeCheckin.branch_id,
+        openAttendanceBusinessDate: activeCheckin.attendance_business_date ?? null,
+        openShiftDate: activeCheckin.shift_date,
+        scannedBranchId: point.branch_id,
+        scannedBusinessDate: branchNow.businessDate,
+      })
+    : false;
+  const captureInvalidClockIn = () =>
+    recordAttendanceRecoveryIntent({
+      admin,
+      point,
+      device,
+      ctx,
+      staffName,
+      staffNickname,
+      intent: blockedClockInIntent(scanIntent),
+      scannedAt: nowIso,
+      branchLocalTime: branchNow.time,
+      branchTimezone: branchNow.timezone,
+      businessDate: branchNow.businessDate,
+      isTest,
+      testMetadata,
+      commit,
+    });
+
+  // Reject a fresh clock-in BEFORE recalculating or recovering an older row.
+  // Captured out-of-window scans must not mutate the prior attendance session.
+  if (
+    activeCheckin &&
+    !activeCheckinMatchesSchedule &&
+    !openShiftIsCurrentBusinessDay &&
+    (!canOpenNewShift || scanIntent.action !== "clock_in" || !scanIntent.shouldWriteAttendance)
+  ) {
+    return captureInvalidClockIn();
+  }
 
   if (activeCheckin) {
     const nowIso = new Date().toISOString();
@@ -2661,7 +2722,10 @@ async function processAttendanceScan(
     activeCheckin.attendance_policy_source = dynamicPolicy.source;
     activeCheckin.attendance_policy_snapshot = dynamicPolicy.snapshot;
 
-    if (!activeCheckinMatchesSchedule) {
+    // After midnight, an open same-business-day shift must clock OUT.
+    // Only a genuinely stale prior shift may enter atomic stale recovery.
+    if (!activeCheckinMatchesSchedule && !openShiftIsCurrentBusinessDay) {
+      // Eligibility was checked before any stale-recovery side effect.
       const recoveryClockOutAt = resolveStaleAttendanceRecoveryClockOutAt({
         checkedInAt: activeCheckin.checked_in_at,
         provisionalAutoClosedAt: activeCheckin.provisional_auto_closed_at,
@@ -2848,11 +2912,13 @@ async function processAttendanceScan(
             )
           ? "overtime_clock_out"
           : "clock_out";
-    const clockOutReasonCode = activeCheckinMatchesSchedule
+    const clockOutMatchesCurrentAttendanceDay =
+      activeCheckinMatchesSchedule || openShiftIsCurrentBusinessDay;
+    const clockOutReasonCode = clockOutMatchesCurrentAttendanceDay
       ? timingReasonCode
       : "stale_open_checkin";
     const anomalyCodes = [
-      ...(activeCheckinMatchesSchedule ? [] : ["stale_open_checkin"]),
+      ...(clockOutMatchesCurrentAttendanceDay ? [] : ["stale_open_checkin"]),
       ...(timingReasonCode === "clock_out" ? [] : [timingReasonCode]),
     ];
     const needsClockOutReview = anomalyCodes.length > 0;
@@ -2888,8 +2954,10 @@ async function processAttendanceScan(
     const exception =
       anomalyCodes.length > 0
         ? {
-            exceptionType: activeCheckinMatchesSchedule ? timingReasonCode : "stale_open_checkin",
-            message: !activeCheckinMatchesSchedule
+            exceptionType: clockOutMatchesCurrentAttendanceDay
+              ? timingReasonCode
+              : "stale_open_checkin",
+            message: !clockOutMatchesCurrentAttendanceDay
               ? `${staffName}'s sole open attendance record was closed even though it did not match the current schedule.`
               : metrics.earlyLeaveMinutes > 0
                 ? `${staffName} clocked out ${formatMinutesCompact(metrics.earlyLeaveMinutes)} early.`
@@ -2946,6 +3014,7 @@ async function processAttendanceScan(
           shiftInstance,
           anomalyCodes,
           activeCheckinMatchesSchedule,
+          openShiftIsCurrentBusinessDay,
           scannedBranchId: point.branch_id,
           attendanceRecordBranchId: activeCheckin.branch_id,
         },
@@ -3085,6 +3154,12 @@ async function processAttendanceScan(
       deviceScanType: "attendance",
     });
     return committed.result;
+  }
+
+  // Apply the same server boundary to ordinary, ambiguous and unscheduled
+  // first scans before any attendance insert is attempted.
+  if (scanIntent.action === "clock_in" && !canOpenNewShift) {
+    return captureInvalidClockIn();
   }
 
   if (scanIntent.requiresRecovery && !scanIntent.shouldWriteAttendance) {

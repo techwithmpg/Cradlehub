@@ -86,6 +86,15 @@ describe("resolveAttendanceScanIntent", () => {
     expect(intent.requiresRecovery).toBe(false);
   });
 
+  it("accepts a full one-hour early window even when stored branch settings say 30 minutes", () => {
+    const result = resolveAttendanceScanIntent(
+      input({ scanTime: "08:00:00", scanIso: "2026-07-10T00:00:00.000Z" })
+    );
+    expect(result.type).toBe("early_clock_in");
+    expect(result.action).toBe("clock_in");
+    expect(result.shouldWriteAttendance).toBe(true);
+  });
+
   it("classifies a late scan inside the clock-in window as late clock-in", () => {
     const intent = resolveAttendanceScanIntent(input({ scanTime: "09:30:00" }));
     expect(intent.type).toBe("late_clock_in");
