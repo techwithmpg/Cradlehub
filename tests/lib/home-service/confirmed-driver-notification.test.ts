@@ -69,7 +69,7 @@ describe("confirmed Home Service driver notice", () => {
         targetWorkspace: "driver",
         recipientStaffId: "driver-1",
         type: "home_service_assigned",
-        actionHref: "/staff/driver/routes/booking-1",
+        actionHref: "/staff/driver/map?bookingId=booking-1",
         dedupeKey: "booking:booking-1:confirmed:driver:driver-1",
       })
     );
