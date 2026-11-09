@@ -2698,6 +2698,17 @@ async function processAttendanceScan(
       commit,
     });
 
+  // Reject a fresh clock-in BEFORE recalculating or recovering an older row.
+  // Captured out-of-window scans must not mutate the prior attendance session.
+  if (
+    activeCheckin &&
+    !activeCheckinMatchesSchedule &&
+    !openShiftIsCurrentBusinessDay &&
+    (!canOpenNewShift || scanIntent.action !== "clock_in" || !scanIntent.shouldWriteAttendance)
+  ) {
+    return captureInvalidClockIn();
+  }
+
   if (activeCheckin) {
     const nowIso = new Date().toISOString();
     const dynamicPolicy = await recalculateAttendanceClockOutPolicy(
@@ -2714,10 +2725,7 @@ async function processAttendanceScan(
     // After midnight, an open same-business-day shift must clock OUT.
     // Only a genuinely stale prior shift may enter atomic stale recovery.
     if (!activeCheckinMatchesSchedule && !openShiftIsCurrentBusinessDay) {
-      // Stale recovery never grants permission to start an unauthorized shift.
-      if (!canOpenNewShift || scanIntent.action !== "clock_in" || !scanIntent.shouldWriteAttendance) {
-        return captureInvalidClockIn();
-      }
+      // Eligibility was checked before any stale-recovery side effect.
       const recoveryClockOutAt = resolveStaleAttendanceRecoveryClockOutAt({
         checkedInAt: activeCheckin.checked_in_at,
         provisionalAutoClosedAt: activeCheckin.provisional_auto_closed_at,
