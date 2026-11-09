@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback } from "react";
+import { useCallback, useEffect } from "react";
 import { refreshDispatchDataAction } from "@/lib/actions/dispatch-data-actions";
 import type { DispatchData } from "@/lib/queries/dispatch-queries";
 import { useGenerationAwareWorkspaceSWR } from "@/components/features/dashboard/use-workspace-generation";
@@ -49,10 +49,36 @@ export function useLiveCrmDispatchData(params: {
     [params.date, params.selectedBookingId, params.upcoming]
   );
 
-  return useGenerationAwareWorkspaceSWR<DispatchData>(
+  const result = useGenerationAwareWorkspaceSWR<DispatchData>(
     "crm-dispatch",
     requestKey,
     fetcher,
     params.fallbackData
   );
+
+  // The CRM live dispatch map must refresh while open even when the driver
+  // is reporting GPS independently of a booking status transition.
+  // Reuse the existing generation-aware request, never a second data source.
+  const { revalidate } = result;
+  const { isActive } = result.generation;
+  useEffect(() => {
+    if (!isActive || params.upcoming) return;
+    const refreshVisible = () => {
+      if (document.visibilityState === "visible") {
+        void revalidate().catch(() => {});
+      }
+    };
+    const timer = window.setInterval(refreshVisible, 20000);
+    window.addEventListener("focus", refreshVisible);
+    window.addEventListener("online", refreshVisible);
+    document.addEventListener("visibilitychange", refreshVisible);
+    return () => {
+      window.clearInterval(timer);
+      window.removeEventListener("focus", refreshVisible);
+      window.removeEventListener("online", refreshVisible);
+      document.removeEventListener("visibilitychange", refreshVisible);
+    };
+  }, [isActive, params.upcoming, revalidate]);
+
+  return result;
 }
