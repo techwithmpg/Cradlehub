@@ -45,8 +45,8 @@ export const INTERNATIONAL_EMAIL_REQUIRED_MESSAGE =
   "Please include an email address for an international number so Cradle can contact you if calling or SMS is unavailable.";
 
 export function isValidInternationalContactNumber(value: string): boolean {
-  const compact = value.trim().replace(/[\\s()-]/g, "");
-  return /^\\+[1-9]\\d{7,14}$/.test(compact) && !compact.startsWith("+63");
+  const compact = value.trim().replace(/[\s()-]/g, "");
+  return /^\+[1-9]\d{7,14}$/.test(compact) && !compact.startsWith("+63");
 }
 
 export function isValidPublicContactNumber(value: string): boolean {
