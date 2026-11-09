@@ -224,6 +224,7 @@ export function CrmBookingsView({
         branchName={payload.branchName}
         date={payload.date}
         businessDate={payload.businessDate}
+        overdueReview={isOverdue}
         statusFilter={statusFilter}
         typeFilter={typeFilter}
         referenceSource={referenceSource}
