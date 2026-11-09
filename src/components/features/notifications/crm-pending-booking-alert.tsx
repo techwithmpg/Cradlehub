@@ -6,6 +6,7 @@ import { toast } from "sonner";
 
 import { getCrmPendingBookingSnapshotAction } from "@/app/(dashboard)/crm/pending-booking-actions";
 import { BOOKINGS_CHANGED_EVENT } from "@/lib/bookings/bookings-client-events";
+import { broadcastPendingCrmQueue } from "@/lib/notifications/pending-booking-client-events";
 import {
   pendingBookingPresentation,
   type PendingCrmBookingSnapshot,
@@ -64,6 +65,7 @@ export function CrmPendingBookingAlert({
     try {
       const snapshot: PendingCrmBookingSnapshot = await getCrmPendingBookingSnapshotAction();
       if (!active.current || !snapshot.ok) return;
+      broadcastPendingCrmQueue({ count: snapshot.pendingCount, onDuty: snapshot.onDuty, checkedAt: snapshot.checkedAt });
 
       const one = snapshot.onDuty && snapshot.pendingCount === 1 ? snapshot.first : null;
       const toastId = one ? "crm-pending-confirmation:" + userId + ":" + branchId + ":" + one.id : null;
