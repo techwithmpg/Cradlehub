@@ -1,6 +1,7 @@
 "use client";
 
 import { useMemo } from "react";
+import Link from "next/link";
 import type { CrmTodaySnapshot } from "@/lib/queries/crm-today";
 import type { ReadinessIssue, ReadinessStatus } from "@/types/readiness";
 import { CradleFlowDashboard } from "./cradle-flow-dashboard";
@@ -75,7 +76,16 @@ export function CrmTodayShell({
   const activeData = data ?? fallbackOperationalData;
 
   return (
-    <CradleFlowDashboard
+    <>
+      {(activeData.overduePendingCount ?? 0) > 0 ? (
+        <div role="status" className="mb-2 flex flex-wrap items-center justify-between gap-2 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-950">
+          <span>{activeData.overduePendingCount} past-dated booking line(s) still need CSR review.</span>
+          <Link href="/crm/bookings?overdue=true&tab=needs-action" className="font-semibold underline">
+            Review pending bookings
+          </Link>
+        </div>
+      ) : null}
+      <CradleFlowDashboard
       duty={duty}
       handoverConfirmed={handoverConfirmed}
       branchName={branchName}
@@ -93,6 +103,7 @@ export function CrmTodayShell({
       onRefresh={revalidate}
       isRefreshing={generation.isRefreshing}
       refreshError={error}
-    />
+      />
+    </>
   );
 }
