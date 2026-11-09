@@ -10,6 +10,7 @@ import {
 } from "@/lib/schedule/resolve-staff-schedule";
 import { timeToMinutes } from "@/lib/utils/time-format";
 import type { AttendanceSettings } from "@/lib/attendance/types";
+import { EARLIEST_CLOCK_IN_MINUTES } from "@/lib/attendance/clock-in-authority";
 
 const DAY_MINUTES = 24 * 60;
 
@@ -271,7 +272,7 @@ function isInClockInWindow(params: {
   return inWindowMinutes({
     scanTime: params.scanTime,
     window: params.window,
-    start: start - params.settings.clock_in_window_before_shift_minutes,
+    start: start - EARLIEST_CLOCK_IN_MINUTES,
     end: start + params.settings.clock_in_window_after_shift_start_minutes,
   });
 }
