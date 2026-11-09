@@ -54,7 +54,7 @@ export async function notifyConfirmedHomeServiceDriver(
       body: `Your assigned trip on ${booking.booking_date} at ${booking.start_time} is confirmed. Tap to view your route.`,
       entityType: "booking",
       entityId: booking.id,
-      actionHref: `/staff/driver/routes/${booking.id}`,
+      actionHref: `/staff/driver/map?bookingId=${booking.id}`,
       priority: "high",
       requiresAction: true,
       dedupeKey: `booking:${booking.id}:confirmed:driver:${driver.id}`,
