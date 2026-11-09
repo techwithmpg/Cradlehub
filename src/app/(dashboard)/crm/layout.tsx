@@ -14,6 +14,7 @@ import { CoachBubble } from "@/components/agent/coach-bubble";
 import { InlineTip } from "@/components/agent/inline-tip";
 import { AdministrativeBookingModalProvider } from "@/components/features/bookings/administrative-booking-modal-provider";
 import { CrmBookingsRealtimeBridge } from "@/components/features/bookings/crm-bookings-realtime-bridge";
+import { CrmPendingBookingAlert } from "@/components/features/notifications/crm-pending-booking-alert";
 import { GlobalServiceStartProvider } from "@/components/features/bookings/global-service-start-provider";
 import { GlobalServiceCompletionProvider } from "@/components/features/bookings/global-service-completion-provider";
 import { getAgentCoachAvailability } from "@/lib/agents/config";
@@ -59,6 +60,9 @@ export default async function CrmLayout({ children }: { children: React.ReactNod
   return (
     <>
       {branchId ? <CrmBookingsRealtimeBridge branchId={branchId} /> : null}
+      {branchId && frontDesk.role === "crm" && process.env.CRADLEHUB_PENDING_BOOKING_ALERTS_ENABLED === "true" ? (
+        <CrmPendingBookingAlert branchId={branchId} userId={frontDesk.userId} />
+      ) : null}
 
       {/* Background route warm-up for CRM workspace */}
       <WorkspaceRoutePrefetcher

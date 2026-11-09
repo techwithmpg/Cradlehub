@@ -162,6 +162,13 @@ function safeActionHref(
   notification: WorkspaceNotification,
   workspace: PushSubscriptionRow["workspace"]
 ) {
+  // Only the new pending-confirmation digest needs a branch-wide CRM queue
+  // route. Leave every other existing workspace routing contract untouched.
+  const metadata = notification.metadata;
+  if (workspace === "crm" && metadata && typeof metadata === "object" && !Array.isArray(metadata) &&
+      (metadata as Record<string, unknown>).pending_confirmation_digest === true) {
+    return resolveNotificationHref({ ...notification, target_workspace: "crm" }) ?? "/crm";
+  }
   if (["staff", "driver", "utility", "crm"].includes(workspace)) return staffNoticeHref(notification, workspace);
   const context = workspace as NotificationWorkspaceContext;
   return (
@@ -275,7 +282,7 @@ export async function sendWebPushToSubscription(input: {
 
 export async function deliverWorkspaceNotificationPush(
   notification: WorkspaceNotification,
-  options?: { skipSubscriptionIds?: ReadonlySet<string> }
+  options?: { skipSubscriptionIds?: ReadonlySet<string>; eligibleStaffIds?: ReadonlySet<string> }
 ): Promise<PushDeliveryResult> {
   const result: PushDeliveryResult = {
     attempted: 0,
@@ -346,7 +353,8 @@ export async function deliverWorkspaceNotificationPush(
           : undefined,
         ownerPreferences.get(subscription.auth_user_id) ??
           "home_service_and_urgent"
-      ) && !options?.skipSubscriptionIds?.has(subscription.id)
+      ) && !options?.skipSubscriptionIds?.has(subscription.id) &&
+      (!options?.eligibleStaffIds || (Boolean(subscription.staff_id) && options.eligibleStaffIds.has(subscription.staff_id!)))
     );
     result.attempted = eligible.length;
 

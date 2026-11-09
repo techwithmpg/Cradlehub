@@ -10,6 +10,7 @@ import { cn } from "@/lib/utils";
 import { notifyBookingsChanged } from "@/lib/bookings/bookings-client-events";
 import { getNotificationBellSnapshot } from "@/lib/notifications/queries";
 import { shouldPresentActionPopup } from "@/lib/notifications/presentation-policy";
+import { PENDING_CRM_QUEUE_EVENT, type PendingCrmQueueEvent } from "@/lib/notifications/pending-booking-client-events";
 import type { WorkspaceNotification } from "@/lib/notifications/types";
 import { NotificationBellDropdown } from "./notification-bell-dropdown";
 import { BookingNotificationSound } from "./booking-notification-sound";
@@ -68,12 +69,13 @@ function serviceTransitionEventId(notification: WorkspaceNotification): string |
   return typeof id === "string" ? id : null;
 }
 
-export function NotificationBell({ role, userId, toastOnly = false }: { role: string; userId?: string; toastOnly?: boolean }) {
+export function NotificationBell({ role, userId, toastOnly = false, smartPendingBookings = false }: { role: string; userId?: string; toastOnly?: boolean; smartPendingBookings?: boolean }) {
   const router = useRouter();
   const [count, setCount] = useState(0);
   const [items, setItems] = useState<WorkspaceNotification[]>([]);
   const [open, setOpen] = useState(false);
   const [fetching, setFetching] = useState(false);
+  const [pendingCrmQueue, setPendingCrmQueue] = useState<PendingCrmQueueEvent | null>(null);
   const knownIdsRef = useRef(new Set<string>());
   const knownStatusRef = useRef(new Map<string, WorkspaceNotification["status"]>());
   const deferredRef = useRef(new Map<string, WorkspaceNotification>());
@@ -84,6 +86,22 @@ export function NotificationBell({ role, userId, toastOnly = false }: { role: st
   const ownerOnly = canonicalRole === "owner";
   const presentationScope = `${userId ?? "anonymous"}:${canonicalRole}`;
   const href = WORKSPACE_HREF[canonicalRole] ?? "/owner/notifications";
+
+  // The current booking status/count is server-owned; notification rows may be
+  // stale or missing. Use the authenticated CRM snapshot to label the bell.
+  useEffect(() => {
+    if (!smartPendingBookings || canonicalRole !== "crm") {
+      setPendingCrmQueue(null);
+      return;
+    }
+    const update = (event: Event) => {
+      const value = (event as CustomEvent<PendingCrmQueueEvent>).detail;
+      if (!value || !Number.isSafeInteger(value.count) || value.count < 0) return;
+      setPendingCrmQueue(value);
+    };
+    window.addEventListener(PENDING_CRM_QUEUE_EVENT, update);
+    return () => window.removeEventListener(PENDING_CRM_QUEUE_EVENT, update);
+  }, [smartPendingBookings, canonicalRole]);
 
   const refreshNotifications = useCallback(async () => {
     setFetching(true);
@@ -215,6 +233,9 @@ export function NotificationBell({ role, userId, toastOnly = false }: { role: st
       // Service transition presentation belongs to the existing service
       // lifecycle provider; keep booking refresh but avoid a duplicate toast.
       if (serviceTransitionEventId(notification)) return;
+      // Smart CRM booking confirmation owns single-vs-grouped presentation.
+      // Existing bell storage/realtime still owns the underlying shared notice.
+      if (smartPendingBookings && canonicalRole === "crm" && notification.type === "booking_created") return;
       if (!shouldPresentActionPopup(notification)) return;
       if (knownStatusRef.current.get(notification.id) !== "unread") return;
 
@@ -224,7 +245,7 @@ export function NotificationBell({ role, userId, toastOnly = false }: { role: st
       }
       showActionPopup(notification);
     },
-    [ownerOnly, isSafePresentationMoment, showActionPopup]
+    [ownerOnly, canonicalRole, smartPendingBookings, isSafePresentationMoment, showActionPopup]
   );
 
   const handleRealtimeUpdate = useCallback((notification: WorkspaceNotification) => {
@@ -342,6 +363,8 @@ export function NotificationBell({ role, userId, toastOnly = false }: { role: st
         >
           <NotificationBellDropdown
             items={items}
+            smartPendingBookings={smartPendingBookings && canonicalRole === "crm"}
+            pendingCrmCount={pendingCrmQueue?.count ?? null}
             roleHref={href}
             unreadCount={count}
             isLoading={fetching}

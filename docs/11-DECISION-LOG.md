@@ -1,5 +1,10 @@
 # Decision Log
 
+## P1 Notification Reliability — pending booking confirmations — 2026-11-09
+
+| ID | Date | Status | Decision | Limits |
+| --- | --- | --- | --- | --- |
+| NOTIF-N4-001 | 2026-11-09 | OWNER APPROVED / ISOLATED DRAFT REVIEW | Extend the existing Web P1 Notification Reliability program on `fix/web-p1-pending-booking-alerts-20261109` for pending CRM booking confirmation only. Preserve N1/N2/N3; implement shift-aware queue presentation, single popup versus grouped bell notices, 10-minute on-duty reminders, protected scheduled browser push, and committed-booking resolution reconciliation. | Scope is pending confirmation only; no new notification module, automatic booking expiry, customer SMS, attendance mutation, production SQL, deployment, direct-main writes or merge. Existing active branch work preserved. SQL lease is review-only outside migrations; TEST, independent review and owner release approval required. |
 
 ## Customer booking SMS — 2026-11-08
 

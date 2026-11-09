@@ -73,7 +73,12 @@ export async function createOrUpdateNotification(input: CreateNotificationInput)
     // Delivery happens only for the process that won the insert. Dedupe updates
     // do not resend the same durable notification ID. The dispatcher catches
     // every endpoint/configuration failure so persistence and bookings succeed.
-    await deliverWorkspaceNotificationPush(inserted);
+    // The opt-in pending-booking scheduler consolidates CSR pushes by branch
+    // and respects staffed hours; do not send an immediate night-time push.
+    if (!(process.env.CRADLEHUB_PENDING_BOOKING_ALERTS_ENABLED === "true" &&
+      inserted.target_workspace === "crm" && inserted.type === "booking_created")) {
+      await deliverWorkspaceNotificationPush(inserted);
+    }
     return true;
   }
   if (isUniqueViolation(error)) {
