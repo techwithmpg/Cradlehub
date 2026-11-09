@@ -158,23 +158,13 @@ export function BookingsDesktopWorkspace(props: DesktopWorkspaceProps) {
       return allGroups;
     }
     const businessDate = props.businessDate ?? props.date;
-    if (props.overdueReview) {
-      // The normal schedule hides unattended past appointments; intentional
-      // CSR review must not hide unresolved historical requests.
-      return allGroups.filter((group) =>
-        group.lines.some((line) =>
-          ["pending", "pending_payment", "pending_crm_confirmation"].includes(line.status) &&
-          line.booking_date < businessDate
-        )
-      );
-    }
     return allGroups.filter((group) =>
       isOperationalBookingGroup(group, {
         businessDate,
         clockTime: props.clockTime,
       })
     );
-  }, [allGroups, props.workspaceContext, props.businessDate, props.date, props.clockTime, props.overdueReview]);
+  }, [allGroups, props.workspaceContext, props.businessDate, props.date, props.clockTime]);
 
   // Collect unique options for dropdowns
   const availableServices = useMemo(() => {
