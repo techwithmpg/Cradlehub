@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
-import { APIProvider, Map, Marker, useMap, useMapsLibrary } from "@vis.gl/react-google-maps";
+import { APIProvider, Map as GoogleMap, Marker, useMap, useMapsLibrary } from "@vis.gl/react-google-maps";
 import { AlertTriangle, LocateFixed, MapPin, Navigation, RefreshCw } from "lucide-react";
 import {
   calculateDriverCombinedRouteAction,
@@ -206,7 +206,7 @@ export function DriverCombinedDispatchMap({
       {MAPS_KEY && (next || origin) ? (
         <div className="relative h-[48dvh] min-h-[300px] overflow-hidden rounded-2xl border border-[#d2e0d3]">
           <APIProvider apiKey={MAPS_KEY}>
-            <Map defaultCenter={mapCenter} defaultZoom={13} gestureHandling="greedy"
+            <GoogleMap defaultCenter={mapCenter} defaultZoom={13} gestureHandling="greedy"
               mapTypeControl={false} streetViewControl={false} fullscreenControl={false}
               style={{ width: "100%", height: "100%" }}>
               {ordered.map((job, index) => (
@@ -215,7 +215,7 @@ export function DriverCombinedDispatchMap({
               ))}
               {origin ? <Marker position={origin} title="Your current GPS position" /> : null}
               {route ? <CombinedRoadOverlay encodedPolyline={route.encodedPolyline} /> : null}
-            </Map>
+            </GoogleMap>
           </APIProvider>
         </div>
       ) : (
