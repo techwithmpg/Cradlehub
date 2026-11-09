@@ -82,7 +82,7 @@ export async function assignHomeServiceDriver(
   const { data: booking, error: bookingError } = await client
     .from("bookings")
     .select(
-      "id, branch_id, delivery_type, type, driver_id, booking_date, start_time"
+      "id, branch_id, delivery_type, type, driver_id, booking_date, start_time, status"
     )
     .eq("id", bookingId)
     .maybeSingle();
@@ -206,7 +206,9 @@ export async function assignHomeServiceDriver(
       });
     }
 
-    if (driverId) {
+    // Pending requests are not confirmed trips. The CRM confirmation transition
+    // sends the definitive notice when the booking becomes confirmed.
+    if (driverId && ["confirmed", "in_progress"].includes(booking.status)) {
       await createNotification({
         branchId: booking.branch_id,
         targetWorkspace: "driver",
@@ -216,7 +218,7 @@ export async function assignHomeServiceDriver(
         body: `A confirmed trip is assigned to you on ${booking.booking_date} at ${booking.start_time}.`,
         entityType: "booking",
         entityId: booking.id,
-        actionHref: `/driver/jobs/${booking.id}`,
+        actionHref: `/staff/driver/routes/${booking.id}`,
         priority: "high",
         requiresAction: true,
         dedupeKey: `booking:${booking.id}:driver_assignment:${driverId}`,
