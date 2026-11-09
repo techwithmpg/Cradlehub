@@ -1618,24 +1618,9 @@ export async function confirmHomeServiceHandoff(
     dedupeKey: `booking:${booking.id}:home_service_handoff:staff:${booking.staff_id}`,
   });
 
-  await createNotification({
-    branchId: booking.branch_id,
-    targetWorkspace: "driver",
-    recipientStaffId: booking.driver_id,
-    type: "home_service_assigned",
-    title: "Home Service trip ready",
-    body: "This Home Service booking is confirmed. Open the trip when you are ready to begin travel.",
-    entityType: "booking",
-    entityId: booking.id,
-    actionHref: `/staff/driver/routes/${booking.id}`,
-    priority: "high",
-    requiresAction: true,
-    dedupeKey: `booking:${booking.id}:home_service_handoff:driver:${booking.driver_id}`,
-    metadata: {
-      destinationLat: gps.lat,
-      destinationLng: gps.lng,
-    },
-  });
+  // Use the same immutable confirmation notice as CRM confirmation / driver assignment.
+  // A subsequent Confirm & Dispatch click must not generate another phone alert.
+  await notifyConfirmedHomeServiceDriver(booking.id, booking.branch_id);
 
   revalidateOperationalBookingSurfaces(booking.branch_id);
   revalidatePath("/crm/dispatch");
