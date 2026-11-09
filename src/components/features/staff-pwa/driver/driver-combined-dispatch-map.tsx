@@ -133,7 +133,7 @@ export function DriverCombinedDispatchMap({
         setAccuracy(coords.accuracy);
         setGpsError(null);
       },
-      () => setGpsError("Location permission is required for a live route. You can still open Google Maps."),
+      () => setGpsError("Allow location access for the CradleHub map and CRM live tracking."),
       { enableHighAccuracy: true, maximumAge: 10000, timeout: 15000 }
     );
     return () => navigator.geolocation.clearWatch(watcher);
@@ -162,7 +162,7 @@ export function DriverCombinedDispatchMap({
       if (version === requestVersion.current) {
         lastCalculated.current = { at: Date.now(), pos: point, fingerprint: nextFingerprint };
         setRoute(null);
-        setRouteError("Route service unavailable. Use Open in Maps.");
+        setRouteError("Road route is unavailable. Check your connection or ask CRM for assistance.");
       }
     } finally {
       if (version === requestVersion.current) setRouting(false);
@@ -281,7 +281,7 @@ export function DriverCombinedDispatchMap({
         </div>
       ) : (
         <div className="rounded-xl border border-[#d2e0d3] bg-[#eef2ed] p-5 text-sm">
-          {MAPS_KEY ? "No confirmed routes assigned for this date." : "Google Maps is not configured for embedded display."}
+          {MAPS_KEY ? "No confirmed routes assigned for this date." : "In-app map is not configured. Contact CRM."}
         </div>
       )}
       {fetchError ? <p role="alert" className="text-sm text-red-800">{fetchError}</p> : null}
