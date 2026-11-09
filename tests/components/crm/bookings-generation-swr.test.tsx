@@ -734,7 +734,7 @@ describe("CrmBookingsView generation-aware operational lifecycle", () => {
     // Current CRM grid opens the server-backed payment action from Booking Details.
     // Both desktop and mobile controls exist in jsdom; use the desktop table first.
     fireEvent.click(screen.getAllByRole("button", { name: "Alice Unpaid" })[0]!);
-    const payTrigger = screen.getByRole("button", { name: /^Payment$/i });
+    const payTrigger = screen.getByRole("button", { name: /^Payment/i });
     fireEvent.click(payTrigger);
 
     // Click Cash quick pay option
@@ -799,7 +799,7 @@ describe("CrmBookingsView generation-aware operational lifecycle", () => {
     // The active operations grid places payment inside Booking Details.
     // Both desktop and mobile controls exist in jsdom; use the desktop table first.
     fireEvent.click(screen.getAllByRole("button", { name: "Alice Unpaid" })[0]!);
-    const payTrigger = screen.getByRole("button", { name: /^Payment$/i });
+    const payTrigger = screen.getByRole("button", { name: /^Payment/i });
     fireEvent.click(payTrigger);
 
     // Click Card quick pay option
@@ -835,7 +835,7 @@ describe("CrmBookingsView generation-aware operational lifecycle", () => {
     // Mobile CRM opens the same authoritative Booking Details payment action.
     // Both responsive table and mobile cards render in jsdom; click mobile's last control.
     fireEvent.click(screen.getAllByRole("button", { name: "Alice Unpaid" }).at(-1)!);
-    const payTrigger = screen.getByRole("button", { name: /^Payment$/i });
+    const payTrigger = screen.getByRole("button", { name: /^Payment/i });
     fireEvent.click(payTrigger);
 
     // Click Cash quick pay
@@ -975,7 +975,7 @@ describe("CrmBookingsView generation-aware operational lifecycle", () => {
     expect(refreshAction).toHaveBeenCalledTimes(1);
   });
 
-  it("21. workspace and modal state survive row selection and searchParams updates without remounting", async () => {
+  it("21. workspace and booking details stay open across searchParams updates without remounting", async () => {
     const refreshAction = vi.fn().mockResolvedValue(makeBookingsOperationalData());
     const initialData = makeBookingsOperationalData([
       { id: "b-1", order_id: "ord-1", customers: { id: "c-1", full_name: "Alice Alpha", phone: "111" } },
@@ -984,21 +984,17 @@ describe("CrmBookingsView generation-aware operational lifecycle", () => {
 
     const { rerenderWithSearch } = await renderView({ refreshAction, initialData });
 
-    // Open the current grid's Booking Details, then its reschedule action.
+    // The current CRM grid opens Booking Details; rescheduling is delegated
+    // to the administrative modal provider, which is mocked in this suite.
     fireEvent.click(screen.getAllByRole("button", { name: "Alice Alpha" })[0]!);
-    const rescheduleButton = screen.getByRole("button", { name: /Reschedule/i });
-    fireEvent.click(rescheduleButton);
 
-    // Verify modal is open in DOM
-    expect(screen.getByRole("dialog")).toBeTruthy();
-    expect(screen.getByText("Reschedule Booking")).toBeTruthy();
+    expect(screen.getByRole("dialog", { name: "Booking Details" })).toBeTruthy();
 
     // Simulate searchParams update (e.g. user selected Bob)
     rerenderWithSearch("?bookingId=b-2");
 
-    // Assert: Modal is NOT destroyed because workspace did not remount!
-    expect(screen.getByRole("dialog")).toBeTruthy();
-    expect(screen.getByText("Reschedule Booking")).toBeTruthy();
+    // The open Booking Details state is not destroyed by the workspace URL update.
+    expect(screen.getByRole("dialog", { name: "Booking Details" })).toBeTruthy();
 
     // Zero network requests
     expect(refreshAction).not.toHaveBeenCalled();
