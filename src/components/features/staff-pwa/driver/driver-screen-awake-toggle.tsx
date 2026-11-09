@@ -10,7 +10,12 @@ export function DriverScreenAwakeToggle() {
   const [error, setError] = useState<string | null>(null);
 
   const acquire = useCallback(async () => {
-    if (!("wakeLock" in navigator) || document.visibilityState !== "visible") return;
+    if (!("wakeLock" in navigator)) {
+      setError("Screen wake mode is unsupported on this browser.");
+      setActive(false);
+      return;
+    }
+    if (document.visibilityState !== "visible") return;
     try {
       const granted = await navigator.wakeLock.request("screen");
       sentinel.current = granted;
@@ -39,8 +44,8 @@ export function DriverScreenAwakeToggle() {
     if (sentinel.current) void sentinel.current.release();
   }, []);
 
-  const supported = typeof navigator !== "undefined" && "wakeLock" in navigator;
-  if (!supported) return null;
+  // Render the same control on server and client; feature detection happens
+  // only after a tap so SSR and PWA hydration do not disagree.
   return (
     <div className="flex flex-wrap items-center justify-between gap-2 rounded-xl border border-[#d2e0d3] bg-white p-3">
       <div className="min-w-0">
