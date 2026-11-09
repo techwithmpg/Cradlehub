@@ -13,6 +13,7 @@ import { AgentCoachProvider } from "@/components/agent/agent-context-provider";
 import { CoachBubble } from "@/components/agent/coach-bubble";
 import { InlineTip } from "@/components/agent/inline-tip";
 import { AdministrativeBookingModalProvider } from "@/components/features/bookings/administrative-booking-modal-provider";
+import { CrmBookingsRealtimeBridge } from "@/components/features/bookings/crm-bookings-realtime-bridge";
 import { GlobalServiceStartProvider } from "@/components/features/bookings/global-service-start-provider";
 import { GlobalServiceCompletionProvider } from "@/components/features/bookings/global-service-completion-provider";
 import { getAgentCoachAvailability } from "@/lib/agents/config";
@@ -57,6 +58,8 @@ export default async function CrmLayout({ children }: { children: React.ReactNod
 
   return (
     <>
+      {branchId ? <CrmBookingsRealtimeBridge branchId={branchId} /> : null}
+
       {/* Background route warm-up for CRM workspace */}
       <WorkspaceRoutePrefetcher
         config={CRM_PREFETCH}
