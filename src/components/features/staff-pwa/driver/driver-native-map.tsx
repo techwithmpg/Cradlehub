@@ -76,15 +76,13 @@ export function DriverNativeMap({
               <div className="mt-4 grid gap-2">
                 {next.bookingProgressStatus === "not_started" ? (
                   <DriverStartTravelButton bookingId={next.id} navigationUrl={next.navigationUrl} />
-                ) : next.navigationUrl ? (
-                  <a
-                    href={next.navigationUrl}
-                    target="_blank"
-                    rel="noopener noreferrer"
+                ) : next.bookingProgressStatus === "travel_started" ? (
+                  <Link
+                    href={`/staff/driver/map?bookingId=${encodeURIComponent(next.id)}`}
                     className="flex min-h-12 items-center justify-center gap-2 rounded-xl bg-[#163a2b] px-4 text-sm font-semibold text-white"
                   >
-                    <Navigation size={17} aria-hidden="true" /> Open in Maps
-                  </a>
+                    <Navigation size={17} aria-hidden="true" /> Continue in-app route
+                  </Link>
                 ) : null}
                 <Link
                   href={next.detailsHref}
