@@ -190,6 +190,7 @@ function pushPayload(
 ) {
   return JSON.stringify({
     notificationId: notification.id,
+    type: notification.type,
     title: safeAttendanceNoticeCopy(notification).title.slice(0, 120),
     body: (safeAttendanceNoticeCopy(notification).body ?? "Open CradleHub to view this update.").slice(0, 280),
     actionHref: safeActionHref(notification, subscription.workspace),
