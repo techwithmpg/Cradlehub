@@ -64,7 +64,7 @@ export function DriverTripAlerts() {
       } catch { setReadiness("error"); }
     };
     void read();
-    void reloadAlert();
+    const firstCheck = window.setTimeout(() => void reloadAlert(), 0);
     const onResume = () => { if (document.visibilityState === "visible") void reloadAlert(); };
     const timer = window.setInterval(() => {
       if (document.visibilityState === "visible") void reloadAlert();
@@ -73,6 +73,7 @@ export function DriverTripAlerts() {
     window.addEventListener("focus", onResume);
     window.addEventListener("online", onResume);
     return () => {
+      window.clearTimeout(firstCheck);
       window.clearInterval(timer);
       document.removeEventListener("visibilitychange", onResume);
       window.removeEventListener("focus", onResume);
