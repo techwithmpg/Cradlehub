@@ -50,12 +50,13 @@ SELECT COUNT(*) AS recent_posted_booking_order_payments,
        COUNT(*) FILTER (
           WHERE o.id IS NOT NULL AND o.branch_id IS DISTINCT FROM t.branch_id
        ) AS branch_mismatch,
-       COUNT(*) FILTER (WHERE m.id IS NULL) AS no_financial_movement
+       COUNT(*) FILTER (WHERE NOT EXISTS (
+         SELECT 1 FROM public.financial_account_movements m
+         WHERE m.transaction_id=t.id
+       )) AS no_financial_movement
 FROM public.financial_transactions t
 LEFT JOIN public.booking_orders o
   ON t.source_type='booking_order' AND t.source_id=o.id::text
-LEFT JOIN public.financial_account_movements m
-  ON m.transaction_id=t.id
 WHERE t.created_at >= now()-interval '90 days'
   AND t.source_type='booking_order'
   AND t.transaction_type IN ('customer_payment','customer_deposit')
