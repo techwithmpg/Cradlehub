@@ -1,0 +1,55 @@
+name: Driver Native Navigation Foundation QA
+on:
+  pull_request:
+    paths:
+      - "native/driver-android/**"
+      - "src/app/api/staff/driver/native-itinerary/**"
+      - "tests/lib/pwa/driver-native-itinerary.test.ts"
+      - ".github/workflows/driver-native-navsdk-qa.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  server-contract:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 10.33.2
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "24"
+          cache: "pnpm"
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm type-check
+      - run: pnpm exec vitest run tests/lib/pwa/driver-native-itinerary.test.ts
+      - run: pnpm exec eslint src/app/api/staff/driver/native-itinerary/route.ts tests/lib/pwa/driver-native-itinerary.test.ts
+
+  android-foundation:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "17"
+      # GitHub Ubuntu Android runner already includes Android command line tools.
+      # setup-android@v3 currently attempts a removed sdkmanager "tools" package.
+      - name: Install Android API 36
+        run: |
+          SDK_MANAGER="$(find "$ANDROID_HOME/cmdline-tools" -type f -name sdkmanager | sort -V | tail -1)"
+          test -x "$SDK_MANAGER"
+          "$SDK_MANAGER" --install "platforms;android-36" "build-tools;36.0.0"
+      - uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: "9.1.0"
+      - name: Compile isolated Android SDK foundation (no keys or production targets)
+        working-directory: native/driver-android
+        run: gradle :app:assembleDebug --no-daemon --stacktrace
+      # APK is deliberately not published until package name, keys, Firebase
+      # config, native device acceptance and owner approvals are verified.
