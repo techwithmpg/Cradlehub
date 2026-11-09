@@ -14,6 +14,7 @@ export async function GET(req: NextRequest) {
   const { searchParams } = req.nextUrl;
   const date = searchParams.get("date") ?? undefined;
   const upcoming = searchParams.get("tab") === "upcoming";
+  const overdue = searchParams.get("overdue") === "true" && !upcoming;
   const bookingId = searchParams.get("bookingId") ?? searchParams.get("highlight") ?? undefined;
 
   try {
@@ -24,6 +25,7 @@ export async function GET(req: NextRequest) {
       role: ctx.role,
       date,
       upcoming,
+      overdue,
       bookingId,
       client: supabase,
     });
