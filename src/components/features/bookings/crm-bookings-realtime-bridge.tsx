@@ -23,6 +23,7 @@ export function CrmBookingsRealtimeBridge({ branchId }: { branchId: string }) {
     let disposed = false;
     let reconcileTimer: ReturnType<typeof setTimeout> | null = null;
     let subscribed = false;
+    let lastFocusRecoveryAt = Date.now();
 
     const reconcile = () => {
       if (disposed) return;
@@ -62,16 +63,25 @@ export function CrmBookingsRealtimeBridge({ branchId }: { branchId: string }) {
       if (document.visibilityState === "visible") reconcile();
     };
     const onOnline = () => reconcile();
+    const onFocus = () => {
+      // Focus can fire repeatedly while staff use drawers and other windows.
+      // Limit recovery reads; active realtime events are not throttled here.
+      if (Date.now() - lastFocusRecoveryAt < 30_000) return;
+      lastFocusRecoveryAt = Date.now();
+      reconcile();
+    };
 
     // Reconcile after sleep/offline even if the realtime socket missed events.
     document.addEventListener("visibilitychange", onVisibilityChange);
     window.addEventListener("online", onOnline);
+    window.addEventListener("focus", onFocus);
 
     return () => {
       disposed = true;
       if (reconcileTimer) clearTimeout(reconcileTimer);
       document.removeEventListener("visibilitychange", onVisibilityChange);
       window.removeEventListener("online", onOnline);
+      window.removeEventListener("focus", onFocus);
       void supabase.removeChannel(channel);
     };
   }, [branchId]);
