@@ -1,0 +1,8 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+  <string name="app_name">CradleHub Driver</string>
+  <string name="navigate">Open live navigation</string>
+  <string name="back_to_driver">Back to CradleHub</string>
+  <string name="nav_loading">Loading assigned route…</string>
+  <string name="nav_error">Navigation unavailable. Return to CradleHub and ask CRM.</string>
+</resources>
