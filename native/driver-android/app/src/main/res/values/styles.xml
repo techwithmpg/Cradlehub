@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+  <style name="Theme.CradleDriver" parent="Theme.AppCompat.Light.NoActionBar">
+    <item name="colorAccent">#163A2B</item>
+    <item name="android:windowLightStatusBar">true</item>
+    <item name="android:statusBarColor">#F6F8F5</item>
+    <item name="android:navigationBarColor">#163A2B</item>
+  </style>
+</resources>
