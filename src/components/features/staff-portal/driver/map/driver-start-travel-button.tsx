@@ -13,7 +13,6 @@ type DriverStartTravelButtonProps = {
 
 export function DriverStartTravelButton({
   bookingId,
-  navigationUrl: _navigationUrl,
 }: DriverStartTravelButtonProps) {
   const router = useRouter();
   const [pending, startTransition] = useTransition();
