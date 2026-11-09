@@ -19,12 +19,16 @@ export function mayOpenScheduledAttendance(input: {
     !schedule.selectedWindow ||
     !schedule.scheduledStartAt ||
     !schedule.scheduledEndAt
-  ) return false;
+  ) {
+    return false;
+  }
 
   const scan = Date.parse(input.scanIso);
   const start = Date.parse(schedule.scheduledStartAt);
   const end = Date.parse(schedule.scheduledEndAt);
-  if (![scan, start, end].every(Number.isFinite) || end <= start) return false;
+  if (![scan, start, end].every(Number.isFinite) || end <= start) {
+    return false;
+  }
 
   // Late first scans during an authorized shift retain existing review behavior.
   // Established clock-outs and last-service extensions are NOT gated here.
