@@ -34,7 +34,7 @@ export function staffNoticeHref(notice: Pick<WorkspaceNotification, "type" | "en
   if (workspace === "driver" && notice.entity_type === "booking" && notice.entity_id) {
     const id = encodeURIComponent(notice.entity_id);
     return notice.type === "home_service_assigned"
-      ? `/staff/driver/routes/${id}`
+      ? `/staff/driver/map?bookingId=${id}`
       : `/staff/driver/trips/${id}`;
   }
   if (workspace === "driver") return "/staff/driver";
