@@ -732,7 +732,8 @@ describe("CrmBookingsView generation-aware operational lifecycle", () => {
     expect(screen.getAllByText("Alice Unpaid").length).toBeGreaterThan(0);
 
     // Current CRM grid opens the server-backed payment action from Booking Details.
-    fireEvent.click(screen.getByRole("button", { name: "Alice Unpaid" }));
+    // Both desktop and mobile controls exist in jsdom; use the desktop table first.
+    fireEvent.click(screen.getAllByRole("button", { name: "Alice Unpaid" })[0]!);
     const payTrigger = screen.getByRole("button", { name: /^Payment$/i });
     fireEvent.click(payTrigger);
 
@@ -796,7 +797,8 @@ describe("CrmBookingsView generation-aware operational lifecycle", () => {
     expect(refreshAction).not.toHaveBeenCalled();
 
     // The active operations grid places payment inside Booking Details.
-    fireEvent.click(screen.getByRole("button", { name: "Alice Unpaid" }));
+    // Both desktop and mobile controls exist in jsdom; use the desktop table first.
+    fireEvent.click(screen.getAllByRole("button", { name: "Alice Unpaid" })[0]!);
     const payTrigger = screen.getByRole("button", { name: /^Payment$/i });
     fireEvent.click(payTrigger);
 
@@ -831,7 +833,8 @@ describe("CrmBookingsView generation-aware operational lifecycle", () => {
     expect(screen.getAllByText("Alice Unpaid").length).toBeGreaterThan(0);
 
     // Mobile CRM opens the same authoritative Booking Details payment action.
-    fireEvent.click(screen.getByRole("button", { name: "Alice Unpaid" }));
+    // Both responsive table and mobile cards render in jsdom; click mobile's last control.
+    fireEvent.click(screen.getAllByRole("button", { name: "Alice Unpaid" }).at(-1)!);
     const payTrigger = screen.getByRole("button", { name: /^Payment$/i });
     fireEvent.click(payTrigger);
 
@@ -982,7 +985,7 @@ describe("CrmBookingsView generation-aware operational lifecycle", () => {
     const { rerenderWithSearch } = await renderView({ refreshAction, initialData });
 
     // Open the current grid's Booking Details, then its reschedule action.
-    fireEvent.click(screen.getByRole("button", { name: "Alice Alpha" }));
+    fireEvent.click(screen.getAllByRole("button", { name: "Alice Alpha" })[0]!);
     const rescheduleButton = screen.getByRole("button", { name: /Reschedule/i });
     fireEvent.click(rescheduleButton);
 
