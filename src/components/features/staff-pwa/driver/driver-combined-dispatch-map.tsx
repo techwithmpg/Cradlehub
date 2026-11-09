@@ -11,6 +11,7 @@ import {
   type DriverCombinedRouteResult,
 } from "@/app/(dashboard)/staff/driver/map/actions";
 import { isValidDriverDestination } from "@/lib/staff-pwa/driver-dispatch-policy";
+import { DriverScreenAwakeToggle } from "./driver-screen-awake-toggle";
 
 const MAPS_KEY = process.env.NEXT_PUBLIC_GOOGLE_MAPS_BROWSER_KEY ?? "";
 const POLL_MS = 20000;
@@ -256,6 +257,7 @@ export function DriverCombinedDispatchMap({
           </a>
         ) : <span className="inline-flex min-h-12 items-center justify-center rounded-xl border text-xs">No next stop</span>}
       </div>
+      <DriverScreenAwakeToggle />
       <section className="rounded-2xl border border-[#d9e0d8] bg-white p-3">
         <h2 className="px-1 text-sm font-bold text-[#163a2b]">Driver stop sequence</h2>
         <p className="mt-1 px-1 text-xs text-[#66776d]">
