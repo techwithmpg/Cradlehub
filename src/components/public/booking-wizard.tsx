@@ -56,7 +56,8 @@ import { createInhouseBookingMultiAction } from "@/lib/actions/inhouse-booking";
 import { validateBookingDraft } from "@/lib/bookings/booking-wizard-validation";
 import {
   getPublicPhoneFieldFeedback,
-  isValidPhilippineMobileNumber,
+  isValidPublicContactNumber,
+  needsInternationalEmailFallback,
 } from "@/lib/bookings/philippine-mobile";
 import type { BookingForChoice, BookingPaymentChoice } from "@/lib/bookings/booking-order-contract";
 import type { HomeServiceDistanceQuote } from "@/lib/home-service/distance-service";
@@ -1362,7 +1363,8 @@ export function BookingWizard({
                 : currentStepName === "details"
                   ? form.fullName.trim().length >= 2 &&
                     (mode === "public"
-                      ? isValidPhilippineMobileNumber(form.phone)
+                      ? isValidPublicContactNumber(form.phone) &&
+                        (!needsInternationalEmailFallback(form.phone) || !!form.email?.trim())
                       : form.phone.trim().length >= 7) &&
                     hsAddressFilled &&
                     (mode !== "inhouse" ||
