@@ -27,16 +27,6 @@ function getDriverAction(status: DispatchStatus): ActionBtn | null {
   }
 }
 
-function getNavUrl(item: RealDispatchItem): string | null {
-  if (item.lat !== null && item.lng !== null) {
-    return `https://www.google.com/maps/dir/?api=1&destination=${item.lat},${item.lng}&travelmode=driving`;
-  }
-  if (item.formattedAddress) {
-    return `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(item.formattedAddress)}`;
-  }
-  return null;
-}
-
 export function DriverJobDetailsPage({
   job,
   backHref = "/staff-portal/jobs",
@@ -48,7 +38,7 @@ export function DriverJobDetailsPage({
   const [isPending, startTransition] = useTransition();
   const [error, setError] = useState<string | null>(null);
   const action = getDriverAction(job.dispatchStatus);
-  const navUrl = getNavUrl(job);
+  const inAppRoute = `/staff/driver/map?bookingId=${encodeURIComponent(job.id)}`;
   const address = job.formattedAddress ?? job.area;
 
   function handleAction(nextStatus: "travel_started" | "arrived") {
@@ -58,7 +48,7 @@ export function DriverJobDetailsPage({
         const result = await updateBookingProgressAction({ bookingId: job.id, nextStatus });
         if (!result.ok) { setError(result.message); return; }
         router.refresh();
-        if (nextStatus === "travel_started" && navUrl) window.location.assign(navUrl);
+        if (nextStatus === "travel_started") router.push(inAppRoute);
       } catch {
         setError("Trip update could not be confirmed. Refresh before retrying.");
       }
@@ -101,12 +91,10 @@ export function DriverJobDetailsPage({
             <div style={{ fontSize: 13, color: "var(--cs-text-muted)" }}>No address available</div>
           )}
 
-          {navUrl && (
-            <a href={navUrl} target="_blank" rel="noopener noreferrer" style={{ display: "inline-flex", alignItems: "center", gap: 5, marginTop: "0.25rem", padding: "0.5rem 0.875rem", borderRadius: 10, border: "1px solid var(--cs-border)", backgroundColor: "var(--cs-surface-warm)", color: "var(--cs-staff-accent)", textDecoration: "none", fontSize: 12, fontWeight: 600, alignSelf: "flex-start" }}>
-              <Navigation size={13} />
-              View on Map
-            </a>
-          )}
+          <Link href={inAppRoute} style={{ display: "inline-flex", alignItems: "center", gap: 5, marginTop: "0.25rem", padding: "0.5rem 0.875rem", borderRadius: 10, border: "1px solid var(--cs-border)", backgroundColor: "var(--cs-surface-warm)", color: "var(--cs-staff-accent)", textDecoration: "none", fontSize: 12, fontWeight: 600, alignSelf: "flex-start" }}>
+            <Navigation size={13} />
+            View route in CradleHub
+          </Link>
         </div>
 
         {/* Service info */}
