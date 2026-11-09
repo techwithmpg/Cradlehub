@@ -68,3 +68,30 @@ On clean branch using Node 24 / pnpm 10.33.2:
 - **Before merge:** close PR / delete branch after review, with no production impact.
 - **If later deployed:** revert hotfix commits via reviewed revert PR and redeploy previous accepted Web release; no schema rollback.
 - Persisted notifications from deployed period are not removed by code rollback; existing route links on old notifications should remain safe (auth denies or missing page), and should be assessed before rollback.
+
+## Nov 9 follow-up: Persistent PWA + combined multi-stop route (review-only)
+
+**Owner change request**: Driver PWA must behave like a persistent dispatch workspace. Confirmed Home Service notification should open the in-app map; multiple confirmed assigned bookings should appear as one road route, nearest reachable stop first unless an imminent booked time or already-started trip takes precedence.
+
+**Verified browser limitation (MDN):** A background service worker cannot consistently force a new browser/PWA window without user activation. Notification click opens the installed app on supported OS/browser; a foreground, visible driver PWA can navigate internally from a trusted push-worker message. Timers/GPS cannot be promised when the OS suspends a background PWA. No assertion of background turn-by-turn parity with a native Grab app.
+
+### Additional implementation
+- Canonical `/staff/driver/map?bookingId=<uuid>` route. Its server action first authorizes the signed-in driver and booking assignment before fetching active confirmed jobs for the correct booking date.
+- Existing single-trip `/staff/driver/routes/[bookingId]` deep link safely redirects to the combined route after checking assignment, preserving compatibility; no second driver map created.
+- Foreground driver shell listener reacts only to validated push-worker dispatch messages and navigates to canonical map. The push worker sends only to visible same-origin `/staff/driver` clients, still displays the OS notification, and does not attempt background auto-open. Existing unrelated notification behavior retained.
+- Map refreshes authorized booking snapshots on visible/online/focus events and at a 20-second visible-only interval, clearing stale geometry after assignment/status changes. Current GPS marker updates while screen is active; route is recomputed on new assignments or after 500m movement with a minimum 90-second interval (manual refresh available).
+- Server-side Google Routes Matrix computes driving durations between up to eight validated assigned stops. Greedy road-time nearest next stop, with an actively started trip locked first and urgent appointments prioritized. The resulting ordered stops become one multi-waypoint Google Routes polyline. If matrix unavailable, fallback is explicitly *schedule order*, never falsely labelled nearest. Invalid customer coordinates are excluded with a visible CRM correction warning. More than eight active stops remain visible in Trips and are reported as excluded from the current bounded route; no infinite costly API fanout.
+- A visible-app **opt-in** Screen Wake Lock control can keep the navigation screen awake where supported. It cannot defeat OS background restrictions, low battery policies, denied permissions or force-launch behavior.
+- Booking times and assignments are not modified, driver progress is not auto-started, CRM/attendance/payment remain untouched, no DB migrations.
+- New pure ordering tests, authenticated route-action mock tests (unauthorized/unknown booking cannot call Google Routes), and push-service-worker foreground/background tests included.
+
+### Test findings / release gates
+- Initial combined-route workflow on this follow-up: TypeScript found a `Map` JSX/native collection naming collision; corrected in review branch.
+- Subsequent workflow TypeScript passed but unit regression found that route-matrix indices were reordered before reading the matrix, resulting in incorrect first-stop sequencing. Corrected by preserving input index positions before ordering.
+- **Latest complete quality-gate result must be obtained from the PR's newest head**. Earlier CI success on the prior single-stop branch does not certify the follow-up.
+- The Next.js production build has previously failed in GitHub CI because the isolated runner had no Supabase URL during unrelated page prerendering. This is an **environment/build evidence blocker**, not proof that the live app builds or deploys. Configure isolated TEST Supabase public environment before treating any build as PASS; never use production secrets in public logs or bypass authorization.
+- Required acceptance: 0/1/2/8/+8 stops, no route on pending booking, booking date context, nearest road order (not raw straight-line), in-route stop pinned, imminent appointment precedence, booking reschedule/reassignment/cancellation, bad GPS, network loss/reconnect, no replays of dismissed notices, no duplicate background app launches, opt-in push and Screen Wake Lock, actual Android/iOS installed PWA tests, Google billing limits/Maps config, live device GPS tracking behavior with real permission.
+- **DRAFT / CORRECTION REQUIRED** until the exact newest CI run passes type-check, tests, ESLint, and an environment-qualified build; independent human review and owner release approval still required. No production deployment or DB write was made in this task.
+
+### Additional rollback considerations
+- Revert the new PWA wake/snapshot/multi-waypoint files and routing to the accepted previous Web release through an approved revert PR. Old push deep links should remain safe under server-side authorization. No SQL rollback needed.
