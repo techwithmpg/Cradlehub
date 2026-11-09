@@ -36,6 +36,7 @@
   - `pnpm exec eslint src/components/features/bookings/crm-bookings-realtime-bridge.tsx src/app/'(dashboard)'/crm/layout.tsx src/lib/queries/crm-bookings-operational.ts tests/components/crm/crm-bookings-realtime-bridge.test.tsx tests/lib/bookings/crm-order-hydration.test.ts`
   - `pnpm format:check`
 - **Not run in the current connector-only environment**: installed Node 24/pnpm dependency checks, browser test with two authenticated CRM sessions, native device tests or isolated Postgres concurrency tests.
+- Vercel preview check: the branch deployment was **CANCELED** because the existing Ignored Build Step (`[ "$VERCEL_GIT_COMMIT_REF" != "main" ]`) returned exit code 0. This intentionally skips non-`main` builds; Vercel status `success` is **not** a compiled preview or test pass. Do not alter this gate within the hotfix.
 - A GitHub/Vercel build or preview is not equivalent to live cross-device browser acceptance.
 - A release should be blocked until CI and independent reviewer inspect branch diff, targeted tests, actual authenticated browser scenarios, live read authorization and cross-device reconciliation.
 - A test-only backend source fix is included; **no DB migration required for this scoped fix**. Historical parent-order date semantics and overdue pending booking disposition are separately gated.
