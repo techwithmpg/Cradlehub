@@ -364,7 +364,7 @@ export function NotificationBell({ role, userId, toastOnly = false, smartPending
           <NotificationBellDropdown
             items={items}
             smartPendingBookings={smartPendingBookings && canonicalRole === "crm"}
-            pendingCrmCount={pendingCrmQueue?.count ?? null}
+            pendingCrmCount={pendingCrmQueue?.onDuty ? pendingCrmQueue.count : 0}
             roleHref={href}
             unreadCount={count}
             isLoading={fetching}
