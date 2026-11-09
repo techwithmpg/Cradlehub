@@ -90,10 +90,7 @@ export function NotificationBell({ role, userId, toastOnly = false, smartPending
   // The current booking status/count is server-owned; notification rows may be
   // stale or missing. Use the authenticated CRM snapshot to label the bell.
   useEffect(() => {
-    if (!smartPendingBookings || canonicalRole !== "crm") {
-      setPendingCrmQueue(null);
-      return;
-    }
+    if (!smartPendingBookings || canonicalRole !== "crm") return;
     const update = (event: Event) => {
       const value = (event as CustomEvent<PendingCrmQueueEvent>).detail;
       if (!value || !Number.isSafeInteger(value.count) || value.count < 0) return;
