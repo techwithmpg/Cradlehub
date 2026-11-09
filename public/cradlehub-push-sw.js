@@ -73,7 +73,7 @@ self.addEventListener("push", (event) => {
       // A visible tab presents the RLS-authorized Realtime toast instead of a
       // second operating-system card. The message also reconciles if Realtime
       // was reconnecting at the exact delivery moment.
-      if (visibleWindows.length > 0 && payload.test !== true) {
+      if (visibleWindows.length > 0 && payload.test !== true && payload.type !== "home_service_assigned") {
         visibleWindows.forEach((client) =>
           client.postMessage({
             type: "CRADLEHUB_PUSH_RECONCILE",
@@ -110,7 +110,9 @@ self.addEventListener("notificationclick", (event) => {
       });
       const existing = windows.find((client) => {
         try {
-          return new URL(client.url).origin === self.location.origin;
+          const url = new URL(client.url);
+          return url.origin === self.location.origin &&
+            (!actionHref.startsWith("/staff/") || url.pathname.startsWith("/staff/"));
         } catch {
           return false;
         }
