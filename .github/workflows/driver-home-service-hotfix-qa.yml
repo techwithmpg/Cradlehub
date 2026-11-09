@@ -36,6 +36,8 @@ jobs:
         run: pnpm type-check
       - name: Targeted driver / push regression tests
         run: pnpm exec vitest run tests/lib/home-service/confirmed-driver-notification.test.ts tests/lib/notifications/cradlehub-push-service-worker.test.ts tests/lib/notifications/push-delivery-targeting.test.ts tests/lib/pwa/driver-wiring.test.ts tests/lib/pwa/driver-native-ui.test.tsx
+      - name: Next.js production build
+        run: pnpm build
       - name: Targeted ESLint
         run: >
           pnpm exec eslint
