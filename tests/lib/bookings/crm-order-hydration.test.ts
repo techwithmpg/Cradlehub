@@ -109,9 +109,18 @@ describe("CRM booking order representation", () => {
     expect(data.date).toBe("2026-11-09");
   });
 
-  it("preserves Upcoming order hydration and includes selected order in the same branch", async () => {
-    queries.getCrmUpcomingBookings.mockResolvedValue([booking("other-booking", "2026-11-12", "order-two")]);
-    queries.getCrmOrderServiceLines.mockResolvedValue([booking("booking-one", "2026-11-09")]);
+  it("preserves eligible Upcoming order hydration and avoids duplicate service lines", async () => {
+    queries.getRef.mockResolvedValue({
+      data: { booking_date: "2026-11-12", branch_id: "branch-a", order_id: "order-one" },
+      error: null,
+    });
+    const selected = booking("booking-one", "2026-11-12");
+    queries.getCrmUpcomingBookings.mockResolvedValue([
+      booking("other-booking", "2026-11-12", "order-two"), selected,
+    ]);
+    queries.getCrmOrderServiceLines.mockResolvedValue([
+      selected, booking("sibling-booking", "2026-11-14"),
+    ]);
 
     const client = scopedClient();
     const data = await getCrmBookingsOperationalData({
@@ -122,6 +131,48 @@ describe("CRM booking order representation", () => {
     expect(queries.getCrmOrderServiceLines).toHaveBeenCalledWith(
       "branch-a", ["order-two", "order-one"], client
     );
-    expect(data.bookings.map((row) => row.id)).toEqual(["other-booking", "booking-one"]);
+    expect(data.bookings.map((row) => row.id)).toEqual([
+      "other-booking", "booking-one", "sibling-booking",
+    ]);
+  });
+
+  it("does not surface a selected excluded booking in Upcoming", async () => {
+    queries.getRef.mockResolvedValue({
+      data: { booking_date: "2026-11-12", branch_id: "branch-a", order_id: "order-one" },
+      error: null,
+    });
+    queries.getCrmUpcomingBookings.mockResolvedValue([]);
+
+    const data = await getCrmBookingsOperationalData({
+      branchId: "branch-a", branchName: "Main", role: "crm",
+      bookingId: "booking-one", upcoming: true, client: scopedClient(),
+    });
+
+    expect(data.bookings).toHaveLength(0);
+    expect(queries.getCrmOrderServiceLines).not.toHaveBeenCalled();
+  });
+
+  it("validates a far-future deep link before expanding its complete order", async () => {
+    queries.getRef.mockResolvedValue({
+      data: { booking_date: "2026-12-05", branch_id: "branch-a", order_id: "order-one" },
+      error: null,
+    });
+    queries.getCrmBookingsCommandCenterRows.mockResolvedValue([
+      booking("booking-one", "2026-12-05"),
+    ]);
+    queries.getCrmOrderServiceLines.mockResolvedValue([
+      booking("booking-one", "2026-12-05"),
+      booking("sibling-booking", "2026-12-06"),
+    ]);
+
+    const data = await getCrmBookingsOperationalData({
+      branchId: "branch-a", branchName: "Main", role: "crm",
+      bookingId: "booking-one", upcoming: true, client: scopedClient(),
+    });
+
+    expect(data.selectedOutsideWindow).toBe(true);
+    expect(data.bookings.map((row) => row.id)).toEqual([
+      "booking-one", "sibling-booking",
+    ]);
   });
 });
