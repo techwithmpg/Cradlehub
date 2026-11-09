@@ -86,11 +86,11 @@ export async function getCrmBookingsOperationalData({
   const relatedOrderIds = upcoming
     ? [...bookings.flatMap((row) => (row.order_id ? [row.order_id] : [])), ...(selectedOrderId ? [selectedOrderId] : [])]
     : (selectedOrderId ? [selectedOrderId] : []);
-  const orderIds = [...new Set(relatedOrderIds)];
-  if (orderIds.length > 0) {
+  const hydrationOrderIds = [...new Set(relatedOrderIds)];
+  if (hydrationOrderIds.length > 0) {
     const lines = client
-      ? await getCrmOrderServiceLines(branchId, orderIds, client)
-      : await getCrmOrderServiceLines(branchId, orderIds);
+      ? await getCrmOrderServiceLines(branchId, hydrationOrderIds, client)
+      : await getCrmOrderServiceLines(branchId, hydrationOrderIds);
     const loadedIds = new Set(bookings.map((row) => row.id));
     for (const line of lines) {
       if (loadedIds.has(line.id)) continue;
