@@ -1,0 +1,17 @@
+<?xml version="1.0" encoding="utf-8"?>
+<FrameLayout xmlns:android="http://schemas.android.com/apk/res/android"
+  android:layout_width="match_parent" android:layout_height="match_parent">
+  <fragment
+    android:id="@+id/navigation_fragment"
+    android:name="com.google.android.libraries.navigation.NavigationFragment"
+    android:layout_width="match_parent" android:layout_height="match_parent" />
+  <TextView
+    android:id="@+id/navigationStatus"
+    android:layout_width="wrap_content" android:layout_height="wrap_content"
+    android:layout_gravity="bottom|center_horizontal"
+    android:layout_marginBottom="20dp"
+    android:background="#E6F5F2ED"
+    android:padding="9dp"
+    android:text="@string/nav_loading"
+    android:textColor="#163A2B" />
+</FrameLayout>
