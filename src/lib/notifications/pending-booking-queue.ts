@@ -40,10 +40,14 @@ export async function readPendingCrmBookings(input: {
     .order("start_time", { ascending: true })
     .limit(PENDING_CRM_SNAPSHOT_LIMIT);
   if (error) throw new Error("Pending booking queue could not be loaded.");
+  if (count === null || count === undefined) {
+    throw new Error("Pending booking count was not returned.");
+  }
   const rows = (data ?? []) as Row[];
   const row = rows[0];
+  if (count > 0 && !row) throw new Error("Pending booking count and detail were inconsistent.");
   return {
-    count: count ?? rows.length,
+    count,
     first: row
       ? {
           id: row.id,
