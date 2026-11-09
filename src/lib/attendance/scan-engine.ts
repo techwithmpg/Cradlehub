@@ -2912,11 +2912,13 @@ async function processAttendanceScan(
             )
           ? "overtime_clock_out"
           : "clock_out";
-    const clockOutReasonCode = activeCheckinMatchesSchedule
+    const clockOutMatchesCurrentAttendanceDay =
+      activeCheckinMatchesSchedule || openShiftIsCurrentBusinessDay;
+    const clockOutReasonCode = clockOutMatchesCurrentAttendanceDay
       ? timingReasonCode
       : "stale_open_checkin";
     const anomalyCodes = [
-      ...(activeCheckinMatchesSchedule ? [] : ["stale_open_checkin"]),
+      ...(clockOutMatchesCurrentAttendanceDay ? [] : ["stale_open_checkin"]),
       ...(timingReasonCode === "clock_out" ? [] : [timingReasonCode]),
     ];
     const needsClockOutReview = anomalyCodes.length > 0;
@@ -2952,8 +2954,8 @@ async function processAttendanceScan(
     const exception =
       anomalyCodes.length > 0
         ? {
-            exceptionType: activeCheckinMatchesSchedule ? timingReasonCode : "stale_open_checkin",
-            message: !activeCheckinMatchesSchedule
+            exceptionType: clockOutMatchesCurrentAttendanceDay ? timingReasonCode : "stale_open_checkin",
+            message: !clockOutMatchesCurrentAttendanceDay
               ? `${staffName}'s sole open attendance record was closed even though it did not match the current schedule.`
               : metrics.earlyLeaveMinutes > 0
                 ? `${staffName} clocked out ${formatMinutesCompact(metrics.earlyLeaveMinutes)} early.`
@@ -3010,6 +3012,7 @@ async function processAttendanceScan(
           shiftInstance,
           anomalyCodes,
           activeCheckinMatchesSchedule,
+          openShiftIsCurrentBusinessDay,
           scannedBranchId: point.branch_id,
           attendanceRecordBranchId: activeCheckin.branch_id,
         },
