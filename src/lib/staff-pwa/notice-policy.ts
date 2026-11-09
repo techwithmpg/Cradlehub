@@ -31,7 +31,12 @@ export function noticeMatchesStaff(notice: WorkspaceNotification, staff: NoticeS
 
 export function staffNoticeHref(notice: Pick<WorkspaceNotification, "type" | "entity_type" | "entity_id">, workspace: string): string {
   if (notice.type.startsWith("attendance_")) return "/staff/attendance";
-  if (workspace === "driver" && notice.entity_type === "booking" && notice.entity_id) return `/staff/driver/trips/${encodeURIComponent(notice.entity_id)}`;
+  if (workspace === "driver" && notice.entity_type === "booking" && notice.entity_id) {
+    const id = encodeURIComponent(notice.entity_id);
+    return notice.type === "home_service_assigned"
+      ? `/staff/driver/routes/${id}`
+      : `/staff/driver/trips/${id}`;
+  }
   if (workspace === "driver") return "/staff/driver";
   if (workspace === "utility") return "/staff/utility/work";
   if (workspace === "crm") return notice.entity_type === "booking" && notice.entity_id
