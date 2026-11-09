@@ -52,8 +52,7 @@ export function DriverNativeMap({
               <div className="relative rounded-2xl bg-white/90 p-4">
                 <p className="text-sm font-semibold text-[#163a2b]">Directions open in Maps</p>
                 <p className="mt-1 text-xs leading-5 text-[#65746b]">
-                  Route geometry is unavailable here. Use the recorded destination to open external
-                  navigation.
+                  Your live driving route opens within the CradleHub Driver PWA.
                 </p>
               </div>
             </div>
