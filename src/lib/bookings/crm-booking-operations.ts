@@ -2,6 +2,7 @@ import "server-only";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type { Database } from "@/types/supabase";
 import { createAdminClient } from "@/lib/supabase/admin";
+import { notifyConfirmedHomeServiceDriver } from "@/lib/home-service/confirmed-driver-notification";
 import { createNotification, resolveNotificationsForEntity } from "@/lib/notifications/create";
 import { resolveConfirmedBookingRequestAlerts } from "@/lib/notifications/shared-resolution";
 import { publishServiceTransition } from "@/lib/bookings/service-transition-notifications";
@@ -1626,7 +1627,7 @@ export async function confirmHomeServiceHandoff(
     body: "This Home Service booking is confirmed. Open the trip when you are ready to begin travel.",
     entityType: "booking",
     entityId: booking.id,
-    actionHref: `/driver/jobs/${booking.id}`,
+    actionHref: `/staff/driver/routes/${booking.id}`,
     priority: "high",
     requiresAction: true,
     dedupeKey: `booking:${booking.id}:home_service_handoff:driver:${booking.driver_id}`,
@@ -1755,7 +1756,7 @@ export async function prepareHomeServiceDispatch(
       body: `Trip is ready. Tap View and follow the saved GPS coordinates.`,
       entityType: "booking",
       entityId: booking.id,
-      actionHref: `/driver/jobs/${booking.id}`,
+      actionHref: `/staff/driver/routes/${booking.id}`,
       priority: "high",
       requiresAction: true,
       dedupeKey: `dispatch:released:${booking.id}`,
@@ -1886,6 +1887,13 @@ export async function confirmCrmBooking(
         nextStatus: "confirmed",
       });
     }
+    // The order confirmation RPC has committed. Notify only explicitly assigned
+    // active drivers, per confirmed service line, with an immutable dedupe key.
+    await Promise.all(
+      [...new Set([booking.id, ...data.changed_ids])].map((id) =>
+        notifyConfirmedHomeServiceDriver(id, booking.branch_id)
+      )
+    );
     // The order confirmation RPC has committed. Clear the shared CRM review
     // alert for every confirmed line, including the primary notification key.
     // This does not dismiss therapist/driver assignments or unpaid balances.
@@ -1971,6 +1979,11 @@ export async function confirmCrmBooking(
     result: "confirmed",
     nextStatus: "confirmed",
   });
+
+  // Only the confirmed, server-authoritative driver assignment receives a route alert.
+  if (isHomeServiceBooking(booking)) {
+    await notifyConfirmedHomeServiceDriver(booking.id, booking.branch_id);
+  }
 
   // CRM confirmation is now persisted; the old "booking awaits review"
   // alert is no longer actionable for any CSR in this branch.
