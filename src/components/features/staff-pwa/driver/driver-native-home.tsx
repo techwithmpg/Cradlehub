@@ -20,7 +20,7 @@ import type { StaffPortalStaff } from "@/components/features/staff-portal/types"
 import type { RealDispatchItem } from "@/lib/queries/dispatch-queries";
 import type { StaffAttendanceData } from "@/lib/staff-portal/attendance";
 import { StaffAttendanceClockOut } from "@/components/features/staff-portal/staff-attendance-clock-out";
-import { NotificationSettingsDialog } from "@/components/features/notifications/notification-settings-dialog";
+import { DriverTripAlerts } from "./driver-trip-alerts";
 
 export function DriverNativeHome({
   staff,
@@ -94,10 +94,7 @@ export function DriverNativeHome({
         <StaffStatTile label="Remaining" value={summary.remaining} />
       </div>
 
-      <div className="mt-3 rounded-xl border border-[#d8dfd6] bg-white p-3">
-        <p className="mb-2 text-xs font-semibold text-[#163a2b]">Trip push alerts · enable once on this phone</p>
-        <NotificationSettingsDialog role="driver" />
-      </div>
+      <DriverTripAlerts />
 
       {primary ? (
         <StaffCard className="mt-5 overflow-hidden p-4">
@@ -117,16 +114,16 @@ export function DriverNativeHome({
           </p>
           <div className="mt-4 grid grid-cols-2 gap-2">
             <Link
-              href={`/staff/driver/trips/${primary.id}`}
+              href={`/staff/driver/map?bookingId=${encodeURIComponent(primary.id)}`}
               className="flex min-h-12 items-center justify-center rounded-xl bg-[#163a2b] px-3 text-sm font-semibold text-white"
             >
-              Open trip
+              Open route
             </Link>
             <Link
-              href={`/staff/driver/map?bookingId=${primary.id}`}
+              href={`/staff/driver/trips/${primary.id}`}
               className="flex min-h-12 items-center justify-center gap-1 rounded-xl border border-[#c8a96b] text-sm font-semibold text-[#163a2b]"
             >
-              <MapPinned size={16} aria-hidden="true" /> Map
+              <MapPinned size={16} aria-hidden="true" /> Details
             </Link>
           </div>
         </StaffCard>
