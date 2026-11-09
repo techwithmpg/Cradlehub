@@ -1741,7 +1741,7 @@ export async function prepareHomeServiceDispatch(
       body: `Trip is ready. Tap View and follow the saved GPS coordinates.`,
       entityType: "booking",
       entityId: booking.id,
-      actionHref: `/staff/driver/routes/${booking.id}`,
+      actionHref: `/staff/driver/map?bookingId=${booking.id}`,
       priority: "high",
       requiresAction: true,
       dedupeKey: `dispatch:released:${booking.id}`,
