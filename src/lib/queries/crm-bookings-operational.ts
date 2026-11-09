@@ -79,26 +79,6 @@ export async function getCrmBookingsOperationalData({
 
   const bookings = [...rawBookings];
 
-  // The deep-linked booking may be one line of an order whose other lines
-  // were rescheduled to different days. Hydrate its complete branch-scoped
-  // order on both Daily and Upcoming views so the selected group is accurate.
-  // In Upcoming, preserve the existing complete-order hydration as well.
-  const relatedOrderIds = upcoming
-    ? [...bookings.flatMap((row) => (row.order_id ? [row.order_id] : [])), ...(selectedOrderId ? [selectedOrderId] : [])]
-    : (selectedOrderId ? [selectedOrderId] : []);
-  const hydrationOrderIds = [...new Set(relatedOrderIds)];
-  if (hydrationOrderIds.length > 0) {
-    const lines = client
-      ? await getCrmOrderServiceLines(branchId, hydrationOrderIds, client)
-      : await getCrmOrderServiceLines(branchId, hydrationOrderIds);
-    const loadedIds = new Set(bookings.map((row) => row.id));
-    for (const line of lines) {
-      if (loadedIds.has(line.id)) continue;
-      loadedIds.add(line.id);
-      bookings.push(line);
-    }
-  }
-
   let selectedOutsideWindow = false;
   if (upcoming && bookingId && date > upcomingBookingEndDate(today)) {
     const dateRows = await getCrmBookingsCommandCenterRows(branchId, date);
@@ -120,6 +100,26 @@ export async function getCrmBookingsOperationalData({
       }
     }
     selectedOutsideWindow = true;
+  }
+
+  // The deep-linked booking may be one line of an order whose other lines
+  // were rescheduled to different days. Hydrate its complete branch-scoped
+  // order on both Daily and Upcoming views so the selected group is accurate.
+  // In Upcoming, preserve the existing complete-order hydration as well.
+  const relatedOrderIds = upcoming
+    ? bookings.flatMap((row) => (row.order_id ? [row.order_id] : []))
+    : (selectedOrderId ? [selectedOrderId] : []);
+  const hydrationOrderIds = [...new Set(relatedOrderIds)];
+  if (hydrationOrderIds.length > 0) {
+    const lines = client
+      ? await getCrmOrderServiceLines(branchId, hydrationOrderIds, client)
+      : await getCrmOrderServiceLines(branchId, hydrationOrderIds);
+    const loadedIds = new Set(bookings.map((row) => row.id));
+    for (const line of lines) {
+      if (loadedIds.has(line.id)) continue;
+      loadedIds.add(line.id);
+      bookings.push(line);
+    }
   }
 
   const orderIds = [
