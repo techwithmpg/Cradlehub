@@ -48,7 +48,9 @@ jobs:
         run: |
           pnpm exec vitest run             tests/lib/bookings/hold-status.test.ts             tests/lib/bookings/philippine-mobile.test.ts             tests/lib/bookings/international-contact-contract.test.ts             tests/lib/bookings/crm-overdue-bookings-contract.test.ts             tests/lib/bookings/crm-order-hydration.test.ts             tests/components/crm/crm-bookings-realtime-bridge.test.tsx             tests/components/crm/bookings-generation-swr.test.tsx             tests/lib/bookings/booking-order-contract.test.ts             tests/lib/bookings/booking-payment-actions.test.ts             tests/lib/cash-flow/payment-writer-contract.test.ts             tests/lib/cash-flow/payment-ledger-concurrency.test.ts
       - name: TypeScript
+        if: always()
         run: pnpm type-check
       - name: Targeted ESLint
+        if: always()
         run: |
           pnpm exec eslint             src/lib/bookings/hold-status.ts             src/lib/bookings/philippine-mobile.ts             src/lib/validations/booking.ts             src/lib/actions/online-booking.ts             src/lib/bookings/booking-wizard-validation.ts             src/lib/queries/bookings.ts             src/lib/queries/crm-bookings-operational.ts             src/lib/queries/crm-today-operational.ts             src/components/features/bookings/crm-bookings-view.tsx             src/components/features/bookings/bookings-desktop-workspace.tsx             src/components/features/bookings/bookings-workspace.tsx             src/components/features/crm/today/crm-today-shell.tsx             src/components/public/booking-wizard.tsx             tests/lib/bookings/crm-overdue-bookings-contract.test.ts             tests/lib/bookings/international-contact-contract.test.ts
