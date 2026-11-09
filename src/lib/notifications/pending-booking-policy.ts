@@ -4,7 +4,7 @@ import type { ResolvedStaffSchedule } from "@/lib/schedule/resolve-staff-schedul
 /** Only online requests awaiting a CSR decision; payment holds remain separate. */
 export const PENDING_CRM_BOOKING_STATUS = "pending_crm_confirmation";
 export const PENDING_CRM_REMINDER_MS = 10 * 60_000;
-export const PENDING_CRM_SNAPSHOT_LIMIT = 100;
+export const PENDING_CRM_SNAPSHOT_LIMIT = 1; // One detail for the popup; exact count is independent of the limit.
 
 export type PendingCrmBooking = {
   id: string;
