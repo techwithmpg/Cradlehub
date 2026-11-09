@@ -38,7 +38,8 @@ jobs:
         with:
           distribution: temurin
           java-version: "17"
-      - uses: android-actions/setup-android@v3
+      # GitHub Ubuntu Android runner already includes Android command line tools.
+      # setup-android@v3 currently attempts a removed sdkmanager "tools" package.
       - name: Install Android API 36
         run: sdkmanager --install "platforms;android-36" "build-tools;36.0.0"
       - uses: gradle/actions/setup-gradle@v4
