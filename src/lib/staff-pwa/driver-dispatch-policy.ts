@@ -47,8 +47,10 @@ export function orderDriverStops(
   matrix: DrivingMatrixCell[],
   nowMs: number
 ): DriverRouteOrdering {
+  // Preserve the input indices exactly: the road matrix's destinationIndex
+  // refers to these positions, not a newly sorted copy of the bookings.
   const candidates = jobs.filter(isNavigableDriverTrip).filter(isValidDriverDestination)
-    .sort(byAppointment).slice(0, MAX_DRIVER_ROUTE_STOPS);
+    .slice(0, MAX_DRIVER_ROUTE_STOPS);
   const routeDuration = new Map(matrix.filter((cell) =>
     Number.isInteger(cell.originIndex) && Number.isInteger(cell.destinationIndex) &&
     cell.originIndex >= 0 && cell.destinationIndex >= 0 &&
@@ -57,9 +59,9 @@ export function orderDriverStops(
   const hasRoadData = candidates.every((_job, index) => routeDuration.has(`0:${index}`));
   if (!hasRoadData) {
     return {
-      ordered: candidates,
+      ordered: [...candidates].sort(byAppointment),
       basis: "schedule_fallback",
-      timingWarnings: appointmentWarnings(candidates),
+      timingWarnings: appointmentWarnings([...candidates].sort(byAppointment)),
     };
   }
   const remaining = new Map(candidates.map((job, index) => [index, job]));
