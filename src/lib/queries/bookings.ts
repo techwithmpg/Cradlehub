@@ -593,6 +593,26 @@ export async function getCrmPendingBookingQueue(
 }
 
 /**
+ * Count overdue unresolved booking lines in this CRM branch. Used only to
+ * expose a compact, conditional review prompt in Cradle Flow.
+ */
+export async function getCrmOverduePendingCount(
+  branchId: string,
+  businessDate: string,
+  client?: SupabaseJsClient<Database>
+): Promise<number> {
+  const supabase = client ?? (await createClient());
+  const { count, error } = await supabase
+    .from("bookings")
+    .select("id", { count: "exact", head: true })
+    .eq("branch_id", branchId)
+    .in("status", [...CRM_PENDING_BOOKING_STATUSES])
+    .lt("booking_date", businessDate);
+  if (error) throw new Error("Could not count overdue booking requests.");
+  return count ?? 0;
+}
+
+/**
  * Non-destructive historical pending review. Today's intake and Upcoming
  * retain their original date scopes; overdue rows appear only when CRM opens
  * the explicit review mode. No statuses or financial records are mutated.
