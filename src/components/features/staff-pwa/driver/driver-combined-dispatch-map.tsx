@@ -15,7 +15,6 @@ import {
   type DriverDispatchSnapshot,
   type DriverCombinedRouteResult,
 } from "@/app/(dashboard)/staff/driver/map/actions";
-import { isValidDriverDestination } from "@/lib/staff-pwa/driver-dispatch-policy";
 import { DriverScreenAwakeToggle } from "./driver-screen-awake-toggle";
 
 const MAPS_KEY = process.env.NEXT_PUBLIC_GOOGLE_MAPS_BROWSER_KEY ?? "";
@@ -211,7 +210,7 @@ export function DriverCombinedDispatchMap({
     }).then((result) => {
       setLastShare(result.ok ? "sent" : "error");
     }).catch(() => setLastShare("error"));
-  }, [activeTrip?.id, origin, accuracy]);
+  }, [activeTrip, origin, accuracy]);
 
   function advanceTrip(bookingId: string, nextStatus: "travel_started" | "arrived") {
     if (pendingProgress) return;
