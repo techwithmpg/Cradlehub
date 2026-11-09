@@ -7,6 +7,11 @@ import {
   getPublicPhoneFieldFeedback,
   isClearlyForeignMobilePrefix,
   isValidPhilippineMobileNumber,
+  isValidPublicContactNumber,
+  isValidInternationalContactNumber,
+  needsInternationalEmailFallback,
+  getPublicContactNumberError,
+  INTERNATIONAL_MOBILE_FORMAT_MESSAGE,
 } from "./philippine-mobile";
 
 describe("public booking Philippine mobile contact", () => {
@@ -57,14 +62,38 @@ describe("public booking Philippine mobile contact", () => {
     expect(getPublicPhoneFieldFeedback("+6").status).toBe("error");
     expect(getPublicPhoneFieldFeedback("+6").message).toBe(INVALID_PH_MOBILE_MESSAGE);
     expect(getPublicPhoneFieldFeedback("+237612345678")).toEqual({
-      status: "error",
-      message: FOREIGN_MOBILE_MESSAGE,
+      status: "valid",
+      message: "International number accepted for callback. Email is also required; SMS delivery is not guaranteed.",
     });
     expect(getPublicPhoneFieldFeedback("12345678").status).toBe("error");
     expect(getPublicPhoneFieldFeedback("0912345678").status).toBe("error");
     expect(getPublicPhoneFieldFeedback("09123456789").status).toBe("valid");
     expect(getPublicPhoneFieldFeedback("09123456789").message).toContain("accepted");
     expect(getPublicPhoneFieldFeedback("0912345678").status).toBe("error");
+  });
+
+  it.each(["+237612345678", "+447700900123", "+12125550123"])(
+    "accepts E.164 international callback with email fallback: %s",
+    (value) => {
+      expect(isValidInternationalContactNumber(value)).toBe(true);
+      expect(isValidPublicContactNumber(value)).toBe(true);
+      expect(needsInternationalEmailFallback(value)).toBe(true);
+      expect(getPublicContactNumberError(value)).toBeNull();
+    }
+  );
+
+  it.each(["+237", "+0001234567", "+23712", "+1234567890123456", "00447700900123"])(
+    "rejects malformed international contact: %s",
+    (value) => {
+      expect(isValidPublicContactNumber(value)).toBe(false);
+    }
+  );
+
+  it("rejects malformed +63 numbers rather than treating them as international", () => {
+    expect(isValidInternationalContactNumber("+6309123456789")).toBe(false);
+    expect(getPublicContactNumberError("+6309123456789")).not.toBeNull();
+    expect(getPublicContactNumberError("+237")).toBe(INTERNATIONAL_MOBILE_FORMAT_MESSAGE);
+    expect(needsInternationalEmailFallback("09123456789")).toBe(false);
   });
 
   it("requires a nonempty number", () => {
