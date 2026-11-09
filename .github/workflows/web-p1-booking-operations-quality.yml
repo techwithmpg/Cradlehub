@@ -50,6 +50,9 @@ jobs:
       - name: TypeScript
         if: always()
         run: pnpm type-check
+      - name: Incremental formatting gate
+        if: always()
+        run: pnpm format:check
       - name: Targeted ESLint
         if: always()
         run: |
