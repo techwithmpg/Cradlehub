@@ -91,8 +91,24 @@ type StaffMarker = {
   label: string;
 };
 
-function hasStaffGps(item: RealDispatchItem): boolean {
-  return Boolean(item.currentLocation);
+const DRIVER_GPS_FRESH_MS = 2 * 60 * 1000;
+
+function hasStaffGps(item: RealDispatchItem, now = Date.now()): boolean {
+  const recorded = item.currentLocation?.recorded_at;
+  if (!recorded) return false;
+  const timestamp = Date.parse(recorded);
+  return Number.isFinite(timestamp) && timestamp <= now &&
+    now - timestamp <= DRIVER_GPS_FRESH_MS;
+}
+
+function staffGpsLabel(item: RealDispatchItem): string {
+  if (hasStaffGps(item)) return "Driver GPS updated recently";
+  const recorded = item.currentLocation?.recorded_at;
+  if (!recorded) return "Driver GPS not yet shared";
+  const timestamp = Date.parse(recorded);
+  if (!Number.isFinite(timestamp)) return "Driver GPS time unavailable";
+  const minutes = Math.max(0, Math.floor((Date.now() - timestamp) / 60000));
+  return `Last driver GPS ${minutes} min ago (not live)`;
 }
 
 function locationLabel(item: RealDispatchItem): string {
@@ -241,7 +257,7 @@ function BookingSummaryCard({
 
         <div className="flex items-center gap-1.5">
           {staffGpsReady ? <CheckCircle2 size={13} className="text-blue-600" /> : <Car size={13} />}
-          <span>{staffGpsReady ? "Driver/staff GPS live" : "No live driver GPS yet"}</span>
+          <span>{staffGpsLabel(item)}</span>
         </div>
       </div>
     </button>
@@ -281,7 +297,7 @@ function MapCanvas({
   const staffMarkers: StaffMarker[] = useMemo(
     () =>
       bookings
-        .filter((booking) => booking.currentLocation)
+        .filter((booking) => hasStaffGps(booking))
         .map((booking, index) => ({
           booking,
           position: {
@@ -438,7 +454,7 @@ function MapCanvas({
           </span>
           <span className="inline-flex items-center gap-1.5 text-[var(--cs-text-secondary)]">
             <span className="size-3 rounded-full bg-blue-500" />
-            Driver/staff live GPS
+            Recent driver GPS (within 2 min)
           </span>
         </div>
       </div>

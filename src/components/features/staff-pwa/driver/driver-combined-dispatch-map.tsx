@@ -1,16 +1,20 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState, useTransition } from "react";
+import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { APIProvider, Map as GoogleMap, Marker, useMap, useMapsLibrary } from "@vis.gl/react-google-maps";
 import { AlertTriangle, LocateFixed, MapPin, Navigation, RefreshCw } from "lucide-react";
+import { updateBookingProgressAction } from "@/app/(dashboard)/staff-portal/actions";
+import { recordAssignedDriverLiveLocationAction } from "@/app/(dashboard)/staff/driver/map/live-location-action";
+import { getNextDriverAction } from "@/lib/staff-pwa/driver-ui-model";
+import { invalidateStaffSafeMemory } from "@/components/features/staff-pwa/safe-memory";
 import {
   calculateDriverCombinedRouteAction,
   getDriverDispatchSnapshotAction,
   type DriverDispatchSnapshot,
   type DriverCombinedRouteResult,
 } from "@/app/(dashboard)/staff/driver/map/actions";
-import { isValidDriverDestination } from "@/lib/staff-pwa/driver-dispatch-policy";
 import { DriverScreenAwakeToggle } from "./driver-screen-awake-toggle";
 
 const MAPS_KEY = process.env.NEXT_PUBLIC_GOOGLE_MAPS_BROWSER_KEY ?? "";
@@ -54,7 +58,13 @@ export function DriverCombinedDispatchMap({
   initialSnapshot: DriverDispatchSnapshot;
 }) {
   const [snapshot, setSnapshot] = useState(initialSnapshot);
+  const router = useRouter();
   const [origin, setOrigin] = useState<Location | null>(null);
+  const [accuracy, setAccuracy] = useState<number | null>(null);
+  const [lastShare, setLastShare] = useState<"idle" | "sent" | "error">("idle");
+  const [progressError, setProgressError] = useState<string | null>(null);
+  const [pendingProgress, startProgressTransition] = useTransition();
+  const lastGpsWrite = useRef<{ at: number; bookingId: string; position: Location } | null>(null);
   const [gpsError, setGpsError] = useState<string | null>(null);
   const [route, setRoute] = useState<GoodRoute | null>(null);
   const [routeError, setRouteError] = useState<string | null>(null);
@@ -119,9 +129,10 @@ export function DriverCombinedDispatchMap({
         const point = { lat: coords.latitude, lng: coords.longitude };
         gpsRef.current = point;
         setOrigin(point);
+        setAccuracy(coords.accuracy);
         setGpsError(null);
       },
-      () => setGpsError("Location permission is required for a live route. You can still open Google Maps."),
+      () => setGpsError("Allow location access for the CradleHub map and CRM live tracking."),
       { enableHighAccuracy: true, maximumAge: 10000, timeout: 15000 }
     );
     return () => navigator.geolocation.clearWatch(watcher);
@@ -150,7 +161,7 @@ export function DriverCombinedDispatchMap({
       if (version === requestVersion.current) {
         lastCalculated.current = { at: Date.now(), pos: point, fingerprint: nextFingerprint };
         setRoute(null);
-        setRouteError("Route service unavailable. Use Open in Maps.");
+        setRouteError("Road route is unavailable. Check your connection or ask CRM for assistance.");
       }
     } finally {
       if (version === requestVersion.current) setRouting(false);
@@ -169,15 +180,64 @@ export function DriverCombinedDispatchMap({
     return () => window.clearTimeout(timeout);
   }, [snapshot.fingerprint, snapshot.navigable.length, origin, route, routing, recalc]);
 
+  // A valid, currently assigned en-route trip is required before sending GPS
+  // to CRM. No location samples are submitted before Start travel or after Arrived.
+  const activeTrip = snapshot.trips.find((job) =>
+    job.bookingProgressStatus === "travel_started" &&
+    ["confirmed", "in_progress"].includes(job.bookingStatus) &&
+    job.dispatchStatus === "in_route"
+  ) ?? null;
+
+  useEffect(() => {
+    if (!activeTrip || !origin || accuracy === null ||
+        accuracy <= 0 || accuracy > 150 ||
+        document.visibilityState !== "visible") return;
+    const previous = lastGpsWrite.current;
+    if (previous?.bookingId === activeTrip.id &&
+        Date.now() - previous.at < 30000) return;
+
+    // This guard is updated before the network request to prevent bursts from
+    // watchPosition callbacks. The server also requires current assignment and
+    // at least 20 seconds between snapshots.
+    lastGpsWrite.current = {
+      at: Date.now(), bookingId: activeTrip.id, position: origin,
+    };
+    void recordAssignedDriverLiveLocationAction({
+      bookingId: activeTrip.id,
+      lat: origin.lat,
+      lng: origin.lng,
+      accuracyMeters: accuracy,
+    }).then((result) => {
+      setLastShare(result.ok ? "sent" : "error");
+    }).catch(() => setLastShare("error"));
+  }, [activeTrip, origin, accuracy]);
+
+  function advanceTrip(bookingId: string, nextStatus: "travel_started" | "arrived") {
+    if (pendingProgress) return;
+    startProgressTransition(async () => {
+      setProgressError(null);
+      try {
+        const result = await updateBookingProgressAction({ bookingId, nextStatus });
+        if (!result.ok) {
+          setProgressError(result.message);
+          return;
+        }
+        invalidateStaffSafeMemory(["driverToday", "driverTrips", "driverMap"]);
+        await refresh();
+        router.refresh();
+      } catch {
+        setProgressError("Could not update the trip. Check your connection and try again.");
+      }
+    });
+  }
+
   const ordered = useMemo(() => {
     const lookup = new Map(snapshot.navigable.map(job => [job.id, job]));
     return route?.stopIds.map(id => lookup.get(id)).filter((job): job is NonNullable<typeof job> => Boolean(job)) ??
       snapshot.navigable.slice(0, 8);
   }, [route, snapshot.navigable]);
   const next = ordered[0];
-  const openMapsUrl = next && isValidDriverDestination(next)
-    ? `https://www.google.com/maps/dir/?api=1&destination=${next.lat},${next.lng}&travelmode=driving`
-    : null;
+  const nextAction = next ? getNextDriverAction(next) : null;
   const mapCenter = origin ?? (next ? { lat: next.lat!, lng: next.lng! } : { lat: 10.676, lng: 122.956 });
   const pendingStops = snapshot.navigable.length - ordered.length;
 
@@ -220,12 +280,24 @@ export function DriverCombinedDispatchMap({
         </div>
       ) : (
         <div className="rounded-xl border border-[#d2e0d3] bg-[#eef2ed] p-5 text-sm">
-          {MAPS_KEY ? "No confirmed routes assigned for this date." : "Google Maps is not configured for embedded display."}
+          {MAPS_KEY ? "No confirmed routes assigned for this date." : "In-app map is not configured. Contact CRM."}
         </div>
       )}
       {fetchError ? <p role="alert" className="text-sm text-red-800">{fetchError}</p> : null}
       {gpsError ? <p role="status" className="text-sm text-amber-800">{gpsError}</p> : null}
       {routeError ? <p role="status" className="text-sm text-amber-800">{routeError}</p> : null}
+      {progressError ? <p role="alert" className="text-sm font-semibold text-red-800">{progressError}</p> : null}
+      {activeTrip ? (
+        <p role="status" className="text-xs text-[#176343]">
+          {lastShare === "sent"
+            ? "En route · Your live location is being shared with CRM while this screen is open."
+            : lastShare === "error"
+              ? "En route · CRM location update failed; keep this screen open and check your signal."
+              : accuracy !== null && accuracy > 150
+                ? "En route · Waiting for accurate GPS before sharing with CRM."
+                : "En route · Connecting live location to CRM…"}
+        </p>
+      ) : null}
       {!origin ? <p className="text-xs text-amber-800"><LocateFixed size={15} className="mr-1 inline" />Allow GPS to calculate your closest driving stop.</p> : null}
       {route?.basis === "schedule_fallback" ? (
         <p className="text-xs text-amber-800">Road distances unavailable. Stops are shown by booked time, not nearest-driving order.</p>
@@ -250,12 +322,18 @@ export function DriverCombinedDispatchMap({
           className="inline-flex min-h-12 items-center justify-center gap-2 rounded-xl border border-[#b8cabb] bg-white px-3 text-sm font-semibold text-[#163a2b] disabled:opacity-50">
           <RefreshCw size={17} /> {routing ? "Routing…" : "Refresh"}
         </button>
-        {openMapsUrl ? (
-          <a href={openMapsUrl} target="_blank" rel="noopener noreferrer"
-            className="inline-flex min-h-12 items-center justify-center gap-2 rounded-xl bg-[#163a2b] px-3 text-sm font-semibold text-white">
-            <Navigation size={17} /> Navigate next
-          </a>
-        ) : <span className="inline-flex min-h-12 items-center justify-center rounded-xl border text-xs">No next stop</span>}
+        {next && nextAction ? (
+          <button type="button"
+            disabled={pendingProgress || routing}
+            onClick={() => advanceTrip(next.id, nextAction.nextStatus)}
+            className="inline-flex min-h-12 items-center justify-center gap-2 rounded-xl bg-[#163a2b] px-3 text-sm font-semibold text-white disabled:opacity-50">
+            <Navigation size={17} /> {pendingProgress ? "Updating…" : nextAction.label}
+          </button>
+        ) : (
+          <span className="inline-flex min-h-12 items-center justify-center rounded-xl border px-2 text-xs">
+            {next ? "Trip status up to date" : "No next stop"}
+          </span>
+        )}
       </div>
       <DriverScreenAwakeToggle />
       <section className="rounded-2xl border border-[#d9e0d8] bg-white p-3">
@@ -264,7 +342,7 @@ export function DriverCombinedDispatchMap({
           {route?.basis === "driving_time" ? "Nearest reachable stop first, except imminent booked times." : "Confirmed bookings, awaiting road order."}
         </p>
         {ordered.map((job, i) => (
-          <Link key={job.id} href={`/staff/driver/trips/${job.id}`}
+          <Link key={job.id} href={`/staff/driver/map?bookingId=${encodeURIComponent(job.id)}`}
             className="mt-2 flex min-h-16 items-center gap-3 rounded-xl border border-[#e3eae1] p-3">
             <span className="grid size-9 shrink-0 place-items-center rounded-full bg-[#163a2b] text-sm font-bold text-white">{i + 1}</span>
             <span className="min-w-0 flex-1">
@@ -278,8 +356,8 @@ export function DriverCombinedDispatchMap({
       </section>
       <p className="px-1 text-xs leading-5 text-[#66776d]">
         GPS is live while this app screen is active. Road rerouting is limited to meaningful movement or changed assignments.
-        Opening the map never starts travel, marks arrival, or changes booked appointments.
-        Use Navigate next for turn-by-turn voice directions.
+        Tap Start travel to begin an assigned trip, and Mark arrived after reaching the customer.
+        Route lines stay inside CradleHub. The map is a driving-route preview, not spoken turn-by-turn guidance.
       </p>
     </main>
   );

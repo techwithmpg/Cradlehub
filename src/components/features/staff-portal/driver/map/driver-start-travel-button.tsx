@@ -13,7 +13,6 @@ type DriverStartTravelButtonProps = {
 
 export function DriverStartTravelButton({
   bookingId,
-  navigationUrl,
 }: DriverStartTravelButtonProps) {
   const router = useRouter();
   const [pending, startTransition] = useTransition();
@@ -38,18 +37,9 @@ export function DriverStartTravelButton({
 
         invalidateStaffSafeMemory(["driverToday", "driverTrips", "driverMap"]);
 
-        /*
-         * Server authority succeeded first.
-         * Now hand off to the operating system / Google Maps.
-         *
-         * Android normally opens the Maps app when associated.
-         * Browser directions remain the fallback.
-         */
-        if (navigationUrl) {
-          window.location.assign(navigationUrl);
-          return;
-        }
-
+        // Preserve the operating context inside the installed Staff PWA.
+        // Never switch away to an external navigation application.
+        router.push(`/staff/driver/map?bookingId=${encodeURIComponent(bookingId)}`);
         router.refresh();
       } catch {
         setError("Travel could not be confirmed. Refresh before retrying.");
@@ -70,7 +60,7 @@ export function DriverStartTravelButton({
         }
       >
         <Navigation size={17} />
-        {pending ? "Starting travel…" : navigationUrl ? "Start Travel & Navigate" : "Start Travel"}
+        {pending ? "Starting travel…" : "Start travel"}
       </button>
 
       {error ? (

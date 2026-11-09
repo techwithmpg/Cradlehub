@@ -15,7 +15,6 @@ import {
 import { invalidateStaffSafeMemory } from "@/components/features/staff-pwa/safe-memory";
 import { updateBookingProgressAction } from "@/app/(dashboard)/staff-portal/actions";
 import {
-  getDriverNavigationUrl,
   getDriverProgressLabel,
   getNextDriverAction,
 } from "@/lib/staff-pwa/driver-ui-model";
@@ -45,7 +44,7 @@ export function DriverNativeDetail({ job }: { job: RealDispatchItem }) {
   const [feedback, setFeedback] = useState<string | null>(null);
   const current = { ...job, bookingProgressStatus: progress };
   const action = getNextDriverAction(current);
-  const navigationUrl = getDriverNavigationUrl(job);
+  const inAppRoute = `/staff/driver/map?bookingId=${encodeURIComponent(job.id)}`;
   const destination = job.formattedAddress ?? job.area;
 
   function advance() {
@@ -66,7 +65,7 @@ export function DriverNativeDetail({ job }: { job: RealDispatchItem }) {
         setFeedback(next === "arrived" ? "Arrival confirmed." : "Travel started.");
         invalidateStaffSafeMemory(["driverToday", "driverTrips", "driverMap"]);
         router.refresh();
-        if (next === "travel_started" && navigationUrl) window.location.assign(navigationUrl);
+        if (next === "travel_started") router.push(inAppRoute);
       } catch {
         setError("Trip update could not be confirmed. Refresh before retrying.");
       }
@@ -104,16 +103,12 @@ export function DriverNativeDetail({ job }: { job: RealDispatchItem }) {
             {destination ?? "Destination pending"}
           </p>
         </div>
-        {navigationUrl ? (
-          <a
-            href={navigationUrl}
-            target="_blank"
-            rel="noopener noreferrer"
-            className="mt-4 inline-flex min-h-12 items-center gap-2 rounded-xl border border-[#c8a96b] px-4 text-sm font-semibold text-[#163a2b]"
-          >
-            <Navigation size={17} aria-hidden="true" /> Open in Maps
-          </a>
-        ) : null}
+        <Link
+          href={inAppRoute}
+          className="mt-4 inline-flex min-h-12 items-center gap-2 rounded-xl border border-[#c8a96b] px-4 text-sm font-semibold text-[#163a2b]"
+        >
+          <Navigation size={17} aria-hidden="true" /> View route in CradleHub
+        </Link>
       </StaffCard>
 
       <StaffCard className="mt-5 p-4">

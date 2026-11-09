@@ -155,7 +155,7 @@ export async function calculateDriverCombinedRouteAction(input: {
   if (!jobs.length) return { ok: false, message: "No confirmed trip with a verified GPS destination." };
 
   const key = process.env.GOOGLE_MAPS_SERVER_API_KEY;
-  if (!key) return { ok: false, message: "In-app routes are unavailable. Use Open in Maps." };
+  if (!key) return { ok: false, message: "In-app routes are unavailable. Ask CRM to check map configuration." };
 
   const matrix = await readDrivingMatrix(key, input.originLat, input.originLng, jobs);
   const ordered = orderDriverStops(jobs, matrix, Date.now());
@@ -199,6 +199,6 @@ export async function calculateDriverCombinedRouteAction(input: {
     logError("driver.dispatch.combined_route_failed", {
       errorName: error instanceof Error ? error.name : "CombinedRouteError",
     });
-    return { ok: false, message: "Live road route is temporarily unavailable. Check the stops and use Google Maps." };
+    return { ok: false, message: "Live road route is temporarily unavailable. Keep this screen open and contact CRM." };
   }
 }
