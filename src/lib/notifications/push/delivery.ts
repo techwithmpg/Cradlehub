@@ -162,7 +162,10 @@ function safeActionHref(
   notification: WorkspaceNotification,
   workspace: PushSubscriptionRow["workspace"]
 ) {
-  if (["staff", "driver", "utility", "crm"].includes(workspace)) return staffNoticeHref(notification, workspace);
+  // CRM links resolve within the authenticated CRM workspace. A consolidated
+  // pending queue has no individual booking ID and must not open /staff/work.
+  if (workspace === "crm") return resolveNotificationHref({ ...notification, target_workspace: "crm" }) ?? "/crm";
+  if (["staff", "driver", "utility"].includes(workspace)) return staffNoticeHref(notification, workspace);
   const context = workspace as NotificationWorkspaceContext;
   return (
     resolveNotificationHref({
@@ -275,7 +278,7 @@ export async function sendWebPushToSubscription(input: {
 
 export async function deliverWorkspaceNotificationPush(
   notification: WorkspaceNotification,
-  options?: { skipSubscriptionIds?: ReadonlySet<string> }
+  options?: { skipSubscriptionIds?: ReadonlySet<string>; eligibleStaffIds?: ReadonlySet<string> }
 ): Promise<PushDeliveryResult> {
   const result: PushDeliveryResult = {
     attempted: 0,
@@ -346,7 +349,8 @@ export async function deliverWorkspaceNotificationPush(
           : undefined,
         ownerPreferences.get(subscription.auth_user_id) ??
           "home_service_and_urgent"
-      ) && !options?.skipSubscriptionIds?.has(subscription.id)
+      ) && !options?.skipSubscriptionIds?.has(subscription.id) &&
+      (!options?.eligibleStaffIds || (Boolean(subscription.staff_id) && options.eligibleStaffIds.has(subscription.staff_id!)))
     );
     result.attempted = eligible.length;
 
