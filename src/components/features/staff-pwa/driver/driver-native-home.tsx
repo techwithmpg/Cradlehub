@@ -20,6 +20,7 @@ import type { StaffPortalStaff } from "@/components/features/staff-portal/types"
 import type { RealDispatchItem } from "@/lib/queries/dispatch-queries";
 import type { StaffAttendanceData } from "@/lib/staff-portal/attendance";
 import { StaffAttendanceClockOut } from "@/components/features/staff-portal/staff-attendance-clock-out";
+import { NotificationSettingsDialog } from "@/components/features/notifications/notification-settings-dialog";
 
 export function DriverNativeHome({
   staff,
@@ -93,6 +94,11 @@ export function DriverNativeHome({
         <StaffStatTile label="Remaining" value={summary.remaining} />
       </div>
 
+      <div className="mt-3 rounded-xl border border-[#d8dfd6] bg-white p-3">
+        <p className="mb-2 text-xs font-semibold text-[#163a2b]">Trip push alerts · enable once on this phone</p>
+        <NotificationSettingsDialog role="driver" />
+      </div>
+
       {primary ? (
         <StaffCard className="mt-5 overflow-hidden p-4">
           <div className="flex items-center justify-between gap-3">
@@ -117,7 +123,7 @@ export function DriverNativeHome({
               Open trip
             </Link>
             <Link
-              href="/staff/driver/map"
+              href={`/staff/driver/routes/${primary.id}`}
               className="flex min-h-12 items-center justify-center gap-1 rounded-xl border border-[#c8a96b] text-sm font-semibold text-[#163a2b]"
             >
               <MapPinned size={16} aria-hidden="true" /> Map
