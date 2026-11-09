@@ -592,6 +592,38 @@ export async function getCrmPendingBookingQueue(
   });
 }
 
+/**
+ * Non-destructive historical pending review. Today's intake and Upcoming
+ * retain their original date scopes; overdue rows appear only when CRM opens
+ * the explicit review mode. No statuses or financial records are mutated.
+ */
+export async function getCrmOverduePendingBookings(
+  branchId: string,
+  businessDate: string,
+  client?: SupabaseJsClient<Database>
+) {
+  const supabase = client ?? (await createClient());
+  return loadBookingRows(supabase, TODAY_SCHEDULE_SELECT_VARIANTS, async (select) => {
+    const rows: TodayScheduleRow[] = [];
+    for (let offset = 0; ; offset += 200) {
+      const result = await supabase
+        .from("bookings")
+        .select(select)
+        .eq("branch_id", branchId)
+        .in("status", [...CRM_PENDING_BOOKING_STATUSES])
+        .lt("booking_date", businessDate)
+        .order("booking_date", { ascending: false })
+        .order("start_time")
+        .order("id")
+        .range(offset, offset + 199);
+      if (result.error) return result as QueryResult<TodayScheduleRow>;
+      rows.push(...((result.data ?? []) as unknown as TodayScheduleRow[]));
+      if (!result.data || result.data.length < 200) break;
+    }
+    return { data: rows, error: null };
+  });
+}
+
 export async function getCrmBookingsCommandCenterRows(branchId: string, date: string) {
   return getTodaysSchedule(branchId, date);
 }
