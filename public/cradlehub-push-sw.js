@@ -74,7 +74,7 @@ self.addEventListener("push", (event) => {
       // A background worker NEVER force-launches or focuses any application:
       // normal notificationclick requires the driver's explicit interaction.
       if (payload.type === "home_service_assigned" &&
-          /^\\/staff\\/driver\\/map\\?bookingId=[0-9a-f-]{36}$/i.test(actionHref)) {
+          /^\/staff\/driver\/map\?bookingId=[0-9a-f-]{36}$/i.test(actionHref)) {
         visibleWindows.forEach((client) => {
           try {
             const url = new URL(client.url);
