@@ -35,6 +35,7 @@ export async function recordAssignedDriverLiveLocationAction(
   }
   const { job, staff } = assigned;
   if (
+    !staff.branch_id ||
     job.driverId !== staff.id ||
     !["confirmed", "in_progress"].includes(job.bookingStatus) ||
     job.bookingProgressStatus !== "travel_started"
