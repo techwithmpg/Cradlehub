@@ -25,6 +25,7 @@ type Props = {
   onMarkAllRead: () => void;
   role: string;
   smartPendingBookings?: boolean;
+  pendingCrmCount?: number | null;
 };
 
 const SETTINGS_ROLES = new Set(["owner", "crm", "staff", "driver", "utility"]);
@@ -69,6 +70,7 @@ export function NotificationPopover({
   onMarkAllRead,
   role,
   smartPendingBookings = false,
+  pendingCrmCount = null,
 }: Props) {
   const [markingAll, setMarkingAll] = useState(false);
   const orderedItems = sortNewestFirst(items);
@@ -84,6 +86,8 @@ export function NotificationPopover({
     : [];
   const groupedBookingIds = new Set(bookingReviewItems.map((item) => item.id));
   const displayedItems = orderedItems.filter((item) => !groupedBookingIds.has(item.id));
+  const hasPendingCrmQueue = smartPendingBookings &&
+    (pendingCrmCount === null ? bookingReviewItems.length > 0 : pendingCrmCount > 0);
   const hasUnread = unreadCount > 0;
   const hasMarkableUnread = orderedItems.some(
     (item) => item.status === "unread" && !item.requires_action
@@ -141,7 +145,7 @@ export function NotificationPopover({
       >
         {isLoading ? (
           <NotificationSkeletonRows />
-        ) : displayedItems.length === 0 && bookingReviewItems.length === 0 ? (
+        ) : displayedItems.length === 0 && !hasPendingCrmQueue ? (
           <CrmEmptyState
             title="No notifications yet"
             description="New bookings, setup alerts, and staff updates will appear here."
@@ -150,14 +154,14 @@ export function NotificationPopover({
           />
         ) : (
           <div>
-            {bookingReviewItems.length > 0 ? (
+            {hasPendingCrmQueue ? (
               <Link
                 href="/crm/bookings?tab=needs-action"
                 className="flex items-center gap-3 border-b border-[var(--cs-border-soft)] bg-[var(--cs-sand-mist)] px-4 py-3 text-sm text-[var(--cs-text)] transition hover:bg-[var(--cs-surface-warm)]"
               >
                 <Bell className="size-5 shrink-0 text-[var(--cs-sand-dark)]" aria-hidden="true" />
                 <span className="flex-1">
-                  <strong className="block">Booking confirmations awaiting review</strong>
+                  <strong className="block">{pendingCrmCount === null ? "Bookings awaiting confirmation" : `${pendingCrmCount} booking${pendingCrmCount === 1 ? "" : "s"} awaiting confirmation`}</strong>
                   <span className="block text-xs text-[var(--cs-text-secondary)]">
                     Open the current pending queue. Individual notices stay preserved.
                   </span>
