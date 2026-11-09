@@ -96,6 +96,21 @@ describe("CRM booking order representation", () => {
     expect(data.bookings.every((row) => row.order_payment_status === "unpaid")).toBe(true);
   });
 
+  it("rejects a selected booking from a different branch before reading its order", async () => {
+    queries.getRef.mockResolvedValue({
+      data: null,
+      error: null,
+    });
+
+    await expect(getCrmBookingsOperationalData({
+      branchId: "branch-a", branchName: "Main", role: "crm",
+      bookingId: "another-branch-booking", client: scopedClient(),
+    })).rejects.toThrow("Booking is unavailable for this branch.");
+
+    expect(queries.getCrmOrderServiceLines).not.toHaveBeenCalled();
+    expect(queries.getCrmBookingsCommandCenterRows).not.toHaveBeenCalled();
+  });
+
   it("preserves daily date scope when no booking was explicitly selected", async () => {
     queries.getCrmBookingsCommandCenterRows.mockResolvedValue([booking("booking-one", "2026-11-09")]);
 
