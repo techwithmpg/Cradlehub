@@ -65,6 +65,7 @@ type BookingsWorkspaceProps = {
   branches?: Branch[];
   date: string;
   businessDate?: string;
+  overdueReview?: boolean;
   statusFilter?: string;
   typeFilter?: string;
   referenceSource?: "all" | "cradlehub" | "master_sheet";
@@ -309,6 +310,7 @@ export function BookingsWorkspace({
   branches,
   date,
   businessDate,
+  overdueReview = false,
   statusFilter,
   typeFilter,
   referenceSource = "all",
@@ -426,7 +428,7 @@ export function BookingsWorkspace({
     (referenceSource === "all" &&
       sheetState?.status === "available" &&
       sheetState.bookings.length > 0);
-  if (isCrm && !hasSheetReferences) {
+  if (isCrm && (!hasSheetReferences || overdueReview)) {
     return (
       <BookingsDesktopWorkspace
         key={initialQuickFilter === "upcoming" ? "upcoming" : "daily"}
@@ -435,6 +437,7 @@ export function BookingsWorkspace({
         branches={branches}
         date={date}
         businessDate={businessDate}
+        overdueReview={overdueReview}
         statusFilter={statusFilter}
         sourceFilter={typeFilter}
         referenceSource={referenceSource}
