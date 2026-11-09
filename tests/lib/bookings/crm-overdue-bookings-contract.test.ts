@@ -15,7 +15,8 @@ const mocks = vi.hoisted(() => ({
   waitlist: vi.fn(),
 }));
 
-vi.mock("@/lib/engine/slot-time", () => ({
+vi.mock("@/lib/engine/slot-time", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("@/lib/engine/slot-time")>()),
   getBranchBusinessDate: () => mocks.today,
 }));
 vi.mock("@/lib/queries/bookings", () => ({
