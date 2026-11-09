@@ -24,6 +24,7 @@ type Props = {
   onDismiss: (id: string) => void;
   onMarkAllRead: () => void;
   role: string;
+  smartPendingBookings?: boolean;
 };
 
 const SETTINGS_ROLES = new Set(["owner", "crm", "staff", "driver", "utility"]);
@@ -67,9 +68,22 @@ export function NotificationPopover({
   onDismiss,
   onMarkAllRead,
   role,
+  smartPendingBookings = false,
 }: Props) {
   const [markingAll, setMarkingAll] = useState(false);
   const orderedItems = sortNewestFirst(items);
+  // A branch can have many booking-created rows, but CRM needs ONE doorway
+  // into the authoritative Needs Action queue instead of a noisy list.
+  const bookingReviewItems = smartPendingBookings
+    ? orderedItems.filter((item) =>
+        item.target_workspace === "crm" &&
+        item.type === "booking_created" &&
+        item.requires_action &&
+        (item.status === "unread" || item.status === "read")
+      )
+    : [];
+  const groupedBookingIds = new Set(bookingReviewItems.map((item) => item.id));
+  const displayedItems = orderedItems.filter((item) => !groupedBookingIds.has(item.id));
   const hasUnread = unreadCount > 0;
   const hasMarkableUnread = orderedItems.some(
     (item) => item.status === "unread" && !item.requires_action
@@ -127,7 +141,7 @@ export function NotificationPopover({
       >
         {isLoading ? (
           <NotificationSkeletonRows />
-        ) : orderedItems.length === 0 ? (
+        ) : displayedItems.length === 0 && bookingReviewItems.length === 0 ? (
           <CrmEmptyState
             title="No notifications yet"
             description="New bookings, setup alerts, and staff updates will appear here."
@@ -136,7 +150,22 @@ export function NotificationPopover({
           />
         ) : (
           <div>
-            {orderedItems.map((item) => (
+            {bookingReviewItems.length > 0 ? (
+              <Link
+                href="/crm/bookings?tab=needs-action"
+                className="flex items-center gap-3 border-b border-[var(--cs-border-soft)] bg-[var(--cs-sand-mist)] px-4 py-3 text-sm text-[var(--cs-text)] transition hover:bg-[var(--cs-surface-warm)]"
+              >
+                <Bell className="size-5 shrink-0 text-[var(--cs-sand-dark)]" aria-hidden="true" />
+                <span className="flex-1">
+                  <strong className="block">Booking confirmations awaiting review</strong>
+                  <span className="block text-xs text-[var(--cs-text-secondary)]">
+                    Open the current pending queue. Individual notices stay preserved.
+                  </span>
+                </span>
+                <ChevronRight className="size-4 shrink-0" aria-hidden="true" />
+              </Link>
+            ) : null}
+            {displayedItems.map((item) => (
               <NotificationPopoverRow
                 key={item.id}
                 notification={item}
