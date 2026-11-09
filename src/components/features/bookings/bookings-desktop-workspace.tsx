@@ -393,6 +393,7 @@ export function BookingsDesktopWorkspace(props: DesktopWorkspaceProps) {
       bookings={props.bookings}
       date={props.date}
       businessDate={props.businessDate}
+      overdueReview={props.overdueReview}
       initialQuickFilter={props.initialQuickFilter}
       initialSelectedId={props.initialSelectedId}
       services={availableServices}
