@@ -133,6 +133,60 @@ describe("cradlehub-push-sw", () => {
     );
   });
 
+  it("shows assigned Home Service push even when a workspace tab is visible", async () => {
+    const postMessage = vi.fn();
+    const harness = createHarness([{
+      url: "https://app.cradlehub.test/staff/driver",
+      visibilityState: "visible",
+      postMessage,
+    }]);
+    let pending: Promise<unknown> = Promise.resolve();
+    harness.listeners.get("push")!({
+      data: {
+        json: () => ({
+          notificationId: "driver-confirmed-1",
+          type: "home_service_assigned",
+          title: "Home Service confirmed",
+          actionHref: "/staff/driver/routes/11111111-1111-4111-8111-111111111111",
+        }),
+      },
+      waitUntil: (promise) => { pending = Promise.resolve(promise); },
+    });
+    await pending;
+    expect(harness.showNotification).toHaveBeenCalledTimes(1);
+    expect(harness.showNotification.mock.calls[0]?.[1]).toMatchObject({
+      data: {
+        actionHref: "/staff/driver/routes/11111111-1111-4111-8111-111111111111",
+      },
+    });
+    expect(postMessage).not.toHaveBeenCalled();
+  });
+
+  it("opens a matching Staff PWA window instead of diverting a visible CRM tab", async () => {
+    const crmNavigate = vi.fn().mockResolvedValue(undefined);
+    const staffNavigate = vi.fn().mockResolvedValue(undefined);
+    const staffFocus = vi.fn().mockResolvedValue(undefined);
+    const harness = createHarness([
+      { url: "https://app.cradlehub.test/crm", navigate: crmNavigate, focus: vi.fn() },
+      { url: "https://app.cradlehub.test/staff/driver", navigate: staffNavigate, focus: staffFocus },
+    ]);
+    let pending: Promise<unknown> = Promise.resolve();
+    harness.listeners.get("notificationclick")!({
+      notification: {
+        close: vi.fn(),
+        data: { actionHref: "/staff/driver/routes/11111111-1111-4111-8111-111111111111" },
+      },
+      waitUntil: (promise) => { pending = Promise.resolve(promise); },
+    });
+    await pending;
+    expect(crmNavigate).not.toHaveBeenCalled();
+    expect(staffNavigate).toHaveBeenCalledWith(
+      "https://app.cradlehub.test/staff/driver/routes/11111111-1111-4111-8111-111111111111"
+    );
+    expect(staffFocus).toHaveBeenCalledTimes(1);
+    expect(harness.openWindow).not.toHaveBeenCalled();
+  });
+
   it("registers subscription-change recovery", () => {
     const harness = createHarness();
     expect(harness.listeners.has("pushsubscriptionchange")).toBe(true);
