@@ -27,6 +27,45 @@ historical migrations or mark local-only migrations applied to enable this chang
 4. No historical order-date backfill in this proposal. Report existing mismatches to
    CSR for case review before considering any targeted correction.
 
+## Release-blocking conflict with overnight confirmation policy
+
+**CORRECTION REQUIRED (2026-11-09):** The draft 120-minute hold starts at
+creation time, but the separately authorized N4 notification policy queues
+after-hours public booking requests silently until the next responsible CSR
+duty session. A booking entered at 23:00 would therefore release its capacity
+at 01:00 without the CSR having been offered a reasonable chance to confirm.
+An after-hours queue and a fixed 120-minute hold cannot both be active under
+the present contract.
+
+This document's 120-minute trigger is **not approved**, even for new
+bookings, until the owner explicitly approves a single unified capacity and
+confirmation policy. Do not publish public wording promising reserved slots
+for the entire unattended period unless server-side capacity actually remains
+reserved. Do not silently auto-confirm or cancel overnight requests.
+
+**Required policy review across PRs #91 and #92:**
+- Decide whether an unattended overnight request reserves capacity until
+  duty opening, or is only a request with availability rechecked at CSR action;
+  preserve customer-facing wording and fairness for the chosen model.
+- Define when an operational response SLA starts (request receipt versus
+  responsible shift start), who owns grouped backlog, and how the CRM
+  confirms/reschedules/declines without duplicate handling.
+- Define a **server-authoritative** expiration function that is consistent
+  across database slot predicates, room/staff allocation, public checkout,
+  existing order confirmation and CRM visibility. Browser timers are not
+  authorization or availability authority.
+- Acceptance matrix: 20:59 and 21:01 submissions; 23:00 request with 10:00
+  next-day duty; weekends/split shifts/no available CSR; 119/120/121-minute
+  boundaries; simultaneous customer requests; newly reassigned therapist;
+  public and CRM bookings on two devices with reconnect; expired reservation
+  still visible for action; customer communication reflects actual status.
+- Preserve all preexisting NULL-hold rows and audit history. No bulk expiry,
+  cleanup, automatic cancellations or unattended financial changes.
+
+**Important:** The SQL below is retained only for independent review; it is
+not a migration and does not resolve this conflict. Do not execute it against
+any environment until the policy is settled and rewritten accordingly.
+
 ## Proposed DDL — DO NOT APPLY to production
 
 ```sql
