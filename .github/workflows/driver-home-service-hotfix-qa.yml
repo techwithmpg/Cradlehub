@@ -7,6 +7,9 @@ on:
       - "src/app/(dashboard)/staff/driver/map/**"
       - "src/lib/staff-pwa/driver-dispatch-policy.ts"
       - "src/components/features/staff-pwa/driver/**"
+      - "src/components/features/staff-portal/driver/**"
+      - "src/components/features/dispatch/**"
+      - "src/lib/actions/location-actions.ts"
       - "src/lib/home-service/**"
       - "src/lib/bookings/crm-booking-operations.ts"
       - "src/lib/staff-pwa/notice-policy.ts"
@@ -15,6 +18,9 @@ on:
       - "tests/lib/home-service/confirmed-driver-notification.test.ts"
       - "tests/lib/pwa/driver-dispatch-policy.test.ts"
       - "tests/lib/pwa/driver-dispatch-actions.test.ts"
+      - "tests/lib/pwa/driver-live-location.test.ts"
+      - "tests/lib/pwa/driver-trip-alert-action.test.ts"
+      - "tests/lib/pwa/driver-single-shell-contract.test.ts"
       - "tests/lib/notifications/cradlehub-push-service-worker.test.ts"
       - ".github/workflows/driver-home-service-hotfix-qa.yml"
   workflow_dispatch:
@@ -39,11 +45,24 @@ jobs:
       - name: TypeScript type-check
         run: pnpm type-check
       - name: Targeted driver / push regression tests
-        run: pnpm exec vitest run tests/lib/home-service/confirmed-driver-notification.test.ts tests/lib/pwa/driver-dispatch-policy.test.ts tests/lib/pwa/driver-dispatch-actions.test.ts tests/lib/notifications/cradlehub-push-service-worker.test.ts tests/lib/notifications/push-delivery-targeting.test.ts tests/lib/pwa/driver-wiring.test.ts tests/lib/pwa/driver-native-ui.test.tsx
+        run: pnpm exec vitest run tests/lib/home-service/confirmed-driver-notification.test.ts tests/lib/pwa/driver-dispatch-policy.test.ts tests/lib/pwa/driver-dispatch-actions.test.ts tests/lib/pwa/driver-live-location.test.ts tests/lib/pwa/driver-trip-alert-action.test.ts tests/lib/pwa/driver-single-shell-contract.test.ts tests/lib/notifications/cradlehub-push-service-worker.test.ts tests/lib/notifications/push-delivery-targeting.test.ts tests/lib/pwa/driver-wiring.test.ts tests/lib/pwa/driver-native-ui.test.tsx
       - name: Targeted ESLint
         run: >
           pnpm exec eslint
           src/lib/home-service/confirmed-driver-notification.ts
+          src/app/'(dashboard)'/staff/driver/map/live-location-action.ts
+          src/app/'(dashboard)'/staff/driver/trip-alert-action.ts
+          src/components/features/staff-pwa/driver/driver-native-detail.tsx
+          src/components/features/staff-pwa/driver/driver-trip-alerts.tsx
+          src/components/features/staff-pwa/driver/driver-native-map.tsx
+          src/components/features/staff-portal/driver/driver-job-details-page.tsx
+          src/components/features/staff-portal/driver/map/driver-route-action-buttons.tsx
+          src/components/features/staff-portal/driver/map/driver-start-travel-button.tsx
+          src/components/features/dispatch/dispatch-live-map-tab.tsx
+          src/components/features/dispatch/use-live-crm-dispatch-data.ts
+          tests/lib/pwa/driver-live-location.test.ts
+          tests/lib/pwa/driver-trip-alert-action.test.ts
+          tests/lib/pwa/driver-single-shell-contract.test.ts
           src/lib/staff-pwa/driver-dispatch-policy.ts
           src/components/features/staff-pwa/driver/driver-combined-dispatch-map.tsx
           src/components/features/staff-pwa/driver/driver-screen-awake-toggle.tsx
