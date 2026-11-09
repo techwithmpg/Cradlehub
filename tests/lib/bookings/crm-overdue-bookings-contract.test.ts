@@ -69,7 +69,8 @@ describe("CRM overdue pending review", () => {
       client,
     });
 
-    expect(mocks.overdue).toHaveBeenCalledExactlyOnceWith("branch-a", "2026-11-09", client);
+    expect(mocks.overdue).toHaveBeenCalledTimes(1);
+    expect(mocks.overdue).toHaveBeenCalledWith("branch-a", "2026-11-09", client);
     expect(mocks.daily).not.toHaveBeenCalled();
     expect(mocks.upcoming).not.toHaveBeenCalled();
     expect(data.reviewingOverdue).toBe(true);
