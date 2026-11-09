@@ -35,6 +35,35 @@ export function getPhilippineMobileNumberError(value: string): string | null {
 }
 
 /**
+ * Public international contact fallback. E.164 syntax is accepted for manual
+ * callback; it does not prove the number is reachable or that Twilio can send
+ * to the destination. Foreign contacts must also supply an email address.
+ */
+export const INTERNATIONAL_MOBILE_FORMAT_MESSAGE =
+  "Enter the international number with + and its country code (8–15 digits), or use a Philippine mobile number.";
+export const INTERNATIONAL_EMAIL_REQUIRED_MESSAGE =
+  "Please include an email address for an international number so Cradle can contact you if calling or SMS is unavailable.";
+
+export function isValidInternationalContactNumber(value: string): boolean {
+  const compact = value.trim().replace(/[\\s()-]/g, "");
+  return /^\\+[1-9]\\d{7,14}$/.test(compact) && !compact.startsWith("+63");
+}
+
+export function isValidPublicContactNumber(value: string): boolean {
+  return isValidPhilippineMobileNumber(value) || isValidInternationalContactNumber(value);
+}
+
+export function needsInternationalEmailFallback(value: string): boolean {
+  return isValidInternationalContactNumber(value);
+}
+
+export function getPublicContactNumberError(value: string): string | null {
+  if (isValidPublicContactNumber(value)) return null;
+  if (isClearlyForeignMobilePrefix(value)) return INTERNATIONAL_MOBILE_FORMAT_MESSAGE;
+  return getPhilippineMobileNumberError(value);
+}
+
+/**
  * User-facing feedback for the public contact field. Computed on every value
  * change; no blur or attempted submission is needed to see an invalid number.
  */
@@ -45,15 +74,17 @@ export function getPublicPhoneFieldFeedback(value: string): {
   if (!value.trim()) {
     return {
       status: "hint",
-      message: "Enter a Philippine mobile number starting with 09 (11 digits) or +63 9XX XXX XXXX. International numbers cannot be contacted.",
+      message: "Enter a Philippine mobile number (09 or +63) or an international number (+country code). International contacts also need email.",
     };
   }
 
-  const error = getPhilippineMobileNumberError(value);
+  const error = getPublicContactNumberError(value);
   if (error) return { status: "error", message: error };
 
   return {
     status: "valid",
-    message: "Philippine mobile number format accepted.",
+    message: needsInternationalEmailFallback(value)
+      ? "International number accepted for callback. Email is also required; SMS delivery is not guaranteed."
+      : "Philippine mobile number format accepted.",
   };
 }
