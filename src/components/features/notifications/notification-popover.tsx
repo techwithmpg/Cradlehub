@@ -25,6 +25,7 @@ type Props = {
   onMarkAllRead: () => void;
   role: string;
   smartPendingBookings?: boolean;
+  pendingCrmCount?: number | null;
 };
 
 const SETTINGS_ROLES = new Set(["owner", "crm", "staff", "driver", "utility"]);
@@ -69,12 +70,20 @@ export function NotificationPopover({
   onMarkAllRead,
   role,
   smartPendingBookings = false,
+  pendingCrmCount = null,
 }: Props) {
   const [markingAll, setMarkingAll] = useState(false);
   const orderedItems = sortNewestFirst(items);
-  // A branch can have many booking-created rows, but CRM needs ONE doorway
-  // into the authoritative Needs Action queue instead of a noisy list.
-  const bookingReviewItems = smartPendingBookings
+  // Only the authenticated, on-duty CRM queue count can decide when to
+  // show one grouped doorway. Notification rows are historical signals, not
+  // the authoritative current booking count.
+  const groupedPendingCount =
+    smartPendingBookings && role === "crm" && typeof pendingCrmCount === "number" &&
+    Number.isSafeInteger(pendingCrmCount) && pendingCrmCount > 1
+      ? pendingCrmCount
+      : 0;
+  const hasPendingGroup = groupedPendingCount > 1;
+  const bookingReviewItems = hasPendingGroup
     ? orderedItems.filter((item) =>
         item.target_workspace === "crm" &&
         item.type === "booking_created" &&
@@ -141,7 +150,7 @@ export function NotificationPopover({
       >
         {isLoading ? (
           <NotificationSkeletonRows />
-        ) : displayedItems.length === 0 && bookingReviewItems.length === 0 ? (
+        ) : displayedItems.length === 0 && !hasPendingGroup ? (
           <CrmEmptyState
             title="No notifications yet"
             description="New bookings, setup alerts, and staff updates will appear here."
@@ -150,14 +159,14 @@ export function NotificationPopover({
           />
         ) : (
           <div>
-            {bookingReviewItems.length > 0 ? (
+            {hasPendingGroup ? (
               <Link
                 href="/crm/bookings?tab=needs-action"
                 className="flex items-center gap-3 border-b border-[var(--cs-border-soft)] bg-[var(--cs-sand-mist)] px-4 py-3 text-sm text-[var(--cs-text)] transition hover:bg-[var(--cs-surface-warm)]"
               >
                 <Bell className="size-5 shrink-0 text-[var(--cs-sand-dark)]" aria-hidden="true" />
                 <span className="flex-1">
-                  <strong className="block">Booking confirmations awaiting review</strong>
+                  <strong className="block">{groupedPendingCount} bookings awaiting confirmation</strong>
                   <span className="block text-xs text-[var(--cs-text-secondary)]">
                     Open the current pending queue. Individual notices stay preserved.
                   </span>
