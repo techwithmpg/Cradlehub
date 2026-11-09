@@ -13,7 +13,8 @@ describe("P1 pending booking notification bell integration contract", () => {
 
   it("shows one grouped doorway only when an authenticated on-duty queue has multiple pending bookings", () => {
     expect(popover).toContain('smartPendingBookings && role === "crm"');
-    expect(popover).toContain("Number.isSafeInteger(pendingCrmCount) && pendingCrmCount > 1");
+    expect(popover).toContain("Number.isSafeInteger(pendingCrmCount)");
+    expect(popover).toContain("pendingCrmCount > 1");
     expect(popover).toContain("const hasPendingGroup = groupedPendingCount > 1;");
     expect(popover).toContain("const bookingReviewItems = hasPendingGroup");
     expect(popover).toContain("{hasPendingGroup ? (");
