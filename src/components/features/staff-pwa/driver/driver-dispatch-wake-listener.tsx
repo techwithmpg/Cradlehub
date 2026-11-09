@@ -21,10 +21,13 @@ export function DriverDispatchWakeListener() {
       const href = data.actionHref;
       if (typeof href !== "string" ||
           !/^\/staff\/driver\/map\?bookingId=[0-9a-f-]{36}$/i.test(href)) return;
-      if (pathname === "/staff/driver/map") {
+      if (pathname === "/staff/driver/map" &&
+          window.location.pathname + window.location.search === href) {
         window.dispatchEvent(new Event("CRADLEHUB_DRIVER_DISPATCH_UPDATE"));
         router.refresh();
       } else {
+        // Including bookingId in this navigation lets the server choose the
+        // correct assignment date, even if the PWA was viewing another day.
         router.push(href);
       }
     };
