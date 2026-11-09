@@ -112,7 +112,10 @@ export async function getCrmBookingsOperationalData({
   // were rescheduled to different days. Hydrate its complete branch-scoped
   // order on both Daily and Upcoming views so the selected group is accurate.
   // In Upcoming, preserve the existing complete-order hydration as well.
-  const relatedOrderIds = upcoming || overdue
+  // Review list contains only overdue pending service lines. Expand the
+  // whole parent order only after an explicit booking deep link, just as the
+  // daily view does, to avoid representing confirmed sibling lines as overdue.
+  const relatedOrderIds = upcoming
     ? bookings.flatMap((row) => (row.order_id ? [row.order_id] : []))
     : (selectedOrderId ? [selectedOrderId] : []);
   const hydrationOrderIds = [...new Set(relatedOrderIds)];
