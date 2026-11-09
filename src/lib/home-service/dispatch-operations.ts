@@ -218,7 +218,7 @@ export async function assignHomeServiceDriver(
         body: `A confirmed trip is assigned to you on ${booking.booking_date} at ${booking.start_time}.`,
         entityType: "booking",
         entityId: booking.id,
-        actionHref: `/staff/driver/routes/${booking.id}`,
+        actionHref: `/staff/driver/map?bookingId=${booking.id}`,
         priority: "high",
         requiresAction: true,
         dedupeKey: `booking:${booking.id}:confirmed:driver:${driverId}`,
