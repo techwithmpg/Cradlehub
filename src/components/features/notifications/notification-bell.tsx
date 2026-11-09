@@ -68,7 +68,7 @@ function serviceTransitionEventId(notification: WorkspaceNotification): string |
   return typeof id === "string" ? id : null;
 }
 
-export function NotificationBell({ role, userId, toastOnly = false }: { role: string; userId?: string; toastOnly?: boolean }) {
+export function NotificationBell({ role, userId, toastOnly = false, smartPendingBookings = false }: { role: string; userId?: string; toastOnly?: boolean; smartPendingBookings?: boolean }) {
   const router = useRouter();
   const [count, setCount] = useState(0);
   const [items, setItems] = useState<WorkspaceNotification[]>([]);
@@ -215,6 +215,9 @@ export function NotificationBell({ role, userId, toastOnly = false }: { role: st
       // Service transition presentation belongs to the existing service
       // lifecycle provider; keep booking refresh but avoid a duplicate toast.
       if (serviceTransitionEventId(notification)) return;
+      // Smart CRM booking confirmation owns single-vs-grouped presentation.
+      // Existing bell storage/realtime still owns the underlying shared notice.
+      if (smartPendingBookings && canonicalRole === "crm" && notification.type === "booking_created") return;
       if (!shouldPresentActionPopup(notification)) return;
       if (knownStatusRef.current.get(notification.id) !== "unread") return;
 
@@ -224,7 +227,7 @@ export function NotificationBell({ role, userId, toastOnly = false }: { role: st
       }
       showActionPopup(notification);
     },
-    [ownerOnly, isSafePresentationMoment, showActionPopup]
+    [ownerOnly, canonicalRole, smartPendingBookings, isSafePresentationMoment, showActionPopup]
   );
 
   const handleRealtimeUpdate = useCallback((notification: WorkspaceNotification) => {
@@ -342,6 +345,7 @@ export function NotificationBell({ role, userId, toastOnly = false }: { role: st
         >
           <NotificationBellDropdown
             items={items}
+            smartPendingBookings={smartPendingBookings && canonicalRole === "crm"}
             roleHref={href}
             unreadCount={count}
             isLoading={fetching}
