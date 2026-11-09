@@ -9,6 +9,7 @@ import { DriverMobileBottomNav } from "./driver-mobile-bottom-nav";
 import { DriverProfileSheet } from "./driver-profile-sheet";
 import { StaffCanvas } from "@/components/features/staff-pwa/native-foundation";
 import { StaffSafeMemoryProvider } from "@/components/features/staff-pwa/safe-memory";
+import { DriverDispatchWakeListener } from "@/components/features/staff-pwa/driver/driver-dispatch-wake-listener";
 import type { StaffPortalStaff } from "@/components/features/staff-portal/types";
 
 type DriverMobileShellProps = {
@@ -45,6 +46,7 @@ export function DriverMobileShell({ staff, children, mode, identity }: DriverMob
   return (
     <MobileNavigationProgressProvider>
       <MobileRouteProgress />
+      {mode === "canonical" ? <DriverDispatchWakeListener /> : null}
       {mode === "canonical" && identity ? (
         <StaffSafeMemoryProvider identity={identity}>{content}</StaffSafeMemoryProvider>
       ) : (

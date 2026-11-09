@@ -5,7 +5,7 @@ import { z } from "zod";
 
 import { canonicalizeSystemRole } from "@/constants/staff";
 import { createAdminClient } from "@/lib/supabase/admin";
-import { createNotification, resolveNotificationsForEntity } from "@/lib/notifications/create";
+import { createNotification, createNotificationOnce, resolveNotificationsForEntity } from "@/lib/notifications/create";
 import { invalidateCrmWorkspace } from "@/lib/cache/cache-tags";
 import { logError } from "@/lib/logger";
 import { revalidatePath } from "next/cache";
@@ -82,7 +82,7 @@ export async function assignHomeServiceDriver(
   const { data: booking, error: bookingError } = await client
     .from("bookings")
     .select(
-      "id, branch_id, delivery_type, type, driver_id, booking_date, start_time"
+      "id, branch_id, delivery_type, type, driver_id, booking_date, start_time, status"
     )
     .eq("id", bookingId)
     .maybeSingle();
@@ -206,8 +206,10 @@ export async function assignHomeServiceDriver(
       });
     }
 
-    if (driverId) {
-      await createNotification({
+    // Pending requests are not confirmed trips. The CRM confirmation transition
+    // sends the definitive notice when the booking becomes confirmed.
+    if (driverId && ["confirmed", "in_progress"].includes(booking.status)) {
+      await createNotificationOnce({
         branchId: booking.branch_id,
         targetWorkspace: "driver",
         recipientStaffId: driverId,
@@ -216,10 +218,10 @@ export async function assignHomeServiceDriver(
         body: `A confirmed trip is assigned to you on ${booking.booking_date} at ${booking.start_time}.`,
         entityType: "booking",
         entityId: booking.id,
-        actionHref: `/driver/jobs/${booking.id}`,
+        actionHref: `/staff/driver/map?bookingId=${booking.id}`,
         priority: "high",
         requiresAction: true,
-        dedupeKey: `booking:${booking.id}:driver_assignment:${driverId}`,
+        dedupeKey: `booking:${booking.id}:confirmed:driver:${driverId}`,
       });
     }
   }
