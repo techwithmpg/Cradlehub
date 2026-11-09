@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import { APIProvider, Map, Marker, useMap, useMapsLibrary } from "@vis.gl/react-google-maps";
 import { MapPin, Navigation, RefreshCw } from "lucide-react";
@@ -43,13 +43,16 @@ function RouteOverlay({ encodedPolyline }: { encodedPolyline: string }) {
 }
 
 export function DriverLiveRoute({ job }: { job: RealDispatchItem }) {
-  const destination =
-    job.lat !== null && job.lng !== null &&
-    Number.isFinite(job.lat) && Number.isFinite(job.lng) &&
-    Math.abs(job.lat) <= 90 && Math.abs(job.lng) <= 180 &&
-    !job.needsLocationReview
-      ? { lat: job.lat, lng: job.lng }
-      : null;
+  const destination = useMemo(
+    () =>
+      job.lat !== null && job.lng !== null &&
+      Number.isFinite(job.lat) && Number.isFinite(job.lng) &&
+      Math.abs(job.lat) <= 90 && Math.abs(job.lng) <= 180 &&
+      !job.needsLocationReview
+        ? { lat: job.lat, lng: job.lng }
+        : null,
+    [job.lat, job.lng, job.needsLocationReview]
+  );
   const externalUrl = destination ? getDriverNavigationUrl(job) : null;
   const [position, setPosition] = useState<Coordinates | null>(null);
   const [gpsError, setGpsError] = useState<string | null>(null);
@@ -59,10 +62,7 @@ export function DriverLiveRoute({ job }: { job: RealDispatchItem }) {
   const requested = useRef(false);
 
   useEffect(() => {
-    if (!destination || !("geolocation" in navigator)) {
-      setGpsError(destination ? "Location services are unavailable on this device." : "Ask CRM to confirm the destination pin.");
-      return;
-    }
+    if (!destination || !("geolocation" in navigator)) return;
     const watcher = navigator.geolocation.watchPosition(
       (result) => {
         setPosition({ lat: result.coords.latitude, lng: result.coords.longitude });
@@ -72,7 +72,7 @@ export function DriverLiveRoute({ job }: { job: RealDispatchItem }) {
       { enableHighAccuracy: true, maximumAge: 10000, timeout: 15000 }
     );
     return () => navigator.geolocation.clearWatch(watcher);
-  }, [job.id, destination?.lat, destination?.lng]); // No location is written to the database.
+  }, [job.id, destination]); // No location is written to the database.
 
   const loadRoute = useCallback(async (origin: Coordinates) => {
     setIsRouting(true);
@@ -154,7 +154,13 @@ export function DriverLiveRoute({ job }: { job: RealDispatchItem }) {
         </div>
       )}
 
-      {gpsError ? <p role="status" className="text-sm text-amber-800">{gpsError}</p> : null}
+      {gpsError ? <p role="status" className="text-sm text-amber-800">{gpsError}</p> : (
+        destination && !position ? (
+          <p role="status" className="text-sm text-amber-800">
+            Allow location access to show your live position and load the driving route.
+          </p>
+        ) : null
+      )}
       {routeError ? <p role="status" className="text-sm text-amber-800">{routeError}</p> : null}
       <div className="grid grid-cols-2 gap-2">
         <button
