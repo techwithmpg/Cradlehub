@@ -106,6 +106,29 @@ describe("CrmBookingsRealtimeBridge", () => {
     expect(onBookingChange).toHaveBeenCalledTimes(3);
   });
 
+  it("throttles repeated foreground-focus reconciliations without throttling realtime writes", () => {
+    render(<CrmBookingsRealtimeBridge branchId="branch-a" />);
+
+    act(() => {
+      window.dispatchEvent(new Event("focus"));
+      vi.advanceTimersByTime(200);
+    });
+    expect(onBookingChange).not.toHaveBeenCalled();
+
+    act(() => {
+      vi.advanceTimersByTime(30_000);
+      window.dispatchEvent(new Event("focus"));
+      vi.advanceTimersByTime(200);
+    });
+    expect(onBookingChange).toHaveBeenCalledTimes(1);
+
+    act(() => {
+      realtime.handlers[0]!.handler();
+      vi.advanceTimersByTime(200);
+    });
+    expect(onBookingChange).toHaveBeenCalledTimes(2);
+  });
+
   it("removes the subscription and prevents stale updates after unmount", () => {
     const view = render(<CrmBookingsRealtimeBridge branchId="branch-a" />);
     const insert = realtime.handlers[0]!.handler;
