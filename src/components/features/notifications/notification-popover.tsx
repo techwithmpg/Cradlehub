@@ -78,8 +78,11 @@ export function NotificationPopover({
   // show one grouped doorway. Notification rows are historical signals, not
   // the authoritative current booking count.
   const groupedPendingCount =
-    smartPendingBookings && role === "crm" && typeof pendingCrmCount === "number" &&
-    Number.isSafeInteger(pendingCrmCount) && pendingCrmCount > 1
+    smartPendingBookings &&
+    role === "crm" &&
+    typeof pendingCrmCount === "number" &&
+    Number.isSafeInteger(pendingCrmCount) &&
+    pendingCrmCount > 1
       ? pendingCrmCount
       : 0;
   const hasPendingGroup = groupedPendingCount > 1;
