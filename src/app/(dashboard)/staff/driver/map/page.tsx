@@ -1,29 +1,23 @@
 import type { Metadata } from "next";
 import { redirect } from "next/navigation";
-import { getMyDriverJobsAction } from "../../../staff-portal/actions";
-import { DriverNativeMap } from "@/components/features/staff-pwa/driver/driver-native-map";
-import type { RealDispatchItem } from "@/lib/queries/dispatch-queries";
+import { getDriverDispatchSnapshotAction } from "./actions";
+import { DriverCombinedDispatchMap } from "@/components/features/staff-pwa/driver/driver-combined-dispatch-map";
 
-export const metadata: Metadata = { title: "Route Map - CradleHub Staff" };
+export const metadata: Metadata = { title: "Live Dispatch Route — CradleHub Driver" };
 
-type JobsResult = { error: string } | { items: RealDispatchItem[]; businessDate?: string };
-
-export default async function StaffDriverMapPage() {
-  const result = (await getMyDriverJobsAction()) as JobsResult;
-
-  if ("error" in result) {
-    if (result.error === "Unauthorized") redirect("/staff/login");
-    return (
-      <p role="alert" className="p-6">
-        Route unavailable. {result.error}
-      </p>
-    );
-  }
-
-  return (
-    <DriverNativeMap
-      items={result.items}
-      businessDate={result.businessDate ?? new Date().toISOString().slice(0, 10)}
-    />
+/** Canonical installed-PWA destination for every assigned Home Service alert. */
+export default async function StaffDriverMapPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ bookingId?: string }>;
+}) {
+  const { bookingId } = await searchParams;
+  const result = await getDriverDispatchSnapshotAction(
+    bookingId ? { bookingId } : {}
   );
+  if (!result.ok) {
+    if (result.message.includes("sign in")) redirect("/staff/login");
+    return <p role="alert" className="p-6 text-sm">{result.message}</p>;
+  }
+  return <DriverCombinedDispatchMap initialSnapshot={result.snapshot} />;
 }
