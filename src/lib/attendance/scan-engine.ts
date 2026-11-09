@@ -2954,7 +2954,9 @@ async function processAttendanceScan(
     const exception =
       anomalyCodes.length > 0
         ? {
-            exceptionType: clockOutMatchesCurrentAttendanceDay ? timingReasonCode : "stale_open_checkin",
+            exceptionType: clockOutMatchesCurrentAttendanceDay
+              ? timingReasonCode
+              : "stale_open_checkin",
             message: !clockOutMatchesCurrentAttendanceDay
               ? `${staffName}'s sole open attendance record was closed even though it did not match the current schedule.`
               : metrics.earlyLeaveMinutes > 0
