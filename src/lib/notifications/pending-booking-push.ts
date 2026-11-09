@@ -129,6 +129,16 @@ export async function runPendingBookingPushReminders(now = new Date()) {
             !delivery.dispatchFailed &&
             delivery.failed === 0 &&
             delivery.delivered > 0;
+          if (!success && delivery.failed === 0) {
+            // "No subscribed eligible CSR" is NOT successful push delivery.
+            stats.failed += 1;
+            logWarn("crm.pending_booking_push_no_delivery", {
+              branchId: branch.id,
+              attempted: delivery.attempted,
+              configured: delivery.configured,
+              dispatchFailed: delivery.dispatchFailed,
+            });
+          }
           repeatMs = success
             ? latest.count === 1 ? SINGLE_REPEAT_MS : GROUP_REPEAT_MS
             : FAILURE_RETRY_MS;
