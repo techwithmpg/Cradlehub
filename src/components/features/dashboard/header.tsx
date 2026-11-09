@@ -104,7 +104,11 @@ export function Header({
 
         <div style={{ width: 1, height: 16, background: "var(--cs-border)", margin: "0 4px" }} />
 
-        <NotificationBell role={role} userId={userId} />
+        <NotificationBell
+          role={role}
+          userId={userId}
+          smartPendingBookings={process.env.CRADLEHUB_PENDING_BOOKING_ALERTS_ENABLED === "true"}
+        />
 
         <div style={{ width: 1, height: 16, background: "var(--cs-border)", margin: "0 2px" }} />
 
