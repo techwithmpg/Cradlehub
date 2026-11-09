@@ -50,6 +50,7 @@ export async function getCrmBookingsOperationalData({
 }: CrmBookingsOperationalInput): Promise<CrmBookingsOperationalData> {
   const today = getBranchBusinessDate();
   let date = requestedDate ?? today;
+  let selectedOrderId: string | null = null;
 
   const supabase = client ?? createAdminClient();
   if (bookingId) {
@@ -65,6 +66,7 @@ export async function getCrmBookingsOperationalData({
       throw new Error("Booking is unavailable for this branch.");
     }
     date = ref.booking_date;
+    selectedOrderId = ref.order_id;
   }
 
   const [rawBookings, cashSummary, waitlistResult] = await Promise.all([
@@ -77,17 +79,23 @@ export async function getCrmBookingsOperationalData({
 
   const bookings = [...rawBookings];
 
-  if (upcoming) {
-    const orderIds = bookings.flatMap((row) => (row.order_id ? [row.order_id] : []));
-    if (orderIds.length > 0) {
-      const lines = client
-        ? await getCrmOrderServiceLines(branchId, orderIds, client)
-        : await getCrmOrderServiceLines(branchId, orderIds);
-      for (const line of lines) {
-        if (!bookings.some((loaded) => loaded.id === line.id)) {
-          bookings.push(line);
-        }
-      }
+  // The deep-linked booking may be one line of an order whose other lines
+  // were rescheduled to different days. Hydrate its complete branch-scoped
+  // order on both Daily and Upcoming views so the selected group is accurate.
+  // In Upcoming, preserve the existing complete-order hydration as well.
+  const relatedOrderIds = upcoming
+    ? [...bookings.flatMap((row) => (row.order_id ? [row.order_id] : [])), ...(selectedOrderId ? [selectedOrderId] : [])]
+    : (selectedOrderId ? [selectedOrderId] : []);
+  const orderIds = [...new Set(relatedOrderIds)];
+  if (orderIds.length > 0) {
+    const lines = client
+      ? await getCrmOrderServiceLines(branchId, orderIds, client)
+      : await getCrmOrderServiceLines(branchId, orderIds);
+    const loadedIds = new Set(bookings.map((row) => row.id));
+    for (const line of lines) {
+      if (loadedIds.has(line.id)) continue;
+      loadedIds.add(line.id);
+      bookings.push(line);
     }
   }
 
