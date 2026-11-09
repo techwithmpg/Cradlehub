@@ -123,7 +123,7 @@ export function DriverNativeHome({
               Open trip
             </Link>
             <Link
-              href={`/staff/driver/routes/${primary.id}`}
+              href={`/staff/driver/map?bookingId=${primary.id}`}
               className="flex min-h-12 items-center justify-center gap-1 rounded-xl border border-[#c8a96b] text-sm font-semibold text-[#163a2b]"
             >
               <MapPinned size={16} aria-hidden="true" /> Map
