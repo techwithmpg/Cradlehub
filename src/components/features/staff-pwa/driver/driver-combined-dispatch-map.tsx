@@ -136,16 +136,18 @@ export function DriverCombinedDispatchMap({
       });
       if (version !== requestVersion.current) return;
       if (snapshotRef.current.fingerprint !== nextFingerprint) return;
+      // A provider error must not trigger an unbounded reroute retry loop.
+      lastCalculated.current = { at: Date.now(), pos: point, fingerprint: nextFingerprint };
       if (result.ok) {
         setRoute(result);
         setRouteError(null);
-        lastCalculated.current = { at: Date.now(), pos: point, fingerprint: nextFingerprint };
       } else {
         setRoute(null);
         setRouteError(result.message);
       }
     } catch {
       if (version === requestVersion.current) {
+        lastCalculated.current = { at: Date.now(), pos: point, fingerprint: nextFingerprint };
         setRoute(null);
         setRouteError("Route service unavailable. Use Open in Maps.");
       }
