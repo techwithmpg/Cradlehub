@@ -731,8 +731,9 @@ describe("CrmBookingsView generation-aware operational lifecycle", () => {
     expect(refreshAction).not.toHaveBeenCalled();
     expect(screen.getAllByText("Alice Unpaid").length).toBeGreaterThan(0);
 
-    // Click the Manage payment trigger in SelectedBookingPaymentRow to open quick pay menu
-    const payTrigger = screen.getByRole("button", { name: /Manage/i });
+    // Current CRM grid opens the server-backed payment action from Booking Details.
+    fireEvent.click(screen.getByRole("button", { name: "Alice Unpaid" }));
+    const payTrigger = screen.getByRole("button", { name: /^Payment$/i });
     fireEvent.click(payTrigger);
 
     // Click Cash quick pay option
@@ -794,8 +795,9 @@ describe("CrmBookingsView generation-aware operational lifecycle", () => {
     expect(screen.getAllByText("Alice Unpaid").length).toBeGreaterThan(0);
     expect(refreshAction).not.toHaveBeenCalled();
 
-    // Click Manage payment trigger
-    const payTrigger = screen.getByRole("button", { name: /Manage/i });
+    // The active operations grid places payment inside Booking Details.
+    fireEvent.click(screen.getByRole("button", { name: "Alice Unpaid" }));
+    const payTrigger = screen.getByRole("button", { name: /^Payment$/i });
     fireEvent.click(payTrigger);
 
     // Click Card quick pay option
@@ -828,8 +830,9 @@ describe("CrmBookingsView generation-aware operational lifecycle", () => {
     expect(refreshAction).not.toHaveBeenCalled();
     expect(screen.getAllByText("Alice Unpaid").length).toBeGreaterThan(0);
 
-    // In mobile table, PrimaryRowAction renders Review Payment trigger
-    const payTrigger = screen.getByRole("button", { name: /Review Payment/i });
+    // Mobile CRM opens the same authoritative Booking Details payment action.
+    fireEvent.click(screen.getByRole("button", { name: "Alice Unpaid" }));
+    const payTrigger = screen.getByRole("button", { name: /^Payment$/i });
     fireEvent.click(payTrigger);
 
     // Click Cash quick pay
@@ -978,7 +981,8 @@ describe("CrmBookingsView generation-aware operational lifecycle", () => {
 
     const { rerenderWithSearch } = await renderView({ refreshAction, initialData });
 
-    // Open Reschedule modal from quick actions for the currently selected booking
+    // Open the current grid's Booking Details, then its reschedule action.
+    fireEvent.click(screen.getByRole("button", { name: "Alice Alpha" }));
     const rescheduleButton = screen.getByRole("button", { name: /Reschedule/i });
     fireEvent.click(rescheduleButton);
 
