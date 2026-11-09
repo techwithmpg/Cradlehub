@@ -113,9 +113,9 @@ describe("Driver native presentation", () => {
     expect(mocks.refresh).toHaveBeenCalledOnce();
   });
 
-  it("states the map limitation and offers external directions", () => {
+  it("keeps the driver inside CradleHub instead of suggesting external maps", () => {
     render(<DriverNativeMap items={[trip()]} businessDate="2026-10-12" />);
-    expect(screen.getByText(/Route geometry is unavailable here/)).toBeTruthy();
+    expect(screen.getByText(/live driving route opens within the CradleHub Driver PWA/i)).toBeTruthy();
     expect(screen.getByRole("link", { name: "Trip details" }).getAttribute("href")).toBe(
       "/staff/driver/trips/booking-1"
     );
