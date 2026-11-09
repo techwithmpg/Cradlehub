@@ -47,6 +47,7 @@ jobs:
           src/lib/home-service/confirmed-driver-notification.ts
           src/lib/staff-pwa/driver-dispatch-policy.ts
           src/components/features/staff-pwa/driver/driver-combined-dispatch-map.tsx
+          src/components/features/staff-pwa/driver/driver-screen-awake-toggle.tsx
           src/components/features/staff-pwa/driver/driver-dispatch-wake-listener.tsx
           src/components/features/staff-portal/driver/driver-mobile-shell.tsx
           tests/lib/pwa/driver-dispatch-policy.test.ts
