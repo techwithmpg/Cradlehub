@@ -47,6 +47,14 @@ export function getDriverBottomNavItems(
       ? "/driver/more"
       : "/staff-portal/more";
 
+  // The canonical native companion keeps attendance under More, not among
+  // the driver's trip actions. Legacy driver/portal shells retain their tabs.
+  if (effectiveMode === "canonical") return [
+    { key: "today", label: "Today", href: homeHref, icon: Home },
+    { key: "trips", label: "Trips", href: tripsHref, icon: Truck },
+    { key: "more", label: "More", href: moreHref, icon: MoreHorizontal },
+  ];
+
   return [
     {
       key: "today",
