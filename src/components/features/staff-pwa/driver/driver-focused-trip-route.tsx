@@ -191,10 +191,11 @@ export function DriverFocusedTripRoute({ job }: { job: RealDispatchItem }) {
             <p className="mt-3 text-sm text-[#526358]">
               Navigation is active. Arrival must be confirmed by CradleHub before the booking status changes.
             </p>
-            <a href={`${routeHref}&request=${Date.now()}`}
-              className="mt-4 flex min-h-14 items-center justify-center gap-2 rounded-2xl bg-[#163a2b] px-4 text-base font-bold text-white">
+            <button type="button"
+              onClick={() => window.location.assign(`${routeHref}&request=${Date.now()}`)}
+              className="mt-4 flex min-h-14 w-full items-center justify-center gap-2 rounded-2xl bg-[#163a2b] px-4 text-base font-bold text-white">
               <Navigation size={19} aria-hidden="true" /> Resume navigation
-            </a>
+            </button>
           </>
         ) : (
           <p className="mt-4 text-sm text-[#7b4b19]">
