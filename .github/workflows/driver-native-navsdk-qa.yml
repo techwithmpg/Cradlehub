@@ -5,6 +5,10 @@ on:
       - "native/driver-android/**"
       - "src/app/api/staff/driver/native-itinerary/**"
       - "tests/lib/pwa/driver-native-itinerary.test.ts"
+      - "tests/lib/pwa/driver-focused-trip-ui.test.tsx"
+      - "src/components/features/staff-pwa/driver/**"
+      - "src/components/features/staff-portal/driver/driver-mobile-bottom-nav.tsx"
+      - "src/app/(dashboard)/staff/driver/**"
       - ".github/workflows/driver-native-navsdk-qa.yml"
   workflow_dispatch:
 
@@ -26,8 +30,8 @@ jobs:
           cache: "pnpm"
       - run: pnpm install --frozen-lockfile
       - run: pnpm type-check
-      - run: pnpm exec vitest run tests/lib/pwa/driver-native-itinerary.test.ts
-      - run: pnpm exec eslint src/app/api/staff/driver/native-itinerary/route.ts tests/lib/pwa/driver-native-itinerary.test.ts
+      - run: pnpm exec vitest run tests/lib/pwa/driver-native-itinerary.test.ts tests/lib/pwa/driver-focused-trip-ui.test.tsx tests/lib/pwa/driver-wiring.test.ts tests/lib/pwa/driver-single-shell-contract.test.ts
+      - run: pnpm exec eslint src/app/api/staff/driver/native-itinerary/route.ts tests/lib/pwa/driver-native-itinerary.test.ts tests/lib/pwa/driver-focused-trip-ui.test.tsx src/components/features/staff-pwa/driver/driver-focused-trip-route.tsx src/components/features/staff-pwa/driver/driver-native-home.tsx src/components/features/staff-pwa/driver/driver-trip-alerts.tsx
 
   android-foundation:
     runs-on: ubuntu-latest

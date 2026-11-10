@@ -29,6 +29,10 @@ export function DriverTripAlerts() {
   const [busy, setBusy] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
   const [opening, startOpening] = useTransition();
+  // Android has a native notification receiver; browser PushManager is not
+  // supported in the embedded WebView. Do not display iPhone/browser advice.
+  const nativeShell = typeof navigator !== "undefined" &&
+    navigator.userAgent.includes("CradleHubDriverAndroid/");
 
   const reloadAlert = useCallback(async () => {
     try {
@@ -145,7 +149,7 @@ export function DriverTripAlerts() {
           </button>
         </div>
       ) : null}
-      {readiness === "enabled" ? (
+      {nativeShell ? null : readiness === "enabled" ? (
         <p role="status" className="flex items-center gap-2 px-2 text-xs text-[#19563c]">
           <CheckCircle2 size={16} aria-hidden="true" /> Trip notifications enabled on this phone
         </p>

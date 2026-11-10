@@ -6,75 +6,92 @@ import android.content.pm.PackageManager;
 import android.net.Uri;
 import android.os.Build;
 import android.os.Bundle;
-import android.view.View;
 import android.webkit.CookieManager;
+import android.webkit.GeolocationPermissions;
 import android.webkit.WebChromeClient;
 import android.webkit.WebResourceRequest;
 import android.webkit.WebSettings;
 import android.webkit.WebView;
 import android.webkit.WebViewClient;
-import android.widget.Button;
 import androidx.appcompat.app.AppCompatActivity;
 import androidx.core.app.ActivityCompat;
 import java.util.regex.Pattern;
 
 /**
- * Existing Staff Driver PWA, presented in its own Android workspace.
- * The ONLY native operation is launching a server-authorized route; no JS
- * bridge, no browser-supplied coordinates, no service-role credentials.
+ * Driver PWA is the single trip UI. No duplicate native button or JS bridge.
+ * Only a server-confirmed Start action navigates the WebView to an explicit,
+ * same-origin launch URL; native itinerary STILL rechecks driver authority.
  */
 public final class DriverShellActivity extends AppCompatActivity {
   public static final String WEB_ORIGIN = "https://www.cradlewellnessliving.com";
   private static final String TRUSTED_HOST = "www.cradlewellnessliving.com";
+  private static final int LOCATION_REQUEST = 103;
   private static final Pattern BOOKING_ID = Pattern.compile(
       "^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}$");
 
   private WebView web;
-  private Button navigate;
-  private String currentBookingId;
+  private String lastLaunchUrl;
+  private GeolocationPermissions.Callback pendingGeolocation;
+  private String pendingGeolocationOrigin;
+
+  private static boolean trusted(Uri url) {
+    return "https".equals(url.getScheme()) && TRUSTED_HOST.equals(url.getHost())
+        && (url.getPort() == -1 || url.getPort() == 443);
+  }
 
   @Override public void onCreate(Bundle state) {
     super.onCreate(state);
     setContentView(R.layout.activity_driver_shell);
     web = findViewById(R.id.driverWeb);
-    navigate = findViewById(R.id.openNativeNavigation);
-    navigate.setOnClickListener(view -> {
-      if (currentBookingId == null) return;
-      Intent intent = new Intent(this, NativeNavigationActivity.class);
-      // Booking ID is a selector, NOT an authorization grant. The native screen
-      // must re-verify against the authenticated CradleHub server.
-      intent.putExtra(NativeNavigationActivity.EXTRA_BOOKING_ID, currentBookingId);
-      startActivity(intent);
-    });
-
     WebSettings settings = web.getSettings();
-    settings.setJavaScriptEnabled(true); // existing Next.js Staff PWA
+    settings.setJavaScriptEnabled(true);
     settings.setDomStorageEnabled(true);
+    settings.setGeolocationEnabled(true);
     settings.setAllowFileAccess(false);
     settings.setAllowContentAccess(false);
     settings.setMixedContentMode(WebSettings.MIXED_CONTENT_NEVER_ALLOW);
+    // Presentation hint only. Never use the User-Agent as an authorization check.
+    settings.setUserAgentString(settings.getUserAgentString() + " CradleHubDriverAndroid/1.0");
     CookieManager.getInstance().setAcceptCookie(true);
     CookieManager.getInstance().setAcceptThirdPartyCookies(web, false);
-    web.setWebChromeClient(new WebChromeClient());
+    web.setWebChromeClient(new WebChromeClient() {
+      @Override public void onGeolocationPermissionsShowPrompt(
+          String origin, GeolocationPermissions.Callback callback) {
+        final Uri requested;
+        try { requested = Uri.parse(origin); }
+        catch (RuntimeException invalid) { callback.invoke(origin, false, false); return; }
+        if (!trusted(requested)) {
+          callback.invoke(origin, false, false);
+          return;
+        }
+        if (checkSelfPermission(Manifest.permission.ACCESS_FINE_LOCATION)
+            == PackageManager.PERMISSION_GRANTED) {
+          callback.invoke(origin, true, false);
+        } else {
+          pendingGeolocationOrigin = origin;
+          pendingGeolocation = callback;
+          ActivityCompat.requestPermissions(DriverShellActivity.this,
+              new String[] { Manifest.permission.ACCESS_FINE_LOCATION, Manifest.permission.ACCESS_COARSE_LOCATION }, LOCATION_REQUEST);
+        }
+      }
+    });
     web.setWebViewClient(new WebViewClient() {
       @Override public boolean shouldOverrideUrlLoading(WebView view, WebResourceRequest request) {
         if (!request.isForMainFrame()) return false;
         Uri url = request.getUrl();
-        if ("https".equals(url.getScheme()) && TRUSTED_HOST.equals(url.getHost())) {
-          return false; // Same-origin PWA, including its existing login routes.
-        }
-        // OAuth flows in embedded user agents may be unsupported. Never pass
-        // the WebView's authenticated cookies to external web origins.
+        if (trusted(url)) return false;
+        // Browser OAuth/external destinations never receive this WebView's
+        // authentication cookies or an injected JavaScript bridge.
         if ("https".equals(url.getScheme())) {
           startActivity(new Intent(Intent.ACTION_VIEW, url));
         }
         return true;
       }
       @Override public void doUpdateVisitedHistory(WebView view, String url, boolean isReload) {
-        updateRouteAction(url); // also catches Next.js client-side pushState
+        maybeLaunchNavigation(url);
       }
       @Override public void onPageFinished(WebView view, String url) {
-        updateRouteAction(url);
+        maybeLaunchNavigation(url);
       }
     });
 
@@ -83,30 +100,52 @@ public final class DriverShellActivity extends AppCompatActivity {
     if (bookingId != null && BOOKING_ID.matcher(bookingId).matches()) {
       path = "/staff/driver/map?bookingId=" + bookingId;
     }
-    if (state == null || web.restoreState(state) == null) {
-      web.loadUrl(WEB_ORIGIN + path);
-    }
+    if (state == null || web.restoreState(state) == null) web.loadUrl(WEB_ORIGIN + path);
     if (Build.VERSION.SDK_INT >= 33 &&
         checkSelfPermission(Manifest.permission.POST_NOTIFICATIONS) != PackageManager.PERMISSION_GRANTED) {
       ActivityCompat.requestPermissions(this, new String[] { Manifest.permission.POST_NOTIFICATIONS }, 102);
     }
   }
 
-  private void updateRouteAction(String rawUrl) {
+  /** A notification tap always shows the assigned route preview first. */
+  @Override protected void onNewIntent(Intent intent) {
+    super.onNewIntent(intent);
+    setIntent(intent);
+    String id = intent.getStringExtra("bookingId");
+    if (id != null && BOOKING_ID.matcher(id).matches() && web != null) {
+      lastLaunchUrl = null;
+      web.loadUrl(WEB_ORIGIN + "/staff/driver/map?bookingId=" + id);
+    }
+  }
+
+  private void maybeLaunchNavigation(String rawUrl) {
     try {
       Uri url = Uri.parse(rawUrl);
-      String candidate = url.getQueryParameter("bookingId");
-      if ("https".equals(url.getScheme()) && TRUSTED_HOST.equals(url.getHost())
-          && "/staff/driver/map".equals(url.getPath())
-          && candidate != null && BOOKING_ID.matcher(candidate).matches()) {
-        currentBookingId = candidate;
-      } else {
-        currentBookingId = null;
-      }
+      String id = url.getQueryParameter("bookingId");
+      if (!trusted(url) || !"/staff/driver/map".equals(url.getPath())
+          || !"native".equals(url.getQueryParameter("launch"))
+          || id == null || !BOOKING_ID.matcher(id).matches()) return;
+      // The request query changes for each explicit Start / Resume action.
+      // Avoid repeated launches from WebView page-finished/history callbacks.
+      if (rawUrl.equals(lastLaunchUrl)) return;
+      lastLaunchUrl = rawUrl;
+      Intent nativeRoute = new Intent(this, NativeNavigationActivity.class);
+      nativeRoute.putExtra(NativeNavigationActivity.EXTRA_BOOKING_ID, id);
+      startActivity(nativeRoute);
     } catch (RuntimeException ignored) {
-      currentBookingId = null;
+      // Malformed/untrusted navigation never launches native activity.
     }
-    navigate.setVisibility(currentBookingId == null ? View.GONE : View.VISIBLE);
+  }
+
+  @Override public void onRequestPermissionsResult(
+      int requestCode, String[] permissions, int[] results) {
+    super.onRequestPermissionsResult(requestCode, permissions, results);
+    if (requestCode == LOCATION_REQUEST && pendingGeolocation != null) {
+      boolean granted = results.length > 0 && results[0] == PackageManager.PERMISSION_GRANTED;
+      pendingGeolocation.invoke(pendingGeolocationOrigin, granted, false);
+      pendingGeolocation = null;
+      pendingGeolocationOrigin = null;
+    }
   }
 
   @Override protected void onSaveInstanceState(Bundle state) {

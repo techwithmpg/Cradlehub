@@ -136,7 +136,7 @@ public final class NativeNavigationActivity extends AppCompatActivity {
     if (ContextCompat.checkSelfPermission(this, Manifest.permission.ACCESS_FINE_LOCATION)
         != PackageManager.PERMISSION_GRANTED) {
       ActivityCompat.requestPermissions(
-          this, new String[] { Manifest.permission.ACCESS_FINE_LOCATION }, LOCATION_REQUEST);
+          this, new String[] { Manifest.permission.ACCESS_FINE_LOCATION, Manifest.permission.ACCESS_COARSE_LOCATION }, LOCATION_REQUEST);
       return;
     }
     beginNavigation();
@@ -166,9 +166,17 @@ public final class NativeNavigationActivity extends AppCompatActivity {
         }
         arrivalListener = (ArrivalEvent event) -> {
           runOnUiThread(() -> {
-            // An SDK callback is not server-verified evidence of arrival.
-            // Deliberately no booking/attendance/payment mutation here.
-            status.setText("Destination reached. CradleHub will show trip status.");
+            // End local Google guidance automatically at the final waypoint.
+            // An SDK callback is NOT server-verified booking arrival evidence.
+            // A separately approved, server-side arrival policy is required
+            // before any booking/attendance/payment progress write.
+            if (event.isFinalDestination()) {
+              if (navigator != null && inGuidance) {
+                navigator.stopGuidance();
+                inGuidance = false;
+              }
+              status.setText("Destination reached. Navigation ended. CradleHub arrival status awaits verification.");
+            }
           });
         };
         ready.addArrivalListener(arrivalListener);

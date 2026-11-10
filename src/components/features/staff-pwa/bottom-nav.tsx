@@ -39,7 +39,8 @@ export function StaffBottomNav({
       className="fixed bottom-0 left-0 right-0 z-40 border-t border-[#E8E1D7] bg-white/95 shadow-[0_-8px_24px_rgba(22,58,43,0.04)] backdrop-blur-xl"
       style={{ paddingBottom: "env(safe-area-inset-bottom, 0px)" }}
     >
-      <div className="mx-auto grid h-[72px] max-w-md grid-cols-5 items-center px-2">
+      <div className="mx-auto grid h-[72px] max-w-md items-center px-2"
+        style={{ gridTemplateColumns: `repeat(${items.length}, minmax(0, 1fr))` }}>
         {items.map((item) => {
           const active = isItemActive(item);
           const Icon = item.icon;

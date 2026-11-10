@@ -8,6 +8,7 @@ import {
   MapPinned,
   UserRound,
   CalendarCheck2,
+  QrCode,
 } from "lucide-react";
 import { UserAvatar } from "@/components/shared/user-avatar";
 import {
@@ -36,6 +37,7 @@ const links = [
   { label: "Trips", href: "/staff/driver/trips", icon: ClipboardList },
   { label: "Map", href: "/staff/driver/map", icon: MapPinned },
   { label: "My profile", href: "/staff/driver/profile", icon: UserRound },
+  { label: "Scan attendance QR", href: "/staff/scan", icon: QrCode },
   { label: "Attendance", href: "/staff/attendance", icon: CalendarCheck2 },
   { label: "Notices", href: "/staff/notices", icon: Bell },
 ] as const;
