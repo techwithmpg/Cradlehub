@@ -11,7 +11,7 @@
 
 ## Build locally (private installation, no Play listing)
 1. Open `native/driver-android` in Android Studio with Android SDK 36, JDK 17, Gradle 9.1.0. Existing AGP/Navigation SDK dependencies are retained.
-2. For isolated TEST/preview validation set `CRADLE_STAFF_ORIGIN=https://your-approved-test-host` in **local** `~/.gradle/gradle.properties`. The default is the production website. Never test mutations on production without explicit authorization.
+2. For isolated TEST/preview validation set `CRADLE_STAFF_ORIGIN=https://your-approved-test-host` in **local** `~/.gradle/gradle.properties`. An unconfigured preview defaults to inert `https://staff-review.invalid`, which intentionally cannot access staff data. Never test mutations on production without explicit authorization. For a separately approved live release, pass the production origin explicitly after device acceptance.
 3. Set `CRADLE_NAVIGATION_API_KEY` in that untracked Gradle properties file for native Driver navigation. The Android-restricted Google key, package name, SHA-1, terms/attribution and billing must be configured before a device navigation acceptance test.
 4. Run `gradle :app:testDebugUnitTest :app:assembleDebug`, then install `app/build/outputs/apk/debug/app-debug.apk` manually on a TEST Android device. The PR workflow also retains a **review-only** debug APK artifact if compilation passes.
 5. Sign in with an approved **TEST** staff account. Check role routing, login/logout, scan camera permission, profile file chooser, all four role workspaces, screen rotation/back, reconnect, notices, and single shell tabs. For drivers additionally verify assigned/not assigned and native navigation **only** with TEST bookings and approved Google configuration.

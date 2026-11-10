@@ -13,3 +13,5 @@
 - **Known release blockers:** native role-device acceptance, push FCM registration/sender, OEM WebView PWA compatibility, Web OAuth if used, Android app signing/package identity, Google Nav SDK key/terms/attribution/device capability, performance baseline, external independent review and owner approval.
 - **Production status:** NO production deployment, SQL, RLS/Auth change or service credential modification. **No Android device/window evidence asserted.**
 - **Rollback:** close review PR; no Web rollback or DB rollback needed.
+
+- **Safety correction:** Review APKs use the intentionally inactive `https://staff-review.invalid` origin unless the builder explicitly configures an owner-approved TEST origin. Live production URL is never silently selected for a CI debug APK.

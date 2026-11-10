@@ -9,7 +9,7 @@ if (file("google-services.json").exists()) {
 }
 
 val staffOrigin = providers.gradleProperty("CRADLE_STAFF_ORIGIN")
-  .orElse("https://www.cradlewellnessliving.com").get()
+  .orElse("https://staff-review.invalid").get()
 require(Regex("^https://[A-Za-z0-9.-]+(?::443)?$").matches(staffOrigin)) {
   "CRADLE_STAFF_ORIGIN must be one explicit HTTPS origin (no path or credentials)."
 }
