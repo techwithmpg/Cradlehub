@@ -4,6 +4,9 @@ on:
     paths:
       - "native/driver-android/**"
       - "src/app/api/staff/driver/native-itinerary/**"
+      - "src/app/api/staff/driver/native-travel/**"
+      - "src/app/api/staff/driver/native-workspace/**"
+      - "tests/lib/pwa/driver-native-connected.test.ts"
       - "tests/lib/pwa/driver-native-itinerary.test.ts"
       - "tests/lib/pwa/driver-focused-trip-ui.test.tsx"
       - "src/components/features/staff-pwa/driver/**"
@@ -30,7 +33,7 @@ jobs:
           cache: "pnpm"
       - run: pnpm install --frozen-lockfile
       - run: pnpm type-check
-      - run: pnpm exec vitest run tests/lib/pwa/driver-native-itinerary.test.ts tests/lib/pwa/driver-focused-trip-ui.test.tsx tests/lib/pwa/driver-wiring.test.ts tests/lib/pwa/driver-single-shell-contract.test.ts
+      - run: pnpm exec vitest run tests/lib/pwa/driver-native-itinerary.test.ts tests/lib/pwa/driver-focused-trip-ui.test.tsx tests/lib/pwa/driver-wiring.test.ts tests/lib/pwa/driver-single-shell-contract.test.ts tests/lib/pwa/driver-native-connected.test.ts
       - run: pnpm exec eslint src/app/api/staff/driver/native-itinerary/route.ts tests/lib/pwa/driver-native-itinerary.test.ts tests/lib/pwa/driver-focused-trip-ui.test.tsx src/components/features/staff-pwa/driver/driver-focused-trip-route.tsx src/components/features/staff-pwa/driver/driver-native-home.tsx src/components/features/staff-pwa/driver/driver-trip-alerts.tsx
 
   android-shell:

@@ -1,6 +1,7 @@
 package com.mpgtechnologies.cradlehub.driver;
 
 import android.Manifest;
+import android.content.Intent;
 import android.content.pm.PackageManager;
 import android.os.Bundle;
 import android.widget.TextView;
@@ -176,6 +177,11 @@ public final class NativeNavigationActivity extends AppCompatActivity {
                 inGuidance = false;
               }
               status.setText("Destination reached. Navigation ended. CradleHub arrival status awaits verification.");
+              // Only the final Google SDK waypoint callback can signal the
+              // connected UI to offer manual server-authorized confirmation.
+              Intent arrival = new Intent();
+              arrival.putExtra(EXTRA_BOOKING_ID, getIntent().getStringExtra(EXTRA_BOOKING_ID));
+              setResult(RESULT_OK, arrival);
             }
           });
         };
