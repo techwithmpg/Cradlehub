@@ -47,7 +47,7 @@ export function getDriverBottomNavItems(
       ? "/driver/more"
       : "/staff-portal/more";
 
-  return [
+  const allItems: StaffNavItem[] = [
     {
       key: "today",
       label: "Today",
@@ -80,6 +80,13 @@ export function getDriverBottomNavItems(
       icon: MoreHorizontal,
     },
   ];
+
+  // The canonical Driver PWA has three places: today, assigned trips, and
+  // account/attendance settings. Map is opened from the assigned trip.
+  // Do not change the legacy /driver and /staff-portal workspaces.
+  return effectiveMode === "canonical"
+    ? allItems.filter((item) => ["today", "trips", "more"].includes(item.key))
+    : allItems;
 }
 
 export function DriverMobileBottomNav({
