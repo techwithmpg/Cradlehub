@@ -64,3 +64,56 @@ This avoids pretending the Google native Navigation SDK runs in the browser. It 
 - https://developers.google.com/maps/documentation/navigation/android-sdk/policies
 - https://firebase.google.com/docs/android/setup
 - https://firebase.google.com/docs/cloud-messaging/android/get-started
+
+## Preview the focused Driver UI on a USB-connected Android phone (DEBUG ONLY)
+
+The Android companion normally loads `https://www.cradlewellnessliving.com`.
+A newer Web/PWA review branch will therefore **not** appear in the installed APK
+unless its WebView uses a separate test origin. To see the Driver UI without
+deploying Web to production:
+
+1. On the isolated review branch, start Next.js using a **LOCAL/TEST Supabase
+   environment**, never production accounts/bookings for mutation testing:
+
+   ```powershell
+   Set-Location E:\cradlehub-driver-android
+   pnpm install --frozen-lockfile
+   pnpm exec next dev -p 7100
+   ```
+
+2. In another terminal, with one authorized physical device attached:
+
+   ```powershell
+   $ADB = "$env:LOCALAPPDATA\Android\Sdk\platform-tools\adb.exe"
+   & $ADB devices -l
+   & $ADB -d reverse tcp:7100 tcp:7100
+   & $ADB -d reverse --list
+   ```
+
+3. Use Android Studio's bundled Java for the build and pass the **explicit**
+   debug-only origin flag:
+
+   ```powershell
+   $env:JAVA_HOME = "C:\Program Files\Android\Android Studio\jbr"
+   $env:PATH = "$env:JAVA_HOME\bin;$env:PATH"
+   Set-Location E:\cradlehub-driver-android\native\driver-android
+   .\gradlew.bat :app:assembleDebug -PCRADLE_DRIVER_DEBUG_ORIGIN=http://localhost:7100
+   & $ADB -d install -r ".\app\build\outputs\apk\debug\app-debug.apk"
+   & $ADB -d shell am force-stop com.mpgtechnologies.cradlehub.driver
+   & $ADB -d shell monkey -p com.mpgtechnologies.cradlehub.driver -c android.intent.category.LAUNCHER 1
+   ```
+
+4. The debug APK loads `http://localhost:7100/staff/driver` through USB
+   reverse forwarding. **Localhost is the phone's forwarded USB loopback**,
+   not a publicly reachable host. Android's debug-only network security config
+   permits cleartext for exactly `localhost`, with cleartext denied elsewhere.
+   Authentication must be an authorized TEST account. Never change real trips
+   or check out real customers for this preview.
+
+5. Disconnecting USB or stopping the Next.js server makes this test APK unable
+   to load its Web UI. To return to the ordinary app, rebuild WITHOUT the
+   `-PCRADLE_DRIVER_DEBUG_ORIGIN` property and reinstall. Release builds
+   always use the production HTTPS origin and never accept the flag.
+
+Do not paste `google-services.json`, the Navigation API key, tokens, or
+`.env.local` into chat or commit them to Git.
