@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useRef, useState, useTransition } from "react";
+import { useEffect, useMemo, useRef, useState, useTransition } from "react";
 import { APIProvider, Map, Marker, useMap, useMapsLibrary } from "@vis.gl/react-google-maps";
 import { CheckCircle2, Clock3, MapPin, Navigation, WifiOff } from "lucide-react";
 import { updateBookingProgressAction } from "@/app/(dashboard)/staff-portal/actions";
@@ -50,11 +50,12 @@ export function DriverFocusedTripRoute({ job }: { job: RealDispatchItem }) {
   const routeRequested = useRef(false);
   const lastShared = useRef(0);
 
-  const destination = !job.needsLocationReview &&
+  const destination = useMemo(() => !job.needsLocationReview &&
     job.lat !== null && job.lng !== null &&
     Number.isFinite(job.lat) && Number.isFinite(job.lng) &&
     Math.abs(job.lat) <= 90 && Math.abs(job.lng) <= 180
-      ? { lat: job.lat, lng: job.lng } : null;
+      ? { lat: job.lat, lng: job.lng } : null,
+  [job.needsLocationReview, job.lat, job.lng]);
 
   const started = job.bookingProgressStatus === "travel_started" &&
     job.dispatchStatus === "in_route";
@@ -75,7 +76,7 @@ export function DriverFocusedTripRoute({ job }: { job: RealDispatchItem }) {
       { enableHighAccuracy: true, maximumAge: 10000, timeout: 15000 }
     );
     return () => navigator.geolocation.clearWatch(id);
-  }, [job.id, destination?.lat, destination?.lng]);
+  }, [job.id, destination]);
 
   useEffect(() => {
     if (!position || !destination || routeRequested.current) return;
