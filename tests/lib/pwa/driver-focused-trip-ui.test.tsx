@@ -135,7 +135,11 @@ describe("Driver focused trip UI (review only)", () => {
     );
     expect(shell).toContain("maybeLaunchNavigation");
     expect(shell).toContain("onNewIntent");
-    expect(shell).toContain("BOOKING_ID.matcher(id).matches()");
+    expect(shell).toContain("StaffShellRoutePolicy.validBookingId(id)");
+    const routePolicy = readFileSync(
+      "native/driver-android/app/src/main/java/com/mpgtechnologies/cradlehub/driver/StaffShellRoutePolicy.java", "utf8"
+    );
+    expect(routePolicy).toContain("BOOKING_ID.matcher(id).matches()");
     expect(layout).not.toContain("openNativeNavigation");
     expect(nativeRoute).toContain("navigator.stopGuidance()");
     expect(nativeRoute).not.toContain("nextStatus");
