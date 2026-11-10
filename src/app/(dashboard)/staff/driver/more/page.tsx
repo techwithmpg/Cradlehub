@@ -8,8 +8,10 @@ import {
   MapPinned,
   UserRound,
   CalendarCheck2,
+  QrCode,
 } from "lucide-react";
 import { UserAvatar } from "@/components/shared/user-avatar";
+import { DriverTripAlerts } from "@/components/features/staff-pwa/driver/driver-trip-alerts";
 import {
   StaffButton,
   StaffCard,
@@ -37,6 +39,7 @@ const links = [
   { label: "Map", href: "/staff/driver/map", icon: MapPinned },
   { label: "My profile", href: "/staff/driver/profile", icon: UserRound },
   { label: "Attendance", href: "/staff/attendance", icon: CalendarCheck2 },
+  { label: "Attendance QR scan", href: "/staff/scan", icon: QrCode },
   { label: "Notices", href: "/staff/notices", icon: Bell },
 ] as const;
 
@@ -67,6 +70,7 @@ export default async function StaffDriverMorePage() {
           <p className="text-xs text-[#65746b]">Driver</p>
         </div>
       </StaffCard>
+      <DriverTripAlerts />
       <StaffCard className="mt-5 overflow-hidden">
         {links.map(({ label, href, icon: Icon }) => (
           <Link
