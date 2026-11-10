@@ -112,7 +112,7 @@ export function DriverFocusedTripRoute({
       {!verifiedDestination && (isReady || isEnRoute) ? (
         <p role="status" className="mt-4 flex gap-2 rounded-2xl border border-[#e5c992] bg-[#fff8e9] p-4 text-sm text-[#79501a]">
           <ShieldAlert size={20} className="shrink-0" aria-hidden="true" />
-          CRM must verify this destination's GPS before navigation can start.
+          CRM must verify this destination&apos;s GPS before navigation can start.
         </p>
       ) : null}
 
