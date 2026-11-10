@@ -296,7 +296,7 @@ public final class DriverExperiencePreviewActivity extends AppCompatActivity {
     add(c, text("Sports Massage  ·  " + time, 14, MUTED, false), -2);
     gap(c, 10);
     add(c, text("⌖  " + route, 14, INK, false), -2);
-    c.setMinHeight(d(148));
+    c.setMinimumHeight(d(148));
     c.setClickable(true);
     c.setFocusable(true);
     c.setContentDescription("Open demo trip " + number + " in navigation");
