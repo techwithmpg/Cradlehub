@@ -123,6 +123,28 @@ describe("Driver focused trip UI (review only)", () => {
     expect(more).toContain("/staff/attendance");
   });
 
+  it("allows USB localhost only in an explicit debug build, never release", () => {
+    const gradle = readFileSync("native/driver-android/app/build.gradle.kts", "utf8");
+    const shell = readFileSync(
+      "native/driver-android/app/src/main/java/com/mpgtechnologies/cradlehub/driver/DriverShellActivity.java", "utf8"
+    );
+    const manifest = readFileSync(
+      "native/driver-android/app/src/debug/AndroidManifest.xml", "utf8"
+    );
+    const network = readFileSync(
+      "native/driver-android/app/src/debug/res/xml/driver_debug_network_security.xml", "utf8"
+    );
+    expect(gradle).toContain("CRADLE_DRIVER_DEBUG_ORIGIN");
+    expect(gradle).toContain("http://localhost:7100");
+    expect(gradle).toContain("getByName(\"release\")");
+    expect(gradle).toContain("buildConfigField(\"String\", \"DRIVER_WEB_ORIGIN\",");
+    expect(shell).toContain("BuildConfig.DRIVER_WEB_ORIGIN");
+    expect(shell).toContain("expected.getHost().equals(url.getHost())");
+    expect(manifest).toContain("@xml/driver_debug_network_security");
+    expect(network).toContain("<domain>localhost</domain>");
+    expect(network).toContain('<base-config cleartextTrafficPermitted="false"');
+  });
+
   it("native shell has no competing button, and native arrival does not write booking state", () => {
     const shell = readFileSync(
       "native/driver-android/app/src/main/java/com/mpgtechnologies/cradlehub/driver/DriverShellActivity.java", "utf8"
