@@ -1,4 +1,4 @@
-name: Driver Native Navigation Foundation QA
+name: Android Staff Shell + Driver Navigation QA
 on:
   pull_request:
     paths:
@@ -33,7 +33,7 @@ jobs:
       - run: pnpm exec vitest run tests/lib/pwa/driver-native-itinerary.test.ts tests/lib/pwa/driver-focused-trip-ui.test.tsx tests/lib/pwa/driver-wiring.test.ts tests/lib/pwa/driver-single-shell-contract.test.ts
       - run: pnpm exec eslint src/app/api/staff/driver/native-itinerary/route.ts tests/lib/pwa/driver-native-itinerary.test.ts tests/lib/pwa/driver-focused-trip-ui.test.tsx src/components/features/staff-pwa/driver/driver-focused-trip-route.tsx src/components/features/staff-pwa/driver/driver-native-home.tsx src/components/features/staff-pwa/driver/driver-trip-alerts.tsx
 
-  android-foundation:
+  android-shell:
     runs-on: ubuntu-latest
     timeout-minutes: 30
     steps:
@@ -42,8 +42,6 @@ jobs:
         with:
           distribution: temurin
           java-version: "17"
-      # GitHub Ubuntu Android runner already includes Android command line tools.
-      # setup-android@v3 currently attempts a removed sdkmanager "tools" package.
       - name: Install Android API 36
         run: |
           SDK_MANAGER="$(find "$ANDROID_HOME/cmdline-tools" -type f -name sdkmanager | sort -V | tail -1)"
@@ -52,8 +50,13 @@ jobs:
       - uses: gradle/actions/setup-gradle@v4
         with:
           gradle-version: "9.1.0"
-      - name: Compile isolated Android SDK foundation (no keys or production targets)
+      - name: Compile and test isolated Android staff shell (no live actions)
         working-directory: native/driver-android
-        run: gradle :app:assembleDebug --no-daemon --stacktrace
-      # APK is deliberately not published until package name, keys, Firebase
-      # config, native device acceptance and owner approvals are verified.
+        run: gradle :app:testDebugUnitTest :app:assembleDebug --no-daemon --stacktrace
+      - name: Retain review-only sideload APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: cradlehub-staff-android-review-apk
+          path: native/driver-android/app/build/outputs/apk/debug/app-debug.apk
+          retention-days: 7
+          if-no-files-found: error

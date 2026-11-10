@@ -1,9 +1,64 @@
 <?xml version="1.0" encoding="utf-8"?>
 <FrameLayout xmlns:android="http://schemas.android.com/apk/res/android"
   android:layout_width="match_parent"
-  android:layout_height="match_parent">
-  <!-- PWA owns trip actions; native Android only takes over AFTER Start. -->
-  <WebView android:id="@+id/driverWeb"
+  android:layout_height="match_parent"
+  android:background="#F7F3EB">
+  <!-- Only the existing Staff Portal renders in-app navigation. No second
+       native header, tabs or trip buttons compete with role-specific screens. -->
+  <WebView
+    android:id="@+id/driverWeb"
     android:layout_width="match_parent"
-    android:layout_height="match_parent" />
+    android:layout_height="match_parent"
+    android:background="#F7F3EB" />
+  <LinearLayout
+    android:id="@+id/shellOverlay"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:background="#F7F3EB"
+    android:gravity="center"
+    android:orientation="vertical"
+    android:padding="32dp">
+    <TextView
+      android:layout_width="wrap_content"
+      android:layout_height="wrap_content"
+      android:text="CRADLEHUB"
+      android:fontFamily="sans-serif-medium"
+      android:textStyle="bold"
+      android:letterSpacing="0.17"
+      android:textSize="23sp"
+      android:textColor="#163A2B" />
+    <TextView
+      android:layout_width="wrap_content"
+      android:layout_height="wrap_content"
+      android:layout_marginTop="6dp"
+      android:text="STAFF"
+      android:fontFamily="sans-serif-medium"
+      android:letterSpacing="0.24"
+      android:textSize="12sp"
+      android:textColor="#97763D" />
+    <ProgressBar
+      android:id="@+id/shellProgress"
+      style="?android:attr/progressBarStyleHorizontal"
+      android:layout_width="160dp"
+      android:layout_height="3dp"
+      android:layout_marginTop="30dp"
+      android:indeterminate="true"
+      android:indeterminateTint="#163A2B" />
+    <TextView
+      android:id="@+id/shellMessage"
+      android:layout_width="match_parent"
+      android:layout_height="wrap_content"
+      android:layout_marginTop="20dp"
+      android:gravity="center"
+      android:text="@string/staff_shell_loading"
+      android:textColor="#526358"
+      android:textSize="14sp" />
+    <Button
+      android:id="@+id/retryButton"
+      android:layout_width="wrap_content"
+      android:layout_height="48dp"
+      android:layout_marginTop="18dp"
+      android:text="@string/staff_shell_retry"
+      android:visibility="gone"/>
+  </LinearLayout>
 </FrameLayout>
