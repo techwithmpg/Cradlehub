@@ -84,7 +84,8 @@ export async function POST(request: NextRequest) {
   const nextStatus = operation === "start" ? "travel_started" : "arrived";
   const result = await updateBookingProgressAction({ bookingId, nextStatus });
   if (!result.ok) {
-    return response({ ok: false, error: result.message },
+    return response({ ok: false, error: result.code === "DATABASE_ERROR" ?
+      "CradleHub could not update this trip. Please contact CSR." : result.message },
       result.code === "UNAUTHORIZED" ? 401 :
       result.code === "PERMISSION_DENIED" ? 403 :
       result.code === "DATABASE_ERROR" ? 503 : 409);
