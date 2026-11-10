@@ -71,7 +71,7 @@ public final class DriverShellActivity extends AppCompatActivity {
           pendingGeolocationOrigin = origin;
           pendingGeolocation = callback;
           ActivityCompat.requestPermissions(DriverShellActivity.this,
-              new String[] { Manifest.permission.ACCESS_FINE_LOCATION }, LOCATION_REQUEST);
+              new String[] { Manifest.permission.ACCESS_FINE_LOCATION, Manifest.permission.ACCESS_COARSE_LOCATION }, LOCATION_REQUEST);
         }
       }
     });
