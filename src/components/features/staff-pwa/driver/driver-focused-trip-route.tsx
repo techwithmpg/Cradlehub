@@ -3,7 +3,6 @@
 import { useState, useTransition } from "react";
 import Link from "next/link";
 import { ArrowLeft, Clock3, MapPin, Navigation, ShieldAlert } from "lucide-react";
-import { useRouter } from "next/navigation";
 import { updateBookingProgressAction } from "@/app/(dashboard)/staff-portal/actions";
 import { invalidateStaffSafeMemory } from "@/components/features/staff-pwa/safe-memory";
 import { formatTime12h } from "@/lib/utils/time-format";
@@ -27,7 +26,6 @@ export function DriverFocusedTripRoute({
   job: RealDispatchItem;
   verifiedDestination: boolean;
 }) {
-  const router = useRouter();
   const [pending, startTransition] = useTransition();
   const [error, setError] = useState<string | null>(null);
   const isReady = job.bookingProgressStatus === "not_started";
