@@ -194,8 +194,14 @@ public final class DriverConnectedActivity extends AppCompatActivity {
     }
   }
 
+  private boolean canNavigateNow(Trip trip) {
+    return trip.canNavigate() &&
+        ("travel_started".equals(trip.progress) ||
+         (!businessDate.isEmpty() && trip.date.compareTo(businessDate) <= 0));
+  }
+
   private void startTrip(Trip selected) {
-    if (busy || !selected.canNavigate()) {
+    if (busy || !canNavigateNow(selected)) {
       setError("CRM must confirm this assignment and destination before navigating.");
       return;
     }
@@ -426,8 +432,8 @@ public final class DriverConnectedActivity extends AppCompatActivity {
       add(c, text("⌖  " + primary.destination, 15, MUTED, false), -2);
       space(c, 20);
       final Trip target = primary;
-      add(c, button(primary.canNavigate() ? "➤  Start navigation" :
-          "Trip not ready for navigation", primary.canNavigate(), () -> startTrip(target)), 60);
+      add(c, button(canNavigateNow(primary) ? "➤  Start navigation" :
+          "Trip not ready for navigation", canNavigateNow(primary), () -> startTrip(target)), 60);
       add(main, c, -2);
     } else if (!loading && authenticated) {
       add(main, text("No assigned trips for today.", 17, MUTED, false), -2);
@@ -489,16 +495,16 @@ public final class DriverConnectedActivity extends AppCompatActivity {
     LinearLayout c = card();
     add(c, text(t.status().toUpperCase() + "  ·  " + t.time, 12, GOLD, true), -2);
     space(c, 10);
-    add(c, text(t.customer + (t.canNavigate() ? "   ›" : ""), 20, INK, true), -2);
+    add(c, text(t.customer + (canNavigateNow(t) ? "   ›" : ""), 20, INK, true), -2);
     space(c, 7);
     add(c, text(t.service, 15, MUTED, false), -2);
     space(c, 9);
     add(c, text("⌖  " + t.destination, 14, INK, false), -2);
-    if (!t.canNavigate()) {
+    if (!canNavigateNow(t)) {
       space(c, 7);
       add(c, text("Not available to navigate", 12, MUTED, false), -2);
     }
-    if (t.canNavigate()) {
+    if (canNavigateNow(t)) {
       c.setClickable(true);
       c.setFocusable(true);
       c.setContentDescription("Navigate assigned trip");
