@@ -7,6 +7,7 @@ const mocks = vi.hoisted(() => ({
   all: vi.fn(),
   job: vi.fn(),
   progress: vi.fn(),
+  businessDate: vi.fn(),
 }));
 vi.mock("@/lib/supabase/server", () => ({
   createClient: vi.fn(async () => ({ auth: { getUser: mocks.getUser } })),
@@ -15,6 +16,9 @@ vi.mock("@/app/(dashboard)/staff-portal/actions", () => ({
   getMyDriverAllJobsAction: mocks.all,
   getMyDriverJobByIdAction: mocks.job,
   updateBookingProgressAction: mocks.progress,
+}));
+vi.mock("@/lib/staff-pwa/provider-date", () => ({
+  getProviderBusinessDate: mocks.businessDate,
 }));
 vi.mock("@/lib/staff-pwa/driver-dispatch-policy", () => ({
   isValidDriverDestination: (job: {
@@ -54,6 +58,7 @@ beforeEach(() => {
   vi.clearAllMocks();
   process.env.NATIVE_DRIVER_CONNECTED_ENABLED = "true";
   mocks.getUser.mockResolvedValue({ data: { user: { id: "auth-a" } }, error: null });
+  mocks.businessDate.mockResolvedValue("2026-11-10");
   mocks.all.mockResolvedValue({
     today: [baseJob, { ...baseJob, id: "22222222-2222-4222-8222-222222222222",
       driverId: "driver-b", customerName: "Other driver" }],
@@ -177,6 +182,30 @@ describe("native driver connected staging gate", () => {
     const response = await POST(post({ bookingId, operation: "start" }));
     expect(response.status).toBe(503);
     expect(JSON.stringify(await response.json())).not.toContain("internal-rpc-table-details");
+  });
+
+  it("never starts an upcoming future booking before the branch business date", async () => {
+    mocks.job.mockResolvedValue({ job: { ...baseJob, bookingDate: "2026-11-11" }, staff });
+    const response = await POST(post({ bookingId, operation: "start" }));
+    expect(response.status).toBe(409);
+    expect(mocks.progress).not.toHaveBeenCalled();
+  });
+
+  it("fails closed when the branch business date is unavailable", async () => {
+    mocks.businessDate.mockRejectedValue(new Error("db unavailable"));
+    expect((await POST(post({ bookingId, operation: "start" }))).status).toBe(503);
+    expect(mocks.progress).not.toHaveBeenCalled();
+  });
+
+  it("treats a retried arrival as successful after the server recorded it", async () => {
+    mocks.job.mockResolvedValue({
+      job: { ...baseJob, bookingProgressStatus: "arrived",
+        dispatchStatus: "arrived_at_customer" }, staff,
+    });
+    const response = await POST(post({ bookingId, operation: "arrive" }));
+    expect(response.status).toBe(200);
+    expect((await response.json()).status).toBe("arrived");
+    expect(mocks.progress).not.toHaveBeenCalled();
   });
 
 });
