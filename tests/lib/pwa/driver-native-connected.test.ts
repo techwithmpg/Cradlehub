@@ -171,4 +171,12 @@ describe("native driver connected staging gate", () => {
       code: "PERMISSION_DENIED", message: "Not assigned." });
     expect((await POST(post({ bookingId, operation: "start" }))).status).toBe(403);
   });
+  it("never exposes internal database errors in the native response", async () => {
+    mocks.progress.mockResolvedValue({ ok: false,
+      code: "DATABASE_ERROR", message: "internal-rpc-table-details" });
+    const response = await POST(post({ bookingId, operation: "start" }));
+    expect(response.status).toBe(503);
+    expect(JSON.stringify(await response.json())).not.toContain("internal-rpc-table-details");
+  });
+
 });
