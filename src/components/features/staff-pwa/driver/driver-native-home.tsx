@@ -1,15 +1,12 @@
 import Link from "next/link";
-import { Bell, ChevronRight, Clock3, MapPinned, QrCode, Route } from "lucide-react";
-import { UserAvatar } from "@/components/shared/user-avatar";
+import { ChevronRight, Clock3, MapPin, Navigation, Route } from "lucide-react";
 import {
   StaffCard,
   StaffEmptyState,
   StaffScreen,
-  StaffStatTile,
   StaffStatusChip,
 } from "@/components/features/staff-pwa/native-foundation";
 import { StaffSnapshotRecorder } from "@/components/features/staff-pwa/safe-memory";
-import { DriverTripRow } from "./driver-trip-row";
 import {
   getDriverPrimaryTrip,
   getDriverProgressLabel,
@@ -18,31 +15,28 @@ import {
 import { formatTime12h } from "@/lib/utils/time-format";
 import type { StaffPortalStaff } from "@/components/features/staff-portal/types";
 import type { RealDispatchItem } from "@/lib/queries/dispatch-queries";
-import type { StaffAttendanceData } from "@/lib/staff-portal/attendance";
-import { StaffAttendanceClockOut } from "@/components/features/staff-portal/staff-attendance-clock-out";
-import { DriverTripAlerts } from "./driver-trip-alerts";
 
+/** Driver home is deliberately a SINGLE trip, not a duplicate dashboard.
+ * Attendance and notification settings remain reachable through More.
+ */
 export function DriverNativeHome({
   staff,
   items,
   businessDate,
-  attendanceData,
 }: {
   staff: StaffPortalStaff;
   items: RealDispatchItem[];
   businessDate: string;
-  attendanceData: StaffAttendanceData | null;
 }) {
   const name = staff.nickname?.trim() || staff.full_name?.trim() || "Driver";
   const summary = getDriverTripSummary(items);
   const primary = getDriverPrimaryTrip(items);
   const dateLabel = new Date(`${businessDate}T12:00:00Z`).toLocaleDateString("en-PH", {
-    month: "short",
-    day: "numeric",
-    weekday: "short",
-    timeZone: "Asia/Manila",
+    month: "short", day: "numeric", weekday: "short", timeZone: "Asia/Manila",
   });
-  const ordered = [...items].sort((a, b) => a.startTime.localeCompare(b.startTime));
+  const destination = primary?.formattedAddress ?? primary?.area;
+  const primaryHref = primary
+    ? `/staff/driver/map?bookingId=${encodeURIComponent(primary.id)}` : null;
 
   return (
     <StaffScreen>
@@ -57,124 +51,63 @@ export function DriverNativeHome({
           ],
         }}
       />
-      <header className="relative overflow-hidden rounded-[24px] bg-[linear-gradient(145deg,#174332,#092c20)] px-5 pb-5 pt-4 text-white shadow-[0_12px_25px_rgba(13,53,35,0.2)]">
-        <div className="flex items-center justify-between gap-3">
-          <div className="flex min-w-0 items-center gap-3">
-            <UserAvatar
-              name={name}
-              imageUrl={staff.avatar_url}
-              size="sm"
-              className="size-11 border-2 border-[#d6bf85]"
-            />
-            <div className="min-w-0">
-              <p className="text-xs text-white/80">Driver workspace</p>
-              <p className="truncate text-base font-semibold">{name}</p>
-            </div>
-          </div>
-          <Link
-            href="/staff/notices"
-            aria-label="Notices"
-            className="grid min-h-12 min-w-12 place-items-center rounded-full bg-white/10 focus-visible:outline-2 focus-visible:outline-[#c8a96b]"
-          >
-            <Bell size={20} aria-hidden="true" />
-          </Link>
-        </div>
-        <div className="mt-6">
-          <p className="text-xs text-[#dfca92]">{dateLabel}</p>
-          <h1 className="mt-1 text-[26px] font-semibold leading-tight tracking-[-0.04em]">
-            Good day, {name.split(" ")[0]}
-          </h1>
-          <p className="mt-1 text-xs text-white/80">Your assigned home-service trips</p>
-        </div>
+      <header className="rounded-[26px] bg-[linear-gradient(145deg,#174332,#092c20)] px-5 py-6 text-white">
+        <p className="text-sm font-medium text-[#dfca92]">CradleHub Driver · {dateLabel}</p>
+        <h1 className="mt-2 text-[28px] font-semibold tracking-[-0.03em]">
+          {primary ? "Your next trip" : "You're all set"}
+        </h1>
+        <p className="mt-1 text-sm text-white/80">
+          {primary ? `Ready when you are, ${name.split(" ")[0]}.`
+            : "New assigned Home Service trips will appear here."}
+        </p>
       </header>
 
-      <div className="mt-4 grid grid-cols-3 gap-2">
-        <StaffStatTile label="Today" value={summary.today} />
-        <StaffStatTile label="Completed" value={summary.completed} />
-        <StaffStatTile label="Remaining" value={summary.remaining} />
-      </div>
-
-      <DriverTripAlerts />
-
-      {primary ? (
-        <StaffCard className="mt-5 overflow-hidden p-4">
-          <div className="flex items-center justify-between gap-3">
+      {primary && primaryHref ? (
+        <StaffCard className="mt-5 overflow-hidden p-5">
+          <div className="flex items-center justify-between gap-2">
             <p className="text-xs font-semibold uppercase tracking-wide text-[#76501a]">
-              {primary.dispatchStatus === "in_route" ? "Current trip" : "Next trip"}
+              Assigned Home Service
             </p>
             <StaffStatusChip tone="gold">{getDriverProgressLabel(primary)}</StaffStatusChip>
           </div>
-          <h2 className="mt-3 text-lg font-semibold text-[#163a2b]">{primary.customerName}</h2>
+          <h2 className="mt-4 break-words text-xl font-semibold text-[#163a2b]">
+            {primary.customerName}
+          </h2>
           <p className="mt-1 text-sm text-[#65746b]">{primary.serviceName}</p>
-          <p className="mt-3 flex items-center gap-2 text-sm text-[#526358]">
-            <Clock3 size={16} aria-hidden="true" /> {formatTime12h(primary.startTime)}
-            {(primary.formattedAddress ?? primary.area)
-              ? ` · ${primary.area ?? primary.formattedAddress}`
-              : ""}
+          <p className="mt-5 flex items-center gap-3 text-sm text-[#526358]">
+            <Clock3 size={20} aria-hidden="true" /> {formatTime12h(primary.startTime)}
           </p>
-          <div className="mt-4 grid grid-cols-2 gap-2">
-            <Link
-              href={`/staff/driver/map?bookingId=${encodeURIComponent(primary.id)}`}
-              className="flex min-h-12 items-center justify-center rounded-xl bg-[#163a2b] px-3 text-sm font-semibold text-white"
-            >
-              Open route
-            </Link>
-            <Link
-              href={`/staff/driver/trips/${primary.id}`}
-              className="flex min-h-12 items-center justify-center gap-1 rounded-xl border border-[#c8a96b] text-sm font-semibold text-[#163a2b]"
-            >
-              <MapPinned size={16} aria-hidden="true" /> Details
-            </Link>
-          </div>
+          {destination ? (
+            <p className="mt-3 flex items-start gap-3 text-sm text-[#526358]">
+              <MapPin size={20} className="mt-0.5 shrink-0" aria-hidden="true" />
+              <span className="break-words">{destination}</span>
+            </p>
+          ) : null}
+          <Link
+            href={primaryHref}
+            className="mt-6 flex min-h-16 w-full items-center justify-center gap-3 rounded-2xl bg-[#0d6548] px-5 text-lg font-semibold text-white"
+          >
+            <Navigation size={23} aria-hidden="true" /> Open trip
+          </Link>
+          <Link
+            href={`/staff/driver/trips/${encodeURIComponent(primary.id)}`}
+            className="mt-3 flex min-h-11 items-center justify-center text-sm font-semibold text-[#19563c] underline underline-offset-4"
+          >
+            Trip details
+          </Link>
         </StaffCard>
       ) : (
         <div className="mt-5">
-          <StaffEmptyState
-            icon={<Route size={20} />}
-            title="No trips waiting"
-            description="New assigned home-service trips appear here."
-          />
+          <StaffEmptyState icon={<Route size={20} />} title="No trips waiting"
+            description="Only your assigned Home Service work appears here." />
         </div>
       )}
-
-      <div className="mt-6 flex items-center justify-between">
-        <h2 className="text-base font-semibold text-[#163a2b]">Today&apos;s trips</h2>
-        <Link
-          href="/staff/driver/trips"
-          className="flex min-h-12 items-center gap-1 text-xs font-semibold text-[#19563c]"
-        >
-          View all <ChevronRight size={15} aria-hidden="true" />
-        </Link>
-      </div>
-      {ordered.length > 0 ? (
-        <StaffCard className="overflow-hidden">
-          {ordered.slice(0, 4).map((item) => (
-            <DriverTripRow key={item.id} item={item} />
-          ))}
-        </StaffCard>
-      ) : null}
-
-      <StaffCard className="mt-5 flex items-center gap-3 p-4">
-        <QrCode size={22} className="shrink-0 text-[#19563c]" aria-hidden="true" />
-        <div className="min-w-0 flex-1">
-          <div className="text-sm font-semibold">Attendance scan</div>
-          <p className="text-xs text-[#65746b]">The Staff QR scanner records attendance.</p>
-        </div>
-        <Link
-          href="/staff/scan"
-          className="inline-flex min-h-12 items-center text-xs font-semibold text-[#19563c]"
-        >
-          Open
-        </Link>
-      </StaffCard>
-      {attendanceData ? (
-        <div className="mt-3">
-          <Link href="/staff/attendance" className="block text-center text-xs text-[#65746b] underline">
-            Attendance: {attendanceData.currentClockState.replaceAll("_", " ")}
-          </Link>
-          {attendanceData.currentClockState === "clocked_in" && attendanceData.portalClockOut ? <StaffAttendanceClockOut availability={attendanceData.portalClockOut} timezone={attendanceData.todayState.timezone} /> : null}
-        </div>
-      ) : null}
+      <Link
+        href="/staff/driver/trips"
+        className="mt-5 flex min-h-14 items-center justify-center gap-2 rounded-2xl border border-[#d9d7cc] bg-white text-sm font-semibold text-[#163a2b]"
+      >
+        View all assigned trips <ChevronRight size={18} aria-hidden="true" />
+      </Link>
     </StaffScreen>
   );
 }
