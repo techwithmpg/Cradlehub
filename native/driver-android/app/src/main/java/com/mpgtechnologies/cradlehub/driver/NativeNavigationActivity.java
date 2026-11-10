@@ -166,9 +166,15 @@ public final class NativeNavigationActivity extends AppCompatActivity {
         }
         arrivalListener = (ArrivalEvent event) -> {
           runOnUiThread(() -> {
-            // An SDK callback is not server-verified evidence of arrival.
-            // Deliberately no booking/attendance/payment mutation here.
-            status.setText("Destination reached. CradleHub will show trip status.");
+            // End the driving leg automatically at the destination.
+            // SDK arrival is NOT server-verified authority to change booking,
+            // massage service, payment or attendance state.
+            if (navigator != null && inGuidance) {
+              navigator.stopGuidance();
+              navigator.clearDestinations();
+              inGuidance = false;
+            }
+            status.setText("Destination reached. Navigation ended. CradleHub will confirm arrival.");
           });
         };
         ready.addArrivalListener(arrivalListener);
