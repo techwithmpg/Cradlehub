@@ -5,6 +5,7 @@ import {
   updateBookingProgressAction,
 } from "@/app/(dashboard)/staff-portal/actions";
 import { isValidDriverDestination } from "@/lib/staff-pwa/driver-dispatch-policy";
+import { getProviderBusinessDate } from "@/lib/staff-pwa/provider-date";
 
 export const runtime = "nodejs";
 const ID = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
@@ -74,9 +75,24 @@ export async function POST(request: NextRequest) {
     if (job.bookingProgressStatus !== "not_started") {
       return response({ ok: false, error: "Travel cannot start in this state." }, 409);
     }
-  } else if (job.bookingProgressStatus !== "travel_started" ||
-             job.dispatchStatus !== "in_route") {
-    return response({ ok: false, error: "Trip is not actively travelling." }, 409);
+    // Never let a tap on Upcoming start a future booking. The branch's
+    // authoritative attendance business date handles midnight shift rules.
+    let businessDate: string;
+    try { businessDate = await getProviderBusinessDate(staff.branch_id); }
+    catch { return response({ ok: false, error: "Cannot verify the business date." }, 503); }
+    if (job.bookingDate > businessDate) {
+      return response({ ok: false, error: "This trip is scheduled for a future date." }, 409);
+    }
+  } else {
+    // Client retry after a successful arrival should read as success rather
+    // than misleading the driver into thinking the server write was lost.
+    if (job.bookingProgressStatus === "arrived") {
+      return response({ ok: true, bookingId, status: "arrived" }, 200);
+    }
+    if (job.bookingProgressStatus !== "travel_started" ||
+        job.dispatchStatus !== "in_route") {
+      return response({ ok: false, error: "Trip is not actively travelling." }, 409);
+    }
   }
 
   // This existing action verifies branch, driver ID, booking state and
