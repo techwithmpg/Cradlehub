@@ -2,11 +2,16 @@ plugins {
   id("com.android.application")
 }
 
-// This module is buildable as an SDK foundation before Firebase app
-// registration. Firebase Messaging is inactive until the real Android
-// google-services.json is supplied by the owner.
+// This module preserves the existing Google Navigation SDK foundation. The
+// Android Staff shell uses the same role-aware Web routes and server logic.
 if (file("google-services.json").exists()) {
   apply(plugin = "com.google.gms.google-services")
+}
+
+val staffOrigin = providers.gradleProperty("CRADLE_STAFF_ORIGIN")
+  .orElse("https://www.cradlewellnessliving.com").get()
+require(Regex("^https://[A-Za-z0-9.-]+(?::443)?$").matches(staffOrigin)) {
+  "CRADLE_STAFF_ORIGIN must be one explicit HTTPS origin (no path or credentials)."
 }
 
 android {
@@ -14,13 +19,16 @@ android {
   compileSdk = 36
 
   defaultConfig {
+    // Existing provisional package ID retained to avoid silently breaking
+    // native Navigation SDK / Firebase / signing configuration.
     applicationId = "com.mpgtechnologies.cradlehub.driver"
     minSdk = 24
     targetSdk = 36
-    versionCode = 1
-    versionName = "0.1.0-preview"
+    versionCode = 2
+    versionName = "0.2.0-staff-shell-review"
     manifestPlaceholders["CRADLE_NAVIGATION_API_KEY"] =
       providers.gradleProperty("CRADLE_NAVIGATION_API_KEY").orElse("").get()
+    buildConfigField("String", "STAFF_ORIGIN", "\"$staffOrigin\"")
   }
 
   compileOptions {
@@ -31,7 +39,7 @@ android {
 
   buildTypes {
     getByName("release") {
-      isMinifyEnabled = false // enable after SDK/consumer rules + native acceptance
+      isMinifyEnabled = false // release needs independent device/security acceptance
     }
   }
 
