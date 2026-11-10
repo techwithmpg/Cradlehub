@@ -57,6 +57,9 @@ public final class DriverShellActivity extends AppCompatActivity {
           if (ROUTE_PATH.equals(url.getPath()) &&
               "1".equals(url.getQueryParameter("nativeNavigation")) &&
               validBookingId(bookingId)) {
+            // Refresh server-backed trip state behind the native map so Back
+            // shows Resume Navigation, not an outdated Start Trip button.
+            view.loadUrl(WEB_ORIGIN + ROUTE_PATH + "?bookingId=" + bookingId);
             openNativeNavigation(bookingId);
             return true;
           }
