@@ -23,8 +23,9 @@ import java.util.regex.Pattern;
  * same-origin launch URL; native itinerary STILL rechecks driver authority.
  */
 public final class DriverShellActivity extends AppCompatActivity {
-  public static final String WEB_ORIGIN = "https://www.cradlewellnessliving.com";
-  private static final String TRUSTED_HOST = "www.cradlewellnessliving.com";
+  // The release build is permanently pinned to the production HTTPS host.
+  // Only an explicitly configured debug APK can use USB-forwarded localhost.
+  public static final String WEB_ORIGIN = BuildConfig.DRIVER_WEB_ORIGIN;
   private static final int LOCATION_REQUEST = 103;
   private static final Pattern BOOKING_ID = Pattern.compile(
       "^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}$");
@@ -35,8 +36,11 @@ public final class DriverShellActivity extends AppCompatActivity {
   private String pendingGeolocationOrigin;
 
   private static boolean trusted(Uri url) {
-    return "https".equals(url.getScheme()) && TRUSTED_HOST.equals(url.getHost())
-        && (url.getPort() == -1 || url.getPort() == 443);
+    Uri expected = Uri.parse(WEB_ORIGIN);
+    return expected.getScheme().equals(url.getScheme())
+        && expected.getHost().equals(url.getHost())
+        && expected.getPort() == url.getPort()
+        && url.getUserInfo() == null;
   }
 
   @Override public void onCreate(Bundle state) {
