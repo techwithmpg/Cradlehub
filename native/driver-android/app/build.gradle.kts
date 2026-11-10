@@ -30,7 +30,19 @@ android {
   }
 
   buildTypes {
+    getByName("debug") {
+      // Only an explicit build flag can select the local development server.
+      // Normal APK builds and every release use the existing HTTPS origin.
+      val debugOrigin = providers.gradleProperty("CRADLE_DRIVER_DEBUG_ORIGIN")
+        .orElse("https://www.cradlewellnessliving.com").get()
+      require(debugOrigin in setOf(
+        "https://www.cradlewellnessliving.com",
+        "http://localhost:7100"
+      )) { "Unsupported Driver debug origin. Only local USB test port 7100 is allowed." }
+      buildConfigField("String", "DRIVER_WEB_ORIGIN", "\"$debugOrigin\"")
+    }
     getByName("release") {
+      buildConfigField("String", "DRIVER_WEB_ORIGIN", "\"https://www.cradlewellnessliving.com\"")
       isMinifyEnabled = false // enable after SDK/consumer rules + native acceptance
     }
   }
