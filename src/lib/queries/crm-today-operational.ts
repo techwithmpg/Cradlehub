@@ -2,6 +2,7 @@ import "server-only";
 
 import {
   getCrmPendingBookingQueue,
+  getCrmOverduePendingCount,
   getCrmUpcomingBookings,
   getCrmOrderServiceLines,
   getTodaysSchedule,
@@ -80,6 +81,7 @@ function first<T>(v: Relation<T>): T | null {
 
 export type CrmTodayOperationalData = {
   queueData: CradleFlowBooking[];
+  overduePendingCount?: number;
   snapshot: CrmTodaySnapshot;
   actionNotifications: { id: string; title: string; message?: string }[];
   readinessIssues: ReadinessIssue[];
@@ -97,6 +99,7 @@ export async function getCrmTodayOperationalData(params: {
   const [
     rawBookings,
     pendingQueue,
+    overduePendingCount,
     upcomingBookings,
     snapshot,
     actionNotifications,
@@ -106,6 +109,7 @@ export async function getCrmTodayOperationalData(params: {
   ] = await Promise.all([
     getTodaysSchedule(branchId, date),
     getCrmPendingBookingQueue(branchId, date, undefined, upcomingBookingEndDate(date)),
+    getCrmOverduePendingCount(branchId, date),
     getCrmUpcomingBookings(branchId, date),
     getCrmTodaySnapshot({ branchId, date }),
     getActionRequiredNotificationsAction(3),
@@ -298,6 +302,7 @@ export async function getCrmTodayOperationalData(params: {
 
   return {
     queueData,
+    overduePendingCount,
     snapshot,
     actionNotifications,
     readinessIssues,

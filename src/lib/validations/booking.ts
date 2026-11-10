@@ -1,5 +1,9 @@
 import { z } from "zod";
-import { getPhilippineMobileNumberError } from "@/lib/bookings/philippine-mobile";
+import {
+  getPublicContactNumberError,
+  needsInternationalEmailFallback,
+  INTERNATIONAL_EMAIL_REQUIRED_MESSAGE,
+} from "@/lib/bookings/philippine-mobile";
 
 // Accept canonical Postgres UUID/GUID format used by seeded and live records.
 // z.string().uuid() is stricter in Zod v4 and can reject some existing IDs.
@@ -10,10 +14,11 @@ const phone = z
   .max(20, "Phone number too long")
   .regex(/^[0-9+\-\s()]+$/, "Invalid phone number");
 
-// Only anonymous/public booking submissions require a Philippine mobile contact.
+// Public requests accept callable Philippine mobiles or E.164 international
+// numbers. International callers must provide an email fallback.
 // CRM/manual booking schemas intentionally retain their existing phone policy.
 const publicPhone = z.string().max(32, "Phone number too long").superRefine((value, ctx) => {
-  const error = getPhilippineMobileNumberError(value);
+  const error = getPublicContactNumberError(value);
   if (error) ctx.addIssue({ code: "custom", message: error });
 });
 
@@ -87,7 +92,12 @@ export const createOnlineBookingSchema = z
     email: z.string().email("Invalid email").optional().or(z.literal("")),
     notes: z.string().max(500).optional(),
   })
-  .strict();
+  .strict()
+  .superRefine((data, ctx) => {
+    if (needsInternationalEmailFallback(data.phone) && !data.email?.trim()) {
+      ctx.addIssue({ code: "custom", message: INTERNATIONAL_EMAIL_REQUIRED_MESSAGE, path: ["email"] });
+    }
+  });
 export type CreateOnlineBookingInput = z.infer<typeof createOnlineBookingSchema>;
 
 // ── Manager walk-in / home service at front desk ───────────────────────────
@@ -343,6 +353,9 @@ export const createOnlineBookingMultiSchema = z
   })
   .strict()
   .superRefine((data, ctx) => {
+    if (needsInternationalEmailFallback(data.phone) && !data.email?.trim()) {
+      ctx.addIssue({ code: "custom", message: INTERNATIONAL_EMAIL_REQUIRED_MESSAGE, path: ["email"] });
+    }
     if (data.attendees) {
       const ids = data.attendees.map((attendee) => attendee.id);
       if (new Set(ids).size !== ids.length) {

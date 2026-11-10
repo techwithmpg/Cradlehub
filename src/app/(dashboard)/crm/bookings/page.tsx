@@ -21,12 +21,14 @@ export default async function CrmBookingsPage({
     search?: string;
     bookingId?: string;
     tab?: string;
+    overdue?: string;
     openRoomAssignment?: string;
   }>;
 }) {
   const { branchId, branchName, role } = await getFrontDeskContext();
   const params = await searchParams;
   const upcoming = params.tab === "upcoming";
+  const overdue = params.overdue === "true" && !upcoming;
   const bookingId = params.bookingId ?? params.highlight;
 
   const initialData = await getCrmBookingsOperationalData({
@@ -35,6 +37,7 @@ export default async function CrmBookingsPage({
     role,
     date: params.date,
     upcoming,
+    overdue,
     bookingId,
   });
 

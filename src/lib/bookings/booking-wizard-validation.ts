@@ -1,5 +1,9 @@
 import { isPastSlot, BRANCH_TIMEZONE } from "@/lib/engine/slot-time";
-import { getPhilippineMobileNumberError } from "@/lib/bookings/philippine-mobile";
+import {
+  getPublicContactNumberError,
+  needsInternationalEmailFallback,
+  INTERNATIONAL_EMAIL_REQUIRED_MESSAGE,
+} from "@/lib/bookings/philippine-mobile";
 import {
   isVisitTypeEnabled,
   isTimeAllowedForVisitType,
@@ -275,9 +279,12 @@ export function validateBookingDraft(
   }
 
   if (params.mode === "public") {
-    const phoneError = getPhilippineMobileNumberError(params.form.phone);
+    const phoneError = getPublicContactNumberError(params.form.phone);
     if (phoneError) {
       return { ok: false, message: phoneError, focusField: "phone" };
+    }
+    if (needsInternationalEmailFallback(params.form.phone) && !params.form.email?.trim()) {
+      return { ok: false, message: INTERNATIONAL_EMAIL_REQUIRED_MESSAGE, focusField: "email" };
     }
   } else {
     // Existing CRM/manual booking behavior is intentionally unchanged.

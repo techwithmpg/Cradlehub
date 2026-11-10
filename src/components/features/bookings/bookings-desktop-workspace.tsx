@@ -65,6 +65,7 @@ type DesktopWorkspaceProps = {
   date: string;
   businessDate?: string;
   clockTime?: string;
+  overdueReview?: boolean;
   statusFilter?: string;
   sourceFilter?: string;
   referenceSource?: "all" | "cradlehub" | "master_sheet";
@@ -382,6 +383,7 @@ export function BookingsDesktopWorkspace(props: DesktopWorkspaceProps) {
       bookings={props.bookings}
       date={props.date}
       businessDate={props.businessDate}
+      overdueReview={props.overdueReview}
       initialQuickFilter={props.initialQuickFilter}
       initialSelectedId={props.initialSelectedId}
       services={availableServices}

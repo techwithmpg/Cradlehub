@@ -3,6 +3,7 @@ import "server-only";
 import {
   getCrmBookingsCommandCenterRows,
   getCrmUpcomingBookings,
+  getCrmOverduePendingBookings,
   getCrmOrderServiceLines,
   getDailyPaymentSummary,
 } from "@/lib/queries/bookings";
@@ -24,6 +25,7 @@ export type CrmBookingsOperationalData = {
   date: string;
   businessDate: string;
   selectedOutsideWindow: boolean;
+  reviewingOverdue?: boolean;
   bookings: WorkspaceBookingRow[];
   waitlistRows: WaitlistRow[];
   cashSummary: DailyCashSummaryData | null;
@@ -35,6 +37,7 @@ export type CrmBookingsOperationalInput = {
   role: string;
   date?: string;
   upcoming?: boolean;
+  overdue?: boolean;
   bookingId?: string;
   client?: SupabaseClient<Database>;
 };
@@ -45,6 +48,7 @@ export async function getCrmBookingsOperationalData({
   role,
   date: requestedDate,
   upcoming = false,
+  overdue = false,
   bookingId,
   client,
 }: CrmBookingsOperationalInput): Promise<CrmBookingsOperationalData> {
@@ -70,9 +74,11 @@ export async function getCrmBookingsOperationalData({
   }
 
   const [rawBookings, cashSummary, waitlistResult] = await Promise.all([
-    upcoming
-      ? getCrmUpcomingBookings(branchId, today)
-      : getCrmBookingsCommandCenterRows(branchId, date),
+    overdue
+      ? getCrmOverduePendingBookings(branchId, today, client)
+      : upcoming
+        ? getCrmUpcomingBookings(branchId, today)
+        : getCrmBookingsCommandCenterRows(branchId, date),
     getDailyPaymentSummary(branchId, date),
     getWaitlistAction(branchId),
   ]);
@@ -106,6 +112,9 @@ export async function getCrmBookingsOperationalData({
   // were rescheduled to different days. Hydrate its complete branch-scoped
   // order on both Daily and Upcoming views so the selected group is accurate.
   // In Upcoming, preserve the existing complete-order hydration as well.
+  // Review list contains only overdue pending service lines. Expand the
+  // whole parent order only after an explicit booking deep link, just as the
+  // daily view does, to avoid representing confirmed sibling lines as overdue.
   const relatedOrderIds = upcoming
     ? bookings.flatMap((row) => (row.order_id ? [row.order_id] : []))
     : (selectedOrderId ? [selectedOrderId] : []);
@@ -189,6 +198,7 @@ export async function getCrmBookingsOperationalData({
     date,
     businessDate: today,
     selectedOutsideWindow,
+    reviewingOverdue: overdue,
     bookings: displayBookings,
     waitlistRows: (waitlistResult.ok ? waitlistResult.data : []) as WaitlistRow[],
     cashSummary,

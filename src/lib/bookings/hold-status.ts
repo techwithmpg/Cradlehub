@@ -1,10 +1,9 @@
 export const PUBLIC_BOOKING_HOLD_MINUTES = 120;
 
 const NON_BLOCKING_BOOKING_STATUSES = new Set(["cancelled", "no_show", "expired"]);
-const HOLD_BLOCKING_BOOKING_STATUSES = new Set(["pending_payment"]);
+const HOLD_BLOCKING_BOOKING_STATUSES = new Set(["pending_payment", "pending_crm_confirmation"]);
 const ALWAYS_BLOCKING_BOOKING_STATUSES = new Set([
   "pending",
-  "pending_crm_confirmation",
   "confirmed",
   "in_progress",
   "completed",
@@ -25,7 +24,9 @@ export function bookingBlocksAvailability(booking: BookingHoldState, now = new D
   if (NON_BLOCKING_BOOKING_STATUSES.has(status)) return false;
 
   if (HOLD_BLOCKING_BOOKING_STATUSES.has(status)) {
-    if (!booking.hold_expires_at) return false;
+    // Historic online CRM requests have null hold_expires_at. Preserve their
+    // reservations until a CSR explicitly reviews them; do not bulk-expire.
+    if (!booking.hold_expires_at) return status === "pending_crm_confirmation";
 
     const holdExpiresAt = new Date(booking.hold_expires_at).getTime();
     return Number.isFinite(holdExpiresAt) && holdExpiresAt > now.getTime();

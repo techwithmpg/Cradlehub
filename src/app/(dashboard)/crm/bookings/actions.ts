@@ -732,6 +732,7 @@ export async function crmCompleteServiceAction(
 export async function refreshCrmBookingsOperationalDataAction(params?: {
   date?: string;
   upcoming?: boolean;
+  overdue?: boolean;
   bookingId?: string;
 }): Promise<CrmBookingsOperationalData> {
   const context = await getFrontDeskContext();
@@ -741,6 +742,7 @@ export async function refreshCrmBookingsOperationalDataAction(params?: {
     role: context.role,
     date: params?.date,
     upcoming: params?.upcoming,
+    overdue: params?.overdue,
     bookingId: params?.bookingId,
   });
 }

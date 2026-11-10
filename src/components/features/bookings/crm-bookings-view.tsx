@@ -9,6 +9,7 @@
 
 import { useCallback, useState } from "react";
 import { useSearchParams } from "next/navigation";
+import Link from "next/link";
 import {
   BookingsWorkspace,
   type BookingWorkspaceTab,
@@ -32,6 +33,7 @@ type CrmBookingsViewProps = {
   refreshAction?: (params?: {
     date?: string;
     upcoming?: boolean;
+    overdue?: boolean;
     bookingId?: string;
   }) => Promise<CrmBookingsOperationalData>;
 };
@@ -79,6 +81,7 @@ export function CrmBookingsView({
   const tab = parseTab(rawTab);
   const resolvedQuickFilter = resolveBookingQuickFilter(rawTab);
   const isUpcoming = resolvedQuickFilter.quickFilter === "upcoming";
+  const isOverdue = searchParams.get("overdue") === "true" && !isUpcoming;
   const statusFilter = searchParams.get("status") ?? resolvedQuickFilter.legacyStatusFilter;
   const typeFilter = searchParams.get("type") ?? undefined;
   const deliveryFilter = searchParams.get("delivery") ?? undefined;
@@ -105,7 +108,7 @@ export function CrmBookingsView({
     return undefined;
   });
 
-  const [prevScope, setPrevScope] = useState({ date, isUpcoming });
+  const [prevScope, setPrevScope] = useState({ date, isUpcoming, isOverdue });
   const [prevInitialData, setPrevInitialData] = useState(initialData);
 
   // If initialData changes from the server, synchronize state
@@ -119,8 +122,8 @@ export function CrmBookingsView({
   }
 
   // If date or upcoming mode changes, adjust inclusionTarget
-  if (prevScope.date !== date || prevScope.isUpcoming !== isUpcoming) {
-    setPrevScope({ date, isUpcoming });
+  if (prevScope.date !== date || prevScope.isUpcoming !== isUpcoming || prevScope.isOverdue !== isOverdue) {
+    setPrevScope({ date, isUpcoming, isOverdue });
     const currentBookings = initialData.bookings;
     const needed =
       requestedBookingId &&
@@ -133,7 +136,7 @@ export function CrmBookingsView({
   }
 
   // Server dataset request identity
-  const requestKey = `${date}:${isUpcoming ? "upcoming" : "daily"}${
+  const requestKey = `${date}:${isUpcoming ? "upcoming" : isOverdue ? "overdue" : "daily"}${
     inclusionTarget ? `:${inclusionTarget}` : ""
   }`;
 
@@ -141,9 +144,10 @@ export function CrmBookingsView({
     return refreshAction({
       date,
       upcoming: isUpcoming,
+      overdue: isOverdue,
       bookingId: inclusionTarget,
     });
-  }, [refreshAction, date, isUpcoming, inclusionTarget]);
+  }, [refreshAction, date, isUpcoming, isOverdue, inclusionTarget]);
 
   const { data, error, generation, revalidate } =
     useGenerationAwareWorkspaceSWR<CrmBookingsOperationalData>(
@@ -178,6 +182,18 @@ export function CrmBookingsView({
 
   return (
     <>
+      {isOverdue ? (
+        <div role="status" className="mb-3 flex flex-wrap items-center gap-2 rounded-lg border border-amber-200 bg-amber-50 p-3 text-sm text-amber-950">
+          <span>Review past-dated pending bookings. Nothing has been automatically cancelled or charged; verify each record with CRM before taking action.</span>
+          <Link className="font-semibold underline" href="/crm/bookings?tab=needs-action">Back to today</Link>
+        </div>
+      ) : !isUpcoming ? (
+        <div className="mb-3 text-xs text-muted-foreground">
+          <Link className="font-semibold underline" href="/crm/bookings?overdue=true&tab=needs-action">
+            Review overdue booking requests
+          </Link>
+        </div>
+      ) : null}
       {payload.selectedOutsideWindow ? (
         <p
           role="status"
@@ -202,12 +218,13 @@ export function CrmBookingsView({
         </div>
       ) : null}
       <BookingsWorkspace
-        key={`${referenceSource}:${isUpcoming ? "upcoming" : "daily"}`}
+        key={`${referenceSource}:${isUpcoming ? "upcoming" : isOverdue ? "overdue" : "daily"}`}
         workspaceContext="crm"
         viewerRole={payload.role}
         branchName={payload.branchName}
         date={payload.date}
         businessDate={payload.businessDate}
+        overdueReview={isOverdue}
         statusFilter={statusFilter}
         typeFilter={typeFilter}
         referenceSource={referenceSource}

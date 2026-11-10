@@ -30,6 +30,7 @@ import { logError, logBusinessEvent } from "@/lib/logger";
 import { revalidateOperationalBookingSurfaces } from "@/lib/bookings/revalidate-booking-surfaces";
 import { evaluateOnlineSelectedStaff } from "@/lib/bookings/online-selected-staff";
 import { bookingCreationProvenance } from "@/lib/bookings/therapist-provenance";
+import { needsInternationalEmailFallback } from "@/lib/bookings/philippine-mobile";
 import {
   createOpenStaffScheduleException,
   readStaffScheduleException,
@@ -1170,6 +1171,7 @@ export async function createOnlineBookingMultiAction(
     const orderNumber = rpcResult.order_number;
     const isHSMulti = deliveryType === "home_service";
     const uniqueStaffIds = Array.from(new Set(attendeeStaffAssignments.map((a) => a.staffId)));
+    const internationalContact = needsInternationalEmailFallback(d.phone);
 
     // Post-commit side effects: strictly execute ONLY on fresh order creation (suppressed on replay)
     if (rpcResult.idempotency_status === "created") {
@@ -1179,7 +1181,7 @@ export async function createOnlineBookingMultiAction(
           targetWorkspace: "crm",
           type: "booking_created",
           title: `New online booking — ${d.fullName} (${orderNumber})`,
-          body: `${atomicServiceLines.length} service(s) for ${attendees.length} guest(s)${isHSMulti ? " · Home Service" : ""} · ${d.date} at ${d.startTime}. Booking request awaits CRM confirmation. Payment is separate.`,
+          body: `${atomicServiceLines.length} service(s) for ${attendees.length} guest(s)${isHSMulti ? " · Home Service" : ""} · ${d.date} at ${d.startTime}. Booking request awaits CRM confirmation. Payment is separate.${internationalContact ? " International contact: use the email fallback; SMS delivery is not assured." : ""}`,
           entityType: "booking",
           entityId: primaryBookingId,
           actionHref: `/crm/bookings?bookingId=${primaryBookingId}`,
@@ -1194,6 +1196,7 @@ export async function createOnlineBookingMultiAction(
             start_time: d.startTime,
             delivery_type: deliveryType,
             group_booking_ids: rpcResult.service_line_ids,
+            ...(internationalContact ? { contact_followup: "manual_email_fallback" } : {}),
           },
         }),
       ];

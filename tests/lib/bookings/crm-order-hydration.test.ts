@@ -25,7 +25,8 @@ vi.mock("@/lib/supabase/admin", () => ({
     throw new Error("Test must use its explicitly supplied scoped client");
   }),
 }));
-vi.mock("@/lib/engine/slot-time", () => ({
+vi.mock("@/lib/engine/slot-time", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("@/lib/engine/slot-time")>()),
   getBranchBusinessDate: () => "2026-11-09",
 }));
 vi.mock("@/app/(dashboard)/crm/waitlist/actions", () => ({
