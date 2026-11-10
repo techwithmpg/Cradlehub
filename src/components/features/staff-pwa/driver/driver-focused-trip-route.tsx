@@ -116,7 +116,7 @@ export function DriverFocusedTripRoute({ job }: { job: RealDispatchItem }) {
         invalidateStaffSafeMemory(["driverToday", "driverTrips", "driverMap"]);
         // A normal same-origin page load is observed by the Android shell.
         // Only after the server confirms Start does it open native navigation.
-        window.location.assign(routeHref);
+        window.location.assign(`${routeHref}&request=${Date.now()}`);
       } catch {
         setError("Could not start the trip. Check your connection and try again.");
       }
@@ -191,7 +191,7 @@ export function DriverFocusedTripRoute({ job }: { job: RealDispatchItem }) {
             <p className="mt-3 text-sm text-[#526358]">
               Navigation is active. Arrival must be confirmed by CradleHub before the booking status changes.
             </p>
-            <a href={routeHref}
+            <a href={`${routeHref}&request=${Date.now()}`}
               className="mt-4 flex min-h-14 items-center justify-center gap-2 rounded-2xl bg-[#163a2b] px-4 text-base font-bold text-white">
               <Navigation size={19} aria-hidden="true" /> Resume navigation
             </a>
