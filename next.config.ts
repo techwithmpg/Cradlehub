@@ -27,8 +27,8 @@ const nextConfig: NextConfig = {
     // Realtime subscriptions (router.refresh()) still invalidate the cache
     // immediately when data changes, so live pages stay accurate.
     staleTimes: {
-      dynamic: 120, // seconds — dynamic/auth pages
-      static: 300, // seconds — fully-static pages
+      dynamic: 300, // seconds — dynamic/auth pages
+      static: 600, // seconds — fully-static pages
     },
     serverActions: {
       // Generic Marketing uploads allow 10 MB source files; multipart framing
@@ -137,3 +137,4 @@ const nextConfig: NextConfig = {
 };
 
 export default nextConfig;
+

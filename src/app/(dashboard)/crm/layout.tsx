@@ -66,6 +66,7 @@ export default async function CrmLayout({ children }: { children: React.ReactNod
 
       {/* Background route warm-up for CRM workspace */}
       <WorkspaceRoutePrefetcher
+        eagerIdle
         config={CRM_PREFETCH}
         mobileIdleRoutes={["/crm/today", "/crm/schedule"]}
       />
@@ -88,3 +89,4 @@ export default async function CrmLayout({ children }: { children: React.ReactNod
     </>
   );
 }
+

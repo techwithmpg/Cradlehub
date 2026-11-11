@@ -1,14 +1,12 @@
+import { cache } from "react";
 import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { normalizePagination, toPaginatedResult } from "@/lib/queries/pagination";
 import type { PaginatedResult } from "@/lib/queries/pagination";
 
-// Returns distinct customer IDs that have at least one booking at the given branch.
-// Used for branch-scoping operational CRM customer views (customers table has no branch_id).
-async function branchCustomerIds(
-  supabase: Awaited<ReturnType<typeof createClient>>,
-  branchId: string
-): Promise<string[]> {
+// Request-cached distinct customer IDs for a branch so getCustomersPage + getCrmStats share 1 lookup
+const getCachedBranchCustomerIds = cache(async (branchId: string): Promise<string[]> => {
+  const supabase = await createClient();
   const { data } = await supabase
     .from("bookings")
     .select("customer_id")
@@ -21,14 +19,14 @@ async function branchCustomerIds(
         .filter((id): id is string => id !== null)
     ),
   ];
-}
+});
 
 export async function searchCustomers(query: string, branchId?: string | null) {
   const supabase = await createClient();
 
   let ids: string[] | undefined;
   if (branchId) {
-    const fetched = await branchCustomerIds(supabase, branchId);
+    const fetched = await getCachedBranchCustomerIds(branchId);
     if (fetched.length === 0) return [];
     ids = fetched;
   }
@@ -45,8 +43,6 @@ export async function searchCustomers(query: string, branchId?: string | null) {
   return data ?? [];
 }
 
-// Identity discovery is deliberately separate from branch-scoped CRM customer lists.
-// Call only after the route has authenticated a CRM user and resolved Front Desk context.
 export async function searchCustomerIdentities(query: string) {
   const term = query.trim().slice(0, 80);
   if (term.length < 2) return [];
@@ -90,7 +86,7 @@ export async function getAllCustomers(
 
   let ids: string[] | undefined;
   if (branchId) {
-    const fetched = await branchCustomerIds(supabase, branchId);
+    const fetched = await getCachedBranchCustomerIds(branchId);
     if (fetched.length === 0) return { customers: [], total: 0 };
     ids = fetched;
   }
@@ -109,7 +105,6 @@ export async function getAllCustomers(
   return { customers: data ?? [], total: count ?? 0 };
 }
 
-// ── Repeat customers (CRM priority list) ──────────────────────────────────
 export async function getRepeatCustomers(
   minBookings = 3,
   page        = 1,
@@ -121,7 +116,7 @@ export async function getRepeatCustomers(
 
   let ids: string[] | undefined;
   if (branchId) {
-    const fetched = await branchCustomerIds(supabase, branchId);
+    const fetched = await getCachedBranchCustomerIds(branchId);
     if (fetched.length === 0) return { customers: [], total: 0 };
     ids = fetched;
   }
@@ -141,7 +136,6 @@ export async function getRepeatCustomers(
   return { customers: data ?? [], total: count ?? 0 };
 }
 
-// ── Lapsed customers — haven't visited in N days ───────────────────────────
 export async function getLapsedCustomers(
   daysSinceLastVisit = 30,
   pageSize           = 20,
@@ -154,7 +148,7 @@ export async function getLapsedCustomers(
 
   let ids: string[] | undefined;
   if (branchId) {
-    const fetched = await branchCustomerIds(supabase, branchId);
+    const fetched = await getCachedBranchCustomerIds(branchId);
     if (fetched.length === 0) return [];
     ids = fetched;
   }
@@ -172,7 +166,7 @@ export async function getLapsedCustomers(
   return data ?? [];
 }
 
-// ── CRM dashboard stats ───────────────────────────────────────────────────
+// Single-pass CRM stats computation (1 query instead of 5 separate COUNT queries)
 export async function getCrmStats(branchId?: string | null) {
   const supabase = await createClient();
 
@@ -184,52 +178,42 @@ export async function getCrmStats(branchId?: string | null) {
 
   let ids: string[] | undefined;
   if (branchId) {
-    const fetched = await branchCustomerIds(supabase, branchId);
+    const fetched = await getCachedBranchCustomerIds(branchId);
     if (fetched.length === 0) {
       return { total: 0, repeat: 0, lapsed: 0, newThisMonth: 0, totalVisits: 0 };
     }
     ids = fetched;
   }
 
-  const [
-    totalResult,
-    repeatResult,
-    lapsedResult,
-    newThisMonthResult,
-    totalVisitsResult,
-  ] = await Promise.all([
-    ids
-      ? supabase.from("customers").select("id", { count: "exact", head: true }).in("id", ids)
-      : supabase.from("customers").select("id", { count: "exact", head: true }),
-    ids
-      ? supabase.from("customers").select("id", { count: "exact", head: true }).gte("total_bookings", 2).in("id", ids)
-      : supabase.from("customers").select("id", { count: "exact", head: true }).gte("total_bookings", 2),
-    ids
-      ? supabase.from("customers").select("id", { count: "exact", head: true }).lt("last_booking_date", cutoff30Str).gte("total_bookings", 1).in("id", ids)
-      : supabase.from("customers").select("id", { count: "exact", head: true }).lt("last_booking_date", cutoff30Str).gte("total_bookings", 1),
-    ids
-      ? supabase.from("customers").select("id", { count: "exact", head: true }).gte("first_booking_date", monthStart).in("id", ids)
-      : supabase.from("customers").select("id", { count: "exact", head: true }).gte("first_booking_date", monthStart),
-    ids
-      ? supabase.from("customers").select("total_bookings").in("id", ids)
-      : supabase.from("customers").select("total_bookings"),
-  ]);
+  const q = supabase
+    .from("customers")
+    .select("total_bookings, last_booking_date, first_booking_date");
+
+  const { data } = await (ids ? q.in("id", ids) : q);
+  const rows = data ?? [];
+
+  let repeat = 0;
+  let lapsed = 0;
+  let newThisMonth = 0;
+  let totalVisits = 0;
+
+  for (const c of rows) {
+    const tb = c.total_bookings ?? 0;
+    totalVisits += tb;
+    if (tb >= 2) repeat++;
+    if (tb >= 1 && c.last_booking_date && c.last_booking_date < cutoff30Str) lapsed++;
+    if (c.first_booking_date && c.first_booking_date >= monthStart) newThisMonth++;
+  }
 
   return {
-    total:       totalResult.count       ?? 0,
-    repeat:      repeatResult.count      ?? 0,
-    lapsed:      lapsedResult.count      ?? 0,
-    newThisMonth: newThisMonthResult.count ?? 0,
-    totalVisits: (totalVisitsResult.data ?? []).reduce((sum, c) => sum + (c.total_bookings ?? 0), 0),
+    total: rows.length,
+    repeat,
+    lapsed,
+    newThisMonth,
+    totalVisits,
   };
 }
 
-// ── Quick phone lookup (front desk pre-fill) ───────────────────────────────
-// Returns null if not found — never throws a "not found" error.
-// Not branch-scoped: front desk may look up any customer to pre-fill a booking.
-// ── Paginated customer list with optional search and branch scoping ────────
-// Owners pass branchId=null to see all customers.
-// Because customers has no branch_id, scoping goes through bookings (see branchCustomerIds).
 export type CustomerPageRow = {
   id: string;
   full_name: string;
@@ -258,7 +242,7 @@ export async function getCustomersPage(params: {
 
   let ids: string[] | undefined;
   if (params.branchId) {
-    const fetched = await branchCustomerIds(supabase, params.branchId);
+    const fetched = await getCachedBranchCustomerIds(params.branchId);
     if (fetched.length === 0) {
       return toPaginatedResult({ data: [], count: 0, page, pageSize });
     }

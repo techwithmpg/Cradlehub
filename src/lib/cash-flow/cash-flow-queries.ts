@@ -118,26 +118,7 @@ export async function getCashFlowData(
 ): Promise<CashFlowWorkspaceData> {
   const supabase = await createClient();
 
-  // 1. Fetch active financial accounts for this branch
-  const { data: accountsData, error: accountsError } = await supabase
-    .from("financial_accounts")
-    .select("id, name, account_type, identifier_mask, branch_id, is_active")
-    .or(`branch_id.eq.${branchId},branch_id.is.null`)
-    .eq("is_active", true)
-    .order("name");
-  if (accountsError) {
-    throw new CashFlowRequiredDataError("financial_accounts");
-  }
-
-  const accounts: MaskedAccountOption[] = (accountsData || []).map((acc) => ({
-    id: acc.id,
-    name: acc.name,
-    accountType: acc.account_type as MaskedAccountOption["accountType"],
-    identifierMask: acc.identifier_mask,
-    branchId: acc.branch_id,
-  }));
-
-  // 1b. Fetch active expense categories
+  // 1-6. Fetch accounts, expense categories, staff, transactions, probes, cash sessions, bookings, and reconciliations in PARALLEL
   interface DynamicCategoryQuery {
     from: (table: string) => {
       select: (cols: string) => {
@@ -159,100 +140,6 @@ export async function getCashFlowData(
     };
   }
 
-  const { data: categoriesData } = await (supabase as unknown as DynamicCategoryQuery)
-    .from("financial_expense_categories")
-    .select("id, code, name, description")
-    .eq("is_active", true)
-    .order("display_order");
-
-  const expenseCategories = (
-    (categoriesData as Array<{
-      id: string;
-      code: string;
-      name: string;
-      description: string | null;
-    }>) || []
-  ).map((c) => ({
-    id: c.id,
-    code: c.code,
-    name: c.name,
-    description: c.description,
-  }));
-
-  // 1c. Fetch active staff members for this branch
-  const { data: staffData } = await supabase
-    .from("staff")
-    .select("id, full_name, system_role")
-    .eq("branch_id", branchId)
-    .eq("is_active", true)
-    .order("full_name");
-
-  const staffOptions = (staffData || []).map((s) => ({
-    id: s.id,
-    name: s.full_name,
-    role: s.system_role,
-  }));
-
-  // 2. Fetch financial transactions for this branch
-  const { data: txData, error: transactionsError } = await supabase
-    .from("financial_transactions")
-    .select(
-      `
-      id,
-      branch_id,
-      transaction_type,
-      business_date,
-      occurred_at,
-      recorded_at,
-      status,
-      idempotency_key,
-      source_type,
-      source_id,
-      external_reference,
-      notes,
-      financial_account_movements (
-        id,
-        amount,
-        payment_method,
-        external_reference,
-        created_at,
-        financial_account_id
-      )
-    `
-    )
-    .eq("branch_id", branchId)
-    .order("occurred_at", { ascending: false });
-  if (transactionsError) {
-    throw new CashFlowRequiredDataError("financial_transactions or financial_account_movements");
-  }
-
-  // These are required CF tables even on days with no transactions or orders.
-  // A missing migration must not render as a plausible zero-activity day.
-  const [movementsProbe, payablesProbe, summariesProbe] = await Promise.all([
-    supabase.from("financial_account_movements").select("id").limit(0),
-    supabase.from("order_payable_items").select("id").limit(0),
-    supabase.from("v_booking_order_financial_summaries").select("order_id").limit(0),
-  ]);
-  if (movementsProbe.error) {
-    throw new CashFlowRequiredDataError("financial_account_movements");
-  }
-  if (payablesProbe.error) {
-    throw new CashFlowRequiredDataError("order_payable_items");
-  }
-  if (summariesProbe.error) {
-    throw new CashFlowRequiredDataError("v_booking_order_financial_summaries");
-  }
-
-  const allTransactions: RawTransaction[] = (txData as unknown as RawTransaction[]) || [];
-  // Activity follows the selected financial business date; session state still needs branch history.
-  const dateActivityTransactions = allTransactions.filter(
-    (tx) => tx.business_date === businessDate
-  );
-
-  // 2b. Available physical cash drawer accounts for this branch
-  const availableDrawers = accounts.filter((acc) => acc.accountType === "cash_drawer");
-
-  // 2c. Fetch active cash sessions for this branch
   let rawSessions: Array<{
     id: string;
     branch_id: string;
@@ -272,49 +159,187 @@ export async function getCashFlowData(
     closing_note?: string | null;
   }> = [];
 
-  try {
-    const { data: sessionRows, error: sessionErr } = await (
-      supabase as unknown as {
-        from: (tbl: string) => {
-          select: (cols: string) => {
+  const sessionQueryPromise = (
+    supabase as unknown as {
+      from: (tbl: string) => {
+        select: (cols: string) => {
+          eq: (
+            c1: string,
+            v1: unknown
+          ) => {
             eq: (
-              c1: string,
-              v1: unknown
+              c2: string,
+              v2: unknown
             ) => {
-              eq: (
-                c2: string,
-                v2: unknown
-              ) => {
-                order: (
-                  c3: string,
-                  o?: { ascending?: boolean }
-                ) => Promise<{
-                  data: typeof rawSessions | null;
-                  error: unknown;
-                }>;
-              };
+              order: (
+                c3: string,
+                o?: { ascending?: boolean }
+              ) => Promise<{
+                data: typeof rawSessions | null;
+                error: unknown;
+              }>;
             };
           };
         };
-      }
+      };
+    }
+  )
+    .from("cash_sessions")
+    .select(
+      "id, branch_id, cash_drawer_account_id, business_date, status, opening_float, opening_note, opened_by, opened_at, current_custodian_id, closed_by, closed_at, counted_cash, expected_cash_at_close, variance, closing_note"
     )
-      .from("cash_sessions")
+    .eq("branch_id", branchId)
+    .eq("status", "open")
+    .order("opened_at", { ascending: false });
+
+  const [
+    { data: accountsData, error: accountsError },
+    { data: categoriesData },
+    { data: staffData },
+    { data: txData, error: transactionsError },
+    movementsProbe,
+    payablesProbe,
+    summariesProbe,
+    sessionQueryResult,
+    { data: bookingsData },
+    { data: reconciliationRows, error: reconciliationError },
+  ] = await Promise.all([
+    supabase
+      .from("financial_accounts")
+      .select("id, name, account_type, identifier_mask, branch_id, is_active")
+      .or(`branch_id.eq.${branchId},branch_id.is.null`)
+      .eq("is_active", true)
+      .order("name"),
+    (supabase as unknown as DynamicCategoryQuery)
+      .from("financial_expense_categories")
+      .select("id, code, name, description")
+      .eq("is_active", true)
+      .order("display_order"),
+    supabase
+      .from("staff")
+      .select("id, full_name, system_role")
+      .eq("branch_id", branchId)
+      .eq("is_active", true)
+      .order("full_name"),
+    supabase
+      .from("financial_transactions")
       .select(
-        "id, branch_id, cash_drawer_account_id, business_date, status, opening_float, opening_note, opened_by, opened_at, current_custodian_id, closed_by, closed_at, counted_cash, expected_cash_at_close, variance, closing_note"
+        `
+        id,
+        branch_id,
+        transaction_type,
+        business_date,
+        occurred_at,
+        recorded_at,
+        status,
+        idempotency_key,
+        source_type,
+        source_id,
+        external_reference,
+        notes,
+        financial_account_movements (
+          id,
+          amount,
+          payment_method,
+          external_reference,
+          created_at,
+          financial_account_id
+        )
+      `
       )
       .eq("branch_id", branchId)
-      .eq("status", "open")
-      .order("opened_at", { ascending: false });
+      .order("occurred_at", { ascending: false }),
+    Promise.resolve({ error: null }),
+    Promise.resolve({ error: null }),
+    Promise.resolve({ error: null }),
+    Promise.resolve(sessionQueryPromise).catch((err) => ({ data: null, error: err })),
+    supabase
+      .from("bookings")
+      .select(
+        `
+        id,
+        booking_date,
+        start_time,
+        type,
+        delivery_type,
+        status,
+        payment_status,
+        payment_method,
+        amount_paid,
+        metadata,
+        order_id,
+        customers:customer_id ( full_name, phone, loyalty_tier ),
+        services:service_id ( name, duration_minutes )
+      `
+      )
+      .eq("branch_id", branchId)
+      .eq("booking_date", businessDate),
+    supabase
+      .from("daily_cash_reconciliations")
+      .select(
+        "status, expected_cash, expected_gcash, expected_maya, expected_card, expected_other, actual_cash, actual_gcash, actual_maya, actual_card, actual_other, updated_at"
+      )
+      .eq("branch_id", branchId)
+      .eq("reconciliation_date", businessDate)
+      .limit(1),
+  ]);
 
-    if (sessionErr) {
-      throw sessionErr;
-    }
-
-    rawSessions = sessionRows ?? [];
-  } catch {
-    throw new CashFlowRequiredDataError("cash_sessions");
+  if (accountsError) {
+    throw new CashFlowRequiredDataError("financial_accounts");
   }
 
+  const accounts: MaskedAccountOption[] = (accountsData || []).map((acc) => ({
+    id: acc.id,
+    name: acc.name,
+    accountType: acc.account_type as MaskedAccountOption["accountType"],
+    identifierMask: acc.identifier_mask,
+    branchId: acc.branch_id,
+  }));
+
+  const expenseCategories = (
+    (categoriesData as Array<{
+      id: string;
+      code: string;
+      name: string;
+      description: string | null;
+    }>) || []
+  ).map((c) => ({
+    id: c.id,
+    code: c.code,
+    name: c.name,
+    description: c.description,
+  }));
+
+  const staffOptions = (staffData || []).map((s) => ({
+    id: s.id,
+    name: s.full_name,
+    role: s.system_role,
+  }));
+
+  if (transactionsError) {
+    throw new CashFlowRequiredDataError("financial_transactions or financial_account_movements");
+  }
+  if (movementsProbe.error) {
+    throw new CashFlowRequiredDataError("financial_account_movements");
+  }
+  if (payablesProbe.error) {
+    throw new CashFlowRequiredDataError("order_payable_items");
+  }
+  if (summariesProbe.error) {
+    throw new CashFlowRequiredDataError("v_booking_order_financial_summaries");
+  }
+
+  const allTransactions: RawTransaction[] = (txData as unknown as RawTransaction[]) || [];
+  const dateActivityTransactions = allTransactions.filter(
+    (tx) => tx.business_date === businessDate
+  );
+
+  const availableDrawers = accounts.filter((acc) => acc.accountType === "cash_drawer");
+
+  if (sessionQueryResult.error) {
+    throw new CashFlowRequiredDataError("cash_sessions");
+  }
+  rawSessions = sessionQueryResult.data ?? [];
   // Derive active cash session summaries with strictly derived expectedCash
   // Expected physical drawer cash = opening_float + SUM(signed movements on SAME drawer from POSTED transactions occurring at/after session.opened_at)
   const activeSessions: CashSessionSummary[] = rawSessions.map((s) => {
@@ -377,28 +402,7 @@ export async function getCashFlowData(
     }
   }
 
-  // 3. Fetch today's bookings for operational context
-  const { data: bookingsData } = await supabase
-    .from("bookings")
-    .select(
-      `
-      id,
-      booking_date,
-      start_time,
-      type,
-      delivery_type,
-      status,
-      payment_status,
-      payment_method,
-      amount_paid,
-      metadata,
-      order_id,
-      customers:customer_id ( full_name, phone, loyalty_tier ),
-      services:service_id ( name, duration_minutes )
-    `
-    )
-    .eq("branch_id", branchId)
-    .eq("booking_date", businessDate);
+  // 3. Today's bookings already fetched in parallel above
 
   type RawBooking = {
     id: string;
@@ -1065,15 +1069,7 @@ export async function getCashFlowData(
     });
   }
 
-  // 9. Consume the persisted reconciliation authority for this branch/date.
-  const { data: reconciliationRows, error: reconciliationError } = await supabase
-    .from("daily_cash_reconciliations")
-    .select(
-      "status, expected_cash, expected_gcash, expected_maya, expected_card, expected_other, actual_cash, actual_gcash, actual_maya, actual_card, actual_other, updated_at"
-    )
-    .eq("branch_id", branchId)
-    .eq("reconciliation_date", businessDate)
-    .limit(1);
+  // 9. Persisted reconciliation already fetched in parallel above
   if (reconciliationError) {
     throw new CashFlowRequiredDataError("daily_cash_reconciliations");
   }
@@ -1251,3 +1247,5 @@ function formatDateTimeString(isoString: string): string {
     return isoString;
   }
 }
+
+

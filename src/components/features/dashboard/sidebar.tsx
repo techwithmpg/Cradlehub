@@ -227,7 +227,7 @@ function NavLink({
   return (
     <Link
       href={item.href}
-      prefetch={prefetchOnHover ? undefined : false}
+      prefetch={prefetchOnHover ? true : false}
       onClick={onNav}
       onMouseEnter={handleMouseEnter}
       onFocus={handleMouseEnter}
@@ -753,3 +753,4 @@ export function Sidebar({
     </>
   );
 }
+

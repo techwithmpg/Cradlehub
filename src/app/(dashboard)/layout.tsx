@@ -38,7 +38,7 @@ export default async function DashboardLayout({ children }: { children: React.Re
       }}
     >
       <OfflineBanner />
-      {staffPwaRoute && <NotificationBell role={resolvedMe.system_role} userId={ctx.user.id} toastOnly />}
+      {staffPwaRoute && <NotificationBell role={resolvedMe.system_role} toastOnly />}
       {!staffPwaRoute && (
         <Sidebar
           role={resolvedMe.system_role}
@@ -62,7 +62,6 @@ export default async function DashboardLayout({ children }: { children: React.Re
           <div className="hidden md:block">
             <Header
               role={resolvedMe.system_role}
-              userId={ctx.user.id}
               fullName={resolvedMe.full_name}
               displayName={displayName}
               avatarUrl={resolvedMe.avatar_url}

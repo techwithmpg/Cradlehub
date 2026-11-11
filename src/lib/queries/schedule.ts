@@ -317,7 +317,7 @@ export async function getDailySchedule(params: {
 
   if (staffIds.length === 0) return [];
 
-  const [bookingsResult, blocksResult, overridesResult, checkinsResult] = await Promise.all([
+  const [bookingsResult, blocksResult, overridesResult, checkinsResult, resolvedSchedules] = await Promise.all([
     supabase
       .from("bookings")
       .select(
@@ -344,6 +344,17 @@ export async function getDailySchedule(params: {
       .eq("branch_id", params.branchId)
       .in("staff_id", staffIds)
       .or(`attendance_business_date.eq.${params.date},shift_date.eq.${params.date}`),
+    getResolvedStaffSchedulesForDate({
+      supabase,
+      branchId: params.branchId,
+      date: params.date,
+      staff: staffRows.map((staff) => ({
+        id: staff.id,
+        staff_type: staff.staff_type,
+        system_role: staff.system_role,
+        operational: true,
+      })),
+    }),
   ]);
 
   if (bookingsResult.error) {
@@ -368,18 +379,6 @@ export async function getDailySchedule(params: {
     (overridesResult.data ?? []) as OverrideQueryRow[]
   );
   const checkinsByStaff = buildCheckinsByStaff((checkinsResult.data ?? []) as CheckinQueryRow[]);
-
-  const resolvedSchedules = await getResolvedStaffSchedulesForDate({
-    supabase,
-    branchId: params.branchId,
-    date: params.date,
-    staff: staffRows.map((staff) => ({
-      id: staff.id,
-      staff_type: staff.staff_type,
-      system_role: staff.system_role,
-      operational: true,
-    })),
-  });
 
   return staffRows.map((staff) => {
     const resolved = resolvedSchedules.get(staff.id);
@@ -409,3 +408,4 @@ export async function getDailySchedule(params: {
     };
   });
 }
+

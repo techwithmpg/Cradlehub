@@ -1,4 +1,5 @@
 import { cache } from "react";
+import { headers } from "next/headers";
 import { createClient } from "@/lib/supabase/server";
 import { logError } from "@/lib/logger";
 import { resolveSuperAdminContext } from "@/lib/auth/super-admin";
@@ -19,20 +20,25 @@ export type LayoutStaffContext = {
   me: SharedStaffProfileRow | null;
 };
 
-/**
- * Canonical request-scoped auth + staff profile resolver wrapped in React cache().
- * Shared across DashboardLayout, CrmLayout, OwnerLayout, getUserWorkspaceAccess,
- * getCrmContext, and getFrontDeskContext so auth.getUser() and the staff table
- * are only queried ONCE per HTTP request render pass.
- */
 export const getLayoutStaffContext = cache(async (): Promise<LayoutStaffContext | null> => {
+  try {
+    const hdrs = await headers();
+    const verifiedUserId = hdrs.get("x-cradle-verified-user-id");
+    const verifiedStaffEncoded = hdrs.get("x-cradle-verified-staff-json");
+    if (verifiedUserId && verifiedStaffEncoded) {
+      const me = JSON.parse(decodeURIComponent(verifiedStaffEncoded)) as SharedStaffProfileRow;
+      return { user: { id: verifiedUserId }, me };
+    }
+  } catch {
+    // Fallback to standard Supabase lookup if headers() is unavailable
+  }
+
   const supabase = await createClient();
   const {
     data: { user },
   } = await supabase.auth.getUser();
   if (!user) return null;
 
-  // Super-admin: grant owner-level layout access with a real branch.
   const superAdmin = await resolveSuperAdminContext(user.id);
   if (superAdmin) {
     return {

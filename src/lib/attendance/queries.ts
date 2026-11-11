@@ -256,11 +256,21 @@ export async function getAttendanceActionContext(options?: {
 
 export async function getAttendanceSettings(branchId: string): Promise<AttendanceSettings> {
   const admin = asAttendanceDb(createAdminClient());
-  const { data, error } = await admin
-    .from("attendance_settings")
-    .select("*")
-    .eq("branch_id", branchId)
-    .maybeSingle();
+  const [{ data, error }, effectiveVersion] = await Promise.all([
+    admin
+      .from("attendance_settings")
+      .select("*")
+      .eq("branch_id", branchId)
+      .maybeSingle(),
+    admin
+      .from("attendance_rule_versions")
+      .select("rule_values")
+      .eq("branch_id", branchId)
+      .lte("effective_from", new Date().toISOString())
+      .order("effective_from", { ascending: false })
+      .limit(1)
+      .maybeSingle(),
+  ]);
 
   if (error) {
     throw createAttendanceDataError({
@@ -272,14 +282,6 @@ export async function getAttendanceSettings(branchId: string): Promise<Attendanc
   }
 
   if (data) {
-    const effectiveVersion = await admin
-      .from("attendance_rule_versions")
-      .select("rule_values")
-      .eq("branch_id", branchId)
-      .lte("effective_from", new Date().toISOString())
-      .order("effective_from", { ascending: false })
-      .limit(1)
-      .maybeSingle();
     if (effectiveVersion.error) {
       throw createAttendanceDataError({
         error: effectiveVersion.error,
@@ -846,18 +848,6 @@ export async function getAttendanceWorkspaceData(params: {
     throw new Error(`Branch resources could not be loaded: ${resourcesResult.error.message}`);
 
   const qrRows = qrPointsResult.data ?? [];
-  const qrWorkspaceData = await resolveQrWorkspaceData({
-    rows: qrRows,
-    origin: params.origin,
-  });
-
-  const devices = (devicesResult.data ?? []).map(mapDevice);
-  const records = recordsResult.map(mapRecord);
-  const testRecords = testRecordsResult.map(mapRecord);
-  const exceptions = exceptionsResult.map(mapException);
-  const scanEvents = (scanEventsResult.data ?? []).map(mapScanEvent);
-  const sessions = (sessionsResult.data ?? []).map(mapSession);
-  const corrections = correctionsResult.map(mapCorrection);
   const staffRows = (staffResult.data ?? []) as Array<{
     id: string;
     full_name: string;
@@ -869,6 +859,32 @@ export async function getAttendanceWorkspaceData(params: {
     metadata: Record<string, unknown> | null;
   }>;
   const operationalStaffRows = staffRows.filter(isOperationalStaff);
+
+  const [qrWorkspaceData, schedules] = await Promise.all([
+    resolveQrWorkspaceData({
+      rows: qrRows,
+      origin: params.origin,
+    }),
+    getResolvedStaffSchedulesForDate({
+      supabase: admin as never,
+      branchId: params.branchId,
+      date: today,
+      staff: operationalStaffRows.map((staff) => ({
+        id: staff.id,
+        staff_type: staff.staff_type,
+        system_role: staff.system_role,
+        operational: isOperationalStaff(staff),
+      })),
+    }),
+  ]);
+
+  const devices = (devicesResult.data ?? []).map(mapDevice);
+  const records = recordsResult.map(mapRecord);
+  const testRecords = testRecordsResult.map(mapRecord);
+  const exceptions = exceptionsResult.map(mapException);
+  const scanEvents = (scanEventsResult.data ?? []).map(mapScanEvent);
+  const sessions = (sessionsResult.data ?? []).map(mapSession);
+  const corrections = correctionsResult.map(mapCorrection);
   const dailyExceptions = filterAttendanceExceptionsForBusinessDay({
     exceptions,
     records,
@@ -885,17 +901,6 @@ export async function getAttendanceWorkspaceData(params: {
     businessDate: today,
     businessDayStart: currentBusinessDayStart,
     businessDayEnd: currentBusinessDayEnd,
-  });
-  const schedules = await getResolvedStaffSchedulesForDate({
-    supabase: admin as never,
-    branchId: params.branchId,
-    date: today,
-    staff: operationalStaffRows.map((staff) => ({
-      id: staff.id,
-      staff_type: staff.staff_type,
-      system_role: staff.system_role,
-      operational: isOperationalStaff(staff),
-    })),
   });
   const dailyStaffStates = resolveAttendanceDayStaffStates({
     branchId: params.branchId,
@@ -1408,3 +1413,4 @@ function mapSession(row: unknown): AttendanceSession {
       booking.session_duration_minutes_snapshot ?? service?.duration_minutes ?? null,
   };
 }
+

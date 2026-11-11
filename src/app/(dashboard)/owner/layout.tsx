@@ -58,6 +58,7 @@ export default async function OwnerLayout({ children }: { children: ReactNode })
   return (
     <>
       <WorkspaceRoutePrefetcher
+        eagerIdle
         config={OWNER_PREFETCH}
         mobileIdleRoutes={["/owner", "/owner/bookings"]}
       />
@@ -79,3 +80,4 @@ export default async function OwnerLayout({ children }: { children: ReactNode })
     </>
   );
 }
+

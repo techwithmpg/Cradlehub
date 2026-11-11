@@ -41,9 +41,17 @@ import {
   type WorkspaceRetentionStateDetail,
 } from "./workspace-navigation-events";
 import { WorkspaceSWRScopeContext } from "./workspace-swr-cache";
-import { createWorkspaceGenerationStore, type WorkspaceGenerationStore, type WorkspaceValidation } from "./workspace-generation";
+import {
+  createWorkspaceGenerationStore,
+  type WorkspaceGenerationStore,
+  type WorkspaceValidation,
+} from "./workspace-generation";
 import { WorkspaceGenerationContext } from "./use-workspace-generation";
-import { WORKSPACE_DOMAIN_EVENT, affectedWorkspaceModules, type WorkspaceDomainEvent } from "./workspace-domain-events";
+import {
+  WORKSPACE_DOMAIN_EVENT,
+  affectedWorkspaceModules,
+  type WorkspaceDomainEvent,
+} from "./workspace-domain-events";
 import type { OwnerEventScope } from "@/lib/owner/operational-scope";
 
 type RetainedWorkspaceProviderProps = {
@@ -71,12 +79,6 @@ type RetainedWorkspaceRegistration = {
 const RetainedWorkspaceRegistrationContext =
   createContext<RetainedWorkspaceRegistration | null>(null);
 
-/**
- * Marks the serializable page subtree that belongs in the persistent host.
- * The App Router outlet itself is never cached; it can mutate as navigation
- * commits. Registering the page's concrete client subtree gives every retained
- * module an independent React element and Activity boundary.
- */
 export function RetainedWorkspaceModule({
   moduleId,
   children,
@@ -96,17 +98,7 @@ export function RetainedWorkspaceModule({
 
   if (!enabled) return children;
   if (registration?.isRegistered(moduleId)) return null;
-  return (
-    <div
-      data-retained-module-bootstrap={moduleId}
-      aria-busy="true"
-      aria-label="Loading workspace module"
-      className="grid gap-3 px-3 py-3 md:px-0 md:py-0"
-    >
-      <div className="h-20 animate-pulse rounded-2xl border border-[var(--cs-border-soft)] bg-[var(--cs-surface)]" />
-      <div className="h-48 animate-pulse rounded-2xl border border-[var(--cs-border-soft)] bg-[var(--cs-surface)]" />
-    </div>
-  );
+  return <>{children}</>;
 }
 
 function workspaceScrollTop(): number {
@@ -251,10 +243,15 @@ function ScopedRetainedWorkspace({
     generations.connect();
     const unsubscribe = generations.subscribe(() => {
       const entries = [...registryRef.current.entries, ...Object.values(registryRef.current.restoration)];
-      dispatch({ type: "sync-generations", snapshots: new Map(entries.map((entry) =>
-        [entry.moduleId, generations.getSnapshot(entry.moduleId)])) });
+      dispatch({
+        type: "sync-generations",
+        snapshots: new Map(entries.map((entry) => [entry.moduleId, generations.getSnapshot(entry.moduleId)])),
+      });
     });
-    return () => { unsubscribe(); generations.disconnect(); };
+    return () => {
+      unsubscribe();
+      generations.disconnect();
+    };
   }, [generations]);
 
   const register = useCallback<RetainedWorkspaceRegistration["register"]>((moduleId, node) => {
@@ -273,6 +270,7 @@ function ScopedRetainedWorkspace({
       previousScrollTop: activeEntry?.scrollTop ?? workspaceScrollTop(),
     });
   }, [branchId, descriptor, moduleKey, role]);
+
   const registration = useMemo<RetainedWorkspaceRegistration>(
     () => ({
       register,
@@ -306,26 +304,25 @@ function ScopedRetainedWorkspace({
   }, [descriptor, moduleKey]);
 
   const restoreRetainedSearch = useCallback((href: string): string => {
-    const url = new URL(href, window.location.origin);
-    if (url.origin !== window.location.origin || url.search) return href;
-    // An unfiltered Owner link may intentionally mean all branches. Do not
-    // rewrite it with a retained concrete branch's previous query string.
-    if (canRetainUrl && !canRetainUrl(url.pathname, url.searchParams)) return href;
-    const target = resolveWorkspaceModule(workspace, url.pathname, url.searchParams);
+    const parsedUrl = new URL(href, window.location.origin);
+    if (parsedUrl.origin !== window.location.origin || parsedUrl.search) return href;
+    if (canRetainUrl && !canRetainUrl(parsedUrl.pathname, parsedUrl.searchParams)) return href;
+    const target = resolveWorkspaceModule(workspace, parsedUrl.pathname, parsedUrl.searchParams);
     if (!target) return href;
     const key = retainedModuleKey(scopeKey, target);
-    const retained = registryRef.current.entries.find((entry) => entry.key === key)
-      ?? registryRef.current.restoration[key];
+    const retained =
+      registryRef.current.entries.find((entry) => entry.key === key) ??
+      registryRef.current.restoration[key];
     if (!retained?.stableSearchState) return href;
-    url.search = retained.stableSearchState;
-    if (canRetainUrl && !canRetainUrl(url.pathname, url.searchParams)) return href;
-    return `${url.pathname}${url.search}${url.hash}`;
+    parsedUrl.search = retained.stableSearchState;
+    if (canRetainUrl && !canRetainUrl(parsedUrl.pathname, parsedUrl.searchParams)) return href;
+    return `${parsedUrl.pathname}${parsedUrl.search}${parsedUrl.hash}`;
   }, [scopeKey, workspace, canRetainUrl]);
 
   const activateRetainedUrl = useCallback((href: string) => {
-    const url = new URL(href, window.location.origin);
-    if (canRetainUrl && !canRetainUrl(url.pathname, url.searchParams)) return;
-    if (url.origin !== window.location.origin || !url.pathname.startsWith(`/${workspace}`)) {
+    const parsedUrl = new URL(href, window.location.origin);
+    if (canRetainUrl && !canRetainUrl(parsedUrl.pathname, parsedUrl.searchParams)) return;
+    if (parsedUrl.origin !== window.location.origin || !parsedUrl.pathname.startsWith(`/${workspace}`)) {
       return;
     }
     const currentKey = registryRef.current.activeKey;
@@ -336,7 +333,7 @@ function ScopedRetainedWorkspace({
         scrollTop: workspaceScrollTop(),
       });
     }
-    const target = resolveWorkspaceModule(workspace, url.pathname, url.searchParams);
+    const target = resolveWorkspaceModule(workspace, parsedUrl.pathname, parsedUrl.searchParams);
     if (!target) return;
     const key = retainedModuleKey(scopeKey, target);
     if (registryRef.current.entries.some((entry) => entry.key === key)) {
@@ -356,7 +353,7 @@ function ScopedRetainedWorkspace({
     } else {
       return;
     }
-    setPendingNavigation({ key, pathname: url.pathname, search: url.searchParams.toString() });
+    setPendingNavigation({ key, pathname: parsedUrl.pathname, search: parsedUrl.searchParams.toString() });
   }, [scopeKey, workspace, canRetainUrl]);
 
   useEffect(() => {
@@ -380,19 +377,6 @@ function ScopedRetainedWorkspace({
       if (!(eventTarget instanceof Element)) return;
       const anchor = eventTarget.closest<HTMLAnchorElement>("a[href]");
       if (!anchor) return;
-      const url = new URL(anchor.href, window.location.origin);
-      const targetModule = resolveWorkspaceModule(workspace, url.pathname, url.searchParams);
-      if (targetModule) {
-        const key = retainedModuleKey(scopeKey, targetModule);
-        const isRetainedInMemory = registryRef.current.entries.some((entry) => entry.key === key);
-        if (isRetainedInMemory) {
-          event.preventDefault();
-          activateRetainedUrl(anchor.href);
-          // Update URL without triggering Next.js server page render fetch
-          window.history.pushState({}, "", anchor.href);
-          return;
-        }
-      }
       const retainedHref = restoreRetainedSearch(anchor.href);
       if (retainedHref !== anchor.href) {
         event.preventDefault();
@@ -454,6 +438,7 @@ function ScopedRetainedWorkspace({
     .map((entry) => entry.moduleId)
     .sort()
     .join(",");
+
   useEffect(() => {
     const detail: WorkspaceRetentionStateDetail = {
       unsavedModuleIds: unsavedModuleIds ? unsavedModuleIds.split(",") : [],
@@ -474,9 +459,6 @@ function ScopedRetainedWorkspace({
   }, []);
 
   useEffect(() => () => {
-    // Leaving this authenticated workspace (logout, role/branch change, or
-    // permission boundary) must not leave operational data in the shared SWR
-    // cache for a subsequent identity in the same browser runtime.
     for (const key of swrCache.keys()) swrCache.delete(key);
   }, [swrCache]);
 
@@ -489,9 +471,11 @@ function ScopedRetainedWorkspace({
       ? moduleKey
       : null;
   const activeKey = effectivePendingNavigation?.key ?? actualActiveKey;
+
   useLayoutEffect(() => {
     generations.setActive(registry.entries.find((entry) => entry.key === activeKey)?.moduleId ?? null);
   }, [activeKey, generations, registry.entries]);
+
   const previousActiveKey = useRef<string | null>(null);
   useLayoutEffect(() => {
     if (!activeKey || previousActiveKey.current === activeKey) return;
@@ -514,27 +498,27 @@ function ScopedRetainedWorkspace({
   return (
     <WorkspaceSWRScopeContext.Provider value={scopeKey}>
       <WorkspaceGenerationContext.Provider value={generations}>
-      <RetainedWorkspaceRegistrationContext.Provider value={registration}>
-        {registry.entries.map((entry) => {
-          const active = entry.key === activeKey;
-          const pendingRefresh = Boolean(
-            active &&
-            effectivePendingNavigation?.key === entry.key &&
-            (entry.dirty || entry.lastActivatedAt - entry.lastRefreshedAt >= entry.staleTimeMs)
-          );
-          return (
-            <RetainedModuleFrame
-              key={entry.key}
-              entry={entry}
-              active={active}
-              pendingRefresh={pendingRefresh}
-              dispatch={dispatch}
-              generations={generations}
-            />
-          );
-        })}
-        {children}
-      </RetainedWorkspaceRegistrationContext.Provider>
+        <RetainedWorkspaceRegistrationContext.Provider value={registration}>
+          {registry.entries.map((entry) => {
+            const active = entry.key === activeKey;
+            const pendingRefresh = Boolean(
+              active &&
+                effectivePendingNavigation?.key === entry.key &&
+                (entry.dirty || entry.lastActivatedAt - entry.lastRefreshedAt >= entry.staleTimeMs)
+            );
+            return (
+              <RetainedModuleFrame
+                key={entry.key}
+                entry={entry}
+                active={active}
+                pendingRefresh={pendingRefresh}
+                dispatch={dispatch}
+                generations={generations}
+              />
+            );
+          })}
+          {children}
+        </RetainedWorkspaceRegistrationContext.Provider>
       </WorkspaceGenerationContext.Provider>
     </WorkspaceSWRScopeContext.Provider>
   );
@@ -557,4 +541,3 @@ export function RetainedWorkspaceProvider(props: RetainedWorkspaceProviderProps)
     </ScopedRetainedWorkspace>
   );
 }
-

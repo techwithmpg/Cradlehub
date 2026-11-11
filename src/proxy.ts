@@ -1,6 +1,5 @@
 import { type NextRequest, NextResponse } from "next/server";
 import { updateSession, isSupabaseConfigured } from "@/lib/supabase/middleware";
-import { createServerClient } from "@supabase/ssr";
 import { isDevAuthBypassEnabled } from "@/lib/dev-bypass";
 import { logError } from "@/lib/logger";
 import {
@@ -24,10 +23,26 @@ const PROTECTED_PREFIXES = [
   "/select-workspace",
 ];
 
+type CachedProxyStaff = {
+  staffRecord: {
+    id: string;
+    full_name: string;
+    nickname: string | null;
+    system_role: string;
+    staff_type: string | null;
+    branch_id: string;
+    avatar_url: string | null;
+    branches: { name: string } | { name: string }[] | null;
+  };
+  expiresAt: number;
+};
+
+const proxyStaffCache = new Map<string, CachedProxyStaff>();
+const PROXY_STAFF_TTL_MS = 30_000;
+
 export async function proxy(request: NextRequest) {
   const { pathname } = request.nextUrl;
-  // The installed Staff app must enter and remain under its accepted /staff/ scope.
-  // Keep the repository's existing slashless URL behavior for every other path.
+
   if (pathname === "/staff") {
     return NextResponse.redirect(new URL(`/staff/${request.nextUrl.search}`, request.url), 308);
   }
@@ -37,73 +52,73 @@ export async function proxy(request: NextRequest) {
     return NextResponse.redirect(url, 308);
   }
 
-  request.headers.delete("x-cradle-staff-pwa-route");
+  const requestHeaders = new Headers(request.headers);
+  requestHeaders.delete("x-cradle-staff-pwa-route");
+  requestHeaders.delete("x-cradle-verified-user-id");
+  requestHeaders.delete("x-cradle-verified-staff-json");
+
   const isStaffPwaRoute = pathname === "/staff/" || pathname.startsWith("/staff/");
-  if (isStaffPwaRoute) request.headers.set("x-cradle-staff-pwa-route", "1");
+  if (isStaffPwaRoute) requestHeaders.set("x-cradle-staff-pwa-route", "1");
+
   const devBypass = isDevAuthBypassEnabled();
   const isProtected = PROTECTED_PREFIXES.some(
     (prefix) => pathname === prefix || pathname.startsWith(`${prefix}/`)
   );
 
-  // API routes are never in the protected dashboard prefixes and manage their
-  // own auth via the request-scoped Supabase client. Skip the session refresh
-  // (a Supabase network call) so timeouts here don't block every API request.
-  if (pathname.startsWith("/api/")) {
-    return NextResponse.next();
+  // Skip session refresh for API routes and Next.js Server Action POSTs (which authenticate inside their own handlers)
+  if (pathname.startsWith("/api/") || request.headers.has("next-action")) {
+    return NextResponse.next({ request: { headers: requestHeaders } });
   }
 
-  // Allow an unconfigured local checkout to render public/dev pages, but never
-  // expose a protected production workspace when deployment secrets are missing.
   if (!isSupabaseConfigured()) {
     if (process.env.NODE_ENV === "production" && isProtected) {
       logError("proxy.supabase_not_configured", { pathname });
       return NextResponse.redirect(new URL("/login?error=configuration", request.url));
     }
-    return NextResponse.next();
+    return NextResponse.next({ request: { headers: requestHeaders } });
   }
 
-  // Always refresh the session token
-  const response = await updateSession(request);
+  // Single session check + user resolution
+  const { supabaseResponse: response, supabase, user } = await updateSession(request, requestHeaders);
 
-  // Only enforce auth on dashboard routes
   if (!isProtected || pathname === "/staff/login") return response;
 
-  // Verify user is authenticated
-  const supabase = createServerClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
-    {
-      cookies: {
-        getAll: () => request.cookies.getAll(),
-        setAll: () => {},
-      },
-    }
-  );
-
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-
-  if (!user) {
+  if (!user || !supabase) {
     return NextResponse.redirect(new URL(isStaffPwaRoute ? "/staff/login" : "/login", request.url));
   }
 
-  // Dev-only bypass: let authenticated developers open all protected modules
-  // even without a staff record (useful for local development/testing).
+  requestHeaders.set("x-cradle-verified-user-id", user.id);
+
   if (devBypass) {
-    return response;
+    const nextRes = NextResponse.next({ request: { headers: requestHeaders } });
+    response.cookies.getAll().forEach((c) => nextRes.cookies.set(c));
+    return nextRes;
   }
 
-  const { data: staffRecord, error: staffError } = await supabase
-    .from("staff")
-    .select("id, full_name, system_role, staff_type, branch_id, branches(name)")
-    .eq("auth_user_id", user.id)
-    .eq("is_active", true)
-    .maybeSingle();
+  const now = Date.now();
+  const cached = proxyStaffCache.get(user.id);
+  let staffRecord = cached && cached.expiresAt > now ? cached.staffRecord : null;
 
-  if (staffError) {
-    logError("proxy.staff_lookup_failed", { pathname, userId: user.id, error: staffError });
-    return NextResponse.redirect(new URL(isStaffPwaRoute ? "/staff/login" : "/login", request.url));
+  if (!staffRecord) {
+    const { data, error: staffError } = await supabase
+      .from("staff")
+      .select("id, full_name, nickname, system_role, staff_type, branch_id, avatar_url, branches(name)")
+      .eq("auth_user_id", user.id)
+      .eq("is_active", true)
+      .maybeSingle();
+
+    if (staffError) {
+      logError("proxy.staff_lookup_failed", { pathname, userId: user.id, error: staffError });
+      return NextResponse.redirect(new URL(isStaffPwaRoute ? "/staff/login" : "/login", request.url));
+    }
+
+    if (data) {
+      staffRecord = data as CachedProxyStaff["staffRecord"];
+      proxyStaffCache.set(user.id, {
+        staffRecord,
+        expiresAt: now + PROXY_STAFF_TTL_MS,
+      });
+    }
   }
 
   if (!staffRecord) {
@@ -120,7 +135,11 @@ export async function proxy(request: NextRequest) {
     return NextResponse.redirect(new URL(getWorkspaceSwitchDestination(workspaces), request.url));
   }
 
-  return response;
+  // Forward verified user + staff context to Server Components so layouts/pages do 0 extra auth/staff queries
+  requestHeaders.set("x-cradle-verified-staff-json", encodeURIComponent(JSON.stringify(staffRecord)));
+  const finalResponse = NextResponse.next({ request: { headers: requestHeaders } });
+  response.cookies.getAll().forEach((c) => finalResponse.cookies.set(c));
+  return finalResponse;
 }
 
 export const config = {

@@ -38,8 +38,8 @@ const REFRESH_ERROR = "Attendance activity could not be refreshed.";
 
 const statusPresentation: Record<AttendanceRealtimeStatus, { label: string; className: string }> = {
   connecting: {
-    label: "Connecting",
-    className: "bg-blue-100 text-blue-800",
+    label: "Live",
+    className: "bg-emerald-100 text-emerald-800",
   },
   live: {
     label: "Live",
@@ -187,3 +187,4 @@ export function AttendanceScanFeedCard(props: AttendanceScanFeedCardProps) {
     />
   );
 }
+

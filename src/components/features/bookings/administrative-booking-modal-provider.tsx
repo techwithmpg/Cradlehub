@@ -135,7 +135,6 @@ export function AdministrativeBookingModalProvider({
         });
     };
 
-    // If modal is opened immediately, fetch right away; otherwise wait 1.2s so initial page render & route prefetch finish unimpeded
     if (modalOpen || optionsRetryKey > 0) {
       loadOptions();
       return () => {
@@ -389,4 +388,3 @@ export function OpenAdministrativeBookingButton({
     </Button>
   );
 }
-

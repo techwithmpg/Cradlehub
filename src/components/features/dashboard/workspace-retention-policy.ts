@@ -33,8 +33,8 @@ type ModulePolicy = Omit<WorkspaceModuleDescriptor, "workspace" | "stableSearchS
 };
 
 export const WORKSPACE_RETENTION_LIMITS: Record<RetainedWorkspace, number> = {
-  crm: 4,
-  owner: 3,
+  crm: 10,
+  owner: 8,
 };
 
 const MODULE_POLICIES: readonly ModulePolicy[] = [
@@ -44,7 +44,7 @@ const MODULE_POLICIES: readonly ModulePolicy[] = [
     normalizedRoute: "/crm/today",
     exact: true,
     stableSearchParams: ["filter"],
-    staleTimeMs: 12_000,
+    staleTimeMs: 60_000,
     cost: "medium",
   },
   {
@@ -64,7 +64,7 @@ const MODULE_POLICIES: readonly ModulePolicy[] = [
       "highlight",
       "tab",
     ],
-    staleTimeMs: 25_000,
+    staleTimeMs: 60_000,
     cost: "medium",
   },
   {
@@ -82,7 +82,7 @@ const MODULE_POLICIES: readonly ModulePolicy[] = [
     normalizedRoute: "/crm/attendance",
     exact: true,
     stableSearchParams: ["tab", "date", "staff", "status", "page"],
-    staleTimeMs: 12_000,
+    staleTimeMs: 60_000,
     cost: "medium",
   },
   {
@@ -91,7 +91,7 @@ const MODULE_POLICIES: readonly ModulePolicy[] = [
     normalizedRoute: "/crm/dispatch",
     exact: true,
     stableSearchParams: ["tab", "bookingId"],
-    staleTimeMs: 12_000,
+    staleTimeMs: 60_000,
     cost: "high",
   },
   {
@@ -118,7 +118,7 @@ const MODULE_POLICIES: readonly ModulePolicy[] = [
     normalizedRoute: "/crm/cash-flow",
     exact: true,
     stableSearchParams: ["date", "tab"],
-    staleTimeMs: 10_000,
+    staleTimeMs: 60_000,
     cost: "high",
   },
   {
@@ -145,7 +145,7 @@ const MODULE_POLICIES: readonly ModulePolicy[] = [
     normalizedRoute: "/owner/bookings",
     exact: true,
     stableSearchParams: ["date", "branch", "status", "type", "search", "bookingId", "tab"],
-    staleTimeMs: 25_000,
+    staleTimeMs: 60_000,
     cost: "medium",
   },
 ] as const;
@@ -195,3 +195,4 @@ export function retainedModuleKey(scopeKey: string, descriptor: WorkspaceModuleD
 export function affectedModulesForBookingChange(workspace: RetainedWorkspace): RetainedModuleId[] {
   return legacyBookingModules(workspace);
 }
+

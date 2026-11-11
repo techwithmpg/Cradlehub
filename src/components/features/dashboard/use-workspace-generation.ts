@@ -33,7 +33,7 @@ export function useGenerationAwareWorkspaceSWR<T>(
   const key = useWorkspaceSWRKey([moduleId, requestKey] as const);
   // A null fetcher prevents SWR focus/reconnect/mount events from fetching hidden data.
   const swr = useSWR<T>(store && scope ? key : null, null, {
-    fallbackData, revalidateOnFocus: false, revalidateOnReconnect: false,
+    fallbackData, revalidateOnFocus: false, revalidateOnReconnect: false, revalidateOnMount: false,
     revalidateOnMount: false, revalidateIfStale: false, shouldRetryOnError: false,
   });
   const fetchRef = useRef(fetcher);
@@ -81,3 +81,4 @@ export function useGenerationAwareWorkspaceSWR<T>(
   }, [isActive, isDirty, isRefreshing, invalidationGeneration, revalidate, swr.data]);
   return { data: swr.data, error: failure?.key === requestKey ? failure.error : undefined, generation, revalidate };
 }
+
