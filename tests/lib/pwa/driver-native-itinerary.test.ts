@@ -45,7 +45,15 @@ describe("native itinerary stays behind current driver authority", () => {
     mocks.getJob.mockResolvedValue({ ...assigned(), job: { ...assigned().job, driverId: "someone-else" } });
     expect((await GET(url())).status).toBe(409);
   });
-  it("does not allow the native app to start travel via a read", async () => {
+  it("preloads a confirmed ready trip without starting travel", async () => {
+    mocks.getJob.mockResolvedValue({
+      ...assigned(), job: { ...assigned().job, bookingProgressStatus: "not_started", dispatchStatus: "ready" }
+    });
+    const response = await GET(url());
+    expect(response.status).toBe(200);
+    expect((await response.json()).requiresTravelStart).toBe(true);
+  });
+  it("rejects invalid status combinations", async () => {
     mocks.getJob.mockResolvedValue({
       ...assigned(), job: { ...assigned().job, bookingProgressStatus: "not_started" }
     });
@@ -76,7 +84,7 @@ describe("native itinerary stays behind current driver authority", () => {
     expect(response.headers.get("cache-control")).toContain("no-store");
     const body = await response.json();
     expect(body).toEqual({
-      ok: true, bookingId,
+      ok: true, bookingId, requiresTravelStart: false,
       stops: [{ bookingId, lat: 10.68, lng: 122.96, title: "Home Service destination" }],
     });
     expect(JSON.stringify(body)).not.toContain("customerName");
