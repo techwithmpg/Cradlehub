@@ -17,7 +17,7 @@ export function DriverTripRow({
     <Link
       href={item.dispatchStatus === "completed" || item.dispatchStatus === "cancelled"
         ? `/staff/driver/trips/${item.id}`
-        : `/staff/driver/map?bookingId=${encodeURIComponent(item.id)}`}
+        : `/staff/driver/map?bookingId=${encodeURIComponent(item.id)}&launch=native`}
       className="flex min-h-20 items-center gap-3 border-b border-[#eee8dc] px-4 py-3 text-[#20342c] last:border-0 focus-visible:outline-2 focus-visible:outline-[#c8a96b]"
     >
       <div className="grid size-11 shrink-0 place-items-center rounded-2xl bg-[#f3e9d6] text-xs font-bold tabular-nums text-[#76501a]">
