@@ -110,6 +110,7 @@ export function DriverMobileBottomNav({
   return (
     <StaffBottomNav
       items={items}
+      activeKey={effectiveMode === "canonical" && pathname?.startsWith("/staff/driver/trips") ? "trips" : undefined}
       ariaLabel="Driver portal navigation"
     />
   );

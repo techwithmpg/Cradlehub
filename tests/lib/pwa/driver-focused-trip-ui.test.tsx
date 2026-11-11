@@ -115,7 +115,7 @@ describe("Driver focused trip UI (review only)", () => {
 
   it("limits canonical Driver tabs to trips, moving attendance to More", () => {
     expect(getDriverBottomNavItems("canonical").map(item => item.label))
-      .toEqual(["Today", "Trips", "More"]);
+      .toEqual(["Trips", "QR Scanner", "Navigation", "More"]);
     expect(getDriverBottomNavItems("driver").map(item => item.label))
       .toContain("Scan");
     const more = readFileSync("src/app/(dashboard)/staff/driver/more/page.tsx", "utf8");
@@ -138,6 +138,8 @@ describe("Driver focused trip UI (review only)", () => {
     expect(shell).toContain("BOOKING_ID.matcher(id).matches()");
     expect(layout).not.toContain("openNativeNavigation");
     expect(nativeRoute).toContain("navigator.stopGuidance()");
+    expect(nativeRoute).toContain("startButton.setOnClickListener(view -> startConfirmedGuidance())");
+    expect(nativeRoute).toContain("postExplicitTravelStart()");
     expect(nativeRoute).not.toContain("nextStatus");
   });
 });
