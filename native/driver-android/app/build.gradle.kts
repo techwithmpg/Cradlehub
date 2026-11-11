@@ -81,7 +81,6 @@ android {
       // Separate package prevents accidental overwrite of future driver release.
       applicationIdSuffix = ".pilot"
       versionNameSuffix = "-pilot"
-      resValue("string", "app_name", "CradleHub Driver Pilot")
       val origin = pilotWebOrigin.ifBlank { "https://pilot.invalid" }
       buildConfigField("String", "DRIVER_WEB_ORIGIN", "\"$origin\"")
       if (pilotSigningReady) signingConfig = signingConfigs.getByName("pilot")
