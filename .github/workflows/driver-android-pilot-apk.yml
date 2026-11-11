@@ -1,0 +1,128 @@
+name: CradleHub Driver Android TEST Pilot
+on:
+  pull_request:
+    paths:
+      - "native/driver-android/**"
+      - ".github/workflows/driver-android-pilot-apk.yml"
+  workflow_dispatch:
+    inputs:
+      confirmation:
+        description: 'Type BUILD_TEST_APK_ONLY (never use live bookings)'
+        required: true
+        type: string
+
+permissions:
+  contents: read
+
+jobs:
+  # Public PRs never receive signing credentials or produce distributable APKs.
+  pilot-source-check:
+    if: github.event_name == 'pull_request'
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "17"
+      - name: Install Android API 36
+        shell: bash
+        run: |
+          set -euo pipefail
+          sdkmanager_bin="$(find "$ANDROID_HOME/cmdline-tools" -type f -name sdkmanager | sort -V | tail -1)"
+          test -x "$sdkmanager_bin"
+          "$sdkmanager_bin" --install "platforms;android-36" "build-tools;36.0.0"
+      - uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: "9.1.0"
+      - name: Compile isolated pilot variant (no secrets or installable artifact)
+        working-directory: native/driver-android
+        run: gradle :app:compilePilotJavaWithJavac --no-daemon --stacktrace
+
+  # Only after separate owner approval + merge: manual main-branch TEST build.
+  # Environment 'driver-pilot' MUST have required reviewers and secrets.
+  signed-test-pilot:
+    if: github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/main' && inputs.confirmation == 'BUILD_TEST_APK_ONLY'
+    environment: driver-pilot
+    runs-on: ubuntu-latest
+    timeout-minutes: 35
+    env:
+      PILOT_ORIGIN: ${{ secrets.CRADLE_PILOT_WEB_ORIGIN }}
+      PILOT_KEYSTORE_BASE64: ${{ secrets.CRADLE_PILOT_KEYSTORE_BASE64 }}
+      ORG_GRADLE_PROJECT_CRADLE_PILOT_WEB_ORIGIN: ${{ secrets.CRADLE_PILOT_WEB_ORIGIN }}
+      ORG_GRADLE_PROJECT_CRADLE_NAVIGATION_API_KEY: ${{ secrets.CRADLE_PILOT_NAVIGATION_API_KEY }}
+      ORG_GRADLE_PROJECT_CRADLE_PILOT_KEYSTORE_PATH: ${{ github.workspace }}/native/driver-android/pilot-signing.jks
+      ORG_GRADLE_PROJECT_CRADLE_PILOT_STORE_PASSWORD: ${{ secrets.CRADLE_PILOT_STORE_PASSWORD }}
+      ORG_GRADLE_PROJECT_CRADLE_PILOT_KEY_ALIAS: ${{ secrets.CRADLE_PILOT_KEY_ALIAS }}
+      ORG_GRADLE_PROJECT_CRADLE_PILOT_KEY_PASSWORD: ${{ secrets.CRADLE_PILOT_KEY_PASSWORD }}
+      ORG_GRADLE_PROJECT_CRADLE_PILOT_VERSION_CODE: ${{ github.run_number }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "17"
+      - name: Install Android API 36
+        shell: bash
+        run: |
+          set -euo pipefail
+          sdkmanager_bin="$(find "$ANDROID_HOME/cmdline-tools" -type f -name sdkmanager | sort -V | tail -1)"
+          test -x "$sdkmanager_bin"
+          "$sdkmanager_bin" --install "platforms;android-36" "build-tools;36.0.0"
+      - uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: "9.1.0"
+      - name: Fail closed unless all TEST signing inputs exist
+        shell: bash
+        run: |
+          set -euo pipefail
+          test -n "$PILOT_ORIGIN"
+          test -n "$PILOT_KEYSTORE_BASE64"
+          test -n "$ORG_GRADLE_PROJECT_CRADLE_NAVIGATION_API_KEY"
+          test -n "$ORG_GRADLE_PROJECT_CRADLE_PILOT_STORE_PASSWORD"
+          test -n "$ORG_GRADLE_PROJECT_CRADLE_PILOT_KEY_ALIAS"
+          test -n "$ORG_GRADLE_PROJECT_CRADLE_PILOT_KEY_PASSWORD"
+          python3 - <<'PY'
+          import os
+          from urllib.parse import urlparse
+          u = urlparse(os.environ["PILOT_ORIGIN"])
+          host = (u.hostname or "").lower()
+          assert u.scheme == "https" and host and "." in host
+          assert host not in {"www.cradlewellnessliving.com", "cradlewellnessliving.com", "localhost"}
+          assert not host.endswith((".invalid", ".local", ".test"))
+          assert u.port is None and not u.username and not u.password
+          assert u.path in ("", "/") and not u.query and not u.fragment
+          print("Non-production HTTPS target validated (no connection attempted).")
+          PY
+      - name: Materialize ephemeral signing key
+        shell: bash
+        run: |
+          set -euo pipefail
+          umask 077
+          printf '%s' "$PILOT_KEYSTORE_BASE64" | base64 --decode > native/driver-android/pilot-signing.jks
+          test -s native/driver-android/pilot-signing.jks
+      - name: Assemble signed TEST-only APK
+        working-directory: native/driver-android
+        run: gradle :app:assemblePilot --no-daemon --stacktrace
+      - name: Verify APK signing and fingerprint
+        shell: bash
+        run: |
+          set -euo pipefail
+          apk="native/driver-android/app/build/outputs/apk/pilot/app-pilot.apk"
+          test -s "$apk"
+          signer="$(find "$ANDROID_HOME/build-tools" -type f -name apksigner | sort -V | tail -1)"
+          test -x "$signer"
+          "$signer" verify --verbose --print-certs "$apk"
+          sha256sum "$apk"
+      - name: Upload TEST APK for owner review (not automatic distribution)
+        uses: actions/upload-artifact@v4
+        with:
+          name: cradlehub-driver-TEST-pilot-${{ github.run_number }}
+          path: native/driver-android/app/build/outputs/apk/pilot/app-pilot.apk
+          if-no-files-found: error
+          retention-days: 3
+      - name: Remove temporary signing material
+        if: always()
+        shell: bash
+        run: rm -f native/driver-android/pilot-signing.jks

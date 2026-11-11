@@ -23,8 +23,10 @@ import java.util.regex.Pattern;
  * Booking IDs never grant access: the native API re-verifies driver identity.
  */
 public final class DriverShellActivity extends AppCompatActivity {
-  public static final String WEB_ORIGIN = "https://www.cradlewellnessliving.com";
-  private static final String TRUSTED_HOST = "www.cradlewellnessliving.com";
+  // Build type supplies either the accepted Web origin (normal builds) or
+  // a distinct TEST-only origin (pilot). Never trust arbitrary Intent URLs.
+  public static final String WEB_ORIGIN = BuildConfig.DRIVER_WEB_ORIGIN;
+  private static final String TRUSTED_HOST = Uri.parse(WEB_ORIGIN).getHost();
   private static final int LOCATION_REQUEST = 103;
   private static final Pattern BOOKING_ID = Pattern.compile(
       "^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}$");
