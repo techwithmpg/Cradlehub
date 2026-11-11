@@ -46,6 +46,7 @@ beforeEach(() => {
 });
 afterEach(() => {
   vi.unstubAllGlobals();
+  vi.useRealTimers();
   delete process.env.GOOGLE_MAPS_SERVER_API_KEY;
 });
 
@@ -95,6 +96,11 @@ describe("assigned driver combined dispatch server boundary", () => {
     expect(body.destination.location.latLng.latitude).toBe(10.66);
   });
   it("builds one ordered route through both assigned stops using road matrix", async () => {
+    // Fixed appointment-relative clock: the routing policy correctly gives
+    // overdue jobs schedule priority, independent of road proximity.
+    // Without this, the November 10 fixture goes stale after that date.
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date("2026-11-10T08:00:00+08:00"));
     state.jobs.mockResolvedValue({
       businessDate:"2026-11-10",
       items:[trip(A,{lat:10.70}),trip(B,{lat:10.66})],

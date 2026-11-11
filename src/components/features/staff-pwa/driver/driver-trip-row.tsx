@@ -1,4 +1,3 @@
-import Link from "next/link";
 import { ChevronRight, MapPin } from "lucide-react";
 import { StaffStatusChip } from "@/components/features/staff-pwa/native-foundation";
 import { formatTime12h } from "@/lib/utils/time-format";
@@ -14,7 +13,7 @@ export function DriverTripRow({
 }) {
   const destination = item.formattedAddress ?? item.area;
   return (
-    <Link
+    <a
       href={item.dispatchStatus === "completed" || item.dispatchStatus === "cancelled"
         ? `/staff/driver/trips/${item.id}`
         : `/staff/driver/map?bookingId=${encodeURIComponent(item.id)}&launch=native`}
@@ -42,6 +41,6 @@ export function DriverTripRow({
         ) : null}
       </div>
       <ChevronRight size={17} className="shrink-0 text-[#65746b]" aria-hidden="true" />
-    </Link>
+    </a>
   );
 }

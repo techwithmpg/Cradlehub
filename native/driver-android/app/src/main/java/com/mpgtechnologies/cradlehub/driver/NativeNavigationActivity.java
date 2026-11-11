@@ -220,10 +220,8 @@ public final class NativeNavigationActivity extends AppCompatActivity {
     if (!routeReady || startPending || inGuidance || navigator == null) return;
     startPending = true;
     startButton.setEnabled(false);
-    if (!requiresTravelStart) {
-      startGuidanceAfterAuthorization();
-      return;
-    }
+    // Recheck ownership even when resuming an already-started trip; an
+    // assignment may be revoked between route preload and the Start tap.
     status.setText("Starting trip…");
     // Do not start travel when a native route is merely viewed. The
     // existing backend RPC rechecks the staff, branch and transition.
