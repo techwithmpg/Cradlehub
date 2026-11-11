@@ -21,9 +21,9 @@ function privateJson(body: unknown, status: number) {
  * Uses the SAME authenticated server-side driver/branch/booking lookup as the
  * Staff PWA; an untrusted booking ID never conveys location authority.
  *
- * Initial native foundation is deliberately ONE actively travelling stop.
- * It does not release upcoming stops or auto-complete a booking. Multi-stop
- * navigation after service completion requires a separate dispatch policy.
+ * A confirmed assigned stop may be preloaded read-only before the driver's
+ * deliberate Start tap. Only the separate server-authorized native-start
+ * operation can advance travel. No automatic arrival or service mutation.
  */
 export async function GET(request: NextRequest) {
   const id = request.nextUrl.searchParams.get("bookingId");
@@ -37,11 +37,12 @@ export async function GET(request: NextRequest) {
   }
   const { job, staff } = assigned;
   const driverRole = staff.system_role === "driver" || staff.staff_type === "driver";
+  const ready = job.bookingProgressStatus === "not_started" && job.dispatchStatus === "ready";
+  const travelling = job.bookingProgressStatus === "travel_started" && job.dispatchStatus === "in_route";
   if (!driverRole || !staff.branch_id || job.driverId !== staff.id ||
-      job.bookingProgressStatus !== "travel_started" ||
       !["confirmed", "in_progress"].includes(job.bookingStatus) ||
-      job.dispatchStatus !== "in_route") {
-    return privateJson({ ok: false, error: "Start travel in CradleHub first." }, 409);
+      (!ready && !travelling)) {
+    return privateJson({ ok: false, error: "Trip is not ready for navigation." }, 409);
   }
   if (!isValidDriverDestination(job)) {
     return privateJson({ ok: false, error: "CRM must verify the customer destination." }, 422);
@@ -50,6 +51,7 @@ export async function GET(request: NextRequest) {
   return privateJson({
     ok: true,
     bookingId: job.id,
+    requiresTravelStart: ready,
     stops: [{
       bookingId: job.id,
       lat: job.lat,

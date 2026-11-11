@@ -47,11 +47,12 @@ export function getDriverBottomNavItems(
       ? "/driver/more"
       : "/staff-portal/more";
 
-  // The canonical native companion keeps attendance under More, not among
-  // the driver's trip actions. Legacy driver/portal shells retain their tabs.
+  // Canonical driver reuses the shared staff PWA navigation, not a new shell.
+  // Legacy driver/portal routes are intentionally unchanged.
   if (effectiveMode === "canonical") return [
-    { key: "today", label: "Today", href: homeHref, icon: Home },
-    { key: "trips", label: "Trips", href: tripsHref, icon: Truck },
+    { key: "trips", label: "Trips", href: homeHref, icon: Truck },
+    { key: "scan", label: "QR Scanner", href: scanHref, icon: QrCode, isScan: true },
+    { key: "navigation", label: "Navigation", href: mapHref, icon: Map },
     { key: "more", label: "More", href: moreHref, icon: MoreHorizontal },
   ];
 
@@ -109,6 +110,7 @@ export function DriverMobileBottomNav({
   return (
     <StaffBottomNav
       items={items}
+      activeKey={effectiveMode === "canonical" && pathname?.startsWith("/staff/driver/trips") ? "trips" : undefined}
       ariaLabel="Driver portal navigation"
     />
   );

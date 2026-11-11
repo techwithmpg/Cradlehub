@@ -68,15 +68,13 @@ export function DriverNativeHome({
               <span>{primary.formattedAddress ?? primary.area ?? "Destination pending"}</span>
             </p>
           </div>
-          <Link href={`/staff/driver/map?bookingId=${encodeURIComponent(primary.id)}`}
+          <a href={`/staff/driver/map?bookingId=${encodeURIComponent(primary.id)}&launch=native`}
             className="mt-6 flex min-h-16 w-full items-center justify-center gap-3 rounded-2xl bg-[#0d6548] px-4 text-lg font-bold text-white">
             <Route size={23} aria-hidden="true" />
-            {primary.bookingProgressStatus === "travel_started" ? "View active route" : "View route"}
+            {primary.bookingProgressStatus === "travel_started" ? "Resume navigation" : "Navigate"}
             <ArrowRight size={20} aria-hidden="true" />
-          </Link>
-          <p className="mt-3 text-center text-xs text-[#68776d]">
-            {getDriverProgressLabel(primary)} · Start trip on the route screen
-          </p>
+          </a>
+ 
         </StaffCard>
       ) : (
         <div className="mt-4">

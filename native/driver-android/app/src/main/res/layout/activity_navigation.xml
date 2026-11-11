@@ -5,13 +5,33 @@
     android:id="@+id/navigation_fragment"
     android:name="com.google.android.libraries.navigation.NavigationFragment"
     android:layout_width="match_parent" android:layout_height="match_parent" />
-  <TextView
-    android:id="@+id/navigationStatus"
-    android:layout_width="wrap_content" android:layout_height="wrap_content"
-    android:layout_gravity="bottom|center_horizontal"
-    android:layout_marginBottom="20dp"
-    android:background="#E6F5F2ED"
-    android:padding="9dp"
-    android:text="@string/nav_loading"
-    android:textColor="#163A2B" />
+  <LinearLayout
+    android:layout_width="match_parent"
+    android:layout_height="wrap_content"
+    android:layout_gravity="bottom"
+    android:orientation="vertical"
+    android:paddingStart="16dp"
+    android:paddingEnd="16dp"
+    android:paddingBottom="24dp">
+    <TextView
+      android:id="@+id/navigationStatus"
+      android:layout_width="match_parent"
+      android:layout_height="wrap_content"
+      android:background="#F5F7F3"
+      android:padding="10dp"
+      android:gravity="center"
+      android:text="@string/nav_loading"
+      android:textColor="#163A2B"
+      android:textSize="13sp" />
+    <Button
+      android:id="@+id/startNavigation"
+      android:layout_width="match_parent"
+      android:layout_height="56dp"
+      android:layout_marginTop="8dp"
+      android:backgroundTint="#0D6548"
+      android:text="Start Navigation"
+      android:textAllCaps="false"
+      android:textColor="#FFFFFF"
+      android:enabled="false" />
+  </LinearLayout>
 </FrameLayout>

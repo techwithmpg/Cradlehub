@@ -18,9 +18,9 @@ import androidx.core.app.ActivityCompat;
 import java.util.regex.Pattern;
 
 /**
- * Driver PWA is the single trip UI. No duplicate native button or JS bridge.
- * Only a server-confirmed Start action navigates the WebView to an explicit,
- * same-origin launch URL; native itinerary STILL rechecks driver authority.
+ * The existing Driver PWA remains the single workspace. Its authorized trip
+ * links open the native Google navigation screen without a Web map preview.
+ * Booking IDs never grant access: the native API re-verifies driver identity.
  */
 public final class DriverShellActivity extends AppCompatActivity {
   public static final String WEB_ORIGIN = "https://www.cradlewellnessliving.com";
@@ -31,6 +31,7 @@ public final class DriverShellActivity extends AppCompatActivity {
 
   private WebView web;
   private String lastLaunchUrl;
+  private String activeBookingId;
   private GeolocationPermissions.Callback pendingGeolocation;
   private String pendingGeolocationOrigin;
 
@@ -79,7 +80,13 @@ public final class DriverShellActivity extends AppCompatActivity {
       @Override public boolean shouldOverrideUrlLoading(WebView view, WebResourceRequest request) {
         if (!request.isForMainFrame()) return false;
         Uri url = request.getUrl();
-        if (trusted(url)) return false;
+        if (trusted(url)) {
+          if (isNativeLaunch(url)) {
+            maybeLaunchNavigation(url.toString());
+            return true; // No duplicate Web map preview.
+          }
+          return false;
+        }
         // Browser OAuth/external destinations never receive this WebView's
         // authentication cookies or an injected JavaScript bridge.
         if ("https".equals(url.getScheme())) {
@@ -96,42 +103,57 @@ public final class DriverShellActivity extends AppCompatActivity {
     });
 
     String bookingId = getIntent().getStringExtra("bookingId");
-    String path = "/staff/driver";
+    if (state == null || web.restoreState(state) == null) web.loadUrl(WEB_ORIGIN + "/staff/driver");
+    // The notification tap is the trip selection; open native immediately.
+    // Missing sign-in cookies fail closed in the native itinerary endpoint.
     if (bookingId != null && BOOKING_ID.matcher(bookingId).matches()) {
-      path = "/staff/driver/map?bookingId=" + bookingId;
+      launchNativeTrip(bookingId);
     }
-    if (state == null || web.restoreState(state) == null) web.loadUrl(WEB_ORIGIN + path);
     if (Build.VERSION.SDK_INT >= 33 &&
         checkSelfPermission(Manifest.permission.POST_NOTIFICATIONS) != PackageManager.PERMISSION_GRANTED) {
       ActivityCompat.requestPermissions(this, new String[] { Manifest.permission.POST_NOTIFICATIONS }, 102);
     }
   }
 
-  /** A notification tap always shows the assigned route preview first. */
+  /** The native screen opens directly on a notification tap. */
   @Override protected void onNewIntent(Intent intent) {
     super.onNewIntent(intent);
     setIntent(intent);
     String id = intent.getStringExtra("bookingId");
     if (id != null && BOOKING_ID.matcher(id).matches() && web != null) {
       lastLaunchUrl = null;
-      web.loadUrl(WEB_ORIGIN + "/staff/driver/map?bookingId=" + id);
+      launchNativeTrip(id);
     }
+  }
+
+  private boolean isNativeLaunch(Uri url) {
+    if (!trusted(url) || !"/staff/driver/map".equals(url.getPath())) return false;
+    String id = url.getQueryParameter("bookingId");
+    return ("native".equals(url.getQueryParameter("launch")) &&
+        id != null && BOOKING_ID.matcher(id).matches()) ||
+        (id == null && activeBookingId != null);
+  }
+
+  private void launchNativeTrip(String id) {
+    if (!BOOKING_ID.matcher(id).matches()) return;
+    activeBookingId = id; // UI restoration hint only, never authority.
+    Intent nativeRoute = new Intent(this, NativeNavigationActivity.class);
+    nativeRoute.putExtra(NativeNavigationActivity.EXTRA_BOOKING_ID, id);
+    startActivity(nativeRoute);
   }
 
   private void maybeLaunchNavigation(String rawUrl) {
     try {
       Uri url = Uri.parse(rawUrl);
+      if (!isNativeLaunch(url)) return;
       String id = url.getQueryParameter("bookingId");
-      if (!trusted(url) || !"/staff/driver/map".equals(url.getPath())
-          || !"native".equals(url.getQueryParameter("launch"))
-          || id == null || !BOOKING_ID.matcher(id).matches()) return;
+      if (id == null) id = activeBookingId;
+      if (id == null || !BOOKING_ID.matcher(id).matches()) return;
       // The request query changes for each explicit Start / Resume action.
       // Avoid repeated launches from WebView page-finished/history callbacks.
       if (rawUrl.equals(lastLaunchUrl)) return;
       lastLaunchUrl = rawUrl;
-      Intent nativeRoute = new Intent(this, NativeNavigationActivity.class);
-      nativeRoute.putExtra(NativeNavigationActivity.EXTRA_BOOKING_ID, id);
-      startActivity(nativeRoute);
+      launchNativeTrip(id);
     } catch (RuntimeException ignored) {
       // Malformed/untrusted navigation never launches native activity.
     }

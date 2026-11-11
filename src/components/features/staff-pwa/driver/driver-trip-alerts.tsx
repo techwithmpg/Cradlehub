@@ -1,7 +1,6 @@
 "use client";
 
 import { useCallback, useEffect, useState, useTransition } from "react";
-import { useRouter } from "next/navigation";
 import { BellRing, CheckCircle2, MapPinned } from "lucide-react";
 import { getDriverTripAlertAction, type DriverTripAlert } from "@/app/(dashboard)/staff/driver/trip-alert-action";
 import { markStaffNoticeRead } from "@/lib/staff-pwa/notice-actions";
@@ -23,7 +22,6 @@ function supported() {
 }
 
 export function DriverTripAlerts() {
-  const router = useRouter();
   const [readiness, setReadiness] = useState<Readiness>("checking");
   const [alert, setAlert] = useState<DriverTripAlert | null>(null);
   const [busy, setBusy] = useState(false);
@@ -130,7 +128,9 @@ export function DriverTripAlerts() {
     startOpening(async () => {
       try { await markStaffNoticeRead(item.id); } catch { /* Route authority is independent. */ }
       setAlert(null);
-      router.push(item.href);
+      // A same-origin full navigation allows the existing Android WebView
+      // host to launch Google Navigation without rendering the Web preview.
+      window.location.assign(`${item.href}${item.href.includes("?") ? "&" : "?"}launch=native`);
     });
   }
 

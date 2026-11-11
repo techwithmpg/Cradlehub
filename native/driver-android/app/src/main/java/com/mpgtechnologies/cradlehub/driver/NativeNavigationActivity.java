@@ -3,6 +3,8 @@ package com.mpgtechnologies.cradlehub.driver;
 import android.Manifest;
 import android.content.pm.PackageManager;
 import android.os.Bundle;
+import android.view.View;
+import android.widget.Button;
 import android.widget.TextView;
 import androidx.appcompat.app.AppCompatActivity;
 import androidx.core.app.ActivityCompat;
@@ -17,6 +19,7 @@ import com.google.android.libraries.navigation.Navigator;
 import com.google.android.libraries.navigation.Waypoint;
 import java.io.ByteArrayOutputStream;
 import java.io.InputStream;
+import java.io.OutputStream;
 import java.net.HttpURLConnection;
 import java.net.URL;
 import java.net.URLEncoder;
@@ -32,8 +35,8 @@ import org.json.JSONObject;
  * Fullscreen native Google Navigation UI. Only reads the current driver's
  * authenticated, active booking from CradleHub. No destination in the Intent.
  *
- * Native SDK arrival events are local observations at this foundation stage.
- * They DO NOT mutate booking progress or trigger service completion.
+ * Native SDK arrival events are local GPS observations. They do not
+ * automatically mutate booking progress or therapist service state.
  */
 public final class NativeNavigationActivity extends AppCompatActivity {
   public static final String EXTRA_BOOKING_ID = "bookingId";
@@ -43,20 +46,28 @@ public final class NativeNavigationActivity extends AppCompatActivity {
   private Navigator navigator;
   private Navigator.ArrivalListener arrivalListener;
   private TextView status;
+  private Button startButton;
+  private String selectedBookingId;
+  private boolean requiresTravelStart;
+  private boolean routeReady;
+  private boolean startPending;
   private boolean inGuidance;
 
   @Override public void onCreate(Bundle state) {
     super.onCreate(state);
     setContentView(R.layout.activity_navigation);
     status = findViewById(R.id.navigationStatus);
+    startButton = findViewById(R.id.startNavigation);
+    startButton.setEnabled(false);
+    startButton.setOnClickListener(view -> startConfirmedGuidance());
 
-    String bookingId = getIntent().getStringExtra(EXTRA_BOOKING_ID);
-    if (bookingId == null || !bookingId.matches(
+    selectedBookingId = getIntent().getStringExtra(EXTRA_BOOKING_ID);
+    if (selectedBookingId == null || !selectedBookingId.matches(
         "^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}$")) {
       status.setText("Invalid trip. Return to CradleHub.");
       return;
     }
-    fetchAssignedRoute(bookingId);
+    fetchAssignedRoute(selectedBookingId);
   }
 
   private void fetchAssignedRoute(String bookingId) {
@@ -79,7 +90,7 @@ public final class NativeNavigationActivity extends AppCompatActivity {
         connection.setRequestProperty("Accept", "application/json");
         connection.setRequestProperty("Cache-Control", "no-store");
         if (connection.getResponseCode() != 200) {
-          showStatus("Start travel in CradleHub first, or ask CRM to verify this trip.");
+          showStatus("Trip unavailable. Check your assignment.");
           return;
         }
         byte[] bytes;
@@ -98,6 +109,7 @@ public final class NativeNavigationActivity extends AppCompatActivity {
           showStatus("The assigned route could not be verified.");
           return;
         }
+        requiresTravelStart = reply.optBoolean("requiresTravelStart", false);
         JSONArray stops = reply.getJSONArray("stops");
         if (stops.length() != 1) {
           showStatus("The assigned route is not ready for this version.");
@@ -166,16 +178,17 @@ public final class NativeNavigationActivity extends AppCompatActivity {
         }
         arrivalListener = (ArrivalEvent event) -> {
           runOnUiThread(() -> {
-            // End local Google guidance automatically at the final waypoint.
-            // An SDK callback is NOT server-verified booking arrival evidence.
-            // A separately approved, server-side arrival policy is required
-            // before any booking/attendance/payment progress write.
+            // Automatic GPS arrival, no manual driver confirmation. The SDK
+            // callback is NOT an authorized server booking transition.
             if (event.isFinalDestination()) {
               if (navigator != null && inGuidance) {
                 navigator.stopGuidance();
                 inGuidance = false;
               }
-              status.setText("Destination reached. Navigation ended. CradleHub arrival status awaits verification.");
+              status.setText("Arrived");
+            } else if (navigator != null && inGuidance) {
+              navigator.continueToNextDestination();
+              navigator.startGuidance();
             }
           });
         };
@@ -186,9 +199,11 @@ public final class NativeNavigationActivity extends AppCompatActivity {
               ready.setAudioGuidanceSettings(AudioGuidanceSettings.builder()
                   .setGuidanceMode(AudioGuidanceSettings.GuidanceMode.VOICE_ALERTS_AND_GUIDANCE)
                   .build());
-              ready.startGuidance();
-              inGuidance = true;
-              status.setText("Navigating in CradleHub");
+              // Calculating/displaying the route must never begin guidance.
+              // The driver explicitly taps Start once after the route is ready.
+              routeReady = true;
+              startButton.setEnabled(true);
+              status.setText("Route ready");
             } else {
               status.setText("Google could not calculate this driving route.");
             }
@@ -199,6 +214,81 @@ public final class NativeNavigationActivity extends AppCompatActivity {
         showStatus("Google Navigation is not ready. Check key, terms and connection.");
       }
     });
+  }
+
+  private void startConfirmedGuidance() {
+    if (!routeReady || startPending || inGuidance || navigator == null) return;
+    startPending = true;
+    startButton.setEnabled(false);
+    // Recheck ownership even when resuming an already-started trip; an
+    // assignment may be revoked between route preload and the Start tap.
+    status.setText("Starting trip…");
+    // Do not start travel when a native route is merely viewed. The
+    // existing backend RPC rechecks the staff, branch and transition.
+    io.execute(() -> {
+      boolean ok = postExplicitTravelStart();
+      runOnUiThread(() -> {
+        if (isFinishing() || isDestroyed()) return;
+        if (ok) {
+          requiresTravelStart = false;
+          startGuidanceAfterAuthorization();
+        } else {
+          startPending = false;
+          startButton.setEnabled(true);
+          status.setText("Could not start trip. Try again or contact dispatch.");
+        }
+      });
+    });
+  }
+
+  private boolean postExplicitTravelStart() {
+    HttpURLConnection connection = null;
+    try {
+      String cookie = CookieManager.getInstance().getCookie(DriverShellActivity.WEB_ORIGIN);
+      if (cookie == null || cookie.isEmpty()) return false;
+      URL endpoint = new URL(DriverShellActivity.WEB_ORIGIN + "/api/staff/driver/native-start");
+      connection = (HttpURLConnection) endpoint.openConnection();
+      connection.setRequestMethod("POST");
+      connection.setInstanceFollowRedirects(false);
+      connection.setConnectTimeout(10000);
+      connection.setReadTimeout(10000);
+      connection.setDoOutput(true);
+      connection.setRequestProperty("Cookie", cookie);
+      connection.setRequestProperty("Origin", DriverShellActivity.WEB_ORIGIN);
+      connection.setRequestProperty("Content-Type", "application/json");
+      connection.setRequestProperty("Accept", "application/json");
+      connection.setRequestProperty("Cache-Control", "no-store");
+      byte[] payload = new JSONObject().put("bookingId", selectedBookingId)
+          .toString().getBytes(StandardCharsets.UTF_8);
+      try (OutputStream body = connection.getOutputStream()) {
+        body.write(payload);
+      }
+      if (connection.getResponseCode() != 200) return false;
+      try (InputStream stream = connection.getInputStream();
+           ByteArrayOutputStream bytes = new ByteArrayOutputStream()) {
+        byte[] block = new byte[512];
+        int count;
+        while ((count = stream.read(block)) != -1) {
+          bytes.write(block, 0, count);
+          if (bytes.size() > 2048) return false;
+        }
+        JSONObject answer = new JSONObject(bytes.toString(StandardCharsets.UTF_8.name()));
+        return answer.optBoolean("ok") && selectedBookingId.equals(answer.optString("bookingId"));
+      }
+    } catch (Exception ignored) {
+      return false;
+    } finally {
+      if (connection != null) connection.disconnect();
+    }
+  }
+
+  private void startGuidanceAfterAuthorization() {
+    if (navigator == null || !routeReady || inGuidance) return;
+    navigator.startGuidance();
+    inGuidance = true;
+    startPending = false;
+    startButton.setVisibility(View.GONE);
+    status.setText("Navigating");
   }
 
   private void showStatus(String message) {
