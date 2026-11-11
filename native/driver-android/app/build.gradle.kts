@@ -1,3 +1,5 @@
+import java.net.URI
+
 plugins {
   id("com.android.application")
 }
@@ -20,7 +22,7 @@ val pilotSigningReady = listOf(pilotKeyFile, pilotStorePassword, pilotKeyAlias, 
   .all { it.isNotBlank() }
 
 fun isApprovedTestOrigin(raw: String): Boolean = try {
-  val uri = java.net.URI(raw)
+  val uri = URI(raw)
   val host = uri.host?.lowercase().orEmpty()
   uri.scheme == "https" &&
     host.contains(".") &&
