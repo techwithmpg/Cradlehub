@@ -1,6 +1,6 @@
 # CradleHub Driver — Android Native Navigation Foundation
 
-**Status: isolated review branch only. Not release-ready.**
+**Status: native foundation in accepted Web main, but not verified on real driver devices or certified for distribution.**\n\nFor the separately signed TEST-only installation pipeline and driver distribution gates, see [PILOT-INSTALLATION.md](PILOT-INSTALLATION.md). The Chrome-installed PWA does not contain the native Android SDK.
 
 ## Why this exists
 
