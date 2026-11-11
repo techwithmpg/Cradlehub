@@ -1,5 +1,6 @@
 "use client";
 
+import { useEffect, useState } from "react";
 import Link from "next/link";
 import { Bell, RefreshCw } from "lucide-react";
 import { AttendanceScanFeedRow } from "@/components/features/attendance/attendance-scan-feed-row";
@@ -78,7 +79,10 @@ export function AttendanceScanFeedPanel({
     selectedDate,
     branchId: resolvedBranchId,
   });
-  const connection = statusPresentation[realtimeStatus];
+  const [hydrated, setHydrated] = useState(false);
+  useEffect(() => { setHydrated(true); }, []);
+  const effectiveStatus: AttendanceRealtimeStatus = hydrated ? realtimeStatus : "offline";
+  const connection = statusPresentation[effectiveStatus];
 
   return (
     <section
@@ -187,4 +191,5 @@ export function AttendanceScanFeedCard(props: AttendanceScanFeedCardProps) {
     />
   );
 }
+
 

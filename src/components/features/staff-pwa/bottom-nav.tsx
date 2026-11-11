@@ -1,8 +1,9 @@
 "use client";
 
 import Link from "next/link";
-import { usePathname } from "next/navigation";
+import { usePathname, useRouter } from "next/navigation";
 import type { StaffBottomNavProps, StaffNavItem } from "./types";
+import { emitMobileInstantNav } from "@/components/features/mobile-shell/mobile-retained-tab-host";
 import { cn } from "@/lib/utils";
 
 export function StaffBottomNav({
@@ -12,6 +13,7 @@ export function StaffBottomNav({
   ariaLabel = "Staff navigation",
 }: StaffBottomNavProps) {
   const pathname = usePathname();
+  const router = useRouter();
 
   function isItemActive(item: StaffNavItem): boolean {
     if (activeKey) return activeKey === item.key;
@@ -33,14 +35,26 @@ export function StaffBottomNav({
     return pathname.startsWith(item.href);
   }
 
+  function handleTouchStartOrPointerDown(href: string, active: boolean) {
+    if (active) return;
+    try {
+      router.prefetch(href);
+    } catch {
+      // Best-effort prefetch
+    }
+    emitMobileInstantNav(href);
+  }
+
   return (
     <nav
       aria-label={ariaLabel}
       className="fixed bottom-0 left-0 right-0 z-40 border-t border-[#E8E1D7] bg-white/95 shadow-[0_-8px_24px_rgba(22,58,43,0.04)] backdrop-blur-xl"
       style={{ paddingBottom: "env(safe-area-inset-bottom, 0px)" }}
     >
-      <div className="mx-auto grid h-[72px] max-w-md items-center px-2"
-        style={{ gridTemplateColumns: `repeat(${items.length}, minmax(0, 1fr))` }}>
+      <div
+        className="mx-auto grid h-[72px] max-w-md items-center px-2"
+        style={{ gridTemplateColumns: `repeat(${items.length}, minmax(0, 1fr))` }}
+      >
         {items.map((item) => {
           const active = isItemActive(item);
           const Icon = item.icon;
@@ -72,14 +86,16 @@ export function StaffBottomNav({
 
             return (
               <div key={item.key} className="flex h-full items-center justify-center">
-                <a
+                <Link
                   href={item.href}
+                  prefetch={true}
+                  onPointerDown={() => handleTouchStartOrPointerDown(item.href, active)}
                   aria-label="Scan QR code"
                   aria-current={active ? "page" : undefined}
                   className="flex h-16 w-16 -translate-y-2 items-center justify-center rounded-full focus:outline-none focus-visible:ring-2 focus-visible:ring-[#C8A96B]"
                 >
                   {scanContent}
-                </a>
+                </Link>
               </div>
             );
           }
@@ -106,6 +122,8 @@ export function StaffBottomNav({
             <Link
               key={item.key}
               href={item.href}
+              prefetch={true}
+              onPointerDown={() => handleTouchStartOrPointerDown(item.href, active)}
               aria-label={item.label}
               aria-current={active ? "page" : undefined}
               className={cn(

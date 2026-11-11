@@ -53,6 +53,8 @@ import {
   type WorkspaceDomainEvent,
 } from "./workspace-domain-events";
 import type { OwnerEventScope } from "@/lib/owner/operational-scope";
+import { WorkspaceModuleFirstLoadSkeleton } from "./workspace-module-skeleton";
+import { WorkspaceEntityDeltaBridge } from "./workspace-entity-delta-bridge";
 
 type RetainedWorkspaceProviderProps = {
   workspace: RetainedWorkspace;
@@ -67,6 +69,7 @@ type RetainedWorkspaceProviderProps = {
 
 type PendingNavigation = {
   key: string;
+  moduleId: RetainedWorkspaceEntry["moduleId"];
   pathname: string;
   search: string;
 };
@@ -186,19 +189,32 @@ function RetainedModuleFrame({
           data-retained-workspace-module={entry.moduleId}
           data-retention-cost={entry.cost}
           data-retained-scroll-top={entry.scrollTop}
+          className={active ? "cs-module-reveal" : undefined}
           hidden={!active}
           aria-hidden={active ? undefined : true}
           inert={!active}
           style={{ position: "relative" }}
         >
           {showRefreshing ? (
-            <div
-              role="status"
-              aria-live="polite"
-              className="pointer-events-none absolute right-3 top-2 z-20 rounded-full border border-[var(--cs-border)] bg-[var(--cs-surface)] px-2.5 py-1 text-[11px] text-[var(--cs-text-muted)] shadow-sm"
-            >
-              Refreshing…
-            </div>
+            <>
+              <div
+                aria-hidden="true"
+                className="pointer-events-none absolute inset-x-0 top-0 z-30 h-[2px] overflow-hidden bg-emerald-950/10"
+              >
+                <div className="h-full w-1/3 animate-pulse rounded-full bg-gradient-to-r from-transparent via-emerald-700 to-amber-500" />
+              </div>
+              <div
+                role="status"
+                aria-live="polite"
+                className="pointer-events-none absolute right-3 top-2.5 z-20 inline-flex items-center gap-1.5 rounded-full border border-emerald-900/15 bg-[var(--cs-surface)]/95 px-2.5 py-1 text-[11px] font-medium text-[var(--cs-text-muted)] shadow-sm backdrop-blur-md transition-all duration-200"
+              >
+                <span
+                  className="size-2.5 animate-spin rounded-full border-[1.5px] border-emerald-700 border-t-transparent"
+                  style={{ animationDuration: "600ms" }}
+                />
+                <span>Syncing</span>
+              </div>
+            </>
           ) : null}
           {entry.node}
         </div>
@@ -259,6 +275,7 @@ function ScopedRetainedWorkspace({
     const activeEntry = registryRef.current.entries.find(
       (entry) => entry.key === registryRef.current.activeKey
     );
+    generations.markClean(moduleId);
     dispatch({
       type: "activate-server",
       key: moduleKey,
@@ -269,7 +286,7 @@ function ScopedRetainedWorkspace({
       at: Date.now(),
       previousScrollTop: activeEntry?.scrollTop ?? workspaceScrollTop(),
     });
-  }, [branchId, descriptor, moduleKey, role]);
+  }, [branchId, descriptor, generations, moduleKey, role]);
 
   const registration = useMemo<RetainedWorkspaceRegistration>(
     () => ({
@@ -350,10 +367,13 @@ function ScopedRetainedWorkspace({
         at: Date.now(),
         previousScrollTop: workspaceScrollTop(),
       });
-    } else {
-      return;
     }
-    setPendingNavigation({ key, pathname: parsedUrl.pathname, search: parsedUrl.searchParams.toString() });
+    setPendingNavigation({
+      key,
+      moduleId: target.moduleId,
+      pathname: parsedUrl.pathname,
+      search: parsedUrl.searchParams.toString(),
+    });
   }, [scopeKey, workspace, canRetainUrl]);
 
   useEffect(() => {
@@ -386,12 +406,32 @@ function ScopedRetainedWorkspace({
       }
       activateRetainedUrl(anchor.href);
     };
+    const onDocumentPointerDown = (event: PointerEvent) => {
+      if (
+        event.defaultPrevented ||
+        event.button !== 0 ||
+        event.metaKey ||
+        event.ctrlKey ||
+        event.shiftKey ||
+        event.altKey
+      ) {
+        return;
+      }
+      const eventTarget = event.target;
+      if (!(eventTarget instanceof Element)) return;
+      const anchor = eventTarget.closest<HTMLAnchorElement>("a[href]");
+      if (!anchor) return;
+      const retainedHref = restoreRetainedSearch(anchor.href);
+      activateRetainedUrl(retainedHref);
+    };
     window.addEventListener(WORKSPACE_NAVIGATION_EVENT, onNavigation);
     window.addEventListener("popstate", onPopState);
+    document.addEventListener("pointerdown", onDocumentPointerDown, true);
     document.addEventListener("click", onDocumentClick, true);
     return () => {
       window.removeEventListener(WORKSPACE_NAVIGATION_EVENT, onNavigation);
       window.removeEventListener("popstate", onPopState);
+      document.removeEventListener("pointerdown", onDocumentPointerDown, true);
       document.removeEventListener("click", onDocumentClick, true);
     };
   }, [activateRetainedUrl, restoreRetainedSearch, router]);
@@ -470,7 +510,13 @@ function ScopedRetainedWorkspace({
     moduleKey && registry.entries.some((entry) => entry.key === moduleKey)
       ? moduleKey
       : null;
-  const activeKey = effectivePendingNavigation?.key ?? actualActiveKey;
+  const isPendingColdLoad = Boolean(
+    effectivePendingNavigation &&
+      !registry.entries.some((entry) => entry.key === effectivePendingNavigation.key)
+  );
+  const activeKey = isPendingColdLoad
+    ? null
+    : (effectivePendingNavigation?.key ?? actualActiveKey);
 
   useLayoutEffect(() => {
     generations.setActive(registry.entries.find((entry) => entry.key === activeKey)?.moduleId ?? null);
@@ -499,6 +545,7 @@ function ScopedRetainedWorkspace({
     <WorkspaceSWRScopeContext.Provider value={scopeKey}>
       <WorkspaceGenerationContext.Provider value={generations}>
         <RetainedWorkspaceRegistrationContext.Provider value={registration}>
+          <WorkspaceEntityDeltaBridge branchId={branchId} />
           {registry.entries.map((entry) => {
             const active = entry.key === activeKey;
             const pendingRefresh = Boolean(
@@ -517,7 +564,13 @@ function ScopedRetainedWorkspace({
               />
             );
           })}
-          {children}
+          {isPendingColdLoad ? (
+            <WorkspaceModuleFirstLoadSkeleton
+              moduleId={effectivePendingNavigation?.moduleId}
+            />
+          ) : (
+            children
+          )}
         </RetainedWorkspaceRegistrationContext.Provider>
       </WorkspaceGenerationContext.Provider>
     </WorkspaceSWRScopeContext.Provider>
@@ -541,3 +594,7 @@ export function RetainedWorkspaceProvider(props: RetainedWorkspaceProviderProps)
     </ScopedRetainedWorkspace>
   );
 }
+
+
+
+

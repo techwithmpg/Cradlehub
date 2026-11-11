@@ -62,8 +62,10 @@ export const metadata: Metadata = {
 };
 
 export default async function StaffLayout({ children }: { children: ReactNode }) {
-  const authContext = await getLayoutStaffContext();
-  const profileResult = await getMyProfileAction().catch(() => null);
+  const [authContext, profileResult] = await Promise.all([
+    getLayoutStaffContext(),
+    getMyProfileAction().catch(() => null),
+  ]);
   const staff = profileResult && "staff" in profileResult ? profileResult.staff : null;
   let content: ReactNode = children;
   let prefetchConfig: WorkspacePrefetchConfig | null = null;
@@ -129,3 +131,4 @@ export default async function StaffLayout({ children }: { children: ReactNode })
     </>
   );
 }
+

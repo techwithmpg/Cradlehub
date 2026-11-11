@@ -100,8 +100,11 @@ export function CrmAttendanceWorkspace({
   const handleCheckinChange = useCallback(
     (row: AttendanceCheckinRealtimeRow) => {
       const patched = mergeAttendanceWorkspaceCheckin(current, row);
-      if (patched !== current) setTacticalWorkspace(patched);
-      invalidateAttendance();
+      if (patched !== current) {
+        setTacticalWorkspace(patched);
+      } else {
+        invalidateAttendance();
+      }
     },
     [current, invalidateAttendance]
   );
@@ -217,3 +220,4 @@ export function CrmAttendanceWorkspace({
     </div>
   );
 }
+

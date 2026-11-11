@@ -280,23 +280,19 @@ function NavLink({
 }
 
 function NavPendingIndicator({ isActive, isSystem }: { isActive: boolean; isSystem: boolean }) {
-  const { pending } = useLinkStatus();
-
   return (
     <span
       aria-hidden="true"
       style={{
-        width: 12,
-        height: 12,
+        width: 14,
+        height: 14,
         display: "inline-flex",
         alignItems: "center",
         justifyContent: "center",
         flexShrink: 0,
       }}
     >
-      {pending ? (
-        <span className="size-1.5 animate-pulse rounded-full bg-current" />
-      ) : isActive && !isSystem ? (
+      {isActive && !isSystem ? (
         <ChevronRight size={12} strokeWidth={2} style={{ color: "var(--cs-sidebar-muted)" }} />
       ) : null}
     </span>
@@ -753,4 +749,6 @@ export function Sidebar({
     </>
   );
 }
+
+
 

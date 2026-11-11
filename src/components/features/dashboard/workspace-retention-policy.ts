@@ -196,3 +196,4 @@ export function affectedModulesForBookingChange(workspace: RetainedWorkspace): R
   return legacyBookingModules(workspace);
 }
 
+

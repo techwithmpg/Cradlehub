@@ -154,61 +154,69 @@ export async function getCrmTodayOperationalData(params: {
       total: number;
     }
   >();
-  if (orderIds.length > 0) {
-    const admin = createAdminClient();
-    const [{ data: summaries, error: summaryError }, { data: orders, error: ordersError }] =
-      await Promise.all([
-        admin
-          .from("v_booking_order_financial_summaries")
-          .select("order_id, total_payable, net_allocated, payment_state")
-          .in("order_id", orderIds),
-        admin.from("booking_orders").select("id, metadata").in("id", orderIds),
-      ]);
-    if (summaryError || ordersError) throw new Error("Could not load order payment status.");
-    const quotes = new Map(
-      (orders ?? []).map((order) => [
-        order.id,
-        Number((order.metadata as Record<string, unknown> | null)?.total_amount) || 0,
-      ])
-    );
-    for (const summary of summaries ?? []) {
-      if (!summary.order_id) continue;
-      const payable = Number(summary.total_payable) || 0;
-      const total = payable > 0 ? payable : (quotes.get(summary.order_id) ?? 0);
-      orderStates.set(summary.order_id, {
-        status: payable > 0 || total === 0 ? (summary.payment_state ?? "unpaid") : "unpaid",
-        paid: Number(summary.net_allocated) || 0,
-        total,
-      });
+
+  // Extract order quotes and resource names already present on the joined booking rows first!
+  const quotes = new Map<string, number>();
+  const resourceNameMap = new Map<string, string>();
+  for (const b of bookings) {
+    const orderRel = first(b.booking_orders);
+    if (orderRel?.id && !quotes.has(orderRel.id)) {
+      quotes.set(
+        orderRel.id,
+        Number((orderRel.metadata as Record<string, unknown> | null)?.total_amount) || 0
+      );
+    }
+    const resRel = first(b.branch_resources);
+    if (b.resource_id && resRel?.name) {
+      resourceNameMap.set(b.resource_id, resRel.name);
     }
   }
 
-  const resourceIds = [
-    ...new Set(bookings.map((booking) => booking.resource_id).filter(Boolean) as string[]),
+  const missingResourceIds = [
+    ...new Set(
+      bookings
+        .map((booking) => booking.resource_id)
+        .filter((id): id is string => Boolean(id && !resourceNameMap.has(id)))
+    ),
   ];
-  const resourceNamesPromise = (async () => {
-    const resourceNameMap = new Map<string, string>();
-    if (resourceIds.length === 0) return resourceNameMap;
-    const supabase = createAdminClient();
-    const { data: resources } = await supabase
-      .from("branch_resources")
-      .select("id, name")
-      .in("id", resourceIds);
-    for (const resource of resources ?? []) {
-      resourceNameMap.set(resource.id, resource.name);
-    }
-    return resourceNameMap;
-  })();
-
   const hsBookingIds = bookings
     .filter((b) => b.type === "home_service" || b.delivery_type === "home_service")
     .map((b) => b.id);
   const driverIds = [...new Set(Object.values(driverIdMap).filter(Boolean) as string[])];
-  const [resourceNameMap, trackingMap, driverNameMap] = await Promise.all([
-    resourceNamesPromise,
-    getActiveTrackingTokensForBookings(hsBookingIds),
-    getDriverNamesByIds(driverIds),
+
+  const admin = createAdminClient();
+  const [summariesResult, missingResourcesResult, trackingMap, driverNameMap] = await Promise.all([
+    orderIds.length > 0
+      ? admin
+          .from("v_booking_order_financial_summaries")
+          .select("order_id, total_payable, net_allocated, payment_state")
+          .in("order_id", orderIds)
+      : Promise.resolve({ data: [], error: null }),
+    missingResourceIds.length > 0
+      ? admin.from("branch_resources").select("id, name").in("id", missingResourceIds)
+      : Promise.resolve({ data: [], error: null }),
+    hsBookingIds.length > 0
+      ? getActiveTrackingTokensForBookings(hsBookingIds)
+      : Promise.resolve({} as Record<string, { token: string; url: string; message: string }>),
+    driverIds.length > 0
+      ? getDriverNamesByIds(driverIds)
+      : Promise.resolve({} as Record<string, string>),
   ]);
+
+  if (summariesResult.error) throw new Error("Could not load order payment status.");
+  for (const summary of summariesResult.data ?? []) {
+    if (!summary.order_id) continue;
+    const payable = Number(summary.total_payable) || 0;
+    const total = payable > 0 ? payable : (quotes.get(summary.order_id) ?? 0);
+    orderStates.set(summary.order_id, {
+      status: payable > 0 || total === 0 ? (summary.payment_state ?? "unpaid") : "unpaid",
+      paid: Number(summary.net_allocated) || 0,
+      total,
+    });
+  }
+  for (const resource of missingResourcesResult.data ?? []) {
+    resourceNameMap.set(resource.id, resource.name);
+  }
 
   const queueData: CradleFlowBooking[] = bookings.map((b) => {
     const meta = b.metadata ?? null;
@@ -305,3 +313,4 @@ export async function getCrmTodayOperationalData(params: {
     readinessAvailable: readiness !== null,
   };
 }
+

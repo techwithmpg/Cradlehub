@@ -92,20 +92,20 @@ export function WorkspaceRoutePrefetcher({
         timers.push(
           window.setTimeout(() => {
             prefetchRouteFull(router, route);
-          }, 300 + idx * 180)
+          }, 3500 + idx * 1200)
         );
       });
 
     // Stagger idle routes by 250ms each starting at 1100ms
     if (idleRoutes.length > 0 && !slow) {
-      const startDelay = eagerIdle ? 1000 : 1600;
+      const startDelay = eagerIdle ? 7500 : 9000;
       idleRoutes
         .filter((r) => r !== pathname)
         .forEach((route, idx) => {
           timers.push(
             window.setTimeout(() => {
               prefetchRouteFull(router, route);
-            }, startDelay + idx * 250)
+            }, startDelay + idx * 1500)
           );
         });
     }
@@ -131,3 +131,4 @@ export function usePrefetchOnHover(route: string): () => void {
     }
   }, [router, route]);
 }
+

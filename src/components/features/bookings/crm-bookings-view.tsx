@@ -19,6 +19,7 @@ import { useSheetNativeReferences } from "@/components/features/crm/master-sheet
 import { useGenerationAwareWorkspaceSWR } from "@/components/features/dashboard/use-workspace-generation";
 import { refreshCrmBookingsOperationalDataAction } from "@/app/(dashboard)/crm/bookings/actions";
 import { notifyBookingsChanged } from "@/lib/bookings/bookings-client-events";
+import { useWorkspaceEntityDelta } from "@/lib/workspace/entity-delta-bus";
 import type { CrmBookingsOperationalData } from "@/lib/queries/crm-bookings-operational";
 
 type ActionFn = (input: unknown) => Promise<{ success: boolean; error?: string }>;
@@ -145,13 +146,56 @@ export function CrmBookingsView({
     });
   }, [refreshAction, date, isUpcoming, inclusionTarget]);
 
-  const { data, error, generation, revalidate } =
+  const { data, error, generation, revalidate, patchData } =
     useGenerationAwareWorkspaceSWR<CrmBookingsOperationalData>(
       "crm-bookings",
       requestKey,
       fetcher,
       initialData
     );
+
+  useWorkspaceEntityDelta(initialData.branchId, (delta) => {
+    if (delta.kind === "booking.status_patched" || delta.kind === "booking.upserted") {
+      const b = delta.booking;
+      patchData((current) => {
+        const exists = current.bookings.some((row) => row.id === b.id);
+        if (!exists) return current;
+        return {
+          ...current,
+          bookings: current.bookings.map((row) =>
+            row.id === b.id
+              ? {
+                  ...row,
+                  ...(b.status !== undefined ? { status: b.status } : {}),
+                  ...(b.bookingProgressStatus !== undefined ? { booking_progress_status: b.bookingProgressStatus ?? undefined } : {}),
+                  ...(b.paymentStatus !== undefined && b.paymentStatus !== null ? { payment_status: b.paymentStatus } : {}),
+                  ...(b.amountPaid !== undefined && b.amountPaid !== null ? { amount_paid: b.amountPaid } : {}),
+                  ...(b.staffId !== undefined ? { staff_id: b.staffId } : {}),
+                  ...(b.staffName !== undefined ? { staff_name: b.staffName } : {}),
+                  ...(b.resourceId !== undefined ? { resource_id: b.resourceId } : {}),
+                  ...(b.resourceName !== undefined ? { resource_name: b.resourceName } : {}),
+                }
+              : row
+          ),
+        };
+      });
+    } else if (delta.kind === "financial.payment_recorded") {
+      const p = delta.payment;
+      patchData((current) => ({
+        ...current,
+        bookings: current.bookings.map((row) =>
+          (p.bookingId && row.id === p.bookingId) || (p.orderId && row.order_id === p.orderId)
+            ? {
+                ...row,
+                payment_status: "paid",
+                payment_method: p.paymentMethod || row.payment_method,
+                amount_paid: (row.amount_paid ?? 0) + p.amount,
+              }
+            : row
+        ),
+      }));
+    }
+  });
 
   // If user navigates via searchParams to an unloaded booking during lifecycle,
   // set inclusionTarget to trigger authoritative inclusion.
@@ -239,3 +283,4 @@ export function CrmBookingsView({
     </>
   );
 }
+

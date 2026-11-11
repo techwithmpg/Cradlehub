@@ -87,7 +87,7 @@ export function HomeServiceDispatchWorkspace({
   selectedBookingId,
   ownerBranchId,
 }: HomeServiceDispatchWorkspaceProps) {
-  const isCrmRetainedDispatch = role === "crm" && !ownerBranchId;
+  const isCrmRetainedDispatch = !ownerBranchId;
   const ownerKey = useWorkspaceSWRKey(["owner-dispatch", ownerBranchId, initialData.today, upcoming]);
   const ownerMapKey = useWorkspaceSWRKey(["owner-dispatch-map", ownerBranchId, initialData.today]);
   const crmMapKey = useWorkspaceSWRKey(["crm-dispatch-map", initialData.today]);
@@ -364,3 +364,4 @@ export function HomeServiceDispatchWorkspace({
     </section>
   );
 }
+

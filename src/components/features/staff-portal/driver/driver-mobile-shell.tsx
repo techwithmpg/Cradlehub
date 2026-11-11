@@ -5,6 +5,7 @@ import { useState } from "react";
 import { usePathname } from "next/navigation";
 import { MobileNavigationProgressProvider } from "@/components/features/mobile-shell/mobile-navigation-progress-provider";
 import { MobileRouteProgress } from "@/components/features/mobile-shell/mobile-route-progress";
+import { MobileRetainedTabHost } from "@/components/features/mobile-shell/mobile-retained-tab-host";
 import { DriverMobileBottomNav } from "./driver-mobile-bottom-nav";
 import { DriverProfileSheet } from "./driver-profile-sheet";
 import { StaffCanvas } from "@/components/features/staff-pwa/native-foundation";
@@ -23,17 +24,20 @@ export function DriverMobileShell({ staff, children, mode, identity }: DriverMob
   const [profileOpen, setProfileOpen] = useState(false);
   const pathname = usePathname();
   const isScan = Boolean(pathname?.startsWith("/staff/scan"));
+  const branchId = staff?.branch_id ?? (identity ? identity.split(":")[4] || null : null);
 
   const content = isScan ? (
-    <div className="min-h-dvh bg-[var(--cs-bg)] md:contents md:bg-transparent">{children}</div>
+    <div className="min-h-dvh bg-[var(--cs-bg)] md:contents md:bg-transparent cs-module-reveal">
+      {children}
+    </div>
   ) : mode === "canonical" ? (
     <StaffCanvas className="min-h-full pb-[calc(88px+env(safe-area-inset-bottom))] md:contents md:pb-0">
-      {children}
+      <MobileRetainedTabHost branchId={branchId}>{children}</MobileRetainedTabHost>
       <DriverMobileBottomNav mode={mode} />
     </StaffCanvas>
   ) : (
     <div className="min-h-dvh bg-[var(--cs-bg)] pb-[calc(84px+env(safe-area-inset-bottom))] md:contents md:bg-transparent md:pb-0">
-      {children}
+      <MobileRetainedTabHost branchId={branchId}>{children}</MobileRetainedTabHost>
       <DriverMobileBottomNav
         isProfileOpen={profileOpen}
         onProfileOpen={() => setProfileOpen(true)}
