@@ -44,7 +44,7 @@ export function DriverNativeDetail({ job }: { job: RealDispatchItem }) {
   const [feedback, setFeedback] = useState<string | null>(null);
   const current = { ...job, bookingProgressStatus: progress };
   const action = getNextDriverAction(current);
-  const inAppRoute = `/staff/driver/map?bookingId=${encodeURIComponent(job.id)}`;
+  const inAppRoute = `/staff/driver/map?bookingId=${encodeURIComponent(job.id)}&launch=native`;
   const destination = job.formattedAddress ?? job.area;
 
   function advance() {
