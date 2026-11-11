@@ -387,6 +387,8 @@ export async function resolveExactCrmBookingTime(params: {
       .select(
         "id, full_name, nickname, branch_id, is_active, staff_type, system_role, tier, archived_at, merged_into_staff_id, metadata"
       )
+      .eq("branch_id", params.branchId)
+      .eq("is_active", true)
       .order("full_name", { ascending: true }),
     admin.from("staff_services").select("staff_id, service_id").in("service_id", params.serviceIds),
     admin
@@ -834,3 +836,4 @@ export async function resolveExactCrmBookingTime(params: {
     rejectedTherapists,
   };
 }
+

@@ -16,7 +16,10 @@ import { resolveOwnerFrontDeskBranch } from "@/lib/queries/front-desk-branch";
 import { isRetainedWorkspaceEnabled } from "@/lib/config/mvp-flags";
 
 export default async function OwnerLayout({ children }: { children: ReactNode }) {
-  const access = await getCurrentUserWorkspaceAccess();
+  const [access, ctx] = await Promise.all([
+    getCurrentUserWorkspaceAccess(),
+    getLayoutStaffContext(),
+  ]);
 
   if (!access) redirect("/login");
 
@@ -24,17 +27,20 @@ export default async function OwnerLayout({ children }: { children: ReactNode })
     redirect(getWorkspaceSwitchDestination(access.workspaces));
   }
 
-  const ctx = await getLayoutStaffContext();
   const me = ctx?.me ?? (isDevAuthBypassEnabled() ? getDevBypassLayoutStaff() : null);
   const coachAvailability = getAgentCoachAvailability({
     workspace: "owner",
     role: me?.system_role,
   });
   const canShowCoach = coachAvailability.available && ctx?.user.id && me?.branch_id;
-  const authorizedBranches = await getOwnerScopeBranches();
-  const dispatchBranch = ctx?.user.id && me
-    ? await resolveOwnerFrontDeskBranch(ctx.user.id, me.branch_id)
-    : null;
+
+  const [authorizedBranches, dispatchBranch] = await Promise.all([
+    getOwnerScopeBranches(),
+    ctx?.user.id && me
+      ? resolveOwnerFrontDeskBranch(ctx.user.id, me.branch_id)
+      : Promise.resolve(null),
+  ]);
+
   const retainedChildren = ctx?.user.id && me?.system_role ? (
     <OwnerRuntimeScope
       userId={ctx.user.id}

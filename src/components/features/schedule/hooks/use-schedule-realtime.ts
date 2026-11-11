@@ -36,8 +36,8 @@ export function useScheduleRealtime({
   onAttendanceChange,
 }: UseScheduleRealtimeParams) {
   const callbacksRef = useRef({ onInvalidate, onBookingChange, onAttendanceChange });
-
   const staffScopeRef = useRef(new Set(staffIds));
+  const debounceTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   useEffect(() => {
     staffScopeRef.current = new Set(staffIds);
@@ -54,19 +54,26 @@ export function useScheduleRealtime({
       process.env.NEXT_PUBLIC_SUPABASE_URL!,
       process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
     );
+
     const invalidate = () => {
-      callbacksRef.current.onInvalidate();
+      if (debounceTimerRef.current) clearTimeout(debounceTimerRef.current);
+      debounceTimerRef.current = setTimeout(() => {
+        callbacksRef.current.onInvalidate();
+      }, 300);
     };
+
     const handleBooking = (payload: RealtimePayload = {}) => {
       const callback = callbacksRef.current.onBookingChange;
       if (callback) callback(toChange(payload));
       else invalidate();
     };
+
     const handleAttendance = (payload: RealtimePayload = {}) => {
       const callback = callbacksRef.current.onAttendanceChange;
       if (callback) callback(toChange(payload));
       else invalidate();
     };
+
     const handleStructureChange =
       (table: "staff_schedules" | "schedule_overrides" | "blocked_times") =>
       (payload: RealtimePayload = {}) => {
@@ -109,35 +116,6 @@ export function useScheduleRealtime({
         {
           event: "*",
           schema: "public",
-          table: "staff",
-          filter: `branch_id=eq.${branchId}`,
-        },
-        invalidate
-      )
-      .on(
-        "postgres_changes",
-        {
-          event: "*",
-          schema: "public",
-          table: "branch_resources",
-          filter: `branch_id=eq.${branchId}`,
-        },
-        invalidate
-      )
-      .on(
-        "postgres_changes",
-        {
-          event: "*",
-          schema: "public",
-          table: "staff_schedules",
-        },
-        handleStructureChange("staff_schedules")
-      )
-      .on(
-        "postgres_changes",
-        {
-          event: "*",
-          schema: "public",
           table: "schedule_overrides",
         },
         handleStructureChange("schedule_overrides")
@@ -164,6 +142,7 @@ export function useScheduleRealtime({
       .subscribe();
 
     return () => {
+      if (debounceTimerRef.current) clearTimeout(debounceTimerRef.current);
       void supabase.removeChannel(channel);
     };
   }, [branchId, date]);

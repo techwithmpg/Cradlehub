@@ -1309,14 +1309,14 @@ export async function executeInhouseBookingCreation(
       );
     }
 
-    // Notifications are best-effort; do not fail the booking if they error
-    try {
-      await Promise.all(notificationJobs);
-    } catch (notifyErr) {
-      logBookingError(
-        logContext,
-        notifyErr instanceof Error ? notifyErr : new Error(String(notifyErr))
-      );
+    // Notifications are best-effort and non-blocking; do not delay booking confirmation response
+    if (notificationJobs.length > 0) {
+      void Promise.all(notificationJobs).catch((notifyErr) => {
+        logBookingError(
+          logContext,
+          notifyErr instanceof Error ? notifyErr : new Error(String(notifyErr))
+        );
+      });
     }
 
     logBusinessEvent(isReplay ? "booking.crm.replayed" : "booking.crm.created", {
@@ -1487,3 +1487,4 @@ export async function executeInhouseBookingCreation(
     };
   }
 }
+

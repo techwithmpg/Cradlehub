@@ -112,25 +112,43 @@ export function AdministrativeBookingModalProvider({
   const [customerError, setCustomerError] = useState<string | null>(null);
   const [loadingCustomer, setLoadingCustomer] = useState(false);
 
+  const modalOpen = request !== null;
+
   useEffect(() => {
+    if (loadedBookingContext?.branchId === branchId && optionsRetryKey === 0) {
+      return;
+    }
     let active = true;
-    void getAdministrativeBookingOptionsAction()
-      .then((result) => {
-        if (!active) return;
-        if (result.branchId !== branchId) {
-          setOptionsError("Front Desk branch changed. Refresh this page to continue.");
-          return;
-        }
-        setLoadedBookingContext({ branchId: result.branchId, options: result.options });
-        setOptionsError(null);
-      })
-      .catch(() => {
-        if (active) setOptionsError("Booking options could not be loaded.");
-      });
+    const loadOptions = () => {
+      void getAdministrativeBookingOptionsAction()
+        .then((result) => {
+          if (!active) return;
+          if (result.branchId !== branchId) {
+            setOptionsError("Front Desk branch changed. Refresh this page to continue.");
+            return;
+          }
+          setLoadedBookingContext({ branchId: result.branchId, options: result.options });
+          setOptionsError(null);
+        })
+        .catch(() => {
+          if (active) setOptionsError("Booking options could not be loaded.");
+        });
+    };
+
+    // If modal is opened immediately, fetch right away; otherwise wait 1.2s so initial page render & route prefetch finish unimpeded
+    if (modalOpen || optionsRetryKey > 0) {
+      loadOptions();
+      return () => {
+        active = false;
+      };
+    }
+
+    const timerId = window.setTimeout(loadOptions, 1200);
     return () => {
       active = false;
+      window.clearTimeout(timerId);
     };
-  }, [branchId, optionsRetryKey]);
+  }, [branchId, optionsRetryKey, modalOpen, loadedBookingContext?.branchId]);
 
   const openBookingModal = useCallback((nextRequest: AdministrativeBookingModalRequest = {}) => {
     setRequest(nextRequest);
@@ -202,7 +220,6 @@ export function AdministrativeBookingModalProvider({
     };
   }, [modalKey, request?.customerId]);
 
-  const modalOpen = request !== null;
   const quickMode = toQuickBookingMode(request?.mode);
 
   return (
@@ -372,3 +389,4 @@ export function OpenAdministrativeBookingButton({
     </Button>
   );
 }
+

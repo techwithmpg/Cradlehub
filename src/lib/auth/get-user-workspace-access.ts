@@ -3,6 +3,7 @@ import { createClient } from "@/lib/supabase/server";
 import { isDevAuthBypassEnabled, getDevBypassLayoutStaff } from "@/lib/dev-bypass";
 import { logError } from "@/lib/logger";
 import { resolveSuperAdminContext } from "./super-admin";
+import { getLayoutStaffContext } from "@/lib/queries/staff-context";
 import {
   buildWorkspaceAccessFromStaffProfile,
   type WorkspaceAccess,
@@ -18,7 +19,36 @@ type CurrentWorkspaceAccess =
 
 type StaffAccessRow = WorkspaceStaffProfile;
 
-export async function getUserWorkspaceAccess(userId: string): Promise<WorkspaceAccess[]> {
+export const getUserWorkspaceAccess = cache(async function getUserWorkspaceAccess(
+  userId: string
+): Promise<WorkspaceAccess[]> {
+  // Reuse the request-cached layout staff context if it belongs to the same user
+  const cachedCtx = await getLayoutStaffContext().catch(() => null);
+  if (cachedCtx && cachedCtx.user.id === userId) {
+    if (cachedCtx.me) {
+      return buildWorkspaceAccessFromStaffProfile({
+        id: cachedCtx.me.id,
+        full_name: cachedCtx.me.full_name,
+        system_role: cachedCtx.me.system_role,
+        staff_type: cachedCtx.me.staff_type ?? "managerial",
+        branch_id: cachedCtx.me.branch_id,
+        branches: cachedCtx.me.branches,
+      });
+    }
+    if (isDevAuthBypassEnabled()) {
+      const mock = getDevBypassLayoutStaff();
+      return buildWorkspaceAccessFromStaffProfile({
+        id: userId,
+        full_name: mock.full_name,
+        system_role: mock.system_role,
+        staff_type: "managerial",
+        branch_id: mock.branch_id,
+        branches: mock.branches,
+      });
+    }
+    return buildWorkspaceAccessFromStaffProfile(null);
+  }
+
   const superAdmin = await resolveSuperAdminContext(userId);
   if (superAdmin) {
     return buildWorkspaceAccessFromStaffProfile({
@@ -57,18 +87,14 @@ export async function getUserWorkspaceAccess(userId: string): Promise<WorkspaceA
   }
 
   return buildWorkspaceAccessFromStaffProfile((staffRecord as StaffAccessRow | null) ?? null);
-}
+});
 
 export const getCurrentUserWorkspaceAccess = cache(async (): Promise<CurrentWorkspaceAccess> => {
-  const supabase = await createClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-
-  if (!user) return null;
+  const ctx = await getLayoutStaffContext();
+  if (!ctx?.user) return null;
 
   return {
-    user: { id: user.id },
-    workspaces: await getUserWorkspaceAccess(user.id),
+    user: { id: ctx.user.id },
+    workspaces: await getUserWorkspaceAccess(ctx.user.id),
   };
 });

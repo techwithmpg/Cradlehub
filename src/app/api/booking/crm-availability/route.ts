@@ -78,11 +78,6 @@ export async function POST(request: NextRequest) {
     );
   }
 
-  const access = await assertCrmAccess(parsed.data.branchId);
-  if (!access.ok) {
-    return NextResponse.json({ error: access.error }, { status: access.status });
-  }
-
   const parsedTime = parseBookingTime(parsed.data.time);
   if (!parsedTime.ok) {
     return NextResponse.json(
@@ -92,13 +87,27 @@ export async function POST(request: NextRequest) {
   }
 
   try {
-    const serviceEligibility = await validateBranchServiceEligibility({
-      branchId: parsed.data.branchId,
-      serviceIds: parsed.data.serviceIds,
-      audience: "crm",
-      deliveryMode: parsed.data.deliveryType,
-      useAdminClient: true,
-    });
+    const [access, serviceEligibility, lineQuotes] = await Promise.all([
+      assertCrmAccess(parsed.data.branchId),
+      validateBranchServiceEligibility({
+        branchId: parsed.data.branchId,
+        serviceIds: parsed.data.serviceIds,
+        audience: "crm",
+        deliveryMode: parsed.data.deliveryType,
+        useAdminClient: true,
+      }),
+      resolveBookingLineQuotes({
+        branchId: parsed.data.branchId,
+        serviceIds: parsed.data.serviceIds,
+        serviceLines: parsed.data.serviceLines,
+        audience: "crm",
+        deliveryMode: parsed.data.deliveryType,
+      }),
+    ]);
+
+    if (!access.ok) {
+      return NextResponse.json({ error: access.error }, { status: access.status });
+    }
 
     if (!serviceEligibility.ok) {
       return NextResponse.json(
@@ -114,13 +123,12 @@ export async function POST(request: NextRequest) {
     const canSeeDebug =
       process.env.NODE_ENV !== "production" ||
       ["owner", "manager", "assistant_manager", "store_manager"].includes(access.role);
-    const selectedDurationMinutes = (await resolveBookingLineQuotes({
-      branchId: parsed.data.branchId,
-      serviceIds: parsed.data.serviceIds,
-      serviceLines: parsed.data.serviceLines,
-      audience: "crm",
-      deliveryMode: parsed.data.deliveryType,
-    })).map((quote) => quote.selectedDurationMinutes);
+    const selectedDurationMinutes = lineQuotes.map((quote) => quote.selectedDurationMinutes);
+
+    // QuickBookingForm only uses `slots` when mode is phone or standard_future
+    const needsAlternativeSlots =
+      parsed.data.bookingMode === "phone" || parsed.data.bookingMode === "standard_future";
+
     const [exactAvailability, slots] = await Promise.all([
       resolveExactCrmBookingTime({
         branchId: parsed.data.branchId,
@@ -133,15 +141,17 @@ export async function POST(request: NextRequest) {
         deliveryType: parsed.data.deliveryType,
         includeDebug: Boolean(parsed.data.includeDebug && canSeeDebug),
       }),
-      getAvailableSlotsMulti({
-        branchId: parsed.data.branchId,
-        serviceIds: parsed.data.serviceIds,
-        selectedDurationMinutes,
-        date: parsed.data.date,
-        deliveryMode: parsed.data.deliveryType,
-        requireStaffServiceAssignment: parsed.data.deliveryType === "home_service",
-        allowStaffTypeFallbackAlongsideAssignments: parsed.data.deliveryType !== "home_service",
-      }),
+      needsAlternativeSlots
+        ? getAvailableSlotsMulti({
+            branchId: parsed.data.branchId,
+            serviceIds: parsed.data.serviceIds,
+            selectedDurationMinutes,
+            date: parsed.data.date,
+            deliveryMode: parsed.data.deliveryType,
+            requireStaffServiceAssignment: parsed.data.deliveryType === "home_service",
+            allowStaffTypeFallbackAlongsideAssignments: parsed.data.deliveryType !== "home_service",
+          })
+        : Promise.resolve([]),
     ]);
 
     return NextResponse.json({

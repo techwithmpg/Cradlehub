@@ -11,28 +11,23 @@ import { getUserWorkspaceAccess } from "@/lib/auth/get-user-workspace-access";
 import { getStaffDisplayName } from "@/lib/staff/display-name";
 import { canViewMasterSheetReview } from "@/lib/auth/crm-permissions";
 
-// force-dynamic is NOT set here — the layout is already dynamic because
-// createClient() calls cookies() from next/headers, which inherently opts
-// this segment into dynamic rendering on every request.
-
 export default async function DashboardLayout({ children }: { children: React.ReactNode }) {
-  const ctx = await getLayoutStaffContext();
-  const staffPwaRoute = (await headers()).get("x-cradle-staff-pwa-route") === "1";
+  const [ctx, hdrs] = await Promise.all([getLayoutStaffContext(), headers()]);
+  const staffPwaRoute = hdrs.get("x-cradle-staff-pwa-route") === "1";
   if (!ctx) redirect(staffPwaRoute ? "/staff/login" : "/login");
 
   const { me } = ctx;
-
-  // Dev bypass: if no staff record but dev mode is on, use a mock staff profile.
   const resolvedMe = me ?? (isDevAuthBypassEnabled() ? getDevBypassLayoutStaff() : null);
 
   if (!resolvedMe) redirect(staffPwaRoute ? "/staff/login" : "/login");
 
-  const workspaces = staffPwaRoute ? [] : await getUserWorkspaceAccess(ctx.user.id).catch(() => []);
-
-  // Fetch CRM readiness for the header indicator (failure-safe).
   const branchId = resolvedMe.branch_id ?? null;
   const displayName = getStaffDisplayName(resolvedMe);
-  const readiness = staffPwaRoute || !branchId ? null : await getCrmReadinessCached(branchId).catch(() => null);
+
+  const [workspaces, readiness] = await Promise.all([
+    staffPwaRoute ? Promise.resolve([]) : getUserWorkspaceAccess(ctx.user.id).catch(() => []),
+    staffPwaRoute || !branchId ? Promise.resolve(null) : getCrmReadinessCached(branchId).catch(() => null),
+  ]);
 
   return (
     <div
@@ -47,11 +42,11 @@ export default async function DashboardLayout({ children }: { children: React.Re
       {!staffPwaRoute && (
         <Sidebar
           role={resolvedMe.system_role}
-        canReviewMasterSheet={Boolean(me && canViewMasterSheetReview(me.system_role))}
-        fullName={resolvedMe.full_name}
-        nickname={resolvedMe.nickname}
-        avatarUrl={resolvedMe.avatar_url}
-        branchName={(resolvedMe.branches as { name: string } | null)?.name}
+          canReviewMasterSheet={Boolean(me && canViewMasterSheetReview(me.system_role))}
+          fullName={resolvedMe.full_name}
+          nickname={resolvedMe.nickname}
+          avatarUrl={resolvedMe.avatar_url}
+          branchName={(resolvedMe.branches as { name: string } | null)?.name}
         />
       )}
 
@@ -66,13 +61,13 @@ export default async function DashboardLayout({ children }: { children: React.Re
         {!staffPwaRoute && (
           <div className="hidden md:block">
             <Header
-            role={resolvedMe.system_role}
-            userId={ctx.user.id}
-            fullName={resolvedMe.full_name}
-            displayName={displayName}
-            avatarUrl={resolvedMe.avatar_url}
-            readiness={readiness}
-            workspaces={workspaces}
+              role={resolvedMe.system_role}
+              userId={ctx.user.id}
+              fullName={resolvedMe.full_name}
+              displayName={displayName}
+              avatarUrl={resolvedMe.avatar_url}
+              readiness={readiness}
+              workspaces={workspaces}
             />
           </div>
         )}

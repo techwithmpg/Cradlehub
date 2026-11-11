@@ -17,11 +17,10 @@ import {
   canUpdateServiceVisibility,
 } from "@/lib/auth/crm-permissions";
 import { canonicalizeSystemRole } from "@/constants/staff-roles";
-import { createClient } from "@/lib/supabase/server";
 import { isDevAuthBypassEnabled } from "@/lib/dev-bypass";
 import { getDevBypassBranchContext } from "@/lib/dev-bypass-server";
-import { resolveSuperAdminContext } from "@/lib/auth/super-admin";
 import { resolveOwnerFrontDeskBranch } from "@/lib/queries/front-desk-branch";
+import { getLayoutStaffContext } from "@/lib/queries/staff-context";
 
 type BranchRelation = { name: string | null } | { name: string | null }[] | null;
 
@@ -93,29 +92,14 @@ function buildAllowedFrontDeskDestinations(role: string): FrontDeskDestination[]
 }
 
 export const getCrmContext = cache(async function getCrmContext() {
-  const supabase = await createClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-  if (!user) redirect("/login");
+  const ctx = await getLayoutStaffContext();
+  if (!ctx?.user) redirect("/login");
 
-  // Super-admin: grant owner-level CRM access.
-  const superAdmin = await resolveSuperAdminContext(user.id);
-  if (superAdmin) {
-    const branch = await resolveOwnerFrontDeskBranch(user.id, superAdmin.branch_id);
-    return { role: "owner" as string, branchId: branch?.id ?? null };
-  }
+  const { user, me } = ctx;
 
-  if (isDevAuthBypassEnabled()) {
+  if (!me && isDevAuthBypassEnabled()) {
     return { role: "owner" as string, branchId: null as string | null };
   }
-
-  const { data: me } = await supabase
-    .from("staff")
-    .select("branch_id, system_role")
-    .eq("auth_user_id", user.id)
-    .eq("is_active", true)
-    .maybeSingle();
 
   if (!me || !canAccessCrmWorkspace(me.system_role)) redirect("/login");
 
@@ -130,33 +114,10 @@ export const getCrmContext = cache(async function getCrmContext() {
 });
 
 export const getFrontDeskContext = cache(async function getFrontDeskContext(): Promise<FrontDeskContext> {
-  const supabase = await createClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-  if (!user) redirect("/login");
+  const ctx = await getLayoutStaffContext();
+  if (!ctx?.user) redirect("/login");
 
-  const superAdmin = await resolveSuperAdminContext(user.id);
-  if (superAdmin) {
-    const role = superAdmin.system_role;
-    const branch = await resolveOwnerFrontDeskBranch(user.id, superAdmin.branch_id);
-    if (!branch) redirect("/login");
-    return {
-      userId: user.id,
-      role,
-      branchId: branch.id,
-      branchName: branch.name,
-      capabilities: buildFrontDeskCapabilities(role),
-      allowedDestinations: buildAllowedFrontDeskDestinations(role),
-    };
-  }
-
-  const { data: me } = await supabase
-    .from("staff")
-    .select("branch_id, branches(name), system_role")
-    .eq("auth_user_id", user.id)
-    .eq("is_active", true)
-    .maybeSingle();
+  const { user, me } = ctx;
 
   if ((!me || !canAccessCrmWorkspace(me.system_role) || (!me.branch_id && canonicalizeSystemRole(me.system_role) !== "owner")) && isDevAuthBypassEnabled()) {
     const devBranch = await getDevBypassBranchContext();

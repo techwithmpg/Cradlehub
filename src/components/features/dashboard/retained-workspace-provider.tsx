@@ -376,10 +376,23 @@ function ScopedRetainedWorkspace({
       ) {
         return;
       }
-      const target = event.target;
-      if (!(target instanceof Element)) return;
-      const anchor = target.closest<HTMLAnchorElement>("a[href]");
+      const eventTarget = event.target;
+      if (!(eventTarget instanceof Element)) return;
+      const anchor = eventTarget.closest<HTMLAnchorElement>("a[href]");
       if (!anchor) return;
+      const url = new URL(anchor.href, window.location.origin);
+      const targetModule = resolveWorkspaceModule(workspace, url.pathname, url.searchParams);
+      if (targetModule) {
+        const key = retainedModuleKey(scopeKey, targetModule);
+        const isRetainedInMemory = registryRef.current.entries.some((entry) => entry.key === key);
+        if (isRetainedInMemory) {
+          event.preventDefault();
+          activateRetainedUrl(anchor.href);
+          // Update URL without triggering Next.js server page render fetch
+          window.history.pushState({}, "", anchor.href);
+          return;
+        }
+      }
       const retainedHref = restoreRetainedSearch(anchor.href);
       if (retainedHref !== anchor.href) {
         event.preventDefault();
@@ -544,3 +557,4 @@ export function RetainedWorkspaceProvider(props: RetainedWorkspaceProviderProps)
     </ScopedRetainedWorkspace>
   );
 }
+

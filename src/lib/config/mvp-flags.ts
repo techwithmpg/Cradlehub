@@ -62,3 +62,4 @@ export function isRetainedWorkspaceEnabled(
 
 /** @deprecated Use isAttendanceEnforcementEnabled(). */
 export const MVP_CHECKIN_PAUSED = !isAttendanceEnforcementEnabled();
+
