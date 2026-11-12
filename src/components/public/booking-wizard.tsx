@@ -1265,6 +1265,7 @@ export function BookingWizard({
               ? "Appointment saved to the CRM workspace."
               : "Our team will review the schedule and confirm your appointment shortly.",
         });
+        setSmsConsentChoice(null); // Never preselect SMS on a subsequent booking.
         setSuccess({
           bookingId: result.bookingId,
           orderId: "orderId" in result ? (result.orderId as string) : undefined,
