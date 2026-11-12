@@ -523,6 +523,7 @@ export function BookingWizard({
     paymentNote: "",
   });
   const [formError, setFormError] = useState("");
+  const [smsConsentChoice, setSmsConsentChoice] = useState<SmsConsentChoice>(null);
   const [placesStatus, setPlacesStatus] = useState<PlacesAutocompleteStatus>("idle");
   const [hsQuote, setHsQuote] = useState<HomeServiceDistanceQuote | null>(null);
   const [hsQuoteLoading, setHsQuoteLoading] = useState(false);
@@ -1214,6 +1215,7 @@ export function BookingWizard({
         startTime: selectedSlot!.slot_time,
         fullName: form.fullName,
         phone: form.phone,
+        smsConsentChoice: smsConsentChoice ?? undefined,
         email: form.email || undefined,
         notes: form.notes || undefined,
         idempotencyKey: attemptId,
@@ -1233,6 +1235,7 @@ export function BookingWizard({
               startTime: payload.startTime,
               fullName: payload.fullName,
               phone: payload.phone,
+              smsConsentChoice: payload.smsConsentChoice,
               email: payload.email,
               notes: payload.notes,
               idempotencyKey: attemptId,
@@ -1316,6 +1319,7 @@ export function BookingWizard({
     bookingRules,
     selectedStaffForBooking,
     form,
+    smsConsentChoice,
     mode,
     isHomeService,
     successStep,
@@ -1764,6 +1768,8 @@ export function BookingWizard({
                   selectedSlot={selectedSlot}
                   selectedStaff={selectedStaffForBooking}
                   onSelectStaff={setSelectedStaff}
+                  smsConsentChoice={smsConsentChoice}
+                  onSmsConsentChange={setSmsConsentChoice}
                 />
               )}
               {currentStepName === "success" && success && (
@@ -3467,6 +3473,48 @@ function StepLocation({
 
 // ── Step 6 (or 7 for HS): Details ─────────────────────────────────────────────
 
+type SmsConsentChoice = "opt_in" | "opt_out" | null;
+
+/** Optional, never preselected. No marketing consent is implied. */
+function SmsConsentField({ choice, onChange, mode }: {
+  choice: SmsConsentChoice;
+  onChange: (choice: SmsConsentChoice) => void;
+  mode: BookingWizardMode;
+}) {
+  return (
+    <fieldset className="rounded-xl border border-[#D4B57A]/25 bg-[#0D2B20]/65 p-4">
+      <legend className="px-1 text-[13px] font-semibold text-[#D4B57A]">
+        Appointment text reminders (optional)
+      </legend>
+      <p className="mb-3 text-[12px] leading-5 text-[#F6EBD6]/80">
+        {mode === "public"
+          ? "Would you like Cradle to text this number about this appointment: confirmation, morning, and one-hour reminders?"
+          : "Ask the customer about transactional SMS for this booking. Never assume consent."}
+      </p>
+      <div className="flex flex-col gap-2">
+        <label className="flex min-h-11 items-center gap-3 text-[13px] text-[#F6EBD6]">
+          <input type="radio" name="wizard-appointment-sms" value="opt_in"
+            checked={choice === "opt_in"} onChange={() => onChange("opt_in")}
+            className="h-4 w-4 accent-[#D4B57A]" />
+          Yes, send appointment text messages
+        </label>
+        <label className="flex min-h-11 items-center gap-3 text-[13px] text-[#F6EBD6]">
+          <input type="radio" name="wizard-appointment-sms" value="opt_out"
+            checked={choice === "opt_out"} onChange={() => onChange("opt_out")}
+            className="h-4 w-4 accent-[#D4B57A]" />
+          No, do not send texts for this appointment
+        </label>
+      </div>
+      <p className="mt-2 text-[11px] leading-5 text-[#F6EBD6]/70">
+        Neither option is selected by default. Your choice applies only to this appointment
+        and the contact phone provided. To stop future texts, contact Cradle's front desk.
+        SMS is limited to Philippine mobile numbers.
+      </p>
+    </fieldset>
+  );
+}
+
+
 type DetailsForm = {
   fullName: string;
   phone: string;
@@ -3511,6 +3559,8 @@ export function PublicStepDetails({
   selectedSlot,
   selectedStaff,
   onSelectStaff,
+  smsConsentChoice,
+  onSmsConsentChange,
 }: {
   form: DetailsForm;
   onChange: (form: DetailsForm) => void;
@@ -3522,6 +3572,8 @@ export function PublicStepDetails({
   selectedSlot: Slot | null;
   selectedStaff: "auto" | string;
   onSelectStaff: (choice: "auto" | string) => void;
+  smsConsentChoice: SmsConsentChoice;
+  onSmsConsentChange: (choice: SmsConsentChoice) => void;
 }) {
   const [therapistOpen, setTherapistOpen] = useState(false);
   // Recompute on every keystroke, including paste and autofill.
@@ -3622,6 +3674,8 @@ export function PublicStepDetails({
         </div>
       </div>
 
+      <SmsConsentField choice={smsConsentChoice} onChange={onSmsConsentChange} mode="public" />
+
       <div>
         <div className="mb-1 flex items-baseline justify-between gap-2">
           <p className="text-[13px] font-semibold text-[#D4B57A]">Therapist preference</p>
@@ -3715,6 +3769,8 @@ function StepDetails({
   selectedSlot,
   selectedStaff,
   onSelectStaff,
+  smsConsentChoice,
+  onSmsConsentChange,
 }: {
   form: DetailsForm;
   onChange: (f: DetailsForm) => void;
@@ -3730,6 +3786,8 @@ function StepDetails({
   selectedSlot: Slot | null;
   selectedStaff: "auto" | string;
   onSelectStaff: (choice: "auto" | string) => void;
+  smsConsentChoice: SmsConsentChoice;
+  onSmsConsentChange: (choice: SmsConsentChoice) => void;
 }) {
   const publicDetails =
     mode === "public" ? (
@@ -3744,6 +3802,8 @@ function StepDetails({
         selectedSlot={selectedSlot}
         selectedStaff={selectedStaff}
         onSelectStaff={onSelectStaff}
+        smsConsentChoice={smsConsentChoice}
+        onSmsConsentChange={onSmsConsentChange}
       />
     ) : null;
 
@@ -3870,6 +3930,8 @@ function StepDetails({
               className={`${fieldClassName} resize-none`}
             />
           </div>
+
+          {mode === "inhouse" && <SmsConsentField choice={smsConsentChoice} onChange={onSmsConsentChange} mode="inhouse" />}
 
           {/* CRM In-House Payment Capture */}
           {mode === "inhouse" && (
