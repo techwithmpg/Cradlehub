@@ -7,6 +7,7 @@ import {
   type SmsKind, type SmsVisit,
 } from "./policy";
 import { assertTwilioConfigured, readTwilioSms, sendTwilioSms, TwilioRejected, type TwilioMessageState } from "./twilio-provider";
+import { consentMatchesVisit, type BookingSmsConsent } from "./consent-policy";
 
 /**
  * Feature-gated appointment SMS worker.
@@ -145,11 +146,13 @@ async function findBookingCandidates(client: SmsDb, now: Date, launchAt: number)
   const customerIds = [...new Set(all.map((row) => row.customer_id))];
   const branchIds = [...new Set(all.map((row) => row.branch_id))];
   const serviceIds = [...new Set(all.map((row) => row.service_id))];
-  const [customers, branches, services, preferences] = await Promise.all([
+  const visitKeys = [...new Set(all.map((row) => row.order_id ?? row.id))];
+  const [customers, branches, services, preferences, visitConsents] = await Promise.all([
     loadById(client, "customers", "id,full_name,phone", customerIds),
     loadById(client, "branches", "id,name", branchIds),
     loadById(client, "services", "id,name", serviceIds),
     loadById(client, "customer_sms_preferences", "customer_id,consented_phone_e164,transactional_opt_in_at,opted_out_at", customerIds, "customer_id"),
+    loadById(client, "booking_sms_consents", "visit_key,customer_id,phone_e164,choice", visitKeys, "visit_key"),
   ]);
 
   const people = new Map(customers.map((row) => [String(row.id), row]));
@@ -157,6 +160,8 @@ async function findBookingCandidates(client: SmsDb, now: Date, launchAt: number)
   const catalog = new Map(services.map((row) => [String(row.id), row]));
   const permission = new Map(preferences.map((row) =>
     [String(row.customer_id), row as unknown as ConsentRow]));
+  const visitPermission = new Map(visitConsents.map((row) =>
+    [String(row.visit_key), row as unknown as BookingSmsConsent]));
   const groups = new Map<string, BookingRow[]>();
   for (const row of all) {
     const key = row.order_id ?? row.id;
@@ -182,11 +187,9 @@ async function findBookingCandidates(client: SmsDb, now: Date, launchAt: number)
       line.branch_id !== first.branch_id || line.customer_id !== first.customer_id)) continue;
     const customer = people.get(first.customer_id);
     const branch = locations.get(first.branch_id);
-    const consent = permission.get(first.customer_id);
+    const globalPreference = permission.get(first.customer_id);
     const phone = smsPhoneE164(String(customer?.phone ?? ""));
-    if (!customer || !branch || !phone || !consent ||
-      !consent.transactional_opt_in_at || consent.opted_out_at ||
-      consent.consented_phone_e164 !== phone) continue;
+    if (!customer || !branch || !phone || globalPreference?.opted_out_at) continue;
     const visit: SmsVisit = {
       key,
       bookingId: first.id,
@@ -205,6 +208,7 @@ async function findBookingCandidates(client: SmsDb, now: Date, launchAt: number)
       progress: group.map((line) => line.booking_progress_status),
       sessionStarted: group.some((line) => Boolean(line.session_started_at)),
     };
+    if (!consentMatchesVisit(visit, visitPermission.get(key))) continue;
     const eventTimes = group.map((line) => eventForBooking.get(line.id))
       .filter((value): value is string => Boolean(value));
     const confirmedEventAt = eventTimes.sort().at(-1);
@@ -289,13 +293,15 @@ async function remainsEligible(client: SmsDb, item: SmsCandidate, now: Date) {
   if (!isSmsDue(kind, visit, now, item.confirmationAt)) return false;
   const customer = await client.from("customers").select("phone").eq("id", visit.customerId).single();
   if (customer.error || smsPhoneE164(String(customer.data?.phone ?? "")) !== visit.phone) return false;
-  const opt = await client.from("customer_sms_preferences")
-    .select("consented_phone_e164,transactional_opt_in_at,opted_out_at")
-    .eq("customer_id", visit.customerId).maybeSingle();
-  if (opt.error) throw new Error("SMS consent recheck failed");
-  if (!opt.data) return false;
-  return opt.data.consented_phone_e164 === visit.phone &&
-    Boolean(opt.data.transactional_opt_in_at) && !opt.data.opted_out_at;
+  const consent = await client.from("booking_sms_consents")
+    .select("visit_key,customer_id,phone_e164,choice")
+    .eq("visit_key", visit.key).maybeSingle();
+  if (consent.error) throw new Error("SMS visit consent recheck failed");
+  if (!consentMatchesVisit(visit, consent.data as BookingSmsConsent | null)) return false;
+  const global = await client.from("customer_sms_preferences")
+    .select("opted_out_at").eq("customer_id", visit.customerId).maybeSingle();
+  if (global.error) throw new Error("SMS global opt-out recheck failed");
+  return !global.data?.opted_out_at;
 }
 
 async function pollDeliveryStates(client: SmsDb): Promise<number> {
