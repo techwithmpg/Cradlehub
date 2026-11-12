@@ -77,6 +77,8 @@ describe("public Details step", () => {
     expect(no.checked).toBe(false);
     fireEvent.click(yes);
     expect(onSmsConsentChange).toHaveBeenCalledWith("opt_in");
+    fireEvent.click(no);
+    expect(onSmsConsentChange).toHaveBeenCalledWith("opt_out");
     expect(screen.queryByRole("textbox", { name: /Email/i })).toBeNull();
     expect(screen.queryByRole("textbox", { name: /Special requests/i })).toBeNull();
 
