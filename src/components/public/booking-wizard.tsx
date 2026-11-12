@@ -3508,7 +3508,7 @@ function SmsConsentField({ choice, onChange, mode }: {
       </div>
       <p className="mt-2 text-[11px] leading-5 text-[#F6EBD6]/70">
         Neither option is selected by default. Your choice applies only to this appointment
-        and the contact phone provided. To stop future texts, contact Cradle's front desk.
+        and the contact phone provided. To stop future texts, contact Cradle&apos;s front desk.
         SMS is limited to Philippine mobile numbers.
       </p>
     </fieldset>
