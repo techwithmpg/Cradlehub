@@ -1,8 +1,6 @@
--- REVIEW-ONLY SQL, not a canonical migration and NOT applied anywhere.
--- New forward-only migration must be generated after isolated testing using
--- 'supabase migration new customer_sms_consent_ledger' on an approved branch.
--- Historical local-only migrations must NEVER be replayed to clean history.
--- The original customer-sms-foundation-DRAFT.sql remains preserved.
+-- REVIEW ONLY; not a production migration.
+-- Only apply in disposable ISOLATED TEST until canonical migration is prepared.
+-- No replay of local-only migrations, no production SQL, no SMS activation.
 
 -- CUSTOMER SMS FOUNDATION — DRAFT FOR REVIEW, NOT AN APPLIED MIGRATION.
 -- DO NOT execute on production or run bulk migration-history repair.
@@ -32,50 +30,13 @@ REVOKE ALL ON public.customer_sms_preferences FROM PUBLIC, anon, authenticated;
 GRANT SELECT, INSERT, UPDATE ON public.customer_sms_preferences TO service_role;
 
 
--- Visit-specific opt-in/no-SMS: no historical opt-in or stored customer phone
--- can authorize SMS for a different booking or group.
+-- Per-visit choice. No stored customer phone or prior booking implies opt-in.
 CREATE TABLE public.booking_sms_consents (
   visit_key uuid PRIMARY KEY,
   booking_id uuid NOT NULL REFERENCES public.bookings(id) ON DELETE RESTRICT,
   order_id uuid REFERENCES public.booking_orders(id) ON DELETE RESTRICT,
   customer_id uuid NOT NULL REFERENCES public.customers(id) ON DELETE RESTRICT,
-  phone_e164 text NOT NULL CHECK (phone_e164 ~ '^\+639[0-9]{9}
--- Rows with unknown provider outcomes must NOT be retried automatically.
--- No message bodies or full phone numbers are stored in this ledger.
-CREATE TABLE IF NOT EXISTS public.booking_sms_messages (
-  id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
-  dedupe_key text NOT NULL UNIQUE,
-  booking_id uuid NOT NULL REFERENCES public.bookings(id) ON DELETE RESTRICT,
-  order_id uuid REFERENCES public.booking_orders(id) ON DELETE RESTRICT,
-  customer_id uuid NOT NULL REFERENCES public.customers(id) ON DELETE RESTRICT,
-  kind text NOT NULL CHECK (kind IN ('confirmation', 'morning', 'one_hour')),
-  appointment_date date NOT NULL,
-  appointment_time time NOT NULL,
-  state text NOT NULL DEFAULT 'claimed'
-    CHECK (state IN ('claimed', 'accepted', 'sent', 'delivered', 'failed', 'undelivered', 'unknown')),
-  provider_sid text,
-  provider_error_code text,
-  created_at timestamptz NOT NULL DEFAULT now(),
-  submitted_at timestamptz,
-  polled_at timestamptz,
-  updated_at timestamptz NOT NULL DEFAULT now(),
-  CONSTRAINT booking_sms_messages_dedupe_nonempty CHECK (length(dedupe_key) > 10)
-);
-CREATE INDEX IF NOT EXISTS booking_sms_messages_created_idx
-  ON public.booking_sms_messages(created_at DESC);
-CREATE UNIQUE INDEX IF NOT EXISTS booking_sms_messages_provider_sid_idx
-  ON public.booking_sms_messages(provider_sid) WHERE provider_sid IS NOT NULL;
-CREATE INDEX IF NOT EXISTS booking_sms_messages_booking_idx
-  ON public.booking_sms_messages(booking_id, created_at DESC);
-ALTER TABLE public.booking_sms_messages ENABLE ROW LEVEL SECURITY;
-REVOKE ALL ON public.booking_sms_messages FROM PUBLIC, anon, authenticated;
-GRANT SELECT, INSERT, UPDATE ON public.booking_sms_messages TO service_role;
-
-COMMENT ON TABLE public.customer_sms_preferences IS
-  'Recorded consent for operational appointment SMS. Never infer consent from stored phone alone.';
-COMMENT ON TABLE public.booking_sms_messages IS
-  'Idempotent, PII-minimized customer SMS send log; only privileged server workers may access.';
-),
+  phone_e164 text NOT NULL CHECK (phone_e164 ~ '^\+639[0-9]{9}$'),
   choice text NOT NULL CHECK (choice IN ('opt_in', 'opt_out')),
   consent_source text NOT NULL CHECK (consent_source IN ('public_booking', 'crm_booking')),
   actor_auth_user_id uuid,
