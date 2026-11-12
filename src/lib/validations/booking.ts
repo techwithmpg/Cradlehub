@@ -84,6 +84,7 @@ export const createOnlineBookingSchema = z
     travelBufferMins: z.number().int().min(0).max(240).optional(),
     fullName: z.string().min(2, "Name must be at least 2 characters").max(100),
     phone: publicPhone,
+    smsConsentChoice: z.enum(["opt_in", "opt_out"]).optional(),
     email: z.string().email("Invalid email").optional().or(z.literal("")),
     notes: z.string().max(500).optional(),
   })
@@ -135,6 +136,7 @@ export const createInhouseBookingMultiSchema = z
     travelBufferMins: z.number().int().min(0).max(240).optional(),
     fullName: z.string().min(2, "Name must be at least 2 characters").max(100),
     phone,
+    smsConsentChoice: z.enum(["opt_in", "opt_out"]).optional(),
     email: z.string().email("Invalid email").optional().or(z.literal("")),
     notes: z.string().max(500).optional(),
     // Home service address (required when type=home_service, validated in action)
@@ -321,6 +323,7 @@ export const createOnlineBookingMultiSchema = z
     paymentChoice: z.enum(["pay_later", "pay_now"]).optional(),
     fullName: z.string().min(2, "Name must be at least 2 characters").max(100),
     phone: publicPhone,
+    smsConsentChoice: z.enum(["opt_in", "opt_out"]).optional(),
     email: z.string().email("Invalid email").optional().or(z.literal("")),
     notes: z.string().max(500).optional(),
     // Home service address (required when type=home_service, validated in action)
