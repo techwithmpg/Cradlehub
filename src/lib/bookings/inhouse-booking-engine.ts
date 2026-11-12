@@ -362,12 +362,53 @@ export async function executeInhouseBookingCreation(
           serviceCount: serviceLineIds.length, attendeeCount: sortedAttendees.length };
       }
     }
-    const rulesCheck = await validateBookingAgainstBranchRules({
-      branchId: resolvedBranchId,
-      bookingType: d.type,
-      date: d.date,
-      startTime,
-    });
+    const admin = createAdminClient();
+
+    // Parallelize all read-only pre-checks & catalog fetches in a single round-trip!
+    const [
+      rulesCheck,
+      serviceEligibility,
+      catalogServicesResult,
+      branchOverridesResult,
+      attendeeQuotes,
+    ] = await Promise.all([
+      validateBookingAgainstBranchRules({
+        branchId: resolvedBranchId,
+        bookingType: d.type,
+        date: d.date,
+        startTime,
+      }),
+      validateBranchServiceEligibility({
+        branchId: resolvedBranchId,
+        serviceIds: allServiceIds,
+        audience: "crm",
+        deliveryMode: deliveryType,
+        useAdminClient: true,
+      }),
+      admin
+        .from("services")
+        .select("id, name, price, duration_minutes, buffer_before, buffer_after, metadata, is_active, service_categories(name)")
+        .in("id", allServiceIds),
+      admin
+        .from("branch_services")
+        .select("service_id, custom_price, custom_duration_minutes")
+        .eq("branch_id", resolvedBranchId)
+        .in("service_id", allServiceIds)
+        .eq("is_active", true),
+      Promise.all(
+        attendees.map((attendee, index) =>
+          resolveBookingLineQuotes({
+            branchId: resolvedBranchId,
+            serviceIds: attendee.serviceIds,
+            serviceLines:
+              d.attendees?.[index]?.serviceLines ?? (d.attendees ? undefined : d.serviceLines),
+            audience: "crm",
+            deliveryMode: deliveryType,
+          })
+        )
+      ),
+    ]);
+
     if (!rulesCheck.ok) {
       console.error("[CRM_BOOKING] branch rules failed", { ...logContext, rulesCheck });
       const isPast = rulesCheck.code === "PAST_DATE" || rulesCheck.message.includes("passed");
@@ -382,13 +423,6 @@ export async function executeInhouseBookingCreation(
       };
     }
 
-    const serviceEligibility = await validateBranchServiceEligibility({
-      branchId: resolvedBranchId,
-      serviceIds: allServiceIds,
-      audience: "crm",
-      deliveryMode: deliveryType,
-      useAdminClient: true,
-    });
     if (!serviceEligibility.ok) {
       return {
         ok: false,
@@ -402,13 +436,9 @@ export async function executeInhouseBookingCreation(
       };
     }
 
-    const consultationClient = createAdminClient();
-    const { data: consultationServices, error: consultationError } = await consultationClient
-      .from("services")
-      .select("name, metadata, service_categories(name)")
-      .in("id", allServiceIds);
-    if (consultationError) throw consultationError;
-    const requiresManualArrangement = (consultationServices ?? []).some((service) => {
+    if (catalogServicesResult.error) throw catalogServicesResult.error;
+    const consultationServices = catalogServicesResult.data ?? [];
+    const requiresManualArrangement = consultationServices.some((service) => {
       const categoryValue = service.service_categories;
       const category = Array.isArray(categoryValue) ? categoryValue[0] : categoryValue;
       return isConsultationOnlyService({
@@ -429,18 +459,6 @@ export async function executeInhouseBookingCreation(
         retrySafety: "safe",
       };
     }
-
-    const attendeeQuotes = await Promise.all(attendees.map((attendee, index) =>
-      resolveBookingLineQuotes({
-        branchId: resolvedBranchId,
-        serviceIds: attendee.serviceIds,
-        serviceLines: d.attendees?.[index]?.serviceLines ?? (d.attendees ? undefined : d.serviceLines),
-        audience: "crm",
-        deliveryMode: deliveryType,
-      })
-    ));
-
-    const admin = createAdminClient();
 
     let attendeeStaffIds: string[];
     let selectedExactProvider: Awaited<ReturnType<typeof resolveExactCrmBookingTime>>["providers"][number] | undefined;
@@ -550,19 +568,9 @@ export async function executeInhouseBookingCreation(
 
     let resolvedResourceId = d.resourceId ?? null;
 
-    // ── Calculate total combined duration for resource check ────────────────
-    const [combinedServicesResult, combinedOverridesResult] = await Promise.all([
-      admin
-        .from("services")
-        .select("id, duration_minutes, buffer_before, buffer_after")
-        .in("id", allServiceIds),
-      admin
-        .from("branch_services")
-        .select("service_id, custom_duration_minutes")
-        .eq("branch_id", resolvedBranchId)
-        .eq("is_active", true)
-        .in("service_id", allServiceIds),
-    ]);
+    // ── Reuse pre-fetched catalog & branch_services rows (zero extra DB round-trip!) ──
+    const combinedServicesResult = catalogServicesResult;
+    const combinedOverridesResult = branchOverridesResult;
 
     if (combinedServicesResult.error || combinedOverridesResult.error) {
       return {
@@ -775,34 +783,9 @@ export async function executeInhouseBookingCreation(
       };
     }
 
-    const { data: servicesData, error: servicesError } = await admin
-      .from("services")
-      .select("id, name, price, duration_minutes, buffer_before, buffer_after")
-      .in("id", allServiceIds)
-      .eq("is_active", true);
-
-    if (servicesError) {
-      console.error("[CRM_BOOKING] services load failed", { ...logContext, servicesError });
-      logBookingError(logContext, servicesError);
-      return {
-        ok: false,
-        code: "SERVICES_LOAD_ERROR",
-        title: "Services load error",
-        message: "Could not load service details. Please refresh and try again.",
-        field: "service",
-        correctiveAction: "Refresh the page and reselect your services.",
-        retrySafety: "safe",
-      };
-    }
-
-    const services = (servicesData ?? []) as ServiceRow[];
+    const services = ((catalogServicesResult.data ?? []).filter((s) => s.is_active !== false)) as unknown as ServiceRow[];
     const servicesById = new Map(services.map((s) => [s.id, s]));
     if (servicesById.size !== allServiceIds.length) {
-      console.error("[CRM_BOOKING] service inactive", {
-        ...logContext,
-        requested: allServiceIds,
-        found: services.map((s) => s.id),
-      });
       return {
         ok: false,
         code: "SERVICE_UNAVAILABLE",
@@ -814,12 +797,8 @@ export async function executeInhouseBookingCreation(
       };
     }
 
-    const { data: branchOverrides, error: branchOverridesError } = await admin
-      .from("branch_services")
-      .select("service_id, custom_price, custom_duration_minutes")
-      .eq("branch_id", resolvedBranchId)
-      .in("service_id", allServiceIds)
-      .eq("is_active", true);
+    const branchOverrides = branchOverridesResult.data;
+    const branchOverridesError = branchOverridesResult.error;
 
     if (branchOverridesError) {
       console.error("[CRM_BOOKING] branch_services load failed", {
@@ -931,7 +910,7 @@ export async function executeInhouseBookingCreation(
         source: "google_places",
       } satisfies { [key: string]: Json | undefined };
 
-      const branchRules = await getBranchBookingRulesOrDefault(resolvedBranchId);
+      const branchRules = rulesCheck.rules;
       const dispatchResult = await checkHomeServiceDispatchConflict({
         branchId: resolvedBranchId,
         bookingDate: d.date,
@@ -1487,5 +1466,6 @@ export async function executeInhouseBookingCreation(
     };
   }
 }
+
 
 

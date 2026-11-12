@@ -8,6 +8,6 @@ export default defineConfig({
     },
   },
   test: {
-    exclude: ["**/node_modules/**", "**/.claude/**", "**/.git/**"],
+    exclude: ["**/node_modules/**", "**/.next/**", "**/.tmp/**", "**/.claude/**", "**/.git/**"],
   },
 });

@@ -313,16 +313,12 @@ function findOperationalConflict(params: {
   return { nextAvailableAt: formatMinutesAsClock(latestEnd) };
 }
 
-function isSameDayWalkin(params: {
+function isSameDayBooking(params: {
   bookingMode: ExactCrmBookingMode;
   deliveryType: ExactCrmDeliveryType;
   date: string;
 }): boolean {
-  return (
-    params.bookingMode === "walkin" &&
-    params.deliveryType !== "home_service" &&
-    params.date === getBranchBusinessDate()
-  );
+  return params.date === getBranchBusinessDate();
 }
 
 function reasonForStaff(params: {
@@ -581,9 +577,38 @@ export async function resolveExactCrmBookingTime(params: {
     bookingsByStaff.set(booking.staff_id, rows);
   }
 
-  const sameDayWalkin = isSameDayWalkin(params);
+  const sameDayWalkin = isSameDayBooking(params);
   const useAttendancePreference = sameDayWalkin;
   const tierOrder: Record<string, number> = { senior: 0, mid: 1, junior: 2 };
+
+  // Build strict First-Come, First-Served (FCFS) arrival queue from today's active check-ins
+  const earliestCheckinMsByStaff = new Map<string, number>();
+  for (const [staffId, rows] of checkinsByStaff.entries()) {
+    for (const row of rows) {
+      if (row.status === "checked_in" && !row.checked_out_at && row.checked_in_at) {
+        const ts = Date.parse(row.checked_in_at);
+        if (Number.isFinite(ts)) {
+          const prev = earliestCheckinMsByStaff.get(staffId);
+          if (prev === undefined || ts < prev) earliestCheckinMsByStaff.set(staffId, ts);
+        }
+      }
+    }
+  }
+  const sortedQueueStaffIds = Array.from(earliestCheckinMsByStaff.entries())
+    .sort((a, b) => a[1] - b[1])
+    .map(([staffId]) => staffId);
+  const fcfsQueuePositionByStaff = new Map<string, number>(
+    sortedQueueStaffIds.map((staffId, index) => [staffId, index + 1])
+  );
+
+  // Count active/completed bookings today per staff member so early arrivals rotate fairly
+  const activeBookingCountByStaff = new Map<string, number>();
+  const nowForCount = new Date();
+  for (const [staffId, rows] of bookingsByStaff.entries()) {
+    const count = rows.filter((b) => bookingBlocksAvailability(b, nowForCount)).length;
+    activeBookingCountByStaff.set(staffId, count);
+  }
+
   const providers = branchStaff
     .filter((staff) => capableStaffIds.has(staff.id))
     .map<ExactCrmProviderAvailability>((staff) => {
@@ -726,17 +751,60 @@ export async function resolveExactCrmBookingTime(params: {
         warning,
       };
     })
+    .map((provider) => {
+      const qPos = fcfsQueuePositionByStaff.get(provider.staffId);
+      const bkCount = activeBookingCountByStaff.get(provider.staffId) ?? 0;
+      const queueBadge = qPos ? `#${qPos} in Queue` : null;
+      const workloadBadge = `${bkCount} booked today`;
+      const enrichedLabel =
+        provider.selectable && (queueBadge || provider.scheduleEndTime)
+          ? [
+              queueBadge,
+              provider.statusLabel,
+              workloadBadge,
+            ]
+              .filter(Boolean)
+              .join(" · ")
+          : provider.statusLabel;
+      return {
+        ...provider,
+        statusLabel: enrichedLabel,
+      };
+    })
     .sort((left, right) => {
       const leftStaff = branchStaff.find((staff) => staff.id === left.staffId);
       const rightStaff = branchStaff.find((staff) => staff.id === right.staffId);
       const leftRank = left.recommended ? 0 : left.selectable ? 1 : 2;
       const rightRank = right.recommended ? 0 : right.selectable ? 1 : 2;
+
+      const leftWorkload = activeBookingCountByStaff.get(left.staffId) ?? 0;
+      const rightWorkload = activeBookingCountByStaff.get(right.staffId) ?? 0;
+
+      const leftQueuePos = fcfsQueuePositionByStaff.get(left.staffId) ?? 9999;
+      const rightQueuePos = fcfsQueuePositionByStaff.get(right.staffId) ?? 9999;
+
+      const leftShiftEnd = left.scheduleEndTime ? timeToMinutes(left.scheduleEndTime) : 9999;
+      const rightShiftEnd = right.scheduleEndTime ? timeToMinutes(right.scheduleEndTime) : 9999;
+
+      const leftShiftStart = left.scheduleStartTime ? timeToMinutes(left.scheduleStartTime) : 9999;
+      const rightShiftStart = right.scheduleStartTime ? timeToMinutes(right.scheduleStartTime) : 9999;
+
       return (
+        // 1. Recommended (Checked-in & Available) -> Selectable (Scheduled & Available) -> Unavailable
         leftRank - rightRank ||
+        // 2. Fits cleanly inside shift without overtime first
         Number(left.overtimeMinutes > 0) - Number(right.overtimeMinutes > 0) ||
         left.overtimeMinutes - right.overtimeMinutes ||
         Number(left.operationalStartsBeforeShift) - Number(right.operationalStartsBeforeShift) ||
         left.operationalOvertimeMinutes - right.operationalOvertimeMinutes ||
+        // 3. Fair rotation among active staff: fewer bookings today goes first so one person isn't overloaded
+        leftWorkload - rightWorkload ||
+        // 4. STRICT FIRST-COME, FIRST-SERVED (FCFS): Earliest clock-in timestamp wins!
+        leftQueuePos - rightQueuePos ||
+        // 5. EARLIEST SHIFT END / START: Opening-shift staff finish early so they can leave on time!
+        leftShiftEnd - rightShiftEnd ||
+        leftShiftStart - rightShiftStart ||
+        // 6. Final fallback: Seniority tier then name
         (tierOrder[leftStaff?.tier ?? ""] ?? 9) - (tierOrder[rightStaff?.tier ?? ""] ?? 9) ||
         left.fullName.localeCompare(right.fullName)
       );
@@ -836,5 +904,6 @@ export async function resolveExactCrmBookingTime(params: {
     rejectedTherapists,
   };
 }
+
 
 

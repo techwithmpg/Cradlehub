@@ -51,7 +51,11 @@ export type NotificationType =
   | "attendance_issue_resolved"
   | "attendance_prevention_guidance"
   | "attendance_device_recovery_ready"
+  | "attendance_clock_in_reminder"
   | "attendance_clock_out_reminder"
+  | "shift_swap_request"
+  | "shift_swap_accepted"
+  | "shift_swap_declined"
   | "attendance_closing_escalation"
   | "attendance_provisional_auto_close"
   | "branch_correction_resolved"
@@ -139,3 +143,4 @@ export type NotificationDedupeInput = {
   entityType?: string | null;
   entityId?: string | null;
 };
+

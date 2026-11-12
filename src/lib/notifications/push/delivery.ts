@@ -134,9 +134,16 @@ export function subscriptionMatchesNotification(
     return false;
   }
   if (
-    ["staff", "driver", "utility"].includes(subscription.workspace) &&
+    subscription.workspace === "staff" &&
     (!notification.recipient_staff_id ||
       notification.recipient_staff_id !== subscription.staff_id)
+  ) {
+    return false;
+  }
+  if (
+    ["driver", "utility"].includes(subscription.workspace) &&
+    notification.recipient_staff_id &&
+    notification.recipient_staff_id !== subscription.staff_id
   ) {
     return false;
   }
@@ -407,3 +414,4 @@ export async function deliverWorkspaceNotificationPush(
 
   return result;
 }
+

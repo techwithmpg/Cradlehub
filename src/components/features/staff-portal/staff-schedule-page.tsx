@@ -14,6 +14,7 @@ import type { StaffWeekDay, StaffWeekSummary, StaffWeekNavigation } from "@/lib/
 import { formatWeekRange, formatHours } from "@/lib/staff-portal/week";
 import type { StaffScheduleEvent } from "@/lib/staff-portal/schedule";
 import styles from "./staff-schedule-page.module.css";
+import { StaffShiftSwapBar } from "./shift-swap-panel";
 
 type FilterKey = "all" | "booked" | "blocked" | "day_off" | "on_duty";
 
@@ -445,3 +446,4 @@ export function StaffSchedulePage({
     </div>
   );
 }
+

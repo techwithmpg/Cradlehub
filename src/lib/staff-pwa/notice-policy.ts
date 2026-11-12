@@ -25,29 +25,59 @@ export function noticeMatchesStaff(notice: WorkspaceNotification, staff: NoticeS
   const workspace = staffNotificationWorkspace(staff);
   if (!workspace || notice.target_workspace !== workspace) return false;
   if (notice.recipient_staff_id && notice.recipient_staff_id !== staff.id) return false;
-  if (workspace !== "crm" && notice.recipient_staff_id !== staff.id) return false;
+  if (workspace !== "crm" && notice.recipient_staff_id && notice.recipient_staff_id !== staff.id) return false;
   return !notice.target_role || canonicalizeSystemRole(notice.target_role) === canonicalizeSystemRole(staff.system_role);
 }
 
-export function staffNoticeHref(notice: Pick<WorkspaceNotification, "type" | "entity_type" | "entity_id">, workspace: string): string {
+export function staffNoticeHref(
+  notice: Pick<WorkspaceNotification, "type" | "entity_type" | "entity_id" | "action_href">,
+  workspace: string
+): string {
+    if (notice.type === "attendance_clock_in_reminder") return "/staff/scan";
+  if (notice.type.startsWith("shift_swap_")) return notice.action_href || "/staff-portal/schedule";
+  if (notice.type === "attendance_device_recovery" && notice.action_href) return notice.action_href;
+  if (notice.type === "staff_profile_incomplete" && notice.action_href) return notice.action_href;
   if (notice.type.startsWith("attendance_")) return "/staff/attendance";
   if (workspace === "driver" && notice.entity_type === "booking" && notice.entity_id) {
     const id = encodeURIComponent(notice.entity_id);
     return notice.type === "home_service_assigned"
       ? `/staff/driver/map?bookingId=${id}`
-      : `/staff/driver/trips/${id}`;
+      : `/staff/driver/routes/${id}`;
   }
   if (workspace === "driver") return "/staff/driver";
-  if (workspace === "utility") return "/staff/utility/work";
-  if (workspace === "crm") return notice.entity_type === "booking" && notice.entity_id
-    ? `/crm/bookings?bookingId=${encodeURIComponent(notice.entity_id)}` : "/staff/work";
+  if (workspace === "utility") {
+    return notice.entity_id
+      ? `/staff/utility/work?bookingId=${encodeURIComponent(notice.entity_id)}`
+      : "/staff/utility/work";
+  }
+  if (workspace === "crm") {
+    if (notice.type.startsWith("attendance_")) return "/crm/attendance?tab=exceptions";
+    return notice.entity_type === "booking" && notice.entity_id
+      ? `/crm/bookings?bookingId=${encodeURIComponent(notice.entity_id)}`
+      : "/crm/today";
+  }
+  if (notice.entity_type === "booking" && notice.entity_id) {
+    return `/staff-portal/service-progress?bookingId=${encodeURIComponent(notice.entity_id)}`;
+  }
   return notice.entity_type === "booking" ? "/staff/progress" : "/staff/notices";
 }
 
-export function safeAttendanceNoticeCopy(notice: Pick<WorkspaceNotification, "type" | "title" | "body"> & Partial<Pick<WorkspaceNotification, "dedupe_key">>) {
-  return notice.type === "attendance_clock_out_reminder" && notice.dedupe_key?.startsWith("staff-clock-out-reminder:")
-    ? { title: "You forgot to clock out", body: "Your expected shift has ended, but your attendance is still open. Clock out here if eligible, use the branch QR, or contact CRM for assistance." }
+export function safeAttendanceNoticeCopy(
+  notice: Pick<WorkspaceNotification, "type" | "title" | "body"> &
+    Partial<Pick<WorkspaceNotification, "dedupe_key">>
+) {
+  return notice.type === "attendance_clock_out_reminder" &&
+    notice.dedupe_key?.startsWith("staff-clock-out-reminder:")
+    ? {
+        title: "You forgot to clock out",
+        body: "Your expected shift has ended, but your attendance is still open. Clock out here if eligible, use the branch QR, or contact CRM for assistance.",
+      }
     : ["attendance_clock_out_reminder", "attendance_closing_escalation"].includes(notice.type)
-    ? { title: "Attendance needs review", body: "Review your current attendance and work. Clock-out eligibility is checked by the server; this notice does not end your shift." }
-    : { title: notice.title, body: notice.body };
+      ? {
+          title: "Attendance needs review",
+          body: "Review your current attendance and work. Clock-out eligibility is checked by the server; this notice does not end your shift.",
+        }
+      : { title: notice.title, body: notice.body };
 }
+
+

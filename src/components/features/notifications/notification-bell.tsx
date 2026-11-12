@@ -212,9 +212,20 @@ export function NotificationBell({ role, userId, toastOnly = false, smartPending
     };
   }, [presentationScope]);
 
+  const expectedTargetWorkspace =
+    ownerOnly
+      ? "owner"
+      : canonicalRole === "manager" || canonicalRole === "crm"
+        ? "crm"
+        : canonicalRole === "driver"
+          ? "driver"
+          : canonicalRole === "utility"
+            ? "utility"
+            : "staff";
+
   const handleRealtimeInsert = useCallback(
     (notification: WorkspaceNotification, { present }: { present: boolean }) => {
-      if (ownerOnly && notification.target_workspace !== "owner") return;
+      if (notification.target_workspace !== expectedTargetWorkspace) return;
       if (notification.status === "resolved" || notification.status === "dismissed") return;
       if (!present) {
         const alreadyKnown = knownIdsRef.current.has(notification.id);
@@ -245,11 +256,11 @@ export function NotificationBell({ role, userId, toastOnly = false, smartPending
       }
       showActionPopup(notification);
     },
-    [ownerOnly, canonicalRole, smartPendingBookings, isSafePresentationMoment, showActionPopup]
+    [expectedTargetWorkspace, canonicalRole, smartPendingBookings, isSafePresentationMoment, showActionPopup]
   );
 
   const handleRealtimeUpdate = useCallback((notification: WorkspaceNotification) => {
-    if (ownerOnly && notification.target_workspace !== "owner") return;
+    if (notification.target_workspace !== expectedTargetWorkspace) return;
     const previousStatus = knownStatusRef.current.get(notification.id);
     knownStatusRef.current.set(notification.id, notification.status);
     if (previousStatus === undefined) {
@@ -271,7 +282,7 @@ export function NotificationBell({ role, userId, toastOnly = false, smartPending
     );
     const delta = notificationUnreadDelta(previousStatus, notification.status);
     if (delta !== 0) setCount((current) => Math.max(0, current + delta));
-  }, [ownerOnly, refreshNotifications]);
+  }, [expectedTargetWorkspace, refreshNotifications]);
 
   useWorkspaceNotificationRealtime({
     presentationScope,
@@ -318,8 +329,11 @@ export function NotificationBell({ role, userId, toastOnly = false, smartPending
   );
 
   const markAllRead = useCallback(() => {
-    // The server only marks informational updates read. Never optimistically
-    // clear the action-required unread count for other CSR users.
+    setItems((prev) => prev.map((item) => ({ ...item, status: "read" as const })));
+    setCount(0);
+    for (const id of knownStatusRef.current.keys()) {
+      knownStatusRef.current.set(id, "read");
+    }
     void refreshNotifications();
     broadcastNotificationReconciliation(presentationScope);
   }, [presentationScope, refreshNotifications]);
@@ -378,3 +392,4 @@ export function NotificationBell({ role, userId, toastOnly = false, smartPending
     </Popover>
   );
 }
+

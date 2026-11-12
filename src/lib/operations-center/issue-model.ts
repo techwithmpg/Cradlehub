@@ -10,6 +10,7 @@ export type OperationsResolutionKind =
   | "provider_assignment"
   | "staff_duplicate"
   | "device_recovery"
+  | "staff_config_push"
   | "guidance";
 
 export type OperationsIssue = {
@@ -30,6 +31,7 @@ export type OperationsIssue = {
   serviceId?: string | null;
   serviceName?: string | null;
   resolutionKind?: OperationsResolutionKind;
+  staffPromptKind?: "missing_phone_device" | "incomplete_profile" | "missing_schedule" | "general_setup";
 };
 
 export type OperationsScan = {
@@ -66,7 +68,6 @@ function scanSuffix(id: string | null | undefined): string | null {
 }
 
 function configurationAction(issue: CrmSetupHealthData["issues"][number]): string {
-  // Follow maintained route owners; some existing Setup Health links are legacy.
   const byIssue: Record<string, string> = {
     "no-schedule": "/crm/schedule?tab=setup",
     "no-staff-for-service": "/crm/services?tab=issues",
@@ -85,8 +86,6 @@ export function buildStaffDuplicateIssues(
 
   const issues: OperationsIssue[] = [];
   const seenPairKeys = new Set<string>();
-
-  // Filter out archived or already merged accounts
   const activeCandidates = staffList.filter(
     (s) => !s.archived_at && !s.merged_into_staff_id
   );
@@ -110,21 +109,23 @@ export function buildStaffDuplicateIssues(
 
       if (matchName || matchPhone) {
         seenPairKeys.add(pairKey);
-        const reason = matchName && matchPhone
-          ? "identical name and phone number"
-          : matchName
-            ? "identical full name"
-            : "matching phone number";
+        const reason =
+          matchName && matchPhone
+            ? "the same full name and phone number"
+            : matchName
+              ? "the same full name"
+              : "the same phone number";
 
         issues.push({
           id: "staff:duplicate:" + pairKey,
           area: "staff_identity",
           severity: "warning",
           resolutionState: "under_review",
-          title: `Potential duplicate staff record: ${a.full_name}`,
-          description: `Profiles for ${a.full_name} share ${reason}. Review account activity and identity before making any change.`,
-          guidance: "Compare identity, login status, registered devices, and history. Automatic account deletion or merge is prohibited to preserve audit and payroll integrity.",
-          actionLabel: "Compare accounts",
+          title: `Duplicate Staff Profile: ${a.full_name}`,
+          description: `Two staff profiles share ${reason}. Having two profiles causes QR scan and schedule mix-ups.`,
+          guidance:
+            "Compare both profiles and keep only the active one linked to their phone.",
+          actionLabel: "Compare Profiles",
           actionHref: "/crm/staff?tab=management&staffId=" + encodeURIComponent(a.id),
           code: "STAFF_DUPLICATE_SUSPECTED",
           scanIdSuffix: null,
@@ -140,44 +141,127 @@ export function buildStaffDuplicateIssues(
   return issues;
 }
 
+/**
+ * Flags active staff members who have incomplete account/device configuration
+ * so Front Desk can either send a 1-tap setup push/QR straight to their portal or fix it in CRM.
+ */
+export function buildStaffConfigurationIssues(
+  staffList: OperationalStaffMember[] | null | undefined,
+  attendance: (Pick<AttendanceWorkspaceData, 'exceptions'> & Partial<AttendanceWorkspaceData>) | null
+): OperationsIssue[] {
+  if (!staffList || staffList.length === 0) return [];
+
+  const issues: OperationsIssue[] = [];
+  const registeredStaffIds = new Set(
+    (attendance?.deviceRegistry?.entries ?? [])
+      .filter((entry) => Boolean(entry.device))
+      .map((entry) => entry.staffId)
+  );
+
+  const activeStaff = staffList.filter(
+    (s) => s.is_active && !s.archived_at && !s.merged_into_staff_id
+  );
+
+  for (const s of activeStaff) {
+    const roleLower = (s.system_role || "").toLowerCase();
+    if (roleLower === "owner" || roleLower === "super_admin") continue;
+
+    // 1. Staff member has no registered phone for QR attendance scanning
+    if (attendance?.deviceRegistry && !registeredStaffIds.has(s.id)) {
+      issues.push({
+        id: `staff:no-phone:${s.id}`,
+        area: "staff_identity",
+        severity: "warning",
+        resolutionState: "detected",
+        title: `${s.full_name} has no phone linked for QR Attendance`,
+        description: `${s.full_name} (${s.staff_type || s.system_role}) does not have an active phone connected yet, so their QR scans will require sign-in or fail.`,
+        guidance:
+          "Click 'Send Phone Setup Link' to push a 1-tap connection link and QR code straight to their Staff Portal.",
+        actionLabel: "Send Phone Setup Link",
+        actionHref: `/crm/attendance?view=setup&section=phones&staffId=${encodeURIComponent(s.id)}`,
+        code: "STAFF_PHONE_NOT_LINKED",
+        scanIdSuffix: null,
+        detectedAt: s.created_at ?? null,
+        staffId: s.id,
+        staffName: s.full_name,
+        resolutionKind: "staff_config_push",
+        staffPromptKind: "missing_phone_device",
+      });
+    }
+
+    // 2. Staff member is missing phone number or portal login
+    if (!s.hasLoginAccount || !s.phone || s.phone.trim().length < 7) {
+      const missingParts = [
+        !s.hasLoginAccount ? "Portal Login" : null,
+        !s.phone || s.phone.trim().length < 7 ? "Mobile Number" : null,
+      ].filter(Boolean);
+
+      issues.push({
+        id: `staff:incomplete-account:${s.id}`,
+        area: "staff_identity",
+        severity: !s.hasLoginAccount ? "critical" : "warning",
+        resolutionState: "detected",
+        title: `${s.full_name} is missing: ${missingParts.join(" & ")}`,
+        description: `Without a ${missingParts.join(" and ").toLowerCase()}, ${s.full_name} cannot receive shift notifications or scan smoothly.`,
+        guidance: s.hasLoginAccount
+          ? "Send a prompt to their Staff Portal to fill in their mobile number, or update their profile directly."
+          : "Open their Staff Profile in CRM to activate their login account and send their invite link.",
+        actionLabel: s.hasLoginAccount ? "Notify Staff to Complete" : "Set Up Account in CRM",
+        actionHref: `/crm/staff?tab=management&staffId=${encodeURIComponent(s.id)}`,
+        code: "STAFF_ACCOUNT_INCOMPLETE",
+        scanIdSuffix: null,
+        detectedAt: s.created_at ?? null,
+        staffId: s.id,
+        staffName: s.full_name,
+        resolutionKind: s.hasLoginAccount ? "staff_config_push" : "guidance",
+        staffPromptKind: "incomplete_profile",
+      });
+    }
+  }
+
+  return issues;
+}
+
 export function buildOperationsIssues(
-  attendance: Pick<AttendanceWorkspaceData, 'exceptions'> | null,
+  attendance: (Pick<AttendanceWorkspaceData, 'exceptions'> & Partial<AttendanceWorkspaceData>) | null,
   setup: CrmSetupHealthData | null,
   staffList?: OperationalStaffMember[] | null
 ): OperationsIssue[] {
-  const attendanceIssues: OperationsIssue[] = attendance
-    ? buildAttendanceReviewItems(attendance.exceptions).map((item) => {
-        const isPhone = item.diagnostic.resolutionKind === "phone" || item.diagnostic.code === "DEVICE_LIMIT_REACHED";
-        const isBranch = item.diagnostic.resolutionKind === "branch";
-        const staffId = item.exception.staff_id;
-        const actionHref = isPhone && staffId
-          ? "/crm/attendance?view=setup&section=phones&staffId=" + encodeURIComponent(staffId)
-          : isBranch
-            ? "/crm/attendance?view=review"
-            : "/crm/attendance?view=review";
-
-        let resolutionState: OperationsResolutionState = "detected";
-        if (item.exception.status === "in_review") resolutionState = "under_review";
-        if (item.exception.status === "pending_action") resolutionState = "pending_action";
-
-        return {
-          id: "attendance:" + item.exception.id,
-          area: "attendance" as const,
-          severity: item.priority === "critical" ? ("critical" as const) : ("warning" as const),
-          resolutionState,
-          title: item.title,
-          description: item.diagnostic.crmSummary,
-          guidance: item.diagnostic.crmInstruction,
-          actionLabel: item.recommendedAction,
-          actionHref,
-          code: item.diagnostic.code,
-          scanIdSuffix: scanSuffix(item.exception.scan_event_id ?? item.exception.latest_scan_event_id),
-          detectedAt: item.exception.detected_at,
-          staffId: item.exception.staff_id ?? null,
-          staffName: item.exception.staff_name ?? null,
-          resolutionKind: "attendance_router" as const,
-        };
-      })
+  // Operations Center only shows Phone Limit / Blocked Device exceptions from attendance (never the 403 daily shift mismatches!)
+  const attendancePhoneIssues: OperationsIssue[] = attendance
+    ? buildAttendanceReviewItems(attendance.exceptions)
+        .filter(
+          (item) =>
+            item.diagnostic.resolutionKind === "phone" ||
+            item.diagnostic.code === "DEVICE_LIMIT_REACHED"
+        )
+        .map((item) => {
+          const staffId = item.exception.staff_id;
+          const staffName = item.exception.staff_name ?? "Staff member";
+          return {
+            id: "attendance:" + item.exception.id,
+            area: "staff_identity" as const,
+            severity: "critical" as const,
+            resolutionState: "detected" as const,
+            title: `${staffName} reached the phone limit or switched phones`,
+            description: `${staffName} tried to scan from a new phone, but their account is still locked to an older phone.`,
+            guidance:
+              "Click 'Reset & Send Link to Portal' to clear their old phone and send a 1-tap connection link straight to their Staff Portal.",
+            actionLabel: "Reset & Send Link to Portal",
+            actionHref: staffId
+              ? `/crm/attendance?view=setup&section=phones&staffId=${encodeURIComponent(staffId)}`
+              : "/crm/attendance?view=review",
+            code: item.diagnostic.code,
+            scanIdSuffix: scanSuffix(
+              item.exception.scan_event_id ?? item.exception.latest_scan_event_id
+            ),
+            detectedAt: item.exception.detected_at,
+            staffId: staffId ?? null,
+            staffName,
+            resolutionKind: "staff_config_push" as const,
+            staffPromptKind: "missing_phone_device" as const,
+          };
+        })
     : [];
 
   const specificServiceIssues: OperationsIssue[] = [];
@@ -188,10 +272,12 @@ export function buildOperationsIssues(
         area: "configuration",
         severity: "critical",
         resolutionState: "detected",
-        title: `${svc.serviceName} has no assigned provider`,
-        description: "Active branch service has zero assigned therapists in staff_services. Customers cannot complete bookings for this service.",
-        guidance: "Assign at least one active therapist, nail technician, or aesthetician to this service at this branch.",
-        actionLabel: "Assign provider",
+        title: `Service "${svc.serviceName}" has no assigned therapists`,
+        description:
+          "Customers and Front Desk cannot book this service until at least one therapist or provider is assigned to perform it.",
+        guidance:
+          "Click 'Assign Providers' to select which staff members can perform this service.",
+        actionLabel: "Assign Providers",
         actionHref: "/crm/services?tab=issues&serviceId=" + encodeURIComponent(svc.serviceId),
         code: "SERVICE_NO_PROVIDER",
         scanIdSuffix: null,
@@ -225,18 +311,22 @@ export function buildOperationsIssues(
         }))
     : [];
 
-  const staffIssues = buildStaffDuplicateIssues(staffList);
+  const duplicateIssues = buildStaffDuplicateIssues(staffList);
+  const staffConfigIssues = buildStaffConfigurationIssues(staffList, attendance);
 
   const rank = { critical: 0, warning: 1, info: 2 };
-  return [...attendanceIssues, ...specificServiceIssues, ...configIssues, ...staffIssues].sort(
-    (a, b) => rank[a.severity] - rank[b.severity]
-  );
+  return [
+    ...specificServiceIssues,
+    ...configIssues,
+    ...attendancePhoneIssues,
+    ...staffConfigIssues,
+    ...duplicateIssues,
+  ].sort((a, b) => rank[a.severity] - rank[b.severity]);
 }
 
 export function recentUnsuccessfulScans(attendance: AttendanceWorkspaceData | null): OperationsScan[] {
   if (!attendance) return [];
 
-  // Group successful scans by staffId with their millisecond timestamps
   const successfulTimestampsByStaff = new Map<string, number[]>();
   for (const scan of attendance.scanEvents) {
     if (scan.outcome === "success" && scan.staff_id) {
@@ -247,7 +337,6 @@ export function recentUnsuccessfulScans(attendance: AttendanceWorkspaceData | nu
     }
   }
 
-  // Staff members with active open device/phone exceptions
   const staffWithOpenDeviceExceptions = new Set(
     (attendance.exceptions ?? [])
       .filter(
@@ -267,20 +356,14 @@ export function recentUnsuccessfulScans(attendance: AttendanceWorkspaceData | nu
       const isDuplicateNoop = reasonUpper.includes("DUPLICATE") || event.outcome === "noop";
       const isDeviceFailure = reasonUpper.includes("DEVICE") || reasonUpper.includes("PHONE");
 
-      // Staff identity check: Unknown device identity (no staff_id) can NEVER be recovered
       const hasKnownStaff = Boolean(event.staff_id);
       const eventTime = new Date(event.created_at).getTime();
 
-      // Subsequent success check: Must have a success strictly AFTER this failure event
       const staffSuccessTimes = hasKnownStaff
         ? successfulTimestampsByStaff.get(event.staff_id!) ?? []
         : [];
       const hasSubsequentSuccess = staffSuccessTimes.some((time) => time > eventTime);
 
-      // Do not claim an affected phone was repaired solely from another device's successful scan:
-      // While an open device exception exists for this staff member, the failure remains an active blocker.
-      // Once the device problem is authoritatively cleared (no open device exception remains)
-      // and a subsequent successful scan occurs, the failure is preserved as historical and marked recovered.
       const hasActiveDeviceBlocker =
         hasKnownStaff &&
         isDeviceFailure &&
@@ -292,48 +375,40 @@ export function recentUnsuccessfulScans(attendance: AttendanceWorkspaceData | nu
         hasSubsequentSuccess &&
         !hasActiveDeviceBlocker;
 
-      const isUnresolvedFailure =
-        !isDuplicateNoop &&
-        !isRecovered &&
-        (event.outcome === "blocked" || event.outcome === "exception");
-
       return {
         id: event.id,
         staffId: event.staff_id ?? null,
-        staffName: event.staff_name ?? "Unidentified staff",
-        reasonCode: event.reason_code ?? "SCAN_REVIEW",
-        message: event.message ?? "Scan did not complete successfully.",
-        scanIdSuffix: scanSuffix(event.id) ?? "",
+        staffName: event.staff_name ?? "Unidentified device",
+        reasonCode: event.reason_code ?? event.outcome,
+        message: event.message ?? "Scan did not complete",
+        scanIdSuffix: scanSuffix(event.id) ?? "SCAN",
         occurredAt: event.created_at,
-        isUnresolvedFailure,
+        isUnresolvedFailure: !isDuplicateNoop && !isRecovered,
       };
     });
 }
 
-export function issueMatchesSearch(issue: OperationsIssue, search: string): boolean {
-  if (!search) return true;
-  const term = search.toLowerCase();
+export function issueMatchesSearch(issue: OperationsIssue, normalizedQuery: string): boolean {
+  if (!normalizedQuery) return true;
   return [
     issue.title,
     issue.description,
     issue.guidance,
-    issue.code,
-    issue.scanIdSuffix,
-    issue.staffName,
-    issue.staffId,
-    issue.serviceName,
-    issue.serviceId,
-  ].some((value) => value?.toLowerCase().includes(term));
+    issue.code ?? "",
+    issue.scanIdSuffix ?? "",
+    issue.staffName ?? "",
+    issue.serviceName ?? "",
+  ]
+    .join(" ")
+    .toLowerCase()
+    .includes(normalizedQuery);
 }
 
-export function scanMatchesSearch(scan: OperationsScan, search: string): boolean {
-  if (!search) return true;
-  const term = search.toLowerCase();
-  return [
-    scan.staffName,
-    scan.staffId,
-    scan.reasonCode,
-    scan.message,
-    scan.scanIdSuffix,
-  ].some((value) => value?.toLowerCase().includes(term));
+export function scanMatchesSearch(scan: OperationsScan, normalizedQuery: string): boolean {
+  if (!normalizedQuery) return true;
+  return [scan.staffName, scan.reasonCode, scan.message, scan.scanIdSuffix]
+    .join(" ")
+    .toLowerCase()
+    .includes(normalizedQuery);
 }
+

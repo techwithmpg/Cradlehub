@@ -5,6 +5,7 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { ChevronLeft, ChevronRight, Clock3, Home, MapPin, Stethoscope } from "lucide-react";
 import { formatWeekRange } from "@/lib/staff-portal/week";
+import { StaffShiftSwapBar } from "@/components/features/staff-portal/shift-swap-panel";
 import {
   StaffSnapshotRecorder,
   useStaffSafeMemory,
@@ -104,6 +105,7 @@ export function TherapistScheduleList({ nav, days }: TherapistScheduleListProps)
             </div>
           </div>
 
+          <StaffShiftSwapBar selectedDate={selectedDay?.date ?? initialDate} />
           <div className="grid grid-cols-7 gap-1 rounded-[18px] bg-[#f0eadd] p-1 shadow-[inset_3px_3px_8px_#e7e1d6,inset_-3px_-3px_8px_#fffdf7]">
             {days.map((day) => {
               const selected = day.date === selectedDay?.date;
@@ -287,3 +289,4 @@ export function TherapistScheduleList({ nav, days }: TherapistScheduleListProps)
     </div>
   );
 }
+

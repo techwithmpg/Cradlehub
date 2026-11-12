@@ -640,13 +640,12 @@ export async function assignTherapistBySeniority(params: {
 
   if (candidates.length === 0) throw new SlotUnavailableError();
 
-  // Sort by seniority then name
-  const TIER_ORDER: Record<string, number> = { senior: 0, mid: 1, junior: 2 };
-  candidates.sort((a, b) => {
-    const tierDiff = (TIER_ORDER[a.staff_tier] ?? 9) - (TIER_ORDER[b.staff_tier] ?? 9);
-    if (tierDiff !== 0) return tierDiff;
-    return a.staff_name.localeCompare(b.staff_name);
+  const metrics = await getCandidateFcfsMetrics({
+    branchId: params.branchId,
+    date: params.date,
+    staffIds: candidates.map((c) => c.staff_id),
   });
+  candidates.sort((a, b) => compareCandidatesByFcfsAndShift(a, b, metrics));
 
   return candidates[0]!.staff_id;
 }
@@ -798,6 +797,108 @@ async function getActiveCheckinQueue(params: {
   return queue;
 }
 
+async function getCandidateFcfsMetrics(params: {
+  branchId: string;
+  date: string;
+  staffIds: string[];
+}): Promise<{
+  checkinQueue: Map<string, number>;
+  workloadCount: Map<string, number>;
+  shiftEndMinutes: Map<string, number>;
+}> {
+  const uniqueIds = Array.from(new Set(params.staffIds));
+  if (uniqueIds.length === 0) {
+    return {
+      checkinQueue: new Map(),
+      workloadCount: new Map(),
+      shiftEndMinutes: new Map(),
+    };
+  }
+
+  const supabase = createAdminClient();
+  const dayOfWeek = getDayOfWeekFromYmd(params.date);
+
+  const [checkinQueue, bookingsRes, schedulesRes, overridesRes] = await Promise.all([
+    getActiveCheckinQueue({ branchId: params.branchId, date: params.date, staffIds: uniqueIds }),
+    supabase
+      .from("bookings")
+      .select("staff_id, start_time, end_time, status, hold_expires_at")
+      .eq("branch_id", params.branchId)
+      .eq("booking_date", params.date)
+      .in("staff_id", uniqueIds),
+    supabase
+      .from("staff_schedules")
+      .select("staff_id, start_time, end_time, is_active")
+      .in("staff_id", uniqueIds)
+      .eq("day_of_week", dayOfWeek)
+      .eq("is_active", true),
+    supabase
+      .from("schedule_overrides")
+      .select("staff_id, start_time, end_time, is_day_off")
+      .in("staff_id", uniqueIds)
+      .eq("override_date", params.date),
+  ]);
+
+  const workloadCount = new Map<string, number>();
+  const now = new Date();
+  for (const b of (bookingsRes.data ?? []) as BlockingBookingRow[]) {
+    if (!bookingBlocksAvailability(b, now)) continue;
+    workloadCount.set(b.staff_id, (workloadCount.get(b.staff_id) ?? 0) + 1);
+  }
+
+  const shiftEndMinutes = new Map<string, number>();
+  for (const s of (schedulesRes.data ?? []) as Array<{ staff_id: string; end_time: string }>) {
+    const endMins = timeToMinutes(s.end_time);
+    const prev = shiftEndMinutes.get(s.staff_id);
+    if (prev === undefined || endMins < prev) shiftEndMinutes.set(s.staff_id, endMins);
+  }
+  for (const o of (overridesRes.data ?? []) as Array<{
+    staff_id: string;
+    end_time: string | null;
+    is_day_off: boolean;
+  }>) {
+    if (!o.is_day_off && o.end_time) {
+      shiftEndMinutes.set(o.staff_id, timeToMinutes(o.end_time));
+    }
+  }
+
+  return { checkinQueue, workloadCount, shiftEndMinutes };
+}
+
+function compareCandidatesByFcfsAndShift(
+  a: { staff_id: string; staff_tier?: string; staff_name: string },
+  b: { staff_id: string; staff_tier?: string; staff_name: string },
+  metrics: {
+    checkinQueue: Map<string, number>;
+    workloadCount: Map<string, number>;
+    shiftEndMinutes: Map<string, number>;
+  }
+): number {
+  const TIER_ORDER: Record<string, number> = { senior: 0, mid: 1, junior: 2 };
+
+  if (metrics.checkinQueue.size > 0) {
+    const aCheckedIn = metrics.checkinQueue.has(a.staff_id);
+    const bCheckedIn = metrics.checkinQueue.has(b.staff_id);
+    if (aCheckedIn !== bCheckedIn) return aCheckedIn ? -1 : 1;
+  }
+
+  const aLoad = metrics.workloadCount.get(a.staff_id) ?? 0;
+  const bLoad = metrics.workloadCount.get(b.staff_id) ?? 0;
+  if (aLoad !== bLoad) return aLoad - bLoad;
+
+  const aQueue = metrics.checkinQueue.get(a.staff_id) ?? 9999;
+  const bQueue = metrics.checkinQueue.get(b.staff_id) ?? 9999;
+  if (aQueue !== bQueue) return aQueue - bQueue;
+
+  const aEnd = metrics.shiftEndMinutes.get(a.staff_id) ?? 9999;
+  const bEnd = metrics.shiftEndMinutes.get(b.staff_id) ?? 9999;
+  if (aEnd !== bEnd) return aEnd - bEnd;
+
+  const tierDiff = (TIER_ORDER[a.staff_tier ?? ""] ?? 9) - (TIER_ORDER[b.staff_tier ?? ""] ?? 9);
+  if (tierDiff !== 0) return tierDiff;
+  return a.staff_name.localeCompare(b.staff_name);
+}
+
 /**
  * Multi-service variant of assignTherapistBySeniority.
  * Finds available therapists for the combined duration and assigns by tier priority.
@@ -842,37 +943,19 @@ export async function assignTherapistBySeniorityMultiDetailed(params: {
 
   if (candidates.length === 0) throw new SlotUnavailableError();
 
-  const TIER_ORDER: Record<string, number> = { senior: 0, mid: 1, junior: 2 };
-
-  const useAttendancePreference = params.preferCheckedIn === true;
-  const checkedInQueue = useAttendancePreference
-    ? await getActiveCheckinQueue({
-        branchId: params.branchId,
-        date: params.date,
-        staffIds: Array.from(new Set(candidates.map((slot) => slot.staff_id))),
-      })
-    : new Map<string, number>();
-
-  candidates.sort((a, b) => {
-    if (checkedInQueue.size > 0) {
-      const aQueuePosition = checkedInQueue.get(a.staff_id);
-      const bQueuePosition = checkedInQueue.get(b.staff_id);
-      if (aQueuePosition !== undefined && bQueuePosition !== undefined) {
-        return aQueuePosition - bQueuePosition;
-      }
-      if (aQueuePosition !== undefined) return -1;
-      if (bQueuePosition !== undefined) return 1;
-    }
-
-    const tierDiff = (TIER_ORDER[a.staff_tier] ?? 9) - (TIER_ORDER[b.staff_tier] ?? 9);
-    if (tierDiff !== 0) return tierDiff;
-    return a.staff_name.localeCompare(b.staff_name);
+  const useAttendancePreference = params.preferCheckedIn === true || params.date === getBranchBusinessDate();
+  const metrics = await getCandidateFcfsMetrics({
+    branchId: params.branchId,
+    date: params.date,
+    staffIds: candidates.map((slot) => slot.staff_id),
   });
+
+  candidates.sort((a, b) => compareCandidatesByFcfsAndShift(a, b, metrics));
 
   return {
     staffId: candidates[0]!.staff_id,
     warning:
-      useAttendancePreference && checkedInQueue.size === 0
+      useAttendancePreference && metrics.checkinQueue.size === 0
         ? NO_CHECKED_IN_STAFF_WARNING
         : undefined,
   };
@@ -1100,12 +1183,12 @@ export async function assignTherapistsForOrder(params: {
         (s) => s.available && s.slot_time.startsWith(startTime.substring(0, 5))
       );
 
-      // Sort by seniority
-      candidates.sort((a, b) => {
-        const tierDiff = (TIER_ORDER[a.staff_tier] ?? 9) - (TIER_ORDER[b.staff_tier] ?? 9);
-        if (tierDiff !== 0) return tierDiff;
-        return a.staff_name.localeCompare(b.staff_name);
+      const metrics = await getCandidateFcfsMetrics({
+        branchId,
+        date,
+        staffIds: candidates.map((c) => c.staff_id),
       });
+      candidates.sort((a, b) => compareCandidatesByFcfsAndShift(a, b, metrics));
 
       let staffIds = candidates.map((c) => c.staff_id);
 
@@ -1151,3 +1234,5 @@ export async function assignTherapistsForOrder(params: {
     staffId: assignment[idx]!,
   }));
 }
+
+

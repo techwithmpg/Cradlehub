@@ -5,6 +5,78 @@ import type { NotificationBellSnapshot, WorkspaceNotification } from "./types";
 import { logError } from "@/lib/logger";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { createOrUpdateNotification } from "./workflow-notifications-store";
+import { getLayoutStaffContext } from "@/lib/queries/staff-context";
+import { staffNotificationWorkspace } from "@/lib/staff-pwa/notice-policy";
+import { canonicalizeSystemRole } from "@/constants/staff";
+
+type ViewerNotificationScope = {
+  targetWorkspace: "owner" | "crm" | "staff" | "driver" | "utility";
+  staffId: string | null;
+  branchId: string | null;
+  systemRole: string;
+};
+
+async function resolveViewerNotificationScope(
+  ownerOnly = false
+): Promise<ViewerNotificationScope | null> {
+  const ctx = await getLayoutStaffContext();
+  if (!ctx?.me) return null;
+  const role = ctx.me.system_role;
+  const canonicalRole = canonicalizeSystemRole(role);
+  if (ownerOnly || canonicalRole === "owner") {
+    return {
+      targetWorkspace: "owner",
+      staffId: ctx.me.id,
+      branchId: ctx.me.branch_id,
+      systemRole: "owner",
+    };
+  }
+  if (canonicalRole === "manager" || canonicalRole === "crm") {
+    return {
+      targetWorkspace: "crm",
+      staffId: ctx.me.id,
+      branchId: ctx.me.branch_id,
+      systemRole: canonicalRole,
+    };
+  }
+  const mappedWorkspace = staffNotificationWorkspace({
+    system_role: role,
+    staff_type: ctx.me.staff_type,
+  });
+  return {
+    targetWorkspace: (mappedWorkspace as ViewerNotificationScope["targetWorkspace"]) || "staff",
+    staffId: ctx.me.id,
+    branchId: ctx.me.branch_id,
+    systemRole: canonicalRole,
+  };
+}
+
+function filterNotificationsForViewer(
+  rows: WorkspaceNotification[],
+  scope: ViewerNotificationScope | null
+): WorkspaceNotification[] {
+  if (!scope) return rows;
+  return rows.filter((row) => {
+    if (row.target_workspace !== scope.targetWorkspace) return false;
+    if (scope.targetWorkspace !== "owner" && scope.branchId && row.branch_id && row.branch_id !== scope.branchId) {
+      return false;
+    }
+    // Personal roles (therapist/staff, driver, utility): only show notifications addressed to them (or branch-wide driver/utility broadcasts)
+    if (scope.targetWorkspace === "staff") {
+      if (row.recipient_staff_id && scope.staffId && row.recipient_staff_id !== scope.staffId) {
+        return false;
+      }
+      if (!row.recipient_staff_id && scope.staffId) {
+        return false;
+      }
+    } else if (scope.targetWorkspace === "driver" || scope.targetWorkspace === "utility") {
+      if (row.recipient_staff_id && scope.staffId && row.recipient_staff_id !== scope.staffId) {
+        return false;
+      }
+    }
+    return true;
+  });
+}
 
 export async function respondToAttendanceIssueAction(input: {
   notificationId: string;
@@ -95,38 +167,62 @@ const PRIORITY_RANK: Record<string, number> = {
 export async function getWorkspaceNotificationsAction(
   limit = 30
 ): Promise<WorkspaceNotification[]> {
-  const supabase = await createClient();
+  const [supabase, scope] = await Promise.all([
+    createClient(),
+    resolveViewerNotificationScope(false),
+  ]);
   const thirtyDaysAgo = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString();
-  const { data, error } = await supabase
+  let query = supabase
     .from("workspace_notifications")
     .select("*")
     .in("status", ["unread", "read", "resolved"])
     .gte("created_at", thirtyDaysAgo)
     .order("created_at", { ascending: false })
-    .limit(limit);
+    .limit(limit * 2);
+
+  if (scope) {
+    query = query.eq("target_workspace", scope.targetWorkspace);
+    if (scope.targetWorkspace === "staff" && scope.staffId) {
+      query = query.eq("recipient_staff_id", scope.staffId);
+    }
+  }
+
+  const { data, error } = await query;
   if (error) {
     logError("notification.query_failed", { action: "getWorkspaceNotifications", error });
     return [];
   }
-  return (data ?? []) as WorkspaceNotification[];
+  return filterNotificationsForViewer((data ?? []) as WorkspaceNotification[], scope).slice(0, limit);
 }
 
 export async function getActionRequiredNotificationsAction(
   limit = 10
 ): Promise<WorkspaceNotification[]> {
-  const supabase = await createClient();
-  const { data, error } = await supabase
+  const [supabase, scope] = await Promise.all([
+    createClient(),
+    resolveViewerNotificationScope(false),
+  ]);
+  let query = supabase
     .from("workspace_notifications")
     .select("*")
     .eq("requires_action", true)
     .in("status", ["unread", "read"])
     .order("created_at", { ascending: false })
     .limit(Math.max(limit * 4, limit));
+
+  if (scope) {
+    query = query.eq("target_workspace", scope.targetWorkspace);
+    if (scope.targetWorkspace === "staff" && scope.staffId) {
+      query = query.eq("recipient_staff_id", scope.staffId);
+    }
+  }
+
+  const { data, error } = await query;
   if (error) {
     logError("notification.query_failed", { action: "getActionRequired", error });
     return [];
   }
-  return ((data ?? []) as WorkspaceNotification[])
+  return filterNotificationsForViewer((data ?? []) as WorkspaceNotification[], scope)
     .sort((a, b) => {
       const priorityDiff = (PRIORITY_RANK[b.priority] ?? 0) - (PRIORITY_RANK[a.priority] ?? 0);
       if (priorityDiff !== 0) return priorityDiff;
@@ -136,53 +232,46 @@ export async function getActionRequiredNotificationsAction(
 }
 
 export async function getRecentNotificationsAction(limit = 20): Promise<WorkspaceNotification[]> {
-  const supabase = await createClient();
-  const thirtyDaysAgo = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString();
-  const { data, error } = await supabase
-    .from("workspace_notifications")
-    .select("*")
-    .in("status", ["unread", "read", "resolved"])
-    .gte("created_at", thirtyDaysAgo)
-    .order("created_at", { ascending: false })
-    .limit(limit);
-  if (error) {
-    logError("notification.query_failed", { action: "getRecentNotifications", error });
-    return [];
-  }
-  return (data ?? []) as WorkspaceNotification[];
+  return getWorkspaceNotificationsAction(limit);
 }
 
 export async function getUnreadCountAction(): Promise<number> {
-  const supabase = await createClient();
-  const { count, error } = await supabase
-    .from("workspace_notifications")
-    .select("id", { count: "exact", head: true })
-    .eq("status", "unread");
-  if (error) return 0;
-  return count ?? 0;
+  const snapshot = await getNotificationBellSnapshot(20, false);
+  return snapshot.unreadCount;
 }
 
-export async function getNotificationBellSnapshot(limit = 20, ownerOnly = false): Promise<NotificationBellSnapshot> {
-  const supabase = await createClient();
+export async function getNotificationBellSnapshot(
+  limit = 20,
+  ownerOnly = false
+): Promise<NotificationBellSnapshot> {
+  const [supabase, scope] = await Promise.all([
+    createClient(),
+    resolveViewerNotificationScope(ownerOnly),
+  ]);
   const thirtyDaysAgo = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString();
   const safeLimit = Math.max(1, Math.min(50, Math.floor(limit)));
-  // The bell shows current work, not resolved history. Owner-only filtering
-  // narrows an already RLS-authorized result; it grants no additional access.
+  const targetWs = ownerOnly ? "owner" : (scope?.targetWorkspace ?? "crm");
+
   let itemsQuery = supabase
     .from("workspace_notifications")
     .select("*")
+    .eq("target_workspace", targetWs)
     .in("status", ["unread", "read"])
     .gte("created_at", thirtyDaysAgo)
     .order("created_at", { ascending: false })
-    .limit(safeLimit);
+    .limit(safeLimit * 2);
+
   let countQuery = supabase
     .from("workspace_notifications")
     .select("id", { count: "exact", head: true })
+    .eq("target_workspace", targetWs)
     .eq("status", "unread");
-  if (ownerOnly) {
-    itemsQuery = itemsQuery.eq("target_workspace", "owner");
-    countQuery = countQuery.eq("target_workspace", "owner");
+
+  if (targetWs === "staff" && scope?.staffId) {
+    itemsQuery = itemsQuery.eq("recipient_staff_id", scope.staffId);
+    countQuery = countQuery.eq("recipient_staff_id", scope.staffId);
   }
+
   const [itemsResult, countResult] = await Promise.all([itemsQuery, countQuery]);
   if (itemsResult.error || countResult.error) {
     logError("notification.query_failed", {
@@ -191,25 +280,21 @@ export async function getNotificationBellSnapshot(limit = 20, ownerOnly = false)
     });
     return { items: [], unreadCount: 0 };
   }
+
+  const filteredItems = filterNotificationsForViewer(
+    (itemsResult.data ?? []) as WorkspaceNotification[],
+    scope
+  ).slice(0, safeLimit);
+
   return {
-    items: (itemsResult.data ?? []) as WorkspaceNotification[],
-    unreadCount: countResult.count ?? 0,
+    items: filteredItems,
+    unreadCount: countResult.count ?? filteredItems.filter((i) => i.status === "unread").length,
   };
 }
 
 export async function getNotificationPopoverAction(limit = 8): Promise<WorkspaceNotification[]> {
-  const supabase = await createClient();
-  const { data, error } = await supabase
-    .from("workspace_notifications")
-    .select("*")
-    .eq("status", "unread")
-    .order("created_at", { ascending: false })
-    .limit(limit);
-  if (error) {
-    logError("notification.query_failed", { action: "getNotificationPopover", error });
-    return [];
-  }
-  return (data ?? []) as WorkspaceNotification[];
+  const snapshot = await getNotificationBellSnapshot(limit, false);
+  return snapshot.items.filter((item) => item.status === "unread").slice(0, limit);
 }
 
 export async function markNotificationReadAction(id: string): Promise<void> {
@@ -222,22 +307,30 @@ export async function markNotificationReadAction(id: string): Promise<void> {
 }
 
 export async function markAllNotificationsReadAction(ownerOnly = false): Promise<void> {
-  const supabase = await createClient();
-  // The Owner bell's "mark all" must not clear CRM/staff work.
+  const [supabase, scope] = await Promise.all([
+    createClient(),
+    resolveViewerNotificationScope(ownerOnly),
+  ]);
+  const targetWs = ownerOnly ? "owner" : (scope?.targetWorkspace ?? "crm");
+
+  // Mark unread notifications in this role's workspace as read so the badge clears immediately,
+  // while preserving requires_action = true so items stay in Action Required until resolved!
   let query = supabase
     .from("workspace_notifications")
     .update({ status: "read", read_at: new Date().toISOString() })
     .eq("status", "unread")
-    .eq("requires_action", false);
-  if (ownerOnly) query = query.eq("target_workspace", "owner");
+    .eq("target_workspace", targetWs);
+
+  if (targetWs === "staff" && scope?.staffId) {
+    query = query.eq("recipient_staff_id", scope.staffId);
+  }
+
   const { error } = await query;
-  if (error) throw new Error("Could not mark informational notifications as read.");
+  if (error) throw new Error("Could not mark notifications as read.");
 }
 
 export async function dismissNotificationAction(id: string): Promise<void> {
   const supabase = await createClient();
-  // One CSR closing an informational alert must never dismiss shared
-  // action-required work for the entire branch.
   const { error } = await supabase
     .from("workspace_notifications")
     .update({ status: "dismissed" })
@@ -255,13 +348,16 @@ export async function resolveNotificationAction(id: string): Promise<void> {
     .eq("id", id);
 }
 
-// ── Sound trigger: IDs of unread booking notifications requiring action ─────────
-// Used by BookingNotificationSound to detect new arrivals without fetching full rows.
 export async function getUnreadBookingNotificationIdsAction(): Promise<string[]> {
-  const supabase = await createClient();
+  const [supabase, scope] = await Promise.all([
+    createClient(),
+    resolveViewerNotificationScope(false),
+  ]);
+  const targetWs = scope?.targetWorkspace ?? "crm";
   const { data, error } = await supabase
     .from("workspace_notifications")
     .select("id")
+    .eq("target_workspace", targetWs)
     .eq("status", "unread")
     .eq("requires_action", true)
     .eq("entity_type", "booking")
@@ -271,12 +367,32 @@ export async function getUnreadBookingNotificationIdsAction(): Promise<string[]>
   return (data ?? []).map((r) => r.id);
 }
 
-// ── Owner reads: still use the signed-in client so RLS protects direct calls. ──
-
 export async function getOwnerAllNotificationsAction(limit = 50): Promise<WorkspaceNotification[]> {
-  return getWorkspaceNotificationsAction(limit);
+  const supabase = await createClient();
+  const thirtyDaysAgo = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString();
+  const { data, error } = await supabase
+    .from("workspace_notifications")
+    .select("*")
+    .eq("target_workspace", "owner")
+    .in("status", ["unread", "read", "resolved"])
+    .gte("created_at", thirtyDaysAgo)
+    .order("created_at", { ascending: false })
+    .limit(limit);
+  if (error) return [];
+  return (data ?? []) as WorkspaceNotification[];
 }
 
 export async function getOwnerActionRequiredAction(limit = 10): Promise<WorkspaceNotification[]> {
-  return getActionRequiredNotificationsAction(limit);
+  const supabase = await createClient();
+  const { data, error } = await supabase
+    .from("workspace_notifications")
+    .select("*")
+    .eq("target_workspace", "owner")
+    .eq("requires_action", true)
+    .in("status", ["unread", "read"])
+    .order("created_at", { ascending: false })
+    .limit(limit);
+  if (error) return [];
+  return (data ?? []) as WorkspaceNotification[];
 }
+

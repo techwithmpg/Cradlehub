@@ -12,6 +12,7 @@ import {
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { useMobileNavigationProgress } from "./mobile-navigation-progress-provider";
 import { WorkspaceEntityDeltaBridge } from "@/components/features/dashboard/workspace-entity-delta-bridge";
+import { AutoPushSubscriptionManager } from "@/components/features/notifications/auto-push-subscription-manager";
 import { useWorkspaceEntityDelta } from "@/lib/workspace/entity-delta-bus";
 
 export const MOBILE_INSTANT_NAV_EVENT = "cradlehub:mobile-instant-nav";
@@ -189,6 +190,7 @@ export function MobileRetainedTabHost({
 
   return (
     <>
+      <AutoPushSubscriptionManager />
       {branchId ? <WorkspaceEntityDeltaBridge branchId={branchId} /> : null}
       {showFirstLoadSkeleton ? <MobileFirstLoadSkeleton /> : null}
       {entries.map((entry) => {
@@ -212,3 +214,4 @@ export function MobileRetainedTabHost({
     </>
   );
 }
+

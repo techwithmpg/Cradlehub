@@ -77,7 +77,7 @@ export async function createOrUpdateNotification(input: CreateNotificationInput)
     // and respects staffed hours; do not send an immediate night-time push.
     if (!(process.env.CRADLEHUB_PENDING_BOOKING_ALERTS_ENABLED === "true" &&
       inserted.target_workspace === "crm" && inserted.type === "booking_created")) {
-      await deliverWorkspaceNotificationPush(inserted);
+      void deliverWorkspaceNotificationPush(inserted).catch(() => undefined);
     }
     return true;
   }
@@ -120,7 +120,7 @@ export async function createNotificationOnce(input: CreateNotificationInput): Pr
     logError("notification.once_insert_failed", { type: input.type, error });
     return false;
   }
-  await deliverWorkspaceNotificationPush(inserted);
+  void deliverWorkspaceNotificationPush(inserted).catch(() => undefined);
   return true;
 }
 
@@ -143,3 +143,4 @@ export async function markNotificationResolved(input: MarkNotificationResolvedIn
   const { error } = await query;
   if (error) logError("notification.resolve_failed", { error });
 }
+

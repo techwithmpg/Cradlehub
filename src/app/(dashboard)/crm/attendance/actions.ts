@@ -868,3 +868,381 @@ export async function deactivateQrPointAction(formData: FormData): Promise<Atten
     return { ok: false, tab: "qr", message: safeError(error, "Could not deactivate the QR code.") };
   }
 }
+
+/**
+ * 1-Click Front Desk Self-Service: Bulk-clears stale or already-handled attendance exceptions
+ * so CRM is not drowned in hundreds of legacy `ATTENDANCE_STATE_MISMATCH` rows.
+ */
+
+export async function bulkResolveAttendanceExceptionsAction(input?: {
+  onlyMismatches?: boolean;
+}): Promise<{ ok: boolean; clearedCount: number; message: string }> {
+  const context = await getContextOrResult("exceptions");
+  if ("result" in context) {
+    return { ok: false, clearedCount: 0, message: context.result.message };
+  }
+  const admin = createAdminClient();
+  const now = new Date().toISOString();
+
+  let query = admin
+    .from("attendance_exceptions")
+    .update({
+      status: "resolved",
+      resolution_status: "resolved",
+      resolved_at: now,
+      resolved_by: context.ctx.actorStaffId,
+      resolution_note: "Cleared via Front Desk bulk cleanup",
+    })
+    .eq("branch_id", context.ctx.branchId)
+    .in("status", ["open", "in_review", "pending_action"]);
+
+  if (input?.onlyMismatches) {
+    query = query.or("exception_type.ilike.%mismatch%,safe_error_code.ilike.%MISMATCH%");
+  }
+
+  const { data, error } = await query.select("id");
+  if (error) {
+    return { ok: false, clearedCount: 0, message: "Could not clear attendance exceptions." };
+  }
+  const count = data?.length ?? 0;
+  revalidateAttendanceSurfaces();
+  return {
+    ok: true,
+    clearedCount: count,
+    message: count > 0 ? `Cleared ${count} attendance review item(s).` : "All items are already clear.",
+  };
+}
+
+export async function quickFixAttendanceExceptionAction(input: {
+  exceptionId: string;
+  staffId?: string | null;
+  checkinId?: string | null;
+  scanTimeIso?: string | null;
+  mode: "confirm_clock_in" | "confirm_clock_out" | "sync_and_close" | "dismiss_invalid";
+}): Promise<{ ok: boolean; message: string }> {
+  const context = await getContextOrResult("exceptions");
+  if ("result" in context) return { ok: false, message: context.result.message };
+
+  const admin = createAdminClient();
+  const now = new Date().toISOString();
+  const effectiveTime = input.scanTimeIso || now;
+
+  try {
+    if (input.mode === "confirm_clock_in" && input.staffId) {
+      await applyAttendanceCorrection({
+        ctx: context.ctx,
+        input: {
+          branchId: context.ctx.branchId,
+          actionType: "set_manual_clock_in",
+          exceptionId: input.exceptionId,
+          checkinId: input.checkinId,
+          staffId: input.staffId,
+          manualClockInAt: effectiveTime,
+          reason: "Confirmed as Clock-In by Front Desk",
+        },
+      }).catch(async () => {
+        await applyAttendanceCorrection({
+          ctx: context.ctx,
+          input: {
+            branchId: context.ctx.branchId,
+            actionType: "rebuild_from_scans",
+            exceptionId: input.exceptionId,
+            checkinId: input.checkinId,
+            staffId: input.staffId,
+            reason: "Synced Clock-In by Front Desk",
+          },
+        }).catch(() => undefined);
+      });
+    } else if (input.mode === "confirm_clock_out" && input.staffId) {
+      const { data: openCheckin } = await admin
+        .from("staff_shift_checkins")
+        .select("id")
+        .eq("branch_id", context.ctx.branchId)
+        .eq("staff_id", input.staffId)
+        .is("checked_out_at", null)
+        .order("checked_in_at", { ascending: false })
+        .limit(1)
+        .maybeSingle();
+
+      const targetCheckinId = input.checkinId ?? openCheckin?.id ?? null;
+      if (targetCheckinId) {
+        await admin
+          .from("staff_shift_checkins")
+          .update({
+            checked_out_at: effectiveTime,
+            status: "checked_out",
+          })
+          .eq("id", targetCheckinId);
+      }
+    } else if (input.mode === "sync_and_close" && input.staffId) {
+      await applyAttendanceCorrection({
+        ctx: context.ctx,
+        input: {
+          branchId: context.ctx.branchId,
+          actionType: "rebuild_from_scans",
+          exceptionId: input.exceptionId,
+          checkinId: input.checkinId,
+          staffId: input.staffId,
+          reason: "Synced attendance record from saved scans by Front Desk",
+        },
+      }).catch(() => undefined);
+    }
+
+    await admin
+      .from("attendance_exceptions")
+      .update({
+        status: "resolved",
+        resolution_status: "resolved",
+        resolved_at: now,
+        resolved_by: context.ctx.actorStaffId,
+        resolution_note:
+          input.mode === "confirm_clock_in"
+            ? "Confirmed as Clock-In by Front Desk"
+            : input.mode === "confirm_clock_out"
+              ? "Confirmed as Clock-Out by Front Desk"
+              : input.mode === "sync_and_close"
+                ? "Attendance record synced & approved by Front Desk"
+                : "Dismissed as duplicate/invalid scan by Front Desk",
+      })
+      .eq("id", input.exceptionId);
+
+    revalidateAttendanceSurfaces();
+    return {
+      ok: true,
+      message:
+        input.mode === "confirm_clock_in"
+          ? "Clock-in time confirmed and issue resolved."
+          : input.mode === "confirm_clock_out"
+            ? "Shift clocked out and issue resolved."
+            : input.mode === "sync_and_close"
+              ? "Attendance record synced and issue resolved."
+              : "Scan dismissed and removed from review.",
+    };
+  } catch (error) {
+    return { ok: false, message: safeError(error, "Could not complete quick fix.") };
+  }
+}
+
+export async function resetStaffPhoneAndNotifyAction(input: {
+  staffId: string;
+  exceptionId?: string | null;
+}): Promise<{ ok: boolean; activationUrl?: string; message: string }> {
+  const context = await getContextOrResult("devices");
+  if ("result" in context) return { ok: false, message: context.result.message };
+
+  try {
+    const origin = await getOrigin();
+    const recovery = await generateAttendanceDeviceRecoveryOperation({
+      ctx: context.ctx,
+      origin,
+      input: {
+        branchId: context.ctx.branchId,
+        staffId: input.staffId,
+        reason: "replacement_phone",
+        expiresInMinutes: 60,
+        deliveryMethod: "staff_profile",
+      },
+    });
+
+    const activationUrl = recovery.recoveryUrl ?? undefined;
+    const actionHref =
+      activationUrl && activationUrl.startsWith("http")
+        ? new URL(activationUrl).pathname + new URL(activationUrl).search
+        : activationUrl ?? "/staff-portal/attendance";
+
+    await createOrUpdateNotification({
+      branchId: context.ctx.branchId,
+      targetWorkspace: "staff",
+      recipientStaffId: input.staffId,
+      actorStaffId: context.ctx.actorStaffId,
+      type: "attendance_device_recovery_ready",
+      title: "Connect Your Phone for Attendance",
+      body: "Front Desk reset your attendance phone connection. Tap here to connect your current phone in one tap.",
+      entityType: "attendance_exception",
+      entityId: input.exceptionId ?? input.staffId,
+      actionHref,
+      priority: "high",
+      requiresAction: true,
+      dedupeKey: `device-reconnect:${input.staffId}:${Date.now()}`,
+    });
+
+    if (input.exceptionId) {
+      const admin = createAdminClient();
+      await admin
+        .from("attendance_exceptions")
+        .update({
+          status: "resolved",
+          resolution_status: "resolved",
+          resolved_at: new Date().toISOString(),
+          resolved_by: context.ctx.actorStaffId,
+          resolution_note: "Phone reset and reconnect link sent to staff portal.",
+        })
+        .eq("id", input.exceptionId);
+    }
+
+    revalidateAttendanceSurfaces();
+    return {
+      ok: true,
+      activationUrl,
+      message: "Old phone cleared and reconnect link sent to the staff member's portal!",
+    };
+  } catch (error) {
+    return {
+      ok: false,
+      message: safeError(error, "Could not reset phone connection."),
+    };
+  }
+}
+
+export async function sendScheduledClockInRemindersAction(input?: {
+  staffIds?: string[];
+}): Promise<{ ok: boolean; sentCount: number; message: string }> {
+  const context = await getContextOrResult("overview");
+  if ("result" in context) {
+    return { ok: false, sentCount: 0, message: context.result.message };
+  }
+
+  try {
+    const workspace = await getAttendanceWorkspaceData({
+      branchId: context.ctx.branchId,
+      branchName: context.ctx.branchName,
+      origin: await getOrigin(),
+      canSwitchBranch: false,
+      historyDays: 0,
+      openExceptionsOnly: true,
+    });
+
+    const targetIdSet = input?.staffIds?.length ? new Set(input.staffIds) : null;
+
+    const unScannedScheduledStaff = workspace.dailyStaffStates.filter((row) => {
+      if (targetIdSet && !targetIdSet.has(row.staffId)) return false;
+      if (row.clockInAt || row.clockOutAt) return false;
+      return Boolean(row.scheduledStart);
+    });
+
+    if (unScannedScheduledStaff.length === 0) {
+      return {
+        ok: true,
+        sentCount: 0,
+        message: "All scheduled staff for today have already scanned in or been notified.",
+      };
+    }
+
+    let sentCount = 0;
+    for (const staffRow of unScannedScheduledStaff) {
+      const scheduleLabel =
+        staffRow.scheduledStart && staffRow.scheduledEnd
+          ? ` (${staffRow.scheduledStart}–${staffRow.scheduledEnd})`
+          : "";
+      const ok = await createOrUpdateNotification({
+        branchId: context.ctx.branchId,
+        targetWorkspace: "staff",
+        recipientStaffId: staffRow.staffId,
+        actorStaffId: context.ctx.actorStaffId,
+        type: "attendance_clock_in_reminder",
+        title: "Reminder: Scan QR to Clock In",
+        body: `You are scheduled at ${context.ctx.branchName} today${scheduleLabel}, and we haven't received your attendance scan yet. Tap here to open the QR scanner.`,
+        entityType: "attendance_checkin",
+        entityId: staffRow.staffId,
+        actionHref: "/staff/scan",
+        priority: "high",
+        requiresAction: true,
+        dedupeKey: `clock-in-reminder:${workspace.businessDate}:${staffRow.staffId}:${Math.floor(Date.now() / (15 * 60_000))}`,
+        metadata: {
+          businessDate: workspace.businessDate,
+          scheduledWindow: scheduleLabel || null,
+          scanActionHref: "/staff/scan",
+        },
+      });
+      if (ok) sentCount += 1;
+    }
+
+    return {
+      ok: true,
+      sentCount,
+      message: `Sent QR clock-in push reminder to ${sentCount} scheduled staff member(s).`,
+    };
+  } catch (error) {
+    return {
+      ok: false,
+      sentCount: 0,
+      message: safeError(error, "Could not send clock-in reminders."),
+    };
+  }
+}
+
+export async function sendStaffConfigurationPromptAction(input: {
+  staffId: string;
+  staffName: string;
+  issueKind: "missing_phone_device" | "incomplete_profile" | "missing_schedule" | "general_setup";
+}): Promise<{ ok: boolean; activationUrl?: string; message: string }> {
+  const context = await getContextOrResult("devices");
+  if ("result" in context) return { ok: false, message: context.result.message };
+
+  try {
+    let actionHref = "/staff-portal/profile";
+    let activationUrl: string | undefined;
+    let title = "Action Required: Complete Your Staff Setup";
+    let body =
+      "Front Desk requested a quick update to your staff profile so your shifts and bookings run smoothly. Tap to open.";
+
+    if (input.issueKind === "missing_phone_device") {
+      const origin = await getOrigin();
+      const recovery = await generateAttendanceDeviceRecoveryOperation({
+        ctx: context.ctx,
+        origin,
+        input: {
+          branchId: context.ctx.branchId,
+          staffId: input.staffId,
+          reason: "support_recovery",
+          expiresInMinutes: 60,
+          deliveryMethod: "staff_profile",
+        },
+      });
+      activationUrl = recovery.recoveryUrl ?? undefined;
+      actionHref =
+        activationUrl && activationUrl.startsWith("http")
+          ? new URL(activationUrl).pathname + new URL(activationUrl).search
+          : activationUrl ?? "/staff-portal/attendance";
+      title = "Connect Your Phone for QR Attendance";
+      body = `Hi ${input.staffName}, tap this alert to link your phone for instant QR attendance scanning at ${context.ctx.branchName}.`;
+    } else if (input.issueKind === "incomplete_profile") {
+      actionHref = "/staff-portal/profile";
+      title = "Complete Your Staff Profile & Contact Info";
+      body = `Hi ${input.staffName}, please verify your contact number and profile details in your Staff Portal.`;
+    }
+
+    await createOrUpdateNotification({
+      branchId: context.ctx.branchId,
+      targetWorkspace: "staff",
+      recipientStaffId: input.staffId,
+      actorStaffId: context.ctx.actorStaffId,
+      type: "staff_profile_incomplete",
+      title,
+      body,
+      entityType: "staff",
+      entityId: input.staffId,
+      actionHref,
+      priority: "high",
+      requiresAction: true,
+      dedupeKey: `staff-config-prompt:${input.staffId}:${input.issueKind}:${Math.floor(Date.now() / (10 * 60_000))}`,
+      metadata: {
+        issueKind: input.issueKind,
+        activationUrl: activationUrl ?? null,
+      },
+    });
+
+    return {
+      ok: true,
+      activationUrl,
+      message: activationUrl
+        ? `Sent 1-tap phone setup push to ${input.staffName}'s portal (and generated QR/link)!`
+        : `Sent profile completion push notification straight to ${input.staffName}'s portal!`,
+    };
+  } catch (error) {
+    return {
+      ok: false,
+      message: safeError(error, "Could not send setup prompt to staff member."),
+    };
+  }
+}

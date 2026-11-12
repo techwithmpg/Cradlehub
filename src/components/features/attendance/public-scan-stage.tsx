@@ -18,36 +18,36 @@ type PublicScanStageProps = {
 
 const STAGE_COPY: Record<PublicScanStageName, { title: string; description: string }> = {
   recognizing: {
-    title: "Recognizing you...",
-    description: "Please wait while we securely verify this device.",
+    title: "Recognizing your phone...",
+    description: "Checking your staff pass for a fast scan.",
   },
   qr_recognized: {
-    title: "QR code recognized",
-    description: "Preparing to verify your attendance location.",
+    title: "QR Code Scanned",
+    description: "Recording your attendance now...",
   },
   verifying_location: {
-    title: "Verifying location...",
-    description: "Checking a fresh GPS reading for this attendance scan.",
+    title: "Confirming branch...",
+    description: "One moment while we confirm your branch.",
   },
   processing: {
-    title: "Validating attendance...",
-    description: "We are checking your device, branch, and attendance session.",
+    title: "Updating your shift...",
+    description: "Saving your clock-in or clock-out time.",
   },
   signing_in: {
-    title: "Signing in...",
-    description: "We are checking your staff account.",
+    title: "Signing you in...",
+    description: "Connecting your staff account.",
   },
   registering_device: {
-    title: "Registering this phone...",
-    description: "This phone will be remembered for faster attendance scans.",
+    title: "Linking this phone...",
+    description: "Saving this phone so future scans are instant.",
   },
   device_registered: {
-    title: "Phone connected",
-    description: "Continuing your attendance scan.",
+    title: "Phone linked!",
+    description: "Finishing your attendance scan now.",
   },
   processing_attendance: {
-    title: "Clocking you in...",
-    description: "We are finishing your attendance update.",
+    title: "Attendance updated!",
+    description: "Saving your shift record.",
   },
 };
 
@@ -59,13 +59,13 @@ const EXTENDED_STAGE_ORDER: PublicScanStageName[] = [
 ];
 
 function getStageEyebrow(stage: PublicScanStageName): string {
-  if (stage === "recognizing") return "Secure scan";
-  if (stage === "qr_recognized") return "Scan received";
-  if (stage === "verifying_location") return "Location check";
-  if (stage === "processing") return "One moment";
-  if (stage === "device_registered") return "Ready";
-  if (stage === "processing_attendance") return "Attendance";
-  return "Staff sign-in";
+  if (stage === "recognizing") return "Attendance Pass";
+  if (stage === "qr_recognized") return "QR Verified";
+  if (stage === "verifying_location") return "Branch Check";
+  if (stage === "processing") return "Saving Time";
+  if (stage === "device_registered") return "Phone Connected";
+  if (stage === "processing_attendance") return "Almost Done";
+  return "Staff Sign-In";
 }
 
 function StageVisual({ stage }: { stage: PublicScanStageName }) {
@@ -124,16 +124,10 @@ function ProgressDots({ stage }: { stage: PublicScanStageName }) {
     );
   }
 
+  // Clean 2-step progress dots (QR Recognized -> Saving Attendance) with no leftover location dot!
   return (
     <div className={styles.progressDots} aria-hidden="true">
       <span className={styles.progressDotActive} />
-      <span
-        className={
-          stage === "verifying_location" || stage === "processing"
-            ? styles.progressDotActive
-            : styles.progressDot
-        }
-      />
       <span className={stage === "processing" ? styles.progressDotActive : styles.progressDot} />
     </div>
   );
@@ -152,8 +146,8 @@ export function PublicScanStage({ stage }: PublicScanStageProps) {
 
       <div className={styles.stageCopy}>
         <p className={styles.eyebrow}>{getStageEyebrow(stage)}</p>
-        <h1>{copy.title}</h1>
-        <p>{copy.description}</p>
+        <h1 className={styles.stageTitle}>{copy.title}</h1>
+        <p className={styles.stageDescription}>{copy.description}</p>
       </div>
 
       <ProgressDots stage={stage} />

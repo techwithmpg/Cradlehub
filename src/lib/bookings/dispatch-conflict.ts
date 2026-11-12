@@ -119,9 +119,29 @@ export async function checkHomeServiceDispatchConflict({
     (r) => r.id !== excludeBookingId && bookingBlocksAvailability(r, now)
   );
 
-  const overlapping = rows.filter((r) =>
-    timesOverlap(startTime, endTime, r.start_time, r.end_time)
-  );
+  // A driver is actively engaged during the Drop-Off transit window (start ± 25m)
+  // and Pick-Up transit window (end ± 25m), NOT sitting idle during a 2-hour massage!
+  const DRIVER_TRANSIT_WINDOW_MINS = 25;
+  const reqStart = timeToMins(startTime);
+  const reqEnd = timeToMins(endTime);
+  const reqDropoff = [reqStart - DRIVER_TRANSIT_WINDOW_MINS, reqStart + DRIVER_TRANSIT_WINDOW_MINS] as const;
+  const reqPickup = [reqEnd - DRIVER_TRANSIT_WINDOW_MINS, reqEnd + DRIVER_TRANSIT_WINDOW_MINS] as const;
+
+  const rangesCollide = (a: readonly [number, number], b: readonly [number, number]) =>
+    a[0] < b[1] && a[1] > b[0];
+
+  const overlapping = rows.filter((r) => {
+    const exStart = timeToMins(r.start_time);
+    const exEnd = timeToMins(r.end_time);
+    const exDropoff = [exStart - DRIVER_TRANSIT_WINDOW_MINS, exStart + DRIVER_TRANSIT_WINDOW_MINS] as const;
+    const exPickup = [exEnd - DRIVER_TRANSIT_WINDOW_MINS, exEnd + DRIVER_TRANSIT_WINDOW_MINS] as const;
+    return (
+      rangesCollide(reqDropoff, exDropoff) ||
+      rangesCollide(reqDropoff, exPickup) ||
+      rangesCollide(reqPickup, exDropoff) ||
+      rangesCollide(reqPickup, exPickup)
+    );
+  });
 
   // Hard conflict: capacity fully consumed
   if (overlapping.length >= driverCapacity) {
@@ -199,3 +219,4 @@ export async function checkHomeServiceDispatchConflict({
 
   return { conflict: "none" };
 }
+

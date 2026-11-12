@@ -2,7 +2,9 @@
 
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { useMemo, useState } from "react";
+import { useMemo, useState, useTransition } from "react";
+import { toast } from "sonner";
+import { sendStaffConfigurationPromptAction } from "@/app/(dashboard)/crm/attendance/actions";
 import { AttendanceIssueModalRouter } from "@/components/features/attendance/review/attendance-issue-modal-router";
 import { RecoveryLinkDialog } from "@/components/features/attendance/devices/recovery-link-dialog";
 import { OperationsGuidanceModal } from "@/components/features/operations-center/operations-guidance-modal";
@@ -92,6 +94,8 @@ export function OperationsCenterView({
   const [selectedIssueId, setSelectedIssueId] = useState<string | null>(null);
   const [selectedScanId, setSelectedScanId] = useState<string | null>(null);
   const [selectedRecoveryStaffId, setSelectedRecoveryStaffId] = useState<string | null>(null);
+  const [pushPending, startPushTransition] = useTransition();
+  const [lastSentPortalLink, setLastSentPortalLink] = useState<{ staffName: string; url: string } | null>(null);
   const [isDuplicateModalOpen, setIsDuplicateModalOpen] = useState(false);
   const [duplicateStaffId, setDuplicateStaffId] = useState<string | null>(null);
   const [isProviderModalOpen, setIsProviderModalOpen] = useState(false);
@@ -174,6 +178,25 @@ export function OperationsCenterView({
         serviceName: issue.serviceName ?? issue.title,
       });
       setIsProviderModalOpen(true);
+      return;
+    }
+
+    if (issue.resolutionKind === "staff_config_push" && issue.staffId) {
+      startPushTransition(async () => {
+        const res = await sendStaffConfigurationPromptAction({
+          staffId: issue.staffId!,
+          staffName: issue.staffName ?? "Staff member",
+          issueKind: issue.staffPromptKind ?? "general_setup",
+        });
+        if (!res.ok) {
+          toast.error(res.message);
+          return;
+        }
+        toast.success(res.message);
+        if (res.activationUrl) {
+          setLastSentPortalLink({ staffName: issue.staffName ?? "Staff", url: res.activationUrl });
+        }
+      });
       return;
     }
 
@@ -327,6 +350,19 @@ export function OperationsCenterView({
         />
       </div>
 
+      {lastSentPortalLink ? (
+        <div className="flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-emerald-300 bg-emerald-50 p-4 text-sm text-emerald-950 shadow-xs">
+          <div>
+            <p className="font-bold">1-Tap Setup Link Sent to {lastSentPortalLink.staffName}&apos;s Portal & Push Notifications!</p>
+            <p className="text-xs text-emerald-800">They can tap the notification on their phone to connect immediately, or you can copy this direct link:</p>
+          </div>
+          <div className="flex items-center gap-2">
+            <input readOnly value={lastSentPortalLink.url} className="w-64 rounded-lg border border-emerald-300 bg-white px-2.5 py-1.5 text-xs" />
+            <Button size="sm" onClick={() => { void navigator.clipboard.writeText(lastSentPortalLink.url); toast.success("Setup link copied!"); }}>Copy Link</Button>
+            <Button size="sm" variant="outline" onClick={() => setLastSentPortalLink(null)}>Dismiss</Button>
+          </div>
+        </div>
+      ) : null}
       {/* Main Issue Inbox Section */}
       <section className="space-y-3" aria-labelledby="operations-issues-heading">
         <div className="flex flex-wrap items-end justify-between gap-3">
@@ -784,3 +820,4 @@ function Summary({
     </div>
   );
 }
+

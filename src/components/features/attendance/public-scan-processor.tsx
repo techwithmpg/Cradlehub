@@ -39,11 +39,11 @@ type PublicScanProcessorProps =
     }
   | { mode: "activation"; token: string };
 
-const RECOGNITION_DURATION_MS = 250;
+const RECOGNITION_DURATION_MS = 110;
 const SCANNER_GRANT_CLAIM_TIMEOUT_MS = 8_000;
-const MINIMUM_FLOW_DURATION_MS = 450;
-const DEVICE_STAGE_DURATION_MS = 350;
-const ATTENDANCE_STAGE_DURATION_MS = 450;
+const MINIMUM_FLOW_DURATION_MS = 180;
+const DEVICE_STAGE_DURATION_MS = 220;
+const ATTENDANCE_STAGE_DURATION_MS = 220;
 
 type ProcessorStage = PublicScanStageName | "sign_in_required" | "location_permission" | "result";
 
@@ -548,3 +548,4 @@ export function PublicScanProcessor(props: PublicScanProcessorProps) {
     </div>
   );
 }
+

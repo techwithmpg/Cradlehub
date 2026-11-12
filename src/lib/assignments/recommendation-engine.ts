@@ -303,11 +303,7 @@ function hasActiveCheckinsForDate(bookingDate: string, checkins: CheckinForScori
 }
 
 function shouldUseAttendancePreference(ctx: RecommendationContext): boolean {
-  return (
-    ctx.bookingMode === "walkin" &&
-    !ctx.isHomeService &&
-    ctx.bookingDate === getBranchBusinessDate()
-  );
+  return ctx.bookingDate === getBranchBusinessDate();
 }
 
 function getTodayCheckin(
@@ -423,14 +419,8 @@ function scoreTherapist(staff: StaffForScoring, ctx: RecommendationContext): Sco
   if (useAttendancePreference) {
     if (checkedIn && queuePosition) {
       score += SCORE.checkedIn;
-      const queueBonus =
-        queuePosition === 1
-          ? SCORE.queuePosition1
-          : queuePosition === 2
-            ? SCORE.queuePosition2
-            : queuePosition === 3
-              ? SCORE.queuePosition3
-              : SCORE.queuePosition4Plus;
+      // Strict monotonic FCFS bonus: #1 gets 35, #2 gets 32, #3 gets 29, #4 gets 26, etc.
+      const queueBonus = Math.max(5, 38 - queuePosition * 3);
       score += queueBonus;
       reasons.push(`#${queuePosition} in today's attendance queue`);
       if (checkedInAt) {
@@ -720,3 +710,4 @@ export function scoreDriverCandidates(ctx: RecommendationContext): ScoredStaff[]
 
   return candidates.sort((a, b) => b.score - a.score);
 }
+

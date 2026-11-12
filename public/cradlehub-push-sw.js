@@ -1,6 +1,7 @@
 const ALLOWED_ACTION_PREFIXES = [
   "/crm",
   "/owner",
+  "/manager",
   "/staff-portal",
   "/staff",
   "/driver",
@@ -32,8 +33,8 @@ function parsePayload(event) {
   }
 }
 
-self.addEventListener("install", () => {
-  self.skipWaiting();
+self.addEventListener("install", (event) => {
+  event.waitUntil(self.skipWaiting());
 });
 
 self.addEventListener("activate", (event) => {
@@ -50,11 +51,11 @@ self.addEventListener("push", (event) => {
   const title =
     typeof payload.title === "string" && payload.title.trim()
       ? payload.title.slice(0, 120)
-      : "CradleHub update";
+      : "CradleHub Alert";
   const body =
     typeof payload.body === "string"
       ? payload.body.slice(0, 280)
-      : "Open CradleHub to view this update.";
+      : "Tap to open and take action in CradleHub.";
   const priority =
     ["low", "normal", "high", "critical"].includes(payload.priority)
       ? payload.priority
@@ -70,35 +71,51 @@ self.addEventListener("push", (event) => {
         (client) => client.visibilityState === "visible"
       );
 
-      // Only the driver's foreground PWA may auto-open its own live dispatch map.
-      // A background worker NEVER force-launches or focuses any application:
-      // normal notificationclick requires the driver's explicit interaction.
-      if (payload.type === "home_service_assigned" &&
-          /^\/staff\/driver\/map\?bookingId=[0-9a-f-]{36}$/i.test(actionHref)) {
-        visibleWindows.forEach((client) => {
-          try {
-            const url = new URL(client.url);
-            if (url.origin === self.location.origin && url.pathname.startsWith("/staff/driver")) {
+      // Broadcast wake/reconcile message to any open window
+      visibleWindows.forEach((client) => {
+        try {
+          const url = new URL(client.url);
+          if (url.origin === self.location.origin) {
+            if (
+              payload.type === "home_service_assigned" &&
+              url.pathname.startsWith("/staff/driver")
+            ) {
               client.postMessage({
                 type: "CRADLEHUB_DRIVER_DISPATCH_WAKE",
                 actionHref,
                 notificationId,
               });
             }
-          } catch {
-            // Invalid or cross-origin clients must not receive driver details.
+            client.postMessage({
+              type: "CRADLEHUB_PUSH_RECONCILE",
+              notificationId,
+              actionHref,
+              title,
+              body,
+            });
           }
-        });
-      }
+        } catch {
+          // Ignore malformed client URLs
+        }
+      });
 
-      // Ordinary alerts reconcile into the existing authorized foreground UI.
-      if (visibleWindows.length > 0 && payload.test !== true && payload.type !== "home_service_assigned") {
-        visibleWindows.forEach((client) =>
-          client.postMessage({
-            type: "CRADLEHUB_PUSH_RECONCILE",
-            notificationId,
-          })
-        );
+      // Check if any visible window is a desktop CRM/Owner window with an active in-app Bell toast.
+      // For mobile PWA windows (/staff, /staff-portal, /driver) or when the app is in the background/closed,
+      // ALWAYS show the native OS notification banner + vibration so staff never miss an action!
+      const hasVisibleDesktopBell = visibleWindows.some((client) => {
+        try {
+          const url = new URL(client.url);
+          return (
+            url.pathname.startsWith("/crm") ||
+            url.pathname.startsWith("/owner") ||
+            url.pathname.startsWith("/manager")
+          );
+        } catch {
+          return false;
+        }
+      });
+
+      if (hasVisibleDesktopBell && payload.test !== true && priority !== "critical") {
         return;
       }
 
@@ -107,10 +124,11 @@ self.addEventListener("push", (event) => {
         icon: "/icon.png",
         badge: "/icon.png",
         tag: `cradlehub-notification:${notificationId}`,
-        renotify: priority === "critical",
-        requireInteraction: priority === "critical",
+        renotify: true,
+        requireInteraction: priority === "critical" || priority === "high",
+        vibrate: priority === "critical" ? [250, 100, 250, 100, 300] : [180, 80, 180],
         data: { actionHref, notificationId },
-        actions: [{ action: "view", title: "View" }],
+        actions: [{ action: "view", title: "Open & Take Action" }],
       });
     })()
   );
@@ -130,8 +148,7 @@ self.addEventListener("notificationclick", (event) => {
       const existing = windows.find((client) => {
         try {
           const url = new URL(client.url);
-          return url.origin === self.location.origin &&
-            (!actionHref.startsWith("/staff/") || url.pathname.startsWith("/staff/"));
+          return url.origin === self.location.origin;
         } catch {
           return false;
         }

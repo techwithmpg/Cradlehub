@@ -1,8 +1,47 @@
+"use client";
+
+import { useTransition } from "react";
+import { BellRing } from "lucide-react";
+import { toast } from "sonner";
+import { sendScheduledClockInRemindersAction } from "@/app/(dashboard)/crm/attendance/actions";
 import { AttendanceRecentActivity } from "@/components/features/attendance/today/attendance-recent-activity";
 import { AttendanceStaffTable } from "@/components/features/attendance/today/attendance-staff-table";
 import { AttendanceSummaryCards } from "@/components/features/attendance/today/attendance-summary-cards";
 import type { AttendanceStaffDiagnostic } from "@/lib/attendance/staff-diagnostics";
 import type { AttendanceWorkspaceData } from "@/lib/attendance/types";
+
+function RemindUnscannedStaffBanner({ unscannedCount }: { unscannedCount: number }) {
+  const [pending, startTransition] = useTransition();
+  if (unscannedCount <= 0) return null;
+  return (
+    <div className="flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-amber-200 bg-amber-50/90 px-4 py-3 text-sm text-amber-950 shadow-2xs">
+      <div className="flex items-center gap-2.5">
+        <span className="flex size-8 shrink-0 items-center justify-center rounded-full bg-amber-200/80 text-amber-900">
+          <BellRing className="size-4" />
+        </span>
+        <div>
+          <p className="font-bold leading-tight">{unscannedCount} scheduled staff member{unscannedCount === 1 ? " has" : "s have"} not scanned in yet</p>
+          <p className="text-xs text-amber-800">Send an instant push notification to their phone that opens the QR scanner directly.</p>
+        </div>
+      </div>
+      <button
+        type="button"
+        disabled={pending}
+        onClick={() => {
+          startTransition(async () => {
+            const res = await sendScheduledClockInRemindersAction();
+            if (res.ok) toast.success(res.message);
+            else toast.error(res.message);
+          });
+        }}
+        className="inline-flex items-center gap-1.5 rounded-xl bg-emerald-800 px-3.5 py-2 text-xs font-semibold text-white shadow-xs transition hover:bg-emerald-900 disabled:opacity-50"
+      >
+        <BellRing className="size-3.5" />
+        {pending ? "Sending Push Alerts…" : `Send Clock-In Push Reminder (${unscannedCount})`}
+      </button>
+    </div>
+  );
+}
 
 export function AttendanceTodayView({
   data,
@@ -22,6 +61,7 @@ export function AttendanceTodayView({
   );
   return (
     <div className="grid gap-4">
+      <RemindUnscannedStaffBanner unscannedCount={data.dailyStaffStates.filter((r) => !r.clockInAt && Boolean(r.scheduledStart && !r.clockOutAt)).length} />
       <AttendanceSummaryCards rows={rows} />
       <AttendanceStaffTable
         rows={rows}
@@ -60,3 +100,8 @@ export function AttendanceTodayView({
     </div>
   );
 }
+
+
+
+
+
