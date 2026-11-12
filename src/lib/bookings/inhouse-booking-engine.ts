@@ -1323,7 +1323,7 @@ export async function executeInhouseBookingCreation(
     }
 
     if (d.smsConsentChoice && insertedIds[0]) {
-      await captureBookingSmsConsent({ bookingId: insertedIds[0], orderId: atomicData.order_id,
+      await captureBookingSmsConsent({ bookingId: insertedIds[0], orderId: atomicData.order_id ?? null,
         customerId: resolvedCustomerId, phone: cleanPhone, choice: d.smsConsentChoice,
         source: "crm_booking", actorAuthUserId: operator.authUserId });
     }
