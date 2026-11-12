@@ -1,4 +1,5 @@
 import "server-only";
+import { captureBookingSmsConsent } from "@/lib/sms/consent";
 import { createHash } from "node:crypto";
 
 import { createAdminClient } from "@/lib/supabase/admin";
@@ -1321,6 +1322,11 @@ export async function executeInhouseBookingCreation(
       );
     }
 
+    if (d.smsConsentChoice && insertedIds[0]) {
+      await captureBookingSmsConsent({ bookingId: insertedIds[0], orderId: atomicData.order_id ?? null,
+        customerId: resolvedCustomerId, phone: cleanPhone, choice: d.smsConsentChoice,
+        source: "crm_booking", actorAuthUserId: operator.authUserId });
+    }
     return {
       ok: true, bookingId: insertedIds[0]!, orderId: atomicData.order_id,
       orderNumber: atomicData.order_number, serviceLineIds: insertedIds,

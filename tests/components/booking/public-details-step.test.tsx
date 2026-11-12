@@ -39,6 +39,7 @@ const form = {
 describe("public Details step", () => {
   it("keeps required contact fields and therapist choice visible while disclosing optional fields on request", () => {
     const onChange = vi.fn();
+    const onSmsConsentChange = vi.fn();
     render(
       <PublicStepDetails
         form={form}
@@ -53,6 +54,8 @@ describe("public Details step", () => {
         selectedSlot={null}
         selectedStaff="auto"
         onSelectStaff={vi.fn()}
+        smsConsentChoice={null}
+        onSmsConsentChange={onSmsConsentChange}
       />
     );
 
@@ -68,6 +71,14 @@ describe("public Details step", () => {
         .textContent
     ).toContain("Any available therapist");
     expect(screen.getByText(/2 guests · We'll assign one qualified therapist/i)).toBeTruthy();
+    const yes = screen.getByRole("radio", { name: /Yes, send appointment text messages/i }) as HTMLInputElement;
+    const no = screen.getByRole("radio", { name: /No, do not send texts for this appointment/i }) as HTMLInputElement;
+    expect(yes.checked).toBe(false);
+    expect(no.checked).toBe(false);
+    fireEvent.click(yes);
+    expect(onSmsConsentChange).toHaveBeenCalledWith("opt_in");
+    fireEvent.click(no);
+    expect(onSmsConsentChange).toHaveBeenCalledWith("opt_out");
     expect(screen.queryByRole("textbox", { name: /Email/i })).toBeNull();
     expect(screen.queryByRole("textbox", { name: /Special requests/i })).toBeNull();
 
