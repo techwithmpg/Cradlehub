@@ -118,7 +118,7 @@ export async function createWalkinBookingAction(rawInput: unknown) {
 
     // Upsert customer
     const { data: customerId, error: custErr } = await admin.rpc("upsert_customer", {
-      p_phone: d.phone,
+      p_phone: d.phone?.trim() ? d.phone.trim() : null,
       p_full_name: d.fullName,
       p_email: d.email || undefined,
     });

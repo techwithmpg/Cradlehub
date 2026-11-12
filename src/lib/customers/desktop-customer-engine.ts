@@ -24,7 +24,7 @@ export type DesktopCustomerExecutionContext = {
 export type DesktopCustomerListItemDto = {
   id: string;
   fullName: string;
-  phone: string;
+  phone: string | null;
   email: string | null;
   totalBookings: number;
   firstBookingDate: string | null;
@@ -89,7 +89,7 @@ export type DesktopCustomerBookingHistoryItemDto = {
 export type DesktopCustomerDetailDto = {
   id: string;
   fullName: string;
-  phone: string;
+  phone: string | null;
   email: string | null;
   firstBookingDate: string | null;
   lastBookingDate: string | null;

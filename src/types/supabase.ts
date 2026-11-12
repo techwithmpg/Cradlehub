@@ -1996,7 +1996,7 @@ export type Database = {
           last_booking_date: string | null
           loyalty_tier: string
           notes: string | null
-          phone: string
+          phone: string | null
           preferred_service_id: string | null
           preferred_staff_id: string | null
           preferred_visit_type: string | null
@@ -2015,7 +2015,7 @@ export type Database = {
           last_booking_date?: string | null
           loyalty_tier?: string
           notes?: string | null
-          phone: string
+          phone?: string | null
           preferred_service_id?: string | null
           preferred_staff_id?: string | null
           preferred_visit_type?: string | null
@@ -2034,7 +2034,7 @@ export type Database = {
           last_booking_date?: string | null
           loyalty_tier?: string
           notes?: string | null
-          phone?: string
+          phone?: string | null
           preferred_service_id?: string | null
           preferred_staff_id?: string | null
           preferred_visit_type?: string | null
@@ -7861,7 +7861,7 @@ export type Database = {
         Returns: undefined
       }
       upsert_customer: {
-        Args: { p_email?: string; p_full_name: string; p_phone: string }
+        Args: { p_email?: string; p_full_name: string; p_phone?: string | null }
         Returns: string
       }
       write_attendance_portal_audit: {

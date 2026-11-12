@@ -211,6 +211,22 @@ export function WaitlistQueue({
                     <div style={{ display: "flex", gap: 4, flexWrap: "wrap", justifyContent: "flex-end" }}>
                       {row.status === "waiting" && (
                         <>
+                          <OpenAdministrativeBookingButton
+                            mode={row.visit_type === "home_service" ? "home_service" : "standard_future"}
+                            name={row.customer_name}
+                            phone={row.customer_phone}
+                            date={row.preferred_date ?? undefined}
+                            time={row.preferred_time?.slice(0, 5)}
+                            showIcon={false}
+                            style={{
+                              padding: "3px 8px", borderRadius: 4, border: "none",
+                              backgroundColor: "#0D5C43", color: "#fff",
+                              fontSize: "0.6875rem", fontWeight: 700, textDecoration: "none",
+                              textTransform: "uppercase", letterSpacing: "0.04em",
+                            }}
+                          >
+                            Book Now
+                          </OpenAdministrativeBookingButton>
                           <StatusButton requestId={row.id} current={row.status} target="contacted" label="Mark Contacted" />
                           <StatusButton requestId={row.id} current={row.status} target="expired" label="Expire" />
                         </>
@@ -251,3 +267,4 @@ export function WaitlistQueue({
     </div>
   );
 }
+

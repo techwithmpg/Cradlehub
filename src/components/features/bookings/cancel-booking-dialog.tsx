@@ -1,8 +1,14 @@
 "use client";
 
-import { useState, useTransition } from "react";
+import { useEffect, useState, useTransition } from "react";
+import { Sparkles, UserCheck } from "lucide-react";
 import { toast } from "sonner";
 import { recordBookingFollowupAction } from "@/app/(dashboard)/crm/bookings/actions";
+import {
+  convertWaitlistToBookingSlotAction,
+  findMatchingWaitlistForSlotAction,
+  type MatchingWaitlistCandidate,
+} from "@/app/(dashboard)/crm/waitlist/actions";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
@@ -44,14 +50,37 @@ export function CancelBookingDialog({
   const [reason, setReason] = useState<BookingCancellationReason | null>(null);
   const [note, setNote] = useState("");
   const [error, setError] = useState<string | null>(null);
+  const [waitlistCandidates, setWaitlistCandidates] = useState<MatchingWaitlistCandidate[]>([]);
+  const [selectedWaitlistId, setSelectedWaitlistId] = useState<string | null>(null);
   const [isPending, startTransition] = useTransition();
+
   const customer = firstBookingRelation(booking.customers);
   const service = firstBookingRelation(booking.services);
+
+  useEffect(() => {
+    if (!open) return;
+    let cancelled = false;
+    findMatchingWaitlistForSlotAction({
+      bookingDate: booking.booking_date,
+      serviceId: service?.id ?? null,
+    })
+      .then((res) => {
+        if (!cancelled && res.ok) {
+          setWaitlistCandidates(res.candidates);
+          setSelectedWaitlistId(res.candidates[0]?.id ?? null);
+        }
+      })
+      .catch(() => undefined);
+    return () => {
+      cancelled = true;
+    };
+  }, [open, booking.booking_date, service?.id]);
 
   function resetForm() {
     setReason(null);
     setNote("");
     setError(null);
+    setSelectedWaitlistId(null);
   }
 
   function handleOpenChange(nextOpen: boolean) {
@@ -60,7 +89,7 @@ export function CancelBookingDialog({
     onOpenChange(nextOpen);
   }
 
-  function cancelBooking() {
+  function cancelBooking(fillWithWaitlistId?: string | null) {
     if (!reason) {
       setError("Select a cancellation reason.");
       return;
@@ -81,10 +110,27 @@ export function CancelBookingDialog({
         return;
       }
 
+      if (fillWithWaitlistId && service?.id) {
+        const fillRes = await convertWaitlistToBookingSlotAction({
+          waitlistId: fillWithWaitlistId,
+          date: booking.booking_date,
+          startTime: booking.start_time,
+          serviceId: service.id,
+          staffId: booking.staff_id,
+          resourceId: booking.resource_id,
+        });
+        if (fillRes.ok) {
+          toast.success(fillRes.message);
+        } else {
+          toast.warning(`Booking cancelled, but waitlist auto-fill needed review: ${fillRes.message}`);
+        }
+      } else {
+        toast.success("Booking cancelled.");
+      }
+
       onChanged?.();
       resetForm();
       onOpenChange(false);
-      toast.success("Booking cancelled.");
     });
   }
 
@@ -94,7 +140,7 @@ export function CancelBookingDialog({
         <DialogHeader>
           <DialogTitle>Cancel booking?</DialogTitle>
           <DialogDescription>
-            This keeps the existing cancellation workflow and records the reason in the booking history.
+            Records the cancellation reason and frees the therapist and room slot.
           </DialogDescription>
         </DialogHeader>
 
@@ -124,7 +170,7 @@ export function CancelBookingDialog({
               if (value) setError(null);
             }}
             disabled={isPending}
-            className="h-10 w-full rounded-lg border border-input bg-transparent px-2.5 text-sm outline-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50 aria-invalid:border-destructive aria-invalid:ring-3 aria-invalid:ring-destructive/20"
+            className="h-10 w-full rounded-lg border border-input bg-transparent px-2.5 text-sm outline-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50"
           >
             <option value="">Select a reason</option>
             {BOOKING_CANCELLATION_REASONS.map((option) => (
@@ -143,19 +189,67 @@ export function CancelBookingDialog({
             onChange={(event) => setNote(event.target.value)}
             disabled={isPending}
             maxLength={500}
-            rows={3}
+            rows={2}
             placeholder="Add internal context"
           />
         </div>
 
+        {waitlistCandidates.length > 0 ? (
+          <div className="rounded-xl border border-emerald-200 bg-emerald-50/70 p-3 text-xs">
+            <div className="flex items-center gap-1.5 font-bold text-emerald-950">
+              <Sparkles className="size-3.5 text-emerald-700" />
+              Smart Slot Recovery ({waitlistCandidates.length} on Waitlist)
+            </div>
+            <p className="mt-0.5 text-emerald-800">
+              Fill this freed {formatTime(booking.start_time)} slot immediately with a waiting guest:
+            </p>
+            <div className="mt-2 space-y-1.5">
+              {waitlistCandidates.map((cand) => (
+                <label
+                  key={cand.id}
+                  className={`flex cursor-pointer items-center justify-between rounded-lg border p-2 transition ${
+                    selectedWaitlistId === cand.id
+                      ? "border-emerald-600 bg-white font-semibold text-emerald-950"
+                      : "border-emerald-200/80 bg-white/60 text-neutral-700"
+                  }`}
+                >
+                  <span className="flex items-center gap-2">
+                    <input
+                      type="radio"
+                      name="waitlist-fill"
+                      checked={selectedWaitlistId === cand.id}
+                      onChange={() => setSelectedWaitlistId(cand.id)}
+                    />
+                    <span>
+                      {cand.customer_name} ({cand.customer_phone})
+                      {cand.service_name ? ` · ${cand.service_name}` : ""}
+                    </span>
+                  </span>
+                </label>
+              ))}
+            </div>
+          </div>
+        ) : null}
+
         {error ? <p role="alert" className="text-sm text-red-700">{error}</p> : null}
 
-        <DialogFooter>
+        <DialogFooter className="flex-wrap gap-2">
           <Button type="button" variant="outline" disabled={isPending} onClick={() => handleOpenChange(false)}>
             Keep Booking
           </Button>
-          <Button type="button" variant="destructive" disabled={isPending} onClick={cancelBooking}>
-            {isPending ? "Cancelling…" : "Cancel Booking"}
+          {waitlistCandidates.length > 0 && selectedWaitlistId ? (
+            <Button
+              type="button"
+              disabled={isPending}
+              onClick={() => cancelBooking(selectedWaitlistId)}
+              className="bg-emerald-700 text-white hover:bg-emerald-800"
+            >
+              <UserCheck className="mr-1.5 size-4" />
+              {isPending ? "Swapping…" : "Cancel & Fill from Waitlist"}
+            </Button>
+          ) : null}
+          <Button type="button" variant="destructive" disabled={isPending} onClick={() => cancelBooking(null)}>
+            {isPending ? "Cancelling…" : "Cancel Only"}
           </Button>
         </DialogFooter>
       </DialogContent>

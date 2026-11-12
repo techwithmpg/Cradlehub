@@ -10,7 +10,7 @@ type StaffOption = { id: string; full_name: string; nickname?: string | null; ti
 type Props = {
   customerId: string;
   initialFullName: string;
-  initialPhone: string;
+  initialPhone?: string | null;
   initialEmail: string | null;
   initialNotes: string | null;
   initialPreferredStaffId: string | null;
@@ -80,7 +80,7 @@ export function CustomerNotesForm({
   staff,
 }: Props) {
   const [fullName,          setFullName]          = useState(initialFullName);
-  const [phone,             setPhone]             = useState(initialPhone);
+  const [phone,             setPhone]             = useState(initialPhone ?? "");
   const [email,             setEmail]             = useState(initialEmail ?? "");
   const [notes,             setNotes]             = useState(initialNotes ?? "");
   const [preferredId,       setPreferredId]       = useState(initialPreferredStaffId ?? "");

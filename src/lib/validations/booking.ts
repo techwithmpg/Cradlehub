@@ -9,6 +9,11 @@ const phone = z
   .min(7, "Phone number too short")
   .max(20, "Phone number too long")
   .regex(/^[0-9+\-\s()]+$/, "Invalid phone number");
+const optionalPhone = z
+  .string()
+  .max(32, "Phone number too long")
+  .optional()
+  .or(z.literal(""));
 
 // Only anonymous/public booking submissions require a Philippine mobile contact.
 // CRM/manual booking schemas intentionally retain their existing phone policy.
@@ -92,20 +97,48 @@ export const createOnlineBookingSchema = z
 export type CreateOnlineBookingInput = z.infer<typeof createOnlineBookingSchema>;
 
 // ── Manager walk-in / home service at front desk ───────────────────────────
-export const createWalkinBookingSchema = z.object({
-  serviceId: uuid,
-  staffId: uuid, // required — manager picks therapist
-  resourceId: uuid.optional().nullable(),
-  date: anyDate, // no 30-day limit for front desk
-  startTime: timeStr,
-  type: z.enum(["walkin", "home_service"]).default("walkin"),
-  deliveryType: z.enum(["in_spa", "home_service"]).optional(),
-  travelBufferMins: z.number().int().min(0).max(240).optional(),
-  fullName: z.string().min(2).max(100),
-  phone,
-  email: z.string().email().optional().or(z.literal("")),
-  notes: z.string().max(500).optional(),
-});
+export const createWalkinBookingSchema = z
+  .object({
+    serviceId: uuid,
+    staffId: uuid, // required — manager picks therapist
+    resourceId: uuid.optional().nullable(),
+    date: anyDate, // no 30-day limit for front desk
+    startTime: timeStr,
+    type: z.enum(["walkin", "home_service"]).default("walkin"),
+    deliveryType: z.enum(["in_spa", "home_service"]).optional(),
+    travelBufferMins: z.number().int().min(0).max(240).optional(),
+    fullName: z.string().min(2).max(100),
+    phone: optionalPhone,
+    email: z.string().email().optional().or(z.literal("")),
+    notes: z.string().max(500).optional(),
+  })
+  .superRefine((data, ctx) => {
+    const isHome = data.deliveryType === "home_service" || data.type === "home_service";
+    const cleanPhone = (data.phone ?? "").trim();
+    if (isHome) {
+      if (!cleanPhone) {
+        ctx.addIssue({
+          code: "custom",
+          message: "Enter the customer's phone number for home service.",
+          path: ["phone"],
+        });
+      } else if (cleanPhone.length < 7 || !/^[0-9+\-\s()]+$/.test(cleanPhone)) {
+        ctx.addIssue({
+          code: "custom",
+          message: "Please enter a valid phone number.",
+          path: ["phone"],
+        });
+      }
+    } else if (cleanPhone) {
+      if (cleanPhone.length < 7 || !/^[0-9+\-\s()]+$/.test(cleanPhone)) {
+        ctx.addIssue({
+          code: "custom",
+          message: "Please enter a valid phone number.",
+          path: ["phone"],
+        });
+      }
+    }
+  });
 export type CreateWalkinBookingInput = z.infer<typeof createWalkinBookingSchema>;
 
 // ── In-house wizard booking (CRM/Manager): multi-service + optional therapist ──
@@ -135,7 +168,7 @@ export const createInhouseBookingMultiSchema = z
     markArrived: z.boolean().optional(),
     travelBufferMins: z.number().int().min(0).max(240).optional(),
     fullName: z.string().min(2, "Name must be at least 2 characters").max(100),
-    phone,
+    phone: optionalPhone,
     smsConsentChoice: z.enum(["opt_in", "opt_out"]).optional(),
     email: z.string().email("Invalid email").optional().or(z.literal("")),
     notes: z.string().max(500).optional(),
@@ -211,6 +244,38 @@ export const createInhouseBookingMultiSchema = z
     }
     const deliveryType =
       data.deliveryType ?? (data.type === "home_service" ? "home_service" : "in_spa");
+    const isHomeService = deliveryType === "home_service";
+    const isFutureOrHome =
+      isHomeService ||
+      data.crmBookingMode === "phone" ||
+      data.crmBookingMode === "standard_future";
+    const cleanPhone = (data.phone ?? "").trim();
+
+    if (isFutureOrHome) {
+      if (!cleanPhone) {
+        ctx.addIssue({
+          code: "custom",
+          message: isHomeService
+            ? "Enter the customer's phone number for home service."
+            : "Enter the customer's phone number for future bookings.",
+          path: ["phone"],
+        });
+      } else if (cleanPhone.length < 7 || !/^[0-9+\-\s()]+$/.test(cleanPhone)) {
+        ctx.addIssue({
+          code: "custom",
+          message: "Please enter a valid phone number (at least 7 digits).",
+          path: ["phone"],
+        });
+      }
+    } else if (cleanPhone) {
+      if (cleanPhone.length < 7 || !/^[0-9+\-\s()]+$/.test(cleanPhone)) {
+        ctx.addIssue({
+          code: "custom",
+          message: "Please enter a valid phone number (at least 7 digits).",
+          path: ["phone"],
+        });
+      }
+    }
 
     if (deliveryType === "home_service" && !isPreciseHomeServiceLocation(data)) {
       ctx.addIssue({

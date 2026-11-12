@@ -1300,9 +1300,19 @@ export function QuickBookingForm({
   function validate(): FieldErrors {
     const nextErrors: FieldErrors = {};
     if (!fullName.trim()) nextErrors.fullName = "Enter the customer's name.";
-    if (!phone.trim()) nextErrors.phone = "Enter the customer's phone number.";
-    if (phone.trim() && phone.trim().length < 7) {
-      nextErrors.phone = "Enter the customer's phone number.";
+    const isWalkIn = mode === "walkin";
+    if (isWalkIn) {
+      if (phone.trim() && phone.trim().length < 7) {
+        nextErrors.phone = "Enter a valid phone number (at least 7 digits).";
+      }
+    } else {
+      if (!phone.trim()) {
+        nextErrors.phone = isHomeService
+          ? "Enter the customer's phone number for home service."
+          : "Enter the customer's phone number.";
+      } else if (phone.trim().length < 7) {
+        nextErrors.phone = "Enter a valid phone number (at least 7 digits).";
+      }
     }
     if (selectedServiceIds.length === 0) {
       nextErrors.service = "Select at least one service.";
@@ -2616,7 +2626,7 @@ export function QuickBookingForm({
 
                 {/* Phone */}
                 <div className="min-w-0">
-                  <FieldLabel icon={<Phone size={14} />} label="Phone" />
+                  <FieldLabel icon={<Phone size={14} />} label="Phone" optional={mode === "walkin"} />
                   <div className="relative">
                     <Phone className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-[var(--cs-text-muted)]" />
                     <input
@@ -2626,7 +2636,7 @@ export function QuickBookingForm({
                       value={phone}
                       onChange={(event) => setPhone(event.target.value)}
                       disabled={isSaving || Boolean(selectedCustomer)}
-                      placeholder="Phone number"
+                      placeholder={mode === "walkin" ? "Phone number (optional)" : "Phone number"}
                       className={cn(
                         inputClassName(Boolean(fieldErrors.phone)),
                         "pl-9",

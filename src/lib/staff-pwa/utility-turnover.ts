@@ -1,7 +1,7 @@
 import "server-only";
 
 import { createAdminClient } from "@/lib/supabase/admin";
-import { resolveNotificationsForEntity } from "@/lib/notifications/create";
+import { createNotification, resolveNotificationsForEntity } from "@/lib/notifications/create";
 import { resolveStaffPwaOperationalGroup } from "@/lib/auth/workspace-access";
 import { logBusinessEvent, logError } from "@/lib/logger";
 import type { Json } from "@/types/supabase";
@@ -362,6 +362,21 @@ export async function triggerUtilityRoomTurnoverOnServiceCompletion(params: {
     resourceId: resource.id,
     roomName: resource.name,
   });
+
+  // Fire instant non-blocking Web Push + Workspace Alert to Utility / Housekeeping staff!
+  void createNotification({
+    branchId: booking.branch_id,
+    targetWorkspace: "utility",
+    type: "booking_status_changed",
+    title: `Room Turnover Needed — ${resource.name}`,
+    body: `${serviceName} just finished in ${resource.name}. Tap to start room cleaning.`,
+    entityType: "branch_resource",
+    entityId: resource.id,
+    actionHref: "/staff/utility",
+    priority: "high",
+    requiresAction: true,
+    dedupeKey: `utility-turnover-alert:${booking.id}:${resource.id}`,
+  }).catch(() => undefined);
 
   return { ok: true, taskId: result.taskId };
 }
@@ -852,3 +867,4 @@ export async function isResourceInActiveTurnover(resourceId: string): Promise<bo
 
   return Boolean(data && data.length > 0);
 }
+

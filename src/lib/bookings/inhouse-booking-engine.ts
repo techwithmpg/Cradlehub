@@ -226,7 +226,7 @@ export async function executeInhouseBookingCreation(
   }
   const startTime = parsedStartTime.value.canonicalTime;
   const paymentReceived = d.paymentReceived ?? false;
-  const cleanPhone = d.phone.replace(/\s/g, "");
+  const cleanPhone = d.phone?.trim() ? d.phone.replace(/\s/g, "") : null;
 
   const { staff, staffRole, isDevBypass } = operator;
 
@@ -748,7 +748,7 @@ export async function executeInhouseBookingCreation(
       }
     } else {
       const { data: customerId, error: customerError } = await admin.rpc("upsert_customer", {
-        p_phone: cleanPhone,
+        p_phone: cleanPhone || null,
         p_full_name: d.fullName,
         p_email: d.email || undefined,
       });
@@ -764,9 +764,13 @@ export async function executeInhouseBookingCreation(
           ok: false,
           code: "CUSTOMER_ERROR",
           title: "Customer details error",
-          message: "Could not save customer details. Please check the phone number.",
-          field: "phone",
-          correctiveAction: "Ensure the customer phone number is valid and contains at least 7 digits.",
+          message: cleanPhone
+            ? "Could not save customer details. Please check the phone number."
+            : "Could not save customer details.",
+          field: cleanPhone ? "phone" : "fullName",
+          correctiveAction: cleanPhone
+            ? "Ensure the customer phone number is valid and contains at least 7 digits."
+            : "Please verify customer information and try again.",
           retrySafety: "safe",
         };
       }
@@ -1322,7 +1326,7 @@ export async function executeInhouseBookingCreation(
       );
     }
 
-    if (d.smsConsentChoice && insertedIds[0]) {
+    if (d.smsConsentChoice && insertedIds[0] && cleanPhone) {
       await captureBookingSmsConsent({ bookingId: insertedIds[0], orderId: atomicData.order_id ?? null,
         customerId: resolvedCustomerId, phone: cleanPhone, choice: d.smsConsentChoice,
         source: "crm_booking", actorAuthUserId: operator.authUserId });

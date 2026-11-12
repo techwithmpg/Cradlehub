@@ -97,7 +97,7 @@ export async function getQuickBookingCustomerPrefill(
   return {
     id: data.id,
     fullName: data.full_name,
-    phone: data.phone,
+    phone: data.phone ?? "",
     email: data.email,
   };
 }

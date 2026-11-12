@@ -38,7 +38,8 @@ export default async function StaffScanPage() {
       activeNavKey="scan"
       hideNav={true}
     >
-      <StaffQrScanner returnHref={returnHref} locationRequired={attendanceGeofenceRequired()} />
+      <StaffQrScanner returnHref={returnHref} locationRequired={false} />
     </StaffAppShell>
   );
 }
+
