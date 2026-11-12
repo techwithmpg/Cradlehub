@@ -46,6 +46,13 @@ jobs:
           src/lib/actions/online-booking.ts
           src/lib/bookings/inhouse-booking-engine.ts
           src/components/public/booking-wizard.tsx
+      - name: Emit formatted new SMS source for correction review
+        run: |
+          for path in src/lib/sms/consent.ts src/lib/sms/consent-policy.ts src/lib/sms/consent-policy.test.ts; do
+            printf 'SMS_FORMAT_BEGIN:%s\n' "$path"
+            pnpm exec prettier "$path" | base64 -w0
+            printf '\nSMS_FORMAT_END:%s\n' "$path"
+          done
       - name: Format new files
         run: >
           pnpm exec prettier --check
