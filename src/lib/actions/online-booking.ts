@@ -1,6 +1,7 @@
 "use server";
 
 import { createAdminClient } from "@/lib/supabase/admin";
+import { captureBookingSmsConsent } from "@/lib/sms/consent";
 import { isPastSlot, BRANCH_TIMEZONE } from "@/lib/engine/slot-time";
 import type { Json } from "@/types/supabase";
 import {
@@ -524,6 +525,10 @@ export async function createOnlineBookingAction(
       bookingType: d.type,
     });
     revalidateOperationalBookingSurfaces(d.branchId);
+    if (d.smsConsentChoice) {
+      await captureBookingSmsConsent({ bookingId: booking.id, orderId, customerId: resolvedCustomerId,
+        phone: d.phone, choice: d.smsConsentChoice, source: "public_booking" });
+    }
     return {
       ok: true,
       bookingId: booking.id,
@@ -1291,6 +1296,10 @@ export async function createOnlineBookingMultiAction(
       attendeeCount: attendees.length,
     });
     revalidateOperationalBookingSurfaces(d.branchId);
+    if (d.smsConsentChoice) {
+      await captureBookingSmsConsent({ bookingId: primaryBookingId, orderId, customerId: resolvedCustomerId,
+        phone: d.phone, choice: d.smsConsentChoice, source: "public_booking" });
+    }
 
     return {
       ok: true,
