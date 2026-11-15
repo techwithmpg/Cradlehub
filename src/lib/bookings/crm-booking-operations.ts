@@ -442,7 +442,9 @@ export async function loadCrmBookingForAction(
 
   const { data: baseBooking, error: baseError } = await ctx.supabase
     .from("bookings")
-    .select("id, branch_id, status, booking_progress_status, customer_id")
+    .select(
+      "id, order_id, branch_id, customer_id, service_id, booking_date, start_time, end_time, type, delivery_type, staff_id, driver_id, status, payment_status, booking_progress_status, checked_in_at, session_started_at, resource_id, metadata"
+    )
     .eq("id", bookingId)
     .maybeSingle();
 
@@ -493,33 +495,7 @@ export async function loadCrmBookingForAction(
     );
   }
 
-  const { data: details, error: detailError } = await admin
-    .from("bookings")
-    .select(
-      "id, order_id, branch_id, customer_id, service_id, booking_date, start_time, end_time, type, delivery_type, staff_id, driver_id, status, payment_status, booking_progress_status, checked_in_at, session_started_at, resource_id, metadata"
-    )
-    .eq("id", bookingId)
-    .eq("branch_id", baseBooking.branch_id)
-    .maybeSingle();
-
-  if (detailError) {
-    return fail(
-      "booking_load_failed",
-      "Booking could not be loaded. Please try again.",
-      detailError,
-      baseBooking.branch_id
-    );
-  }
-  if (!details) {
-    return fail(
-      "booking_permission_denied",
-      "You do not have permission to access this booking.",
-      undefined,
-      baseBooking.branch_id
-    );
-  }
-
-  const booking = details as unknown as CrmBookingActionRow;
+  const booking = baseBooking as unknown as CrmBookingActionRow;
   if (ctx.homeServiceOnly && !isHomeServiceBooking(booking))
     return fail("booking_permission_denied", "This action requires a Home Service booking.");
 
@@ -2186,23 +2162,29 @@ export async function completeCrmBookingService(
 
   const payload = data && typeof data === "object" && !Array.isArray(data)
     ? data as Record<string, unknown> : null;
-  if (payload?.already_completed !== true) {
-    await publishServiceTransition({
-      bookingId: booking.id, branchId: booking.branch_id,
-      actorStaffId: ctx.me.id, transition: "completed",
-    }).catch((error) => logError("crm.complete_service_notification_failed", { bookingId: booking.id, error }));
-  }
 
-  const turnoverResult = await triggerUtilityRoomTurnoverOnServiceCompletion({
-    bookingId: parsed.data.bookingId,
-    actorStaffId: ctx.me.id,
-  }).catch((err) => {
-    logError("crm.turnover_trigger_failed", {
+  const [, turnoverResult] = await Promise.all([
+    payload?.already_completed !== true
+      ? publishServiceTransition({
+          bookingId: booking.id,
+          branchId: booking.branch_id,
+          actorStaffId: ctx.me.id,
+          transition: "completed",
+        }).catch((error) =>
+          logError("crm.complete_service_notification_failed", { bookingId: booking.id, error })
+        )
+      : Promise.resolve(),
+    triggerUtilityRoomTurnoverOnServiceCompletion({
       bookingId: parsed.data.bookingId,
-      error: err,
-    });
-    return { ok: false, error: err instanceof Error ? err.message : String(err) } as const;
-  });
+      actorStaffId: ctx.me.id,
+    }).catch((err) => {
+      logError("crm.turnover_trigger_failed", {
+        bookingId: parsed.data.bookingId,
+        error: err,
+      });
+      return { ok: false, error: err instanceof Error ? err.message : String(err) } as const;
+    }),
+  ]);
 
   let turnoverSyncStatus: "synced" | "failed" | "skipped" = "synced";
   let turnoverWarning: string | undefined;
@@ -2234,3 +2216,5 @@ export async function completeCrmBookingService(
       : {}),
   };
 }
+
+

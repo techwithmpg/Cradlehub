@@ -101,7 +101,6 @@ export async function getCrmTodayOperationalData(params: {
     snapshot,
     actionNotifications,
     readiness,
-    driverIdMap,
     locationMap,
   ] = await Promise.all([
     getTodaysSchedule(branchId, date),
@@ -110,7 +109,6 @@ export async function getCrmTodayOperationalData(params: {
     getCrmTodaySnapshot({ branchId, date }),
     getActionRequiredNotificationsAction(3),
     getCrmReadinessCached(branchId).catch(() => null),
-    getBranchBookingDriverIds(branchId, date),
     getLatestLocationsForActiveHomeServiceTrips(branchId, date),
   ]);
 
@@ -179,13 +177,31 @@ export async function getCrmTodayOperationalData(params: {
         .filter((id): id is string => Boolean(id && !resourceNameMap.has(id)))
     ),
   ];
+  const driverIdMap: Record<string, string | null> = {};
+  const joinedDriverNames = new Map<string, string>();
+  for (const b of bookings) {
+    if (b.driver_id) {
+      driverIdMap[b.id] = b.driver_id;
+      const drvRel = first(b.driver);
+      if (drvRel?.full_name) {
+        joinedDriverNames.set(b.driver_id, drvRel.full_name);
+      }
+    }
+  }
+
   const hsBookingIds = bookings
     .filter((b) => b.type === "home_service" || b.delivery_type === "home_service")
     .map((b) => b.id);
-  const driverIds = [...new Set(Object.values(driverIdMap).filter(Boolean) as string[])];
+  const missingDriverIds = [
+    ...new Set(
+      Object.values(driverIdMap).filter(
+        (id): id is string => Boolean(id && !joinedDriverNames.has(id))
+      )
+    ),
+  ];
 
   const admin = createAdminClient();
-  const [summariesResult, missingResourcesResult, trackingMap, driverNameMap] = await Promise.all([
+  const [summariesResult, missingResourcesResult, trackingMap, fetchedDriverNameMap] = await Promise.all([
     orderIds.length > 0
       ? admin
           .from("v_booking_order_financial_summaries")
@@ -198,10 +214,14 @@ export async function getCrmTodayOperationalData(params: {
     hsBookingIds.length > 0
       ? getActiveTrackingTokensForBookings(hsBookingIds)
       : Promise.resolve({} as Record<string, { token: string; url: string; message: string }>),
-    driverIds.length > 0
-      ? getDriverNamesByIds(driverIds)
+    missingDriverIds.length > 0
+      ? getDriverNamesByIds(missingDriverIds)
       : Promise.resolve({} as Record<string, string>),
   ]);
+  const driverNameMap: Record<string, string> = {
+    ...Object.fromEntries(joinedDriverNames),
+    ...fetchedDriverNameMap,
+  };
 
   if (summariesResult.error) throw new Error("Could not load order payment status.");
   for (const summary of summariesResult.data ?? []) {
@@ -313,4 +333,5 @@ export async function getCrmTodayOperationalData(params: {
     readinessAvailable: readiness !== null,
   };
 }
+
 

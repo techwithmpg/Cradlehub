@@ -633,10 +633,10 @@ export async function confirmBookingPaymentAction(
     };
   }
 
-  // Notify assigned staff (only after confirmed — payment confirmed before notifying)
+  // Notify assigned staff & driver in background (non-blocking after atomic payment RPC succeeded)
   if (booking.staff_id) {
     const isHS = booking.delivery_type === "home_service" || booking.type === "home_service";
-    await createNotification({
+    void createNotification({
       branchId: booking.branch_id,
       targetWorkspace: "staff",
       recipientStaffId: booking.staff_id,
@@ -662,7 +662,7 @@ export async function confirmBookingPaymentAction(
     booking.driver_id &&
     (booking.delivery_type === "home_service" || booking.type === "home_service")
   ) {
-    await createNotification({
+    void createNotification({
       branchId: booking.branch_id,
       targetWorkspace: "driver",
       recipientStaffId: booking.driver_id,
@@ -744,3 +744,4 @@ export async function refreshCrmBookingsOperationalDataAction(params?: {
     bookingId: params?.bookingId,
   });
 }
+

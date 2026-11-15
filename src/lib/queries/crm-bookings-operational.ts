@@ -69,13 +69,23 @@ export async function getCrmBookingsOperationalData({
     selectedOrderId = ref.order_id;
   }
 
-  const [rawBookings, cashSummary, waitlistResult] = await Promise.all([
+  const [rawBookings, cashSummary, waitlistQuery] = await Promise.all([
     upcoming
       ? getCrmUpcomingBookings(branchId, today)
       : getCrmBookingsCommandCenterRows(branchId, date),
     getDailyPaymentSummary(branchId, date),
-    getWaitlistAction(branchId),
+    supabase
+      .from("waitlist_requests")
+      .select("*, services ( name )")
+      .eq("branch_id", branchId)
+      .order("preferred_date", { ascending: true, nullsFirst: false })
+      .order("created_at")
+      .limit(100),
   ]);
+  const waitlistResult = {
+    ok: !waitlistQuery.error,
+    data: waitlistQuery.data ?? [],
+  };
 
   const bookings = [...rawBookings];
 
@@ -194,3 +204,4 @@ export async function getCrmBookingsOperationalData({
     cashSummary,
   };
 }
+

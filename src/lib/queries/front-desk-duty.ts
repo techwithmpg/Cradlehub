@@ -1,5 +1,6 @@
 import "server-only";
 import { createClient } from "@/lib/supabase/server";
+import { getLayoutStaffContext } from "@/lib/queries/staff-context";
 import { getResolvedStaffSchedulesForDate } from "@/lib/queries/resolved-staff-schedules";
 import { BRANCH_TIMEZONE, getBranchTime } from "@/lib/engine/slot-time";
 import type { FrontDeskContext } from "@/lib/queries/crm-context";
@@ -18,16 +19,37 @@ export async function getFrontDeskDutyContext(
   businessDate: string,
   handoverId?: string
 ): Promise<FrontDeskDutyContext | null> {
-  // Owner branch viewing is not evidence of operator duty.
   if (context.role !== "crm") return null;
-  const supabase = await createClient();
-  const { data: staff, error: staffError } = await supabase
-    .from("staff")
-    .select("id, branch_id, full_name, nickname, staff_type, system_role")
-    .eq("auth_user_id", context.userId)
-    .eq("is_active", true)
-    .maybeSingle();
-  if (staffError || !staff || staff.branch_id !== context.branchId) return null;
+
+  const [supabase, layoutCtx] = await Promise.all([
+    createClient(),
+    getLayoutStaffContext().catch(() => null),
+  ]);
+
+  let staff =
+    layoutCtx?.me && layoutCtx.user.id === context.userId
+      ? {
+          id: layoutCtx.me.id,
+          branch_id: layoutCtx.me.branch_id,
+          full_name: layoutCtx.me.full_name,
+          nickname: layoutCtx.me.nickname,
+          staff_type: layoutCtx.me.staff_type,
+          system_role: layoutCtx.me.system_role,
+        }
+      : null;
+
+  if (!staff) {
+    const { data: queriedStaff, error: staffError } = await supabase
+      .from("staff")
+      .select("id, branch_id, full_name, nickname, staff_type, system_role")
+      .eq("auth_user_id", context.userId)
+      .eq("is_active", true)
+      .maybeSingle();
+    if (staffError || !queriedStaff) return null;
+    staff = queriedStaff;
+  }
+
+  if (staff.branch_id !== context.branchId) return null;
 
   const result: FrontDeskDutyContext = {
     name: staff.nickname || staff.full_name,
@@ -36,24 +58,8 @@ export async function getFrontDeskDutyContext(
     confirmedHandover: false,
     handover: null,
   };
-  try {
-    const schedules = await getResolvedStaffSchedulesForDate({
-      supabase,
-      branchId: context.branchId,
-      date: businessDate,
-      staff: [{ id: staff.id, staff_type: staff.staff_type, system_role: staff.system_role }],
-    });
-    const window = dutyWindowAt(
-      schedules.get(staff.id),
-      getBranchTime(new Date(), BRANCH_TIMEZONE).minutesIntoDay
-    );
-    if (window) {
-      result.shiftLabel =
-        window.shiftType === "single"
-          ? "Front Desk duty"
-          : `${window.shiftType === "opening" ? "Opening" : "Closing"} CSR duty`;
-    }
 
+  try {
     type Session = {
       id: string;
       branch_id: string;
@@ -83,17 +89,41 @@ export async function getFrontDeskDutyContext(
         };
       };
     };
-    const { data: sessions, error: sessionError } = await sessionClient
-      .from("cash_sessions")
-      .select("id, branch_id, opened_by, current_custodian_id")
-      .eq("branch_id", context.branchId)
-      .eq("status", "open")
-      .order("opened_at", { ascending: false });
-    if (sessionError || !sessions?.length) return result;
+
+    // Run schedule resolution and open cash session lookup concurrently in a single wave!
+    const [schedules, sessionsRes] = await Promise.all([
+      getResolvedStaffSchedulesForDate({
+        supabase,
+        branchId: context.branchId,
+        date: businessDate,
+        staff: [{ id: staff.id, staff_type: staff.staff_type, system_role: staff.system_role }],
+      }),
+      sessionClient
+        .from("cash_sessions")
+        .select("id, branch_id, opened_by, current_custodian_id")
+        .eq("branch_id", context.branchId)
+        .eq("status", "open")
+        .order("opened_at", { ascending: false }),
+    ]);
+
+    const window = dutyWindowAt(
+      schedules.get(staff.id),
+      getBranchTime(new Date(), BRANCH_TIMEZONE).minutesIntoDay
+    );
+    if (window) {
+      result.shiftLabel =
+        window.shiftType === "single"
+          ? "Front Desk duty"
+          : `${window.shiftType === "opening" ? "Opening" : "Closing"} CSR duty`;
+    }
+
+    const sessions = sessionsRes.data;
+    if (sessionsRes.error || !sessions?.length) return result;
     const ownSession = sessions.find(
       (session) => (session.current_custodian_id || session.opened_by) === staff.id
     );
     result.activeOperator = Boolean(ownSession);
+
     if (ownSession && handoverId && /^[0-9a-f-]{36}$/i.test(handoverId)) {
       type Handover = {
         id: string;
@@ -129,11 +159,12 @@ export async function getFrontDeskDutyContext(
         !handoverError &&
         Boolean(
           latest &&
-          latest.id === handoverId &&
-          latest.branch_id === context.branchId &&
-          latest.incoming_custodian_id === staff.id
+            latest.id === handoverId &&
+            latest.branch_id === context.branchId &&
+            latest.incoming_custodian_id === staff.id
         );
     }
+
     if (!window || ownSession) return result;
     const session = sessions[0];
     if (!session) return result;

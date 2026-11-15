@@ -186,8 +186,12 @@ export function HorizontalBookingQuickEdit({
     return list;
   }, [allResources, initialResource, initialResourceId]);
 
-  // Load smart recommendations
+  const [smartOptionsRequestedByLine, setSmartOptionsRequestedByLine] = useState<string | null>(null);
+  const smartOptionsRequested = smartOptionsRequestedByLine === activeLine.id;
+
+  // Lazy-load smart recommendations only when the operator interacts with the Quick Edit form
   useEffect(() => {
+    if (!smartOptionsRequested) return;
     let cancelled = false;
 
     async function loadSmartOptions() {
@@ -218,7 +222,7 @@ export function HorizontalBookingQuickEdit({
     return () => {
       cancelled = true;
     };
-  }, [activeLine.id, isHomeService]);
+  }, [activeLine.id, isHomeService, smartOptionsRequested]);
 
   // Handle Reschedule: Opens the existing CradleHub booking modal Phone/Future interface with preloaded values
   function handleOpenReschedule() {
@@ -713,3 +717,4 @@ export function HorizontalBookingQuickEdit({
     </div>
   );
 }
+
