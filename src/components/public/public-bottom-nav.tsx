@@ -1,70 +1,61 @@
 "use client";
 
+import React from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { Home, Sparkles, CalendarDays, MapPin, Menu } from "lucide-react";
+import { Calendar, Home, MapPin, ShoppingBag, Sparkles } from "lucide-react";
 
-const NAV_ITEMS = [
-  { label: "Home",     href: "/",         icon: Home },
-  { label: "Services", href: "/services",  icon: Sparkles },
-  { label: "Book",     href: "/book",      icon: CalendarDays },
-  { label: "Branches", href: "/branches",  icon: MapPin },
-  { label: "Menu",     href: "/contact",   icon: Menu },
-] as const;
+const BOTTOM_NAV_ITEMS = [
+  { href: "/", label: "Home", icon: Home },
+  { href: "/services", label: "Services", icon: Sparkles },
+  { href: "/book", label: "Book", icon: Calendar },
+  { href: "/products", label: "Boutique", icon: ShoppingBag },
+  { href: "/branches", label: "Branches", icon: MapPin },
+];
 
 export function PublicBottomNav() {
-  const pathname = usePathname();
+  const pathname = usePathname() || "/";
 
-  // Hide during booking; the wizard has its own fixed mobile action bar.
-  const isBookingFlow = pathname === "/book" || pathname.startsWith("/book/");
-
-  if (isBookingFlow) return null;
+  // Keep /book free so the booking wizard's sticky action footer has full viewport priority.
+  if (pathname.startsWith("/book")) {
+    return null;
+  }
 
   return (
-    <nav
-      aria-label="Main navigation"
-      className="fixed bottom-0 left-0 right-0 z-50 md:hidden"
-      style={{
-        background:  "#10261D",
-        borderTop:   "1px solid rgba(200,169,107,0.18)",
-        boxShadow:   "0 -4px 24px rgba(16,38,29,0.35)",
-        paddingBottom: "env(safe-area-inset-bottom, 0px)",
-      }}
-    >
-      <div className="grid grid-cols-5">
-        {NAV_ITEMS.map(({ label, href, icon: Icon }) => {
-          const isActive =
-            href === "/"
+    <div className="pointer-events-none fixed inset-x-0 bottom-0 z-30 flex justify-center px-3 pb-[max(0.625rem,env(safe-area-inset-bottom))] lg:hidden">
+      <nav
+        aria-label="Mobile quick navigation"
+        className="pointer-events-auto grid w-full max-w-md grid-cols-5 items-center rounded-2xl border border-[#C8A96B]/25 bg-[#10261D]/95 px-1.5 py-1.5 shadow-[0_12px_32px_-8px_rgba(16,38,29,0.55)] backdrop-blur-md"
+      >
+        {BOTTOM_NAV_ITEMS.map((item) => {
+          const active =
+            item.href === "/"
               ? pathname === "/"
-              : pathname === href || pathname.startsWith(href + "/");
-
+              : pathname === item.href || pathname.startsWith(`${item.href}/`);
+          const Icon = item.icon;
           return (
             <Link
-              key={href}
-              href={href}
-              className="flex flex-col items-center justify-center gap-1 py-2.5 transition-colors"
-              style={{
-                color: isActive ? "#C8A96B" : "rgba(252,250,245,0.50)",
-              }}
-              aria-current={isActive ? "page" : undefined}
+              key={item.href}
+              href={item.href}
+              aria-current={active ? "page" : undefined}
+              className={`relative flex min-h-[44px] flex-col items-center justify-center gap-0.5 rounded-xl px-1 py-1 text-[10px] tracking-wide transition focus-visible:outline-2 focus-visible:outline-[#D4B57A] ${
+                active
+                  ? "bg-[#163A2B] font-semibold text-[#E8D5A3]"
+                  : "font-medium text-[#B9C4BC] hover:text-[#FAF5E9]"
+              }`}
             >
-              <Icon
-                aria-hidden="true"
-                className="h-5 w-5 shrink-0"
-                strokeWidth={isActive ? 2.2 : 1.75}
-              />
-              <span
-                className="text-[9.5px] font-semibold tracking-wide"
-                style={{
-                  fontFamily: "var(--sp-font-body, sans-serif)",
-                }}
-              >
-                {label}
-              </span>
+              {active && (
+                <span
+                  aria-hidden="true"
+                  className="absolute top-0.5 h-0.5 w-6 rounded-full bg-[#D4B57A]"
+                />
+              )}
+              <Icon className="h-4 w-4" aria-hidden="true" />
+              <span>{item.label}</span>
             </Link>
           );
         })}
-      </div>
-    </nav>
+      </nav>
+    </div>
   );
 }

@@ -1,42 +1,56 @@
 import type { Metadata } from "next";
 import Image from "next/image";
+import Link from "next/link";
 import { SPA_IMAGES } from "@/constants/spa-images";
 import { ScrollReveal } from "@/components/public/scroll-reveal";
 import { PublicMobileAbout } from "@/components/public/mobile/public-mobile-about";
-import { Heart, Award, Sparkles, Leaf } from "lucide-react";
+import {
+  ArrowRight,
+  Award,
+  Calendar,
+  Flower2,
+  Gem,
+  Heart,
+  Leaf,
+  ShieldCheck,
+  Sparkles,
+  Users,
+} from "lucide-react";
 import { buildMetadata } from "@/lib/seo/metadata";
 import { BreadcrumbJsonLd } from "@/components/seo/structured-data";
 import { getPublicSiteSections } from "@/lib/queries/public-site";
 import { resolvePublicSiteSections } from "@/lib/public/normalized-sections";
 import { isPublicReadTransportFailure } from "@/lib/public/public-read-error";
 
-const values = [
+const experiencePillars = [
+  { label: "Rest & Relaxation", icon: Flower2 },
+  { label: "Professional Care", icon: Leaf },
+  { label: "Safe & Hygienic", icon: ShieldCheck },
+  { label: "Premium Experience", icon: Gem },
+] as const;
+
+const coreValues = [
   {
-    icon: Leaf,
-    title: "Wellness-Led Care",
-    desc: "We focus on calm, comfort, and thoughtful techniques that support everyday rest and renewal.",
-  },
-  {
-    icon: Award,
-    title: "Thoughtful Technique",
-    desc: "Our team brings attentive service to each session, with pressure and pacing guided by your comfort.",
+    icon: Users,
+    title: "Care",
+    desc: "Every session is centered on attentive, personalized care.",
   },
   {
     icon: Heart,
-    title: "Whole-Person Care",
-    desc: "We create space for the body to rest, the mind to settle, and your day to slow down.",
+    title: "Comfort",
+    desc: "Calm spaces, quiet rooms, and warm Filipino hospitality.",
+  },
+  {
+    icon: Award,
+    title: "Quality",
+    desc: "Trained therapists and thoughtfully selected spa essentials.",
   },
   {
     icon: Sparkles,
-    title: "Carefully Kept Standards",
-    desc: "From clean spaces to warm details, every visit is prepared to feel comfortable and cared for.",
+    title: "Trust",
+    desc: "Consistent standards across in-spa and home service visits.",
   },
-];
-
-const PUBLIC_DARK_SECTION =
-  "bg-[radial-gradient(circle_at_80%_8%,rgba(212,181,122,0.10),transparent_34%),linear-gradient(180deg,#031B16_0%,#05241D_50%,#02140F_100%)]";
-const PUBLIC_DARK_CARD =
-  "rounded-2xl border border-[#D4B57A]/22 bg-[#0D2B20]/70 shadow-[0_24px_70px_rgba(0,0,0,0.32),inset_0_1px_0_rgba(246,235,214,0.06)] backdrop-blur-xl";
+] as const;
 
 export const metadata: Metadata = buildMetadata({
   title: "About | Cradle Wellness Living — Bacolod Massage & Spa",
@@ -64,165 +78,162 @@ export default async function AboutPage() {
     SPA_IMAGES.aboutSecondary;
 
   return (
-    <div className="sp-public">
+    <div className="sp-public bg-[#F7F3EB] text-[#10261D]">
       <PublicMobileAbout headerImage={experienceImage} />
       <div className="hidden md:block">
-        {/* Dark hero — matches mobile header */}
-        <div
-          className="pt-28 pb-14 lg:pt-36 lg:pb-20"
-          style={{ background: "#10261D" }}
-        >
-          <div className="mx-auto max-w-4xl px-6 text-center">
-            <p
-              className="text-[11px] font-semibold tracking-[0.25em] uppercase mb-4"
-              style={{ color: "#C8A96B" }}
-            >
-              About Cradle
-            </p>
-            <h1
-              className="text-3xl sm:text-4xl lg:text-5xl font-medium leading-tight mb-4"
-              style={{ fontFamily: "var(--sp-font-display)", color: "#FCFAF5" }}
-            >
-              Your Wellness Is
-              <br />
-              Our Passion
-            </h1>
-            <p className="text-[15px] max-w-xl mx-auto" style={{ color: "rgba(252,250,245,0.65)" }}>
-              A calm, caring space for everyone who needs to pause, breathe, and feel looked after.
-            </p>
-          </div>
-        </div>
-
-        {/* Story Section */}
-        <section className={`${PUBLIC_DARK_SECTION} py-20 lg:py-28`}>
-          <div className="mx-auto max-w-7xl px-6">
-            <div className="grid lg:grid-cols-2 gap-16 items-center">
-              <ScrollReveal variant="scale">
-                <div className="relative aspect-[4/3] rounded-2xl overflow-hidden shadow-xl">
-                  <Image
-                    src={storyImage}
-                    alt="Cradle Spa interior"
-                    fill
-                    className="object-cover"
-                    sizes="(max-width: 1024px) 100vw, 50vw"
-                  />
-                </div>
-              </ScrollReveal>
-
-              <div>
-                <ScrollReveal>
-                  <h2
-                    className="text-2xl sm:text-3xl font-medium leading-tight mb-6"
-                    style={{ fontFamily: "var(--sp-font-display)", color: "#F6EBD6" }}
-                  >
-                    Our Story
-                  </h2>
-                  <div className="flex flex-col gap-4 text-[15px] leading-relaxed" style={{ color: "rgba(246,235,214,0.68)" }}>
-                    <p>
-                      Cradle Massage & Wellness Spa was born from a simple belief: that everyone deserves
-                      a place to pause, breathe, and be cared for. In the heart of Bacolod City, we have
-                      created a calming space where the outside world can soften and your wellness takes center stage.
-                    </p>
-                    <p>
-                      Our approach blends familiar Filipino hospitality with a warm spa experience. Every
-                      treatment room, every scent, and every thoughtful detail is designed to help you
-                      feel present, rested, and cared for.
-                    </p>
-                    <p>
-                      Whether you seek relief from everyday tension, a moment of quiet escape, or a shared
-                      experience with someone you love, Cradle is here to hold space for your renewal.
-                    </p>
-                  </div>
-                </ScrollReveal>
-              </div>
-            </div>
-          </div>
-        </section>
-
-        {/* Values */}
-        <section className={`${PUBLIC_DARK_SECTION} py-20 lg:py-28`}>
-          <div className="mx-auto max-w-7xl px-6">
-            <div className="text-center max-w-2xl mx-auto mb-16">
-              <ScrollReveal>
-                <p
-                  className="text-[11px] font-semibold tracking-[0.25em] uppercase mb-4"
-                  style={{ color: "#C8A96B" }}
-                >
-                  Our Philosophy
+        {/* Forest Green Split Hero */}
+        <section className="relative overflow-hidden bg-[#10261D] pt-24 text-[#FCFAF5]">
+          <div className="mx-auto grid max-w-7xl grid-cols-12 items-center px-6 py-16 lg:py-20">
+            <div className="relative z-10 col-span-6 pr-8">
+              <div className="flex items-center gap-3">
+                <p className="text-[11px] font-semibold uppercase tracking-[0.26em] text-[#D4B57A]">
+                  About Us
                 </p>
-                <h2
-                  className="text-2xl sm:text-3xl font-medium"
-                  style={{ fontFamily: "var(--sp-font-display)", color: "#F6EBD6" }}
+                <span className="h-px w-8 bg-[#D4B57A]/60" aria-hidden="true" />
+              </div>
+              <h1
+                className="mt-3 text-4xl font-medium leading-tight text-[#FCFAF5] lg:text-5xl"
+                style={{ fontFamily: "var(--sp-font-display)" }}
+              >
+                Our Story
+              </h1>
+              <p className="mt-4 max-w-md text-[15px] leading-relaxed text-[#EDE4D3]/85">
+                More than a spa — a sanctuary for rest, rejuvenation, and holistic wellness.
+              </p>
+              <div className="mt-7 flex flex-wrap items-center gap-3">
+                <Link
+                  href="/book"
+                  className="inline-flex min-h-11 items-center gap-2 rounded-full bg-[#D4B57A] px-6 text-[13px] font-semibold text-[#10261D] transition hover:bg-[#E4C992]"
                 >
-                  What We Stand For
-                </h2>
-              </ScrollReveal>
+                  <Calendar className="h-4 w-4" aria-hidden="true" />
+                  Book an Experience
+                  <ArrowRight className="h-4 w-4" aria-hidden="true" />
+                </Link>
+                <Link
+                  href="/services"
+                  className="inline-flex min-h-11 items-center gap-2 rounded-full border border-[#D4B57A]/45 bg-[#163A2B]/60 px-5 text-[13px] font-semibold text-[#FCFAF5] transition hover:bg-[#1E4D3A]"
+                >
+                  <Leaf className="h-4 w-4 text-[#D4B57A]" aria-hidden="true" />
+                  Our Services
+                </Link>
+              </div>
             </div>
 
-            <div className="grid sm:grid-cols-2 lg:grid-cols-4 gap-8">
-              {values.map((v, i) => (
-                <ScrollReveal key={v.title} delay={i * 100}>
-                  <div className={`${PUBLIC_DARK_CARD} p-7 transition-shadow duration-500 h-full`}>
-                    <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-[#163A2B] text-[#C8A96B] mb-5">
-                      <v.icon className="h-6 w-6" />
-                    </div>
-                    <h3
-                      className="text-[16px] font-semibold mb-3"
-                      style={{ fontFamily: "var(--sp-font-display)", color: "#F6EBD6" }}
-                    >
-                      {v.title}
-                    </h3>
-                    <p className="text-[13px] leading-relaxed" style={{ color: "rgba(246,235,214,0.66)" }}>
-                      {v.desc}
-                    </p>
-                  </div>
-                </ScrollReveal>
-              ))}
+            <div className="relative col-span-6 h-64 overflow-hidden rounded-2xl border border-[#D4B57A]/25 lg:h-72">
+              <Image
+                src={storyImage}
+                alt="Warm candlelight and folded spa towel at Cradle Wellness Living"
+                fill
+                preload
+                fetchPriority="high"
+                className="object-cover"
+                sizes="(max-width: 1024px) 100vw, 50vw"
+              />
+              <div className="absolute inset-0 bg-gradient-to-r from-[#10261D]/65 via-transparent to-transparent" />
             </div>
           </div>
         </section>
 
-        {/* Secondary Image */}
-        <section className={`${PUBLIC_DARK_SECTION} py-20 lg:py-28`}>
+        {/* Experience Split Story */}
+        <section className="bg-[#FCFAF5] py-16 lg:py-20">
           <div className="mx-auto max-w-7xl px-6">
-            <div className="grid lg:grid-cols-2 gap-16 items-center">
-              <div className="order-2 lg:order-1">
-                <ScrollReveal>
-                  <h2
-                    className="text-2xl sm:text-3xl font-medium leading-tight mb-6"
-                    style={{ fontFamily: "var(--sp-font-display)", color: "#F6EBD6" }}
-                  >
-                    The Cradle Experience
-                  </h2>
-                  <div className="flex flex-col gap-4 text-[15px] leading-relaxed" style={{ color: "rgba(246,235,214,0.68)" }}>
-                    <p>
-                      From the moment you arrive, you are welcomed into calm. Soft lighting, quiet details,
-                      and a slower pace set the tone before your treatment even begins.
-                    </p>
-                    <p>
-                      Our therapists take time to understand your needs, whether it is targeting a specific
-                      area of tension or simply creating space for deep relaxation. No two sessions are alike
-                      because no two bodies are alike.
-                    </p>
-                    <p>
-                      After your treatment, take a quiet moment before returning to your day. Let the calm
-                      settle in and carry it with you beyond the spa.
-                    </p>
-                  </div>
-                </ScrollReveal>
-              </div>
-              <ScrollReveal variant="scale" className="order-1 lg:order-2">
-                <div className="relative aspect-[4/3] rounded-2xl overflow-hidden shadow-xl">
+            <div className="grid items-center gap-12 lg:grid-cols-12">
+              <ScrollReveal variant="scale" className="lg:col-span-5">
+                <div className="relative aspect-[4/3] overflow-hidden rounded-2xl border border-[#E5DEC9] shadow-sm">
                   <Image
                     src={experienceImage}
-                    alt="Spa relaxation lounge"
+                    alt="Warm herbal bowl and glowing spa sanctuary inside Cradle Wellness Living"
                     fill
+                    loading="lazy"
                     className="object-cover"
-                    sizes="(max-width: 1024px) 100vw, 50vw"
+                    sizes="(max-width: 1024px) 100vw, 45vw"
                   />
                 </div>
               </ScrollReveal>
+
+              <div className="lg:col-span-7">
+                <ScrollReveal>
+                  <h2
+                    className="text-2xl font-semibold leading-tight text-[#10261D] sm:text-3xl"
+                    style={{ fontFamily: "var(--sp-font-display)" }}
+                  >
+                    The Cradle Wellness Living Experience
+                  </h2>
+                  <div className="mt-4 flex flex-col gap-3.5 text-[15px] leading-relaxed text-[#35463E]">
+                    <p>
+                      Cradle Wellness Living is a calm wellness and spa sanctuary in Bacolod
+                      City, dedicated to providing professional massage, beauty, and
+                      holistic care that restores balance to your body, mind, and lifestyle.
+                    </p>
+                    <p>
+                      Our approach blends warm Filipino hospitality with attentive craft.
+                      Every treatment room, scent, and quiet detail is designed to help you
+                      pause, breathe, and feel looked after—whether inside our branches or
+                      through our home service team.
+                    </p>
+                  </div>
+
+                  <div className="mt-8 grid grid-cols-4 gap-4 border-t border-[#EDE4D3] pt-7">
+                    {experiencePillars.map(({ label, icon: Icon }) => (
+                      <div key={label} className="flex flex-col items-center text-center">
+                        <div className="flex h-11 w-11 items-center justify-center rounded-full bg-[#F7F3EB] text-[#B68A3C]">
+                          <Icon className="h-5 w-5" aria-hidden="true" />
+                        </div>
+                        <p className="mt-2.5 text-[12px] font-semibold text-[#10261D]">
+                          {label}
+                        </p>
+                      </div>
+                    ))}
+                  </div>
+                </ScrollReveal>
+              </div>
             </div>
+          </div>
+        </section>
+
+        {/* Commitment & Values Band */}
+        <section className="border-t border-[#E5DEC9] bg-[#F7F3EB] py-16">
+          <div className="mx-auto max-w-7xl px-6">
+            <ScrollReveal>
+              <div className="grid items-center gap-10 rounded-3xl border border-[#E5DEC9] bg-[#FCFAF5] p-8 shadow-xs lg:grid-cols-12 lg:p-12">
+                <div className="lg:col-span-5 lg:border-r lg:border-[#E5DEC9] lg:pr-8">
+                  <h2
+                    className="text-2xl font-semibold text-[#10261D] sm:text-3xl"
+                    style={{ fontFamily: "var(--sp-font-display)" }}
+                  >
+                    Our Commitment
+                  </h2>
+                  <p className="mt-3 text-[14px] leading-relaxed text-[#35463E]">
+                    To deliver high-quality, safe, and personalized wellness experiences
+                    that help you look, feel, and live better.
+                  </p>
+                </div>
+
+                <div className="lg:col-span-7">
+                  <h2
+                    className="text-xl font-semibold text-[#10261D]"
+                    style={{ fontFamily: "var(--sp-font-display)" }}
+                  >
+                    Our Values
+                  </h2>
+                  <div className="mt-5 grid grid-cols-2 gap-5 sm:grid-cols-4">
+                    {coreValues.map((v) => (
+                      <div key={v.title} className="flex flex-col items-center text-center">
+                        <div className="flex h-11 w-11 items-center justify-center rounded-full border border-[#E5DEC9] bg-white text-[#B68A3C]">
+                          <v.icon className="h-5 w-5" aria-hidden="true" />
+                        </div>
+                        <h3 className="mt-2.5 text-[13px] font-semibold text-[#10261D]">
+                          {v.title}
+                        </h3>
+                        <p className="mt-1 text-[11px] leading-relaxed text-[#55635B]">
+                          {v.desc}
+                        </p>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              </div>
+            </ScrollReveal>
           </div>
         </section>
       </div>

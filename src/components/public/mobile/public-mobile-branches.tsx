@@ -1,6 +1,6 @@
 import Image from "next/image";
 import Link from "next/link";
-import { Clock, MapPin, Navigation, Phone } from "lucide-react";
+import { ArrowRight, Clock, Flower2, Leaf, MapPin, Navigation, Phone, Sparkles } from "lucide-react";
 import { SPA_IMAGES } from "@/constants/spa-images";
 
 type MobileBranch = {
@@ -16,10 +16,11 @@ function mapHref(branch: MobileBranch) {
   return `https://maps.google.com/?q=${encodeURIComponent(branch.address || branch.name)}`;
 }
 
-const MOBILE_PUBLIC_SURFACE =
-  "md:hidden bg-[radial-gradient(circle_at_80%_8%,rgba(212,181,122,0.10),transparent_34%),linear-gradient(180deg,#031B16_0%,#05241D_50%,#02140F_100%)] pb-12 pt-14 text-[#F6EBD6]";
-const MOBILE_GLASS_CARD =
-  "box-border border border-[#D4B57A]/22 bg-[#0D2B20]/70 shadow-[0_24px_70px_rgba(0,0,0,0.32),inset_0_1px_0_rgba(246,235,214,0.06)] backdrop-blur-xl";
+const BRANCH_PILLARS = [
+  { label: "Massage", Icon: Leaf },
+  { label: "Body Treatment", Icon: Flower2 },
+  { label: "Nails & Beauty", Icon: Sparkles },
+] as const;
 
 export function PublicMobileBranches({
   branches,
@@ -29,20 +30,35 @@ export function PublicMobileBranches({
   fallbackImage?: string;
 }) {
   return (
-    <div className={MOBILE_PUBLIC_SURFACE}>
-      <section className="bg-[#082E22] px-5 pb-7 pt-8 text-[#FCFAF5]">
-        <h1
-          className="text-[30px] font-medium leading-tight"
-          style={{ fontFamily: "var(--sp-font-display)" }}
-        >
-          Our Branches
-        </h1>
-        <p className="mt-2 text-[13px] text-[#FCFAF5]/84">
-          Visit us at our calming Bacolod locations.
-        </p>
+    <div className="md:hidden bg-[#F7F3EB] pb-24 pt-16 text-[#10261D]">
+      <section className="relative overflow-hidden bg-[#10261D] px-5 pb-12 pt-8 text-[#FCFAF5]">
+        <Image
+          src={fallbackImage || SPA_IMAGES.contact}
+          alt=""
+          fill
+          preload
+          fetchPriority="high"
+          sizes="100vw"
+          className="object-cover opacity-25"
+        />
+        <div className="relative z-10">
+          <p className="text-[10px] font-semibold uppercase tracking-[0.26em] text-[#D4B57A]">
+            Our Branches
+          </p>
+          <h1
+            className="mt-2 text-[30px] font-medium leading-tight text-[#FCFAF5]"
+            style={{ fontFamily: "var(--sp-font-display)" }}
+          >
+            Visit Our Branches
+          </h1>
+          <p className="mt-2 max-w-xs text-[13px] leading-relaxed text-[#EDE4D3]/85">
+            Experience Cradle Wellness Living at our convenient locations in Bacolod
+            City.
+          </p>
+        </div>
       </section>
 
-      <section className="space-y-4 overflow-hidden px-4 py-5">
+      <section className="relative z-10 -mt-6 space-y-5 px-4">
         {branches.map((branch, index) => {
           const metaImg =
             branch.location_metadata &&
@@ -53,82 +69,92 @@ export function PublicMobileBranches({
               ? branch.location_metadata.image_url.trim()
               : null;
           const imgSrc =
-            metaImg || fallbackImage || (index % 2 === 0 ? SPA_IMAGES.contact : SPA_IMAGES.booking);
+            metaImg ||
+            fallbackImage ||
+            (index % 2 === 0 ? SPA_IMAGES.branchMain : SPA_IMAGES.branchSm);
+          const shortLabel = /sm/i.test(branch.name)
+            ? "SM Branch"
+            : index === 0
+              ? "Main Spa"
+              : branch.name;
 
           return (
             <article
               key={branch.id}
-              className={`max-w-full overflow-hidden rounded-[10px] p-3 ${MOBILE_GLASS_CARD}`}
-              style={{ width: "calc(100vw - 56px)" }}
+              className="overflow-hidden rounded-2xl border border-[#E5DEC9] bg-white p-3.5 shadow-sm"
             >
-              <div className="relative h-[150px] w-full overflow-hidden rounded-[7px] bg-[#031B16]">
+              <div className="relative h-44 w-full overflow-hidden rounded-xl bg-[#EDE4D3]">
                 <Image
                   src={imgSrc}
                   alt={branch.name}
                   fill
+                  loading="lazy"
                   className="object-cover"
-                  sizes="calc(100vw - 56px)"
+                  sizes="100vw"
                 />
-                <div className="absolute inset-0 bg-[#031B16]/25" />
+                <div className="absolute bottom-3 left-3 inline-flex items-center gap-1.5 rounded-full bg-[#FCFAF5]/95 px-3 py-1.5 text-[12px] font-semibold text-[#10261D] shadow-xs">
+                  <MapPin className="h-3.5 w-3.5 text-[#B68A3C]" aria-hidden="true" />
+                  <span>{branch.name}</span>
+                </div>
               </div>
 
-              <div className="mt-3">
-                <h2
-                  className="text-[17px] font-medium text-[#F6EBD6]"
-                  style={{ fontFamily: "var(--sp-font-display)" }}
-                >
-                  {branch.name}
-                </h2>
+              <div className="mt-3.5 space-y-2 px-1">
                 {branch.address ? (
-                  <p className="mt-1 flex items-start gap-1.5 text-[12px] text-[#F6EBD6]/75">
-                    <MapPin className="mt-0.5 h-3.5 w-3.5 shrink-0 text-[#D4B57A]" />
+                  <p className="flex items-start gap-2 text-[12px] leading-snug text-[#35463E]">
+                    <MapPin className="mt-0.5 h-3.5 w-3.5 shrink-0 text-[#B68A3C]" aria-hidden="true" />
                     <span>{branch.address}</span>
                   </p>
                 ) : null}
+                {branch.opening_hours ? (
+                  <p className="flex items-center gap-2 text-[12px] text-[#35463E]">
+                    <Clock className="h-3.5 w-3.5 shrink-0 text-[#B68A3C]" aria-hidden="true" />
+                    <span>{branch.opening_hours}</span>
+                  </p>
+                ) : null}
                 {branch.phone ? (
-                  <p className="mt-1 flex items-center gap-1.5 text-[12px] text-[#F6EBD6]/75">
-                    <Phone className="h-3.5 w-3.5 shrink-0 text-[#D4B57A]" />
+                  <p className="flex items-center gap-2 text-[12px] text-[#35463E]">
+                    <Phone className="h-3.5 w-3.5 shrink-0 text-[#B68A3C]" aria-hidden="true" />
                     <a
                       href={`tel:${branch.phone.replace(/\s/g, "")}`}
-                      className="underline decoration-[#D4B57A]/40 hover:text-[#D4B57A]"
+                      className="font-medium text-[#10261D] underline decoration-[#D4B57A]/60"
                     >
                       {branch.phone}
                     </a>
                   </p>
                 ) : null}
-                {branch.opening_hours ? (
-                  <p className="mt-1 flex items-center gap-1.5 text-[12px] text-[#F6EBD6]/75">
-                    <Clock className="h-3.5 w-3.5 shrink-0 text-[#D4B57A]" />
-                    <span>{branch.opening_hours}</span>
-                  </p>
-                ) : null}
+              </div>
 
-                <div className="mt-3.5 flex gap-2">
-                  <a
-                    href={mapHref(branch)}
-                    target="_blank"
-                    rel="noreferrer"
-                    className="flex flex-1 items-center justify-center gap-1.5 rounded-[6px] border border-[#D4B57A]/35 bg-[#031B16]/40 py-2 text-[11px] font-semibold text-[#F6EBD6] backdrop-blur-md"
+              <div className="mt-3.5 grid grid-cols-3 gap-2">
+                {BRANCH_PILLARS.map(({ label, Icon }) => (
+                  <div
+                    key={label}
+                    className="flex flex-col items-center justify-center rounded-xl border border-[#EDE4D3] bg-[#FBF9F4] px-2 py-2.5 text-center"
                   >
-                    <Navigation className="h-3 w-3 text-[#D4B57A]" />
-                    Directions
-                  </a>
-                  {branch.phone ? (
-                    <a
-                      href={`tel:${branch.phone.replace(/\s/g, "")}`}
-                      className="flex flex-1 items-center justify-center gap-1.5 rounded-[6px] border border-[#D4B57A]/35 bg-[#031B16]/40 py-2 text-[11px] font-semibold text-[#F6EBD6] backdrop-blur-md"
-                    >
-                      <Phone className="h-3 w-3 text-[#D4B57A]" />
-                      Call
-                    </a>
-                  ) : null}
-                  <Link
-                    href={`/book?branch=${branch.id}`}
-                    className="flex flex-1 items-center justify-center rounded-[6px] bg-[#D4B57A] py-2 text-[11px] font-semibold uppercase tracking-[0.08em] text-[#031B16]"
-                  >
-                    Book
-                  </Link>
-                </div>
+                    <Icon className="h-4 w-4 text-[#B68A3C]" aria-hidden="true" />
+                    <span className="mt-1 text-[11px] font-medium leading-tight text-[#10261D]">
+                      {label}
+                    </span>
+                  </div>
+                ))}
+              </div>
+
+              <div className="mt-4 flex flex-col gap-2">
+                <Link
+                  href={`/book?branchId=${encodeURIComponent(branch.id)}`}
+                  className="flex min-h-11 items-center justify-center gap-1.5 rounded-full bg-[#163A2B] px-4 text-[13px] font-semibold text-[#FCFAF5] transition hover:bg-[#1E4D3A]"
+                >
+                  Book at {shortLabel}
+                  <ArrowRight className="h-3.5 w-3.5" aria-hidden="true" />
+                </Link>
+                <a
+                  href={mapHref(branch)}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="flex min-h-10 items-center justify-center gap-1.5 rounded-full border border-[#D4CBB3] bg-[#FCFAF5] px-4 text-[12px] font-semibold text-[#10261D]"
+                >
+                  <Navigation className="h-3.5 w-3.5 text-[#B68A3C]" aria-hidden="true" />
+                  Get Directions
+                </a>
               </div>
             </article>
           );

@@ -70,28 +70,28 @@ export function InlineServiceDurationSlider(props: Props) {
   };
 
   return (
-    <div className="mt-2 border-t border-[#D4B57A]/20 pt-2.5 md:mt-4 md:pt-4">
+    <div className="mt-2 border-t border-[#E5DEC9] pt-2.5 md:mt-4 md:pt-4">
       <div className="hidden md:flex md:items-center md:gap-3">
-        <Clock3 className="h-5 w-5 shrink-0 text-[#D4B57A]" aria-hidden="true" />
+        <Clock3 className="h-5 w-5 shrink-0 text-[#B68A3C]" aria-hidden="true" />
         <div className="min-w-[130px]">
-          <p className="text-[13px] font-medium text-[#F6EBD6]">Adjust duration</p>
-          <p className="text-[11px] text-[#F6EBD6]/60">Slide for more time</p>
+          <p className="text-[13px] font-medium text-[#10261D]">Adjust duration</p>
+          <p className="text-[11px] text-[#58665E]">Slide for more time</p>
         </div>
       </div>
-      {error ? <p role="alert" className="mt-1 text-xs text-[#F6C3AA]">{error}</p> : null}
-      {quoteChanged ? <p role="alert" className="mt-1 text-xs text-[#F6C3AA]">Duration or price changed. Review and select a current option.</p> : null}
+      {error ? <p role="alert" className="mt-1 text-xs text-[#9F2D20]">{error}</p> : null}
+      {quoteChanged ? <p role="alert" className="mt-1 text-xs text-[#9F2D20]">Duration or price changed. Review and select a current option.</p> : null}
       <div className={`relative ${loading || error ? "opacity-50" : ""}`} aria-busy={loading}>
-        <div className="relative mx-1 min-h-11 focus-within:rounded-lg focus-within:outline-2 focus-within:outline-offset-2 focus-within:outline-[#D4B57A]">
-          <div className="pointer-events-none absolute inset-x-3 top-[21px] h-[2px] bg-[#D4B57A]/35" />
-          <div className="pointer-events-none absolute left-3 top-[21px] h-[2px] bg-[#D4B57A]" style={{
+        <div className="relative mx-1 min-h-11 focus-within:rounded-lg focus-within:outline-2 focus-within:outline-offset-2 focus-within:outline-[#163A2B]">
+          <div className="pointer-events-none absolute inset-x-3 top-[21px] h-[2px] bg-[#D7CEBC]" />
+          <div className="pointer-events-none absolute left-3 top-[21px] h-[2px] bg-[#163A2B]" style={{
             width: options.length > 1 ? `calc((100% - 24px) * ${currentIndex / (options.length - 1)})` : "0px",
           }} />
           <div className="pointer-events-none absolute inset-x-0 top-[13px] flex justify-between px-[3px]">
             {(options.length > 0 ? options.map((quote) => quote.selectedDurationMinutes) : [0, 1, 2, 3, 4]).map((duration, index) => (
               <span key={duration} aria-hidden="true"
                 className={`size-[18px] rounded-full border-2 ${index === currentIndex && !loading
-                  ? "border-[#D4B57A] bg-[#D4B57A] shadow-[0_0_0_4px_rgba(212,181,122,0.18)]"
-                  : "border-[#D4B57A]/55 bg-[#092C23]"}`} />
+                  ? "border-[#163A2B] bg-[#163A2B] shadow-[0_0_0_4px_rgba(22,58,43,0.14)]"
+                  : "border-[#B68A3C] bg-white"}`} />
             ))}
           </div>
           <input type="range" min={0} max={Math.max(0, options.length - 1)} step={1}
@@ -108,9 +108,9 @@ export function InlineServiceDurationSlider(props: Props) {
             className="absolute inset-0 h-11 w-full cursor-pointer opacity-0 disabled:cursor-not-allowed" />
         </div>
         {options.length > 0 ? <div className="hidden md:flex md:justify-between md:gap-1">
-          {options.map((quote) => <div key={quote.selectedDurationMinutes} className="min-w-0 text-center text-[11px] text-[#F6EBD6]/72">
-            <p className={quote.selectedDurationMinutes === props.currentDurationMinutes ? "font-semibold text-[#D4B57A]" : ""}>{quote.selectedDurationMinutes} min</p>
-            <p className={quote.selectedDurationMinutes === props.currentDurationMinutes ? "font-semibold text-[#D4B57A]" : ""}>{money(quote.calculatedPrice)}</p>
+          {options.map((quote) => <div key={quote.selectedDurationMinutes} className="min-w-0 text-center text-[11px] text-[#58665E]">
+            <p className={quote.selectedDurationMinutes === props.currentDurationMinutes ? "font-semibold text-[#163A2B]" : ""}>{quote.selectedDurationMinutes} min</p>
+            <p className={quote.selectedDurationMinutes === props.currentDurationMinutes ? "font-semibold text-[#163A2B]" : ""}>{money(quote.calculatedPrice)}</p>
           </div>)}
         </div> : null}
       </div>

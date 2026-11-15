@@ -1,10 +1,8 @@
 import type { Metadata } from "next";
 import { cookies } from "next/headers";
-import { SiteFooter } from "@/components/public/site-footer";
-import { SiteHeader } from "@/components/public/site-header";
+import { PublicShell } from "@/components/public/public-shell";
 import { HomePageSections } from "@/components/public/home-page-sections";
 import { PublicMobileHome } from "@/components/public/mobile/public-mobile-home";
-import { MobileFirstVisitPreloader } from "@/components/shared/mobile-first-visit-preloader";
 import { getPublicBranches } from "@/lib/queries/branches";
 import { getPublicServiceCatalog } from "@/lib/queries/services";
 import { getPublicSiteSections } from "@/lib/queries/public-site";
@@ -78,27 +76,22 @@ export default async function HomePage() {
   ];
 
   return (
-    <div className="sp-public">
-      <MobileFirstVisitPreloader initiallyVisible={!hasSeenMobilePreloader} />
-      <SiteHeader
-        primaryPhone={primaryPhone}
-        logoUrl={brand.headerLogoUrl}
-        logoAlt={brand.headerLogoAlt}
-      />
-      <main>
-        <PublicMobileHome branches={branches} services={services} sections={normalizedSections} />
-        <div className="hidden md:block">
-          <HomePageSections branches={branches} services={services} sections={normalizedSections} />
-        </div>
-      </main>
-      <SiteFooter
-        branches={branches}
-        logoUrl={brand.footerLogoUrl}
-        logoAlt={brand.footerLogoAlt}
-        taglineText={brand.taglineText}
-      />
+    <PublicShell
+      branches={branches}
+      hasSeenMobilePreloader={hasSeenMobilePreloader}
+      primaryPhone={primaryPhone}
+      headerLogoUrl={brand.headerLogoUrl}
+      headerLogoAlt={brand.headerLogoAlt}
+      footerLogoUrl={brand.footerLogoUrl}
+      footerLogoAlt={brand.footerLogoAlt}
+      taglineText={brand.taglineText}
+    >
+      <PublicMobileHome branches={branches} services={services} sections={normalizedSections} />
+      <div className="hidden md:block">
+        <HomePageSections branches={branches} services={services} sections={normalizedSections} />
+      </div>
       <LocalBusinessJsonLd />
       <FAQPageJsonLd faqs={homepageFaqs} />
-    </div>
+    </PublicShell>
   );
 }

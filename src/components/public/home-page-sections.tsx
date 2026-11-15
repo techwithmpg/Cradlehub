@@ -1,860 +1,679 @@
-import Image from "next/image";
+import React from "react";
 import Link from "next/link";
+import Image from "next/image";
 import {
   ArrowRight,
-  CalendarDays,
-  Check,
+  Calendar,
   Clock,
-  HeartHandshake,
+  Flower2,
   Home,
   Leaf,
   MapPin,
-  MessageCircle,
   Phone,
+  Scissors,
   ShieldCheck,
+  ShoppingBag,
   Sparkles,
-  Users,
 } from "lucide-react";
-import type { PublicSiteSectionRow } from "@/lib/queries/public-site";
-import {
-  resolvePublicSiteSections,
-  type NormalizedPublicSiteSections,
-} from "@/lib/public/normalized-sections";
-import type { PublicCatalogService } from "@/lib/queries/services";
 import {
   PUBLIC_CATALOG_CATEGORY_DETAILS,
-  PUBLIC_CATALOG_CATEGORY_NAMES,
   getPublicHomeCategoryImage,
-  type PublicCatalogCategoryName,
 } from "@/lib/public/service-catalog-config";
 import {
-  bookingJourneySteps,
-  businessInfo,
-  guestReasons,
-  heroProofPoints,
-  quickTrustPoints,
-  settingCards,
-  teamRoles,
-  whyGuestsChooseCradle,
+  resolvePublicBranchImage,
+  type PublicBranch,
 } from "@/lib/public/public-site-data";
-import type { Database } from "@/types/supabase";
-import { ScrollReveal } from "./scroll-reveal";
-import { FaqAccordion } from "./faq-accordion";
-import { ServiceShowcaseCarousel } from "./service-showcase-carousel";
-import { SERVICE_SHOWCASE_SLIDES } from "@/constants/service-showcase";
-
-type CoverImageProps = {
-  src: string;
-  alt: string;
-  priority?: boolean;
-  sizes: string;
-  className?: string;
-  objectPosition?: string;
-};
-
-const proofIcons = [ShieldCheck, Home, MapPin, MessageCircle] as const;
-const journeyIcons = [Home, Sparkles, CalendarDays, HeartHandshake] as const;
-const whyIcons = [Leaf, CalendarDays, Home, MapPin] as const;
-
-const HOME_CATEGORY_IMAGE_CLASSES: Partial<Record<PublicCatalogCategoryName, string>> = {
-  "Spa Party Packages": "object-[center_45%]",
-};
-
-function CoverImage({ src, alt, priority, sizes, className = "", objectPosition }: CoverImageProps) {
-  const imageClass = `object-cover ${className}`.trim();
-
-  if (src.startsWith("/") && !src.startsWith("//")) {
-    return (
-      <Image src={src} alt={alt} fill priority={priority} className={imageClass} sizes={sizes} style={{ objectPosition }} />
-    );
-  }
-
-  // eslint-disable-next-line @next/next/no-img-element
-  return <img src={src} alt={alt} className={`absolute inset-0 h-full w-full ${imageClass}`} style={{ objectPosition }} />;
-}
-
-function slugify(value: string) {
-  return value
-    .toLowerCase()
-    .replace(/&/g, "and")
-    .replace(/[^a-z0-9]+/g, "-")
-    .replace(/(^-|-$)/g, "");
-}
-
-function servicesForCategory(
-  services: PublicCatalogService[],
-  categoryName: PublicCatalogCategoryName
-) {
-  return services.filter((service) => service.categoryName === categoryName);
-}
-
-type BranchRow = Database["public"]["Tables"]["branches"]["Row"];
+import type { PublicCatalogService } from "@/lib/queries/services";
+import type { NormalizedPublicSiteSections } from "@/lib/public/normalized-sections";
+import { resolvePublicSiteSections } from "@/lib/public/normalized-sections";
+import { SPA_IMAGES } from "@/constants/spa-images";
+import { BOUTIQUE_PRODUCTS } from "@/lib/public/boutique-catalog";
 
 export type HomePageSectionsProps = {
-  branches?: BranchRow[];
-  services?: PublicCatalogService[];
-  managedSections?: PublicSiteSectionRow[];
+  branches: PublicBranch[];
+  services: PublicCatalogService[];
   sections?: NormalizedPublicSiteSections;
 };
 
 export type HomePageSectionsRendererProps = {
   sections: NormalizedPublicSiteSections;
-  branches?: BranchRow[];
-  services?: PublicCatalogService[];
+  branches: PublicBranch[];
+  services: PublicCatalogService[];
 };
+
+const SERVICE_EXPERIENCE_CARDS = [
+  {
+    key: "massage",
+    categoryName: "Massage Services" as const,
+    title: "Signature Massage",
+    subtitle: "Relax and release tension",
+    href: "/services?category=Massage%20Services",
+    icon: Flower2,
+  },
+  {
+    key: "skincare",
+    categoryName: "Skin Care Services" as const,
+    title: "Spa & Body",
+    subtitle: "Rejuvenate and restore",
+    href: "/services?category=Skin%20Care%20Services",
+    icon: Sparkles,
+  },
+  {
+    key: "salon",
+    categoryName: "Salon Services" as const,
+    title: "Salon & Beauty",
+    subtitle: "Hair, nails, and beauty care",
+    href: "/services?category=Salon%20Services",
+    icon: Scissors,
+  },
+  {
+    key: "home",
+    categoryName: null,
+    title: "Home Service",
+    subtitle: "Bring the spa to your home",
+    href: "/home-service-massage-bacolod",
+    icon: Home,
+  },
+];
+
+const TRUST_HIGHLIGHTS = [
+  {
+    icon: Flower2,
+    title: "Expert Care",
+    description: "Trained and friendly wellness professionals",
+  },
+  {
+    icon: ShieldCheck,
+    title: "Safe & Hygienic",
+    description: "A clean, comfortable, and well-maintained spa",
+  },
+  {
+    icon: Leaf,
+    title: "Holistic Wellness",
+    description: "Beauty, relaxation, and total well-being in one place",
+  },
+];
+
+function isSafeDisplayService(service: PublicCatalogService) {
+  return Boolean(service.isPublicBookable && !service.isCsrOnly && !service.isVip);
+}
 
 export function HomePageSectionsRenderer({
   sections,
-  branches = [],
-  services = [],
+  branches,
+  services,
 }: HomePageSectionsRendererProps) {
-  const { hero, about, quoteBanner, beforeYouBook, signatureServices, gallery } = sections;
+  const { hero, about, quoteBanner, signatureServices, siteImages } = sections;
 
-  const serviceCategoryCards = PUBLIC_CATALOG_CATEGORY_NAMES.map((categoryName) => {
-    const categoryServices = servicesForCategory(services, categoryName);
-    const details = PUBLIC_CATALOG_CATEGORY_DETAILS[categoryName];
-    return {
-      name: categoryName,
-      details: {
-        ...details,
-        image: signatureServices.categoryImages[categoryName] ?? getPublicHomeCategoryImage(categoryName),
-      },
-      imageClassName: HOME_CATEGORY_IMAGE_CLASSES[categoryName] ?? "",
-      count: categoryServices.length,
-      examples: categoryServices.slice(0, 3).map((service) => service.name),
-      href: `/services#${slugify(categoryName)}`,
-    };
-  });
+  const isDefaultHeroTitle =
+    hero.title.trim() === "Restore Your Body. Quiet Your Mind.";
+  const heroTitleDisplay = isDefaultHeroTitle
+    ? "A sanctuary of calm\nin Bacolod"
+    : hero.title;
+
+  const safeServices = services.filter(isSafeDisplayService);
+  const signaturePreviewServices = safeServices.slice(0, 4);
 
   return (
-    <>
+    <div className="w-full bg-[#F7F3EB] text-[#10261D]">
+      {/* 1. Editorial Split-Overlay Hero */}
       {hero.isEnabled && (
-        <section className="relative overflow-hidden bg-[#10261D] pt-28 pb-16 sm:pt-32 lg:pt-40 lg:pb-24">
-          <div className="absolute inset-0">
-            <CoverImage
-              src={hero.imageUrl}
-              alt={hero.imageAltText}
-              priority
-              className="object-cover opacity-70"
-              objectPosition={hero.imagePosition}
-              sizes="(max-width: 767px) 0px, 100vw"
-            />
-            <div className="absolute inset-0 bg-[#10261D]/55" />
-            <div className="absolute inset-0 bg-[linear-gradient(90deg,rgba(16,38,29,0.96)_0%,rgba(16,38,29,0.76)_48%,rgba(16,38,29,0.38)_100%)]" />
-            <div className="absolute inset-x-0 bottom-0 h-36 bg-[linear-gradient(0deg,#F7F3EB_0%,rgba(247,243,235,0)_100%)]" />
-          </div>
+        <section className="relative overflow-hidden border-b border-[#E5DEC9] bg-[#EFE9DA]">
+          <div className="relative mx-auto max-w-7xl">
+            <div className="grid min-h-[500px] grid-cols-12 items-center lg:min-h-[560px]">
+              {/* Left Text Block */}
+              <div className="relative z-10 col-span-12 px-6 py-14 sm:px-8 lg:col-span-6 lg:py-20">
+                <div className="mb-4 flex items-center gap-3">
+                  <span className="text-[11px] font-semibold tracking-[0.22em] text-[#7D6538] uppercase">
+                    Cradle Wellness Living
+                  </span>
+                  <span className="h-px w-12 bg-[#C8A96B]" aria-hidden="true" />
+                </div>
 
-          <div className="relative mx-auto grid max-w-7xl gap-12 px-6 lg:grid-cols-[1.03fr_0.72fr] lg:px-12">
-            <div className="max-w-3xl">
-              <p className="mb-5 text-[11px] font-semibold uppercase tracking-[0.28em] text-[#E8D5A3]">
-                {hero.brandEyebrow}
-              </p>
-              <h1
-                className="text-4xl font-medium leading-[1.04] text-[#FCFAF5] sm:text-6xl lg:text-7xl"
-                style={{ fontFamily: "var(--sp-font-display)" }}
-              >
-                {hero.title}
-              </h1>
-              <p className="mt-6 max-w-2xl text-[15px] leading-7 text-[#F7F3EB]/78 sm:text-base">
-                {hero.subtitle}
-              </p>
+                <h1 className="whitespace-pre-line font-serif text-4xl font-medium leading-[1.08] tracking-tight text-[#10261D] [font-family:var(--sp-font-display)] text-balance lg:text-[54px]">
+                  {heroTitleDisplay}
+                </h1>
 
-              <div className="mt-9 flex flex-col gap-3 sm:flex-row">
-                <Link
-                  href={hero.ctaHref}
-                  className="inline-flex min-h-12 items-center justify-center rounded-[8px] bg-[#C8A96B] px-7 text-[12px] font-semibold uppercase tracking-[0.18em] text-[#10261D] transition hover:bg-[#E8D5A3] focus-visible:ring-2 focus-visible:ring-[#E8D5A3] sm:w-auto"
-                >
-                  {hero.ctaLabel}
-                </Link>
-                <Link
-                  href={hero.secondaryCtaHref}
-                  className="inline-flex min-h-12 items-center justify-center rounded-[8px] border border-[#F7F3EB]/28 px-7 text-[12px] font-semibold uppercase tracking-[0.18em] text-[#FCFAF5] transition hover:border-[#E8D5A3] hover:bg-white/10 sm:w-auto"
-                >
-                  {hero.secondaryCtaLabel}
-                </Link>
-              </div>
+                <p className="mt-5 max-w-lg text-[15px] leading-relaxed text-[#3E4C44] [text-wrap:pretty] lg:text-base">
+                  {hero.subtitle}
+                </p>
 
-              <div className="mt-10 grid gap-3 sm:grid-cols-3">
-                {heroProofPoints.map((point) => (
-                  <div
-                    key={point.id}
-                    className="rounded-[8px] border border-[#F7F3EB]/14 bg-[#10261D]/48 p-4 backdrop-blur-sm"
+                <div className="mt-8 flex flex-wrap items-center gap-3.5">
+                  <Link
+                    href={hero.ctaHref || "/book"}
+                    className="inline-flex items-center gap-2.5 rounded-full bg-[#163A2B] px-6 py-3.5 text-sm font-semibold text-[#FAF5E9] shadow-sm transition hover:bg-[#1E4D3A] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#163A2B]"
                   >
-                    <p className="text-[12px] font-semibold text-[#FCFAF5]">{point.label}</p>
-                    <p className="mt-1 text-[12px] leading-5 text-[#F7F3EB]/62">{point.detail}</p>
-                  </div>
-                ))}
-              </div>
-            </div>
+                    <Calendar className="h-4 w-4 text-[#D4B57A]" aria-hidden="true" />
+                    <span>{hero.ctaLabel || "Book an Appointment"}</span>
+                    <ArrowRight className="h-4 w-4" aria-hidden="true" />
+                  </Link>
 
-            <div className="hidden lg:block">
-              <div className="relative ml-auto max-w-sm">
-                <div className="relative aspect-[3/4] overflow-hidden rounded-[8px] border border-[#E8D5A3]/24 shadow-2xl">
-                  <CoverImage
-                    src={hero.secondaryImageUrl}
-                    alt="Warm wellness details inside Cradle spa"
-                    sizes="360px"
-                  />
-                  <div className="absolute inset-0 bg-[linear-gradient(0deg,rgba(16,38,29,0.42),rgba(16,38,29,0)_58%)]" />
-                </div>
-                <div className="absolute -bottom-8 -left-10 w-64 rounded-[8px] border border-[#E8D5A3]/24 bg-[#FCFAF5] p-5 shadow-xl">
-                  <p className="text-[11px] font-semibold uppercase tracking-[0.2em] text-[#B68A3C]">
-                    Contact
-                  </p>
-                  <div className="mt-3 flex flex-col gap-2">
-                    {branches.slice(0, 1).map((branch) => (
-                      <div key={branch.id} className="flex flex-col gap-2">
-                        {branch.phone && (
-                          <a
-                            href={`tel:${branch.phone.replace(/\s/g, "")}`}
-                            className="text-lg font-semibold text-[#163A2B] transition hover:text-[#B68A3C]"
-                            style={{ fontFamily: "var(--sp-font-display)" }}
-                          >
-                            {branch.phone}
-                          </a>
-                        )}
-                        {branch.secondary_phone && (
-                          <a
-                            href={`tel:${branch.secondary_phone.replace(/\s/g, "")}`}
-                            className="text-lg font-semibold text-[#163A2B] transition hover:text-[#B68A3C]"
-                            style={{ fontFamily: "var(--sp-font-display)" }}
-                          >
-                            {branch.secondary_phone}
-                          </a>
-                        )}
-                      </div>
-                    ))}
-                    {branches.length === 0 && (
-                      <span className="text-sm text-[#6B7A6F]">Contact info updating</span>
-                    )}
-                  </div>
+                  <Link
+                    href={
+                      hero.secondaryCtaHref === "#plan-your-visit"
+                        ? "/services"
+                        : hero.secondaryCtaHref || "/services"
+                    }
+                    className="inline-flex items-center gap-2 rounded-full border border-[#163A2B]/30 bg-[#FCFAF5]/90 px-6 py-3.5 text-sm font-semibold text-[#163A2B] transition hover:border-[#163A2B] hover:bg-white focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#163A2B]"
+                  >
+                    <span>
+                      {hero.secondaryCtaLabel === "Plan Your Visit"
+                        ? "Explore Services"
+                        : hero.secondaryCtaLabel || "Explore Services"}
+                    </span>
+                  </Link>
                 </div>
               </div>
             </div>
           </div>
-        </section>
-      )}
 
-      {about.isEnabled && (
-        <section id="philosophy" className="bg-[#F7F3EB] py-20 lg:py-28">
-          <div className="mx-auto grid max-w-7xl gap-12 px-6 lg:grid-cols-[0.95fr_1.05fr] lg:items-center lg:px-12">
-            <ScrollReveal>
-              <p className="mb-4 text-[11px] font-semibold uppercase tracking-[0.25em] text-[#B68A3C]">
-                {about.subtitle}
-              </p>
-              <h2
-                className="text-3xl font-medium leading-tight text-[#163A2B] sm:text-4xl lg:text-5xl"
-                style={{ fontFamily: "var(--sp-font-display)" }}
-              >
-                {about.title}
-              </h2>
-              <div className="mt-6 space-y-4 text-[15px] leading-7 text-[#5F6F63]">
-                {about.paragraphs.map((paragraph) => (
-                  <p key={paragraph}>{paragraph}</p>
-                ))}
-              </div>
-            </ScrollReveal>
-
-            <ScrollReveal variant="scale">
-              <div className="grid gap-3 sm:grid-cols-[1fr_0.72fr]">
-                <div className="relative aspect-[4/5] overflow-hidden rounded-[8px]">
-                  <CoverImage
-                    src={about.imageUrl}
-                    alt="Cradle spa treatment room"
-                    sizes="(max-width: 768px) 100vw, 45vw"
-                  />
-                </div>
-                <div className="grid gap-3">
-                  <div className="relative aspect-[4/3] overflow-hidden rounded-[8px]">
-                    <CoverImage
-                      src={about.secondaryImageUrl}
-                      alt="Quiet spa details for relaxation"
-                      sizes="(max-width: 768px) 100vw, 25vw"
-                    />
-                  </div>
-                  <div className="rounded-[8px] bg-[#163A2B] p-6 text-[#FCFAF5]">
-                    <p
-                      className="text-2xl italic leading-snug text-[#E8D5A3]"
-                      style={{ fontFamily: "var(--sp-font-accent)" }}
-                    >
-                      Rest is not a reward. It is part of care.
-                    </p>
-                  </div>
-                </div>
-              </div>
-            </ScrollReveal>
+          {/* Right Ambient Sanctuary Photography */}
+          <div className="pointer-events-none absolute inset-y-0 right-0 hidden w-[64%] lg:block">
+            <Image
+              src={hero.imageUrl || SPA_IMAGES.hero}
+              alt={hero.imageAltText || "Cradle Wellness Living sanctuary suite"}
+              fill
+              preload={true}
+              fetchPriority="high"
+              sizes="(min-width: 1024px) 64vw, 100vw"
+              className="object-cover"
+              style={{ objectPosition: hero.imagePosition || "65% 50%" }}
+            />
+            <div
+              aria-hidden="true"
+              className="absolute inset-0 bg-gradient-to-r from-[#EFE9DA] via-[#EFE9DA]/72 to-transparent"
+            />
           </div>
         </section>
       )}
 
-      <section className="bg-[#FCFAF5] py-14">
-        <div className="mx-auto grid max-w-7xl gap-4 px-6 sm:grid-cols-2 lg:grid-cols-4 lg:px-12">
-          {quickTrustPoints.map((point, index) => {
-            const Icon = proofIcons[index % proofIcons.length]!;
+      {/* 2. Three-Pillar Trust Strip */}
+      <section className="border-b border-[#E5DEC9] bg-[#FCFAF5]">
+        <div className="mx-auto grid max-w-7xl grid-cols-1 divide-y divide-[#E5DEC9] px-6 sm:px-8 md:grid-cols-3 md:divide-x md:divide-y-0">
+          {TRUST_HIGHLIGHTS.map((item) => {
+            const Icon = item.icon;
             return (
-              <ScrollReveal key={point.id} delay={index * 80}>
-                <div className="h-full rounded-[8px] border border-[#EDE4D3] bg-white p-6 transition hover:-translate-y-1 hover:shadow-[0_12px_30px_rgba(22,58,43,0.08)]">
-                  <Icon className="mb-5 h-5 w-5 text-[#B68A3C]" aria-hidden="true" />
-                  <h3 className="text-[15px] font-semibold text-[#163A2B]">{point.label}</h3>
-                  <p className="mt-2 text-[13px] leading-6 text-[#6B7A6F]">{point.detail}</p>
+              <div
+                key={item.title}
+                className="flex items-start gap-3.5 py-6 md:px-6 md:first:pl-0 md:last:pr-0"
+              >
+                <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl border border-[#E5DEC9] bg-[#F5EFE3] text-[#B68A3C]">
+                  <Icon className="h-5 w-5" aria-hidden="true" />
                 </div>
-              </ScrollReveal>
+                <div>
+                  <h2 className="text-sm font-semibold text-[#10261D]">
+                    {item.title}
+                  </h2>
+                  <p className="mt-0.5 text-xs leading-relaxed text-[#58665E]">
+                    {item.description}
+                  </p>
+                </div>
+              </div>
             );
           })}
         </div>
       </section>
 
-      <section id="experience" className="bg-[#10261D] py-20 text-[#FCFAF5] lg:py-28">
-        <div className="mx-auto max-w-7xl px-6 lg:px-12">
-          <div className="grid gap-10 lg:grid-cols-[0.8fr_1.2fr] lg:items-end">
-            <ScrollReveal>
-              <p className="mb-4 text-[11px] font-semibold uppercase tracking-[0.25em] text-[#E8D5A3]">
-                The Cradle Experience
-              </p>
-              <h2
-                className="text-3xl font-medium leading-tight sm:text-4xl"
-                style={{ fontFamily: "var(--sp-font-display)" }}
-              >
-                A guided path from intention to appointment.
-              </h2>
-            </ScrollReveal>
-            <p className="max-w-2xl text-[15px] leading-7 text-[#F7F3EB]/68">
-              The public site now mirrors how guests actually book: setting first, then treatment,
-              schedule, therapist, and confirmation details.
-            </p>
-          </div>
-
-          <div className="mt-12 grid gap-4 md:grid-cols-4">
-            {bookingJourneySteps.map((step, index) => {
-              const Icon = journeyIcons[index % journeyIcons.length]!;
-              return (
-                <ScrollReveal key={step.id} delay={index * 90}>
-                  <div className="h-full rounded-[8px] border border-[#F7F3EB]/12 bg-white/[0.04] p-6">
-                    <div className="mb-6 flex h-10 w-10 items-center justify-center rounded-[8px] bg-[#C8A96B] text-[#10261D]">
-                      <Icon className="h-5 w-5" aria-hidden="true" />
-                    </div>
-                    <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-[#E8D5A3]">
-                      0{index + 1}
-                    </p>
-                    <h3 className="mt-2 text-base font-semibold">{step.title}</h3>
-                    <p className="mt-3 text-[13px] leading-6 text-[#F7F3EB]/62">{step.detail}</p>
-                  </div>
-                </ScrollReveal>
-              );
-            })}
-          </div>
-        </div>
-      </section>
-
-      <section className="bg-[#F7F3EB] py-20 lg:py-28">
-        <div className="mx-auto max-w-7xl px-6 lg:px-12">
-          <div className="mb-12 max-w-2xl">
-            <p className="mb-4 text-[11px] font-semibold uppercase tracking-[0.25em] text-[#B68A3C]">
-              Choose Your Setting
-            </p>
-            <h2
-              className="text-3xl font-medium leading-tight text-[#163A2B] sm:text-4xl"
-              style={{ fontFamily: "var(--sp-font-display)" }}
-            >
-              Come to the spa, or let the spa come to you.
-            </h2>
-          </div>
-
-          <div className="grid gap-6 lg:grid-cols-2">
-            {settingCards.map((card, index) => {
-              const cardImage =
-                (card.id === "in_spa"
-                  ? sections.siteImages?.home_setting_in_spa
-                  : card.id === "home_service"
-                    ? sections.siteImages?.home_setting_home_service
-                    : undefined) || card.image;
-
-              return (
-                <ScrollReveal key={card.id} delay={index * 120} variant="scale">
-                  <article className="grid h-full overflow-hidden rounded-[8px] bg-white shadow-[0_10px_34px_rgba(22,58,43,0.08)] md:grid-cols-[0.92fr_1.08fr]">
-                    <div className="relative min-h-72">
-                      <Image
-                        src={cardImage}
-                        alt={card.imageAlt}
-                        fill
-                        className="object-cover"
-                        sizes="(max-width: 1024px) 100vw, 36vw"
-                      />
-                    </div>
-                  <div className="flex flex-col p-7">
-                    <p className="text-[11px] font-semibold uppercase tracking-[0.22em] text-[#B68A3C]">
-                      {card.eyebrow}
-                    </p>
-                    <h3
-                      className="mt-3 text-2xl font-medium text-[#163A2B]"
-                      style={{ fontFamily: "var(--sp-font-display)" }}
-                    >
-                      {card.title}
-                    </h3>
-                    <p className="mt-4 text-[14px] leading-7 text-[#6B7A6F]">{card.detail}</p>
-                    <ul className="mt-5 space-y-2">
-                      {card.points.map((point) => (
-                        <li key={point} className="flex gap-2 text-[13px] text-[#5F6F63]">
-                          <Check className="mt-0.5 h-4 w-4 shrink-0 text-[#B68A3C]" />
-                          <span>{point}</span>
-                        </li>
-                      ))}
-                    </ul>
-                    <Link
-                      href="/book"
-                      className="mt-7 inline-flex min-h-11 items-center justify-center gap-2 rounded-[8px] bg-[#163A2B] px-5 text-[12px] font-semibold uppercase tracking-[0.16em] text-[#FCFAF5] transition hover:bg-[#1E4D3A]"
-                    >
-                      Book Appointment
-                      <ArrowRight className="h-4 w-4" aria-hidden="true" />
-                    </Link>
-                  </div>
-                </article>
-              </ScrollReveal>
-              );
-            })}
-          </div>
-        </div>
-      </section>
-
+      {/* 3. Our Services Visual Category Showcase */}
       {signatureServices.isVisible && (
-        <section id="services" className="bg-[#FCFAF5] py-20 lg:py-28">
-          <div className="mx-auto max-w-7xl px-6 lg:px-12">
-            <div className="mx-auto mb-12 max-w-3xl text-center">
-              <p className="mb-4 text-[11px] font-semibold uppercase tracking-[0.25em] text-[#B68A3C]">
-                {signatureServices.subtitle}
-              </p>
-              <h2
-                className="text-3xl font-medium leading-tight text-[#163A2B] sm:text-4xl lg:text-5xl"
-                style={{ fontFamily: "var(--sp-font-display)" }}
-              >
-                {signatureServices.title}
+        <section className="mx-auto max-w-7xl px-6 py-14 sm:px-8 lg:py-18">
+          <div className="grid grid-cols-1 items-start gap-8 lg:grid-cols-12">
+            <div className="lg:col-span-4">
+              <div className="mb-3 flex items-center gap-3">
+                <span className="text-[11px] font-semibold tracking-[0.2em] text-[#8A6D3B] uppercase">
+                  {signatureServices.subtitle || "OUR SERVICES"}
+                </span>
+                <span className="h-px w-10 bg-[#C8A96B]" aria-hidden="true" />
+              </div>
+              <h2 className="font-serif text-3xl font-medium leading-tight text-[#10261D] [font-family:var(--sp-font-display)] text-balance lg:text-[36px]">
+                Wellness, Beauty &amp; Self-Care
               </h2>
-              <p className="mt-5 text-[15px] leading-7 text-[#6B7A6F]">{signatureServices.body}</p>
-            </div>
-
-            <div className="grid gap-5 md:grid-cols-2 xl:grid-cols-5">
-              {serviceCategoryCards.map((category, index) => (
-                <ScrollReveal key={category.name} delay={index * 70} variant="scale">
-                  <article className="group flex h-full flex-col overflow-hidden rounded-[8px] border border-[#EDE4D3] bg-white shadow-[0_6px_22px_rgba(22,58,43,0.05)] transition hover:-translate-y-1 hover:shadow-[0_16px_34px_rgba(22,58,43,0.1)]">
-                    <div className="relative aspect-[4/3] overflow-hidden">
-                      <Image
-                        src={category.details.image}
-                        alt={`${category.name} at Cradle`}
-                        fill
-                        className={`object-cover ${category.imageClassName} transition duration-500 group-hover:scale-[1.03]`}
-                        sizes="(max-width: 768px) 100vw, (max-width: 1280px) 50vw, 20vw"
-                      />
-                      <div className="absolute inset-0 bg-[#10261D]/22" />
-                      <div className="absolute left-4 top-4 rounded-[8px] bg-[#10261D]/82 px-3 py-2 text-[10px] font-semibold uppercase tracking-[0.16em] text-[#E8D5A3] backdrop-blur">
-                        {category.details.eyebrow}
-                      </div>
-                    </div>
-                    <div className="flex flex-1 flex-col p-5">
-                      <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-[#B68A3C]">
-                        {category.count > 0 ? `${category.count} menu items` : "Catalog"}
-                      </p>
-                      <h3
-                        className="mt-3 text-xl font-medium leading-tight text-[#163A2B]"
-                        style={{ fontFamily: "var(--sp-font-display)" }}
-                      >
-                        {category.details.shortName}
-                      </h3>
-                      <p className="mt-3 flex-1 text-[13px] leading-6 text-[#6B7A6F]">
-                        {category.details.description}
-                      </p>
-                      {category.examples.length > 0 && (
-                        <div className="mt-5 space-y-1.5">
-                          {category.examples.map((example) => (
-                            <p key={example} className="text-[12px] font-medium text-[#163A2B]">
-                              {example}
-                            </p>
-                          ))}
-                        </div>
-                      )}
-                      <Link
-                        href={category.href}
-                        className="mt-6 inline-flex min-h-10 items-center justify-center rounded-[8px] border border-[#163A2B] px-4 text-[11px] font-semibold uppercase tracking-[0.14em] text-[#163A2B] transition hover:bg-[#163A2B] hover:text-[#FCFAF5]"
-                      >
-                        View Menu
-                      </Link>
-                    </div>
-                  </article>
-                </ScrollReveal>
-              ))}
-            </div>
-
-            <div className="mt-10 text-center">
+              <p className="mt-3 text-sm leading-relaxed text-[#526058] [text-wrap:pretty]">
+                {signatureServices.body}
+              </p>
               <Link
                 href="/services"
-                className="inline-flex min-h-12 items-center justify-center gap-2 rounded-[8px] bg-[#163A2B] px-7 text-[12px] font-semibold uppercase tracking-[0.16em] text-[#FCFAF5] transition hover:bg-[#214F3B]"
+                className="mt-6 inline-flex items-center gap-2 rounded-full bg-[#163A2B] px-5 py-2.5 text-xs font-semibold tracking-wide text-[#FAF5E9] transition hover:bg-[#1E4D3A]"
               >
-                Explore All Services
+                <span>View All Services</span>
+                <ArrowRight className="h-3.5 w-3.5" aria-hidden="true" />
+              </Link>
+            </div>
+
+            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:col-span-8 lg:grid-cols-4">
+              {SERVICE_EXPERIENCE_CARDS.map((card) => {
+                const Icon = card.icon;
+                const categoryImage = card.categoryName
+                  ? signatureServices.categoryImages[card.categoryName] ||
+                    getPublicHomeCategoryImage(card.categoryName)
+                  : siteImages?.home_service_card || SPA_IMAGES.aromatherapy;
+                return (
+                  <Link
+                    key={card.key}
+                    href={card.href}
+                    className="group flex flex-col overflow-hidden rounded-2xl border border-[#E5DEC9] bg-white shadow-xs transition duration-300 hover:-translate-y-0.5 hover:border-[#C8A96B] hover:shadow-md"
+                  >
+                    <div className="relative aspect-[4/3] w-full overflow-hidden bg-[#EDE4D3]">
+                      <Image
+                        src={categoryImage}
+                        alt={card.title}
+                        fill
+                        loading="lazy"
+                        sizes="(min-width: 1024px) 18vw, (min-width: 640px) 42vw, 90vw"
+                        className="object-cover transition duration-500 group-hover:scale-105"
+                      />
+                    </div>
+                    <div className="flex flex-1 items-center justify-between gap-2 px-3.5 py-3.5">
+                      <div className="flex min-w-0 items-center gap-2.5">
+                        <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-[#F5EFE3] text-[#B68A3C]">
+                          <Icon className="h-4 w-4" aria-hidden="true" />
+                        </span>
+                        <div className="min-w-0">
+                          <h3 className="truncate text-[13px] font-semibold text-[#10261D]">
+                            {card.title}
+                          </h3>
+                          <p className="truncate text-[11px] text-[#5B6860]">
+                            {card.subtitle}
+                          </p>
+                        </div>
+                      </div>
+                      <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-[#EFE4CC] text-[#7D5E29] transition group-hover:bg-[#163A2B] group-hover:text-[#FAF5E9]">
+                        <ArrowRight className="h-3.5 w-3.5" aria-hidden="true" />
+                      </span>
+                    </div>
+                  </Link>
+                );
+              })}
+            </div>
+          </div>
+        </section>
+      )}
+
+      {/* 4. Choose Your Wellness Experience Split Card */}
+      <section className="mx-auto max-w-7xl px-6 pb-14 sm:px-8">
+        <div className="grid grid-cols-1 overflow-hidden rounded-3xl border border-[#E2D9C8] bg-[#FCFAF5] shadow-sm lg:grid-cols-12">
+          <div className="relative flex min-h-[180px] items-center overflow-hidden bg-[#10261D] px-8 py-8 text-[#FAF5E9] lg:col-span-4">
+            <Image
+              src={siteImages?.experience_banner || SPA_IMAGES.ctaBanner}
+              alt="Fresh botanical spa atmosphere"
+              fill
+              loading="lazy"
+              sizes="(min-width: 1024px) 33vw, 100vw"
+              className="object-cover opacity-35"
+            />
+            <div className="relative z-10">
+              <p className="text-[10px] font-semibold tracking-[0.22em] text-[#D4B57A] uppercase">
+                How We Serve You
+              </p>
+              <h2 className="mt-2 font-serif text-2xl font-medium leading-snug text-[#FAF5E9] [font-family:var(--sp-font-display)] lg:text-[28px]">
+                Choose your wellness experience
+              </h2>
+            </div>
+          </div>
+
+          <div className="grid grid-cols-1 divide-y divide-[#E5DEC9] md:grid-cols-2 md:divide-x md:divide-y-0 lg:col-span-8">
+            <div className="flex items-start gap-4 p-6 lg:p-8">
+              <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-[#F5EFE3] text-[#B68A3C]">
+                <Flower2 className="h-5 w-5" aria-hidden="true" />
+              </span>
+              <div>
+                <h3 className="text-base font-semibold text-[#10261D]">
+                  In-Spa Experience
+                </h3>
+                <p className="mt-1 text-xs leading-relaxed text-[#55635B]">
+                  Enjoy the full Cradle Wellness Living sanctuary at our SM City
+                  Bacolod or Lacson Street branches.
+                </p>
+                <Link
+                  href="/book?visitType=in_spa"
+                  className="mt-4 inline-flex items-center gap-1.5 rounded-full border border-[#163A2B]/30 bg-white px-4 py-2 text-xs font-semibold text-[#163A2B] transition hover:border-[#163A2B] hover:bg-[#163A2B] hover:text-[#FAF5E9]"
+                >
+                  <span>Book at a Branch</span>
+                  <ArrowRight className="h-3.5 w-3.5" aria-hidden="true" />
+                </Link>
+              </div>
+            </div>
+
+            <div className="flex items-start gap-4 p-6 lg:p-8">
+              <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-[#F5EFE3] text-[#B68A3C]">
+                <Home className="h-5 w-5" aria-hidden="true" />
+              </span>
+              <div>
+                <h3 className="text-base font-semibold text-[#10261D]">
+                  Home Service
+                </h3>
+                <p className="mt-1 text-xs leading-relaxed text-[#55635B]">
+                  The same therapist-grade relaxation and restorative oils in the
+                  comfort of your home or hotel.
+                </p>
+                <Link
+                  href="/book?visitType=home_service"
+                  className="mt-4 inline-flex items-center gap-1.5 rounded-full border border-[#163A2B]/30 bg-white px-4 py-2 text-xs font-semibold text-[#163A2B] transition hover:border-[#163A2B] hover:bg-[#163A2B] hover:text-[#FAF5E9]"
+                >
+                  <span>Book Home Service</span>
+                  <ArrowRight className="h-3.5 w-3.5" aria-hidden="true" />
+                </Link>
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      {/* 5. Popular Bookable Treatments (Live Public Catalog) */}
+      {signaturePreviewServices.length > 0 && (
+        <section className="border-y border-[#E5DEC9] bg-[#FCFAF5] py-14">
+          <div className="mx-auto max-w-7xl px-6 sm:px-8">
+            <div className="flex flex-wrap items-end justify-between gap-4">
+              <div>
+                <p className="text-[11px] font-semibold tracking-[0.2em] text-[#8A6D3B] uppercase">
+                  Curated Treatments
+                </p>
+                <h2 className="mt-1 font-serif text-3xl font-medium text-[#10261D] [font-family:var(--sp-font-display)]">
+                  Popular Treatments
+                </h2>
+              </div>
+              <Link
+                href="/services"
+                className="inline-flex items-center gap-1.5 text-xs font-semibold text-[#163A2B] hover:underline"
+              >
+                <span>Browse Full Menu ({safeServices.length})</span>
+                <ArrowRight className="h-3.5 w-3.5" aria-hidden="true" />
+              </Link>
+            </div>
+
+            <div className="mt-8 grid grid-cols-1 gap-5 sm:grid-cols-2 lg:grid-cols-4">
+              {signaturePreviewServices.map((service) => (
+                <div
+                  key={service.id}
+                  className="flex flex-col overflow-hidden rounded-2xl border border-[#E5DEC9] bg-white shadow-xs transition hover:border-[#C8A96B] hover:shadow-md"
+                >
+                  <div className="relative aspect-[16/10] w-full bg-[#EDE4D3]">
+                    <Image
+                      src={service.imageUrl}
+                      alt={service.imageAlt || service.name}
+                      fill
+                      loading="lazy"
+                      sizes="(min-width: 1024px) 22vw, (min-width: 640px) 45vw, 90vw"
+                      className="object-cover"
+                    />
+                  </div>
+                  <div className="flex flex-1 flex-col p-4">
+                    <p className="text-[10px] font-semibold tracking-wider text-[#8A6D3B] uppercase">
+                      {PUBLIC_CATALOG_CATEGORY_DETAILS[
+                        service.categoryName as keyof typeof PUBLIC_CATALOG_CATEGORY_DETAILS
+                      ]?.shortName || service.categoryName}
+                    </p>
+                    <h3 className="mt-1 font-serif text-base font-semibold text-[#10261D] [font-family:var(--sp-font-display)]">
+                      {service.name}
+                    </h3>
+                    <p className="mt-1.5 line-clamp-2 text-xs leading-relaxed text-[#55635B]">
+                      {service.description}
+                    </p>
+                    <div className="mt-auto pt-4">
+                      <div className="flex items-center justify-between border-t border-[#F0EAE0] pt-3 text-xs">
+                        <span className="inline-flex items-center gap-1 text-[#55635B]">
+                          <Clock className="h-3.5 w-3.5 text-[#B68A3C]" aria-hidden="true" />
+                          <span>{service.durationText}</span>
+                        </span>
+                        <span className="font-bold text-[#10261D]">
+                          {service.priceLabel}
+                        </span>
+                      </div>
+                      <Link
+                        href={`/book?serviceId=${encodeURIComponent(service.id)}`}
+                        className="mt-3 flex w-full items-center justify-center gap-1.5 rounded-full bg-[#163A2B] px-4 py-2 text-xs font-semibold text-[#FAF5E9] transition hover:bg-[#1E4D3A]"
+                      >
+                        <span>Book Now</span>
+                        <ArrowRight className="h-3.5 w-3.5" aria-hidden="true" />
+                      </Link>
+                    </div>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        </section>
+      )}
+
+      {/* 6. Our Branches (Visit Our Spa Branches) */}
+      <section className="mx-auto max-w-7xl px-6 py-14 sm:px-8">
+        <div className="grid grid-cols-1 items-start gap-8 lg:grid-cols-12">
+          <div className="lg:col-span-4">
+            <div className="mb-3 flex items-center gap-3">
+              <span className="text-[11px] font-semibold tracking-[0.2em] text-[#8A6D3B] uppercase">
+                Our Branches
+              </span>
+              <span className="h-px w-10 bg-[#C8A96B]" aria-hidden="true" />
+            </div>
+            <h2 className="font-serif text-3xl font-medium text-[#10261D] [font-family:var(--sp-font-display)]">
+              Visit Our Spa Branches
+            </h2>
+            <p className="mt-3 text-sm leading-relaxed text-[#526058]">
+              Experience Cradle Wellness Living across our Bacolod sanctuaries.
+            </p>
+            <Link
+              href="/branches"
+              className="mt-5 inline-flex items-center gap-1.5 rounded-full border border-[#163A2B]/30 bg-white px-5 py-2.5 text-xs font-semibold text-[#163A2B] transition hover:border-[#163A2B]"
+            >
+              <span>View All Locations</span>
+              <ArrowRight className="h-3.5 w-3.5" aria-hidden="true" />
+            </Link>
+          </div>
+
+          <div className="grid grid-cols-1 gap-5 md:grid-cols-2 lg:col-span-8">
+            {branches.map((branch, idx) => (
+              <div
+                key={branch.id}
+                className="flex flex-col overflow-hidden rounded-2xl border border-[#E5DEC9] bg-white shadow-xs sm:flex-row"
+              >
+                <div className="relative aspect-[4/3] w-full shrink-0 bg-[#EDE4D3] sm:aspect-auto sm:w-44">
+                  <Image
+                    src={resolvePublicBranchImage(
+                      branch,
+                      idx === 0 ? SPA_IMAGES.branchMain : SPA_IMAGES.branchSm,
+                    )}
+                    alt={branch.name}
+                    fill
+                    loading="lazy"
+                    sizes="(min-width: 768px) 200px, 100vw"
+                    className="object-cover"
+                  />
+                </div>
+                <div className="flex flex-1 flex-col justify-between p-4">
+                  <div>
+                    <div className="flex items-start gap-2">
+                      <MapPin
+                        className="mt-0.5 h-4 w-4 shrink-0 text-[#B68A3C]"
+                        aria-hidden="true"
+                      />
+                      <div>
+                        <h3 className="text-sm font-semibold text-[#10261D]">
+                          {branch.name}
+                        </h3>
+                        <p className="mt-0.5 text-xs leading-relaxed text-[#55635B]">
+                          {branch.address}
+                        </p>
+                      </div>
+                    </div>
+                    {branch.phone && (
+                      <p className="mt-2 flex items-center gap-1.5 pl-6 text-xs text-[#3E4C44]">
+                        <Phone className="h-3.5 w-3.5 text-[#8A6D3B]" aria-hidden="true" />
+                        <span>{branch.phone}</span>
+                      </p>
+                    )}
+                  </div>
+                  <div className="mt-4 flex flex-wrap items-center gap-2 pl-6">
+                    <Link
+                      href="/branches"
+                      className="inline-flex items-center gap-1 rounded-full border border-[#D7CEBC] bg-[#FCFAF5] px-3.5 py-1.5 text-xs font-semibold text-[#10261D] transition hover:border-[#163A2B]"
+                    >
+                      <span>View Details</span>
+                      <ArrowRight className="h-3 w-3" aria-hidden="true" />
+                    </Link>
+                    <Link
+                      href={`/book?branchId=${encodeURIComponent(branch.id)}`}
+                      className="inline-flex items-center gap-1 rounded-full bg-[#163A2B] px-3.5 py-1.5 text-xs font-semibold text-[#FAF5E9] transition hover:bg-[#1E4D3A]"
+                    >
+                      <span>Book Branch</span>
+                    </Link>
+                  </div>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      </section>
+
+      {/* 7. Cradle Boutique Preview & Sanctuary Story (Honors Marketing Studio About) */}
+      <section className="border-t border-[#E5DEC9] bg-[#FCFAF5] py-14">
+        <div className="mx-auto max-w-7xl space-y-14 px-6 sm:px-8">
+          {about.isEnabled && (
+            <div className="grid grid-cols-1 items-center gap-10 lg:grid-cols-12">
+              <div className="relative aspect-[16/10] overflow-hidden rounded-3xl border border-[#E2D9C8] bg-[#EDE4D3] lg:col-span-5">
+                <Image
+                  src={about.imageUrl || SPA_IMAGES.about}
+                  alt={about.title}
+                  fill
+                  loading="lazy"
+                  sizes="(min-width: 1024px) 40vw, 100vw"
+                  className="object-cover"
+                />
+              </div>
+              <div className="lg:col-span-7">
+                <p className="text-[11px] font-semibold tracking-[0.2em] text-[#8A6D3B] uppercase">
+                  {about.subtitle || "Spa Philosophy"}
+                </p>
+                <h2 className="mt-2 font-serif text-3xl font-medium text-[#10261D] [font-family:var(--sp-font-display)]">
+                  {about.title}
+                </h2>
+                <div className="mt-4 space-y-3 text-sm leading-relaxed text-[#4C5A52]">
+                  {about.paragraphs.map((paragraph: string, i: number) => (
+                    <p key={i}>{paragraph}</p>
+                  ))}
+                </div>
+                <div className="mt-6 flex flex-wrap gap-3">
+                  <Link
+                    href="/about"
+                    className="inline-flex items-center gap-1.5 rounded-full bg-[#163A2B] px-5 py-2.5 text-xs font-semibold text-[#FAF5E9] transition hover:bg-[#1E4D3A]"
+                  >
+                    <span>Read Our Story</span>
+                    <ArrowRight className="h-3.5 w-3.5" aria-hidden="true" />
+                  </Link>
+                  <Link
+                    href="/products"
+                    className="inline-flex items-center gap-1.5 rounded-full border border-[#163A2B]/30 bg-white px-5 py-2.5 text-xs font-semibold text-[#163A2B] transition hover:border-[#163A2B]"
+                  >
+                    <ShoppingBag className="h-3.5 w-3.5 text-[#B68A3C]" aria-hidden="true" />
+                    <span>Explore Cradle Boutique</span>
+                  </Link>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* Boutique 4-Card Strip */}
+          <div className="rounded-3xl border border-[#E2D9C8] bg-[#F7F3EB] p-6 lg:p-8">
+            <div className="flex flex-wrap items-center justify-between gap-4">
+              <div>
+                <p className="text-[10px] font-semibold tracking-[0.2em] text-[#8A6D3B] uppercase">
+                  Cradle Boutique
+                </p>
+                <h2 className="mt-1 font-serif text-2xl font-medium text-[#10261D] [font-family:var(--sp-font-display)]">
+                  Wellness at Home
+                </h2>
+              </div>
+              <Link
+                href="/products"
+                className="inline-flex items-center gap-1.5 rounded-full bg-[#163A2B] px-4 py-2 text-xs font-semibold text-[#FAF5E9] transition hover:bg-[#1E4D3A]"
+              >
+                <span>Shop Boutique</span>
+                <ArrowRight className="h-3.5 w-3.5" aria-hidden="true" />
+              </Link>
+            </div>
+            <div className="mt-6 grid grid-cols-2 gap-4 lg:grid-cols-4">
+              {BOUTIQUE_PRODUCTS.slice(0, 4).map((item) => (
+                <Link
+                  key={item.id}
+                  href={`/products?category=${item.category}`}
+                  className="group overflow-hidden rounded-2xl border border-[#E5DEC9] bg-white p-3 transition hover:border-[#C8A96B] hover:shadow-sm"
+                >
+                  <div className="relative aspect-[4/3] w-full overflow-hidden rounded-xl bg-[#F5EFE3]">
+                    <Image
+                      src={item.image}
+                      alt={item.imageAlt}
+                      fill
+                      loading="lazy"
+                      sizes="(min-width: 1024px) 20vw, 45vw"
+                      className="object-cover transition duration-300 group-hover:scale-105"
+                    />
+                  </div>
+                  <p className="mt-2.5 text-sm font-semibold text-[#10261D]">
+                    {item.name}
+                  </p>
+                  <p className="truncate text-[11px] text-[#5B6860]">
+                    {item.subtitle}
+                  </p>
+                  <p className="mt-1.5 text-xs font-bold text-[#163A2B]">
+                    {item.priceLabel}
+                  </p>
+                </Link>
+              ))}
+            </div>
+          </div>
+        </div>
+      </section>
+
+      {/* 8. Final Quote / Booking Banner */}
+      {quoteBanner.isEnabled && (
+        <section className="relative overflow-hidden bg-[#10261D] text-[#FAF5E9]">
+          <Image
+            src={quoteBanner.imageUrl || SPA_IMAGES.ctaBanner}
+            alt="Calm candlelit spa sanctuary"
+            fill
+            loading="lazy"
+            sizes="100vw"
+            className="object-cover opacity-25"
+          />
+          <div className="relative mx-auto flex max-w-5xl flex-col items-center px-6 py-14 text-center sm:px-8 lg:py-16">
+            <p className="text-[11px] font-semibold tracking-[0.22em] text-[#D4B57A] uppercase">
+              {quoteBanner.subtitle || "Ready to Relax?"}
+            </p>
+            <h2 className="mt-3 max-w-2xl font-serif text-3xl font-medium leading-tight text-[#FAF5E9] [font-family:var(--sp-font-display)] lg:text-4xl">
+              {quoteBanner.title}
+            </h2>
+            {quoteBanner.body && (
+              <p className="mt-3 max-w-xl text-sm leading-relaxed text-[#D0DBD2]">
+                {quoteBanner.body}
+              </p>
+            )}
+            <div className="mt-7 flex flex-wrap items-center justify-center gap-3">
+              <Link
+                href={quoteBanner.ctaHref || "/book"}
+                className="inline-flex items-center gap-2 rounded-full bg-[#D4B57A] px-7 py-3 text-sm font-semibold text-[#10261D] shadow-sm transition hover:bg-[#E0C38A]"
+              >
+                <Calendar className="h-4 w-4" aria-hidden="true" />
+                <span>{quoteBanner.ctaLabel || "Book an Appointment"}</span>
                 <ArrowRight className="h-4 w-4" aria-hidden="true" />
               </Link>
             </div>
           </div>
         </section>
       )}
-
-      {quoteBanner.isEnabled && (
-        <section className="relative overflow-hidden py-24 text-center lg:py-32">
-          <CoverImage
-            src={quoteBanner.imageUrl}
-            alt="Calming Cradle spa atmosphere"
-            sizes="100vw"
-          />
-          <div className="absolute inset-0 bg-[#10261D]/78" />
-          <div className="relative mx-auto max-w-4xl px-6">
-            <p className="mb-4 text-[11px] font-semibold uppercase tracking-[0.25em] text-[#E8D5A3]">
-              {quoteBanner.subtitle}
-            </p>
-            <h2
-              className="text-4xl font-medium leading-tight text-[#FCFAF5] sm:text-5xl"
-              style={{ fontFamily: "var(--sp-font-display)" }}
-            >
-              {quoteBanner.title}
-            </h2>
-            {quoteBanner.body ? (
-              <p className="mx-auto mt-5 max-w-2xl text-[15px] leading-7 text-[#F7F3EB]/72">
-                {quoteBanner.body}
-              </p>
-            ) : null}
-            {quoteBanner.ctaLabel ? (
-              <Link
-                href={quoteBanner.ctaHref}
-                className="mt-8 inline-flex min-h-12 items-center justify-center rounded-[8px] bg-[#C8A96B] px-7 text-[12px] font-semibold uppercase tracking-[0.16em] text-[#10261D] transition hover:bg-[#E8D5A3]"
-              >
-                {quoteBanner.ctaLabel}
-              </Link>
-            ) : null}
-          </div>
-        </section>
-      )}
-
-      {gallery.isVisible && (
-        <section className="bg-[#F7F3EB] py-20 lg:py-28">
-          <div className="mx-auto max-w-7xl px-6 lg:px-12">
-            <ServiceShowcaseCarousel
-              slides={SERVICE_SHOWCASE_SLIDES}
-              eyebrow="Inside the Cradle Experience"
-              heading="Step into a calming space designed for rest, recovery, and everyday renewal."
-              subheading="From soothing treatments to thoughtful details, every part of Cradle is created to help you feel cared for."
-            />
-          </div>
-        </section>
-      )}
-
-      <section className="bg-[#FCFAF5] py-20 lg:py-28">
-        <div className="mx-auto max-w-7xl px-6 lg:px-12">
-          <div className="grid gap-10 lg:grid-cols-[0.8fr_1.2fr]">
-            <div>
-              <p className="mb-4 text-[11px] font-semibold uppercase tracking-[0.25em] text-[#B68A3C]">
-                Why Guests Choose Cradle
-              </p>
-              <h2
-                className="text-3xl font-medium leading-tight text-[#163A2B] sm:text-4xl"
-                style={{ fontFamily: "var(--sp-font-display)" }}
-              >
-                Premium care with practical booking support.
-              </h2>
-            </div>
-            <div className="grid gap-4 sm:grid-cols-2">
-              {whyGuestsChooseCradle.map((item, index) => {
-                const Icon = whyIcons[index % whyIcons.length]!;
-                return (
-                  <ScrollReveal key={item.id} delay={index * 80}>
-                    <div className="h-full rounded-[8px] border border-[#EDE4D3] bg-[#F7F3EB] p-6">
-                      <Icon className="mb-5 h-5 w-5 text-[#B68A3C]" aria-hidden="true" />
-                      <h3 className="font-semibold text-[#163A2B]">{item.label}</h3>
-                      <p className="mt-2 text-[13px] leading-6 text-[#6B7A6F]">{item.detail}</p>
-                    </div>
-                  </ScrollReveal>
-                );
-              })}
-            </div>
-          </div>
-        </div>
-      </section>
-
-      <section className="bg-[#10261D] py-20 text-[#FCFAF5] lg:py-28">
-        <div className="mx-auto max-w-7xl px-6 lg:px-12">
-          <div className="mx-auto mb-12 max-w-3xl text-center">
-            <p className="mb-4 text-[11px] font-semibold uppercase tracking-[0.25em] text-[#E8D5A3]">
-              Wellness Team
-            </p>
-            <h2
-              className="text-3xl font-medium leading-tight sm:text-4xl"
-              style={{ fontFamily: "var(--sp-font-display)" }}
-            >
-              Role-based care, without invented staff profiles.
-            </h2>
-          </div>
-          <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-            {teamRoles.map((role, index) => (
-              <ScrollReveal key={role.id} delay={index * 80}>
-                <div className="h-full rounded-[8px] border border-[#F7F3EB]/12 bg-white/[0.04] p-6">
-                  <Users className="mb-5 h-5 w-5 text-[#E8D5A3]" aria-hidden="true" />
-                  <h3 className="font-semibold">{role.title}</h3>
-                  <p className="mt-3 text-[13px] leading-6 text-[#F7F3EB]/64">{role.detail}</p>
-                </div>
-              </ScrollReveal>
-            ))}
-          </div>
-        </div>
-      </section>
-
-      <section className="bg-[#F7F3EB] py-20 lg:py-28">
-        <div className="mx-auto grid max-w-7xl gap-10 px-6 lg:grid-cols-[0.9fr_1.1fr] lg:items-center lg:px-12">
-          <div>
-            <p className="mb-4 text-[11px] font-semibold uppercase tracking-[0.25em] text-[#B68A3C]">
-              Reasons Guests Visit
-            </p>
-            <h2
-              className="text-3xl font-medium leading-tight text-[#163A2B] sm:text-4xl"
-              style={{ fontFamily: "var(--sp-font-display)" }}
-            >
-              Real-life reasons to make space for a reset.
-            </h2>
-          </div>
-          <div className="grid gap-3 sm:grid-cols-2">
-            {guestReasons.map((reason) => (
-              <div
-                key={reason}
-                className="rounded-[8px] border border-[#EDE4D3] bg-white px-5 py-4 text-[14px] font-medium text-[#163A2B]"
-              >
-                {reason}
-              </div>
-            ))}
-          </div>
-        </div>
-      </section>
-
-      {beforeYouBook.isEnabled && (
-        <section id="plan-your-visit" className="bg-[#FCFAF5] py-20 lg:py-28">
-          <div className="mx-auto grid max-w-7xl gap-10 px-6 lg:grid-cols-[0.95fr_1.05fr] lg:px-12">
-            <div>
-              <p className="mb-4 text-[11px] font-semibold uppercase tracking-[0.25em] text-[#B68A3C]">
-                {beforeYouBook.subtitle}
-              </p>
-              <h2
-                className="text-3xl font-medium leading-tight text-[#163A2B] sm:text-4xl"
-                style={{ fontFamily: "var(--sp-font-display)" }}
-              >
-                {beforeYouBook.title}
-              </h2>
-              <p className="mt-5 text-[15px] leading-7 text-[#6B7A6F]">{beforeYouBook.body}</p>
-            </div>
-            <div className="rounded-[8px] border border-[#EDE4D3] bg-[#F7F3EB] p-6 sm:p-8">
-              <ul className="space-y-4">
-                {beforeYouBook.items.map((note) => (
-                  <li key={note} className="flex gap-3 text-[14px] leading-6 text-[#5F6F63]">
-                    <Check className="mt-0.5 h-5 w-5 shrink-0 text-[#B68A3C]" aria-hidden="true" />
-                    <span>{note}</span>
-                  </li>
-                ))}
-              </ul>
-            </div>
-          </div>
-        </section>
-      )}
-
-      <section id="contact" className="bg-[#10261D] py-20 text-[#FCFAF5] lg:py-28">
-        <div className="mx-auto max-w-7xl px-6 lg:px-12">
-          <div className="grid gap-10 lg:grid-cols-[0.8fr_1.2fr]">
-            <div>
-              <p className="mb-4 text-[11px] font-semibold uppercase tracking-[0.25em] text-[#E8D5A3]">
-                Contact + Branches
-              </p>
-              <h2
-                className="text-3xl font-medium leading-tight sm:text-4xl"
-                style={{ fontFamily: "var(--sp-font-display)" }}
-              >
-                Reach the Cradle team in Bacolod.
-              </h2>
-              <p className="mt-5 text-[15px] leading-7 text-[#F7F3EB]/66">
-                Call or message for appointment questions, home-service details, or manual payment
-                confirmation follow-up.
-              </p>
-              <div className="mt-7 flex flex-col gap-3 sm:flex-row">
-                <Link
-                  href="/book"
-                  className="inline-flex min-h-12 items-center justify-center rounded-[8px] bg-[#C8A96B] px-6 text-[12px] font-semibold uppercase tracking-[0.16em] text-[#10261D] transition hover:bg-[#E8D5A3]"
-                >
-                  Book Appointment
-                </Link>
-                <a
-                  href={
-                    branches[0]?.phone
-                      ? `tel:${branches[0].phone.replace(/\s/g, "")}`
-                      : "tel:+639177077070"
-                  }
-                  className="inline-flex min-h-12 items-center justify-center gap-2 rounded-[8px] border border-[#F7F3EB]/24 px-6 text-[12px] font-semibold uppercase tracking-[0.16em] text-[#FCFAF5] transition hover:border-[#E8D5A3] hover:bg-white/10"
-                >
-                  <Phone className="h-4 w-4" aria-hidden="true" />
-                  Call / Message
-                </a>
-              </div>
-            </div>
-
-            <div className="grid gap-4 md:grid-cols-2">
-              <div className="rounded-[8px] border border-[#F7F3EB]/12 bg-white/[0.04] p-6">
-                <Clock className="mb-5 h-5 w-5 text-[#E8D5A3]" aria-hidden="true" />
-                <h3 className="font-semibold">Availability</h3>
-                <p className="mt-2 text-[13px] leading-6 text-[#F7F3EB]/64">
-                  {branches[0]?.opening_hours ?? businessInfo.hours}
-                </p>
-              </div>
-              <div className="rounded-[8px] border border-[#F7F3EB]/12 bg-white/[0.04] p-6">
-                <Phone className="mb-5 h-5 w-5 text-[#E8D5A3]" aria-hidden="true" />
-                <h3 className="font-semibold">Phone</h3>
-                <div className="mt-3 flex flex-col gap-2">
-                  {branches.slice(0, 1).map((branch) => (
-                    <div key={branch.id} className="flex flex-col gap-2">
-                      {branch.phone && (
-                        <a
-                          href={`tel:${branch.phone.replace(/\s/g, "")}`}
-                          className="text-[14px] text-[#F7F3EB]/76 transition hover:text-[#E8D5A3]"
-                        >
-                          {branch.phone}
-                        </a>
-                      )}
-                      {branch.secondary_phone && (
-                        <a
-                          href={`tel:${branch.secondary_phone.replace(/\s/g, "")}`}
-                          className="text-[14px] text-[#F7F3EB]/76 transition hover:text-[#E8D5A3]"
-                        >
-                          {branch.secondary_phone}
-                        </a>
-                      )}
-                    </div>
-                  ))}
-                  {branches.length === 0 && (
-                    <span className="text-[13px] text-[#F7F3EB]/64">Contact info updating</span>
-                  )}
-                </div>
-              </div>
-              {branches.map((branch) => (
-                <div
-                  key={branch.id}
-                  className="rounded-[8px] border border-[#F7F3EB]/12 bg-white/[0.04] p-6"
-                >
-                  <MapPin className="mb-5 h-5 w-5 text-[#E8D5A3]" aria-hidden="true" />
-                  <h3 className="font-semibold">{branch.name}</h3>
-                  <p className="mt-2 text-[13px] text-[#F7F3EB]/64">{branch.address}</p>
-                  {branch.maps_embed_url ? (
-                    <a
-                      href={branch.maps_embed_url}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="mt-4 inline-flex items-center gap-2 text-[12px] font-semibold uppercase tracking-[0.14em] text-[#E8D5A3] transition hover:text-[#FCFAF5]"
-                    >
-                      Google Maps
-                      <ArrowRight className="h-4 w-4" aria-hidden="true" />
-                    </a>
-                  ) : null}
-                </div>
-              ))}
-            </div>
-          </div>
-        </div>
-      </section>
-
-      <section className="bg-[#FCFAF5] py-20 lg:py-28">
-        <div className="mx-auto max-w-4xl px-6">
-          <div className="text-center mb-12">
-            <p className="mb-4 text-[11px] font-semibold uppercase tracking-[0.25em] text-[#B68A3C]">
-              Common Questions
-            </p>
-            <h2
-              className="text-3xl font-medium leading-tight text-[#163A2B] sm:text-4xl"
-              style={{ fontFamily: "var(--sp-font-display)" }}
-            >
-              Frequently Asked Questions
-            </h2>
-          </div>
-          <div className="rounded-[8px] border border-[#EDE4D3] bg-white px-6">
-            <FaqAccordion
-              items={[
-                {
-                  question: "How do I book a massage at Cradle Wellness Living?",
-                  answer:
-                    "You can book online through our website at cradlewellnessliving.com/book. Choose your setting (in-spa or home service), select your treatment, pick a date and time, and confirm your appointment.",
-                },
-                {
-                  question: "Do you offer home service massage in Bacolod?",
-                  answer:
-                    "Yes. We offer home service massage across Bacolod City. Select Home Service when booking and provide your complete address and a nearby landmark.",
-                },
-                {
-                  question: "Where are your branches located?",
-                  answer:
-                    "We have two branches in Bacolod: SM City Bacolod (3rd Floor, North Wing) and La Luz Branch (3rd Floor, La Luz Building, Lacson National Highway).",
-                },
-                {
-                  question: "What services does Cradle Wellness Living offer?",
-                  answer:
-                    "We offer massage services, foot spa, body scrub, skin care treatments, salon services, Divine Renewal packages, and spa party packages.",
-                },
-                {
-                  question: "Can I book online?",
-                  answer:
-                    "Absolutely. Online booking is available 24/7 at cradlewellnessliving.com/book. The guided flow helps you choose your branch, service, schedule, and therapist in under two minutes.",
-                },
-                {
-                  question: "Can I choose a therapist?",
-                  answer:
-                    "Yes. Our booking system lets you pick from available therapists based on your selected branch, date, and time.",
-                },
-              ]}
-            />
-          </div>
-        </div>
-      </section>
-
-      <section className="bg-[#F7F3EB] py-20 text-center lg:py-28">
-        <div className="mx-auto max-w-3xl px-6">
-          <p className="mb-4 text-[11px] font-semibold uppercase tracking-[0.25em] text-[#B68A3C]">
-            Your quiet reset starts here
-          </p>
-          <h2
-            className="text-3xl font-medium leading-tight text-[#163A2B] sm:text-5xl"
-            style={{ fontFamily: "var(--sp-font-display)" }}
-          >
-            Choose a time, choose your setting, and let Cradle take care of the rest.
-          </h2>
-          <div className="mt-9 flex flex-col justify-center gap-3 sm:flex-row">
-            <Link
-              href="/book"
-              className="inline-flex min-h-12 items-center justify-center rounded-[8px] bg-[#163A2B] px-7 text-[12px] font-semibold uppercase tracking-[0.16em] text-[#FCFAF5] transition hover:bg-[#1E4D3A]"
-            >
-              Book Appointment
-            </Link>
-            <a
-              href={
-                branches[0]?.phone
-                  ? `tel:${branches[0].phone.replace(/\s/g, "")}`
-                  : "tel:+639177077070"
-              }
-              className="inline-flex min-h-12 items-center justify-center rounded-[8px] border border-[#163A2B] px-7 text-[12px] font-semibold uppercase tracking-[0.16em] text-[#163A2B] transition hover:bg-[#163A2B] hover:text-[#FCFAF5]"
-            >
-              Call / Message
-            </a>
-          </div>
-        </div>
-      </section>
-    </>
+    </div>
   );
 }
 
 export function HomePageSections({
-  branches = [],
-  services = [],
-  managedSections,
+  branches,
+  services,
   sections,
 }: HomePageSectionsProps) {
-  const resolvedSections = sections ?? resolvePublicSiteSections(managedSections);
-
+  const resolvedSections = sections ?? resolvePublicSiteSections([]);
   return (
-    <HomePageSectionsRenderer sections={resolvedSections} branches={branches} services={services} />
+    <HomePageSectionsRenderer
+      sections={resolvedSections}
+      branches={branches}
+      services={services}
+    />
   );
 }

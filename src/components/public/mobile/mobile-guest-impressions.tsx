@@ -1,60 +1,41 @@
-import { Star } from "lucide-react";
-import { MobileFadeUp, MobileScrollFloatHeading } from "./mobile-scroll-effects";
+import React from "react";
 
-export type MobileGuestImpression = {
-  text: string;
-  name: string;
+type TestimonialItem = {
+  quote: string;
+  author: string;
+  detail?: string;
 };
 
 type MobileGuestImpressionsProps = {
-  testimonials: readonly MobileGuestImpression[];
+  testimonials?: TestimonialItem[];
 };
 
 export function MobileGuestImpressions({
-  testimonials,
+  testimonials = [],
 }: MobileGuestImpressionsProps) {
+  if (!testimonials.length) return null;
+
   return (
-    <section className="px-4 pt-12">
-      <div className="mb-5">
-        <p className="mb-2 text-[10px] font-semibold uppercase tracking-[0.22em] text-[#C8A96A]/90">
-          Guest Impressions
+    <section className="bg-[#F7F3EB] px-4 py-6 text-[#10261D]">
+      <div className="mx-auto max-w-md space-y-3">
+        <p className="text-[10px] font-semibold tracking-[0.2em] text-[#8A6D3B] uppercase">
+          Why Guests Return
         </p>
-        <MobileScrollFloatHeading text="What Our Guests Are Saying" />
-      </div>
-
-      <div className="-mx-4 flex gap-3 overflow-x-auto px-4 pb-2 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
-        {testimonials.map(({ text, name }) => (
-          <MobileFadeUp key={name} className="w-[250px] shrink-0">
-            <figure className="min-h-[260px] rounded-[26px] border border-[#C8A96A]/24 bg-[#0D2B20]/65 p-5 shadow-[0_24px_70px_rgba(0,0,0,0.35)] backdrop-blur-xl">
-              <div className="mb-4 flex gap-0.5">
-                {Array.from({ length: 5 }).map((_, index) => (
-                  <Star
-                    key={index}
-                    className="h-3.5 w-3.5 fill-[#C8A96A] text-[#C8A96A]"
-                    aria-hidden="true"
-                  />
-                ))}
-              </div>
-              <blockquote className="text-[17px] italic leading-8 text-[#F5ECDD] [font-family:var(--sp-font-accent)]">
-                &ldquo;{text}&rdquo;
-              </blockquote>
-              <figcaption className="mt-5 text-[10px] font-semibold uppercase tracking-[0.18em] text-[#D4B57A]">
-                {name}
-              </figcaption>
-            </figure>
-          </MobileFadeUp>
-        ))}
-      </div>
-
-      <div className="mt-4 flex justify-center gap-2">
-        {testimonials.map((testimonial, index) => (
-          <span
-            key={testimonial.name}
-            className={`h-1.5 rounded-full ${
-              index === 0 ? "w-5 bg-[#C8A96A]" : "w-1.5 bg-[#C8A96A]/28"
-            }`}
-          />
-        ))}
+        <div className="space-y-2.5">
+          {testimonials.slice(0, 2).map((item, idx) => (
+            <blockquote
+              key={idx}
+              className="rounded-2xl border border-[#E5DEC9] bg-white p-4 shadow-xs"
+            >
+              <p className="font-serif text-sm leading-relaxed text-[#24342B] [font-family:var(--sp-font-display)]">
+                &ldquo;{item.quote}&rdquo;
+              </p>
+              <footer className="mt-2 text-[11px] font-medium text-[#7A6B4F]">
+                — {item.author}
+              </footer>
+            </blockquote>
+          ))}
+        </div>
       </div>
     </section>
   );

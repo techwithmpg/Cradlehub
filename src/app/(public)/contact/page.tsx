@@ -25,11 +25,6 @@ function IconInstagram({ className }: { className?: string }) {
   );
 }
 
-const PUBLIC_DARK_SECTION =
-  "bg-[radial-gradient(circle_at_80%_8%,rgba(212,181,122,0.10),transparent_34%),linear-gradient(180deg,#031B16_0%,#05241D_50%,#02140F_100%)]";
-const PUBLIC_DARK_CARD =
-  "rounded-2xl border border-[#D4B57A]/22 bg-[#0D2B20]/70 shadow-[0_24px_70px_rgba(0,0,0,0.32),inset_0_1px_0_rgba(246,235,214,0.06)] backdrop-blur-xl";
-
 export const metadata: Metadata = buildMetadata({
   title: "Contact | Cradle Wellness Living — Bacolod Massage & Spa Booking",
   description:
@@ -48,63 +43,61 @@ export default async function ContactPage() {
   const openingHours = primaryBranch?.opening_hours ?? "10:00 AM – 10:00 PM";
 
   return (
-    <div className="sp-public">
+    <div className="sp-public bg-[#F7F3EB] text-[#10261D]">
       <PublicMobileContact branches={branches} />
       <div className="hidden md:block">
-        {/* Dark hero — matches mobile header */}
-        <div
-          className="pt-28 pb-14 lg:pt-36 lg:pb-20"
-          style={{ background: "#10261D" }}
-        >
+        {/* Forest Green Hero */}
+        <section className="bg-[#10261D] pt-28 pb-16 text-[#FCFAF5] lg:pt-32 lg:pb-20">
           <div className="mx-auto max-w-4xl px-6 text-center">
-            <p
-              className="text-[11px] font-semibold tracking-[0.25em] uppercase mb-4"
-              style={{ color: "#C8A96B" }}
-            >
+            <p className="mb-3 text-[11px] font-semibold uppercase tracking-[0.25em] text-[#D4B57A]">
               Contact Us
             </p>
             <h1
-              className="text-3xl sm:text-4xl lg:text-5xl font-medium leading-tight mb-4"
-              style={{ fontFamily: "var(--sp-font-display)", color: "#FCFAF5" }}
+              className="mb-4 text-3xl font-medium leading-tight text-[#FCFAF5] sm:text-4xl lg:text-5xl"
+              style={{ fontFamily: "var(--sp-font-display)" }}
             >
               {"We're Here to Help"}
             </h1>
-            <p className="text-[15px] max-w-xl mx-auto" style={{ color: "rgba(252,250,245,0.65)" }}>
+            <p className="mx-auto max-w-xl text-[15px] text-[#EDE4D3]/80">
               Questions about our services, availability, or special requests?
               Reach out and our team will respond with care.
             </p>
           </div>
-        </div>
+        </section>
 
         {/* Action-first cards */}
-        <section className={`${PUBLIC_DARK_SECTION} pt-12 pb-4 lg:pt-16`}>
+        <section className="bg-[#FCFAF5] pt-12 pb-4 lg:pt-16">
           <div className="mx-auto max-w-6xl px-6">
-            <div className="grid sm:grid-cols-2 gap-4 max-w-2xl mx-auto">
+            <div className="mx-auto grid max-w-2xl gap-4 sm:grid-cols-2">
               {primaryPhone ? (
                 <a
                   href={primaryPhoneHref}
-                  className="flex flex-col items-center justify-center gap-3 rounded-2xl p-8 text-center transition-all duration-300 hover:shadow-lg hover:-translate-y-0.5"
-                  style={{ background: "#163A2B" }}
+                  className="flex flex-col items-center justify-center gap-3 rounded-2xl border border-[#E5DEC9] bg-white p-8 text-center shadow-xs transition-all duration-300 hover:-translate-y-0.5 hover:shadow-md"
                 >
-                  <div className="flex h-12 w-12 items-center justify-center rounded-full" style={{ background: "rgba(200,169,107,0.15)" }}>
-                    <Phone className="h-6 w-6" style={{ color: "#C8A96B" }} />
+                  <div className="flex h-12 w-12 items-center justify-center rounded-full bg-[#F7F3EB] text-[#B68A3C]">
+                    <Phone className="h-6 w-6" aria-hidden="true" />
                   </div>
                   <div>
-                    <p className="text-[13px] font-semibold tracking-widest uppercase mb-1" style={{ color: "#C8A96B" }}>Call Us</p>
-                    <p className="text-[15px] font-medium" style={{ color: "#FCFAF5" }}>{primaryPhone}</p>
+                    <p className="mb-1 text-[12px] font-semibold uppercase tracking-[0.18em] text-[#8A6D3B]">
+                      Call Us
+                    </p>
+                    <p className="text-[15px] font-semibold text-[#10261D]">
+                      {primaryPhone}
+                    </p>
                   </div>
                 </a>
               ) : (
-                <div
-                  className="flex flex-col items-center justify-center gap-3 rounded-2xl p-8 text-center"
-                  style={{ background: "#163A2B", opacity: 0.7 }}
-                >
-                  <div className="flex h-12 w-12 items-center justify-center rounded-full" style={{ background: "rgba(200,169,107,0.15)" }}>
-                    <Phone className="h-6 w-6" style={{ color: "#C8A96B" }} />
+                <div className="flex flex-col items-center justify-center gap-3 rounded-2xl border border-[#E5DEC9] bg-white p-8 text-center opacity-80">
+                  <div className="flex h-12 w-12 items-center justify-center rounded-full bg-[#F7F3EB] text-[#B68A3C]">
+                    <Phone className="h-6 w-6" aria-hidden="true" />
                   </div>
                   <div>
-                    <p className="text-[13px] font-semibold tracking-widest uppercase mb-1" style={{ color: "#C8A96B" }}>Call Us</p>
-                    <p className="text-[15px] font-medium" style={{ color: "#FCFAF5" }}>Contact info updating</p>
+                    <p className="mb-1 text-[12px] font-semibold uppercase tracking-[0.18em] text-[#8A6D3B]">
+                      Call Us
+                    </p>
+                    <p className="text-[15px] font-medium text-[#55635B]">
+                      Contact info updating
+                    </p>
                   </div>
                 </div>
               )}
@@ -113,28 +106,32 @@ export default async function ContactPage() {
                   href={messengerHref}
                   target="_blank"
                   rel="noopener noreferrer"
-                  className="flex flex-col items-center justify-center gap-3 rounded-2xl p-8 text-center transition-all duration-300 hover:shadow-lg hover:-translate-y-0.5"
-                  style={{ background: "#163A2B" }}
+                  className="flex flex-col items-center justify-center gap-3 rounded-2xl border border-[#E5DEC9] bg-white p-8 text-center shadow-xs transition-all duration-300 hover:-translate-y-0.5 hover:shadow-md"
                 >
-                  <div className="flex h-12 w-12 items-center justify-center rounded-full" style={{ background: "rgba(200,169,107,0.15)" }}>
-                    <MessageSquare className="h-6 w-6" style={{ color: "#C8A96B" }} />
+                  <div className="flex h-12 w-12 items-center justify-center rounded-full bg-[#F7F3EB] text-[#B68A3C]">
+                    <MessageSquare className="h-6 w-6" aria-hidden="true" />
                   </div>
                   <div>
-                    <p className="text-[13px] font-semibold tracking-widest uppercase mb-1" style={{ color: "#C8A96B" }}>Message Us</p>
-                    <p className="text-[15px] font-medium" style={{ color: "#FCFAF5" }}>Facebook Page</p>
+                    <p className="mb-1 text-[12px] font-semibold uppercase tracking-[0.18em] text-[#8A6D3B]">
+                      Message Us
+                    </p>
+                    <p className="text-[15px] font-semibold text-[#10261D]">
+                      Facebook Page
+                    </p>
                   </div>
                 </a>
               ) : (
-                <div
-                  className="flex flex-col items-center justify-center gap-3 rounded-2xl p-8 text-center"
-                  style={{ background: "#163A2B", opacity: 0.7 }}
-                >
-                  <div className="flex h-12 w-12 items-center justify-center rounded-full" style={{ background: "rgba(200,169,107,0.15)" }}>
-                    <MessageSquare className="h-6 w-6" style={{ color: "#C8A96B" }} />
+                <div className="flex flex-col items-center justify-center gap-3 rounded-2xl border border-[#E5DEC9] bg-white p-8 text-center opacity-80">
+                  <div className="flex h-12 w-12 items-center justify-center rounded-full bg-[#F7F3EB] text-[#B68A3C]">
+                    <MessageSquare className="h-6 w-6" aria-hidden="true" />
                   </div>
                   <div>
-                    <p className="text-[13px] font-semibold tracking-widest uppercase mb-1" style={{ color: "#C8A96B" }}>Message Us</p>
-                    <p className="text-[15px] font-medium" style={{ color: "#FCFAF5" }}>Facebook Page</p>
+                    <p className="mb-1 text-[12px] font-semibold uppercase tracking-[0.18em] text-[#8A6D3B]">
+                      Message Us
+                    </p>
+                    <p className="text-[15px] font-medium text-[#55635B]">
+                      Facebook Page
+                    </p>
                   </div>
                 </div>
               )}
@@ -143,55 +140,52 @@ export default async function ContactPage() {
         </section>
 
         {/* Contact Info Cards */}
-        <section className={`${PUBLIC_DARK_SECTION} py-20 lg:py-28`}>
+        <section className="bg-[#F7F3EB] py-16 lg:py-24">
           <div className="mx-auto max-w-6xl px-6">
-            <div className="grid md:grid-cols-2 lg:grid-cols-4 gap-8">
-
+            <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-4">
               {/* Hours */}
               <ScrollReveal delay={0}>
-                <div className={`${PUBLIC_DARK_CARD} p-7 transition-shadow duration-500 h-full text-center`}>
-                  <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-[#163A2B] text-[#C8A96B] mx-auto mb-5">
-                    <Clock className="h-6 w-6" />
+                <div className="h-full rounded-2xl border border-[#E5DEC9] bg-white p-7 text-center shadow-xs">
+                  <div className="mx-auto mb-5 flex h-12 w-12 items-center justify-center rounded-xl bg-[#F7F3EB] text-[#B68A3C]">
+                    <Clock className="h-6 w-6" aria-hidden="true" />
                   </div>
                   <h3
-                    className="text-[16px] font-semibold mb-3"
-                    style={{ fontFamily: "var(--sp-font-display)", color: "#F6EBD6" }}
+                    className="mb-3 text-[16px] font-semibold text-[#10261D]"
+                    style={{ fontFamily: "var(--sp-font-display)" }}
                   >
                     Hours
                   </h3>
-                  <p className="text-[13px] font-medium" style={{ color: "#F6EBD6" }}>Open Daily</p>
-                  <p className="text-[13px] mt-1" style={{ color: "rgba(246,235,214,0.66)" }}>{openingHours}</p>
+                  <p className="text-[13px] font-semibold text-[#10261D]">Open Daily</p>
+                  <p className="mt-1 text-[13px] text-[#55635B]">{openingHours}</p>
                 </div>
               </ScrollReveal>
 
               {/* Phone */}
               <ScrollReveal delay={100}>
-                <div className={`${PUBLIC_DARK_CARD} p-7 transition-shadow duration-500 h-full text-center`}>
-                  <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-[#163A2B] text-[#C8A96B] mx-auto mb-5">
-                    <Phone className="h-6 w-6" />
+                <div className="h-full rounded-2xl border border-[#E5DEC9] bg-white p-7 text-center shadow-xs">
+                  <div className="mx-auto mb-5 flex h-12 w-12 items-center justify-center rounded-xl bg-[#F7F3EB] text-[#B68A3C]">
+                    <Phone className="h-6 w-6" aria-hidden="true" />
                   </div>
                   <h3
-                    className="text-[16px] font-semibold mb-3"
-                    style={{ fontFamily: "var(--sp-font-display)", color: "#F6EBD6" }}
+                    className="mb-3 text-[16px] font-semibold text-[#10261D]"
+                    style={{ fontFamily: "var(--sp-font-display)" }}
                   >
                     Phone
                   </h3>
                   {primaryPhone ? (
                     <a
                       href={primaryPhoneHref}
-                      className="block text-[13px] transition-colors hover:text-[#C8A96B]"
-                      style={{ color: "rgba(246,235,214,0.66)" }}
+                      className="block text-[13px] font-medium text-[#35463E] transition-colors hover:text-[#B68A3C]"
                     >
                       {primaryPhone}
                     </a>
                   ) : (
-                    <p className="text-[13px]" style={{ color: "rgba(246,235,214,0.66)" }}>Contact info updating</p>
+                    <p className="text-[13px] text-[#55635B]">Contact info updating</p>
                   )}
                   {secondaryPhone ? (
                     <a
                       href={secondaryPhoneHref}
-                      className="block text-[13px] mt-1 transition-colors hover:text-[#C8A96B]"
-                      style={{ color: "rgba(246,235,214,0.66)" }}
+                      className="mt-1 block text-[13px] font-medium text-[#35463E] transition-colors hover:text-[#B68A3C]"
                     >
                       {secondaryPhone}
                     </a>
@@ -202,13 +196,13 @@ export default async function ContactPage() {
               {/* Branch cards */}
               {branches.map((branch, index) => (
                 <ScrollReveal key={branch.id} delay={(index + 2) * 100}>
-                  <div className={`${PUBLIC_DARK_CARD} p-7 transition-shadow duration-500 h-full text-center`}>
-                    <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-[#163A2B] text-[#C8A96B] mx-auto mb-5">
-                      <MapPin className="h-6 w-6" />
+                  <div className="h-full rounded-2xl border border-[#E5DEC9] bg-white p-7 text-center shadow-xs">
+                    <div className="mx-auto mb-5 flex h-12 w-12 items-center justify-center rounded-xl bg-[#F7F3EB] text-[#B68A3C]">
+                      <MapPin className="h-6 w-6" aria-hidden="true" />
                     </div>
                     <h3
-                      className="text-[16px] font-semibold mb-3"
-                      style={{ fontFamily: "var(--sp-font-display)", color: "#F6EBD6" }}
+                      className="mb-3 text-[16px] font-semibold text-[#10261D]"
+                      style={{ fontFamily: "var(--sp-font-display)" }}
                     >
                       {branch.name}
                     </h3>
@@ -217,8 +211,7 @@ export default async function ContactPage() {
                         href={`https://maps.google.com/?q=${encodeURIComponent(branch.address)}`}
                         target="_blank"
                         rel="noopener noreferrer"
-                        className="text-[13px] leading-relaxed transition-colors hover:text-[#C8A96B]"
-                        style={{ color: "rgba(246,235,214,0.66)" }}
+                        className="text-[13px] leading-relaxed text-[#55635B] transition-colors hover:text-[#10261D] hover:underline"
                       >
                         {branch.address}
                       </a>
@@ -230,31 +223,24 @@ export default async function ContactPage() {
 
             {/* Social + Quick Actions */}
             <ScrollReveal>
-              <div
-                className="mt-16 rounded-2xl p-10 lg:p-14 text-center"
-                style={{ background: "#163A2B" }}
-              >
+              <div className="mt-14 rounded-3xl bg-[#10261D] p-10 text-center text-[#FCFAF5] shadow-md lg:p-14">
                 <h2
-                  className="text-2xl sm:text-3xl font-medium mb-4"
-                  style={{ fontFamily: "var(--sp-font-display)", color: "#FCFAF5" }}
+                  className="mb-4 text-2xl font-medium text-[#FCFAF5] sm:text-3xl"
+                  style={{ fontFamily: "var(--sp-font-display)" }}
                 >
                   Follow Us &amp; Book Online
                 </h2>
-                <p
-                  className="text-[15px] max-w-lg mx-auto mb-8"
-                  style={{ color: "rgba(247,243,235,0.7)" }}
-                >
+                <p className="mx-auto mb-8 max-w-lg text-[15px] text-[#EDE4D3]/80">
                   Stay updated on promotions and availability — or book directly through our online system in under two minutes.
                 </p>
 
                 {/* Social links */}
-                <div className="flex flex-wrap items-center justify-center gap-3 mb-8">
+                <div className="mb-8 flex flex-wrap items-center justify-center gap-3">
                   <a
                     href="https://www.facebook.com/518084738045813?ref=NONE_xav_ig_profile_page_web"
                     target="_blank"
                     rel="noopener noreferrer"
-                    className="inline-flex items-center gap-2 rounded-full px-5 py-2.5 text-[12px] font-medium tracking-wide border transition-all duration-300 hover:bg-[#D4B57A]/10"
-                    style={{ borderColor: "rgba(247,243,235,0.25)", color: "rgba(247,243,235,0.9)" }}
+                    className="inline-flex items-center gap-2 rounded-full border border-[#D4B57A]/40 px-5 py-2.5 text-[12px] font-medium tracking-wide text-[#FCFAF5] transition-all duration-300 hover:bg-[#163A2B]"
                   >
                     <IconFacebook className="h-4 w-4" />
                     Facebook
@@ -263,8 +249,7 @@ export default async function ContactPage() {
                     href="https://www.instagram.com/cradlewellnessliving.smbacolod"
                     target="_blank"
                     rel="noopener noreferrer"
-                    className="inline-flex items-center gap-2 rounded-full px-5 py-2.5 text-[12px] font-medium tracking-wide border transition-all duration-300 hover:bg-[#D4B57A]/10"
-                    style={{ borderColor: "rgba(247,243,235,0.25)", color: "rgba(247,243,235,0.9)" }}
+                    className="inline-flex items-center gap-2 rounded-full border border-[#D4B57A]/40 px-5 py-2.5 text-[12px] font-medium tracking-wide text-[#FCFAF5] transition-all duration-300 hover:bg-[#163A2B]"
                   >
                     <IconInstagram className="h-4 w-4" />
                     IG · SM Bacolod
@@ -273,8 +258,7 @@ export default async function ContactPage() {
                     href="https://www.instagram.com/cradlewellnessliving"
                     target="_blank"
                     rel="noopener noreferrer"
-                    className="inline-flex items-center gap-2 rounded-full px-5 py-2.5 text-[12px] font-medium tracking-wide border transition-all duration-300 hover:bg-[#D4B57A]/10"
-                    style={{ borderColor: "rgba(247,243,235,0.25)", color: "rgba(247,243,235,0.9)" }}
+                    className="inline-flex items-center gap-2 rounded-full border border-[#D4B57A]/40 px-5 py-2.5 text-[12px] font-medium tracking-wide text-[#FCFAF5] transition-all duration-300 hover:bg-[#163A2B]"
                   >
                     <IconInstagram className="h-4 w-4" />
                     Instagram
@@ -284,24 +268,16 @@ export default async function ContactPage() {
                 <div className="flex flex-wrap items-center justify-center gap-4">
                   <Link
                     href="/book"
-                    className="inline-flex items-center rounded-full px-8 py-3.5 text-[12px] font-semibold tracking-widest uppercase transition-all duration-300 hover:shadow-xl"
-                    style={{
-                      background: "linear-gradient(135deg, #C8A96B, #B68A3C)",
-                      color: "#10261D",
-                    }}
+                    className="inline-flex items-center rounded-full bg-[#D4B57A] px-8 py-3.5 text-[13px] font-semibold text-[#10261D] transition hover:bg-[#E4C992]"
                   >
                     Book Online
                   </Link>
                   {primaryPhone ? (
                     <a
                       href={primaryPhoneHref}
-                      className="inline-flex items-center gap-2 rounded-full px-8 py-3.5 text-[12px] font-medium tracking-widest uppercase border transition-all duration-300 hover:bg-[#D4B57A]/10"
-                      style={{
-                        borderColor: "rgba(247,243,235,0.25)",
-                        color: "rgba(247,243,235,0.9)",
-                      }}
+                      className="inline-flex items-center gap-2 rounded-full border border-[#D4B57A]/45 px-8 py-3.5 text-[13px] font-semibold text-[#FCFAF5] transition hover:bg-[#163A2B]"
                     >
-                      <Phone className="h-4 w-4" />
+                      <Phone className="h-4 w-4" aria-hidden="true" />
                       Call Us
                     </a>
                   ) : null}

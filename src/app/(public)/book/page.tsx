@@ -1,23 +1,52 @@
 import type { Metadata } from "next";
 import { BookingWizard } from "@/components/public/booking-wizard";
-import { buildMetadata } from "@/lib/seo/metadata";
 import { BreadcrumbJsonLd } from "@/components/seo/structured-data";
+import { buildMetadata } from "@/lib/seo/metadata";
+import type { VisitType } from "@/lib/bookings/visit-type-availability";
 
 export const metadata: Metadata = buildMetadata({
-  title: "Book Online | Massage & Wellness Appointments in Bacolod",
+  title: "Book an Appointment | Cradle Wellness Living — Bacolod Massage & Spa",
   description:
-    "Book your massage or wellness appointment online with Cradle Wellness Living in Bacolod. Choose in-spa or home service, select your treatment, and confirm your schedule.",
+    "Book a massage, spa package, or wellness service online at Cradle Wellness Living in Bacolod. Choose your branch, service, schedule, and preferred therapist.",
   path: "/book",
 });
 
-export default function BookPage() {
+export default async function BookPage({
+  searchParams,
+}: {
+  searchParams?: Promise<{
+    branchId?: string;
+    serviceId?: string;
+    visitType?: string;
+  }>;
+}) {
+  const params = searchParams ? await searchParams : {};
+  const initialBranchId =
+    typeof params.branchId === "string" && params.branchId.trim()
+      ? params.branchId.trim()
+      : null;
+  const initialServiceId =
+    typeof params.serviceId === "string" && params.serviceId.trim()
+      ? params.serviceId.trim()
+      : null;
+  const initialVisitType: VisitType | undefined =
+    params.visitType === "home_service"
+      ? "home_service"
+      : params.visitType === "in_spa"
+        ? "in_spa"
+        : undefined;
+
   return (
     <>
-      <BookingWizard />
+      <BookingWizard
+        initialBranchId={initialBranchId}
+        initialServiceId={initialServiceId}
+        initialVisitType={initialVisitType}
+      />
       <BreadcrumbJsonLd
         items={[
           { name: "Home", path: "/" },
-          { name: "Book", path: "/book" },
+          { name: "Book Appointment", path: "/book" },
         ]}
       />
     </>

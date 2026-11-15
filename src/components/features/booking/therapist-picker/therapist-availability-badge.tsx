@@ -13,9 +13,12 @@ export function TherapistAvailabilityBadge({
     <span
       className={cn(
         "inline-flex h-6 w-fit shrink-0 items-center rounded-full px-2.5 text-[10px] font-bold uppercase tracking-wide",
-        tone === "recommended" && "border border-[#D4B57A]/30 bg-[#D4B57A]/14 text-[#D4B57A]",
-        tone === "available" && "border border-emerald-300/20 bg-emerald-300/10 text-emerald-100",
-        tone === "muted" && "border border-[#D4B57A]/18 bg-[#05241D]/50 text-[#F6EBD6]/62"
+        tone === "recommended" &&
+          "border border-[#C8A96B]/45 bg-[#F5EFE3] text-[#7D5E29]",
+        tone === "available" &&
+          "border border-[#163A2B]/20 bg-[#EAF2ED] text-[#163A2B]",
+        tone === "muted" &&
+          "border border-[#DDD4C2] bg-[#F7F3EB] text-[#6B766F]",
       )}
     >
       {children}

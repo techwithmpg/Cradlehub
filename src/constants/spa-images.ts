@@ -16,4 +16,8 @@ export const SPA_IMAGES = {
   ctaBanner:       "/images/spa/cta-banner.jpg",
   booking:         "/images/spa/booking.jpg",
   contact:         "/images/spa/contact.jpg",
+  branchMain:      "/images/spa/contact.jpg",
+  branchSm:        "/images/spa/booking.jpg",
+  facialCare:      "/images/spa/categories/skin-care.jpg",
+  nailCare:        "/images/spa/categories/salon.jpg",
 } as const;

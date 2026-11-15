@@ -1,113 +1,108 @@
-import Image from "next/image";
+import React from "react";
 import Link from "next/link";
-import { MapPin, Navigation, Phone } from "lucide-react";
+import { ArrowRight, MapPin, Phone } from "lucide-react";
+import {
+  resolvePublicBranchImage,
+  type PublicBranch,
+} from "@/lib/public/public-site-data";
 import { SPA_IMAGES } from "@/constants/spa-images";
-import type { Database } from "@/types/supabase";
-import { MobileFadeUp, MobileScrollFloatHeading } from "./mobile-scroll-effects";
-
-type BranchRow = Database["public"]["Tables"]["branches"]["Row"];
 
 type MobileBranchesSectionProps = {
-  branches: BranchRow[];
+  branches: PublicBranch[];
   siteImages?: Record<string, string>;
 };
 
-function mapHref(address: string) {
-  return `https://maps.google.com/?q=${encodeURIComponent(address)}`;
-}
-
-function phoneHref(phone: string) {
-  return `tel:${phone.replace(/\s/g, "")}`;
-}
-
-export function MobileBranchesSection({ branches, siteImages }: MobileBranchesSectionProps) {
-  if (branches.length === 0) return null;
-
+export function MobileBranchesSection({
+  branches,
+  siteImages,
+}: MobileBranchesSectionProps) {
   return (
-    <section className="px-4 pt-12">
-      <div className="mb-5">
-        <p className="mb-2 text-[10px] font-semibold uppercase tracking-[0.22em] text-[#C8A96A]/90">
-          Find Your Cradle
-        </p>
-        <MobileScrollFloatHeading text="Our Branches" />
-      </div>
+    <section className="bg-[#FCFAF5] px-4 py-7 text-[#10261D]">
+      <div className="mx-auto max-w-md">
+        <div className="flex items-end justify-between">
+          <div>
+            <p className="text-[10px] font-semibold tracking-[0.2em] text-[#8A6D3B] uppercase">
+              Visit Us
+            </p>
+            <h2 className="mt-0.5 font-serif text-xl font-medium text-[#10261D] [font-family:var(--sp-font-display)]">
+              Our Bacolod Branches
+            </h2>
+          </div>
+          <Link
+            href="/branches"
+            className="text-xs font-semibold text-[#163A2B]"
+          >
+            Details →
+          </Link>
+        </div>
 
-      <div className="space-y-4">
-        {branches.map((branch, index) => {
-          const locMeta =
-            branch.location_metadata &&
-            typeof branch.location_metadata === "object" &&
-            !Array.isArray(branch.location_metadata)
-              ? (branch.location_metadata as Record<string, unknown>)
-              : {};
-          const branchImg =
-            (typeof locMeta.image_url === "string" && locMeta.image_url.trim().length > 0
-              ? locMeta.image_url.trim()
-              : undefined) ||
-            (typeof locMeta.imageUrl === "string" && locMeta.imageUrl.trim().length > 0
-              ? locMeta.imageUrl.trim()
-              : undefined);
-          const imgSrc =
-            branchImg ||
-            siteImages?.branches_fallback_ambient ||
-            (index % 2 === 0 ? SPA_IMAGES.heroWide : SPA_IMAGES.heroAmbience);
-
-          return (
-            <MobileFadeUp key={branch.id}>
-              <article className="relative min-h-[440px] overflow-hidden rounded-[30px] border border-[#C8A96A]/24 bg-[#05241D] shadow-[0_24px_64px_rgba(0,0,0,0.34)]">
-                <Image
-                  src={imgSrc}
-                  alt={branch.name}
-                  fill
-                  className="object-cover"
-                  sizes="calc(100vw - 32px)"
-                />
-                <div className="absolute inset-0 bg-[radial-gradient(circle_at_30%_18%,rgba(200,169,106,0.14)_0%,transparent_42%),linear-gradient(to_bottom,rgba(3,27,22,0.18)_0%,rgba(3,27,22,0.34)_42%,rgba(3,27,22,0.94)_100%)]" />
-                <div className="relative flex min-h-[440px] flex-col justify-end p-4">
-                  <div className="rounded-[26px] border border-[#C8A96A]/22 bg-[#0D2B20]/66 p-4 shadow-[0_20px_56px_rgba(0,0,0,0.34)] backdrop-blur-xl">
-                    <h3 className="text-[28px] font-medium leading-none text-[#F5ECDD] [font-family:var(--sp-font-accent)]">
-                      {branch.name}
-                    </h3>
-                    {branch.opening_hours ? (
-                      <p className="mt-2 text-[10px] font-semibold uppercase tracking-[0.16em] text-[#D4B57A]">
-                        {branch.opening_hours}
+        <div className="mt-4 space-y-3">
+          {branches.map((branch, idx) => {
+            const img = resolvePublicBranchImage(
+              branch,
+              idx === 0
+                ? siteImages?.mobile_branch_main || SPA_IMAGES.branchMain
+                : siteImages?.mobile_branch_sm || SPA_IMAGES.branchSm,
+            );
+            return (
+              <div
+                key={branch.id}
+                className="overflow-hidden rounded-2xl border border-[#E5DEC9] bg-white shadow-xs"
+              >
+                <div className="relative h-36 w-full bg-[#EDE4D3]">
+                  <img
+                    src={img}
+                    alt={branch.name}
+                    loading="lazy"
+                    className="h-full w-full object-cover"
+                  />
+                </div>
+                <div className="p-4">
+                  <div className="flex items-start gap-2">
+                    <MapPin
+                      className="mt-0.5 h-4 w-4 shrink-0 text-[#B68A3C]"
+                      aria-hidden="true"
+                    />
+                    <div>
+                      <h3 className="text-sm font-semibold text-[#10261D]">
+                        {branch.name}
+                      </h3>
+                      <p className="mt-0.5 text-xs text-[#55635B]">
+                        {branch.address}
                       </p>
-                    ) : null}
-                    <p className="mt-4 flex gap-2 text-[12px] leading-6 text-[#EFE3CF]/78">
-                      <MapPin
-                        className="mt-1 h-4 w-4 shrink-0 text-[#C8A96A]"
-                        aria-hidden="true"
-                      />
-                      <span>{branch.address}</span>
-                    </p>
-                    <div className="mt-5 grid grid-cols-2 gap-3">
-                      {branch.phone ? (
-                        <Link
-                          href={phoneHref(branch.phone)}
-                          className="inline-flex min-h-11 items-center justify-center gap-2 rounded-full border border-[#C8A96A]/42 bg-[#061912]/42 px-4 text-[11px] font-bold uppercase tracking-[0.14em] text-[#F5ECDD] shadow-[0_10px_24px_rgba(0,0,0,0.24)] backdrop-blur-md"
-                        >
-                          <Phone className="h-3.5 w-3.5 text-[#C8A96A]" aria-hidden="true" />
-                          Call
-                        </Link>
-                      ) : null}
-                      <Link
-                        href={mapHref(branch.address)}
-                        className={`inline-flex min-h-11 items-center justify-center gap-2 rounded-full border border-[#C8A96A]/42 bg-[#061912]/42 px-4 text-[11px] font-bold uppercase tracking-[0.14em] text-[#F5ECDD] shadow-[0_10px_24px_rgba(0,0,0,0.24)] backdrop-blur-md ${
-                          branch.phone ? "" : "col-span-2"
-                        }`}
-                        target="_blank"
-                        rel="noreferrer"
-                      >
-                        <Navigation className="h-3.5 w-3.5 text-[#C8A96A]" aria-hidden="true" />
-                        Directions
-                      </Link>
                     </div>
                   </div>
+
+                  {branch.phone && (
+                    <a
+                      href={`tel:${branch.phone.replace(/[^+\d]/g, "")}`}
+                      className="mt-2 inline-flex items-center gap-1.5 pl-6 text-xs font-medium text-[#163A2B]"
+                    >
+                      <Phone className="h-3.5 w-3.5 text-[#8A6D3B]" aria-hidden="true" />
+                      <span>{branch.phone}</span>
+                    </a>
+                  )}
+
+                  <div className="mt-3 flex gap-2 pl-6">
+                    <Link
+                      href={`/book?branchId=${encodeURIComponent(branch.id)}`}
+                      className="inline-flex items-center gap-1 rounded-full bg-[#163A2B] px-4 py-1.5 text-xs font-semibold text-[#FAF5E9]"
+                    >
+                      <span>Book Branch</span>
+                      <ArrowRight className="h-3 w-3" aria-hidden="true" />
+                    </Link>
+                    <Link
+                      href="/branches"
+                      className="inline-flex items-center rounded-full border border-[#D7CEBC] px-3.5 py-1.5 text-xs font-medium text-[#10261D]"
+                    >
+                      View Details
+                    </Link>
+                  </div>
                 </div>
-              </article>
-            </MobileFadeUp>
-          );
-        })}
+              </div>
+            );
+          })}
+        </div>
       </div>
     </section>
   );

@@ -4,53 +4,36 @@ import { ScrollReveal } from "@/components/public/scroll-reveal";
 
 export default function BookingSuccessPage() {
   return (
-    <div
-      className="sp-public min-h-screen text-[#F6EBD6]"
-      style={{
-        background:
-          "radial-gradient(circle at 80% 8%, rgba(212,181,122,0.14), transparent 34%), radial-gradient(circle at 12% 18%, rgba(30,61,47,0.38), transparent 38%), linear-gradient(180deg, #031B16 0%, #05241D 45%, #02140F 100%)",
-      }}
-    >
-      <div className="pt-28 pb-20 lg:pt-36 lg:pb-28">
+    <div className="sp-public min-h-screen bg-[#F7F3EB] text-[#10261D]">
+      <div className="pt-28 pb-24 lg:pt-36 lg:pb-28">
         <div className="mx-auto max-w-2xl px-6">
           <ScrollReveal>
-
             {/* Success icon */}
-            <div className="flex justify-center mb-8">
-              <div
-                className="flex h-24 w-24 items-center justify-center rounded-full"
-                style={{
-                  background: "rgba(13,43,32,0.72)",
-                  border: "1px solid rgba(212,181,122,0.40)",
-                  boxShadow: "0 20px 54px rgba(0,0,0,0.32)",
-                }}
-              >
-                <CheckCircle className="h-12 w-12" style={{ color: "#D4B57A" }} />
+            <div className="mb-8 flex justify-center">
+              <div className="flex h-24 w-24 items-center justify-center rounded-full border border-[#D4B57A] bg-[#10261D] shadow-md">
+                <CheckCircle className="h-12 w-12 text-[#D4B57A]" aria-hidden="true" />
               </div>
             </div>
 
             {/* Heading */}
-            <div className="text-center mb-10">
-              <p
-                className="text-[11px] font-semibold tracking-[0.25em] uppercase mb-4"
-                style={{ color: "#D4B57A" }}
-              >
+            <div className="mb-10 text-center">
+              <p className="mb-3 text-[11px] font-semibold uppercase tracking-[0.25em] text-[#8A6D3B]">
                 Request Received
               </p>
               <h1
-                className="text-3xl sm:text-4xl font-medium leading-tight mb-5"
-                style={{ fontFamily: "var(--sp-font-display)", color: "#F6EBD6" }}
+                className="mb-4 text-3xl font-medium leading-tight text-[#10261D] sm:text-4xl"
+                style={{ fontFamily: "var(--sp-font-display)" }}
               >
                 Your Booking Request Was Received
               </h1>
-              <p className="text-[15px] leading-relaxed max-w-md mx-auto" style={{ color: "rgba(246,235,214,0.72)" }}>
+              <p className="mx-auto max-w-md text-[15px] leading-relaxed text-[#35463E]">
                 Thank you for choosing Cradle Wellness Living. Our front desk will review
                 your request and confirm your appointment details.
               </p>
             </div>
 
             {/* Info cards */}
-            <div className="grid sm:grid-cols-3 gap-4 mb-10">
+            <div className="mb-8 grid gap-4 sm:grid-cols-3">
               {[
                 {
                   icon: Clock,
@@ -73,47 +56,35 @@ export default function BookingSuccessPage() {
               ].map((card) => (
                 <div
                   key={card.title}
-                  className="rounded-2xl p-5 text-center backdrop-blur-xl"
-                  style={{
-                    background: "rgba(13,43,32,0.65)",
-                    border: "1px solid rgba(212,181,122,0.25)",
-                    boxShadow: "0 24px 70px rgba(0,0,0,0.35), inset 0 1px 0 rgba(246,235,214,0.06)",
-                  }}
+                  className="rounded-2xl border border-[#E5DEC9] bg-white p-5 text-center shadow-xs"
                 >
-                  <card.icon className="h-5 w-5 mx-auto mb-2" style={{ color: "#D4B57A" }} />
-                  <p className="text-[12px] font-semibold uppercase tracking-wide mb-2" style={{ color: "#D4B57A" }}>
+                  <card.icon className="mx-auto mb-2 h-5 w-5 text-[#B68A3C]" aria-hidden="true" />
+                  <p className="mb-2 text-[11px] font-semibold uppercase tracking-wide text-[#8A6D3B]">
                     {card.title}
                   </p>
-                  {"lines" in card && card.lines?.map((l) => (
-                    <p key={l} className="text-[13px]" style={{ color: "rgba(246,235,214,0.72)" }}>{l}</p>
-                  ))}
-                  {"links" in card && card.links?.map((l) => (
-                    <a
-                      key={l.href}
-                      href={l.href}
-                      className="block text-[13px] transition-colors hover:text-[#D4B57A]"
-                      style={{ color: "rgba(246,235,214,0.72)" }}
-                    >
-                      {l.label}
-                    </a>
-                  ))}
+                  {"lines" in card &&
+                    card.lines?.map((l) => (
+                      <p key={l} className="text-[13px] text-[#35463E]">
+                        {l}
+                      </p>
+                    ))}
+                  {"links" in card &&
+                    card.links?.map((l) => (
+                      <a
+                        key={l.href}
+                        href={l.href}
+                        className="block text-[13px] font-medium text-[#10261D] transition-colors hover:text-[#B68A3C]"
+                      >
+                        {l.label}
+                      </a>
+                    ))}
                 </div>
               ))}
             </div>
 
             {/* Before your visit */}
-            <div
-              className="rounded-2xl p-7 mb-10 backdrop-blur-xl"
-              style={{
-                background: "rgba(13,43,32,0.65)",
-                border: "1px solid rgba(212,181,122,0.25)",
-                boxShadow: "0 24px 70px rgba(0,0,0,0.35), inset 0 1px 0 rgba(246,235,214,0.06)",
-              }}
-            >
-              <h2
-                className="text-[12px] font-semibold tracking-[0.18em] uppercase mb-5"
-                style={{ color: "#D4B57A" }}
-              >
+            <div className="mb-10 rounded-2xl border border-[#E5DEC9] bg-white p-7 shadow-xs">
+              <h2 className="mb-5 text-[12px] font-semibold uppercase tracking-[0.18em] text-[#8A6D3B]">
                 Before Your Visit
               </h2>
               <ul className="flex flex-col gap-3">
@@ -124,57 +95,39 @@ export default function BookingSuccessPage() {
                   "Let your therapist know about any health concerns or preferences.",
                 ].map((tip) => (
                   <li key={tip} className="flex items-start gap-3">
-                    <span
-                      className="mt-1 flex h-4 w-4 shrink-0 items-center justify-center rounded-full"
-                      style={{ background: "rgba(212,181,122,0.18)" }}
-                    >
-                      <span className="block h-1.5 w-1.5 rounded-full" style={{ background: "#D4B57A" }} />
+                    <span className="mt-1.5 flex h-4 w-4 shrink-0 items-center justify-center rounded-full bg-[#EFE2C2]">
+                      <span className="block h-1.5 w-1.5 rounded-full bg-[#8A6D3B]" />
                     </span>
-                    <p className="text-[13px] leading-relaxed" style={{ color: "rgba(246,235,214,0.72)" }}>
-                      {tip}
-                    </p>
+                    <p className="text-[13px] leading-relaxed text-[#35463E]">{tip}</p>
                   </li>
                 ))}
               </ul>
             </div>
 
             {/* CTAs */}
-            <div className="flex flex-col sm:flex-row items-center justify-center gap-4">
+            <div className="flex flex-col items-center justify-center gap-3 sm:flex-row">
               <Link
                 href="/book"
-                className="inline-flex items-center gap-2 rounded-full px-8 py-3.5 text-[12px] font-semibold tracking-widest uppercase transition-all duration-300 hover:shadow-xl hover:-translate-y-0.5"
-                style={{
-                  background: "linear-gradient(90deg, #D4B57A, #C8A96A, #B88945)",
-                  color: "#031B16",
-                  boxShadow: "0 18px 42px rgba(200,169,106,0.25)",
-                }}
+                className="inline-flex min-h-11 items-center gap-2 rounded-full bg-[#163A2B] px-7 text-[13px] font-semibold text-[#FCFAF5] transition hover:bg-[#1E4D3A]"
               >
-                <Calendar className="h-3.5 w-3.5" />
+                <Calendar className="h-4 w-4" aria-hidden="true" />
                 Book Another
               </Link>
               <a
                 href="tel:+639177077070"
-                className="inline-flex items-center gap-2 rounded-full px-8 py-3.5 text-[12px] font-semibold tracking-widest uppercase transition-all duration-300"
-                style={{
-                  color: "#F6EBD6",
-                  border: "1px solid rgba(212,181,122,0.55)",
-                  background: "rgba(3,27,22,0.50)",
-                  backdropFilter: "blur(12px)",
-                }}
+                className="inline-flex min-h-11 items-center gap-2 rounded-full border border-[#D4CBB3] bg-white px-7 text-[13px] font-semibold text-[#10261D] transition hover:bg-[#FCFAF5]"
               >
-                <Phone className="h-3.5 w-3.5" />
+                <Phone className="h-4 w-4 text-[#B68A3C]" aria-hidden="true" />
                 Call Us
               </a>
               <Link
                 href="/"
-                className="inline-flex items-center gap-2 text-[12px] font-medium tracking-wide transition-colors hover:text-[#D4B57A]"
-                style={{ color: "rgba(246,235,214,0.62)" }}
+                className="inline-flex min-h-11 items-center gap-2 px-4 text-[13px] font-medium text-[#55635B] transition-colors hover:text-[#10261D]"
               >
-                <ArrowLeft className="h-3.5 w-3.5" />
+                <ArrowLeft className="h-4 w-4" aria-hidden="true" />
                 Back to Home
               </Link>
             </div>
-
           </ScrollReveal>
         </div>
       </div>

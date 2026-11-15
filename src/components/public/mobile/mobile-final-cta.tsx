@@ -1,9 +1,8 @@
-import Image from "next/image";
+import React from "react";
 import Link from "next/link";
-import { CalendarDays } from "lucide-react";
-import { SPA_IMAGES } from "@/constants/spa-images";
+import { Calendar } from "lucide-react";
 import type { NormalizedQuoteBannerSection } from "@/lib/public/normalized-sections";
-import { MobileFadeUp, MobileScrollFloatHeading } from "./mobile-scroll-effects";
+import { SPA_IMAGES } from "@/constants/spa-images";
 
 type MobileFinalCtaProps = {
   quoteBanner?: NormalizedQuoteBannerSection;
@@ -11,95 +10,56 @@ type MobileFinalCtaProps = {
 };
 
 export function MobileFinalCta({ quoteBanner, siteImages }: MobileFinalCtaProps) {
-  if (quoteBanner) {
-    if (!quoteBanner.isEnabled) {
-      return null;
-    }
-
-    const eyebrow = quoteBanner.subtitle || "Pause Here";
-    const title = quoteBanner.title || "Give yourself permission to pause.";
-    const body = quoteBanner.body;
-    const ctaLabel = quoteBanner.ctaLabel;
-    const ctaHref = quoteBanner.ctaHref || "/book";
-    const image =
-      siteImages?.mobile_final_cta_ambient || quoteBanner.imageUrl || SPA_IMAGES.ctaBanner;
-
-    return (
-      <section className="px-4 pb-14 pt-12">
-        <MobileFadeUp>
-          <div className="relative min-h-[340px] overflow-hidden rounded-[34px] border border-[#C8A96A]/24 shadow-[0_26px_70px_rgba(0,0,0,0.32)]">
-            <Image
-              src={image}
-              alt="Cradle spa ambience with warm calm light"
-              fill
-              className="object-cover"
-              sizes="calc(100vw - 32px)"
-            />
-            <div className="absolute inset-0 bg-[radial-gradient(circle_at_26%_20%,rgba(200,169,106,0.18)_0%,transparent_44%),linear-gradient(to_top,rgba(4,17,12,0.9)_0%,rgba(4,17,12,0.62)_48%,rgba(4,17,12,0.22)_100%)]" />
-            <div className="relative flex min-h-[340px] flex-col justify-end p-6">
-              <p className="mb-3 text-[10px] font-semibold uppercase tracking-[0.22em] text-[#C8A96A]">
-                {eyebrow}
-              </p>
-              <MobileScrollFloatHeading text={title} />
-              {body ? (
-                <p className="mt-4 max-w-[270px] text-[13px] leading-6 text-[#F3E9D2]/82">{body}</p>
-              ) : null}
-              {ctaLabel ? (
-                <div className="mt-7 grid gap-3">
-                  <Link
-                    href={ctaHref}
-                    className="inline-flex min-h-12 items-center justify-center gap-2 rounded-full bg-[#C8A96A] px-6 text-[11px] font-bold uppercase tracking-[0.16em] text-[#061912] shadow-[0_16px_34px_rgba(200,169,106,0.26)]"
-                  >
-                    <CalendarDays className="h-4 w-4" aria-hidden="true" />
-                    {ctaLabel}
-                  </Link>
-                </div>
-              ) : null}
-            </div>
-          </div>
-        </MobileFadeUp>
-      </section>
-    );
+  if (quoteBanner && !quoteBanner.isEnabled) {
+    return null;
   }
 
-  // Compatibility fallback when entire quoteBanner prop is absent
-  const eyebrow = "Book your pause";
-  const title = "Your calm is waiting";
-  const body = "Book your pause today.";
-  const ctaLabel = "Book Now";
-  const ctaHref = "/book";
-  const image = siteImages?.mobile_final_cta_ambient || SPA_IMAGES.heroAmbience;
+  const isStandaloneFallback = !quoteBanner;
+  const bgImage =
+    siteImages?.mobile_final_cta_ambient ||
+    quoteBanner?.imageUrl ||
+    SPA_IMAGES.ctaBanner;
+
+  const eyebrow = isStandaloneFallback
+    ? "Book your pause"
+    : quoteBanner.subtitle || "Book your pause";
+  const heading = isStandaloneFallback
+    ? "Your calm is waiting"
+    : quoteBanner.title;
+  const body = isStandaloneFallback ? "Book your pause today." : quoteBanner.body;
+  const ctaLabel = isStandaloneFallback ? "Book Now" : quoteBanner.ctaLabel;
+  const ctaHref = quoteBanner?.ctaHref || "/book";
 
   return (
-    <section className="px-4 pb-14 pt-12">
-      <MobileFadeUp>
-        <div className="relative min-h-[340px] overflow-hidden rounded-[34px] border border-[#C8A96A]/24 shadow-[0_26px_70px_rgba(0,0,0,0.32)]">
-          <Image
-            src={image}
-            alt="Cradle spa ambience with warm calm light"
-            fill
-            className="object-cover"
-            sizes="calc(100vw - 32px)"
-          />
-          <div className="absolute inset-0 bg-[radial-gradient(circle_at_26%_20%,rgba(200,169,106,0.18)_0%,transparent_44%),linear-gradient(to_top,rgba(4,17,12,0.9)_0%,rgba(4,17,12,0.62)_48%,rgba(4,17,12,0.22)_100%)]" />
-          <div className="relative flex min-h-[340px] flex-col justify-end p-6">
-            <p className="mb-3 text-[10px] font-semibold uppercase tracking-[0.22em] text-[#C8A96A]">
-              {eyebrow}
-            </p>
-            <MobileScrollFloatHeading text={title} />
-            <p className="mt-4 max-w-[270px] text-[13px] leading-6 text-[#F3E9D2]/82">{body}</p>
-            <div className="mt-7 grid gap-3">
-              <Link
-                href={ctaHref}
-                className="inline-flex min-h-12 items-center justify-center gap-2 rounded-full bg-[#C8A96A] px-6 text-[11px] font-bold uppercase tracking-[0.16em] text-[#061912] shadow-[0_16px_34px_rgba(200,169,106,0.26)]"
-              >
-                <CalendarDays className="h-4 w-4" aria-hidden="true" />
-                {ctaLabel}
-              </Link>
-            </div>
+    <section className="relative overflow-hidden bg-[#10261D] px-5 py-12 text-center text-[#FAF5E9]">
+      <img
+        src={bgImage}
+        alt="Calm spa candlelight ambiance"
+        loading="lazy"
+        className="pointer-events-none absolute inset-0 h-full w-full object-cover opacity-30"
+      />
+      <div className="relative z-10 mx-auto max-w-sm">
+        <p className="text-[10px] font-semibold tracking-[0.24em] text-[#D4B57A] uppercase">
+          {eyebrow}
+        </p>
+        <h2 className="mt-2 font-serif text-2xl font-medium text-[#FAF5E9] [font-family:var(--sp-font-display)]">
+          {heading}
+        </h2>
+        {body && (
+          <p className="mt-2 text-xs leading-relaxed text-[#D0DBD2]">{body}</p>
+        )}
+        {ctaLabel && (
+          <div className="mt-5">
+            <Link
+              href={ctaHref}
+              className="inline-flex min-h-[44px] items-center justify-center gap-2 rounded-full bg-[#D4B57A] px-6 py-2.5 text-sm font-semibold text-[#10261D] shadow-sm transition hover:bg-[#E0C38A]"
+            >
+              <Calendar className="h-4 w-4" aria-hidden="true" />
+              <span>{ctaLabel}</span>
+            </Link>
           </div>
-        </div>
-      </MobileFadeUp>
+        )}
+      </div>
     </section>
   );
 }

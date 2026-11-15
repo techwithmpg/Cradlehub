@@ -32,19 +32,19 @@ export function TherapistDropdownOptionRow({
       disabled={!option.isAvailable}
       onClick={onSelect}
       className={cn(
-        "flex min-h-16 w-full items-center gap-3 rounded-xl px-3 py-2.5 text-left transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#C8A96B]/50",
+        "flex min-h-16 w-full items-center gap-3 rounded-xl px-3 py-2.5 text-left transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#163A2B]",
         selected
-          ? "bg-[#D4B57A]/14 text-[#F6EBD6]"
-          : "text-[#F6EBD6] hover:bg-[#0D2B20]/80",
-        !option.isAvailable && "cursor-not-allowed opacity-50"
+          ? "bg-[#F5EFE3] text-[#10261D]"
+          : "text-[#10261D] hover:bg-[#F7F3EB]",
+        !option.isAvailable && "cursor-not-allowed opacity-50",
       )}
       aria-pressed={selected}
     >
-      <Avatar className="size-10 border border-[#D4B57A]/22 bg-[#05241D] shadow-sm">
+      <Avatar className="size-10 border border-[#D4B57A]/40 bg-[#163A2B] shadow-xs">
         {option.avatarUrl ? (
           <AvatarImage src={option.avatarUrl} alt={option.displayName} />
         ) : null}
-        <AvatarFallback className="bg-[radial-gradient(circle_at_35%_25%,#FAE6BE_0%,#C8A96B_36%,#163A2B_100%)] text-[12px] font-bold text-[#FCFAF5]">
+        <AvatarFallback className="bg-[#163A2B] text-[12px] font-bold text-[#E8D5A3]">
           {option.isAnyProvider ? <Sparkles className="size-4" /> : option.initials}
         </AvatarFallback>
       </Avatar>
@@ -58,7 +58,7 @@ export function TherapistDropdownOptionRow({
             </TherapistAvailabilityBadge>
           ) : null}
         </span>
-        <span className="mt-0.5 block truncate text-[12px] leading-5 text-[#F6EBD6]/64">
+        <span className="mt-0.5 block truncate text-[12px] leading-5 text-[#55635B]">
           {subLabel}
         </span>
       </span>
@@ -66,11 +66,13 @@ export function TherapistDropdownOptionRow({
       <span
         className={cn(
           "flex size-6 shrink-0 items-center justify-center rounded-full border",
-          selected ? "border-[#D4B57A] bg-[#D4B57A]" : "border-[#D4B57A]/30 bg-[#031B16]/35"
+          selected
+            ? "border-[#163A2B] bg-[#163A2B]"
+            : "border-[#D7CEBC] bg-[#FCFAF5]",
         )}
         aria-hidden="true"
       >
-        {selected ? <Check className="size-3.5 text-[#031B16]" /> : null}
+        {selected ? <Check className="size-3.5 text-[#FAF5E9]" /> : null}
       </span>
     </button>
   );

@@ -1,9 +1,6 @@
 import type { Metadata } from "next";
 import { cookies } from "next/headers";
-import { SiteHeader } from "@/components/public/site-header";
-import { SiteFooter } from "@/components/public/site-footer";
-import { MobileFirstVisitPreloader } from "@/components/shared/mobile-first-visit-preloader";
-import { OfflineBanner } from "@/components/shared/offline-banner";
+import { PublicShell } from "@/components/public/public-shell";
 import { getPublicBranchesCached } from "@/lib/queries/branches";
 import { getPublishedBrandSettingsCached } from "@/lib/queries/marketing-brand";
 import { MOBILE_PRELOADER_COOKIE } from "@/lib/public/mobile-preloader";
@@ -60,21 +57,18 @@ export default async function PublicLayout({ children }: { children: React.React
     : undefined;
 
   return (
-    <div className="sp-public">
-      <MobileFirstVisitPreloader initiallyVisible={!hasSeenMobilePreloader} />
-      <OfflineBanner />
-      <SiteHeader
-        primaryPhone={primaryPhone}
-        logoUrl={brand.headerLogoUrl}
-        logoAlt={brand.headerLogoAlt}
-      />
-      <main>{children}</main>
-      <SiteFooter
-        branches={branches}
-        logoUrl={brand.footerLogoUrl}
-        logoAlt={brand.footerLogoAlt}
-        taglineText={brand.taglineText}
-      />
-    </div>
+    <PublicShell
+      branches={branches}
+      hasSeenMobilePreloader={hasSeenMobilePreloader}
+      primaryPhone={primaryPhone}
+      headerLogoUrl={brand.headerLogoUrl}
+      headerLogoAlt={brand.headerLogoAlt}
+      footerLogoUrl={brand.footerLogoUrl}
+      footerLogoAlt={brand.footerLogoAlt}
+      taglineText={brand.taglineText}
+      withOfflineBanner
+    >
+      {children}
+    </PublicShell>
   );
 }

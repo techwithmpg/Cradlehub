@@ -3,9 +3,36 @@ import { SPA_IMAGES } from "@/constants/spa-images";
 export type PublicBranch = {
   id: string;
   name: string;
-  area: string;
-  mapHref?: string;
+  area?: string | null;
+  address?: string | null;
+  phone?: string | null;
+  secondary_phone?: string | null;
+  email?: string | null;
+  opening_hours?: string | null;
+  hours?: string | null;
+  mapHref?: string | null;
+  imageUrl?: string | null;
+  location_metadata?: unknown;
 };
+
+export function resolvePublicBranchImage(
+  branch: PublicBranch,
+  fallbackImage: string,
+): string {
+  if (branch.imageUrl && branch.imageUrl.trim().length > 0) {
+    return branch.imageUrl.trim();
+  }
+  if (
+    branch.location_metadata &&
+    typeof branch.location_metadata === "object" &&
+    "image_url" in branch.location_metadata &&
+    typeof branch.location_metadata.image_url === "string" &&
+    branch.location_metadata.image_url.trim().length > 0
+  ) {
+    return branch.location_metadata.image_url.trim();
+  }
+  return fallbackImage;
+}
 
 export type PublicPhone = {
   label: string;

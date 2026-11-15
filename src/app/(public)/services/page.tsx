@@ -1,14 +1,14 @@
 import type { Metadata } from "next";
-import Image from "next/image";
 import Link from "next/link";
-import { ArrowRight, MessageCircle } from "lucide-react";
-import { SPA_IMAGES } from "@/constants/spa-images";
+import Image from "next/image";
+import { ArrowRight, Calendar } from "lucide-react";
 import { ServiceCatalogClient } from "@/components/public/service-catalog-client";
 import { PublicMobileServices } from "@/components/public/mobile/public-mobile-services";
 import { getPublicServiceCatalog } from "@/lib/queries/services";
+import { getPublicBranches } from "@/lib/queries/branches";
 import { getPublicSiteSections } from "@/lib/queries/public-site";
 import { resolvePublicSiteSections } from "@/lib/public/normalized-sections";
-import { isPublicReadTransportFailure } from "@/lib/public/public-read-error";
+import { SPA_IMAGES } from "@/constants/spa-images";
 import { buildMetadata } from "@/lib/seo/metadata";
 import { ServiceJsonLd, BreadcrumbJsonLd } from "@/components/seo/structured-data";
 
@@ -19,95 +19,98 @@ export const metadata: Metadata = buildMetadata({
   path: "/services",
 });
 
-export default async function ServicesPage() {
-  const [services, managedSections] = await Promise.all([
+export default async function ServicesPage({
+  searchParams,
+}: {
+  searchParams?: Promise<{ category?: string; q?: string }>;
+}) {
+  const resolvedParams = searchParams ? await searchParams : {};
+  const initialCategory =
+    typeof resolvedParams.category === "string" ? resolvedParams.category : "all";
+  const initialQuery =
+    typeof resolvedParams.q === "string" ? resolvedParams.q : "";
+
+  const [services, branches, managedSections] = await Promise.all([
     getPublicServiceCatalog(),
+    getPublicBranches(),
     getPublicSiteSections({ includeDisabled: false }).catch((error) => {
-      if (!isPublicReadTransportFailure(error)) throw error;
+      console.error("[ServicesPage] Failed to load site sections:", error);
       return [];
     }),
   ]);
 
-  const resolved = resolvePublicSiteSections(managedSections);
-  const bannerImage =
-    resolved.siteImages?.services_page_banner ||
-    resolved.quoteBanner.imageUrl ||
-    SPA_IMAGES.ctaBanner;
+  const sections = resolvePublicSiteSections(managedSections);
+  const bannerImage = sections.siteImages?.services_banner || SPA_IMAGES.hero;
 
   return (
-    <div className="sp-public">
-      <PublicMobileServices services={services} bannerImage={bannerImage} />
+    <div className="w-full bg-[#F7F3EB] text-[#10261D]">
+      <PublicMobileServices
+        services={services}
+        bannerImage={bannerImage}
+        initialCategory={initialCategory}
+      />
+
       <div className="hidden md:block">
-        <section className="relative overflow-hidden bg-[#10261D] pt-32 pb-16 text-[#FCFAF5] lg:pt-40 lg:pb-24">
-          <div className="absolute inset-0">
-            <Image
-              src={bannerImage}
-              alt="Cradle spa treatment details"
-              fill
-              priority
-              className="object-cover opacity-60"
-              sizes="100vw"
-            />
-            <div className="absolute inset-0 bg-[#10261D]/70" />
-            <div className="absolute inset-0 bg-[linear-gradient(90deg,rgba(16,38,29,0.97)_0%,rgba(16,38,29,0.74)_52%,rgba(16,38,29,0.4)_100%)]" />
-            <div className="absolute inset-x-0 bottom-0 h-28 bg-[linear-gradient(0deg,#031B16_0%,rgba(3,27,22,0)_100%)]" />
-          </div>
-
-          <div className="relative mx-auto grid max-w-7xl gap-10 px-6 lg:grid-cols-[1fr_0.52fr] lg:items-end lg:px-12">
-            <div>
-              <p className="mb-5 text-[11px] font-semibold uppercase tracking-[0.28em] text-[#E8D5A3]">
-                Cradle Service Menu
-              </p>
-              <h1
-                className="max-w-4xl text-4xl font-medium leading-[1.04] sm:text-6xl lg:text-7xl"
-                style={{ fontFamily: "var(--sp-font-display)" }}
-              >
-                Massage, salon, skin care, and spa rituals in one calm menu.
+        {/* Cream & Forest Split Hero Banner matching approved Desktop Services reference */}
+        <section className="relative overflow-hidden border-b border-[#E5DEC9] bg-[#EFE9DA]">
+          <div className="relative mx-auto max-w-7xl px-6 py-12 lg:px-8 lg:py-16">
+            <div className="relative z-10 max-w-xl">
+              <div className="mb-3 flex items-center gap-3">
+                <span className="text-[11px] font-semibold tracking-[0.22em] text-[#8A6D3B] uppercase">
+                  Cradle Wellness Living
+                </span>
+                <span className="h-px w-10 bg-[#C8A96B]" aria-hidden="true" />
+              </div>
+              <h1 className="font-serif text-4xl font-medium tracking-tight text-[#10261D] [font-family:var(--sp-font-display)] lg:text-5xl">
+                Our Services
               </h1>
-              <p className="mt-6 max-w-2xl text-[15px] leading-7 text-[#EDE4D3]/76">
-                Browse our treatments by category, review service notes, and book
-                directly online. Our team is always ready to guide your selection.
+              <p className="mt-3 text-[15px] leading-relaxed text-[#425148]">
+                A complete range of spa, beauty, and home-service treatments
+                designed to help you relax, rejuvenate, and feel your best.
               </p>
-            </div>
-
-            <div className="rounded-[8px] border border-[#D4B57A]/22 bg-[#061912]/74 p-7 backdrop-blur-md">
-              <p className="text-[11px] font-semibold uppercase tracking-[0.22em] text-[#E8D5A3]">
-                Booking Guidance
-              </p>
-              <h2
-                className="mt-3 text-2xl font-medium text-[#FCFAF5]"
-                style={{ fontFamily: "var(--sp-font-display)" }}
-              >
-                Need help deciding?
-              </h2>
-              <p className="mt-3 text-[13px] leading-6 text-[#EDE4D3]/72">
-                Choose in-spa for full relaxation in our treatment rooms, or home
-                service when comfort at your residence is preferred.
-              </p>
-              <div className="mt-6 flex flex-wrap gap-3">
+              <div className="mt-6 flex flex-wrap items-center gap-3">
                 <Link
                   href="/book"
-                  className="inline-flex min-h-11 items-center justify-center gap-2 rounded-[6px] bg-[#C8A96B] px-5 text-[12px] font-semibold uppercase tracking-[0.16em] text-[#10261D] transition hover:bg-[#D4B57A]"
+                  className="inline-flex items-center gap-2 rounded-full bg-[#163A2B] px-5 py-2.5 text-xs font-semibold text-[#FAF5E9] shadow-xs transition hover:bg-[#1E4D3A]"
                 >
-                  Book Online
-                  <ArrowRight className="h-4 w-4" />
+                  <Calendar className="h-3.5 w-3.5 text-[#D4B57A]" aria-hidden="true" />
+                  <span>Book a Service Now</span>
+                  <ArrowRight className="h-3.5 w-3.5" aria-hidden="true" />
                 </Link>
                 <Link
-                  href="/contact"
-                  className="inline-flex min-h-11 items-center justify-center gap-2 rounded-[6px] border border-[#D4B57A]/35 px-4 text-[12px] font-semibold uppercase tracking-[0.16em] text-[#FCFAF5] transition hover:bg-white/5"
+                  href="/services?category=Divine%20Renewal%20Packages"
+                  className="inline-flex items-center rounded-full border border-[#163A2B]/30 bg-white px-5 py-2.5 text-xs font-semibold text-[#163A2B] transition hover:border-[#163A2B]"
                 >
-                  <MessageCircle className="h-4 w-4 text-[#C8A96B]" />
-                  Ask Front Desk
+                  Service Packages
                 </Link>
               </div>
             </div>
           </div>
+
+          <div className="pointer-events-none absolute inset-y-0 right-0 w-[56%]">
+            <Image
+              src={bannerImage}
+              alt="Cradle Wellness Living spa treatment ambiance"
+              fill
+              preload={true}
+              fetchPriority="high"
+              sizes="56vw"
+              className="object-cover"
+            />
+            <div
+              aria-hidden="true"
+              className="absolute inset-0 bg-gradient-to-r from-[#EFE9DA] via-[#EFE9DA]/70 to-transparent"
+            />
+          </div>
         </section>
 
-        <section className="bg-[#FAF7F2] py-16 lg:py-24">
-          <div className="mx-auto max-w-7xl px-6 lg:px-12">
-            <ServiceCatalogClient services={services} />
-          </div>
+        <section className="mx-auto max-w-7xl px-6 py-10 lg:px-8 lg:py-12">
+          <ServiceCatalogClient
+            services={services}
+            branches={branches}
+            initialCategory={initialCategory}
+            initialQuery={initialQuery}
+          />
         </section>
       </div>
 

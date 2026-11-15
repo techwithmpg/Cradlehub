@@ -8,6 +8,7 @@ type ServiceImageProps = Omit<ImageProps, "src" | "alt"> & {
   src?: string | null;
   alt: string;
   fallbackSrc?: string;
+  category?: string;
 };
 
 function cleanSrc(src: string | null | undefined) {
@@ -19,6 +20,7 @@ export function ServiceImage({
   src,
   alt,
   fallbackSrc = DEFAULT_SERVICE_IMAGE_URL,
+  category: _category,
   onError,
   ...props
 }: ServiceImageProps) {
