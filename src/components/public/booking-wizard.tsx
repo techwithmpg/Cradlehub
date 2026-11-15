@@ -526,6 +526,7 @@ export function BookingWizard({
   });
   const [formError, setFormError] = useState("");
   const [smsConsentChoice, setSmsConsentChoice] = useState<SmsConsentChoice>(null);
+  const [promotionalSmsOptIn, setPromotionalSmsOptIn] = useState(false);
   const [placesStatus, setPlacesStatus] = useState<PlacesAutocompleteStatus>("idle");
   const [hsQuote, setHsQuote] = useState<HomeServiceDistanceQuote | null>(null);
   const [hsQuoteLoading, setHsQuoteLoading] = useState(false);
@@ -1232,7 +1233,8 @@ export function BookingWizard({
         startTime: selectedSlot!.slot_time,
         fullName: form.fullName,
         phone: form.phone,
-        smsConsentChoice: smsConsentChoice ?? undefined,
+        smsConsentChoice: mode === "inhouse" ? (smsConsentChoice ?? undefined) : undefined,
+        promotionalSmsOptIn: mode === "public" ? promotionalSmsOptIn : undefined,
         email: form.email || undefined,
         notes: form.notes || undefined,
         idempotencyKey: attemptId,
@@ -1283,6 +1285,7 @@ export function BookingWizard({
               : "Our team will review the schedule and confirm your appointment shortly.",
         });
         setSmsConsentChoice(null); // Never preselect SMS on a subsequent booking.
+        setPromotionalSmsOptIn(false); // Never preselect promotional consent on a subsequent booking.
         setSuccess({
           bookingId: result.bookingId,
           orderId: "orderId" in result ? (result.orderId as string) : undefined,
@@ -1338,6 +1341,7 @@ export function BookingWizard({
     selectedStaffForBooking,
     form,
     smsConsentChoice,
+    promotionalSmsOptIn,
     mode,
     isHomeService,
     successStep,
@@ -1790,6 +1794,8 @@ export function BookingWizard({
                   onSelectStaff={setSelectedStaff}
                   smsConsentChoice={smsConsentChoice}
                   onSmsConsentChange={setSmsConsentChoice}
+                  promotionalSmsOptIn={promotionalSmsOptIn}
+                  onPromotionalSmsOptInChange={setPromotionalSmsOptIn}
                 />
               )}
               {currentStepName === "success" && success && (
@@ -3495,7 +3501,36 @@ function StepLocation({
 
 type SmsConsentChoice = "opt_in" | "opt_out" | null;
 
-/** Optional, never preselected. No marketing consent is implied. */
+/** Promotional opt-in is strictly optional, unchecked by default, and separate from transactional updates. */
+function PromotionalSmsOptInField({
+  checked,
+  onChange,
+}: {
+  checked: boolean;
+  onChange?: (checked: boolean) => void;
+}) {
+  return (
+    <label
+      htmlFor="wizard-promotional-sms"
+      className="flex cursor-pointer items-start gap-2.5 text-[12px] leading-5 text-[#10261D]"
+    >
+      <input
+        id="wizard-promotional-sms"
+        name="promotionalSmsOptIn"
+        type="checkbox"
+        checked={checked}
+        onChange={(event) => onChange?.(event.target.checked)}
+        className="mt-0.5 h-4 w-4 shrink-0 rounded border-[#D4CBB3] accent-[#163A2B]"
+      />
+      <span>
+        I&apos;d like to receive special offers, promotions, and wellness updates from Cradle
+        Wellness Living. (Optional)
+      </span>
+    </label>
+  );
+}
+
+/** In-house CRM prompt, optional and never preselected. No marketing consent is implied. */
 function SmsConsentField({ choice, onChange, mode }: {
   choice: SmsConsentChoice;
   onChange: (choice: SmsConsentChoice) => void;
@@ -3579,8 +3614,8 @@ export function PublicStepDetails({
   selectedSlot,
   selectedStaff,
   onSelectStaff,
-  smsConsentChoice,
-  onSmsConsentChange,
+  promotionalSmsOptIn = false,
+  onPromotionalSmsOptInChange,
 }: {
   form: DetailsForm;
   onChange: (form: DetailsForm) => void;
@@ -3592,8 +3627,8 @@ export function PublicStepDetails({
   selectedSlot: Slot | null;
   selectedStaff: "auto" | string;
   onSelectStaff: (choice: "auto" | string) => void;
-  smsConsentChoice: SmsConsentChoice;
-  onSmsConsentChange: (choice: SmsConsentChoice) => void;
+  promotionalSmsOptIn?: boolean;
+  onPromotionalSmsOptInChange?: (checked: boolean) => void;
 }) {
   const [therapistOpen, setTherapistOpen] = useState(false);
   // Recompute on every keystroke, including paste and autofill.
@@ -3669,7 +3704,7 @@ export function PublicStepDetails({
             type="tel"
             inputMode="tel"
             autoComplete="tel-national"
-            aria-describedby="wizard-phone-help"
+            aria-describedby={phoneFeedback.status !== "hint" ? "wizard-phone-help" : undefined}
             aria-invalid={phoneError}
             required
             value={form.phone}
@@ -3677,24 +3712,30 @@ export function PublicStepDetails({
             placeholder="e.g. 0917 123 4567"
             className={`${PUBLIC_INPUT_CLS} ${phoneError ? "border-red-400/70" : ""}`}
           />
-          <p
-            id="wizard-phone-help"
-            aria-live="polite"
-            aria-atomic="true"
-            className={`mt-1 min-h-5 text-[12px] leading-5 ${
-              phoneError
-                ? "text-red-200"
-                : phoneFeedback.status === "valid"
-                  ? "text-emerald-200"
-                  : "text-[#4C5A52]"
-            }`}
-          >
-            {phoneFeedback.message}
-          </p>
+          {phoneFeedback.status !== "hint" && (
+            <p
+              id="wizard-phone-help"
+              aria-live="polite"
+              aria-atomic="true"
+              className={`mt-1 text-[12px] leading-5 ${
+                phoneError ? "text-red-700" : "text-emerald-800"
+              }`}
+            >
+              {phoneFeedback.message}
+            </p>
+          )}
         </div>
       </div>
 
-      <SmsConsentField choice={smsConsentChoice} onChange={onSmsConsentChange} mode="public" />
+      <div className="space-y-2">
+        <p className="text-[12px] leading-5 text-[#4C5A52]">
+          Booking updates &amp; reminders apply automatically. Contact our front desk to opt out.
+        </p>
+        <PromotionalSmsOptInField
+          checked={promotionalSmsOptIn}
+          onChange={onPromotionalSmsOptInChange}
+        />
+      </div>
 
       <div>
         <div className="mb-1 flex items-baseline justify-between gap-2">
@@ -3791,6 +3832,8 @@ function StepDetails({
   onSelectStaff,
   smsConsentChoice,
   onSmsConsentChange,
+  promotionalSmsOptIn = false,
+  onPromotionalSmsOptInChange,
 }: {
   form: DetailsForm;
   onChange: (f: DetailsForm) => void;
@@ -3808,6 +3851,8 @@ function StepDetails({
   onSelectStaff: (choice: "auto" | string) => void;
   smsConsentChoice: SmsConsentChoice;
   onSmsConsentChange: (choice: SmsConsentChoice) => void;
+  promotionalSmsOptIn?: boolean;
+  onPromotionalSmsOptInChange?: (checked: boolean) => void;
 }) {
   const publicDetails =
     mode === "public" ? (
@@ -3822,8 +3867,8 @@ function StepDetails({
         selectedSlot={selectedSlot}
         selectedStaff={selectedStaff}
         onSelectStaff={onSelectStaff}
-        smsConsentChoice={smsConsentChoice}
-        onSmsConsentChange={onSmsConsentChange}
+        promotionalSmsOptIn={promotionalSmsOptIn}
+        onPromotionalSmsOptInChange={onPromotionalSmsOptInChange}
       />
     ) : null;
 

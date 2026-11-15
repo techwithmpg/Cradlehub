@@ -1,5 +1,10 @@
 import { describe, expect, it } from "vitest";
-import { consentMatchesVisit, phoneMatchesConsentContact } from "./consent-policy";
+import {
+  buildPromotionalSmsConsentMetadata,
+  consentMatchesVisit,
+  isPromotionalSmsPermitted,
+  phoneMatchesConsentContact,
+} from "./consent-policy";
 import type { SmsVisit } from "./policy";
 
 const visit: SmsVisit = {
@@ -39,5 +44,80 @@ describe("visit-scoped customer SMS consent", () => {
     expect(phoneMatchesConsentContact("09123456789", "09999999999")).toBe(false);
     expect(phoneMatchesConsentContact("+12025550123", "+12025550123")).toBe(false);
     expect(phoneMatchesConsentContact("", "09123456789")).toBe(false);
+  });
+
+  it("never enables marketing messages from unchecked consent or transactional-only permission", () => {
+    const unchecked = buildPromotionalSmsConsentMetadata({
+      explicitOptIn: false,
+      phone: "09123456789",
+      source: "public_booking",
+    });
+    expect(unchecked).toEqual({
+      opted_in: false,
+      status: "not_opted_in",
+      scope: "marketing",
+      consent_source: null,
+      phone_e164: null,
+    });
+    expect(
+      isPromotionalSmsPermitted({
+        phone: "09123456789",
+        customerId: "customer-one",
+        bookingMetadataConsent: unchecked,
+      })
+    ).toBe(false);
+
+    // Transactional preference row without explicit promotional opt-in must fail closed for marketing
+    expect(
+      isPromotionalSmsPermitted({
+        phone: "09123456789",
+        customerId: "customer-one",
+        preference: {
+          customer_id: "customer-one",
+          consented_phone_e164: "+639123456789",
+          promotional_opt_in_at: null,
+          promotional_consent_source: null,
+          opted_out_at: null,
+        },
+      })
+    ).toBe(false);
+  });
+
+  it("permits promotional messaging only with explicit opt-in, matching phone/customer, and no global opt-out", () => {
+    const checked = buildPromotionalSmsConsentMetadata({
+      explicitOptIn: true,
+      phone: "0912 345 6789",
+      source: "public_booking",
+    });
+    expect(checked).toEqual({
+      opted_in: true,
+      status: "opted_in",
+      scope: "marketing",
+      consent_source: "public_booking",
+      phone_e164: "+639123456789",
+    });
+    expect(
+      isPromotionalSmsPermitted({
+        phone: "09123456789",
+        customerId: "customer-one",
+        bookingMetadataConsent: checked,
+      })
+    ).toBe(true);
+
+    // Global opt-out blocks promotional messaging even with affirmative metadata
+    expect(
+      isPromotionalSmsPermitted({
+        phone: "09123456789",
+        customerId: "customer-one",
+        preference: {
+          customer_id: "customer-one",
+          consented_phone_e164: "+639123456789",
+          promotional_opt_in_at: "2026-11-16T00:00:00Z",
+          promotional_consent_source: "public_booking",
+          opted_out_at: "2026-11-16T01:00:00Z",
+        },
+        bookingMetadataConsent: checked,
+      })
+    ).toBe(false);
   });
 });

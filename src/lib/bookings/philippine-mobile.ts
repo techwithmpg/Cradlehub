@@ -45,7 +45,7 @@ export function getPublicPhoneFieldFeedback(value: string): {
   if (!value.trim()) {
     return {
       status: "hint",
-      message: "Enter a Philippine mobile number starting with 09 (11 digits) or +63 9XX XXX XXXX. International numbers cannot be contacted.",
+      message: "PH mobile only (09XXXXXXXXX or +639XXXXXXXXX).",
     };
   }
 

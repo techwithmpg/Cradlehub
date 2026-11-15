@@ -1,7 +1,8 @@
 "use server";
 
 import { createAdminClient } from "@/lib/supabase/admin";
-import { captureBookingSmsConsent } from "@/lib/sms/consent";
+import { captureBookingSmsConsent, capturePromotionalSmsConsent } from "@/lib/sms/consent";
+import { buildPromotionalSmsConsentMetadata } from "@/lib/sms/consent-policy";
 import { isPastSlot, BRANCH_TIMEZONE } from "@/lib/engine/slot-time";
 import type { Json } from "@/types/supabase";
 import {
@@ -369,9 +370,20 @@ export async function createOnlineBookingAction(
       groupBookingIds: [],
     });
 
-    const combinedMetadata = { ...baseMetadata, ...orderMetadata,
-      price_paid: quote.calculatedPrice, duration_minutes: quote.selectedDurationMinutes,
-      commercial_snapshot: toServiceLineCommercialSnapshot(quote) };
+    const promotionalSmsConsent = buildPromotionalSmsConsentMetadata({
+      explicitOptIn: d.promotionalSmsOptIn,
+      phone: d.phone,
+      source: "public_booking",
+    });
+
+    const combinedMetadata = {
+      ...baseMetadata,
+      ...orderMetadata,
+      price_paid: quote.calculatedPrice,
+      duration_minutes: quote.selectedDurationMinutes,
+      commercial_snapshot: toServiceLineCommercialSnapshot(quote),
+      promotional_sms_consent: promotionalSmsConsent,
+    };
 
     const metadata = selectedStaffException
       ? createOpenStaffScheduleException(combinedMetadata, {
@@ -528,6 +540,16 @@ export async function createOnlineBookingAction(
     if (d.smsConsentChoice) {
       await captureBookingSmsConsent({ bookingId: booking.id, orderId, customerId: resolvedCustomerId,
         phone: d.phone, choice: d.smsConsentChoice, source: "public_booking" });
+    }
+    if (d.promotionalSmsOptIn === true) {
+      await capturePromotionalSmsConsent({
+        bookingId: booking.id,
+        orderId,
+        customerId: resolvedCustomerId,
+        phone: d.phone,
+        explicitOptIn: true,
+        source: "public_booking",
+      });
     }
     return {
       ok: true,
@@ -1092,6 +1114,12 @@ export async function createOnlineBookingMultiAction(
       }
     }
 
+    const promotionalSmsConsent = buildPromotionalSmsConsentMetadata({
+      explicitOptIn: d.promotionalSmsOptIn,
+      phone: d.phone,
+      source: "public_booking",
+    });
+
     const orderMetadata: Record<string, unknown> = {
       booking_for: bookingFor,
       payment_choice: paymentChoice,
@@ -1102,6 +1130,7 @@ export async function createOnlineBookingMultiAction(
       total_attendees: attendees.length,
       total_services: atomicServiceLines.length,
       total_duration_minutes: totalDurationMinutes,
+      promotional_sms_consent: promotionalSmsConsent,
       organizer: {
         full_name: d.fullName,
         phone: d.phone,
@@ -1299,6 +1328,16 @@ export async function createOnlineBookingMultiAction(
     if (d.smsConsentChoice) {
       await captureBookingSmsConsent({ bookingId: primaryBookingId, orderId, customerId: resolvedCustomerId,
         phone: d.phone, choice: d.smsConsentChoice, source: "public_booking" });
+    }
+    if (d.promotionalSmsOptIn === true) {
+      await capturePromotionalSmsConsent({
+        bookingId: primaryBookingId,
+        orderId,
+        customerId: resolvedCustomerId,
+        phone: d.phone,
+        explicitOptIn: true,
+        source: "public_booking",
+      });
     }
 
     return {

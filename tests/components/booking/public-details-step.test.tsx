@@ -37,9 +37,9 @@ const form = {
 };
 
 describe("public Details step", () => {
-  it("keeps required contact fields and therapist choice visible while disclosing optional fields on request", () => {
+  it("keeps required contact fields, automatic updates note, and unchecked optional promotional consent visible", () => {
     const onChange = vi.fn();
-    const onSmsConsentChange = vi.fn();
+    const onPromotionalSmsOptInChange = vi.fn();
     render(
       <PublicStepDetails
         form={form}
@@ -54,8 +54,8 @@ describe("public Details step", () => {
         selectedSlot={null}
         selectedStaff="auto"
         onSelectStaff={vi.fn()}
-        smsConsentChoice={null}
-        onSmsConsentChange={onSmsConsentChange}
+        promotionalSmsOptIn={false}
+        onPromotionalSmsOptInChange={onPromotionalSmsOptInChange}
       />
     );
 
@@ -67,18 +67,31 @@ describe("public Details step", () => {
     expect(screen.getByRole("textbox", { name: /Full name/i })).toBeTruthy();
     expect(screen.getByRole("textbox", { name: /Phone number/i })).toBeTruthy();
     expect(
+      screen.getByText(/Booking updates & reminders apply automatically/i)
+    ).toBeTruthy();
+    expect(
+      screen.queryByText(/Enter a Philippine mobile number starting with 09/i)
+    ).toBeNull();
+    expect(
       screen.getByRole("button", { name: /Choose a therapist: Any available therapist/ })
         .textContent
     ).toContain("Any available therapist");
     expect(screen.getByText(/2 guests · We'll assign one qualified therapist/i)).toBeTruthy();
-    const yes = screen.getByRole("radio", { name: /Yes, send appointment text messages/i }) as HTMLInputElement;
-    const no = screen.getByRole("radio", { name: /No, do not send texts for this appointment/i }) as HTMLInputElement;
-    expect(yes.checked).toBe(false);
-    expect(no.checked).toBe(false);
-    fireEvent.click(yes);
-    expect(onSmsConsentChange).toHaveBeenCalledWith("opt_in");
-    fireEvent.click(no);
-    expect(onSmsConsentChange).toHaveBeenCalledWith("opt_out");
+
+    // Oversized transactional SMS radio panel is removed from public booking details step
+    expect(screen.queryByRole("radio", { name: /Yes, send appointment text messages/i })).toBeNull();
+    expect(
+      screen.queryByRole("radio", { name: /No, do not send texts for this appointment/i })
+    ).toBeNull();
+
+    // Single compact promotional consent checkbox, unchecked by default
+    const promoCheckbox = screen.getByRole("checkbox", {
+      name: "I'd like to receive special offers, promotions, and wellness updates from Cradle Wellness Living. (Optional)",
+    }) as HTMLInputElement;
+    expect(promoCheckbox.checked).toBe(false);
+    fireEvent.click(promoCheckbox);
+    expect(onPromotionalSmsOptInChange).toHaveBeenCalledWith(true);
+
     expect(screen.queryByRole("textbox", { name: /Email/i })).toBeNull();
     expect(screen.queryByRole("textbox", { name: /Special requests/i })).toBeNull();
 

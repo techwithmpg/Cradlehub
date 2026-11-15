@@ -22,6 +22,19 @@ describe("public release hardening contracts", () => {
     expect(createOnlineBookingSchema.safeParse(validSingle).success).toBe(true);
   });
 
+  it("allows single and multi public bookings without promotional SMS opt-in and accepts explicit opt-in", () => {
+    const { serviceId, ...validMultiBase } = validSingle;
+    const validMulti = { ...validMultiBase, serviceIds: [serviceId] };
+
+    expect(createOnlineBookingSchema.safeParse(validSingle).success).toBe(true);
+    expect(createOnlineBookingSchema.safeParse({ ...validSingle, promotionalSmsOptIn: false }).success).toBe(true);
+    expect(createOnlineBookingSchema.safeParse({ ...validSingle, promotionalSmsOptIn: true }).success).toBe(true);
+
+    expect(createOnlineBookingMultiSchema.safeParse(validMulti).success).toBe(true);
+    expect(createOnlineBookingMultiSchema.safeParse({ ...validMulti, promotionalSmsOptIn: false }).success).toBe(true);
+    expect(createOnlineBookingMultiSchema.safeParse({ ...validMulti, promotionalSmsOptIn: true }).success).toBe(true);
+  });
+
   it("classifies couples, besties, parties, and configured services as consultation only", () => {
     expect(isConsultationOnlyService({ name: "Couples Massage" })).toBe(true);
     expect(isConsultationOnlyService({ name: "Heavenly Harmony Besties Spa" })).toBe(true);

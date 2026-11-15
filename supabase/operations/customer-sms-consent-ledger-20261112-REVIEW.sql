@@ -15,6 +15,8 @@ CREATE TABLE IF NOT EXISTS public.customer_sms_preferences (
   consented_phone_e164 text,
   transactional_opt_in_at timestamptz,
   consent_source text,
+  promotional_opt_in_at timestamptz,
+  promotional_consent_source text,
   opted_out_at timestamptz,
   updated_at timestamptz NOT NULL DEFAULT now(),
   CONSTRAINT customer_sms_preferences_phone_ck CHECK (
@@ -23,6 +25,10 @@ CREATE TABLE IF NOT EXISTS public.customer_sms_preferences (
   CONSTRAINT customer_sms_preferences_consent_ck CHECK (
     transactional_opt_in_at IS NULL OR
       (consented_phone_e164 IS NOT NULL AND nullif(trim(consent_source), '') IS NOT NULL)
+  ),
+  CONSTRAINT customer_sms_preferences_promotional_ck CHECK (
+    promotional_opt_in_at IS NULL OR
+      (consented_phone_e164 IS NOT NULL AND nullif(trim(promotional_consent_source), '') IS NOT NULL)
   )
 );
 ALTER TABLE public.customer_sms_preferences ENABLE ROW LEVEL SECURITY;
